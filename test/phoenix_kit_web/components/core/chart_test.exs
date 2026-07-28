@@ -68,16 +68,29 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
     end
   end
 
-  # A path whose endpoints coincide is syntactically a segment and visually
+  # A path whose points all coincide is syntactically a path and visually
   # nothing at all — which is exactly how a broken single-point chart passed.
-  defp assert_visible_segment(html) do
-    xs =
+  # A dot counts: it is what a lone point renders as, and it paints.
+  defp assert_visible_mark(html) do
+    points =
       stroked_path(html)
-      |> then(&Regex.scan(~r/[ML]([-\d.eE+]+),/, &1))
-      |> Enum.map(fn [_, x] -> elem(Float.parse(x), 0) end)
+      |> then(&Regex.scan(~r/[ML]([-\d.eE+]+),([-\d.eE+]+)/, &1))
+      |> Enum.map(fn [_, x, y] -> {x, y} end)
+      |> Enum.uniq()
 
-    assert length(Enum.uniq(xs)) > 1,
-           "the stroked path has zero length, so it paints nothing: #{inspect(xs)}"
+    assert length(points) > 1 or html =~ "<circle",
+           "nothing is painted: the path collapses to #{inspect(points)} and there is no dot"
+  end
+
+  # A dot placed off-canvas paints nothing either, so single-point charts have
+  # to prove the mark is where a viewer can see it.
+  defp assert_dot_within_viewbox(html, width, height) do
+    [_, cx, cy] = Regex.run(~r/<circle[^>]*cx="([\d.-]+)"[^>]*cy="([\d.-]+)"/, html)
+    {cx, ""} = Float.parse(cx)
+    {cy, ""} = Float.parse(cy)
+
+    assert cx >= 0 and cx <= width and cy >= 0 and cy <= height,
+           "the dot sits at #{cx},#{cy}, outside the #{width}x#{height} viewBox"
   end
 
   # A rect outside the viewBox is clipped away, so "height > 0" is not the same
@@ -159,7 +172,8 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
 
       # Assert the OUTCOME, not the shape of the markup: `M0,120 L0,120`
       # satisfies a "has a segment" regex perfectly and paints nothing at all.
-      assert_visible_segment(html)
+      assert_visible_mark(html)
+      assert_dot_within_viewbox(html, 960, 240)
     end
 
     test "a single point is visible under the default (auto) domain too" do
@@ -177,8 +191,64 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
             render(~H|<.line_chart id="c" data={[{5, 3}]} />|)
           end
 
-        assert_visible_segment(html)
+        assert_visible_mark(html)
+        # A collapsed domain has no left or right, so the mark belongs at the
+        # centre — pinned to x=0 half its stroke falls outside the viewBox.
+        assert_dot_within_viewbox(html, 960, 240)
       end
+    end
+
+    test "two points sharing an x keep both values" do
+      # Widening a collapsed x-span into a full-width horizontal line kept only
+      # the first y and silently dropped the second — a plausible-looking flat
+      # line with half the data missing, and no :empty slot to signal it.
+      assigns = %{}
+      html = render(~H|<.line_chart id="c" data={[{5, 10}, {5, 90}]} y_domain={{0, 100}} />|)
+
+      ys =
+        stroked_path(html)
+        |> then(&Regex.scan(~r/[ML][\d.-]+,([\d.-]+)/, &1))
+        |> Enum.map(fn [_, y] -> y end)
+        |> Enum.uniq()
+
+      assert length(ys) == 2, "both values must be plotted, got #{inspect(ys)}"
+    end
+
+    test "a series with a small range on a huge baseline still shows its shape" do
+      # Padding by a fraction of the MAGNITUDE swamped the range: 1.0e12-scale
+      # counters differing by 100 flattened onto one row of pixels.
+      assigns = %{}
+
+      html =
+        render(
+          ~H|<.line_chart id="c" data={[{0, 1.0e12}, {1, 1.0e12 + 50}, {2, 1.0e12 + 100}]} />|
+        )
+
+      ys =
+        stroked_path(html)
+        |> then(&Regex.scan(~r/[ML][\d.-]+,([\d.-]+)/, &1))
+        |> Enum.map(fn [_, y] -> y end)
+        |> Enum.uniq()
+
+      assert length(ys) > 1, "real variation collapsed to a flat line: #{inspect(ys)}"
+    end
+
+    test "a datum outside an explicit domain is not painted across the chart" do
+      # Widening a zero-length path asserted the value across the whole domain
+      # for a sample that is not in it. Out-of-domain data belongs off-canvas.
+      assigns = %{}
+      html = render(~H|<.line_chart id="c" data={[{150, 5}]} step x_domain={{0, 100}} />|)
+
+      [_, cx] = Regex.run(~r/<circle[^>]*cx="([\d.-]+)"/, html)
+      {cx, ""} = Float.parse(cx)
+
+      assert cx > 960, "an out-of-domain point was drawn inside the viewBox at #{cx}"
+    end
+
+    test "values at the float ceiling do not crash the render" do
+      assigns = %{}
+
+      assert render(~H|<.line_chart id="c" data={[{0, 1.7976931348623157e308}]} />|) =~ "<svg"
     end
 
     test "negative values render finite geometry" do
@@ -576,6 +646,22 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
       assigns = %{data: [%{label: {:a, :b}, value: 1}, %{label: %{k: 1}, value: 2}]}
 
       assert render(~H|<.bar_chart id="b" data={@data} />|) =~ "<rect"
+    end
+
+    test "a small negative among large positives stays inside the viewBox" do
+      # The baseline lands ON the bottom edge here, so a hairline hung from it
+      # spanned height..height+1 — clipped away, and the datum vanished.
+      assigns = %{data: [%{label: "a", value: 1.0e6}, %{label: "b", value: -1}]}
+
+      assert_bars_within_viewbox(render(~H|<.bar_chart id="b" data={@data} />|), 200)
+    end
+
+    test "a visible label without String.Chars does not crash the render" do
+      # The tooltip path was guarded but the rendered label was not, so
+      # show_labels turned the same bad datum back into a page crash.
+      assigns = %{data: [%{label: [date: "2026-07-29"], value: 5}]}
+
+      assert render(~H|<.bar_chart id="b" data={@data} show_labels />|) =~ "<rect"
     end
 
     test "a per-datum class colours a single bar" do

@@ -41,8 +41,24 @@ coloured by cheapness). Backward compatible; default nil.
 
 ## What the review pass changed
 
-The components were handed over deliberately untested. Testing plus two external
-review rounds (grok / kimi / codex / zai / vibe) found these:
+The components were handed over deliberately untested. Testing plus **four**
+external review rounds (grok / kimi / codex / zai / vibe / agy) found these.
+
+Rounds 2, 3 and 4 each found defects **in the previous round's fixes** — worth
+recording, because it is the reason the sweeps kept going. A fix aimed at a
+narrow symptom repeatedly re-created the same class of bug on a path it did not
+touch: flooring a bar's height without moving its `y` pushed it out of the
+viewBox exactly as the zero-height bar had been invisible; widening a
+zero-length path so a lone point would paint made it paint a full-width line
+for out-of-domain data and threw away the second value of any same-x pair; and
+a magnitude-relative y padding that rescued huge *flat* series swamped the
+signal in huge *near-flat* ones.
+
+The round-4 resolution was to stop patching symptoms and fix the cause: a
+collapsed domain now scales to the **centre** (the same treatment a flat y
+series already got), and a path that genuinely paints nothing renders a **dot**
+at the point's true position rather than a fabricated line across a range
+nobody measured.
 
 **Crashes and silent failures**
 

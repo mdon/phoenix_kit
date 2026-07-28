@@ -140,6 +140,15 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
           vector-effect="non-scaling-stroke"
         />
 
+        <circle
+          :if={@geometry.dot}
+          cx={@geometry.dot.x}
+          cy={@geometry.dot.y}
+          r="3"
+          fill="currentColor"
+          vector-effect="non-scaling-stroke"
+        />
+
         <line
           :if={@geometry.marker_x}
           x1={@geometry.marker_x}
@@ -369,13 +378,13 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         {x_min, x_max} = normalize_domain(assigns.x_domain, minmax_x(data))
         {y_min, y_max} = normalize_domain(assigns.y_domain, padded_y_domain(data))
 
-        x_span = max(x_max - x_min, 1.0e-9)
-        y_span = max(y_max - y_min, 1.0e-9)
+        to_x = axis_scale(x_min, x_max, width)
+        to_y = axis_scale(y_min, y_max, height)
 
-        px = fn x -> round1((x - x_min) / x_span * width) end
-        py = fn y -> round1(height - (y - y_min) / y_span * height) end
+        px = fn x -> round1(to_x.(x)) end
+        py = fn y -> round1(height - to_y.(y)) end
 
-        points = plot_points(data, assigns.step, px, py, x_max, width)
+        points = plot_points(data, assigns.step, px, py, x_max)
         line_path = to_path(points)
         {first_x, _} = List.first(points)
         {last_x, _} = List.last(points)
@@ -384,14 +393,21 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
           line_path: line_path,
           area_path: "#{line_path} L#{last_x},#{height} L#{first_x},#{height} Z",
           gridlines: gridline_positions(assigns.gridlines, height),
-          marker_x: marker_position(assigns.marker_x, x_min, x_max, px)
+          marker_x: marker_position(assigns.marker_x, x_min, x_max, px),
+          # A path whose points all coincide is a valid `M x,y` that paints
+          # NOTHING, and one datum is a real state (the day's first slot, a
+          # metric with a single sample). Marking the point is the honest fix:
+          # widening it into a full-width line asserts a reading across a range
+          # that was never measured, and did exactly that for out-of-domain
+          # data too.
+          dot: collapsed_point(points)
         }
     end
   end
 
   # Right-open steps: each y holds until the next x, and the last extends to
   # the domain's right edge — the correct reading for interval data.
-  defp plot_points(data, true = _step, px, py, x_max, width) do
+  defp plot_points(data, true = _step, px, py, x_max) do
     data
     |> Enum.chunk_every(2, 1)
     |> Enum.flat_map(fn
@@ -401,32 +417,32 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
       # edge would draw a segment back leftward across the chart.
       [{x, y}] -> [{px.(x), py.(y)}, {max(px.(x), px.(x_max)), py.(y)}]
     end)
-    |> widen_degenerate(width)
   end
 
-  # A lone point is a valid `M x,y` path that paints NOTHING. One datum is a
-  # real case (the first slot of the day, a metric with a single sample), so
-  # hold its value across the range instead.
-  defp plot_points([{_x, y}], false = _step, _px, py, _x_max, width) do
-    y_px = py.(y)
-    [{0.0, y_px}, {round1(width * 1.0), y_px}]
+  defp plot_points(data, false = _step, px, py, _x_max) do
+    Enum.map(data, fn {x, y} -> {px.(x), py.(y)} end)
   end
 
-  defp plot_points(data, false = _step, px, py, _x_max, width) do
-    data
-    |> Enum.map(fn {x, y} -> {px.(x), py.(y)} end)
-    |> widen_degenerate(width)
+  # A degenerate domain (one x, or an explicit zero-span) has no left or right:
+  # every value belongs at the CENTRE, exactly as a flat y series centres
+  # vertically. Dividing by a 1.0e-9 floor instead pinned everything to the
+  # left edge, where half of each stroke is clipped away.
+  defp axis_scale(lo, hi, extent) when hi > lo do
+    span = hi - lo
+    fn v -> (v - lo) / span * extent end
   end
 
-  # An auto domain over a single x collapses the span to the 1.0e-9 floor, so
-  # every x maps to 0 and the "segment" has zero length — a path that paints
-  # nothing, which is the exact failure the single-point handling exists to
-  # prevent. Spanning the viewBox is what makes the value visible.
-  defp widen_degenerate([{x1, y1}, {x2, _y2}], width) when x1 == x2 do
-    [{0.0, y1}, {round1(width * 1.0), y1}]
-  end
+  defp axis_scale(_lo, _hi, extent), do: fn _v -> extent / 2 end
 
-  defp widen_degenerate(points, _width), do: points
+  # Only a path whose points ALL coincide paints nothing. Two points sharing an
+  # x still draw a vertical segment, and collapsing that to one y silently
+  # threw the other value away.
+  defp collapsed_point(points) do
+    case Enum.uniq(points) do
+      [{x, y}] -> %{x: x, y: y}
+      _ -> nil
+    end
+  end
 
   defp to_path(points) do
     points
@@ -476,14 +492,33 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
 
   defp padded_y_domain(data) do
     {y_min, y_max} = data |> Enum.map(&elem(&1, 1)) |> Enum.min_max()
-    {y_min - y_pad(y_min, y_max), y_max + y_pad(y_min, y_max)}
+    pad = y_pad(y_min, y_max)
+
+    # Values within a hair of the float ceiling overflow on the way to
+    # Infinity, which raises. Falling back to the unpadded domain draws a
+    # clipped stroke; it does not take the page down.
+    try do
+      {y_min - pad, y_max + pad}
+    rescue
+      ArithmeticError -> {y_min, y_max}
+    end
   end
 
-  # Relative, not absolute: past roughly 1.0e7 a flat 1.0e-9 is below one ULP,
-  # so a flat series of byte counts or view counts lost its padding entirely
-  # and sank onto the axis with half its stroke clipped.
-  defp y_pad(y_min, y_max) do
-    max((y_max - y_min) * 0.1, max(abs(y_max), abs(y_min)) * 1.0e-6) + 1.0e-9
+  # A tenth of the range whenever there IS a range — a magnitude-relative pad
+  # would swamp it, so a series of 1.0e12 counts differing by 100 flattened to
+  # a single row of pixels. The magnitude term is the fallback for a genuinely
+  # flat series, where an absolute 1.0e-9 is below one ULP past roughly 1.0e7
+  # and disappears into the float, sinking the line onto the axis.
+  defp y_pad(y_min, y_max) when y_max > y_min do
+    range_pad = (y_max - y_min) * 0.1
+
+    if y_max + range_pad > y_max, do: range_pad, else: magnitude_pad(y_min, y_max)
+  end
+
+  defp y_pad(y_min, y_max), do: magnitude_pad(y_min, y_max)
+
+  defp magnitude_pad(y_min, y_max) do
+    max(max(abs(y_max), abs(y_min)) * 1.0e-6, 1.0e-9)
   end
 
   defp sparkline_points(%{values: values, width: width, height: height}) do
@@ -581,15 +616,21 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
       # IS the bottom edge, so pinning y there and adding the hairline drew the
       # rect from height..height+1 — just outside the viewBox, clipped, and
       # therefore still invisible. Non-negative bars hang from the baseline
-      # upward; negatives drop from it.
-      y = if bar.value < 0, do: baseline, else: baseline - h
+      # upward; negatives drop from it. Both then get clamped into the viewBox:
+      # a small negative among large positives puts the baseline ON the bottom
+      # edge, so the hairline hung from height..height+1 and was clipped away
+      # again — the same disappearing bar, on the other sign.
+      y =
+        if bar.value < 0, do: baseline, else: baseline - h
+
+      y = y |> max(0.0) |> min(height - h)
 
       %{
         x: round1(i * slot_w + (slot_w - bar_w) / 2),
         y: round1(y),
         w: bar_w,
         h: h,
-        label: bar.label,
+        label: label_text(bar.label),
         class: bar.class,
         title: bar_title(bar, formatter)
       }
@@ -632,12 +673,18 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   # `:label` is documented as `term`, and `bar/1` accepts anything — so a tuple
   # or a map would raise Protocol.UndefinedError from the interpolation and
   # take the page down. The module's contract is to survive one bad datum.
+  #
+  # The rescue is deliberately broad: `to_string/1` raises ArgumentError, not
+  # Protocol.UndefinedError, for a keyword list — List.Chars IS implemented for
+  # lists, it just fails on anything that isn't iodata. Naming one exception
+  # left the most plausible bad label of all still crashing.
+  defp label_text(nil), do: nil
   defp label_text(label) when is_binary(label), do: label
 
   defp label_text(label) do
     to_string(label)
   rescue
-    Protocol.UndefinedError -> inspect(label)
+    _ -> inspect(label)
   end
 
   defp display(value, formatter) when is_function(formatter, 1) do
