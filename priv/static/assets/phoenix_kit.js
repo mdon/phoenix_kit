@@ -1417,6 +1417,135 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // PopupLink Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Opens a same-origin link in a named popup instead of navigating the page.
+  // Nothing about it is OAuth-specific — connect_account_button/1 is simply its
+  // first consumer. Replaces an inline onclick= (CSP-hostile, and the kit
+  // removed inline handlers everywhere else for the same reason).
+  //
+  // The element is a real <a href>, so this degrades correctly: with JS off, or
+  // when the popup is blocked, the browser performs the normal full-page
+  // navigation rather than dead-ending on a cancelled click.
+  //
+  // Geometry and window name come from data attributes so nothing is
+  // interpolated into a script string.
+  //
+  // Usage:
+  //   <a href="/oauth/start" phx-hook="PopupLink"
+  //      data-window-name="oauth-connect" data-window-width="480"
+  //      data-window-height="680">Connect</a>
+  //
+  // ---------------------------------------------------------------------------
+
+  // Pure: should this click be turned into a popup at all? A user asking for a
+  // new tab (middle-click, cmd/ctrl-click) or a handler that already claimed
+  // the event must be left alone.
+  function shouldOpenPopup(event) {
+    if (!event) return false;
+    if (event.defaultPrevented) return false;
+    if (typeof event.button === "number" && event.button !== 0) return false;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+    return true;
+  }
+
+  // Pure: window.open feature string, centred on the screen the browser window
+  // is actually on. screenLeft/Top describe the WINDOW, so a multi-monitor
+  // setup needs them as the origin — centring on innerWidth alone throws the
+  // popup onto the primary display.
+  function popupFeatures(width, height, view) {
+    var v = view || {};
+    var w = Math.max(1, parseInt(width, 10) || 480);
+    var h = Math.max(1, parseInt(height, 10) || 680);
+
+    var originX = v.screenLeft !== undefined ? v.screenLeft : (v.screenX || 0);
+    var originY = v.screenTop !== undefined ? v.screenTop : (v.screenY || 0);
+    var outerW = v.outerWidth || w;
+    var outerH = v.outerHeight || h;
+
+    // Clamp the OFFSET, not the final coordinate: a monitor left of, or above,
+    // the primary one has negative screen coordinates, and flooring those at 0
+    // threw the popup back onto the primary display.
+    var left = Math.round(originX + Math.max(0, (outerW - w) / 2));
+    var top = Math.round(originY + Math.max(0, (outerH - h) / 2));
+
+    return (
+      "width=" + w + ",height=" + h + ",left=" + left + ",top=" + top +
+      ",menubar=no,toolbar=no,location=yes,status=no,resizable=yes,scrollbars=yes"
+    );
+  }
+
+  // Pure: is this link one we may open in a popup at all? The popup keeps its
+  // `window.opener`, so a cross-origin target would hand that reference away.
+  // The Elixir component enforces this too, but the bundle is copied verbatim
+  // into host apps and the hook is a public name — a host wiring it onto an
+  // arbitrary <a> must not be able to bypass the rule.
+  function sameOrigin(href, base) {
+    // A non-string href would otherwise be stringified and resolved as a
+    // RELATIVE path ("undefined"), which lands back on our own origin and
+    // quietly passes the check.
+    if (typeof href !== "string" || href === "") return false;
+
+    try {
+      return new URL(href, base).origin === new URL(base).origin;
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  window.PhoenixKitHooks.PopupLink = {
+    mounted() {
+      this.onClick = (event) => {
+        if (!shouldOpenPopup(event)) return;
+
+        var el = this.el;
+        if (!sameOrigin(el.href, window.location.href)) return;
+
+        var name = el.dataset.windowName || "oauth-connect";
+        var features = popupFeatures(el.dataset.windowWidth, el.dataset.windowHeight, window);
+
+        var popup;
+        try {
+          popup = window.open(el.href, name, features);
+        } catch (_err) {
+          popup = null;
+        }
+
+        // Blocked or failed → let the click through so the plain href still
+        // starts the flow full-page. Cancelling here unconditionally is what
+        // made the old inline onclick a dead button behind a popup blocker.
+        // Some blockers hand back a window that is already closed, and others
+        // return one whose `closed` is undefined — treat both as blocked.
+        if (!popup || popup.closed || typeof popup.closed === "undefined") return;
+
+        event.preventDefault();
+        try {
+          popup.focus();
+        } catch (_err) {
+          /* focus is best-effort; a blocked focus must not break the flow */
+        }
+      };
+
+      this.el.addEventListener("click", this.onClick);
+    },
+
+    destroyed() {
+      if (this.onClick) {
+        this.el.removeEventListener("click", this.onClick);
+        this.onClick = null;
+      }
+    }
+  };
+
+  // Exported for the Node test harness (test/js); harmless in a browser.
+  if (typeof module === "object" && module.exports) {
+    module.exports.shouldOpenPopup = shouldOpenPopup;
+    module.exports.popupFeatures = popupFeatures;
+    module.exports.sameOrigin = sameOrigin;
+  }
+
+  // ---------------------------------------------------------------------------
   // MarkdownEditor
   //
   // Drives the core MarkdownEditor LiveComponent's textarea: cursor tracking,

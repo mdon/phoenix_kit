@@ -47,7 +47,15 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
         </:icon>
       </.stat_card>
   """
-  attr :rounded, :string, default: "xl", doc: "Border radius size (xl, 2xl, etc.)"
+  attr :rounded, :string,
+    default: "box",
+    values: ["box", "none", "sm", "md", "lg", "xl", "2xl", "3xl", "full"],
+    doc:
+      "Border radius. Was previously declared but ignored — the class was hardcoded. " <>
+        "The values are a fixed list because Tailwind scans SOURCE for literal class " <>
+        "names: an interpolated class is invisible to it, so the CSS " <>
+        "would simply not exist for anything not already written literally elsewhere."
+
   attr :compact, :boolean, default: false, doc: "Use compact layout with reduced height"
   attr :value, :any, required: true, doc: "The main statistic value to display"
   attr :title, :string, required: true, doc: "The card title text"
@@ -59,13 +67,22 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
     doc:
       "Background color theme (info, primary, success, secondary, warning, error, accent, neutral)"
 
+  attr :value_color, :string,
+    default: nil,
+    doc:
+      "Optional CSS color for the value itself — for values whose color IS information " <>
+        "(a price colored by cheapness, a temperature by severity). E.g. \"hsl(140 85% 55%)\". " <>
+        "Any `;` is stripped so the value cannot append further declarations; every " <>
+        "legitimate colour syntax (hsl/oklch/var/color-mix) is unaffected."
+
   slot :icon, required: true, doc: "Icon to display in the card header"
 
   def stat_card(assigns) do
     ~H"""
     <div class={[
       color_classes(@color),
-      "rounded-box shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105",
+      rounded_class(@rounded),
+      "shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105",
       if(@compact, do: "p-4", else: "p-6")
     ]}>
       <%= if @compact do %>
@@ -75,7 +92,9 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
             {render_slot(@icon)}
           </div>
           <div class="flex-1">
-            <div class="text-2xl font-bold mb-1">{@value}</div>
+            <div class="text-2xl font-bold mb-1" {value_style(@value_color)}>
+              {@value}
+            </div>
             <div class="opacity-90 font-medium text-sm">{@title}</div>
             <div class="opacity-70 text-xs">{@subtitle}</div>
           </div>
@@ -87,7 +106,9 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
             {render_slot(@icon)}
           </div>
         </div>
-        <div class="text-3xl font-bold mb-2">{@value}</div>
+        <div class="text-3xl font-bold mb-2" {value_style(@value_color)}>
+          {@value}
+        </div>
         <div class="opacity-90 font-medium">{@title}</div>
         <div class="opacity-70 text-xs mt-1">
           {@subtitle}
@@ -96,6 +117,20 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
     </div>
     """
   end
+
+  # Written out in full so Tailwind's content scanner can see every one of
+  # them. Interpolating the token produces a class that exists in the markup
+  # but never in the stylesheet.
+  defp rounded_class("box"), do: "rounded-box"
+  defp rounded_class("none"), do: "rounded-none"
+  defp rounded_class("sm"), do: "rounded-sm"
+  defp rounded_class("md"), do: "rounded-md"
+  defp rounded_class("lg"), do: "rounded-lg"
+  defp rounded_class("xl"), do: "rounded-xl"
+  defp rounded_class("2xl"), do: "rounded-2xl"
+  defp rounded_class("3xl"), do: "rounded-3xl"
+  defp rounded_class("full"), do: "rounded-full"
+  defp rounded_class(_), do: "rounded-box"
 
   # Color class helpers
   defp color_classes("info"), do: "bg-info text-info-content"
@@ -107,4 +142,21 @@ defmodule PhoenixKitWeb.Components.Core.StatCard do
   defp color_classes("accent"), do: "bg-accent text-accent-content"
   defp color_classes("neutral"), do: "bg-neutral text-neutral-content"
   defp color_classes(_), do: "bg-info text-info-content"
+
+  # Returned as a spreadable attribute list rather than a `style={...}` value:
+  # HEEx renders a nil attribute value as `style=""` instead of dropping it, so
+  # every unstyled card carried an empty attribute.
+  #
+  # The colour is usually computed (a price coloured by cheapness), so it is
+  # kept to a single declaration — one stray `;` would otherwise let the value
+  # write arbitrary CSS onto the element. Colour functions contain no
+  # semicolons, so hsl()/oklch()/var()/color-mix() pass through untouched.
+  defp value_style(nil), do: []
+
+  defp value_style(color) do
+    case color |> to_string() |> String.replace(";", "") |> String.trim() do
+      "" -> []
+      clean -> [style: "color: " <> clean]
+    end
+  end
 end

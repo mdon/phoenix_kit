@@ -293,8 +293,14 @@ defmodule PhoenixKit.MixProject do
       precommit: [
         "compile --warnings-as-errors --all-warnings",
         "deps.unlock --check-unused",
-        "quality.ci"
+        "quality.ci",
+        "test.js"
       ],
+
+      # Pure logic inside the shipped hook bundle (test/js, node --test). Skips
+      # itself when node isn't installed rather than failing a contributor's
+      # precommit over an optional tool.
+      "test.js": &run_js_tests/1,
 
       # Release gate — run before `mix hex.publish`. Catches release-metadata
       # drift and packaging mistakes that precommit/quality.ci structurally
@@ -311,5 +317,22 @@ defmodule PhoenixKit.MixProject do
         "phoenix_kit.release_check"
       ]
     ]
+  end
+
+  # `node --test test/js` over the pure helpers exported from the hook bundle.
+  # Node is optional tooling here, so a machine without it skips rather than
+  # fails — the Elixir suite is still the gate.
+  defp run_js_tests(_args) do
+    if System.find_executable("node") do
+      {output, status} =
+        System.cmd("node", ["--test" | Path.wildcard("test/js/*.test.cjs")],
+          stderr_to_stdout: true
+        )
+
+      IO.puts(output)
+      if status != 0, do: Mix.raise("JS tests failed")
+    else
+      Mix.shell().info("[skip] node not found — skipping test/js")
+    end
   end
 end
