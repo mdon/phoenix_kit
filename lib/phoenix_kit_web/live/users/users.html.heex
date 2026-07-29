@@ -22,12 +22,29 @@
               <%= for role <- @all_roles do %>
                 <% owner_role? = role.name == PhoenixKit.Users.Role.system_roles().owner %>
                 <div class="form-control">
-                  <.checkbox
-                    name={"roles[#{role.name}]"}
-                    checked={role.name in @user_roles}
-                    disabled={owner_role?}
-                    title={owner_role? && gettext("Owner role cannot be modified")}
+                  <%!-- DO NOT convert to <.checkbox>: the submitted VALUE is the
+                       payload here. `sync_user_roles` reads Map.values(params["roles"])
+                       and the context diffs that list against the user's current roles,
+                       so a component that hardcodes "true"/"false" makes every held role
+                       look absent and strips them all. Tests do not catch it —
+                       render_submit injects params and never serializes the DOM. --%>
+                  <label
+                    class={[
+                      "label justify-start gap-3",
+                      owner_role? && "cursor-not-allowed opacity-70"
+                    ]}
+                    title={
+                      if owner_role?, do: gettext("Owner role cannot be modified"), else: nil
+                    }
                   >
+                    <input
+                      type="checkbox"
+                      name={"roles[#{role.name}]"}
+                      value={role.name}
+                      class="checkbox"
+                      checked={role.name in @user_roles}
+                      disabled={owner_role?}
+                    />
                     <div class="flex flex-wrap items-center gap-2">
                       <.role_badge role={role} size={:sm} />
                       <%= if role.is_system_role do %>
@@ -39,7 +56,7 @@
                         <span class="text-sm text-base-content/70">- {role.description}</span>
                       <% end %>
                     </div>
-                  </.checkbox>
+                  </label>
                 </div>
               <% end %>
             </div>
