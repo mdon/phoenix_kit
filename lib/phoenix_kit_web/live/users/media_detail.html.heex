@@ -123,39 +123,38 @@
               <%= if @edit_mode do %>
                 <form phx-submit="save_metadata" class="space-y-3">
                   <div>
-                    <label for="title" class="label label-text text-xs">Title</label>
-                    <input
+                    <.input
                       type="text"
                       id="title"
                       name="title"
                       value={@file_data.title}
-                      class="input input-bordered input-sm w-full"
+                      label="Title"
                       placeholder="Enter title"
+                      class="input-sm"
                     />
                   </div>
 
                   <div>
-                    <label for="description" class="label label-text text-xs">Description</label>
-                    <textarea
+                    <.textarea
                       id="description"
                       name="description"
-                      class="textarea textarea-bordered textarea-sm w-full"
-                      rows="3"
+                      value={@file_data.description}
+                      label="Description"
                       placeholder="Enter description"
-                    >{@file_data.description}</textarea>
+                      rows="3"
+                      class="textarea-sm"
+                    />
                   </div>
 
                   <div>
-                    <label for="tags" class="label label-text text-xs">
-                      Tags (comma-separated)
-                    </label>
-                    <input
+                    <.input
                       type="text"
                       id="tags"
                       name="tags"
                       value={Enum.join(@file_data.tags, ", ")}
-                      class="input input-bordered input-sm w-full"
+                      label="Tags (comma-separated)"
                       placeholder="tag1, tag2"
+                      class="input-sm"
                     />
                   </div>
 

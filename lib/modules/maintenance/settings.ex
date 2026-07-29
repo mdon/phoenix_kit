@@ -309,29 +309,21 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Settings do
             <form phx-submit="save_schedule" class="space-y-4">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="form-control">
-                  <label class="label">
-                    <span class="label-text font-semibold">
-                      {gettext("Start Time")} ({@tz_label})
-                    </span>
-                  </label>
-                  <input
+                  <.input
                     type="datetime-local"
                     name="start"
                     value={@scheduled_start}
                     min={@min_datetime}
-                    class="input input-bordered w-full"
+                    label={"#{gettext("Start Time")} (#{@tz_label})"}
                   />
                 </div>
                 <div class="form-control">
-                  <label class="label">
-                    <span class="label-text font-semibold">{gettext("End Time")} ({@tz_label})</span>
-                  </label>
-                  <input
+                  <.input
                     type="datetime-local"
                     name="end"
                     value={@scheduled_end}
                     min={@min_datetime}
-                    class="input input-bordered w-full"
+                    label={"#{gettext("End Time")} (#{@tz_label})"}
                   />
                 </div>
               </div>
@@ -372,15 +364,12 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Settings do
                 class="space-y-4"
               >
                 <div class="form-control">
-                  <label class="label">
-                    <span class="label-text font-semibold">{gettext("Header Text")}</span>
-                  </label>
-                  <input
+                  <.input
                     type="text"
                     name="header"
                     value={@header}
                     phx-debounce="150"
-                    class="input input-bordered w-full"
+                    label={gettext("Header Text")}
                     placeholder={gettext("Maintenance Mode")}
                     required
                   />
@@ -392,16 +381,15 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Settings do
                 </div>
 
                 <div class="form-control">
-                  <label class="label">
-                    <span class="label-text font-semibold">{gettext("Message Text")}</span>
-                  </label>
-                  <textarea
+                  <.textarea
                     name="subtext"
+                    value={@subtext}
                     phx-debounce="150"
-                    class="textarea textarea-bordered w-full h-32"
+                    label={gettext("Message Text")}
+                    class="h-32"
                     placeholder={gettext("We'll be back soon...")}
                     required
-                  >{@subtext}</textarea>
+                  />
                   <label class="label">
                     <span class="label-text-alt">
                       {gettext("Detailed message shown below the header")}

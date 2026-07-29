@@ -78,12 +78,12 @@
           <div class="flex-1">
             <.form for={%{}} phx-submit="search" class="w-full">
               <div class="join w-full">
-                <input
+                <.input
                   type="text"
                   name="search[query]"
                   value={@search_query}
                   placeholder={gettext("Search by filename...")}
-                  class="input input-bordered join-item flex-1"
+                  class="input-bordered join-item flex-1"
                 />
                 <button type="submit" class="btn btn-primary join-item">
                   <.icon name="hero-magnifying-glass" class="w-4 h-4" />
@@ -94,22 +94,16 @@
 
           <%!-- Filter by Type --%>
           <div class="w-full md:w-48">
-            <label class="select w-full">
-              <select
-                phx-change="filter_type"
-                name="filter"
-              >
-                <option value="all" selected={@file_type_filter == :all}>
-                  {gettext("All Files")}
-                </option>
-                <option value="image" selected={@file_type_filter == :image}>
-                  {gettext("Images Only")}
-                </option>
-                <option value="video" selected={@file_type_filter == :video}>
-                  {gettext("Videos Only")}
-                </option>
-              </select>
-            </label>
+            <.select
+              name="filter"
+              phx-change="filter_type"
+              value={@file_type_filter}
+              options={[
+                {gettext("All Files"), "all"},
+                {gettext("Images Only"), "image"},
+                {gettext("Videos Only"), "video"}
+              ]}
+            />
           </div>
         </div>
       </div>

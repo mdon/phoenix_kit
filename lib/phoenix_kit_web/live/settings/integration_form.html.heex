@@ -192,15 +192,12 @@
                  current name pre-filled. Backend's `save_form`
                  detects rename via params["name"] vs @name. --%>
             <div class="form-control">
-              <label class="label" for="field-name">
-                <span class="label-text">{gettext("Connection Name")}</span>
-              </label>
-              <input
+              <.input
                 type="text"
                 id="field-name"
                 name="name"
                 value={@name || @new_name}
-                class="input input-bordered w-full"
+                label={gettext("Connection Name")}
                 placeholder={gettext("e.g. Main, Personal, My Company Drive")}
                 required
               />

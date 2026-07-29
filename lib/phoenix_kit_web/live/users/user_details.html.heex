@@ -517,12 +517,12 @@
                 class="space-y-4"
               >
                 <div class="form-control">
-                  <textarea
-                    name="admin_note[content]"
-                    class="textarea textarea-bordered w-full h-24"
+                  <.textarea
+                    field={@note_form[:content]}
                     placeholder={gettext("Write a note about this user...")}
+                    class="h-24"
                     required
-                  >{Phoenix.HTML.Form.input_value(@note_form, :content)}</textarea>
+                  />
                 </div>
                 <div class="flex justify-end gap-2">
                   <%= if @editing_note_uuid do %>
@@ -781,21 +781,12 @@
             <%= for role <- @all_roles do %>
               <% owner_role? = role.name == PhoenixKit.Users.Role.system_roles().owner %>
               <div class="form-control">
-                <label
-                  class={[
-                    "label justify-start gap-3",
-                    owner_role? && "cursor-not-allowed opacity-70"
-                  ]}
-                  title={if owner_role?, do: gettext("Owner role cannot be modified"), else: nil}
+                <.checkbox
+                  name={"roles[#{role.name}]"}
+                  checked={role.name in user_role_names}
+                  disabled={owner_role?}
+                  title={owner_role? && gettext("Owner role cannot be modified")}
                 >
-                  <input
-                    type="checkbox"
-                    name={"roles[#{role.name}]"}
-                    value={role.name}
-                    class="checkbox"
-                    checked={role.name in user_role_names}
-                    disabled={owner_role?}
-                  />
                   <div class="flex flex-wrap items-center gap-2">
                     <.role_badge role={role} size={:sm} />
                     <%= if role.is_system_role do %>
@@ -807,7 +798,7 @@
                       <span class="text-sm text-base-content/70">- {role.description}</span>
                     <% end %>
                   </div>
-                </label>
+                </.checkbox>
               </div>
             <% end %>
           </div>
