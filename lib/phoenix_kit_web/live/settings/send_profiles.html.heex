@@ -54,8 +54,17 @@
         </.table_default_header>
 
         <.table_default_body>
-          <.table_default_row :for={send_profile <- @send_profiles}>
+          <.table_default_row
+            :for={send_profile <- @send_profiles}
+            class="row-link-host relative cursor-pointer"
+          >
             <.table_default_cell>
+              <.row_link
+                navigate={
+                  Routes.path("/admin/settings/email-sending/profiles/#{send_profile.uuid}/edit")
+                }
+                label={send_profile.name}
+              />
               <div class="font-medium">{send_profile.name}</div>
               <span :if={send_profile.is_default} class="badge badge-xs badge-info mt-0.5">
                 {gettext("Default Newsletter Profile")}
@@ -81,7 +90,7 @@
             <.table_default_cell>
               <.enabled_badge enabled={send_profile.enabled} />
             </.table_default_cell>
-            <.table_default_cell>
+            <.table_default_cell class="relative z-10">
               <.table_row_menu
                 id={"send-profile-menu-#{send_profile.uuid}"}
                 mode="dropdown"

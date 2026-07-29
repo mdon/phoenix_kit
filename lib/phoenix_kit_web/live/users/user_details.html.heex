@@ -75,59 +75,25 @@
     </div>
 
     <%!-- Tabs Navigation --%>
+    <% user_detail_tabs =
+      [
+        %{id: "profile", label: gettext("Profile"), icon: "hero-user"},
+        @connections_enabled &&
+          %{id: "connections", label: gettext("Connections"), icon: "hero-user-group"},
+        Map.merge(
+          %{id: "notes", label: gettext("Notes"), icon: "hero-document-text"},
+          (length(@admin_notes) > 0 && %{badge: length(@admin_notes)}) || %{}
+        ),
+        @org_accounts_enabled && @user.account_type == "organization" &&
+          Map.merge(
+            %{id: "members", label: gettext("Members"), icon: "hero-user-group"},
+            (length(@organization_members) > 0 &&
+               %{badge: length(@organization_members)}) || %{}
+          )
+      ]
+      |> Enum.filter(& &1) %>
     <div class="flex justify-center mb-6">
-      <div role="tablist" class="tabs tabs-boxed bg-base-200 p-1">
-        <button
-          type="button"
-          role="tab"
-          class={"tab gap-2 #{if @active_tab == "profile", do: "tab-active"}"}
-          phx-click="change_tab"
-          phx-value-tab="profile"
-        >
-          <.icon name="hero-user" class="w-4 h-4" />
-          {gettext("Profile")}
-        </button>
-        <%= if @connections_enabled do %>
-          <button
-            type="button"
-            role="tab"
-            class={"tab gap-2 #{if @active_tab == "connections", do: "tab-active"}"}
-            phx-click="change_tab"
-            phx-value-tab="connections"
-          >
-            <.icon name="hero-user-group" class="w-4 h-4" />
-            {gettext("Connections")}
-          </button>
-        <% end %>
-        <button
-          type="button"
-          role="tab"
-          class={"tab gap-2 #{if @active_tab == "notes", do: "tab-active"}"}
-          phx-click="change_tab"
-          phx-value-tab="notes"
-        >
-          <.icon name="hero-document-text" class="w-4 h-4" />
-          {gettext("Notes")}
-          <%= if length(@admin_notes) > 0 do %>
-            <span class="badge badge-sm h-auto">{length(@admin_notes)}</span>
-          <% end %>
-        </button>
-        <%= if @org_accounts_enabled && @user.account_type == "organization" do %>
-          <button
-            type="button"
-            role="tab"
-            class={"tab gap-2 #{if @active_tab == "members", do: "tab-active"}"}
-            phx-click="change_tab"
-            phx-value-tab="members"
-          >
-            <.icon name="hero-user-group" class="w-4 h-4" />
-            {gettext("Members")}
-            <%= if length(@organization_members) > 0 do %>
-              <span class="badge badge-sm h-auto">{length(@organization_members)}</span>
-            <% end %>
-          </button>
-        <% end %>
-      </div>
+      <.nav_tabs active_tab={@active_tab} on_change="change_tab" tabs={user_detail_tabs} />
     </div>
 
     <%!-- Tab Content --%>
@@ -630,78 +596,81 @@
           <div class="card-body">
             <h3 class="card-title text-lg mb-4">{gettext("Organization Members")}</h3>
             <%= if Enum.empty?(@organization_members) do %>
-              <div class="text-center py-8 text-base-content/70">
-                <.icon name="hero-user-group" class="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>{gettext("No members yet")}</p>
-                <p class="text-sm mt-1">{gettext("Add members from the user edit page")}</p>
-              </div>
+              <.empty_state
+                icon="hero-user-group"
+                title={gettext("No members yet")}
+                description={gettext("Add members from the user edit page")}
+              />
             <% else %>
-              <div class="overflow-x-auto">
-                <table class="table table-zebra">
-                  <thead>
-                    <tr>
-                      <th>{gettext("Name")}</th>
-                      <th>{gettext("Email")}</th>
-                      <th>{gettext("Status")}</th>
-                      <th>{gettext("Actions")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <%= for member <- @organization_members do %>
-                      <tr>
-                        <td>
-                          <div class="flex items-center gap-3">
-                            <.user_avatar user={member} size="sm" />
-                            <div>
-                              <div class="font-medium">
-                                {PhoenixKit.Users.Auth.User.full_name(member) || "-"}
-                              </div>
-                              <%= if member.username do %>
-                                <div class="text-xs text-base-content/60">@{member.username}</div>
-                              <% end %>
-                            </div>
+              <.table_default variant="zebra">
+                <.table_default_header>
+                  <.table_default_row>
+                    <.table_default_header_cell>{gettext("Name")}</.table_default_header_cell>
+                    <.table_default_header_cell>{gettext("Email")}</.table_default_header_cell>
+                    <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
+                    <.table_default_header_cell>{gettext("Actions")}</.table_default_header_cell>
+                  </.table_default_row>
+                </.table_default_header>
+                <.table_default_body>
+                  <.table_default_row
+                    :for={member <- @organization_members}
+                    class="row-link-host relative cursor-pointer"
+                  >
+                    <.table_default_cell>
+                      <.row_link
+                        navigate={
+                          PhoenixKit.Utils.Routes.path("/admin/users/view/#{member.uuid}")
+                        }
+                        label={PhoenixKit.Users.Auth.User.full_name(member) || member.email}
+                      />
+                      <div class="flex items-center gap-3">
+                        <.user_avatar user={member} size="sm" />
+                        <div>
+                          <div class="font-medium">
+                            {PhoenixKit.Users.Auth.User.full_name(member) || "-"}
                           </div>
-                        </td>
-                        <td>{member.email}</td>
-                        <td>
-                          <%= if member.is_active do %>
-                            <span class="badge badge-success badge-sm h-auto">
-                              {gettext("Active")}
-                            </span>
-                          <% else %>
-                            <span class="badge badge-error badge-sm h-auto">
-                              {gettext("Inactive")}
-                            </span>
+                          <%= if member.username do %>
+                            <div class="text-xs text-base-content/60">@{member.username}</div>
                           <% end %>
-                        </td>
-                        <td>
-                          <div class="flex gap-1">
-                            <.pk_link
-                              navigate={"/admin/users/view/#{member.uuid}"}
-                              class="btn btn-ghost btn-xs"
-                              title={gettext("View")}
-                            >
-                              <.icon name="hero-eye" class="w-4 h-4" />
-                            </.pk_link>
-                            <button
-                              type="button"
-                              class="btn btn-ghost btn-xs text-error"
-                              phx-click="remove_member"
-                              phx-value-uuid={member.uuid}
-                              title={gettext("Remove from organization")}
-                              data-confirm={
-                                gettext("Are you sure you want to remove this member?")
-                              }
-                            >
-                              <.icon name="hero-x-mark" class="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    <% end %>
-                  </tbody>
-                </table>
-              </div>
+                        </div>
+                      </div>
+                    </.table_default_cell>
+                    <.table_default_cell>{member.email}</.table_default_cell>
+                    <.table_default_cell>
+                      <%= if member.is_active do %>
+                        <span class="badge badge-success badge-sm h-auto">
+                          {gettext("Active")}
+                        </span>
+                      <% else %>
+                        <span class="badge badge-error badge-sm h-auto">
+                          {gettext("Inactive")}
+                        </span>
+                      <% end %>
+                    </.table_default_cell>
+                    <.table_default_cell class="relative z-10">
+                      <div class="flex gap-1">
+                        <.pk_link
+                          navigate={"/admin/users/view/#{member.uuid}"}
+                          class="btn btn-ghost btn-xs"
+                          title={gettext("View")}
+                        >
+                          <.icon name="hero-eye" class="w-4 h-4" />
+                        </.pk_link>
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-xs text-error"
+                          phx-click="remove_member"
+                          phx-value-uuid={member.uuid}
+                          title={gettext("Remove from organization")}
+                          data-confirm={gettext("Are you sure you want to remove this member?")}
+                        >
+                          <.icon name="hero-x-mark" class="w-4 h-4" />
+                        </button>
+                      </div>
+                    </.table_default_cell>
+                  </.table_default_row>
+                </.table_default_body>
+              </.table_default>
             <% end %>
           </div>
         </div>

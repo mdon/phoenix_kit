@@ -172,19 +172,11 @@
       }
     >
       <:toolbar_title>
-        <form id="sessions-search-form" phx-change="search" class="contents">
-          <label class="input input-sm w-40 sm:w-52 lg:w-64 min-w-0">
-            <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-50" />
-            <input
-              type="search"
-              name="search"
-              value={@search_query}
-              placeholder={gettext("Search by email or token...")}
-              class="grow"
-              phx-debounce="300"
-            />
-          </label>
-        </form>
+        <.search_toolbar
+          value={@search_query}
+          placeholder={gettext("Search by email or token...")}
+          class="w-40 sm:w-52 lg:w-64 min-w-0"
+        />
       </:toolbar_title>
       <:toolbar_actions>
         <%!-- Filter by User Status --%>

@@ -44,29 +44,19 @@
     </div>
 
     <%!-- Tabs --%>
-    <div role="tablist" class="tabs tabs-boxed mb-4 w-fit">
-      <button
-        type="button"
-        role="tab"
-        class={"tab #{if @active_tab == "oban", do: "tab-active"}"}
-        phx-click="switch_tab"
-        phx-value-tab="oban"
-      >
-        Oban Jobs
-      </button>
-      <button
-        type="button"
-        role="tab"
-        class={"tab #{if @active_tab == "scheduled", do: "tab-active"}"}
-        phx-click="switch_tab"
-        phx-value-tab="scheduled"
-      >
-        Scheduled Tasks
-        <%= if length(@scheduled_jobs) > 0 do %>
-          <span class="badge badge-sm ml-1">{length(@scheduled_jobs)}</span>
-        <% end %>
-      </button>
-    </div>
+    <% jobs_tabs = [
+      %{id: "oban", label: "Oban Jobs"},
+      Map.merge(
+        %{id: "scheduled", label: "Scheduled Tasks"},
+        (length(@scheduled_jobs) > 0 && %{badge: length(@scheduled_jobs)}) || %{}
+      )
+    ] %>
+    <.nav_tabs
+      active_tab={@active_tab}
+      on_change="switch_tab"
+      tabs={jobs_tabs}
+      class="mb-4 w-fit"
+    />
 
     <%!-- Oban Jobs Tab --%>
     <div class={if @active_tab != "oban", do: "hidden"}>

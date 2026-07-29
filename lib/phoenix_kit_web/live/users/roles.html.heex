@@ -239,21 +239,15 @@
         </.table_default>
       <% else %>
         <%!-- Empty state --%>
-        <div class="text-center py-12">
-          <.icon name="hero-shield-check" class="h-16 w-16 mx-auto text-base-content/40 mb-4" />
-          <h3 class="text-lg font-medium text-base-content mb-2">
-            {gettext("No roles found")}
-          </h3>
-          <p class="text-base-content/70 mb-4">
-            {gettext("Start by creating your first custom role.")}
-          </p>
-          <button
-            phx-click="show_create_form"
-            class="btn btn-primary"
-          >
+        <.empty_state
+          icon="hero-shield-check"
+          title={gettext("No roles found")}
+          description={gettext("Start by creating your first custom role.")}
+        >
+          <button phx-click="show_create_form" class="btn btn-primary">
             {gettext("Create First Role")}
           </button>
-        </div>
+        </.empty_state>
       <% end %>
     </div>
 

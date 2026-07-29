@@ -47,14 +47,13 @@
     <div class="card bg-base-100 shadow-xl">
       <div class="card-body">
         <%= if length(@dimensions) == 0 do %>
-          <div class="text-center py-12">
-            <.icon name="hero-photo" class="w-16 h-16 mx-auto mb-4 text-base-content/30" />
-            <p class="text-lg text-base-content/70 mb-2">
-              {gettext("No dimensions configured")}
-            </p>
-            <p class="text-sm text-base-content/50 mb-4">
-              {gettext("Create your first dimension preset to start generating file variants.")}
-            </p>
+          <.empty_state
+            icon="hero-photo"
+            title={gettext("No dimensions configured")}
+            description={
+              gettext("Create your first dimension preset to start generating file variants.")
+            }
+          >
             <div class="flex justify-center gap-4">
               <.link
                 navigate={
@@ -73,7 +72,7 @@
                 <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("Add Video Dimension")}
               </.link>
             </div>
-          </div>
+          </.empty_state>
         <% else %>
           <%!-- Image Dimensions --%>
           <div class="mb-8">
