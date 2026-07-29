@@ -245,7 +245,7 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Settings do
       project_title={@project_title}
       current_locale={@current_locale}
     >
-      <div class="container mx-auto px-4 py-6">
+      <div class="px-4 py-6">
         <%!-- Overall Status --%>
         <%= if @active do %>
           <div class="alert alert-warning mb-6">

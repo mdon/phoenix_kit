@@ -130,7 +130,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
       project_title={@project_title}
       current_locale={assigns[:current_locale]}
     >
-      <div class="container mx-auto px-4 py-6">
+      <div class="px-4 py-6">
         <%!-- Connections table --%>
         <div :if={@connections != []}>
           <.table_default

@@ -8,7 +8,7 @@
   current_path={@current_path}
   project_title={@project_title}
 >
-  <div class="container flex-col mx-auto px-4 py-6">
+  <div class="flex-col px-4 py-6">
     <div class="max-w-2xl">
       <.form_section title={gettext("Profile Details")} icon="hero-adjustments-horizontal">
         <.form id="send-profile-form" for={@form} phx-change="validate" phx-submit="save">

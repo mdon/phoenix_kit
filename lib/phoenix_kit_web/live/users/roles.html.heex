@@ -8,7 +8,7 @@
   project_title={@project_title}
   current_locale={@current_locale}
 >
-  <div class="container flex-col mx-auto px-4 py-6">
+  <div class="flex-col px-4 py-6">
     <%!-- Create Role Modal --%>
     <.modal show={@show_create_form} on_close="hide_form" max_width="2xl">
       <:title>{gettext("Create New Role")}</:title>
