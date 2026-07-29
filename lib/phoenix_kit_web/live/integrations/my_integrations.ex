@@ -197,7 +197,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
             <.table_default_body>
               <.table_default_row
                 :for={conn <- @connections}
-                class="row-link-host relative cursor-pointer"
+                class="relative transform-gpu cursor-pointer"
               >
                 <.table_default_cell>
                   <.row_link

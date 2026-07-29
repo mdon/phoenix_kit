@@ -9,18 +9,23 @@ defmodule PhoenixKitWeb.Components.Core.RowLink do
   other links — need `relative z-10` to stay clickable above the overlay.
   The link's accessible name comes from `label` (visually hidden).
 
-  ## Table rows need `row-link-host` (Safari)
+  ## Table rows need `transform-gpu` (Safari)
 
   Safari/WebKit ignores `position: relative` on `<tr>`, so on a `<tr>` host the
   overlay escapes to the `<table>` and every row's overlay collapses onto the
-  last row — on iOS/iPadOS every row then navigates to the LAST one. Add the
-  `row-link-host` class (see `app.css`) to any `<tr>` host; it applies a
-  `transform` that WebKit *does* honor as a containing block. Card/`<div>`
-  hosts don't need it.
+  last row — on iOS/iPadOS every row then navigates to the LAST one. Give any
+  `<tr>` host Tailwind's `transform-gpu` (`translateZ(0)`), which WebKit *does*
+  honor as a containing block. Card/`<div>` hosts don't need it.
+
+  `transform-gpu` is a stock Tailwind utility, so nothing has to be added to the
+  host application's stylesheet. Do **not** depend on a custom class such as
+  `row-link-host` for this: that rule lives in one host app's `app.css` and is
+  absent from every other consumer, where the failure is invisible in source and
+  only shows up on an iOS device.
 
   ## Example
 
-      <.table_default_row class="row-link-host relative cursor-pointer">
+      <.table_default_row class="relative transform-gpu cursor-pointer">
         <.table_default_cell>
           <.row_link navigate={~p"/orders/123"} label="Open order #123" />
           #123

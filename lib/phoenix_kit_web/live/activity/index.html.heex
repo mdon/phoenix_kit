@@ -342,7 +342,7 @@
           </.table_default_row>
         <% end %>
         <%= for entry <- @entries do %>
-          <.table_default_row class="row-link-host relative cursor-pointer">
+          <.table_default_row class="relative transform-gpu cursor-pointer">
             <.table_default_cell class="text-sm hidden md:table-cell">
               <%= if entry.module do %>
                 <span class="badge badge-outline badge-xs">{entry.module}</span>
