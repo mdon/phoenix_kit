@@ -1,3 +1,16 @@
+## 1.7.220 - 2026-07-29
+
+### i18n
+- **The ten strings #673 newly wrapped in `gettext/1` are translated** (#673
+  review) — `Add`/`Edit Storage Bucket`, `Add`/`Edit Storage Dimension`,
+  `Update Dimension`, `Create`/`Edit User`, `Create a new user account`,
+  `Edit user information`, `Media Detail`. The PR wrapped them without touching
+  the catalogs, so ru and et — the two locales kept at 100% — rendered them in
+  English. Appended by hand to `default.pot` + `ru` + `et`: a full
+  `gettext.extract --merge` reports 246 new / 53 fuzzy across 28k lines, a
+  repo-wide backlog #673 did not cause, and the fuzzy re-marks would push ru and
+  et off 100% rather than toward it.
+
 ## 1.7.219 - 2026-07-29
 
 ### Added

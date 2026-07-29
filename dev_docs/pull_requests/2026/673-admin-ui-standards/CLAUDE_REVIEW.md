@@ -145,31 +145,40 @@ and the tax-rate join) — it was just missed here.
 
 **Fixed.** Added `wrapper_class="contents"`.
 
-## IMPROVEMENT - HIGH — the new translatable strings were never extracted (NOT fixed — see why)
+## IMPROVEMENT - HIGH — the new translatable strings were never extracted
 
-Roughly fifteen new `gettext/1` calls landed with no `mix gettext.extract
---merge`: `"Add Storage Bucket"`, `"Edit Storage Bucket"`, `"Edit Storage
-Dimension"`, `"Update Dimension"`, `"Create User"`, `"Edit User"`, `"Media
-Detail"`, `"Create a new user account"`, `"Edit user information"` and the
-`page_section` crumbs. None of them appear in `default.pot`, so **ru and et — the
-two locales kept at 100% — render them in English**.
+The PR wrapped a batch of bare strings in `gettext/1` — page titles in
+`bucket_form.ex`, `dimension_form.ex`, `user_form.ex`, and the header text in
+`user_form.html.heex` / `media_detail.html.heex` — without touching the
+catalogs. None of them existed in `default.pot`, so **ru and et — the two
+locales kept at 100% — rendered them in English.**
 
-Deliberately **not fixed here.** Running the extract reports:
+Ten msgids are attributable to #673:
 
 ```
-193 new messages, 12 removed, 1934 unchanged, 53 reworded (fuzzy)
-28090 insertions(+), 16208 deletions(-) across 9 .po/.pot files
+Add Storage Bucket        Create User                 Media Detail
+Edit Storage Bucket       Edit User
+Add Storage Dimension     Create a new user account
+Edit Storage Dimension    Edit user information
+Update Dimension
 ```
 
-The `.pot` is stale by roughly thirteen times this PR's contribution — that is a
-repo-wide backlog, not something #673 caused. Folding it into a review commit
-would bury five real fixes under 28k lines of unrelated churn, and the 53
-fuzzy-marked entries would knock ru and et **off** 100% rather than toward it.
-This wants its own commit, with the ru/et strings actually translated rather than
-merged in empty.
+(The `page_section` crumbs — `"Media"`, `"Modules"`, `"Dimensions"`,
+`"Integrations"` — and `"Select Media"`, `"Add Image Dimension"`,
+`"Add Video Dimension"` already had entries.)
 
-`mix precommit` does not run gettext extraction, so nothing will catch this
-drift automatically.
+**Fixed**, by hand-append rather than merge. A full `mix gettext.extract --merge`
+reports `246 new / 12 removed / 53 reworded (fuzzy)` across 28k lines in 9 files
+— the `.pot` is stale by ~25× this PR's contribution, a repo-wide backlog #673
+did not cause, and the 53 fuzzy re-marks would knock ru and et **off** 100%
+rather than toward it. So the ten stanzas above were appended to
+`default.pot` + `ru` + `et` with translations, and the extract churn reverted;
+`mix compile` (the pure-Elixir gettext compiler) validates PO syntax, duplicate
+msgids and `%{}` binding mismatches.
+
+The remaining ~236-msgid backlog is still open and still wants its own commit.
+`mix precommit` does not run gettext extraction, so nothing catches this drift
+automatically.
 
 ---
 
