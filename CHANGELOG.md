@@ -1,3 +1,45 @@
+## 1.7.222 - 2026-07-29
+
+### Fixed
+- **Fuzzy translations were serving wrong text in ru and et** — Elixir's Gettext
+  compiles and serves entries flagged `fuzzy` (the flag is only a translator
+  hint), so every translation gettext had auto-carried from a similar-looking
+  msgid was live in the UI. `Approve` rendered as "Апр"/"Apr" (April), `Port` as
+  "Sort by", `unlimited` as "untitled", `Full Access` as "Success", `Large` as
+  "Target", `Preview` as "Back"/"Previous", `Custom URLs` as "Custom roles",
+  `%{n}h ago` and `%{n}m ago` both as "…days ago", and the `Nord`/`Winter`/`Black`
+  theme names as "No"/"Enter"/"Back". Worst of the set, both stating the opposite
+  of the truth on an auth surface: `Email Unconfirmed` rendered as
+  "Email **confirmed**" and `Sign up` as "Sign **in**".
+- **Provider setup instructions pointed at the wrong vendors** — the xAI and
+  OpenAI key-setup steps had inherited Mistral's and DeepSeek's URLs, telling
+  ru/et users to fetch an xAI key from `console.mistral.ai` and an OpenAI key
+  from `platform.deepseek.com`.
+- **`errors.po` had unresolvable interpolation bindings** — six `validate_length`
+  messages in both ru and et carried `%{min}`/`%{max}` while Ecto only ever
+  supplies `%{count}`, so every min/max length validation error interpolated a
+  binding that does not exist. `should have %{count} item(s)` also said "bytes".
+
+### i18n
+- **Catalogs resynced with the source** — `mix gettext.extract --merge` across all
+  8 locales: 195 msgids that existed in source but in no catalog were added and 12
+  dead entries removed. A full merge is now a **no-op** (`0 new, 0 removed, 0
+  reworded`) and byte-idempotent, which is what makes the drift actually gone
+  rather than deferred.
+- **ru and et are back at 100%** — 0 untranslated, 0 fuzzy across all three
+  domains (`default` 2182, `errors` 24, `phoenix_kit` 7). 282 ru / 281 et strings
+  newly translated; 304 ru / 305 et fuzzy entries reviewed individually, ~136 per
+  locale rewritten and the rest confirmed correct and unflagged. Terminology was
+  taken from each catalog's existing non-fuzzy usage rather than invented (ru
+  "бакет" for bucket, since "Хранилище" is already Storage; et "dimensioon" and
+  "teavitus", both already dominant). daisyUI theme names follow the existing fr
+  precedent: descriptive names translated, genre/proper nouns kept.
+- **Placeholder audit added over all 24 catalog files** — every `%{…}` in every
+  msgstr, including each plural form, is bound by its msgid. 0 problems remaining.
+- `de`, `es`, `it`, `pl`, `en` are synced but remain stubs by design. `fr` (~86%,
+  126 fuzzy) is maintained but incomplete and still carries the same class of
+  fuzzy defect — left for its own pass rather than half-done here.
+
 ## 1.7.221 - 2026-07-29
 
 ### Added

@@ -149,10 +149,10 @@ needed a follow-up commit after #673 (`3cf86a05`).
 translated in both.
 
 Note for future sweeps: a plain `mix gettext.extract --merge` on this repo
-currently reports **195 new / 12 removed / 53 re-worded (fuzzy)** per locale — the
-catalogs have drifted far from the source, and running it as part of a small PR
-would bury the change and re-fuzzy 53 existing translations. Deliberately not done
-here; the drift wants its own pass.
+reported **195 new / 12 removed / 53 re-worded (fuzzy)** per locale — the catalogs
+had drifted far from the source, and running it as part of a small PR would have
+buried the change. That drift was deliberately left out of this PR's scope and
+then fixed in its own pass — see **Follow-up: catalog drift** below.
 
 ## NITPICK — the query lives in `mount/3`, so it runs twice
 
@@ -192,3 +192,92 @@ is not this repo's gate, and CI runs with PostgreSQL.
 `mix precommit` (compile `--warnings-as-errors --all-warnings`,
 `deps.unlock --check-unused`, `quality.ci` = format check + `credo --strict` +
 dialyzer, `test.js`) — clean.
+
+---
+
+# Follow-up: catalog drift (1.7.222)
+
+Ran as its own pass after the review, on the drift noted above. The headline is
+that the drift was **not** cosmetic: gettext's fuzzy matching had been silently
+carrying translations from one msgid onto a different one, and Elixir's Gettext
+**compiles and serves fuzzy entries** (the flag is only a translator hint — see
+`gettext.ex` moduledoc). So every wrong carryover was live in the ru and et UI.
+
+## BUG - HIGH — fuzzy carryovers were serving wrong text in ru/et
+
+The pattern: a short new msgid gets fuzzy-matched onto a similar-looking old one
+and inherits its translation. Live examples, all flagged `fuzzy` and all rendering:
+
+| msgid | ru served | et served | should be |
+|---|---|---|---|
+| `Approve` | "Апр" (April) | "Apr" | Подтвердить / Kinnita |
+| `Port` | "Сортировать по" (Sort by) | "Sorteeri" | Порт / Port |
+| `Email Unconfirmed` | "Email подтвержден" (**confirmed**) | "E-post kinnitatud" | не подтверждён / kinnitamata |
+| `Full Access` | "Успешно" (Success) | "Õnnestus" | Полный доступ / Täielik juurdepääs |
+| `unlimited` | "без названия" (untitled) | "pealkirjata" | без ограничений / piiramatu |
+| `Large` | "Цель" (Target) | — | Большой |
+| `Sign up` | "Войти" (Sign **in**) | "Logi sisse" | Зарегистрироваться / Registreeru |
+| `Preview` | "Назад" (Back) | "Eelmine" (Previous) | Предпросмотр / Eelvaade |
+| `Custom URLs` | "Пользовательские роли" (Custom **roles**) | "Kohandatud rollid" | Свои URL / Kohandatud URL-id |
+| `Nord` / `Winter` / `Black` | "Нет" / "Введите" / "Назад" | "Ei" / "Sisesta" / "Tagasi" | theme names |
+| `%{n}h ago`, `%{n}m ago` | both "…дней назад" (**days**) | both "…päeva tagasi" | ч / мин, t / min |
+| `Approve sign-in` | "Вход через Apple" | "Apple sisselogimine" | Подтвердить вход / Kinnita sisselogimine |
+| `Cannot delete send profile` | "Невозможно удалить последнего системного владельца" | "Viimast süsteemi omanikku ei saa kustutada" | about the send profile |
+
+`Email Unconfirmed` rendering as "confirmed" and `Sign up` rendering as "Sign in"
+are the two worst: both state the opposite of the truth on an auth surface.
+
+Also wrong, and worth calling out separately: the xAI and OpenAI provider setup
+instructions had inherited **Mistral's and DeepSeek's URLs**, so ru/et users were
+told to fetch an xAI key from `console.mistral.ai` and an OpenAI key from
+`platform.deepseek.com`.
+
+## BUG - HIGH — `errors.po` had unresolvable interpolation bindings
+
+In both ru and et, six `validate_length` messages carried `%{min}` / `%{max}`
+while their msgid only ever supplies `%{count}`:
+
+```
+msgid "should be at least %{count} character(s)"
+msgstr[0] "должно быть не менее %{min} символов"   # %{min} is never bound
+```
+
+Ecto passes `count`, so `%{min}` is a missing binding — not a wrong word, a
+broken interpolation on every min/max length validation error in both locales.
+Three more (`has an invalid entry`, `is/are still associated with this entry`)
+were simply untranslated, and `should have %{count} item(s)` said "bytes".
+
+## What was done
+
+- `mix gettext.extract --merge` — the structural fix, applied to all 8 locales.
+  195 msgids that existed in source but in no catalog, 12 dead entries removed.
+- **ru and et taken to 0 untranslated / 0 fuzzy** across all three domains
+  (`default`, `errors`, `phoenix_kit`) — 2182 + 24 + 7 entries each. That is 282
+  ru / 281 et newly translated, plus 304 ru / 305 et fuzzy entries reviewed
+  one at a time: ~136 per locale were genuinely invalidated by the reword and
+  were rewritten, the rest were correct and only needed the flag cleared.
+- Terminology was grounded in each catalog's existing non-fuzzy usage rather than
+  invented (ru "бакет" not "хранилище" for bucket, since "Storage" is already
+  "Хранилище"; et "dimensioon" 23× vs "mõõde" 4×, "teavitus" 15× vs "teatis" 5×).
+- daisyUI theme names follow the **fr** precedent — the repo's only prior
+  decision on them: translate the descriptive ones (`Winter` → Зима / Talv),
+  keep genre and proper nouns (`Cyberpunk`, `Dracula`, `Lo-Fi`, `Nord`, `CMYK`).
+
+## Verification
+
+- **A full `extract --merge` is now a no-op** for every locale: `0 new, 0 removed,
+  0 reworded (fuzzy)`, and byte-identical output on a second run. That is the
+  actual definition of the drift being gone.
+- **Placeholder audit across all 24 catalog files: 0 problems** — every `%{…}` in
+  every msgstr (singular and each plural form) is bound by its msgid. This is the
+  check that would have caught the `%{min}`/`%{max}` bug years ago; worth wiring
+  into CI.
+- `mix precommit` clean.
+
+## Deliberately left alone
+
+`de`, `es`, `it`, `pl`, `en` are structurally synced but remain stubs by design
+(1837–2182 untranslated). `fr` is the interesting one: 301 untranslated and 126
+fuzzy, i.e. ~86% and clearly maintained by someone. Its fuzzy entries carry the
+same class of defect as ru/et did and are **still live**. Completing fr is a
+separate pass of comparable size; flagged rather than silently half-done.
