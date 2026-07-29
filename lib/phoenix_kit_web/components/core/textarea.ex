@@ -43,7 +43,7 @@ defmodule PhoenixKitWeb.Components.Core.Textarea do
         id={@id}
         name={@name}
         class={[
-          "textarea textarea-bordered min-h-[6rem] w-full focus:input-primary",
+          "textarea min-h-[6rem] w-full focus:textarea-primary",
           @errors != [] && "textarea-error",
           @class
         ]}
