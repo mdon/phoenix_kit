@@ -1,3 +1,73 @@
+## 1.7.218 - 2026-07-29
+
+### Added
+- **Sign in as another user** (#672) — `MultiSession.impersonate/2`, a
+  `POST /users/session/impersonate/:user_uuid` action, and the authority layer
+  over the existing multi-account stack. The rules are role-based on purpose:
+  `Scope.can_access_admin_area?/1` is true for **any** permission holder, so a
+  permission check would have let a customer with one self-service grant borrow
+  another customer's account. Instead the **root** account decides (never the
+  active one, or an impersonated session could chain) and must hold Owner or
+  Admin; an Owner is never a target; an Admin cannot take another Admin, while
+  an Owner can, because there is nothing above it to escalate to. Requires
+  `multi_session_enabled`.
+
+### Changed
+- **`MultiSession.add_authenticated_user/3`** (#672 review) — takes the
+  activity-feed action to write, defaulting to `session.account_added`. Existing
+  `/2` callers are unaffected.
+- **`already_intercepted: true` now implies `skip_queue: true`** (#670 review) —
+  the opt can only mean "a queue worker is re-sending what it dequeued", so
+  leaving the two independent let a worker that set one and forgot the other
+  offer its own job straight back to the queue that handed it over.
+- **`session.impersonated` and `session.account_added` render as notifications**
+  (#672 review) — both are claimed by the `security` preference type (so they
+  appear in the preferences UI and can be muted) and both have recipient-facing
+  copy instead of the humanized raw action string ("Session impersonated").
+
+### Fixed
+- **Impersonation refusals are recorded** (#672 review) — the feed was written
+  only on success, and only after the session had already changed, despite the
+  documented promise of "every attempt, before the session changes". An Admin
+  reaching for the Owner's account, reaching sideways for another Admin, or a
+  non-staff user hitting the endpoint directly all left no trace at all. They now
+  write `session.impersonation_refused` with the deciding rule in
+  `metadata["reason"]`, and carry no `target_uuid` so a refused attempt is a feed
+  entry rather than a message sent to the account it named.
+- **One activity row per impersonation, saying what happened** (#672 review) — a
+  success wrote both `session.account_added` and `session.impersonated`, and the
+  first is indistinguishable from a user voluntarily adding an account of their
+  own.
+- **Impersonation authority is settled before the uuid is resolved** (#672
+  review) — checking existence first answered "User not found." for an unused
+  uuid and a permission message for a live one, turning the deliberately precise
+  operator copy into an account-existence oracle for every signed-in user. New
+  `MultiSession.may_impersonate?/1` shares its rule with
+  `authorize_impersonation/2` so the two cannot drift.
+- **Existing users are no longer renamed when the admin form rebuilds its
+  changeset** (#671) — `maybe_generate_username_from_email/1` ran on every
+  registration changeset and minted a username whenever the params carried none,
+  which is exactly what the admin edit form sends; and the uniqueness walk asked
+  the database whether the name was taken without excluding the user it was
+  generating for, so `maria`'s own row made `maria` look unavailable to maria.
+  Opening a user and saving turned `maria` into `maria_1`, then `maria_2`.
+- **A generated username carries its uniqueness constraint** (#671 review) —
+  generation runs at the end of `registration_changeset/3`, after
+  `validate_username/2` has already decided there was no username change to
+  guard, so the generated name reached the database unprotected. Two
+  registrations racing on the same local part both settled on it and the loser
+  got an `Ecto.ConstraintError` raised out of `Repo.insert/1` instead of an
+  `{:error, changeset}`.
+- **A queued message is intercepted once** (#670) — `skip_queue: true` skipped
+  only the queue offer, so a queued-then-drained message went through
+  `intercept_before_send/2` twice and a provider that logs per interception
+  recorded every send twice.
+- **Out-of-contract `maybe_enqueue/2` returns are logged** (#670) — a provider
+  bug returning anything other than `:continue` / `{:queued, ref}` still sends
+  (a bug must not eat the message) but no longer does so invisibly.
+- Removed seven `Logger.info` calls left in the admin user form from debugging
+  the username rewrite (#671).
+
 ## 1.7.217 - 2026-07-28
 
 ### Added
