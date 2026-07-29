@@ -2,31 +2,14 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={gettext("Instance Dimensions")}
+  page_section={gettext("Media")}
+  page_section_path={PhoenixKit.Utils.Routes.path("/admin/settings/media")}
+  page_subtitle={gettext("Manage dimension presets for automatic file instance generation")}
   current_path={@current_path}
   current_locale={@current_locale}
   project_title={@project_title}
 >
   <div class="container mx-auto px-4 py-8 max-w-6xl">
-    <.admin_page_header
-      back={PhoenixKit.Utils.Routes.path("/admin/settings/media")}
-      title={gettext("Instance Dimensions")}
-      subtitle={gettext("Manage dimension presets for automatic file instance generation")}
-    >
-      <:actions>
-        <button
-          phx-click="reset_dimensions_to_defaults"
-          data-confirm={
-            gettext(
-              "Are you sure? This will delete all current dimensions and restore the default 8 dimensions. This action cannot be undone."
-            )
-          }
-          class="btn btn-outline btn-error btn-sm"
-        >
-          <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> {gettext("Reset to Defaults")}
-        </button>
-      </:actions>
-    </.admin_page_header>
-
     <%!-- Info Alert --%>
     <div class="alert alert-info mb-6">
       <.icon name="hero-information-circle" class="w-5 h-5" />
@@ -138,6 +121,21 @@
                 end
               }
             >
+              <:toolbar_actions>
+                <button
+                  phx-click="reset_dimensions_to_defaults"
+                  data-confirm={
+                    gettext(
+                      "Are you sure? This will delete all current dimensions and restore the default 8 dimensions. This action cannot be undone."
+                    )
+                  }
+                  class="btn btn-outline btn-error btn-sm"
+                >
+                  <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> {gettext(
+                    "Reset to Defaults"
+                  )}
+                </button>
+              </:toolbar_actions>
               <.table_default_header>
                 <.table_default_row>
                   <.table_default_header_cell>{gettext("Name")}</.table_default_header_cell>

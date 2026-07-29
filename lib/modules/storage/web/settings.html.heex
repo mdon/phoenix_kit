@@ -2,21 +2,18 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={gettext("Media Settings")}
+  page_section={gettext("Modules")}
+  page_section_path={PhoenixKit.Utils.Routes.path("/admin/modules")}
+  page_subtitle={
+    gettext(
+      "Media is a core system module that is always enabled and cannot be disabled — it provides essential file management functionality across PhoenixKit. Configure its storage buckets and file processing settings here."
+    )
+  }
   current_path={@current_path}
   current_locale={@current_locale}
   project_title={@project_title}
 >
   <div class="container mx-auto px-4 py-8">
-    <.admin_page_header
-      back={PhoenixKit.Utils.Routes.path("/admin/modules")}
-      title={gettext("Media Settings")}
-      subtitle={
-        gettext(
-          "Media is a core system module that is always enabled and cannot be disabled — it provides essential file management functionality across PhoenixKit. Configure its storage buckets and file processing settings here."
-        )
-      }
-    />
-
     <%!-- System Dependencies Check --%>
     <%= if match?({:error, :not_installed}, @imagemagick_status) do %>
       <div class="alert alert-error mb-6">

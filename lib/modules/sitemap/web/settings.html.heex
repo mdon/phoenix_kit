@@ -2,30 +2,27 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={gettext("Sitemap Settings")}
+  page_section={gettext("Modules")}
+  page_section_path={Routes.path("/admin/modules", locale: @current_locale)}
+  page_subtitle={gettext("Configure sitemap generation and scheduling")}
   current_path={@current_path}
   project_title={@project_title}
   current_locale={@current_locale}
 >
   <div class="container flex flex-col mx-auto px-4 py-6">
-    <.admin_page_header
-      back={Routes.path("/admin/modules", locale: @current_locale)}
-      title={gettext("Sitemap Settings")}
-      subtitle={gettext("Configure sitemap generation and scheduling")}
-    >
-      <:actions>
-        <label class="label cursor-pointer gap-2">
-          <span class="label-text font-medium">
-            {if @config.enabled, do: gettext("Enabled"), else: gettext("Disabled")}
-          </span>
-          <input
-            type="checkbox"
-            class="toggle toggle-primary"
-            checked={@config.enabled}
-            phx-click="toggle_sitemap"
-          />
-        </label>
-      </:actions>
-    </.admin_page_header>
+    <div class="flex items-center gap-2 justify-end mb-4">
+      <label class="label cursor-pointer gap-2">
+        <span class="label-text font-medium">
+          {if @config.enabled, do: gettext("Enabled"), else: gettext("Disabled")}
+        </span>
+        <input
+          type="checkbox"
+          class="toggle toggle-primary"
+          checked={@config.enabled}
+          phx-click="toggle_sitemap"
+        />
+      </label>
+    </div>
 
     <div class="space-y-6">
       <%!-- Stats Cards --%>

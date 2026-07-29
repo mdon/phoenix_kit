@@ -237,30 +237,15 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Settings do
     <PhoenixKitWeb.Components.LayoutWrapper.app_layout
       flash={@flash}
       phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-      page_title="{@project_title} - Maintenance Mode Settings"
+      page_title={"#{@project_title} - Maintenance Mode Settings"}
+      page_section={gettext("Modules")}
+      page_section_path={PhoenixKit.Utils.Routes.path("/admin/modules")}
+      page_subtitle={gettext("Customize the maintenance page and schedule")}
       current_path={@current_path}
       project_title={@project_title}
       current_locale={@current_locale}
     >
       <div class="container mx-auto px-4 py-6">
-        <%!-- Header Section --%>
-        <header class="w-full relative mb-6">
-          <.link
-            navigate={PhoenixKit.Utils.Routes.path("/admin/modules")}
-            class="btn btn-ghost btn-sm"
-          >
-            <.icon name="hero-arrow-left" class="w-4 h-4" />
-          </.link>
-          <div class="text-center">
-            <h1 class="text-4xl font-bold text-base-content mb-3">
-              {gettext("Maintenance Mode Settings")}
-            </h1>
-            <p class="text-lg text-base-content/70">
-              {gettext("Customize the maintenance page and schedule")}
-            </p>
-          </div>
-        </header>
-
         <%!-- Overall Status --%>
         <%= if @active do %>
           <div class="alert alert-warning mb-6">
