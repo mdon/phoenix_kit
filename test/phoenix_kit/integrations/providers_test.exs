@@ -128,6 +128,36 @@ defmodule PhoenixKit.Integrations.ProvidersTest do
       assert uuid1 in uuids and uuid2 in uuids
     end
 
+    test "a login is optional, so an IP-authenticated relay is configurable at all" do
+      # SmtpTransport has always had a credential-less branch (opportunistic
+      # TLS, degrade instead of :no_ca_store), and the transport settings offer
+      # `auth: never` for "relays that authenticate by IP" — but marking
+      # username/password required made every one of those unreachable: the form
+      # refused to submit, and `has_flat_credential_fields?/2` refused to call
+      # the connection configured.
+      p = Providers.get("smtp")
+      required = p.setup_fields |> Enum.filter(& &1.required) |> Enum.map(& &1.key)
+
+      assert "host" in required
+      assert "port" in required
+      refute "username" in required
+      refute "password" in required
+
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("smtp", "internal relay")
+
+      {:ok, _} =
+        Integrations.save_setup(uuid, %{
+          "host" => "relay.internal",
+          "port" => "25",
+          "username" => "",
+          "password" => "",
+          "security" => "none",
+          "auth" => "never"
+        })
+
+      assert {:ok, %{"host" => "relay.internal"}} = Integrations.get_credentials(uuid)
+    end
+
     test "Test Connection really connects: an unreachable relay is rejected" do
       # Before the validators existed this returned :ok and the connection was
       # stamped "connected" -- a green check on a relay that does not exist.

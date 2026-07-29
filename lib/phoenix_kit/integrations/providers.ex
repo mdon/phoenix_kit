@@ -765,11 +765,19 @@ defmodule PhoenixKit.Integrations.Providers do
           help: nil,
           options: nil
         },
+        # Optional, not required: an internal relay that authenticates by IP has
+        # no login to give, and `PhoenixKit.Mailer.SmtpTransport` has always had
+        # a credential-less branch (opportunistic TLS, degrade instead of
+        # :no_ca_store). Marking these required made that branch — and the
+        # `auth: never` / `security: none` settings below — impossible to reach
+        # from the form. The absent `*` is the UI signal; the help strings are
+        # left exactly as they were rather than gaining a "leave blank" sentence,
+        # because editing a translated msgid orphans it in all eight locales.
         %{
           key: "username",
           label: gettext("Username"),
           type: :text,
-          required: true,
+          required: false,
           placeholder: "your-login@smtp-brevo.com",
           help:
             gettext(
@@ -781,7 +789,7 @@ defmodule PhoenixKit.Integrations.Providers do
           key: "password",
           label: gettext("Password"),
           type: :password,
-          required: true,
+          required: false,
           placeholder: "xsmtpsib-...",
           help:
             gettext(

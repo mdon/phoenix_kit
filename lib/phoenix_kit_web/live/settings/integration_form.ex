@@ -581,8 +581,13 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
         Enum.reduce(provider.setup_fields, %{}, fn field, acc ->
           value = String.trim(params[field.key] || "")
 
+          # Soft `:type` access for the same reason `setup_field/1` renders
+          # softly: a provider contributed by an external module through
+          # `integration_providers/0` may omit it, and a form that renders fine
+          # then raises KeyError on save is the worst of both.
+          #
           # For password fields, skip empty values to keep the existing credential
-          if field.type == :password and value == "" do
+          if Map.get(field, :type) == :password and value == "" do
             acc
           else
             Map.put(acc, field.key, value)

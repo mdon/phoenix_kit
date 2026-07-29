@@ -78,8 +78,10 @@ defmodule PhoenixKit.Integrations.Validators do
   would still open a session and the check would pass. The operator's `auth`
   setting is honored in one direction only — `never` stays `never` (there are no
   credentials to prove), while `if_available` is upgraded to `always` for the
-  probe so a bad password fails the check. A relay that advertises no `AUTH` verb
-  at all is a different case, and is treated as a pass — see the module doc.
+  probe so a bad password fails the check. A connection with no username and no
+  password stays `never` for the same reason as an explicit `never`. A relay that
+  advertises no `AUTH` verb at all is a different case, and is treated as a pass
+  — see the module doc.
   """
   @spec smtp(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
   def smtp(data) do
@@ -124,10 +126,16 @@ defmodule PhoenixKit.Integrations.Validators do
   # `never` is the operator saying there are no credentials to prove, so leave it
   # alone; anything else becomes `always` so a wrong password fails the check
   # instead of being tolerated (see `smtp/1`'s doc).
+  #
+  # A relay configured with no login at all is the same case arrived at from the
+  # other direction: forcing `always` there makes the probe demand an AUTH
+  # exchange it has nothing to send, so a perfectly working IP-authenticated
+  # relay would fail Test Connection while sending fine.
   defp probe_auth(options) do
-    case Keyword.get(options, :auth, :if_available) do
-      :never -> :never
-      _ -> :always
+    cond do
+      Keyword.get(options, :auth, :if_available) == :never -> :never
+      blank?(options[:username]) and blank?(options[:password]) -> :never
+      true -> :always
     end
   end
 

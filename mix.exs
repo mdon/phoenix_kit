@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.216"
+  @version "1.7.217"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -323,16 +323,22 @@ defmodule PhoenixKit.MixProject do
   # Node is optional tooling here, so a machine without it skips rather than
   # fails — the Elixir suite is still the gate.
   defp run_js_tests(_args) do
-    if System.find_executable("node") do
-      {output, status} =
-        System.cmd("node", ["--test" | Path.wildcard("test/js/*.test.cjs")],
-          stderr_to_stdout: true
-        )
+    # `node --test` with no file arguments walks the CWD looking for anything
+    # test-shaped, so an empty glob must skip rather than hand node the whole
+    # repo (deps/ and _build/ included).
+    files = Path.wildcard("test/js/*.test.cjs")
 
-      IO.puts(output)
-      if status != 0, do: Mix.raise("JS tests failed")
-    else
-      Mix.shell().info("[skip] node not found — skipping test/js")
+    cond do
+      files == [] ->
+        Mix.shell().info("[skip] no test/js/*.test.cjs files")
+
+      System.find_executable("node") == nil ->
+        Mix.shell().info("[skip] node not found — skipping test/js")
+
+      true ->
+        {output, status} = System.cmd("node", ["--test" | files], stderr_to_stdout: true)
+        IO.puts(output)
+        if status != 0, do: Mix.raise("JS tests failed")
     end
   end
 end

@@ -1,3 +1,96 @@
+## 1.7.217 - 2026-07-28
+
+### Added
+- **SMTP transport settings** (#668) — five optional setup fields on the `smtp`
+  integration provider: `security` (`auto` / `ssl` / `starttls` /
+  `starttls_optional` / `none`), `auth` (`if_available` / `always` / `never`),
+  `verify_cert` (`verify_peer` / `verify_none`), `ca_cert` (a PEM bundle that
+  replaces the system store for that connection) and `timeout` (seconds).
+  Blank reproduces the previous port-based rule exactly, so existing connections
+  send unchanged; unknown values are **refused** rather than coerced back to
+  `auto`, so a typo cannot silently downgrade a connection's encryption. The
+  Test Connection probe builds from the same `SmtpTransport.config/1` options as
+  the send path.
+- **Optional `maybe_enqueue/2` callback on `PhoenixKit.Email.Provider`** (#668)
+  — offered right after `intercept_before_send/2` on **both** delivery paths, so
+  an email package can take delivery over for every outgoing message, including
+  the host application's password resets and confirmations. `{:queued, ref}`
+  short-circuits the send and reaches the caller as
+  `{:ok, %{id: ref, queued: true}}`; `:continue` sends normally. Guarded by
+  `function_exported?/3`, so a package built against an older core is unaffected.
+  `skip_queue: true` lets a queue worker ask for the real send.
+- **Setup fields render by `:type`** (#668) — `setup_field/1` now honors
+  `:select`, `:textarea` and `:number` instead of forcing `type="text"`, with a
+  text-input fallback for a type it has never heard of. The website-wide
+  integration form uses the shared component instead of a hand-rolled copy, so
+  the two forms can no longer drift.
+- **Sender-address warning on the Email Sending settings page** (#668) — a
+  sender that is not a full address (the built-in default `noreply@localhost`
+  among them) is silently refused by the email tracking module's `Log`
+  changeset, so mail went out and the log stayed empty with nothing in the UI
+  saying why. The page now warns, both in a banner and on save.
+- **`Chart` core component** (#669) — server-rendered SVG `line_chart/1`,
+  `sparkline/1` and `bar_chart/1`. No JS, no external library; theme-aware via
+  `currentColor`, and live by construction (assigns change → SVG re-renders).
+  Points may be `{x, y}` tuples or `%{x: _, y: _}` maps, `Decimal` is converted
+  automatically, and non-numeric points are dropped rather than crashing the
+  page — with an `:empty` slot for "nothing usable left".
+- **`StatusDot` core component** (#669) — semantic coloured dot with an optional
+  label and `pulse`, plus a screen-reader state name so the state is not carried
+  by colour alone.
+- **`ConnectAccountButton` core component + `PopupLink` JS hook** (#669) —
+  OAuth-popup account linking (distinct from `OAuthProvider`, which is app
+  sign-in). A real `<a href>` intercepted only once `window.open` returns a
+  window, so a blocked popup, JS being off, or a modifier-click all fall back to
+  ordinary navigation.
+- **`value_color` on `<.stat_card>`** (#669) — for values whose colour *is*
+  information (a price coloured by cheapness). Any `;` is stripped so the value
+  cannot append further declarations.
+- **`mix test.js`** (#669) — `node --test` over the pure logic in the shipped
+  hook bundle, wired into `mix precommit`. Skips itself when node is not
+  installed, or when the glob matches nothing.
+
+### Changed
+- **`<.stat_card>`'s `rounded` attr is now honored** (#669). It was previously
+  declared and ignored — the class was hardcoded `rounded-box`. Two consequences
+  for consumers: a caller that already passed `rounded="xl"` now actually gets
+  `rounded-xl`, and the attr has a closed `values:` list (`box`, `none`, `sm`,
+  `md`, `lg`, `xl`, `2xl`, `3xl`, `full`), so a value outside it emits a
+  compile-time warning. The whitelist exists because Tailwind scans source for
+  literal class names — an interpolated `rounded-#{@rounded}` produces a class
+  with no CSS behind it.
+- **SMTP `username` and `password` are no longer required fields.** An internal
+  relay that authenticates by IP has no login to give, and `SmtpTransport` has
+  always had a credential-less branch — but marking the fields required made it,
+  and the new `auth: never` / `security: none` settings, impossible to reach:
+  the form refused to submit and `connected?/1` refused to call the connection
+  configured, so mail silently fell back to the built-in mailer. `host` and
+  `port` remain required. The Test Connection probe stops forcing `auth: always`
+  when there is no login to prove, which would otherwise have failed every such
+  relay.
+- **Personal integrations form clears blanks like the website form does.** It
+  dropped blank values for *every* field, so a cleared optional field — an SMTP
+  CA bundle, a timeout — kept its old value while the form showed empty. Blanks
+  are now dropped for `:password` fields only, matching
+  `Settings.IntegrationForm`, and values are trimmed on both paths.
+
+### Fixed
+- **`mix precommit` failed on dialyzer** — the sender-address check added in
+  #668 had an unreachable catch-all clause (`pattern_match_cov`), which halted
+  `mix dialyzer` with exit status 2 and, because aliases run in order, meant the
+  new `test.js` step never ran at all.
+- **`:type` is read softly on the integration save paths too.** `setup_field/1`
+  was hardened to tolerate a provider field map without `:type` (external
+  modules contribute providers through `integration_providers/0`), but both save
+  paths still did `field.type` — so such a provider rendered fine and then raised
+  `KeyError` on submit, after the operator had committed to their input.
+- **SMTP `timeout` no longer accepts a number with a unit.** `Integer.parse/1`
+  returns `30` for both `"30s"` and `"30 minutes"`, so an operator who typed
+  minutes got a 30-second timeout with no complaint. The remainder must now be
+  empty.
+- **`deliver_via_integration/3`'s documented error list** now names the five
+  SMTP transport-setting reasons added in #668.
+
 ## 1.7.216 - 2026-07-27
 
 ### Fixed

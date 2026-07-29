@@ -334,14 +334,22 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
 
   defp reload(socket), do: socket
 
-  # Only the provider's declared setup-field keys are persisted, and empty
-  # values are dropped so an untouched optional field can't blank a saved
-  # credential — form params can't sneak arbitrary keys into the JSONB.
+  # Only the provider's declared setup-field keys are persisted — form params
+  # can't sneak arbitrary keys into the JSONB.
+  #
+  # Blanks are dropped for `:password` fields ONLY, so an untouched (and never
+  # re-rendered) secret can't be blanked by submitting the form. Every other
+  # field persists its blank: the website form has always done exactly this, and
+  # dropping blanks everywhere meant a cleared optional field — an SMTP CA
+  # bundle, a timeout — silently kept its old value with the form showing empty.
   defp setup_attrs(params, %{setup_fields: fields}) when is_list(fields) do
-    Enum.reduce(fields, %{}, fn %{key: key}, acc ->
-      case params[key] do
-        v when is_binary(v) and v != "" -> Map.put(acc, key, v)
-        _ -> acc
+    Enum.reduce(fields, %{}, fn field, acc ->
+      value = String.trim(to_string(params[field.key] || ""))
+
+      if Map.get(field, :type) == :password and value == "" do
+        acc
+      else
+        Map.put(acc, field.key, value)
       end
     end)
   end
