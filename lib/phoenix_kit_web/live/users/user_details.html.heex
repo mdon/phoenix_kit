@@ -366,6 +366,26 @@
               </div>
             </div>
 
+            <%!-- CRM contact (guarded: only rendered when the optional CRM
+                 module is installed, enabled, and this user has a linked
+                 contact — see the mount/3 guard for @crm_contact). --%>
+            <div :if={@crm_contact} class="card bg-base-200 shadow-sm">
+              <div class="card-body">
+                <h3 class="card-title text-lg">{gettext("CRM")}</h3>
+                <p class="text-sm text-base-content/70">
+                  {gettext("This user is linked to a CRM contact.")}
+                </p>
+                <.link
+                  navigate={
+                    PhoenixKit.Utils.Routes.path("/admin/crm/contacts/#{@crm_contact.uuid}")
+                  }
+                  class="link link-primary text-sm"
+                >
+                  {@crm_contact.name}
+                </.link>
+              </div>
+            </div>
+
             <%!-- Custom Fields --%>
             <%= if @custom_field_definitions && length(@custom_field_definitions) > 0 do %>
               <div class="card bg-base-200 shadow-sm">

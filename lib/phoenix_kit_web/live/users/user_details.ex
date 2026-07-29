@@ -15,6 +15,9 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   import PhoenixKitWeb.Components.Core.RowLink, only: [row_link: 1]
 
   @compile {:no_warn_undefined, PhoenixKitUserConnections}
+  # Guarded soft-dependency on the optional CRM module, same shape as the
+  # PhoenixKitUserConnections guard above — core cannot hard-depend on it.
+  @compile {:no_warn_undefined, [PhoenixKitCRM, PhoenixKitCRM.Contacts]}
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
@@ -57,6 +60,14 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
              }}
           else
             {false, nil}
+          end
+
+        # Load the linked CRM contact, if any, when the optional CRM module is
+        # installed and enabled. Guarded exactly like the connections stats
+        # above: core has no hard dependency on phoenix_kit_crm.
+        crm_contact =
+          if Code.ensure_loaded?(PhoenixKitCRM) and PhoenixKitCRM.enabled?() do
+            PhoenixKitCRM.Contacts.get_by_user_uuid(user.uuid)
           end
 
         # Load admin notes
@@ -104,6 +115,7 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
           |> assign(:show_delete_modal, false)
           |> assign(:connections_enabled, connections_enabled)
           |> assign(:connections_stats, connections_stats)
+          |> assign(:crm_contact, crm_contact)
           |> assign(:admin_notes, admin_notes)
           |> assign(:note_form, to_form(Auth.change_admin_note(%AdminNote{})))
           |> assign(:editing_note_uuid, nil)

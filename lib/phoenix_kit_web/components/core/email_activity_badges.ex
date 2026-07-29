@@ -84,7 +84,33 @@ defmodule PhoenixKitWeb.Components.Core.EmailActivityBadges do
         {acc ++ [{badge_class, formatted_text, type}], new_date}
       end)
 
-    badges
+    badges ++ status_only_badge(log, badges)
+  end
+
+  # A badge built from `status` alone, for the case where the status says the
+  # send ended badly but no timestamp or event backs it up.
+  #
+  # These badges are otherwise built purely from timestamps, and their meaning is
+  # carried by colour, not by text. That makes a log with `status: "failed"` and
+  # no `failed_at` render as a plain blue "sent" badge — the list claims the
+  # message went out while the detail page, which reads `status`, says it failed.
+  # A writer that sets one without the other is a bug in that writer, but this
+  # component must not present a failure as a success in the meantime.
+  @failure_statuses ~w(failed bounced hard_bounced soft_bounced rejected complained)
+  @failure_event_types ~w(failed rejected complaint bounce hard_bounce soft_bounce
+                          rendering_failure)
+
+  defp status_only_badge(log, badges) do
+    # Compare on event type, not badge colour: a soft bounce is deliberately
+    # amber, so a colour check would miss it and render a second badge.
+    already_shown? =
+      Enum.any?(badges, fn {_class, _text, type} -> type in @failure_event_types end)
+
+    if log.status in @failure_statuses and not already_shown? do
+      [{"badge-error", log.status, log.status}]
+    else
+      []
+    end
   end
 
   # Get event timestamp from log's events association
