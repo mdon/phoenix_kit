@@ -26,6 +26,23 @@
       </div>
     </div>
 
+    <%!-- Page-level actions. Deliberately NOT in the image table's
+         `:toolbar_actions` slot: that table only renders when dimensions exist,
+         and restoring the defaults is exactly what an empty list needs. --%>
+    <div class="flex flex-wrap items-center gap-2 justify-end mb-4">
+      <button
+        phx-click="reset_dimensions_to_defaults"
+        data-confirm={
+          gettext(
+            "Are you sure? This will delete all current dimensions and restore the default 8 dimensions. This action cannot be undone."
+          )
+        }
+        class="btn btn-outline btn-error btn-sm"
+      >
+        <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> {gettext("Reset to Defaults")}
+      </button>
+    </div>
+
     <%!-- Dimensions List --%>
     <div class="card bg-base-100 shadow-xl">
       <div class="card-body">
@@ -121,21 +138,6 @@
                 end
               }
             >
-              <:toolbar_actions>
-                <button
-                  phx-click="reset_dimensions_to_defaults"
-                  data-confirm={
-                    gettext(
-                      "Are you sure? This will delete all current dimensions and restore the default 8 dimensions. This action cannot be undone."
-                    )
-                  }
-                  class="btn btn-outline btn-error btn-sm"
-                >
-                  <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> {gettext(
-                    "Reset to Defaults"
-                  )}
-                </button>
-              </:toolbar_actions>
               <.table_default_header>
                 <.table_default_row>
                   <.table_default_header_cell>{gettext("Name")}</.table_default_header_cell>

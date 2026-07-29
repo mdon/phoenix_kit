@@ -237,7 +237,7 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Settings do
     <PhoenixKitWeb.Components.LayoutWrapper.app_layout
       flash={@flash}
       phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-      page_title={"#{@project_title} - Maintenance Mode Settings"}
+      page_title={gettext("Maintenance Mode Settings")}
       page_section={gettext("Modules")}
       page_section_path={PhoenixKit.Utils.Routes.path("/admin/modules")}
       page_subtitle={gettext("Customize the maintenance page and schedule")}
