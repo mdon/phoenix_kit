@@ -127,8 +127,10 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
     test "registration handoff POST sets the persistent cookie", %{conn: conn} do
       user = register_user()
 
-      # The registration form now carries a hidden user[remember_me]=true and
-      # trigger-action POSTs to /users/log-in?_action=registered.
+      # The registration form carries a "Keep me logged in" checkbox
+      # (user[remember_me], checked by default per remember_me_default?/0) and
+      # trigger-action POSTs to /users/log-in?_action=registered — the params
+      # below are what the browser sends with that box left ticked.
       conn =
         post(conn, Routes.path("/users/log-in?_action=registered"), %{
           "user" => %{
