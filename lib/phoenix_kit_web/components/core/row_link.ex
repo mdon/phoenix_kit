@@ -23,11 +23,18 @@ defmodule PhoenixKitWeb.Components.Core.RowLink do
   absent from every other consumer, where the failure is invisible in source and
   only shows up on an iOS device.
 
+  ## Import
+
+  Not wired into `PhoenixKitWeb, :live_view` — a host app that defines its own
+  `row_link/1` would get an ambiguous import. Each LiveView imports it directly:
+
+      import PhoenixKitWeb.Components.Core.RowLink, only: [row_link: 1]
+
   ## Example
 
       <.table_default_row class="relative transform-gpu cursor-pointer">
         <.table_default_cell>
-          <.row_link navigate={~p"/orders/123"} label="Open order #123" />
+          <.row_link navigate={Routes.path("/admin/orders/123")} label="Open order #123" />
           #123
         </.table_default_cell>
         <.table_default_cell class="relative z-10"><.table_row_menu .../></.table_default_cell>

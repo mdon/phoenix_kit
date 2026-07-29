@@ -17,8 +17,9 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
 
   import PhoenixKitWeb.Components.Core.IntegrationsUI, only: [integration_status_badge: 1]
 
-  # Not wired project-wide (see PhoenixKitWeb.Components.Core.RowLink's
-  # commit message) — Andi's own row_link/1 import would become ambiguous.
+  # Imported per-LiveView rather than from `PhoenixKitWeb, :live_view`: a host
+  # app that defines its own `row_link/1` would get an ambiguous import the
+  # moment core wired this one in project-wide.
   import PhoenixKitWeb.Components.Core.RowLink, only: [row_link: 1]
 
   alias PhoenixKit.Integrations

@@ -1,3 +1,57 @@
+## 1.7.219 - 2026-07-29
+
+### Added
+- **Admin UI standards sweep** (#673) — the admin area moved onto the
+  framework's own components. Page-local `<header>` / `<.admin_page_header>`
+  blocks fold into the `LayoutWrapper` breadcrumb (`page_section`,
+  `page_section_path`, `page_subtitle`, `page_action`), `container mx-auto`
+  width caps are gone, hand-rolled form controls are now
+  `<.input>` / `<.select>` / `<.textarea>` / `<.checkbox>`, and list views adopt
+  `<.table_default>`, `<.empty_state>`, `<.pagination>`, `<.search_toolbar>` and
+  `<.nav_tabs>`.
+- **`<.row_link>`** (#673) — new core component making a whole table row or card
+  clickable with one real `<a>` and a stretched `::after` overlay. A `<tr>` host
+  needs `relative transform-gpu`: WebKit ignores `position: relative` on `<tr>`,
+  so without a containing block every row's overlay collapses onto the last row
+  and every tap on iOS opens that one. Interactive siblings need `relative z-10`.
+
+### Changed
+- **`<.select>` and `<.textarea>` render the required marker** (#673 review) —
+  `<.input>` grew a red `*` for `required` fields and the sweep deleted the
+  hand-rolled markers it replaced, but the other two components never gained
+  one. Country on `/admin/settings/organization` was left reading as optional.
+- **`<.textarea field={...}>` renders its validation errors** (#673 review) —
+  the `FormField` clause mapped `id`/`name`/`value` but not `field.errors`, so a
+  field-bound textarea showed no message and no `textarea-error` however the
+  changeset failed. The admin-note box on the user detail page was the fourth
+  call site to inherit it.
+- **`<.pagination_controls>` uses daisyUI 5 `join`** (#673) — `btn-group` was
+  removed in daisyUI 5, so the page buttons had lost their grouping.
+- **`<.search_toolbar>` takes an `id`** (#673) — defaults to one derived from the
+  change event; without a form id LiveView form recovery is silently disabled.
+
+### Fixed
+- **The user detail page no longer 500s on a structured custom field** (#673) —
+  `custom_fields` is free-form JSONB, and `to_string/1` raises on a map, so any
+  user who had ever used the media browser (`media_expanded_folders`, a list) or
+  the etcher (`etcher_line_params`, a map) took the whole page down. Structured
+  values now render as JSON, lists join.
+- **Organization-members rows are clickable on Safari/iOS** (#673 review) — the
+  row used `row-link-host`, a class that lives in one host app's `app.css` and
+  exists nowhere in this repo, instead of `transform-gpu`. Every member row's
+  overlay collapsed onto the last one.
+- **Users list rows stay clickable without the Email column** (#673 review) — the
+  `row_link` was rendered only inside the `email` cell, but `email` is
+  `required: false` in the column picker. Dropping it left every row wearing
+  `cursor-pointer` with nothing to click. The overlay now hosts in the first
+  visible non-`actions` column.
+- **The custom-field "add option" input fills its row again** (#673 review) —
+  `class="flex-1"` lands on the `<input>`, but `<.input>`'s
+  `<div phx-feedback-for>` wrapper is the flex item; it needed
+  `wrapper_class="contents"`.
+- **`focus:input-primary` on `<.textarea>`** (#673) — was the input's focus class,
+  never the textarea's, so a focused textarea never took the primary border.
+
 ## 1.7.218 - 2026-07-29
 
 ### Added

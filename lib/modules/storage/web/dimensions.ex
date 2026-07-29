@@ -11,8 +11,6 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Dimensions do
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 
-  require Logger
-
   def mount(params, _session, socket) do
     # Set locale for LiveView process
     locale =
