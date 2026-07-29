@@ -1,3 +1,51 @@
+## 1.7.221 - 2026-07-29
+
+### Added
+- **A failed email never renders as merely sent** (#674) — the activity badges
+  carry their whole meaning in colour (the text is only ever a timestamp), so a
+  log whose `status` says the send failed but whose matching timestamp or event
+  is missing rendered as the plain blue "sent" badge, contradicting the detail
+  page for the same log. A status-only badge now covers that gap.
+- **CRM contact card on the user detail page** (#674) — when the optional CRM
+  module is installed and enabled, a user linked to a CRM contact gets a card
+  linking straight to it.
+
+### Fixed
+- **Spam complaints were left showing as sent** (#674 review) — the new failure
+  whitelist spelled the status `complained`, which no writer in the tree sets,
+  and omitted `complaint`, which is what `SqsProcessor` actually writes and what
+  `Emails.Log`'s changeset validates. Five of the six failure statuses were
+  covered and the dead entry made the list look complete.
+- **Soft bounces stay amber in the activity column** (#674 review) — the
+  status-only badge hardcoded `badge-error` for every failure status, repainting
+  a retryable soft bounce red in the list while the detail page showed it amber.
+  Colour and label now come from `EmailStatusBadge`, so core holds one status →
+  colour/label map instead of two that drift.
+- **The CRM card checks the viewer's `crm` permission** (#674 review) — every
+  admin route shares one `live_session` gated only by `can_access_admin_area?/1`,
+  so a role holding `users` but not `crm` rendered a contact's name and was then
+  bounced to `/` by `enforce_admin_view_permission/2` on clicking through. The
+  permission check also skips the query for viewers who would never see the card.
+- **A contact with no name renders a visible link** (#674 review) —
+  `phoenix_kit_crm_contacts.name` is nullable, and the card read `.name` directly
+  instead of CRM's own `display_name/1` fallback chain, so such a contact
+  rendered the card's only link as empty text.
+
+### Tests
+- **`email_activity_badges_test.exs`** (new) — the component had none. Enumerates
+  the canonical status list from `Emails.Log`'s changeset and asserts the failure
+  subset against it both ways, so a whitelist that invents or drops a status
+  fails a test whose message says why. Also pins colour parity with
+  `EmailStatusBadge`, the labels, and the no-duplicate path.
+
+### i18n
+- **The CRM card's new strings are translated** (#674 review) — `This user is
+  linked to a CRM contact.` and `Unnamed contact` reached neither `default.pot`
+  nor ru/et, the two locales kept at 100%. Appended by hand for the same reason
+  as 1.7.220: a full `gettext.extract --merge` now reports 195 new / 53 fuzzy per
+  locale, a repo-wide backlog this PR did not cause. `CRM` needed nothing — it
+  already exists as a msgid and is translated in both.
+
 ## 1.7.220 - 2026-07-29
 
 ### i18n

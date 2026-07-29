@@ -367,8 +367,9 @@
             </div>
 
             <%!-- CRM contact (guarded: only rendered when the optional CRM
-                 module is installed, enabled, and this user has a linked
-                 contact — see the mount/3 guard for @crm_contact). --%>
+                 module is installed and enabled, the viewer holds the `crm`
+                 permission, and this user has a linked contact — see
+                 load_crm_contact/2 for @crm_contact). --%>
             <div :if={@crm_contact} class="card bg-base-200 shadow-sm">
               <div class="card-body">
                 <h3 class="card-title text-lg">{gettext("CRM")}</h3>
@@ -381,7 +382,7 @@
                   }
                   class="link link-primary text-sm"
                 >
-                  {@crm_contact.name}
+                  {crm_contact_label(@crm_contact)}
                 </.link>
               </div>
             </div>

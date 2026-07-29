@@ -10768,3 +10768,13 @@ msgstr "Изменение информации о пользователе"
 #, elixir-autogen, elixir-format
 msgid "Media Detail"
 msgstr "Сведения о медиафайле"
+
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:377
+#, elixir-autogen, elixir-format
+msgid "This user is linked to a CRM contact."
+msgstr "Этот пользователь связан с контактом CRM."
+
+#: lib/phoenix_kit_web/live/users/user_details.ex:611
+#, elixir-autogen, elixir-format
+msgid "Unnamed contact"
+msgstr "Контакт без имени"

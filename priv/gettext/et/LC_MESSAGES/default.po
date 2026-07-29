@@ -10746,3 +10746,13 @@ msgstr "Muuda kasutaja andmeid"
 #, elixir-autogen, elixir-format
 msgid "Media Detail"
 msgstr "Meediafaili üksikasjad"
+
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:377
+#, elixir-autogen, elixir-format
+msgid "This user is linked to a CRM contact."
+msgstr "See kasutaja on seotud CRM-i kontaktiga."
+
+#: lib/phoenix_kit_web/live/users/user_details.ex:611
+#, elixir-autogen, elixir-format
+msgid "Unnamed contact"
+msgstr "Nimeta kontakt"

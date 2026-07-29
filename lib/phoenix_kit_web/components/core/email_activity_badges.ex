@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Components.Core.EmailActivityBadges do
   use Phoenix.Component
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKitWeb.Components.Core.EmailStatusBadge
 
   @doc """
   Renders chronological activity badges for an email log.
@@ -96,7 +97,12 @@ defmodule PhoenixKitWeb.Components.Core.EmailActivityBadges do
   # message went out while the detail page, which reads `status`, says it failed.
   # A writer that sets one without the other is a bug in that writer, but this
   # component must not present a failure as a success in the meantime.
-  @failure_statuses ~w(failed bounced hard_bounced soft_bounced rejected complained)
+  #
+  # The statuses are the failing subset of the one canonical vocabulary —
+  # `EmailStatusBadge.status_class/1` and `Emails.Log`'s `validate_inclusion`.
+  # Spelling matters: the spam-complaint status is `complaint` (what
+  # `SqsProcessor` writes), never `complained`.
+  @failure_statuses ~w(failed bounced hard_bounced soft_bounced rejected complaint)
   @failure_event_types ~w(failed rejected complaint bounce hard_bounce soft_bounce
                           rendering_failure)
 
@@ -107,7 +113,13 @@ defmodule PhoenixKitWeb.Components.Core.EmailActivityBadges do
       Enum.any?(badges, fn {_class, _text, type} -> type in @failure_event_types end)
 
     if log.status in @failure_statuses and not already_shown? do
-      [{"badge-error", log.status, log.status}]
+      # Colour and label come from EmailStatusBadge so this badge matches the
+      # status badge the detail page shows for the same log — a soft bounce is
+      # retryable and stays amber rather than being repainted as a hard failure.
+      [
+        {EmailStatusBadge.status_class(log.status), EmailStatusBadge.format_status(log.status),
+         log.status}
+      ]
     else
       []
     end

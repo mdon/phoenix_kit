@@ -23,6 +23,7 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.AdminNote
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -62,13 +63,7 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
             {false, nil}
           end
 
-        # Load the linked CRM contact, if any, when the optional CRM module is
-        # installed and enabled. Guarded exactly like the connections stats
-        # above: core has no hard dependency on phoenix_kit_crm.
-        crm_contact =
-          if Code.ensure_loaded?(PhoenixKitCRM) and PhoenixKitCRM.enabled?() do
-            PhoenixKitCRM.Contacts.get_by_user_uuid(user.uuid)
-          end
+        crm_contact = load_crm_contact(socket, user)
 
         # Load admin notes
         admin_notes = Auth.list_admin_notes(user)
@@ -588,6 +583,32 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   end
 
   defp target_is_owner?(user), do: Enum.any?(user.roles || [], &(&1.name == "Owner"))
+
+  # The linked CRM contact for this user, when the optional CRM module is
+  # installed and enabled. Guarded like the connections stats in mount/3: core
+  # has no hard dependency on phoenix_kit_crm.
+  #
+  # The viewer's own `crm` permission is part of the guard. Every admin route
+  # shares one live_session, so reaching this page only proves the viewer can
+  # reach the admin area at all; the CRM contact page is separately gated by
+  # `enforce_admin_view_permission/2`. Without the check, a role holding `users`
+  # but not `crm` would read a contact's name here and then be bounced back to
+  # "/" on clicking through.
+  defp load_crm_contact(socket, user) do
+    scope = socket.assigns[:phoenix_kit_current_scope]
+
+    if scope && Scope.has_module_access?(scope, "crm") &&
+         Code.ensure_loaded?(PhoenixKitCRM) && PhoenixKitCRM.enabled?() do
+      PhoenixKitCRM.Contacts.get_by_user_uuid(user.uuid)
+    end
+  end
+
+  # Mirrors PhoenixKitCRM.Schemas.Contact.display_name/1 without reaching into
+  # the optional module: `name` is nullable in phoenix_kit_crm_contacts, and a
+  # nil there would render the card's only link as empty text.
+  defp crm_contact_label(%{name: name}) when is_binary(name) and name != "", do: name
+  defp crm_contact_label(%{email: email}) when is_binary(email) and email != "", do: email
+  defp crm_contact_label(_contact), do: gettext("Unnamed contact")
 
   defp user_display_name(user) do
     cond do
