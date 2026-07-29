@@ -6,6 +6,10 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   """
   use PhoenixKitWeb, :live_view
 
+  # Not wired project-wide (see PhoenixKitWeb.Components.Core.RowLink's
+  # commit message) — Andi's own row_link/1 import would become ambiguous.
+  import PhoenixKitWeb.Components.Core.RowLink, only: [row_link: 1]
+
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth

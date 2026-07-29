@@ -17,6 +17,10 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
 
   import PhoenixKitWeb.Components.Core.IntegrationsUI, only: [integration_status_badge: 1]
 
+  # Not wired project-wide (see PhoenixKitWeb.Components.Core.RowLink's
+  # commit message) — Andi's own row_link/1 import would become ambiguous.
+  import PhoenixKitWeb.Components.Core.RowLink, only: [row_link: 1]
+
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Events
   alias PhoenixKit.Integrations.Providers
@@ -130,7 +134,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
       project_title={@project_title}
       current_locale={assigns[:current_locale]}
     >
-      <div class="container mx-auto px-4 py-6">
+      <div class="px-4 py-6">
         <%!-- Connections table --%>
         <div :if={@connections != []}>
           <.table_default
@@ -191,8 +195,15 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
             </.table_default_header>
 
             <.table_default_body>
-              <.table_default_row :for={conn <- @connections}>
+              <.table_default_row
+                :for={conn <- @connections}
+                class="relative transform-gpu cursor-pointer"
+              >
                 <.table_default_cell>
+                  <.row_link
+                    navigate={Routes.path("/admin/settings/integrations/#{conn.uuid}")}
+                    label={conn.provider.name}
+                  />
                   <div class="flex items-center gap-2">
                     <.icon name={conn.provider.icon} class="w-4 h-4 text-base-content/60" />
                     <span>{conn.provider.name}</span>
@@ -229,7 +240,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
                     </div>
                   <% end %>
                 </.table_default_cell>
-                <.table_default_cell>
+                <.table_default_cell class="relative z-10">
                   <.table_row_menu
                     id={"my-integration-menu-#{conn.uuid}"}
                     mode="auto"

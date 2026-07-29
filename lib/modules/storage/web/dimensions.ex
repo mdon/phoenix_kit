@@ -36,8 +36,6 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Dimensions do
   end
 
   def handle_event("delete_dimension", %{"id" => id}, socket) do
-    Logger.info("Dimensions: delete_dimension event triggered for id=#{id}")
-
     dimension = Storage.get_dimension(id)
 
     case Storage.delete_dimension(dimension) do
@@ -59,8 +57,6 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Dimensions do
   end
 
   def handle_event("toggle_dimension", %{"id" => id}, socket) do
-    Logger.info("Dimensions: toggle_dimension event triggered for id=#{id}")
-
     dimension = Storage.get_dimension(id)
 
     case Storage.update_dimension(dimension, %{enabled: !dimension.enabled}) do

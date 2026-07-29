@@ -8,6 +8,10 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
 
   use PhoenixKitWeb, :live_view
 
+  # Not wired project-wide (see PhoenixKitWeb.Components.Core.RowLink's
+  # commit message) — Andi's own row_link/1 import would become ambiguous.
+  import PhoenixKitWeb.Components.Core.RowLink, only: [row_link: 1]
+
   alias PhoenixKit.Activity
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Settings
