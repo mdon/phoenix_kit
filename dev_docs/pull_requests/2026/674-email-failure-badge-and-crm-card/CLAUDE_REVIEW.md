@@ -333,9 +333,60 @@ Final: **0 extra, 0 dropped** across all 24 catalog files.
 
 ## Still open
 
-`de`, `es`, `it`, `pl` remain deliberate stubs (~2075/1960 untranslated) and each
-still carries ~463–533 fuzzy flags over its ~107–222 translated entries. Those
-carryovers were **not** audited string-by-string — only the 5 provably-broken
-placeholder cases were fixed. If any of those locales is ever promoted to a
-supported one, it needs the same pass ru/et/fr got. `en` is untranslated by
-design (msgstr empty ⇒ falls back to the msgid).
+`de`, `es`, `it`, `pl` were completed in a further follow-up — see below.
+
+---
+
+# Follow-up 3: de/es/it/pl completed — every locale now 100% (1.7.224)
+
+The four remaining locales were stubs: ~2106 untranslated each (es ~1967, having
+~139 entries already done), plus 40–97 fuzzy entries that *did* carry a
+translation. Total ~8,500 strings across the four.
+
+**All four are now 0 untranslated / 0 fuzzy** across `default` (2182), `errors`
+(24) and `phoenix_kit` (7). With ru, et and fr that makes **every shipped locale
+100% translated with no fuzzy flags anywhere.**
+
+## How it was done safely
+
+The volume (2146 msgids × 4 languages) made hand-editing the 28k-line catalogs a
+non-option, so the edits went through a round-trip tool with three properties
+worth recording:
+
+- **A no-op apply is byte-identical.** Verified before every use — untouched
+  blocks are never reflowed, so the diff only ever contains real changes.
+- **Escaping round-trips.** The parser unescapes and the writer re-escapes, and
+  `escape(unescape(x)) == x` is asserted on the one msgid containing a quote
+  (`Allow "Keep me logged in" …`). Without this, that entry would have gained a
+  double backslash.
+- **Writes are filtered to each locale's work set** (untranslated ∪ fuzzy), so an
+  existing good non-fuzzy translation is never clobbered. This is what kept es's
+  139 pre-existing entries intact — visible in the apply counts, where es
+  legitimately reports fewer writes than the other three on batches that
+  overlapped its existing work.
+
+Terminology was taken from each catalog's own pre-existing entries rather than
+invented — e.g. pl already used "zasobnik" for *bucket* where de/es/it keep
+"Bucket", and that split was preserved. daisyUI theme names follow the same fr
+precedent as before: descriptive names translated (`Winter` → Invierno / Inverno /
+Zima), genre and proper nouns kept (`Nord`, `Cyberpunk`, `Lo-Fi`, `CMYK`).
+
+## `en` fuzzy flags cleared
+
+`en` is untranslated **by design** — every msgstr is empty so Gettext falls back
+to the msgid, which is already English. It carried 512 fuzzy flags on those empty
+entries. They were inert (no msgstr to be wrong), but they made a fuzzy count
+useless as a signal, so they were dropped without touching the empty msgstrs.
+
+**"0 fuzzy anywhere in priv/gettext" is now a true, checkable invariant** — which
+is the real win, because a non-zero fuzzy count from here on means a reword
+actually happened and needs a human.
+
+## Verification
+
+- 7 locales × 3 domains: **0 untranslated, 0 fuzzy**. `en`: 0 fuzzy, untranslated
+  by design.
+- Bidirectional placeholder audit over all 24 files: **0 extra, 0 dropped**.
+- `mix gettext.extract --merge`: all 24 files report `0 new, 0 removed, 0
+  reworded`, and the tree is **byte-identical** afterwards.
+- `mix precommit` clean.

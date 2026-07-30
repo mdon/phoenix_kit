@@ -1,3 +1,36 @@
+## 1.7.224 - 2026-07-30
+
+### i18n
+- **Every shipped locale is now 100% translated with no fuzzy flags** — `de`, `es`,
+  `it` and `pl` were stubs (~2106 untranslated each; es ~1967) and are now
+  complete: 0 untranslated, 0 fuzzy across `default` (2182), `errors` (24) and
+  `phoenix_kit` (7). Together with ru, et and fr, all seven translated locales are
+  at 100%. ~8,500 strings.
+- **Terminology follows each catalog's own prior entries** rather than being
+  invented — e.g. `pl` already used "zasobnik" for *bucket* where de/es/it keep
+  "Bucket", and that split was preserved. daisyUI theme names follow the existing
+  `fr` precedent: descriptive names translated (`Winter` → Invierno / Inverno /
+  Zima), genre and proper nouns kept (`Nord`, `Cyberpunk`, `Lo-Fi`, `CMYK`).
+- **`en` fuzzy flags cleared** — `en` is untranslated by design (empty msgstr ⇒
+  Gettext falls back to the msgid, already English), but it carried 512 fuzzy
+  flags on those empty entries. They were inert, and they made a fuzzy count
+  useless as a signal. **"0 fuzzy anywhere in `priv/gettext`" is now a true,
+  checkable invariant**, so any future non-zero count means a reword really
+  happened and needs a human.
+- **Existing good translations were never clobbered** — writes were filtered to
+  each locale's untranslated ∪ fuzzy set, which is what preserved the ~139 entries
+  `es` already had.
+
+### Fixed
+- **`should be %{count} byte(s)` and friends now exist in de/es/it/pl** — the
+  entire `errors` domain was untranslated in de, it and pl, so every Ecto
+  validation message fell back to English in those locales.
+
+### Verification
+- Bidirectional placeholder audit over all 24 catalog files: 0 extra, 0 dropped.
+- `mix gettext.extract --merge` reports `0 new, 0 removed, 0 reworded` for all 24
+  files and leaves the tree byte-identical.
+
 ## 1.7.223 - 2026-07-30
 
 ### Fixed
