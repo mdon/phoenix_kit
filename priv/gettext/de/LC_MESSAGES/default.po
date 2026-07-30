@@ -6068,9 +6068,9 @@ msgid "Referral Codes"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/modules.html.heex:742
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Requires %{module}"
-msgstr "Erforderlich"
+msgstr "Erfordert %{module}"
 
 #: lib/phoenix_kit_web/live/modules.html.heex:651
 #, elixir-autogen, elixir-format

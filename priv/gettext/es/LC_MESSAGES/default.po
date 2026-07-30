@@ -6075,9 +6075,9 @@ msgid "Referral Codes"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/modules.html.heex:742
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Requires %{module}"
-msgstr "Obligatorio"
+msgstr "Requiere %{module}"
 
 #: lib/phoenix_kit_web/live/modules.html.heex:651
 #, elixir-autogen, elixir-format
@@ -10640,9 +10640,9 @@ msgid "Active %{date} at %{time}"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:552
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Active today at %{time}"
-msgstr "Activo"
+msgstr "Activo hoy a las %{time}"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:555
 #, elixir-autogen, elixir-format, fuzzy

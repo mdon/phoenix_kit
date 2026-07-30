@@ -277,7 +277,65 @@ were simply untranslated, and `should have %{count} item(s)` said "bytes".
 ## Deliberately left alone
 
 `de`, `es`, `it`, `pl`, `en` are structurally synced but remain stubs by design
-(1837–2182 untranslated). `fr` is the interesting one: 301 untranslated and 126
-fuzzy, i.e. ~86% and clearly maintained by someone. Its fuzzy entries carry the
-same class of defect as ru/et did and are **still live**. Completing fr is a
-separate pass of comparable size; flagged rather than silently half-done.
+(1960–2182 untranslated). `fr` was completed in a follow-up — see below.
+
+---
+
+# Follow-up 2: fr completed (1.7.223)
+
+fr was at ~86% with 126 fuzzy. Same defect class as ru/et, confirmed live:
+
+| msgid | fr served | should be |
+|---|---|---|
+| `Approve` | "avr." (April) | Approuver |
+| `Sign out` | "S'inscrire" (Sign **up**) | Se déconnecter |
+| `Email Unconfirmed` | "E-mail **confirmé**" | E-mail non confirmé |
+| `Restore` | "Rétro" (the Retro theme) | Restaurer |
+| `unlimited` | "sans titre" (untitled) | illimité |
+| `Full Access` | "Succès" (Success) | Accès complet |
+| `Port` | "Trier" (Sort) | Port |
+| `Custom URLs` | "Rôles personnalisés" (Custom **roles**) | URL personnalisées |
+| `Device` | "Service" | Appareil |
+| `Create User` | "Créer un dossier" (Create **folder**) | Créer un utilisateur |
+| `Sign in to %{project_title}` | "Nouveau sur %{project_title} ?" | Connexion à %{project_title} |
+| `Integration added` | "Intégration **supprimée**" (removed) | Intégration ajoutée |
+| `No unread notifications` | "Activer les notifications utilisateur" | Aucune notification non lue |
+| `%{n}h ago`, `%{n}m ago` | both "il y a %{n} **jours**" | h / min |
+
+`Sign out` → "S'inscrire" is the standout: the sign-out control read "Sign up".
+The xAI setup steps had inherited Mistral's URLs here too.
+
+**fr is now 0 untranslated / 0 fuzzy** across all three domains — 301 strings
+translated and 126 fuzzy entries reviewed, 90 of them rewritten.
+
+## BUG - MEDIUM — the audit missed placeholders that were *dropped*, not extra
+
+The 1.7.222 audit only flagged msgstrs referencing a binding the msgid does not
+supply (broken interpolation). fr exposed the mirror case: a carryover that drops
+a placeholder the msgid *does* supply, silently losing the value.
+
+```
+msgid  "Requires %{module}"
+msgstr "Obligatoire"          # module name gone, and it says "Required"
+```
+
+The audit now checks **both directions**, and correctly handles plural entries:
+form 0 is compared against `msgid` and the rest against `msgid_plural`, because
+English singulars routinely hardcode "1" and carry no `%{count}` (`1 session
+revoked for %{email}`) — unioning both would false-positive on every such entry.
+
+This found 5 more live instances, all in the otherwise-stub locales (`Requires
+%{module}` in de/es/it/pl, `Active today at %{time}` in es), and all **worse than
+being untranslated**: an empty msgstr falls back to correct English, whereas these
+render "Required" with the module name silently missing. Fixed in all four.
+
+Final: **0 extra, 0 dropped** across all 24 catalog files.
+
+## Still open
+
+`de`, `es`, `it`, `pl` remain deliberate stubs (~2075/1960 untranslated) and each
+still carries ~463–533 fuzzy flags over its ~107–222 translated entries. Those
+carryovers were **not** audited string-by-string — only the 5 provably-broken
+placeholder cases were fixed. If any of those locales is ever promoted to a
+supported one, it needs the same pass ru/et/fr got. `en` is untranslated by
+design (msgstr empty ⇒ falls back to the msgid).

@@ -1,3 +1,38 @@
+## 1.7.223 - 2026-07-30
+
+### Fixed
+- **fr carried the same live fuzzy-carryover defects as ru/et** — the sign-out
+  control read "S'inscrire" (**Sign up**), `Email Unconfirmed` rendered as "E-mail
+  **confirmé**", `Integration added` as "Intégration **supprimée**" (removed),
+  `Approve` as "avr." (April), `Restore` as "Rétro" (the theme), `unlimited` as
+  "sans titre" (untitled), `Full Access` as "Succès", `Port` as "Trier" (Sort),
+  `Custom URLs` as "Rôles personnalisés" (Custom **roles**), `Device` as
+  "Service", `Create User` as "Créer un dossier" (Create **folder**),
+  `No unread notifications` as "Activer les notifications utilisateur", and both
+  `%{n}h ago` and `%{n}m ago` as "il y a %{n} **jours**". The xAI key-setup steps
+  had inherited Mistral's URLs here too.
+- **Placeholders dropped by a fuzzy carryover** — `Requires %{module}` rendered as
+  a bare "Required" in de, es, it, pl (and `Active today at %{time}` as "Activo"
+  in es), losing the interpolated value. These are worse than being untranslated:
+  an empty msgstr falls back to correct English, while these render wrong text
+  with the value silently missing. Fixed in all four locales.
+
+### i18n
+- **fr is complete** — 0 untranslated, 0 fuzzy across all three domains
+  (`default` 2182, `errors` 24, `phoenix_kit` 7). 301 strings translated and 126
+  fuzzy entries reviewed individually, 90 rewritten. ru, et and fr are now all at
+  100% with no fuzzy flags.
+- **The placeholder audit now checks both directions** — the 1.7.222 version only
+  caught msgstrs referencing a binding the msgid never supplies; it now also
+  catches ones that *drop* a binding the msgid does supply. Plural entries are
+  handled correctly (form 0 against `msgid`, the rest against `msgid_plural`),
+  since English singulars routinely hardcode "1" and carry no `%{count}`.
+  Result across all 24 catalog files: 0 extra, 0 dropped.
+- `de`, `es`, `it`, `pl` remain deliberate stubs and still carry ~463–533 fuzzy
+  flags that were **not** audited string-by-string — only the provably-broken
+  placeholder cases above were fixed. Promoting any of them to a supported locale
+  needs the same pass ru/et/fr got. `en` is untranslated by design.
+
 ## 1.7.222 - 2026-07-29
 
 ### Fixed
