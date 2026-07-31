@@ -5502,7 +5502,7 @@ if (typeof window.Chart === "undefined") {
           escAttr(r.uuid) +
           '" data-label="' +
           escAttr(r.label) +
-          '" class="flex items-center justify-between w-full px-3 py-2 hover:bg-base-200 text-left">' +
+          '" class="flex items-center justify-between w-full px-3 py-2 hover:bg-base-200 text-left cursor-pointer">' +
           '<span class="flex items-center gap-2 min-w-0">' +
           '<span class="' +
           escAttr(r.icon || "hero-user") +
@@ -5526,7 +5526,7 @@ if (typeof window.Chart === "undefined") {
           "</div>";
       } else if (this.hasMore) {
         list +=
-          '<button type="button" data-pick="more" class="w-full px-3 py-2 text-xs text-center text-primary hover:bg-base-200">' +
+          '<button type="button" data-pick="more" class="w-full px-3 py-2 text-xs text-center text-primary hover:bg-base-200 cursor-pointer">' +
           tMore +
           "</button>";
       }
@@ -5534,7 +5534,7 @@ if (typeof window.Chart === "undefined") {
       var bottom = "";
       if (q && this.evText && this.mode !== "single") {
         bottom =
-          '<button type="button" data-pick="text" class="flex items-center gap-2 w-full px-3 py-2 hover:bg-base-200 text-left border-t border-base-200">' +
+          '<button type="button" data-pick="text" class="flex items-center gap-2 w-full px-3 py-2 hover:bg-base-200 text-left border-t border-base-200 cursor-pointer">' +
           '<span class="hero-plus-mini w-4 h-4 shrink-0 text-base-content/50"></span>' +
           "<span>" +
           tAddPrefix +
