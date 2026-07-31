@@ -1,3 +1,46 @@
+## 1.7.225 - 2026-07-31
+
+### Fixed
+- **A NULL `custom_fields` column silently swallowed atomic writes** (#675) — the
+  column is nullable (V18), and in Postgres `NULL || jsonb` is `NULL` and
+  `NULL - key` stays `NULL`. `merge_user_custom_fields/3` and
+  `delete_user_custom_field/3` built their UPDATE straight off the column, so on a
+  NULL row the merge discarded the additions and returned `{:ok, user}` with
+  nothing written. Both fragments now `COALESCE(?, '{}'::jsonb)` first — the same
+  idiom V30 already uses — which also restores the old whole-map path's side
+  effect of normalizing a NULL column to `{}` on any delete.
+- **Saving notification preferences rolled back a concurrently-connected channel
+  or locale switch** — `Notifications.Prefs` was the last core writer still
+  replacing the whole `custom_fields` map, and it rebuilt it from the `%User{}`
+  the caller had been holding since `mount/3`. With a settings page open, a
+  Telegram connect (`notification_channel:telegram`) or any language switch
+  (`preferred_locale`) landing in between was silently reverted by the next save.
+  It now writes only its own key through the atomic merge, which is what
+  `ChannelConfig`'s per-channel key layout always assumed. Same-key concurrent
+  writes are still last-writer-wins, now documented on `Prefs.merge/2`.
+- **Internal UI preferences no longer register themselves as admin custom
+  fields** — `ensure_definitions_exist/1` registers every key in the map it is
+  handed, and the media browser / canvas viewer passed the whole column, so
+  `media_view_mode`, `media_expanded_folders`, `media_sidebar_collapsed`,
+  `etcher_colors`, `etcher_line_params` and `media_viewer_info_collapsed` appeared
+  in the Custom Fields list and the users-table column customizer. Those five call
+  sites now pass `ensure_definitions: false`, matching the users and activity list
+  views. Definitions already registered on existing installs stay until removed.
+
+### Changed
+- **`update_user_locale_preference/2` gained a `@spec`** documenting its two error
+  shapes — `{:error, String.t()}` for a validation failure and the primitives'
+  `{:error, :not_found}` for a row deleted concurrently.
+- **`Prefs.update/2` and `Prefs.merge/2` specs corrected** to `{:error, :not_found}`;
+  they no longer return an `Ecto.Changeset`. Both call sites already matched
+  `{:error, _}`.
+
+### Tests
+- NULL-column coverage for the merge and delete primitives; the documented
+  `{:error, :not_found}` contract for `set_user_custom_field/3`; and a regression
+  test that a sibling `custom_fields` key written after a caller's snapshot
+  survives a `Prefs.merge/2`.
+
 ## 1.7.224 - 2026-07-30
 
 ### i18n

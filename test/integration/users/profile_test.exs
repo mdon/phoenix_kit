@@ -281,6 +281,19 @@ defmodule PhoenixKit.Integration.Users.ProfileTest do
 
       assert {:error, :not_found} = Auth.delete_user_custom_field(user, "key")
     end
+
+    test "set_user_custom_field/3 surfaces :not_found, not a changeset error" do
+      user = create_user()
+      import Ecto.Query
+
+      PhoenixKit.RepoHelper.delete_all(
+        from(u in PhoenixKit.Users.Auth.User, where: u.uuid == ^user.uuid)
+      )
+
+      # Delegates to merge_user_custom_fields/3, so it inherits that
+      # contract rather than the historical {:error, %Ecto.Changeset{}}.
+      assert {:error, :not_found} = Auth.set_user_custom_field(user, "phone", "555-1234")
+    end
   end
 
   describe "update_user_locale_preference/2 (now atomic underneath)" do

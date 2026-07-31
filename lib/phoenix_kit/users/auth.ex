@@ -1584,7 +1584,13 @@ defmodule PhoenixKit.Users.Auth do
 
       iex> update_user_locale_preference(user, nil)
       {:ok, %User{...}}  # Clears the preference
+
+  Two distinct error shapes: a validation failure returns `{:error, message}`
+  with a human-readable string, while a row deleted concurrently surfaces the
+  primitives' `{:error, :not_found}`.
   """
+  @spec update_user_locale_preference(User.t(), String.t() | nil) ::
+          {:ok, User.t()} | {:error, String.t()} | {:error, :not_found}
   def update_user_locale_preference(%User{} = user, preferred_locale) do
     case User.validate_locale_value(preferred_locale) do
       :ok ->

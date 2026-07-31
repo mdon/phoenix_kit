@@ -2952,7 +2952,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     fresh = Auth.get_user(uuid) || user
     merged = Map.put(fresh.custom_fields || %{}, @media_view_mode_key, mode)
 
-    case Auth.update_user_custom_fields(fresh, merged) do
+    # Internal view preference — skip the custom-field-definition registration
+    # so it never surfaces in the admin Custom Fields list or the users-table
+    # column customizer. Mirrors the users/activity list views. Reads go
+    # through `Auth.get_user_field/2`, which never consults definitions.
+    case Auth.update_user_custom_fields(fresh, merged, ensure_definitions: false) do
       {:ok, updated} -> updated
       {:error, _} -> user
     end
@@ -2997,7 +3001,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           )
           |> Map.put(@media_sidebar_collapsed_key, socket.assigns.sidebar_collapsed)
 
-        case Auth.update_user_custom_fields(fresh, merged) do
+        # Internal sidebar state — not an admin-managed custom field.
+        case Auth.update_user_custom_fields(fresh, merged, ensure_definitions: false) do
           {:ok, updated} -> assign(socket, :phoenix_kit_current_user, updated)
           {:error, _} -> socket
         end
