@@ -271,8 +271,10 @@ defmodule PhoenixKit.Users.UserOrgChangesetTest do
       assert get_field(changeset, :username) == base
     end
 
-    test "an explicit username still wins", %{base: base} do
-      changeset = User.registration_changeset(%User{}, %{"username" => "#{base}_updated"})
+    test "an explicit username still wins", %{user: user, base: base} do
+      # On the SAVED user — this block is about editing one, and the admin form
+      # renaming a user is exactly the path the generator must not overrule.
+      changeset = User.registration_changeset(user, %{"username" => "#{base}_updated"})
       assert get_change(changeset, :username) == "#{base}_updated"
     end
 

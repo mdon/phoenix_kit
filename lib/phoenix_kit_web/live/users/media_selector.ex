@@ -239,7 +239,9 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
     # Get file info
     ext = Path.extname(entry.client_name) |> String.replace_leading(".", "")
     mime_type = entry.client_type || MIME.from_path(entry.client_name)
-    file_type = determine_file_type(mime_type)
+    # Shared classifier — see `Storage.determine_file_type/2`. The copy that
+    # lived here classified every audio upload as "other".
+    file_type = Storage.determine_file_type(mime_type, entry.client_name)
 
     # Get current user
     current_user = socket.assigns[:phoenix_kit_current_user]
@@ -372,14 +374,6 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
     case Enum.find(instances, &(&1.variant_name == "original")) do
       nil -> nil
       instance -> instance.height
-    end
-  end
-
-  defp determine_file_type(mime_type) do
-    cond do
-      String.starts_with?(mime_type, "image/") -> "image"
-      String.starts_with?(mime_type, "video/") -> "video"
-      true -> "other"
     end
   end
 

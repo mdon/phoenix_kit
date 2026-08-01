@@ -1,3 +1,57 @@
+## 1.7.226 - 2026-08-01
+
+### Added
+- **Audio is a first-class type in the media pickers** (#676) — an audio filter in
+  the selector modal (grid query, `accept` list, server-side upload gate, copy and
+  the "Audio Only" dropdown option), plus `lock_file_type` on the modal and
+  `only_file_type` on `MediaBrowser`, which turn a type filter from a starting
+  point into a constraint: the control is hidden, the change event is refused on
+  the server, and an off-type upload is refused rather than stored out of sight.
+- **`Storage.determine_file_type/2`** — the one classifier behind the `file_type`
+  column, now public and documented. It takes the filename as well as the mime
+  type, so the extensions browsers report as `application/octet-stream` (`.m4a`,
+  `.flac`, `.opus`, `.ogg`) are still classified correctly instead of being
+  invited by a picker's `accept` list and then refused by its own type gate.
+
+### Fixed
+- **An mp3 was stored as a document, so the audio filter never found it** (#676) —
+  `determine_file_type/1` was copied into all four upload paths and the copies
+  drifted: only the selector modal's knew about audio, while the media browser
+  classified audio as `"document"` and the upload controller and full-page selector
+  as `"other"`. Since each copy's result is written straight to `file_type`, and
+  both new filters query that column literally, the same file was findable or
+  invisible depending on which dropzone it was dropped on. All four now call
+  `Storage.determine_file_type/2`. Unknown mime types uploaded through the media
+  browser are now `"other"` (in the `File` allowlist) rather than `"document"`.
+- **Buttons that didn't look clickable** (#676) — Tailwind v4's preflight stopped
+  setting `cursor: pointer` on `button`, leaving the SearchPicker's dropdown rows
+  (server- and hook-rendered) and the theme dropdown's options with an arrow
+  cursor. `cursor-pointer` also joins the SearchPicker's safelist span, since the
+  hook writes the class from JavaScript.
+- **`EmailStatusBadge` leaked `format_status/1` and `status_class/1` into every
+  LiveView** (#676) — it is blanket-imported by `use PhoenixKitWeb, :live_view`, so
+  any consumer with its own `format_status/1` failed to compile pointing at code
+  that never mentioned email. The import is narrowed to the component itself.
+- **The call-to-action block sat flush left and linked nowhere** (#676) — it now
+  renders inside a centring wrapper, drops the `inline-block` that was overriding
+  daisyUI's `.btn`, and renders without an `href` when it has no action instead of
+  defaulting to `"#"`, which scrolled the reader to the top of the page.
+
+### i18n
+- The five new audio strings translated in all seven locales. `gettext.extract
+  --merge` fuzzy-matches each of them onto its *video* sibling — so
+  "Only audio files can be added here." would otherwise have rendered as the
+  translation of "only video files" — and fuzzy entries do render.
+
+### Tests
+- `test/modules/storage/determine_file_type_test.exs` — DB-free coverage of the
+  shared classifier, including the `application/octet-stream` filename fallback.
+- The registration-changeset block that shares a describe-level `setup` now
+  registers a unique address per test; it was exhausting the 3-per-hour-per-email
+  registration limit, and the refusal landed in `setup` reading as "registration is
+  broken". The "explicit username wins" case keeps its saved user — the block is
+  about editing one.
+
 ## 1.7.225 - 2026-07-31
 
 ### Fixed

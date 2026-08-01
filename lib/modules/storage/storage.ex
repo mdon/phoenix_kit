@@ -3498,7 +3498,7 @@ defmodule PhoenixKit.Modules.Storage do
       file_name: storage_info.destination_path,
       file_path: file_path,
       mime_type: content_type,
-      file_type: determine_file_type(content_type),
+      file_type: determine_file_type(content_type, filename),
       ext: Path.extname(filename),
       file_checksum: file_checksum,
       user_file_checksum: user_file_checksum,
@@ -3548,7 +3548,54 @@ defmodule PhoenixKit.Modules.Storage do
     |> Base.encode16(case: :lower)
   end
 
-  defp determine_file_type(mime_type) do
+  # Extensions the browser and `MIME.from_path/1` both routinely hand back as
+  # `application/octet-stream` — `.m4a` (what an iPhone records), `.flac`,
+  # `.ogg`. Mirrors `MediaBrowser`'s `@audio_extensions`, which exists for the
+  # same reason on the display side: without them a file the picker's `accept`
+  # list explicitly invited is stored as "other" and then hidden by the very
+  # filter that asked for it.
+  @audio_extensions ~w(.mp3 .wav .ogg .oga .m4a .aac .flac .opus .weba .mid .midi)
+
+  @doc """
+  Classifies a file into the `file_type` the `File` schema stores:
+  `"image"`, `"video"`, `"audio"`, `"document"`, `"archive"` or `"other"`.
+
+  Every upload path must classify through here. Each surface used to carry its
+  own copy of this `cond` and the copies drifted — three of them had no
+  `audio/` clause at all, so an mp3 uploaded through the media browser was
+  stored as `"document"` while the audio filter, a plain
+  `file_type == "audio"` query, never saw it.
+
+  `filename` is the second line of defence, for the extensions whose mime type
+  neither the browser nor `MIME.from_path/1` knows.
+
+      iex> determine_file_type("audio/mpeg")
+      "audio"
+      iex> determine_file_type("application/octet-stream", "song.m4a")
+      "audio"
+  """
+  def determine_file_type(mime_type, filename \\ nil) do
+    case classify_mime(mime_type || "") do
+      "other" -> classify_by_filename(filename)
+      type -> type
+    end
+  end
+
+  defp classify_by_filename(nil), do: "other"
+
+  defp classify_by_filename(filename) do
+    case classify_mime(MIME.from_path(filename)) do
+      "other" ->
+        if String.ends_with?(String.downcase(filename), @audio_extensions),
+          do: "audio",
+          else: "other"
+
+      type ->
+        type
+    end
+  end
+
+  defp classify_mime(mime_type) do
     cond do
       String.starts_with?(mime_type, "image/") ->
         "image"

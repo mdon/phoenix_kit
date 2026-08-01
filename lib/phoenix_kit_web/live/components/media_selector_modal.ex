@@ -244,8 +244,12 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   # (`:any`), so an image/video picker would still let arbitrary files in. `:all`
   # keeps `:any`.
   defp accept_for(:image), do: ~w(.jpg .jpeg .png .gif .webp .svg .bmp .avif .heic .heif)
-  defp accept_for(:video), do: ~w(.mp4 .mov .webm .mkv .avi .m4v .ogv .ogg)
-  defp accept_for(:audio), do: ~w(.mp3 .m4a .aac .wav .flac .oga .opus .weba)
+  # `.ogg` sits with audio, not video: `Storage.determine_file_type/2` and the
+  # browser's own audio detection both read it as audio, so inviting it into a
+  # video picker only got it refused by `upload_type_allowed?/2` afterwards.
+  # (Ogg video is `.ogv`, which stays above.)
+  defp accept_for(:video), do: ~w(.mp4 .mov .webm .mkv .avi .m4v .ogv)
+  defp accept_for(:audio), do: ~w(.mp3 .m4a .aac .wav .flac .oga .ogg .opus .weba)
   defp accept_for(_), do: :any
 
   # Modal copy that reflects the active type filter, so an all/video picker
@@ -272,8 +276,11 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   defp upload_type_allowed?(:audio, entry), do: entry_file_type(entry) == "audio"
   defp upload_type_allowed?(_all, _entry), do: true
 
+  # The filename is passed as well as the mime type: browsers report `.m4a`
+  # and `.flac` as `application/octet-stream` (or as nothing at all), and a
+  # file the `accept` list above invited must not be refused by this gate.
   defp entry_file_type(entry) do
-    (entry.client_type || MIME.from_path(entry.client_name)) |> determine_file_type()
+    Storage.determine_file_type(entry.client_type, entry.client_name)
   end
 
   defp off_type_upload_error(:image), do: gettext("Only image files can be added here.")
@@ -507,7 +514,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   defp process_upload(socket, path, entry) do
     ext = Path.extname(entry.client_name) |> String.replace_leading(".", "")
     mime_type = entry.client_type || MIME.from_path(entry.client_name)
-    file_type = determine_file_type(mime_type)
+    file_type = Storage.determine_file_type(mime_type, entry.client_name)
 
     current_user = socket.assigns[:phoenix_kit_current_user]
 
@@ -700,15 +707,6 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
     case Enum.find(instances, &(&1.variant_name == "original")) do
       nil -> nil
       instance -> Map.get(instance, field)
-    end
-  end
-
-  defp determine_file_type(mime_type) do
-    cond do
-      String.starts_with?(mime_type, "image/") -> "image"
-      String.starts_with?(mime_type, "video/") -> "video"
-      String.starts_with?(mime_type, "audio/") -> "audio"
-      true -> "other"
     end
   end
 

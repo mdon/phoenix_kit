@@ -47,8 +47,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   ## Picking into a typed slot
 
   `only_file_type` restricts the browser to one kind for its whole lifetime —
-  the listing is filtered to it and the type-filter control is hidden, so the
-  other kinds are simply not reachable:
+  the listing is filtered to it, the type-filter control is hidden, and an
+  off-type upload is refused, so the other kinds are simply not reachable:
 
       <.live_component
         module={PhoenixKitWeb.Components.MediaBrowser}
@@ -147,8 +147,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign_new(:scope_folder_id, fn -> nil end)
       |> assign_new(:admin, fn -> false end)
       # Restricts the browser to ONE file type for its whole lifetime: the
-      # listing is filtered to it and the type-filter control is hidden, so
-      # there is no way to reach the other kinds. For pickers that fill a
+      # listing is filtered to it, the type-filter control is hidden, and an
+      # off-type upload is refused, so there is no way to reach the other
+      # kinds — including by uploading one. For pickers that fill a
       # typed slot — an audio field, an image field — where offering
       # everything means the only thing standing between a PNG and an
       # <audio> tag is the consumer remembering to re-check afterwards.
@@ -216,6 +217,31 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # committed from commit_upload_batch/1 once the batch debounce window closes,
   # so dropping N files produces one page reload instead of N.
   defp process_pending_upload(socket, {path, entry}) do
+    if off_type_upload?(socket, entry) do
+      # A locked browser filters its listing, so an off-type file would be
+      # stored and then be invisible in the very browser that accepted it —
+      # "I uploaded it and it vanished". The parent's `accept: :any` is shared
+      # by every browser on the page and can't express the lock, so the refusal
+      # belongs here, where the component's own assigns are in scope.
+      File.rm(path)
+      put_flash(socket, :error, off_type_upload_error(socket.assigns.only_file_type))
+    else
+      buffer_pending_upload(socket, path, entry)
+    end
+  end
+
+  defp off_type_upload?(%{assigns: %{only_file_type: type}}, entry) when is_binary(type) do
+    Storage.determine_file_type(entry.client_type, entry.client_name) != type
+  end
+
+  defp off_type_upload?(_socket, _entry), do: false
+
+  defp off_type_upload_error("image"), do: gettext("Only image files can be added here.")
+  defp off_type_upload_error("video"), do: gettext("Only video files can be added here.")
+  defp off_type_upload_error("audio"), do: gettext("Only audio files can be added here.")
+  defp off_type_upload_error(_), do: gettext("Only the allowed file types can be added here.")
+
+  defp buffer_pending_upload(socket, path, entry) do
     result = process_single_upload(socket, path, entry)
     File.rm(path)
 
@@ -3191,7 +3217,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp process_single_upload(socket, path, entry) do
     ext = Path.extname(entry.client_name) |> String.replace_leading(".", "")
     mime_type = entry.client_type || MIME.from_path(entry.client_name)
-    file_type = determine_file_type(mime_type)
+    # One classifier for every upload path (see `Storage.determine_file_type/2`) —
+    # the local copy that used to live here had no audio clause, so an mp3 was
+    # stored as a document and then hidden by the audio filter.
+    file_type = Storage.determine_file_type(mime_type, entry.client_name)
     current_user = socket.assigns[:phoenix_kit_current_user]
     user_uuid = if current_user, do: current_user.uuid, else: nil
     {:ok, stat} = Elixir.File.stat(path)
@@ -3409,18 +3438,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Tessera layer no longer attaches. Restore once a Fresco 0.5-compatible
   # Tessera (or replacement) ships and `<Tessera.layer>` is wired back
   # into the file-zoom heex.
-
-  defp determine_file_type(mime_type) do
-    cond do
-      String.starts_with?(mime_type, "image/") -> "image"
-      String.starts_with?(mime_type, "video/") -> "video"
-      # PDFs fall under "document" because the File schema's allowlist is
-      # ["image", "video", "audio", "document", "archive", "other"] — returning
-      # "pdf" here made every PDF upload fail the changeset validation silently.
-      mime_type == "application/pdf" -> "document"
-      true -> "document"
-    end
-  end
 
   # Build a "Folder1 / Folder2 / ..." path string from a folder uuid.
   # Returns nil at root so callers can render a `/` placeholder. Shared
