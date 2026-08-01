@@ -44,6 +44,27 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         phoenix_kit_current_user={@phoenix_kit_current_user}
       />
 
+  ## Picking into a typed slot
+
+  `only_file_type` restricts the browser to one kind for its whole lifetime —
+  the listing is filtered to it and the type-filter control is hidden, so the
+  other kinds are simply not reachable:
+
+      <.live_component
+        module={PhoenixKitWeb.Components.MediaBrowser}
+        id="audio-picker"
+        select_mode
+        only_file_type="audio"
+        phoenix_kit_current_user={@phoenix_kit_current_user}
+      />
+
+  Use it wherever the selection fills a typed field. Offering everything and
+  validating afterwards works, but it lets someone choose a PNG for an audio
+  slot and only find out on the rejection — and if a consumer forgets that
+  re-check, the PNG lands in the field and renders as a dead `<audio>`.
+
+  Values: `image`, `video`, `document`, `audio`, `archive`, `other`.
+
   ## Usage (controlled — URL-sync driven by parent)
 
       <.live_component
@@ -125,6 +146,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign(assigns)
       |> assign_new(:scope_folder_id, fn -> nil end)
       |> assign_new(:admin, fn -> false end)
+      # Restricts the browser to ONE file type for its whole lifetime: the
+      # listing is filtered to it and the type-filter control is hidden, so
+      # there is no way to reach the other kinds. For pickers that fill a
+      # typed slot — an audio field, an image field — where offering
+      # everything means the only thing standing between a PNG and an
+      # <audio> tag is the consumer remembering to re-check afterwards.
+      # nil (default) leaves the toolbar in charge, starting at "all".
+      |> assign_new(:only_file_type, fn -> nil end)
       |> assign_new(:viewer_file, fn -> nil end)
       # The list the open viewer's prev/next steps through — the page's
       # files, or an expanded stack's own (see `locate_file/2`).
@@ -566,7 +595,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
     # Toolbar sort + file-type filter (socket state, applied to the listing).
     |> assign(:sort_by, "newest")
-    |> assign(:file_type_filter, "all")
+    # `only_file_type` locks this to one kind for the whole session — see the
+    # attr docs on update/2. Absent, the toolbar owns it and starts at "all".
+    |> assign(:file_type_filter, socket.assigns[:only_file_type] || "all")
     |> assign(:search_query, "")
     |> assign(:select_mode, false)
     |> assign(:selected_files, MapSet.new())
@@ -1256,11 +1287,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   def handle_event("set_file_filter", %{"type" => type}, socket)
       when type in @valid_file_types do
-    {:noreply,
-     socket
-     |> assign(:file_type_filter, type)
-     |> assign(:current_page, 1)
-     |> reload_current_page()}
+    # A locked browser hides this control, but the event is still reachable
+    # from a console — and the whole point of the lock is that the consumer
+    # can trust what comes back, so honour it on the server rather than in
+    # the markup alone.
+    if socket.assigns[:only_file_type] do
+      {:noreply, socket}
+    else
+      {:noreply,
+       socket
+       |> assign(:file_type_filter, type)
+       |> assign(:current_page, 1)
+       |> reload_current_page()}
+    end
   end
 
   # Ignore an out-of-whitelist file-type filter instead of crashing.
