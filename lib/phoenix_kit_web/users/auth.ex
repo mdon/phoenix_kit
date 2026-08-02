@@ -2033,7 +2033,12 @@ defmodule PhoenixKitWeb.Users.Auth do
         if String.trim_trailing(path, "/") == target_path_canonical do
           target_path
         else
-          query = if uri.query, do: "?" <> uri.query, else: ""
+          # `""` is truthy in Elixir, so a plain `if uri.query` turned a
+          # query-less-but-present query string into a bare `"?"` — and the URI
+          # comes from the browser's location, which carries one after a
+          # fieldless GET submit or a `push_patch` with no params. Captured
+          # once, it round-trips back into the URL and perpetuates itself.
+          query = if uri.query in [nil, ""], do: "", else: "?" <> uri.query
           target_path <> "?return_to=" <> URI.encode_www_form(path <> query)
         end
 

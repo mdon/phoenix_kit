@@ -211,6 +211,29 @@ defmodule PhoenixKit.Dashboard.Registry do
   end
 
   @doc """
+  The admin path of the tab that declares `view` as its `live_view`, or
+  `"/admin"` when nothing claims it.
+
+  Sidebar active-state reads `assigns[:url_path]`, which the kit's on_mount
+  chain fills in from a `:handle_params` hook. Two kinds of LiveView never get
+  it: one rendered via `live_render/3` (an embed has no `handle_params`
+  lifecycle at all) and a host LV that renders admin chrome without going
+  through that chain. Both used to render with no tab highlighted and nothing
+  to suggest why. A tab already knows its own path, so ask it.
+  """
+  @spec path_for_live_view(module()) :: String.t()
+  def path_for_live_view(view) when is_atom(view) do
+    get_admin_tabs(include_hidden: true)
+    |> Enum.find_value(fn
+      %Tab{live_view: {^view, _action}, path: path} when is_binary(path) -> path
+      %Tab{live_view: ^view, path: path} when is_binary(path) -> path
+      _ -> nil
+    end) || "/admin"
+  end
+
+  def path_for_live_view(_), do: "/admin"
+
+  @doc """
   Gets user-level tabs.
 
   ## Options
