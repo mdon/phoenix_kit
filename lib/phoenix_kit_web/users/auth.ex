@@ -22,8 +22,11 @@ defmodule PhoenixKitWeb.Users.Auth do
     permission key mapped to the current admin view: Owner passes because its
     scope holds every key by construction; Admin holds keys as real,
     Owner-revocable rows (seeded/auto-granted by default). Disabled modules
-    block everyone. Views that resolve to no permission key allow Owner/Admin
-    and deny custom roles (fail-closed where a key could exist).
+    block everyone. Views that resolve to no permission key allow only a scope
+    holding every enabled permission — role-agnostic, so a named Admin whose
+    keys an Owner has partially revoked is denied too. The first mount of such a
+    view logs a warning, whoever mounts it, so the missing mapping surfaces
+    before a colleague hits the 403.
   - `:phoenix_kit_ensure_module_access` — Checks that the feature module is
     permitted for the scope and (for custom roles) enabled.
 
@@ -1273,6 +1276,43 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp personal_admin_view?(view), do: view in @personal_admin_views
 
+  # One warning per unmapped view, for ANY role — not only on a denial.
+  #
+  # This used to be a single `Logger.debug`, which meant a host could ship an
+  # admin page, test it as Owner, see it work, and learn about the missing
+  # mapping when a colleague hit a 403. Warning on the first mount regardless of
+  # who mounts it surfaces the misconfiguration while the author is still
+  # looking at the page.
+  #
+  # Deduped through `:persistent_term` keyed by the view module. That is
+  # naturally bounded — it holds only the distinct unmapped LiveView modules
+  # that ever mount, and module atoms are permanent in the BEAM anyway. The
+  # process dictionary would not work: a LiveView is its own process, so it
+  # would re-log on every mount.
+  defp warn_unmapped_admin_view_once(view) do
+    key = {__MODULE__, :unmapped_admin_view, view}
+
+    case :persistent_term.get(key, :unseen) do
+      :unseen ->
+        :persistent_term.put(key, :warned)
+
+        Logger.warning("""
+        [PhoenixKit] Admin view #{inspect(view)} has no permission mapping.
+
+        Only a scope holding every enabled permission can reach it — so it works
+        for an Owner and 403s for everyone else, including a named Admin whose
+        keys have been partially revoked.
+
+        Map it by giving its admin tab a `permission:` key, or by declaring the
+        key in `config :phoenix_kit, :custom_permission_keys` and registering the
+        view through a tab's `live_view:`.
+        """)
+
+      :warned ->
+        :ok
+    end
+  end
+
   defp enforce_mapped_admin_view_permission(socket, scope) do
     case permission_key_for_admin_view(socket.view) do
       nil ->
@@ -1290,10 +1330,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         # Admin auto-holds every one of those. To keep a deliberately-stripped
         # role's blanket access, an Owner grants it the `"*"` key — the
         # drift-immune, role-agnostic way.
-        Logger.debug(
-          "[Auth] Admin view #{inspect(socket.view)} has no permission mapping — " <>
-            "allowing full-access scopes only, denying partial roles"
-        )
+        warn_unmapped_admin_view_once(socket.view)
 
         if Scope.holds_all_enabled_permissions?(scope) do
           {:cont, socket}

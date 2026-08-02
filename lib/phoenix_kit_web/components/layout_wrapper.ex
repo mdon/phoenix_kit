@@ -96,7 +96,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :page_action, :map,
     default: nil,
     doc:
-      "Optional compact action button rendered right after the breadcrumb title: `%{icon: \"hero-plus\", label: \"New template\", navigate: path}`. Lets a page keep its primary create action without spending an in-content header row. `label` becomes the tooltip/aria-label; `icon` defaults to hero-plus."
+      "Optional compact action button rendered right after the breadcrumb title: `%{icon: \"hero-plus\", label: \"New template\", navigate: path}`. Lets a page keep its primary create action without spending an in-content header row. `label` becomes the tooltip/aria-label; `icon` defaults to hero-plus. Navigation only — for a `phx-click` action (or anything needing `phx-target`), use the `:action` slot instead. ⚠️ Plugin LiveViews rendered through the admin layout can only use this map: the layout threads it as an assign, and a slot cannot travel that way."
 
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
@@ -109,6 +109,27 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     default: %{},
     doc:
       "Module-supplied host-consumable assigns. Each key in this map is merged into the assigns set passed to the parent layout (`Layouts.app`), so a host's custom layout can read e.g. `assigns[:phoenix_kit_publishing_translations]` from publishing, or any other module-defined key. Plain `conn.assigns` don't reach a function-component layout — only declared attrs do — so this single map attribute is how modules thread arbitrary host-consumable data through the boundary without core having to declare each one explicitly."
+
+  slot :action,
+    doc: """
+    The same compact action button, for pages whose primary action is not a
+    navigation — a `phx-click`, a `JS` command, anything needing `phx-target`.
+    The map attribute cannot express those and cannot address a LiveComponent.
+
+    Takes render priority over the `page_action` attribute. Content is wrapped
+    in the same chip shell, and the contract is **one compact control**: a
+    multi-action toolbar belongs in the page body, not the breadcrumb bar.
+
+    ⚠️ Only reaches views calling `app_layout/1` directly. Plugin LiveViews
+    render through `layouts/admin.html.heex`, which threads `page_action` as an
+    assign — slots do not travel through assigns — so those keep the map.
+
+        <:action>
+          <button phx-click="new_device" phx-target={@myself} title="Add device">
+            <.icon name="hero-plus" class="w-4 h-4" />
+          </button>
+        </:action>
+    """
 
   slot :inner_block, required: false
 
@@ -262,6 +283,47 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   end
 
   # Wrap inner_block with admin navigation if needed
+  # Extracted so `wrap_inner_block_with_admin_nav_if_needed/1` stays under the
+  # complexity ceiling — it is a plain projection of the caller's assigns onto
+  # the keys the admin chrome template reads.
+  defp admin_template_assigns(assigns, original_inner_block) do
+    %{
+      original_inner_block: original_inner_block,
+      # Parent LiveView socket — only used to embed the sticky
+      # NotificationsBell; nil when the caller didn't thread it
+      # through (then the bell simply isn't rendered).
+      socket: assigns[:socket],
+      phoenix_kit_current_user: assigns[:phoenix_kit_current_user],
+      current_path: assigns[:current_path],
+      page_title: assigns[:page_title],
+      page_subtitle: assigns[:page_subtitle],
+      page_section: assigns[:page_section],
+      page_section_path: assigns[:page_section_path],
+      page_action: assigns[:page_action],
+      # The slot travels here as an ordinary key; `assigns[:action]` is
+      # `nil` for every caller that does not pass one, and the render
+      # compares against `[]`.
+      action: assigns[:action] || [],
+      phoenix_kit_current_scope: assigns[:phoenix_kit_current_scope],
+      project_title: assigns[:project_title] || PhoenixKit.Settings.get_project_title(),
+      current_locale: assigns[:current_locale],
+      current_locale_base:
+        assigns[:current_locale] && DialectMapper.extract_base(assigns[:current_locale]),
+      scope: assigns[:phoenix_kit_current_scope],
+      phoenix_kit_session_accounts:
+        (assigns[:phoenix_kit_current_scope] &&
+           assigns[:phoenix_kit_current_scope].multi_session_accounts) || [],
+      phoenix_kit_multi_session_allowed?:
+        (assigns[:phoenix_kit_current_scope] &&
+           assigns[:phoenix_kit_current_scope].multi_session_allowed?) || false,
+      auth_logo_url:
+        case PhoenixKit.Settings.get_logo_uuid() do
+          uuid when is_binary(uuid) and uuid != "" -> URLSigner.signed_url(uuid, "medium")
+          _ -> nil
+        end
+    }
+  end
+
   defp wrap_inner_block_with_admin_nav_if_needed(assigns) do
     if admin_page?(assigns) do
       # Mark that admin chrome is being rendered by this (LiveView) call.
@@ -278,39 +340,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         %{
           inner_block: fn _slot_assigns, _index ->
             # Create template assigns with needed values
-            template_assigns = %{
-              original_inner_block: original_inner_block,
-              # Parent LiveView socket — only used to embed the sticky
-              # NotificationsBell; nil when the caller didn't thread it
-              # through (then the bell simply isn't rendered).
-              socket: assigns[:socket],
-              phoenix_kit_current_user: assigns[:phoenix_kit_current_user],
-              current_path: assigns[:current_path],
-              page_title: assigns[:page_title],
-              page_subtitle: assigns[:page_subtitle],
-              page_section: assigns[:page_section],
-              page_section_path: assigns[:page_section_path],
-              page_action: assigns[:page_action],
-              phoenix_kit_current_scope: assigns[:phoenix_kit_current_scope],
-              project_title: assigns[:project_title] || PhoenixKit.Settings.get_project_title(),
-              current_locale: assigns[:current_locale],
-              current_locale_base:
-                assigns[:current_locale] && DialectMapper.extract_base(assigns[:current_locale]),
-              scope: assigns[:phoenix_kit_current_scope],
-              phoenix_kit_session_accounts:
-                (assigns[:phoenix_kit_current_scope] &&
-                   assigns[:phoenix_kit_current_scope].multi_session_accounts) || [],
-              phoenix_kit_multi_session_allowed?:
-                (assigns[:phoenix_kit_current_scope] &&
-                   assigns[:phoenix_kit_current_scope].multi_session_allowed?) || false,
-              auth_logo_url:
-                case PhoenixKit.Settings.get_logo_uuid() do
-                  uuid when is_binary(uuid) and uuid != "" -> URLSigner.signed_url(uuid, "medium")
-                  _ -> nil
-                end
-            }
-
-            assigns = template_assigns
+            assigns = admin_template_assigns(assigns, original_inner_block)
 
             ~H"""
             <%!-- PhoenixKit Admin Layout --%>
@@ -409,8 +439,18 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       >
                         {@page_subtitle}
                       </span>
+                      <%!-- Slot wins when given; the map is the shorthand for
+                            the navigate-only case and the only thing plugin
+                            LiveViews can reach. Same chip shell either way, so
+                            the header bar cannot grow a toolbar. --%>
+                      <span
+                        :if={@action != []}
+                        class="[&>*]:btn [&>*]:btn-xs [&>*]:btn-primary [&>*]:btn-circle [&>*]:shrink-0"
+                      >
+                        {render_slot(@action)}
+                      </span>
                       <.link
-                        :if={@page_action}
+                        :if={@action == [] and @page_action}
                         navigate={@page_action[:navigate]}
                         class="btn btn-xs btn-primary btn-circle shrink-0"
                         title={@page_action[:label]}
