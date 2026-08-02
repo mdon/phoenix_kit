@@ -135,10 +135,10 @@ defmodule PhoenixKitWeb.Users.Registration do
 
         case registration_result do
           {:ok, user} ->
-            # Record referral code usage if provided and valid
-            if validated_code do
-              Referrals.use_code(validated_code.code, user.uuid)
-            end
+            # Records the use AND marks the account as having satisfied
+            # invite-only, so a code supplied here is not asked for again by
+            # the access gate.
+            Referrals.record_signup_use(user, validated_code)
 
             # Store invitation UUID in custom_fields for auto-accept after email confirmation
             if socket.assigns[:pending_invitation] do

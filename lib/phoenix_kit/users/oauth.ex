@@ -15,6 +15,7 @@ if Code.ensure_loaded?(Ueberauth) do
     alias PhoenixKit.Users.Auth
     alias PhoenixKit.Users.Auth.User
     alias PhoenixKit.Users.OAuthProvider
+    alias PhoenixKit.Users.RateLimiter
     alias PhoenixKit.Users.Referrals
 
     @doc """
@@ -180,17 +181,24 @@ if Code.ensure_loaded?(Ueberauth) do
         last_name: oauth_data.last_name
       }
 
-      result =
-        if track_geolocation && ip_address do
-          Auth.register_user_with_geolocation(attrs, ip_address)
-        else
-          Auth.register_user(attrs, ip_address)
-        end
+      # OAuth *login* is deliberately not limited — only this branch, where a
+      # brand new account is created. Under invite-only an unlimited supply of
+      # fresh accounts is an unlimited supply of fresh per-account rate-limit
+      # buckets to guess codes from, and the same buckets password registration
+      # uses are the right ones: identical action, identical abuse.
+      with :ok <- RateLimiter.check_registration_rate_limit(oauth_data.email, ip_address),
+           {:ok, user} <-
+             do_register_oauth_user(attrs, track_geolocation, ip_address) do
+        # Auto-confirm email for OAuth users (providers verify email ownership)
+        maybe_confirm_user(user)
+      end
+    end
 
-      # Auto-confirm email for OAuth users (providers verify email ownership)
-      case result do
-        {:ok, user} -> maybe_confirm_user(user)
-        error -> error
+    defp do_register_oauth_user(attrs, track_geolocation, ip_address) do
+      if track_geolocation && ip_address do
+        Auth.register_user_with_geolocation(attrs, ip_address)
+      else
+        Auth.register_user(attrs, ip_address)
       end
     end
 
@@ -236,10 +244,7 @@ if Code.ensure_loaded?(Ueberauth) do
 
     defp maybe_process_referral_code(user, referral_code) when is_binary(referral_code) do
       if Code.ensure_loaded?(Referrals) do
-        case Referrals.get_code_by_string(referral_code) do
-          nil -> :ok
-          code -> Referrals.use_code(code.code, user.uuid)
-        end
+        Referrals.record_signup_use(user, referral_code)
       end
 
       :ok

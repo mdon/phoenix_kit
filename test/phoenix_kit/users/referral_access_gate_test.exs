@@ -1,0 +1,284 @@
+defmodule PhoenixKit.Users.ReferralAccessGateTest do
+  @moduledoc """
+  Covers the invite-only access gate — `Referrals.access_satisfied?/1` and the
+  state it derives that answer from.
+
+  Invite-only used to be enforced only on the password registration form, so
+  the same install let anyone in through OAuth or a magic link. Enforcement
+  moved to a post-signup gate; these tests pin the parts of it that are easy to
+  get subtly wrong and impossible to notice from the outside — an account
+  silently admitted, or an operator silently locked out.
+
+  `phoenix_kit_referrals` is not a dependency of core, so the "invite-only is
+  actually on" cases register a stub module under the `"referrals"` key. That
+  is not a shortcut: the gate deliberately reads *through* the installed
+  module, and one of the tests below is about what happens when there isn't one.
+  """
+  use PhoenixKit.DataCase, async: false
+
+  alias PhoenixKit.ModuleRegistry
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Users.Invitations
+  alias PhoenixKit.Users.Referrals
+
+  defmodule EnabledReferrals do
+    @moduledoc false
+    def module_key, do: "referrals"
+    def get_config, do: %{enabled: true, required: true}
+  end
+
+  setup do
+    on_exit(fn ->
+      ModuleRegistry.unregister(EnabledReferrals)
+      Settings.update_setting("referral_codes_required", "false")
+      Settings.update_setting("referral_grandfather_existing", "true")
+      Settings.update_setting("referral_required_enabled_at", nil)
+    end)
+
+    # The sandbox starts with an empty users table, and `register_user/2`
+    # promotes the FIRST account to Owner. Owner satisfies the full-access
+    # exemption, so without this every "should be parked" assertion would pass
+    # for the wrong reason. Registering it up front also gives the exemption
+    # tests a genuinely privileged account to use.
+    %{owner: register_user()}
+  end
+
+  # Turns invite-only on. `boundary` overrides the auto-stamped grandfather
+  # cutoff — both it and `inserted_at` are second precision, so tests that care
+  # which side of it a user falls on have to say, rather than race the clock and
+  # be flaky whenever the two land in the same second. The auto-stamp itself is
+  # covered separately below.
+  defp enable_invite_only(boundary \\ nil) do
+    ModuleRegistry.register(EnabledReferrals)
+    Settings.update_setting("referral_codes_required", "true")
+    # Reading the gate is what stamps the boundary.
+    true = Referrals.access_required?()
+
+    if boundary do
+      Settings.update_setting("referral_required_enabled_at", DateTime.to_iso8601(boundary))
+    end
+
+    :ok
+  end
+
+  # A cutoff every account in the test was created *after* — nobody is
+  # grandfathered.
+  defp long_ago, do: DateTime.add(DateTime.utc_now(), -3600, :second)
+
+  # A cutoff every account in the test was created *before* — everybody is.
+  defp later_today, do: DateTime.add(DateTime.utc_now(), 3600, :second)
+
+  defp register_user(attrs \\ %{}) do
+    email = "gate-#{System.unique_integer([:positive])}@example.com"
+
+    {:ok, user} =
+      Auth.register_user(Map.merge(%{email: email, password: "ValidPassword123!"}, attrs))
+
+    user
+  end
+
+  describe "when invite-only is off" do
+    test "every account is satisfied, and nothing is stamped" do
+      user = register_user()
+
+      assert Referrals.access_satisfied?(user)
+      assert Referrals.access_satisfied?(Scope.for_user(user))
+      refute Referrals.access_required?()
+      assert Settings.get_setting_cached("referral_required_enabled_at") in [nil, ""]
+    end
+  end
+
+  describe "when the setting is on but the package is not installed" do
+    test "the gate stays off rather than locking everyone out" do
+      # Without the module there is no way to VALIDATE a code, so a left-behind
+      # `referral_codes_required` row would park every non-exempt user on a
+      # screen that can never accept anything they type.
+      Settings.update_setting("referral_codes_required", "true")
+
+      refute Referrals.access_required?()
+      assert Referrals.access_satisfied?(register_user())
+    end
+  end
+
+  describe "when invite-only is on" do
+    test "an account created after it took effect is not satisfied" do
+      user = register_user()
+      :ok = enable_invite_only(long_ago())
+
+      refute Referrals.access_satisfied?(user)
+      refute Referrals.access_satisfied?(Scope.for_user(user))
+    end
+
+    test "an account created before it took effect is grandfathered" do
+      user = register_user()
+      :ok = enable_invite_only(later_today())
+
+      assert Referrals.access_satisfied?(user)
+    end
+
+    test "turning grandfathering off parks those same accounts" do
+      user = register_user()
+      :ok = enable_invite_only(later_today())
+      Settings.update_setting("referral_grandfather_existing", "false")
+
+      refute Referrals.access_satisfied?(user)
+    end
+
+    test "a marked account is satisfied" do
+      user = register_user()
+      :ok = enable_invite_only(long_ago())
+
+      {:ok, marked} = Referrals.mark_satisfied(user, "code")
+
+      assert Referrals.access_satisfied?(marked)
+      assert Referrals.marked_satisfied?(marked)
+    end
+
+    test "a pending invitation admits the account it names" do
+      org = register_user(%{account_type: "organization", organization_name: "Acme"})
+      invited = register_user()
+      :ok = enable_invite_only(long_ago())
+
+      refute Referrals.access_satisfied?(invited)
+
+      {:ok, _invitation, _token} = Invitations.create_invitation(org, invited.email, org)
+
+      assert Referrals.access_satisfied?(Auth.get_user(invited.uuid))
+    end
+
+    test "accepting that invitation keeps the account admitted" do
+      # The gate reads *pending* invitations, so acceptance would otherwise
+      # park the user at the exact moment they joined the organization.
+      org = register_user(%{account_type: "organization", organization_name: "Acme"})
+      invited = register_user()
+      :ok = enable_invite_only(long_ago())
+
+      {:ok, invitation, _token} = Invitations.create_invitation(org, invited.email, org)
+      {:ok, _} = Invitations.accept_invitation_by_uuid(invitation.uuid, invited)
+
+      reloaded = Auth.get_user(invited.uuid)
+      assert Referrals.marked_satisfied?(reloaded)
+      assert Referrals.access_satisfied?(reloaded)
+    end
+  end
+
+  describe "the full-access exemption" do
+    test "holds even with grandfathering off", %{owner: owner} do
+      # The lockout this prevents: an operator turns grandfathering off on an
+      # install whose codes are all spent, and has no way back into their own
+      # admin panel.
+      :ok = enable_invite_only(long_ago())
+      Settings.update_setting("referral_grandfather_existing", "false")
+
+      scope = Scope.for_user(Auth.get_user(owner.uuid))
+      assert Scope.holds_all_enabled_permissions?(scope)
+      assert Referrals.access_satisfied?(scope)
+    end
+
+    test "the user form reaches the same answer without a prebuilt scope", %{owner: owner} do
+      # The older user-based on_mount hook has no scope, so this clause has to
+      # build one — an account that is exempt through one entry point must not
+      # be parked through the other.
+      :ok = enable_invite_only(long_ago())
+      Settings.update_setting("referral_grandfather_existing", "false")
+
+      assert Referrals.access_satisfied?(Auth.get_user(owner.uuid))
+    end
+  end
+
+  describe "the grandfather boundary stamp" do
+    test "is written when invite-only goes on and cleared when it goes off" do
+      :ok = enable_invite_only()
+      stamped = Settings.get_setting_cached("referral_required_enabled_at")
+      assert {:ok, _dt, _} = DateTime.from_iso8601(stamped)
+
+      Settings.update_setting("referral_codes_required", "false")
+      refute Referrals.access_required?()
+
+      assert Settings.get_setting_cached("referral_required_enabled_at") in [nil, ""]
+    end
+
+    test "is not moved by later reads" do
+      # Re-stamping on every request would walk the boundary forward and park
+      # accounts that were grandfathered a moment earlier.
+      :ok = enable_invite_only()
+      first = Settings.get_setting_cached("referral_required_enabled_at")
+
+      assert Referrals.access_required?()
+      assert Referrals.access_required?()
+
+      assert Settings.get_setting_cached("referral_required_enabled_at") == first
+    end
+  end
+
+  describe "mark_satisfied/2" do
+    test "records when and how, and never rewrites either" do
+      user = register_user()
+
+      {:ok, marked} = Referrals.mark_satisfied(user, "code")
+      first_at = marked.custom_fields["referral_satisfied_at"]
+      assert marked.custom_fields["referral_satisfied_via"] == "code"
+
+      {:ok, again} = Referrals.mark_satisfied(marked, "invitation")
+
+      assert again.custom_fields["referral_satisfied_at"] == first_at
+      assert again.custom_fields["referral_satisfied_via"] == "code"
+    end
+
+    test "leaves other custom_fields alone" do
+      user = register_user()
+      {:ok, user} = Auth.merge_user_custom_fields(user, %{"preferred_locale" => "et"})
+
+      {:ok, marked} = Referrals.mark_satisfied(user, "code")
+
+      assert marked.custom_fields["preferred_locale"] == "et"
+    end
+  end
+
+  describe "record_signup_use/2" do
+    test "a nil code is a no-op" do
+      user = register_user()
+      assert :ok = Referrals.record_signup_use(user, nil)
+      refute Referrals.marked_satisfied?(Auth.get_user(user.uuid))
+    end
+
+    test "marks the account even while invite-only is off" do
+      # Someone who brought a code should not be parked if the operator turns
+      # invite-only on later.
+      user = register_user()
+
+      assert :ok = Referrals.record_signup_use(user, %{code: "WELCOME"})
+
+      assert Referrals.marked_satisfied?(Auth.get_user(user.uuid))
+    end
+  end
+
+  describe "prune_unadmitted/1" do
+    test "does nothing at the default retention" do
+      user = register_user()
+      :ok = enable_invite_only(long_ago())
+
+      assert {:ok, 0} = Referrals.prune_unadmitted(Referrals.unadmitted_retention_days())
+      assert Auth.get_user(user.uuid).is_active
+    end
+
+    test "does nothing while invite-only is off, however long the retention" do
+      # An install that just legitimised these accounts by turning invite-only
+      # off must not then have them swept up.
+      user = register_user()
+
+      assert {:ok, 0} = Referrals.prune_unadmitted(1)
+      assert Auth.get_user(user.uuid).is_active
+    end
+
+    test "leaves accounts that are inside the retention window alone" do
+      user = register_user()
+      :ok = enable_invite_only(long_ago())
+
+      assert {:ok, 0} = Referrals.prune_unadmitted(30)
+      assert Auth.get_user(user.uuid).is_active
+    end
+  end
+end

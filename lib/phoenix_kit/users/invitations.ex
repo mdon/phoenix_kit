@@ -28,6 +28,7 @@ defmodule PhoenixKit.Users.Invitations do
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Auth.UserNotifier
   alias PhoenixKit.Users.OrganizationInvitation
+  alias PhoenixKit.Users.Referrals
   alias PhoenixKit.Utils.Routes
 
   @invitation_validity_days 7
@@ -171,7 +172,19 @@ defmodule PhoenixKit.Users.Invitations do
         {:error, :expired}
 
       true ->
-        repo.transaction(fn -> do_accept_invitation(repo, invitation, user) end)
+        case repo.transaction(fn -> do_accept_invitation(repo, invitation, user) end) do
+          {:ok, {_inv, accepted_user} = result} ->
+            # Being invited is itself admission under invite-only. The gate
+            # reads *pending* invitations, and accepting one stops it being
+            # pending — so without this the user is parked at the referral
+            # screen the moment they accept. Marked after the commit so the
+            # `custom_fields` broadcast never describes a rolled-back state.
+            Referrals.mark_satisfied(accepted_user, "invitation")
+            {:ok, result}
+
+          other ->
+            other
+        end
     end
   end
 

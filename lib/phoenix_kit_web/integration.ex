@@ -56,7 +56,7 @@ defmodule PhoenixKitWeb.Integration do
 
   Authentication routes:
   - /users/register, /users/log-in, /users/magic-link
-  - /users/reset-password, /users/confirm
+  - /users/reset-password, /users/confirm, /users/referral
   - /users/log-out (GET/DELETE)
 
   User dashboard routes (if enabled, default: true):
@@ -386,6 +386,11 @@ defmodule PhoenixKitWeb.Integration do
 
       live "/users/confirm", Users.ConfirmationInstructions, :new,
         as: :user_confirmation_instructions
+
+      # Where the invite-only gate parks an account that has not been admitted.
+      # It belongs on this ungated surface for the same reason /users/confirm
+      # does: the gates redirect *to* it, so gating it would be a loop.
+      live "/users/referral", Users.ReferralGate, :new, as: :user_referral_gate
 
       # Shop public pages — same session for seamless auth → shop navigation
       # Full module names required (no PhoenixKitWeb alias in shop namespace)

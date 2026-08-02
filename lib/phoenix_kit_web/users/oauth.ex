@@ -284,6 +284,15 @@ if Code.ensure_loaded?(Ueberauth) do
           |> put_flash(:error, "Authentication failed: #{errors}")
           |> redirect(to: Routes.path("/users/log-in"))
 
+        # A throttled *new account*, not a failed sign-in — telling them to try
+        # a different sign-in method would send them in a circle.
+        {:error, :rate_limit_exceeded} ->
+          Logger.warning("PhoenixKit: OAuth registration rate limited for #{auth.info.email}")
+
+          conn
+          |> put_flash(:error, "Too many sign-up attempts. Please try again later.")
+          |> redirect(to: Routes.path("/users/log-in"))
+
         {:error, reason} ->
           Logger.error("PhoenixKit: OAuth authentication error: #{inspect(reason)}")
 

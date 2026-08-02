@@ -93,7 +93,13 @@ defmodule PhoenixKit.Users.RateLimiter do
     # visitor searching the code space. Generous enough that a real person
     # correcting a typo never notices.
     referral_validation_limit: 20,
-    referral_validation_window_ms: 60_000
+    referral_validation_window_ms: 60_000,
+    # Invite-only code redemption: 10 per 10 minutes per ACCOUNT. Tighter than
+    # validation because this screen is post-login, so a fresh account is a
+    # fresh IP-keyed bucket — the account limit is the one that actually bounds
+    # how much of the code space a determined attacker can sweep.
+    referral_redemption_limit: 10,
+    referral_redemption_window_ms: 600_000
   ]
 
   @doc """
@@ -370,6 +376,39 @@ defmodule PhoenixKit.Users.RateLimiter do
   # hosts that do not thread peer data through, and the submit path still runs
   # `Auth.register_user/2`'s own limiter.
   def check_referral_validation_rate_limit(_), do: :ok
+
+  @doc """
+  Checks if a logged-in account's referral-code redemption attempts are within
+  limit.
+
+  Keyed on the account, not the IP: the invite-only screen sits *behind* login,
+  so an attacker who can mint accounts gets a fresh IP-keyed bucket with every
+  one. Without a per-account limit the screen is the same guessing oracle the
+  registration form was, only cheaper to farm.
+
+  ## Examples
+
+      iex> PhoenixKit.Users.RateLimiter.check_referral_redemption_rate_limit("0193a5e4-0000-7000-8000-000000000001")
+      :ok
+  """
+  def check_referral_redemption_rate_limit(user_uuid) when is_binary(user_uuid) do
+    config = get_config()
+
+    key = "auth:referral_redemption:user:#{user_uuid}"
+    limit = Keyword.get(config, :referral_redemption_limit)
+    window = Keyword.get(config, :referral_redemption_window_ms)
+
+    case check_rate_limit(key, window, limit) do
+      :ok ->
+        :ok
+
+      {:error, :rate_limit_exceeded} = error ->
+        log_rate_limit_violation("referral_redemption", "user:#{user_uuid}", limit, window)
+        error
+    end
+  end
+
+  def check_referral_redemption_rate_limit(_), do: :ok
 
   @doc """
   Resets rate limit for a specific action and identifier.

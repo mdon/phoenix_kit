@@ -72,6 +72,10 @@
   {"lib/phoenix_kit/users/auth/scope.ex", :contract_with_opaque},
   # Callers of Scope.admin?/1 inherit the opaque mismatch from Scope.for_user/1
   {"lib/modules/maintenance/web/plugs/maintenance_mode.ex", :call_without_opaque},
+  # Same inheritance: the invite-only gate's User clause has no scope to work
+  # from, so it builds one with Scope.for_user/1 and passes it straight to
+  # Scope.holds_all_enabled_permissions?/1.
+  {"lib/phoenix_kit/users/referrals.ex", :call_without_opaque},
   # Same class: these consume Scope.accessible_modules/1, whose result is a
   # MapSet built either from the struct field or MapSet.new(all_module_keys())
   # (the "*" superadmin branch). Dialyzer can't prove opaqueness through that

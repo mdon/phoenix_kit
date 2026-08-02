@@ -15,12 +15,95 @@ defmodule PhoenixKit.Users.Referrals do
 
   The function surface here mirrors exactly what the signup flows call, so those
   call sites only had to swap their alias to this module.
+
+  ## Invite-only access gate
+
+  With `referral_codes_required` on, a referral code is supposed to be the only
+  way in. Enforcing that at each *creation* path does not work: OAuth and
+  magic-link signups can be started from URLs that never pass through the
+  registration form, and blocking them there produces dead ends rather than
+  admission control.
+
+  So enforcement is a **post-signup access gate**. An account may be created by
+  any means; until it is *satisfied* it can reach nothing but
+  `/users/referral` (where a code admits it) and log-out. `access_satisfied?/1`
+  is the single predicate, called from the same choke points that enforce email
+  confirmation — see `PhoenixKitWeb.Users.Auth`.
+
+  An account is satisfied when any of these holds:
+
+  1. It has `custom_fields["referral_satisfied_at"]` — written by
+     `mark_satisfied/2` when a code is used at signup, entered on the parked
+     screen, or accepted as part of an organization invitation.
+  2. It was created before invite-only took effect and
+     `referral_grandfather_existing` is on (the default). See below.
+  3. It holds every enabled permission (`Scope.holds_all_enabled_permissions?/1`).
+     This is a **hard exemption, independent of the grandfather setting** — an
+     operator who turns grandfathering off on an install whose codes are all
+     spent would otherwise lock themselves out with no way back in. It is keyed
+     on permissions rather than a role name because that is what the rest of the
+     admin gate uses, and Owner satisfies it by construction.
+  4. A pending, unexpired organization invitation is addressed to its email.
+     Invitations are email-bound, so this makes org admins de-facto admission
+     issuers on purpose — without it the "you were invited" banner on the
+     registration page is a dead end under invite-only.
+
+  ### Why not `confirmed_at`
+
+  The satisfied flag is deliberately independent of email confirmation. OAuth
+  auto-confirms (`PhoenixKit.Users.OAuth`), so a gate keyed on `confirmed_at`
+  would open for exactly the path it most needs to close.
+
+  ### Grandfathering
+
+  `referral_required_enabled_at` records when invite-only took effect, and users
+  created before it are grandfathered while `referral_grandfather_existing`
+  (default `true`) is on. Core stamps and clears that setting itself, from
+  `access_required?/0`, rather than relying on the referrals admin toggle — that
+  way it stays correct whoever flips the switch, including an older
+  `phoenix_kit_referrals` that knows nothing about the gate. Turning invite-only
+  off clears the stamp, so switching it on again grandfathers everyone admitted
+  in between.
+
+  ### If the package is uninstalled
+
+  The gate requires `enabled?/0`, which goes through the installed module. With
+  the package gone there is no way to *validate* a code, so gating on a
+  left-behind `referral_codes_required` row would park every non-exempt user
+  permanently.
   """
 
+  import Ecto.Query, warn: false
+
+  require Logger
+
+  alias PhoenixKit.Activity
   alias PhoenixKit.ModuleRegistry
+  alias PhoenixKit.RepoHelper
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.{Scope, User}
+  alias PhoenixKit.Users.Invitations
   alias PhoenixKit.Users.RateLimiter
+  alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @key "referrals"
+
+  @doc "The `custom_fields` key recording that an account satisfied invite-only."
+  def satisfied_field, do: "referral_satisfied_at"
+
+  # Mirrors the key `phoenix_kit_referrals` writes. Read directly (rather than
+  # through `get_config/0`) so the overwhelmingly common case — invite-only off
+  # — costs one ETS-cached settings read instead of a module-registry scan.
+  @required_setting "referral_codes_required"
+  @required_since_setting "referral_required_enabled_at"
+  @grandfather_setting "referral_grandfather_existing"
+  @retention_setting "referral_unadmitted_retention_days"
+
+  # One sweep's worth. The janitor runs daily, so a backlog drains over a few
+  # days rather than deactivating thousands of accounts in a single statement
+  # an operator cannot easily review or undo.
+  @prune_batch_size 500
 
   # Shape core reads from `get_config/0` when no module is installed.
   @disabled_config %{enabled: false, required: false}
@@ -161,9 +244,289 @@ defmodule PhoenixKit.Users.Referrals do
   end
 
   defp reject(code_string, reason) do
-    require Logger
     Logger.debug("[Referrals] rejected #{inspect(code_string)}: #{reason}")
     {:error, @rejection_message}
+  end
+
+  # ============================================================================
+  # Invite-only access gate — see the "Invite-only access gate" moduledoc section
+  # ============================================================================
+
+  @doc """
+  Whether invite-only enforcement is currently active.
+
+  Also keeps `referral_required_enabled_at` in step with the answer, so the
+  grandfather boundary always describes the *current* invite-only period.
+  """
+  @spec access_required?() :: boolean()
+  def access_required? do
+    # Fast path first: `referral_codes_required` is a plain settings row, so an
+    # install that never turned invite-only on stops after one cached read.
+    # `enabled?/0` behind it is the authority — it goes through the installed
+    # module, and without the module a code cannot be validated at all.
+    required? = Settings.get_boolean_setting(@required_setting, false) and enabled?()
+    sync_required_since(required?)
+    required?
+  end
+
+  @doc """
+  Whether this account may use the application, or must first enter a code.
+
+  Accepts a `Scope` or a `User`; anything else (including `nil`) is satisfied,
+  because deciding admission for a visitor with no account is the
+  authentication gate's job, not this one.
+
+  The `User` form exists for the older user-based `on_mount` hook, which has no
+  scope. It has to build one to evaluate the full-access exemption, so it is
+  the more expensive form — but only for an account that is not already
+  satisfied on cheaper grounds.
+  """
+  @spec access_satisfied?(Scope.t() | User.t() | nil) :: boolean()
+  def access_satisfied?(subject) do
+    not access_required?() or satisfied_by_account?(subject)
+  end
+
+  defp satisfied_by_account?(%Scope{user: %User{} = user} = scope) do
+    marked_satisfied?(user) or grandfathered?(user) or
+      Scope.holds_all_enabled_permissions?(scope) or invited?(user)
+  end
+
+  defp satisfied_by_account?(%User{} = user) do
+    # Permission check goes last here: unlike the scope form it costs a DB read.
+    marked_satisfied?(user) or grandfathered?(user) or invited?(user) or
+      Scope.holds_all_enabled_permissions?(Scope.for_user(user))
+  end
+
+  defp satisfied_by_account?(_), do: true
+
+  @doc """
+  Records a signup's use of a referral code and marks the account admitted.
+
+  The two halves belong together. `use_code/2` on its own leaves an account
+  that supplied a perfectly good code sitting behind the invite-only gate —
+  the exact opposite of what supplying it meant — and every signup path had
+  its own copy of the first half only.
+
+  Accepts the code as a string or as an already-resolved code struct; `nil`
+  (no code supplied) is a no-op. Marking happens even when invite-only is
+  currently off, so an operator who turns it on later does not park the people
+  who did bring a code.
+  """
+  @spec record_signup_use(User.t(), String.t() | map() | nil) :: :ok
+  def record_signup_use(_user, nil), do: :ok
+
+  def record_signup_use(%User{} = user, code_string) when is_binary(code_string) do
+    case get_code_by_string(code_string) do
+      nil -> :ok
+      code -> record_signup_use(user, code)
+    end
+  end
+
+  def record_signup_use(%User{} = user, %{code: code_string}) do
+    use_code(code_string, user.uuid)
+    mark_satisfied(user, "code")
+    :ok
+  end
+
+  def record_signup_use(_user, _code), do: :ok
+
+  @doc """
+  Records that an account has satisfied invite-only, and why.
+
+  Idempotent: an already-marked account keeps its original timestamp, so a
+  second call cannot rewrite when admission happened. `reason` is stored
+  alongside for operators auditing how an account got in.
+  """
+  @spec mark_satisfied(User.t(), String.t()) :: {:ok, User.t()} | {:error, term()}
+  def mark_satisfied(%User{} = user, reason) when is_binary(reason) do
+    if marked_satisfied?(user) do
+      {:ok, user}
+    else
+      # `merge_user_custom_fields/3` merges inside the UPDATE, so this cannot
+      # clobber a concurrent writer of a different custom_fields key.
+      Auth.merge_user_custom_fields(
+        user,
+        %{
+          satisfied_field() => DateTime.to_iso8601(UtilsDate.utc_now()),
+          "referral_satisfied_via" => reason
+        },
+        ensure_definitions: false
+      )
+    end
+  end
+
+  def mark_satisfied(_user, _reason), do: {:error, :not_a_user}
+
+  @doc "Whether this account has already been marked as satisfying invite-only."
+  @spec marked_satisfied?(User.t() | nil) :: boolean()
+  def marked_satisfied?(%User{custom_fields: fields}) when is_map(fields) do
+    case fields[satisfied_field()] do
+      value when is_binary(value) -> value != ""
+      _ -> false
+    end
+  end
+
+  def marked_satisfied?(_), do: false
+
+  # An account created before invite-only took effect, while the operator has
+  # left grandfathering on. Deliberately re-evaluated on every request rather
+  # than persisted: turning `referral_grandfather_existing` off is meant to park
+  # exactly these accounts, which a one-time mark would defeat.
+  defp grandfathered?(%User{inserted_at: created_at}) do
+    Settings.get_boolean_setting(@grandfather_setting, true) and
+      created_before?(created_at, required_since())
+  end
+
+  # At-or-before, not strictly before. Both timestamps are second precision, so
+  # an account that was already in the database when the operator flipped the
+  # switch usually reads as the same second — and parking a user who was
+  # demonstrably already signed up is the worse error of the two. The cost is a
+  # one-second window in which a new signup is grandfathered.
+  defp created_before?(%DateTime{} = created_at, %DateTime{} = since),
+    do: DateTime.compare(created_at, since) != :gt
+
+  # No boundary recorded yet, or an unsaved user: nobody is grandfathered.
+  defp created_before?(_created_at, _since), do: false
+
+  # A pending, unexpired organization invitation addressed to this account.
+  defp invited?(%User{email: email}) do
+    Invitations.list_pending_for_email(email) != []
+  rescue
+    # A gate that crashes locks users out of the whole application, so fail to
+    # "not invited" and let the other checks decide. Also covers an email-less
+    # struct, which `list_pending_for_email/1`'s guard rejects.
+    error ->
+      Logger.warning("[Referrals] invitation check failed: #{Exception.message(error)}")
+      false
+  end
+
+  @doc """
+  How long an unadmitted account is left alone before the janitor deactivates
+  it, in days. `0` (the default) means never.
+
+  Deliberately opt-in. The alternative — a default that silently starts
+  deactivating accounts as soon as an operator switches invite-only on — is the
+  kind of destructive default that has to be asked for, not inherited.
+  """
+  @spec unadmitted_retention_days() :: non_neg_integer()
+  def unadmitted_retention_days do
+    Settings.get_integer_setting(@retention_setting, 0)
+  end
+
+  @doc """
+  Deactivates accounts that were created under invite-only and never satisfied
+  it, so "registered" keeps meaning "admitted".
+
+  **Deactivates; never deletes.** Users are the foreign-key target of most of
+  the ecosystem, and an account that was merely slow to enter its code is one
+  an operator will want back.
+
+  Nothing happens unless invite-only is on AND `days` is positive — an install
+  that turned invite-only off should not have the janitor sweeping up the
+  accounts it just legitimised. Candidates are re-checked one by one through
+  `access_satisfied?/1` rather than trusted from the query, because the
+  exemptions that matter most (full permissions, a pending invitation) are the
+  ones SQL cannot see.
+
+  Returns `{:ok, count}`.
+  """
+  @spec prune_unadmitted(non_neg_integer()) :: {:ok, non_neg_integer()}
+  def prune_unadmitted(days) when is_integer(days) and days > 0 do
+    if access_required?() do
+      cutoff = DateTime.add(UtilsDate.utc_now(), -days * 86_400, :second)
+
+      candidates =
+        from(u in User,
+          where: u.is_active == true,
+          where: u.inserted_at < ^cutoff,
+          # Cheap pre-filter only. The authority is `access_satisfied?/1` below.
+          where: fragment("COALESCE(?->>?, '') = ''", u.custom_fields, ^satisfied_field()),
+          order_by: [asc: u.inserted_at],
+          limit: @prune_batch_size
+        )
+        |> RepoHelper.repo().all()
+
+      count =
+        candidates
+        |> Enum.reject(&access_satisfied?/1)
+        |> Enum.count(&deactivate_unadmitted/1)
+
+      {:ok, count}
+    else
+      {:ok, 0}
+    end
+  end
+
+  def prune_unadmitted(_days), do: {:ok, 0}
+
+  defp deactivate_unadmitted(%User{} = user) do
+    case Auth.update_user_status(user, %{"is_active" => false}) do
+      {:ok, _user} ->
+        Activity.log(%{
+          action: "user.deactivated",
+          module: "users",
+          mode: "cron",
+          resource_type: "user",
+          resource_uuid: user.uuid,
+          target_uuid: user.uuid,
+          metadata: %{"reason" => "referral_never_satisfied", "actor_role" => "system"}
+        })
+
+        true
+
+      {:error, reason} ->
+        # `:cannot_deactivate_last_owner` lands here, and so does a plain
+        # changeset failure. Neither is worth aborting the sweep over.
+        Logger.warning("[Referrals] could not deactivate #{user.uuid}: #{inspect(reason)}")
+        false
+    end
+  end
+
+  defp required_since do
+    case Settings.get_setting_cached(@required_since_setting) do
+      value when is_binary(value) and value != "" ->
+        case DateTime.from_iso8601(value) do
+          {:ok, stamped_at, _offset} -> stamped_at
+          {:error, _} -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  # Stamps the setting when invite-only goes on and clears it when it goes off.
+  # Both reads are ETS-cached (misses included), so the steady state is two
+  # lookups; the write only fires on an actual transition. Concurrent writers
+  # during a transition settle on timestamps milliseconds apart, which is inside
+  # the resolution the boundary is meaningful at.
+  defp sync_required_since(true) do
+    if is_nil(required_since()) do
+      stamp(@required_since_setting, DateTime.to_iso8601(UtilsDate.utc_now()))
+    end
+
+    :ok
+  end
+
+  defp sync_required_since(false) do
+    if required_since(), do: stamp(@required_since_setting, nil)
+    :ok
+  end
+
+  # This runs on the authentication path, so a settings write that fails must
+  # not take the site down with it. An unreachable database raises on an unowned
+  # checkout but *exits* on a dead pool, hence both clauses. The consequence of
+  # skipping a stamp is a grandfather boundary that settles on the next request.
+  defp stamp(key, value) do
+    Settings.update_setting(key, value)
+  rescue
+    error ->
+      Logger.warning("[Referrals] could not update #{key}: #{Exception.message(error)}")
+      :error
+  catch
+    :exit, _reason ->
+      Logger.warning("[Referrals] could not update #{key}: database unavailable")
+      :error
   end
 
   # Resolve the installed referrals module by key and call it. Returns
