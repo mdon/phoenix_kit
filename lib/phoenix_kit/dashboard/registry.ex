@@ -518,6 +518,46 @@ defmodule PhoenixKit.Dashboard.Registry do
      {:continue, :initialize_tabs}}
   end
 
+  @doc """
+  Admin tab ids the host has hidden:
+
+      config :phoenix_kit, hidden_admin_tabs: [:admin_locations]
+
+  "I want this module's data but not its UI" is an ordinary need — a host may
+  install `phoenix_kit_locations` purely as a data layer and never want its
+  admin section.
+
+  Applied during registry **init**, not by `unregister_tab/1`. That function
+  mutates GenServer state, and the registry rebuilds from
+  `AdminTabs.default_tabs/0` whenever it initialises — so a supervisor restart
+  would silently resurrect the hidden tabs mid-flight, with nothing to indicate
+  it had happened. Applying it at the rebuild is what makes hiding survive.
+
+  Hiding is cosmetic: it removes the sidebar entry, not the route or the
+  permission. Use permissions to control access.
+  """
+  @spec hidden_admin_tabs() :: [atom()]
+  def hidden_admin_tabs do
+    :phoenix_kit
+    |> Application.get_env(:hidden_admin_tabs, [])
+    |> Enum.filter(&is_atom/1)
+  end
+
+  @doc """
+  Drops the tabs listed in `:hidden_admin_tabs` from `tabs`.
+
+  Public so the filter can be tested as the pure function it is — this is the
+  exact composition `load_admin_defaults_internal/0` applies to
+  `AdminTabs.default_tabs/0`.
+  """
+  @spec apply_hidden_admin_tabs([Tab.t()]) :: [Tab.t()]
+  def apply_hidden_admin_tabs(tabs) do
+    case hidden_admin_tabs() do
+      [] -> tabs
+      hidden -> Enum.reject(tabs, &(&1.id in hidden))
+    end
+  end
+
   @impl true
   def handle_continue(:initialize_tabs, state) do
     # Load user dashboard defaults (includes enabled_user_dashboard_tabs → DB queries)
@@ -930,7 +970,7 @@ defmodule PhoenixKit.Dashboard.Registry do
   defp load_admin_defaults_internal do
     clear_namespace_tabs(:phoenix_kit_admin)
 
-    tabs = AdminTabs.default_tabs()
+    tabs = AdminTabs.default_tabs() |> apply_hidden_admin_tabs()
     groups = AdminTabs.default_groups()
 
     Enum.each(tabs, fn tab ->
