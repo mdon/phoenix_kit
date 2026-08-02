@@ -29,6 +29,28 @@ Commit messages start with `Add`/`Update`/`Fix`/`Remove` and carry no AI
 attribution. Do not bump `@version`, edit `CHANGELOG.md`, tag, or publish —
 releases are cut separately.
 
+## Final verification protocol
+
+When every commit is in, run **three sweeps at different context levels** before
+opening the PRs. The point is that each level catches a different class of
+defect, and the later ones must not be anchored by the plan:
+
+1. **Plan-aware sweep.** Reviewers get this document and the diff, and hunt for
+   defects *introduced by* implementing it — wrong anchors, half-applied
+   changes, contradictions between commits, `Done when` criteria not actually met.
+2. **Area-only sweep.** Reviewers are told only which areas moved (auth, settings
+   cache, sitemap, components, storage docs) with **no plan and no diff**, and
+   review those areas on their merits. Catches things the plan itself got wrong,
+   which a plan-aware reviewer will tend to confirm rather than question.
+3. **Blind sweep.** No context at all — plain "review this code". Fresh eyes on
+   whatever they find, including code nobody in this triage looked at.
+
+Do not collapse these into one pass. A reviewer holding the plan reads the diff
+as *evidence for* the plan; that is exactly the bias sweeps 2 and 3 exist to
+break. This triage already produced several fixes that were wrong on a premise
+nobody had checked (see §B), and each was caught by re-checking rather than by
+re-reading.
+
 ## How to use it
 
 1. **§G** is the running order; **§H** maps every finding to a destination.
