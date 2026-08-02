@@ -384,13 +384,29 @@ defmodule PhoenixKit.Settings do
 
     cached_results = PhoenixKit.Cache.get_multiple(@cache_name, keys, %{})
 
-    # Process cached results, replacing sentinel values with defaults
-    Enum.reduce(cached_results, %{}, fn {key, value}, acc ->
-      if value == setting_not_exists_sentinel do
-        Map.put(acc, key, Map.get(defaults, key))
-      else
-        Map.put(acc, key, value)
-      end
+    # ⚠️ Miss-fill, and it is load-bearing. `Cache.get_multiple/3` simply omits
+    # keys it does not hold, so a key that was never cached — or whose entry has
+    # expired — used to be *absent* from the returned map, and callers read it as
+    # `nil`. Only the explicit "does not exist" sentinel mapped to a default.
+    #
+    # Nothing surfaced that while the cache had no TTL: entries were written once
+    # and never expired. The moment one was added, every expiry wave would have
+    # left OAuth credential helpers and the user-list date formats reading `nil`,
+    # site-wide, until something happened to re-warm them. Fill the gap from the
+    # database and cache what we find, so a miss costs one batch query instead of
+    # silently degrading.
+    missing = Enum.reject(keys, &Map.has_key?(cached_results, &1))
+    fetched = if missing == [], do: %{}, else: fill_missing_settings(missing)
+
+    Enum.reduce(keys, %{}, fn key, acc ->
+      value =
+        case Map.fetch(cached_results, key) do
+          {:ok, ^setting_not_exists_sentinel} -> Map.get(defaults, key)
+          {:ok, value} -> value
+          :error -> Map.get(fetched, key) || Map.get(defaults, key)
+        end
+
+      Map.put(acc, key, value)
     end)
   rescue
     error ->
@@ -406,6 +422,29 @@ defmodule PhoenixKit.Settings do
         value = Map.get(batch_results, key) || Map.get(defaults, key)
         Map.put(acc, key, value)
       end)
+  end
+
+  # One batch query for the keys the cache did not hold, writing the results back
+  # so the next reader is a hit. Keys with no row are cached as the
+  # "does not exist" sentinel — negative caching, or a setting a host never sets
+  # would query the database on every single read.
+  defp fill_missing_settings(keys) do
+    found = get_settings_direct(keys)
+
+    to_cache =
+      Map.new(keys, fn key ->
+        {key, Map.get(found, key, :__setting_does_not_exist__)}
+      end)
+
+    PhoenixKit.Cache.put_multiple(@cache_name, to_cache)
+
+    found
+  rescue
+    # A cache or database failure here must not take the read down with it —
+    # the caller still gets its defaults from the merge above.
+    error ->
+      Logger.warning("Settings miss-fill failed: #{inspect(error)}")
+      %{}
   end
 
   @doc """
