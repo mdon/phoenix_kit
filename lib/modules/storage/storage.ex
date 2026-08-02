@@ -2429,9 +2429,40 @@ defmodule PhoenixKit.Modules.Storage do
   - `:filename` - Original filename (required)
   - `:content_type` - MIME type (required)
   - `:size_bytes` - File size in bytes (required)
-  - `:user_uuid` - User UUID who owns the file
+  - `:user_uuid` - **Required unless the file is system-owned.** The changeset
+    rejects a non-system file with no owner, so omitting this returns a
+    changeset error rather than an unowned file.
   - `:metadata` - Additional metadata map
 
+  ## ⚠️ How to actually serve the stored file
+
+  This is where hosts get stuck and hand-roll their own uploads instead.
+
+  **`public_url/2` returns `nil` for the local provider.** That is not a bug or
+  a missing feature — local files are deliberately not served from a public
+  directory. Serve them through the signed route instead:
+
+      PhoenixKit.Modules.Storage.URLSigner.signed_url(file.uuid, "original")
+      #=> "/phoenix_kit/file/<uuid>/original/<token>"
+
+  which the router answers at `/file/:uuid/:variant/:token`. Pass a variant
+  name (`"original"`, `"medium"`, …) to get that rendition.
+
+  ### What the signature is and is not
+
+  Treat these URLs as *obscured*, **not** as capability URLs, and do not use
+  them for material where unauthorized access matters:
+
+  - the token is the first 4 hex characters of an MD5 — a ~65k space, and
+    brute-forceable for a targeted file;
+  - tokens **never expire**, though the 401 says "Invalid or expired token";
+  - `/api/files/:uuid/info` is unauthenticated and hands out a valid signed URL
+    for any uuid it is given;
+  - with no `secret_key_base` the token degrades to a predictable no-secret hash.
+
+  These are recorded as known work in core's `AGENTS.md` under "Signed file-URL
+  hardening". Current usage (public images) is within what the scheme actually
+  provides; sensitive files are not.
   """
   def store_file(source_path, opts \\ []) do
     filename = Keyword.fetch!(opts, :filename)
