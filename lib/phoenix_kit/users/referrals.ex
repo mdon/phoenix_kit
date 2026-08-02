@@ -18,11 +18,18 @@ defmodule PhoenixKit.Users.Referrals do
   """
 
   alias PhoenixKit.ModuleRegistry
+  alias PhoenixKit.Users.RateLimiter
 
   @key "referrals"
 
   # Shape core reads from `get_config/0` when no module is installed.
   @disabled_config %{enabled: false, required: false}
+
+  # One message for every rejection. Distinct strings ("Invalid" vs "expired" vs
+  # "usage limit") told an attacker whether a guessed code EXISTS, turning the
+  # form into an enumeration oracle: existence and format confirmed for free.
+  # Operators still get the real reason via `Logger.debug`.
+  @rejection_message "That code can't be used"
 
   @doc """
   Referral-codes configuration map. Disabled defaults when the module is absent.
@@ -73,6 +80,90 @@ defmodule PhoenixKit.Users.Referrals do
       {:ok, result} -> result
       :error -> {:error, :referrals_not_installed}
     end
+  end
+
+  @doc """
+  Validates a referral code for a signup attempt.
+
+  Shared by every signup surface so the rules cannot drift apart — the password
+  and magic-link forms previously carried byte-identical private copies.
+
+  ## Options
+
+  - `:enabled?` / `:required?` — from `get_config/0` (required)
+  - `:context` — `:change` while the user types, `:submit` on the final attempt
+  - `:ip_address` — used to rate-limit code checking; omit and no limit applies
+
+  ## Why `:context` matters
+
+  On `:change`, a **blank** required code is not an error. Validation runs on
+  every keystroke anywhere in the form, so treating blank-and-required as invalid
+  made "Referral code is required" appear while the user was still typing their
+  email — before they had reached the field. A code that has actually been
+  *typed* is still checked on change, because that field has been touched.
+  `:submit` enforces presence.
+
+  ## Why rejections are indistinguishable
+
+  Every failure returns the same message. Separate strings for
+  missing / inactive / expired / limit-reached confirmed which guesses named a
+  real code. The specific reason is logged at debug level for operators.
+
+  Returns `{:ok, code_or_nil}` or `{:error, message}`.
+  """
+  def validate_for_signup(code, opts) do
+    enabled? = Keyword.fetch!(opts, :enabled?)
+    required? = Keyword.fetch!(opts, :required?)
+    context = Keyword.get(opts, :context, :submit)
+    trimmed = code |> to_string() |> String.trim()
+
+    cond do
+      not enabled? ->
+        {:ok, nil}
+
+      trimmed == "" and required? and context == :submit ->
+        {:error, "Referral code is required"}
+
+      trimmed == "" ->
+        # Blank and either optional, or still being filled in.
+        {:ok, nil}
+
+      true ->
+        validate_typed_code(trimmed, Keyword.get(opts, :ip_address))
+    end
+  end
+
+  defp validate_typed_code(code_string, ip_address) do
+    case rate_limit_check(ip_address) do
+      :ok -> check_code(code_string)
+      {:error, :rate_limit_exceeded} -> {:error, "Too many attempts. Please try again shortly."}
+    end
+  end
+
+  defp rate_limit_check(ip) when is_binary(ip),
+    do: RateLimiter.check_referral_validation_rate_limit(ip)
+
+  defp rate_limit_check(_), do: :ok
+
+  defp check_code(code_string) do
+    case get_code_by_string(code_string) do
+      nil ->
+        reject(code_string, "no such code")
+
+      code ->
+        cond do
+          not code.status -> reject(code_string, "code is inactive")
+          expired?(code) -> reject(code_string, "code has expired")
+          usage_limit_reached?(code) -> reject(code_string, "code hit its usage limit")
+          true -> {:ok, code}
+        end
+    end
+  end
+
+  defp reject(code_string, reason) do
+    require Logger
+    Logger.debug("[Referrals] rejected #{inspect(code_string)}: #{reason}")
+    {:error, @rejection_message}
   end
 
   # Resolve the installed referrals module by key and call it. Returns

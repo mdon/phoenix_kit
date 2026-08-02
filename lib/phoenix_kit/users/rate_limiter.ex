@@ -87,7 +87,13 @@ defmodule PhoenixKit.Users.RateLimiter do
     registration_ip_window_ms: 3_600_000,
     # QR login request creation: 10 per minute per IP (pre-auth, no email to key on)
     qr_login_limit: 10,
-    qr_login_window_ms: 60_000
+    qr_login_window_ms: 60_000,
+    # Referral code validation: 20 per minute per IP. Pre-auth and IP-only —
+    # there is no account to key on, and the point is to stop an anonymous
+    # visitor searching the code space. Generous enough that a real person
+    # correcting a typo never notices.
+    referral_validation_limit: 20,
+    referral_validation_window_ms: 60_000
   ]
 
   @doc """
@@ -325,6 +331,45 @@ defmodule PhoenixKit.Users.RateLimiter do
         error
     end
   end
+
+  @doc """
+  Checks if referral code validation attempts are within rate limit.
+
+  Returns `:ok` if the attempt is allowed, or `{:error, :rate_limit_exceeded}` if
+  the limit is exceeded. IP-only: the registration form is pre-auth, so there is
+  no account to key on.
+
+  This is what makes a referral code hard to guess. `Auth.register_user/2`'s
+  limiter sits behind referral validation, so a wrong code short-circuits before
+  reaching it — leaving code checking unthrottled unless it is limited here.
+
+  ## Examples
+
+      iex> PhoenixKit.Users.RateLimiter.check_referral_validation_rate_limit("192.168.1.1")
+      :ok
+  """
+  def check_referral_validation_rate_limit(ip_address) when is_binary(ip_address) do
+    config = get_config()
+
+    key = "auth:referral_validation:ip:#{ip_address}"
+    limit = Keyword.get(config, :referral_validation_limit)
+    window = Keyword.get(config, :referral_validation_window_ms)
+
+    case check_rate_limit(key, window, limit) do
+      :ok ->
+        :ok
+
+      {:error, :rate_limit_exceeded} = error ->
+        log_rate_limit_violation("referral_validation", "ip:#{ip_address}", limit, window)
+        error
+    end
+  end
+
+  # No IP available (an embedded mount, or a socket without peer data). Allowing
+  # is deliberate: the alternative is locking out legitimate registrations on
+  # hosts that do not thread peer data through, and the submit path still runs
+  # `Auth.register_user/2`'s own limiter.
+  def check_referral_validation_rate_limit(_), do: :ok
 
   @doc """
   Resets rate limit for a specific action and identifier.

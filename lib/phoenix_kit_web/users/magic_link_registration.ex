@@ -74,7 +74,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistration do
     # Track the checkbox across re-renders so unticking it sticks.
     socket = assign(socket, :remember_me, user_params["remember_me"] == "true")
 
-    case validate_referral_code(referral_code, socket) do
+    case validate_referral_code(referral_code, socket, :change) do
       {:ok, _} ->
         socket =
           socket
@@ -108,7 +108,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistration do
     referral_code = params["referral_code"]
     user_params = form_params(user_params)
 
-    case validate_referral_code(referral_code, socket) do
+    case validate_referral_code(referral_code, socket, :submit) do
       {:ok, _validated_code} ->
         # Add referral_code to user params
         user_params =
@@ -180,42 +180,15 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistration do
     end
   end
 
-  defp validate_referral_code(referral_code, socket) do
-    cond do
-      not socket.assigns.referral_codes_enabled ->
-        {:ok, nil}
-
-      socket.assigns.referral_codes_required and
-          (is_nil(referral_code) or String.trim(referral_code) == "") ->
-        {:error, "Referral code is required"}
-
-      referral_code && String.trim(referral_code) != "" ->
-        validate_referral_code_value(String.trim(referral_code))
-
-      true ->
-        {:ok, nil}
-    end
-  end
-
-  defp validate_referral_code_value(code_string) do
-    case Referrals.get_code_by_string(code_string) do
-      nil ->
-        {:error, "Invalid referral code"}
-
-      code ->
-        cond do
-          not code.status ->
-            {:error, "This referral code is no longer active"}
-
-          Referrals.expired?(code) ->
-            {:error, "This referral code has expired"}
-
-          Referrals.usage_limit_reached?(code) ->
-            {:error, "This referral code has reached its usage limit"}
-
-          true ->
-            {:ok, code}
-        end
-    end
+  # `context` is `:change` while the user types and `:submit` on the final
+  # attempt. See `PhoenixKit.Users.Referrals.validate_for_signup/2` for why the
+  # two differ and why every rejection reads the same.
+  defp validate_referral_code(referral_code, socket, context) do
+    Referrals.validate_for_signup(referral_code,
+      enabled?: socket.assigns.referral_codes_enabled,
+      required?: socket.assigns.referral_codes_required,
+      context: context,
+      ip_address: socket.assigns[:ip_address]
+    )
   end
 end
