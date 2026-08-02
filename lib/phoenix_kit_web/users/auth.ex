@@ -189,6 +189,36 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   @doc """
+  Whether signing in with a magic link is available.
+
+  Gates the request page, and the token endpoint that emailed links point at.
+  Turning it off is a security-posture decision ("password and 2FA only"), so it
+  has to close the route rather than only hide the button — an admin who
+  switches it off on the Authorization settings page will reasonably believe
+  nobody can still sign in this way.
+
+  In-flight links stop working too. Disabling passwordless login means no more
+  magic-link sign-ins, not no new ones from today; the tokens are short-lived,
+  so the window this affects is small.
+  """
+  @spec magic_link_login_enabled?() :: boolean()
+  def magic_link_login_enabled? do
+    PhoenixKit.Settings.get_boolean_setting("magic_link_login_enabled", true)
+  end
+
+  @doc """
+  Whether registering via a magic link is available.
+
+  Gates the request page and the completion page, for the same reason as
+  `magic_link_login_enabled?/0`: the setting has to close the route, not just
+  hide the entry point.
+  """
+  @spec magic_link_registration_enabled?() :: boolean()
+  def magic_link_registration_enabled? do
+    PhoenixKit.Settings.get_boolean_setting("magic_link_registration_enabled", true)
+  end
+
+  @doc """
   Whether the "remember me" checkbox starts checked.
 
   Site-wide default via the `remember_me_default` setting (default `true`) —

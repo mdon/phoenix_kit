@@ -20,7 +20,12 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequest do
         {:ok, socket}
 
       :cont ->
-        if Settings.get_boolean_setting("allow_registration", true) do
+        # Both gates apply: registration has to be open at all, AND magic-link
+        # registration specifically has to be enabled. The second setting used
+        # to hide the button on /users/register and nothing else, leaving this
+        # route reachable by anyone with the URL.
+        if Settings.get_boolean_setting("allow_registration", true) and
+             Auth.magic_link_registration_enabled?() do
           # Get project title from settings (with Config fallback)
           project_title = PhoenixKit.Settings.get_project_title()
 

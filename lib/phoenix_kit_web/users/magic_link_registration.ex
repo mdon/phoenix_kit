@@ -19,50 +19,64 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistration do
         {:ok, socket}
 
       :cont ->
-        case MagicLinkRegistration.verify_registration_token(token) do
-          {:ok, email} ->
-            # Get referral codes configuration
-            referral_codes_config = Referrals.get_config()
-
-            # Generate username suggestion from email
-            suggested_username = User.generate_username_from_email(email)
-
-            changeset =
-              Auth.change_user_registration(%User{
-                email: email,
-                username: suggested_username
-              })
-
-            # Extract IP address for geolocation
-            ip_address =
-              case get_connect_info(socket, :peer_data) do
-                %{address: {a, b, c, d}} -> "#{a}.#{b}.#{c}.#{d}"
-                %{address: address} -> to_string(address)
-                _ -> "unknown"
-              end
-
-            {:ok,
-             socket
-             |> assign(:page_title, "Complete Registration")
-             |> assign(:token, token)
-             |> assign(:email, email)
-             |> assign(:ip_address, ip_address)
-             |> assign(:referral_codes_enabled, referral_codes_config.enabled)
-             |> assign(:referral_codes_required, referral_codes_config.required)
-             |> assign(:referral_code, nil)
-             |> assign(:referral_code_error, nil)
-             |> assign(:trigger_submit, false)
-             |> assign(:check_errors, false)
-             |> assign(:remember_me_available, WebAuth.remember_me_enabled?())
-             |> assign(:remember_me, WebAuth.remember_me_default?())
-             |> assign_form(changeset)}
-
-          {:error, _} ->
-            {:ok,
-             socket
-             |> put_flash(:error, "Registration link is invalid or has expired.")
-             |> redirect(to: Routes.path("/users/register"))}
+        # Gate the completion page too, not just the request page. Otherwise a
+        # link already sitting in an inbox still creates an account after an
+        # admin has switched magic-link registration off.
+        if WebAuth.magic_link_registration_enabled?() do
+          mount_completion_form(token, socket)
+        else
+          {:ok,
+           socket
+           |> put_flash(:error, "Magic link registration is currently disabled.")
+           |> redirect(to: Routes.path("/users/register"))}
         end
+    end
+  end
+
+  defp mount_completion_form(token, socket) do
+    case MagicLinkRegistration.verify_registration_token(token) do
+      {:ok, email} ->
+        # Get referral codes configuration
+        referral_codes_config = Referrals.get_config()
+
+        # Generate username suggestion from email
+        suggested_username = User.generate_username_from_email(email)
+
+        changeset =
+          Auth.change_user_registration(%User{
+            email: email,
+            username: suggested_username
+          })
+
+        # Extract IP address for geolocation
+        ip_address =
+          case get_connect_info(socket, :peer_data) do
+            %{address: {a, b, c, d}} -> "#{a}.#{b}.#{c}.#{d}"
+            %{address: address} -> to_string(address)
+            _ -> "unknown"
+          end
+
+        {:ok,
+         socket
+         |> assign(:page_title, "Complete Registration")
+         |> assign(:token, token)
+         |> assign(:email, email)
+         |> assign(:ip_address, ip_address)
+         |> assign(:referral_codes_enabled, referral_codes_config.enabled)
+         |> assign(:referral_codes_required, referral_codes_config.required)
+         |> assign(:referral_code, nil)
+         |> assign(:referral_code_error, nil)
+         |> assign(:trigger_submit, false)
+         |> assign(:check_errors, false)
+         |> assign(:remember_me_available, WebAuth.remember_me_enabled?())
+         |> assign(:remember_me, WebAuth.remember_me_default?())
+         |> assign_form(changeset)}
+
+      {:error, _} ->
+        {:ok,
+         socket
+         |> put_flash(:error, "Registration link is invalid or has expired.")
+         |> redirect(to: Routes.path("/users/register"))}
     end
   end
 
