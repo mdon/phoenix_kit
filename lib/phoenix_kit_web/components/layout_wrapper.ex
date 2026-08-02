@@ -923,6 +923,71 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # group must render HERE, inside the LiveView's tree — the root layout's
   # copy is static after the dead render, so connected `put_flash` updates
   # would never display through it.
+  @doc """
+  Rendering path for auth pages (login, register, reset, confirm, magic link,
+  QR handoff, and the invite-only referral screen).
+
+  Auth pages **do not** render inside the host's `Layouts.app`. That layout is
+  where a `mix phx.new` app keeps its logo, framework version and off-site
+  links, so wrapping sign-in in it put Phoenix Framework branding on the login
+  page of every kit install — reported by more than one host. Admin already
+  works this way (`render_admin_with_parent/1` never calls the host's `:app`);
+  auth was the outlier.
+
+  The host's **root** layout still applies, because `PhoenixKitWeb.Integration`
+  never calls `put_root_layout`. That is where the document shell, assets and
+  CSRF come from, and it is unaffected.
+
+  A host that genuinely wants its own chrome on sign-in opts back in:
+
+      config :phoenix_kit, auth_uses_host_layout: true
+
+  ⚠️ Two things a host may notice when it does not: anything wired into the
+  **app** layout rather than root — a cookie-consent banner, analytics, a theme
+  toggle — stops appearing on auth pages only. Root-level wiring is unaffected.
+  Stock `phx.new` puts assets and CSRF in root, so conventional hosts see only
+  the branding disappear, which is the point.
+  """
+  attr :flash, :map, required: true
+  attr :phoenix_kit_current_scope, :any, default: nil
+  attr :page_title, :string, default: nil
+  attr :current_path, :string, default: nil
+  attr :pk_pending_invitations, :list, default: []
+  slot :inner_block, required: true
+
+  def auth_layout(assigns) do
+    if auth_uses_host_layout?() do
+      ~H"""
+      <.app_layout
+        flash={@flash}
+        phoenix_kit_current_scope={@phoenix_kit_current_scope}
+        page_title={@page_title}
+        current_path={@current_path}
+      >
+        {render_slot(@inner_block)}
+      </.app_layout>
+      """
+    else
+      # `min-h-dvh` here so the auth background has a definite containing block
+      # to fill: the wrapper inside uses `min-h-full`, which is a percentage and
+      # therefore cannot overflow it. `dvh` rather than `vh` because on mobile
+      # `vh` is the LARGE viewport, which puts the bottom of the card behind the
+      # URL bar.
+      #
+      # Flash renders HERE, inside the LiveView tree — a copy in the root layout
+      # freezes at its dead-render value (see `render_with_phoenix_kit_layout/1`).
+      ~H"""
+      <.flash_group flash={@flash} />
+      <.invitation_banners invitations={@pk_pending_invitations} />
+      <div class="min-h-dvh">{render_slot(@inner_block)}</div>
+      """
+    end
+  end
+
+  defp auth_uses_host_layout? do
+    PhoenixKit.Config.get_boolean(:auth_uses_host_layout, false)
+  end
+
   defp render_with_phoenix_kit_layout(assigns) do
     # Wrap inner content with admin navigation if needed
     assigns = wrap_inner_block_with_admin_nav_if_needed(assigns)
