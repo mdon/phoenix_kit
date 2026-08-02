@@ -715,11 +715,8 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
             run_migration_with_feedback(opts)
           else
-            Mix.shell().info("""
-
-            💡 Migration not run automatically (#{reason}).
-            To run migration manually:
-              mix ecto.migrate
+            raise_pending_migration("""
+            Migration not run automatically (#{reason}).
             """)
           end
       end
@@ -749,13 +746,29 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
             run_migration_with_feedback(opts)
 
           _ ->
-            Mix.shell().info("""
-
-            ⚠️  Migration skipped. To run it manually later:
-              mix ecto.migrate
-            """)
+            raise_pending_migration("Migration skipped at your request.")
         end
       end
+    end
+
+    # A pending migration means new code is running against an old schema, so the
+    # task must NOT exit 0. It used to: `ssh host "mix phoenix_kit.update"`
+    # succeeded, the deploy went green, and the drift was silent — in exactly the
+    # environment where you least want to find out later.
+    #
+    # `Mix.raise/1` gives a non-zero exit with a clean message and no stacktrace.
+    # It fires for the interactive "no" too: the exit code answers "is this
+    # install up to date?", and the answer does not depend on why it is not.
+    defp raise_pending_migration(reason) do
+      Mix.raise("""
+      #{String.trim(reason)}
+
+      PhoenixKit's code is updated but the database is not. Do one of:
+
+        mix ecto.migrate                 # run it now
+        mix phoenix_kit.update --yes     # re-run this task and migrate without prompting
+                                         # (this is the one for CI/CD and deploy scripts)
+      """)
     end
 
     # Display comprehensive help information
