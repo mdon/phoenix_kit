@@ -1248,6 +1248,32 @@ defmodule PhoenixKitWeb.Users.Auth do
   # Enforces module-level permission checks for admin views.
   # Extracted from on_mount(:phoenix_kit_ensure_admin) to reduce complexity.
   defp enforce_admin_view_permission(socket, scope) do
+    if personal_admin_view?(socket.view) do
+      {:cont, socket}
+    else
+      enforce_mapped_admin_view_permission(socket, scope)
+    end
+  end
+
+  # Admin-chrome views showing a user their OWN data rather than granting an
+  # administrative capability. Reaching admin chrome at all already requires
+  # `can_access_admin_area?/1`, so this is not a hole — it says that once you
+  # are in, reading your own mail is not a separate privilege.
+  #
+  # ⚠️ This has to be an explicit list, not an absence. Simply dropping these
+  # views from `@admin_view_permissions` would make them *unmapped*, and the
+  # unmapped fallback below is deliberately Owner-only — the opposite of the
+  # intent.
+  # A plain list, not a MapSet: a MapSet in a module attribute is inlined as a
+  # literal, which leaks its internal representation past the opaque type.
+  @personal_admin_views [
+    PhoenixKitWeb.Live.Notifications.Inbox,
+    PhoenixKitWeb.Live.Notifications.Settings
+  ]
+
+  defp personal_admin_view?(view), do: view in @personal_admin_views
+
+  defp enforce_mapped_admin_view_permission(socket, scope) do
     case permission_key_for_admin_view(socket.view) do
       nil ->
         # Unmapped views (a host custom admin LV with no permission mapping):
@@ -1393,12 +1419,11 @@ defmodule PhoenixKitWeb.Users.Auth do
     # fallback and a `media`-only custom role was wrongly denied it.)
     PhoenixKitWeb.Live.Modules.Storage.Health => "media",
     PhoenixKitWeb.Live.Modules.Jobs.Index => "jobs",
-    # Notifications: the two personal pages (inbox + per-type settings) take
-    # the base key. Explicit entries are required — PhoenixKitWeb.Live.*
-    # namespaces resolve through no inference branch, so an omission fails
-    # closed for custom (non-system) roles.
-    PhoenixKitWeb.Live.Notifications.Inbox => "notifications",
-    PhoenixKitWeb.Live.Notifications.Settings => "notifications",
+    # Notifications' two personal pages are NOT here — they are in
+    # `@personal_admin_views`, because reading your own inbox is not an
+    # administrative capability. The `notifications` key is reserved for an
+    # all-users/moderation view (its context API survives for that rebuild:
+    # `Notifications.admin_list/1`, `admin_stats/0`).
     # Activity feed / audit log — gated by `dashboard` (its admin tab is too).
     # These `PhoenixKitWeb.Live.Activity.*` modules resolve through no inference
     # layer, so without an explicit entry they hit the unmapped fallback — which
