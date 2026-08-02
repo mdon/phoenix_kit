@@ -266,10 +266,12 @@ defmodule PhoenixKitWeb.Integration do
         get "/tiles/:token/:dzi_filename", FileController, :serve_manifest
         get "/tiles/:token/:files_segment/:level/:tile_filename", FileController, :serve_tile
 
-        # Cookie consent widget config (public API for JS auto-injection)
-        if Code.ensure_loaded?(PhoenixKit.Modules.Legal) do
-          get "/api/consent-config", Controllers.ConsentConfigController, :config
-        end
+        # Cookie consent widget config (public API for JS auto-injection).
+        # Declared unconditionally: the vendored bundle requests this on every
+        # page load whether or not phoenix_kit_legal is installed, so a
+        # conditional route meant a NoRouteError and a logged exception per
+        # request. The controller answers 204 when the module is absent.
+        get "/api/consent-config", Controllers.ConsentConfigController, :config
       end
 
       # Maintenance mode page — public LiveView, no auth required.
