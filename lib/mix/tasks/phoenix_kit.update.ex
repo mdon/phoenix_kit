@@ -993,6 +993,33 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # Use the status command to show current status
       args = if prefix == "public", do: [], else: ["--prefix=#{prefix}"]
       Mix.Task.run("phoenix_kit.status", args)
+
+      show_upgrade_value(prefix)
+    end
+
+    # What a behind host would GAIN by upgrading.
+    #
+    # `--status` reported version numbers and "Various improvements and new
+    # features", which does not help anyone decide between upgrading now and
+    # next sprint. That gap is why several already-shipped features reached us
+    # as bug reports: hosts had no way to learn a capability existed short of
+    # reading release notes they had no reason to open.
+    defp show_upgrade_value(prefix) do
+      current = Common.migrated_version(prefix)
+      target = Common.current_version()
+
+      if current > 0 and current < target do
+        Mix.shell().info("""
+
+        #{IO.ANSI.bright()}What you'd gain by updating (V#{current} → V#{target}):#{IO.ANSI.reset()}
+        #{Common.describe_version_changes(current, target)}
+
+        Run `mix phoenix_kit.update` to apply.
+        """)
+      end
+    rescue
+      # A diagnostic must never be the reason a status check fails.
+      _ -> :ok
     end
 
     # Advisory only — the host owns assets/vendor/daisyui.js; PhoenixKit's
