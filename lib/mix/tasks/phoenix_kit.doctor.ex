@@ -45,6 +45,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   alias PhoenixKit.Install.ChildOrder
   alias PhoenixKit.Install.PrefixConfig
   alias PhoenixKit.Migrations.Postgres
+  alias PhoenixKit.Modules.Sitemap.RouteResolver
 
   @shortdoc "Diagnoses PhoenixKit installation, migration, and runtime issues"
 
@@ -99,7 +100,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("Child Start Order", fn -> check_child_order() end),
       run_check("Update Mode", fn -> check_update_mode() end),
       run_check("daisyUI Version", fn -> check_daisyui() end),
-      run_check("User Dashboard (deprecated)", fn -> check_user_dashboard_deprecation() end)
+      run_check("User Dashboard (deprecated)", fn -> check_user_dashboard_deprecation() end),
+      run_check("Sitemap Discoverability", fn -> check_sitemap_serving() end)
     ]
 
     IO.puts("")
@@ -968,6 +970,71 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     else
       {:pass, "User dashboard disabled — nothing to migrate."}
     end
+  end
+
+  # Which layer answers GET /sitemap.xml, and whether robots.txt points at it.
+  #
+  # Three layers can claim that path and nothing tells a host which one won:
+  # Plug.Static runs before the router, host routes declared before
+  # `phoenix_kit_routes()` bind first, and PhoenixKit is last. A host that
+  # reported "the sitemap 404s" had simply never been told any of that.
+  defp check_sitemap_serving do
+    case {static_sitemap_file(), sitemap_route_owner()} do
+      {path, _} when is_binary(path) ->
+        {:warn,
+         "#{path} exists, and Plug.Static runs before the router — that file is served, " <>
+           "not PhoenixKit's generated sitemap. Delete it to use the generated one."}
+
+      {nil, nil} ->
+        {:warn,
+         "No route answers GET /sitemap.xml. PhoenixKit declares one, so either " <>
+           "phoenix_kit_routes() is missing from your router or a host route matched " <>
+           "first and was removed."}
+
+      {nil, owner} ->
+        {:pass, "GET /sitemap.xml is served by #{inspect(owner)}." <> robots_hint()}
+    end
+  end
+
+  defp static_sitemap_file do
+    Enum.find(["priv/static/sitemap.xml", "priv/static/sitemap.xml.gz"], &File.exists?/1)
+  end
+
+  # Same router the sitemap source itself introspects, so what this reports is
+  # what actually generates.
+  defp sitemap_route_owner do
+    case RouteResolver.get_router() do
+      nil ->
+        nil
+
+      router ->
+        case Enum.find(router.__routes__(), &(&1.verb == :get and &1.path == "/sitemap.xml")) do
+          %{plug: plug} -> plug
+          _ -> nil
+        end
+    end
+  rescue
+    _ -> nil
+  end
+
+  # robots.txt is host policy — PhoenixKit deliberately does not generate one.
+  # Without a Sitemap: line, crawlers only find the sitemap by guessing.
+  defp robots_hint do
+    path = "priv/static/robots.txt"
+
+    cond do
+      not File.exists?(path) ->
+        " No priv/static/robots.txt — consider adding one with a `Sitemap:` line."
+
+      File.read!(path) =~ ~r/^\s*sitemap:/im ->
+        ""
+
+      true ->
+        " priv/static/robots.txt has no `Sitemap:` line — add " <>
+          "`Sitemap: https://yourdomain/sitemap.xml` so crawlers find it."
+    end
+  rescue
+    _ -> ""
   end
 
   # ── Display ─────────────────────────────────────────────────────────

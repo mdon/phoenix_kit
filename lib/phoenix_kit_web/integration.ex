@@ -324,6 +324,19 @@ defmodule PhoenixKitWeb.Integration do
             :xsl_index_stylesheet
       end
 
+      # The same endpoints at the site root. Crawlers look for /sitemap.xml,
+      # not /phoenix_kit/sitemap.xml, and every host was expected to notice
+      # that and hand-declare a redeclaration — which is not something you
+      # discover, it is something you are told, and nothing told anyone.
+      #
+      # Emitted only when the kit is mounted under a prefix; a root-mounted
+      # install (url_prefix "" / "/") already serves these from the scope
+      # above, and a second declaration of the same path is a compile error.
+      # It cannot shadow a host route either: Plug.Static runs before the
+      # router, and host routes declared before `phoenix_kit_routes()` bind
+      # first. `mix phoenix_kit.doctor` reports which layer actually answers.
+      unquote(root_sitemap_routes(url_prefix))
+
       # Shop public routes are generated via generate_shop_public_routes/1 helper
       # This supports locale-prefixed URLs (/:locale/shop/...) with language switching
       # Shop user dashboard routes are now in phoenix_kit_authenticated_routes/1.
@@ -1164,6 +1177,33 @@ defmodule PhoenixKitWeb.Integration do
           pipe_through unquote(pipelines)
           unquote(root_routes)
         end
+      end
+    end
+  end
+
+  # Root-level sitemap endpoints, for installs mounted under a prefix. See the
+  # call site for why this is safe and why it is conditional.
+  #
+  # `scope "/" do` carries NO alias on purpose — with one, the fully-qualified
+  # controller resolves as `HostWeb.PhoenixKit.Modules.Sitemap.Web.Controller`
+  # and 404s at compile time in a way that reads like a missing module.
+  defp root_sitemap_routes(url_prefix) when url_prefix in ["/", ""] do
+    quote do
+    end
+  end
+
+  defp root_sitemap_routes(_url_prefix) do
+    quote do
+      scope "/" do
+        get "/sitemap.xml", PhoenixKit.Modules.Sitemap.Web.Controller, :xml
+        get "/sitemap.html", PhoenixKit.Modules.Sitemap.Web.Controller, :html
+        get "/sitemaps/:filename", PhoenixKit.Modules.Sitemap.Web.Controller, :module_sitemap
+        get "/sitemap.xsl", PhoenixKit.Modules.Sitemap.Web.Controller, :xsl_stylesheet
+        get "/assets/sitemap/:style", PhoenixKit.Modules.Sitemap.Web.Controller, :xsl_stylesheet
+
+        get "/assets/sitemap-index/:style",
+            PhoenixKit.Modules.Sitemap.Web.Controller,
+            :xsl_index_stylesheet
       end
     end
   end
