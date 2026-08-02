@@ -101,7 +101,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("Update Mode", fn -> check_update_mode() end),
       run_check("daisyUI Version", fn -> check_daisyui() end),
       run_check("User Dashboard (deprecated)", fn -> check_user_dashboard_deprecation() end),
-      run_check("Sitemap Discoverability", fn -> check_sitemap_serving() end)
+      run_check("Sitemap Discoverability", fn -> check_sitemap_serving() end),
+      run_check("Demo Auth Pages", fn -> check_demo_routes() end)
     ]
 
     IO.puts("")
@@ -970,6 +971,42 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     else
       {:pass, "User dashboard disabled — nothing to migrate."}
     end
+  end
+
+  # Three demo LiveViews (/test-current-user, /test-redirect-if-auth,
+  # /test-ensure-auth) were written into every host by early versions of the
+  # installer. They were never documented, never refreshed by
+  # `mix phoenix_kit.update`, and `phoenix_kit_hello_world` does the job they
+  # were for — properly, and as a versioned package. The generator is gone, but
+  # deleting it does nothing for the hosts that already have them, which is what
+  # this check is for. One of the three publicly reports whether you are logged
+  # in, so this is worth saying out loud rather than leaving to archaeology.
+  @demo_routes ["/test-current-user", "/test-redirect-if-auth", "/test-ensure-auth"]
+
+  defp check_demo_routes do
+    case RouteResolver.get_router() do
+      nil ->
+        {:pass, "No router resolved — nothing to check."}
+
+      router ->
+        paths = MapSet.new(router.__routes__(), & &1.path)
+
+        case Enum.filter(@demo_routes, &MapSet.member?(paths, &1)) do
+          [] ->
+            {:pass, "No demo auth pages routed."}
+
+          found ->
+            {:warn,
+             "This app still routes PhoenixKit's old demo auth pages: #{Enum.join(found, ", ")}. " <>
+               "They were scaffolded by an early installer, are undocumented and unmaintained, " <>
+               "and one of them reports publicly whether the visitor is logged in. Remove the " <>
+               "demo scope from your router and delete the matching " <>
+               "*Web.PhoenixKitLive.Test*Live modules. For a worked example of a PhoenixKit " <>
+               "module, use phoenix_kit_hello_world instead."}
+        end
+    end
+  rescue
+    _ -> {:pass, "Could not introspect routes — skipping."}
   end
 
   # Which layer answers GET /sitemap.xml, and whether robots.txt points at it.
