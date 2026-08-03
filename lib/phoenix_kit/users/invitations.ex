@@ -172,19 +172,18 @@ defmodule PhoenixKit.Users.Invitations do
         {:error, :expired}
 
       true ->
-        case repo.transaction(fn -> do_accept_invitation(repo, invitation, user) end) do
-          {:ok, {_inv, accepted_user} = result} ->
-            # Being invited is itself admission under invite-only. The gate
-            # reads *pending* invitations, and accepting one stops it being
-            # pending — so without this the user is parked at the referral
-            # screen the moment they accept. Marked after the commit so the
-            # `custom_fields` broadcast never describes a rolled-back state.
-            Referrals.mark_satisfied(accepted_user, "invitation")
-            {:ok, result}
+        # Being invited is itself admission under invite-only, and the gate
+        # reads *pending* invitations — so accepting one removes the very thing
+        # that was admitting this user. Mark BEFORE the invitation is consumed:
+        # if the mark fails, the invitation is still pending and the user is
+        # still admitted, instead of being stranded at the referral screen with
+        # nothing left to satisfy the gate with.
+        #
+        # `mark_satisfied/2` is idempotent, so doing it first costs nothing when
+        # the acceptance then fails for its own reasons.
+        Referrals.mark_satisfied(user, "invitation")
 
-          other ->
-            other
-        end
+        repo.transaction(fn -> do_accept_invitation(repo, invitation, user) end)
     end
   end
 

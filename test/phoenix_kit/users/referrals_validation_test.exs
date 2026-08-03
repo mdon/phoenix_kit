@@ -17,6 +17,30 @@ defmodule PhoenixKit.Users.ReferralsValidationTest do
 
   @enabled [enabled?: true, required?: true]
 
+  describe "a typed code is not checked while the user is still typing" do
+    test "the :change context never rejects, however wrong the code" do
+      # This REVERSES an earlier decision that a touched field was fair to
+      # complain about. Two reasons pointing the same way: checking per keystroke
+      # hands an attacker a much faster oracle than the submit button does, and
+      # it spends a rate-limit token per character — so a real person typing an
+      # eight-character code and fixing a typo can exhaust their own budget and
+      # be told "too many attempts" while holding a good code.
+      assert {:ok, nil} =
+               Referrals.validate_for_signup(
+                 "DEFINITELY-NOT-A-CODE",
+                 @enabled ++ [context: :change]
+               )
+    end
+
+    test "the same code IS rejected on submit" do
+      assert {:error, _} =
+               Referrals.validate_for_signup(
+                 "DEFINITELY-NOT-A-CODE",
+                 @enabled ++ [context: :submit]
+               )
+    end
+  end
+
   describe "context: when a blank required code is an error" do
     test "typing elsewhere in the form does not trigger the required nag" do
       # The regression: validation runs on every phx-change, so treating
@@ -30,11 +54,6 @@ defmodule PhoenixKit.Users.ReferralsValidationTest do
     test "submitting without one still fails" do
       assert {:error, "Referral code is required"} =
                Referrals.validate_for_signup("", @enabled ++ [context: :submit])
-    end
-
-    test "a code that was actually typed is checked even on change" do
-      # That field has been touched, so complaining about it is not a nag.
-      assert {:error, _} = Referrals.validate_for_signup("NOPE1", @enabled ++ [context: :change])
     end
 
     test "whitespace counts as blank, not as a typed code" do

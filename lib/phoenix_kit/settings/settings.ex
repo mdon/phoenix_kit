@@ -401,9 +401,20 @@ defmodule PhoenixKit.Settings do
     Enum.reduce(keys, %{}, fn key, acc ->
       value =
         case Map.fetch(cached_results, key) do
-          {:ok, ^setting_not_exists_sentinel} -> Map.get(defaults, key)
-          {:ok, value} -> value
-          :error -> Map.get(fetched, key) || Map.get(defaults, key)
+          {:ok, ^setting_not_exists_sentinel} ->
+            Map.get(defaults, key)
+
+          {:ok, value} ->
+            value
+
+          # `Map.fetch`, not `||`: a row that genuinely stores nil is a
+          # different answer from a row that does not exist, and `||` collapses
+          # them onto the caller's default.
+          :error ->
+            case Map.fetch(fetched, key) do
+              {:ok, value} -> value
+              :error -> Map.get(defaults, key)
+            end
         end
 
       Map.put(acc, key, value)

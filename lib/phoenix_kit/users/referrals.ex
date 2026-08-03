@@ -211,6 +211,15 @@ defmodule PhoenixKit.Users.Referrals do
         # Blank and either optional, or still being filled in.
         {:ok, nil}
 
+      context == :change ->
+        # A typed code is NOT checked while the user is still typing. Two
+        # reasons, and they point the same way: checking per keystroke hands an
+        # attacker a much faster oracle than the submit button does, and it
+        # spends one rate-limit token per character — so a real person typing an
+        # 8-character code and correcting a typo can exhaust their own budget and
+        # be told "too many attempts" while holding a perfectly good code.
+        {:ok, nil}
+
       true ->
         validate_typed_code(trimmed, Keyword.get(opts, :ip_address))
     end
@@ -316,19 +325,59 @@ defmodule PhoenixKit.Users.Referrals do
   def record_signup_use(_user, nil), do: :ok
 
   def record_signup_use(%User{} = user, code_string) when is_binary(code_string) do
-    case get_code_by_string(code_string) do
-      nil -> :ok
-      code -> record_signup_use(user, code)
+    # ⚠️ VALIDATE, do not merely look up. The OAuth path passes a raw string
+    # straight from the session, and a bare `get_code_by_string/1` finds
+    # inactive, expired and exhausted codes just as happily as live ones — which
+    # under the access gate would ADMIT an account on a code that can never be
+    # used. `check_code/1` is the same predicate the signup forms go through.
+    case check_code(code_string) do
+      {:ok, code} ->
+        record_signup_use(user, code)
+
+      {:error, _message} ->
+        Logger.debug("[Referrals] signup code #{inspect(code_string)} not usable; not recording")
+        :ok
     end
   end
 
   def record_signup_use(%User{} = user, %{code: code_string}) do
-    use_code(code_string, user.uuid)
-    mark_satisfied(user, "code")
-    :ok
+    case redeem(user, code_string) do
+      {:ok, _user} ->
+        :ok
+
+      {:error, reason} ->
+        # A claim lost to a concurrent user, or a write failure. Admission must
+        # NOT follow: marking anyway would let a code past its usage limit
+        # admit every racer that tried for it.
+        Logger.warning("[Referrals] could not redeem #{inspect(code_string)}: #{inspect(reason)}")
+        :ok
+    end
   end
 
   def record_signup_use(_user, _code), do: :ok
+
+  @doc """
+  Claims one use of `code_string` for `user` and marks the account admitted,
+  atomically.
+
+  The two writes have to succeed or fail together. Claiming without marking
+  burns a use of a possibly single-use code and leaves the user still parked,
+  with the same code now rejecting them; marking without claiming lets a code
+  past its limit admit everyone who raced for it.
+
+  Returns `{:ok, user}` or `{:error, reason}`.
+  """
+  @spec redeem(User.t(), String.t()) :: {:ok, User.t()} | {:error, term()}
+  def redeem(%User{} = user, code_string) when is_binary(code_string) do
+    RepoHelper.repo().transaction(fn ->
+      with {:ok, _usage} <- use_code(code_string, user.uuid),
+           {:ok, updated} <- mark_satisfied(user, "code") do
+        updated
+      else
+        {:error, reason} -> RepoHelper.repo().rollback(reason)
+      end
+    end)
+  end
 
   @doc """
   Records that an account has satisfied invite-only, and why.

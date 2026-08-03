@@ -149,8 +149,9 @@ defmodule PhoenixKit.Users.ReferralAccessGateTest do
     end
 
     test "accepting that invitation keeps the account admitted" do
-      # The gate reads *pending* invitations, so acceptance would otherwise
-      # park the user at the exact moment they joined the organization.
+      # The gate reads *pending* invitations, so acceptance removes the very
+      # thing admitting this user — they are marked BEFORE it is consumed, or a
+      # failed mark would strand them with nothing left to satisfy the gate.
       org = register_user(%{account_type: "organization", organization_name: "Acme"})
       invited = register_user()
       :ok = enable_invite_only(long_ago())
@@ -244,14 +245,43 @@ defmodule PhoenixKit.Users.ReferralAccessGateTest do
       refute Referrals.marked_satisfied?(Auth.get_user(user.uuid))
     end
 
-    test "marks the account even while invite-only is off" do
-      # Someone who brought a code should not be parked if the operator turns
-      # invite-only on later.
+    test "a code string that cannot be validated admits nobody" do
+      # ⚠️ The OAuth path hands this a raw string straight from the session and
+      # never validates it. A bare lookup finds inactive, expired and exhausted
+      # codes just as happily as live ones — so admitting on a lookup alone
+      # would let a dead code get an account past invite-only.
+      #
+      # With the referrals package absent no code is usable, which is the shape
+      # this asserts.
+      user = register_user()
+
+      assert :ok = Referrals.record_signup_use(user, "SOME-DEAD-CODE")
+
+      refute Referrals.marked_satisfied?(Auth.get_user(user.uuid))
+    end
+
+    test "a failed claim does not mark the account" do
+      # `use_code/2` can lose a race for the last remaining use. Marking anyway
+      # would let one code admit every account that raced for it.
       user = register_user()
 
       assert :ok = Referrals.record_signup_use(user, %{code: "WELCOME"})
 
-      assert Referrals.marked_satisfied?(Auth.get_user(user.uuid))
+      refute Referrals.marked_satisfied?(Auth.get_user(user.uuid))
+    end
+  end
+
+  describe "redeem/2" do
+    test "claim and mark are one transaction" do
+      # Neither half may land alone: claiming without marking burns a use of a
+      # possibly single-use code and leaves the user parked with a code that now
+      # rejects them; marking without claiming lets an exhausted code admit
+      # everyone who raced for it.
+      user = register_user()
+
+      # No referrals package is installed, so the claim cannot succeed.
+      assert {:error, _reason} = Referrals.redeem(user, "WELCOME")
+      refute Referrals.marked_satisfied?(Auth.get_user(user.uuid))
     end
   end
 

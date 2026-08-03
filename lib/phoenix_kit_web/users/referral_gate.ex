@@ -97,9 +97,11 @@ defmodule PhoenixKitWeb.Users.ReferralGate do
   end
 
   defp admit(socket, user, validated_code) do
-    Referrals.use_code(validated_code.code, user.uuid)
-
-    case Referrals.mark_satisfied(user, "code") do
+    # `redeem/2` claims the use and marks the account in ONE transaction.
+    # Separately, a failed mark after a successful claim would burn a use of a
+    # possibly single-use code and leave the user still parked — and retrying
+    # the same code would now legitimately fail.
+    case Referrals.redeem(user, validated_code.code) do
       {:ok, _user} ->
         {:noreply,
          socket
@@ -107,18 +109,12 @@ defmodule PhoenixKitWeb.Users.ReferralGate do
          |> redirect(to: socket.assigns.destination)}
 
       {:error, reason} ->
-        # The code was consumed but the mark did not stick, so letting them
-        # through would be a lie the next request undoes. Say so plainly
-        # instead of showing the generic rejection — this is our fault, not a
-        # bad code, and the operator needs it in the log.
-        Logger.error("[ReferralGate] could not mark #{user.uuid} satisfied: #{inspect(reason)}")
+        # Includes losing the last use of a code to someone else between
+        # validation and redemption. Nothing was consumed, so the generic
+        # rejection is honest here; the real reason goes to the log.
+        Logger.info("[ReferralGate] #{user.uuid} could not redeem a code: #{inspect(reason)}")
 
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           gettext("Something went wrong on our end. Please try again.")
-         )}
+        {:noreply, reject(socket, "", gettext("That code can't be used"))}
     end
   end
 
