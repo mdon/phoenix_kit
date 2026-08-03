@@ -33,7 +33,11 @@ defmodule PhoenixKitWeb.Live.Settings.SEO do
         |> assign(:project_title, project_title)
         |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
         |> assign(:no_index_enabled, config.no_index_enabled)
-        |> assign(:sitemap_url, Routes.url("/sitemap.xml"))
+        # The ROOT url, deliberately — not `Routes.url/1`, which prefixes it.
+        # Core serves /sitemap.xml at both the root and under the kit prefix
+        # precisely because crawlers look at the root, so advertising the
+        # prefixed one in robots.txt would defeat the point.
+        |> assign(:sitemap_url, Routes.base_url() <> "/sitemap.xml")
         |> assign(:robots_txt_present?, File.exists?(robots_txt_path()))
         |> assign(:robots_txt_references_sitemap?, robots_txt_references_sitemap?())
 
