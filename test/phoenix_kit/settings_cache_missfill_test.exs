@@ -54,6 +54,32 @@ defmodule PhoenixKit.SettingsCacheMissFillTest do
       assert %{^key => "real"} = Settings.get_settings_cached([key], %{key => "fallback"})
     end
 
+    test "a failed query does not negatively cache every requested key" do
+      # `get_settings_direct/1` swallows query errors and returns `%{}`, which
+      # is indistinguishable from "none of these keys exist". Caching on that
+      # would write a "does not exist" entry for every key and hold it for a
+      # full TTL — so one transient database blip during an expiry wave would
+      # make configured OAuth credentials read as unconfigured, site-wide, for
+      # five minutes.
+      key = probe_key()
+      {:ok, _} = Settings.update_setting(key, "real")
+      forget(key)
+
+      # `update_mode` is the one switch that makes the settings query refuse to
+      # run without raising — the same silent-empty shape a pool failure has.
+      Application.put_env(:phoenix_kit, :update_mode, true)
+
+      try do
+        assert %{^key => "fallback"} = Settings.get_settings_cached([key], %{key => "fallback"})
+      after
+        Application.delete_env(:phoenix_kit, :update_mode)
+      end
+
+      # …and the real value is still readable afterwards, because nothing was
+      # poisoned on the way through.
+      assert %{^key => "real"} = Settings.get_settings_cached([key])
+    end
+
     test "a key with no row still falls back to the caller's default" do
       key = probe_key()
 

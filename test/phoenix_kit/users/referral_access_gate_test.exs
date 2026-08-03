@@ -148,6 +148,29 @@ defmodule PhoenixKit.Users.ReferralAccessGateTest do
       assert Referrals.access_satisfied?(Auth.get_user(invited.uuid))
     end
 
+    test "an invitation is not consumed when admission cannot be recorded" do
+      # The gate reads PENDING invitations, so acceptance removes the very thing
+      # admitting this user. Marking first is not enough on its own — accepting
+      # anyway after a failed mark still strands them: invitation gone, mark
+      # absent, nothing left that can satisfy the gate.
+      :ok = enable_invite_only(long_ago())
+      org = register_user(%{account_type: "organization", organization_name: "Acme"})
+      invited = register_user()
+
+      {:ok, invitation, _token} = Invitations.create_invitation(org, invited.email, org)
+
+      # A user struct that no longer matches a row: the merge finds nothing to
+      # update, so `mark_satisfied/2` fails the way a stale struct would.
+      ghost = %{invited | uuid: "019fc487-0000-7000-8000-00000000dead"}
+
+      assert {:error, {:could_not_record_admission, _}} =
+               Invitations.accept_invitation_by_uuid(invitation.uuid, ghost)
+
+      # Still pending, so the real user is still admitted.
+      assert Invitations.list_pending_for_email(invited.email) != []
+      assert Referrals.access_satisfied?(Auth.get_user(invited.uuid))
+    end
+
     test "accepting that invitation keeps the account admitted" do
       # The gate reads *pending* invitations, so acceptance removes the very
       # thing admitting this user — they are marked BEFORE it is consumed, or a

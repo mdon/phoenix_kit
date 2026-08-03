@@ -172,18 +172,36 @@ defmodule PhoenixKit.Users.Invitations do
         {:error, :expired}
 
       true ->
-        # Being invited is itself admission under invite-only, and the gate
-        # reads *pending* invitations — so accepting one removes the very thing
-        # that was admitting this user. Mark BEFORE the invitation is consumed:
-        # if the mark fails, the invitation is still pending and the user is
-        # still admitted, instead of being stranded at the referral screen with
-        # nothing left to satisfy the gate with.
-        #
-        # `mark_satisfied/2` is idempotent, so doing it first costs nothing when
-        # the acceptance then fails for its own reasons.
-        Referrals.mark_satisfied(user, "invitation")
+        with :ok <- record_admission(user) do
+          repo.transaction(fn -> do_accept_invitation(repo, invitation, user) end)
+        end
+    end
+  end
 
-        repo.transaction(fn -> do_accept_invitation(repo, invitation, user) end)
+  # Being invited is itself admission under invite-only, and the gate reads
+  # *pending* invitations — so accepting one removes the very thing that was
+  # admitting this user.
+  #
+  # Two things have to be true, and doing only the first is not enough: the mark
+  # is written BEFORE the invitation is consumed, AND a failed mark aborts the
+  # acceptance. Marking first but accepting anyway still strands the invitee —
+  # invitation gone, mark absent, nothing left that can satisfy the gate.
+  #
+  # Only enforced while invite-only is actually on. Failing an organization
+  # invitation because a referral bookkeeping write hiccuped, on an install with
+  # no referral gate at all, would be absurd. `mark_satisfied/2` is idempotent,
+  # so writing it early costs nothing when the acceptance then fails on its own.
+  defp record_admission(user) do
+    case Referrals.mark_satisfied(user, "invitation") do
+      {:ok, _user} ->
+        :ok
+
+      {:error, reason} ->
+        if Referrals.access_required?() do
+          {:error, {:could_not_record_admission, reason}}
+        else
+          :ok
+        end
     end
   end
 

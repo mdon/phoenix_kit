@@ -81,6 +81,7 @@ defmodule PhoenixKit.Users.Referrals do
   alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.RepoHelper
   alias PhoenixKit.Settings
+  alias PhoenixKit.Settings.Queries, as: SettingsQueries
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.{Scope, User}
   alias PhoenixKit.Users.Invitations
@@ -551,7 +552,7 @@ defmodule PhoenixKit.Users.Referrals do
   # the resolution the boundary is meaningful at.
   defp sync_required_since(true) do
     if is_nil(required_since()) do
-      stamp(@required_since_setting, DateTime.to_iso8601(UtilsDate.utc_now()))
+      stamp(@required_since_setting, DateTime.to_iso8601(fallback_boundary()))
     end
 
     :ok
@@ -560,6 +561,32 @@ defmodule PhoenixKit.Users.Referrals do
   defp sync_required_since(false) do
     if required_since(), do: stamp(@required_since_setting, nil)
     :ok
+  end
+
+  # When core has to stamp the boundary itself, "now" is the wrong answer: this
+  # runs on the first GATED REQUEST after the flip, not at the flip, and every
+  # account created in between would be grandfathered — admitted with no code on
+  # an install that had already gone invite-only. On a quiet site that window can
+  # be hours.
+  #
+  # The `referral_codes_required` row's own `updated_at` is when the switch was
+  # actually thrown, so use it. One uncached read, on a path that runs at most
+  # once per invite-only period, and it falls back to now if the row cannot be
+  # read (better a boundary that is slightly late than none at all, which would
+  # park every existing user).
+  defp fallback_boundary do
+    case SettingsQueries.get_setting_by_key(@required_setting) do
+      %{date_updated: %DateTime{} = updated_at} ->
+        updated_at
+
+      %{date_updated: %NaiveDateTime{} = updated_at} ->
+        DateTime.from_naive!(updated_at, "Etc/UTC")
+
+      _ ->
+        UtilsDate.utc_now()
+    end
+  rescue
+    _ -> UtilsDate.utc_now()
   end
 
   # This runs on the authentication path, so a settings write that fails must
