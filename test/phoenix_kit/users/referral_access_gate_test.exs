@@ -358,4 +358,66 @@ defmodule PhoenixKit.Users.ReferralAccessGateTest do
       assert Auth.get_user(user.uuid).is_active
     end
   end
+
+  describe "prune_candidates/1" do
+    @describetag :prune_starvation_guard
+
+    # ⚠️ The batch is capped and ordered OLDEST FIRST, and grandfathering means
+    # "created at or before the boundary" — so grandfathered accounts are
+    # exactly the rows the batch reaches first. They also never gain a satisfied
+    # stamp (the exemption is re-evaluated per request, never written down), so
+    # they match the cheap pre-filter forever.
+    #
+    # Left in the query they are permanent residents: on any install with more
+    # than a batch of pre-existing users — an established site that has just
+    # switched invite-only on, i.e. the install the janitor exists for — they
+    # fill every batch, `access_satisfied?/1` rejects all of them, and the sweep
+    # deactivates nobody, every day, forever. The per-account check keeps the
+    # result CORRECT while the feature is silently inert.
+    test "a grandfathered account never occupies a batch slot" do
+      before_boundary = register_user()
+      after_boundary = register_user()
+
+      # Both are well outside any retention window; only which side of the
+      # boundary they fall on is under test.
+      backdate(before_boundary, days_ago(20))
+      backdate(after_boundary, days_ago(10))
+
+      :ok = enable_invite_only(days_ago(15))
+
+      uuids = Enum.map(Referrals.prune_candidates(5), & &1.uuid)
+
+      refute before_boundary.uuid in uuids
+      assert after_boundary.uuid in uuids
+    end
+
+    test "with grandfathering off, the older account is a candidate again" do
+      # The complement, and the reason the exclusion has to read the setting
+      # rather than always apply: turning grandfathering off is precisely how an
+      # operator asks for these accounts to be swept.
+      before_boundary = register_user()
+      backdate(before_boundary, days_ago(20))
+
+      :ok = enable_invite_only(days_ago(15))
+      Settings.update_setting("referral_grandfather_existing", "false")
+
+      assert before_boundary.uuid in Enum.map(Referrals.prune_candidates(5), & &1.uuid)
+    end
+  end
+
+  defp days_ago(days) do
+    DateTime.utc_now() |> DateTime.add(-days * 86_400, :second) |> DateTime.truncate(:second)
+  end
+
+  # `inserted_at` is set by the insert, so the only way to have an account that
+  # is genuinely old is to move it.
+  defp backdate(user, %DateTime{} = at) do
+    {1, _} =
+      Repo.update_all(
+        from(u in PhoenixKit.Users.Auth.User, where: u.uuid == ^user.uuid),
+        set: [inserted_at: at]
+      )
+
+    :ok
+  end
 end

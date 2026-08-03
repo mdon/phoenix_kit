@@ -37,6 +37,28 @@ defmodule PhoenixKitWeb.ConsentConfigTest do
     assert conn.resp_body == ""
   end
 
+  test "the route does NOT use the module name phoenix_kit_legal published" do
+    # ⚠️ `PhoenixKitWeb.Controllers.ConsentConfigController` is the name
+    # phoenix_kit_legal <= 0.1.9 ships its own copy of. Moving the
+    # responsibility into core does not un-publish those versions, and a host
+    # that resolves new core against an older legal would have one module name
+    # compiled into two applications — with code-path order, not either
+    # package, deciding which one answers.
+    #
+    # The route is this module's only reference, so the collision costs nothing
+    # to avoid; keeping the distinct name is what makes the pair safe in both
+    # upgrade orders rather than only the one where legal moves first.
+    route =
+      Enum.find(
+        PhoenixKitWeb.Router.__routes__(),
+        &(&1.verb == :get and String.ends_with?(&1.path, "/api/consent-config"))
+      )
+
+    assert route, "/api/consent-config is not routed"
+    assert route.plug == PhoenixKitWeb.Controllers.ConsentConfig
+    refute route.plug == PhoenixKitWeb.Controllers.ConsentConfigController
+  end
+
   test "the absent-module answer is never cached", %{conn: conn} do
     # A cached 204 outlives installing phoenix_kit_legal, leaving the widget
     # dead until every visitor's cache expires.

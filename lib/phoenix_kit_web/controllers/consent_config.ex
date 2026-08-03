@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Controllers.ConsentConfigController do
+defmodule PhoenixKitWeb.Controllers.ConsentConfig do
   @moduledoc """
   Cookie consent widget configuration, for the JS bundle's manual
   `window.PhoenixKitConsent.init()` entry point.
@@ -11,6 +11,16 @@ defmodule PhoenixKitWeb.Controllers.ConsentConfigController do
   exception on every single page load, because the vendored bundle asks for it
   unconditionally. The route is now always present and this controller decides
   what to say.
+
+  ## Why the name is not `…ConsentConfigController`
+
+  That is the name `phoenix_kit_legal` used for its own copy, and moving the
+  responsibility into core does not un-publish the versions that still ship it.
+  A host resolving new core against `phoenix_kit_legal <= 0.1.9` would have the
+  same module compiled into two applications, and which one answers is decided
+  by code-path order rather than by anything either package states. Renaming
+  costs nothing here — the route is the only reference — and it makes the pair
+  safe in *both* upgrade orders instead of only the one where legal moves first.
 
   ## Why 204 and not `{"enabled": false}`
 

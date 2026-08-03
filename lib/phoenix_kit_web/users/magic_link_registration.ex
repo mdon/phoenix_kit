@@ -22,13 +22,27 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistration do
         # Gate the completion page too, not just the request page. Otherwise a
         # link already sitting in an inbox still creates an account after an
         # admin has switched magic-link registration off.
-        if WebAuth.magic_link_registration_enabled?() do
-          mount_completion_form(token, socket)
-        else
-          {:ok,
-           socket
-           |> put_flash(:error, "Magic link registration is currently disabled.")
-           |> redirect(to: Routes.path("/users/register"))}
+        #
+        # BOTH switches, matching the request page. `allow_registration` is the
+        # broader one — "no new accounts at all" — so honouring only the
+        # magic-link-specific setting here left the wider switch as exactly the
+        # kind of button-hiding-without-route-closing this page was fixed for.
+        cond do
+          not PhoenixKit.Settings.get_boolean_setting("allow_registration", true) ->
+            # Registration is closed outright, so /users/register is no help.
+            {:ok,
+             socket
+             |> put_flash(:error, "Registration is currently disabled.")
+             |> redirect(to: Routes.path("/users/log-in"))}
+
+          not WebAuth.magic_link_registration_enabled?() ->
+            {:ok,
+             socket
+             |> put_flash(:error, "Magic link registration is currently disabled.")
+             |> redirect(to: Routes.path("/users/register"))}
+
+          true ->
+            mount_completion_form(token, socket)
         end
     end
   end

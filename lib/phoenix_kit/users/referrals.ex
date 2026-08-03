@@ -489,6 +489,15 @@ defmodule PhoenixKit.Users.Referrals do
     error ->
       Logger.warning("[Referrals] invitation check failed: #{Exception.message(error)}")
       false
+  catch
+    # This one is a real query, not a settings read, so it is the clause that
+    # matters most here: an unreachable database raises on an unowned checkout
+    # but *exits* on a dead pool. With only the `rescue`, the exit escapes and
+    # takes down every gated page — the site-wide lockout the rescue was added
+    # to prevent, just via the failure mode nobody reproduces locally.
+    :exit, _reason ->
+      Logger.warning("[Referrals] invitation check failed: database unavailable")
+      false
   end
 
   @doc """
@@ -524,21 +533,9 @@ defmodule PhoenixKit.Users.Referrals do
   @spec prune_unadmitted(non_neg_integer()) :: {:ok, non_neg_integer()}
   def prune_unadmitted(days) when is_integer(days) and days > 0 do
     if access_required?() do
-      cutoff = DateTime.add(UtilsDate.utc_now(), -days * 86_400, :second)
-
-      candidates =
-        from(u in User,
-          where: u.is_active == true,
-          where: u.inserted_at < ^cutoff,
-          # Cheap pre-filter only. The authority is `access_satisfied?/1` below.
-          where: fragment("COALESCE(?->>?, '') = ''", u.custom_fields, ^satisfied_field()),
-          order_by: [asc: u.inserted_at],
-          limit: @prune_batch_size
-        )
-        |> RepoHelper.repo().all()
-
       count =
-        candidates
+        days
+        |> prune_candidates()
         |> Enum.reject(&access_satisfied?/1)
         |> Enum.count(&deactivate_unadmitted/1)
 
@@ -549,6 +546,58 @@ defmodule PhoenixKit.Users.Referrals do
   end
 
   def prune_unadmitted(_days), do: {:ok, 0}
+
+  @doc """
+  One sweep's worth of rows, before the per-account authority check.
+
+  Separated from `prune_unadmitted/1` so the grandfather exclusion can be
+  asserted directly. Testing it through the sweep would take
+  `#{@prune_batch_size}` accounts to demonstrate — the starvation it prevents
+  only appears once exempt rows can fill the batch — and a suite that registers
+  five hundred users to prove one `WHERE` clause is a suite nobody runs.
+  """
+  @spec prune_candidates(pos_integer()) :: [User.t()]
+  def prune_candidates(days) when is_integer(days) and days > 0 do
+    cutoff = DateTime.add(UtilsDate.utc_now(), -days * 86_400, :second)
+
+    from(u in User,
+      where: u.is_active == true,
+      where: u.inserted_at < ^cutoff,
+      # Cheap pre-filter only. The authority is `access_satisfied?/1`.
+      where: fragment("COALESCE(?->>?, '') = ''", u.custom_fields, ^satisfied_field()),
+      order_by: [asc: u.inserted_at],
+      limit: @prune_batch_size
+    )
+    |> exclude_grandfathered()
+    |> RepoHelper.repo().all()
+  end
+
+  # Grandfathered accounts are permanently exempt AND permanently match the
+  # pre-filter above: they carry no satisfied stamp and never will, because
+  # grandfathering is re-evaluated per request rather than written down.
+  #
+  # That combination starves the sweep. Grandfathering means "created at or
+  # before the boundary", so grandfathered accounts are exactly the OLDEST rows
+  # — and the batch is ordered oldest-first. Left in, they fill all
+  # `@prune_batch_size` slots, `access_satisfied?/1` rejects every one, and the
+  # janitor deactivates nobody, every day, forever. It fails on precisely the
+  # install it exists for: an established site with more than a batch of
+  # existing users that has just switched invite-only on.
+  #
+  # This is the same predicate `grandfathered?/1` applies per account, pushed
+  # into SQL so exempt rows never occupy the batch. The per-account re-check
+  # still has the last word — the exemptions SQL cannot see (full permissions, a
+  # pending invitation) are why it is the authority.
+  defp exclude_grandfathered(query) do
+    with true <- Settings.get_boolean_setting(@grandfather_setting, true),
+         %DateTime{} = since <- required_since() do
+      from(u in query, where: u.inserted_at > ^since)
+    else
+      # Grandfathering off, or no boundary recorded — nobody is exempt on age,
+      # so there is nothing to exclude.
+      _ -> query
+    end
+  end
 
   defp deactivate_unadmitted(%User{} = user) do
     case Auth.update_user_status(user, %{"is_active" => false}) do
@@ -580,6 +629,13 @@ defmodule PhoenixKit.Users.Referrals do
   rescue
     error ->
       Logger.warning("[Referrals] could not log deactivation: #{Exception.message(error)}")
+      :ok
+  catch
+    # Same reasoning as the rescue, same blast radius: an exit here aborts the
+    # remaining candidates and makes Oban retry the whole batch against accounts
+    # it has already deactivated.
+    :exit, _reason ->
+      Logger.warning("[Referrals] could not log deactivation: database unavailable")
       :ok
   end
 
@@ -632,6 +688,11 @@ defmodule PhoenixKit.Users.Referrals do
     end
   rescue
     _ -> UtilsDate.utc_now()
+  catch
+    # Uncached read on the authentication path — see `stamp/2` below for why
+    # both clauses are needed. Without this one a dead pool exits through
+    # `access_required?/0` and every gated page goes with it.
+    :exit, _reason -> UtilsDate.utc_now()
   end
 
   # This runs on the authentication path, so a settings write that fails must

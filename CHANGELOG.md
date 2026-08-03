@@ -1,3 +1,101 @@
+## 1.7.227 - 2026-08-03
+
+Host-app feedback triage (#677) — ~43 reports from AI agents working on apps
+built with PhoenixKit (Ratelia, Topp, NordSwitch), plus the post-merge review
+fixes. **Migration V160**; run `mix phoenix_kit.update`.
+
+### Added
+- **Invite-only is enforced as a post-signup access gate** (#677) — with
+  `referral_codes_required` on, an account can be created by any route
+  (password, magic link, OAuth) but reaches nothing except `/users/referral` and
+  log-out until it is admitted. It was previously enforced on the password form
+  only, so OAuth and magic-link signups walked straight past it. Keyed on an
+  independent flag, never `confirmed_at` — OAuth auto-confirms, so a gate keyed
+  on that would open for the path it most needs to close.
+- **`mix phoenix_kit.update --status`** (#677) — lists what upgrading gives you,
+  read from the migration moduledoc's per-version headings. Seven of the
+  reported "missing features" already existed; that is a delivery problem, not
+  seven doc gaps.
+- **`PhoenixKit.Test.Fixtures`** (#677) — shared test fixtures for host suites.
+- **`config :phoenix_kit, hidden_admin_tabs: [...]`** (#677) — drop a module's
+  admin section while keeping its data layer. Applied at registry init, so a
+  supervisor restart cannot resurrect a hidden tab.
+- **`Referrals.PruneWorker`** (#677) — deactivates (never deletes) accounts that
+  were created under invite-only and never satisfied it. Off unless
+  `referral_unadmitted_retention_days` is set. `mix phoenix_kit.update`
+  backfills its cron entry into existing hosts.
+- **Sitemap endpoints at the site root** (#677) — `/sitemap.xml` and friends are
+  served at the root as well as under the PhoenixKit prefix, because that is
+  where crawlers look. Emitted only for prefix-mounted installs.
+
+### Changed
+- **Auth pages no longer render in the host's `Layouts.app`** (#677) —
+  ⚠️ **breaking default.** Every install's login page was showing the host
+  scaffold's Phoenix Framework branding. Opt back in with
+  `auth_uses_host_layout: true`.
+- **A user's own notification inbox and preferences need no permission grant**
+  (#677) — ⚠️ **breaking.** Notifications are delivered to every user, and
+  requiring a grant to read your own meant an account could receive mail it was
+  structurally unable to open. The `notifications` key is now reserved for the
+  administrative all-users view.
+- **Custom sitemap exclude patterns ADD to the built-in defaults** (#677) — a
+  saved list used to replace them outright, so adding one pattern of your own
+  silently un-excluded every admin and auth route and froze that install out of
+  later defaults. Save `"!replace"` as the first entry to opt into replacement.
+- **`<.button>` honours `variant`, `size` and `navigate`** (#677) — all three
+  were undeclared and silently dropped, including in `table_default`'s own
+  documented examples. `variant` now replaces the base colour rather than
+  appending to it.
+- Dependency bumps: `oban`, `tesla`, `leaf`, `mdex_native`.
+
+### Fixed
+- **`GET /api/consent-config` 404'd on every page load without
+  `phoenix_kit_legal`** (#677) — the vendored bundle asks for it
+  unconditionally, so a conditional route meant a `NoRouteError` and a logged
+  exception per request. It answers 204; a `{"enabled": false}` body would have
+  *granted* consent on bundles vendored before the feature existed. The
+  controller is named `PhoenixKitWeb.Controllers.ConsentConfig` — deliberately
+  not the name `phoenix_kit_legal <= 0.1.9` publishes its own copy of, so the
+  two are safe in either upgrade order.
+- **The invite-only janitor starved itself and deactivated nobody** (post-#677
+  review) — grandfathered accounts never gain a satisfied stamp and are, by
+  definition, the oldest rows, so on any install with more than a batch (500) of
+  pre-existing users they filled every batch and the sweep swept nothing, every
+  day, silently. The grandfather predicate is now applied in SQL so exempt rows
+  cannot occupy a batch slot.
+- **`allow_registration` is enforced where accounts are actually created**
+  (post-#677 review) — the magic-link *completion* route honoured only
+  `magic_link_registration_enabled`, so closing registration outright still let
+  every in-flight token create an account; the password form checked the setting
+  in `mount/3` but not on submit, and a LiveView socket outlives the page load
+  that opened it.
+- **Three soft-failure paths in the access gate could still crash the site**
+  (post-#677 review) — `invited?/1`, `fallback_boundary/0` and
+  `log_deactivation/1` rescued exceptions but not exits, and an unreachable
+  database raises on an unowned checkout while *exiting* on a dead pool. Two of
+  the three are on the authentication path.
+- **Referral-code validation was an unthrottled guessing oracle** (#677) —
+  distinct messages per failure mode confirmed which guesses named a real code.
+  One message now, rate-limited per IP and (on the post-login screen) per
+  account, checked on submit rather than per keystroke.
+- **Magic-link settings hid buttons without closing routes** (#677) — both the
+  login and registration routes stayed reachable by URL, and in-flight tokens
+  kept working, after an admin switched them off.
+- **`send_registration_link/1` had no rate limit at all** (#677) — now limited
+  on the same buckets as password registration, *before* the user lookup, so the
+  generic copy does not become an account-existence oracle via timing.
+- **Sitemap exclusions were a one-way door** (#677) — saving one custom pattern
+  dropped every built-in exclusion, and saving them back exceeded `varchar(255)`
+  while the changeset allowed 1000. **V160** widens
+  `phoenix_kit_settings.value` to `TEXT` (catalog-only; no table rewrite).
+- **Users received notifications they had no permission to read** (#677).
+- **`mix phoenix_kit.update` exited 0 with a migration pending** (#677).
+- **Settings written outside the web node stayed invisible until restart**
+  (#677) — `get_settings_cached/2` silently read a cache miss as `nil` instead
+  of filling it from the database, which would have degraded site-wide on every
+  expiry wave once the cache gained a TTL. Cache expiry also gained up to 10%
+  jitter so a batch written together does not fall due together.
+
 ## 1.7.226 - 2026-08-01
 
 ### Added

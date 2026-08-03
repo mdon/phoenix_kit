@@ -1013,4 +1013,42 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
       assert redirected_to(conn) == "/"
     end
   end
+
+  describe "allow_registration closes the magic-link completion route" do
+    setup do
+      on_exit(fn -> Settings.update_setting("allow_registration", "true") end)
+      :ok
+    end
+
+    test "an in-flight completion link stops working once registration closes",
+         %{conn: conn} do
+      # The completion page gained a `magic_link_registration_enabled` gate for
+      # exactly this reason — "a link already sitting in an inbox still creates
+      # an account after an admin switched it off" — but read only that
+      # setting. `allow_registration` is the BROADER switch (no new accounts at
+      # all), so honouring the narrow one and not the wide one left the wide one
+      # as the button-hiding-without-route-closing this page was fixed for.
+      {:ok, _email, token} = MagicLinkRegistration.send_registration_link(unique_email())
+
+      # Still open: the link works.
+      assert conn |> get(Routes.path("/users/register/complete/#{token}")) |> html_response(200)
+
+      Settings.update_setting("allow_registration", "false")
+
+      conn = get(conn, Routes.path("/users/register/complete/#{token}"))
+
+      # Not /users/register — that page is closed too, so sending them there
+      # would just bounce them again.
+      assert redirected_to(conn) == Routes.path("/users/log-in")
+    end
+
+    test "closing registration does not break the completion route while it is open",
+         %{conn: conn} do
+      Settings.update_setting("allow_registration", "true")
+
+      {:ok, _email, token} = MagicLinkRegistration.send_registration_link(unique_email())
+
+      assert conn |> get(Routes.path("/users/register/complete/#{token}")) |> html_response(200)
+    end
+  end
 end

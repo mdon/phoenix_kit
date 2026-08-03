@@ -8,7 +8,7 @@ defmodule PhoenixKitWeb.Integration do
               PhoenixKitEcommerce.Web.UserOrders,
               PhoenixKitEcommerce.Web.UserOrderDetails,
               PhoenixKitWeb.Live.Modules.Legal.Settings,
-              PhoenixKitWeb.Controllers.ConsentConfigController
+              PhoenixKitWeb.Controllers.ConsentConfig
             ]}
   @moduledoc """
   Integration helpers for adding PhoenixKit to Phoenix applications.
@@ -271,7 +271,7 @@ defmodule PhoenixKitWeb.Integration do
         # page load whether or not phoenix_kit_legal is installed, so a
         # conditional route meant a NoRouteError and a logged exception per
         # request. The controller answers 204 when the module is absent.
-        get "/api/consent-config", Controllers.ConsentConfigController, :config
+        get "/api/consent-config", Controllers.ConsentConfig, :config
       end
 
       # Maintenance mode page — public LiveView, no auth required.

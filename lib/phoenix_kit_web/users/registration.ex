@@ -111,6 +111,60 @@ defmodule PhoenixKitWeb.Users.Registration do
   end
 
   def handle_event("save", %{"user" => user_params} = params, socket) do
+    if Settings.get_boolean_setting("allow_registration", true) do
+      do_save(user_params, params, socket)
+    else
+      # Re-checked here, not just in mount/3. A LiveView socket outlives the
+      # page load that created it, so a form mounted while registration was open
+      # keeps a working submit endpoint for as long as the tab stays open —
+      # closing registration has to close the submit, not only the entrance.
+      {:noreply,
+       socket
+       |> put_flash(:error, "Registration is currently disabled.")
+       |> redirect(to: Routes.path("/users/log-in"))}
+    end
+  end
+
+  def handle_event("validate", %{"user" => user_params} = params, socket) do
+    referral_code = params["referral_code"]
+    user_params = form_params(user_params)
+
+    # Track whether the user owns the username field, then keep it in sync with
+    # the email while it's still auto-managed.
+    username_edited = username_manually_edited?(socket, params, user_params)
+    user_params = maybe_sync_username(user_params, username_edited)
+
+    # The form re-renders on every change, so the checkbox has to be driven by
+    # what the user actually left it at — otherwise unticking it would snap
+    # back to the site default on the next keystroke.
+    socket =
+      socket
+      |> assign(username_edited: username_edited)
+      |> assign(remember_me: user_params["remember_me"] == "true")
+
+    # Validate referral code and update error state
+    case validate_referral_code(referral_code, socket, :change) do
+      {:ok, _} ->
+        socket =
+          socket
+          |> assign(referral_code: referral_code)
+          |> assign(referral_code_error: nil)
+
+        changeset = Auth.change_user_registration(%User{}, user_params)
+        {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+
+      {:error, error_message} ->
+        socket =
+          socket
+          |> assign(referral_code: referral_code)
+          |> assign(referral_code_error: error_message)
+
+        changeset = Auth.change_user_registration(%User{}, user_params)
+        {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+    end
+  end
+
+  defp do_save(user_params, params, socket) do
     referral_code = params["referral_code"]
     user_params = form_params(user_params)
 
@@ -192,45 +246,6 @@ defmodule PhoenixKitWeb.Users.Registration do
           |> assign(check_errors: true)
 
         {:noreply, socket}
-    end
-  end
-
-  def handle_event("validate", %{"user" => user_params} = params, socket) do
-    referral_code = params["referral_code"]
-    user_params = form_params(user_params)
-
-    # Track whether the user owns the username field, then keep it in sync with
-    # the email while it's still auto-managed.
-    username_edited = username_manually_edited?(socket, params, user_params)
-    user_params = maybe_sync_username(user_params, username_edited)
-
-    # The form re-renders on every change, so the checkbox has to be driven by
-    # what the user actually left it at — otherwise unticking it would snap
-    # back to the site default on the next keystroke.
-    socket =
-      socket
-      |> assign(username_edited: username_edited)
-      |> assign(remember_me: user_params["remember_me"] == "true")
-
-    # Validate referral code and update error state
-    case validate_referral_code(referral_code, socket, :change) do
-      {:ok, _} ->
-        socket =
-          socket
-          |> assign(referral_code: referral_code)
-          |> assign(referral_code_error: nil)
-
-        changeset = Auth.change_user_registration(%User{}, user_params)
-        {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
-
-      {:error, error_message} ->
-        socket =
-          socket
-          |> assign(referral_code: referral_code)
-          |> assign(referral_code_error: error_message)
-
-        changeset = Auth.change_user_registration(%User{}, user_params)
-        {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
     end
   end
 
