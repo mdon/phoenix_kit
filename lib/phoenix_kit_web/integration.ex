@@ -56,7 +56,7 @@ defmodule PhoenixKitWeb.Integration do
 
   Authentication routes:
   - /users/register, /users/log-in, /users/magic-link
-  - /users/reset-password, /users/confirm
+  - /users/reset-password, /users/confirm, /users/referral
   - /users/log-out (GET/DELETE)
 
   User dashboard routes (if enabled, default: true):
@@ -266,10 +266,12 @@ defmodule PhoenixKitWeb.Integration do
         get "/tiles/:token/:dzi_filename", FileController, :serve_manifest
         get "/tiles/:token/:files_segment/:level/:tile_filename", FileController, :serve_tile
 
-        # Cookie consent widget config (public API for JS auto-injection)
-        if Code.ensure_loaded?(PhoenixKit.Modules.Legal) do
-          get "/api/consent-config", Controllers.ConsentConfigController, :config
-        end
+        # Cookie consent widget config (public API for JS auto-injection).
+        # Declared unconditionally: the vendored bundle requests this on every
+        # page load whether or not phoenix_kit_legal is installed, so a
+        # conditional route meant a NoRouteError and a logged exception per
+        # request. The controller answers 204 when the module is absent.
+        get "/api/consent-config", Controllers.ConsentConfigController, :config
       end
 
       # Maintenance mode page — public LiveView, no auth required.
@@ -323,6 +325,19 @@ defmodule PhoenixKitWeb.Integration do
             PhoenixKit.Modules.Sitemap.Web.Controller,
             :xsl_index_stylesheet
       end
+
+      # The same endpoints at the site root. Crawlers look for /sitemap.xml,
+      # not /phoenix_kit/sitemap.xml, and every host was expected to notice
+      # that and hand-declare a redeclaration — which is not something you
+      # discover, it is something you are told, and nothing told anyone.
+      #
+      # Emitted only when the kit is mounted under a prefix; a root-mounted
+      # install (url_prefix "" / "/") already serves these from the scope
+      # above, and a second declaration of the same path is a compile error.
+      # It cannot shadow a host route either: Plug.Static runs before the
+      # router, and host routes declared before `phoenix_kit_routes()` bind
+      # first. `mix phoenix_kit.doctor` reports which layer actually answers.
+      unquote(root_sitemap_routes(url_prefix))
 
       # Shop public routes are generated via generate_shop_public_routes/1 helper
       # This supports locale-prefixed URLs (/:locale/shop/...) with language switching
@@ -386,6 +401,11 @@ defmodule PhoenixKitWeb.Integration do
 
       live "/users/confirm", Users.ConfirmationInstructions, :new,
         as: :user_confirmation_instructions
+
+      # Where the invite-only gate parks an account that has not been admitted.
+      # It belongs on this ungated surface for the same reason /users/confirm
+      # does: the gates redirect *to* it, so gating it would be a loop.
+      live "/users/referral", Users.ReferralGate, :new, as: :user_referral_gate
 
       # Shop public pages — same session for seamless auth → shop navigation
       # Full module names required (no PhoenixKitWeb alias in shop namespace)
@@ -1159,6 +1179,33 @@ defmodule PhoenixKitWeb.Integration do
           pipe_through unquote(pipelines)
           unquote(root_routes)
         end
+      end
+    end
+  end
+
+  # Root-level sitemap endpoints, for installs mounted under a prefix. See the
+  # call site for why this is safe and why it is conditional.
+  #
+  # `scope "/" do` carries NO alias on purpose — with one, the fully-qualified
+  # controller resolves as `HostWeb.PhoenixKit.Modules.Sitemap.Web.Controller`
+  # and 404s at compile time in a way that reads like a missing module.
+  defp root_sitemap_routes(url_prefix) when url_prefix in ["/", ""] do
+    quote do
+    end
+  end
+
+  defp root_sitemap_routes(_url_prefix) do
+    quote do
+      scope "/" do
+        get "/sitemap.xml", PhoenixKit.Modules.Sitemap.Web.Controller, :xml
+        get "/sitemap.html", PhoenixKit.Modules.Sitemap.Web.Controller, :html
+        get "/sitemaps/:filename", PhoenixKit.Modules.Sitemap.Web.Controller, :module_sitemap
+        get "/sitemap.xsl", PhoenixKit.Modules.Sitemap.Web.Controller, :xsl_stylesheet
+        get "/assets/sitemap/:style", PhoenixKit.Modules.Sitemap.Web.Controller, :xsl_stylesheet
+
+        get "/assets/sitemap-index/:style",
+            PhoenixKit.Modules.Sitemap.Web.Controller,
+            :xsl_index_stylesheet
       end
     end
   end

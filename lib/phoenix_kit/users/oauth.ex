@@ -180,17 +180,23 @@ if Code.ensure_loaded?(Ueberauth) do
         last_name: oauth_data.last_name
       }
 
-      result =
-        if track_geolocation && ip_address do
-          Auth.register_user_with_geolocation(attrs, ip_address)
-        else
-          Auth.register_user(attrs, ip_address)
-        end
-
-      # Auto-confirm email for OAuth users (providers verify email ownership)
-      case result do
+      # NOT rate-limited here. `Auth.register_user/2` already checks the
+      # registration buckets, and `register_user_with_geolocation/2` funnels
+      # into it too — so a check at this level charges every OAuth signup TWICE
+      # against a 3-per-email/10-per-IP budget, quietly turning it into 1 and 5.
+      # (The gate work assumed this path was unlimited. It never was.)
+      case do_register_oauth_user(attrs, track_geolocation, ip_address) do
+        # Auto-confirm email for OAuth users (providers verify email ownership)
         {:ok, user} -> maybe_confirm_user(user)
         error -> error
+      end
+    end
+
+    defp do_register_oauth_user(attrs, track_geolocation, ip_address) do
+      if track_geolocation && ip_address do
+        Auth.register_user_with_geolocation(attrs, ip_address)
+      else
+        Auth.register_user(attrs, ip_address)
       end
     end
 
@@ -236,10 +242,7 @@ if Code.ensure_loaded?(Ueberauth) do
 
     defp maybe_process_referral_code(user, referral_code) when is_binary(referral_code) do
       if Code.ensure_loaded?(Referrals) do
-        case Referrals.get_code_by_string(referral_code) do
-          nil -> :ok
-          code -> Referrals.use_code(code.code, user.uuid)
-        end
+        Referrals.record_signup_use(user, referral_code)
       end
 
       :ok

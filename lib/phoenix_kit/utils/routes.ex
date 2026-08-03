@@ -121,8 +121,12 @@ defmodule PhoenixKit.Utils.Routes do
   # it at `/users/log-out` is worse — it is a real GET route, so every
   # successful login immediately signs the user back out and nobody, including
   # the admin who set it, can stay in to undo it.
+  # `/users/referral` belongs here for the same reason `/users/confirm` does:
+  # the invite-only gate parks users there and stashes where they came from, so
+  # without it a stashed `return_to` could send an admitted user straight back
+  # to the page that had just released them.
   @auth_paths ~w(/users/log-in /users/log-out /users/register /users/confirm
-  /users/magic-link /users/qr-login /users/reset-password)
+  /users/referral /users/magic-link /users/qr-login /users/reset-password)
 
   defp after_login_path do
     path =
@@ -161,6 +165,37 @@ defmodule PhoenixKit.Utils.Routes do
 
   def auth_page?(_), do: false
 
+  @doc """
+  Builds a PhoenixKit path: the host's mount prefix, plus a locale segment when
+  the site is multilingual.
+
+  ## The `:locale` option
+
+  This is the contract, and it is what a bilingual site needs when auth pages
+  come out in the wrong language. Without it the locale is *determined* — from
+  the process's Gettext locale — which is right for a link rendered inside a
+  request and wrong for a link built outside one (an email, a background job, a
+  script).
+
+  - `locale: "et"` — force this locale.
+  - `locale: :none` — emit no locale segment at all. For anything that is not a
+    page: assets, webhooks, `sitemap.xml`.
+  - `locale: nil` or omitted — determine it from the current process.
+
+  ### Examples
+
+      Routes.path("/users/log-in")                 # current locale
+      Routes.path("/users/log-in", locale: "et")   # /et/users/log-in
+      Routes.path("/sitemap.xml", locale: :none)   # never localized
+
+  Note that the primary language is emitted prefixlessly when the site is
+  configured that way, so `locale: "en"` on an English-primary site yields a
+  path with no `/en` segment — that is deliberate, not a dropped option.
+
+  See the multilang guide for how locales are resolved and switched; the symptom
+  of getting this wrong (English auth pages on a translated site) reads like an
+  i18n bug rather than a routing one.
+  """
   # NOTE: Locale override logic below exists for the publishing component system integration.
   # Switch to the upcoming media/storage helpers once they land.
   def path(url_path, opts \\ [])

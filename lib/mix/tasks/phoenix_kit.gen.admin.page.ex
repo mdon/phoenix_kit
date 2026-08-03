@@ -39,6 +39,17 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Admin.Page do
       # Full control
       mix phoenix_kit.gen.admin.page "Reports" --url="/admin/analytics/reports" --category="Analytics" --icon="hero-chart-bar"
 
+  ## Where the rest of the story is
+
+  This task scaffolds one page. Everything around it — tabs, groups, subtabs,
+  badges, permissions, dynamic children, context selectors — is documented in
+  `lib/phoenix_kit/dashboard/README.md`, published as **Built-in Dashboard** on
+  https://phoenix-kit.hexdocs.pm.
+
+  Pointing at it here because at least one host went looking in the source: the
+  guide exists and is thorough, and the only thing wrong with it was that
+  nothing linked to it from the two places people actually start.
+
   """
 
   @shortdoc "Generates admin page with automatic route registration"
@@ -123,6 +134,11 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Admin.Page do
         - Routes are auto-generated via live_view config
         - First page in category creates parent tab
         - Run: mix compile --force && restart server
+
+      Further reading:
+        Tabs, groups, subtabs, badges, permissions and context selectors are
+        covered in the Built-in Dashboard guide:
+        https://phoenix-kit.hexdocs.pm
       """)
 
       :ok

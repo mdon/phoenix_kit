@@ -22,6 +22,8 @@ defmodule PhoenixKit.Install.ObanConfig do
   @dialyzer {:nowarn_function, ensure_cron_plugin: 2}
   @dialyzer {:nowarn_function, ensure_digest_cron_entries: 2}
   @dialyzer {:nowarn_function, add_digest_entries_to_crontab: 3}
+  @dialyzer {:nowarn_function, ensure_worker_cron_entries: 2}
+  @dialyzer {:nowarn_function, add_worker_entries_to_crontab: 3}
   @dialyzer {:nowarn_function, ensure_pruner_max_age: 2}
   @dialyzer {:nowarn_function, ensure_lifeline_plugin: 2}
   @dialyzer {:nowarn_function, maybe_raise_lifeline_rescue_after: 1}
@@ -242,6 +244,7 @@ defmodule PhoenixKit.Install.ObanConfig do
            {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},
            {"0 3 * * *", PhoenixKit.Modules.Storage.Workers.PruneTrashJob},
            {"0 4 * * *", PhoenixKit.Notifications.PruneWorker},
+           {"30 4 * * *", PhoenixKit.Users.Referrals.PruneWorker},
            {"0 * * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "hourly"}},
            {"0 */12 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "12h"}},
            {"0 6 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "daily"}},
@@ -297,6 +300,7 @@ defmodule PhoenixKit.Install.ObanConfig do
       |> ensure_notifications_queue(app_name)
       |> ensure_cron_plugin(app_name)
       |> ensure_digest_cron_entries(app_name)
+      |> ensure_worker_cron_entries(app_name)
       |> ensure_pruner_max_age(app_name)
       |> ensure_lifeline_plugin(app_name)
 
@@ -848,6 +852,57 @@ defmodule PhoenixKit.Install.ObanConfig do
     Regex.match?(~r/DigestWorker[^\n]*cadence:\s*"#{Regex.escape(cadence)}"/, content)
   end
 
+  # Plain `{cron, Worker}` crontab entries that shipped after the first
+  # installs. Same reasoning as the digest entries: `ensure_cron_plugin/2`
+  # short-circuits once `ProcessScheduledJobsWorker` is present, so without an
+  # explicit backfill a host that installed earlier never gains them.
+  @worker_cron_entries [
+    {"30 4 * * *", "PhoenixKit.Users.Referrals.PruneWorker"}
+  ]
+
+  @doc """
+  Ensures the plain worker cron entries shipped since a host's install exist.
+
+  Public for the same reason as `ensure_digest_cron_entries/2`: so it can be
+  unit-tested directly against content strings.
+  """
+  @spec ensure_worker_cron_entries(String.t(), atom() | String.t()) :: String.t()
+  def ensure_worker_cron_entries(content, app_name) do
+    missing =
+      Enum.reject(@worker_cron_entries, fn {_cron, mod} -> String.contains?(content, mod) end)
+
+    if missing == [] do
+      content
+    else
+      Mix.shell().info("  ➕ Adding PhoenixKit worker cron entries...")
+      add_worker_entries_to_crontab(content, missing, app_name)
+    end
+  end
+
+  defp add_worker_entries_to_crontab(content, missing, app_name) do
+    case Regex.run(~r/(^([ \t]+)crontab:\s*\[\n)(.*?)(\n\2\])/ms, content, capture: :all) do
+      [full_match, crontab_open, indent, crontab_content, crontab_close] ->
+        entry_indent = indent <> "  "
+
+        new_entries =
+          Enum.map_join(missing, "", fn {cron, mod} ->
+            ",\n#{entry_indent}{\"#{cron}\", #{mod}}"
+          end)
+
+        updated =
+          crontab_open <> String.trim_trailing(crontab_content) <> new_entries <> crontab_close
+
+        String.replace(content, full_match, updated, global: false)
+
+      nil ->
+        Mix.shell().error(
+          "  ⚠️  Could not parse crontab block for :#{app_name} - skipping worker cron entries"
+        )
+
+        content
+    end
+  end
+
   # Append the missing entries to the existing crontab list. The closing `]` is
   # anchored to the `crontab:` keyword's own indentation (backreference `\\2`)
   # for the same reason as `add_cron_plugin_to_plugins/2`: a lazy `.*?` to the
@@ -1175,6 +1230,7 @@ defmodule PhoenixKit.Install.ObanConfig do
              {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},
              {"0 3 * * *", PhoenixKit.Modules.Storage.Workers.PruneTrashJob},
              {"0 4 * * *", PhoenixKit.Notifications.PruneWorker},
+             {"30 4 * * *", PhoenixKit.Users.Referrals.PruneWorker},
              {"0 * * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "hourly"}},
              {"0 */12 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "12h"}},
              {"0 6 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "daily"}},

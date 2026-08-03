@@ -405,29 +405,8 @@ defmodule PhoenixKit.Install.RouterIntegration do
     end
   end
 
-  # Generate the routes code with demo pages
-  defp generate_routes_code(app_web_module_name) do
+  defp generate_routes_code(_app_web_module_name) do
     """
-    # PhoenixKit Demo Pages - Test Authentication Levels
-    scope "/" do
-      pipe_through :browser
-
-      live_session :phoenix_kit_demo_current_scope,
-        on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_mount_current_scope}] do
-        live "/test-current-user", #{app_web_module_name}.PhoenixKitLive.TestRequireAuthLive, :index
-      end
-
-      live_session :phoenix_kit_demo_redirect_if_auth_scope,
-        on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_redirect_if_authenticated_scope}] do
-        live "/test-redirect-if-auth", #{app_web_module_name}.PhoenixKitLive.TestRedirectIfAuthLive, :index
-      end
-
-      live_session :phoenix_kit_demo_ensure_auth_scope,
-        on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope}] do
-        live "/test-ensure-auth", #{app_web_module_name}.PhoenixKitLive.TestEnsureAuthLive, :index
-      end
-    end
-
     phoenix_kit_routes()
     """
   end

@@ -59,14 +59,25 @@ defmodule PhoenixKitWeb.Components.AuthPageWrapper do
     assigns = assign(assigns, :bg_style_tag, bg_style_tag(assigns))
 
     ~H"""
-    <LayoutWrapper.app_layout
+    <LayoutWrapper.auth_layout
       flash={@flash}
       phoenix_kit_current_scope={@phoenix_kit_current_scope}
       page_title={@page_title}
       current_path={@current_path}
     >
       {raw(@bg_style_tag)}
-      <div class="auth-bg min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 -mx-[calc(50vw-50%)] w-[100vw] -my-8">
+      <%!-- Sizing here is deliberately free of viewport units.
+            `w-[100vw]` overflowed by exactly the scrollbar-gutter width — the
+            host root sets `scrollbar-gutter: stable`, so the gutter is always
+            reserved and 100vw counts it, producing a horizontal scrollbar on a
+            page that has nothing to scroll. `w-full` is a percentage of the
+            containing block and excludes it.
+            `min-h-full` for the same reason: a percentage can never exceed its
+            parent, so it cannot manufacture a vertical scrollbar either. The
+            parent's height comes from `auth_layout`'s `min-h-dvh`.
+            The old `-my-8` / `-mx-[calc(50vw-50%)]` compensated for a chrome
+            wrapper that auth no longer renders inside. --%>
+      <div class="auth-bg min-h-full w-full flex items-center justify-center px-4 py-8">
         <div class="card bg-base-100 w-full max-w-sm shadow-2xl">
           <div class="card-body">
             <%= if @auth_logo_url != "" do %>
@@ -89,7 +100,7 @@ defmodule PhoenixKitWeb.Components.AuthPageWrapper do
           </div>
         </div>
       </div>
-    </LayoutWrapper.app_layout>
+    </LayoutWrapper.auth_layout>
     """
   end
 

@@ -76,7 +76,6 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       CssIntegration,
       DaisyUI,
       DbConnectionCheck,
-      DemoFiles,
       Deprecations,
       EndpointIntegration,
       JsIntegration,
@@ -139,7 +138,6 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       |> JsIntegration.add_js_integration()
       |> warn_if_daisyui_outdated()
       |> warn_user_dashboard_deprecated()
-      |> DemoFiles.copy_test_demo_files()
       |> RouterIntegration.add_router_integration(opts[:router_path])
       |> BrowserPipelineIntegration.add_integration_to_browser_pipeline()
       |> EndpointIntegration.add_endpoint_integration()
@@ -346,9 +344,8 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         3. Visit registration page:
            http://localhost:4000/phoenix_kit/users/register
 
-        4. Test authentication:
-           /test-current-user - Check current user
-           /test-ensure-auth  - Test authentication requirement
+        4. Check the install:
+           mix phoenix_kit.doctor
 
       NOTES
         • You may see "unused import PhoenixKitWeb.Integration" warning
@@ -496,7 +493,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         • mix ecto.migrate
         • mix phx.server
         • Visit /users/register (or with your configured URL prefix)
-        • Test: /test-current-user, /test-ensure-auth
+        • mix phoenix_kit.doctor
       #{prefix_note}
       """
 

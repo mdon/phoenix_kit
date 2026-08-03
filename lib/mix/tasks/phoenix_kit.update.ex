@@ -715,11 +715,8 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
             run_migration_with_feedback(opts)
           else
-            Mix.shell().info("""
-
-            💡 Migration not run automatically (#{reason}).
-            To run migration manually:
-              mix ecto.migrate
+            raise_pending_migration("""
+            Migration not run automatically (#{reason}).
             """)
           end
       end
@@ -749,13 +746,29 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
             run_migration_with_feedback(opts)
 
           _ ->
-            Mix.shell().info("""
-
-            ⚠️  Migration skipped. To run it manually later:
-              mix ecto.migrate
-            """)
+            raise_pending_migration("Migration skipped at your request.")
         end
       end
+    end
+
+    # A pending migration means new code is running against an old schema, so the
+    # task must NOT exit 0. It used to: `ssh host "mix phoenix_kit.update"`
+    # succeeded, the deploy went green, and the drift was silent — in exactly the
+    # environment where you least want to find out later.
+    #
+    # `Mix.raise/1` gives a non-zero exit with a clean message and no stacktrace.
+    # It fires for the interactive "no" too: the exit code answers "is this
+    # install up to date?", and the answer does not depend on why it is not.
+    defp raise_pending_migration(reason) do
+      Mix.raise("""
+      #{String.trim(reason)}
+
+      PhoenixKit's code is updated but the database is not. Do one of:
+
+        mix ecto.migrate                 # run it now
+        mix phoenix_kit.update --yes     # re-run this task and migrate without prompting
+                                         # (this is the one for CI/CD and deploy scripts)
+      """)
     end
 
     # Display comprehensive help information
@@ -980,6 +993,33 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # Use the status command to show current status
       args = if prefix == "public", do: [], else: ["--prefix=#{prefix}"]
       Mix.Task.run("phoenix_kit.status", args)
+
+      show_upgrade_value(prefix)
+    end
+
+    # What a behind host would GAIN by upgrading.
+    #
+    # `--status` reported version numbers and "Various improvements and new
+    # features", which does not help anyone decide between upgrading now and
+    # next sprint. That gap is why several already-shipped features reached us
+    # as bug reports: hosts had no way to learn a capability existed short of
+    # reading release notes they had no reason to open.
+    defp show_upgrade_value(prefix) do
+      current = Common.migrated_version(prefix)
+      target = Common.current_version()
+
+      if current > 0 and current < target do
+        Mix.shell().info("""
+
+        #{IO.ANSI.bright()}What you'd gain by updating (V#{current} → V#{target}):#{IO.ANSI.reset()}
+        #{Common.describe_version_changes(current, target)}
+
+        Run `mix phoenix_kit.update` to apply.
+        """)
+      end
+    rescue
+      # A diagnostic must never be the reason a status check fails.
+      _ -> :ok
     end
 
     # Advisory only — the host owns assets/vendor/daisyui.js; PhoenixKit's

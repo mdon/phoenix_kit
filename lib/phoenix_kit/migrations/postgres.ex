@@ -529,7 +529,15 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V159 - Publishing categories + post view counters ⚡ LATEST
+  ### V160 - Settings `value` widened to TEXT ⚡ LATEST
+  - `phoenix_kit_settings.value` was `VARCHAR(255)` (V03's `:string`) while
+    `Settings.Setting` validated it at `max: 1000` — anything in between
+    passed the changeset and then raised a raw `Postgrex.Error`
+  - Surfaced by list-valued settings: the sitemap's default exclude
+    patterns serialize to ~450 characters, so saving them always crashed
+  - Catalog-only change in PostgreSQL: no rewrite, no long lock
+
+  ### V159 - Publishing categories + post view counters
   - `phoenix_kit_publishing_categories` — hierarchical per-group taxonomy
     (nullable `parent_uuid` self-FK, V103 catalogue shape); `slug` unique
     per group; `name_i18n` JSONB per-language display names; `position`
@@ -1415,7 +1423,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 159
+  @current_version 160
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that

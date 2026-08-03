@@ -627,6 +627,10 @@ if (typeof window.Chart === "undefined") {
     }
 
     function getConfigEndpoint() {
+      // PHOENIX_KIT_PREFIX is emitted by the phoenix_kit_js_sources compiler.
+      // The "/phoenix_kit" fallback is for a host that predates it — which is
+      // exactly how a custom-prefix install ended up requesting a path that
+      // does not exist on it.
       var prefix = window.PHOENIX_KIT_PREFIX || "/phoenix_kit";
       // Handle case when prefix is "/" to avoid double slash (//api/...)
       if (prefix === "/") {
@@ -1306,14 +1310,30 @@ if (typeof window.Chart === "undefined") {
     }
 
     function fetchConfigAndInit() {
+      // Set by the phoenix_kit_js_sources compiler. When phoenix_kit_legal is
+      // not installed there is nothing to fetch, so skip the round-trip
+      // entirely rather than making one request per page load to be told 204.
+      if (window.PHOENIX_KIT_CONSENT_AVAILABLE === false) {
+        log("Legal module not installed; consent widget unavailable");
+        return;
+      }
+
       fetch(getConfigEndpoint(), { credentials: "same-origin" })
         .then(function(response) {
+          // 204 = no Legal module. It carries no body ON PURPOSE: a body
+          // saying consent is disabled would be read as a live config by
+          // bundles vendored before this endpoint existed, and they respond by
+          // calling resetGoogleConsentMode() — GRANTING every category on an
+          // install that never opted into consent management at all. Treat it
+          // as "nothing to do" and touch nothing.
+          if (response.status === 204) return null;
           if (!response.ok) {
             throw new Error("Config endpoint returned " + response.status);
           }
           return response.json();
         })
         .then(function(config) {
+          if (!config) return;
           if (config.enabled && config.should_show !== false) {
             initFromConfig(config);
           } else {
