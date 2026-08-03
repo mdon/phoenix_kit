@@ -70,6 +70,9 @@
   # Scope struct contains MapSet.t() which is opaque - Dialyzer can't reconcile
   # opaque types inside struct type definitions with their constructed values
   {"lib/phoenix_kit/users/auth/scope.ex", :contract_with_opaque},
+  # Same reason for anything else whose spec names Scope.t(): the struct carries
+  # an opaque MapSet field, so declaring it in a contract is flagged.
+  {"lib/phoenix_kit/test/fixtures.ex", :contract_with_opaque},
   # Callers of Scope.admin?/1 inherit the opaque mismatch from Scope.for_user/1
   {"lib/modules/maintenance/web/plugs/maintenance_mode.ex", :call_without_opaque},
   # Same inheritance: the invite-only gate's User clause has no scope to work
