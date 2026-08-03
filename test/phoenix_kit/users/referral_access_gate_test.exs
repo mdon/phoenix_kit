@@ -294,7 +294,31 @@ defmodule PhoenixKit.Users.ReferralAccessGateTest do
     end
   end
 
+  describe "the admission predicates fail closed" do
+    test "an unanswerable expiry check reads as expired, not as fresh" do
+      # These gate admission now. "We could not check" has to mean "do not
+      # admit" — defaulting to false let a code past an expiry check that never
+      # ran. With no package installed nothing can answer.
+      assert Referrals.expired?(%{code: "ANY"})
+      assert Referrals.usage_limit_reached?(%{code: "ANY"})
+    end
+  end
+
   describe "redeem/2" do
+    test "an already-admitted account does not spend a code" do
+      # `mark_satisfied/2` is idempotent and would return {:ok, user}, so
+      # without a check the claim still commits — a resubmitted form or a signup
+      # that also accepted an invitation silently burns a use of a limited code
+      # and buys nothing.
+      user = register_user()
+      {:ok, marked} = Referrals.mark_satisfied(user, "invitation")
+
+      assert {:ok, _user} = Referrals.redeem(marked, "WELCOME")
+
+      # Still marked by the ORIGINAL reason: nothing was re-recorded.
+      assert Auth.get_user(user.uuid).custom_fields["referral_satisfied_via"] == "invitation"
+    end
+
     test "claim and mark are one transaction" do
       # Neither half may land alone: claiming without marking burns a use of a
       # possibly single-use code and leaves the user parked with a code that now

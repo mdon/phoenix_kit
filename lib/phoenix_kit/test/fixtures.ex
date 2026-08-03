@@ -133,7 +133,9 @@ defmodule PhoenixKit.Test.Fixtures do
   def admin_fixture(attrs \\ %{}) do
     user = confirmed_user_fixture(attrs)
     {:ok, _} = Roles.promote_to_admin(user)
-    Auth.get_user(user.uuid)
+    # Matched, not just returned: a nil here would surface much later as
+    # `nil.uuid` somewhere unrelated.
+    %{uuid: _} = Auth.get_user(user.uuid)
   end
 
   @doc "An email address no other fixture in this run will use."

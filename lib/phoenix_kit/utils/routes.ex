@@ -121,8 +121,12 @@ defmodule PhoenixKit.Utils.Routes do
   # it at `/users/log-out` is worse — it is a real GET route, so every
   # successful login immediately signs the user back out and nobody, including
   # the admin who set it, can stay in to undo it.
+  # `/users/referral` belongs here for the same reason `/users/confirm` does:
+  # the invite-only gate parks users there and stashes where they came from, so
+  # without it a stashed `return_to` could send an admitted user straight back
+  # to the page that had just released them.
   @auth_paths ~w(/users/log-in /users/log-out /users/register /users/confirm
-  /users/magic-link /users/qr-login /users/reset-password)
+  /users/referral /users/magic-link /users/qr-login /users/reset-password)
 
   defp after_login_path do
     path =

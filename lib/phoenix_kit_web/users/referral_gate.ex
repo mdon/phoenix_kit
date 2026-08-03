@@ -45,10 +45,12 @@ defmodule PhoenixKitWeb.Users.ReferralGate do
         # and then has nowhere to put it.
         {:ok, redirect(socket, to: Routes.path("/users/log-in"))}
 
-      # The scope is already mounted, so pass it rather than the bare user —
-      # the user form would have to rebuild it to evaluate the full-access
-      # exemption.
-      Referrals.access_satisfied?(socket.assigns[:phoenix_kit_current_scope]) ->
+      # Prefer the mounted scope (the user form would have to rebuild one to
+      # evaluate the full-access exemption), but fall back to the user rather
+      # than passing `nil`: `access_satisfied?/1` answers `true` for a subject
+      # it cannot judge — correct for an anonymous visitor, and a silent
+      # admission for a logged-in one whose scope assign is missing.
+      Referrals.access_satisfied?(socket.assigns[:phoenix_kit_current_scope] || user) ->
         # Already admitted — covers a code redeemed in another tab, an
         # invitation that arrived while this page sat open, and an operator
         # switching invite-only off.
@@ -82,8 +84,15 @@ defmodule PhoenixKitWeb.Users.ReferralGate do
       {:ok, nil} ->
         {:noreply, reject(socket, code, gettext("That code can't be used"))}
 
-      {:error, message} ->
+      {:error, message} when is_binary(message) ->
         {:noreply, reject(socket, code, message)}
+
+      # Anything else — an unexpected limiter shape, a future error atom. A
+      # `with` whose else clauses are not exhaustive raises `WithClauseError`
+      # and takes the page down, on the one page a parked user can reach.
+      other ->
+        Logger.warning("[ReferralGate] unexpected validation result: #{inspect(other)}")
+        {:noreply, reject(socket, code, gettext("That code can't be used"))}
     end
   end
 

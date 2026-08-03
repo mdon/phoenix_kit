@@ -138,19 +138,25 @@ defmodule PhoenixKit.Users.Referrals do
     end
   end
 
-  @doc "Whether the given code is expired (`false` when the module is absent)."
+  @doc """
+  Whether the given code is expired.
+
+  ⚠️ Answers **`true`** when nothing can answer. These predicates gate admission
+  under invite-only, so "we could not check" has to mean "do not admit" — the
+  old `false` default let a code past an expiry check that never ran.
+  """
   def expired?(code) do
     case dispatch(:expired?, [code]) do
       {:ok, result} -> result
-      :error -> false
+      :error -> true
     end
   end
 
-  @doc "Whether the given code hit its usage limit (`false` when absent)."
+  @doc "Whether the given code hit its usage limit. Fails closed — see `expired?/1`."
   def usage_limit_reached?(code) do
     case dispatch(:usage_limit_reached?, [code]) do
       {:ok, result} -> result
-      :error -> false
+      :error -> true
     end
   end
 
@@ -180,12 +186,17 @@ defmodule PhoenixKit.Users.Referrals do
 
   ## Why `:context` matters
 
-  On `:change`, a **blank** required code is not an error. Validation runs on
-  every keystroke anywhere in the form, so treating blank-and-required as invalid
-  made "Referral code is required" appear while the user was still typing their
-  email — before they had reached the field. A code that has actually been
-  *typed* is still checked on change, because that field has been touched.
-  `:submit` enforces presence.
+  On `:change`, **nothing is rejected**. Validation runs on every keystroke
+  anywhere in the form, so treating blank-and-required as invalid made "Referral
+  code is required" appear while the user was still typing their email — before
+  they had reached the field. `:submit` enforces presence.
+
+  A typed code is not checked on change either, which reverses an earlier
+  decision that a touched field was fair to complain about. Two reasons pointing
+  the same way: checking per keystroke hands an attacker a far faster oracle
+  than the submit button does, and it spends one rate-limit token per character,
+  so a real person typing an eight-character code and fixing a typo can exhaust
+  their own budget while holding a good code.
 
   ## Why rejections are indistinguishable
 
@@ -274,9 +285,17 @@ defmodule PhoenixKit.Users.Referrals do
     # install that never turned invite-only on stops after one cached read.
     # `enabled?/0` behind it is the authority — it goes through the installed
     # module, and without the module a code cannot be validated at all.
-    required? = Settings.get_boolean_setting(@required_setting, false) and enabled?()
-    sync_required_since(required?)
-    required?
+    setting_on? = Settings.get_boolean_setting(@required_setting, false)
+
+    # The boundary tracks the SETTING, not the gate. Keying it on the gate would
+    # clear the stamp whenever the package is briefly unresolvable — a deploy
+    # without the dependency, a registry miss — and the re-stamp on recovery
+    # reads `date_updated`, which any unrelated settings save in the meantime
+    # will have moved forward, grandfathering accounts that registered under
+    # invite-only.
+    sync_required_since(setting_on?)
+
+    setting_on? and enabled?()
   end
 
   @doc """
@@ -371,11 +390,19 @@ defmodule PhoenixKit.Users.Referrals do
   @spec redeem(User.t(), String.t()) :: {:ok, User.t()} | {:error, term()}
   def redeem(%User{} = user, code_string) when is_binary(code_string) do
     RepoHelper.repo().transaction(fn ->
-      with {:ok, _usage} <- use_code(code_string, user.uuid),
-           {:ok, updated} <- mark_satisfied(user, "code") do
-        updated
+      # Already admitted: `mark_satisfied/2` would answer `{:ok, user}` and the
+      # claim would still commit, so a duplicate call — a resubmitted form, a
+      # signup that also accepted an invitation — silently spends a use of a
+      # limited code and buys nothing.
+      if marked_satisfied?(user) do
+        user
       else
-        {:error, reason} -> RepoHelper.repo().rollback(reason)
+        with {:ok, _usage} <- use_code(code_string, user.uuid),
+             {:ok, updated} <- mark_satisfied(user, "code") do
+          updated
+        else
+          {:error, reason} -> RepoHelper.repo().rollback(reason)
+        end
       end
     end)
   end
@@ -432,11 +459,25 @@ defmodule PhoenixKit.Users.Referrals do
   # switch usually reads as the same second — and parking a user who was
   # demonstrably already signed up is the worse error of the two. The cost is a
   # one-second window in which a new signup is grandfathered.
-  defp created_before?(%DateTime{} = created_at, %DateTime{} = since),
-    do: DateTime.compare(created_at, since) != :gt
+  #
+  # `inserted_at` is `:utc_datetime` on core's own User schema, but this
+  # normalizes anyway: a silent `false` here does not fail visibly — it disables
+  # grandfathering for everyone and hands the janitor a list of accounts to
+  # deactivate. The other half of this comparison already normalizes, and
+  # holding the two to different standards is how that goes unnoticed.
+  defp created_before?(created_at, %DateTime{} = since) do
+    case as_utc(created_at) do
+      %DateTime{} = at -> DateTime.compare(at, since) != :gt
+      nil -> false
+    end
+  end
 
-  # No boundary recorded yet, or an unsaved user: nobody is grandfathered.
+  # No boundary recorded yet: nobody is grandfathered.
   defp created_before?(_created_at, _since), do: false
+
+  defp as_utc(%DateTime{} = datetime), do: datetime
+  defp as_utc(%NaiveDateTime{} = naive), do: DateTime.from_naive!(naive, "Etc/UTC")
+  defp as_utc(_), do: nil
 
   # A pending, unexpired organization invitation addressed to this account.
   defp invited?(%User{email: email}) do
@@ -512,16 +553,7 @@ defmodule PhoenixKit.Users.Referrals do
   defp deactivate_unadmitted(%User{} = user) do
     case Auth.update_user_status(user, %{"is_active" => false}) do
       {:ok, _user} ->
-        Activity.log(%{
-          action: "user.deactivated",
-          module: "users",
-          mode: "cron",
-          resource_type: "user",
-          resource_uuid: user.uuid,
-          target_uuid: user.uuid,
-          metadata: %{"reason" => "referral_never_satisfied", "actor_role" => "system"}
-        })
-
+        log_deactivation(user)
         true
 
       {:error, reason} ->
@@ -530,6 +562,25 @@ defmodule PhoenixKit.Users.Referrals do
         Logger.warning("[Referrals] could not deactivate #{user.uuid}: #{inspect(reason)}")
         false
     end
+  end
+
+  # The account is already deactivated by the time this runs, so a failure here
+  # must not raise: it would abort the remaining candidates AND make Oban retry
+  # the whole batch against accounts it has already deactivated.
+  defp log_deactivation(user) do
+    Activity.log(%{
+      action: "user.deactivated",
+      module: "users",
+      mode: "cron",
+      resource_type: "user",
+      resource_uuid: user.uuid,
+      target_uuid: user.uuid,
+      metadata: %{"reason" => "referral_never_satisfied", "actor_role" => "system"}
+    })
+  rescue
+    error ->
+      Logger.warning("[Referrals] could not log deactivation: #{Exception.message(error)}")
+      :ok
   end
 
   defp required_since do
@@ -569,21 +620,15 @@ defmodule PhoenixKit.Users.Referrals do
   # an install that had already gone invite-only. On a quiet site that window can
   # be hours.
   #
-  # The `referral_codes_required` row's own `updated_at` is when the switch was
-  # actually thrown, so use it. One uncached read, on a path that runs at most
+  # The `referral_codes_required` row's own `date_updated` is when the switch
+  # was actually thrown, so use it. One uncached read, on a path that runs at most
   # once per invite-only period, and it falls back to now if the row cannot be
   # read (better a boundary that is slightly late than none at all, which would
   # park every existing user).
   defp fallback_boundary do
     case SettingsQueries.get_setting_by_key(@required_setting) do
-      %{date_updated: %DateTime{} = updated_at} ->
-        updated_at
-
-      %{date_updated: %NaiveDateTime{} = updated_at} ->
-        DateTime.from_naive!(updated_at, "Etc/UTC")
-
-      _ ->
-        UtilsDate.utc_now()
+      %{date_updated: at} -> as_utc(at) || UtilsDate.utc_now()
+      _ -> UtilsDate.utc_now()
     end
   rescue
     _ -> UtilsDate.utc_now()
@@ -615,5 +660,17 @@ defmodule PhoenixKit.Users.Referrals do
     else
       _ -> :error
     end
+  rescue
+    # This now runs on the authentication path, so a raise inside the installed
+    # package would take every gated page down with it. `:error` is what an
+    # absent module returns, and every caller already has a safe answer for it —
+    # which for the admission predicates means failing closed.
+    error ->
+      Logger.warning("[Referrals] #{fun}/#{length(args)} failed: #{Exception.message(error)}")
+      :error
+  catch
+    :exit, _reason ->
+      Logger.warning("[Referrals] #{fun}/#{length(args)} failed: process exited")
+      :error
   end
 end
