@@ -2201,16 +2201,6 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp process_as_default_locale(conn) do
     locale = conn.path_params["locale"] || conn.path_params["language"]
 
-    # Remove the locale segment from the path
-    # /admin (with "admin" as locale) → /
-    clean_path =
-      conn.request_path
-      |> String.replace_prefix("/#{locale}", "")
-      |> then(fn
-        "" -> "/"
-        path -> path
-      end)
-
     # Set locale before redirecting. URL-driven dialect — no user (see
     # `process_valid_locale/2` for the rationale).
     default_base = Routes.get_default_admin_locale()
@@ -2219,11 +2209,62 @@ defmodule PhoenixKitWeb.Users.Auth do
     Gettext.put_locale(PhoenixKitWeb.Gettext, default_dialect)
     Gettext.put_locale(default_dialect)
 
-    # Redirect to clean path so the router matches the correct route
-    conn
-    |> Phoenix.Controller.redirect(to: clean_path, status: 307)
-    |> halt()
+    case strip_locale_segment(conn, locale) do
+      {:ok, clean_path} ->
+        # Redirect to clean path so the router matches the correct route.
+        #
+        # NOTE: this is a 302, not the 307 the old code asked for.
+        # `Phoenix.Controller.redirect/2` sends `conn.status || 302` and
+        # never reads an `:status` option, so the `status: 307` that used
+        # to sit here did nothing at all. Left as a plain 302 on purpose —
+        # a real 307 would re-issue non-GET requests against the rewritten
+        # URL. If a 307 is ever genuinely wanted, it must be
+        # `put_status(:temporary_redirect)` BEFORE `redirect/2`.
+        conn
+        |> Phoenix.Controller.redirect(to: clean_path)
+        |> halt()
+
+      :error ->
+        # The locale segment could not be located in the path, so there is
+        # no cleaner URL to send the user to. Historically this branch
+        # redirected to `clean_path` anyway — and because the old strip
+        # was prefix-blind (`String.replace_prefix(request_path,
+        # "/#{locale}", "")` is a no-op on `/phoenix_kit/admin/shop`), it
+        # emitted a redirect straight back to the same URL and the browser
+        # spun until it gave up. Never redirect to a path we did not
+        # actually change: fall through and let the matched route render
+        # under the default locale instead.
+        conn
+        |> assign(:current_locale_base, default_base)
+        |> assign(:current_locale, default_dialect)
+    end
   end
+
+  # Rebuild the request path with the mis-captured locale segment removed,
+  # preserving the mount prefix.
+  #
+  # `conn.request_path` includes the PhoenixKit mount prefix
+  # ("/phoenix_kit/admin/shop"), while `locale` is the segment that
+  # follows it — so the prefix has to be skipped before dropping the
+  # segment, and re-attached afterwards. Returns `:error` when the path
+  # does not have the expected `<prefix>/<locale>/...` shape, so callers
+  # can decline to redirect rather than bounce the request at itself.
+  defp strip_locale_segment(conn, locale) when is_binary(locale) do
+    prefix_segments =
+      PhoenixKit.Config.get_url_prefix()
+      |> to_string()
+      |> String.split("/", trim: true)
+
+    case Enum.split(conn.path_info, length(prefix_segments)) do
+      {^prefix_segments, [^locale | rest]} ->
+        {:ok, "/" <> Enum.join(prefix_segments ++ rest, "/")}
+
+      _ ->
+        :error
+    end
+  end
+
+  defp strip_locale_segment(_conn, _locale), do: :error
 
   defp locale_allowed?(base_code) do
     language_enabled?(base_code)
@@ -2291,7 +2332,22 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   # Redirects default language URLs to clean URLs (no locale prefix)
   # Example: /phoenix_kit/en/dashboard → /phoenix_kit/dashboard
-  # Uses 301 permanent redirect for SEO - tells browsers/search engines the clean URL is canonical
+  #
+  # This sends a 302, NOT the 301 the code used to ask for. Two reasons,
+  # and they point the same way:
+  #
+  #   1. It never was a 301. `Phoenix.Controller.redirect/2` sends
+  #      `conn.status || 302` and ignores an `:status` option entirely,
+  #      so the `status: 301` that used to sit on this call was dead.
+  #   2. A real 301 here would be a bug. Which language is "default" is a
+  #      runtime setting an admin can change; browsers and crawlers cache
+  #      301s ~forever, so flipping the default from en to et would leave
+  #      clients permanently redirecting `/en/...` away from a locale that
+  #      had become a legitimate URL. The accidental 302 was the correct
+  #      behaviour all along.
+  #
+  # If canonicalisation for SEO is wanted, express it with a
+  # `<link rel="canonical">` — not with a cached permanent redirect.
   defp redirect_default_locale_to_clean_url(conn, locale) do
     # Remove /en/ from path: /phoenix_kit/en/admin → /phoenix_kit/admin
     clean_path =
@@ -2310,18 +2366,23 @@ defmodule PhoenixKitWeb.Users.Auth do
     clean_path = if clean_path == "", do: "/", else: clean_path
 
     conn
-    |> Phoenix.Controller.redirect(to: clean_path, status: 301)
+    |> Phoenix.Controller.redirect(to: clean_path)
     |> halt()
   end
 
   @doc """
-  Redirects full dialect code URLs to base language URLs (301 permanent).
+  Redirects full dialect code URLs to base language URLs.
 
   This function handles backward compatibility by redirecting old URLs with
   full dialect codes (en-US, es-MX) to the new simplified base code URLs (en, es).
 
-  Uses 301 Permanent redirect to tell browsers and search engines to update bookmarks
-  and indexed URLs. This is SEO-friendly and provides clean URL migration.
+  Sends a **302**. The docs here used to promise a 301, and the call passed
+  `status: 301` — but `Phoenix.Controller.redirect/2` sends
+  `conn.status || 302` and ignores an `:status` option, so no 301 was ever
+  emitted. The option has been removed rather than made real: a cached
+  permanent redirect off a dialect code is hard to walk back if the
+  dialect set changes, and nothing here needs permanence. Use
+  `put_status(:moved_permanently)` before `redirect/2` if that ever changes.
 
   ## Examples
 
@@ -2340,7 +2401,6 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   ## Notes
 
-  - Status code 301 (Permanent) tells clients to update bookmarks
   - Halts conn pipeline (no further processing)
   - Logged for monitoring migration patterns
   """
@@ -2376,7 +2436,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     """)
 
     conn
-    |> Phoenix.Controller.redirect(to: corrected_path, status: 301)
+    |> Phoenix.Controller.redirect(to: corrected_path)
     |> halt()
   end
 

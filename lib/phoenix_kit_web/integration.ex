@@ -143,13 +143,19 @@ defmodule PhoenixKitWeb.Integration do
         plug PhoenixKitWeb.Users.Auth, :phoenix_kit_validate_and_set_locale
       end
 
-      # Localized scope with flexible locale pattern
-      # Accepts both base codes (en, es) and full dialect codes (en-US, es-MX)
-      # Full dialect codes are automatically redirected to base codes by the validation plug
-      # This ensures backward compatibility with old URLs while enforcing base code standard
-      scope "#{unquote(url_prefix)}/:locale",
-            PhoenixKitWeb,
-            Keyword.put(unquote(opts), :locale, ~r/^[a-z]{2,3}(?:-[A-Za-z]{2,4})?$/) do
+      # Localized scope. Accepts both base codes (en, es) and full dialect
+      # codes (en-US, es-MX); full dialect codes are redirected to base
+      # codes by the validation plug, which is also what rejects segments
+      # that are not locales at all.
+      #
+      # ⚠️ `:locale` is intentionally unconstrained. This scope used to
+      # pass `locale: ~r/^[a-z]{2,3}(?:-[A-Za-z]{2,4})?$/`, which
+      # Phoenix.Router silently discarded — it honours only :path,
+      # :alias, :as, :host, :private, :assigns, :log and :trailing_slash.
+      # Anything you route through this macro therefore matches on ANY
+      # first segment; declare literal-prefixed routes before the ones
+      # you mount here. See `build_live_surface/5`.
+      scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb, unquote(opts) do
         pipe_through [:browser, :phoenix_kit_auto_setup, :phoenix_kit_locale_validation]
 
         unquote(block)
@@ -1105,7 +1111,7 @@ defmodule PhoenixKitWeb.Integration do
   # Helper function to generate the localized non-live auth endpoints
   # (form POSTs, OAuth and token GETs). Every localized LiveView surface
   # lives in a unified live_session generated elsewhere.
-  defp generate_localized_routes(url_prefix, pattern) do
+  defp generate_localized_routes(url_prefix) do
     # Only include shop session pipeline when the package is installed
     public_pipelines =
       if Code.ensure_loaded?(PhoenixKitEcommerce.Web.Plugs.ShopSession) do
@@ -1123,10 +1129,13 @@ defmodule PhoenixKitWeb.Integration do
       # Localized scope: non-live auth endpoints only (form POSTs, OAuth
       # and token GETs). Every LiveView surface — public, admin and the
       # authenticated dashboard — lives in its own unified live_session;
-      # see `generate_public_live_routes/2`, `generate_admin_routes/2`
-      # and `generate_authenticated_live_routes/2`.
-      scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb,
-        locale: ~r/^(#{unquote(pattern)})$/ do
+      # see `generate_public_live_routes/1`, `generate_admin_routes/1`
+      # and `generate_authenticated_live_routes/1`.
+      #
+      # No `:locale` segment constraint here either — Phoenix.Router has
+      # no such feature and silently drops the option. See the note on
+      # `build_live_surface/5`.
+      scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb do
         pipe_through unquote(public_pipelines)
 
         # POST routes for authentication (needed for locale-prefixed form submissions)
@@ -1163,14 +1172,30 @@ defmodule PhoenixKitWeb.Integration do
   # `route_macro` is the surface's route-table macro
   # (`phoenix_kit_admin_routes` etc.), called once per URL shape with the
   # suffix its route helpers expect.
-  defp build_live_surface(url_prefix, pattern, session_name, on_mount, pipelines, route_macro) do
+  #
+  # ⚠️ There is deliberately NO segment constraint on `:locale`, because
+  # Phoenix.Router does not have that feature. This scope used to carry
+  # `locale: ~r/^([a-z]{2,3}(?:-[A-Za-z]{2,4})?)$/`, which reads like a
+  # guard but never ran: `Phoenix.Router.Scope.push/2` only looks at
+  # :path, :alias, :as, :host, :private, :assigns, :log and
+  # :trailing_slash, and silently discards every other option — no
+  # warning, no error. The dead regex hid a real routing bug for months
+  # (see the load-bearing ordering comment in `phoenix_kit_routes/0`).
+  #
+  # `:locale` therefore matches ANY single segment. Two things keep that
+  # safe, and both must stay in place:
+  #   1. declaration order — literal-prefixed surfaces (admin) are
+  #      emitted first, so they win over `/:locale/<literal>`;
+  #   2. `PhoenixKitWeb.Users.Auth.validate_and_set_locale/2` — it
+  #      rejects reserved and unknown segments at the plug layer.
+  # Do not re-add a regex option here believing it does anything.
+  defp build_live_surface(url_prefix, session_name, on_mount, pipelines, route_macro) do
     localized_routes = {route_macro, [], [:_locale]}
     root_routes = {route_macro, [], [:""]}
 
     quote do
       live_session unquote(session_name), on_mount: unquote(on_mount) do
-        scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb,
-          locale: ~r/^(#{unquote(pattern)})$/ do
+        scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb do
           pipe_through unquote(pipelines)
           unquote(localized_routes)
         end
@@ -1232,10 +1257,9 @@ defmodule PhoenixKitWeb.Integration do
   # endpoints (form POSTs, OAuth/token GETs) stay outside this
   # live_session — in `generate_basic_scope/1` and the localized scope
   # of `generate_localized_routes/2`.
-  defp generate_public_live_routes(url_prefix, pattern) do
+  defp generate_public_live_routes(url_prefix) do
     build_live_surface(
       url_prefix,
-      pattern,
       :phoenix_kit_public,
       [{PhoenixKitWeb.Users.Auth, :phoenix_kit_mount_current_scope}],
       public_admin_pipelines(),
@@ -1245,10 +1269,9 @@ defmodule PhoenixKitWeb.Integration do
 
   # Admin LiveViews. Gated by the `:phoenix_kit_ensure_admin` on_mount —
   # no plug-level auth gate, so the pipeline matches the public surface.
-  defp generate_admin_routes(url_prefix, pattern) do
+  defp generate_admin_routes(url_prefix) do
     build_live_surface(
       url_prefix,
-      pattern,
       :phoenix_kit_admin,
       [{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_admin}],
       public_admin_pipelines(),
@@ -1259,10 +1282,9 @@ defmodule PhoenixKitWeb.Integration do
   # Authenticated dashboard LiveViews. Unlike public/admin these carry a
   # plug-level auth gate (`:phoenix_kit_require_authenticated`) plus the
   # ensure-authenticated-scope and context-provider on_mount hooks.
-  defp generate_authenticated_live_routes(url_prefix, pattern) do
+  defp generate_authenticated_live_routes(url_prefix) do
     build_live_surface(
       url_prefix,
-      pattern,
       :phoenix_kit_authenticated,
       [
         {PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope},
@@ -1298,10 +1320,11 @@ defmodule PhoenixKitWeb.Integration do
         prefix -> prefix
       end
 
-    # Use a generic locale pattern that accepts any valid language code format
-    # This allows switching to any of the 80+ predefined languages
-    # Actual validation of whether the locale is supported happens in the validation plug
-    pattern = "[a-z]{2,3}(?:-[A-Za-z]{2,4})?"
+    # NOTE: the `:locale` segment is deliberately unconstrained — Phoenix
+    # has no route-segment constraints, so any locale "pattern" declared
+    # here would be silently ignored (it was, for months). Which locales
+    # are actually accepted is decided at runtime by the locale
+    # validation plug; see `build_live_surface/5`.
 
     # External route modules with public/non-admin routes
     external_public_routes = compile_external_public_routes(url_prefix)
@@ -1349,15 +1372,39 @@ defmodule PhoenixKitWeb.Integration do
       unquote_splicing(module_public_routes)
 
       # Generate localized non-live auth endpoints (form POSTs, token GETs)
-      unquote(generate_localized_routes(url_prefix, pattern))
+      unquote(generate_localized_routes(url_prefix))
 
       # Generate the LiveView surfaces — each a single live_session
       # spanning both URL shapes, so locale switches stay on the
       # WebSocket. All emitted before the publishing catch-all so
       # `/<prefix>/:locale/...` paths are never shadowed.
-      unquote(generate_public_live_routes(url_prefix, pattern))
-      unquote(generate_admin_routes(url_prefix, pattern))
-      unquote(generate_authenticated_live_routes(url_prefix, pattern))
+      #
+      # ⚠️ THIS LINE ORDER IS LOAD-BEARING — DO NOT REORDER.
+      #
+      # The admin surface MUST be emitted before the public one. Phoenix
+      # matches routes in declaration order, and the public surface
+      # contains single-segment localized routes of the shape
+      # `/<prefix>/:locale/<literal>` (e.g. the shop module's
+      # `/:locale/shop`). `:locale` is an ordinary path segment that
+      # matches ANY value — there is no such thing as a segment
+      # constraint in Phoenix.Router (see `build_live_surface/5`) — so
+      # with the public surface first, `/<prefix>/admin/shop` bound to
+      # `/<prefix>/:locale/shop` with `locale = "admin"` and the shop
+      # admin dashboard became unreachable: root-mounted installs were
+      # bounced to the public storefront, prefixed installs redirected to
+      # themselves forever.
+      #
+      # Emitting admin first makes the all-literal `/<prefix>/admin/shop`
+      # win over the same-arity `/<prefix>/:locale/shop`. This is safe in
+      # the other direction because no public route has "admin" as its
+      # first segment, and the localized admin routes
+      # (`/<prefix>/:locale/admin/...`) require a literal "admin" second
+      # segment that no public route has either.
+      #
+      # Regression coverage: test/phoenix_kit_web/route_precedence_test.exs
+      unquote(generate_admin_routes(url_prefix))
+      unquote(generate_public_live_routes(url_prefix))
+      unquote(generate_authenticated_live_routes(url_prefix))
 
       # External route modules with public routes
       unquote_splicing(external_public_routes)
