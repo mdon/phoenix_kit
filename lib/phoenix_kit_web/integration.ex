@@ -1367,44 +1367,62 @@ defmodule PhoenixKitWeb.Integration do
       # Generate basic routes scope
       unquote(generate_basic_scope(url_prefix))
 
-      # Auto-discovered public routes from external modules MUST come before publishing/localized
-      # routes to prevent /:language/:group catch-alls from intercepting them (e.g., unsubscribe)
-      unquote_splicing(module_public_routes)
-
-      # Generate localized non-live auth endpoints (form POSTs, token GETs)
-      unquote(generate_localized_routes(url_prefix))
-
-      # Generate the LiveView surfaces — each a single live_session
-      # spanning both URL shapes, so locale switches stay on the
-      # WebSocket. All emitted before the publishing catch-all so
-      # `/<prefix>/:locale/...` paths are never shadowed.
+      # ⚠️ THE ORDER OF EVERYTHING BELOW IS LOAD-BEARING — DO NOT REORDER.
       #
-      # ⚠️ THIS LINE ORDER IS LOAD-BEARING — DO NOT REORDER.
+      # Phoenix matches routes in declaration order and has NO segment
+      # constraints (see `build_live_surface/5`), so every `:locale`
+      # segment matches ANY value. That makes the rule simple and
+      # absolute: **surfaces whose paths start with a literal segment
+      # must be declared before surfaces that start with `/:locale`.**
       #
-      # The admin surface MUST be emitted before the public one. Phoenix
-      # matches routes in declaration order, and the public surface
-      # contains single-segment localized routes of the shape
-      # `/<prefix>/:locale/<literal>` (e.g. the shop module's
-      # `/:locale/shop`). `:locale` is an ordinary path segment that
-      # matches ANY value — there is no such thing as a segment
-      # constraint in Phoenix.Router (see `build_live_surface/5`) — so
-      # with the public surface first, `/<prefix>/admin/shop` bound to
-      # `/<prefix>/:locale/shop` with `locale = "admin"` and the shop
-      # admin dashboard became unreachable: root-mounted installs were
+      # The bug this prevents: while the public surface came first,
+      # `/<prefix>/admin/shop` bound to the shop module's public
+      # `/<prefix>/:locale/shop` with `locale = "admin"`, and the shop
+      # admin dashboard was unreachable — root-mounted installs were
       # bounced to the public storefront, prefixed installs redirected to
       # themselves forever.
       #
-      # Emitting admin first makes the all-literal `/<prefix>/admin/shop`
-      # win over the same-arity `/<prefix>/:locale/shop`. This is safe in
-      # the other direction because no public route has "admin" as its
-      # first segment, and the localized admin routes
-      # (`/<prefix>/:locale/admin/...`) require a literal "admin" second
-      # segment that no public route has either.
+      # Admin and the authenticated dashboard are therefore emitted
+      # FIRST, ahead of every `/:locale`-rooted block. Authenticated is up
+      # here even though it has no live collision today: `/dashboard/cart`
+      # demonstrably binds `/:locale/cart` with `locale = "dashboard"`, so
+      # the trap is armed for any future `/dashboard/{cart,checkout,shop}`
+      # and costs nothing to disarm now.
+      #
+      # Safe in the other direction — these two surfaces only ever take
+      # URLs that were already broken. Their root shapes need a literal
+      # "admin"/"dashboard" first segment and their localized shapes need
+      # it second, and no public route has either.
+      #
+      # ONE known trade: `tab_to_route/1` splices a host's custom admin
+      # `tab.path` verbatim into the admin surface, so a host that
+      # configures a tab at a path colliding with a public page now
+      # shadows that public page rather than the reverse. That is the
+      # correct precedence for an explicitly configured admin tab, but it
+      # IS a behaviour change for such a host.
       #
       # Regression coverage: test/phoenix_kit_web/route_precedence_test.exs
       unquote(generate_admin_routes(url_prefix))
-      unquote(generate_public_live_routes(url_prefix))
       unquote(generate_authenticated_live_routes(url_prefix))
+
+      # Auto-discovered public routes from external modules MUST come before publishing/localized
+      # routes to prevent /:language/:group catch-alls from intercepting them (e.g., unsubscribe).
+      # Every module's `generate/1` currently emits root-scoped literal routes; one that emitted a
+      # `/:locale/...` route here would re-open the bug described above, since this block still
+      # precedes the public surface.
+      unquote_splicing(module_public_routes)
+
+      # Generate localized non-live auth endpoints (form POSTs, token GETs).
+      # These own `/<prefix>/:locale/users/...`, so they sit AFTER the admin
+      # surface — before the reorder they exposed `/admin/users/...` to
+      # exactly the collision above (`/admin/users/magic-link/<tok>` bound
+      # `/:locale/users/magic-link/:token` with `locale = "admin"`).
+      unquote(generate_localized_routes(url_prefix))
+
+      # The public LiveView surface — the `/:locale`-rooted block everything
+      # above is ordered against. Emitted before the publishing catch-all so
+      # `/<prefix>/:locale/...` paths are never shadowed by it.
+      unquote(generate_public_live_routes(url_prefix))
 
       # External route modules with public routes
       unquote_splicing(external_public_routes)

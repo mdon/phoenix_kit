@@ -96,30 +96,82 @@ defmodule PhoenixKitWeb.RoutePrecedenceTest do
       end
     end
 
-    defp first_index_of_session(routes, session) do
-      Enum.find_index(routes, &(live_session_name(&1) == session))
+    @gated_surfaces [:phoenix_kit_admin, :phoenix_kit_authenticated]
+
+    defp prefix_segments do
+      PhoenixKit.Config.get_url_prefix() |> to_string() |> String.split("/", trim: true)
     end
 
-    test "the admin surface is declared before the public surface" do
+    # True when the first *significant* path segment is a `:param` — i.e.
+    # the route matches any value in that position and will swallow
+    # literal-rooted routes declared after it.
+    #
+    # "Significant" means: after the mount prefix for routes that carry
+    # it, and simply first otherwise. Not every route is prefixed — the
+    # sitemap and PDF-viewer fallbacks are deliberately mounted at the
+    # site root (`/sitemaps/:filename`, `/_pdfjs/...`). Dropping N
+    # segments unconditionally reads `:filename` as their first segment
+    # and reports a route that is in fact literal-rooted and harmless.
+    defp param_rooted?(path) do
+      segments = String.split(path, "/", trim: true)
+      prefix = prefix_segments()
+
+      significant =
+        case Enum.split(segments, length(prefix)) do
+          {^prefix, rest} -> rest
+          _ -> segments
+        end
+
+      case significant do
+        [first | _] -> String.starts_with?(first, ":")
+        [] -> false
+      end
+    end
+
+    test "no foreign :locale-rooted route is declared before the gated surfaces" do
+      # The real invariant, and the one that survives mutation. Testing
+      # "first admin index < first public index" does NOT: it stays green
+      # if someone moves a single route table (e.g. the shop admin block)
+      # out of the admin surface, or introduces a `/:locale` route through
+      # `module_public_routes` — neither shifts the FIRST admin route.
+      #
+      # What actually has to hold is that nothing which matches an
+      # arbitrary first segment is declared ahead of the surfaces whose
+      # paths start with a literal one. The admin and authenticated
+      # surfaces contain `/<prefix>/:locale/admin/...` routes of their
+      # own, so they are excluded — the hazard is a FOREIGN param-rooted
+      # route, from any other block, appearing too early.
       routes = PhoenixKitWeb.Router.__routes__()
 
-      admin_at = first_index_of_session(routes, :phoenix_kit_admin)
-      public_at = first_index_of_session(routes, :phoenix_kit_public)
+      gated_indexes =
+        routes
+        |> Enum.with_index()
+        |> Enum.filter(fn {route, _i} -> live_session_name(route) in @gated_surfaces end)
+        |> Enum.map(&elem(&1, 1))
 
-      assert is_integer(admin_at), "no :phoenix_kit_admin live_session routes found"
-      assert is_integer(public_at), "no :phoenix_kit_public live_session routes found"
+      assert gated_indexes != [], "no admin/authenticated live_session routes found"
+      last_gated = Enum.max(gated_indexes)
 
-      assert admin_at < public_at, """
-      The admin LiveView surface must be emitted BEFORE the public one in
-      PhoenixKitWeb.Integration.phoenix_kit_routes/0.
+      offenders =
+        routes
+        |> Enum.with_index()
+        |> Enum.filter(fn {route, i} ->
+          i < last_gated and live_session_name(route) not in @gated_surfaces and
+            param_rooted?(route.path)
+        end)
+        |> Enum.map(fn {route, i} -> "  index #{i}: #{route.verb} #{route.path}" end)
 
-      The public surface owns `/<prefix>/:locale/<literal>` routes, and
-      `:locale` matches any segment — so with public first, admin pages
-      whose first path segment collides with a public page's name become
-      unreachable. See this module's @moduledoc.
+      assert offenders == [], """
+      These routes match an arbitrary first path segment and are declared
+      BEFORE the admin/authenticated surfaces end (index #{last_gated}),
+      so they can swallow admin or dashboard URLs:
 
-        first admin route:  index #{admin_at}
-        first public route: index #{public_at}
+      #{Enum.join(offenders, "\n")}
+
+      Emit them after the gated surfaces in
+      PhoenixKitWeb.Integration.phoenix_kit_routes/0, or the next module
+      that adds a colliding public page silently breaks an admin page.
+      See this module's @moduledoc.
       """
     end
 

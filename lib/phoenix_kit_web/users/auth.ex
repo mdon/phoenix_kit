@@ -2213,14 +2213,22 @@ defmodule PhoenixKitWeb.Users.Auth do
       {:ok, clean_path} ->
         # Redirect to clean path so the router matches the correct route.
         #
-        # NOTE: this is a 302, not the 307 the old code asked for.
-        # `Phoenix.Controller.redirect/2` sends `conn.status || 302` and
-        # never reads an `:status` option, so the `status: 307` that used
-        # to sit here did nothing at all. Left as a plain 302 on purpose —
-        # a real 307 would re-issue non-GET requests against the rewritten
-        # URL. If a 307 is ever genuinely wanted, it must be
-        # `put_status(:temporary_redirect)` BEFORE `redirect/2`.
+        # A REAL 307, which the old code only claimed to send: it passed
+        # `status: 307` to `Phoenix.Controller.redirect/2`, which sends
+        # `conn.status || 302` and ignores an `:status` option entirely.
+        # The status has to be set on the conn first.
+        #
+        # 307 rather than 302 because this pipeline carries the localized
+        # non-live auth endpoints — `post "/:locale/users/log-in"` and
+        # friends (see `generate_localized_routes/1`). A 302 is replayed
+        # by the browser as a GET, so a login POST that happened to land
+        # on a reserved segment would arrive at the corrected URL with its
+        # body silently dropped. 307 preserves method and body, which is
+        # what "you asked for the right resource under a wrong prefix"
+        # should mean. Safe to cache-bust freely: unlike a 301 this is
+        # explicitly temporary.
         conn
+        |> put_status(:temporary_redirect)
         |> Phoenix.Controller.redirect(to: clean_path)
         |> halt()
 
@@ -2241,7 +2249,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   # Rebuild the request path with the mis-captured locale segment removed,
-  # preserving the mount prefix.
+  # preserving both the mount prefix and any enclosing `forward` mount.
   #
   # `conn.request_path` includes the PhoenixKit mount prefix
   # ("/phoenix_kit/admin/shop"), while `locale` is the segment that
@@ -2249,18 +2257,40 @@ defmodule PhoenixKitWeb.Users.Auth do
   # segment, and re-attached afterwards. Returns `:error` when the path
   # does not have the expected `<prefix>/<locale>/...` shape, so callers
   # can decline to redirect rather than bounce the request at itself.
+  #
+  # Two subtleties, both of which produced wrong URLs when this was first
+  # written against `path_info` alone:
+  #
+  #   * **`script_name`.** `conn.path_info` is router-relative; a router
+  #     reached through `Plug.forward` (a `/tenant` mount, say) carries
+  #     the mount segments in `conn.script_name` instead. Rebuilding from
+  #     `path_info` only would emit `/phoenix_kit/shop` for a request to
+  #     `/tenant/phoenix_kit/api/shop` — a redirect straight out of the
+  #     mount. The old `request_path`-based code got this right by
+  #     accident, so it has to be restored explicitly.
+  #
+  #   * **percent-encoding.** Phoenix matches routes against a DECODED
+  #     copy of the path (`Phoenix.Router.call/2` does
+  #     `Enum.map(path_info, &URI.decode/1)` before `__match_route__`),
+  #     but leaves `conn.path_info` encoded. So `/phoenix_kit/%61pi/shop`
+  #     binds `path_params["locale"] == "api"` while `path_info` still
+  #     holds `"%61pi"`, and a raw comparison silently misses. Compare
+  #     decoded segments; emit the RAW ones, so the redirect target keeps
+  #     whatever encoding the client sent.
   defp strip_locale_segment(conn, locale) when is_binary(locale) do
     prefix_segments =
       PhoenixKit.Config.get_url_prefix()
       |> to_string()
       |> String.split("/", trim: true)
 
-    case Enum.split(conn.path_info, length(prefix_segments)) do
-      {^prefix_segments, [^locale | rest]} ->
-        {:ok, "/" <> Enum.join(prefix_segments ++ rest, "/")}
+    prefix_length = length(prefix_segments)
+    decoded = Enum.map(conn.path_info, &URI.decode/1)
 
-      _ ->
-        :error
+    with {^prefix_segments, [^locale | _]} <- Enum.split(decoded, prefix_length),
+         {_prefix, [_locale | rest]} <- Enum.split(conn.path_info, prefix_length) do
+      {:ok, "/" <> Enum.join(conn.script_name ++ prefix_segments ++ rest, "/")}
+    else
+      _ -> :error
     end
   end
 
