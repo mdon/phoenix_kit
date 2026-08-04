@@ -499,8 +499,22 @@ defmodule PhoenixKit.Squash.Generate.Catalog do
       type == "uuid" or String.starts_with?(type, "timestamp")
   end
 
-  # Values must survive `inspect` -> parse round-trips in the emitted manifest:
-  # structs (Decimal, ...) are flattened to their string form.
+  # Values must survive `inspect` -> parse round-trips in the emitted manifest
+  # (the raw captured value is embedded, via each object's `revisions`, as an
+  # Elixir literal in the generated ExpectedSchema source): structs (Decimal,
+  # ...) are flattened to their string form. Lists/maps — a Postgres array
+  # column decoded by Postgrex as a native list (e.g. V98's
+  # `alternative_formats text[]`), or a jsonb/json value that arrived
+  # undecoded — round-trip fine as plain Elixir terms too (a list/map built
+  # from the value types handled here is valid literal Elixir source), so
+  # they are kept as terms, recursively normalized element-wise, rather than
+  # pre-serialized here. `PhoenixKit.Squash.Generate.Emitter.literal/2`
+  # decides the actual SQL rendering (a native `{...}` array literal vs a
+  # canonical-JSON `::jsonb` literal) from the real column type at emission
+  # time — this capture step has no such type context to make that call
+  # correctly (a `text[]` value serialized to JSON `[...]` syntax here would
+  # be invalid `text[]` input later; that mistake is exactly what a "just
+  # JSON-encode it" fix at this layer would produce).
   defp normalize_seed_value(table, col, value) do
     cond do
       is_struct(value) ->
@@ -508,6 +522,12 @@ defmodule PhoenixKit.Squash.Generate.Catalog do
 
       is_binary(value) or is_boolean(value) or is_number(value) or is_nil(value) ->
         value
+
+      is_list(value) ->
+        Enum.map(value, &normalize_seed_value(table, col, &1))
+
+      is_map(value) ->
+        Map.new(value, fn {k, v} -> {k, normalize_seed_value(table, col, v)} end)
 
       true ->
         raise "seed capture #{table}.#{col}: unsupported value #{inspect(value)}"
@@ -1866,8 +1886,92 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
   defp literal(value, "jsonb") when is_binary(value), do: escape_str(value) <> "::jsonb"
   defp literal(value, _type) when is_binary(value), do: escape_str(value)
 
+  # A real Postgres array column (`text[]`, ... — `@columns_sql`'s
+  # `pg_catalog.format_type/2` always suffixes the element type with `[]`)
+  # needs its own literal syntax: `'{"a","b"}'::text[]`. JSON array syntax
+  # (`["a","b"]`) is NOT valid `text[]` input and would fail the INSERT.
+  # Anything else compound — the column type is unknown or not an array, or
+  # the value is a map — has no native bare-literal SQL syntax here (Postgres
+  # has no untyped "map" literal), so it goes through canonical JSON with an
+  # explicit `::jsonb` cast instead.
+  defp literal(value, type) when is_list(value) do
+    if is_binary(type) and String.ends_with?(type, "[]") do
+      array_literal(value, type)
+    else
+      escape_str(canonical_json(value)) <> "::jsonb"
+    end
+  end
+
+  defp literal(value, _type) when is_map(value) do
+    escape_str(canonical_json(value)) <> "::jsonb"
+  end
+
   defp literal(value, type),
     do: raise("unsupported seed literal #{inspect(value)} for column type #{inspect(type)}")
+
+  # `type` is the full `format_type` text (e.g. "text[]") — reused verbatim
+  # as the cast suffix. Elements are individually double-quoted and escaped
+  # per the Postgres array-literal grammar (distinct from JSON string
+  # escaping, though `\` and `"` happen to escape the same way); the whole
+  # `{...}` body then goes through `escape_str/1` like any other string
+  # literal, so a single quote inside an element is still handled correctly.
+  defp array_literal(elements, type) do
+    body = "{" <> Enum.map_join(elements, ",", &array_element/1) <> "}"
+    escape_str(body) <> "::" <> type
+  end
+
+  defp array_element(nil), do: "NULL"
+
+  defp array_element(el) when is_binary(el) do
+    escaped =
+      el
+      |> String.replace("\\", "\\\\")
+      |> String.replace("\"", "\\\"")
+
+    ~s("#{escaped}")
+  end
+
+  defp array_element(el), do: to_string(el)
+
+  # Deterministic JSON encoding for seed values captured as lists/maps — map
+  # keys are sorted so the SAME logical value always produces byte-identical
+  # text (manifest determinism: the `--check` gate asserts two consecutive
+  # emissions from the same objects are byte-equal). Deliberately not the
+  # stdlib `JSON.encode/1` (Elixir 1.18+): it does not promise map key
+  # order, which would make re-running the generator against the same DB
+  # state risk a different manifest byte for byte.
+  defp canonical_json(nil), do: "null"
+  defp canonical_json(true), do: "true"
+  defp canonical_json(false), do: "false"
+  defp canonical_json(value) when is_integer(value), do: Integer.to_string(value)
+  defp canonical_json(value) when is_float(value), do: Float.to_string(value)
+  defp canonical_json(value) when is_binary(value), do: canonical_json_string(value)
+
+  defp canonical_json(value) when is_list(value) do
+    "[" <> Enum.map_join(value, ",", &canonical_json/1) <> "]"
+  end
+
+  defp canonical_json(value) when is_map(value) do
+    body =
+      value
+      |> Enum.map(fn {k, v} -> {to_string(k), v} end)
+      |> Enum.sort_by(fn {k, _v} -> k end)
+      |> Enum.map_join(",", fn {k, v} -> canonical_json_string(k) <> ":" <> canonical_json(v) end)
+
+    "{" <> body <> "}"
+  end
+
+  defp canonical_json_string(str) do
+    escaped =
+      str
+      |> String.replace("\\", "\\\\")
+      |> String.replace("\"", "\\\"")
+      |> String.replace("\n", "\\n")
+      |> String.replace("\r", "\\r")
+      |> String.replace("\t", "\\t")
+
+    "\"" <> escaped <> "\""
+  end
 
   defp escape_str(value), do: "'" <> String.replace(value, "'", "''") <> "'"
 
@@ -2115,6 +2219,18 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
         pos: 1
       })
       |> Map.put({@owners, "value_json"}, %{type: "jsonb", not_null: false, default: nil, pos: 2})
+      # Regression coverage for the seed-capture list/map defect (mirrors the
+      # real V98 `alternative_formats text[]` column, decoded by Postgrex as
+      # a native Elixir list): proves the manifest/baseline emitters render
+      # a `text[]`-typed seed value as a native array literal, never JSON
+      # array syntax — see the `square` seed row below and
+      # `Emitter.literal/2`.
+      |> Map.put({"phoenix_kit_storage_dimensions", "alternative_formats"}, %{
+        type: "text[]",
+        not_null: true,
+        default: "'{}'::text[]",
+        pos: 1
+      })
 
     constraints =
       v1.constraints
@@ -2156,7 +2272,15 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
         values: %{
           "key" => "fix_enabled",
           "value" => "false",
-          "value_json" => nil,
+          # Nested map regression coverage (spec: seed-capture list/map
+          # defect) — a genuinely nested value (a map containing both a
+          # sub-map and a list), proving the emitters recurse correctly and
+          # render sorted-key canonical JSON cast to jsonb. `value_json` is
+          # a real column (V12) capable of holding exactly this shape.
+          "value_json" => %{
+            "limits" => %{"max_users" => 1000, "storage_gb" => 100},
+            "features" => ["dark_mode", "notifications"]
+          },
           "module" => "system"
         }
       })
@@ -2183,6 +2307,16 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
           "name" => ~s({"en": "Cash on delivery, 'as is'"}),
           "is_active" => true,
           "position" => 1
+        }
+      })
+      # List regression coverage (spec: seed-capture list/map defect) —
+      # mirrors the real `alternative_formats text[]` column added above.
+      |> Map.put({"phoenix_kit_storage_dimensions", "square"}, %{
+        key_column: "name",
+        key_value: "square",
+        values: %{
+          "name" => "square",
+          "alternative_formats" => ["webp", "avif"]
         }
       })
 
@@ -2455,6 +2589,27 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
       )
 
       assert!(seed.create =~ "'system'", "manifest: seed create uses NEWEST revision values")
+
+      # Seed-capture list/map defect: a genuinely nested value (map
+      # containing a sub-map and a list) must render as sorted-key
+      # canonical JSON cast to jsonb — never raise, never depend on
+      # insertion/decode order.
+      assert!(
+        seed.create =~
+          ~s('{"features":["dark_mode","notifications"],) <>
+            ~s("limits":{"max_users":1000,"storage_gb":100}}'::jsonb),
+        "manifest: nested map seed value renders as canonical (sorted-key) JSON cast to jsonb"
+      )
+
+      dimension = Enum.find(objects, &(&1.id == "seed:phoenix_kit_storage_dimensions:square"))
+
+      # Same defect, the array half: a `text[]` value must render as a
+      # native Postgres array literal, never JSON array syntax (`[...]` is
+      # not valid `text[]` input).
+      assert!(
+        dimension.create =~ ~s('{"webp","avif"}'::text[]),
+        "manifest: text[] seed value renders as a native array literal, not JSON syntax"
+      )
 
       bucket = Enum.find(objects, &(&1.id == "seed:phoenix_kit_buckets:Local Storage"))
       assert!(bucket.create =~ "WHERE NOT EXISTS", "manifest: bucket WHERE NOT EXISTS strategy")

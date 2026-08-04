@@ -62,6 +62,20 @@ defmodule PhoenixKit.Migrations.Repair.DifferTest do
       observed = %{type: "text", not_null: false, default: nil, pos: 9}
       assert Differ.compare(:column, expected, observed) == :match
     end
+
+    test "not_null is never compared when expected has no default — repair's own create can " <>
+           "never satisfy it (spec D7), so it can never verify clean otherwise" do
+      expected = %{type: "text", not_null: true, default: nil}
+      observed = %{type: "text", not_null: false, default: nil}
+      assert Differ.compare(:column, expected, observed) == :match
+
+      # A genuinely different type is still reported — the not_null carve-out
+      # does not swallow other real divergences on the same column.
+      observed2 = %{type: "boolean", not_null: false, default: nil}
+      assert {:mismatch, reasons} = Differ.compare(:column, expected, observed2)
+      assert Enum.any?(reasons, &(&1 =~ "type"))
+      refute Enum.any?(reasons, &(&1 =~ "not_null"))
+    end
   end
 
   describe "sequence — every field is declaration metadata, all compared" do

@@ -134,6 +134,7 @@ defmodule PhoenixKit.Test.FixtureExpectedSchema do
         pos: 1
       ),
       column_object(@owners, "slug", 5, type: "character varying(80)", not_null: true, pos: 2),
+      column_object(@owners, "name", 5, type: "character varying(120)", pos: 3),
       column_object(@role_permissions, "uuid", 53,
         type: "uuid",
         not_null: true,
@@ -234,11 +235,50 @@ defmodule PhoenixKit.Test.FixtureExpectedSchema do
     }
   end
 
+  # `create` below is the REAL helper (`Helpers.ensure_uuid_v7_function/2`,
+  # not fixture-authored SQL) — unlike every other object in this file, its
+  # observed shape after `build_objects/1` is whatever that helper actually
+  # creates, not something this fixture controls. `body_md5`/`definition`
+  # below are therefore the *real* values (captured against a scratch DB via
+  # `md5(prosrc)`/`pg_get_functiondef`, 2026-08), not hand-invented
+  # placeholders — a toy body here would make every test that builds this
+  # object and then expects a clean verify permanently see a `:wrong_shape`
+  # finding it can never satisfy. Only `body_md5` (with `returns`/
+  # `language`) is actually compared (`Differ.compare/3` deliberately
+  # excludes `definition` — see its moduledoc), and `body_md5` is a hash of
+  # `prosrc` alone, which does not embed the calling prefix — it is stable
+  # across prefixes, but embeds `pgcrypto_schema/1`'s resolved schema
+  # (`Helpers`), which falls back to `"public"` whenever pgcrypto is not
+  # already installed under a different schema. If this ever starts failing
+  # because pgcrypto lives elsewhere in a given scratch DB, recompute via
+  # `SELECT md5(prosrc) FROM pg_proc WHERE proname = 'uuid_generate_v7'`
+  # after calling the real helper.
   defp uuid_function_object(since) do
-    definition =
-      "CREATE OR REPLACE FUNCTION __SCHEMA__.uuid_generate_v7()\n" <>
-        " RETURNS uuid\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n" <>
-        "  RETURN gen_random_uuid();\nEND\n$function$\n"
+    definition = """
+    CREATE OR REPLACE FUNCTION __SCHEMA__.uuid_generate_v7()
+     RETURNS uuid
+     LANGUAGE plpgsql
+    AS $function$
+    DECLARE
+      unix_ts_ms bytea;
+      uuid_bytes bytea;
+    BEGIN
+      -- Get current timestamp in milliseconds
+      unix_ts_ms := substring(int8send(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3);
+
+      -- Build UUIDv7: 6 bytes timestamp + 2 bytes random (with version) + 8 bytes random (with variant)
+      uuid_bytes := unix_ts_ms || public.gen_random_bytes(10);
+
+      -- Set version 7 (0111xxxx in byte 7)
+      uuid_bytes := set_byte(uuid_bytes, 6, (get_byte(uuid_bytes, 6) & 15) | 112);
+
+      -- Set variant (10xxxxxx in byte 9)
+      uuid_bytes := set_byte(uuid_bytes, 8, (get_byte(uuid_bytes, 8) & 63) | 128);
+
+      RETURN encode(uuid_bytes, 'hex')::uuid;
+    END
+    $function$
+    """
 
     %{
       id: "function:uuid_generate_v7()",
@@ -249,7 +289,7 @@ defmodule PhoenixKit.Test.FixtureExpectedSchema do
          %{
            returns: "uuid",
            language: "plpgsql",
-           body_md5: String.duplicate("11", 16),
+           body_md5: "01ffea8ed8743df8517604290f53cd34",
            definition: definition
          }}
       ],

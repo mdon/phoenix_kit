@@ -64,6 +64,7 @@ defmodule PhoenixKit.Migrations.Repair do
   alias PhoenixKit.Migrations.Repair.Differ
   alias PhoenixKit.Migrations.Repair.Environment
   alias PhoenixKit.Migrations.Repair.Executor
+  alias PhoenixKit.Migrations.Repair.ObanRunner
   alias PhoenixKit.Migrations.Repair.Probe
   alias PhoenixKit.Migrations.Repair.Report
   alias PhoenixKit.Migrations.Repair.Scope
@@ -296,20 +297,23 @@ defmodule PhoenixKit.Migrations.Repair do
   # `Postgres.V27`'s own `Oban.Migration.up(prefix:, create_schema: false)`
   # (`create_schema: false` is load-bearing there too: Oban defaults it to
   # `true` for non-public prefixes otherwise, which fails for a
-  # low-privilege role — CLAUDE.md). Never runs in dry-run mode (`verify/1`,
-  # or `repair/1` with `dry_run: true`) — this is Oban's own migration code,
-  # which this module cannot "preview" any more safely than it can preview
-  # any other library's migrator; skipping it entirely is the only way
-  # `verify/1`'s "never writes" guarantee stays true by construction. A
-  # failure is caught and reported (`:oban_delegation_failed`, error
-  # severity) rather than left to crash the whole repair run — Oban's own
-  # migration failing is a real problem worth surfacing, but a repair tool
-  # crashing outright on it would be worse than reporting it alongside
-  # everything else.
+  # low-privilege role — CLAUDE.md). Unlike V27, this call has no real
+  # migration wrapping it — `ObanRunner.up/2` bootstraps just enough of an
+  # `Ecto.Migration.Runner` for `Oban.Migration.up/1` to run at all (see its
+  # moduledoc for why a bare call raises "could not find migration runner
+  # process"). Never runs in dry-run mode (`verify/1`, or `repair/1` with
+  # `dry_run: true`) — this is Oban's own migration code, which this module
+  # cannot "preview" any more safely than it can preview any other library's
+  # migrator; skipping it entirely is the only way `verify/1`'s "never
+  # writes" guarantee stays true by construction. A failure is caught and
+  # reported (`:oban_delegation_failed`, error severity) rather than left to
+  # crash the whole repair run — Oban's own migration failing is a real
+  # problem worth surfacing, but a repair tool crashing outright on it would
+  # be worse than reporting it alongside everything else.
   defp delegate_oban(%{dry_run: true}, report), do: report
 
   defp delegate_oban(ctx, report) do
-    Oban.Migration.up(prefix: ctx.prefix, create_schema: false)
+    ObanRunner.up(ctx.repo, ctx.prefix)
     report
   rescue
     e ->

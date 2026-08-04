@@ -22,7 +22,19 @@ defmodule PhoenixKit.Migrations.Repair.Differ do
       §6.3's version preflight bounds how far apart those two are allowed to
       be). `pos` is deliberately excluded — column ordinal position is
       accidental (`ADD COLUMN` always appends), never a divergence worth
-      reporting.
+      reporting. `not_null` is *conditionally* excluded too: when the
+      expected shape is `not_null: true` with `default: nil`,
+      `PhoenixKit.Migrations.Repair.Executor`'s own additive-only create
+      deliberately omits `NOT NULL` (adding one with no default to a
+      possibly-populated table fails outright — spec D7/§6.2), so a column
+      repair itself just recreated from nothing is *permanently* nullable by
+      the engine's own design. Comparing `not_null` there would manufacture
+      an error-severity finding no `mix phoenix_kit.repair` run can ever
+      clear — including blocking `--adopt`'s clean gate on a floor slice
+      that otherwise legitimately converged — out of the one outcome the
+      additive-only contract already accepts as the best it can safely do.
+      Any *other* expected shape (nullable, or not_null with a real default)
+      still compares `not_null` normally.
     * `:sequence` — every field (`data_type`/`start`/`increment`/`min`/
       `max`/`cache`/`cycle`) is schema-declaration metadata, not
       runtime state (`seqstart` is the *declared* start, not `last_value` —
@@ -85,7 +97,7 @@ defmodule PhoenixKit.Migrations.Repair.Differ do
     reasons =
       []
       |> reason_field(:type, expected, observed)
-      |> reason_field(:not_null, expected, observed)
+      |> reason_not_null(expected, observed)
       |> reason_if(
         normalize_default(expected.default) != normalize_default(observed.default),
         "default: expected #{inspect(expected.default)}, got #{inspect(observed.default)}"
@@ -165,6 +177,16 @@ defmodule PhoenixKit.Migrations.Repair.Differ do
 
     result(reasons)
   end
+
+  # See the moduledoc's `:column` bullet: a `not_null: true, default: nil`
+  # expected shape can never be satisfied by the engine's own additive-only
+  # column create, so it is excluded from comparison entirely — not just
+  # given a softer severity — the same way `pos` is excluded above. Any
+  # other expected shape still compares normally.
+  defp reason_not_null(reasons, %{not_null: true, default: nil}, _observed), do: reasons
+
+  defp reason_not_null(reasons, expected, observed),
+    do: reason_field(reasons, :not_null, expected, observed)
 
   defp reason_if(reasons, false, _message), do: reasons
   defp reason_if(reasons, true, message), do: [message | reasons]

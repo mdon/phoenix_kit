@@ -54,11 +54,27 @@ defmodule PhoenixKit.Integration.RepairTest do
       `Probe.raw_comment/2` reads) is exercised implicitly by every test
       below (each one completes without a spurious `:concurrent_migration`
       abort), just never under an actual race.
+
+  ## Why sandbox `:auto` mode instead of a checkout
+
+  `PhoenixKit.Migrations.Repair.Environment.pooled?/2` (the pg_backend_pid
+  double-sample) and `.with_lock/2` (the advisory lock) both call
+  `repo.checkout/2` directly, holding a connection across multiple
+  statements outside of any single sandboxed transaction — `repair/1`
+  (`dry_run: false`) hits this on every call. That is incompatible with the
+  default `:manual` sandbox ownership model: a bare `repo.checkout` from a
+  process that never owns/was-allowed a sandbox connection raises
+  `DBConnection.OwnershipError`, the same failure mode `PrefixMigrationTest`
+  documents for `Ecto.Migrator`-driven code. This suite mirrors that test's
+  fix: flip to `:auto` for the duration of each test and restore `:manual`
+  after, even if setup fails partway through. Safe because `async: false`
+  tests run serially, after all async tests have finished.
   """
 
   use ExUnit.Case, async: false
   @moduletag :integration
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias PhoenixKit.Migrations.Postgres
   alias PhoenixKit.Migrations.Repair
   alias PhoenixKit.Migrations.Repair.Executor
@@ -70,13 +86,23 @@ defmodule PhoenixKit.Integration.RepairTest do
   @prefix "phoenix_kit_fixture_test"
 
   setup do
+    Sandbox.mode(Repo, :auto)
+
+    # Registered before `reset_schema/0` runs, so a scratch schema (or a
+    # half-created one) can never leak past this test even if setup itself
+    # raises: the drop happens in the `try` body, the sandbox-mode restore
+    # (which must win even if the drop itself raises) in `after`.
+    on_exit(fn ->
+      try do
+        Repo.query("DROP SCHEMA IF EXISTS #{@prefix} CASCADE", [])
+      after
+        Sandbox.mode(Repo, :manual)
+        Application.delete_env(:phoenix_kit, :expected_schema_module)
+      end
+    end)
+
     Application.put_env(:phoenix_kit, :expected_schema_module, FixtureExpectedSchema)
     reset_schema()
-
-    on_exit(fn ->
-      Application.delete_env(:phoenix_kit, :expected_schema_module)
-      Repo.query("DROP SCHEMA IF EXISTS #{@prefix} CASCADE", [])
-    end)
 
     :ok
   end
@@ -87,10 +113,10 @@ defmodule PhoenixKit.Integration.RepairTest do
       stamp(142)
 
       {:ok, report1} = Repair.verify(prefix: @prefix, repo: Repo)
-      assert Report.exit_code(report1) == 0
+      assert_healthy_except_templates_gap(report1)
 
       {:ok, report2} = Repair.verify(prefix: @prefix, repo: Repo)
-      assert Report.exit_code(report2) == 0
+      assert_healthy_except_templates_gap(report2)
       assert Report.summary(report1) == Report.summary(report2)
     end
   end
@@ -112,7 +138,7 @@ defmodule PhoenixKit.Integration.RepairTest do
       assert repaired.object_id == "column:phoenix_kit_fixture_widgets.owner_uuid"
 
       {:ok, final} = Repair.verify(prefix: @prefix, repo: Repo)
-      assert Report.exit_code(final) == 0
+      assert_healthy_except_templates_gap(final)
     end
 
     test "a dropped FK constraint is recreated NOT VALID and then validated" do
@@ -186,8 +212,9 @@ defmodule PhoenixKit.Integration.RepairTest do
 
       # Built and stamped exactly the since<=100 slice — nothing missing,
       # nothing mismatched, nothing stale-low: genuinely clean, not just
-      # "no errors".
-      assert Report.exit_code(report_old) == 0
+      # "no errors" (modulo the templates best-effort gap every scenario
+      # here carries — see `assert_healthy_except_templates_gap/1`).
+      assert_healthy_except_templates_gap(report_old)
 
       # Simulate "the real delta module ran" (widening V142's own migration,
       # never repair's job) — then confirm the newer comment/shape also
@@ -286,5 +313,33 @@ defmodule PhoenixKit.Integration.RepairTest do
 
   defp stamp(version) do
     Repo.query!(~s(COMMENT ON TABLE #{@prefix}.phoenix_kit IS '#{version}'), [])
+  end
+
+  # ── Assertion helpers ───────────────────────────────────────────────
+
+  # `phoenix_kit_fixture_templates`'s seed row (`templates_helper_seed_object/0`
+  # in `FixtureExpectedSchema`) is `{:helper, mfa}`-created, `:best_effort` —
+  # it mirrors the real v15/v31 lineage where the referenced Mix task
+  # genuinely does not exist in this repository (the expected common case,
+  # not a defect; see `Object`'s moduledoc "Helper creates"). `build_objects/1`
+  # therefore never actually inserts that row (`Executor.create/4` returns
+  # `:best_effort_skipped`), so `Repair.verify/1` — which reports any missing
+  # object as `:missing`/`:repairable` without trying to predict whether a
+  # real repair would best-effort-skip it too — always finds it absent.
+  # Every scenario in this suite that builds objects up to and including
+  # `since: 2` therefore verifies at `exit_code` 1, never 0, on a DB that is
+  # otherwise perfectly healthy. This helper is the single place that
+  # encodes "healthy, modulo that one permanent, expected gap" so a real
+  # regression (a stray extra finding) still fails loudly.
+  defp assert_healthy_except_templates_gap(report) do
+    assert Report.exit_code(report) == 1
+
+    assert [
+             %{
+               kind: :missing,
+               severity: :repairable,
+               object_id: "seed:phoenix_kit_fixture_templates:__fixture_seeder__"
+             }
+           ] = Enum.filter(Report.findings(report), &(&1.severity in [:error, :repairable]))
   end
 end
