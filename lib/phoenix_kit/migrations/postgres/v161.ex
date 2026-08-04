@@ -31,6 +31,18 @@ defmodule PhoenixKit.Migrations.Postgres.V161 do
   is found, `up/1` raises and names the offending value before touching the
   schema; operators resolve it (rename or merge) and re-run.
 
+  The pre-check is **best-effort, not a lock**. `@disable_ddl_transaction`
+  means it runs as its own statement, separate from the `ALTER`, so on a
+  live system two concurrent registrations of `alice` and `Alice` can still
+  slip into that window — the old varchar index is case-sensitive and
+  admits both. The real guard is the index rebuild inside the `ALTER`,
+  which then fails with Postgres' generic `duplicate key value violates
+  unique constraint` instead of the readable message above. Nothing is
+  corrupted and the column is left unconverted; a re-run catches the pair
+  through the pre-check. Closing that window would mean holding pre-check
+  and `ALTER` in one transaction — exactly the long `ACCESS EXCLUSIVE` that
+  `@disable_ddl_transaction` exists to avoid — so the gap is deliberate.
+
   ## Cost: catalog-only, no table rewrite
 
   `varchar` → `citext` is binary-coercible in Postgres — confirmed against
@@ -53,7 +65,10 @@ defmodule PhoenixKit.Migrations.Postgres.V161 do
   `unique_violation` immediately post-conversion). So the honest cost
   statement is: no table heap rewrite, but the index rebuild's cost scales
   with the number of non-null `username` values — cheap in absolute terms,
-  not a zero-cost catalog flip. The `ALTER TABLE` holds an `ACCESS
+  not a zero-cost catalog flip. The pre-check adds a second pass of the
+  same order: `GROUP BY lower(username)` has no index to use, so it is a
+  full scan of every non-null `username`. It takes no locks and runs before
+  any DDL, so it lengthens the migration without lengthening the outage. The `ALTER TABLE` holds an `ACCESS
   EXCLUSIVE` lock for that (brief) duration, which is why this migration
   keeps `@disable_ddl_transaction true` (core convention — `v154.ex:30`,
   `v159.ex:36`) so the lock is never held for the length of a whole

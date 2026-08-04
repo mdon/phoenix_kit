@@ -58,10 +58,17 @@ defmodule PhoenixKit.Migrations.Postgres.V161Test do
     udt_name
   end
 
-  # Mirrors V161.up's pre-check SELECT verbatim (modulo the row source —
-  # see moduledoc), so a future edit to the migration that breaks the
-  # pre-check (wrong column, dropped NULL guard, wrong HAVING) would also
-  # break this helper, surfacing the regression in tests.
+  # A COPY of V161.up's pre-check SELECT (modulo the row source — see
+  # moduledoc), not a call into it: once the column is citext the unique
+  # index makes a real collision impossible to stage, so the SQL shape is
+  # exercised against `unnest` instead.
+  #
+  # ⚠️ That means the two are only linked by hand. Editing the pre-check in
+  # `v161.ex` does NOT fail this test — keep them in sync deliberately. What
+  # this does buy is coverage of the subtle parts of the shape itself: the
+  # `WHERE username IS NOT NULL` guard (without it every username-less
+  # account folds into one NULL group and falsely aborts the upgrade), the
+  # `lower()` grouping, and the `HAVING count(*) > 1` threshold.
   defp find_case_insensitive_duplicate(usernames) do
     Repo.query!(
       "SELECT lower(username) FROM unnest($1::varchar[]) AS username " <>
