@@ -1374,6 +1374,40 @@ defmodule PhoenixKitWeb.Integration do
     current_hash = PhoenixKit.ModuleDiscovery.module_hash()
     mix_lock_path = Path.expand("mix.lock")
 
+    # Compile-time references to every route module, so Mix rebuilds the
+    # host router when one of them CHANGES.
+    #
+    # `module_hash/0` above only detects modules being added or removed —
+    # it hashes the sorted list of module atoms. Editing `admin_routes/0`
+    # inside an existing module leaves that hash identical, so
+    # `__mix_recompile__?/0` returned false and the host router kept its
+    # previously expanded route table: new routes 404'd until someone ran
+    # `mix compile --force`. Verified against a real host app — the
+    # router's manifest listed 21 compile_references and not one route
+    # module, because the module atom only ever arrives from
+    # `ModuleDiscovery` at expansion time and is never named literally in
+    # the source. It affected every package using `route_module/0`.
+    #
+    # `__info__(:module)` in the module body is what registers the
+    # dependency: Mix recompiles a file when `stale_modules` intersects
+    # its compile_references. Cheaper and less fragile than folding beam
+    # digests into the hash — no file I/O over the discovery set, nothing
+    # extra running during parallel compilation, and it reuses Mix's own
+    # invalidation path rather than a parallel one. `require` does NOT
+    # work here; it was measured and the route stayed stale.
+    # Both the discovered MAIN modules and the route modules they name.
+    # Referencing only the route modules would leave `route_module/0`
+    # itself — and `admin_tabs/0`, which also feeds route generation — in
+    # the same blind spot this exists to close.
+    route_module_refs =
+      (PhoenixKit.ModuleDiscovery.discover_external_modules() ++ all_route_modules())
+      |> Enum.uniq()
+      |> Enum.map(fn mod ->
+        quote do
+          unquote(mod).__info__(:module)
+        end
+      end)
+
     quote do
       # Recompile router when deps change (mix.lock is updated by mix deps.get)
       @external_resource unquote(mix_lock_path)
@@ -1383,6 +1417,13 @@ defmodule PhoenixKitWeb.Integration do
       def __mix_recompile__? do
         unquote(current_hash) != PhoenixKit.ModuleDiscovery.module_hash()
       end
+
+      # Compile-time dependency on each route module (see the comment at
+      # the call site). Evaluated for its reference, not its value — the
+      # attribute exists only to give the calls somewhere to live.
+      @phoenix_kit_route_module_refs [unquote_splicing(route_module_refs)]
+      @doc false
+      def __phoenix_kit_route_module_refs__, do: @phoenix_kit_route_module_refs
 
       # Generate pipeline definitions
       unquote(generate_pipelines())
