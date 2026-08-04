@@ -126,6 +126,7 @@ defmodule PhoenixKitWeb.Live.UrlState do
   @path_assign :__phoenix_kit_url_path__
   @extra_assign :__phoenix_kit_url_extra__
   @loaded_assign :__phoenix_kit_url_loaded__
+  @cfg_assign :__phoenix_kit_url_cfg__
 
   # ── Compile-time spec normalisation ──────────────────────────────────
 
@@ -329,6 +330,7 @@ defmodule PhoenixKitWeb.Live.UrlState do
       |> assign_state(decode(params, cfg), cfg)
       |> Phoenix.Component.assign(@extra_assign, extra_params(params, cfg))
       |> Phoenix.Component.assign(@loaded_assign, false)
+      |> Phoenix.Component.assign(@cfg_assign, cfg)
       |> Phoenix.LiveView.attach_hook(:phoenix_kit_url_state, :handle_params, &handle_params/3)
 
     {:cont, socket}
@@ -404,7 +406,30 @@ defmodule PhoenixKitWeb.Live.UrlState do
 
   defp extra_params(_params, _cfg), do: %{}
 
-  defp config!(socket), do: socket.view.__phoenix_kit_url_state__()
+  # Accepts a socket or a bare assigns map. Inside a template `@socket.assigns`
+  # has been swapped for `%Socket.AssignsNotInSocket{}`, which raises on access
+  # — so a HEEX caller passes `assigns` instead, and the config travels in an
+  # assign rather than being read back off `socket.view`.
+  defp assigns_of(%Phoenix.LiveView.Socket{assigns: assigns}), do: assigns
+  defp assigns_of(assigns) when is_map(assigns), do: assigns
+
+  defp config!(socket_or_assigns) do
+    case assigns_of(socket_or_assigns) do
+      %{@cfg_assign => cfg} ->
+        cfg
+
+      _ ->
+        raise ArgumentError, """
+        UrlState config not found in assigns.
+
+        Inside a HEEX template pass `assigns`, not `@socket` — LiveView replaces
+        `socket.assigns` with %Phoenix.LiveView.Socket.AssignsNotInSocket{} while
+        rendering, so `@socket` cannot carry state into a template:
+
+            <.link patch={url_state_path(assigns, page: 2)}>2</.link>
+        """
+    end
+  end
 
   # ── Runtime: writing state ───────────────────────────────────────────
 
@@ -427,20 +452,26 @@ defmodule PhoenixKitWeb.Live.UrlState do
   @doc """
   The path this LiveView would patch to for `changes` — for `<.link patch=…>`
   and `<.pagination>`, which navigate by href rather than by event.
+
+  Takes a socket, or — from inside a template, where `@socket` carries no
+  assigns — the template's own `assigns`:
+
+      <.link patch={url_state_path(assigns, page: page)}>{page}</.link>
   """
-  @spec url_state_path(Phoenix.LiveView.Socket.t(), keyword() | map()) :: String.t()
-  def url_state_path(socket, changes) do
-    cfg = config!(socket)
+  @spec url_state_path(Phoenix.LiveView.Socket.t() | map(), keyword() | map()) :: String.t()
+  def url_state_path(socket_or_assigns, changes) do
+    assigns = assigns_of(socket_or_assigns)
+    cfg = config!(assigns)
     changes = Map.new(changes)
 
     state =
-      socket.assigns
+      assigns
       |> Map.fetch!(@state_assign)
       |> Map.merge(changes)
       |> maybe_reset_page(changes, cfg)
 
-    path = socket.assigns[@path_assign] || socket.assigns[:url_path] || "/"
-    extra = socket.assigns[@extra_assign] || %{}
+    path = assigns[@path_assign] || assigns[:url_path] || "/"
+    extra = assigns[@extra_assign] || %{}
 
     build_path(path, state, cfg, extra)
   end
