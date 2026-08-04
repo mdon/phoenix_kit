@@ -10,9 +10,15 @@ config :phoenix_kit, PhoenixKit.Test.Repo,
   username: System.get_env("PGUSER", "postgres"),
   password: System.get_env("PGPASSWORD", "postgres"),
   hostname: System.get_env("PGHOST", "localhost"),
-  database: "phoenix_kit_test#{System.get_env("MIX_TEST_PARTITION")}",
+  # `PGDATABASE`/`PGPOOL` let you point the suite at a database you already
+  # have instead of one this role is allowed to CREATE — without them the
+  # only way to run the integration half is a Postgres account with
+  # CREATEDB, which is exactly what a shared or managed instance withholds.
+  # Defaults are unchanged, so `mix test` on a local Postgres behaves as before.
+  database:
+    System.get_env("PGDATABASE", "phoenix_kit_test#{System.get_env("MIX_TEST_PARTITION")}"),
   pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2,
+  pool_size: String.to_integer(System.get_env("PGPOOL", "#{System.schedulers_online() * 2}")),
   priv: "test/support/postgres"
 
 # Wire repo for library code that calls PhoenixKit.Config.get(:repo)

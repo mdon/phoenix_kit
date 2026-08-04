@@ -5,7 +5,7 @@
 ## Workflow
 
 1. Make changes
-2. `mix precommit` (runs format + compile + credo --strict)
+2. `mix precommit` — compile (warnings as errors) + `deps.unlock --check-unused` + `quality.ci` (format-check, credo --strict, dialyzer) + JS tests. **It does not run `mix test`** — run that separately, see "CI/CD" below.
 3. Fix problems
 4. `git diff` / `git status` → commit
 
@@ -64,8 +64,18 @@ ast-grep --lang elixir --pattern 'def $FUNC($$$ARGS) do $$$BODY end' lib/
 
 ## Pull Requests
 
-- **Branch:** core integrates on **`main`** — open PRs against `main` (`gh pr create --base main --head mdon:main`). The `dev` branch was **retired 2026-06-01**; do not target it.
-- **CI/CD:** `.github/workflows/ci.yml` is **manual-only** (`workflow_dispatch`) — the equivalent checks run locally via `mix precommit` / `mix quality.ci` (format, credo, dialyzer, compile with warnings as errors, deps audit, tests with PostgreSQL).
+- **Branch:** core integrates on **`main`** — open PRs against `main` (`gh pr create --base main --head <your-fork-owner>:<branch>`; the previous example hardcoded one contributor's fork and branch). The `dev` branch was **retired 2026-06-01**; do not target it.
+- **CI/CD:** `.github/workflows/ci.yml` is **manual-only** (`on: workflow_dispatch`) — nothing runs on push or on a PR. When dispatched it provisions `postgres:16` and runs `mix format --check-formatted`, `mix credo --strict`, `mix dialyzer`, `mix deps.unlock --check-unused`, and `mix test.setup` + `mix test`.
+
+  ⚠️ **Nothing runs the Elixir suite automatically — not CI, and not `precommit`.** `mix precommit` covers compile-with-warnings-as-errors, unused deps, `quality.ci` and the JS tests, but **not `mix test`** (this section previously claimed otherwise). Running the suite is a manual step, and for anything touching the schema it is not optional: a `mix test` with no database silently excludes every `:integration` test and still reports success.
+
+  Pointing the suite at a database: `PGHOST`/`PGUSER`/`PGPASSWORD` were always read, and `PGDATABASE`/`PGPOOL` were added 2026-08-04 so you can use a database you already have. The old code hardcoded `phoenix_kit_test`, which forced a role with `CREATEDB` — precisely what a shared or managed instance withholds. On a busy shared server also bound the concurrency, or the pool starves and the failures look like product bugs:
+
+  ```bash
+  PGHOST=… PGUSER=… PGPASSWORD=… PGDATABASE=my_scratch_db PGPOOL=20 mix test --max-cases 8
+  ```
+
+  Adding `mix test` to `precommit` was tried on 2026-08-04 and reverted: the suite is not green from a clean checkout (with no database ~5 "unit" tests still fail, because `Settings` reads hit the DB on a cache miss), so the gate would be permanently red. Fixing that is worth doing separately — until then, treat the suite as a deliberate manual step, not an oversight.
 - **Commit messages:** start with `Add`, `Update`, `Fix`, `Remove`, `Merge`.
 - **Version management:** `mix.exs` `@version` + `CHANGELOG.md`. Run `mix compile`, `mix test`, `mix format`, `mix credo --strict` before committing. Get current versions:
   ```bash

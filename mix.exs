@@ -310,6 +310,14 @@ defmodule PhoenixKit.MixProject do
       # Code quality
       quality: ["format", "credo --strict", "dialyzer"],
       "quality.ci": ["format --check-formatted", "credo --strict", "dialyzer"],
+      # NOTE: `mix test` is deliberately NOT here — see AGENTS.md "CI/CD".
+      # Adding it was tried on 2026-08-04 and reverted: the suite is not
+      # green from a clean checkout (Settings reads hit the DB on a cache
+      # miss, so ~5 "unit" tests fail with no database at all; with one,
+      # unbounded concurrency exhausts the pool). A gate that is always red
+      # gets ignored, which is worse than an honest gap. Run the suite
+      # explicitly — `mix test` — and see AGENTS.md for pointing it at a
+      # database you already have.
       precommit: [
         "compile --warnings-as-errors --all-warnings",
         "deps.unlock --check-unused",
@@ -324,7 +332,8 @@ defmodule PhoenixKit.MixProject do
 
       # Release gate — run before `mix hex.publish`. Catches release-metadata
       # drift and packaging mistakes that precommit/quality.ci structurally
-      # cannot. Deliberately DB-free (no `mix test` here — CI owns that).
+      # cannot. Deliberately DB-free — running `mix test` is a separate
+      # manual step, see AGENTS.md "CI/CD".
       prerelease: [
         "deps.get --check-locked",
         "deps.unlock --check-unused",
