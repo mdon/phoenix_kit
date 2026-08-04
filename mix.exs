@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.228"
+  @version "1.7.229"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -132,8 +132,16 @@ defmodule PhoenixKit.MixProject do
       {:floki, ">= 0.30.0", only: :test},
       {:lazy_html, ">= 0.1.0", only: :test},
 
-      # Content editor
-      {:leaf, "~> 0.3"},
+      # Content editor. Core declares it for the whole tree — phoenix_kit_comments
+      # renders the composer but inherits the dep from here, so this requirement
+      # governs every host.
+      #
+      # NOT `~> 0.3`: that spanned 0.3 → 0.9, and for a 0.x package where each
+      # minor is effectively a major it claimed a support window core cannot
+      # back. It also let a resolver reach for leaf 0.5 while phoenix_kit_publishing
+      # still excluded it, which silently stranded that package a release behind
+      # rather than reporting a conflict.
+      {:leaf, "~> 0.4.1 or ~> 0.5"},
 
       # Markdown → HTML (comrak). Declared here in core so every module shares
       # one resolved version instead of each pulling its own and risking

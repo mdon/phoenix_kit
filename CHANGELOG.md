@@ -1,3 +1,24 @@
+## 1.7.229 - 2026-08-04
+
+### Changed
+- ⚠️ **The `leaf` requirement is now `~> 0.4.1 or ~> 0.5`, up from `~> 0.3`.**
+  **This raises the floor — hosts resolving leaf 0.3.x will be moved to 0.4.1+.**
+
+  `~> 0.3` spanned leaf 0.3 → 0.9. For a 0.x package, where each minor is
+  effectively a major, that claimed a support window core cannot back. It also
+  had a concrete cost: it let a resolver reach for leaf 0.5 while
+  `phoenix_kit_publishing` still excluded it, and rather than reporting a
+  conflict the resolver quietly settled on an older publishing release. Core
+  declares `leaf` for the whole tree — `phoenix_kit_comments` renders the
+  composer but inherits the dep from here — so this requirement governs every
+  host.
+
+  **If you vendor `leaf.js` or pin it from a CDN, update it to match.** leaf 0.5
+  is a server↔client contract change and a bundle left behind fails silently
+  (0.5.1 logs a console warning when it detects the mismatch). Hosts using the
+  documented `import "../../../deps/leaf/priv/static/assets/leaf.js"` move
+  automatically.
+
 ## 1.7.228 - 2026-08-04
 
 ### Removed
