@@ -28,7 +28,13 @@ defmodule PhoenixKit.Squash.DumpHelper do
   5. Schema-name substitution to `__SCHEMA__`, on word boundaries only
      (`(?<![A-Za-z0-9_])name(?![A-Za-z0-9_])`), so `myschema_extra` and
      `x_myschema` are never corrupted. Covers `"quoted"`, `'literal'`, and
-     dotted forms in one rule.
+     dotted forms in one rule. PLUS the prefix-embedded identifier rule: the
+     V56-era `prefix_index_name/2` idiom names objects `<prefix>_phoenix_kit_*`
+     on named-schema installs but bare `phoenix_kit_*` on public (v56.ex:574-576)
+     — `<schema>_` immediately followed by `phoenix_kit` is STRIPPED, folding
+     every install to the public-canonical name so named-vs-named and
+     public-vs-named comparisons both work. (The manifest layer handles the
+     same idiom separately via name templating — this fold is comparison-only.)
   6. Whitespace: trailing whitespace trimmed per line; statements trimmed.
   7. Ordering: statements sorted lexicographically (byte order) AFTER
      substitution, joined with `;\\n\\n` plus a trailing `;` — pg_dump object
@@ -273,7 +279,20 @@ defmodule PhoenixKit.Squash.DumpHelper do
   """
   def substitute_schema(sql, schema_name)
       when is_binary(sql) and is_binary(schema_name) do
-    Regex.replace(boundary_regex(schema_name), sql, @schema_placeholder)
+    sql
+    # Prefix-embedded identifiers first (V56-era prefix_index_name idiom,
+    # v56.ex:574-576): `<schema>_phoenix_kit_*` folds to the public-canonical
+    # bare name. Must run BEFORE the boundary rule (which would otherwise
+    # never match inside the identifier) and only fires when followed by
+    # `phoenix_kit`, so no other identifier can be corrupted.
+    |> then(
+      &Regex.replace(
+        ~r/(?<![A-Za-z0-9_])#{Regex.escape(schema_name)}_(?=phoenix_kit)/,
+        &1,
+        ""
+      )
+    )
+    |> then(&Regex.replace(boundary_regex(schema_name), &1, @schema_placeholder))
   end
 
   @doc """
@@ -587,6 +606,28 @@ defmodule PhoenixKit.Squash.DumpHelper do
     check!(not String.contains?(norm_a, "restrict"), "normalise: psql meta lines stripped")
     check!(not String.contains?(norm_a, "CREATE SCHEMA"), "normalise: CREATE SCHEMA stripped")
     check!(normalise(norm_a, "pk_old") == norm_a, "normalise: idempotent")
+
+    embedded_a =
+      normalise(
+        "CREATE UNIQUE INDEX pk_old_phoenix_kit_ai_endpoints_uuid_idx ON pk_old.phoenix_kit_ai_endpoints USING btree (uuid);",
+        "pk_old"
+      )
+
+    embedded_pub =
+      normalise(
+        "CREATE UNIQUE INDEX phoenix_kit_ai_endpoints_uuid_idx ON public.phoenix_kit_ai_endpoints USING btree (uuid);",
+        "public"
+      )
+
+    check!(
+      embedded_a == embedded_pub,
+      "normalise: prefix-embedded index name folds to the public-canonical form"
+    )
+
+    check!(
+      String.contains?(embedded_a, " phoenix_kit_ai_endpoints_uuid_idx "),
+      "normalise: embedded schema prefix stripped from the identifier"
+    )
 
     check!(
       compare(@twin_dump_a, "pk_old", @twin_dump_b, "pk_new") == :equal,
