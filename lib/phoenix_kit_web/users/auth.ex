@@ -2244,7 +2244,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         # explicitly temporary.
         conn
         |> put_status(:temporary_redirect)
-        |> Phoenix.Controller.redirect(to: clean_path)
+        |> Phoenix.Controller.redirect(to: with_query_string(clean_path, conn))
         |> halt()
 
       :error ->
@@ -2310,6 +2310,36 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   defp strip_locale_segment(_conn, _locale), do: :error
+
+  # Characters `Phoenix.Controller.redirect/2` refuses in a local target.
+  # Mirrored here because the list is private to Phoenix and a query string
+  # is arbitrary client input — see `with_query_string/2`.
+  @unsafe_redirect_chars ["\\", "/%09", "/\t"]
+
+  # Carry the query string across a locale redirect.
+  #
+  # Every locale redirect in this module rebuilds a PATH — `request_path`
+  # and `path_info` both stop at the "?" — so the query was dropped on the
+  # floor, and `redirect_to_base_locale/2` documented the opposite ("Query
+  # parameters preserved", with a `?page=2` example that never worked).
+  # On this surface that is not cosmetic: `Routes.return_to_query/1`
+  # threads `return_to` through exactly these URLs, so a visitor arriving
+  # at `/<prefix>/en-US/users/log-in?return_to=/admin/x` lost their
+  # destination and landed on the post-login default instead.
+  #
+  # Drop the query rather than raise when it contains something
+  # `redirect/2` rejects: a client can send a raw backslash in a query
+  # value, and a 500 would be worse than the truncation we ship today.
+  defp with_query_string(path, conn) do
+    case conn.query_string do
+      "" ->
+        path
+
+      query ->
+        candidate = path <> "?" <> query
+        if String.contains?(candidate, @unsafe_redirect_chars), do: path, else: candidate
+    end
+  end
 
   defp locale_allowed?(base_code) do
     language_enabled?(base_code)
@@ -2383,8 +2413,14 @@ defmodule PhoenixKitWeb.Users.Auth do
   # Segment-wise matching also means a genuine admin URL still matches
   # under any mount prefix and any locale segment, since we only care
   # whether "admin" appears as its own segment.
+  #
+  # Decoded, for the reason spelled out on `strip_locale_segment/2`:
+  # Phoenix binds routes against a decoded copy of the path but leaves
+  # `conn.path_info` encoded, so `/<prefix>/en/%61dmin/users` reaches the
+  # admin route while a raw comparison reports "not admin" and hands the
+  # request to the default-locale canonicaliser.
   defp admin_request?(conn) do
-    "admin" in conn.path_info
+    Enum.any?(conn.path_info, &(URI.decode(&1) == "admin"))
   end
 
   # Redirects default language URLs to clean URLs (no locale prefix)
@@ -2423,7 +2459,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     clean_path = if clean_path == "", do: "/", else: clean_path
 
     conn
-    |> Phoenix.Controller.redirect(to: clean_path)
+    |> Phoenix.Controller.redirect(to: with_query_string(clean_path, conn))
     |> halt()
   end
 
@@ -2451,10 +2487,14 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   ## Preservation
 
-  - Query parameters preserved
-  - URL fragments preserved
+  - Query parameters preserved (via `with_query_string/2` — they were not,
+    before: this rebuilds a path, and `conn.request_path` stops at the "?")
   - Request method unchanged (GET → GET)
   - Full path structure maintained
+
+  URL fragments are NOT preserved, and cannot be: a fragment never leaves
+  the browser, so the server has nothing to copy. The client re-applies
+  its own fragment to the `Location` it follows.
 
   ## Notes
 
@@ -2493,7 +2533,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     """)
 
     conn
-    |> Phoenix.Controller.redirect(to: corrected_path)
+    |> Phoenix.Controller.redirect(to: with_query_string(corrected_path, conn))
     |> halt()
   end
 

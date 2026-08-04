@@ -13,7 +13,7 @@ defmodule PhoenixKit.Utils.HtmlSanitizer do
   Ordinary rich text: block elements (p, div, hr, h1-h6, blockquote, pre,
   code), inline elements (span, strong, em, u, s, a, sub, sup), lists,
   tables, and img. Relative, absolute, anchor, `mailto:` and `tel:` URLs
-  are preserved.
+  are preserved, as are `class` on any tag and `target` on links.
 
   ## What is removed
 
@@ -21,6 +21,14 @@ defmodule PhoenixKit.Utils.HtmlSanitizer do
   schemes (`javascript:`, `data:`, …) **including entity-encoded
   spellings** such as `jav&#x61;script:`, and embedding elements
   (iframe, object, embed, svg, math).
+
+  Attributes outside the allowlist go too, and the allowlist is narrower
+  than the one this module shipped before the rewrite. Most notably **`id`
+  is dropped from every tag**, so `href="#..."` can only reach an anchor
+  the application itself rendered, not one stored in the content. Also
+  gone: `rel` (re-stamped as `noopener noreferrer` on every link),
+  `<input>` — so Markdown task-list checkboxes vanish — and `<tfoot>`.
+  `sanitize_html/1` carries the reasoning and the knobs.
 
   ## Output is normalised
 
@@ -40,11 +48,11 @@ defmodule PhoenixKit.Utils.HtmlSanitizer do
       #=> "<a rel=\\"noopener noreferrer\\">Click</a>"
   """
 
-  # The tag/attribute allowlist is ammonia's default set, applied through
-  # `MDEx.safe_html/2` — see `sanitize_html/1` at the bottom of this module
-  # for why a parser rather than regexes. The list above is descriptive of
-  # that default, not a second source of truth; to change what is allowed,
-  # pass explicit `:sanitize` options rather than editing a comment.
+  # The tag/attribute allowlist is ammonia's default set plus the two
+  # additions in `@sanitize_options`, applied through `MDEx.safe_html/2` —
+  # see `sanitize_html/1` for why a parser rather than regexes. The list
+  # above is descriptive of that set, not a second source of truth; to
+  # change what is allowed, edit `@sanitize_options` rather than a comment.
   #
   # Behaviour worth knowing:
   #   * URL schemes are validated per attribute — `javascript:`, `data:`
@@ -117,6 +125,39 @@ defmodule PhoenixKit.Utils.HtmlSanitizer do
 
   # Private functions
 
+  @escape_options [content: false, curly_braces_in_code: false]
+
+  # Ammonia's defaults, plus the two attributes this module has always
+  # documented as allowed and the regex implementation did preserve.
+  # `add_*` rather than a rewritten allowlist, so an MDEx upgrade that
+  # tightens the defaults still reaches us.
+  #
+  #   * `class` on every tag. Rich-text editors emit it for alignment and
+  #     block styling, and ammonia's defaults keep it on only code, div,
+  #     pre and span — so switching to the parsed allowlist silently
+  #     restyled every stored `<p class="...">`. It grants no capability
+  #     that is not already granted: `style` is in ammonia's defaults for
+  #     div/span, so arbitrary presentation was reachable regardless.
+  #   * `target` on `<a>`, for "open in a new tab" links. Safe here
+  #     specifically because ammonia's `link_rel` default stamps
+  #     `rel="noopener noreferrer"` onto every link it emits, so the
+  #     reverse-tabnabbing that normally makes `target` risky cannot
+  #     apply — and that stamping overwrites any author-supplied `rel`,
+  #     which is why `rel` itself is deliberately NOT added back.
+  #
+  # `id` is deliberately NOT restored, although the old implementation
+  # passed it through. Sanitized output is spliced into a LiveView-managed
+  # DOM via `raw/1`, and LiveView patches by element id — a stored `id`
+  # colliding with a component's is a rendering bug an author can trigger
+  # by accident, on top of the usual DOM-clobbering surface. In-page
+  # anchors therefore only reach ids the application itself rendered;
+  # `href="#..."` still survives untouched. Use `id_prefix` if
+  # author-supplied anchors are ever wanted.
+  @sanitize_options [
+    add_generic_attributes: ["class"],
+    add_tag_attributes: %{"a" => ["target"]}
+  ]
+
   # Sanitize via MDEx's `safe_html/2`, which is an ammonia-backed PARSED
   # ALLOWLIST: it builds a real DOM, keeps only known-good tags and
   # attributes, validates URL schemes per attribute, and re-serializes.
@@ -139,9 +180,6 @@ defmodule PhoenixKit.Utils.HtmlSanitizer do
   # callers render the result as HTML and expect `<p>` to still be a
   # paragraph.
   defp sanitize_html(html) do
-    MDEx.safe_html(html,
-      sanitize: MDEx.Document.default_sanitize_options(),
-      escape: [content: false, curly_braces_in_code: false]
-    )
+    MDEx.safe_html(html, sanitize: @sanitize_options, escape: @escape_options)
   end
 end

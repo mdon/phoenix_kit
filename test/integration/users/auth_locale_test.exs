@@ -166,6 +166,75 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
     end
   end
 
+  describe "validate_and_set_locale/2 — reserved segments" do
+    test "a reserved segment 307s to the stripped path, query intact" do
+      # `/<prefix>/api/shop` binds `:locale = "api"` on any `/:locale/...`
+      # route. The corrected URL has to keep the query — this pipeline
+      # also carries `post "/:locale/users/log-in"`, which is why the
+      # redirect is a 307 (method + body preserved) rather than a 302.
+      conn =
+        build_conn(:get, "/phoenix_kit/api/shop?page=2")
+        |> Plug.Conn.fetch_query_params()
+        |> Map.put(:path_params, %{"locale" => "api"})
+
+      conn = Auth.validate_and_set_locale(conn, [])
+
+      assert conn.halted
+      assert conn.status == 307
+      assert redirected_to(conn, 307) == "/phoenix_kit/shop?page=2"
+    end
+
+    test "a segment that is not where the prefix says renders instead of looping" do
+      # `strip_locale_segment/2` returns :error when the path is not
+      # `<prefix>/<locale>/...`, and the plug must then fall through.
+      # Redirecting to an unchanged path is what used to spin the browser.
+      conn =
+        build_conn(:get, "/somewhere/else/entirely")
+        |> Plug.Conn.fetch_query_params()
+        |> Map.put(:path_params, %{"locale" => "admin"})
+
+      conn = Auth.validate_and_set_locale(conn, [])
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+  end
+
+  describe "validate_and_set_locale/2 — percent-encoded admin segment" do
+    setup do
+      Languages.set_default_language_no_prefix(true)
+      :ok
+    end
+
+    test "an encoded /admin still counts as an admin request" do
+      # Phoenix binds routes against a DECODED copy of the path but leaves
+      # `conn.path_info` encoded, so `%61dmin` reaches the admin route
+      # while a raw `"admin" in path_info` reports "not admin" and hands
+      # the request to the canonicaliser — a redirect on a URL that is
+      # already where it belongs.
+      conn =
+        build_conn(:get, "/phoenix_kit/en/%61dmin/users")
+        |> Plug.Conn.fetch_query_params()
+        |> Map.put(:path_params, %{"locale" => "en"})
+
+      conn = Auth.validate_and_set_locale(conn, [])
+
+      refute conn.halted
+    end
+
+    test "the canonical redirect still fires for genuinely non-admin URLs, with its query" do
+      conn =
+        build_conn(:get, "/phoenix_kit/en/users/log-in?return_to=%2Fadmin%2Fusers")
+        |> Plug.Conn.fetch_query_params()
+        |> Map.put(:path_params, %{"locale" => "en"})
+
+      conn = Auth.validate_and_set_locale(conn, [])
+
+      assert conn.halted
+      assert redirected_to(conn) == "/phoenix_kit/users/log-in?return_to=%2Fadmin%2Fusers"
+    end
+  end
+
   defp build_invalid_locale_conn(path) do
     build_conn(:get, path)
     |> Plug.Conn.fetch_query_params()

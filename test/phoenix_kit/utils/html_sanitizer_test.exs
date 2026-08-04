@@ -141,7 +141,56 @@ defmodule PhoenixKit.Utils.HtmlSanitizerTest do
       assert HtmlSanitizer.sanitize(~s(<a href="mailto:a@b.com">m</a>)) =~ "mailto:a@b.com"
       assert HtmlSanitizer.sanitize(~s(<a href="tel:+123">p</a>)) =~ "tel:+123"
     end
+  end
 
+  describe "sanitize/1 presentational attributes" do
+    # The rewrite swapped a blacklist (which passed every attribute it did
+    # not recognise) for ammonia's allowlist, which keeps `class` on only
+    # code/div/pre/span and drops `target` outright. Both were documented
+    # as allowed and both are emitted by ordinary rich-text editors, so
+    # they are added back explicitly in `@sanitize_options`.
+
+    test "class survives on any tag, not just ammonia's four" do
+      assert HtmlSanitizer.sanitize(~s|<p class="text-center">Hi</p>|) ==
+               ~s|<p class="text-center">Hi</p>|
+
+      assert HtmlSanitizer.sanitize(~s|<img src="/a.png" class="rounded">|) =~ ~s|class="rounded"|
+      assert HtmlSanitizer.sanitize(~s|<code class="language-elixir">:ok</code>|) =~ "language-"
+    end
+
+    test "class does not smuggle a handler back in" do
+      assert HtmlSanitizer.sanitize(~s|<p class="a" onclick="x()">Hi</p>|) ==
+               ~s|<p class="a">Hi</p>|
+    end
+
+    test "target survives on links, and rel is always ours" do
+      out = HtmlSanitizer.sanitize(~s|<a href="https://x.com" target="_blank">t</a>|)
+      assert out =~ ~s|target="_blank"|
+      # The forced link_rel is what makes `target` safe to allow at all.
+      assert out =~ ~s|rel="noopener noreferrer"|
+
+      # An author-supplied rel is overwritten, not merged — so a stored
+      # `rel=""` can't strip the tabnabbing guard back off.
+      assert HtmlSanitizer.sanitize(~s|<a href="https://x.com" target="_blank" rel="">t</a>|) =~
+               ~s|rel="noopener noreferrer"|
+    end
+
+    test "target does not rescue a dangerous href" do
+      out = HtmlSanitizer.sanitize(~s|<a href="javascript:alert(1)" target="_blank">x</a>|)
+      refute out =~ "href="
+      refute out =~ "javascript"
+    end
+
+    test "id is dropped from every tag (deliberate — see @sanitize_options)" do
+      assert HtmlSanitizer.sanitize(~s|<p id="x">Hi</p>|) == "<p>Hi</p>"
+      assert HtmlSanitizer.sanitize(~s|<h2 id="section">H</h2>|) == "<h2>H</h2>"
+      # The link half of an in-page anchor still survives; only the target
+      # attribute is gone, so anchors resolve against app-rendered ids.
+      assert HtmlSanitizer.sanitize(~s|<a href="#section">go</a>|) =~ ~s|href="#section"|
+    end
+  end
+
+  describe "sanitize/1 slash-separated attributes (continued)" do
     test "entity-encoded dangerous schemes are caught" do
       # The old blacklist could be walked past with `jav&#x61;script:`;
       # a parser decodes before validating the scheme.
