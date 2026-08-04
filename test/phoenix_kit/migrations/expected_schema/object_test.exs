@@ -65,7 +65,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema.ObjectTest do
                "SELECT EXISTS (SELECT 1 FROM auth.phoenix_kit_fixture_widgets)"
     end
 
-    test "passes a {:catalog, spec} check through unchanged" do
+    test "a {:catalog, spec} check with no tokens in its values is unchanged" do
       object = %{
         id: "table:phoenix_kit_fixture_widgets",
         class: :table,
@@ -81,6 +81,50 @@ defmodule PhoenixKit.Migrations.ExpectedSchema.ObjectTest do
 
       assert materialized.check ==
                {:catalog, %{kind: :table, name: "phoenix_kit_fixture_widgets"}}
+    end
+
+    test "resolves a prefix-embedded-name marker inside a {:catalog, spec} check's :name" do
+      exempt_object = %{
+        id: "index:phoenix_kit_fixture_settings_uuid_idx",
+        class: :index,
+        since: 5,
+        revisions: [{5, %{}}],
+        presence: :required,
+        check:
+          {:catalog,
+           %{
+             kind: :index,
+             name: Object.name_marker(:exempt) <> "phoenix_kit_fixture_settings_uuid_idx",
+             table: "phoenix_kit_fixture_settings"
+           }},
+        create: nil,
+        backfill: nil
+      }
+
+      # `:exempt` (v56.ex/v61.ex's prefix_index_name/2 convention) — bare on
+      # public, prefixed otherwise.
+      {:catalog, public_spec} = Object.materialize(exempt_object, "public").check
+      assert public_spec.name == "phoenix_kit_fixture_settings_uuid_idx"
+
+      {:catalog, named_spec} = Object.materialize(exempt_object, "auth").check
+      assert named_spec.name == "auth_phoenix_kit_fixture_settings_uuid_idx"
+
+      always_object =
+        put_in(exempt_object, [:check], {
+          :catalog,
+          %{
+            kind: :index,
+            name: Object.name_marker(:always) <> "phoenix_kit_fixture_files_checksum_index",
+            table: "phoenix_kit_fixture_files"
+          }
+        })
+
+      # `:always` (v26.ex's convention) — prefixed unconditionally, public included.
+      {:catalog, public_always_spec} = Object.materialize(always_object, "public").check
+      assert public_always_spec.name == "public_phoenix_kit_fixture_files_checksum_index"
+
+      {:catalog, named_always_spec} = Object.materialize(always_object, "auth").check
+      assert named_always_spec.name == "auth_phoenix_kit_fixture_files_checksum_index"
     end
 
     test "substitutes the :prefix sentinel inside a helper create's args, leaving other atoms alone" do

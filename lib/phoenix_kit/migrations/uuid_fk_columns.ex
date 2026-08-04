@@ -238,7 +238,16 @@ defmodule PhoenixKit.Migrations.UUIDFKColumns do
     {:phoenix_kit_entity_data, "entity_uuid"},
     # Group D — Module Internal FKs
     {:phoenix_kit_shop_cart_items, "cart_uuid"},
-    {:phoenix_kit_subscriptions, "plan_uuid"},
+    # NOTE: no phoenix_kit_subscriptions entry here — it used to say
+    # "plan_uuid", a column no code path has ever created (the real FK is
+    # subscription_type_uuid, `@module_fk_columns` above; its integer
+    # counterpart subscription_type_id no longer exists as a column at all).
+    # Removed 2026-08-04: set_not_null/4's own table_exists?/column_exists?
+    # guard already made this dead weight (silently skipped every run), and
+    # verified empirically against a real, fully-migrated `public` schema
+    # that subscription_type_uuid is genuinely nullable there (not an
+    # oversight this list should instead point at) before removing rather
+    # than repointing.
     {:phoenix_kit_email_events, "email_log_uuid"},
     {:phoenix_kit_referral_code_usage, "code_uuid"}
   ]

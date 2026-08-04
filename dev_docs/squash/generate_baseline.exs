@@ -344,15 +344,18 @@ defmodule PhoenixKit.Squash.Generate.Catalog do
           rows!(repo, @indexes_sql, [schema]),
         keep_table?(table),
         into: %{} do
-      {name,
+      {canonical_name, exemption} = canonicalize_object_name(name, schema)
+
+      {canonical_name,
        %{
          table: table,
          unique: unique,
          method: method,
-         definition: normalize_expr(definition, schema),
-         predicate: normalize_expr(predicate, schema),
+         definition: templatize_field(definition, schema, name, canonical_name, exemption),
+         predicate: templatize_field(predicate, schema, name, canonical_name, exemption),
          keys: Enum.map(keys || [], &DumpHelper.substitute_schema(&1, schema)),
-         opclasses: opclasses || []
+         opclasses: opclasses || [],
+         name_template: exemption
        }}
     end
   end
@@ -362,17 +365,100 @@ defmodule PhoenixKit.Squash.Generate.Catalog do
           rows!(repo, @constraints_sql, [schema]),
         keep_table?(table),
         into: %{} do
-      {{table, name},
+      {canonical_name, exemption} = canonicalize_object_name(name, schema)
+
+      {{table, canonical_name},
        %{
          type: contype,
-         definition: normalize_expr(definition, schema),
+         definition: templatize_field(definition, schema, name, canonical_name, exemption),
          columns: columns,
          foreign_table: ftable,
          foreign_columns: fcolumns,
          on_delete: fk_action(contype, del),
-         on_update: fk_action(contype, upd)
+         on_update: fk_action(contype, upd),
+         name_template: exemption
        }}
     end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Prefix-embedded object names — see DumpHelper.prefix_embedded_bare_suffix/2's
+  # moduledoc for the full "why" (two known real conventions, empirically
+  # distinguished). Detecting and canonicalizing at CAPTURE time — rather than
+  # leaving the scratch-schema-literal name as the snapshot's dictionary KEY —
+  # means Differ/Bimodality need no changes at all: a stepwise and a
+  # single-shot run key the SAME real object identically (both fold to the
+  # bare suffix), so the 47 phantom :legacy_optional entries this class of
+  # name produced simply never arise. `name_template` on the returned shape
+  # carries WHICH of the two conventions applies, for Emitter to render a
+  # prefix-aware name back out at manifest/baseline-emission time.
+
+  @name_marker_exempt "__PK_NAME_EXEMPT__"
+  @name_marker_always "__PK_NAME_ALWAYS__"
+
+  @doc "The marker token Emitter substitutes for a resolved prefix at render time."
+  def name_marker(:exempt), do: @name_marker_exempt
+  def name_marker(:always), do: @name_marker_always
+
+  # `nil` exemption for the overwhelming majority of names (not prefix-embedded
+  # at all) — `canonical_name` is then just `name`, unchanged.
+  defp canonicalize_object_name(name, schema) do
+    case DumpHelper.prefix_embedded_bare_suffix(name, schema) do
+      nil -> {name, nil}
+      bare -> {bare, classify_exemption(bare)}
+    end
+  end
+
+  # The ONLY two real call sites in the whole migration chain that embed a
+  # schema name directly into an object's own NAME (verified by grepping
+  # every `lib/phoenix_kit/migrations/**/*.ex` file for `#{prefix}` used
+  # inside a `name:`/identifier position — not schema-QUALIFICATION, which
+  # `normalize_expr/2` already handles separately):
+  #
+  #   * v56.ex's/v61.ex's byte-identical `prefix_index_name/2` — always
+  #     produces a `"#{table}_uuid_idx"` suffix, bare on `public`/`nil`,
+  #     `"#{prefix}_#{bare}"` otherwise. The `_uuid_idx` suffix below is
+  #     this function's literal, unconditional output shape — not a guess.
+  #   * v26.ex's one inline `name: "#{prefix}_phoenix_kit_files_user_file_checksum_index"`
+  #     — no conditional at all, so ALWAYS prefixed, `public` included.
+  #     Confirmed empirically (2026-08-04) against a live, fully-migrated
+  #     `public` schema: the real index is named
+  #     `public_phoenix_kit_files_user_file_checksum_index`, not the bare
+  #     form `substitute_schema/2`'s fold would suggest.
+  #
+  # A prefix-embedded name matching neither shape is unrecognized — refuse to
+  # guess (this codebase's standing convention for exactly this situation,
+  # e.g. InventoryGuard) rather than silently picking the wrong convention
+  # and shipping a manifest that misnames the object on every real "public"
+  # install (the common case).
+  defp classify_exemption("phoenix_kit_files_user_file_checksum_index"), do: :always
+
+  defp classify_exemption(bare) do
+    if String.ends_with?(bare, "_uuid_idx") do
+      :exempt
+    else
+      raise "unrecognized prefix-embedded object name #{inspect(bare)} — read its source " <>
+              "migration to determine whether \"public\" is exempted from the prefix (like " <>
+              "v56.ex/v61.ex's prefix_index_name/2) or always included (like v26.ex's inline " <>
+              "naming — verify EMPIRICALLY against a live public schema, never guess), then " <>
+              "extend Catalog.classify_exemption/1"
+    end
+  end
+
+  defp templatize_field(nil, _schema, _raw_name, _canonical_name, _exemption), do: nil
+
+  defp templatize_field(text, schema, _raw_name, _canonical_name, nil),
+    do: normalize_expr(text, schema)
+
+  # `raw_name` (the exact captured identifier, e.g. "pk_squash_gen_step_phoenix_kit_x_uuid_idx")
+  # is used as the search key — an exact literal match, so this can never
+  # collide with an unrelated `schema.table`-qualifier occurrence elsewhere
+  # in the same text (that uses a `.` join, not `_`, and normalize_expr/2's
+  # own fold handles it separately, afterward).
+  defp templatize_field(text, schema, raw_name, canonical_name, exemption) do
+    text
+    |> String.replace(raw_name, name_marker(exemption) <> canonical_name)
+    |> normalize_expr(schema)
   end
 
   defp sequences(repo, schema) do
@@ -1015,6 +1101,7 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
   # casts in immediate checks), extensions/uuid function via Helpers, CREATE SCHEMA
   # only through the V01-semantics check in the baseline preamble.
 
+  alias PhoenixKit.Squash.Generate.Catalog
   alias PhoenixKit.Squash.Generate.Differ
 
   @pound "#"
@@ -1191,11 +1278,15 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
   defp object_check(%{class: :column, key: {table, column}}),
     do: {:catalog, %{kind: :column, table: table, column: column}}
 
-  defp object_check(%{class: :index, key: name} = object),
-    do: {:catalog, %{kind: :index, name: name, table: newest_shape(object).table}}
+  defp object_check(%{class: :index, key: name} = object) do
+    shape = newest_shape(object)
+    {:catalog, %{kind: :index, name: templated_name(name, shape), table: shape.table}}
+  end
 
-  defp object_check(%{class: :constraint, key: {table, name}}),
-    do: {:catalog, %{kind: :constraint, table: table, name: name}}
+  defp object_check(%{class: :constraint, key: {table, name}} = object) do
+    shape = newest_shape(object)
+    {:catalog, %{kind: :constraint, table: table, name: templated_name(name, shape)}}
+  end
 
   defp object_check(%{class: :sequence, key: name}),
     do: {:catalog, %{kind: :sequence, name: name}}
@@ -1210,6 +1301,19 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
     shape = newest_shape(object)
     seed_check_sql(table, shape)
   end
+
+  # `key`/`name` is already the CANONICAL bare form for a prefix-embedded
+  # index/constraint (Catalog.canonicalize_object_name/2 keys the snapshot by
+  # it) — re-attach the marker Catalog stamped on the shape's `name_template`
+  # so the RENDERED check/create carries the resolvable prefix-aware form,
+  # not the bare canonical one (which is only a valid real name on `public`
+  # for the `:exempt` convention, and never valid on its own for `:always`).
+  defp templated_name(bare, %{name_template: nil}), do: bare
+
+  defp templated_name(bare, %{name_template: exemption}),
+    do: Catalog.name_marker(exemption) <> bare
+
+  defp templated_name(bare, _shape_without_template), do: bare
 
   defp object_create(%{presence: :legacy_optional}, _cols), do: nil
 
@@ -1244,8 +1348,10 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
   defp object_create(%{class: :index} = object, _cols),
     do: index_create_sql(newest_shape(object).definition)
 
-  defp object_create(%{class: :constraint, key: {table, name}} = object, _cols),
-    do: guarded_constraint_sql(table, name, newest_shape(object).definition)
+  defp object_create(%{class: :constraint, key: {table, name}} = object, _cols) do
+    shape = newest_shape(object)
+    guarded_constraint_sql(table, templated_name(name, shape), shape.definition)
+  end
 
   defp object_create(%{class: :seed, key: {table, _value}} = object, cols),
     do: seed_insert_sql(table, newest_shape(object), Map.get(cols, table, %{}))
@@ -1340,6 +1446,8 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
       alias PhoenixKit.Migrations.Postgres.Helpers
 
       @schema_token "__SCHEMA__"
+      @name_marker_exempt "__PK_NAME_EXEMPT__"
+      @name_marker_always "__PK_NAME_ALWAYS__"
       @chain_hash "#{meta.chain_hash}"
 
       def objects(prefix) do
@@ -1389,19 +1497,24 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
       end
 
       defp materialize_create(sql, prefix) when is_binary(sql),
-        do: String.replace(sql, @schema_token, prefix)
+        do: materialize_value(sql, prefix)
 
-      defp materialize_check({:catalog, spec}, _prefix), do: {:catalog, spec}
+      defp materialize_check({:catalog, spec}, prefix),
+        do: {:catalog, Map.new(spec, fn {k, v} -> {k, materialize_value(v, prefix)} end)}
 
       defp materialize_check(sql, prefix) when is_binary(sql),
-        do: String.replace(sql, @schema_token, prefix)
+        do: materialize_value(sql, prefix)
 
       defp materialize_shape(shape, prefix) do
         Map.new(shape, fn {key, value} -> {key, materialize_value(value, prefix)} end)
       end
 
-      defp materialize_value(value, prefix) when is_binary(value),
-        do: String.replace(value, @schema_token, prefix)
+      defp materialize_value(value, prefix) when is_binary(value) do
+        value
+        |> String.replace(@schema_token, prefix)
+        |> String.replace(@name_marker_exempt, if(prefix == "public", do: "", else: prefix <> "_"))
+        |> String.replace(@name_marker_always, prefix <> "_")
+      end
 
       defp materialize_value(value, prefix) when is_list(value),
         do: Enum.map(value, &materialize_value(&1, prefix))
@@ -1520,7 +1633,8 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
 
     constraints =
       for %{key: {table, name}} = object <- Map.get(by_class, :constraint, []) do
-        render_execute(guarded_constraint_sql(table, name, object.shape.definition))
+        templated = templated_name(name, object.shape)
+        render_execute(guarded_constraint_sql(table, templated, object.shape.definition))
       end
 
     seeds =
@@ -1543,17 +1657,33 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
         ]
       end
 
+    # `pn` (prefix-name form: "" on public, "#{prefix}_" otherwise — mirrors
+    # Catalog's `:exempt` convention, v56.ex/v61.ex's prefix_index_name/2)
+    # is only bound when this floor slice actually contains an object
+    # needing it — an unconditional bind would be a compiler warning (and a
+    # `--warnings-as-errors` failure once this file lands in lib/) on any
+    # slice with none.
+    pn_line =
+      if Enum.any?(indexes ++ constraints, &String.contains?(&1, interp_pn())) do
+        [~s[    pn = if prefix == "public", do: "", else: "] <> interp_prefix() <> ~s[_"]]
+      else
+        []
+      end
+
     [
       "  def up(opts) do",
       ~s[    prefix = Map.get(opts, :prefix, "public")],
       ~s[    create_schema = Map.get(opts, :create_schema, prefix != "public")],
       "    Helpers.validate_prefix!(prefix)",
-      ~s[    p = "] <> interp_prefix() <> ~s[."],
-      "",
-      "    ensure_schema!(prefix, create_schema)",
-      "",
-      "    # -- extensions (immediate, privilege-aware; never bare CREATE EXTENSION)"
+      ~s[    p = "] <> interp_prefix() <> ~s[."]
     ] ++
+      pn_line ++
+      [
+        "",
+        "    ensure_schema!(prefix, create_schema)",
+        "",
+        "    # -- extensions (immediate, privilege-aware; never bare CREATE EXTENSION)"
+      ] ++
       extensions ++
       ["", "    # -- functions (schema-qualified; never search_path-dependent)"] ++
       functions ++
@@ -1981,10 +2111,12 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
   # Source assembly primitives
   # ---------------------------------------------------------------------------
 
-  # Literal `\#{p}` / `\#{prefix}` character sequences for the GENERATED module,
-  # built from @pound so this generator never contains an escapable interpolation.
+  # Literal `\#{p}` / `\#{prefix}` / `\#{pn}` character sequences for the
+  # GENERATED module, built from @pound so this generator never contains an
+  # escapable interpolation.
   defp interp_p, do: @pound <> "{p}"
   defp interp_prefix, do: @pound <> "{prefix}"
+  defp interp_pn, do: @pound <> "{pn}"
 
   # SQL (carrying __SCHEMA__ tokens) -> an execute() source line/heredoc whose
   # interpolations resolve inside the generated module (p / prefix locals).
@@ -2020,6 +2152,13 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
     |> String.replace("'" <> @schema_token <> "'", "'" <> interp_prefix() <> "'")
     |> String.replace(@schema_token <> ".", interp_p())
     |> String.replace(@schema_token, interp_prefix())
+    # Prefix-embedded object names (Catalog.canonicalize_object_name/2) — the
+    # `:exempt` marker resolves via the `pn` local (bare on public, "prefix_"
+    # otherwise — see needs_pn?/1's call site, which conditionally binds it);
+    # `:always` is unconditional, so it inlines `prefix` directly with no new
+    # local needed.
+    |> String.replace(Catalog.name_marker(:exempt), interp_pn())
+    |> String.replace(Catalog.name_marker(:always), interp_prefix() <> "_")
   end
 
   def inspect_literal(data) do
@@ -2046,6 +2185,7 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
   # exactly here). Shapes mirror Catalog.snapshot/2 structures byte-for-byte.
 
   alias PhoenixKit.Squash.Generate.Bimodality
+  alias PhoenixKit.Squash.Generate.Catalog
   alias PhoenixKit.Squash.Generate.Differ
   alias PhoenixKit.Squash.Generate.Emitter
   alias PhoenixKit.Squash.Generate.InventoryGuard
@@ -2320,10 +2460,34 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
         }
       })
 
+    # Prefix-embedded-name regression coverage (spec: stepwise-vs-single-shot
+    # shape bimodality caused by V56/V61's `prefix_index_name/2` idiom —
+    # bare on `public`/`nil`, `"#{prefix}_"` otherwise) — mirrors what
+    # `Catalog.indexes/2` would ACTUALLY produce after capture-time
+    # canonicalization: keyed by the bare suffix, `name_template: :exempt`
+    # on the shape, `Catalog.name_marker(:exempt)` baked into `definition`
+    # in place of the (already-stripped) scratch-schema prefix.
+    indexes =
+      Map.put(v1.indexes, "phoenix_kit_fix_widgets_uuid_idx", %{
+        table: @widgets,
+        unique: true,
+        method: "btree",
+        definition:
+          "CREATE UNIQUE INDEX " <>
+            Catalog.name_marker(:exempt) <>
+            "phoenix_kit_fix_widgets_uuid_idx ON __SCHEMA__." <>
+            "phoenix_kit_fix_widgets USING btree (uuid)",
+        predicate: nil,
+        keys: ["uuid"],
+        opclasses: ["uuid_ops"],
+        name_template: :exempt
+      })
+
     %{
       v1
       | tables: Map.put(v1.tables, @owners, %{}),
         columns: columns,
+        indexes: indexes,
         constraints: constraints,
         seeds: seeds
     }
@@ -2543,6 +2707,8 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
     try do
       objects = mod.objects("fix_pfx")
 
+      leftover_tokens = ["__SCHEMA__", Catalog.name_marker(:exempt), Catalog.name_marker(:always)]
+
       leftover_token =
         Enum.any?(objects, fn object ->
           strings =
@@ -2551,10 +2717,13 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
 
           strings
           |> Enum.filter(&is_binary/1)
-          |> Enum.any?(&String.contains?(&1, "__SCHEMA__"))
+          |> Enum.any?(fn s -> Enum.any?(leftover_tokens, &String.contains?(s, &1)) end)
         end)
 
-      assert!(not leftover_token, "manifest: objects/1 substitutes every __SCHEMA__ token")
+      assert!(
+        not leftover_token,
+        "manifest: objects/1 substitutes every __SCHEMA__/prefix-embedded-name token"
+      )
 
       uuid_fn =
         Enum.find(objects, &(&1.id == "function:uuid_generate_v7()"))
@@ -2624,7 +2793,49 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
       payment = Enum.find(objects, &(&1.id == "seed:phoenix_kit_payment_options:cod"))
       assert!(payment.create =~ "''as is''", "manifest: single quotes escaped in seed values")
 
+      # Prefix-embedded-name templating (spec: stepwise-vs-single-shot shape
+      # bimodality, V56/V61's prefix_index_name/2 idiom) — on a NAMED
+      # prefix the index's real name is prefixed.
+      prefixed_idx = Enum.find(objects, &(&1.id == "index:phoenix_kit_fix_widgets_uuid_idx"))
+
+      assert!(
+        prefixed_idx.create =~
+          "CREATE UNIQUE INDEX IF NOT EXISTS fix_pfx_phoenix_kit_fix_widgets_uuid_idx ON " <>
+            "fix_pfx.phoenix_kit_fix_widgets",
+        "manifest: prefix-embedded index create resolves PREFIXED on a named schema"
+      )
+
+      assert!(
+        match?(
+          {:catalog, %{name: "fix_pfx_phoenix_kit_fix_widgets_uuid_idx"}},
+          prefixed_idx.check
+        ),
+        "manifest: prefix-embedded index check.name resolves PREFIXED on a named schema"
+      )
+
       assert!(mod.objects(nil) != [], "manifest: nil prefix maps to public")
+
+      # ... and on `public` (nil -> "public") the SAME object's real name is
+      # BARE — the `:exempt` convention's whole point (v56.ex/v61.ex never
+      # embed the prefix for a public install).
+      public_idx =
+        nil
+        |> mod.objects()
+        |> Enum.find(&(&1.id == "index:phoenix_kit_fix_widgets_uuid_idx"))
+
+      assert!(
+        public_idx.create =~
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_fix_widgets_uuid_idx ON " <>
+            "public.phoenix_kit_fix_widgets" and
+          not String.contains?(public_idx.create, "public_phoenix_kit_fix_widgets_uuid_idx"),
+        "manifest: prefix-embedded index create resolves BARE on public"
+      )
+
+      assert!(
+        match?({:catalog, %{name: "phoenix_kit_fix_widgets_uuid_idx"}}, public_idx.check),
+        "manifest: prefix-embedded index check.name resolves BARE on public"
+      )
+
       assert!(raises?(fn -> mod.objects("Bad-Prefix") end), "manifest: invalid prefix raises")
 
       invariant = mod.data_invariants("fix_pfx") |> List.first()
@@ -2653,6 +2864,7 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
 
     interp_p = @pound <> "{p}"
     interp_prefix = @pound <> "{prefix}"
+    interp_pn = @pound <> "{pn}"
 
     for needle <- [
           "Helpers.ensure_extension!(\"citext\")",
@@ -2667,7 +2879,12 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
           "WHERE NOT EXISTS",
           "seed_best_effort_helpers()",
           "Mix.Tasks.PhoenixKit.SeedTemplates",
-          "DROP TABLE IF EXISTS " <> interp_p <> "phoenix_kit_fix_widgets CASCADE"
+          "DROP TABLE IF EXISTS " <> interp_p <> "phoenix_kit_fix_widgets CASCADE",
+          # Prefix-embedded-name templating: `pn` is bound (only because this
+          # slice has an object needing it) and the index create interpolates
+          # it in place of the (stripped) scratch-schema prefix.
+          ~s[pn = if prefix == "public", do: "", else: "] <> interp_prefix <> ~s[_"],
+          "CREATE UNIQUE INDEX IF NOT EXISTS " <> interp_pn <> "phoenix_kit_fix_widgets_uuid_idx"
         ] do
       assert!(String.contains?(src5, needle), "baseline v5: source contains #{inspect(needle)}")
     end
@@ -2703,7 +2920,14 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
       "baseline v1: floor-scoped revision selected"
     )
 
-    for absent <- ["note", "phoenix_kit_fix_owners", "seed_best_effort_helpers", "fix_locale"] do
+    for absent <- [
+          "note",
+          "phoenix_kit_fix_owners",
+          "seed_best_effort_helpers",
+          "fix_locale",
+          # since: 5 — out of scope for the floor=1 slice.
+          "phoenix_kit_fix_widgets_uuid_idx"
+        ] do
       assert!(
         not String.contains?(src1, absent),
         "baseline v1: source must NOT contain #{inspect(absent)}"

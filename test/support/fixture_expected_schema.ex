@@ -146,6 +146,7 @@ defmodule PhoenixKit.Test.FixtureExpectedSchema do
         {142, column_shape("character varying(120)", not_null: true, pos: 2)}
       ]),
       widgets_owner_uuid_index_object(),
+      owners_prefix_embedded_index_object(),
       constraint_object(
         @widgets,
         "phoenix_kit_fixture_widgets_pkey",
@@ -427,6 +428,55 @@ defmodule PhoenixKit.Test.FixtureExpectedSchema do
       ],
       presence: :required,
       check: {:catalog, %{kind: :index, name: name, table: @widgets}},
+      create: index_create_sql(definition),
+      backfill: nil
+    }
+  end
+
+  # Prefix-embedded-name regression coverage (spec: stepwise-vs-single-shot
+  # shape bimodality, V56.ex:574-576's/V61.ex's `prefix_index_name/2`
+  # idiom — bare on `public`/`nil`, `"#{prefix}_"` otherwise). Mirrors what
+  # `PhoenixKit.Squash.Generate.Catalog`'s capture-time canonicalization
+  # produces: keyed by the bare suffix, the marker baked into
+  # `definition`/`check.name` in place of the (already-stripped)
+  # scratch-schema prefix — `Object.materialize/2` resolves it exactly like
+  # `Emitter`'s baked-in-generated-source copy does.
+  #
+  # Deliberately NON-unique, on `name` (not `uuid`): a first-DB-contact
+  # defect surfaced when this was a UNIQUE index on `@owners`'s `uuid`
+  # column, which already carries a `PRIMARY KEY (uuid)` — a second unique
+  # index over the identical column gave Postgres's own FK-resolution logic
+  # (`phoenix_kit_fixture_widgets_owner_uuid_fkey REFERENCES owners(uuid)`)
+  # two equally-valid candidate supporting indexes, and it silently bound
+  # the constraint to THIS one instead of the pkey — a real DB artifact of
+  # the fixture's own choice of column, nothing to do with the templating
+  # mechanism under test. `name` has no competing constraint, so it cannot
+  # recur here.
+  defp owners_prefix_embedded_index_object do
+    bare = "phoenix_kit_fixture_owners_name_idx"
+    marker = Object.name_marker(:exempt)
+
+    definition =
+      "CREATE INDEX #{marker}#{bare} ON __SCHEMA__.#{@owners} USING btree (name)"
+
+    %{
+      id: "index:#{bare}",
+      class: :index,
+      since: 5,
+      revisions: [
+        {5,
+         %{
+           table: @owners,
+           unique: false,
+           method: "btree",
+           definition: definition,
+           predicate: nil,
+           keys: ["name"],
+           opclasses: ["text_ops"]
+         }}
+      ],
+      presence: :required,
+      check: {:catalog, %{kind: :index, name: "#{marker}#{bare}", table: @owners}},
       create: index_create_sql(definition),
       backfill: nil
     }

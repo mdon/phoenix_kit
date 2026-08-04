@@ -296,6 +296,50 @@ defmodule PhoenixKit.Squash.DumpHelper do
   end
 
   @doc """
+  Detects the SAME `<schema>_phoenix_kit_*` idiom `substitute_schema/2` folds
+  away above, but for an EXACT identifier (an index/constraint NAME, not a
+  free-text SQL blob) — returns the bare suffix with the scratch-schema
+  prefix stripped, or `nil` when `identifier` does not start with it.
+  Anchored to the START of `identifier` (unlike `substitute_schema/2`'s
+  free-text scan) — an index/constraint name is one token, not prose, so a
+  match can only ever be meaningful there.
+
+  Used by the manifest generator (`PhoenixKit.Squash.Generate.Catalog`) to
+  canonicalize an object's dictionary KEY at capture time, so a stepwise and
+  a single-shot run — which use different scratch schema names — key the
+  SAME real-world object identically and never manufacture a phantom
+  presence-bimodality pair out of it (spec 3.7's `:legacy_optional` model is
+  for genuine presence differences, not a scratch-schema-name artifact).
+  `substitute_schema/2`'s fold above always collapses to the BARE form
+  regardless of which of the two known real-world naming conventions
+  produced the name (v56.ex/v61.ex's `prefix_index_name/2` — bare on
+  `public`, prefixed otherwise — vs v26.ex's inline naming — always
+  prefixed, `public` included) — that is correct for THIS module's own
+  scratch-vs-scratch dump comparisons, but callers that need the TRUE
+  real-world name for a specific target prefix (the generator's Emitter,
+  rendering an installable manifest/baseline) must re-derive it themselves
+  from the bare suffix this function returns, keyed to the correct
+  convention per object — see `Catalog.classify_exemption/1`.
+
+      iex> DumpHelper.prefix_embedded_bare_suffix("pk_step_phoenix_kit_x_uuid_idx", "pk_step")
+      "phoenix_kit_x_uuid_idx"
+      iex> DumpHelper.prefix_embedded_bare_suffix("phoenix_kit_x_uuid_idx", "pk_step")
+      nil
+      iex> DumpHelper.prefix_embedded_bare_suffix("pk_step_something_else", "pk_step")
+      nil
+  """
+  @spec prefix_embedded_bare_suffix(String.t(), String.t()) :: String.t() | nil
+  def prefix_embedded_bare_suffix(identifier, schema_name)
+      when is_binary(identifier) and is_binary(schema_name) do
+    prefix = schema_name <> "_"
+
+    if String.starts_with?(identifier, prefix) do
+      rest = String.replace_prefix(identifier, prefix, "")
+      if String.starts_with?(rest, "phoenix_kit"), do: rest
+    end
+  end
+
+  @doc """
   Normalize a seed-data dump: remap uuids to `<uuid-N>` (N = order of first
   appearance, case-insensitive, consistent across the whole text) and replace
   timestamp-shaped values with `<ts>`. Pure.
@@ -539,6 +583,7 @@ defmodule PhoenixKit.Squash.DumpHelper do
   def run_self_checks do
     check_splitter()
     check_substitution()
+    check_prefix_embedded_bare_suffix()
     check_normalise_and_compare()
     check_seed_normalizer()
     check_unified_diff()
@@ -576,6 +621,29 @@ defmodule PhoenixKit.Squash.DumpHelper do
       ~s(SELECT * FROM __SCHEMA__.t, pk_a_extra.u, x_pk_a.v WHERE s = '__SCHEMA__' AND q = "__SCHEMA__")
 
     check!(substitute_schema(input, "pk_a") == expected, "substitution: word boundaries")
+  end
+
+  defp check_prefix_embedded_bare_suffix do
+    check!(
+      prefix_embedded_bare_suffix("pk_step_phoenix_kit_x_uuid_idx", "pk_step") ==
+        "phoenix_kit_x_uuid_idx",
+      "prefix_embedded_bare_suffix: strips a matching scratch-schema prefix"
+    )
+
+    check!(
+      prefix_embedded_bare_suffix("phoenix_kit_x_uuid_idx", "pk_step") == nil,
+      "prefix_embedded_bare_suffix: nil when the identifier does not start with the schema"
+    )
+
+    check!(
+      prefix_embedded_bare_suffix("pk_step_something_else", "pk_step") == nil,
+      "prefix_embedded_bare_suffix: nil when not immediately followed by phoenix_kit"
+    )
+
+    check!(
+      prefix_embedded_bare_suffix("other_pk_step_phoenix_kit_x", "pk_step") == nil,
+      "prefix_embedded_bare_suffix: anchored to the START, not a mid-string match"
+    )
   end
 
   # Whitelist branch coverage: comma-in-type column line + pg_dump's wrapped

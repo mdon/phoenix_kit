@@ -254,6 +254,21 @@ defmodule PhoenixKit.Migrations.ExpectedSchema.Object do
 
   @schema_token "__SCHEMA__"
 
+  # Prefix-embedded object NAME markers — mirrors
+  # `PhoenixKit.Squash.Generate.Catalog`'s identical constants exactly (see
+  # its moduledoc section on prefix-embedded object names for the full "why":
+  # a handful of index/constraint names, e.g. `phoenix_kit_settings_uuid_idx`,
+  # embed the runtime prefix directly in their OWN name rather than only
+  # schema-qualifying a table reference — `:exempt` is bare on `public`/`nil`
+  # else `"#{prefix}_"` (v56.ex/v61.ex's `prefix_index_name/2`); `:always` is
+  # `"#{prefix}_"` unconditionally, `public` included (v26.ex's one inline
+  # site — confirmed empirically, not derived from reading the source alone).
+  # A manifest object whose `check`/`create`/shape-`definition` embeds one of
+  # these is resolved by `materialize_value/2` below exactly like
+  # `@schema_token`, just with the extra public/always branch.
+  @name_marker_exempt "__PK_NAME_EXEMPT__"
+  @name_marker_always "__PK_NAME_ALWAYS__"
+
   @typedoc """
   The object's category. Matches `PhoenixKit.Squash.Generate.Differ.@singular`
   exactly. Deliberately excludes `:comment` (see moduledoc deviation 1) and
@@ -355,6 +370,17 @@ defmodule PhoenixKit.Migrations.ExpectedSchema.Object do
   def schema_token, do: @schema_token
 
   @doc """
+  The prefix-embedded-name marker tokens (see the `@name_marker_exempt`/
+  `@name_marker_always` module attribute comment above) — exposed the same
+  way `schema_token/0` is, so a hand-written implementation (fixtures
+  included) builds prefix-embedded-name shapes against these rather than
+  hardcoded literals.
+  """
+  @spec name_marker(:exempt | :always) :: String.t()
+  def name_marker(:exempt), do: @name_marker_exempt
+  def name_marker(:always), do: @name_marker_always
+
+  @doc """
   Normalizes a manifest-facing `prefix` argument the way every conformant
   `objects/1`/`data_invariants/1` implementation must: `nil` becomes
   `"public"`; anything else is validated via
@@ -410,18 +436,27 @@ defmodule PhoenixKit.Migrations.ExpectedSchema.Object do
   end
 
   defp materialize_create(sql, prefix) when is_binary(sql),
-    do: String.replace(sql, @schema_token, prefix)
+    do: materialize_value(sql, prefix)
 
-  defp materialize_check({:catalog, spec}, _prefix), do: {:catalog, spec}
+  # Routed through materialize_value/2 like every other string field — a
+  # catalog spec's `:name` (the only field that has ever needed it) is
+  # resolved the same way `:create`/shape strings are. Harmless no-op for
+  # every OTHER catalog spec, whose values never contain either token.
+  defp materialize_check({:catalog, spec}, prefix),
+    do: {:catalog, Map.new(spec, fn {k, v} -> {k, materialize_value(v, prefix)} end)}
 
   defp materialize_check(sql, prefix) when is_binary(sql),
-    do: String.replace(sql, @schema_token, prefix)
+    do: materialize_value(sql, prefix)
 
   defp materialize_shape(shape, prefix),
     do: Map.new(shape, fn {k, v} -> {k, materialize_value(v, prefix)} end)
 
-  defp materialize_value(value, prefix) when is_binary(value),
-    do: String.replace(value, @schema_token, prefix)
+  defp materialize_value(value, prefix) when is_binary(value) do
+    value
+    |> String.replace(@schema_token, prefix)
+    |> String.replace(@name_marker_exempt, if(prefix == "public", do: "", else: "#{prefix}_"))
+    |> String.replace(@name_marker_always, "#{prefix}_")
+  end
 
   defp materialize_value(value, prefix) when is_list(value),
     do: Enum.map(value, &materialize_value(&1, prefix))
