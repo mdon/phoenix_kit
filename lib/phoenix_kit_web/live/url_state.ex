@@ -114,6 +114,20 @@ defmodule PhoenixKitWeb.Live.UrlState do
   If the LiveView already defines its own `handle_params/3` it is kept, and the
   state hook composes alongside it — both run. Only a LiveView with no
   `handle_params/3` of its own gets the stub that `push_patch` requires.
+
+  ## `@impl` is all-or-nothing
+
+  Elixir demands `@impl` on *every* callback of a module that uses it on any
+  one of them, so match whatever the LiveView already does:
+
+    * **Annotates nothing** (core's own LiveViews) — leave `handle_url_state/2`
+      bare. Adding `@impl` here turns `mount/3`, `handle_event/3` and friends
+      into warnings, which `mix precommit` compiles as errors.
+    * **Annotates its callbacks** (Andi's LiveViews) — annotate
+      `handle_url_state/2` too, *and* define an explicit
+      `@impl true def handle_params(_params, _uri, socket), do: {:noreply, socket}`.
+      The stub injected below carries no `@impl`, so letting it be injected into
+      an annotating module is itself a warning.
   """
 
   @typedoc "Decoded state: assign name => value"
@@ -554,18 +568,30 @@ defmodule PhoenixKitWeb.Live.UrlState do
 
   defmacro __using__(opts) do
     params = Keyword.get(opts, :params) || raise ArgumentError, "missing :params"
-    cfg = normalize!(params, opts)
 
+    # The spec is normalised in the CALLER's module body, not here. At macro
+    # expansion the option values are still unexpanded AST: `in: [:asc, :desc]`
+    # happens to *be* a list of atoms and so works by accident, but
+    # `in: ~w(name email)` is a `{:sigil_w, …}` node, and matching a URL value
+    # against a tuple raises Protocol.UndefinedError at request time — past
+    # compilation, past the codec's own tests. Unquoting the options into a
+    # module attribute makes them evaluate normally, so the spec sees the list
+    # the sigil produces.
     quote do
       @behaviour PhoenixKitWeb.Live.UrlState
 
       import PhoenixKitWeb.Live.UrlState,
         only: [push_url_state: 2, push_url_state: 3, url_state_path: 2, reset_url_state: 1]
 
-      @doc false
-      def __phoenix_kit_url_state__, do: unquote(Macro.escape(cfg))
+      @phoenix_kit_url_state_cfg PhoenixKitWeb.Live.UrlState.normalize!(
+                                   unquote(params),
+                                   unquote(opts)
+                                 )
 
-      on_mount({PhoenixKitWeb.Live.UrlState, {:url_state, unquote(Macro.escape(cfg))}})
+      @doc false
+      def __phoenix_kit_url_state__, do: @phoenix_kit_url_state_cfg
+
+      on_mount({PhoenixKitWeb.Live.UrlState, {:url_state, @phoenix_kit_url_state_cfg}})
 
       @before_compile PhoenixKitWeb.Live.UrlState
     end

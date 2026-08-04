@@ -1,3 +1,24 @@
+defmodule PhoenixKitWeb.Live.UrlStateSigilLive do
+  @moduledoc """
+  Exists only to exercise `use PhoenixKitWeb.Live.UrlState` for real.
+
+  The codec tests hand `normalize!/2` an already-evaluated list, so they cannot
+  see whether the macro evaluated its options. A `~w()` sigil is the case that
+  matters: as unexpanded AST it is a `{:sigil_w, …}` tuple, and a spec built
+  from that raises only when a request arrives.
+  """
+  use Phoenix.LiveView
+
+  use PhoenixKitWeb.Live.UrlState,
+    params: [
+      sort_by: [default: "name", in: ~w(name email created)],
+      sort_dir: [default: :desc, cast: :atom, in: [:asc, :desc]]
+    ]
+
+  def handle_url_state(_state, socket), do: socket
+  def render(assigns), do: ~H"<div></div>"
+end
+
 defmodule PhoenixKitWeb.Live.UrlStateTest do
   @moduledoc """
   Codec tests for `PhoenixKitWeb.Live.UrlState`.
@@ -323,6 +344,24 @@ defmodule PhoenixKitWeb.Live.UrlStateTest do
       assert_raise ArgumentError, ~r/pass `assigns`, not `@socket`/, fn ->
         UrlState.url_state_path(socket, search_query: "ivan")
       end
+    end
+  end
+
+  describe "use PhoenixKitWeb.Live.UrlState" do
+    alias PhoenixKitWeb.Live.UrlStateSigilLive
+
+    test "evaluates its options, so a ~w sigil in :in becomes a list" do
+      cfg = UrlStateSigilLive.__phoenix_kit_url_state__()
+      sort_by = Enum.find(cfg.params, &(&1.key == :sort_by))
+
+      assert sort_by.allowed == ["name", "email", "created"]
+    end
+
+    test "whitelists against that list at request time" do
+      cfg = UrlStateSigilLive.__phoenix_kit_url_state__()
+
+      assert UrlState.decode(%{"sort_by" => "email"}, cfg).sort_by == "email"
+      assert UrlState.decode(%{"sort_by" => "'; DROP TABLE users--"}, cfg).sort_by == "name"
     end
   end
 
