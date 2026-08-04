@@ -513,6 +513,7 @@ defmodule PhoenixKitWeb.Live.UrlState do
       |> Map.fetch!(@state_assign)
       |> Map.merge(changes)
       |> maybe_reset_page(changes, cfg)
+      |> sanitize(cfg)
 
     path = assigns[@path_assign] || assigns[:url_path] || "/"
     extra = assigns[@extra_assign] || %{}
@@ -540,6 +541,27 @@ defmodule PhoenixKitWeb.Live.UrlState do
         """
     end
   end
+
+  # A value the decoder would reject must never reach the URL, or the address
+  # bar and the assigns disagree: the link says one thing, a reload shows
+  # another. Callers do push values the spec has not seen — a screen that
+  # re-picks a sort column after the current one is hidden hands over whatever
+  # column is left, sortable or not.
+  defp sanitize(state, cfg) do
+    Map.new(cfg.params, fn spec ->
+      value = Map.get(state, spec.key, spec.default)
+      {spec.key, if(valid_value?(value, spec), do: value, else: spec.default)}
+    end)
+  end
+
+  defp valid_value?(value, %{allowed: nil} = spec), do: within_bounds?(value, spec)
+  defp valid_value?(value, spec), do: value in spec.allowed and within_bounds?(value, spec)
+
+  defp within_bounds?(value, %{cast: :integer} = spec) when is_integer(value) do
+    (is_nil(spec.min) or value >= spec.min) and (is_nil(spec.max) or value <= spec.max)
+  end
+
+  defp within_bounds?(_value, _spec), do: true
 
   defp maybe_reset_page(state, _changes, %{page_param: false}), do: state
 

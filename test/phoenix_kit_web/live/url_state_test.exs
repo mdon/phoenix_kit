@@ -329,6 +329,29 @@ defmodule PhoenixKitWeb.Live.UrlStateTest do
       assert UrlState.url_state_path(bare, search_query: "ivan") == "/?q=ivan"
     end
 
+    test "never writes a value the decoder would reject" do
+      spec =
+        cfg(
+          status: [default: "any", in: ~w(any open closed)],
+          page: [default: 1, cast: :integer, min: 1, max: 99]
+        )
+
+      state = UrlState.decode(%{}, spec)
+
+      assigns = %{
+        :__phoenix_kit_url_cfg__ => spec,
+        :__phoenix_kit_url_state__ => state,
+        :__phoenix_kit_url_path__ => "/admin/things",
+        :__phoenix_kit_url_extra__ => %{}
+      }
+
+      # a caller handing over a value outside the whitelist, or out of bounds,
+      # falls back to the default instead of putting a lie in the address bar
+      assert UrlState.url_state_path(assigns, status: "deleted") == "/admin/things"
+      assert UrlState.url_state_path(assigns, page: 500) == "/admin/things"
+      assert UrlState.url_state_path(assigns, status: "open") == "/admin/things?status=open"
+    end
+
     test "rejects a change keyed by URL key instead of assign name" do
       state = UrlState.decode(%{}, cfg())
 
