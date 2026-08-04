@@ -13,7 +13,7 @@ config :phoenix_kit, PhoenixKit.Test.Repo,
   database:
     System.get_env("PGDATABASE", "phoenix_kit_test#{System.get_env("MIX_TEST_PARTITION")}"),
   pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2,
+  pool_size: String.to_integer(System.get_env("PGPOOL", "#{System.schedulers_online() * 2}")),
   priv: "test/support/postgres"
 
 # Wire repo for library code that calls PhoenixKit.Config.get(:repo)
