@@ -436,12 +436,35 @@ defmodule PhoenixKitWeb.Integration do
     # so plugin LiveViews don't need to wrap with LayoutWrapper themselves
     plugin_admin_routes = compile_plugin_admin_routes(__CALLER__.module)
 
-    # Shop admin routes via safe_route_call (only when phoenix_kit_ecommerce is installed)
+    # Shop admin routes.
+    #
+    # `phoenix_kit_ecommerce` declares `route_module/0`, so auto-discovery
+    # below (`compile_external_admin_routes/1`) already emits these — and
+    # this hardcoded call emitted them a SECOND time, producing 36
+    # duplicate route groups in a full install. Harmless at match time
+    # (Phoenix takes the first) but it bloats every host's route table and
+    # is the kind of noise a real shadowing bug hides in.
+    #
+    # Kept as a FALLBACK rather than deleted: discovery depends on beam
+    # scanning finding the module, which needs `:phoenix_kit` in the
+    # module's `extra_applications` and can miss under an aggressively
+    # stripped release. Losing the shop admin entirely is a far worse
+    # failure than listing it twice, so the hardcoded path stays for the
+    # case where discovery came up empty for this module — and is skipped
+    # when discovery already covered it.
+    #
+    # The rest of core does not reference feature modules; this is the one
+    # remaining exception and it now costs nothing when discovery works.
     shop_admin =
-      if suffix == :_locale do
-        safe_route_call(PhoenixKitEcommerce.Web.Routes, :admin_locale_routes, [])
+      if PhoenixKitEcommerce.Web.Routes in all_route_modules() do
+        quote do
+        end
       else
-        safe_route_call(PhoenixKitEcommerce.Web.Routes, :admin_routes, [])
+        if suffix == :_locale do
+          safe_route_call(PhoenixKitEcommerce.Web.Routes, :admin_locale_routes, [])
+        else
+          safe_route_call(PhoenixKitEcommerce.Web.Routes, :admin_routes, [])
+        end
       end
 
     # External route modules with complex routes (beyond simple admin tabs)
