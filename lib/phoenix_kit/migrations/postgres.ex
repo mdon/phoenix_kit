@@ -1440,6 +1440,7 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   use Ecto.Migration
 
+  alias PhoenixKit.Migrations.BelowFloorError
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
@@ -1463,15 +1464,18 @@ defmodule PhoenixKit.Migrations.Postgres do
     opts = with_defaults(opts, @current_version)
     initial = migrated_version(opts)
 
-    cond do
-      initial == 0 ->
-        change(@initial_version..opts.version, :up, opts)
+    case plan_up(initial, opts.version, @initial_version) do
+      {:raise, db_version, floor} ->
+        raise BelowFloorError, db_version: db_version, floor: floor, context: :up
 
-      initial < opts.version ->
+      {:run, range} ->
+        change(range, :up, opts)
+
+      {:run_delta, range} ->
         if initial >= @uuid_fn_version, do: Helpers.ensure_uuid_v7_function(opts.prefix)
-        change((initial + 1)..opts.version, :up, opts)
+        change(range, :up, opts)
 
-      true ->
+      :noop ->
         :ok
     end
   end
@@ -1496,10 +1500,146 @@ defmodule PhoenixKit.Migrations.Postgres do
     # - If version specified, rollback to that version
     target_version = Map.get(opts, :version, 0)
 
-    if current_version > target_version do
-      # For rollback from version N to version M, execute down for versions N, N-1, ..., M+1
-      # This means we don't execute down for the target version itself
-      change(current_version..(target_version + 1)//-1, :down, opts)
+    case plan_down(current_version, target_version, @initial_version) do
+      {:raise, db_version, floor} ->
+        raise BelowFloorError, db_version: db_version, floor: floor, context: :down
+
+      {:teardown, range, floor} ->
+        # `range` (current..(floor+1)//-1) never includes `floor` itself — a
+        # Range spanning down to/past the floor would, once versions below a
+        # RAISED floor are deleted from the codebase, dispatch to modules
+        # that no longer exist (GLM M3). The floor's own down/1 is applied
+        # as an explicit list element instead of a computed range endpoint.
+        # Folded into ONE `change/3` call (not two) so the progress
+        # header/bar spans the whole teardown exactly as before this
+        # split existed — `change/3` only ever consumes its first argument
+        # via `Enum.to_list/1`, so a plain list works identically to a
+        # Range. At `@initial_version == 1` this list is byte-for-byte the
+        # same `[current, current - 1, ..., 1]` the old single range
+        # produced (see `PostgresBelowFloorTest` "down/1 teardown
+        # degenerates to today's single-range semantics at floor 1").
+        change(Enum.to_list(range) ++ [floor], :down, opts)
+
+      {:clamped, range, floor} ->
+        IO.warn(
+          "PhoenixKit down/1: target version #{target_version} is below this release's " <>
+            "floor (V#{floor}) — clamping to V#{floor}. Below-floor PhoenixKit state cannot " <>
+            "be rolled back through this release (the migration bridge is required for " <>
+            "that). This is a recorded no-op: the calling migration's own schema_migrations " <>
+            "row is marked rolled back, but PhoenixKit's own version comment stays at V#{floor}."
+        )
+
+        change(range, :down, opts)
+
+      {:run, range} ->
+        change(range, :down, opts)
+
+      :noop ->
+        :ok
+    end
+  end
+
+  @typedoc "Routing decision `up/1` acts on — pure, see `plan_up/3`."
+  @type up_plan ::
+          {:raise, db_version :: pos_integer(), floor :: pos_integer()}
+          | {:run, Range.t()}
+          | {:run_delta, Range.t()}
+          | :noop
+
+  # Pure routing decision for `up/1`, spec §5.2. Takes the DB's currently
+  # migrated version, the requested target, and the floor to check against —
+  # no DB access, no module attribute reads — so it is unit-testable at ANY
+  # floor, not just whatever `@initial_version` currently compiles to.
+  #
+  #   * `initial > 0 and initial < initial_version` — below-floor install;
+  #     this release's chain cannot replay it. `{:raise, initial,
+  #     initial_version}`.
+  #   * `initial == 0` — fresh install; clamps the target up to at least the
+  #     floor (D13 — covers both a pinned below-floor wrapper doing
+  #     `up(version: 27)` under a higher floor, and a pathological
+  #     `version: 0`/negative pin). `{:run, initial_version..max(target,
+  #     initial_version)}`.
+  #   * `initial < target` — ordinary delta upgrade. `{:run_delta,
+  #     (initial + 1)..target}` (the `_delta` tag tells `up/1` to also run
+  #     the uuid-function re-ensure, same as today).
+  #   * else `:noop` — already at or past target.
+  @doc false
+  @spec plan_up(
+          initial :: non_neg_integer(),
+          target :: integer(),
+          initial_version :: pos_integer()
+        ) :: up_plan()
+  def plan_up(initial, target, initial_version) do
+    cond do
+      initial > 0 and initial < initial_version ->
+        {:raise, initial, initial_version}
+
+      initial == 0 ->
+        {:run, initial_version..max(target, initial_version)}
+
+      initial < target ->
+        {:run_delta, (initial + 1)..target}
+
+      true ->
+        :noop
+    end
+  end
+
+  @typedoc "Routing decision `down/1` acts on — pure, see `plan_down/3`."
+  @type down_plan ::
+          {:raise, db_version :: pos_integer(), floor :: pos_integer()}
+          | {:teardown, Range.t(), floor :: pos_integer()}
+          | {:clamped, Range.t(), floor :: pos_integer()}
+          | {:run, Range.t()}
+          | :noop
+
+  # Pure routing decision for `down/1`, spec §5.2. Same DB-free/floor-free
+  # shape as `plan_up/3` — see its comment.
+  #
+  #   * `current > 0 and current < initial_version` — below-floor install;
+  #     cannot be rolled back through this release either (a below-floor
+  #     install has no `up/1` path INTO this release to roll back from in
+  #     the first place — reachable only if the comment regressed under it
+  #     by some other means). `{:raise, current, initial_version}`.
+  #   * `current <= target` — already at or below target; no-op (matches
+  #     the pre-existing `if current_version > target_version` guard).
+  #   * `target == 0` — full teardown. `{:teardown,
+  #     current..(initial_version + 1)//-1, initial_version}` — the range
+  #     stops one above the floor; `down/1` applies the floor module
+  #     directly for the last step (see its own comment for why).
+  #   * `0 < target < initial_version` — target requests a below-floor
+  #     shape this release can't produce; clamps to the floor instead of
+  #     guessing. `{:clamped, current..(initial_version + 1)//-1,
+  #     initial_version}` (dormant while `initial_version` is 1 — no
+  #     integer satisfies `0 < target < 1`).
+  #   * else — ordinary partial rollback, unchanged. `{:run,
+  #     current..(target + 1)//-1}`.
+  #
+  # A negative `target` falls through to the last branch, matching today's
+  # (pre-existing, unguarded) behavior — out of scope for this pass, which
+  # only wires the three branches spec §5.2 names.
+  @doc false
+  @spec plan_down(
+          current :: non_neg_integer(),
+          target :: integer(),
+          initial_version :: pos_integer()
+        ) :: down_plan()
+  def plan_down(current, target, initial_version) do
+    cond do
+      current > 0 and current < initial_version ->
+        {:raise, current, initial_version}
+
+      current <= target ->
+        :noop
+
+      target == 0 ->
+        {:teardown, current..(initial_version + 1)//-1, initial_version}
+
+      target > 0 and target < initial_version ->
+        {:clamped, current..(initial_version + 1)//-1, initial_version}
+
+      true ->
+        {:run, current..(target + 1)//-1}
     end
   end
 

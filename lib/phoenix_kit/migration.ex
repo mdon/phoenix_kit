@@ -321,6 +321,16 @@ defmodule PhoenixKit.Migration do
     )
 
     :ok
+  rescue
+    # Below-floor DB (spec §5.2): re-raise with the test/CI-database hint
+    # `PhoenixKit.Migrations.BelowFloorError.message/1` only appends for
+    # `context: :ensure_current` — "install the bridge" is the wrong advice
+    # for this call site's actual common case, a persistent below-floor CI
+    # database (GLM M6). Ecto.Migrator's own mechanics above are untouched;
+    # this only decorates whatever `PhoenixKit.Migration.up/1` (reached
+    # through `PhoenixKit.Migration.Runner.up/0`) already raised.
+    e in PhoenixKit.Migrations.BelowFloorError ->
+      reraise %{e | context: :ensure_current}, __STACKTRACE__
   end
 
   defp migrator do

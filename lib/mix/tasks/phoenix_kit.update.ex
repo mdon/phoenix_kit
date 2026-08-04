@@ -413,40 +413,70 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
         :ok ->
           # Second pass: Configuration exists, app is started, proceed with migration
-          case Common.check_installation_status(prefix) do
-            {:not_installed} ->
-              add_not_installed_notice(igniter, prefix)
+          handle_installation_status(
+            Common.check_installation_status(prefix),
+            igniter,
+            prefix,
+            force,
+            opts
+          )
+      end
+    end
 
-            {:unreachable, reason} ->
-              Igniter.add_warning(igniter, """
-              ❌ Cannot reach the database to determine the installed PhoenixKit
-              version (#{inspect(reason)}).
+    # Split out of `perform_igniter_update/2` to keep its cyclomatic
+    # complexity down (credo's Refactor.CyclomaticComplexity) — this branch
+    # was the below-floor addition's cost.
+    defp handle_installation_status({:not_installed}, igniter, prefix, _force, _opts) do
+      add_not_installed_notice(igniter, prefix)
+    end
 
-              Not generating an update migration — fix the database connection
-              and re-run mix phoenix_kit.update.
-              """)
+    defp handle_installation_status({:unreachable, reason}, igniter, _prefix, _force, _opts) do
+      Igniter.add_warning(igniter, """
+      ❌ Cannot reach the database to determine the installed PhoenixKit
+      version (#{inspect(reason)}).
 
-            {:current_version, current_version} ->
-              target_version = Common.current_version()
+      Not generating an update migration — fix the database connection
+      and re-run mix phoenix_kit.update.
+      """)
+    end
 
-              cond do
-                current_version >= target_version && !force ->
-                  add_already_up_to_date_notice(igniter, current_version)
+    defp handle_installation_status(
+           {:current_version, current_version},
+           igniter,
+           prefix,
+           force,
+           opts
+         ) do
+      target_version = Common.current_version()
+      floor_version = MigrationsPostgres.initial_version()
 
-                current_version < target_version || force ->
-                  create_update_migration_with_igniter(
-                    igniter,
-                    prefix,
-                    current_version,
-                    target_version,
-                    force,
-                    opts
-                  )
+      cond do
+        # Spec §5.2/§5.3: generating an update migration here would just
+        # defer the SAME hard `BelowFloorError` to migrate-time
+        # (`PhoenixKit.Migrations.Postgres.up/1`, once the generated
+        # wrapper actually runs) — refuse up front instead, with the
+        # bridge instructions, rather than hand the operator a migration
+        # file that is guaranteed to raise. Dormant while
+        # `initial_version/0` is 1 (current_version is always >= 1 here —
+        # `{:not_installed}` is a separate clause above).
+        current_version > 0 and current_version < floor_version ->
+          add_below_floor_notice(igniter, current_version, floor_version)
 
-                true ->
-                  igniter
-              end
-          end
+        current_version >= target_version && !force ->
+          add_already_up_to_date_notice(igniter, current_version)
+
+        current_version < target_version || force ->
+          create_update_migration_with_igniter(
+            igniter,
+            prefix,
+            current_version,
+            target_version,
+            force,
+            opts
+          )
+
+        true ->
+          igniter
       end
     end
 
@@ -557,6 +587,32 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       """
 
       Igniter.add_notice(igniter, notice)
+    end
+
+    # Spec §5.2/§5.3 generation-time below-floor refusal. Dormant while
+    # `MigrationsPostgres.initial_version/0` is 1 — every installed DB is
+    # already at or above that floor, so `current_version` can never land
+    # here today. Mirrors `PhoenixKit.Migrations.BelowFloorError`'s message
+    # (this path never touches the DB again, so it can't raise that
+    # exception directly — it names the same bridge instructions instead).
+    defp add_below_floor_notice(igniter, current_version, floor_version) do
+      current_padded = Common.pad_version(current_version)
+      floor_padded = Common.pad_version(floor_version)
+
+      notice = """
+
+      ❌ PhoenixKit database is at V#{current_padded}, below this release's floor
+      (V#{floor_padded}) — this release's chain no longer carries the migration
+      modules below the floor, so it cannot generate a migration that would
+      bring this database current.
+
+      Install the last PhoenixKit 1.7.x release (the migration bridge) first,
+      run its migrations until the reported version is at least V#{floor_padded},
+      THEN move the dependency pin to this release and run
+      mix phoenix_kit.update again.
+      """
+
+      Igniter.add_warning(igniter, notice)
     end
 
     defp add_already_up_to_date_notice(igniter, current_version) do

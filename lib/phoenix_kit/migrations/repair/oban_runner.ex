@@ -36,6 +36,8 @@ defmodule PhoenixKit.Migrations.Repair.ObanRunner do
 
   use Ecto.Migration
 
+  alias Ecto.Migration.Runner
+
   @doc false
   def change, do: Oban.Migration.up(prefix: prefix(), create_schema: false)
 
@@ -53,7 +55,7 @@ defmodule PhoenixKit.Migrations.Repair.ObanRunner do
   """
   @spec up(Ecto.Repo.t(), String.t()) :: :ok
   def up(repo, prefix) do
-    Ecto.Migration.Runner.run(repo, repo.config(), 0, __MODULE__, :forward, :change, :up,
+    Runner.run(repo, repo.config(), 0, __MODULE__, :forward, :change, :up,
       prefix: prefix,
       log: false
     )
