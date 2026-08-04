@@ -40,18 +40,55 @@ defmodule PhoenixKit.Migrations.Postgres.V161 do
 
   1. For every `{table, column}` pair `UUIDFKColumns.add_constraints/1`
      sets NOT NULL on (`UUIDFKColumns.not_null_uuid_fks/0` — the exact same
-     list, not a second copy of it): if the column currently has zero NULL
-     rows, sets NOT NULL — matching the shape a correctly-flushed V56/V57
-     run would already have produced, a no-op if it's already NOT NULL. If
-     NULL rows exist, this does **not** guess: those NULLs may be
-     legitimate application data (e.g. an FK reference to a deleted row
-     with no CASCADE, or a genuinely optional relation) rather than purely
-     an artifact of the flush bug, so it raises a warning naming the
-     table/column/row count and leaves the column nullable for an operator
-     to investigate — never backfills a live column with a random value to
-     force the constraint through (unlike `UUIDFKColumns`' own
-     conversion-era backfill, which only ever ran against columns it had
-     *just* created moments earlier in the same call, never live data).
+     list, not a second copy of it) **minus `@relaxed_after_v57`** (below):
+     if the column currently has zero NULL rows, sets NOT NULL — matching
+     the shape a correctly-flushed V56/V57 run would already have
+     produced, a no-op if it's already NOT NULL. If NULL rows exist, this
+     does **not** guess: those NULLs may be legitimate application data
+     (e.g. an FK reference to a deleted row with no CASCADE, or a
+     genuinely optional relation) rather than purely an artifact of the
+     flush bug, so it raises a warning naming the table/column/row count
+     and leaves the column nullable for an operator to investigate — never
+     backfills a live column with a random value to force the constraint
+     through (unlike `UUIDFKColumns`' own conversion-era backfill, which
+     only ever ran against columns it had *just* created moments earlier
+     in the same call, never live data). Skipped columns (either via the
+     warn path or via `@relaxed_after_v57`) stay nullable **by design** —
+     re-running V161 is an idempotent restamp no-op, it does not retry
+     them; `mix phoenix_kit.repair` is the tool for healing a column an
+     operator has since backfilled by hand.
+
+  ### `@relaxed_after_v57` — columns a LATER version deliberately made nullable again
+
+  `not_null_uuid_fks/0` is V56/V57's own declared list — a snapshot of
+  intent as of V57. Later versions can and do legitimately relax a column
+  on that list for reasons that have nothing to do with the flush bug
+  (V161 blindly re-enforcing NOT NULL on those would silently break
+  whatever feature needed the relaxation — on a *fresh* install, the table
+  starts empty, so the zero-NULL-rows check would not catch this at all).
+  Found by grepping every `DROP NOT NULL` in `v58.ex`..`v161.ex` — after
+  V57, where the flush fix landed — and intersecting the touched
+  `{table, column}` pairs against `not_null_uuid_fks/0` (checked both raw
+  SQL `ALTER COLUMN ... DROP NOT NULL` and the Ecto `modify ..., null:
+  true` DSL form; only the former appears anywhere in this range):
+
+    * `{:phoenix_kit_files, "user_uuid"}` — V113 (`v113.ex`): system-managed
+      media rows (DZI tiles/manifests) have no human owner, only a
+      `parent_file_uuid`; `phoenix_kit_files_user_or_parent_check` enforces
+      "one of the two is set" at the CHECK-constraint level instead.
+      Re-imposing NOT NULL here would break `Storage.store_system_file`'s
+      tile generation on any fresh single-shot install (confirmed: this
+      also poisoned the manifest the squash generator captured from such
+      an install, since both stepwise and single-shot agreed on the same
+      wrong post-repair shape — the bimodality sweep that caught the
+      *naming* bug in this same version could not catch a shape both sides
+      agree on).
+
+  `test/phoenix_kit/migrations/v161_relaxed_columns_test.exs` statically
+  scans `v58.ex`..the current HEAD version for this exact pattern and fails
+  if it finds a `not_null_uuid_fks/0` member relaxed by a later version
+  that is not listed here — a future relaxation cannot silently make this
+  list stale again.
 
   2. `phoenix_kit_comments.fk_comments_user_uuid`: if it currently has `ON
      DELETE CASCADE` (V72's guess, made under the buggy single-shot
@@ -82,6 +119,21 @@ defmodule PhoenixKit.Migrations.Postgres.V161 do
   @comments_ref_table "phoenix_kit_users"
   @comments_ref_column "uuid"
 
+  # See the moduledoc section of the same name — a `not_null_uuid_fks/0`
+  # member a LATER version deliberately dropped NOT NULL from again, so
+  # V161 must not re-impose it. Exposed publicly so
+  # `V161RelaxedColumnsTest` can assert this list stays a superset of every
+  # `DROP NOT NULL` the chain applies to a tracked column after V57.
+  @relaxed_after_v57 [
+    # V113 (v113.ex): system-managed media rows have no human owner, only
+    # a parent_file_uuid; phoenix_kit_files_user_or_parent_check enforces
+    # "one of the two" at the CHECK-constraint level instead.
+    {:phoenix_kit_files, "user_uuid"}
+  ]
+
+  @doc false
+  def relaxed_after_v57, do: @relaxed_after_v57
+
   def up(%{prefix: prefix} = opts) do
     escaped_prefix = Map.get(opts, :escaped_prefix, prefix)
 
@@ -91,7 +143,19 @@ defmodule PhoenixKit.Migrations.Postgres.V161 do
     # added to V56/V57.
     flush()
 
-    for {table, column} <- UUIDFKColumns.not_null_uuid_fks() do
+    # Serialization note: this whole migration (V161 included) runs inside
+    # Ecto.Migrator.up/4's default `:table_lock` migration_lock strategy
+    # (Ecto.Adapters.Postgres.lock_for_migrations/3 — not overridden
+    # anywhere in this codebase), which wraps the entire run in one
+    # transaction/lock. That closes the window between a column's
+    # null_count/1 read below and its SET NOT NULL write against any
+    # CONCURRENT migrator invocation on the same repo; it does not close
+    # the window against ordinary application traffic concurrently
+    # INSERTing a NULL into the same live column mid-migration — the same
+    # deploy discipline (migrations run before the app starts serving
+    # traffic) every other additive migration in this chain already
+    # depends on for exactly this reason.
+    for {table, column} <- UUIDFKColumns.not_null_uuid_fks() -- @relaxed_after_v57 do
       repair_not_null(table, column, prefix, escaped_prefix)
     end
 
@@ -126,13 +190,18 @@ defmodule PhoenixKit.Migrations.Postgres.V161 do
         :unknown ->
           IO.warn(
             "PhoenixKit V161: could not determine NULL count for #{table_str}.#{column} — " <>
-              "leaving nullable."
+              "leaving nullable. This column stays nullable by design (re-running V161 will " <>
+              "not retry it, it is an idempotent restamp no-op) — use mix phoenix_kit.repair " <>
+              "once the cause is understood."
           )
 
         count ->
           IO.warn(
             "PhoenixKit V161: #{table_str}.#{column} has #{count} NULL row(s) — leaving " <>
-              "nullable (never backfilling live data). Investigate before enforcing NOT NULL."
+              "nullable (never backfilling live data). Investigate before enforcing NOT NULL. " <>
+              "This column stays nullable by design (re-running V161 will not retry it, it is " <>
+              "an idempotent restamp no-op) — use mix phoenix_kit.repair once the NULLs are " <>
+              "resolved."
           )
       end
     end
@@ -161,6 +230,22 @@ defmodule PhoenixKit.Migrations.Postgres.V161 do
 
       case comments_fk_on_delete(escaped_prefix) do
         "c" ->
+          # DROP + ADD as two separate execute/1 calls, not one statement —
+          # there is no established precedent anywhere in this chain for
+          # combining multiple DDL statements into a single execute/1 (the
+          # codebase's existing idiom for "must be atomic" is a single
+          # statement guarded by a DO $$ IF NOT EXISTS $$ block, not
+          # multiple statements in one call), so this keeps that
+          # convention rather than introduce a new, unverified one.
+          # Two-statement window is real: a constraint check racing
+          # between the DROP and the ADD would see the FK briefly absent.
+          # Acceptable here because (a) this is a metadata-only repair on
+          # an already-CASCADE-enforced column — no row can be orphaned in
+          # that window, and (b) it runs inside the same migration-wide
+          # transaction/lock discussed on `up/1` above (a DIRECT
+          # connection only — repair/migrations must never run through
+          # PgBouncer, CLAUDE.md: it silently drops transactional DDL
+          # while still recording the migration as applied).
           execute("ALTER TABLE #{table_name} DROP CONSTRAINT #{@comments_constraint}")
           add_comments_fk(table_name, ref_name)
 
