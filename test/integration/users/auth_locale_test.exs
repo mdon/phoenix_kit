@@ -235,6 +235,75 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
     end
   end
 
+  describe "enabled full-dialect locale segments" do
+    # Sibling-dialect public URLs (phoenix_kit_publishing): when two dialects
+    # of one base are enabled (en-US + en-GB), the non-primary sibling is
+    # addressed by its lowercase full code (/en-gb/...). The plug used to
+    # 301 EVERY hyphenated segment to its base, which made those URLs
+    # structurally impossible — an enabled dialect must process, matched
+    # case-insensitively; any other hyphenated segment keeps the redirect.
+
+    setup do
+      config = %{
+        "languages" => [
+          %{
+            "code" => "en-US",
+            "name" => "English (US)",
+            "is_default" => true,
+            "is_enabled" => true
+          },
+          %{
+            "code" => "en-GB",
+            "name" => "English (UK)",
+            "is_default" => false,
+            "is_enabled" => true
+          },
+          %{"code" => "es", "name" => "Spanish", "is_default" => false, "is_enabled" => true}
+        ]
+      }
+
+      Settings.update_json_setting("languages_config", config)
+      :ok
+    end
+
+    test "a lowercase enabled dialect processes with the stored-case locale" do
+      conn =
+        build_conn(:get, "/phoenix_kit/en-gb/blog")
+        |> Plug.Conn.fetch_query_params()
+        |> Map.put(:path_params, %{"locale" => "en-gb"})
+
+      conn = Auth.validate_and_set_locale(conn, [])
+
+      refute conn.halted
+      assert conn.assigns.current_locale == "en-GB"
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    test "the stored-case form processes identically" do
+      conn =
+        build_conn(:get, "/phoenix_kit/en-GB/blog")
+        |> Plug.Conn.fetch_query_params()
+        |> Map.put(:path_params, %{"locale" => "en-GB"})
+
+      conn = Auth.validate_and_set_locale(conn, [])
+
+      refute conn.halted
+      assert conn.assigns.current_locale == "en-GB"
+    end
+
+    test "a NON-enabled dialect keeps the historical redirect to its base" do
+      conn =
+        build_conn(:get, "/phoenix_kit/es-MX/blog")
+        |> Plug.Conn.fetch_query_params()
+        |> Map.put(:path_params, %{"locale" => "es-MX"})
+
+      conn = Auth.validate_and_set_locale(conn, [])
+
+      assert conn.halted
+      assert redirected_to(conn) =~ "/es/"
+    end
+  end
+
   defp build_invalid_locale_conn(path) do
     build_conn(:get, path)
     |> Plug.Conn.fetch_query_params()
