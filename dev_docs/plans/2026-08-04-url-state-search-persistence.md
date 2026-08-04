@@ -112,16 +112,20 @@ variants:
 ```elixir
 use PhoenixKitWeb.Live.UrlState,
   params: [
-    q:        [default: "", alias: "search"],
-    status:   [default: nil, in: ~w(active archived)],
-    sort_by:  [default: "inserted_at", in: ~w(inserted_at name email status)],
-    sort_dir: [default: :desc, cast: :atom, in: [:asc, :desc]],
-    page:     [default: 1, cast: :integer, min: 1]
+    search_query:        [default: "", url_key: "q", alias: "search"],
+    filter_role:         [default: "all", url_key: "role"],
+    filter_account_type: [default: "all", url_key: "account_type"],
+    page:                [default: 1, cast: :integer, min: 1]
   ]
 ```
 
-- **Param key = assign name = URL key.** Adopting an existing LV means listing
-  the assigns it already has, not rewriting its template.
+- **Param key = assign name**, with `url_key:` naming the query-string key
+  separately. The real `users.ex` forced this apart: its assign is
+  `:search_query` while the URL must read `?q=`. Keeping the assign name means
+  the template is untouched by the conversion — the 700-line
+  `users.html.heex` needed no edit at all.
+- **Defaults are not always `nil`/`""`.** `filter_role` defaults to `"all"`, so
+  `"all"` is what gets omitted from the URL.
 - **`alias:`** is decoded but never encoded. `comments`, `billing`, `crm` and
   `catalogue` have already published links carrying `?search=`; MediaBrowser
   publishes `?q=`. The alias lets everything converge on `q` as the canonical
@@ -173,10 +177,35 @@ For `<.pagination>` and `<.link patch=…>`: `url_state_path(socket, page: n)`.
 
 ### Dead render
 
-`dead_render: :skip` (default) — the callback is not invoked before the socket
-connects, avoiding the duplicate query every load would otherwise cost. This is
-what `comments` does by hand. `dead_render: :call` for the public `ecommerce`
-storefront, which needs server-rendered content for indexing.
+`dead_render: :call` is the default. A `mount/3` that loads its data already
+runs on the disconnected render, so calling the callback there preserves
+exactly what the screen does today — adoption changes no behaviour and needs no
+placeholder assigns. `:skip` defers the callback until the socket connects,
+trading an empty first paint for one query per load instead of two; it is what
+`comments` does by hand, and it is wrong for the public `ecommerce` storefront,
+which must serve content to crawlers.
+
+### The callback fires only on a real change
+
+The `:handle_params` hook runs on every navigation in the LiveView, not only the
+ones this module caused. `users.ex` patches `?action=add` to open its add-user
+modal; without a guard that patch would re-run the whole user query. The
+callback therefore fires only when the decoded state differs from the last one
+(or has never run) — the same guard `MediaBrowser.Embed` applies before its
+`send_update`.
+
+### No `@impl` annotation
+
+`handle_url_state/2` is declared through `@behaviour` but must **not** be
+annotated `@impl`. A single `@impl` anywhere in a module makes Elixir demand it
+on every other callback, and core's LiveViews annotate none of their
+`mount`/`handle_event`/`handle_params`/`handle_info` — one annotation turns into
+four warnings, which `mix precommit` compiles as errors.
+
+### Unknown query keys survive
+
+Keys the spec does not declare are carried across patches verbatim, so an open
+modal's `?action=add` is not dropped the moment a filter changes.
 
 ### View mode
 
@@ -207,9 +236,16 @@ screens through the running Andi app over Tidewave.
 ## First package — three repos
 
 1. **core** — `UrlState`; convert `users`, `sessions`, `live_sessions`,
-   `jobs/index`, `media_selector`; re-base `MediaBrowser.Embed` on the shared
-   layer keeping its five keys; document the router-only contract. PR to
-   `BeamLabEU/phoenix_kit`, then release.
+   `jobs/index`, `media_selector`. PR to `BeamLabEU/phoenix_kit`, then release.
+
+   `MediaBrowser.Embed` is **not** re-based onto the shared layer. Its URL sync
+   works, and rebasing it would mean bending an LiveView-level abstraction
+   around a LiveComponent-level one — the browser drives navigation by sending
+   `{:navigate, …}` to its parent, not by handling events on the LiveView. That
+   is the same "don't refactor working code inside a fix" line drawn for the
+   other modules. What it does get is the missing sentence in its moduledoc:
+   `url_sync: true` makes the host LiveView un-embeddable, for the reason set
+   out under Constraint.
 2. **Andi** — orders and sub-orders (`handle_params` there exists but ignores
    its params). Path dep, so available immediately.
 3. **`phoenix_kit_warehouse`** — 7 LVs, every one broken, all sharing the

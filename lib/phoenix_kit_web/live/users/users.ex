@@ -6,6 +6,18 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   """
   use PhoenixKitWeb, :live_view
 
+  # Search, role/type filters and page live in the query string, so a filtered
+  # list is a real URL: shareable, reload-proof, and Back returns to the
+  # previous query instead of leaving the page. `role` and `account_type`
+  # default to "all", which is therefore what gets omitted from the URL.
+  use PhoenixKitWeb.Live.UrlState,
+    params: [
+      search_query: [default: "", url_key: "q", alias: "search"],
+      filter_role: [default: "all", url_key: "role"],
+      filter_account_type: [default: "all", url_key: "account_type"],
+      page: [default: 1, cast: :integer, min: 1]
+    ]
+
   # Imported per-LiveView rather than from `PhoenixKitWeb, :live_view`: a host
   # app that defines its own `row_link/1` would get an ambiguous import the
   # moment core wired this one in project-wide.
@@ -56,14 +68,14 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       TableColumns.update_user_table_columns(valid_columns)
     end
 
+    # :page, :search_query, :filter_role and :filter_account_type are assigned
+    # from the query string by UrlState before mount/3 runs — re-assigning them
+    # here would overwrite a shared link's state with the defaults.
     socket =
       socket
-      |> assign(:page, 1)
       |> assign(:per_page, @per_page)
-      |> assign(:search_query, "")
-      |> assign(:show_search, false)
+      |> assign(:show_search, socket.assigns.search_query != "")
       |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
-      |> assign(:filter_role, "all")
       |> assign(
         :org_accounts_enabled,
         Settings.get_boolean_setting("enable_organization_accounts", false)
@@ -72,7 +84,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
         :geolocation_tracking_enabled,
         Settings.get_boolean_setting("track_registration_geolocation", false)
       )
-      |> assign(:filter_account_type, "all")
       |> assign(:show_role_modal, false)
       |> assign(:managing_user, nil)
       |> assign(:user_roles, [])
@@ -84,11 +95,19 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:date_time_settings, date_time_settings)
       |> assign(:selected_columns, valid_columns)
       |> assign(:available_columns, TableColumns.get_available_columns())
-      |> load_users()
       |> load_stats()
 
     {:ok, socket}
   end
+
+  # The list is loaded here rather than in mount/3: UrlState calls this after
+  # mount and on every change to the query string, so one code path serves the
+  # first render, a shared link, and the Back button alike.
+  #
+  # Deliberately not annotated with @impl — a single @impl anywhere in a module
+  # makes Elixir demand it on every other callback too, and this LiveView's
+  # mount/handle_event/handle_params/handle_info carry none.
+  def handle_url_state(_state, socket), do: load_users(socket)
 
   def handle_params(%{"action" => "add"} = _params, _url, socket) do
     # Open user registration form for adding new user
@@ -102,14 +121,11 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     {:noreply, socket}
   end
 
+  # `replace: true` — the box is debounced, so a typed-out query would otherwise
+  # leave one history entry per pause and Back would walk the search string
+  # backwards instead of leaving the page.
   def handle_event("search", %{"search" => search_query}, socket) do
-    socket =
-      socket
-      |> assign(:search_query, search_query)
-      |> assign(:page, 1)
-      |> load_users()
-
-    {:noreply, socket}
+    {:noreply, push_url_state(socket, [search_query: search_query], replace: true)}
   end
 
   # Toggle the collapsed search row open/closed (mirrors the media browser).
@@ -117,14 +133,13 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     {:noreply, assign(socket, :show_search, !socket.assigns.show_search)}
   end
 
-  # Clear the query and close the search row (the ✕ button).
+  # Clear the query and close the search row (the ✕ button). Clearing is a
+  # deliberate action, so it earns a real history entry.
   def handle_event("clear_search", _params, socket) do
     socket =
       socket
-      |> assign(:search_query, "")
       |> assign(:show_search, false)
-      |> assign(:page, 1)
-      |> load_users()
+      |> push_url_state(search_query: "")
 
     {:noreply, socket}
   end
@@ -146,46 +161,22 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   end
 
   def handle_event("filter_by_role", %{"role" => role}, socket) do
-    socket =
-      socket
-      |> assign(:filter_role, role)
-      |> assign(:page, 1)
-      |> load_users()
-
-    {:noreply, socket}
+    {:noreply, push_url_state(socket, filter_role: role)}
   end
 
   def handle_event("filter_by_account_type", %{"account_type" => account_type}, socket) do
-    socket =
-      socket
-      |> assign(:filter_account_type, account_type)
-      |> assign(:page, 1)
-      |> load_users()
-
-    {:noreply, socket}
+    {:noreply, push_url_state(socket, filter_account_type: account_type)}
   end
 
   def handle_event("clear_filters", _params, socket) do
-    socket =
-      socket
-      |> assign(:search_query, "")
-      |> assign(:filter_role, "all")
-      |> assign(:filter_account_type, "all")
-      |> assign(:page, 1)
-      |> load_users()
-
-    {:noreply, socket}
+    {:noreply, reset_url_state(socket)}
   end
 
   def handle_event("change_page", %{"page" => page}, socket) do
-    page = String.to_integer(page)
-
-    socket =
-      socket
-      |> assign(:page, page)
-      |> load_users()
-
-    {:noreply, socket}
+    case Integer.parse(page) do
+      {page, ""} when page > 0 -> {:noreply, push_url_state(socket, page: page)}
+      _ -> {:noreply, socket}
+    end
   end
 
   def handle_event("show_role_management", %{"user_uuid" => user_uuid}, socket) do

@@ -1,0 +1,507 @@
+defmodule PhoenixKitWeb.Live.UrlState do
+  @moduledoc """
+  URL-backed list state for LiveView index pages — search, filters, sort, page.
+
+  A list screen's state belongs in the address bar: the result is then a real
+  URL that can be pasted to a colleague, bookmarked, and reproduced by a reload,
+  and the browser Back button returns to the previous query instead of leaving
+  the page.
+
+  Declare the state, handle one callback, and push changes:
+
+      defmodule MyAppWeb.UsersLive do
+        use MyAppWeb, :live_view
+
+        use PhoenixKitWeb.Live.UrlState,
+          params: [
+            search_query: [default: "", url_key: "q", alias: "search"],
+            filter_role:  [default: "all", url_key: "role"],
+            sort_by:      [default: "inserted_at", in: ~w(inserted_at email)],
+            sort_dir:     [default: :desc, cast: :atom, in: [:asc, :desc]],
+            page:         [default: 1, cast: :integer, min: 1]
+          ]
+
+        def handle_url_state(state, socket) do
+          assign(socket, :users, Users.list(state))
+        end
+
+        def handle_event("search", %{"search" => q}, socket) do
+          {:noreply, push_url_state(socket, [search_query: q], replace: true)}
+        end
+      end
+
+  ## Parameter spec
+
+  Each entry is `assign_name: opts`. The key is the socket assign the value
+  lands in, so adopting an existing LiveView is a matter of listing the assigns
+  it already has — its template does not change.
+
+    * `:default` — required. The value used when the key is absent or invalid.
+      Values equal to the default are **omitted from the query string**, so an
+      unfiltered list is `/admin/users`, not `/admin/users?q=&role=all&page=1`.
+    * `:url_key` — the query-string key. Defaults to the assign name. Use it
+      when the assign is `:search_query` but the URL should read `?q=`.
+    * `:alias` — an additional key accepted when **reading**, never written.
+      Lets a screen that already published `?search=` links converge on `?q=`
+      without breaking them. Accepts a string or a list of strings.
+    * `:cast` — `:string` (default), `:integer`, `:atom` or `:boolean`.
+    * `:in` — allowed values. Anything else falls back to the default.
+      **Required for `cast: :atom`**: the incoming string is matched against
+      this list, so no atom is ever created from user input.
+    * `:min` / `:max` — bounds for `cast: :integer`. Out-of-range falls back to
+      the default.
+
+  Unknown query keys are preserved across patches, so an unrelated param
+  (a modal's `?action=add`, a tracking tag) is not dropped when a filter
+  changes.
+
+  ## Options
+
+    * `:params` — the spec above. Required.
+    * `:dead_render` — `:call` (default) runs `handle_url_state/2` on the
+      disconnected render as well, so the first paint already carries the list.
+      This is what a `mount/3` that loads its data already does, which is why it
+      is the default: adopting the module does not change what the user sees.
+      `:skip` runs the callback only once the socket is connected, trading an
+      empty first paint for one query per page load instead of two — worth it on
+      a heavy list, wrong on a page that must serve content to crawlers.
+    * `:page_param` — the assign reset whenever another parameter changes.
+      Defaults to `:page` when the spec declares it; `false` disables the reset.
+
+  ## Writing state
+
+  `push_url_state/3` merges the changes, resets the page parameter unless the
+  page itself was what changed, drops defaults, and patches **the path the
+  LiveView is currently on** — captured from the live `uri`, not rebuilt from a
+  literal. A screen reachable at more than one route (a sub-tab such as
+  `/orders/:id/edit/files`) therefore stays where it is, and the locale segment
+  survives.
+
+  Pass `replace: true` for continuous input. A debounced search box otherwise
+  writes one history entry per pause in typing, and Back walks the query
+  backwards a few characters at a time instead of leaving the page. Discrete
+  actions — picking a filter, sorting, changing page — should push a real entry.
+
+  For links rather than events (`<.pagination>`, `<.link patch=…>`), build the
+  target with `url_state_path/2`.
+
+  ## This LiveView becomes router-only
+
+  A LiveView using this module **cannot be embedded with `live_render/3`**. The
+  two requirements are mutually exclusive in Phoenix LiveView itself:
+
+    * `push_patch` from a root LiveView reaches
+      `sync_handle_params_with_live_redirect/5`, which invokes
+      `view.handle_params/3` unconditionally — the 4-arity
+      `Utils.call_handle_params!` defaults `exported?` to `true`. So
+      `handle_params/3` must be exported.
+    * On an embedded mount (`socket.root_pid != self()`),
+      `maybe_call_mount_handle_params/4` sees `any? = callbacks? or exported?`
+      and takes the branch that raises through `Route.live_link_info!`. Merely
+      exporting `handle_params/3` — whatever its body — makes a LiveView
+      un-embeddable.
+
+  An embeddable LiveView therefore needs a different mechanism entirely
+  (client-side `history.pushState` plus a `popstate` listener), which this
+  module does not provide.
+
+  If the LiveView already defines its own `handle_params/3` it is kept, and the
+  state hook composes alongside it — both run. Only a LiveView with no
+  `handle_params/3` of its own gets the stub that `push_patch` requires.
+  """
+
+  @typedoc "Decoded state: assign name => value"
+  @type state :: %{atom() => term()}
+
+  @doc """
+  Invoked with the decoded state whenever it changes, and once after mount.
+
+  Returns the socket, typically with the list re-queried. Runs after the
+  LiveView's own `mount/3`, so assigns set there are available.
+  """
+  @callback handle_url_state(state(), Phoenix.LiveView.Socket.t()) ::
+              Phoenix.LiveView.Socket.t()
+
+  @state_assign :__phoenix_kit_url_state__
+  @path_assign :__phoenix_kit_url_path__
+  @extra_assign :__phoenix_kit_url_extra__
+  @loaded_assign :__phoenix_kit_url_loaded__
+
+  # ── Compile-time spec normalisation ──────────────────────────────────
+
+  @doc false
+  def normalize!(params, opts) when is_list(params) do
+    if params == [] do
+      raise ArgumentError, "use PhoenixKitWeb.Live.UrlState requires a non-empty :params list"
+    end
+
+    specs = Enum.map(params, &normalize_param!/1)
+
+    url_keys = Enum.map(specs, & &1.url_key)
+
+    if length(Enum.uniq(url_keys)) != length(url_keys) do
+      raise ArgumentError,
+            "duplicate URL keys in PhoenixKit.UrlState spec: #{inspect(url_keys -- Enum.uniq(url_keys))}"
+    end
+
+    %{
+      params: specs,
+      dead_render: validate_dead_render!(Keyword.get(opts, :dead_render, :call)),
+      page_param: resolve_page_param!(Keyword.get(opts, :page_param, :__auto__), specs)
+    }
+  end
+
+  def normalize!(other, _opts) do
+    raise ArgumentError, ":params must be a keyword list, got: #{inspect(other)}"
+  end
+
+  defp normalize_param!({key, opts}) when is_atom(key) and is_list(opts) do
+    unless Keyword.has_key?(opts, :default) do
+      raise ArgumentError, "PhoenixKit.UrlState param #{inspect(key)} is missing :default"
+    end
+
+    cast = Keyword.get(opts, :cast, :string)
+
+    unless cast in [:string, :integer, :atom, :boolean] do
+      raise ArgumentError,
+            "PhoenixKit.UrlState param #{inspect(key)} has unsupported cast #{inspect(cast)}"
+    end
+
+    allowed = Keyword.get(opts, :in)
+
+    if cast == :atom and is_nil(allowed) do
+      raise ArgumentError,
+            "PhoenixKit.UrlState param #{inspect(key)} uses cast: :atom and therefore requires " <>
+              ":in — the incoming string is matched against it so that no atom is created from " <>
+              "user input"
+    end
+
+    %{
+      key: key,
+      url_key: to_string(Keyword.get(opts, :url_key, key)),
+      aliases: opts |> Keyword.get(:alias, []) |> List.wrap() |> Enum.map(&to_string/1),
+      default: Keyword.fetch!(opts, :default),
+      cast: cast,
+      allowed: allowed,
+      min: Keyword.get(opts, :min),
+      max: Keyword.get(opts, :max)
+    }
+  end
+
+  defp normalize_param!(other) do
+    raise ArgumentError,
+          "PhoenixKit.UrlState params must be `assign_name: [default: …]`, got: #{inspect(other)}"
+  end
+
+  defp validate_dead_render!(value) when value in [:skip, :call], do: value
+
+  defp validate_dead_render!(other) do
+    raise ArgumentError, ":dead_render must be :skip or :call, got: #{inspect(other)}"
+  end
+
+  defp resolve_page_param!(:__auto__, specs) do
+    if Enum.any?(specs, &(&1.key == :page)), do: :page, else: false
+  end
+
+  defp resolve_page_param!(false, _specs), do: false
+
+  defp resolve_page_param!(key, specs) when is_atom(key) do
+    unless Enum.any?(specs, &(&1.key == key)) do
+      raise ArgumentError, ":page_param #{inspect(key)} is not declared in :params"
+    end
+
+    key
+  end
+
+  # ── Decoding: query params -> state ──────────────────────────────────
+
+  @doc """
+  Decodes LiveView params into the state map, applying defaults.
+
+  Public so a LiveView that does its own thing with `handle_params/3` can still
+  share the exact codec.
+  """
+  @spec decode(map(), map()) :: state()
+  def decode(params, cfg) when is_map(params) do
+    Map.new(cfg.params, fn spec -> {spec.key, decode_param(params, spec)} end)
+  end
+
+  def decode(_not_a_map, cfg) do
+    Map.new(cfg.params, fn spec -> {spec.key, spec.default} end)
+  end
+
+  defp decode_param(params, spec) do
+    case fetch_raw(params, [spec.url_key | spec.aliases]) do
+      :error -> spec.default
+      {:ok, raw} -> cast_value(raw, spec)
+    end
+  end
+
+  defp fetch_raw(params, keys) do
+    Enum.reduce_while(keys, :error, fn key, acc ->
+      case Map.fetch(params, key) do
+        {:ok, value} when is_binary(value) -> {:halt, {:ok, value}}
+        _ -> {:cont, acc}
+      end
+    end)
+  end
+
+  defp cast_value(raw, %{cast: :string} = spec), do: validate_allowed(raw, spec)
+
+  defp cast_value(raw, %{cast: :integer} = spec) do
+    case Integer.parse(raw) do
+      {int, ""} -> validate_bounds(int, spec)
+      _ -> spec.default
+    end
+  end
+
+  defp cast_value(raw, %{cast: :boolean} = spec) do
+    case raw do
+      "1" -> true
+      "true" -> true
+      "0" -> false
+      "false" -> false
+      _ -> spec.default
+    end
+  end
+
+  # Never String.to_atom/1 on user input: the raw string is compared against the
+  # already-existing atoms in :in, so an unknown value can only reach the default.
+  defp cast_value(raw, %{cast: :atom} = spec) do
+    Enum.find(spec.allowed, spec.default, &(to_string(&1) == raw))
+  end
+
+  defp validate_allowed(value, %{allowed: nil}), do: value
+
+  defp validate_allowed(value, spec) do
+    if value in spec.allowed, do: value, else: spec.default
+  end
+
+  defp validate_bounds(int, spec) do
+    cond do
+      spec.min != nil and int < spec.min -> spec.default
+      spec.max != nil and int > spec.max -> spec.default
+      true -> validate_allowed(int, spec)
+    end
+  end
+
+  # ── Encoding: state -> query params ──────────────────────────────────
+
+  @doc """
+  Encodes the state into a query map, omitting every value equal to its default.
+
+  `extra` carries query keys the spec does not know about so that an unrelated
+  param survives a filter change.
+  """
+  @spec encode(state(), map(), map()) :: %{String.t() => String.t()}
+  def encode(state, cfg, extra \\ %{}) do
+    Enum.reduce(cfg.params, extra, fn spec, acc ->
+      value = Map.get(state, spec.key, spec.default)
+
+      if value == spec.default do
+        Map.delete(acc, spec.url_key)
+      else
+        Map.put(acc, spec.url_key, to_string(value))
+      end
+    end)
+  end
+
+  @doc """
+  Builds `path?query` from a state map, or bare `path` when nothing differs
+  from the defaults.
+  """
+  @spec build_path(String.t(), state(), map(), map()) :: String.t()
+  def build_path(path, state, cfg, extra \\ %{}) do
+    case encode(state, cfg, extra) do
+      empty when map_size(empty) == 0 -> path
+      query -> path <> "?" <> URI.encode_query(query)
+    end
+  end
+
+  # ── Runtime: on_mount and hooks ──────────────────────────────────────
+
+  @doc false
+  def on_mount({:url_state, cfg}, params, _session, socket) do
+    ensure_router!(socket)
+
+    socket =
+      socket
+      |> assign_state(decode(params, cfg), cfg)
+      |> Phoenix.Component.assign(@extra_assign, extra_params(params, cfg))
+      |> Phoenix.Component.assign(@loaded_assign, false)
+      |> Phoenix.LiveView.attach_hook(:phoenix_kit_url_state, :handle_params, &handle_params/3)
+
+    {:cont, socket}
+  end
+
+  # A LiveView using this module exports handle_params/3 (its own or the
+  # injected stub), which already makes an embedded mount fail deep inside
+  # Phoenix with a message about live_link_info. Fail here instead, where the
+  # cause is nameable.
+  defp ensure_router!(socket) do
+    if is_nil(socket.router) do
+      raise """
+      #{inspect(socket.view)} uses PhoenixKitWeb.Live.UrlState but was not mounted \
+      through the router.
+
+      URL-backed state relies on push_patch, which requires handle_params/3 to be \
+      exported, and exporting it makes a LiveView un-embeddable via live_render/3. \
+      The two cannot be combined; see the module docs.
+      """
+    end
+
+    socket
+  end
+
+  defp handle_params(params, uri, socket) do
+    cfg = config!(socket)
+    state = decode(params, cfg)
+    changed? = not socket.assigns[@loaded_assign] or state != socket.assigns[@state_assign]
+
+    socket =
+      socket
+      |> Phoenix.Component.assign(@path_assign, URI.parse(uri).path)
+      |> Phoenix.Component.assign(@extra_assign, extra_params(params, cfg))
+      |> assign_state(state, cfg)
+
+    if changed? and run_callback?(socket, cfg) do
+      socket = Phoenix.Component.assign(socket, @loaded_assign, true)
+      {:cont, socket.view.handle_url_state(state, socket)}
+    else
+      {:cont, socket}
+    end
+  end
+
+  # The hook runs on every navigation in this LiveView, not only ones this
+  # module caused. A patch that touches an unrelated query key — a modal's
+  # ?action=add, say — must not make the list re-run its queries, so the
+  # callback fires only when the declared state actually differs.
+  defp run_callback?(socket, cfg) do
+    cfg.dead_render == :call or Phoenix.LiveView.connected?(socket)
+  end
+
+  defp assign_state(socket, state, cfg) do
+    socket = Phoenix.Component.assign(socket, @state_assign, state)
+
+    Enum.reduce(cfg.params, socket, fn spec, acc ->
+      Phoenix.Component.assign(acc, spec.key, Map.fetch!(state, spec.key))
+    end)
+  end
+
+  # Query keys the spec does not own — kept verbatim so that, say, an open
+  # modal's ?action=add is not dropped the moment a filter changes.
+  defp extra_params(params, cfg) when is_map(params) do
+    known =
+      Enum.flat_map(cfg.params, fn spec -> [spec.url_key | spec.aliases] end)
+      |> MapSet.new()
+
+    params
+    |> Enum.filter(fn {k, v} ->
+      is_binary(k) and is_binary(v) and not MapSet.member?(known, k)
+    end)
+    |> Map.new()
+  end
+
+  defp extra_params(_params, _cfg), do: %{}
+
+  defp config!(socket), do: socket.view.__phoenix_kit_url_state__()
+
+  # ── Runtime: writing state ───────────────────────────────────────────
+
+  @doc """
+  Merges `changes` into the current state and patches the URL.
+
+  Resets the page parameter unless the page itself changed. Pass
+  `replace: true` for continuous input so a debounced search box leaves one
+  history entry instead of one per keystroke pause.
+  """
+  @spec push_url_state(Phoenix.LiveView.Socket.t(), keyword() | map(), keyword()) ::
+          Phoenix.LiveView.Socket.t()
+  def push_url_state(socket, changes, opts \\ []) do
+    Phoenix.LiveView.push_patch(socket,
+      to: url_state_path(socket, changes),
+      replace: Keyword.get(opts, :replace, false)
+    )
+  end
+
+  @doc """
+  The path this LiveView would patch to for `changes` — for `<.link patch=…>`
+  and `<.pagination>`, which navigate by href rather than by event.
+  """
+  @spec url_state_path(Phoenix.LiveView.Socket.t(), keyword() | map()) :: String.t()
+  def url_state_path(socket, changes) do
+    cfg = config!(socket)
+    changes = Map.new(changes)
+
+    state =
+      socket.assigns
+      |> Map.fetch!(@state_assign)
+      |> Map.merge(changes)
+      |> maybe_reset_page(changes, cfg)
+
+    path = socket.assigns[@path_assign] || socket.assigns[:url_path] || "/"
+    extra = socket.assigns[@extra_assign] || %{}
+
+    build_path(path, state, cfg, extra)
+  end
+
+  defp maybe_reset_page(state, _changes, %{page_param: false}), do: state
+
+  defp maybe_reset_page(state, changes, cfg) do
+    if Map.has_key?(changes, cfg.page_param) or map_size(changes) == 0 do
+      state
+    else
+      default = Enum.find(cfg.params, &(&1.key == cfg.page_param)).default
+      Map.put(state, cfg.page_param, default)
+    end
+  end
+
+  @doc """
+  Resets every declared parameter to its default — the "clear all filters"
+  action. Unknown query keys are preserved.
+  """
+  @spec reset_url_state(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  def reset_url_state(socket) do
+    cfg = config!(socket)
+    defaults = Map.new(cfg.params, &{&1.key, &1.default})
+
+    Phoenix.LiveView.push_patch(socket, to: url_state_path(socket, defaults))
+  end
+
+  # ── use ──────────────────────────────────────────────────────────────
+
+  defmacro __using__(opts) do
+    params = Keyword.get(opts, :params) || raise ArgumentError, "missing :params"
+    cfg = normalize!(params, opts)
+
+    quote do
+      @behaviour PhoenixKitWeb.Live.UrlState
+
+      import PhoenixKitWeb.Live.UrlState,
+        only: [push_url_state: 2, push_url_state: 3, url_state_path: 2, reset_url_state: 1]
+
+      @doc false
+      def __phoenix_kit_url_state__, do: unquote(Macro.escape(cfg))
+
+      on_mount({PhoenixKitWeb.Live.UrlState, {:url_state, unquote(Macro.escape(cfg))}})
+
+      @before_compile PhoenixKitWeb.Live.UrlState
+    end
+  end
+
+  defmacro __before_compile__(env) do
+    # push_patch routes through sync_handle_params_with_live_redirect/5, which
+    # calls Utils.call_handle_params!/4 — the arity whose `exported?` defaults
+    # to true. view.handle_params/3 is therefore invoked whether or not the
+    # LiveView defines it, so a LiveView without one needs a stub. One that has
+    # its own keeps it; the :handle_params hook composes alongside.
+    if Module.defines?(env.module, {:handle_params, 3}) do
+      quote(do: nil)
+    else
+      quote do
+        @doc false
+        def handle_params(_params, _uri, socket), do: {:noreply, socket}
+      end
+    end
+  end
+end
