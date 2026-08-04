@@ -19,8 +19,18 @@ defmodule PhoenixKit.Migrations.Postgres.V57 do
   alias PhoenixKit.Migrations.UUIDFKColumns
 
   def up(%{prefix: prefix} = opts) do
+    # Flush so this version's own immediate guards (and UUIDFKColumns.up/1's
+    # column_exists? checks below) see every column queued by V56 and
+    # earlier — same reasoning as the flush V56 now has between its own
+    # UUIDFKColumns.up/add_constraints pair.
+    flush()
+
     # Re-run UUID FK column additions (all idempotent)
     UUIDFKColumns.up(opts)
+
+    # Flush so add_constraints/1's immediate column_exists?/NOT NULL guards
+    # below see the columns just queued above (same bug class as V56).
+    flush()
 
     # Re-run constraints (NOT NULL + FK, all idempotent)
     UUIDFKColumns.add_constraints(opts)

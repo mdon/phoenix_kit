@@ -327,3 +327,55 @@ accumulator stepped aside; its down/1 stamps '151').
   @disable_ddl_transaction true again unexplained — flagged. down drops all three CASCADE.
 - V160 (ddl): settings.value VARCHAR(255)->TEXT (validation allowed 1000, column capped 255 —
   real crash class); catalog-only change; down/1 hard-fails if any value exceeds 255 chars.
+
+## Post-V160 additions (2026-08-04, V161 — shape-bimodality repair)
+
+- V161 (repair, no-op on any chain run from here on): fixes the fallout of V56/V57's missing
+  flush() between UUIDFKColumns.up/1 (queues ~80 ADD COLUMNs) and add_constraints/1 (immediate
+  column_exists?/NOT NULL guards) — harmless on an incremental chain run (Ecto flushes between
+  migration modules regardless), but on a SINGLE-SHOT run (fresh install; also this repo's own
+  squash generator's single-shot probe) the guards ran before Postgres had seen the
+  just-queued columns, silently leaving 46 *_uuid FK columns across 33 tables nullable instead
+  of NOT NULL (full list: UUIDFKColumns.not_null_uuid_fks/0) and
+  phoenix_kit_comments.fk_comments_user_uuid never created at all — V72, finding that FK
+  missing, guessed ON DELETE CASCADE instead of matching V56/V57's own already-declared SET
+  NULL intent (UUIDFKColumns.@fk_constraints). V56/V57 now carry the missing flush() and V72's
+  guess is now SET NULL, so this class of bug cannot recur going forward; V161 exists only to
+  repair installs whose single-shot run already happened before those fixes landed. Mechanics:
+  flush() first; per not_null_uuid_fks() pair, SET NOT NULL only if the column currently has
+  zero NULL rows (else IO.warn naming table/column/row-count and skip — never backfills live
+  data with an invented value, unlike UUIDFKColumns' own conversion-era backfill which only ever
+  ran against columns it had just created); fk_comments_user_uuid: DROP+re-ADD SET NULL if
+  currently CASCADE (no orphan cleanup needed — a row cannot be orphaned under an
+  already-enforced CASCADE constraint), ADD SET NULL with V72-style orphan cleanup if the
+  constraint is absent entirely (defensive), no-op if already SET NULL. down/1 restamps the
+  comment only (V57 precedent — a repair migration never undoes its own fix on rollback).
+  Discovered via generate_baseline.exs's stepwise-vs-single-shot bimodality guard
+  (Bimodality.diff/2): the first real full-chain single-shot run ever executed end-to-end
+  against a scratch DB flagged 47 objects (46 columns + 1 constraint) with genuinely different
+  SHAPES between the two install modes — not just presence, which the existing
+  `:legacy_optional` model cannot express — and the generator correctly aborted rather than
+  silently emit a manifest wrong for one of the two install paths
+  (dev_docs/squash/output/mode_shape_mismatch.txt has the full 47-object list from that run).
+
+### Hazard: stepwise-vs-single-shot shape bimodality (root cause fixed 2026-08-04, class remains)
+
+The squash generator's Step 4 (`Bimodality.diff/2`) compares a stepwise (one-version-at-a-time,
+mirrors `mix phoenix_kit.update` against an existing install) chain run against a single-shot
+(all-N-versions-in-one-call, mirrors a fresh `mix phoenix_kit.install`) chain run and expects
+only PRESENCE differences between the two — the existing `:legacy_optional` model. A SHAPE
+difference on an object present in BOTH modes (the same column existing both ways but with a
+different `not_null`/`default`/`type`, or a constraint with a different `on_delete`) is a
+structurally different class of bug the generator refuses to guess at — it aborts loudly
+(`mode_shape_mismatch.txt`) rather than silently emit a manifest that is wrong for one of the
+two install paths. Root cause class, generalized: a `flush()` gap between two operations inside
+the SAME migration, where the second operation's IMMEDIATE `information_schema` (or
+`pg_constraint`/`pg_class`) guard depends on the first operation's QUEUED DDL already having
+landed. This is invisible on an incremental chain (Ecto flushes between migration *modules*
+regardless of what happens inside each one) and surfaces only on a genuine single-shot run —
+which is why V56/V57's gap (introduced early in the chain) survived undetected all the way to
+the first real single-shot generator run against the full V1..V160 chain. Any future migration
+that calls a helper module's `up/1` (queues DDL) immediately followed by another operation with
+an immediate existence/state guard needs a `flush()` between them, or this exact bug class
+recurs under a fresh-install-only code path most contributors never manually exercise (stepwise,
+incremental upgrades are the much more commonly tested path).

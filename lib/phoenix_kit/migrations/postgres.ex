@@ -529,13 +529,33 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V160 - Settings `value` widened to TEXT ⚡ LATEST
+  ### V160 - Settings `value` widened to TEXT
   - `phoenix_kit_settings.value` was `VARCHAR(255)` (V03's `:string`) while
     `Settings.Setting` validated it at `max: 1000` — anything in between
     passed the changeset and then raised a raw `Postgrex.Error`
   - Surfaced by list-valued settings: the sitemap's default exclude
     patterns serialize to ~450 characters, so saving them always crashed
   - Catalog-only change in PostgreSQL: no rewrite, no long lock
+
+  ### V161 - Repair the V56/V57 flush-order bug's fallout ⚡ LATEST
+  - V56/V57 queued `UUIDFKColumns.up/1`'s `ADD COLUMN`s immediately before
+    `add_constraints/1`'s immediate `column_exists?`/NOT NULL guards with
+    no `flush()` between them (V57 had none at all) — harmless on an
+    incremental chain run, but on a single-shot run (fresh install) the
+    guards ran before Postgres had ever seen the queued columns, so ~46
+    `*_uuid` FK columns across ~33 tables were left nullable instead of
+    NOT NULL, and `phoenix_kit_comments.fk_comments_user_uuid` was never
+    created at all — V72 later found it missing and guessed `ON DELETE
+    CASCADE` instead of V56/V57's own declared `SET NULL`
+  - V56/V57 now carry the missing `flush()`, and V72's guess is now `SET
+    NULL`, so this only repairs installs whose single-shot run already
+    happened before those fixes; it is a no-op everywhere else
+  - Per affected column: sets NOT NULL only if it currently has zero NULL
+    rows; otherwise warns (table/column/row count) and leaves it
+    nullable — never backfills live data with an invented value
+  - Corrects `fk_comments_user_uuid` from CASCADE to SET NULL if the
+    buggy shape is present
+  - Repair-only: `down/1` restamps the comment, never undoes the fix
 
   ### V159 - Publishing categories + post view counters
   - `phoenix_kit_publishing_categories` — hierarchical per-group taxonomy
@@ -1423,7 +1443,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 160
+  @current_version 161
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that

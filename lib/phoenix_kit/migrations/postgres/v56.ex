@@ -240,6 +240,12 @@ defmodule PhoenixKit.Migrations.Postgres.V56 do
     # Fix 5: Add UUID FK columns alongside integer FKs
     UUIDFKColumns.up(opts)
 
+    # Flush so add_constraints/1's immediate column_exists?/NOT NULL guards
+    # below see the columns just queued above — without this, on a
+    # single-shot chain run they silently no-op (info_schema hasn't seen
+    # the queued ADD COLUMNs yet), leaving ~46 *_uuid columns nullable.
+    flush()
+
     # Fix 6: Add NOT NULL + FK constraints on UUID FK columns
     UUIDFKColumns.add_constraints(opts)
 

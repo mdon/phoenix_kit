@@ -10,7 +10,7 @@ defmodule PhoenixKit.Migrations.Postgres.V72 do
 
   - Rename `id` → `uuid` on 30 Category A tables (metadata-only, instant)
   - Add 4 missing FK constraints:
-    - `phoenix_kit_comments.user_uuid` → `phoenix_kit_users.uuid` (CASCADE)
+    - `phoenix_kit_comments.user_uuid` → `phoenix_kit_users.uuid` (SET NULL)
     - `phoenix_kit_comments_dislikes.user_uuid` → `phoenix_kit_users.uuid` (CASCADE)
     - `phoenix_kit_comments_likes.user_uuid` → `phoenix_kit_users.uuid` (CASCADE)
     - `phoenix_kit_scheduled_jobs.created_by_uuid` → `phoenix_kit_users.uuid` (SET NULL)
@@ -42,8 +42,19 @@ defmodule PhoenixKit.Migrations.Postgres.V72 do
   )
 
   # {table, fk_column, ref_table, ref_column, on_delete}
+  #
+  # `phoenix_kit_comments` is SET NULL, not CASCADE: V56/V57 already declare
+  # this FK at "SET NULL" (`UUIDFKColumns.@fk_constraints`) — comments behave
+  # like tickets/ai_requests (orphaned-author comments survive, blanked),
+  # not like the *_likes/*_dislikes junction tables (which genuinely should
+  # vanish with their user, hence CASCADE). This entry existed at all only
+  # because V56/V57's own flush-order bug (fixed) meant the constraint was
+  # never actually created on a single-shot chain run by the time V72 ran —
+  # V72's author, seeing it missing, guessed CASCADE instead of matching
+  # V56/V57's own already-declared intent. `V161` repairs any install that
+  # already has the wrong CASCADE baked in.
   @missing_fk_constraints [
-    {"phoenix_kit_comments", "user_uuid", "phoenix_kit_users", "uuid", "CASCADE"},
+    {"phoenix_kit_comments", "user_uuid", "phoenix_kit_users", "uuid", "SET NULL"},
     {"phoenix_kit_comments_dislikes", "user_uuid", "phoenix_kit_users", "uuid", "CASCADE"},
     {"phoenix_kit_comments_likes", "user_uuid", "phoenix_kit_users", "uuid", "CASCADE"},
     {"phoenix_kit_scheduled_jobs", "created_by_uuid", "phoenix_kit_users", "uuid", "SET NULL"}

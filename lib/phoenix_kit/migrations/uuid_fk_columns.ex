@@ -368,6 +368,17 @@ defmodule PhoenixKit.Migrations.UUIDFKColumns do
 
   # ── Public API ────────────────────────────────────────────────────────
 
+  @doc """
+  The `{table, uuid_fk_column}` pairs `add_constraints/1` sets NOT NULL on —
+  exposed so `PhoenixKit.Migrations.Postgres.V161` (a later repair for
+  installs that ran the V56/V57 flush-order bug — see that migration's
+  moduledoc) can drive the same list without duplicating it. Not otherwise
+  meant as a public contract; if a future addition to `@not_null_uuid_fks`
+  changes shape, this accessor and `V161`'s consumption of it move together.
+  """
+  @spec not_null_uuid_fks() :: [{atom(), String.t()}]
+  def not_null_uuid_fks, do: @not_null_uuid_fks
+
   def up(%{prefix: prefix} = opts) do
     escaped_prefix = Map.get(opts, :escaped_prefix, prefix)
 
