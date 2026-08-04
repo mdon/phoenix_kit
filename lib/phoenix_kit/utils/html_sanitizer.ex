@@ -110,18 +110,47 @@ defmodule PhoenixKit.Utils.HtmlSanitizer do
 
   # Private functions
 
+  # ⚠️ Attribute separators are `[\s\/]`, NOT `\s`.
+  #
+  # HTML permits `/` between attributes, and browsers parse
+  # `<img/src=x/onerror=alert(1)>` exactly like the space-separated form.
+  # These patterns previously required whitespace, so anything using slash
+  # separators passed through completely untouched — verified against this
+  # module before the fix:
+  #
+  #     <svg/onload=alert(1)>            -> UNCHANGED
+  #     <img/src=x/onerror=alert(1)>     -> UNCHANGED
+  #     <img src=x onerror=alert(1)>     -> <img src=x>        (caught)
+  #
+  # That made the whole control bypassable by anyone who could write a
+  # product description or supply a CSV import feed, on the unauthenticated
+  # storefront.
+  #
+  # NOTE ON THE APPROACH: regex sanitizing is structurally fragile — this
+  # is the second bypass class found in it. The right shape is a parsed
+  # allowlist (tokenize, keep known-good tags/attributes, re-serialize).
+  # That needs an HTML parser as a RUNTIME dependency; `floki` is currently
+  # `only: :test`, and adding a runtime dep to core affects every consumer,
+  # so it is deliberately not done here. Regression payloads live in
+  # test/phoenix_kit/utils/html_sanitizer_test.exs — add to them, and
+  # prefer replacing this wholesale over growing more patterns.
+  @attr_sep ~S"[\s\/]"
+
   defp remove_dangerous_patterns(html) do
     dangerous_patterns = [
       # Script tags with content
       ~r/<script\b[^>]*>[\s\S]*?<\/script>/i,
       # Style tags with content
       ~r/<style\b[^>]*>[\s\S]*?<\/style>/i,
-      # Event handlers
-      ~r/\s+on\w+\s*=\s*["'][^"']*["']/i,
-      ~r/\s+on\w+\s*=\s*[^\s>]+/i,
-      # Dangerous tags
-      ~r/<\s*(iframe|object|embed|form|input|button|meta|link|base)\b[^>]*>/i,
-      ~r/<\/\s*(iframe|object|embed|form|input|button|meta|link|base)\s*>/i
+      # Event handlers — separated by whitespace OR slash
+      ~r/#{@attr_sep}+on\w+\s*=\s*["'][^"']*["']/i,
+      ~r/#{@attr_sep}+on\w+\s*=\s*[^\s>]+/i,
+      # Dangerous tags. svg and math are here because both introduce
+      # foreign content with their own scripting surface (`<svg><script>`,
+      # `xlink:href="javascript:">`), which the rest of these
+      # HTML-shaped patterns do not reason about correctly.
+      ~r/<\s*(iframe|object|embed|form|input|button|meta|link|base|svg|math)\b[^>]*>/i,
+      ~r/<\/\s*(iframe|object|embed|form|input|button|meta|link|base|svg|math)\s*>/i
     ]
 
     Enum.reduce(dangerous_patterns, html, fn pattern, acc ->

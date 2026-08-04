@@ -72,4 +72,52 @@ defmodule PhoenixKit.Utils.HtmlSanitizerTest do
       assert HtmlSanitizer.sanitize("<p onclick=\"x()\">Hi</p>") == "<p>Hi</p>"
     end
   end
+
+  describe "sanitize/1 slash-separated attributes" do
+    # HTML allows `/` between attributes and browsers parse
+    # `<img/src=x/onerror=alert(1)>` exactly like the spaced form. The
+    # patterns required WHITESPACE, so these passed through completely
+    # untouched — verified against this module before the fix. Product
+    # descriptions render through here on the unauthenticated storefront,
+    # so this was reachable by anyone who could edit a product or supply a
+    # CSV import feed.
+    test "event handlers separated by a slash are stripped" do
+      for payload <- [
+            "<svg/onload=alert(1)>",
+            "<img/src=x/onerror=alert(1)>",
+            "<div/onclick=alert(1)>hi</div>",
+            "<body/onload=alert(1)>"
+          ] do
+        out = HtmlSanitizer.sanitize(payload)
+
+        refute out =~ ~r/onload|onerror|onclick/i,
+               "slash-separated handler survived: #{payload} -> #{out}"
+      end
+    end
+
+    test "the space-separated forms remain stripped" do
+      assert HtmlSanitizer.sanitize("<img src=x onerror=alert(1)>") == "<img src=x>"
+    end
+
+    test "svg and math are dropped as foreign-content vectors" do
+      # Both introduce their own scripting surface (`<svg><script>`,
+      # `xlink:href="javascript:"`) that HTML-shaped patterns do not
+      # reason about correctly.
+      # `~s|...|` rather than `~s(...)`: the paren in `alert(1)` would close
+      # a paren-delimited sigil early.
+      refute HtmlSanitizer.sanitize(~s|<svg><a xlink:href="javascript:alert(1)">x</a></svg>|) =~
+               "<svg"
+
+      refute HtmlSanitizer.sanitize("<math><mtext>x</mtext></math>") =~ "<math"
+    end
+
+    test "ordinary markup is untouched" do
+      # The separator widening must not eat legitimate content.
+      assert HtmlSanitizer.sanitize("<p>Hello <strong>world</strong></p>") ==
+               "<p>Hello <strong>world</strong></p>"
+
+      assert HtmlSanitizer.sanitize(~s(<img src="/a.png" alt="a">)) =~ ~s(src="/a.png")
+      assert HtmlSanitizer.sanitize("<br/>") == "<br/>"
+    end
+  end
 end
