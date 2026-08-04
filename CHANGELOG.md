@@ -1,3 +1,26 @@
+## 1.7.228 - 2026-08-04
+
+### Removed
+- **The installer no longer rewrites the host's `assets/js/app.js` to add a
+  `viewport_width` connect param.** `mix phoenix_kit.install` / `mix
+  phoenix_kit.update` edited the host's LiveSocket options into
+  `params: () => ({_csrf_token: csrfToken, viewport_width: window.innerWidth})`,
+  justified by responsive PhoenixKit LiveViews reading the width server-side on
+  first render. **No such reader was ever written** — nothing in core or in any
+  module package reads `viewport_width`, and `phoenix_kit_dashboards`, the named
+  beneficiary, has no viewport logic at all. The producer shipped, the consumer
+  never did. Editing a host's application source to send a value nothing reads
+  is not something a library should do quietly, so the step and its transform
+  (`JsIntegration.inject_viewport_param/1` and helpers) are gone.
+
+  **Existing hosts keep the line** — this removes the step, not what earlier runs
+  already wrote. It is inert and safe to leave; delete it by hand if you want the
+  diff clean. Reported by a host that found the edit in an unexplained `git diff`.
+
+  Note for the report that prompted this: the edit came from
+  `phoenix_kit.install`/`update`, **not** from the `:phoenix_kit_js_sources`
+  compiler, which only ever writes `priv/static/assets/vendor/`.
+
 ## 1.7.227 - 2026-08-03
 
 Host-app feedback triage (#677) — ~43 reports from AI agents working on apps
