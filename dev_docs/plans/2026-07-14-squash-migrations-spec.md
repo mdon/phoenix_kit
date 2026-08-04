@@ -2,8 +2,9 @@
 
 Status: **REVIEWED DRAFT r2** (spec only; implementation not started).
 Written 2026-07-14 at v1.7.193/V148; revised 2026-07-16 at v1.7.196/V150; counters refreshed
-2026-07-17 at **v1.7.198/V151** (chain V01..V151, 151 modules, 25,602 lines — the chain grew
-V149→V151 across the four days of spec work, live confirmation of §3.1's cadence point);
+2026-08-04 at **v1.7.227/V160** (chain V01..V160, 160 modules, 27,311 lines — V148→V160 across
+three weeks of spec/tooling work, live confirmation of §3.1's cadence point; V152-V160 delta
+classified in the inventory appendix);
 **r2 = post-review revision** incorporating a 7-reviewer round:
 4 internal adversarial agents (claims / design / completeness / ops) + GLM-5.2, Kimi K2.7,
 Mistral Medium. Verdicts: claims-verifier APPROVE (all mechanical claims confirmed against HEAD;
@@ -97,7 +98,7 @@ automatic destructive repair, ever; repair is NOT a migration bridge (§6.4).
 ## 3. Key research facts that shaped the design
 
 1. **Churn kills frozen baselines**: ~30% of legacy files modified in the last month; ~16 new
-   versions/month; **five** renumber events (latest V149→V150, 2026-07-15). Baseline must be
+   versions/month; **six** renumber events (latest V151→V152, 2026-07-15). Baseline must be
    tool-regenerable.
 2. **The chain is not uniformly idempotent**: early files (V10) crash on re-run; V20's bucket
    seed has no conflict guard; V35 seeds via upsert. Repair needs the manifest, not chain re-runs.
@@ -142,15 +143,15 @@ stragglers at ANY floor). Confirmation must be a **fresh reading at implementati
 Open with the operator: is this list COMPLETE? Any other host/app under the seamless-upgrade
 commitment makes its version a floor input too (§10 Q1).
 
-**Floor candidates** (repo at V151, 25,602 lines / 151 files; per-floor figures unchanged by
-1.7.194-198 — v01..v147 untouched):
+**Floor candidates** (repo at V160, 27,311 lines / 160 files; per-floor figures unchanged by
+1.7.194-227 — v01..v147 untouched, verified by git diff):
 
 | floor | legacy files removed (v01..v{floor-1} deleted + v{floor} replaced by baseline) | lines removed | delta files remaining |
 |---|---|---|---|
-| 110 | 109 + 1 | 19,725 | 41 |
-| **121** | 120 + 1 | 21,537 | 30 |
-| **135** | 134 + 1 | 23,231 | 16 |
-| 147 | 146 + 1 | 25,155 | 4 |
+| 110 | 109 + 1 | 19,725 | 50 |
+| **121** | 120 + 1 | 21,537 | 39 |
+| **135** | 134 + 1 | 23,231 | 25 |
+| 147 | 146 + 1 | 25,155 | 13 |
 
 ---
 

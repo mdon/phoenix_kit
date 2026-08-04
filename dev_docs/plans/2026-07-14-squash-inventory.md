@@ -275,3 +275,55 @@ RANGE-WIDE FACTS (v116-v148), all verified against current code: (1) ZERO seed r
 - V151 (ddl, 2026-07-17 refresh): source/primary columns on
   `phoenix_kit_cat_item_supplier_info` (extends V149's junction) + citext email columns on
   CRM tables (citext enabled since V01). Additive, `IF NOT EXISTS`-guarded, self-stamps '151'.
+
+## Post-V151 additions (2026-08-04 refresh, V152..V160)
+
+RANGE-WIDE: zero reference-data seed rows (seed lists in the tooling unaffected); no new SQL
+functions; mechanics unchanged (postgres.ex: only moduledoc + @current_version 160; helpers.ex /
+migration.ex byte-identical vs 1.7.198). 6th renumber event at the range boundary: V151->V152
+(da87ced8, 2026-07-15 — upstream PR #640 took V151 for supplier-info, the restructuring
+accumulator stepped aside; its down/1 stamps '151').
+
+- V152 (ddl, backfill, destructive): email send profiles moved to core — creates
+  phoenix_kit_email_send_profiles (V145 newsletters shape) + idx_email_send_profiles_* ; backfill
+  INSERT..SELECT ON CONFLICT (uuid) DO NOTHING guarded by IMMEDIATE table_exists? (safe: nothing
+  queued yet, v152.ex:181,414-431); DROPS phoenix_kit_newsletters_send_profiles CASCADE +
+  idx_nl_send_profiles_integration + idx_nl_send_profiles_default (must NOT appear in a
+  baseline). CRM contact lists: phoenix_kit_crm_lists + phoenix_kit_crm_list_members (+3 columns
+  on crm_contacts: locale/opted_out_at/consent). Broadcasts: list_uuid DROP NOT NULL,
+  source_type (Ecto-only enum, no CHECK), crm_list_uuid soft ref + partial index;
+  deliveries.user_uuid DROP NOT NULL + recipient_email CITEXT +
+  phoenix_kit_newsletters_deliveries_recipient_check (conname-guarded DO block; REDEFINED under
+  the same name by V155 — a native shape revision, no guard curation needed). down/1 deliberately
+  does not restore the two NOT NULLs. "One open migration" accumulator rule documented
+  (v152.ex:12-30).
+- V153 (ddl, backfill): media_folders.header_size DEFAULT 'medium'->'small' + lossy UPDATE of
+  existing 'medium' rows (deliberate; down restores default only).
+- V154 (ddl): phoenix_kit_og_templates + phoenix_kit_og_assignments (+ self-heal ADD COLUMN IF
+  NOT EXISTS slot_mapping for pre-release hosts — V91/V122/V129/V141 heal family); partial-index
+  uniqueness pair on (module_key,scope_type[,scope_uuid]). @disable_ddl_transaction true with no
+  in-file reason and no CONCURRENTLY — flagged. down drops both CASCADE.
+- V155 (ddl): deliveries.crm_contact_uuid (bare uuid, PLAIN index — deliberate deviation from the
+  partial-index soft-ref convention, v155.ex:10-16); recipient_check REPLACED under the same name
+  via unconditional DROP+ADD (deliberate overwrite semantics) with widened not-both rule
+  (explicitly not strict XOR, v155.ex:18-45); 3 partial unique per-broadcast dedup indexes;
+  broadcasts.source_params JSONB DEFAULT '{}'. Cross-package rollback coupling documented.
+- V156 (ddl, backfill, destructive): newsletters lists -> CRM migration (heaviest in range;
+  coordinated-release warning v156.ex:6-15). 5-step guarded backfill (lists, contacts with the
+  same-email-different-user carve-out v156.ex:249-259, user linking via ORDER BY
+  inserted_at,uuid LIMIT 1, memberships with fail-closed status mapping, recount); re-points
+  source_type='newsletters_list' broadcasts to crm_list. DROPS (must NOT appear in a baseline):
+  FK fk_newsletters_broadcasts_list, index idx_newsletters_broadcasts_list, column
+  phoenix_kit_newsletters_broadcasts.list_uuid, tables phoenix_kit_newsletters_list_members and
+  phoenix_kit_newsletters_lists (CASCADE, members first). down/1 structure-only (V79 shape),
+  data never returns.
+- V157 (ddl): annotations kind CHECK widened to add 'image' via unconditional DROP-then-ADD
+  (V121/V130 precedent); NEW down/1 shape for the chain — data-conditional rollback guard
+  raises with row count + remediation if kind='image' rows exist (v157.ex:78-101).
+- V158 (ddl): broadcasts.attachments JSONB DEFAULT '[]' (ordered Storage-file uuid array, soft
+  refs) + jsonb_typeof CHECK via DROP-then-ADD; accumulator CLOSED at 1.7.211.
+- V159 (ddl): publishing categories (self-FK parent SET NULL, per-group unique slug), M:N
+  post_categories (composite PK), post_views per-day rollup (composite PK, no PII).
+  @disable_ddl_transaction true again unexplained — flagged. down drops all three CASCADE.
+- V160 (ddl): settings.value VARCHAR(255)->TEXT (validation allowed 1000, column capped 255 —
+  real crash class); catalog-only change; down/1 hard-fails if any value exceeds 255 chars.

@@ -269,7 +269,7 @@ against baseline + repair.
 - The `ExpectedSchema` manifest is **tool-generated with a deterministic
   emit order and a `chain_hash`**. It is NEVER hand-merged: after any rebase
   that touches `v*.ex`, and after every **renumber event** (five so far;
-  latest V149→V150 2026-07-15), regenerate it with `generate_baseline.exs`
+  latest V151→V152 2026-07-15), regenerate it with `generate_baseline.exs`
   (§8.3 runbook). A migration PR may land with a stale manifest; the
   `chain_hash` assertion in `release_check` **and** its plain-unit-test twin
   are the release-time gate — regeneration must happen before publish.

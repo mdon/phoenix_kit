@@ -876,7 +876,18 @@ defmodule PhoenixKit.Squash.Generate.InventoryGuard do
     {"seed:phoenix_kit_settings:ai_embeddings_slots", "ai_embeddings_slots"},
     # role_permissions module_key renamed V77 -> V109
     {"seed:phoenix_kit_role_permissions:tickets", "tickets"},
-    {"seed:phoenix_kit_role_permissions:customer_service", "customer_service"}
+    {"seed:phoenix_kit_role_permissions:customer_service", "customer_service"},
+    # V152: newsletters send profiles moved to core email (table + 2 indexes dropped)
+    {"table:phoenix_kit_newsletters_send_profiles", "phoenix_kit_newsletters_send_profiles"},
+    {"index:idx_nl_send_profiles_integration", "idx_nl_send_profiles_integration"},
+    {"index:idx_nl_send_profiles_default", "idx_nl_send_profiles_default"},
+    # V156: newsletters lists migrated into CRM (tables + broadcast link dropped)
+    {"table:phoenix_kit_newsletters_lists", "phoenix_kit_newsletters_lists"},
+    {"table:phoenix_kit_newsletters_list_members", "phoenix_kit_newsletters_list_members"},
+    {"column:phoenix_kit_newsletters_broadcasts.list_uuid", "list_uuid"},
+    {"constraint:phoenix_kit_newsletters_broadcasts.fk_newsletters_broadcasts_list",
+     "fk_newsletters_broadcasts_list"},
+    {"index:idx_newsletters_broadcasts_list", "idx_newsletters_broadcasts_list"}
   ]
 
   @excluded_prefix [
