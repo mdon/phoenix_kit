@@ -1,51 +1,59 @@
 defmodule PhoenixKit.Utils.HtmlSanitizer do
   @moduledoc """
-  HTML sanitization for rich text content in entities.
+  HTML sanitization for user-supplied rich text.
 
-  This module provides basic HTML sanitization to prevent XSS attacks
-  while allowing safe HTML tags commonly used in rich text editors.
+  Backed by `MDEx.safe_html/2` — an ammonia-based **parsed allowlist**. It
+  builds a real DOM, keeps only known-good tags and attributes, validates
+  URL schemes per attribute, and re-serializes. It does not pattern-match
+  on markup, which is why it holds up where the previous regex
+  implementation did not (see `sanitize_html/1`).
 
-  ## Allowed Tags
+  ## What survives
 
-  The following tags are allowed:
-  - Block elements: p, div, br, hr, h1-h6, blockquote, pre, code
-  - Inline elements: span, strong, b, em, i, u, s, a, sub, sup, mark
-  - Lists: ul, ol, li
-  - Tables: table, thead, tbody, tr, th, td
-  - Media placeholders: img (with src validation)
+  Ordinary rich text: block elements (p, div, hr, h1-h6, blockquote, pre,
+  code), inline elements (span, strong, em, u, s, a, sub, sup), lists,
+  tables, and img. Relative, absolute, anchor, `mailto:` and `tel:` URLs
+  are preserved.
 
-  ## Removed Content
+  ## What is removed
 
-  The following are stripped completely:
-  - script tags and content
-  - style tags and content
-  - event handlers (onclick, onerror, etc.)
-  - javascript: and data: URLs
-  - iframe, object, embed tags
+  Script and style elements, event-handler attributes, dangerous URL
+  schemes (`javascript:`, `data:`, …) **including entity-encoded
+  spellings** such as `jav&#x61;script:`, and embedding elements
+  (iframe, object, embed, svg, math).
+
+  ## Output is normalised
+
+  Because the result is re-serialized from a parse tree, it is valid HTML
+  rather than a lightly-edited copy of the input: attribute values come
+  back quoted, void elements lose a self-closing slash (`<br/>` →
+  `<br>`), `<table>` gains an implicit `<tbody>`, and links gain
+  `rel="noopener noreferrer"`. Compare rendered meaning, not exact
+  strings, when asserting on sanitized output.
 
   ## Usage
 
-      iex> PhoenixKit.Utils.HtmlSanitizer.sanitize("<p>Hello</p><script>alert('xss')</script>")
-      "<p>Hello</p>"
+      PhoenixKit.Utils.HtmlSanitizer.sanitize("<p>Hello</p><script>alert('xss')</script>")
+      #=> "<p>Hello</p>"
 
-      iex> PhoenixKit.Utils.HtmlSanitizer.sanitize("<a href=\"javascript:alert('xss')\">Click</a>")
-      "<a>Click</a>"
+      PhoenixKit.Utils.HtmlSanitizer.sanitize(~s|<a href="javascript:alert(1)">Click</a>|)
+      #=> "<a rel=\\"noopener noreferrer\\">Click</a>"
   """
 
-  # Note: These are documented for reference. The current simple implementation
-  # strips dangerous content rather than whitelisting allowed tags.
-  # A more complete implementation using a library like HtmlSanitizeEx would use these.
+  # The tag/attribute allowlist is ammonia's default set, applied through
+  # `MDEx.safe_html/2` — see `sanitize_html/1` at the bottom of this module
+  # for why a parser rather than regexes. The list above is descriptive of
+  # that default, not a second source of truth; to change what is allowed,
+  # pass explicit `:sanitize` options rather than editing a comment.
   #
-  # Allowed tags:
-  #   p div br hr h1-h6 blockquote pre code
-  #   span strong b em i u s a sub sup mark
-  #   ul ol li table thead tbody tr th td img
-  #
-  # Allowed attributes:
-  #   a: href title target rel
-  #   img: src alt title width height
-  #   td/th: colspan rowspan
-  #   all: class id
+  # Behaviour worth knowing:
+  #   * URL schemes are validated per attribute — `javascript:`, `data:`
+  #     and friends are dropped, including entity-encoded spellings
+  #     (`jav&#x61;script:`), which the old blacklist could not catch.
+  #   * Relative, absolute, anchor, `mailto:` and `tel:` URLs survive.
+  #   * Links gain `rel="noopener noreferrer"`.
+  #   * Output is normalised HTML (attributes quoted, `<table>` gains an
+  #     implicit `<tbody>`), because it is re-serialized from a parse tree.
 
   @doc """
   Sanitizes HTML content by removing dangerous elements and attributes.
@@ -66,8 +74,7 @@ defmodule PhoenixKit.Utils.HtmlSanitizer do
 
   def sanitize(html) when is_binary(html) do
     html
-    |> remove_dangerous_patterns()
-    |> sanitize_urls()
+    |> sanitize_html()
     |> String.trim()
   end
 
@@ -110,131 +117,31 @@ defmodule PhoenixKit.Utils.HtmlSanitizer do
 
   # Private functions
 
-  # ⚠️ Attribute separators are `[\s\/]`, NOT `\s`.
+  # Sanitize via MDEx's `safe_html/2`, which is an ammonia-backed PARSED
+  # ALLOWLIST: it builds a real DOM, keeps only known-good tags and
+  # attributes, validates URL schemes per attribute, and re-serializes.
   #
-  # HTML permits `/` between attributes, and browsers parse
-  # `<img/src=x/onerror=alert(1)>` exactly like the space-separated form.
-  # These patterns previously required whitespace, so anything using slash
-  # separators passed through completely untouched — verified against this
-  # module before the fix:
+  # This replaced a hand-rolled regex sanitizer. Regexes cannot sanitize
+  # HTML — they have to model a parser they are not, and each attempt
+  # leaked. Two bypass classes were found in the previous implementation,
+  # the second of which left `<img/src=x/onerror=alert(1)>` completely
+  # untouched because the patterns assumed whitespace between attributes
+  # while HTML also permits `/`. Product descriptions render through here
+  # on unauthenticated storefronts, so a leak here is a leak to every
+  # visitor.
   #
-  #     <svg/onload=alert(1)>            -> UNCHANGED
-  #     <img/src=x/onerror=alert(1)>     -> UNCHANGED
-  #     <img src=x onerror=alert(1)>     -> <img src=x>        (caught)
+  # MDEx is already a runtime dependency (it renders Markdown), so this
+  # costs nothing to adopt — no new dep, and the allowlist is maintained
+  # upstream by people who do this full time.
   #
-  # That made the whole control bypassable by anyone who could write a
-  # product description or supply a CSV import feed, on the unauthenticated
-  # storefront.
-  #
-  # NOTE ON THE APPROACH: regex sanitizing is structurally fragile — this
-  # is the second bypass class found in it. The right shape is a parsed
-  # allowlist (tokenize, keep known-good tags/attributes, re-serialize).
-  # That needs an HTML parser as a RUNTIME dependency; `floki` is currently
-  # `only: :test`, and adding a runtime dep to core affects every consumer,
-  # so it is deliberately not done here. Regression payloads live in
-  # test/phoenix_kit/utils/html_sanitizer_test.exs — add to them, and
-  # prefer replacing this wholesale over growing more patterns.
-  @attr_sep ~S"[\s\/]"
-
-  defp remove_dangerous_patterns(html) do
-    dangerous_patterns = [
-      # Script tags with content
-      ~r/<script\b[^>]*>[\s\S]*?<\/script>/i,
-      # Style tags with content
-      ~r/<style\b[^>]*>[\s\S]*?<\/style>/i,
-      # Event handlers — separated by whitespace OR slash
-      ~r/#{@attr_sep}+on\w+\s*=\s*["'][^"']*["']/i,
-      ~r/#{@attr_sep}+on\w+\s*=\s*[^\s>]+/i,
-      # Dangerous tags. svg and math are here because both introduce
-      # foreign content with their own scripting surface (`<svg><script>`,
-      # `xlink:href="javascript:">`), which the rest of these
-      # HTML-shaped patterns do not reason about correctly.
-      ~r/<\s*(iframe|object|embed|form|input|button|meta|link|base|svg|math)\b[^>]*>/i,
-      ~r/<\/\s*(iframe|object|embed|form|input|button|meta|link|base|svg|math)\s*>/i
-    ]
-
-    Enum.reduce(dangerous_patterns, html, fn pattern, acc ->
-      Regex.replace(pattern, acc, "")
-    end)
-  end
-
-  # Schemes a link/media URL may use; anything else (or an unlisted scheme) is
-  # dropped. Relative/fragment/query URLs (no scheme) are allowed.
-  @allowed_schemes ~w(http https mailto tel)
-  @dangerous_scheme ~r/^(?:javascript|vbscript|data|file|blob):/
-  @scheme ~r/^[a-z][a-z0-9+.\-]*:/i
-
-  # A few named entities whose decoded form matters for scheme detection
-  # (a browser decodes `javascript&colon;alert(1)` before dispatching).
-  @named_entities %{
-    "tab" => "\t",
-    "newline" => "\n",
-    "colon" => ":",
-    "sol" => "/",
-    "lpar" => "(",
-    "rpar" => ")",
-    "num" => "#"
-  }
-
-  # Sanitize `href`/`src` URLs with an ALLOWLIST over a normalized value, not a
-  # scheme blacklist. MDEx renders raw HTML (`unsafe: true`) and the browser
-  # decodes entities + ignores whitespace/control chars in the scheme, so a
-  # blacklist is trivially bypassed (`jav&#x61;script:`, `java&Tab;script:`,
-  # `java\tscript:`). We decode entities and strip those chars BEFORE checking,
-  # and only ever REMOVE an attribute — never rewrite the visible URL — so the
-  # transform is fail-safe even if decoding is imperfect.
-  defp sanitize_urls(html) do
-    html
-    |> scrub_url_attr("href")
-    |> scrub_url_attr("src")
-  end
-
-  defp scrub_url_attr(html, attr) do
-    regex = ~r/\s#{attr}\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i
-
-    Regex.replace(regex, html, fn full, dquoted, squoted, unquoted ->
-      value = dquoted <> squoted <> unquoted
-      if safe_url?(value), do: full, else: ""
-    end)
-  end
-
-  defp safe_url?(value) do
-    normalized =
-      value
-      |> decode_entities()
-      # Browsers ignore ASCII control chars + whitespace when parsing a scheme.
-      |> String.replace(~r/[\x00-\x20\x7f]/u, "")
-      |> String.downcase()
-
-    cond do
-      Regex.match?(@dangerous_scheme, normalized) -> false
-      not Regex.match?(@scheme, normalized) -> true
-      Regex.match?(~r/^(?:#{Enum.join(@allowed_schemes, "|")}):/, normalized) -> true
-      true -> false
-    end
-  end
-
-  defp decode_entities(str) do
-    str
-    |> replace_entities(~r/&#x([0-9a-f]+);?/i, &String.to_integer(&1, 16))
-    |> replace_entities(~r/&#([0-9]+);?/, &String.to_integer/1)
-    |> then(
-      &Regex.replace(~r/&([a-z]+);/i, &1, fn whole, name ->
-        Map.get(@named_entities, String.downcase(name), whole)
-      end)
+  # `escape: [content: false]` because the job is to REMOVE unsafe
+  # constructs, not to entity-escape the safe markup that survives —
+  # callers render the result as HTML and expect `<p>` to still be a
+  # paragraph.
+  defp sanitize_html(html) do
+    MDEx.safe_html(html,
+      sanitize: MDEx.Document.default_sanitize_options(),
+      escape: [content: false, curly_braces_in_code: false]
     )
   end
-
-  defp replace_entities(str, regex, to_codepoint) do
-    Regex.replace(regex, str, fn _whole, digits -> codepoint(to_codepoint.(digits)) end)
-  end
-
-  defp codepoint(n) when is_integer(n) and n in 0..0x10FFFF do
-    <<n::utf8>>
-  rescue
-    # Surrogate/invalid code points can't be encoded — treat as removed.
-    _ -> ""
-  end
-
-  defp codepoint(_), do: ""
 end
