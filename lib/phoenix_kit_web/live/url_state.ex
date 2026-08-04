@@ -49,11 +49,13 @@ defmodule PhoenixKitWeb.Live.UrlState do
       **Required for `cast: :atom`**: the incoming string is matched against
       this list, so no atom is ever created from user input.
     * `:min` / `:max` — bounds for `cast: :integer`. Out-of-range falls back to
-      the default.
+      the default. `:max` defaults to 1_000_000 for integers: an unbounded page
+      number out of the URL overflows PostgreSQL's `bigint` once it reaches
+      `OFFSET`, turning a crafted link into a 500.
 
-  Unknown query keys are preserved across patches, so an unrelated param
-  (a modal's `?action=add`, a tracking tag) is not dropped when a filter
-  changes.
+  Unknown query keys are preserved across patches, so an unrelated param is not
+  dropped when a filter changes — the media selector is opened with
+  `?return_to=…&mode=single`, and both survive a search.
 
   ## Options
 
@@ -62,9 +64,13 @@ defmodule PhoenixKitWeb.Live.UrlState do
       disconnected render as well, so the first paint already carries the list.
       This is what a `mount/3` that loads its data already does, which is why it
       is the default: adopting the module does not change what the user sees.
-      `:skip` runs the callback only once the socket is connected, trading an
-      empty first paint for one query per page load instead of two — worth it on
-      a heavy list, wrong on a page that must serve content to crawlers.
+      `:skip` runs the callback only once the socket is connected, halving the
+      queries per page load — worth it on a heavy list, wrong on a page that
+      must serve content to crawlers. ⚠ With `:skip` the callback has not run
+      when the disconnected render happens, so **any assign the callback sets
+      does not exist yet**: the template must tolerate that (`@users || []`),
+      or mount must seed a placeholder. Otherwise the dead render raises rather
+      than merely painting empty.
     * `:page_param` — the assign reset whenever another parameter changes.
       Defaults to `:page` when the spec declares it; `false` disables the reset.
 
@@ -185,7 +191,7 @@ defmodule PhoenixKitWeb.Live.UrlState do
       cast: cast,
       allowed: allowed,
       min: Keyword.get(opts, :min),
-      max: Keyword.get(opts, :max)
+      max: integer_max(cast, opts)
     }
   end
 
@@ -193,6 +199,14 @@ defmodule PhoenixKitWeb.Live.UrlState do
     raise ArgumentError,
           "PhoenixKit.UrlState params must be `assign_name: [default: …]`, got: #{inspect(other)}"
   end
+
+  # An unbounded integer from the URL is a 500 waiting to happen: a page number
+  # of 10^24 survives Integer.parse, reaches Ecto as OFFSET, and overflows
+  # PostgreSQL's bigint. Integer params therefore get a ceiling whether or not
+  # the caller thought to set one; anything above it falls back to the default.
+  @default_integer_max 1_000_000
+  defp integer_max(:integer, opts), do: Keyword.get(opts, :max, @default_integer_max)
+  defp integer_max(_cast, opts), do: Keyword.get(opts, :max)
 
   defp validate_dead_render!(value) when value in [:skip, :call], do: value
 
@@ -358,7 +372,7 @@ defmodule PhoenixKitWeb.Live.UrlState do
   defp handle_params(params, uri, socket) do
     cfg = config!(socket)
     state = decode(params, cfg)
-    changed? = not socket.assigns[@loaded_assign] or state != socket.assigns[@state_assign]
+    reload? = reload?(socket.assigns[@loaded_assign], state, socket.assigns[@state_assign])
 
     socket =
       socket
@@ -366,7 +380,7 @@ defmodule PhoenixKitWeb.Live.UrlState do
       |> Phoenix.Component.assign(@extra_assign, extra_params(params, cfg))
       |> assign_state(state, cfg)
 
-    if changed? and run_callback?(socket, cfg) do
+    if reload? and run_callback?(socket, cfg) do
       socket = Phoenix.Component.assign(socket, @loaded_assign, true)
       {:cont, socket.view.handle_url_state(state, socket)}
     else
@@ -374,10 +388,25 @@ defmodule PhoenixKitWeb.Live.UrlState do
     end
   end
 
-  # The hook runs on every navigation in this LiveView, not only ones this
-  # module caused. A patch that touches an unrelated query key — a modal's
-  # ?action=add, say — must not make the list re-run its queries, so the
-  # callback fires only when the declared state actually differs.
+  @doc """
+  Whether a navigation should re-run `handle_url_state/2`.
+
+  The hook fires on every navigation in the LiveView, not only the ones this
+  module caused. A patch touching an unrelated query key — the media selector's
+  `?return_to=…`, a host LiveView's own patch — must not make the list re-run
+  its queries, so the callback runs only when the declared state actually
+  differs, or when it has never run at all.
+
+  Public because it is the one branch that decides whether a shared link, a
+  Back press or a filter change reloads; it is worth pinning in a test without
+  a router.
+  """
+  @spec reload?(boolean() | nil, state(), state() | nil) :: boolean()
+  def reload?(loaded?, new_state, previous_state)
+  def reload?(true, state, state), do: false
+  def reload?(true, _new, _previous), do: true
+  def reload?(_not_loaded, _new, _previous), do: true
+
   defp run_callback?(socket, cfg) do
     cfg.dead_render == :call or Phoenix.LiveView.connected?(socket)
   end
@@ -390,8 +419,9 @@ defmodule PhoenixKitWeb.Live.UrlState do
     end)
   end
 
-  # Query keys the spec does not own — kept verbatim so that, say, an open
-  # modal's ?action=add is not dropped the moment a filter changes.
+  # Query keys the spec does not own — kept verbatim so that the media
+  # selector's ?return_to=…&mode=single is not dropped the moment a filter
+  # changes, stranding the user with no way back.
   defp extra_params(params, cfg) when is_map(params) do
     known =
       Enum.flat_map(cfg.params, fn spec -> [spec.url_key | spec.aliases] end)
@@ -462,7 +492,7 @@ defmodule PhoenixKitWeb.Live.UrlState do
   def url_state_path(socket_or_assigns, changes) do
     assigns = assigns_of(socket_or_assigns)
     cfg = config!(assigns)
-    changes = Map.new(changes)
+    changes = changes |> Map.new() |> validate_changes!(cfg)
 
     state =
       assigns
@@ -474,6 +504,27 @@ defmodule PhoenixKitWeb.Live.UrlState do
     extra = assigns[@extra_assign] || %{}
 
     build_path(path, state, cfg, extra)
+  end
+
+  # Changes are keyed by assign name, not by URL key — an easy thing to get
+  # backwards. Left unchecked, `push_url_state(socket, q: "x")` on a param
+  # declared as `search_query: [url_key: "q"]` would silently do nothing except
+  # reset the page, which reads as "search is broken" with no error anywhere.
+  defp validate_changes!(changes, cfg) do
+    declared = MapSet.new(cfg.params, & &1.key)
+
+    case Enum.reject(Map.keys(changes), &MapSet.member?(declared, &1)) do
+      [] ->
+        changes
+
+      unknown ->
+        raise ArgumentError, """
+        unknown UrlState parameter(s): #{inspect(unknown)}
+
+        Changes are keyed by assign name, not by URL key. Declared: \
+        #{inspect(MapSet.to_list(declared))}
+        """
+    end
   end
 
   defp maybe_reset_page(state, _changes, %{page_param: false}), do: state

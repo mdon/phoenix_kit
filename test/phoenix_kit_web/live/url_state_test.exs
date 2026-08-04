@@ -207,6 +207,125 @@ defmodule PhoenixKitWeb.Live.UrlStateTest do
     end
   end
 
+  describe "decode/2 integer ceiling" do
+    test "caps integers by default, so a crafted page cannot overflow OFFSET" do
+      # 10^24 parses fine and would reach PostgreSQL as OFFSET, overflowing bigint
+      assert UrlState.decode(%{"page" => "999999999999999999999999"}, cfg()).page == 1
+      assert UrlState.decode(%{"page" => "1000001"}, cfg()).page == 1
+      assert UrlState.decode(%{"page" => "1000000"}, cfg()).page == 1_000_000
+    end
+
+    test "an explicit :max overrides the default ceiling" do
+      spec = cfg(page: [default: 1, cast: :integer, min: 1, max: 50])
+
+      assert UrlState.decode(%{"page" => "50"}, spec).page == 50
+      assert UrlState.decode(%{"page" => "51"}, spec).page == 1
+    end
+  end
+
+  describe "reload?/3" do
+    test "does not reload when the state is unchanged and already loaded" do
+      state = UrlState.decode(%{"q" => "ivan"}, cfg())
+
+      refute UrlState.reload?(true, state, state)
+    end
+
+    test "reloads when a declared param changed" do
+      previous = UrlState.decode(%{"q" => "ivan"}, cfg())
+      current = UrlState.decode(%{"q" => "petr"}, cfg())
+
+      assert UrlState.reload?(true, current, previous)
+    end
+
+    test "reloads the first time even when the state equals the defaults" do
+      state = UrlState.decode(%{}, cfg())
+
+      assert UrlState.reload?(false, state, state)
+      assert UrlState.reload?(nil, state, nil)
+    end
+  end
+
+  describe "url_state_path/2" do
+    defp assigns_for(state, opts \\ []) do
+      %{
+        :__phoenix_kit_url_cfg__ => cfg(),
+        :__phoenix_kit_url_state__ => state,
+        :__phoenix_kit_url_path__ => Keyword.get(opts, :path, "/admin/users"),
+        :__phoenix_kit_url_extra__ => Keyword.get(opts, :extra, %{})
+      }
+    end
+
+    test "resets the page when another parameter changes" do
+      state = UrlState.decode(%{"q" => "ivan", "page" => "5"}, cfg())
+
+      path = UrlState.url_state_path(assigns_for(state), search_query: "petr")
+
+      assert path == "/admin/users?q=petr"
+    end
+
+    test "keeps the page when the page itself is what changed" do
+      state = UrlState.decode(%{"q" => "ivan", "page" => "5"}, cfg())
+
+      assert UrlState.url_state_path(assigns_for(state), page: 3) =~ "page=3"
+      assert UrlState.url_state_path(assigns_for(state), page: 3) =~ "q=ivan"
+    end
+
+    test "returns the bare path once everything is back to its default" do
+      state = UrlState.decode(%{"q" => "ivan"}, cfg())
+
+      assert UrlState.url_state_path(assigns_for(state), search_query: "") == "/admin/users"
+    end
+
+    test "preserves query keys the spec does not declare" do
+      state = UrlState.decode(%{}, cfg())
+      assigns = assigns_for(state, extra: %{"return_to" => "/admin/media"})
+
+      path = UrlState.url_state_path(assigns, search_query: "logo")
+
+      assert path =~ "q=logo"
+      assert path =~ "return_to=%2Fadmin%2Fmedia"
+    end
+
+    test "patches the path it is on, so a locale segment is not lost" do
+      state = UrlState.decode(%{}, cfg())
+      assigns = assigns_for(state, path: "/uk/admin/users")
+
+      assert UrlState.url_state_path(assigns, search_query: "ivan") == "/uk/admin/users?q=ivan"
+    end
+
+    test "falls back to :url_path, then to root, when no path was captured" do
+      state = UrlState.decode(%{}, cfg())
+
+      from_url_path =
+        state
+        |> assigns_for()
+        |> Map.delete(:__phoenix_kit_url_path__)
+        |> Map.put(:url_path, "/admin/users")
+
+      assert UrlState.url_state_path(from_url_path, search_query: "ivan") == "/admin/users?q=ivan"
+
+      bare = Map.delete(assigns_for(state), :__phoenix_kit_url_path__)
+      assert UrlState.url_state_path(bare, search_query: "ivan") == "/?q=ivan"
+    end
+
+    test "rejects a change keyed by URL key instead of assign name" do
+      state = UrlState.decode(%{}, cfg())
+
+      assert_raise ArgumentError, ~r/unknown UrlState parameter\(s\): \[:q\]/, fn ->
+        UrlState.url_state_path(assigns_for(state), q: "ivan")
+      end
+    end
+
+    test "explains itself when handed a socket during render" do
+      not_in_socket = %Phoenix.LiveView.Socket.AssignsNotInSocket{__assigns__: %{}}
+      socket = %Phoenix.LiveView.Socket{assigns: not_in_socket}
+
+      assert_raise ArgumentError, ~r/pass `assigns`, not `@socket`/, fn ->
+        UrlState.url_state_path(socket, search_query: "ivan")
+      end
+    end
+  end
+
   describe "round trip" do
     test "decode(encode(state)) is the identity for every declared param" do
       original = UrlState.decode(%{"q" => "ivan", "role" => "admin", "sort_dir" => "asc"}, cfg())

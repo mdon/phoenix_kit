@@ -224,14 +224,22 @@ patches the URL on every keystroke.
 
 ## Testing
 
-Encoding and decoding are pure functions over maps: unit-testable with no
-PostgreSQL, which matters because core's integration suite needs a database this
-environment does not have locally. Cases: default-dropping, alias decode,
-cast/whitelist rejection, page reset, unknown-key passthrough, empty query.
+Everything that decides a URL is a pure function over maps, so the contract is
+pinned without PostgreSQL — which matters, because core's integration suite
+needs a database this environment does not have. 41 tests cover default-
+dropping, alias decode, cast and whitelist rejection, the integer ceiling, page
+reset, unknown-key preservation, path capture and its fallbacks, rejection of a
+change keyed by URL key instead of assign name, and `reload?/3` — the single
+branch deciding whether a shared link, a Back press or a filter change reloads,
+made public precisely so it could be tested without a router.
 
-LiveView-level behaviour (`push_patch` target, hook composition with a host
-`handle_params`) via `live_isolated/3`. Runtime verification of the converted
-screens through the running Andi app over Tidewave.
+**Not covered, and deliberately so:** the `on_mount` → `:handle_params` hook →
+host `handle_params/3` ordering. `live_isolated/3` mounts without a router,
+which this module refuses by design, so exercising it needs a test router and
+endpoint that core's test support does not currently have. Building that is
+worth doing, but as its own piece of work rather than smuggled into this one.
+Until then the ordering is verified by hand against the running Andi app over
+Tidewave, together with the converted screens.
 
 ## First package — three repos
 
