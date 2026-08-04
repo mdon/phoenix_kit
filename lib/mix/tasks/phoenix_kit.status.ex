@@ -30,11 +30,29 @@ defmodule Mix.Tasks.PhoenixKit.Status do
 
   ## Sample Output
 
-      PhoenixKit v1.2.1
-      ├── Installed: V03 ✅
+      PhoenixKit v1.7.216
+      ├── Installed: V159 ✅
       ├── Database: Connected ✅
-      ├── Assets: Built ✅
-      └── Status: Ready
+      ├── Modules: 2 modules, all up to date ✅
+      │   ├── Boards: V01 ✅
+      │   └── Inbox: V01 ✅
+      └── Next: Ready
+
+  The `Modules` row covers PhoenixKit modules that own their migrations
+  (`c:PhoenixKit.Module.migration_module/0`) — each reports the schema version
+  installed in *your* database against the version its code expects. When one
+  is behind, the report says so and `Next` points at the fix:
+
+      PhoenixKit v1.7.216
+      ├── Installed: V159 ✅
+      ├── Database: Connected ✅
+      ├── Modules: 2 modules, 1 update available ⬆
+      │   ├── Boards: V01 ✅
+      │   └── Inbox: V01 → V02 available ⬆
+      └── Next: mix phoenix_kit.update (module schema behind: Inbox)
+
+  The row is omitted entirely when no installed module owns migrations, so a
+  core-only install keeps the compact tree.
 
   """
 
@@ -44,6 +62,8 @@ defmodule Mix.Tasks.PhoenixKit.Status do
   alias PhoenixKit.Config
   alias PhoenixKit.Install.Common
   alias PhoenixKit.Install.PrefixConfig
+  alias PhoenixKit.Install.StatusTree
+  alias PhoenixKit.Migrations.Modules, as: MigrationModules
   alias PhoenixKit.Migrations.Postgres
 
   @impl Mix.Task
@@ -89,25 +109,90 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     phoenix_kit_version = get_phoenix_kit_version()
     installation_status = get_installation_status(prefix)
     database_status = get_database_status(prefix)
-    next_action = determine_next_action(installation_status, prefix)
+
+    # Modules that own their migrations report their own schema version. Only
+    # queried when the database answered — otherwise every coordinator would
+    # time out one after another producing a wall of identical errors.
+    modules = module_entries(database_status, prefix)
+    next_action = determine_next_action(installation_status, modules, prefix)
 
     # Display header
     IO.puts("\n#{IO.ANSI.bright()}PhoenixKit v#{phoenix_kit_version}#{IO.ANSI.reset()}")
 
     # Display status tree
-    display_status_tree([
-      {"Installed", format_installation_status(installation_status)},
-      {"Database", format_database_status(database_status)},
-      {"Next", format_next_action(next_action)}
-    ])
+    display_status_tree(
+      [
+        {"Installed", format_installation_status(installation_status)},
+        {"Database", format_database_status(database_status)}
+      ] ++
+        module_tree_rows(modules) ++
+        [{"Next", format_next_action(next_action)}]
+    )
 
     # Show verbose information if requested
     if verbose do
-      show_verbose_diagnostics(prefix, installation_status, database_status)
+      show_verbose_diagnostics(prefix, installation_status, database_status, modules)
     end
 
     IO.puts("")
   end
+
+  # ── Module schema versions ──────────────────────────────────────────────────
+
+  defp module_entries({:connected_with_tables, _version}, prefix),
+    do: MigrationModules.list(prefix: prefix)
+
+  defp module_entries(_database_status, _prefix), do: []
+
+  # Renders as a labelled row with one child line per module:
+  #
+  #   ├── Modules: 2 installed, 1 update available
+  #   │   ├── Boards: V01 ✅
+  #   │   └── Inbox: V01 → V02 ⬆
+  #
+  # Omitted entirely when no module owns migrations, so the common
+  # core-only install keeps the compact three-line tree it had before.
+  defp module_tree_rows([]), do: []
+
+  defp module_tree_rows(modules) do
+    [{"Modules", format_modules_summary(modules), Enum.map(modules, &format_module_entry/1)}]
+  end
+
+  defp format_modules_summary(modules) do
+    pending = MigrationModules.pending(modules)
+    failed = MigrationModules.failed(modules)
+    count = "#{length(modules)} #{pluralize(length(modules), "module", "modules")}"
+
+    cond do
+      failed != [] ->
+        "#{IO.ANSI.red()}#{count}, #{length(failed)} unreadable ❌#{IO.ANSI.reset()}"
+
+      pending != [] ->
+        "#{IO.ANSI.yellow()}#{count}, #{length(pending)} #{pluralize(length(pending), "update", "updates")} available ⬆#{IO.ANSI.reset()}"
+
+      true ->
+        "#{IO.ANSI.green()}#{count}, all up to date ✅#{IO.ANSI.reset()}"
+    end
+  end
+
+  defp format_module_entry(%{status: :up_to_date} = entry) do
+    "#{entry.name}: #{IO.ANSI.green()}V#{pad_version(entry.installed)} ✅#{IO.ANSI.reset()}"
+  end
+
+  defp format_module_entry(%{status: :needs_update} = entry) do
+    "#{entry.name}: #{IO.ANSI.yellow()}V#{pad_version(entry.installed)} → V#{pad_version(entry.target)} available ⬆#{IO.ANSI.reset()}"
+  end
+
+  defp format_module_entry(%{status: :not_installed} = entry) do
+    "#{entry.name}: #{IO.ANSI.yellow()}not installed → V#{pad_version(entry.target)} available ⬆#{IO.ANSI.reset()}"
+  end
+
+  defp format_module_entry(%{status: :error} = entry) do
+    "#{entry.name}: #{IO.ANSI.red()}unreadable ❌#{IO.ANSI.reset()} (#{entry.error})"
+  end
+
+  defp pluralize(1, singular, _plural), do: singular
+  defp pluralize(_count, _singular, plural), do: plural
 
   # Get PhoenixKit module version
   defp get_phoenix_kit_version do
@@ -210,27 +295,32 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     end
   end
 
-  # Determine next recommended action
-  defp determine_next_action({:not_installed}, _prefix) do
+  # Determine next recommended action.
+  #
+  # Module schema versions participate: a host whose core is current but whose
+  # `phoenix_kit_inbox` tables are a version behind still needs to run
+  # `mix phoenix_kit.update`, and used to be told "Ready".
+  defp determine_next_action({:not_installed}, _modules, _prefix) do
     {:install, "mix igniter.install phoenix_kit"}
   end
 
-  defp determine_next_action({:unreachable, _reason}, _prefix) do
+  defp determine_next_action({:unreachable, _reason}, _modules, _prefix) do
     {:fix_connection, "Fix the database connection, then re-run mix phoenix_kit.status"}
   end
 
-  defp determine_next_action({:needs_update, _current, _target}, prefix) do
-    cmd =
-      if prefix != "public",
-        do: "mix phoenix_kit.update --prefix=#{prefix}",
-        else: "mix phoenix_kit.update"
-
-    {:update, cmd}
+  defp determine_next_action({:needs_update, _current, _target}, _modules, prefix) do
+    {:update, update_command(prefix)}
   end
 
-  defp determine_next_action({:up_to_date, _version}, _prefix) do
-    {:ready, "Ready"}
+  defp determine_next_action({:up_to_date, _version}, modules, prefix) do
+    case MigrationModules.pending(modules) do
+      [] -> {:ready, "Ready"}
+      pending -> {:update_modules, update_command(prefix), Enum.map(pending, & &1.name)}
+    end
   end
+
+  defp update_command("public"), do: "mix phoenix_kit.update"
+  defp update_command(prefix), do: "mix phoenix_kit.update --prefix=#{prefix}"
 
   # Format installation status for display
   defp format_installation_status({:not_installed}) do
@@ -279,6 +369,10 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     "#{IO.ANSI.cyan()}#{command}#{IO.ANSI.reset()}"
   end
 
+  defp format_next_action({:update_modules, command, names}) do
+    "#{IO.ANSI.cyan()}#{command}#{IO.ANSI.reset()} #{IO.ANSI.faint()}(module schema behind: #{Enum.join(names, ", ")})#{IO.ANSI.reset()}"
+  end
+
   defp format_next_action({:ready, message}) do
     "#{IO.ANSI.green()}#{message}#{IO.ANSI.reset()}"
   end
@@ -287,25 +381,47 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     "#{IO.ANSI.yellow()}#{message}#{IO.ANSI.reset()}"
   end
 
-  # Display status information in tree format
+  # Layout lives in PhoenixKit.Install.StatusTree so it can be unit tested
+  # without a database; this only supplies the ANSI label styling and prints.
   defp display_status_tree(items) do
     items
-    |> Enum.with_index()
-    |> Enum.each(fn {{label, value}, index} ->
-      is_last = index == length(items) - 1
-      prefix = if is_last, do: "└── ", else: "├── "
-
-      IO.puts("#{prefix}#{IO.ANSI.bright()}#{label}#{IO.ANSI.reset()}: #{value}")
-    end)
+    |> StatusTree.render(label_format: &"#{IO.ANSI.bright()}#{&1}#{IO.ANSI.reset()}")
+    |> IO.puts()
   end
 
   # Show detailed diagnostic information
-  defp show_verbose_diagnostics(prefix, installation_status, database_status) do
+  defp show_verbose_diagnostics(prefix, installation_status, database_status, modules) do
     IO.puts("\n#{IO.ANSI.bright()}═══ Detailed Diagnostics ═══#{IO.ANSI.reset()}")
 
     show_installation_diagnostics(installation_status, prefix)
+    show_module_diagnostics(modules)
     show_database_diagnostics(database_status, prefix)
     show_configuration_diagnostics()
+  end
+
+  # Per-module detail: which coordinator reports the version, and the exact
+  # numbers behind the summary line.
+  defp show_module_diagnostics([]) do
+    IO.puts("\n#{IO.ANSI.bright()}Modules:#{IO.ANSI.reset()}")
+    IO.puts("  No installed module owns migrations.")
+  end
+
+  defp show_module_diagnostics(modules) do
+    IO.puts("\n#{IO.ANSI.bright()}Modules:#{IO.ANSI.reset()}")
+
+    Enum.each(modules, fn entry ->
+      IO.puts("  #{entry.name} (#{inspect(entry.module)})")
+      IO.puts("    Coordinator: #{inspect(entry.migration_module)}")
+
+      case entry.status do
+        :error ->
+          IO.puts("    Version: unreadable — #{entry.error}")
+
+        _ ->
+          IO.puts("    Installed: V#{pad_version(entry.installed)}")
+          IO.puts("    Target: V#{pad_version(entry.target)}")
+      end
+    end)
   end
 
   # Show installation diagnostics

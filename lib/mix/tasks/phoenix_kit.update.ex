@@ -101,6 +101,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       RateLimiterConfig
     }
 
+    alias PhoenixKit.Migrations.Modules, as: MigrationModules
     alias PhoenixKit.Migrations.Postgres, as: MigrationsPostgres
     alias PhoenixKit.Migrations.UUIDRepair
     # NOTE: Do NOT alias PhoenixKit.Utils.Routes here — it depends on
@@ -884,76 +885,93 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     # in the parent app for each module that needs updating, then runs migrations.
     defp run_module_migrations(opts) do
       prefix = PrefixConfig.resolve_prefix(opts)
+      modules = MigrationModules.list(prefix: prefix)
 
-      modules =
-        try do
-          discover_module_migrations()
-        rescue
-          _ -> []
-        end
+      report_unreadable_modules(modules)
 
-      Enum.each(modules, fn {name, migration_mod} ->
-        try do
-          current = migration_mod.migrated_version_runtime(prefix: prefix)
-          target = migration_mod.current_version()
+      case MigrationModules.pending(modules) do
+        [] ->
+          report_modules_up_to_date(modules)
 
-          if current < target do
-            Mix.shell().info("\n⏳ #{name}: V#{pad_version(current)} → V#{pad_version(target)}")
-            generate_module_migration(name, migration_mod, current, target, prefix)
+        pending ->
+          # Write every module's migration file FIRST, then migrate once.
+          # The old code ran a full `ecto.migrate` inside the loop, so N
+          # modules meant N migrator runs over the same (growing) directory.
+          pending
+          |> Enum.with_index()
+          |> Enum.each(fn {entry, index} ->
+            Mix.shell().info(
+              "\n⏳ #{entry.name}: V#{pad_version(entry.installed)} → V#{pad_version(entry.target)}"
+            )
 
-            # Run the newly generated migration
-            Mix.Task.reenable("ecto.migrate")
+            generate_module_migration(entry, prefix, index)
+          end)
 
-            case resolve_host_repo() do
-              nil -> Mix.Task.run("ecto.migrate")
-              repo -> Mix.Task.run("ecto.migrate", ["-r", repo])
-            end
+          migrate_host_repo()
 
-            Mix.shell().info("✅ #{name} migrated to V#{pad_version(target)}")
-          else
-            Mix.shell().info("✅ #{name}: V#{pad_version(current)} (up to date)")
-          end
-        rescue
-          error ->
-            Mix.shell().info("⚠️  #{name} migration check failed: #{Exception.message(error)}")
-        end
+          Enum.each(pending, fn entry ->
+            Mix.shell().info("✅ #{entry.name} migrated to V#{pad_version(entry.target)}")
+          end)
+      end
+    end
+
+    # A module whose coordinator raises used to be silently dropped from the
+    # run — the host saw nothing at all and assumed its tables were current.
+    defp report_unreadable_modules(modules) do
+      case MigrationModules.failed(modules) do
+        [] ->
+          :ok
+
+        failed ->
+          Enum.each(failed, fn entry ->
+            Mix.shell().info(
+              "⚠️  #{entry.name}: could not read schema version — #{entry.error}\n" <>
+                "    Its tables were NOT migrated. Check #{inspect(entry.migration_module)}."
+            )
+          end)
+      end
+    end
+
+    defp report_modules_up_to_date([]), do: :ok
+
+    defp report_modules_up_to_date(modules) do
+      Enum.each(modules, fn
+        %{status: :error} ->
+          :ok
+
+        entry ->
+          Mix.shell().info("✅ #{entry.name}: V#{pad_version(entry.installed)} (up to date)")
       end)
     end
 
-    # Discover modules with migrations via beam file scanning.
-    # Works without the full app started — scans beam files directly.
-    defp discover_module_migrations do
-      PhoenixKit.ModuleDiscovery.discover_external_modules()
-      |> Enum.flat_map(fn mod ->
-        if Code.ensure_loaded?(mod) and function_exported?(mod, :migration_module, 0) do
-          case mod.migration_module() do
-            nil -> []
-            migration_mod -> [{safe_module_name(mod), migration_mod}]
-          end
-        else
-          []
-        end
-      end)
+    defp migrate_host_repo do
+      Mix.Task.reenable("ecto.migrate")
+
+      case resolve_host_repo() do
+        nil -> Mix.Task.run("ecto.migrate")
+        repo -> Mix.Task.run("ecto.migrate", ["-r", repo])
+      end
     end
 
-    defp safe_module_name(mod) do
-      if function_exported?(mod, :module_name, 0), do: mod.module_name(), else: inspect(mod)
-    rescue
-      _ -> inspect(mod)
-    end
-
-    defp generate_module_migration(name, migration_mod, current, target, prefix) do
+    # `index` offsets the timestamp so two modules migrated in the same second
+    # can't collide. Ecto derives a migration's version from the filename
+    # prefix and rejects duplicates outright, so without this a host running
+    # two module upgrades at once got a hard failure.
+    defp generate_module_migration(entry, prefix, index) do
       migrations_dir = Path.join(["priv", "repo", "migrations"])
       File.mkdir_p!(migrations_dir)
 
       slug =
-        name
+        entry.name
         |> String.downcase()
         |> String.replace(~r/[^a-z0-9]+/, "_")
         |> String.trim("_")
 
-      mod_name = inspect(migration_mod)
-      timestamp = Calendar.strftime(DateTime.utc_now(), "%Y%m%d%H%M%S")
+      mod_name = inspect(entry.migration_module)
+      current = entry.installed
+      target = entry.target
+
+      timestamp = unique_timestamp(migrations_dir, index)
 
       filename =
         "#{timestamp}_#{slug}_update_v#{pad_version(current)}_to_v#{pad_version(target)}.exs"
@@ -984,6 +1002,29 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       path = Path.join(migrations_dir, filename)
       File.write!(path, content)
       Mix.shell().info("  Created migration: #{path}")
+    end
+
+    # Base timestamp + index, bumped past anything already on disk. Migration
+    # versions only have to be unique and increasing — they are not required to
+    # decode back to a real wall-clock time.
+    defp unique_timestamp(migrations_dir, index) do
+      base = String.to_integer(Common.generate_timestamp()) + index
+
+      highest =
+        migrations_dir
+        |> File.ls()
+        |> case do
+          {:ok, files} -> files
+          {:error, _} -> []
+        end
+        |> Enum.map(&(&1 |> String.split("_") |> hd() |> Integer.parse()))
+        |> Enum.flat_map(fn
+          {version, ""} -> [version]
+          _ -> []
+        end)
+        |> Enum.max(fn -> 0 end)
+
+      to_string(max(base, highest + 1 + index))
     end
 
     # Show current installation status and available updates
@@ -1234,12 +1275,45 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
       a = IO.ANSI
 
+      # Modules that own their schema report alongside core, so the closing
+      # summary answers "what version is everything at?" in one place rather
+      # than only covering core and leaving module versions to scrollback.
+      module_lines = module_summary_lines(prefix)
+      core_branch = if module_lines == "", do: "└──", else: "├──"
+
       Mix.shell().info("""
 
       #{a.bright()}PhoenixKit v#{phoenix_kit_version}#{a.reset()}
       #{a.bright()}├── Migration#{a.reset()}: #{format_version(db_version, target)}
-      #{a.bright()}└── Target#{a.reset()}:    V#{pad_version(target)}
+      #{a.bright()}#{core_branch} Target#{a.reset()}:    V#{pad_version(target)}#{module_lines}
       """)
+    end
+
+    defp module_summary_lines(prefix) do
+      modules = MigrationModules.list(prefix: prefix)
+      a = IO.ANSI
+      last_index = length(modules) - 1
+
+      modules
+      |> Enum.with_index()
+      |> Enum.map_join("", fn {entry, index} ->
+        branch = if index == last_index, do: "└──", else: "├──"
+        "\n#{a.bright()}#{branch} #{entry.name}#{a.reset()}: #{format_module_version(entry)}"
+      end)
+    rescue
+      _ -> ""
+    end
+
+    defp format_module_version(%{status: :error} = entry) do
+      "#{IO.ANSI.red()}unreadable ❌#{IO.ANSI.reset()} (#{entry.error})"
+    end
+
+    defp format_module_version(%{status: :up_to_date} = entry) do
+      "#{IO.ANSI.green()}V#{pad_version(entry.installed)} ✅#{IO.ANSI.reset()}"
+    end
+
+    defp format_module_version(entry) do
+      "#{IO.ANSI.yellow()}V#{pad_version(entry.installed)} (needs V#{pad_version(entry.target)})#{IO.ANSI.reset()}"
     end
 
     defp format_version(db, target) when db >= target,

@@ -9,8 +9,10 @@ defmodule PhoenixKit.Install.IgniterCompat do
     Igniter.Project.Config,
     Igniter.Project.Deps,
     Igniter.Project.Module,
+    Igniter.Project.MixProject,
     Igniter.Code.Common,
-    Igniter.Code.Function
+    Igniter.Code.Function,
+    Igniter.Code.List
   ]
 
   @rewrite_modules [

@@ -27,6 +27,13 @@ defmodule PhoenixKit.Install.JsIntegration do
 
   require Logger
 
+  # Igniter is optional (see mix.exs) and this module cannot be guarded away
+  # like the `PhoenixKit.Install.*` helpers — `mix phoenix_kit.assets.rebuild`
+  # calls `update_js_file/0`, which needs no igniter. The shim silences the
+  # undefined-module warnings for the igniter-only functions on a build
+  # without igniter.
+  use PhoenixKit.Install.IgniterCompat
+
   @source_filename "phoenix_kit.js"
   @script_marker "<!-- PhoenixKit JS Hooks -->"
 

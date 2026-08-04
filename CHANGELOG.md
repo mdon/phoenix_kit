@@ -1,3 +1,91 @@
+## 1.7.230 - 2026-08-04
+
+### Fixed
+- ⚠️ **`mix igniter.install phoenix_kit` failed on every freshly generated
+  Phoenix project.** Core declared `{:igniter, "~> 0.7"}` as a required
+  dependency in all environments. A stock `mix phx.new` app declares
+  `{:igniter, "~> 0.6", only: [:dev, :test]}`, and Mix refuses to converge the
+  two:
+
+  ```
+  Dependencies have diverged:
+  * igniter (Hex package) — the :only option for dependency igniter
+    Remove the :only restriction from your dep
+  ```
+
+  The install aborted before writing anything. Igniter is now
+  `optional: true`, so the host's own declaration wins and the documented
+  install path works on a clean project. The version requirement is unchanged
+  (`~> 0.6` and `~> 0.7` both admit igniter 0.7/0.8, so no host is forced to
+  move).
+
+  Making it optional means core must compile **without** igniter, which it
+  previously could not: `mix/tasks/phoenix_kit.gen.admin.page.ex` and
+  `phoenix_kit.gen.user.dashboard.ex` called `use Igniter.Mix.Task` unguarded
+  and hard-failed a `MIX_ENV=prod` build. Both now carry the same
+  `if Code.ensure_loaded?(Igniter.Mix.Task)` guard `phoenix_kit.install` and
+  `phoenix_kit.update` already had, and ten igniter-only `PhoenixKit.Install.*`
+  helpers are guarded on `Code.ensure_loaded?(Igniter)` so a production build
+  no longer prints a wall of "Igniter.X is undefined" warnings. The two helpers
+  that *cannot* be guarded away because their non-igniter half is called from
+  plain tasks — `Install.Common` (`mix phoenix_kit.status`) and
+  `Install.JsIntegration` (`mix phoenix_kit.assets.rebuild`) — instead use the
+  existing `Install.IgniterCompat` `:no_warn_undefined` shim, which grew the
+  three modules they reference. No task or helper changed behaviour when
+  igniter *is* present.
+
+- **`mix phoenix_kit.update` could crash when two modules needed migrating in
+  the same second.** Generated migration filenames took their version from a
+  bare `%Y%m%d%H%M%S` timestamp, so two modules upgraded together produced
+  duplicate Ecto migration versions. Timestamps are now offset per file and
+  bumped past anything already in `priv/repo/migrations`.
+
+- **`mix phoenix_kit.update` silently skipped modules whose migration
+  coordinator raised.** The failure was swallowed and the host saw nothing at
+  all, leaving it to assume its tables were current. Unreadable modules are now
+  reported by name with the error and an explicit note that they were not
+  migrated.
+
+### Added
+- **`mix phoenix_kit.status` now reports the schema version of every module
+  that owns its migrations**, not just core. Modules implementing
+  `c:PhoenixKit.Module.migration_module/0` (`phoenix_kit_inbox`,
+  `phoenix_kit_boards`, `phoenix_kit_web_analytics`, `phoenix_kit_legal`,
+  `phoenix_kit_stats`) each report installed-vs-expected:
+
+  ```
+  PhoenixKit v1.7.230
+  ├── Installed: V159 ✅
+  ├── Database: Connected ✅
+  ├── Modules: 2 modules, 1 update available ⬆
+  │   ├── Boards: V01 ✅
+  │   └── Inbox: V01 → V02 available ⬆
+  └── Next: mix phoenix_kit.update (module schema behind: Inbox)
+  ```
+
+  `Next` is module-aware: a host whose core is current but whose module tables
+  are a version behind previously reported "Ready". `--verbose` adds each
+  module's coordinator and exact version numbers. The row is omitted entirely
+  when no installed module owns migrations, so a core-only install keeps its
+  compact three-line tree.
+
+- **`mix phoenix_kit.update`'s closing summary lists module versions too**, so
+  the last thing printed answers "what version is everything at?" rather than
+  covering core alone and leaving module versions in scrollback.
+
+### Changed
+- **`mix phoenix_kit.update` now writes every pending module migration first
+  and runs `ecto.migrate` once**, instead of a full migrator pass per module.
+- **New `PhoenixKit.Migrations.Modules`** — the shared read side of the
+  module-migration contract, used by both tasks. Discovery previously lived
+  inside `update` only, which is why `status` never knew modules existed. A
+  module whose coordinator raises is reported as `:error`, never propagated, so
+  a broken third-party module cannot take down `mix phoenix_kit.status`.
+- **New `PhoenixKit.Install.StatusTree`** — the tree layout, extracted from the
+  status task so it can be unit tested without a database. It was previously a
+  private function writing straight to `IO.puts/1`, so in practice changes to
+  it went unverified.
+
 ## 1.7.229 - 2026-08-04
 
 ### Changed
