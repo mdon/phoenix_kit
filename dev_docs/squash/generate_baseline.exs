@@ -308,20 +308,62 @@ defmodule PhoenixKit.Squash.Generate.Catalog do
 
   def seed_tables, do: @seed_capture |> Map.keys() |> Enum.sort()
 
-  @doc "Full structural snapshot of one schema. [DB]"
-  def snapshot(repo, schema) do
-    columns = columns(repo, schema)
+  @doc """
+  Full structural snapshot of one schema. [DB]
 
-    %{
-      tables: tables(repo, schema),
-      columns: columns,
-      indexes: indexes(repo, schema),
-      constraints: constraints(repo, schema),
-      sequences: sequences(repo, schema),
-      functions: functions(repo, schema),
-      extensions: extensions(repo),
-      seeds: seeds(repo, schema, columns)
-    }
+  ## Why `search_path = ''` for the duration of the capture
+
+  Mirrors `PhoenixKit.Migrations.Repair.Probe.snapshot/2` verbatim (see that
+  function's own moduledoc for the full explanation) — do not modify Probe;
+  this is the generator's own copy of the same idiom, kept here so the two
+  capture connections schema-qualify identically. In short:
+  `pg_get_expr`/`pg_get_indexdef`/`format_type` decide **at read time**,
+  from the querying session's `search_path`, whether to schema-qualify a
+  referenced function/type/extension — never from how the object was
+  originally created. This scratch schema is never `"public"` (never on
+  the default search_path), so THIS capture already schema-qualifies most
+  cross-schema references consistently by construction — except for
+  objects that live in `public` itself (shared extension types — citext,
+  from V01's case-insensitive email columns, is this chain's only one):
+  `public` IS on the ordinary default search_path (`"$user", public`), so
+  without forcing `search_path = ''` here too, `format_type()` would
+  render a citext-typed column as the unqualified `"citext"` at
+  generation time while `Probe.snapshot/2`'s forced-empty search_path
+  always reads it back as `"public.citext"` at verify/repair time — a
+  real, confirmed P1/P2 asymmetry (not cosmetic: it blocked `--adopt`
+  from ever stamping any real install, since `phoenix_kit_users.email`
+  sits in every install's floor slice). Forcing it here too — the same
+  idiom `pg_dump` itself relies on for portable, fully-qualified output —
+  makes both captures schema-qualify exactly as consistently as each
+  other, independent of which prefix either one is probing.
+
+  Runs inside `repo.checkout/2` so the `SET`, every catalog query, and the
+  final `RESET` land on the SAME physical connection (checkout nests
+  transparently, same as Probe). The `after` clause restores `search_path`
+  unconditionally, even if a catalog query raises — session-level state on
+  a connection this process borrows from a shared pool.
+  """
+  def snapshot(repo, schema) do
+    repo.checkout(fn ->
+      repo.query!("SET search_path TO ''", [], log: false)
+
+      try do
+        columns = columns(repo, schema)
+
+        %{
+          tables: tables(repo, schema),
+          columns: columns,
+          indexes: indexes(repo, schema),
+          constraints: constraints(repo, schema),
+          sequences: sequences(repo, schema),
+          functions: functions(repo, schema),
+          extensions: extensions(repo),
+          seeds: seeds(repo, schema, columns)
+        }
+      after
+        repo.query!("RESET search_path", [], log: false)
+      end
+    end)
   end
 
   defp tables(repo, schema) do

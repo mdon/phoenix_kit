@@ -1050,49 +1050,6 @@ defmodule PhoenixKit.Squash.Verify do
     |> Enum.map(fn %{check: {:catalog, %{name: name}}} -> name end)
   end
 
-  # KNOWN PRE-EXISTING GAP — discovered empirically by these scenarios
-  # running against the REAL generated manifest (`test/integration/repair_test.exs`'s
-  # synthetic, citext-free `FixtureExpectedSchema` never surfaces it):
-  # `PhoenixKit.Migrations.Repair.Probe.snapshot/2` forces `search_path = ''`
-  # for the live snapshot, specifically so `format_type`/`pg_get_expr`
-  # schema-qualify EXACTLY as consistently as the P1 generator's own capture
-  # (that function's own extensive moduledoc). But
-  # `PhoenixKit.Squash.Generate.Catalog.snapshot/2` (the generator) does
-  # NOT force the same — it captures with whatever the generation
-  # connection's ordinary default search_path is (`"$user", public`, which
-  # makes `public` reachable unqualified). For a column typed by a SHARED,
-  # public-schema EXTENSION TYPE (citext is this chain's only one —
-  # V01's case-insensitive email storage), that asymmetry means the
-  # manifest stores the type as `"citext"` while a live verify/repair
-  # ALWAYS reads `"public.citext"` — a genuine P1/P2 inconsistency (NOT a
-  # citext-specific design choice), reported upstream rather than silently
-  # routed around. This predicate names the exact shape of that one finding
-  # class so these scenarios still fail loudly on any OTHER divergence.
-  defp citext_qualification_gap?(%{kind: :wrong_shape, message: message}) do
-    String.contains?(message, ~s(type: expected "citext", got "public.citext"))
-  end
-
-  defp citext_qualification_gap?(_finding), do: false
-
-  defp findings_modulo_known_gaps(report) do
-    report |> Report.findings() |> Enum.reject(&citext_qualification_gap?/1)
-  end
-
-  # Mirrors `Report.exit_code/1`'s highest-severity-wins rule over an
-  # already-filtered finding list (`Report.exit_code/1` itself only takes a
-  # whole `Report.t()`, not an arbitrary list).
-  defp worst_severity_code([]), do: 0
-
-  defp worst_severity_code(findings) do
-    severities = MapSet.new(findings, & &1.severity)
-
-    cond do
-      MapSet.member?(severities, :error) -> 2
-      MapSet.member?(severities, :repairable) -> 1
-      true -> 0
-    end
-  end
-
   # ── S7 — tamper matrix ──────────────────────────────────────────────────
 
   defp s7_tamper_matrix(ctx) do
@@ -1264,11 +1221,10 @@ defmodule PhoenixKit.Squash.Verify do
     d2 = DumpHelper.dump!(t)
 
     cond do
-      worst_severity_code(findings_modulo_known_gaps(r1)) != 0 ->
+      Report.exit_code(r1) != 0 ->
         {:fail,
-         "s8: first repair pass on a freshly-installed chain was not clean (modulo the " <>
-           "known citext-qualification gap): #{inspect(Report.summary(r1))} — " <>
-           findings_detail(r1)}
+         "s8: first repair pass on a freshly-installed chain was not clean: " <>
+           "#{inspect(Report.summary(r1))} — #{findings_detail(r1)}"}
 
       Report.summary(r1) != Report.summary(r2) ->
         {:fail,
@@ -1394,10 +1350,9 @@ defmodule PhoenixKit.Squash.Verify do
     row_survived? = row_exists?(ctx, t, "phoenix_kit_currencies", "uuid", row_uuid)
 
     cond do
-      worst_severity_code(findings_modulo_known_gaps(report)) == 2 ->
+      Report.exit_code(report) == 2 ->
         {:fail,
-         "s10: repair reported error-severity findings on an otherwise-healthy install " <>
-           "(modulo the known citext-qualification gap): " <>
+         "s10: repair reported error-severity findings on an otherwise-healthy install: " <>
            "#{inspect(Report.summary(report))} — #{findings_detail(report)}"}
 
       before_counts != after_counts ->
@@ -1724,20 +1679,15 @@ defmodule PhoenixKit.Squash.Verify do
       floor = Postgres.initial_version()
       {:ok, adopted} = Repair.repair(prefix: t, repo: ctx.repo, adopt: true)
 
-      # NOT filtered through `findings_modulo_known_gaps/1` like s8/s10 —
-      # unlike those, this assertion is about the PRODUCT'S actual
-      # `comment_action` decision (`CommentPolicy.floor_verify_clean?/1`
-      # runs on the real, unfiltered findings inside `Repair.repair/1`
-      # itself), not about this scenario's own health check. Confirmed:
       # `phoenix_kit_users.email` (V01, citext) sits in every real
-      # install's `since <= floor` slice, so the citext-qualification gap
-      # (see `citext_qualification_gap?/1`) currently blocks `--adopt`
-      # from EVER stamping a real v161 install — a genuine consequence of
-      # that gap, not a flaw in this scenario. Left asserting the correct/
-      # intended behavior (not loosened to "whatever currently happens")
-      # so this starts passing the moment the P1/P2 asymmetry is fixed,
-      # per spec 8.3's own precedent for below-floor assertions: match the
-      # specific expected outcome, never any-result-passes.
+      # install's `since <= floor` slice — until `Catalog.snapshot/2`
+      # forced `search_path = ''` (matching `Probe.snapshot/2`'s own
+      # convention), that column's type mismatch (`"citext"` vs
+      # `"public.citext"`) blocked `--adopt` from EVER stamping a real
+      # install. Left strict throughout that period rather than loosened,
+      # per spec 8.3's own precedent for below-floor assertions (match the
+      # specific expected outcome, never any-result-passes) — now genuinely
+      # passing on its own merits.
       if adopted.comment_action == {:adopted, floor} do
         :pass
       else
