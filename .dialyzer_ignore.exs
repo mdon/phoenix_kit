@@ -17,6 +17,8 @@
   {"lib/mix/tasks/phoenix_kit.cleanup_orphaned_files.ex", :unknown_function},
   {"lib/mix/tasks/compile.phoenix_kit_css_sources.ex", :unknown_function},
   {"lib/mix/tasks/compile.phoenix_kit_js_sources.ex", :unknown_function},
+  {"lib/mix/tasks/phoenix_kit.consolidate_wrappers.ex", :unknown_function},
+  {"lib/mix/tasks/phoenix_kit.repair.ex", :unknown_function},
 
   # Mix.Task behaviour callbacks (expected in Mix tasks)
   # Note: Mix.Task behaviour info is not available to Dialyzer (compile-time only)
@@ -34,6 +36,8 @@
   {"lib/mix/tasks/phoenix_kit.cleanup_orphaned_files.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/compile.phoenix_kit_css_sources.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/compile.phoenix_kit_js_sources.ex", :callback_info_missing, 1},
+  {"lib/mix/tasks/phoenix_kit.consolidate_wrappers.ex", :callback_info_missing},
+  {"lib/mix/tasks/phoenix_kit.repair.ex", :callback_info_missing},
 
   # Publishing module (extracted) — dynamic dispatch through publishing_module() helper
   # Ecto.Multi opaque type false positives (code works correctly)
