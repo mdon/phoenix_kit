@@ -54,6 +54,9 @@ defmodule PhoenixKit.Squash.Verify do
   """
 
   alias PhoenixKit.Migrations.Postgres
+  alias PhoenixKit.Migrations.Repair
+  alias PhoenixKit.Migrations.Repair.Environment, as: RepairEnvironment
+  alias PhoenixKit.Migrations.Repair.Report
   alias PhoenixKit.Squash.DumpHelper
   alias PhoenixKit.Squash.MigrationRunner
   alias PhoenixKit.Squash.RepoHelper
@@ -283,8 +286,8 @@ defmodule PhoenixKit.Squash.Verify do
         id: "s7",
         spec: "S7",
         title: "repair tamper matrix: drop each object class, repair restores, extras untouched",
-        requires: [:repair_engine, :manifest, :db],
-        run: &s7_stub/1
+        requires: [:repair_engine, :generated_manifest, :db],
+        run: &s7_tamper_matrix/1
       },
       %{
         id: "s8_pre",
@@ -297,8 +300,8 @@ defmodule PhoenixKit.Squash.Verify do
         id: "s8",
         spec: "S8",
         title: "repair idempotence: healthy DB twice, empty plan, byte-identical dumps",
-        requires: [:repair_engine, :db],
-        run: &s8_stub/1
+        requires: [:repair_engine, :generated_manifest, :db],
+        run: &s8_repair_idempotence/1
       },
       %{
         id: "s9",
@@ -306,15 +309,15 @@ defmodule PhoenixKit.Squash.Verify do
         title:
           "divergence reporting: report-only, exit 2, no deparse false-positives " <>
             "(second-PG-major cell needs the operator container)",
-        requires: [:repair_engine, :db],
-        run: &s9_stub/1
+        requires: [:repair_engine, :generated_manifest, :db],
+        run: &s9_divergence/1
       },
       %{
         id: "s10",
         spec: "S10",
         title: "data preservation: seeded + user rows + tuned settings survive repair",
-        requires: [:repair_engine, :db],
-        run: &s10_stub/1
+        requires: [:repair_engine, :generated_manifest, :db],
+        run: &s10_data_preservation/1
       },
       %{
         id: "s11_pre",
@@ -336,15 +339,15 @@ defmodule PhoenixKit.Squash.Verify do
         id: "s12",
         spec: "S12",
         title: "pooled-connection detection / --unsafe-pooled degraded mode (needs Q6 endpoint)",
-        requires: [:repair_engine, :db],
-        run: &s12_stub/1
+        requires: [:repair_engine, :generated_manifest, :db],
+        run: &s12_pooled_detection/1
       },
       %{
         id: "s13",
         spec: "S13",
         title: "--adopt: healthy converges + stamps; half-installed / invariant-failing do not",
-        requires: [:repair_engine, :manifest, :db],
-        run: &s13_stub/1
+        requires: [:repair_engine, :generated_manifest, :db],
+        run: &s13_adopt/1
       },
       %{
         id: "s15",
@@ -364,8 +367,8 @@ defmodule PhoenixKit.Squash.Verify do
         id: "s17",
         spec: "S17",
         title: "repair since/revision scoping: comment-era shapes clean, pending reported",
-        requires: [:repair_engine, :manifest, :db],
-        run: &s17_stub/1
+        requires: [:repair_engine, :generated_manifest, :db],
+        run: &s17_revision_scoping/1
       },
       %{
         id: "s18",
@@ -378,15 +381,15 @@ defmodule PhoenixKit.Squash.Verify do
         id: "s19",
         spec: "S19",
         title: "data-dependent drift: V137-class index over duplicates yields :create_failed",
-        requires: [:repair_engine, :db],
-        run: &s19_stub/1
+        requires: [:repair_engine, :generated_manifest, :db],
+        run: &s19_create_failed/1
       },
       %{
         id: "s20",
         spec: "S20",
         title: "comment > current: repair hard-errors, doctor warns, up() no-op documented",
-        requires: [:repair_engine, :db],
-        run: &s20_stub/1
+        requires: [:repair_engine, :generated_manifest, :db],
+        run: &s20_comment_above_current/1
       }
     ]
   end
@@ -477,6 +480,27 @@ defmodule PhoenixKit.Squash.Verify do
     end
   end
 
+  # Division of labor (unlike :manifest above, which checks for the
+  # P3-compiled real module): the repair-engine scenarios below are the
+  # OPERATOR-facing matrix against the REAL generated manifest — the file
+  # `generate_baseline.exs`'s full [DB] run writes to `output/`, built from
+  # this checkout's actual v01..v161 chain — not `PhoenixKit.Test.FixtureExpectedSchema`,
+  # which `test/integration/repair_test.exs` already covers the engine
+  # MECHANISM against. Checks file presence only; loading it is each
+  # scenario's own first step (`ensure_generated_manifest_loaded!/0`) so
+  # `--check`'s runnability listing never touches the filesystem beyond
+  # `File.exists?/1`.
+  defp check_requirement(_ctx, :generated_manifest) do
+    if File.exists?(generated_manifest_path()) do
+      :ok
+    else
+      {:skip, "needs-generated-manifest",
+       "no generated manifest at #{generated_manifest_path()}; run the full generator " <>
+         "first (MIX_ENV=test PK_SQUASH_FLOOR=<floor> PGPOOL=<n> mix run " <>
+         "dev_docs/squash/generate_baseline.exs), which writes output/expected_schema.ex"}
+    end
+  end
+
   defp check_requirement(ctx, :ref_s1) do
     if File.exists?(s1_ref_path(ctx)) do
       :ok
@@ -528,7 +552,7 @@ defmodule PhoenixKit.Squash.Verify do
           rescue
             e ->
               IO.puts("  EXCEPTION:")
-              IO.puts(Exception.format(:error, e, __STACKTRACE__))
+              print_exception_safely(e, __STACKTRACE__)
               {:error, e}
           catch
             kind, value ->
@@ -542,6 +566,35 @@ defmodule PhoenixKit.Squash.Verify do
 
     IO.puts("RESULT #{scenario.id} #{status_line(status)}")
     status
+  end
+
+  # A raised exception's message can carry raw bytes this environment's
+  # `:standard_io` encoding cannot write (verified empirically: a
+  # `Postgrex.Error` whose `:postgres.detail` held an invalid-for-the-
+  # database-encoding byte sequence made `Exception.format/3`'s OWN output
+  # unprintable, so `IO.puts/1` raised a SECOND, unrelated `ArgumentError`
+  # from `:io.put_chars` — silently replacing the real failure with a
+  # confusing crash and aborting the ENTIRE scenario run, not just this one
+  # scenario). Falls back to a bounded `inspect/2` (which never raises on
+  # binary content the way raw stdout writes can) so a printing failure
+  # degrades to a still-useful, sanitized dump instead of taking down every
+  # scenario queued after this one.
+  defp print_exception_safely(e, stacktrace) do
+    IO.puts(Exception.format(:error, e, stacktrace))
+  rescue
+    _ ->
+      IO.puts(
+        "  (exception message could not be printed — contains bytes invalid for this " <>
+          "environment's I/O encoding; falling back to a sanitized dump)"
+      )
+
+      safe_inspect_line(e)
+  end
+
+  defp safe_inspect_line(e) do
+    IO.puts(inspect(e, limit: :infinity, printable_limit: :infinity))
+  rescue
+    _ -> IO.puts("  (exception could not be rendered at all: #{inspect(e.__struct__)})")
   end
 
   defp status_line(:pass), do: "PASS"
@@ -945,29 +998,975 @@ defmodule PhoenixKit.Squash.Verify do
   end
 
   # ---------------------------------------------------------------------------
-  # P2 repair-engine scenario stubs
+  # P2 repair-engine scenarios — operator-facing matrix against the REAL
+  # generated manifest (see :generated_manifest's check_requirement comment).
+  # `test/integration/repair_test.exs` already proves the engine MECHANISM
+  # against `PhoenixKit.Test.FixtureExpectedSchema`; these scenarios reuse the
+  # exact same public `PhoenixKit.Migrations.Repair` API at real chain scale
+  # instead of re-deriving it.
   # ---------------------------------------------------------------------------
-  #
-  # These bodies are reached only once PhoenixKit.Migrations.Repair (and,
-  # where required, ExpectedSchema) load. They stay SKIP until the P2 phase
-  # wires them to the final Repair API — implement against the real function
-  # signatures then, never against guesses.
 
-  defp s7_stub(_ctx), do: pending_p2("tamper matrix (drop one object class at a time, S7)")
-  defp s8_stub(_ctx), do: pending_p2("repair idempotence on a healthy DB (S8)")
-  defp s9_stub(_ctx), do: pending_p2("structural divergence reporting incl. second PG major (S9)")
-  defp s10_stub(_ctx), do: pending_p2("data preservation under repair (S10)")
-  defp s12_stub(_ctx), do: pending_p2("pooled detection + --unsafe-pooled degraded mode (S12)")
-  defp s13_stub(_ctx), do: pending_p2("--adopt stamp/report/invariant gates (S13)")
   defp s16_stub(_ctx), do: pending_p2("Oban delegation - no oban entries in Report (S16)")
-  defp s17_stub(_ctx), do: pending_p2("since/revision scoping incl. module_key@50 cell (S17)")
-  defp s18_stub(_ctx), do: pending_p2("concurrent-migration abort via advisory lock (S18)")
-  defp s19_stub(_ctx), do: pending_p2(":create_failed diagnostics on V137-class drift (S19)")
-  defp s20_stub(_ctx), do: pending_p2("comment > @current_version hard error (S20)")
 
   defp pending_p2(note) do
     {:skip, "pending-p2-body",
      "repair-engine artifacts are loaded, but this scenario body is a P2 deliverable: " <> note}
+  end
+
+  defp generated_manifest_path, do: Path.join(@script_dir, "output/expected_schema.ex")
+
+  defp ensure_generated_manifest_loaded! do
+    unless Code.ensure_loaded?(PhoenixKit.Migrations.ExpectedSchema) do
+      Code.require_file(generated_manifest_path())
+    end
+
+    :ok
+  end
+
+  # Builds a scratch schema on the REAL v01..current chain via the ordinary
+  # `PhoenixKit.Migrations.up/1` entry point (`MigrationRunner.run_old_chain/3`
+  # — NOT `run_new_chain_fresh/3`, which refuses pre-squash; these scenarios
+  # are deliberately floor-agnostic, matching how `:squashed_registry` is
+  # absent from every one of their `requires:` lists).
+  defp install_repair_target(ctx, slot, opts \\ []) do
+    t = fresh_target(ctx, slot)
+    MigrationRunner.run_old_chain(ctx.repo, t, opts)
+    t
+  end
+
+  # `apply/3` (not `PhoenixKit.Migrations.ExpectedSchema.objects(prefix)`
+  # directly) — same reasoning as `Fixture.check_manifest_compiles!/1`'s own
+  # comment on this pattern: a static remote call to a module that does not
+  # exist at COMPILE time (this script's own compile, before
+  # `ensure_generated_manifest_loaded!/0` ever runs) is a spurious warning
+  # every time, not a real problem — this sidesteps it structurally instead.
+  defp manifest_objects(prefix),
+    do: apply(PhoenixKit.Migrations.ExpectedSchema, :objects, [prefix])
+
+  defp manifest_table_names(prefix) do
+    prefix
+    |> manifest_objects()
+    |> Enum.filter(&(&1.class == :table))
+    |> Enum.map(fn %{check: {:catalog, %{name: name}}} -> name end)
+  end
+
+  # KNOWN PRE-EXISTING GAP — discovered empirically by these scenarios
+  # running against the REAL generated manifest (`test/integration/repair_test.exs`'s
+  # synthetic, citext-free `FixtureExpectedSchema` never surfaces it):
+  # `PhoenixKit.Migrations.Repair.Probe.snapshot/2` forces `search_path = ''`
+  # for the live snapshot, specifically so `format_type`/`pg_get_expr`
+  # schema-qualify EXACTLY as consistently as the P1 generator's own capture
+  # (that function's own extensive moduledoc). But
+  # `PhoenixKit.Squash.Generate.Catalog.snapshot/2` (the generator) does
+  # NOT force the same — it captures with whatever the generation
+  # connection's ordinary default search_path is (`"$user", public`, which
+  # makes `public` reachable unqualified). For a column typed by a SHARED,
+  # public-schema EXTENSION TYPE (citext is this chain's only one —
+  # V01's case-insensitive email storage), that asymmetry means the
+  # manifest stores the type as `"citext"` while a live verify/repair
+  # ALWAYS reads `"public.citext"` — a genuine P1/P2 inconsistency (NOT a
+  # citext-specific design choice), reported upstream rather than silently
+  # routed around. This predicate names the exact shape of that one finding
+  # class so these scenarios still fail loudly on any OTHER divergence.
+  defp citext_qualification_gap?(%{kind: :wrong_shape, message: message}) do
+    String.contains?(message, ~s(type: expected "citext", got "public.citext"))
+  end
+
+  defp citext_qualification_gap?(_finding), do: false
+
+  defp findings_modulo_known_gaps(report) do
+    report |> Report.findings() |> Enum.reject(&citext_qualification_gap?/1)
+  end
+
+  # Mirrors `Report.exit_code/1`'s highest-severity-wins rule over an
+  # already-filtered finding list (`Report.exit_code/1` itself only takes a
+  # whole `Report.t()`, not an arbitrary list).
+  defp worst_severity_code([]), do: 0
+
+  defp worst_severity_code(findings) do
+    severities = MapSet.new(findings, & &1.severity)
+
+    cond do
+      MapSet.member?(severities, :error) -> 2
+      MapSet.member?(severities, :repairable) -> 1
+      true -> 0
+    end
+  end
+
+  # ── S7 — tamper matrix ──────────────────────────────────────────────────
+
+  defp s7_tamper_matrix(ctx) do
+    ensure_generated_manifest_loaded!()
+    t = install_repair_target(ctx, "s7")
+    objects = manifest_objects(t)
+    before_dump = DumpHelper.dump!(t)
+
+    # :sequence deliberately excluded: every real sequence in this chain
+    # backs a column DEFAULT (`nextval(...)`), so a bare `DROP SEQUENCE`
+    # fails with `dependent_objects_still_exist` (2BP01) — verified
+    # empirically against `phoenix_kit_warehouse_goods_issues_number_seq`.
+    # `DROP ... CASCADE` would "succeed" but also silently drop the
+    # column's DEFAULT clause, which repair's additive-only contract
+    # cannot restore on an EXISTING column (`Executor.create_action/2`
+    # only ever adds a column that doesn't exist at all) — collateral,
+    # unrepairable damage this scenario must not introduce. Matches
+    # `test/integration/repair_test.exs`'s own S7 scope (column +
+    # constraint only, no sequence).
+    picks = %{
+      column: pick_safe_column(objects),
+      index: Enum.find(objects, &(&1.class == :index)),
+      constraint: pick_fk_constraint(objects)
+    }
+
+    missing = for {class, nil} <- picks, do: class
+
+    if missing != [] do
+      {:fail,
+       "s7: manifest has no droppable object of class(es) #{inspect(missing)} to tamper with"}
+    else
+      Enum.each(picks, fn {_class, object} -> drop_manifest_object!(ctx, t, object) end)
+      run_s7_repair_cycle(ctx, t, picks, before_dump)
+    end
+  end
+
+  defp run_s7_repair_cycle(ctx, t, picks, before_dump) do
+    tampered_ids = picks |> Map.values() |> MapSet.new(& &1.id)
+
+    {:ok, verify_report} = Repair.verify(prefix: t, repo: ctx.repo)
+    found_missing = ids_with_kind(verify_report, :missing)
+
+    if not MapSet.subset?(tampered_ids, found_missing) do
+      {:fail,
+       "s7: verify did not report every tampered object missing — expected " <>
+         "#{inspect(MapSet.to_list(tampered_ids))}, found :missing for " <>
+         "#{inspect(MapSet.to_list(found_missing))}"}
+    else
+      {:ok, repair_report} = Repair.repair(prefix: t, repo: ctx.repo)
+      repaired = ids_with_kind(repair_report, :repaired)
+
+      if not MapSet.subset?(tampered_ids, repaired) do
+        {:fail,
+         "s7: repair did not restore every tampered object — expected " <>
+           "#{inspect(MapSet.to_list(tampered_ids))}, repaired " <>
+           "#{inspect(MapSet.to_list(repaired))}"}
+      else
+        after_dump = DumpHelper.dump!(t)
+        compare_dumps(ctx, "s7_tamper_matrix", before_dump, t, after_dump, t, [])
+      end
+    end
+  end
+
+  defp ids_with_kind(report, kind) do
+    report |> Report.findings() |> Enum.filter(&(&1.kind == kind)) |> MapSet.new(& &1.object_id)
+  end
+
+  # A column that is safe to DROP/re-ADD without collateral damage: nullable
+  # (sidesteps any NOT NULL/backfill nuance), not part of any PRIMARY KEY,
+  # AND already the LAST physical column (`pos`) in its table. That last
+  # condition is load-bearing, not cosmetic: `ALTER TABLE ADD COLUMN`
+  # always appends — `Differ.compare/3`'s own moduledoc documents `pos` as
+  # "accidental, never a divergence worth reporting" and the repair engine
+  # correctly never flags it, but this scenario's OWN dump-based "restored,
+  # byte-identical" check has no such exception (`pg_dump`'s CREATE TABLE
+  # column listing reflects physical order) — verified empirically: picking
+  # a non-last nullable column produced a real, spurious dump diff (column
+  # reordered, nothing structurally different). Choosing a column that's
+  # already last sidesteps the false positive instead of weakening the
+  # dump comparison's strictness for the index/constraint picks too.
+  defp pick_safe_column(objects) do
+    pk_columns = pk_columns_by_table(objects)
+    max_pos_by_table = max_column_pos_by_table(objects)
+
+    Enum.find(objects, fn
+      %{class: :column, check: {:catalog, %{table: table, column: column}}} = object ->
+        {_v, shape} = List.last(object.revisions)
+
+        not shape.not_null and
+          not MapSet.member?(Map.get(pk_columns, table, MapSet.new()), column) and
+          shape.pos == Map.get(max_pos_by_table, table)
+
+      _ ->
+        false
+    end)
+  end
+
+  defp pk_columns_by_table(objects) do
+    objects
+    |> Enum.filter(&(&1.class == :constraint))
+    |> Enum.reduce(%{}, fn object, acc ->
+      {_v, shape} = List.last(object.revisions)
+
+      case {object.check, shape} do
+        {{:catalog, %{table: table}}, %{type: "p", columns: columns}} ->
+          Map.update(acc, table, MapSet.new(columns), &MapSet.union(&1, MapSet.new(columns)))
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  defp max_column_pos_by_table(objects) do
+    objects
+    |> Enum.filter(&(&1.class == :column))
+    |> Enum.reduce(%{}, fn %{check: {:catalog, %{table: table}}} = object, acc ->
+      {_v, shape} = List.last(object.revisions)
+      Map.update(acc, table, shape.pos, &max(&1, shape.pos))
+    end)
+  end
+
+  # A foreign-key constraint — the NOT VALID + VALIDATE path (spec §6.3),
+  # never a PK/UNIQUE (dropping either risks cascading into dependents this
+  # scenario does not model).
+  defp pick_fk_constraint(objects) do
+    Enum.find(objects, fn
+      %{class: :constraint} = object ->
+        {_v, shape} = List.last(object.revisions)
+        shape.type == "f"
+
+      _ ->
+        false
+    end)
+  end
+
+  defp drop_manifest_object!(ctx, prefix, %{
+         class: :column,
+         check: {:catalog, %{table: table, column: column}}
+       }) do
+    RepoHelper.query!(ctx.repo, ~s[ALTER TABLE "#{prefix}"."#{table}" DROP COLUMN "#{column}"])
+  end
+
+  defp drop_manifest_object!(ctx, prefix, %{class: :index, check: {:catalog, %{name: name}}}) do
+    RepoHelper.query!(ctx.repo, ~s[DROP INDEX IF EXISTS "#{prefix}"."#{name}"])
+  end
+
+  defp drop_manifest_object!(ctx, prefix, %{
+         class: :constraint,
+         check: {:catalog, %{table: table, name: name}}
+       }) do
+    RepoHelper.query!(ctx.repo, ~s[ALTER TABLE "#{prefix}"."#{table}" DROP CONSTRAINT "#{name}"])
+  end
+
+  defp drop_manifest_object!(ctx, prefix, %{class: :sequence, check: {:catalog, %{name: name}}}) do
+    RepoHelper.query!(ctx.repo, ~s[DROP SEQUENCE IF EXISTS "#{prefix}"."#{name}"])
+  end
+
+  # ── S8 — repair idempotence ──────────────────────────────────────────────
+
+  defp s8_repair_idempotence(ctx) do
+    ensure_generated_manifest_loaded!()
+    t = install_repair_target(ctx, "s8")
+
+    {:ok, r1} = Repair.repair(prefix: t, repo: ctx.repo)
+    d1 = DumpHelper.dump!(t)
+
+    {:ok, r2} = Repair.repair(prefix: t, repo: ctx.repo)
+    d2 = DumpHelper.dump!(t)
+
+    cond do
+      worst_severity_code(findings_modulo_known_gaps(r1)) != 0 ->
+        {:fail,
+         "s8: first repair pass on a freshly-installed chain was not clean (modulo the " <>
+           "known citext-qualification gap): #{inspect(Report.summary(r1))} — " <>
+           findings_detail(r1)}
+
+      Report.summary(r1) != Report.summary(r2) ->
+        {:fail,
+         "s8: second repair pass was not an empty plan relative to the first (not " <>
+           "idempotent): #{inspect(Report.summary(r1))} -> #{inspect(Report.summary(r2))}"}
+
+      true ->
+        compare_dumps(ctx, "s8_repair_idempotence", d1, t, d2, t, [])
+    end
+  end
+
+  # Renders the diagnostic-relevant findings (default: error/repairable —
+  # info findings are expected noise even on a healthy DB) as
+  # "kind:object_id:message" triples, for FAIL messages an operator can act
+  # on directly instead of just a severity/kind count.
+  defp findings_detail(report, severities \\ [:error, :repairable]) do
+    report
+    |> Report.findings()
+    |> Enum.filter(&(&1.severity in severities))
+    |> Enum.map_join(" | ", fn f -> "#{f.kind}:#{f.object_id}:#{f.message}" end)
+  end
+
+  # ── S9 — divergence reporting ────────────────────────────────────────────
+
+  defp s9_divergence(ctx) do
+    ensure_generated_manifest_loaded!()
+    t = install_repair_target(ctx, "s9")
+    objects = manifest_objects(t)
+
+    case pick_varchar_column(objects) do
+      nil ->
+        {:fail, "s9: manifest has no character-varying column to retype"}
+
+      %{check: {:catalog, %{table: table, column: column}}} = object ->
+        RepoHelper.query!(
+          ctx.repo,
+          ~s[ALTER TABLE "#{t}"."#{table}" ALTER COLUMN "#{column}" TYPE text]
+        )
+
+        {:ok, report} = Repair.verify(prefix: t, repo: ctx.repo)
+
+        finding =
+          Enum.find(
+            Report.findings(report),
+            &(&1.object_id == object.id and &1.kind == :wrong_shape)
+          )
+
+        cond do
+          Report.exit_code(report) != 2 ->
+            {:fail,
+             "s9: exit_code was #{Report.exit_code(report)}, expected 2 " <>
+               "(summary: #{inspect(Report.summary(report))})"}
+
+          is_nil(finding) ->
+            {:fail, "s9: no :wrong_shape finding for #{object.id}"}
+
+          finding.severity != :error ->
+            {:fail, "s9: #{object.id} finding severity was #{finding.severity}, expected :error"}
+
+          true ->
+            assert_column_type_unchanged(ctx, t, table, column, "text")
+        end
+    end
+  end
+
+  defp pick_varchar_column(objects) do
+    Enum.find(objects, fn
+      %{class: :column} = object ->
+        {_v, shape} = List.last(object.revisions)
+        String.starts_with?(shape.type, "character varying")
+
+      _ ->
+        false
+    end)
+  end
+
+  # verify/1 is read-only — confirms the divergence introduced above is still
+  # there afterward (repair never "fixes" a report-only mismatch by
+  # overwriting it).
+  defp assert_column_type_unchanged(ctx, prefix, table, column, expected_type) do
+    %{rows: [[type]]} =
+      RepoHelper.query!(
+        ctx.repo,
+        "SELECT format_type(atttypid, atttypmod) FROM pg_attribute a " <>
+          "JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace " <>
+          "WHERE c.relname = '#{table}' AND a.attname = '#{column}' AND n.nspname = '#{prefix}'"
+      )
+
+    if type == expected_type do
+      :pass
+    else
+      {:fail, "s9: verify/1 mutated #{table}.#{column} — now #{type}, expected #{expected_type}"}
+    end
+  end
+
+  # ── S10 — data preservation ──────────────────────────────────────────────
+
+  defp s10_data_preservation(ctx) do
+    ensure_generated_manifest_loaded!()
+    t = install_repair_target(ctx, "s10")
+
+    RepoHelper.query!(
+      ctx.repo,
+      ~s[UPDATE "#{t}".phoenix_kit_settings SET value = 'tuned-by-s10-verify' WHERE key = 'time_zone']
+    )
+
+    # NOT `phoenix_kit_users` — the harness's own `refuse_live_schema!/2`
+    # cleanup guard treats ANY populated `phoenix_kit_users` as a sign of a
+    # live install and refuses `DROP SCHEMA`, which then crashes the whole
+    # run from inside `run_scenario/2`'s `after` block (verified
+    # empirically: it does not degrade to a single scenario FAIL). A simple
+    # standalone seed table proves the same "arbitrary extra row survives"
+    # property without tripping that guard.
+    row_uuid = insert_minimal_row!(ctx, t, "phoenix_kit_currencies")
+    tables = manifest_table_names(t)
+    before_counts = table_row_counts(ctx, t, tables)
+    before_tuned = setting_value(ctx, t, "time_zone")
+
+    {:ok, report} = Repair.repair(prefix: t, repo: ctx.repo)
+
+    after_counts = table_row_counts(ctx, t, tables)
+    after_tuned = setting_value(ctx, t, "time_zone")
+    row_survived? = row_exists?(ctx, t, "phoenix_kit_currencies", "uuid", row_uuid)
+
+    cond do
+      worst_severity_code(findings_modulo_known_gaps(report)) == 2 ->
+        {:fail,
+         "s10: repair reported error-severity findings on an otherwise-healthy install " <>
+           "(modulo the known citext-qualification gap): " <>
+           "#{inspect(Report.summary(report))} — #{findings_detail(report)}"}
+
+      before_counts != after_counts ->
+        {:fail,
+         "s10: table row counts changed under repair — before " <>
+           "#{inspect(before_counts)}, after #{inspect(after_counts)}"}
+
+      before_tuned != after_tuned ->
+        {:fail,
+         "s10: operator-tuned setting was overwritten — before #{inspect(before_tuned)}, " <>
+           "after #{inspect(after_tuned)}"}
+
+      not row_survived? ->
+        {:fail, "s10: the inserted extra row disappeared under repair"}
+
+      true ->
+        :pass
+    end
+  end
+
+  defp table_row_counts(ctx, prefix, tables) do
+    Map.new(tables, fn table ->
+      %{rows: [[count]]} =
+        RepoHelper.query!(ctx.repo, ~s[SELECT count(*) FROM "#{prefix}"."#{table}"])
+
+      {table, count}
+    end)
+  end
+
+  defp setting_value(ctx, prefix, key) do
+    %{rows: rows} =
+      RepoHelper.query!(
+        ctx.repo,
+        ~s[SELECT value FROM "#{prefix}".phoenix_kit_settings WHERE key = '#{key}']
+      )
+
+    case rows do
+      [[v]] -> v
+      [] -> nil
+    end
+  end
+
+  defp row_exists?(ctx, prefix, table, pk_column, value) do
+    %{rows: [[exists]]} =
+      RepoHelper.query!(
+        ctx.repo,
+        ~s[SELECT EXISTS (SELECT 1 FROM "#{prefix}"."#{table}" WHERE "#{pk_column}" = '#{value}')]
+      )
+
+    exists
+  end
+
+  # Generic "insert a row that satisfies every NOT NULL-without-default
+  # column" — introspects the live schema rather than hand-modeling any one
+  # table, so it works against whichever real table a scenario needs a
+  # throwaway row in. `extra` overrides/adds specific columns (e.g. to force
+  # a duplicate value into an otherwise-nullable column, S19).
+  defp insert_minimal_row!(ctx, prefix, table, extra \\ %{}) do
+    base =
+      ctx
+      |> not_null_columns_without_default(prefix, table)
+      |> Map.new(fn {col, type, udt_name, max_len} ->
+        {col, default_literal(type, udt_name, max_len)}
+      end)
+
+    assignments = Map.merge(base, extra)
+    {cols, vals} = Enum.unzip(assignments)
+    col_list = Enum.map_join(cols, ", ", &~s["#{&1}"])
+    val_list = Enum.join(vals, ", ")
+    sql = ~s[INSERT INTO "#{prefix}"."#{table}" (#{col_list}) VALUES (#{val_list}) RETURNING uuid]
+
+    try do
+      %{rows: [[uuid]]} = RepoHelper.query!(ctx.repo, sql)
+      # Postgrex returns a `:uuid` column as the raw 16-byte binary, NOT
+      # the hyphenated hex string — a plain `RETURNING uuid` query (not
+      # routed through an Ecto schema/type, which would normally load it)
+      # hands that binary straight back. Interpolating it later (e.g.
+      # `row_exists?/4`'s `"...WHERE uuid = '#{value}'"`) embeds raw,
+      # non-UTF8 bytes directly into SQL TEXT — verified empirically: this
+      # produced a genuinely bytes-for-bytes reproducible Postgres
+      # `character_not_in_repertoire` error (`0x9f` was one of the 16 raw
+      # bytes). `Ecto.UUID.load/1` is the standard raw-binary -> canonical-
+      # string conversion (the inverse of `dump/1`, used for exactly this
+      # "driver handed back a raw column value" situation).
+      case Ecto.UUID.load(uuid) do
+        {:ok, uuid_string} -> uuid_string
+        :error -> raise "insert_minimal_row!/4: could not load UUID from #{inspect(uuid)}"
+      end
+    rescue
+      # Re-raise with `Exception.message/1` explicitly extracted into a
+      # plain string — a raw `Postgrex.Error` struct's `:postgres.detail`
+      # can carry bytes `run_scenario/2`'s own `Exception.format/3` +
+      # `IO.puts/1` cannot always write to `:standard_io` in this
+      # environment's locale (verified empirically: that combination
+      # raised its OWN unrelated `ArgumentError` from `:io.put_chars`,
+      # masking the real error entirely). A plain string always prints.
+      e ->
+        reraise "insert_minimal_row!/4 failed for #{prefix}.#{table}: " <>
+                  "#{Exception.message(e)} (assignments: #{inspect(assignments)})",
+                __STACKTRACE__
+    end
+  end
+
+  defp not_null_columns_without_default(ctx, prefix, table) do
+    %{rows: rows} =
+      RepoHelper.query!(ctx.repo, """
+      SELECT column_name, data_type, udt_name, character_maximum_length
+      FROM information_schema.columns
+      WHERE table_schema = '#{prefix}' AND table_name = '#{table}'
+        AND is_nullable = 'NO' AND column_default IS NULL
+      ORDER BY ordinal_position
+      """)
+
+    Enum.map(rows, fn [col, type, udt_name, max_len] -> {col, type, udt_name, max_len} end)
+  end
+
+  defp default_literal(type, _udt_name, max_len)
+       when type in ["character varying", "character", "text"] do
+    raw = "x" <> Integer.to_string(System.unique_integer([:positive, :monotonic]))
+    limit = if is_integer(max_len), do: max(max_len, 1), else: byte_size(raw)
+    "'" <> String.slice(raw, 0, limit) <> "'"
+  end
+
+  # `information_schema.columns.data_type` reports an extension-defined
+  # domain/type (e.g. citext, per V04's case-insensitive email columns) as
+  # the generic `"USER-DEFINED"` — the real type name is only in `udt_name`.
+  # citext accepts the same literal syntax as text; anything else genuinely
+  # unhandled still raises via the catch-all below (never guesses silently).
+  defp default_literal("USER-DEFINED", "citext", max_len),
+    do: default_literal("text", "citext", max_len)
+
+  defp default_literal("uuid", _udt_name, _max_len), do: "gen_random_uuid()"
+  defp default_literal("boolean", _udt_name, _max_len), do: "false"
+
+  defp default_literal(type, _udt_name, _max_len)
+       when type in ["integer", "bigint", "smallint", "numeric"],
+       do: "0"
+
+  defp default_literal("jsonb", _udt_name, _max_len), do: "'{}'::jsonb"
+  defp default_literal("json", _udt_name, _max_len), do: "'{}'::json"
+
+  defp default_literal(type, _udt_name, _max_len)
+       when type in ["timestamp without time zone", "timestamp with time zone"],
+       do: "now()"
+
+  defp default_literal(type, udt_name, _max_len) do
+    raise "s10/s19 fixture helper: no literal-value rule for information_schema type " <>
+            "#{inspect(type)}/#{inspect(udt_name)} — add one (insert_minimal_row!/4's " <>
+            "default_literal/3 clauses)"
+  end
+
+  # ── S12 — pooled-connection detection ────────────────────────────────────
+
+  # Dry-run detection only (spec's own scoping: "zero writes through the
+  # pooled path") — proves (a) `Environment.pooled?/2` correctly flags the
+  # real pgbouncer endpoint, (b) `Repair.verify/1` (always read-only) works
+  # fine through it, (c) `Repair.repair/1` WITHOUT `--unsafe-pooled` refuses
+  # outright rather than attempting the advisory lock/FK VALIDATE against a
+  # connection that cannot safely hold either. Never exercises the
+  # `unsafe_pooled: true` write path for real — that degraded-mode write cell
+  # needs the operator's own pgbouncer config change (spec §10 Q6), same
+  # scope line the scenario title already draws.
+  defp s12_pooled_detection(ctx) do
+    ensure_generated_manifest_loaded!()
+
+    case start_pooled_repo() do
+      {:error, reason} ->
+        {:skip, "needs-pooled-endpoint",
+         "could not reach the pooled endpoint (host=pgbouncer port=6432): #{inspect(reason)}"}
+
+      {:ok, pooled_name} ->
+        # Build the target BEFORE any dynamic-repo switch — Ecto's
+        # `put_dynamic_repo/1` is a per-CALLING-PROCESS setting, and this
+        # scenario's process is the one `MigrationRunner.run_old_chain/3`
+        # (and everything it calls) actually runs in, so building the
+        # schema after the switch would silently run the whole chain
+        # THROUGH the pooled connection — verified empirically: PgBouncer
+        # dropped the DDL exactly as CLAUDE.md warns, `schema_migrations`
+        # bookkeeping recorded success, and the very next version to query
+        # a table crashed with `undefined_table`.
+        t = install_repair_target(ctx, "s12")
+        run_s12_body(ctx, t, pooled_name)
+    end
+  end
+
+  defp run_s12_body(ctx, t, pooled_name) do
+    repo_mod = RepoHelper.repo_module()
+    previous_dynamic = repo_mod.get_dynamic_repo()
+    previous_env = Application.get_env(:phoenix_kit, repo_mod)
+
+    repo_mod.put_dynamic_repo(pooled_name)
+
+    # `Repair.repair/1`'s own pooled-connection gate reads `repo.config()`
+    # (`Environment.pooled?(repo, repo.config())`) — Ecto's generated
+    # `config/0` is NOT dynamic-repo-aware (it always reads back the base
+    # module's `Application.get_env`, unlike query functions, which DO
+    # follow `put_dynamic_repo/1`) — verified empirically: without this,
+    # the config-based half of the pooled heuristic silently saw the
+    # DIRECT connection's config no matter which dynamic instance queries
+    # were actually routed to. Mirrors `RepoHelper.start/0`'s own
+    # established pattern of driving this repo via `Application.put_env`
+    # (same key), just scoped to this scenario's duration and restored
+    # after — a real host app has only one static config here, so this
+    # override makes the test environment match that real topology
+    # instead of the dynamic-repo trick's own artifact.
+    Application.put_env(:phoenix_kit, repo_mod, pooled_repo_config() ++ [pool_size: 2])
+
+    try do
+      case repo_mod.query("SELECT 1", [], log: false) do
+        {:error, reason} ->
+          {:skip, "needs-pooled-endpoint", "pooled endpoint unreachable: #{inspect(reason)}"}
+
+        {:ok, _} ->
+          s12_checks(ctx, t, repo_mod)
+      end
+    after
+      repo_mod.put_dynamic_repo(previous_dynamic)
+      restore_app_env(:phoenix_kit, repo_mod, previous_env)
+    end
+  end
+
+  defp restore_app_env(app, key, nil), do: Application.delete_env(app, key)
+  defp restore_app_env(app, key, value), do: Application.put_env(app, key, value)
+
+  defp s12_checks(ctx, t, repo_mod) do
+    detected? = RepairEnvironment.pooled?(repo_mod, pooled_repo_config())
+    before_dump = DumpHelper.dump!(t)
+
+    verify_result = Repair.verify(prefix: t, repo: repo_mod)
+    repair_result = Repair.repair(prefix: t, repo: repo_mod)
+    after_dump = DumpHelper.dump!(t)
+
+    cond do
+      not detected? ->
+        {:fail, "s12: Environment.pooled?/2 did not classify the pgbouncer endpoint as pooled"}
+
+      not match?({:ok, %Report{}}, verify_result) ->
+        {:fail,
+         "s12: verify/1 (dry-run) through the pooled connection returned #{inspect(verify_result)}"}
+
+      not match?({:error, {:pooled_connection, _message}}, repair_result) ->
+        {:fail,
+         "s12: repair/1 without --unsafe-pooled through the pooled connection returned " <>
+           "#{inspect(repair_result)}, expected {:error, {:pooled_connection, _}}"}
+
+      true ->
+        # `compare_dumps/6` (not a raw `!=`) — a raw `pg_dump` invocation
+        # carries its own generation-timestamp header, which differs
+        # between any two calls regardless of whether the schema changed
+        # at all; `compare_dumps/6`'s normalization is what every other
+        # scenario relies on to tell "genuinely differs" from "pg_dump's
+        # own header noise" apart (verified empirically: a naive `!=`
+        # here false-failed on header noise alone, with the schema
+        # provably untouched).
+        compare_dumps(ctx, "s12_pooled_dry_run_no_writes", before_dump, t, after_dump, t, [])
+    end
+  end
+
+  defp pooled_repo_config do
+    base = RepoHelper.connection_env()
+
+    [
+      hostname: "pgbouncer",
+      port: 6432,
+      username: base.username,
+      password: base.password,
+      database: base.database,
+      ssl: base.ssl
+    ]
+  end
+
+  defp start_pooled_repo do
+    config =
+      pooled_repo_config()
+      |> Keyword.merge(
+        name: pooled_repo_name(),
+        pool_size: 2,
+        pool: DBConnection.ConnectionPool,
+        log: false
+      )
+
+    case RepoHelper.repo_module().start_link(config) do
+      {:ok, _pid} -> {:ok, pooled_repo_name()}
+      {:error, {:already_started, _pid}} -> {:ok, pooled_repo_name()}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp pooled_repo_name, do: PhoenixKit.Squash.Verify.PooledRepo
+
+  # ── S13 — --adopt ─────────────────────────────────────────────────────
+
+  defp s13_adopt(ctx) do
+    ensure_generated_manifest_loaded!()
+
+    first_failure([
+      s13_healthy_converges(ctx),
+      s13_invariant_failing_no_stamp(ctx)
+    ])
+  end
+
+  defp s13_healthy_converges(ctx) do
+    # Spec's own wording: "comment stripped from a HEALTHY FLOOR-STATE DB".
+    # `Repair`'s `--adopt` unconditionally applies the `since <= floor`
+    # slice (`ctx.floor = Postgres.initial_version()`, hardcoded, not
+    # `MigrationRunner.floor()`/`PK_SQUASH_FLOOR`) and gates the stamp on
+    # THAT slice verifying clean — comparing it against a DB migrated all
+    # the way to `current` (161) is comparing the wrong thing: V01-era
+    # columns get retyped/repointed by dozens of LATER deltas (UUID PKs at
+    # V56/V74, `timestamptz` conversions, etc.), so a full install
+    # necessarily "diverges" from the V1 shape on unrelated grounds having
+    # nothing to do with `--adopt`'s actual floor-convergence behavior —
+    # verified empirically (15 extra findings, none of them the citext gap
+    # this scenario is actually about). Building only to the floor matches
+    # the DB shape `--adopt` is designed for.
+    t = install_repair_target(ctx, "s13_healthy", to_version: Postgres.initial_version())
+    RepoHelper.query!(ctx.repo, ~s[COMMENT ON TABLE "#{t}".phoenix_kit IS NULL])
+
+    {:ok, pre_report} = Repair.verify(prefix: t, repo: ctx.repo)
+
+    if not Enum.any?(Report.findings(pre_report), &(&1.kind == :adopt_required)) do
+      {:fail, "s13: comment-stripped install did not report :adopt_required"}
+    else
+      floor = Postgres.initial_version()
+      {:ok, adopted} = Repair.repair(prefix: t, repo: ctx.repo, adopt: true)
+
+      # NOT filtered through `findings_modulo_known_gaps/1` like s8/s10 —
+      # unlike those, this assertion is about the PRODUCT'S actual
+      # `comment_action` decision (`CommentPolicy.floor_verify_clean?/1`
+      # runs on the real, unfiltered findings inside `Repair.repair/1`
+      # itself), not about this scenario's own health check. Confirmed:
+      # `phoenix_kit_users.email` (V01, citext) sits in every real
+      # install's `since <= floor` slice, so the citext-qualification gap
+      # (see `citext_qualification_gap?/1`) currently blocks `--adopt`
+      # from EVER stamping a real v161 install — a genuine consequence of
+      # that gap, not a flaw in this scenario. Left asserting the correct/
+      # intended behavior (not loosened to "whatever currently happens")
+      # so this starts passing the moment the P1/P2 asymmetry is fixed,
+      # per spec 8.3's own precedent for below-floor assertions: match the
+      # specific expected outcome, never any-result-passes.
+      if adopted.comment_action == {:adopted, floor} do
+        :pass
+      else
+        {:fail,
+         "s13: --adopt on a healthy DB set comment_action " <>
+           "#{inspect(adopted.comment_action)}, expected {:adopted, #{floor}} — " <>
+           findings_detail(adopted)}
+      end
+    end
+  end
+
+  # Spec §6.4 R4's data-invariant gate: "post-V114 no composite integration:*
+  # settings keys" is one of the manifest's real, generator-emitted
+  # invariants — violate it directly, confirming --adopt reports the failure
+  # and refuses to stamp (the concrete example the spec names for the
+  # "object-clean but data-invariant-failing" no-stamp branch).
+  #
+  # DORMANT-TODAY, checked rather than assumed: `Repair`'s `--adopt` only
+  # ever evaluates invariants `Scope.in_scope_invariants/2` selects for
+  # `since <= ctx.floor` (`Postgres.initial_version/0`, hardcoded — same
+  # value `s13_healthy_converges/1` uses). The REAL manifest's lowest
+  # invariant `since` is 77 (verified against the generated output) — at
+  # floor 1, NO invariant is ever in scope, so `--adopt`'s invariant gate
+  # cannot fire at all regardless of what data this scenario inserts. Same
+  # class of floor-dependent dormancy as `plan_up/3`/`plan_down/3`'s
+  # below-floor branches. Checked dynamically (not hardcoded as "always
+  # skip") so this starts running for real the moment the floor rises
+  # far enough for an invariant to be in scope.
+  defp s13_invariant_failing_no_stamp(ctx) do
+    floor = Postgres.initial_version()
+    invariants = apply(PhoenixKit.Migrations.ExpectedSchema, :data_invariants, ["public"])
+
+    if not Enum.any?(invariants, &(&1.since <= floor)) do
+      {:skip, "needs-in-scope-invariant",
+       "no manifest data invariant has since <= the real floor (#{floor}) — --adopt's " <>
+         "invariant gate is dormant at this floor. Mechanism unit-tested directly by " <>
+         "PhoenixKit.Migrations.Repair.CommentPolicyTest; exercised end-to-end by " <>
+         "test/integration/repair_test.exs against its synthetic manifest (whose since " <>
+         "values are chosen to be in-scope at floor 1 specifically for this reason)"}
+    else
+      # Not reachable today (see above) — intentionally minimal: revisit
+      # the install target once a real invariant is actually in scope, so
+      # it can install to whatever version that invariant's referenced
+      # objects need rather than guessing now.
+      t = install_repair_target(ctx, "s13_invariant", to_version: floor)
+
+      RepoHelper.query!(
+        ctx.repo,
+        ~s[INSERT INTO "#{t}".phoenix_kit_settings (key, value) ] <>
+          ~s[VALUES ('integration:s13_verify:token', 'x') ON CONFLICT (key) DO NOTHING]
+      )
+
+      RepoHelper.query!(ctx.repo, ~s[COMMENT ON TABLE "#{t}".phoenix_kit IS NULL])
+
+      {:ok, report} = Repair.repair(prefix: t, repo: ctx.repo, adopt: true)
+
+      cond do
+        report.comment_action != :none ->
+          {:fail,
+           "s13: --adopt stamped #{inspect(report.comment_action)} despite a failing " <>
+             "data invariant"}
+
+        not Enum.any?(Report.findings(report), &(&1.kind == :invariant_failed)) ->
+          {:fail, "s13: no :invariant_failed finding for the composite integration key"}
+
+        true ->
+          :pass
+      end
+    end
+  end
+
+  # ── S17 — revision scoping ────────────────────────────────────────────
+
+  # `phoenix_kit_role_permissions.module_key` (spec's own named example):
+  # `character varying(50)` since V53, widened to `character varying(120)`
+  # at V142 — a real multi-revision object.
+  defp s17_revision_scoping(ctx) do
+    ensure_generated_manifest_loaded!()
+    t = install_repair_target(ctx, "s17", to_version: 100)
+
+    {:ok, report_old} = Repair.verify(prefix: t, repo: ctx.repo)
+    id = "column:phoenix_kit_role_permissions.module_key"
+
+    cond do
+      Enum.any?(Report.findings(report_old), &(&1.object_id == id)) ->
+        {:fail,
+         "s17: #{id} verifies with a finding at comment v100 (between its V53/V142 " <>
+           "revisions) — the old-shape revision was not selected"}
+
+      true ->
+        MigrationRunner.run_old_chain(ctx.repo, t)
+        {:ok, report_new} = Repair.verify(prefix: t, repo: ctx.repo)
+
+        if Enum.any?(Report.findings(report_new), &(&1.object_id == id)) do
+          {:fail, "s17: #{id} verifies with a finding at the current comment (post-V142 retype)"}
+        else
+          :pass
+        end
+    end
+  end
+
+  # ── S18 — concurrency (documented manual, see moduledoc) ───────────────
+
+  # `test/integration/repair_test.exs`'s own S18 note applies verbatim here:
+  # a deterministic race needs two genuinely concurrent connections
+  # coordinated around the advisory lock — more infrastructure than this
+  # single-process harness provides. `PhoenixKit.Migrations.Repair.CommentPolicyTest`'s
+  # `concurrent_migration?/2` unit tests cover the DECISION; this scenario
+  # stays a documented, deliberate skip rather than a flaky or fake pass.
+  defp s18_stub(_ctx) do
+    {:skip, "needs-manual-trigger",
+     "S18 needs two genuinely concurrent connections racing the before/after raw-comment " <>
+       "read around Repair.Environment's advisory lock — not deterministically triggerable " <>
+       "from a single-process harness. Unit-covered by " <>
+       "PhoenixKit.Migrations.Repair.CommentPolicyTest's concurrent_migration?/2 " <>
+       "(dev_docs/squash/README.md documents the manual two-terminal trigger)."}
+  end
+
+  # ── S19 — data-dependent create-failure grace ───────────────────────────
+
+  # V137-class hazard: a partial UNIQUE index over a column that already has
+  # duplicate non-NULL values. `phoenix_kit_email_logs_aws_message_id_uidx`
+  # (V22) is the real, in-manifest instance (V137's own fix target) — BOTH
+  # it and its same-column, same-predicate twin `..._index` (V13, never
+  # dropped by any later version) are genuinely `presence: :required` on
+  # the real chain and must both be dropped first: leaving either one in
+  # place blocks the duplicate INSERTs below from ever landing (verified
+  # empirically — the surviving twin's own uniqueness fires at insert time).
+  defp s19_create_failed(ctx) do
+    ensure_generated_manifest_loaded!()
+    t = install_repair_target(ctx, "s19")
+    objects = manifest_objects(t)
+
+    index_id = "index:phoenix_kit_email_logs_aws_message_id_uidx"
+    twin_id = "index:phoenix_kit_email_logs_aws_message_id_index"
+    index_object = Enum.find(objects, &(&1.id == index_id))
+    twin_object = Enum.find(objects, &(&1.id == twin_id))
+
+    if is_nil(index_object) or is_nil(twin_object) do
+      {:fail,
+       "s19: #{index_id} and/or #{twin_id} is not in the generated manifest — pick " <>
+         "different real unique-index targets for this scenario"}
+    else
+      drop_manifest_object!(ctx, t, index_object)
+      drop_manifest_object!(ctx, t, twin_object)
+
+      dup = "'s19-duplicate-aws-message-id'"
+      insert_minimal_row!(ctx, t, "phoenix_kit_email_logs", %{"aws_message_id" => dup})
+      insert_minimal_row!(ctx, t, "phoenix_kit_email_logs", %{"aws_message_id" => dup})
+
+      {:ok, report} = Repair.repair(prefix: t, repo: ctx.repo)
+      finding = Enum.find(Report.findings(report), &(&1.object_id == index_id))
+
+      run_s19_assertions(ctx, t, index_id, finding)
+    end
+  end
+
+  defp run_s19_assertions(ctx, t, index_id, finding) do
+    cond do
+      is_nil(finding) ->
+        {:fail, "s19: no finding for #{index_id} after the tamper"}
+
+      finding.kind != :create_failed ->
+        {:fail, "s19: #{index_id} finding was #{inspect(finding.kind)}, expected :create_failed"}
+
+      finding.severity != :error ->
+        {:fail, "s19: :create_failed finding must be error-severity, got #{finding.severity}"}
+
+      not (finding.message =~ ~r/duplicate/i) ->
+        {:fail,
+         "s19: :create_failed message has no duplicate-group diagnostic: #{finding.message}"}
+
+      true ->
+        %{rows: [[invalid_index_exists]]} =
+          RepoHelper.query!(
+            ctx.repo,
+            "SELECT to_regclass('#{t}.phoenix_kit_email_logs_aws_message_id_uidx') IS NOT NULL"
+          )
+
+        if invalid_index_exists do
+          {:fail, "s19: an INVALID index was left behind after the failed create"}
+        else
+          :pass
+        end
+    end
+  end
+
+  # ── S20 — comment > current ──────────────────────────────────────────
+
+  defp s20_comment_above_current(ctx) do
+    ensure_generated_manifest_loaded!()
+    t = install_repair_target(ctx, "s20")
+
+    current = Postgres.current_version()
+    bogus = current + 838
+
+    RepoHelper.query!(ctx.repo, ~s[COMMENT ON TABLE "#{t}".phoenix_kit IS '#{bogus}'])
+
+    verify_result = Repair.verify(prefix: t, repo: ctx.repo)
+
+    # `Postgres.up/1` cannot be called bare here — it uses `Ecto.Migration`
+    # DSL functions (`repo()` et al) that need an ACTIVE
+    # `Ecto.Migration.Runner` process (normally supplied by
+    # `Ecto.Migrator.up/4`); a direct call crashes `:noproc` (verified
+    # empirically). `run_old_chain/3` provides that same real context
+    # `PhoenixKit.Migrations.up/1` always runs under in production, so this
+    # exercises the actual `initial >= target -> :ok` no-op branch rather
+    # than the underlying `Postgres.up/1` in isolation.
+    up_outcome = MigrationRunner.run_old_chain(ctx.repo, t)
+    version_after_up = MigrationRunner.migrated_version(ctx.repo, t)
+
+    cond do
+      verify_result != {:error, {:above_current, bogus, current}} ->
+        {:fail,
+         "s20: Repair.verify/1 on a comment-above-current DB returned #{inspect(verify_result)}, " <>
+           "expected {:error, {:above_current, #{bogus}, #{current}}}"}
+
+      up_outcome not in [:ok, :already_up] ->
+        {:fail, "s20: up() on a comment-above-current DB returned #{inspect(up_outcome)}"}
+
+      version_after_up != bogus ->
+        {:fail,
+         "s20: Postgres.up/1 changed the comment (#{bogus} -> #{version_after_up}) instead of " <>
+           "silently no-op'ing on a comment ahead of @current_version (repair/doctor are the " <>
+           "documented detection surface for this state, per spec 6.4 R6)"}
+
+      true ->
+        :pass
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -1039,7 +2038,7 @@ defmodule PhoenixKit.Squash.Verify do
   defp drop_schema!(ctx, name) do
     refuse_live_schema!(ctx, name)
     validate_identifier!(name)
-    RepoHelper.query!(ctx.repo, ~s(DROP SCHEMA IF EXISTS "#{name}" CASCADE))
+    RepoHelper.query!(ctx.repo, ~s[DROP SCHEMA IF EXISTS "#{name}" CASCADE])
     :ok
   end
 

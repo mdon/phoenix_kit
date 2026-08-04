@@ -1121,6 +1121,67 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
     "phoenix_kit_email_templates" => :skip
   }
 
+  # `owner:` — spec 5.1's per-module-extraction-slice hint (task-#4/operator's
+  # modularization vision): a best-effort tag for which future standalone
+  # `phoenix_kit_*` module a core-chain object's table family would belong to
+  # if/when it is carved out, NOT an authoritative taxonomy the repair/verify
+  # engine depends on for correctness. Data, not code, per the same instinct
+  # as `@seed_strategies` above — extending family coverage is a one-line
+  # addition here, never a new `object_owner/1` clause.
+  #
+  # Checked as a PREFIX against the table name with the `"phoenix_kit_"` lead
+  # stripped (e.g. `"cat_items"` for `phoenix_kit_cat_items`) — prefix, not
+  # substring, matters: `phoenix_kit_file_locations` (V20, Storage — bucket
+  # placement for a file variant) must NOT fall into :locations just because
+  # it contains "location" as a substring; it doesn't START WITH "location".
+  @table_owner_prefixes [
+    {"cat_", :catalogue},
+    {"warehouse_", :warehouse},
+    {"crm_", :crm},
+    {"staff_", :staff},
+    {"project", :projects},
+    {"newsletters_", :newsletters},
+    {"publishing_", :publishing},
+    {"og_", :og_images},
+    {"location", :locations},
+    {"ai_", :ai},
+    {"doc_", :document_creator}
+  ]
+
+  # The one family that genuinely needs substring (not prefix) matching: its
+  # member tables don't share a common lead — `phoenix_kit_comments`
+  # (standalone comments module) alongside `phoenix_kit_post_comments`/
+  # `phoenix_kit_post_likes`/`phoenix_kit_post_dislikes`/
+  # `phoenix_kit_ticket_comments`/`phoenix_kit_comment_likes` (posts/tickets
+  # features). Deliberately lumped into one :comments bucket rather than
+  # split by feature — see the moduledoc note on this being a best-effort
+  # hint, not a rigorous taxonomy.
+  @table_owner_substrings [
+    {"comment", :comments},
+    {"like", :comments},
+    {"dislike", :comments}
+  ]
+
+  @doc """
+  Best-effort module-ownership tag for a table name — see `@table_owner_prefixes`
+  moduledoc note. Checked in order (prefix families first, then the
+  comments/likes/dislikes substring bucket); `:core` is the fallthrough for
+  everything else (settings, users, auth, email, entities, shop, billing,
+  sync, tickets, storage — features that live in the base package with no
+  planned extraction).
+  """
+  @spec owner_for_table(String.t()) :: atom()
+  def owner_for_table(table) when is_binary(table) do
+    bare = String.replace_prefix(table, "phoenix_kit_", "")
+
+    Enum.find_value(@table_owner_prefixes, fn {prefix, owner} ->
+      if String.starts_with?(bare, prefix), do: owner
+    end) ||
+      Enum.find_value(@table_owner_substrings, fn {substr, owner} ->
+        if String.contains?(bare, substr), do: owner
+      end) || :core
+  end
+
   # ---------------------------------------------------------------------------
   # Static generator-authored entries
   # ---------------------------------------------------------------------------
@@ -1242,8 +1303,9 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
   @doc """
   Convert intermediate objects (Differ/Bimodality output + template_seed_objects)
   into the emitted spec-5.1 maps: id/class/since/revisions/presence/check/create/
-  backfill. :legacy_optional objects get create: nil (repair never creates them).
-  Seed rows whose table strategy is :skip are dropped (helper entries cover them).
+  backfill/owner. :legacy_optional objects get create: nil (repair never creates
+  them). Seed rows whose table strategy is :skip are dropped (helper entries
+  cover them).
   """
   def build_objects(objects) do
     cols = columns_by_table(objects, &newest_shape/1)
@@ -1260,7 +1322,8 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
         presence: object.presence,
         check: object_check(object),
         create: object_create(object, cols),
-        backfill: object_backfill(object)
+        backfill: object_backfill(object),
+        owner: object_owner(object)
       }
     end)
   end
@@ -1314,6 +1377,32 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
     do: Catalog.name_marker(exemption) <> bare
 
   defp templated_name(bare, _shape_without_template), do: bare
+
+  # `owner:` dispatch — same class shapes `object_check/1` pattern-matches on,
+  # resolved down to "the table this object belongs to" and handed to
+  # `owner_for_table/1`. Sequences are named after their owning table by this
+  # chain's convention (e.g. `phoenix_kit_warehouse_..._number_seq`), so the
+  # same prefix logic applies to a sequence's own key unchanged. Functions
+  # and extensions are schema-wide, not table-scoped — always :core.
+  # Public (unlike its `object_check`/`object_create` siblings) so
+  # `Main.check_owner_mapping!/0`'s offline --check gate can exercise every
+  # class's dispatch directly, without needing full check/create shape data.
+  @doc false
+  def object_owner(%{class: :table, key: table}), do: owner_for_table(table)
+
+  def object_owner(%{class: :column, key: {table, _column}}), do: owner_for_table(table)
+
+  def object_owner(%{class: :index} = object), do: owner_for_table(newest_shape(object).table)
+
+  def object_owner(%{class: :constraint, key: {table, _name}}), do: owner_for_table(table)
+
+  def object_owner(%{class: :sequence, key: name}), do: owner_for_table(name)
+
+  def object_owner(%{class: :function}), do: :core
+
+  def object_owner(%{class: :extension}), do: :core
+
+  def object_owner(%{class: :seed, key: {table, _value}}), do: owner_for_table(table)
 
   defp object_create(%{presence: :legacy_optional}, _cols), do: nil
 
@@ -3018,11 +3107,12 @@ defmodule PhoenixKit.Squash.Generate.Main do
     check_chain_hash!()
     check_config_parsing!()
     check_seed_tables_sync!()
+    check_owner_mapping!()
 
     IO.puts(
       "OK generate_baseline.exs --check: helper self-checks, inventory-doc cross-check, " <>
         "fixture differ/bimodality/guard, manifest+baseline emit/parse/compile, " <>
-        "config parsing — all offline gates passed"
+        "config parsing, owner mapping — all offline gates passed"
     )
 
     :ok
@@ -3084,6 +3174,74 @@ defmodule PhoenixKit.Squash.Generate.Main do
       raise "seed-table drift: Catalog.seed_tables/0 #{inspect(generator_tables)} != " <>
               "DumpHelper.default_seed_tables/0 #{inspect(oracle_tables)} — keep the " <>
               "manifest's seed-capture set and the S2 oracle's dump set in sync"
+    end
+
+    :ok
+  end
+
+  # `owner:` (spec 5.1's per-module-extraction-slice hint): every object
+  # CLASS `Emitter.object_owner/1` dispatches on (mirrors `object_check/1`'s
+  # class list) must resolve to an atom, never crash or fall through
+  # unhandled — proven here with minimal per-class synthetic objects, since
+  # `object_owner/1` only needs `class`/`key` (plus `revisions` for the
+  # `:index` case, to reach the owning table via `newest_shape/1`), not the
+  # full check/create shape data `build_objects/1`'s OTHER emitted fields
+  # need. Then at least one REAL table name must resolve to a non-:core
+  # owner — proves the family-mapping DATA actually matches real
+  # `phoenix_kit_*` names, not just that every branch returns some atom.
+  defp check_owner_mapping! do
+    minimal_objects_by_class = [
+      %{class: :table, key: "phoenix_kit_cat_items"},
+      %{class: :column, key: {"phoenix_kit_cat_items", "name"}},
+      %{
+        class: :index,
+        key: "phoenix_kit_cat_items_name_idx",
+        revisions: [{1, %{table: "phoenix_kit_cat_items"}}]
+      },
+      %{class: :constraint, key: {"phoenix_kit_cat_items", "phoenix_kit_cat_items_pkey"}},
+      %{class: :sequence, key: "phoenix_kit_warehouse_stock_number_seq"},
+      %{class: :function, key: {"uuid_generate_v7", ""}},
+      %{class: :extension, key: "citext"},
+      %{class: :seed, key: {"phoenix_kit_settings", "some_key"}}
+    ]
+
+    unless Enum.all?(minimal_objects_by_class, &is_atom(Emitter.object_owner(&1))) do
+      raise "owner mapping check failed: object_owner/1 did not resolve every object class " <>
+              "to an atom"
+    end
+
+    spot_checks = [
+      {"phoenix_kit_cat_items", :catalogue},
+      {"phoenix_kit_warehouse_stock", :warehouse},
+      {"phoenix_kit_crm_contacts", :crm},
+      {"phoenix_kit_staff_people", :staff},
+      {"phoenix_kit_projects", :projects},
+      {"phoenix_kit_newsletters_broadcasts", :newsletters},
+      {"phoenix_kit_publishing_posts", :publishing},
+      {"phoenix_kit_og_templates", :og_images},
+      {"phoenix_kit_locations", :locations},
+      {"phoenix_kit_comments", :comments},
+      {"phoenix_kit_ai_requests", :ai},
+      {"phoenix_kit_doc_templates", :document_creator},
+      # False-positive guards: substring "location"/"project" present but the
+      # table does NOT belong to those families (doesn't START WITH them).
+      {"phoenix_kit_file_locations", :core},
+      {"phoenix_kit_settings", :core}
+    ]
+
+    for {table, expected} <- spot_checks do
+      actual = Emitter.owner_for_table(table)
+
+      unless actual == expected do
+        raise "owner mapping check failed: #{table} resolved to #{inspect(actual)}, " <>
+                "expected #{inspect(expected)}"
+      end
+    end
+
+    non_core = Enum.count(spot_checks, fn {_table, owner} -> owner != :core end)
+
+    unless non_core > 0 do
+      raise "owner mapping check failed: spot-check table has zero non-:core entries"
     end
 
     :ok

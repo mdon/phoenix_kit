@@ -33,6 +33,15 @@ defmodule PhoenixKit.Squash.RepoHelper do
   # -------------------------------------------------------------------------
 
   @doc """
+  The repo module `start/0` starts and every query function targets —
+  exposed so a caller that needs to start a SECOND, differently-configured
+  instance of the same module (Ecto's dynamic-repo support: same module,
+  distinct `:name`) doesn't have to hardcode the literal atom (verify.exs's
+  S12 pooled-connection scenario).
+  """
+  def repo_module, do: @repo
+
+  @doc """
   Start the repo and return {:ok, repo_module} or {:error, reason}.
   Idempotent: safe to call multiple times.
 

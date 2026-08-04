@@ -178,7 +178,10 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   #        # info-level either way; repair NEVER creates them
   #   check: {:catalog, spec} | sql,                  # parameterized, schema-anchored, non-raising
   #   create: sql | {:helper, mfa},                   # additive-only
-  #   backfill: nil | :default | {:manual, sql_text}}
+  #   backfill: nil | :default | {:manual, sql_text},
+  #   owner: atom()}                                  # best-effort table-family tag (:catalogue,
+  #        # :warehouse, :crm, ... :core fallthrough) for future per-module extraction slices —
+  #        # informational only, never load-bearing for verify/repair correctness
   # plus: data_invariants :: [%{since: v, assert: sql, desc: ...}] — generator-emitted assertions
   #   for upgrade-only transforms (minimum set: post-V114 no composite "integration:*" settings
   #   keys; V137 email_events/aws_message_id uniqueness; V109/V77 renamed keys absent). Used by
