@@ -529,7 +529,23 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V160 - Settings `value` widened to TEXT ⚡ LATEST
+  ### V161 - Case-insensitive `phoenix_kit_users.username` (citext) ⚡ LATEST
+  - `username` was `VARCHAR(255)` (V08's `:string`) — comparison semantics
+    come from the column type, not the Ecto schema field, so every lookup
+    (`get_user_by_username/1`, `unsafe_validate_unique`, the unique index
+    itself) was exact-match; `alice` and `Alice` could both register
+  - Converts the column to `citext`, same fix already applied to `email`
+    in V01 and the CRM party email columns in V151
+  - Pre-check (mirrors V106's down-step) raises on any existing
+    case-insensitive collision before the DDL runs, naming the offending
+    value; `WHERE username IS NOT NULL` guards against nullable rows
+    false-colliding under `GROUP BY`
+  - `varchar` → `citext` is binary-coercible (`pg_cast.castmethod = 'b'`),
+    confirmed live — no table rewrite; the column's B-tree index does get
+    rebuilt (also confirmed live), which is what makes it enforce
+    case-insensitive uniqueness right after the `ALTER`
+
+  ### V160 - Settings `value` widened to TEXT
   - `phoenix_kit_settings.value` was `VARCHAR(255)` (V03's `:string`) while
     `Settings.Setting` validated it at `max: 1000` — anything in between
     passed the changeset and then raised a raw `Postgrex.Error`
@@ -1423,7 +1439,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 160
+  @current_version 161
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that
