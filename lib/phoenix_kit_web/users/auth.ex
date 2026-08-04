@@ -143,8 +143,23 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp maybe_merge_guest_cart(conn, user) do
     if Code.ensure_loaded?(PhoenixKitEcommerce) do
+      # Session FIRST, cookie only as a fallback.
+      #
+      # The shop session cookie is signed, so `conn.cookies["shop_session_id"]`
+      # here is the signed envelope ("SFMyNTY...."), not the id — `:browser`
+      # fetches cookies unsigned, and only `fetch_cookies(conn, signed: [...])`
+      # inside the shop plug verifies it. The envelope is truthy, so reading
+      # the cookie first meant `||` never fell through to the session, which
+      # is the one place the real id lives. `merge_guest_cart(<envelope>, user)`
+      # then matched no cart and returned quietly: every guest who filled a
+      # cart and logged in silently lost it.
+      #
+      # The shop plug mirrors the resolved id into the session on every
+      # request, so the session is both authoritative and already verified.
+      # The cookie fallback stays for a host that wires the routes without
+      # the shop plug.
       shop_session_id =
-        conn.cookies["shop_session_id"] || get_session(conn, :shop_session_id)
+        get_session(conn, :shop_session_id) || conn.cookies["shop_session_id"]
 
       if shop_session_id do
         try do
