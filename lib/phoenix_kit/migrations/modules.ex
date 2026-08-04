@@ -15,9 +15,10 @@ defmodule PhoenixKit.Migrations.Modules do
   of the discovery logic, and only `update` had it at all, which is why
   `status` never mentioned modules.
 
-  Everything here is read-only and defensive: a module whose coordinator raises
-  is reported as `:error` with the message, never crashing the caller. A broken
-  third-party module must not take down `mix phoenix_kit.status`.
+  Everything here is read-only and defensive: a module whose coordinator raises,
+  exits, or reports a non-integer version is recorded as `:error` with the
+  message, never crashing the caller. A broken third-party module must not take
+  down `mix phoenix_kit.status`.
 
   ## Example
 
@@ -43,7 +44,8 @@ defmodule PhoenixKit.Migrations.Modules do
       them.
     * `:needs_update` — tables exist at an older version than the code expects.
     * `:up_to_date` — database matches (or exceeds) what the code needs.
-    * `:error` — the module's coordinator raised; `:error` field has the message.
+    * `:error` — the module's coordinator raised, exited, or reported a
+      non-integer version; the `:error` field has the message.
   """
   @type status :: :not_installed | :needs_update | :up_to_date | :error
 
@@ -78,6 +80,40 @@ defmodule PhoenixKit.Migrations.Modules do
   end
 
   @doc """
+  Classifies one module's installed version against the version its code wants.
+
+  Public because it is the whole read-side decision — `mix phoenix_kit.status`
+  renders it and `mix phoenix_kit.update` migrates off it — and a private
+  version could only be tested through a hand-built entry that supplied the
+  answer, which is no test at all.
+
+  Both versions must be integers. A coordinator that reports anything else
+  (`nil` for "no version comment found" is the tempting one) is `:error`, never
+  silently `:up_to_date`: under Erlang term ordering `nil >= 2` is `true`, so an
+  unguarded comparison would mark a module with no tables as current and skip
+  its migration forever.
+
+      iex> alias PhoenixKit.Migrations.Modules
+      iex> {Modules.classify(2, 2), Modules.classify(3, 2)}
+      {:up_to_date, :up_to_date}
+      iex> {Modules.classify(0, 1), Modules.classify(1, 5)}
+      {:not_installed, :needs_update}
+      iex> Modules.classify(nil, 2)
+      :error
+  """
+  @spec classify(term(), term()) :: status()
+  def classify(installed, target)
+      when is_integer(installed) and is_integer(target) and installed >= target,
+      do: :up_to_date
+
+  def classify(0, target) when is_integer(target), do: :not_installed
+
+  def classify(installed, target) when is_integer(installed) and is_integer(target),
+    do: :needs_update
+
+  def classify(_installed, _target), do: :error
+
+  @doc """
   Filters a `list/1` result down to the entries a `mix phoenix_kit.update` run
   would act on — those needing their tables created or upgraded.
 
@@ -108,6 +144,12 @@ defmodule PhoenixKit.Migrations.Modules do
   # ── internals ───────────────────────────────────────────────────────────────
 
   # Beam-file scanning, so this works under `--no-start` like the tasks need.
+  #
+  # `catch :exit` alongside `rescue` throughout this module is not belt-and-
+  # braces: per CLAUDE.md an unreachable database *raises* on an unowned
+  # checkout but *exits* on a dead pool, and these coordinators run queries.
+  # A rescue-only guard turns a dead pool into a crashed `mix phoenix_kit.status`
+  # — precisely the failure this module exists to prevent.
   defp discover do
     PhoenixKit.ModuleDiscovery.discover_external_modules()
     |> Enum.flat_map(fn mod ->
@@ -122,22 +164,37 @@ defmodule PhoenixKit.Migrations.Modules do
     end)
   rescue
     _ -> []
+  catch
+    :exit, _ -> []
   end
 
   defp describe({mod, migration_mod}, prefix) do
     installed = migration_mod.migrated_version_runtime(prefix: prefix)
     target = migration_mod.current_version()
 
-    %{
-      base(mod, migration_mod)
-      | installed: installed,
-        target: target,
-        status: classify(installed, target)
-    }
+    case classify(installed, target) do
+      :error ->
+        %{
+          base(mod, migration_mod)
+          | error:
+              "coordinator reported a non-integer version " <>
+                "(installed: #{inspect(installed)}, target: #{inspect(target)})"
+        }
+
+      status ->
+        %{
+          base(mod, migration_mod)
+          | installed: installed,
+            target: target,
+            status: status
+        }
+    end
   rescue
     # A third-party coordinator that raises is reported, not propagated —
     # `mix phoenix_kit.status` must still describe everything else.
     error -> %{base(mod, migration_mod) | error: Exception.message(error)}
+  catch
+    :exit, reason -> %{base(mod, migration_mod) | error: "exited: #{inspect(reason)}"}
   end
 
   # Built by a function rather than bound in the body because a `rescue`
@@ -154,13 +211,14 @@ defmodule PhoenixKit.Migrations.Modules do
     }
   end
 
-  defp classify(installed, target) when installed >= target, do: :up_to_date
-  defp classify(0, _target), do: :not_installed
-  defp classify(_installed, _target), do: :needs_update
-
   defp display_name(mod) do
-    if function_exported?(mod, :module_name, 0), do: mod.module_name(), else: inspect(mod)
+    case function_exported?(mod, :module_name, 0) && mod.module_name() do
+      name when is_binary(name) -> name
+      _ -> inspect(mod)
+    end
   rescue
     _ -> inspect(mod)
+  catch
+    :exit, _ -> inspect(mod)
   end
 end

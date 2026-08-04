@@ -417,4 +417,17 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       "lib/#{web_path}/phoenix_kit/admin/#{category_path}/#{file_name}.ex"
     end
   end
+else
+  # Igniter is optional (see mix.exs). Without a stand-in the task would simply
+  # not exist and Mix would report only "could not be found" — naming neither
+  # PhoenixKit nor the missing dep. This one explains and prints the fix.
+  defmodule Mix.Tasks.PhoenixKit.Gen.Admin.Page do
+    @moduledoc """
+    Placeholder for `mix phoenix_kit.gen.admin.page`, which needs the optional :igniter
+    dependency. Running it explains how to add igniter; see
+    `PhoenixKit.Install.MissingIgniter` for why the dep is optional.
+    """
+
+    use PhoenixKit.Install.MissingIgniter, task: "phoenix_kit.gen.admin.page"
+  end
 end

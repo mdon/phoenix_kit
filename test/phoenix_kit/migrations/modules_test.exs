@@ -12,6 +12,8 @@ defmodule PhoenixKit.Migrations.ModulesTest do
 
   alias PhoenixKit.Migrations.Modules
 
+  doctest PhoenixKit.Migrations.Modules, only: [classify: 2]
+
   describe "list/1" do
     test "returns a list and never raises, even with nothing installed" do
       assert is_list(Modules.list())
@@ -33,6 +35,15 @@ defmodule PhoenixKit.Migrations.ModulesTest do
         assert is_atom(migration_module)
         assert is_integer(installed) and installed >= 0
         assert status in [:not_installed, :needs_update, :up_to_date, :error]
+      end
+    end
+
+    test "an entry's status agrees with classify/2 on its own versions" do
+      # Ties the discovery path to the classifier, so a change to one that
+      # contradicts the other cannot pass.
+      for %{status: status, installed: installed, target: target} <- Modules.list(),
+          status != :error do
+        assert Modules.classify(installed, target) == status
       end
     end
   end
@@ -70,22 +81,36 @@ defmodule PhoenixKit.Migrations.ModulesTest do
     end
   end
 
-  describe "status classification" do
+  describe "classify/2" do
     test "installed at or above target is up to date" do
-      assert classify_via_pending(entry("M", 2, 2, :up_to_date)) == false
-      assert classify_via_pending(entry("M", 3, 2, :up_to_date)) == false
+      assert Modules.classify(2, 2) == :up_to_date
+      assert Modules.classify(3, 2) == :up_to_date
     end
 
-    test "zero installed with a target is not installed, and is pending" do
-      assert classify_via_pending(entry("M", 0, 1, :not_installed)) == true
+    test "zero installed with a target has never been installed" do
+      assert Modules.classify(0, 1) == :not_installed
     end
 
-    test "installed below target is pending" do
-      assert classify_via_pending(entry("M", 1, 5, :needs_update)) == true
+    test "installed below target needs an update" do
+      assert Modules.classify(1, 5) == :needs_update
+      assert Modules.classify(1, 2) == :needs_update
+    end
+
+    test "a non-integer version is an error, never up to date" do
+      # Under Erlang term ordering every atom sorts above every integer, so an
+      # unguarded `installed >= target` reads nil as "ahead of target" and the
+      # module's migration is skipped forever. Each of these must be :error.
+      assert Modules.classify(nil, 2) == :error
+      assert Modules.classify(2, nil) == :error
+      assert Modules.classify("2", 2) == :error
+      assert Modules.classify(:latest, 2) == :error
+      assert Modules.classify(nil, nil) == :error
+    end
+
+    test "an error classification is not pending — blind migration is worse" do
+      refute Modules.classify(nil, 2) in [:not_installed, :needs_update]
     end
   end
-
-  defp classify_via_pending(entry), do: Modules.pending([entry]) != []
 
   defp entry(name, installed, target, status) do
     %{

@@ -500,44 +500,17 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       Igniter.add_notice(igniter, notice)
     end
   end
-
-  # Fallback module for when Igniter is not available
 else
+  # Igniter is optional (see mix.exs), so this task cannot be defined here.
+  # A guard with no `else` would make it vanish and Mix would report only
+  # "could not be found" — naming neither PhoenixKit nor the missing dep.
   defmodule Mix.Tasks.PhoenixKit.Install do
     @moduledoc """
-    PhoenixKit installation task.
-
-    This task requires the Igniter library to be available. Please add it to your mix.exs:
-
-        {:igniter, "~> 0.7"}
-
-    Then run: mix deps.get
+    Placeholder for `mix phoenix_kit.install`, which needs the optional :igniter
+    dependency. Running it explains how to add igniter; see
+    `PhoenixKit.Install.MissingIgniter` for why the dep is optional.
     """
 
-    @shortdoc "Install PhoenixKit (requires Igniter)"
-
-    use Mix.Task
-
-    def run(_args) do
-      Mix.shell().error("""
-
-      ❌ PhoenixKit installation requires the Igniter library.
-
-      Please add Igniter to your mix.exs dependencies:
-
-          def deps do
-            [
-              {:igniter, "~> 0.7"}
-              # ... your other dependencies
-            ]
-          end
-
-      Then run:
-        mix deps.get
-        mix phoenix_kit.install
-
-      For more information, visit: https://hex.pm/packages/igniter
-      """)
-    end
+    use PhoenixKit.Install.MissingIgniter, task: "phoenix_kit.install"
   end
 end

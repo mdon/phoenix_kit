@@ -139,10 +139,14 @@ defmodule Mix.Tasks.PhoenixKit.Status do
 
   # ── Module schema versions ──────────────────────────────────────────────────
 
+  # `:not_queried` is deliberately distinct from `[]`. Both used to collapse to
+  # an empty list, so a host with modules installed but an unreachable database
+  # was told "No installed module owns migrations" — a flat falsehood that
+  # sends whoever is debugging a missing table down the wrong path.
   defp module_entries({:connected_with_tables, _version}, prefix),
     do: MigrationModules.list(prefix: prefix)
 
-  defp module_entries(_database_status, _prefix), do: []
+  defp module_entries(_database_status, _prefix), do: :not_queried
 
   # Renders as a labelled row with one child line per module:
   #
@@ -151,7 +155,10 @@ defmodule Mix.Tasks.PhoenixKit.Status do
   #   │   └── Inbox: V01 → V02 ⬆
   #
   # Omitted entirely when no module owns migrations, so the common
-  # core-only install keeps the compact three-line tree it had before.
+  # core-only install keeps the compact three-line tree it had before — and
+  # when the database never answered, since "we couldn't look" is already
+  # covered by the Database row above.
+  defp module_tree_rows(:not_queried), do: []
   defp module_tree_rows([]), do: []
 
   defp module_tree_rows(modules) do
@@ -312,10 +319,28 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     {:update, update_command(prefix)}
   end
 
+  defp determine_next_action({:up_to_date, _version}, :not_queried, _prefix) do
+    {:ready, "Ready"}
+  end
+
   defp determine_next_action({:up_to_date, _version}, modules, prefix) do
-    case MigrationModules.pending(modules) do
-      [] -> {:ready, "Ready"}
-      pending -> {:update_modules, update_command(prefix), Enum.map(pending, & &1.name)}
+    pending = MigrationModules.pending(modules)
+    failed = MigrationModules.failed(modules)
+
+    cond do
+      # An unreadable module is NOT pending — migrating a module whose version
+      # we cannot read would be worse than not touching it. But it must not
+      # report "Ready" either: its tables may well be behind, and a tree that
+      # says "1 unreadable ❌" one line above "Next: Ready" tells the operator
+      # there is nothing to do.
+      failed != [] ->
+        {:check_modules, Enum.map(failed, & &1.name)}
+
+      pending != [] ->
+        {:update_modules, update_command(prefix), Enum.map(pending, & &1.name)}
+
+      true ->
+        {:ready, "Ready"}
     end
   end
 
@@ -373,6 +398,11 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     "#{IO.ANSI.cyan()}#{command}#{IO.ANSI.reset()} #{IO.ANSI.faint()}(module schema behind: #{Enum.join(names, ", ")})#{IO.ANSI.reset()}"
   end
 
+  defp format_next_action({:check_modules, names}) do
+    "#{IO.ANSI.red()}Check the unreadable module(s): #{Enum.join(names, ", ")}#{IO.ANSI.reset()} " <>
+      "#{IO.ANSI.faint()}(schema version unknown — run with --verbose)#{IO.ANSI.reset()}"
+  end
+
   defp format_next_action({:ready, message}) do
     "#{IO.ANSI.green()}#{message}#{IO.ANSI.reset()}"
   end
@@ -401,6 +431,12 @@ defmodule Mix.Tasks.PhoenixKit.Status do
 
   # Per-module detail: which coordinator reports the version, and the exact
   # numbers behind the summary line.
+  defp show_module_diagnostics(:not_queried) do
+    IO.puts("\n#{IO.ANSI.bright()}Modules:#{IO.ANSI.reset()}")
+    IO.puts("  Not queried — the database did not answer, so module schema")
+    IO.puts("  versions are unknown. This is not the same as having none.")
+  end
+
   defp show_module_diagnostics([]) do
     IO.puts("\n#{IO.ANSI.bright()}Modules:#{IO.ANSI.reset()}")
     IO.puts("  No installed module owns migrations.")

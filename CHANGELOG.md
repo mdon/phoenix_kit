@@ -34,6 +34,25 @@
   three modules they reference. No task or helper changed behaviour when
   igniter *is* present.
 
+  ⚠️ **Upgrading from ≤ 1.7.229 and your `mix.exs` does not list `:igniter`?**
+  You were getting it transitively from PhoenixKit; an optional dep is not
+  installed unless the host declares it, so after `mix deps.update phoenix_kit`
+  the code-generating tasks stop working. Add:
+
+  ```elixir
+  {:igniter, "~> 0.7", only: [:dev, :test]}
+  ```
+
+  `mix phoenix_kit.install` / `.update` / `.gen.*` now say exactly this when
+  invoked without igniter rather than vanishing from `mix help` (the two
+  `gen.*` tasks, newly guarded, had no fallback at all; `install` and `update`
+  had one each, and all four now share `Install.MissingIgniter`).
+  `PhoenixKit.Install.IgniterCompat` gained a `__mix_recompile__?/0` keyed on
+  igniter's availability, so adding the dep later actually rebuilds the tasks
+  instead of needing `mix deps.compile phoenix_kit --force`. Tasks that never
+  touch igniter — `phoenix_kit.status`, `.gen.migration`, `.assets.rebuild` —
+  are unaffected either way.
+
 - **`mix phoenix_kit.update` could crash when two modules needed migrating in
   the same second.** Generated migration filenames took their version from a
   bare `%Y%m%d%H%M%S` timestamp, so two modules upgraded together produced
@@ -45,6 +64,50 @@
   all, leaving it to assume its tables were current. Unreadable modules are now
   reported by name with the error and an explicit note that they were not
   migrated.
+
+- **`mix phoenix_kit.update` wrote module migrations to a hardcoded
+  `priv/repo/migrations`.** On a host whose first `:ecto_repos` entry is not
+  `MyApp.Repo`, the file landed in a directory the migrator never scans, so
+  `ecto.migrate` exited 0 having done nothing — and the run still printed
+  `✅ <module> migrated to V##`. The directory is now taken from the resolved
+  repo, and each module's version is **re-read from the database** afterwards
+  rather than assumed, so a migration that did not run is reported as a failure
+  with the path to check.
+
+- **`mix phoenix_kit.update` could hard-fail on a re-run after an interrupted
+  update.** The module path had no "migration already exists" guard (the core
+  path has had one all along), so a second run wrote a second file with the
+  same migration name and `mix ecto.migrate` refused everything with
+  `migration name ... is duplicated`. It now reuses the existing file.
+
+- **One bad module aborted the whole `mix phoenix_kit.update` run.** The
+  per-module `try/rescue` was lost in the rework, so a module that raised while
+  its migration file was written killed the task *after* core had migrated —
+  skipping every remaining module and the UUID repair pass. Each module is
+  isolated again.
+
+- **`mix phoenix_kit.status` reported `Next: Ready` directly under a
+  `1 unreadable ❌` module row.** An unreadable module is deliberately not
+  "pending" (migrating a module whose version cannot be read would be worse),
+  but it is not "ready" either. `Next` now names the modules to check.
+
+- **`mix phoenix_kit.status --verbose` claimed "No installed module owns
+  migrations" whenever the database was unreachable**, which is a different
+  fact from having none and sends anyone debugging a missing table the wrong
+  way. Not-queried and none-found are now distinct.
+
+- **A module coordinator reporting a non-integer version read as up to date.**
+  Under Erlang term ordering `nil >= 2` is `true`, so a coordinator returning
+  `nil` for "no version comment found" was classified `:up_to_date` and its
+  migration skipped forever, while both tasks reported everything current.
+  `Modules.classify/2` now requires integers and reports anything else as
+  `:error`.
+
+- **Soft-failure paths guarded with `rescue` alone now also `catch :exit`.**
+  Per the project's own convention, an unreachable database raises on an
+  unowned checkout but *exits* on a dead pool — so a dead pool crashed
+  `mix phoenix_kit.status` outright and killed the closing summary of an
+  otherwise-successful `mix phoenix_kit.update`.
 
 ### Added
 - **`mix phoenix_kit.status` now reports the schema version of every module
@@ -79,8 +142,11 @@
 - **New `PhoenixKit.Migrations.Modules`** — the shared read side of the
   module-migration contract, used by both tasks. Discovery previously lived
   inside `update` only, which is why `status` never knew modules existed. A
-  module whose coordinator raises is reported as `:error`, never propagated, so
-  a broken third-party module cannot take down `mix phoenix_kit.status`.
+  module whose coordinator raises, exits, or reports a non-integer version is
+  recorded as `:error`, never propagated, so a broken third-party module cannot
+  take down `mix phoenix_kit.status`. `classify/2` is public because it is the
+  whole read-side decision, and a private one could only be tested through a
+  hand-built entry that supplied the answer.
 - **New `PhoenixKit.Install.StatusTree`** — the tree layout, extracted from the
   status task so it can be unit tested without a database. It was previously a
   private function writing straight to `IO.puts/1`, so in practice changes to
