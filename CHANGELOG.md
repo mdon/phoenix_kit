@@ -109,7 +109,30 @@
   `mix phoenix_kit.status` outright and killed the closing summary of an
   otherwise-successful `mix phoenix_kit.update`.
 
+- **The sitemap's `x-default` could be claimed by a sibling-dialect entry**
+  (#679). Enabled codes are stored BCP-47 (`en-GB`) while sibling-dialect URLs
+  render lowercase (`/en-gb/…`), so the case-sensitive `String.contains?` never
+  recognised such an entry as language-prefixed and let it pass as the
+  unprefixed default. The default picker now matches case-insensitively, in
+  line with the per-entry hreflang extraction that already did.
+
 ### Added
+- **The locale plug accepts enabled full-dialect URL segments** (#679) instead
+  of 301-ing every hyphenated segment to its base code. A segment that
+  case-insensitively matches an **enabled** language (`/en-gb/…` with `en-GB`
+  enabled) is now served as that locale, with the stored-case code on
+  `conn.assigns.current_locale` and its base on `current_locale_base`.
+  Disabled dialects, unknown dialects, and an empty enabled list (Languages
+  module off) all keep the historical redirect-to-base, so nothing changes for
+  an install that does not enable sibling dialects.
+
+  This is what makes two enabled dialects of one base addressable as distinct
+  public URLs — `phoenix_kit_publishing` gives the non-primary sibling its own
+  URL space and previously had it bounced to the base before its controller
+  ever ran. The prefixless-primary canonical redirect deliberately does not
+  apply on this branch: only non-primary siblings are addressed by full-code
+  URLs, and the primary keeps its base-coded (or prefixless) shape.
+
 - **`mix phoenix_kit.status` now reports the schema version of every module
   that owns its migrations**, not just core. Modules implementing
   `c:PhoenixKit.Module.migration_module/0` (`phoenix_kit_inbox`,
