@@ -2356,8 +2356,20 @@ defmodule PhoenixKitWeb.Users.Auth do
   # `process_valid_locale/2` to skip the default-locale-redirect so
   # both `/phoenix_kit/admin/*` and `/phoenix_kit/<default>/admin/*`
   # render whichever shape the user typed.
+  # Whether this request targets the admin area.
+  #
+  # Matches "admin" as a whole PATH SEGMENT, not as a substring. The old
+  # `String.contains?(request_path, "/admin")` classified any URL with
+  # those characters anywhere in it — a storefront product at
+  # `/shop/product/admin-tools`, a blog post at `/news/admin-changes` — as
+  # an admin request, which then skipped default-locale canonicalisation
+  # for those pages.
+  #
+  # Segment-wise matching also means a genuine admin URL still matches
+  # under any mount prefix and any locale segment, since we only care
+  # whether "admin" appears as its own segment.
   defp admin_request?(conn) do
-    String.contains?(conn.request_path, "/admin")
+    "admin" in conn.path_info
   end
 
   # Redirects default language URLs to clean URLs (no locale prefix)
