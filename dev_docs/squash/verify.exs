@@ -72,7 +72,7 @@ defmodule PhoenixKit.Squash.Verify do
   #   V22's `_uidx`; the baseline keeps exactly one (V22's name), so V13's
   #   name is presence-optional.
   @legacy_optional_default [
-    "preferred_locale",
+    "phoenix_kit_users.preferred_locale",
     "phoenix_kit_users_preferred_locale_index",
     "phoenix_kit_email_logs_aws_message_id_index"
   ]
@@ -746,10 +746,11 @@ defmodule PhoenixKit.Squash.Verify do
     end
   end
 
-  # Struct fields pinned to spec section 5.2 (db_version/floor/bridge_version;
-  # message names the bridge). If P3 ships different field names this matcher
-  # fails loudly as {:wrong_error, exception} — adjust it, never loosen it to
-  # any-raise-passes.
+  # Asserted field-by-field: db_version + floor; bridge_version is pinned only
+  # indirectly via the bridge-named message (its expected VALUE is unknowable
+  # until the bridge is tagged — add a field assert in s4_guard then). If P3
+  # ships different field names this matcher fails loudly as
+  # {:wrong_error, exception} — adjust it, never loosen it to any-raise-passes.
   defp below_floor_matcher(db_version) do
     error_mod = PhoenixKit.Migrations.BelowFloorError
     floor = MigrationRunner.floor()
@@ -1036,6 +1037,7 @@ defmodule PhoenixKit.Squash.Verify do
   end
 
   defp drop_schema!(ctx, name) do
+    refuse_live_schema!(ctx, name)
     validate_identifier!(name)
     RepoHelper.query!(ctx.repo, ~s(DROP SCHEMA IF EXISTS "#{name}" CASCADE))
     :ok
@@ -1051,6 +1053,37 @@ defmodule PhoenixKit.Squash.Verify do
     IO.puts("  resetting public (DROP SCHEMA public CASCADE)...")
     RepoHelper.query!(ctx.repo, "DROP SCHEMA public CASCADE")
     RepoHelper.query!(ctx.repo, "CREATE SCHEMA public")
+    :ok
+  end
+
+  # Named-schema twin of refuse_live_install!: scratch schemas this harness
+  # creates never contain user rows (migrations alone never insert users), so
+  # a populated phoenix_kit_users in a schema we are about to drop means the
+  # configured name collides with a LIVE prefixed install — refuse, no
+  # override (pick a different base name).
+  defp refuse_live_schema!(ctx, schema) do
+    %{rows: [[reg]]} =
+      RepoHelper.query!(ctx.repo, "SELECT to_regclass('#{schema}.phoenix_kit_users')::text")
+
+    users =
+      if reg do
+        %{rows: [[n]]} =
+          RepoHelper.query!(ctx.repo, "SELECT count(*) FROM \"#{schema}\".phoenix_kit_users")
+
+        n
+      else
+        0
+      end
+
+    if users > 0 do
+      raise """
+      refusing DROP SCHEMA #{schema}: it contains #{users} row(s) in
+      #{schema}.phoenix_kit_users — that is a LIVE prefixed PhoenixKit install,
+      not a harness scratch schema. Change the scratch base name; there is
+      deliberately no override.
+      """
+    end
+
     :ok
   end
 

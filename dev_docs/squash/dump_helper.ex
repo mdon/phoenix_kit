@@ -50,8 +50,13 @@ defmodule PhoenixKit.Squash.DumpHelper do
     object being created (`CREATE INDEX` name, `ADD CONSTRAINT` name) —
     matches a whitelisted name on a word boundary. A line that merely
     REFERENCES a whitelisted name (an index definition over a whitelisted
-    column) is kept, so the whitelist cannot mask one-sided drift of other
-    objects — the false S1 pass this oracle exists to prevent.
+    column) is kept, so the whitelist cannot mask one-sided drift of
+    differently-named objects — the false S1 pass this oracle exists to
+    prevent.
+  - Column entries are table-QUALIFIED (`"table.column"`) and match only
+    inside that table's `CREATE TABLE` statement — a same-named column in
+    another table is NOT masked. Dotless entries (index/constraint/sequence
+    names — schema-unique) match any declared identifier.
   - A statement whose every content line matches is dropped whole (covers
     single-line `CREATE INDEX ...`).
   - While the whitelist is active, trailing commas are stripped from ALL
@@ -554,6 +559,24 @@ defmodule PhoenixKit.Squash.DumpHelper do
     check!(substitute_schema(input, "pk_a") == expected, "substitution: word boundaries")
   end
 
+  # Whitelist branch coverage: comma-in-type column line + pg_dump's wrapped
+  # `ALTER TABLE ONLY ... \n ADD CONSTRAINT` form, tolerated via a
+  # table-qualified column entry + a bare constraint-name entry.
+  @constraint_dump_a ~S"""
+  CREATE TABLE pk_old.orders (
+      id bigint,
+      total numeric(10,2)
+  );
+  ALTER TABLE ONLY pk_old.orders
+      ADD CONSTRAINT legacy_orders_unique UNIQUE (id);
+  """
+
+  @constraint_dump_b ~S"""
+  CREATE TABLE pk_new.orders (
+      id bigint
+  );
+  """
+
   defp check_normalise_and_compare do
     norm_a = normalise(@twin_dump_a, "pk_old")
     norm_b = normalise(@twin_dump_b, "pk_new")
@@ -578,7 +601,7 @@ defmodule PhoenixKit.Squash.DumpHelper do
         check!(false, "compare: unwhitelisted drift must diff (got #{inspect(other)})")
     end
 
-    whitelist = ["preferred_locale", "idx_users_preferred_locale"]
+    whitelist = ["users.preferred_locale", "idx_users_preferred_locale"]
 
     case compare(@twin_dump_a, "pk_old", @drift_dump_b, "pk_new", legacy_optional: whitelist) do
       {:equal_modulo_whitelist, %{only_a: only_a, only_b: []}} ->
@@ -586,6 +609,34 @@ defmodule PhoenixKit.Squash.DumpHelper do
 
       other ->
         check!(false, "compare: whitelist must tolerate the drift (got #{inspect(other)})")
+    end
+
+    check!(
+      match?(
+        {:diff, _},
+        compare(@twin_dump_a, "pk_old", @drift_dump_b, "pk_new",
+          legacy_optional: ["other_table.preferred_locale", "idx_users_preferred_locale"]
+        )
+      ),
+      "compare: a qualified entry for ANOTHER table must not mask the column"
+    )
+
+    check!(
+      match?({:diff, _}, compare(@constraint_dump_a, "pk_old", @constraint_dump_b, "pk_new")),
+      "compare: constraint/column drift diffs without whitelist"
+    )
+
+    case compare(@constraint_dump_a, "pk_old", @constraint_dump_b, "pk_new",
+           legacy_optional: ["orders.total", "legacy_orders_unique"]
+         ) do
+      {:equal_modulo_whitelist, %{only_a: only_a, only_b: []}} ->
+        check!(
+          length(only_a) == 2,
+          "compare: comma-typed column + ADD CONSTRAINT tolerated (got #{inspect(only_a)})"
+        )
+
+      other ->
+        check!(false, "compare: constraint fixture must be tolerated (got #{inspect(other)})")
     end
   end
 
@@ -794,17 +845,37 @@ defmodule PhoenixKit.Squash.DumpHelper do
   defp apply_whitelist(stmts, []), do: {stmts, []}
 
   defp apply_whitelist(stmts, names) do
-    regexes = Enum.map(names, &boundary_regex/1)
+    # Entries with a dot are table-QUALIFIED column names ("table.column"):
+    # they match only inside that table's CREATE TABLE statement, so a
+    # same-named column in another table can never be masked. Dotless entries
+    # match any declared identifier (index/constraint/sequence names are
+    # schema-unique; bare column entries are accepted for back-compat but the
+    # committed whitelists use the qualified form).
+    {qualified, bare} = Enum.split_with(names, &String.contains?(&1, "."))
+    bare_regexes = Enum.map(bare, &boundary_regex/1)
+
+    qualified_pairs =
+      Enum.map(qualified, fn entry ->
+        [table, column] = String.split(entry, ".", parts: 2)
+        {table, boundary_regex(column)}
+      end)
 
     {kept, removed} =
       Enum.reduce(stmts, {[], []}, fn stmt, {kept, removed} ->
         lines = String.split(stmt, "\n")
+        stmt_table = created_table(hd(lines))
 
         {dropped, remaining} =
           Enum.split_with(lines, fn line ->
             case declared_identifier(line) do
-              nil -> false
-              ident -> Enum.any?(regexes, &Regex.match?(&1, ident))
+              nil ->
+                false
+
+              ident ->
+                Enum.any?(bare_regexes, &Regex.match?(&1, ident)) or
+                  Enum.any?(qualified_pairs, fn {table, re} ->
+                    table == stmt_table and Regex.match?(re, ident)
+                  end)
             end
           end)
 
@@ -823,6 +894,18 @@ defmodule PhoenixKit.Squash.DumpHelper do
       end)
 
     {Enum.reverse(kept), Enum.reverse(removed)}
+  end
+
+  # The table a statement CREATEs, or nil — anchors qualified column entries.
+  # Runs on normalized statements, so the schema is already `__SCHEMA__`.
+  defp created_table(head_line) do
+    case Regex.run(
+           ~r/\ACREATE\s+TABLE\s+(?:ONLY\s+)?(?:"?[A-Za-z0-9_]+"?\.)?"?([A-Za-z0-9_]+)"?/i,
+           String.trim_leading(head_line)
+         ) do
+      [_, table] -> table
+      nil -> nil
+    end
   end
 
   # The identifier a dump line DECLARES: the object name for single-object
@@ -863,7 +946,14 @@ defmodule PhoenixKit.Squash.DumpHelper do
     if String.ends_with?(text, "\n"), do: text, else: text <> "\n"
   end
 
-  defp structural_line?(line), do: String.trim(line) in ["", "(", ")"]
+  # An `ALTER TABLE [ONLY] <table>` head whose only action lines were
+  # whitelist-dropped carries no semantics of its own — treat as structural
+  # so the whole statement is tolerated (pg_dump wraps ADD CONSTRAINT onto a
+  # continuation line under such a head).
+  defp structural_line?(line) do
+    trimmed = String.trim(line)
+    trimmed in ["", "(", ")"] or Regex.match?(~r/\AALTER\s+TABLE\s+(?:ONLY\s+)?\S+\z/i, trimmed)
+  end
 
   # ---------------------------------------------------------------------------
   # Private: seed dumping helpers (DB)

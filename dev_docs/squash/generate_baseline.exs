@@ -788,7 +788,12 @@ defmodule PhoenixKit.Squash.Generate.Bimodality do
     {flipped ++ extra, %{unknown_since: Enum.sort(notes)}}
   end
 
-  @doc "Bare object names for DumpHelper.compare/5 legacy_optional (S1 whitelist)."
+  @doc """
+  Object names for DumpHelper.compare/5 legacy_optional (S1 whitelist).
+  Columns are table-qualified (`table.column`) so a same-named column in
+  another table can never be masked; other classes use bare object names
+  (index/constraint/sequence names are schema-unique).
+  """
   def whitelist(bidiff) do
     (bidiff.only_single ++ bidiff.only_stepwise)
     |> Enum.flat_map(fn {class, key, _shape} -> name_tokens(class, key) end)
@@ -796,7 +801,7 @@ defmodule PhoenixKit.Squash.Generate.Bimodality do
     |> Enum.sort()
   end
 
-  defp name_tokens(:columns, {_t, c}), do: [c]
+  defp name_tokens(:columns, {t, c}), do: ["#{t}.#{c}"]
   defp name_tokens(:constraints, {_t, n}), do: [n]
   defp name_tokens(:tables, t), do: [t]
   defp name_tokens(:indexes, n), do: [n]
@@ -2302,9 +2307,9 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
     whitelist = Bimodality.whitelist(bidiff)
 
     assert!(
-      "fix_locale" in whitelist and "phoenix_kit_fix_widgets_name_index" in whitelist and
+      "#{@widgets}.fix_locale" in whitelist and "phoenix_kit_fix_widgets_name_index" in whitelist and
         "phoenix_kit_fix_widgets_fix_locale_index" in whitelist,
-      "bimodality: whitelist carries bare names"
+      "bimodality: whitelist carries qualified column + bare object names"
     )
   end
 
@@ -2972,12 +2977,50 @@ defmodule PhoenixKit.Squash.Generate.Main do
   end
 
   defp drop_schema(repo, schema) do
+    refuse_live_schema!(repo, schema)
+    do_drop_schema(repo, schema)
+  end
+
+  defp do_drop_schema(repo, schema) do
     RepoHelper.query!(repo, ~s(DROP SCHEMA IF EXISTS "#{schema}" CASCADE))
     :ok
   rescue
     error ->
       IO.puts("WARNING: could not drop scratch schema #{schema}: #{inspect(error)}")
       :ok
+  end
+
+  # Named-schema twin of verify.exs's refuse_live_install! (spec: NOTHING
+  # destructive near live data). --schema-stepwise/--schema-single are
+  # operator-supplied and dropped PRE-RUN, so a typo naming a live prefixed
+  # install would wipe it; a scratch schema this tool created never contains
+  # user rows (migrations alone never insert users) — populated
+  # phoenix_kit_users == live install, refuse with no override. Runs OUTSIDE
+  # do_drop_schema's rescue so the refusal cannot be swallowed as a WARNING.
+  defp refuse_live_schema!(repo, schema) do
+    %{rows: [[reg]]} =
+      RepoHelper.query!(repo, "SELECT to_regclass('#{schema}.phoenix_kit_users')::text")
+
+    users =
+      if reg do
+        %{rows: [[n]]} =
+          RepoHelper.query!(repo, "SELECT count(*) FROM \"#{schema}\".phoenix_kit_users")
+
+        n
+      else
+        0
+      end
+
+    if users > 0 do
+      raise """
+      refusing DROP SCHEMA #{schema}: it contains #{users} row(s) in
+      #{schema}.phoenix_kit_users — that is a LIVE prefixed PhoenixKit install,
+      not a leftover scratch schema. Pick a different --schema-stepwise /
+      --schema-single name; there is deliberately no override.
+      """
+    end
+
+    :ok
   end
 
   defp migrations_dir do
