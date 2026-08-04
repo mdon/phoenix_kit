@@ -967,7 +967,6 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     end
   end
 
-<<<<<<< HEAD
   # The user dashboard (/dashboard) is deprecated. It still works unchanged, so
   # this is advisory: WARN while it's enabled (a heads-up that it's going away
   # in favor of the unified /admin panel), PASS once a host has disabled it.
@@ -1085,7 +1084,6 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     _ -> ""
   end
 
-=======
   # Additional, non-fatal check (task ask, spec §6.1's third manifest
   # consumer): when the generated manifest exists, run
   # `PhoenixKit.Migrations.Repair.verify/1` (read-only) against it and fold
@@ -1124,7 +1122,6 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     end
   end
 
->>>>>>> 74db8067 (Add P2 pre-squash layer: ExpectedSchema contract, repair engine, mix tasks, tooling fixes)
   # ── Display ─────────────────────────────────────────────────────────
 
   defp header(title) do
