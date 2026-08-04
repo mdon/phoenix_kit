@@ -30,8 +30,8 @@ pattern as PhoenixKit. So there is **no upstream precedent** for this kind of sq
 ## 3. Deployed versions (the floor)
 
 - Local **Andi** (`/www/app`, prefix `public`): live DB comment = **`135`** (fully current). No table prefix set.
-- docker1 (operator-provided): **hydroforce DEV** and **decor_3d_print** at **v135** (2026-06-15).
-- **hydroforce_prod**: lags; **version not yet confirmed** — task requires asking the docker1 operator
+- docker1 (operator-provided): **external-dev-A** and **external-dev-B** at **v135** (2026-06-15).
+- **external-prod-A**: lags; **version not yet confirmed** — task requires asking the docker1 operator
   before fixing the floor. **The floor MUST be ≤ the minimum actually-deployed prod version.**
 
 ## 4. Fork divergence (the decisive risk)
@@ -67,6 +67,6 @@ pattern as PhoenixKit. So there is **no upstream precedent** for this kind of sq
 ## Open decisions (need operator input)
 
 1. **Strategy** given fork divergence (delete-squash vs snapshot-keep-files vs upstream-PR vs pause).
-2. **Squash floor** — requires `hydroforce_prod` migrated_version (only relevant if delete-squash).
+2. **Squash floor** — requires `external-prod-A` migrated_version (only relevant if delete-squash).
 3. **Verification environment** — which of (a)/(b)/(c) above.
 4. **Version bump** — 1.8.0 vs 2.0.0 (delete-squash is arguably breaking → 2.0.0).

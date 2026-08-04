@@ -7,7 +7,7 @@ official upstream change, so fork/upstream merge-conflict risk is moot). Compani
 
 - **Approach:** delete-squash. Collapse `V01..V{floor}` into ONE baseline module `V{floor}`; raise `@initial_version`
   to `floor`; keep `V{floor+1}..V135` as individual delta files; delete `V01..V{floor-1}`.
-- **Floor = 110** (conservative). Binding internal minimum is `hydroforce_prod = v121`; DEV/decor/MebelKit(=Andi) = v135.
+- **Floor = 110** (conservative). Binding internal minimum is `external-prod-A = v121`; DEV/decor/MebelKit(=Andi) = v135.
   110 leaves 11 versions of margin below the binding min and keeps V111–V135 (25 deltas). Files: **135 → 26**.
   Parameterized — trivially re-targetable if the operator prefers a higher floor (e.g. 121).
 - **Version = 2.0.0.** Removing the ability to upgrade directly from `< floor` changes the upgrade contract → semver MAJOR;

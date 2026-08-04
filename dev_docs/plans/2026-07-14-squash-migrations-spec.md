@@ -45,7 +45,7 @@ automatic destructive repair, ever; repair is NOT a migration bridge (§6.4).
 | # | Decision | Choice |
 |---|---|---|
 | D1 | Floor rule | `floor = min(confirmed migrated_version across the COMPLETE surveyed set of supported installs)`; parameterized in tooling; fixed only at execution time from FRESH readings (DBs can regress via backup restores). Margin below the confirmed min is false safety — survey completeness is the binding input |
-| D2 | Floor candidate today | **121** (hydroforce_prod, UNCONFIRMED, pre-2026-06-15) — blocking input; all design text is `{floor}`-parameterized, no artifact hardwires 121 |
+| D2 | Floor candidate today | **160** — the committed-set minimum (operator confirmed 2026-08-04 that the local host app is the ONLY install under the seamless-upgrade commitment; its live DB reads V160). All design text stays `{floor}`-parameterized; external/public Hex consumers ride the permanent bridge (D9) at any floor |
 | D3 | Skip semantics | Unchanged Oban-style comment-gated skip |
 | D4 | Below-floor contract (existing installs) | `0 < migrated < floor` → hard `BelowFloorError` (bridge message; test-DB variant says `mix test.reset`) in `up/1`, `down/1`, and generator tooling |
 | D5 | Single source of truth | One tool-generated **ExpectedSchema manifest** spanning `V01..@current_version` (objects tagged `since:`, shape-`revisions:`, `presence:`, plus data-invariant assertions); baseline `V{floor}.up` applies its `since ≤ floor` slice; verify/repair consume the same manifest |
@@ -135,13 +135,13 @@ stragglers at ANY floor). Confirmation must be a **fresh reading at implementati
 
 | install | version | as of | status |
 |---|---|---|---|
-| Andi/MebelKit (local) | 147 | 2026-07-14 | verified live (comment + 9 markers) |
-| hydroforce DEV | 135 | 2026-06-15 | stale |
-| decor_3d_print | 135 | 2026-06-15 | stale |
-| hydroforce_prod | 121 | pre-2026-06-15 | **UNCONFIRMED — blocking** |
+| Andi/MebelKit (local host app) | 160 | 2026-08-04 | verified live (obj_description) |
 
-Open with the operator: is this list COMPLETE? Any other host/app under the seamless-upgrade
-commitment makes its version a floor input too (§10 Q1).
+Operator confirmed (2026-08-04): this one-row table IS the complete seamless-upgrade set — the
+external DEV/prod installs listed in the June task file are no longer in scope and their names
+were removed from these documents. Everything else (unknown public Hex consumers included) is
+bridge-path by design: the guard raises with the stopover message at ANY floor, and the bridge
+release stays on Hex permanently (§7.2).
 
 **Floor candidates** (repo at V160, 27,311 lines / 160 files; per-floor figures unchanged by
 1.7.194-227 — v01..v147 untouched, verified by git diff):
@@ -152,6 +152,7 @@ commitment makes its version a floor input too (§10 Q1).
 | **121** | 120 + 1 | 21,537 | 39 |
 | **135** | 134 + 1 | 23,231 | 25 |
 | 147 | 146 + 1 | 25,155 | 13 |
+| **160** | 159 + 1 | 27,261 | 0 |
 
 ---
 
@@ -534,7 +535,7 @@ role, PG15+ non-writable public) against baseline + repair.
 
 | Risk | Mitigation |
 |---|---|
-| hydroforce_prod below assumed floor / install list incomplete | D1: fresh readings + completeness confirmation at implementation time; guard + permanent bridge |
+| an unlisted install turns out to sit below the floor | committed set is operator-confirmed (one install); guard + permanent bridge make any straggler loud and recoverable, never silent |
 | Baseline diverges from real chain output | generated from migrated DB; S1/S2 oracles; regenerable |
 | Fresh-vs-upgraded bimodal end-states | `presence: :legacy_optional` + S1 whitelist; repair never creates them |
 | IF-NOT-EXISTS name-match blindness | structural verify layer; report-only (S9) |
@@ -556,8 +557,8 @@ role, PG15+ non-writable public) against baseline + repair.
 
 ## 10. Open questions for the operator (block implementation, not review)
 
-1. **hydroforce_prod version** (fresh reading) + refresh DEV/decor + **confirm the four installs
-   are the COMPLETE seamless-upgrade set** → fixes `floor`.
+1. ~~Install survey~~ RESOLVED 2026-08-04: committed set = the local host app only (live at
+   V160); floor decision reduced to picking the number (operator question below).
 2. **Scratch-DB option** (§8.1 a/b/c; recommend (a), or (b)×3). Plus (c) for the second-PG-major
    and hardened-install cells.
 3. Confirm 2.0.0 + bridge policy (permanent bridge, ~90-day security window) + "every floor raise
