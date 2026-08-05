@@ -529,7 +529,16 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V160 - Settings `value` widened to TEXT ⚡ LATEST
+  ### V161 - Payment-option linkage on billing orders ⚡ LATEST
+
+  Adds a nullable `payment_option_uuid` FK (+ index) to
+  `phoenix_kit_orders`, pointing at `phoenix_kit_payment_options`. The
+  order's `payment_method` is a small closed vocabulary; the payment
+  OPTION is the operator-configured row the customer actually chose, and
+  the choice used to be discarded at checkout. `ON DELETE SET NULL` so
+  deleting an option neither fails nor destroys order history.
+
+  ### V160 - Settings `value` widened to TEXT
   - `phoenix_kit_settings.value` was `VARCHAR(255)` (V03's `:string`) while
     `Settings.Setting` validated it at `max: 1000` — anything in between
     passed the changeset and then raised a raw `Postgrex.Error`
@@ -1423,7 +1432,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 160
+  @current_version 161
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that
