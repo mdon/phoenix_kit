@@ -1,7 +1,12 @@
-# PR draft — V161: payment-option linkage on billing orders
+# PR #682 — V162: payment-option linkage on billing orders
 
 **Base:** `BeamLabEU/phoenix_kit` `main` ← **Head:** `mdon:main`
 **Commits:** 1 · one new migration file + the version bump in the index
+
+> **Renumbered 2026-08-05:** drafted as V161, but upstream merged its own
+> V161 (case-insensitive username via citext, PR #681) first — this
+> shipped as **V162**. This file and its directory were still named for
+> the draft numbering; corrected post-merge.
 
 > Pairs with `phoenix_kit_billing` (Order schema + changeset) and
 > `phoenix_kit_ecommerce` (checkout persists the link). **Merge and
@@ -40,6 +45,13 @@ to nothing.
 
 ## Verification
 
-`add_if_not_exists` / `create_if_not_exists` and matching `down/1`, so the
-migration is re-runnable and reversible. The table comment moves to '161'
-on up and back to '160' on down, per the marker convention.
+Every DDL step is wrapped in a `DO $$` block guarded on
+`information_schema` (anchored on `table_schema`), with a matching
+`down/1`, so the migration is re-runnable and reversible. The table
+comment moves to '162' on up and back to '161' on down, per the marker
+convention.
+
+The FK targets `phoenix_kit_payment_options(uuid)`, which V45 creates
+without a unique constraint — the referenceable unique index on it comes
+from V56 (`@tables_ensure_index`), well before V162, so the constraint
+resolves on both fresh installs and upgrades.

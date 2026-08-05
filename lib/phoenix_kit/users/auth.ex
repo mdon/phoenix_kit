@@ -215,11 +215,13 @@ defmodule PhoenixKit.Users.Auth do
             # Treat as email
             Repo.get_by(User, email: email_or_username)
           else
-            # Treat as username - case-insensitive lookup
-            from(u in User,
-              where: fragment("LOWER(?)", u.username) == ^String.downcase(email_or_username)
-            )
-            |> Repo.one()
+            # Treat as username - case-insensitive lookup. Plain equality is
+            # enough since V161 made the column `citext`, and unlike the
+            # `LOWER(username)` fragment this replaces it can use
+            # `phoenix_kit_users_username_uidx`: that fragment matched no index,
+            # so every username login sequentially scanned the whole users table
+            # — on an endpoint anyone can hit without authenticating.
+            get_user_by_username(email_or_username)
           end
 
         # Return user if password is valid, regardless of is_active status

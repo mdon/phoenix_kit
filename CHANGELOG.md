@@ -1,3 +1,152 @@
+## 1.7.231 - 2026-08-05
+
+⚠️ **Two new migrations (V161, V162) — run `mix phoenix_kit.update`.** V161
+converts `phoenix_kit_users.username` to `citext` and **refuses to run** if
+your database already holds usernames differing only by case; it names the
+offending value so you can rename or merge the accounts, then re-run.
+
+### Added
+- **`PhoenixKitWeb.Live.UrlState` — URL-backed search, filter, sort and page
+  for list LiveViews** (#680). Typing in a list's search box filtered the
+  table but left the address bar untouched on most admin screens: the result
+  could not be shared, did not survive a reload, and Back walked out of the
+  page instead of back to the previous query. A workspace audit found 26
+  LiveViews with that defect and seven independently hand-rolled fixes on the
+  screens that did work — six of which rebuilt the path from a literal, so a
+  LiveView reachable at more than one route patched itself to the wrong page.
+
+  Declare the state, implement `handle_url_state/2`, push changes with
+  `push_url_state/3`. Params are keyed by **assign name** with `url_key:`
+  naming the query key separately, so adopting it touches no templates
+  (`users.html.heex`, 700 lines, needed no edit). Values equal to their
+  default are dropped from the query, so an unfiltered list stays
+  `/admin/users`. `cast:`/`in:` whitelist values and no atom is ever created
+  from user input; integer params carry a default ceiling of 1,000,000 so a
+  crafted `?page=` cannot reach Ecto as an `OFFSET` that overflows
+  PostgreSQL's `bigint`. The path comes from the live `uri`, unknown query
+  keys are preserved, and the callback runs only on a real change.
+
+  Converted: `users`, `sessions`, `live_sessions`, `jobs/index`,
+  `media_selector`.
+
+  ⚠️ **`mode: :patch` (the default) makes a LiveView un-embeddable.**
+  `push_patch` requires `handle_params/3` to be exported, and exporting it —
+  whatever its body — makes `live_render/3` raise. The two are mutually
+  exclusive in LiveView itself. `mode: :history` sidesteps both by driving the
+  address bar from a JS hook (`<.url_state_sync mode={:history} />`) instead
+  of touching `handle_params` at all. `MediaBrowser.Embed`'s `url_sync: true`
+  has always carried the `:patch` constraint through its injected stub; that
+  is now stated in its moduledoc rather than implied.
+- **`Utils.Slug` gains opt-in transliteration** (#682). A Cyrillic title
+  slugified to an empty string — every character fell outside `[a-z0-9]` and
+  was stripped. Callers read empty as "no slug yet", so a Ukrainian shop's CSV
+  catalogue could not be matched on re-import and inserted the whole feed
+  again on every run. `slugify(text, transliterate: true)` maps Russian and
+  Ukrainian Cyrillic to Latin and strips Latin diacritics. Opt-in, so existing
+  callers keep today's ASCII-only behaviour and a consumer passing the option
+  against an older core gets today's result rather than an error.
+- **`PhoenixKit.Install.StatusReport`** — the "what should the operator do
+  next" decision behind `mix phoenix_kit.status`, extracted so it can be
+  tested without pointing the task at a live database in each of five states.
+
+### Fixed
+- ⚠️ **V161: `phoenix_kit_users.username` is now `citext`** (#681). Two
+  accounts existed in production as `Pavel` and `pavel`. Nothing prevented it:
+  `phoenix_kit_users_username_uidx` was a plain btree on a `varchar` column,
+  `unsafe_validate_unique` compared exactly, and `get_user_by_username/1` is a
+  bare `Repo.get_by`. The mechanism was systematic rather than a fluke —
+  `generate_username_from_email/1` force-downcases while
+  `ensure_unique_username/3` checked availability case-sensitively, so a
+  username set manually with a capital was invisible to the generator, which
+  proposed the lowercase form, found it "free", and added no suffix.
+
+  Once such a pair existed, **login by username 500'd for both accounts**:
+  that path already lowercased both sides, so its query matched two rows and
+  `Repo.one/1` raised `Ecto.MultipleResultsError`. (An earlier draft of this
+  entry described the symptom as landing in the wrong account; the failure was
+  a hard error, not a silent cross-account login. `email` was unaffected — it
+  has been `citext` since V01.)
+
+  Postgres decides comparison semantics from the **column type**, so one
+  `ALTER` fixes uniqueness *and* every lookup, including a bare `Repo.get_by`.
+  A functional unique index on `lower(username)` would have fixed only the
+  constraint and left every read exact-match. `varchar → citext` is
+  binary-coercible, so there is no table rewrite; the column's index is
+  rebuilt, which is what makes it start rejecting case variants.
+- **Username login no longer sequentially scans the users table.**
+  `get_user_by_email_or_username_and_password/3` hand-rolled its case folding
+  as `fragment("LOWER(?)", u.username)`, which matches no index in the chain —
+  there is no functional index on `lower(username)`. Now that the column is
+  `citext`, plain equality is both correct and index-backed via
+  `phoenix_kit_users_username_uidx`. This was the only username lookup in the
+  codebase still scanning, on the one endpoint reachable without
+  authenticating.
+- **V162: payment-option linkage on billing orders** (#682). Adds a nullable
+  `payment_option_uuid` FK (plus its index) to `phoenix_kit_orders`, pointing
+  at `phoenix_kit_payment_options`. An order records *how* it is to be paid
+  via `payment_method`, a small closed vocabulary; what the customer actually
+  chose is a payment-option **row**, with its own name, instructions, provider
+  and billing-profile requirement. Several options can share one
+  `payment_method` ("Bank transfer (EU)" and "Bank transfer (UK)" are both
+  `bank`), and an option can be renamed or deactivated after the order is
+  placed. Without a link the choice was discarded at conversion, so an
+  operator processing a bank transfer could not tell which instructions the
+  customer had been shown. `ON DELETE SET NULL`: deleting a payment option is
+  an ordinary operator action and must neither be blocked by historical orders
+  nor destroy them.
+- **A tab gated on a sub-permission registers correctly** (#682). A module tab
+  may be gated on a sub-permission (`"shop.manage_settings"`). Registration
+  pushed that through `register_custom_key/2`, which rejects a dotted key —
+  and the raise aborted the rest of the callback, so the view → permission
+  mapping the admin gate reads was never cached. The module silently fell back
+  to the coarser base key for core's gate, and every boot logged a failure for
+  a key that was declared correctly. Sub-permissions are already declared
+  through `permission_metadata/0`, so registration now skips them.
+- **The automatic view gate requires the base of a dotted key** (#682). With
+  the dotted key now cached, the admin mount gate resolves one — and it was
+  calling `has_module_access?/2`, direct membership only, which by contract
+  leaves the base check to its caller. A scope holding an orphaned
+  `"shop.manage_settings"` without `"shop"` would have passed a gate the
+  sidebar, `can?/2` and every module's own check all refuse.
+- **The `PhoenixKitUrlState` JS hook no longer leaks a callback per remount.**
+  `handleEvent` registers on the LiveSocket, not the element, so `destroyed()`
+  has to call `removeHandleEvent` — it only removed the `popstate` listener.
+
+### Changed
+- **`mix phoenix_kit.status` says "code expects", not "update available".**
+  Everything it reports is measured against the version compiled into the
+  running release; it never asks Hex what exists, so it cannot tell you a
+  newer PhoenixKit is out. A version gap is not an optional upgrade being
+  offered — it means the schema disagrees with the code already querying it,
+  which surfaces as runtime errors on whatever the newer version added. When
+  core and a module are both behind, one command fixes both and both reasons
+  are now listed, so re-running does not turn up a second finding that was
+  already knowable.
+- **The test suite can use a database you already have.** `config/test.exs`
+  hardcoded `phoenix_kit_test`, which forces a role with `CREATEDB` — exactly
+  what a shared or managed instance withholds. `PGDATABASE` and `PGPOOL` now
+  join the `PGHOST`/`PGUSER`/`PGPASSWORD` that were already read. Defaults are
+  unchanged.
+- **`AGENTS.md` no longer claims `mix precommit` runs the test suite.** It
+  never did, and CI is `workflow_dispatch`, so in practice nothing ran the
+  Elixir suite automatically. Adding `mix test` to `precommit` was tried and
+  reverted — the suite is not green from a clean checkout (~5 "unit" tests
+  fail with no database, because `Settings` reads hit the DB on a cache miss),
+  and a permanently red gate teaches people to ignore the gate. The docs now
+  say running the suite is a manual step, and warn that `mix test` with no
+  database excludes every integration test **and still exits 0** — the failure
+  mode that matters most when the change is a migration.
+- Dependency bumps: `etcher` 0.10.0 → 0.10.2, `spitfire` 0.3.13 → 0.4.0.
+
+### Internal
+- Post-merge review of #680/#681/#682 with the findings above:
+  `dev_docs/pull_requests/2026/680-682-post-merge-review/CLAUDE_REVIEW.md`.
+- `test/phoenix_kit/migrations/v162_test.exs` — V162 shipped with no test.
+  Pins the column, the FK target, the index, and `ON DELETE SET NULL`
+  specifically: that is the migration's whole design decision, and a later
+  refactor reaching for a plain `references/2` would silently make it
+  `RESTRICT` with nothing failing.
+
 ## 1.7.230 - 2026-08-04
 
 ### Fixed
