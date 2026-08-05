@@ -144,7 +144,7 @@ msgstr "Владельцы системы"
 #: lib/phoenix_kit_web/live/users/users.html.heex:792
 #, elixir-autogen
 msgid "Complete system authority"
-msgstr "Полные права системы"
+msgstr "Полные системные права"
 
 #: lib/phoenix_kit_web/live/dashboard.html.heex:148
 #: lib/phoenix_kit_web/live/users/users.html.heex:803
@@ -4987,13 +4987,13 @@ msgstr "Ожидающие приглашения"
 msgid "Per-user inbox driven by the activity feed"
 msgstr "Персональный почтовый ящик, управляемый лентой активности"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:142
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:143
 #: lib/phoenix_kit_web/live/users/users.html.heex:202
 #: lib/phoenix_kit_web/users/registration.html.heex:125
 #: lib/phoenix_kit_web/users/user_form.html.heex:172
 #, elixir-autogen, elixir-format
-msgid "Person"
-msgstr "Физическое лицо"
+msgid "Personal"
+msgstr "Личный"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1209
 #, elixir-autogen, elixir-format
@@ -5843,7 +5843,7 @@ msgstr "Блокировки"
 #: lib/phoenix_kit_web/live/modules.html.heex:751
 #, elixir-autogen, elixir-format
 msgid "Body Saved"
-msgstr "Тело сохраняется"
+msgstr "Тело сохранено"
 
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:357
 #: lib/phoenix_kit_web/live/modules.ex:102
@@ -8516,7 +8516,7 @@ msgstr "Авто-обновление ВКЛ"
 #: lib/phoenix_kit_web/live/users/users.html.heex:963
 #, elixir-autogen, elixir-format
 msgid "Available Fields"
-msgstr "Доступно"
+msgstr "Доступные поля"
 
 #: lib/phoenix_kit_web/live/users/user_details.ex:508
 #: lib/phoenix_kit_web/live/users/users.ex:693
@@ -8527,7 +8527,7 @@ msgstr "Невозможно удалить последнего системн�
 #: lib/phoenix_kit_web/live/users/users.ex:412
 #, elixir-autogen, elixir-format
 msgid "Cannot delete this user"
-msgstr "Невозможно удалить последнего системного владельца"
+msgstr "Этого пользователя нельзя удалить"
 
 #: lib/phoenix_kit_web/live/users/users.ex:653
 #, elixir-autogen, elixir-format
@@ -8561,7 +8561,7 @@ msgstr "Сбросить фильтры"
 #: lib/phoenix_kit_web/live/users/users.html.heex:966
 #, elixir-autogen, elixir-format
 msgid "Click to add"
-msgstr "Нажмите"
+msgstr "Нажмите, чтобы добавить"
 
 #: lib/phoenix_kit_web/live/users/user_details.ex:224
 #: lib/phoenix_kit_web/live/users/users.ex:337
@@ -8578,13 +8578,13 @@ msgstr "Подтвердить изменение статуса"
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:198
 #, elixir-autogen, elixir-format
 msgid "Confirmed Email"
-msgstr "Подтверждён"
+msgstr "Подтверждённый email"
 
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:109
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "Current Page"
-msgstr "Текущее время"
+msgstr "Текущая страница"
 
 #: lib/phoenix_kit_web/live/settings/users.ex:251
 #, elixir-autogen, elixir-format
@@ -8609,45 +8609,45 @@ msgstr "Перетащите для изменения порядка выбра
 #: lib/phoenix_kit_web/live/settings/users.ex:256
 #, elixir-autogen, elixir-format
 msgid "Failed to delete custom field"
-msgstr "Не удалось удалить пользователя"
+msgstr "Не удалось удалить пользовательское поле"
 
 #: lib/phoenix_kit_web/live/settings/users.ex:184
 #, elixir-autogen, elixir-format
 msgid "Failed to save custom field"
-msgstr "Не удалось сохранить расписание"
+msgstr "Не удалось сохранить пользовательское поле"
 
 #: lib/phoenix_kit_web/live/settings/users.ex:285
 #, elixir-autogen, elixir-format
 msgid "Failed to update field"
-msgstr "Не удалось обновить настройку"
+msgstr "Не удалось обновить поле"
 
 #: lib/phoenix_kit_web/live/users/users.ex:586
 #, elixir-autogen, elixir-format
 msgid "Failed to update table columns"
-msgstr "Не удалось обновить настройку"
+msgstr "Не удалось обновить столбцы таблицы"
 
 #: lib/phoenix_kit_web/live/users/user_details.ex:549
 #: lib/phoenix_kit_web/live/users/users.ex:737
 #, elixir-autogen, elixir-format
 msgid "Failed to update user confirmation status"
-msgstr "Не удалось обновить права"
+msgstr "Не удалось обновить статус подтверждения пользователя"
 
 #: lib/phoenix_kit_web/live/users/user_details.ex:581
 #: lib/phoenix_kit_web/live/users/users.ex:917
 #, elixir-autogen, elixir-format
 msgid "Failed to update user role"
-msgstr "Не удалось обновить настройку"
+msgstr "Не удалось обновить роль пользователя"
 
 #: lib/phoenix_kit_web/live/users/users.ex:266
 #, elixir-autogen, elixir-format
 msgid "Failed to update user roles"
-msgstr "Не удалось обновить настройку"
+msgstr "Не удалось обновить роли пользователя"
 
 #: lib/phoenix_kit_web/live/users/user_details.ex:511
 #: lib/phoenix_kit_web/live/users/users.ex:697
 #, elixir-autogen, elixir-format
 msgid "Failed to update user status"
-msgstr "Не удалось обновить настройку"
+msgstr "Не удалось обновить статус пользователя"
 
 #: lib/phoenix_kit_web/live/settings/users.ex:278
 #, elixir-autogen, elixir-format
@@ -8662,13 +8662,13 @@ msgstr "Поле «%{label}» включено"
 #: lib/phoenix_kit_web/live/settings/users.ex:289
 #, elixir-autogen, elixir-format
 msgid "Field not found"
-msgstr "Файл не найден"
+msgstr "Поле не найдено"
 
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:108
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "IP Address"
-msgstr "Адрес"
+msgstr "IP-адрес"
 
 #: lib/phoenix_kit_web/live/users/sessions.ex:135
 #, elixir-autogen, elixir-format
@@ -8685,7 +8685,7 @@ msgstr "LIVE"
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Live Sessions"
-msgstr "Активные сессии"
+msgstr "Сессии в реальном времени"
 
 #: lib/phoenix_kit_web/live/users/users.html.heex:6
 #, elixir-autogen, elixir-format
@@ -8750,7 +8750,7 @@ msgstr "Пользователи не найдены"
 #: lib/phoenix_kit_web/live/users/user_details.ex:651
 #, elixir-autogen, elixir-format
 msgid "Not set"
-msgstr "Примечание"
+msgstr "Не задано"
 
 #: lib/phoenix_kit_web/live/users/user_details.ex:579
 #: lib/phoenix_kit_web/live/users/users.ex:265
@@ -8778,18 +8778,18 @@ msgstr "Мониторинг всех активных сессий в реал�
 #: lib/phoenix_kit_web/live/users/users.html.heex:942
 #, elixir-autogen, elixir-format
 msgid "Remove column"
-msgstr "Удалить"
+msgstr "Удалить столбец"
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "Revoke All User Sessions"
-msgstr "Отозвать всё"
+msgstr "Отозвать все сессии пользователя"
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:99
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Revoke Session"
-msgstr "Отозвать"
+msgstr "Отозвать сессию"
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:139
 #, elixir-autogen, elixir-format
@@ -8885,7 +8885,7 @@ msgstr "Попробуйте изменить параметры поиска и
 #: lib/phoenix_kit_web/live/users/users.html.heex:72
 #, elixir-autogen, elixir-format
 msgid "Update Roles"
-msgstr "Обновить роль"
+msgstr "Обновить роли"
 
 #: lib/phoenix_kit_web/live/users/users.html.heex:771
 #, elixir-autogen, elixir-format
@@ -8948,7 +8948,7 @@ msgstr "Предыдущий (←)"
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:347
 #, elixir-autogen, elixir-format
 msgid "Dimensions"
-msgstr "Пресеты размеров"
+msgstr "Размеры"
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:119
 #, elixir-autogen, elixir-format

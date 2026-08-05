@@ -4979,13 +4979,13 @@ msgstr "Invitations en attente"
 msgid "Per-user inbox driven by the activity feed"
 msgstr "Boîte de réception par utilisateur alimentée par le flux d'activité"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:142
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:143
 #: lib/phoenix_kit_web/live/users/users.html.heex:202
 #: lib/phoenix_kit_web/users/registration.html.heex:125
 #: lib/phoenix_kit_web/users/user_form.html.heex:172
 #, elixir-autogen, elixir-format
-msgid "Person"
-msgstr "Personne"
+msgid "Personal"
+msgstr "Particulier"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1209
 #, elixir-autogen, elixir-format
