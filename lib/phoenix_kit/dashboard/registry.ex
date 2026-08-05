@@ -1027,8 +1027,12 @@ defmodule PhoenixKit.Dashboard.Registry do
   # Registers a custom permission key derived from a tab config map.
   # Only registers if the permission key is NOT one of the built-in keys.
   # Also caches live_view → permission mapping for auth enforcement.
-  defp auto_register_custom_permission(%{permission: perm} = tab_config)
-       when is_binary(perm) or is_atom(perm) do
+  # Exposed as `@doc false def` (rather than `defp`) so unit tests can drive a
+  # single tab config through registration without standing up the GenServer.
+  # Not part of the public API.
+  @doc false
+  def auto_register_custom_permission(%{permission: perm} = tab_config)
+      when is_binary(perm) or is_atom(perm) do
     perm = to_string(perm)
 
     # Integration keys are core-managed built-ins, NOT custom keys — include
@@ -1041,7 +1045,13 @@ defmodule PhoenixKit.Dashboard.Registry do
       Permissions.core_section_keys() ++
         Permissions.integration_keys() ++ Permissions.feature_module_keys()
 
-    unless perm == "" or perm in builtin_keys do
+    # A tab may be gated on a SUB-permission ("shop.manage_settings"). Those
+    # are declared through `permission_metadata/0` and stored as composed
+    # dotted keys, which `register_custom_key/2` rejects outright — the raise
+    # then skipped the view→permission caching below, so a module that gated
+    # its settings page on a sub-key lost core's automatic view gate and
+    # warned on every boot.
+    unless perm == "" or perm in builtin_keys or Permissions.parent_key(perm) do
       # Forward the tab's gettext config so the permissions matrix renders
       # the key's label in the same locale the sidebar tab already does.
       Permissions.register_custom_key(perm,
@@ -1079,7 +1089,7 @@ defmodule PhoenixKit.Dashboard.Registry do
       :ok
   end
 
-  defp auto_register_custom_permission(_), do: :ok
+  def auto_register_custom_permission(_), do: :ok
 
   # Subscribe to entity definition lifecycle events for sidebar cache invalidation.
   # Guarded since the Entities module is optional.
