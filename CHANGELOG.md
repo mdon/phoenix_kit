@@ -1,3 +1,77 @@
+## 1.7.232 - 2026-08-05
+
+### Added
+- **Entry points for "Sign in as user"** (#683). `MultiSession.impersonate/2`,
+  its authority rules, the controller action and the POST route all shipped in
+  #672 with nothing in any template reaching them. The action now appears in
+  the "..." menu on the Users list (table and card views) and on the user
+  detail page, behind `impersonable?/2` / `impersonable_uuids/2` — predicates
+  that answer with the same private rule the request enforces, so a menu
+  cannot offer what the POST would refuse. The list decides a whole page of
+  rows against one actor lookup, reading each target's roles from the `:roles`
+  preload rather than a query per row. Nothing about who may impersonate whom
+  changed.
+- **The Edit action on the user detail page** joins Roles, Confirm Email and
+  Deactivate in the actions menu (#683), instead of sitting alone in the
+  breadcrumb bar where the header-deduplication sweep parked it.
+
+### Fixed
+- **Deactivated accounts are no longer offered for impersonation.** The menu
+  predicates asked the authority rules, which decide who may borrow whom; the
+  `:inactive` refusal is raised later, by `add_authenticated_user/2`. So every
+  deactivated row carried a "Sign in as user" item — next to the badge saying
+  the account is deactivated — and every click came back "That account is
+  deactivated." `user.is_active` is already on the struct the list renders, so
+  respecting it costs no query. `impersonate/2` is untouched and still
+  re-decides everything server-side.
+- **Doubled required-field markers** on the user, role and registration forms
+  (#683). `<.input>` renders the marker itself; six labels also hand-appended
+  `" *"`. `Organization Name` had the hand-written asterisk but no `required`
+  attribute, while the changeset does require it for organization accounts —
+  it gains the attribute, so the browser now agrees with the server.
+- **The admin nav role badge named the wrong role** (#683). It derived its
+  label from `Scope.can_access_admin_area?/1`, which is true for Owner, Admin
+  *or any single permission holder* — so a Client, who holds `client_portal`,
+  was labelled "Admin", and every custom role was flattened into three
+  buckets. The account list directly below it renders
+  `MultiSession.role_label/1` and said "Client" while the header said "Admin".
+  Both now share that function, reading the names the scope already loaded in
+  `cached_roles` instead of re-querying on a component that renders on every
+  admin page.
+- **Usernames generated from an email keep their letters** (#683). The cleanup
+  pass strips anything outside `[a-zA-Z0-9_]`, so `ülo.kask@` became
+  `lo_kask` — the first letter of the name silently gone — and a wholly
+  non-Latin local part collapsed to nothing. The address is now transliterated
+  first (`Ülo.Kask@` → `ulo_kask`, `Иван@` → `ivan`).
+
+### i18n
+- **`Person` → `Personal` as the account-type label.** The old source string
+  named a human being where the label names a *kind of account*, the
+  counterpart of `Organization`. Each locale takes the idiomatic
+  private-individual-vs-legal-entity term rather than a calque — Eraisik,
+  Privatperson, Particulier, Particular, Privato, Osoba prywatna, Физическое
+  лицо. The stored `account_type` value stays `"person"`.
+- **18 strings were in the source but in no `.pot` file**, so the SEO /
+  robots.txt settings page, the hex.pm package browser and the referral gate
+  ("Enter your referral code", "This site is invite-only…") rendered in
+  English in every locale. Extracted and translated in all seven.
+- **Four reworded strings were rendering their old translation.** `Continue`,
+  `Log out`, `Referral code` and `SEO settings` had matched fuzzily against
+  older entries, and fuzzy entries do render — German showed **"online"** on a
+  Continue button. Retranslated; no fuzzy entries remain.
+- Estonian and Russian repairs beyond those: a batch of entries whose
+  translation belonged to a neighbouring msgid ("Failed to delete user" under
+  the custom-field failure, "Current time" under "Current page", and ~20
+  more).
+
+### Internal
+- Post-merge review of #683: `dev_docs/pull_requests/2026/683-admin-ui-i18n-and-impersonation-entry-points/CLAUDE_REVIEW.md`.
+- Tests for the impersonation menu predicates — `impersonable?/2` agrees with
+  `impersonate/2` target by target, `impersonable_uuids/2` agrees with
+  `impersonable?/2` over a mixed list, and `impersonation_actor/1` is the ROOT
+  account after a switch — plus a unit suite for
+  `generate_username_from_email/1`, which had none.
+
 ## 1.7.231 - 2026-08-05
 
 ⚠️ **Two new migrations (V161, V162) — run `mix phoenix_kit.update`.** V161

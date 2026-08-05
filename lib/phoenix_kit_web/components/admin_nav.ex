@@ -708,7 +708,6 @@ defmodule PhoenixKitWeb.Components.AdminNav do
     build_locale_url(current_path, base_code)
   end
 
-  # OAuth buttons for the "Add account" modal.
   # Badge naming the role of the account that is *currently active* — which,
   # after an account switch, is not the account that opened the stack.
   #
@@ -745,6 +744,8 @@ defmodule PhoenixKitWeb.Components.AdminNav do
     """
   end
 
+  # OAuth buttons for the "Add account" modal.
+  #
   # Uses the same provider availability checks as the main login page —
   # a provider button only appears when it is enabled in General Settings.
   # Each link targets /users/auth/:provider with add_account=1 so the OAuth

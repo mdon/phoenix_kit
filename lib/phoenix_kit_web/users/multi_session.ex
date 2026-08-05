@@ -344,15 +344,36 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   private predicate — so a menu built on this cannot offer an action the
   request would then refuse, and cannot hide one it would have allowed.
 
-  Authority only. The transient reasons `impersonate/2` may still decline (the
-  stack being full, or the target already sitting in it) depend on session
-  state at request time, are recoverable, and report themselves through the
-  controller's flash rather than by silently removing the option.
+  A deactivated target answers false. That refusal (`:inactive`) is raised by
+  `add_authenticated_user/2` rather than by the authority rules, so asking the
+  rules alone would put the offer on every deactivated row in the admin list —
+  where the status is displayed next to it — and every click would come back
+  "That account is deactivated."
+
+  The remaining reasons `impersonate/2` may still decline (the stack being
+  full, or the target already sitting in it) depend on session state at request
+  time, are recoverable, and report themselves through the controller's flash
+  rather than by silently removing the option.
+
+  Target roles come from the `:roles` preload when the caller has one — the
+  user detail page loads its user through `get_user_with_roles/1` — and from a
+  lookup otherwise.
   """
   @spec impersonable?(Auth.User.t() | nil, Auth.User.t()) :: boolean()
-  def impersonable?(actor, %Auth.User{} = target) do
-    authorize_impersonation(actor, target) == :ok
+  def impersonable?(actor, target)
+
+  def impersonable?(nil, %Auth.User{}), do: false
+
+  def impersonable?(%Auth.User{} = actor, %Auth.User{is_active: true} = target) do
+    decide_impersonation(
+      actor.uuid,
+      Auth.User.get_roles(actor),
+      target.uuid,
+      role_names(target)
+    ) == :ok
   end
+
+  def impersonable?(%Auth.User{}, %Auth.User{}), do: false
 
   @doc """
   The subset of `users` the actor may sign in as, as a `MapSet` of uuids.
@@ -363,6 +384,8 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   `:roles` preload the caller already has, falling back to a lookup only for a
   row that arrives without one. Decisions come from the same private predicate
   `impersonate/2` uses, so the two cannot diverge.
+
+  Deactivated rows are left out for the reason given on `impersonable?/2`.
 
       assign(socket, :impersonable_uuids, MultiSession.impersonable_uuids(actor, users))
 
@@ -376,7 +399,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   def impersonable_uuids(%Auth.User{} = actor, users) when is_list(users) do
     actor_roles = Auth.User.get_roles(actor)
 
-    for user <- users,
+    for %Auth.User{is_active: true} = user <- users,
         decide_impersonation(actor.uuid, actor_roles, user.uuid, role_names(user)) == :ok,
         into: MapSet.new(),
         do: user.uuid
