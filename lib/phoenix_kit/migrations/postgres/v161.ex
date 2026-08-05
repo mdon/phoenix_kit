@@ -1,97 +1,136 @@
 defmodule PhoenixKit.Migrations.Postgres.V161 do
   @moduledoc """
-  V161: First-class payment-option linkage on billing orders.
+  V161: Case-insensitive `phoenix_kit_users.username` via `citext`.
 
-  An order records HOW it is to be paid via `payment_method`, a small closed
-  vocabulary (`bank`, `stripe`, `paypal`, …). What the customer actually
-  chose at checkout is a `phoenix_kit_payment_options` row — an
-  operator-configured method with its own name, instructions, provider and
-  billing-profile requirement. The two are not the same thing: several
-  options can share one `payment_method` ("Bank transfer (EU)" and "Bank
-  transfer (UK)" are both `bank`), and an option can be renamed or
-  deactivated after the order is placed.
+  V08 created `username` as `:string` (`VARCHAR(255)`, `v08.ex:38`) with a
+  partial unique index on non-null values
+  (`phoenix_kit_users_username_uidx`). Postgres resolves comparison
+  semantics from the *column's* type, not from how the Ecto schema declares
+  the field — so despite the schema, every lookup (`Auth.get_user_by_username/1`
+  → bare `Repo.get_by(User, username: ...)`, the `unsafe_validate_unique`
+  changeset check, and the unique index itself) has always been exact-match.
+  Two accounts differing only by case — `alice` / `Alice` — could both
+  register, and `get_user_by_username("ALICE")` would find neither.
 
-  Without a link, the choice was simply lost at conversion: nothing on the
-  order said which option the customer picked, so an operator processing a
-  bank transfer could not tell which instructions the customer had been
-  shown, and payment reconciliation had to guess.
+  `email` already gets this for free — it's been `citext` since V01
+  (`v01.ex:49`) and is explicitly out of scope here (already correct,
+  verified live). This migration brings `username` to the same shape: one
+  `ALTER COLUMN ... TYPE citext` fixes writes, reads, and the uniqueness
+  constraint at once, and makes it structurally impossible for future code
+  to reintroduce case-sensitive comparison by accident — the same fix
+  already applied to the CRM party email columns in V151.
 
-  `ON DELETE SET NULL` rather than restrict: deactivating and deleting a
-  payment option is an ordinary operator action, and it must not be blocked
-  by — or destroy — historical orders. The order keeps `payment_method` and
-  its metadata snapshot regardless, so a deleted option degrades to "we know
-  it was a bank transfer" rather than to nothing.
+  ## Pre-check
+
+  Before any DDL, `up/1` scans for existing rows that would collide once
+  comparison becomes case-insensitive (`GROUP BY lower(username) HAVING
+  count(*) > 1`, mirroring V106's down-step pre-check). `username` is
+  nullable, and `GROUP BY` folds every `NULL` into one group — the scan
+  filters `WHERE username IS NOT NULL` so two username-less accounts don't
+  register as a false collision and abort the upgrade. If a real collision
+  is found, `up/1` raises and names the offending value before touching the
+  schema; operators resolve it (rename or merge) and re-run.
+
+  The pre-check is **best-effort, not a lock**. `@disable_ddl_transaction`
+  means it runs as its own statement, separate from the `ALTER`, so on a
+  live system two concurrent registrations of `alice` and `Alice` can still
+  slip into that window — the old varchar index is case-sensitive and
+  admits both. The real guard is the index rebuild inside the `ALTER`,
+  which then fails with Postgres' generic `duplicate key value violates
+  unique constraint` instead of the readable message above. Nothing is
+  corrupted and the column is left unconverted; a re-run catches the pair
+  through the pre-check. Closing that window would mean holding pre-check
+  and `ALTER` in one transaction — exactly the long `ACCESS EXCLUSIVE` that
+  `@disable_ddl_transaction` exists to avoid — so the gap is deliberate.
+
+  ## Cost: catalog-only, no table rewrite
+
+  `varchar` → `citext` is binary-coercible in Postgres — confirmed against
+  `pg_cast` rather than assumed:
+
+      SELECT castmethod, castfunc, castcontext FROM pg_cast
+      WHERE castsource = 'varchar'::regtype AND casttarget = 'citext'::regtype;
+      -- castmethod = 'b' (binary coercion), castfunc = 0, castcontext = 'a'
+
+  `castmethod = 'b'` means Postgres reinterprets the on-disk bytes as-is —
+  no per-row validation pass, no **table** rewrite. The `username` B-tree
+  index is a different story: verified live against a throwaway table that
+  `ALTER COLUMN ... TYPE citext` DOES rebuild any index on that column
+  (`relfilenode` changes) — expected and necessary, since citext orders and
+  compares values differently from `varchar` (`lower()`-based, not raw
+  byte order), and it's exactly what makes
+  `phoenix_kit_users_username_uidx` start rejecting case-variant
+  duplicates right after the `ALTER` (confirmed on the same probe:
+  inserting `'ALICE'` against an existing `'alice'` row raised
+  `unique_violation` immediately post-conversion). So the honest cost
+  statement is: no table heap rewrite, but the index rebuild's cost scales
+  with the number of non-null `username` values — cheap in absolute terms,
+  not a zero-cost catalog flip. The pre-check adds a second pass of the
+  same order: `GROUP BY lower(username)` has no index to use, so it is a
+  full scan of every non-null `username`. It takes no locks and runs before
+  any DDL, so it lengthens the migration without lengthening the outage. The `ALTER TABLE` holds an `ACCESS
+  EXCLUSIVE` lock for that (brief) duration, which is why this migration
+  keeps `@disable_ddl_transaction true` (core convention — `v154.ex:30`,
+  `v159.ex:36`) so the lock is never held for the length of a whole
+  migration transaction.
+
+  The `ALTER COLUMN` itself is idempotent, guarded by a `udt_name` check on
+  `information_schema.columns` (same shape as V151's email conversion,
+  `v151.ex:97-113`), and `prefix` is honored throughout.
   """
 
   use Ecto.Migration
 
+  alias PhoenixKit.Migrations.Postgres.Helpers
+
+  @disable_ddl_transaction true
+
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
+    escaped_prefix = Map.get(opts, :escaped_prefix, prefix)
     p = prefix_str(prefix)
-    schema = schema_name(prefix)
 
-    # A raw guarded block rather than `add_if_not_exists` + `references`:
-    # Ecto emits the column and its constraint as separate statements and
-    # only the column carries IF NOT EXISTS, so a re-run — or a prefixed run
-    # whose constraint resolves through the search_path — fails on the
-    # constraint. Every check here is anchored on `table_schema`, per the
-    # chain's prefix-safety rules.
-    execute("""
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_schema = '#{schema}' AND table_name = 'phoenix_kit_orders'
-      ) THEN
-        RAISE NOTICE 'Orders table not found, skipping V161';
-        RETURN;
-      END IF;
+    # Pre-check: a case-insensitive collision must be resolved BEFORE the
+    # column becomes citext, or the existing unique index would reject one
+    # of the colliding rows mid-migration with a generic Postgres error.
+    # `WHERE username IS NOT NULL` is required: GROUP BY treats every NULL
+    # as equal, so without the filter any two username-less users would
+    # look like a duplicate and abort the upgrade for no reason.
+    case repo().query!(
+           "SELECT lower(username) FROM #{p}phoenix_kit_users " <>
+             "WHERE username IS NOT NULL GROUP BY lower(username) HAVING count(*) > 1 LIMIT 1",
+           [],
+           log: false
+         ) do
+      %{rows: []} ->
+        :ok
 
-      IF NOT EXISTS (
-        SELECT FROM information_schema.columns
-        WHERE table_schema = '#{schema}'
-          AND table_name = 'phoenix_kit_orders'
-          AND column_name = 'payment_option_uuid'
-      ) THEN
-        ALTER TABLE #{p}phoenix_kit_orders
-          ADD COLUMN payment_option_uuid UUID;
-      END IF;
+      %{rows: [[duplicate]]} ->
+        raise """
+        Cannot apply V161: username #{inspect(duplicate)} (case-insensitive) \
+        is shared by more than one user. Resolve the collision — rename or \
+        merge the accounts — before upgrading. Converting `username` to \
+        `citext` makes comparison case-insensitive, and the existing unique \
+        index (`phoenix_kit_users_username_uidx`) would then reject one of \
+        these rows outright.\
+        """
+    end
 
-      -- Any FK on the column, whatever it is called: an earlier build of
-      -- this migration created one under Ecto's default name.
-      IF NOT EXISTS (
-        SELECT FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-          ON kcu.constraint_name = tc.constraint_name
-         AND kcu.constraint_schema = tc.constraint_schema
-        WHERE tc.table_schema = '#{schema}'
-          AND tc.table_name = 'phoenix_kit_orders'
-          AND tc.constraint_type = 'FOREIGN KEY'
-          AND kcu.column_name = 'payment_option_uuid'
-      ) THEN
-        ALTER TABLE #{p}phoenix_kit_orders
-          ADD CONSTRAINT fk_orders_payment_option
-          FOREIGN KEY (payment_option_uuid)
-          REFERENCES #{p}phoenix_kit_payment_options(uuid)
-          ON DELETE SET NULL;
-      END IF;
-    END $$;
-    """)
+    # no-op when citext is already installed (core dependency since V01)
+    Helpers.ensure_extension!("citext")
 
-    # FK columns get an index: the payment-options admin needs "orders using
-    # this option" and, without it, that is a sequential scan of every order.
-    # Bare name on CREATE — an index always lands in its table's schema.
     execute("""
     DO $$
     BEGIN
       IF EXISTS (
-        SELECT FROM information_schema.columns
-        WHERE table_schema = '#{schema}'
-          AND table_name = 'phoenix_kit_orders'
-          AND column_name = 'payment_option_uuid'
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = '#{escaped_prefix}'
+        AND table_name = 'phoenix_kit_users'
+        AND column_name = 'username'
+        AND udt_name <> 'citext'
       ) THEN
-        CREATE INDEX IF NOT EXISTS phoenix_kit_orders_payment_option_uuid_index
-          ON #{p}phoenix_kit_orders (payment_option_uuid);
+        ALTER TABLE #{p}phoenix_kit_users
+        ALTER COLUMN username TYPE citext;
       END IF;
     END $$;
     """)
@@ -99,32 +138,36 @@ defmodule PhoenixKit.Migrations.Postgres.V161 do
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '161'")
   end
 
+  @doc """
+  Reverts `username` to `VARCHAR(255)` (its V08 shape).
+
+  No pre-check needed on the way down: while the column is still `citext`,
+  the unique index already refuses any new case-variant duplicate from
+  appearing, so there is nothing for a rollback to collide with.
+  """
   def down(opts) do
     prefix = Map.get(opts, :prefix, "public")
+    escaped_prefix = Map.get(opts, :escaped_prefix, prefix)
     p = prefix_str(prefix)
 
-    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_orders_payment_option_uuid_index")
-
     execute("""
-    ALTER TABLE #{p}phoenix_kit_orders
-      DROP CONSTRAINT IF EXISTS fk_orders_payment_option
-    """)
-
-    execute("""
-    ALTER TABLE #{p}phoenix_kit_orders
-      DROP CONSTRAINT IF EXISTS phoenix_kit_orders_payment_option_uuid_fkey
-    """)
-
-    execute("""
-    ALTER TABLE #{p}phoenix_kit_orders
-      DROP COLUMN IF EXISTS payment_option_uuid
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = '#{escaped_prefix}'
+        AND table_name = 'phoenix_kit_users'
+        AND column_name = 'username'
+        AND udt_name = 'citext'
+      ) THEN
+        ALTER TABLE #{p}phoenix_kit_users
+        ALTER COLUMN username TYPE VARCHAR(255);
+      END IF;
+    END $$;
     """)
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '160'")
   end
-
-  defp schema_name("public"), do: "public"
-  defp schema_name(prefix), do: prefix
 
   defp prefix_str("public"), do: "public."
   defp prefix_str(prefix), do: "#{prefix}."
