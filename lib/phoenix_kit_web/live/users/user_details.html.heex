@@ -6,13 +6,6 @@
   page_section={@page_section}
   page_section_path={@page_section_path}
   page_subtitle={@user.email}
-  page_action={
-    %{
-      icon: "hero-pencil",
-      label: gettext("Edit"),
-      navigate: PhoenixKit.Utils.Routes.path("/admin/users/edit/#{@user.uuid}?return_to=view")
-    }
-  }
   current_path={@url_path}
   project_title={@project_title}
   current_locale={@current_locale}
@@ -25,6 +18,14 @@
       <%!-- Same actions offered by the "..." menu on the Users list, so nothing
            there is unreachable from this page. --%>
       <.table_row_menu id="user-detail-actions" label={gettext("More actions")}>
+        <.table_row_menu_link
+          navigate={
+            PhoenixKit.Utils.Routes.path("/admin/users/edit/#{@user.uuid}?return_to=view")
+          }
+          icon="hero-pencil"
+          label={gettext("Edit User")}
+          variant="primary"
+        />
         <%= if @user.uuid != @phoenix_kit_current_user.uuid do %>
           <.table_row_menu_button
             phx-click="show_role_management"
