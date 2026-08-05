@@ -41,18 +41,36 @@ defmodule Mix.Tasks.PhoenixKit.Status do
   The `Modules` row covers PhoenixKit modules that own their migrations
   (`c:PhoenixKit.Module.migration_module/0`) — each reports the schema version
   installed in *your* database against the version its code expects. When one
-  is behind, the report says so and `Next` points at the fix:
+  is behind, the report says so and `Next` points at the fix and the reason:
 
-      PhoenixKit v1.7.216
+      PhoenixKit v1.7.230
       ├── Installed: V159 ✅
       ├── Database: Connected ✅
-      ├── Modules: 2 modules, 1 update available ⬆
+      ├── Modules: 2 modules, 1 behind ⚠
       │   ├── Boards: V01 ✅
-      │   └── Inbox: V01 → V02 available ⬆
-      └── Next: mix phoenix_kit.update (module schema behind: Inbox)
+      │   └── Inbox: V01 ⚠ (code expects V02)
+      └── Next: mix phoenix_kit.update — module schema behind: Inbox
 
   The row is omitted entirely when no installed module owns migrations, so a
   core-only install keeps the compact tree.
+
+  ## "code expects", not "update available"
+
+  Everything reported here is measured against the version compiled into the
+  **running release** — this task never asks Hex what exists, so it cannot and
+  does not tell you a newer PhoenixKit is out. A version gap is therefore not
+  an optional upgrade being offered; it means the schema disagrees with the
+  code already querying it, which surfaces as runtime errors on whatever the
+  newer version added. The wording is deliberate:
+
+      ├── Installed: V159 ⚠ (code expects V160)
+      └── Next: mix phoenix_kit.update — database is V159, code expects V160
+
+  When core and a module are both behind, one command fixes both and both
+  reasons are listed, so re-running does not turn up a second finding that was
+  already knowable:
+
+      └── Next: mix phoenix_kit.update — database is V159, code expects V160; module schema behind: Inbox
 
   """
 
@@ -62,6 +80,7 @@ defmodule Mix.Tasks.PhoenixKit.Status do
   alias PhoenixKit.Config
   alias PhoenixKit.Install.Common
   alias PhoenixKit.Install.PrefixConfig
+  alias PhoenixKit.Install.StatusReport
   alias PhoenixKit.Install.StatusTree
   alias PhoenixKit.Migrations.Modules, as: MigrationModules
   alias PhoenixKit.Migrations.Postgres
@@ -174,8 +193,11 @@ defmodule Mix.Tasks.PhoenixKit.Status do
       failed != [] ->
         "#{IO.ANSI.red()}#{count}, #{length(failed)} unreadable ❌#{IO.ANSI.reset()}"
 
+      # "behind", not "updates available" — same reasoning as the core version
+      # line: this is measured against the installed code, not against Hex, so
+      # nothing here is an optional upgrade being offered.
       pending != [] ->
-        "#{IO.ANSI.yellow()}#{count}, #{length(pending)} #{pluralize(length(pending), "update", "updates")} available ⬆#{IO.ANSI.reset()}"
+        "#{IO.ANSI.yellow()}#{count}, #{length(pending)} behind ⚠#{IO.ANSI.reset()}"
 
       true ->
         "#{IO.ANSI.green()}#{count}, all up to date ✅#{IO.ANSI.reset()}"
@@ -187,11 +209,11 @@ defmodule Mix.Tasks.PhoenixKit.Status do
   end
 
   defp format_module_entry(%{status: :needs_update} = entry) do
-    "#{entry.name}: #{IO.ANSI.yellow()}V#{pad_version(entry.installed)} → V#{pad_version(entry.target)} available ⬆#{IO.ANSI.reset()}"
+    "#{entry.name}: #{IO.ANSI.yellow()}V#{pad_version(entry.installed)} ⚠ (code expects V#{pad_version(entry.target)})#{IO.ANSI.reset()}"
   end
 
   defp format_module_entry(%{status: :not_installed} = entry) do
-    "#{entry.name}: #{IO.ANSI.yellow()}not installed → V#{pad_version(entry.target)} available ⬆#{IO.ANSI.reset()}"
+    "#{entry.name}: #{IO.ANSI.yellow()}tables not created ⚠ (code expects V#{pad_version(entry.target)})#{IO.ANSI.reset()}"
   end
 
   defp format_module_entry(%{status: :error} = entry) do
@@ -302,50 +324,11 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     end
   end
 
-  # Determine next recommended action.
-  #
-  # Module schema versions participate: a host whose core is current but whose
-  # `phoenix_kit_inbox` tables are a version behind still needs to run
-  # `mix phoenix_kit.update`, and used to be told "Ready".
-  defp determine_next_action({:not_installed}, _modules, _prefix) do
-    {:install, "mix igniter.install phoenix_kit"}
+  # Decision lives in PhoenixKit.Install.StatusReport so it can be unit tested
+  # across all five states without pointing the task at a live database.
+  defp determine_next_action(installation_status, modules, prefix) do
+    StatusReport.next_action(installation_status, modules, prefix)
   end
-
-  defp determine_next_action({:unreachable, _reason}, _modules, _prefix) do
-    {:fix_connection, "Fix the database connection, then re-run mix phoenix_kit.status"}
-  end
-
-  defp determine_next_action({:needs_update, _current, _target}, _modules, prefix) do
-    {:update, update_command(prefix)}
-  end
-
-  defp determine_next_action({:up_to_date, _version}, :not_queried, _prefix) do
-    {:ready, "Ready"}
-  end
-
-  defp determine_next_action({:up_to_date, _version}, modules, prefix) do
-    pending = MigrationModules.pending(modules)
-    failed = MigrationModules.failed(modules)
-
-    cond do
-      # An unreadable module is NOT pending — migrating a module whose version
-      # we cannot read would be worse than not touching it. But it must not
-      # report "Ready" either: its tables may well be behind, and a tree that
-      # says "1 unreadable ❌" one line above "Next: Ready" tells the operator
-      # there is nothing to do.
-      failed != [] ->
-        {:check_modules, Enum.map(failed, & &1.name)}
-
-      pending != [] ->
-        {:update_modules, update_command(prefix), Enum.map(pending, & &1.name)}
-
-      true ->
-        {:ready, "Ready"}
-    end
-  end
-
-  defp update_command("public"), do: "mix phoenix_kit.update"
-  defp update_command(prefix), do: "mix phoenix_kit.update --prefix=#{prefix}"
 
   # Format installation status for display
   defp format_installation_status({:not_installed}) do
@@ -360,8 +343,13 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     "#{IO.ANSI.green()}V#{pad_version(version)} ✅#{IO.ANSI.reset()}"
   end
 
+  # "code expects V160", not "update available to V160". This task compares the
+  # database against the version compiled into the RUNNING release — it never
+  # asks Hex what exists. A gap here is therefore not an optional upgrade on
+  # offer; it is the schema disagreeing with the code already querying it,
+  # which surfaces as runtime errors on whatever the newer version added.
   defp format_installation_status({:needs_update, current, target}) do
-    "#{IO.ANSI.yellow()}V#{pad_version(current)} (needs update to V#{pad_version(target)})#{IO.ANSI.reset()}"
+    "#{IO.ANSI.yellow()}V#{pad_version(current)} ⚠ (code expects V#{pad_version(target)})#{IO.ANSI.reset()}"
   end
 
   # Format database status for display
@@ -390,17 +378,21 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     "#{IO.ANSI.cyan()}#{command}#{IO.ANSI.reset()}"
   end
 
-  defp format_next_action({:update, command}) do
+  # The command alone reads like housekeeping ("there's an update, run it").
+  # Stating WHY makes it what it actually is: a mismatch between the schema and
+  # the code running against it. Wording comes from StatusReport.describe/1;
+  # this only adds colour — the command in cyan, the reason dimmed after it.
+  defp format_next_action({:update, command, []}) do
     "#{IO.ANSI.cyan()}#{command}#{IO.ANSI.reset()}"
   end
 
-  defp format_next_action({:update_modules, command, names}) do
-    "#{IO.ANSI.cyan()}#{command}#{IO.ANSI.reset()} #{IO.ANSI.faint()}(module schema behind: #{Enum.join(names, ", ")})#{IO.ANSI.reset()}"
+  defp format_next_action({:update, command, reasons}) do
+    "#{IO.ANSI.cyan()}#{command}#{IO.ANSI.reset()} " <>
+      "#{IO.ANSI.faint()}— #{Enum.join(reasons, "; ")}#{IO.ANSI.reset()}"
   end
 
-  defp format_next_action({:check_modules, names}) do
-    "#{IO.ANSI.red()}Check the unreadable module(s): #{Enum.join(names, ", ")}#{IO.ANSI.reset()} " <>
-      "#{IO.ANSI.faint()}(schema version unknown — run with --verbose)#{IO.ANSI.reset()}"
+  defp format_next_action({:check_modules, _names} = action) do
+    "#{IO.ANSI.red()}#{StatusReport.describe(action)}#{IO.ANSI.reset()}"
   end
 
   defp format_next_action({:ready, message}) do

@@ -1467,7 +1467,11 @@ if (typeof window.Chart === "undefined") {
     mounted() {
       this.pushEvent("phoenix_kit_url_state", { query: window.location.search });
 
-      this.handleEvent("phoenix_kit_url_state", ({ query, replace }) => {
+      // Keep the ref: handleEvent registers on the LiveSocket, not on the
+      // element, so without removeHandleEvent in destroyed() every remount of
+      // this hook leaves another live callback behind and one server push runs
+      // the history write N times.
+      this.pkHandleRef = this.handleEvent("phoenix_kit_url_state", ({ query, replace }) => {
         var next = window.location.pathname + (query ? "?" + query : "");
 
         // Nothing moved — recording it would put a duplicate in the history
@@ -1492,6 +1496,11 @@ if (typeof window.Chart === "undefined") {
       if (this.pkOnPopState) {
         window.removeEventListener("popstate", this.pkOnPopState);
         this.pkOnPopState = null;
+      }
+
+      if (this.pkHandleRef) {
+        this.removeHandleEvent(this.pkHandleRef);
+        this.pkHandleRef = null;
       }
     }
   };

@@ -1370,12 +1370,25 @@ defmodule PhoenixKitWeb.Users.Auth do
           # The old system-role bypass here made Owner's revocations on the
           # Admin role effective everywhere EXCEPT fresh mounts — sidebar,
           # plugs, and the mid-session PubSub kick all honored them already.
-          Scope.has_module_access?(scope, module_key) ->
+          #
+          # A tab may resolve to a dotted SUB-permission, and a raw sub-key
+          # without its base is an orphan (`has_module_access?/2` leaves that
+          # check to its caller). `can?/2` applies it, so route dotted keys
+          # there rather than admitting an orphan the sidebar already hides.
+          view_permission_held?(scope, module_key) ->
             {:cont, socket}
 
           true ->
             deny_admin_access(socket, scope)
         end
+    end
+  end
+
+  defp view_permission_held?(scope, module_key) do
+    if Permissions.parent_key(module_key) do
+      Scope.can?(scope, module_key)
+    else
+      Scope.has_module_access?(scope, module_key)
     end
   end
 
