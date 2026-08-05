@@ -310,12 +310,23 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   The account an impersonation would be judged against — the session's ROOT,
   never the account currently active.
 
+  Returns `nil` when `gate_allowed?/1` is false, which makes `impersonable?/2`
+  answer false for every target and takes the offer off the menu. That check
+  belongs here rather than at the call sites: the controller opens with the
+  same gate (`with_gate`), so without it a menu could offer impersonation while
+  `multi_session_enabled` is off and the POST would bounce to the home page
+  with "Multi-account switching is not available." The authority rules in
+  `authorize_impersonation/2` never see the setting, so asking them alone is
+  not enough to predict the outcome.
+
   Pair with `impersonable?/2` to offer the action only where it would succeed.
   A LiveView can hold the result across a mount safely: it is a `User` struct,
   so nothing keeps a session token in the socket.
   """
   @spec impersonation_actor(map()) :: Auth.User.t() | nil
-  def impersonation_actor(session) when is_map(session), do: root_user(session)
+  def impersonation_actor(session) when is_map(session) do
+    if gate_allowed?(session), do: root_user(session)
+  end
 
   @doc """
   True when `actor` may borrow `target`'s account.
