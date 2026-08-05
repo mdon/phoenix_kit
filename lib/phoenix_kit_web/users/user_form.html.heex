@@ -122,7 +122,7 @@
               <.input
                 field={form[:email]}
                 type="email"
-                label="Email *"
+                label="Email"
                 placeholder="user@example.com"
                 required
               />
@@ -147,7 +147,7 @@
                 <.input
                   field={form[:password]}
                   type="password"
-                  label="Password *"
+                  label="Password"
                   placeholder="Minimum 8 characters"
                   required
                 />
@@ -190,8 +190,9 @@
                   <.input
                     field={form[:organization_name]}
                     type="text"
-                    label={gettext("Organization Name *")}
+                    label={gettext("Organization Name")}
                     placeholder={gettext("Company or organization name")}
+                    required
                   />
                 </div>
               <% end %>
@@ -281,7 +282,7 @@
                 <.input
                   field={form[:password]}
                   type="password"
-                  label="New Password *"
+                  label="New Password"
                   placeholder="Enter new password (minimum 8 characters)"
                   required
                 />

@@ -1762,7 +1762,7 @@ msgstr ""
 #: lib/phoenix_kit_web/live/users/roles.html.heex:19
 #: lib/phoenix_kit_web/live/users/roles.html.heex:53
 #, elixir-autogen, elixir-format
-msgid "Role Name *"
+msgid "Role Name"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/roles.html.heex:256
@@ -4954,13 +4954,9 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:201
 #: lib/phoenix_kit_web/users/registration.html.heex:140
-#, elixir-autogen, elixir-format
-msgid "Organization Name"
-msgstr ""
-
 #: lib/phoenix_kit_web/users/user_form.html.heex:193
 #, elixir-autogen, elixir-format
-msgid "Organization Name *"
+msgid "Organization Name"
 msgstr ""
 
 #: lib/modules/maintenance/settings.ex:358
