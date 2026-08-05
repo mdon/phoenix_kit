@@ -109,15 +109,23 @@ defmodule PhoenixKitWeb.Users.MultiSession do
     end
   end
 
-  # Returns the user's most descriptive display role name.
-  # Priority: Owner > Admin > first custom (non-"User") role > "User".
-  # This correctly labels custom roles (e.g. "Manager") instead of
-  # bucketing all permission-holders as "Admin".
-  #
-  # Reads role names straight from `User.get_roles/1` rather than building a full
-  # `Scope` — the scope carries an opaque `MapSet` of permissions we don't need
-  # here (and constructing it tripped a Dialyzer opaqueness warning).
-  defp role_label(user) do
+  @doc """
+  Returns the user's most descriptive display role name.
+
+  Priority: Owner > Admin > first custom (non-"User") role > "User". This
+  correctly labels custom roles (e.g. "Manager", "Client") instead of
+  bucketing all permission-holders as "Admin".
+
+  Use this for any "what is this account?" label. In particular do **not**
+  derive one from `Scope.can_access_admin_area?/1`: that gate is true for
+  Owner, Admin *or any single permission holder*, so a Client — who holds
+  `client_portal` — reads back as "Admin".
+
+  Reads role names straight from `User.get_roles/1` rather than building a full
+  `Scope` — the scope carries an opaque `MapSet` of permissions we don't need
+  here (and constructing it tripped a Dialyzer opaqueness warning).
+  """
+  def role_label(user) do
     roles = Auth.User.get_roles(user)
     system = Role.system_roles()
 
