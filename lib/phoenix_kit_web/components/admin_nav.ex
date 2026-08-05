@@ -721,8 +721,15 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
   defp current_role_badge(assigns) do
     system = Role.system_roles()
-    user = Scope.user(assigns.scope)
-    label = (user && MultiSession.role_label(user)) || system.user
+
+    # Read the names the scope already loaded rather than re-querying: this
+    # renders on every admin page, twice. `cached_roles` is nil only for a
+    # scope built without a user, which the caller has already excluded.
+    label =
+      case assigns.scope do
+        %{cached_roles: [_ | _] = roles} -> MultiSession.role_label_from_roles(roles)
+        _ -> system.user
+      end
 
     variant =
       cond do

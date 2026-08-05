@@ -125,8 +125,17 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   `Scope` — the scope carries an opaque `MapSet` of permissions we don't need
   here (and constructing it tripped a Dialyzer opaqueness warning).
   """
-  def role_label(user) do
-    roles = Auth.User.get_roles(user)
+  def role_label(user), do: user |> Auth.User.get_roles() |> role_label_from_roles()
+
+  @doc """
+  `role_label/1` for callers that already hold the role names.
+
+  `Auth.User.get_roles/1` queries, so a render path with the names in hand —
+  `Scope`'s `cached_roles`, loaded once at `Scope.for_user/1` — should pass them
+  here instead of handing over the user and paying for the lookup again.
+  """
+  @spec role_label_from_roles([String.t()]) :: String.t()
+  def role_label_from_roles(roles) when is_list(roles) do
     system = Role.system_roles()
 
     cond do

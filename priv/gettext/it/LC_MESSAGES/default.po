@@ -9819,6 +9819,20 @@ msgstr "Compilato automaticamente dalla tua email — modificalo per scegliere i
 msgid "Join %{project_title} today"
 msgstr "Iscriviti oggi a %{project_title}"
 
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:35
+#: lib/phoenix_kit_web/live/users/users.html.heex:600
+#: lib/phoenix_kit_web/live/users/users.html.heex:711
+#, elixir-autogen, elixir-format
+msgid "Sign in as %{email}?"
+msgstr "Accedere come %{email}?"
+
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:37
+#: lib/phoenix_kit_web/live/users/users.html.heex:602
+#: lib/phoenix_kit_web/live/users/users.html.heex:713
+#, elixir-autogen, elixir-format
+msgid "Sign in as user"
+msgstr "Accedi come utente"
+
 #: lib/phoenix_kit_web/users/login.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Sign in to %{project_title}"
