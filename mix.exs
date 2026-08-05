@@ -311,7 +311,7 @@ defmodule PhoenixKit.MixProject do
       quality: ["format", "credo --strict", "dialyzer"],
       "quality.ci": ["format --check-formatted", "credo --strict", "dialyzer"],
       # NOTE: `mix test` is deliberately NOT here — see AGENTS.md "CI/CD".
-      # Adding it was tried on 2026-08-04 and reverted: the suite is not
+      # Adding it was tried and reverted: the suite is not
       # green from a clean checkout (Settings reads hit the DB on a cache
       # miss, so ~5 "unit" tests fail with no database at all; with one,
       # unbounded concurrency exhausts the pool). A gate that is always red
