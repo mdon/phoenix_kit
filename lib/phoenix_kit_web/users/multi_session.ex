@@ -355,6 +355,37 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   end
 
   @doc """
+  The subset of `users` the actor may sign in as, as a `MapSet` of uuids.
+
+  `impersonable?/2` reads roles from the database — three lookups per call, once
+  the `staff?/1` check is counted — which is fine for one user but is an N+1 per
+  row in a list. This reads the actor's roles once and each target's from the
+  `:roles` preload the caller already has, falling back to a lookup only for a
+  row that arrives without one. Decisions come from the same private predicate
+  `impersonate/2` uses, so the two cannot diverge.
+
+      assign(socket, :impersonable_uuids, MultiSession.impersonable_uuids(actor, users))
+
+  and in the template `:if={user.uuid in @impersonable_uuids}`.
+  """
+  @spec impersonable_uuids(Auth.User.t() | nil, [Auth.User.t()]) :: MapSet.t()
+  def impersonable_uuids(actor, users)
+
+  def impersonable_uuids(nil, _users), do: MapSet.new()
+
+  def impersonable_uuids(%Auth.User{} = actor, users) when is_list(users) do
+    actor_roles = Auth.User.get_roles(actor)
+
+    for user <- users,
+        decide_impersonation(actor.uuid, actor_roles, user.uuid, role_names(user)) == :ok,
+        into: MapSet.new(),
+        do: user.uuid
+  end
+
+  defp role_names(%Auth.User{roles: roles}) when is_list(roles), do: Enum.map(roles, & &1.name)
+  defp role_names(%Auth.User{} = user), do: Auth.User.get_roles(user)
+
+  @doc """
   Records an impersonation attempt refused before a target was resolved, so the
   controller's authority-first ordering does not cost the feed an entry.
   """
@@ -369,15 +400,25 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   defp authorize_impersonation(nil, _target), do: {:error, :not_allowed}
 
   defp authorize_impersonation(%Auth.User{} = actor, %Auth.User{} = target) do
+    decide_impersonation(
+      actor.uuid,
+      Auth.User.get_roles(actor),
+      target.uuid,
+      Auth.User.get_roles(target)
+    )
+  end
+
+  # The rule itself, over role names already in hand. Separated from the lookups
+  # so a list render can decide many targets against one actor read; every
+  # caller — the request path and the menus — funnels through here.
+  defp decide_impersonation(actor_uuid, actor_roles, target_uuid, target_roles) do
     system = Role.system_roles()
-    actor_roles = Auth.User.get_roles(actor)
-    target_roles = Auth.User.get_roles(target)
 
     cond do
-      actor.uuid == target.uuid ->
+      actor_uuid == target_uuid ->
         {:error, :self}
 
-      not staff?(actor) ->
+      not staff_roles?(actor_roles) ->
         {:error, :not_allowed}
 
       system.owner in target_roles ->
@@ -397,9 +438,10 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   # Owner or Admin by ROLE. Deliberately not `can_access_admin_area?/1` — see
   # `impersonate/2`'s docstring for why a permission check opens the door to
   # any customer holding one self-service permission.
-  defp staff?(%Auth.User{} = user) do
+  defp staff?(%Auth.User{} = user), do: user |> Auth.User.get_roles() |> staff_roles?()
+
+  defp staff_roles?(roles) when is_list(roles) do
     system = Role.system_roles()
-    roles = Auth.User.get_roles(user)
     system.owner in roles or system.admin in roles
   end
 

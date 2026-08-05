@@ -590,7 +590,7 @@
                             <%!-- Sign in as this user. Shown only where it would
                                  be allowed; the POST re-decides server-side. --%>
                             <.table_row_menu_link
-                              :if={MultiSession.impersonable?(@impersonation_actor, user)}
+                              :if={user.uuid in @impersonable_uuids}
                               href={
                                 PhoenixKit.Utils.Routes.path(
                                   "/users/session/impersonate/#{user.uuid}"
@@ -705,7 +705,7 @@
               variant="secondary"
             />
             <.table_row_menu_link
-              :if={MultiSession.impersonable?(@impersonation_actor, user)}
+              :if={user.uuid in @impersonable_uuids}
               href={PhoenixKit.Utils.Routes.path("/users/session/impersonate/#{user.uuid}")}
               method="post"
               data-confirm={gettext("Sign in as %{email}?", email: user.email)}

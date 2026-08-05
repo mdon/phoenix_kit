@@ -777,6 +777,10 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     socket
     |> assign(:users, [])
     |> assign(:users, users)
+    |> assign(
+      :impersonable_uuids,
+      MultiSession.impersonable_uuids(socket.assigns[:impersonation_actor], users)
+    )
     |> assign(:total_count, total_count)
     |> assign(:total_pages, total_pages)
   end
