@@ -1765,8 +1765,8 @@ msgstr "Gestión de roles"
 #: lib/phoenix_kit_web/live/users/roles.html.heex:19
 #: lib/phoenix_kit_web/live/users/roles.html.heex:53
 #, elixir-autogen, elixir-format
-msgid "Role Name *"
-msgstr "Nombre del rol *"
+msgid "Role Name"
+msgstr "Nombre del rol"
 
 #: lib/phoenix_kit_web/live/users/roles.html.heex:256
 #, elixir-autogen, elixir-format
@@ -4961,14 +4961,10 @@ msgstr "Miembros de la organización"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:201
 #: lib/phoenix_kit_web/users/registration.html.heex:140
+#: lib/phoenix_kit_web/users/user_form.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Organization Name"
 msgstr "Nombre de la organización"
-
-#: lib/phoenix_kit_web/users/user_form.html.heex:193
-#, elixir-autogen, elixir-format
-msgid "Organization Name *"
-msgstr "Nombre de la organización *"
 
 #: lib/modules/maintenance/settings.ex:358
 #, elixir-autogen, elixir-format
@@ -4990,13 +4986,13 @@ msgstr "Invitaciones pendientes"
 msgid "Per-user inbox driven by the activity feed"
 msgstr "Bandeja de entrada por usuario basada en el registro de actividad"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:142
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:143
 #: lib/phoenix_kit_web/live/users/users.html.heex:202
 #: lib/phoenix_kit_web/users/registration.html.heex:125
 #: lib/phoenix_kit_web/users/user_form.html.heex:172
 #, elixir-autogen, elixir-format
-msgid "Person"
-msgstr "Persona"
+msgid "Personal"
+msgstr "Particular"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1209
 #, elixir-autogen, elixir-format
@@ -9830,6 +9826,20 @@ msgstr "Rellenado automáticamente a partir de su correo: edítelo para elegir e
 #, elixir-autogen, elixir-format
 msgid "Join %{project_title} today"
 msgstr "Únase hoy a %{project_title}"
+
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:35
+#: lib/phoenix_kit_web/live/users/users.html.heex:600
+#: lib/phoenix_kit_web/live/users/users.html.heex:711
+#, elixir-autogen, elixir-format
+msgid "Sign in as %{email}?"
+msgstr "¿Iniciar sesión como %{email}?"
+
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:37
+#: lib/phoenix_kit_web/live/users/users.html.heex:602
+#: lib/phoenix_kit_web/live/users/users.html.heex:713
+#, elixir-autogen, elixir-format
+msgid "Sign in as user"
+msgstr "Iniciar sesión como usuario"
 
 #: lib/phoenix_kit_web/users/login.html.heex:10
 #, elixir-autogen, elixir-format

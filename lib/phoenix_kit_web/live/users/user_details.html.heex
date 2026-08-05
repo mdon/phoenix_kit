@@ -6,13 +6,6 @@
   page_section={@page_section}
   page_section_path={@page_section_path}
   page_subtitle={@user.email}
-  page_action={
-    %{
-      icon: "hero-pencil",
-      label: gettext("Edit"),
-      navigate: PhoenixKit.Utils.Routes.path("/admin/users/edit/#{@user.uuid}?return_to=view")
-    }
-  }
   current_path={@url_path}
   project_title={@project_title}
   current_locale={@current_locale}
@@ -25,6 +18,25 @@
       <%!-- Same actions offered by the "..." menu on the Users list, so nothing
            there is unreachable from this page. --%>
       <.table_row_menu id="user-detail-actions" label={gettext("More actions")}>
+        <.table_row_menu_link
+          navigate={
+            PhoenixKit.Utils.Routes.path("/admin/users/edit/#{@user.uuid}?return_to=view")
+          }
+          icon="hero-pencil"
+          label={gettext("Edit User")}
+          variant="primary"
+        />
+        <%!-- Sign in as this user. Rendered only where the rules allow it; the
+             POST leaves LiveView because it rewrites the session cookie. --%>
+        <.table_row_menu_link
+          :if={MultiSession.impersonable?(@impersonation_actor, @user)}
+          href={PhoenixKit.Utils.Routes.path("/users/session/impersonate/#{@user.uuid}")}
+          method="post"
+          data-confirm={gettext("Sign in as %{email}?", email: @user.email)}
+          icon="hero-arrow-right-end-on-rectangle"
+          label={gettext("Sign in as user")}
+          variant="warning"
+        />
         <%= if @user.uuid != @phoenix_kit_current_user.uuid do %>
           <.table_row_menu_button
             phx-click="show_role_management"
@@ -139,7 +151,7 @@
                     }>
                       {if @user.account_type == "organization",
                         do: gettext("Organization"),
-                        else: gettext("Person")}
+                        else: gettext("Personal")}
                     </span>
                   <% end %>
                 </div>

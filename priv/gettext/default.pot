@@ -1761,7 +1761,7 @@ msgstr ""
 #: lib/phoenix_kit_web/live/users/roles.html.heex:19
 #: lib/phoenix_kit_web/live/users/roles.html.heex:53
 #, elixir-autogen, elixir-format
-msgid "Role Name *"
+msgid "Role Name"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/roles.html.heex:256
@@ -4953,13 +4953,9 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:201
 #: lib/phoenix_kit_web/users/registration.html.heex:140
-#, elixir-autogen, elixir-format
-msgid "Organization Name"
-msgstr ""
-
 #: lib/phoenix_kit_web/users/user_form.html.heex:193
 #, elixir-autogen, elixir-format
-msgid "Organization Name *"
+msgid "Organization Name"
 msgstr ""
 
 #: lib/modules/maintenance/settings.ex:358
@@ -4982,12 +4978,12 @@ msgstr ""
 msgid "Per-user inbox driven by the activity feed"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:142
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:143
 #: lib/phoenix_kit_web/live/users/users.html.heex:202
 #: lib/phoenix_kit_web/users/registration.html.heex:125
 #: lib/phoenix_kit_web/users/user_form.html.heex:172
 #, elixir-autogen, elixir-format
-msgid "Person"
+msgid "Personal"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1209
@@ -9820,6 +9816,20 @@ msgstr ""
 #: lib/phoenix_kit_web/users/registration.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Join %{project_title} today"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:35
+#: lib/phoenix_kit_web/live/users/users.html.heex:600
+#: lib/phoenix_kit_web/live/users/users.html.heex:711
+#, elixir-autogen, elixir-format
+msgid "Sign in as %{email}?"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:37
+#: lib/phoenix_kit_web/live/users/users.html.heex:602
+#: lib/phoenix_kit_web/live/users/users.html.heex:713
+#, elixir-autogen, elixir-format
+msgid "Sign in as user"
 msgstr ""
 
 #: lib/phoenix_kit_web/users/login.html.heex:10

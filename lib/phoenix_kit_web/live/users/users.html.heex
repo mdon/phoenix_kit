@@ -199,7 +199,7 @@
             <%= if @org_accounts_enabled do %>
               <% account_type_options = [
                 {"all", gettext("All Types")},
-                {"person", gettext("Person")},
+                {"person", gettext("Personal")},
                 {"organization", gettext("Organization")}
               ] %>
               <% account_type_label =
@@ -587,6 +587,21 @@
                               label={gettext("Edit")}
                               variant="secondary"
                             />
+                            <%!-- Sign in as this user. Shown only where it would
+                                 be allowed; the POST re-decides server-side. --%>
+                            <.table_row_menu_link
+                              :if={user.uuid in @impersonable_uuids}
+                              href={
+                                PhoenixKit.Utils.Routes.path(
+                                  "/users/session/impersonate/#{user.uuid}"
+                                )
+                              }
+                              method="post"
+                              data-confirm={gettext("Sign in as %{email}?", email: user.email)}
+                              icon="hero-arrow-right-end-on-rectangle"
+                              label={gettext("Sign in as user")}
+                              variant="warning"
+                            />
                             <%!-- Role Management --%>
                             <%= if user.uuid != @phoenix_kit_current_user.uuid do %>
                               <.table_row_menu_button
@@ -688,6 +703,15 @@
               icon="hero-pencil"
               label={gettext("Edit")}
               variant="secondary"
+            />
+            <.table_row_menu_link
+              :if={user.uuid in @impersonable_uuids}
+              href={PhoenixKit.Utils.Routes.path("/users/session/impersonate/#{user.uuid}")}
+              method="post"
+              data-confirm={gettext("Sign in as %{email}?", email: user.email)}
+              icon="hero-arrow-right-end-on-rectangle"
+              label={gettext("Sign in as user")}
+              variant="warning"
             />
             <%= if user.uuid != @phoenix_kit_current_user.uuid do %>
               <.table_row_menu_button
