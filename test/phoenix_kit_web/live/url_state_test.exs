@@ -329,6 +329,21 @@ defmodule PhoenixKitWeb.Live.UrlStateTest do
       assert UrlState.url_state_path(bare, search_query: "ivan") == "/?q=ivan"
     end
 
+    test "picks up a declared param set with a plain assign" do
+      # A LiveView that re-picks its sort column with `assign(:filter_role, …)`
+      # leaves the bookkeeping map stale. Merging onto that map would put the
+      # superseded value back in the URL on the next patch — and a reload would
+      # apply it. The freshest assign has to win.
+      state = UrlState.decode(%{"role" => "admin"}, cfg())
+
+      assigns =
+        assigns_for(state)
+        |> Map.put(:filter_role, "owner")
+
+      assert UrlState.url_state_path(assigns, search_query: "ivan") ==
+               "/admin/users?q=ivan&role=owner"
+    end
+
     test "never writes a value the decoder would reject" do
       spec =
         cfg(

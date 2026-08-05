@@ -115,6 +115,19 @@ defmodule PhoenixKitWeb.Live.UrlState do
   state hook composes alongside it — both run. Only a LiveView with no
   `handle_params/3` of its own gets the stub that `push_patch` requires.
 
+  ## Setting a declared param outside an event
+
+  Prefer `push_url_state/3` so the address bar changes with the state. But a
+  plain `assign/3` on a declared param is safe: the next patch reads its merge
+  base back from the assigns, so the freshest value wins and the URL catches
+  up rather than resurrecting what was superseded.
+
+  This matters for screens that adjust their own state as a side effect — a
+  list re-picking its sort column after the current one is hidden, say. Before
+  this was handled, such a reset left the old column in the URL, the next
+  search re-applied it, and a reload sorted by a column that was no longer
+  visible.
+
   ## `@impl` is all-or-nothing
 
   Elixir demands `@impl` on *every* callback of a module that uses it on any
@@ -510,7 +523,7 @@ defmodule PhoenixKitWeb.Live.UrlState do
 
     state =
       assigns
-      |> Map.fetch!(@state_assign)
+      |> current_state(cfg)
       |> Map.merge(changes)
       |> maybe_reset_page(changes, cfg)
       |> sanitize(cfg)
@@ -519,6 +532,22 @@ defmodule PhoenixKitWeb.Live.UrlState do
     extra = assigns[@extra_assign] || %{}
 
     build_path(path, state, cfg, extra)
+  end
+
+  # The merge base is read back from the individual assigns, not from the
+  # bookkeeping state map, because the two can legitimately drift: a LiveView
+  # may set a declared param with a plain `assign` — a list re-picking its sort
+  # column after the current one is hidden does exactly that. Merging onto the
+  # stale map would then resurrect the old value on the next patch, and a
+  # reload would apply it. Reading the assigns makes the freshest value win,
+  # whichever way it was set. The map is only a fallback for a param an
+  # unusual LiveView has dropped from its assigns.
+  defp current_state(assigns, cfg) do
+    stored = Map.get(assigns, @state_assign, %{})
+
+    Map.new(cfg.params, fn spec ->
+      {spec.key, Map.get(assigns, spec.key, Map.get(stored, spec.key, spec.default))}
+    end)
   end
 
   # Changes are keyed by assign name, not by URL key — an easy thing to get
