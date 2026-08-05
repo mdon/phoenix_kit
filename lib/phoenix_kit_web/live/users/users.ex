@@ -29,6 +29,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.{Roles, TableColumns}
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKitWeb.Users.MultiSession
 
   @per_page 10
   @max_cell_length 20
@@ -37,7 +38,12 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   # current user's custom_fields (mirrors the media browser's view toggle).
   @view_mode_key "users_view_mode"
 
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
+    # Who a "sign in as this user" from this page would be judged against: the
+    # session's ROOT account, not whichever account is currently active. Held
+    # as a User struct, so no session token lands in the socket.
+    impersonation_actor = MultiSession.impersonation_actor(session)
+
     # Subscribe to user events for live updates
     if connected?(socket) do
       Events.subscribe_to_users()
@@ -74,6 +80,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     socket =
       socket
       |> assign(:per_page, @per_page)
+      |> assign(:impersonation_actor, impersonation_actor)
       |> assign(:show_search, socket.assigns.search_query != "")
       |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
       |> assign(

@@ -307,6 +307,34 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   end
 
   @doc """
+  The account an impersonation would be judged against — the session's ROOT,
+  never the account currently active.
+
+  Pair with `impersonable?/2` to offer the action only where it would succeed.
+  A LiveView can hold the result across a mount safely: it is a `User` struct,
+  so nothing keeps a session token in the socket.
+  """
+  @spec impersonation_actor(map()) :: Auth.User.t() | nil
+  def impersonation_actor(session) when is_map(session), do: root_user(session)
+
+  @doc """
+  True when `actor` may borrow `target`'s account.
+
+  Answers with the same rules `impersonate/2` enforces — it calls the very same
+  private predicate — so a menu built on this cannot offer an action the
+  request would then refuse, and cannot hide one it would have allowed.
+
+  Authority only. The transient reasons `impersonate/2` may still decline (the
+  stack being full, or the target already sitting in it) depend on session
+  state at request time, are recoverable, and report themselves through the
+  controller's flash rather than by silently removing the option.
+  """
+  @spec impersonable?(Auth.User.t() | nil, Auth.User.t()) :: boolean()
+  def impersonable?(actor, %Auth.User{} = target) do
+    authorize_impersonation(actor, target) == :ok
+  end
+
+  @doc """
   Records an impersonation attempt refused before a target was resolved, so the
   controller's authority-first ordering does not cost the feed an entry.
   """

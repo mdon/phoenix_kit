@@ -26,6 +26,17 @@
           label={gettext("Edit User")}
           variant="primary"
         />
+        <%!-- Sign in as this user. Rendered only where the rules allow it; the
+             POST leaves LiveView because it rewrites the session cookie. --%>
+        <.table_row_menu_link
+          :if={MultiSession.impersonable?(@impersonation_actor, @user)}
+          href={PhoenixKit.Utils.Routes.path("/users/session/impersonate/#{@user.uuid}")}
+          method="post"
+          data-confirm={gettext("Sign in as %{email}?", email: @user.email)}
+          icon="hero-arrow-right-end-on-rectangle"
+          label={gettext("Sign in as user")}
+          variant="warning"
+        />
         <%= if @user.uuid != @phoenix_kit_current_user.uuid do %>
           <.table_row_menu_button
             phx-click="show_role_management"
