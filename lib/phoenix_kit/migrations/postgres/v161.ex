@@ -43,9 +43,7 @@ defmodule PhoenixKit.Migrations.Postgres.V161 do
 
     # FK columns get an index: the payment-options admin needs "orders using
     # this option" and, without it, that is a sequential scan of every order.
-    create_if_not_exists(
-      index(:phoenix_kit_orders, [:payment_option_uuid], prefix: prefix)
-    )
+    create_if_not_exists(index(:phoenix_kit_orders, [:payment_option_uuid], prefix: prefix))
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '161'")
   end
