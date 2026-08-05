@@ -4,6 +4,7 @@ defmodule PhoenixKit.Dashboard.SubPermissionTabTest do
 
   alias PhoenixKit.Dashboard.Registry
   alias PhoenixKit.ModuleRegistry
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Permissions
 
   defmodule FakeShop do
@@ -65,5 +66,24 @@ defmodule PhoenixKit.Dashboard.SubPermissionTabTest do
     # everyone out — including the Owner.
     assert Permissions.feature_enabled?("fake_shop.manage_settings")
     assert "fake_shop.manage_settings" in Permissions.all_module_keys()
+  end
+
+  test "an orphaned sub-key does not open the view its base no longer allows" do
+    # The cascade normally keeps a sub-key's base granted; this is the case
+    # where a sub row outlives its base (a module leaves the registry and
+    # returns). `can?/2` rejects it, and the automatic view gate must agree.
+    orphan =
+      %Scope{}
+      |> Map.put(:cached_permissions, MapSet.new(["fake_shop.manage_settings"]))
+      |> Map.put(:cached_roles, ["User"])
+
+    refute Scope.can?(orphan, "fake_shop.manage_settings")
+
+    held =
+      %Scope{}
+      |> Map.put(:cached_permissions, MapSet.new(["fake_shop", "fake_shop.manage_settings"]))
+      |> Map.put(:cached_roles, ["User"])
+
+    assert Scope.can?(held, "fake_shop.manage_settings")
   end
 end
