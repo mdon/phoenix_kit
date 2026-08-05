@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "1.7.229"
+  @version "1.7.230"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -227,10 +227,22 @@ defmodule PhoenixKit.MixProject do
       # HTTP client for payment providers
       {:req, "~> 0.5"},
 
-      # Code generation and project patching
-      # Note: Available in all environments for library code, but typically
-      # only needed in :dev when used as a dependency in parent projects
-      {:igniter, "~> 0.7"},
+      # Code generation and project patching — powers `mix phoenix_kit.install`
+      # and `mix phoenix_kit.update`.
+      #
+      # MUST stay `optional: true`. A stock `mix phx.new` app declares
+      # `{:igniter, "~> 0.6", only: [:dev, :test]}`; a non-optional dep here
+      # resolves to all environments, and Mix refuses to converge the two:
+      #
+      #     Dependencies have diverged:
+      #     * igniter (Hex package) — the :only option for dependency igniter
+      #
+      # which made `mix igniter.install phoenix_kit` fail on every freshly
+      # generated Phoenix project. Optional means the host's own declaration
+      # wins. Every task that needs igniter is already wrapped in
+      # `if Code.ensure_loaded?(Igniter.Mix.Task)`, so a host without it simply
+      # doesn't get those tasks rather than failing to compile.
+      {:igniter, "~> 0.7", optional: true},
 
       # Language and country data
       {:beamlab_countries, "~> 1.0"}

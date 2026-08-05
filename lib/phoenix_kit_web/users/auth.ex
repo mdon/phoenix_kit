@@ -2166,6 +2166,15 @@ defmodule PhoenixKitWeb.Users.Auth do
           locale in @reserved_path_segments ->
             process_as_default_locale(conn)
 
+          # An ENABLED full dialect ("en-gb"/"en-GB" with en-GB enabled) is a
+          # real localized URL — publishing's sibling-dialect URLs (two
+          # enabled dialects of one base, the non-primary one addressed by
+          # its lowercase full code) depend on this branch. Only exact
+          # enabled membership qualifies, matched case-insensitively; every
+          # other hyphenated segment keeps the historical redirect to base.
+          dialect = enabled_full_dialect(locale) ->
+            process_enabled_dialect_locale(conn, dialect)
+
           # Check if this is a full dialect code (contains hyphen) → redirect to base
           String.contains?(locale, "-") ->
             redirect_to_base_locale(conn, locale)
@@ -2343,6 +2352,36 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp locale_allowed?(base_code) do
     language_enabled?(base_code)
+  end
+
+  # The stored-case enabled code for a hyphenated URL segment ("en-gb" →
+  # "en-GB"), nil when the segment isn't an enabled dialect. An empty
+  # enabled list means the Languages module is effectively off — fall
+  # through to the historical hyphen→base redirect rather than accepting
+  # arbitrary dialects.
+  defp enabled_full_dialect(locale) do
+    if String.contains?(locale, "-") do
+      down = String.downcase(locale)
+
+      Enum.find_value(Languages.get_enabled_languages(), fn lang ->
+        if String.downcase(lang.code) == down, do: lang.code
+      end)
+    end
+  end
+
+  # Mirrors the else-branch of process_valid_locale/2 for an exact enabled
+  # dialect: the URL already names the full dialect, so there is nothing to
+  # resolve — set Gettext and expose base + full on the conn. The
+  # prefixless-primary redirect never applies here: only non-primary
+  # siblings are addressed by full-code URLs (the primary's URLs stay
+  # base-coded), so a dialect segment is never the default locale.
+  defp process_enabled_dialect_locale(conn, dialect) do
+    Gettext.put_locale(PhoenixKitWeb.Gettext, dialect)
+    Gettext.put_locale(dialect)
+
+    conn
+    |> assign(:current_locale_base, DialectMapper.extract_base(dialect))
+    |> assign(:current_locale, dialect)
   end
 
   # Check if a language (base code) is enabled in the system
