@@ -91,10 +91,11 @@ defmodule PhoenixKitWeb.Live.UrlState do
   For links rather than events (`<.pagination>`, `<.link patch=…>`), build the
   target with `url_state_path/2`.
 
-  ## This LiveView becomes router-only
+  ## `:patch` is router-only; embeddable LiveViews need `:history`
 
-  A LiveView using this module **cannot be embedded with `live_render/3`**. The
-  two requirements are mutually exclusive in Phoenix LiveView itself:
+  The default, `mode: :patch`, makes a LiveView **impossible to embed with
+  `live_render/3`**. The two requirements are mutually exclusive in Phoenix
+  LiveView itself:
 
     * `push_patch` from a root LiveView reaches
       `sync_handle_params_with_live_redirect/5`, which invokes
@@ -107,13 +108,42 @@ defmodule PhoenixKitWeb.Live.UrlState do
       exporting `handle_params/3` — whatever its body — makes a LiveView
       un-embeddable.
 
-  An embeddable LiveView therefore needs a different mechanism entirely
-  (client-side `history.pushState` plus a `popstate` listener), which this
-  module does not provide.
+  One requires exactly what the other forbids. `mode: :history` sidesteps both
+  by never touching `handle_params` at all: the browser owns the URL, and the
+  LiveView talks to it through a JS hook.
 
-  If the LiveView already defines its own `handle_params/3` it is kept, and the
-  state hook composes alongside it — both run. Only a LiveView with no
-  `handle_params/3` of its own gets the stub that `push_patch` requires.
+      use PhoenixKitWeb.Live.UrlState,
+        mode: :history,
+        params: [search: [default: "", url_key: "q"]]
+
+  The template must render the hook's element once:
+
+      <.url_state_sync mode={:history} />
+
+  What changes in `:history` mode:
+
+    * `push_url_state/3` applies the state itself and pushes the new query to
+      the client, which rewrites the address bar (`pushState`, or
+      `replaceState` when you pass `replace: true`). There is no round trip.
+    * Back and Forward arrive as a `popstate` report from the hook, decoded the
+      same way a patch would be.
+    * **The LiveView keeps loading its list in `mount/3`.** There is no
+      `handle_params` to hang the first call on, so `handle_url_state/2` serves
+      changes only. Declared params are still assigned before `mount/3` runs,
+      so a router-mounted LiveView loads the right thing immediately.
+    * On an embedded mount, params arrive as `:not_mounted_at_router`, so
+      `mount/3` sees the defaults and the hook corrects it on connect — one
+      extra load, and only when the URL actually carried state.
+    * `url_state_path/2` and `<.link patch=…>` do **not** apply — there is no
+      router to patch against. Drive everything through events.
+    * Only the query is exchanged; the path stays client-side, because an
+      embedded LiveView does not know what page it is on. One synced LiveView
+      per page — two would fight over the same query keys.
+
+  In `:patch` mode, a LiveView that already defines its own `handle_params/3`
+  keeps it and the state hook composes alongside — both run. Only one without
+  it gets the stub that `push_patch` requires; in `:history` mode the stub is
+  deliberately never injected.
 
   ## Setting a declared param outside an event
 
@@ -157,6 +187,9 @@ defmodule PhoenixKitWeb.Live.UrlState do
 
   @state_assign :__phoenix_kit_url_state__
   @path_assign :__phoenix_kit_url_path__
+  # For url_state_sync/1 — the only markup this module owns.
+  use Phoenix.Component
+
   @extra_assign :__phoenix_kit_url_extra__
   @loaded_assign :__phoenix_kit_url_loaded__
   @cfg_assign :__phoenix_kit_url_cfg__
@@ -180,6 +213,7 @@ defmodule PhoenixKitWeb.Live.UrlState do
 
     %{
       params: specs,
+      mode: validate_mode!(Keyword.get(opts, :mode, :patch)),
       dead_render: validate_dead_render!(Keyword.get(opts, :dead_render, :call)),
       page_param: resolve_page_param!(Keyword.get(opts, :page_param, :__auto__), specs)
     }
@@ -234,6 +268,12 @@ defmodule PhoenixKitWeb.Live.UrlState do
   @default_integer_max 1_000_000
   defp integer_max(:integer, opts), do: Keyword.get(opts, :max, @default_integer_max)
   defp integer_max(_cast, opts), do: Keyword.get(opts, :max)
+
+  defp validate_mode!(value) when value in [:patch, :history], do: value
+
+  defp validate_mode!(other) do
+    raise ArgumentError, ":mode must be :patch or :history, got: #{inspect(other)}"
+  end
 
   defp validate_dead_render!(value) when value in [:skip, :call], do: value
 
@@ -364,18 +404,59 @@ defmodule PhoenixKitWeb.Live.UrlState do
 
   @doc false
   def on_mount({:url_state, cfg}, params, _session, socket) do
-    ensure_router!(socket)
+    if cfg.mode == :patch, do: ensure_router!(socket)
 
     socket =
       socket
       |> assign_state(decode(params, cfg), cfg)
       |> Phoenix.Component.assign(@extra_assign, extra_params(params, cfg))
-      |> Phoenix.Component.assign(@loaded_assign, false)
+      # :patch has a handle_params hook to make the first call; :history has
+      # none, so its LiveViews load in mount/3 and are already "loaded" by the
+      # time the client reports the query. Marking it here keeps that report
+      # from costing a redundant query whenever the URL held nothing anyway.
+      |> Phoenix.Component.assign(@loaded_assign, cfg.mode == :history)
       |> Phoenix.Component.assign(@cfg_assign, cfg)
-      |> Phoenix.LiveView.attach_hook(:phoenix_kit_url_state, :handle_params, &handle_params/3)
+      |> attach_mode_hooks(cfg)
 
     {:cont, socket}
   end
+
+  defp attach_mode_hooks(socket, %{mode: :patch}) do
+    Phoenix.LiveView.attach_hook(socket, :phoenix_kit_url_state, :handle_params, &handle_params/3)
+  end
+
+  # :history never touches handle_params — attaching that stage raises outright
+  # when the view has no router, and exporting the callback is what makes a
+  # LiveView un-embeddable in the first place. A :handle_event hook has no such
+  # restriction, so the client drives the state through two events instead.
+  defp attach_mode_hooks(socket, %{mode: :history}) do
+    Phoenix.LiveView.attach_hook(socket, :phoenix_kit_url_state, :handle_event, &handle_client/3)
+  end
+
+  # The browser owns the URL in :history mode, so it is also the only thing that
+  # knows the query on an embedded mount, where params arrive as
+  # :not_mounted_at_router. The hook reports it once on connect, and again on
+  # every popstate — which is what makes Back work without a router.
+  defp handle_client("phoenix_kit_url_state", %{"query" => query}, socket) do
+    cfg = config!(socket)
+    params = decode_query(query)
+    state = decode(params, cfg)
+
+    socket =
+      socket
+      |> Phoenix.Component.assign(@extra_assign, extra_params(params, cfg))
+      |> apply_state(state, cfg)
+
+    {:halt, socket}
+  end
+
+  defp handle_client(_event, _params, socket), do: {:cont, socket}
+
+  defp decode_query(query) when is_binary(query) do
+    query |> String.trim_leading("?") |> URI.decode_query()
+  end
+
+  defp decode_query(_query), do: %{}
 
   # A LiveView using this module exports handle_params/3 (its own or the
   # injected stub), which already makes an embedded mount fail deep inside
@@ -398,20 +479,29 @@ defmodule PhoenixKitWeb.Live.UrlState do
 
   defp handle_params(params, uri, socket) do
     cfg = config!(socket)
-    state = decode(params, cfg)
-    reload? = reload?(socket.assigns[@loaded_assign], state, socket.assigns[@state_assign])
 
     socket =
       socket
       |> Phoenix.Component.assign(@path_assign, URI.parse(uri).path)
       |> Phoenix.Component.assign(@extra_assign, extra_params(params, cfg))
-      |> assign_state(state, cfg)
+      |> apply_state(decode(params, cfg), cfg)
+
+    {:cont, socket}
+  end
+
+  # Assign the decoded state and, if it actually moved, hand it to the
+  # LiveView's callback. Shared by both modes: the patch hook, the client's
+  # init/popstate report, and the local application in :history mode all need
+  # exactly this.
+  defp apply_state(socket, state, cfg) do
+    reload? = reload?(socket.assigns[@loaded_assign], state, socket.assigns[@state_assign])
+    socket = assign_state(socket, state, cfg)
 
     if reload? and run_callback?(socket, cfg) do
       socket = Phoenix.Component.assign(socket, @loaded_assign, true)
-      {:cont, socket.view.handle_url_state(state, socket)}
+      socket.view.handle_url_state(state, socket)
     else
-      {:cont, socket}
+      socket
     end
   end
 
@@ -500,10 +590,31 @@ defmodule PhoenixKitWeb.Live.UrlState do
   @spec push_url_state(Phoenix.LiveView.Socket.t(), keyword() | map(), keyword()) ::
           Phoenix.LiveView.Socket.t()
   def push_url_state(socket, changes, opts \\ []) do
-    Phoenix.LiveView.push_patch(socket,
-      to: url_state_path(socket, changes),
-      replace: Keyword.get(opts, :replace, false)
-    )
+    cfg = config!(socket)
+    replace? = Keyword.get(opts, :replace, false)
+
+    case cfg.mode do
+      :patch ->
+        Phoenix.LiveView.push_patch(socket,
+          to: url_state_path(socket, changes),
+          replace: replace?
+        )
+
+      # No patch to bounce off, so the state is applied here and the browser is
+      # told to rewrite its address bar. The path stays client-side on purpose:
+      # an embedded LiveView has no idea what page it is on.
+      :history ->
+        assigns = assigns_of(socket)
+        state = next_state(assigns, changes, cfg)
+        query = state |> encode(cfg, assigns[@extra_assign] || %{}) |> URI.encode_query()
+
+        socket
+        |> Phoenix.LiveView.push_event("phoenix_kit_url_state", %{
+          query: query,
+          replace: replace?
+        })
+        |> apply_state(state, cfg)
+    end
   end
 
   @doc """
@@ -519,19 +630,24 @@ defmodule PhoenixKitWeb.Live.UrlState do
   def url_state_path(socket_or_assigns, changes) do
     assigns = assigns_of(socket_or_assigns)
     cfg = config!(assigns)
-    changes = changes |> Map.new() |> validate_changes!(cfg)
-
-    state =
-      assigns
-      |> current_state(cfg)
-      |> Map.merge(changes)
-      |> maybe_reset_page(changes, cfg)
-      |> sanitize(cfg)
 
     path = assigns[@path_assign] || assigns[:url_path] || "/"
     extra = assigns[@extra_assign] || %{}
 
-    build_path(path, state, cfg, extra)
+    build_path(path, next_state(assigns, changes, cfg), cfg, extra)
+  end
+
+  # The state a set of changes resolves to: merged onto what the assigns
+  # currently hold, page reset when anything else moved, and sanitised so
+  # nothing the decoder would reject can reach the URL.
+  defp next_state(assigns, changes, cfg) do
+    changes = changes |> Map.new() |> validate_changes!(cfg)
+
+    assigns
+    |> current_state(cfg)
+    |> Map.merge(changes)
+    |> maybe_reset_page(changes, cfg)
+    |> sanitize(cfg)
   end
 
   # The merge base is read back from the individual assigns, not from the
@@ -612,7 +728,25 @@ defmodule PhoenixKitWeb.Live.UrlState do
     cfg = config!(socket)
     defaults = Map.new(cfg.params, &{&1.key, &1.default})
 
-    Phoenix.LiveView.push_patch(socket, to: url_state_path(socket, defaults))
+    push_url_state(socket, defaults)
+  end
+
+  @doc """
+  Renders the element `mode: :history` needs, and nothing in `:patch` mode.
+
+  The browser owns the URL there, so something has to carry the JS hook that
+  reports the query on connect, rewrites the address bar on a change, and
+  reports Back and Forward. Put it anywhere inside the LiveView's own markup:
+
+      <.url_state_sync mode={:history} />
+  """
+  attr :mode, :atom, default: :patch, doc: "the `:mode` the LiveView declared"
+  attr :id, :string, default: "phoenix-kit-url-state", doc: "unique when nested"
+
+  def url_state_sync(assigns) do
+    ~H"""
+    <div :if={@mode == :history} id={@id} phx-hook="PhoenixKitUrlState" hidden></div>
+    """
   end
 
   # ── use ──────────────────────────────────────────────────────────────
@@ -632,7 +766,13 @@ defmodule PhoenixKitWeb.Live.UrlState do
       @behaviour PhoenixKitWeb.Live.UrlState
 
       import PhoenixKitWeb.Live.UrlState,
-        only: [push_url_state: 2, push_url_state: 3, url_state_path: 2, reset_url_state: 1]
+        only: [
+          push_url_state: 2,
+          push_url_state: 3,
+          url_state_path: 2,
+          reset_url_state: 1,
+          url_state_sync: 1
+        ]
 
       @phoenix_kit_url_state_cfg PhoenixKitWeb.Live.UrlState.normalize!(
                                    unquote(params),
@@ -649,18 +789,24 @@ defmodule PhoenixKitWeb.Live.UrlState do
   end
 
   defmacro __before_compile__(env) do
-    # push_patch routes through sync_handle_params_with_live_redirect/5, which
-    # calls Utils.call_handle_params!/4 — the arity whose `exported?` defaults
-    # to true. view.handle_params/3 is therefore invoked whether or not the
-    # LiveView defines it, so a LiveView without one needs a stub. One that has
-    # its own keeps it; the :handle_params hook composes alongside.
-    if Module.defines?(env.module, {:handle_params, 3}) do
-      quote(do: nil)
-    else
+    cfg = Module.get_attribute(env.module, :phoenix_kit_url_state_cfg)
+
+    # In :patch mode, push_patch routes through
+    # sync_handle_params_with_live_redirect/5, which calls
+    # Utils.call_handle_params!/4 — the arity whose `exported?` defaults to
+    # true. view.handle_params/3 is therefore invoked whether or not the
+    # LiveView defines it, so one without it needs a stub.
+    #
+    # In :history mode the stub must NOT be injected: exporting handle_params/3
+    # is precisely what makes a LiveView un-embeddable, which is the whole
+    # reason that mode exists.
+    if cfg.mode == :patch and not Module.defines?(env.module, {:handle_params, 3}) do
       quote do
         @doc false
         def handle_params(_params, _uri, socket), do: {:noreply, socket}
       end
+    else
+      quote(do: nil)
     end
   end
 end

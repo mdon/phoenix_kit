@@ -28,6 +28,8 @@ defmodule PhoenixKitWeb.Live.UrlStateTest do
   """
   use ExUnit.Case, async: true
 
+  import Phoenix.LiveViewTest, only: [render_component: 2]
+
   alias PhoenixKitWeb.Live.UrlState
 
   defp cfg(params \\ nil, opts \\ []) do
@@ -400,6 +402,27 @@ defmodule PhoenixKitWeb.Live.UrlStateTest do
 
       assert UrlState.decode(%{"sort_by" => "email"}, cfg).sort_by == "email"
       assert UrlState.decode(%{"sort_by" => "'; DROP TABLE users--"}, cfg).sort_by == "name"
+    end
+  end
+
+  describe "mode" do
+    test "defaults to :patch and validates the option" do
+      assert cfg().mode == :patch
+      assert cfg(nil, mode: :history).mode == :history
+
+      assert_raise ArgumentError, ~r/:mode must be :patch or :history/, fn ->
+        cfg(nil, mode: :sideways)
+      end
+    end
+
+    test "url_state_sync/1 renders the hook only in :history mode" do
+      history =
+        render_component(&UrlState.url_state_sync/1, mode: :history, id: "sync-a")
+
+      assert history =~ ~s(phx-hook="PhoenixKitUrlState")
+      assert history =~ ~s(id="sync-a")
+
+      assert render_component(&UrlState.url_state_sync/1, mode: :patch) == ""
     end
   end
 
