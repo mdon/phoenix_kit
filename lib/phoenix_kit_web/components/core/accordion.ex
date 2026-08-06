@@ -1,74 +1,78 @@
 defmodule PhoenixKitWeb.Components.Core.Accordion do
   @moduledoc """
-  Accordion Component for collapsible content sections.
+  Collapsible content section on the native `<details>` element + daisyUI
+  `collapse` styling.
 
-  A versatile accordion component that allows users to expand/collapse
-  content sections, perfect for organizing advanced settings and options.
+  Rewritten 2026-08-06: the previous version emitted literal `\#{...}`
+  class text (string interpolation inside a plain HEEx attribute never
+  runs) and depended on `.accordion-*` CSS no host defines — it could
+  not have worked anywhere.
 
-  ## Features
+  ## Two modes
 
-  - Smooth animations and transitions
-  - Multiple accordion items in a single component
-  - Custom icons and styling
-  - Keyboard navigation support
-  - Controlled and uncontrolled modes
+  - **Uncontrolled** (default): the browser toggles the section — fine on
+    dead renders and static pages. In a connected LiveView any patch
+    resets the element to the server-rendered state (morphdom re-applies
+    the missing `open` attribute), so a section the user opened slams
+    shut on the next update.
+  - **Server-tracked** (recommended in LiveViews): pass `open` +
+    `toggle_event` (+ `toggle_value`). The summary click still toggles
+    natively — instant, no round-trip flicker — and the event mirrors the
+    state into an assign so re-renders agree with what the user sees:
 
-  ## Usage
+        <.accordion
+          id="advanced"
+          open={@open_sections["advanced"]}
+          toggle_event="toggle_section"
+          toggle_value="advanced"
+        >
+          <:title>Advanced</:title>
+          <:content>…</:content>
+        </.accordion>
 
-      <.accordion id="advanced-settings">
-        <:title>Advanced AWS Settings</:title>
-        <:content>
-          Your advanced settings content here...
-        </:content>
-      </.accordion>
+        def handle_event("toggle_section", %{"key" => key}, socket) do
+          open = socket.assigns.open_sections
+          {:noreply,
+           assign(socket, open_sections: Map.put(open, key, not Map.get(open, key, false)))}
+        end
+
+  Works without JavaScript in both modes (native `<details>`).
   """
 
   use Phoenix.Component
 
   attr :id, :string, required: true
   attr :open, :boolean, default: false
-  attr :class, :string, default: ""
+
+  attr :toggle_event, :string,
+    default: nil,
+    doc: "phx-click on the summary; sends %{\"key\" => toggle_value}"
+
+  attr :toggle_value, :string, default: nil
+  attr :class, :any, default: nil, doc: "extra classes on the <details>"
+  attr :title_class, :any, default: nil, doc: "extra classes on the summary"
 
   slot :title, required: true
   slot :content, required: true
 
   def accordion(assigns) do
     ~H"""
-    <div class="accordion #{open_class(@open)} #{sanitize_class(@class)}" id={@id}>
-      <input
-        type="checkbox"
-        class="accordion-toggle"
-        id={@id <> "-toggle"}
-        checked={@open}
-      />
-      <label
-        class="accordion-title cursor-pointer flex items-center justify-between p-4 bg-base-200 hover:bg-base-300 transition-colors duration-200"
-        for={@id <> "-toggle"}
+    <details
+      id={@id}
+      open={@open}
+      class={["collapse collapse-arrow border border-base-200 bg-base-100", @class]}
+    >
+      <summary
+        class={["collapse-title text-sm font-semibold", @title_class]}
+        phx-click={@toggle_event}
+        phx-value-key={@toggle_value}
       >
         {render_slot(@title)}
-        <div class="flex items-center gap-2">
-          <%!-- Chevron icon --%>
-          <svg
-            class="w-4 h-4 transition-transform duration-200 accordion-icon"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-        </div>
-      </label>
-      <div class="accordion-content overflow-hidden transition-all duration-300 ease-in-out">
-        <div class="p-4 bg-base-100 border-t border-base-200">
-          {render_slot(@content)}
-        </div>
+      </summary>
+      <div class="collapse-content">
+        {render_slot(@content)}
       </div>
-    </div>
+    </details>
     """
   end
 end
