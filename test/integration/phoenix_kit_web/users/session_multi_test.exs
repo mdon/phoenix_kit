@@ -138,10 +138,11 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
 
     test "logout active falls back to root", %{conn: conn, owner: owner} do
       conn = delete(conn, Routes.path("/users/log-out"))
-      # Still signed in (as root) → redirected to the app home, which is the
-      # locale-aware `Routes.path("/")` (not a bare "/", which is only where a
-      # FULL logout lands via log_out_user/1).
-      assert redirected_to(conn) == Routes.path("/")
+      # Still signed in — as the ROOT account, which is the Owner — so the
+      # destination is resolved for that account, not for the one just logged
+      # out and not for the host's `/` (which core does not route: this router
+      # is `PhoenixKitWeb.Router`, and that was the bug).
+      assert redirected_to(conn) == Routes.path("/admin")
       assert get_session(conn)["user_token"]
       assert Auth.get_user_by_session_token(get_session(conn)["user_token"]).uuid == owner.uuid
     end
@@ -149,7 +150,10 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
     test "logout all clears the session", %{conn: conn} do
       tokens = get_session(conn)["pk_session_accounts"]
       conn = delete(conn, Routes.path("/users/log-out") <> "?all=1")
-      assert redirected_to(conn) == "/"
+      # Nobody is signed in any more and this router declares no `/`, so the
+      # anonymous chain ends on core's own sign-in page rather than on a bare
+      # `"/"` that nothing here serves.
+      assert redirected_to(conn) == Routes.path("/users/log-in")
       refute get_session(conn)["user_token"]
       assert Enum.all?(tokens, &is_nil(Auth.get_user_by_session_token(&1)))
     end
@@ -198,7 +202,9 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
       [_, second | _] = MultiSession.list_accounts(get_session(conn))
 
       conn = delete(conn, Routes.path("/users/session/accounts/#{second.ref}"))
-      assert redirected_to(conn) == Routes.path("/")
+      # Removing the ACTIVE account falls back to root — a plain user here — so
+      # the destination is resolved for them: `/dashboard`, not `/admin`.
+      assert redirected_to(conn) == Routes.path("/dashboard")
     end
 
     test "remove_account is forbidden when multi_session setting is off", %{conn: conn} do
@@ -215,7 +221,7 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
   describe "return_to open-redirect guard" do
     setup %{conn: conn} do
       # The gate must be open for the safe-path case to reach redirect_back;
-      # the reject cases fall back to Routes.path("/") either way.
+      # the reject cases fall through to the resolved destination either way.
       Settings.update_boolean_setting("multi_session_enabled", true)
       owner = make("Owner")
       conn = login(conn, owner)
@@ -223,24 +229,34 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
       %{conn: Phoenix.Controller.fetch_flash(conn), owner: owner, other: other}
     end
 
-    test "protocol-relative redirect is rejected (falls back to /)", %{conn: conn, other: other} do
+    # `add_account/3` ACTIVATES the account it adds, so the destination is
+    # resolved for `other` — a plain user — even though the root account
+    # (still in `conn.assigns`) is an Owner. Landing on `/admin` here would
+    # send the newly active user somewhere they are denied.
+    test "protocol-relative redirect is rejected (falls back to a core landing)", %{
+      conn: conn,
+      other: other
+    } do
       conn =
         post(conn, Routes.path("/users/session/accounts"), %{
           "user" => %{"email_or_username" => other.email, "password" => "ValidPassword123!"},
           "return_to" => "//evil.com"
         })
 
-      assert redirected_to(conn) == Routes.path("/")
+      assert redirected_to(conn) == Routes.path("/dashboard")
     end
 
-    test "absolute URL redirect is rejected (falls back to /)", %{conn: conn, other: other} do
+    test "absolute URL redirect is rejected (falls back to a core landing)", %{
+      conn: conn,
+      other: other
+    } do
       conn =
         post(conn, Routes.path("/users/session/accounts"), %{
           "user" => %{"email_or_username" => other.email, "password" => "ValidPassword123!"},
           "return_to" => "https://evil.com/steal"
         })
 
-      assert redirected_to(conn) == Routes.path("/")
+      assert redirected_to(conn) == Routes.path("/dashboard")
     end
 
     test "a safe relative path is accepted", %{conn: conn, other: other} do

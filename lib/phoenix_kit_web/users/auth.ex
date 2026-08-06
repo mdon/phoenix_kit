@@ -117,13 +117,22 @@ defmodule PhoenixKitWeb.Users.Auth do
     # below then wiped the session copy too, so an OAuth login started from a
     # protected page landed on the default).
     #
-    # Resolved by `post_auth_path/1` rather than a local guard so this shares
+    # Resolved by `post_auth_path/2` rather than a local guard so this shares
     # ONE rule with the confirmation pages: local-path only AND never a
     # sign-in page. A bare `local_path?` check let `?return_to=/users/log-out`
     # through — a real GET route, so the user was signed back out the instant
     # they signed in.
+    #
+    # `context:`/`scope:` cover the tail of that chain: with no `return_to` and
+    # no `after_login_path`, the destination is `"/"` only where the host proves
+    # it routes one, and a core-owned landing everywhere else. The subject is
+    # the user being logged IN — `conn.assigns` still describes whoever the
+    # pipeline saw, which for a fresh login is nobody.
     user_return_to =
-      Routes.post_auth_path([params["return_to"], get_session(conn, :user_return_to)])
+      Routes.post_auth_path([params["return_to"], get_session(conn, :user_return_to)],
+        context: conn,
+        scope: Scope.for_user(user)
+      )
 
     # Merge guest cart into user cart before session renewal clears session data.
     # The shop_session_id cookie survives renew_session (only session data is cleared).
@@ -2141,7 +2150,27 @@ defmodule PhoenixKitWeb.Users.Auth do
   # Default post-login destination — the `after_login_path` setting, guarded.
   # An explicit :user_return_to (stashed by the gates above or passed by the
   # login form) is applied by `log_in_user/3` and wins over this default.
-  defp signed_in_path(_conn), do: Routes.post_auth_path()
+  #
+  # The conn/socket is forwarded as `:context` so the `"/"` tail of that chain
+  # is proven to resolve before anyone is sent to it. This is the return leg of
+  # `safe_destination/2`: its anonymous terminal is `/users/log-in`, whose
+  # on_mount hooks bounce an authenticated visitor right back through here, so
+  # a blind `"/"` here would undo the guarantee one hop later.
+  defp signed_in_path(source) do
+    Routes.post_auth_path([], context: source, scope: source_scope(source))
+  end
+
+  # `:phoenix_kit_redirect_if_user_is_authenticated` assigns only the user, the
+  # scope variants assign a scope, and `redirect_if_user_is_authenticated/2`
+  # runs on a conn — all three are handled here rather than at each call site.
+  # No catch-all clause: every caller holds a conn or a socket, and a fallback
+  # for a shape that cannot arrive is a Dialyzer failure, not a safety net.
+  defp source_scope(%{assigns: assigns}) do
+    case assigns[:phoenix_kit_current_scope] do
+      %Scope{} = scope -> scope
+      _ -> Scope.for_user(assigns[:phoenix_kit_current_user])
+    end
+  end
 
   @doc """
   Validates and sets the locale for the current request.

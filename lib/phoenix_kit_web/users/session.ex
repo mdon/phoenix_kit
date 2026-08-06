@@ -143,13 +143,24 @@ defmodule PhoenixKitWeb.Users.Session do
     )
   end
 
-  # These routes run on the `phoenix_kit_auto_setup` pipeline, which assigns
-  # `phoenix_kit_current_user` but NOT `phoenix_kit_current_scope`.
+  # Read from the SESSION, never from assigns. Every `redirect_back/2` caller
+  # runs AFTER MultiSession has already swapped the active account —
+  # `add_account/3`, `switch_to/2` and `impersonate/2` all activate the new
+  # token, and `remove_account/2` falls back to root — while
+  # `conn.assigns[:phoenix_kit_current_user]` still describes whoever the
+  # pipeline saw on the way in. Building the scope from assigns would resolve
+  # "sign in as this user" against the *administrator's* roles and send the
+  # now-impersonated plain user to `/admin`, which then denies them.
+  #
+  # `with_gate/3` refuses before any mutation, so the same read is correct there.
   defp conn_scope(conn) do
-    case conn.assigns[:phoenix_kit_current_scope] do
-      %Scope{} = scope -> scope
-      _ -> Scope.for_user(conn.assigns[:phoenix_kit_current_user])
+    conn
+    |> get_session(:user_token)
+    |> case do
+      token when is_binary(token) -> Auth.get_user_by_session_token(token)
+      _ -> nil
     end
+    |> Scope.for_user()
   end
 
   # Changing a password deletes every token for the user, the one inside the
@@ -177,7 +188,7 @@ defmodule PhoenixKitWeb.Users.Session do
   # key afterwards (maybe_store_return_to_from_params/2 runs later in the
   # shared create/3).
   #
-  # Re-guarded on read exactly like `Routes.post_auth_path/1` does for
+  # Re-guarded on read exactly like `Routes.post_auth_path/2` does for
   # `after_login_path`: trimmed (the changeset trims the CHANGE, but settings
   # are persisted from `changeset.params`, so a stored value can still carry
   # surrounding whitespace), rejected if not local, and rejected if it points

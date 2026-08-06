@@ -77,13 +77,28 @@ defmodule PhoenixKit.Utils.Routes do
 
   Takes candidate destinations in priority order (e.g. a `?return_to=` param,
   then the session's `user_return_to`) and returns the first that passes
-  `local_path?/1`. Falls back to the `after_login_path` setting, and finally
-  to `"/"`.
+  `local_path?/1`. Falls back to the `after_login_path` setting, then to `"/"`.
 
   The setting is validated as a local path when saved, but is re-guarded here
   so a hand-edited DB row can't turn a post-auth redirect into an open
   redirect. Single source of truth for the post-auth landing page — used by
   the login flow (`signed_in_path/1`) and by both confirmation LiveViews.
+
+  ## Options
+
+    * `:context` — the `conn`/`socket` the redirect is being built for. **Pass
+      it wherever one is at hand.** `"/"` is the host's home page and core
+      declares no route for it; with a context the tail of the chain is probed
+      with `routable?/2` and, when the host really has no `/`, resolved by
+      `safe_destination/2` instead of emitting a 404. Without one the tail is
+      taken at face value, which is what this function did before.
+    * `:scope` — the subject, forwarded to `safe_destination/2` for that last
+      step. A signed-in visitor without it lands on the anonymous terminal.
+
+  This matters beyond tidiness: `safe_destination/2`'s anonymous terminal is
+  `/users/log-in`, whose `on_mount` bounces an authenticated visitor straight
+  back through here. Left with a bare `"/"` fallback, the "core-owned
+  destination" guarantee would survive exactly one hop.
 
   ## Examples
 
@@ -95,9 +110,33 @@ defmodule PhoenixKit.Utils.Routes do
       "/"
 
   """
-  @spec post_auth_path([term()]) :: String.t()
-  def post_auth_path(candidates \\ []) when is_list(candidates) do
-    Enum.find(candidates, &usable_candidate?/1) || after_login_path()
+  @spec post_auth_path([term()], keyword()) :: String.t()
+  def post_auth_path(candidates \\ [], opts \\ [])
+      when is_list(candidates) and is_list(opts) do
+    Enum.find(candidates, &usable_candidate?/1) || home_after_auth(opts)
+  end
+
+  defp home_after_auth(opts) do
+    # An administrator's explicit `after_login_path` is honoured as given — the
+    # same rule as before, deliberately NOT routability-probed. It names a page
+    # in the host's application, and silently ignoring it because this router
+    # cannot see that page would break the setting rather than protect it.
+    #
+    # `"/"` is the opposite case: nobody chose it, core synthesized it, and it
+    # is the one destination core has no way to declare. So it is only used
+    # where the host proves it exists, and `safe_destination/2` takes over
+    # where it does not.
+    after_login_setting() || home_or_core_landing(Keyword.get(opts, :context), opts)
+  end
+
+  defp home_or_core_landing(nil, _opts), do: "/"
+
+  defp home_or_core_landing(context, opts) do
+    if routable?(context, "/") do
+      "/"
+    else
+      safe_destination(context, scope: Keyword.get(opts, :scope))
+    end
   end
 
   # A candidate carries the same two requirements as the setting: local, and
@@ -130,17 +169,29 @@ defmodule PhoenixKit.Utils.Routes do
     2. `/admin`, when `Scope.can_access_admin_area?/1` and `:skip_admin` is not set
     3. `/dashboard`
     4. the `after_login_path` setting
+    5. `"/"`
 
   Anonymous:
 
     1. the `main_page_path` setting, when set and still resolvable
-    2. — (falls through to the terminal)
+    2. `"/"`
 
   Every candidate must be a local path (`local_path?/1`), not an auth page
-  (`auth_page?/1`), **and actually routable** (`routable?/2`). When nothing
-  survives, the terminal is `/admin` for a visitor who may reach the admin area
-  and `/users/log-in` for everyone else. Both are declared unconditionally by
-  `phoenix_kit_routes()` in every locale, so the fall-through cannot 404.
+  (`auth_page?/1`), **and actually routable** (`routable?/2`).
+
+  `"/"` is a candidate like any other, and only like any other. It is the
+  host's home page — the one destination in this whole mechanism that core
+  cannot declare — so it is used exactly where the host proves it declared it,
+  and skipped silently everywhere else. Dropping it entirely would have been a
+  silent regression for every already-working single-language install, where
+  logging out has always landed on the site home.
+
+  When nothing survives, the terminal is core's own: `/admin` for a visitor who
+  may reach the admin area, `/dashboard` for anyone else who is signed in, and
+  `/users/log-in` for an anonymous visitor. The terminal follows authentication
+  rather than being one page, because `/users/log-in` bounces a signed-in
+  visitor straight back out again — terminating an authenticated chain there
+  would hand the decision to `post_auth_path/2`, one hop later.
 
   ## Options
 
@@ -159,21 +210,28 @@ defmodule PhoenixKit.Utils.Routes do
 
   ## The invariant
 
-  Every value returned is either a path the caller supplied or an administrator
-  configured **that has been proven to resolve in the router**, or one of two
-  paths core declares itself. There is no third branch, and neither `"/"` nor
-  `path("/")` is ever synthesized here. (An administrator who explicitly
-  configures `/` on a host that really serves it still gets `/` — that is the
-  point: `/` stays a legitimate *candidate*, it just stops being core's
-  *choice*.)
+  Every value returned is either a path the caller supplied, an administrator
+  configured, or the host's own `/` — **each proven to resolve in the router** —
+  or one of the three landings core declares itself. There is no third branch,
+  and `path("/")`, the locale-prefixed root that started all this, is never
+  synthesized here.
+
+  The three terminals are *asserted*, not probed: they are what core declares
+  through `phoenix_kit_routes()`, and probing them would only turn an
+  impossible-by-construction case into a different impossible-by-construction
+  case. The one host setting that can remove one of them —
+  `user_dashboard_enabled: false`, which compiles `/dashboard` out — is exactly
+  why `/dashboard` is *also* a probed candidate above; a host that disables it
+  and declares no `/` has given core nothing to aim at.
   """
   @spec safe_destination(request_context(), keyword()) :: String.t()
   def safe_destination(context, opts \\ []) do
     scope = Keyword.get(opts, :scope)
+    authenticated? = Scope.authenticated?(scope)
     admin? = not Keyword.get(opts, :skip_admin, false) and Scope.can_access_admin_area?(scope)
 
     candidates =
-      if Scope.authenticated?(scope) do
+      if authenticated? do
         authenticated_candidates(opts, admin?)
       else
         anonymous_candidates()
@@ -186,7 +244,7 @@ defmodule PhoenixKit.Utils.Routes do
       |> Stream.map(& &1.())
       |> Enum.find(&routable_candidate?(context, &1))
 
-    found || terminal(admin?)
+    found || terminal(authenticated?, admin?)
   end
 
   defp authenticated_candidates(opts, admin?) do
@@ -199,18 +257,22 @@ defmodule PhoenixKit.Utils.Routes do
         # (`user_dashboard_enabled`), which is exactly why it is probed with
         # `routable?/2` like any other candidate rather than assumed.
         fn -> path("/dashboard") end,
-        fn -> setting_candidate("after_login_path") end
+        fn -> setting_candidate("after_login_path") end,
+        fn -> "/" end
       ]
   end
 
   defp anonymous_candidates do
-    [fn -> main_page_path() end]
+    [fn -> main_page_path() end, fn -> "/" end]
   end
 
   # The terminal is chosen by core, never by input, so it is emitted without a
-  # routability probe: both arms are declared unconditionally, in every locale.
-  defp terminal(true), do: path("/admin")
-  defp terminal(false), do: path("/users/log-in")
+  # routability probe: all three arms are declared by `phoenix_kit_routes()`, in
+  # every locale. It follows AUTHENTICATION, not just the admin flag: sending a
+  # signed-in visitor to `/users/log-in` would only bounce them back off it.
+  defp terminal(_authenticated?, true), do: path("/admin")
+  defp terminal(true, false), do: path("/dashboard")
+  defp terminal(false, false), do: path("/users/log-in")
 
   defp routable_candidate?(context, candidate) do
     usable_candidate?(candidate) and routable?(context, candidate)
@@ -230,9 +292,10 @@ defmodule PhoenixKit.Utils.Routes do
   @doc """
   The configured site main page, or `nil` when unset or unusable.
 
-  `nil` rather than `"/"` is deliberate: `safe_destination/2` drops nil
-  candidates and falls through to a core-owned page, where `"/"` would
-  reintroduce the unowned path this mechanism exists to remove.
+  `nil` rather than `"/"` is deliberate: an unset setting means "nobody chose",
+  and `safe_destination/2` probes `"/"` on its own as the *last* candidate. A
+  `"/"` default here would instead assert it as the administrator's
+  first-priority choice — ahead of everything, on a host that may not route it.
 
   The setting is validated as a local path when saved and re-guarded here on
   read, so a hand-edited DB row can't turn it into an open redirect.
@@ -315,11 +378,15 @@ defmodule PhoenixKit.Utils.Routes do
   @auth_paths ~w(/users/log-in /users/log-out /users/register /users/confirm
   /users/referral /users/magic-link /users/qr-login /users/reset-password)
 
-  defp after_login_path do
-    path =
-      "after_login_path" |> PhoenixKit.Settings.get_setting("/") |> to_string() |> String.trim()
-
-    if local_path?(path) and not auth_page?(path), do: path, else: "/"
+  # The configured post-login landing, or `nil` when unset or unusable. `nil`
+  # rather than `"/"`: the caller decides what an unset setting falls back to,
+  # and `post_auth_path/2` can only probe `"/"` if it can tell "the
+  # administrator chose the home page" apart from "nobody chose anything".
+  defp after_login_setting do
+    case setting_candidate("after_login_path") do
+      nil -> nil
+      value -> if usable_candidate?(value), do: value
+    end
   end
 
   @doc """

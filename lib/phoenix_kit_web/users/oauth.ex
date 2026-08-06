@@ -37,6 +37,7 @@ if Code.ensure_loaded?(Ueberauth) do
 
     alias PhoenixKit.Config
     alias PhoenixKit.Settings
+    alias PhoenixKit.Users.Auth
     alias PhoenixKit.Users.Auth.Scope
     alias PhoenixKit.Users.OAuth
     alias PhoenixKit.Utils.IpAddress
@@ -354,15 +355,21 @@ if Code.ensure_loaded?(Ueberauth) do
       )
     end
 
-    # These routes run on the `phoenix_kit_auto_setup` pipeline, which assigns
-    # `phoenix_kit_current_user` but NOT `phoenix_kit_current_scope` — so the
-    # scope is built here rather than read from assigns. `Scope.for_user(nil)`
-    # is anonymous, which is the correct answer when no user is present.
+    # Read from the SESSION, not from assigns: `handle_oauth_add_account/3` has
+    # already activated the newly added account by the time `redirect_back/2`
+    # runs, while `conn.assigns[:phoenix_kit_current_user]` still describes the
+    # account that started the OAuth round-trip. (This controller also runs on
+    # the `phoenix_kit_auto_setup` pipeline, which never assigns a scope at
+    # all.) `Scope.for_user(nil)` is anonymous — the right answer when the
+    # session carries no valid token.
     defp conn_scope(conn) do
-      case conn.assigns[:phoenix_kit_current_scope] do
-        %Scope{} = scope -> scope
-        _ -> Scope.for_user(conn.assigns[:phoenix_kit_current_user])
+      conn
+      |> get_session(:user_token)
+      |> case do
+        token when is_binary(token) -> Auth.get_user_by_session_token(token)
+        _ -> nil
       end
+      |> Scope.for_user()
     end
 
     # Private helper functions

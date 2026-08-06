@@ -150,21 +150,50 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
                Routes.path("/dashboard")
     end
 
+    test "the host's own \"/\" is used when the host actually declares it" do
+      # HostRouter routes `/` and nothing core owns, so every earlier candidate
+      # is skipped and the home page — the destination these sites had before
+      # this branch — is still reached.
+      assert Routes.safe_destination(conn_for(HostRouter), scope: owner()) == "/"
+      assert Routes.safe_destination(conn_for(HostRouter), scope: plain_user()) == "/"
+    end
+
     test "falls back to the core-owned terminal when nothing else resolves" do
-      # EmptyRouter has no routes at all, so every candidate is skipped.
+      # EmptyRouter has no routes at all — not even `/` — so every candidate is
+      # skipped.
+      #
+      # Read this as pinning the DOCUMENTED fall-through, not as an endorsement
+      # of the emitted path: `EmptyRouter` never called `phoenix_kit_routes()`,
+      # so `/admin` does not resolve there either. The terminals are asserted
+      # rather than probed (see `safe_destination/2`'s "The invariant"), and a
+      # router with no PhoenixKit routes at all is not a host core can serve.
       assert Routes.safe_destination(conn_for(EmptyRouter), scope: owner()) ==
                Routes.path("/admin")
 
+      # NOT `/users/log-in`: that page bounces an authenticated visitor back
+      # out through `post_auth_path/2`, so terminating a signed-in chain there
+      # would move the decision one hop instead of making it.
       assert Routes.safe_destination(conn_for(EmptyRouter), scope: plain_user()) ==
-               Routes.path("/users/log-in")
+               Routes.path("/dashboard")
 
       assert Routes.safe_destination(conn_for(EmptyRouter), scope: owner(), skip_admin: true) ==
-               Routes.path("/users/log-in")
+               Routes.path("/dashboard")
     end
 
     test "an undeterminable router falls through to the terminal" do
-      assert Routes.safe_destination(nil, scope: plain_user()) == Routes.path("/users/log-in")
+      assert Routes.safe_destination(nil, scope: plain_user()) == Routes.path("/dashboard")
       assert Routes.safe_destination(nil, scope: owner()) == Routes.path("/admin")
+    end
+
+    test "no authenticated input terminates on an auth page" do
+      for ctx <- [nil, conn_for(EmptyRouter), conn_for(@core), conn_for(HostRouter)],
+          s <- [owner(), admin(), client(), plain_user()],
+          skip <- [true, false] do
+        result = Routes.safe_destination(ctx, scope: s, skip_admin: skip)
+
+        refute Routes.auth_page?(result),
+               "authenticated visitor sent to #{result} (skip_admin=#{skip})"
+      end
     end
   end
 
@@ -191,6 +220,13 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
     test "never selects the locale-prefixed root" do
       refute Routes.safe_destination(conn_for(@core), scope: nil) == Routes.path("/")
       refute Routes.safe_destination(conn_for(@core), scope: nil) == "/"
+    end
+
+    test "lands on the site home when the host declares one" do
+      # The pre-branch behaviour for a logged-out visitor, restored: `/` is a
+      # candidate like any other, selected exactly where it resolves.
+      assert Routes.safe_destination(conn_for(HostRouter), scope: nil) == "/"
+      assert Routes.safe_destination(socket_for(HostRouter), scope: anonymous()) == "/"
     end
   end
 
@@ -231,7 +267,13 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
   end
 
   describe "THE INVARIANT" do
-    test "no combination of inputs ever produces \"/\" or a non-local path" do
+    # Stated as what is actually guaranteed, which is NOT "never `/`": `/` is a
+    # legitimate destination on a host that declares one, and refusing it there
+    # would regress every install that never had the locale-prefixed-root bug.
+    # What core promises is that it never emits a path nobody has shown to
+    # exist — every result is either PROVEN routable in the caller's own router
+    # or one of the three landings core declares itself.
+    test "every result is either proven routable or a core-owned terminal" do
       scopes = [nil, anonymous(), owner(), admin(), client(), plain_user()]
       return_tos = [nil, "/shop", "https://evil.example", "//evil", "/\t/evil", "/users/log-out"]
 
@@ -243,19 +285,32 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
         conn_for(EmptyRouter)
       ]
 
+      terminals = [
+        Routes.path("/admin"),
+        Routes.path("/dashboard"),
+        Routes.path("/users/log-in")
+      ]
+
       for s <- scopes, rt <- return_tos, skip <- [true, false], ctx <- contexts do
         result = Routes.safe_destination(ctx, scope: s, return_to: rt, skip_admin: skip)
 
         context = "scope=#{inspect(s && s.cached_roles)} return_to=#{inspect(rt)} skip=#{skip}"
 
-        refute result == "/", context
-        refute result == Routes.path("/"), context
         assert Routes.local_path?(result), context
-        refute Routes.auth_page?(result) and result != Routes.path("/users/log-in"), context
+        # The locale-prefixed root — the shipped bug — is never synthesized.
+        refute result == Routes.path("/"), context
 
-        assert Routes.routable?(conn_for(@core), result) or
-                 Routes.routable?(ctx, result) or
-                 result in [Routes.path("/admin"), Routes.path("/users/log-in")],
+        # A bare `/` only ever comes back from a router that declares it.
+        if result == "/", do: assert(Routes.routable?(ctx, "/"), context)
+
+        # An auth page is only ever the ANONYMOUS terminal; sending a signed-in
+        # visitor there just bounces them off it again.
+        if Routes.auth_page?(result) do
+          assert result == Routes.path("/users/log-in"), context
+          refute Scope.authenticated?(s), context
+        end
+
+        assert Routes.routable?(ctx, result) or result in terminals,
                "unroutable destination #{inspect(result)} for #{context}"
       end
     end

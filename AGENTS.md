@@ -76,6 +76,8 @@ ast-grep --lang elixir --pattern 'def $FUNC($$$ARGS) do $$$BODY end' lib/
   ```
 
   Adding `mix test` to `precommit` was tried and reverted: the suite is not green from a clean checkout (with no database ~5 "unit" tests still fail, because `Settings` reads hit the DB on a cache miss), so the gate would be permanently red. Fixing that is worth doing separately — until then, treat the suite as a deliberate manual step, not an oversight.
+
+  ⚠️ **A database-less run now sets `config :phoenix_kit, :update_mode, true`** (`test_helper.exs`, only when the repo is unreachable). That is what closed the "~5 unit tests fail" gap above: it short-circuits every `PhoenixKit.Settings` read to `nil` instead of queueing 4 s against a dead pool. The consequence is that on the unit half **every settings-dependent assertion runs against "nothing is configured"** — a test that needs a *value* cannot get one from the database and must prime the settings cache itself (start `PhoenixKit.Cache.Registry` + `{PhoenixKit.Cache, name: :settings}` and `PhoenixKit.Cache.put/3`; the cache is consulted before the short-circuit). `test/phoenix_kit/utils/safe_destination_settings_test.exs` is the worked example. Without that, an assertion about a configured setting is vacuously true.
 - **Commit messages:** start with `Add`, `Update`, `Fix`, `Remove`, `Merge`.
 - **Version management:** `mix.exs` `@version` + `CHANGELOG.md`. Run `mix compile`, `mix test`, `mix format`, `mix credo --strict` before committing. Get current versions:
   ```bash
