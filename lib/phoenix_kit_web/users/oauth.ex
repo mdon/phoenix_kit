@@ -37,6 +37,7 @@ if Code.ensure_loaded?(Ueberauth) do
 
     alias PhoenixKit.Config
     alias PhoenixKit.Settings
+    alias PhoenixKit.Users.Auth.Scope
     alias PhoenixKit.Users.OAuth
     alias PhoenixKit.Utils.IpAddress
     alias PhoenixKit.Utils.Routes
@@ -257,7 +258,7 @@ if Code.ensure_loaded?(Ueberauth) do
             add_account_intent == "add_account" ->
               conn
               |> put_flash(:error, "Account switching is currently disabled.")
-              |> redirect(to: Routes.path("/"))
+              |> redirect(to: Routes.safe_destination(conn, scope: conn_scope(conn)))
 
             true ->
               flash_message =
@@ -348,10 +349,19 @@ if Code.ensure_loaded?(Ueberauth) do
     end
 
     defp redirect_back(conn, return_to) do
-      if Routes.local_path?(return_to) do
-        redirect(conn, to: return_to)
-      else
-        redirect(conn, to: Routes.path("/"))
+      redirect(conn,
+        to: Routes.safe_destination(conn, scope: conn_scope(conn), return_to: return_to)
+      )
+    end
+
+    # These routes run on the `phoenix_kit_auto_setup` pipeline, which assigns
+    # `phoenix_kit_current_user` but NOT `phoenix_kit_current_scope` — so the
+    # scope is built here rather than read from assigns. `Scope.for_user(nil)`
+    # is anonymous, which is the correct answer when no user is present.
+    defp conn_scope(conn) do
+      case conn.assigns[:phoenix_kit_current_scope] do
+        %Scope{} = scope -> scope
+        _ -> Scope.for_user(conn.assigns[:phoenix_kit_current_user])
       end
     end
 

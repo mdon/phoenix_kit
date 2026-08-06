@@ -315,10 +315,14 @@ defmodule PhoenixKitWeb.Users.Auth do
       Events.broadcast_user_session_disconnected(user.uuid, session_id)
     end
 
+    # `scope: nil` is passed EXPLICITLY. `renew_session/1` has already cleared
+    # the session, but `conn.assigns[:phoenix_kit_current_user]` is still
+    # populated from the pipeline — inferring the subject from assigns here
+    # would treat a just-logged-out visitor as signed in.
     conn
     |> renew_session()
     |> delete_resp_cookie(@remember_me_cookie)
-    |> redirect(to: "/")
+    |> redirect(to: Routes.safe_destination(conn, scope: nil))
   end
 
   @doc """
@@ -654,8 +658,11 @@ defmodule PhoenixKitWeb.Users.Auth do
       else
         socket =
           socket
+          # No `skip_admin`: the rejected visitor may well be an Admin, who
+          # legitimately belongs in `/admin` — that area is gated by
+          # `:phoenix_kit_ensure_admin`, not by this hook, so there is no loop.
           |> Phoenix.LiveView.put_flash(:error, "You must be an owner to access this page.")
-          |> Phoenix.LiveView.redirect(to: "/")
+          |> Phoenix.LiveView.redirect(to: Routes.safe_destination(socket, scope: scope))
 
         {:halt, socket}
       end
@@ -680,7 +687,14 @@ defmodule PhoenixKitWeb.Users.Auth do
             :error,
             "You do not have the required permission to access this page."
           )
-          |> Phoenix.LiveView.redirect(to: "/")
+          # `skip_admin: true` states the invariant at the call site: this is
+          # the admin-area rejection, so the destination must never be
+          # `/admin`. (The branch guard is the same predicate the resolver's
+          # `/admin` step uses, so it could not fire anyway — the flag keeps
+          # that true if either predicate is ever widened.)
+          |> Phoenix.LiveView.redirect(
+            to: Routes.safe_destination(socket, scope: scope, skip_admin: true)
+          )
 
         {:halt, socket}
       end
@@ -704,7 +718,9 @@ defmodule PhoenixKitWeb.Users.Auth do
               :error,
               "You do not have the required permission to access this page."
             )
-            |> Phoenix.LiveView.redirect(to: "/")
+            |> Phoenix.LiveView.redirect(
+              to: Routes.safe_destination(socket, scope: scope, skip_admin: true)
+            )
 
           {:halt, socket}
 
@@ -719,7 +735,7 @@ defmodule PhoenixKitWeb.Users.Auth do
           {:cont, socket}
 
         true ->
-          redirect_to = best_available_admin_path(scope)
+          redirect_to = best_available_admin_path(socket, scope)
 
           socket =
             socket
@@ -1093,12 +1109,14 @@ defmodule PhoenixKitWeb.Users.Auth do
           was_admin and not Scope.can_access_admin_area?(new_scope) ->
             socket
             |> LiveView.put_flash(:error, "You must be an admin to access this page.")
-            |> LiveView.push_navigate(to: "/")
+            |> LiveView.push_navigate(
+              to: Routes.safe_destination(socket, scope: new_scope, skip_admin: true)
+            )
 
           # Still admin but lost access to current module
           Scope.can_access_admin_area?(new_scope) and
               not has_current_module_access?(socket, new_scope) ->
-            redirect_to = best_available_admin_path(new_scope)
+            redirect_to = best_available_admin_path(socket, new_scope)
 
             socket
             |> LiveView.put_flash(
@@ -1227,19 +1245,27 @@ defmodule PhoenixKitWeb.Users.Auth do
     {"referrals", "/admin/settings/referral-codes"}
   ]
 
-  # Find the best admin page the user has access to, falling back to "/"
+  # Find the best admin page the user has access to.
   # Checks both permission (user can access) AND enabled status (module is active)
   # to prevent redirect loops when a user has permission for a disabled module.
-  defp best_available_admin_path(scope) do
+  #
+  # `skip_admin: true` on the fall-through is MANDATORY, not defensive. This
+  # default is only reached by a user who lacks the "dashboard" permission (the
+  # first entry in @admin_fallback_routes is `{"dashboard", "/admin"}`) — yet
+  # such a user still passes `can_access_admin_area?/1` on any other permission,
+  # so the resolver's `/admin` step would send them to a page that denies them
+  # and lands right back here. `source` is the conn/socket the redirect is being
+  # built for; it carries the router used to prove the destination exists.
+  defp best_available_admin_path(source, scope) do
     enabled = Permissions.enabled_module_keys()
 
     # Built-in routes first, then custom extension routes from admin tab config
     all_routes = @admin_fallback_routes ++ custom_admin_fallback_routes()
 
-    Enum.find_value(all_routes, "/", fn {key, path} ->
+    Enum.find_value(all_routes, fn {key, path} ->
       if Scope.has_module_access?(scope, key) and MapSet.member?(enabled, key),
         do: Routes.path(path)
-    end)
+    end) || Routes.safe_destination(source, scope: scope, skip_admin: true)
   end
 
   # Builds fallback routes from custom admin tabs that have extension permission keys.
@@ -1411,7 +1437,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   defp deny_admin_access(socket, scope) do
-    redirect_to = best_available_admin_path(scope)
+    redirect_to = best_available_admin_path(socket, scope)
 
     socket =
       socket
@@ -1939,7 +1965,7 @@ defmodule PhoenixKitWeb.Users.Auth do
             else
               conn
               |> put_flash(:error, "You must be an owner to access this page.")
-              |> redirect(to: "/")
+              |> redirect(to: Routes.safe_destination(conn, scope: scope))
               |> halt()
             end
         end
@@ -1977,7 +2003,7 @@ defmodule PhoenixKitWeb.Users.Auth do
                   :error,
                   "You do not have the required permission to access this page."
                 )
-                |> redirect(to: "/")
+                |> redirect(to: Routes.safe_destination(conn, scope: scope, skip_admin: true))
                 |> halt()
 
               true ->
@@ -2013,7 +2039,7 @@ defmodule PhoenixKitWeb.Users.Auth do
                   :error,
                   "You do not have the required permission to access this page."
                 )
-                |> redirect(to: "/")
+                |> redirect(to: Routes.safe_destination(conn, scope: scope, skip_admin: true))
                 |> halt()
 
               # Disabled modules are blocked for everyone (Owner included), matching
@@ -2025,7 +2051,7 @@ defmodule PhoenixKitWeb.Users.Auth do
               true ->
                 conn
                 |> put_flash(:error, "You do not have permission to access this section.")
-                |> redirect(to: best_available_admin_path(scope))
+                |> redirect(to: best_available_admin_path(conn, scope))
                 |> halt()
             end
         end
@@ -2050,7 +2076,7 @@ defmodule PhoenixKitWeb.Users.Auth do
             else
               conn
               |> put_flash(:error, "You must have the #{role_name} role to access this page.")
-              |> redirect(to: "/")
+              |> redirect(to: Routes.safe_destination(conn, scope: scope))
               |> halt()
             end
         end

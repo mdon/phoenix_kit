@@ -17,6 +17,7 @@ defmodule PhoenixKitWeb.Users.Session do
   use PhoenixKitWeb, :controller
 
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Users.Auth, as: UserAuth
@@ -106,8 +107,11 @@ defmodule PhoenixKitWeb.Users.Session do
     case MultiSession.log_out_active(conn) do
       {:switched, conn, user} ->
         conn
+        # The subject here is the ROOT account that just became active — not
+        # `conn.assigns[:phoenix_kit_current_user]`, which still describes the
+        # account that was logged out.
         |> put_flash(:info, gettext("Logged out. Now signed in as %{email}.", email: user.email))
-        |> redirect(to: Routes.path("/"))
+        |> redirect(to: Routes.safe_destination(conn, scope: Scope.for_user(user)))
 
       {:full, conn} ->
         # Root account is active → full logout. log_out_user/1 drains the whole
@@ -129,15 +133,22 @@ defmodule PhoenixKitWeb.Users.Session do
       # never follows the Location header on a non-3xx response).
       conn
       |> put_flash(:error, "Multi-account switching is not available.")
-      |> redirect(to: Routes.path("/"))
+      |> redirect(to: Routes.safe_destination(conn, scope: conn_scope(conn)))
     end
   end
 
   defp redirect_back(conn, params) do
-    if Routes.local_path?(params["return_to"]) do
-      redirect(conn, to: params["return_to"])
-    else
-      redirect(conn, to: Routes.path("/"))
+    redirect(conn,
+      to: Routes.safe_destination(conn, scope: conn_scope(conn), return_to: params["return_to"])
+    )
+  end
+
+  # These routes run on the `phoenix_kit_auto_setup` pipeline, which assigns
+  # `phoenix_kit_current_user` but NOT `phoenix_kit_current_scope`.
+  defp conn_scope(conn) do
+    case conn.assigns[:phoenix_kit_current_scope] do
+      %Scope{} = scope -> scope
+      _ -> Scope.for_user(conn.assigns[:phoenix_kit_current_user])
     end
   end
 
