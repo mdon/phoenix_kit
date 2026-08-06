@@ -177,3 +177,45 @@ to production.
   table.
 - Removing `page_action`/`:action` from `LayoutWrapper`, now unused.
 - The fail-open audit wrapper around `Activity.log/1`.
+
+## Follow-up: one universal dashboard, and why it closes the class
+
+Everything above probes destinations because core cannot guarantee any of them exists.
+Remove that premise and most of the machinery becomes unnecessary.
+
+**The decision.** Core owns exactly two landings that ALWAYS exist:
+
+- `/dashboard` — every authenticated user, whoever they are. Greets them in their own
+  language; shows the current dashboard content additionally when the visitor holds
+  admin or owner rights.
+- `/users/log-in` — every anonymous visitor. Already unconditional and locale-complete.
+
+**Two facts that make this smaller than it sounds**, both verified in 1.7.232:
+
+1. `/dashboard` is *already* permission-free — its `live_session` gates on
+   `:phoenix_kit_ensure_authenticated_scope` alone (`integration.ex:760-764`), no
+   permission key involved. The "unrevocable right for every registered user" the idea
+   calls for is already the behaviour.
+2. The only thing that removes it is **conditional compilation**:
+   `if unquote(PhoenixKit.Config.user_dashboard_enabled?())` wraps both the route block
+   (`integration.ex:597`) and the `live_session` (`:760`). So the setting decides whether
+   the ROUTE exists, when it should only decide what the PAGE shows.
+
+**What it lets us delete.** Once `/dashboard` is guaranteed:
+
+- the terminal needs no probe and cannot loop — it is a path core declares and permits,
+  so the `no_reachable_destination` log branch becomes unreachable rather than a
+  documented degenerate case;
+- `home_or_core_landing(nil, _opts)` can return `path("/dashboard")` instead of `"/"`.
+  That closes the context-less callers (confirmation, referral gate, confirmation
+  instructions) **structurally** — a caller that forgets to thread a context still gets a
+  safe answer, instead of synthesizing a bare `"/"`. Threading the context stays worth
+  doing, but stops being load-bearing;
+- the invariant stops being "every candidate was probed" and becomes "the chain ends at a
+  path core declares unconditionally" — provable by construction, which is what the
+  design asked for and never achieved.
+
+**The one real cost.** A host that set `user_dashboard_enabled: false` gets a route back
+that it had switched off. That has to be deliberate: the setting keeps its name and
+starts meaning "show the dashboard's modules", not "remove the page". Worth an entry in
+the release notes rather than a silent change.
