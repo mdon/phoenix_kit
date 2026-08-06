@@ -36,7 +36,16 @@ defmodule PhoenixKitWeb.Users.ReferralGate do
   @impl true
   def mount(params, session, socket) do
     user = socket.assigns[:phoenix_kit_current_user]
-    destination = Routes.post_auth_path([params["return_to"], session["user_return_to"]])
+
+    # `:context` threads the socket's router so `"/"` is only used where the
+    # host actually declares a root route. Without it the resolver synthesises
+    # `"/"` literally, which 404s on any host that has no root route — exactly
+    # the configuration core-owned redirect destinations exists to handle.
+    destination =
+      Routes.post_auth_path([params["return_to"], session["user_return_to"]],
+        context: socket,
+        scope: socket.assigns[:phoenix_kit_current_scope]
+      )
 
     cond do
       is_nil(user) ->

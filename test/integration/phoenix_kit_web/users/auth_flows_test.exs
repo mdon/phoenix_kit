@@ -472,15 +472,18 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
       user = confirmed_user()
       conn = login_conn(conn, user)
 
-      # Confirmed user mounts → redirected onward; must fall back to "/",
-      # never to the smuggled destination.
-      assert {:error, {:redirect, %{to: "/"}}} =
+      # Confirmed user mounts → redirected onward; must fall back to a
+      # core-owned landing, never to the smuggled destination.
+      assert {:error, {:redirect, %{to: to}}} =
                live(
                  conn,
                  Routes.path("/users/confirm") <>
                    "?return_to=" <>
                    URI.encode_www_form("/\t/evil.example")
                )
+
+      refute to =~ "evil.example"
+      assert Routes.local_path?(to)
     end
   end
 
@@ -632,7 +635,11 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
       user = confirmed_user()
       conn = login_conn(conn, user)
 
-      assert {:error, {:redirect, %{to: "/"}}} = live(conn, Routes.path("/users/confirm"))
+      # Redirects to a core-owned landing (e.g. /dashboard), never to the bare
+      # "/" which core does not declare and which 404s on hosts without a root route.
+      assert {:error, {:redirect, %{to: to}}} = live(conn, Routes.path("/users/confirm"))
+      assert Routes.local_path?(to)
+      refute to == "/"
     end
 
     test "confirmed user is moved to return_to when present", %{conn: conn} do
@@ -647,13 +654,17 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
       user = confirmed_user()
       conn = login_conn(conn, user)
 
-      assert {:error, {:redirect, %{to: "/"}}} =
+      # Hostile return_to is dropped; lands on a core-owned path, not bare "/".
+      assert {:error, {:redirect, %{to: to}}} =
                live(
                  conn,
                  Routes.path("/users/confirm") <>
                    "?return_to=" <>
                    URI.encode_www_form("https://evil.example")
                )
+
+      refute to =~ "evil.example"
+      assert Routes.local_path?(to)
     end
 
     test "confirmed user honors after_login_path", %{conn: conn} do
@@ -673,7 +684,11 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
 
       {:ok, _user} = Auth.admin_confirm_user(user)
 
-      assert_redirect(lv, "/", 3000)
+      # Redirects to a core-owned landing, not bare "/" which 404s on hosts
+      # without a root route.
+      {to, _flash} = assert_redirect(lv, 3000)
+      assert Routes.local_path?(to)
+      refute to == "/"
     end
 
     test "parked user keeps their original destination on live advance", %{conn: conn} do
@@ -715,7 +730,10 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
       # so no broadcast can reach it. The post-subscribe re-read must catch it.
       {:ok, _user} = Auth.admin_confirm_user(user)
 
-      assert {:error, {:redirect, %{to: "/"}}} = live(conn, Routes.path("/users/confirm"))
+      # Redirects to a core-owned landing, not bare "/".
+      assert {:error, {:redirect, %{to: to}}} = live(conn, Routes.path("/users/confirm"))
+      assert Routes.local_path?(to)
+      refute to == "/"
     end
   end
 
