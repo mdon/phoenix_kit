@@ -59,6 +59,21 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
     |> Plug.Conn.put_session(:pk_session_accounts, [token])
   end
 
+  # A `return_to` is no longer taken on trust. `redirect_back/2` hands it to
+  # `Routes.safe_destination/2`, which drops any candidate that does not
+  # resolve to a GET route in this application's router — so a destination
+  # has to be a REAL one for "return_to was honoured" to be observable at all.
+  #
+  # The literal `"/admin/dashboard"` these tests used before never was a route:
+  # the admin index is `/admin`, and every core route sits under the configured
+  # `url_prefix`. It used to pass only because the old `redirect_back/2` echoed
+  # back whatever `local_path?/1` accepted, 404 or not.
+  #
+  # Deliberately NOT `/admin` or `/dashboard`: those are what the resolver
+  # itself falls back to, so an assertion against them would also hold when the
+  # `return_to` was silently dropped.
+  defp return_to, do: Routes.path("/admin/users")
+
   describe "add_account gate" do
     test "owner can add an account", %{conn: conn} do
       # Change 2: the gate requires multi_session_enabled — owner no longer bypasses.
@@ -70,10 +85,10 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
       conn =
         post(conn, Routes.path("/users/session/accounts"), %{
           "user" => %{"email_or_username" => other.email, "password" => "ValidPassword123!"},
-          "return_to" => "/admin/dashboard"
+          "return_to" => return_to()
         })
 
-      assert redirected_to(conn) == "/admin/dashboard"
+      assert redirected_to(conn) == return_to()
       assert length(get_session(conn)["pk_session_accounts"]) == 2
     end
 
@@ -88,10 +103,10 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
       conn =
         post(conn, Routes.path("/users/session/accounts"), %{
           "user" => %{"email_or_username" => other.email, "password" => "ValidPassword123!"},
-          "return_to" => "/admin/dashboard"
+          "return_to" => return_to()
         })
 
-      assert redirected_to(conn) == "/admin/dashboard"
+      assert redirected_to(conn) == return_to()
       assert length(get_session(conn)["pk_session_accounts"]) == 2
     end
 
@@ -129,10 +144,10 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
       conn =
         put(conn, Routes.path("/users/session/active"), %{
           "ref" => root.ref,
-          "return_to" => "/admin/dashboard"
+          "return_to" => return_to()
         })
 
-      assert redirected_to(conn) == "/admin/dashboard"
+      assert redirected_to(conn) == return_to()
       assert Auth.get_user_by_session_token(get_session(conn)["user_token"]).uuid == owner.uuid
     end
 
@@ -172,10 +187,10 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
       conn =
         put(conn, Routes.path("/users/session/active"), %{
           "ref" => second.ref,
-          "return_to" => "/admin/dashboard"
+          "return_to" => return_to()
         })
 
-      assert redirected_to(conn) == "/admin/dashboard"
+      assert redirected_to(conn) == return_to()
     end
 
     test "set_active_account is forbidden when multi_session setting is off", %{conn: conn} do
@@ -263,10 +278,10 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
       conn =
         post(conn, Routes.path("/users/session/accounts"), %{
           "user" => %{"email_or_username" => other.email, "password" => "ValidPassword123!"},
-          "return_to" => "/admin/dashboard"
+          "return_to" => return_to()
         })
 
-      assert redirected_to(conn) == "/admin/dashboard"
+      assert redirected_to(conn) == return_to()
     end
   end
 end

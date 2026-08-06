@@ -1,6 +1,7 @@
 defmodule PhoenixKit.Settings.SettingTest do
   use ExUnit.Case, async: true
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias PhoenixKit.Settings
   alias PhoenixKit.Settings.Setting
 
@@ -40,7 +41,20 @@ defmodule PhoenixKit.Settings.SettingTest do
 
     alias PhoenixKit.Settings.Setting.SettingsForm
 
-    # `changeset/2` is a pure embedded-schema changeset — no database.
+    # This module is a plain `ExUnit.Case`, not a `PhoenixKit.DataCase` — the
+    # other describes here must keep running on the database-less half — so
+    # nothing checks a sandbox connection out for us. Without an owner these
+    # tests raise `DBConnection.OwnershipError` the moment `Roles.list_roles/0`
+    # runs; they only looked green while the suite had no database and the
+    # `:integration` tag excluded them.
+    #
+    # `shared: false` because the module is `async: true`.
+    setup do
+      pid = Sandbox.start_owner!(PhoenixKit.Test.Repo, shared: false)
+      on_exit(fn -> Sandbox.stop_owner(pid) end)
+      :ok
+    end
+
     defp change(value) do
       SettingsForm.changeset(%SettingsForm{}, %{"main_page_path" => value})
     end
@@ -49,11 +63,21 @@ defmodule PhoenixKit.Settings.SettingTest do
       changeset.errors |> Keyword.get(:main_page_path) |> elem(0)
     end
 
-    test "an empty or whitespace-only value is accepted and trimmed" do
+    test "a blank value is accepted and produces no change" do
       for value <- ["", "   "] do
         changeset = change(value)
+
         assert changeset.errors[:main_page_path] == nil
-        assert Ecto.Changeset.get_field(changeset, :main_page_path) == ""
+
+        # `cast/3` treats a blank string as an EMPTY VALUE, so both of these
+        # drop out before `validate_local_path/2` runs: there is nothing to
+        # trim, nothing lands in `changes`, and `get_field/2` answers the
+        # struct default. Clearing the stored setting is the WRITER's job, not
+        # the changeset's — `update_all_settings_from_changeset/1` reads
+        # `changeset.params` and substitutes the default ("") for a submitted
+        # value that is nil or "".
+        assert changeset.changes[:main_page_path] == nil
+        assert Ecto.Changeset.get_field(changeset, :main_page_path) == nil
       end
     end
 
