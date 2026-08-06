@@ -19,6 +19,12 @@ defmodule PhoenixKitWeb.Components.Core.Accordion do
       </button>
 
   Works without JavaScript (native `<details>` on dead renders).
+
+  Closing a section near the bottom of a long page would shrink the document
+  out from under the reader and jump the viewport upward; the collapse scroll
+  keeper in `priv/static/assets/phoenix_kit.js` holds the page height instead,
+  so the reader stays put. It keys off `class="collapse"` on the `<details>`,
+  which this component always emits.
   """
 
   use Phoenix.Component

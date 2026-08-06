@@ -5664,6 +5664,161 @@ if (typeof window.Chart === "undefined") {
   };
 })();
 
+// ---------------------------------------------------------------------------
+// Collapse scroll keeper. Closing an expanded <details class="collapse"> near
+// the bottom of the page shrinks the document; the browser clamps the scroll
+// position to the new maximum and the viewport jumps upward under the reader.
+// Just before the collapse, pad the document with a body spacer so it cannot
+// become shorter than the reader's current position — they stay put, looking
+// at the now-closed section, with blank space below the fold. Every pixel
+// they then scroll up releases a pixel of that spacer (height leaving from
+// entirely below the viewport is invisible), so the page works its way back
+// to its natural length without ever moving underfoot.
+//
+// Two deliberate choices, both learned from getting it wrong first:
+//
+//   * Measured on the summary ACTIVATION, not the `toggle` event. By the time
+//     `toggle` fires the element may already be collapsed — no animation
+//     under prefers-reduced-motion — leaving nothing to measure, and that is
+//     exactly the case where the jump is most jarring.
+//   * Released against the READER'S SCROLLING, not the live document height.
+//     Mid-collapse the document still contains the content that is on its way
+//     out, so height-based math reads the spacer as unnecessary and hands it
+//     back before the shrink lands — the clamp then happens anyway. Scroll
+//     distance is exact and needs no animation-timing machinery.
+//
+// Only the window-scrolled case is handled: the spacer lives on document.body,
+// safely OUTSIDE the LiveView container (morphdom never touches it). Inside an
+// inner scroll container a body spacer is useless and an injected child would
+// be discarded on the next patch, so those bail out to the browser default.
+(function() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+
+  // Extra spacer height so (scrollTop + viewport) still fits inside the
+  // document after `shrink` px of content collapses away. `docHeight`
+  // includes any existing spacer, so the result stacks on top of it.
+  // Pure — unit-tested in test/js/collapse_space.test.cjs.
+  function extraSpaceNeeded(scrollTop, viewport, docHeight, shrink) {
+    var overshoot = scrollTop + viewport - (docHeight - shrink);
+    return overshoot > 0 ? Math.ceil(overshoot) : 0;
+  }
+
+  // Height the spacer still needs once the reader has scrolled up away from
+  // the position it was installed to protect. `highestTop` is the smallest
+  // scrollTop seen since it was installed, so scrolling back down cannot
+  // re-claim space that was already given up — the page only ever gets
+  // shorter, and only from below the fold.
+  function spacerAfterScrollUp(installedHeight, installedTop, highestTop) {
+    var released = Math.max(0, installedTop - highestTop);
+    return Math.max(0, installedHeight - released);
+  }
+
+  if (typeof module === "object" && module.exports) {
+    module.exports.extraSpaceNeeded = extraSpaceNeeded;
+    module.exports.spacerAfterScrollUp = spacerAfterScrollUp;
+  }
+
+  var spacer = null;
+  var installedHeight = 0;
+  var installedTop = 0;
+  var highestTop = 0;
+
+  function scrollTopNow() {
+    return (document.scrollingElement || document.documentElement).scrollTop;
+  }
+
+  function metrics() {
+    var el = document.scrollingElement || document.documentElement;
+    return { top: el.scrollTop, view: window.innerHeight, height: el.scrollHeight };
+  }
+
+  function insideInnerScroller(el) {
+    var node = el.parentElement;
+    while (node && node !== document.body) {
+      var oy = window.getComputedStyle(node).overflowY;
+      if (oy === "auto" || oy === "scroll") return true;
+      node = node.parentElement;
+    }
+    return false;
+  }
+
+  function releaseSpacer() {
+    if (!spacer) return;
+    spacer.remove();
+    spacer = null;
+    installedHeight = 0;
+    window.removeEventListener("scroll", onScroll);
+  }
+
+  function onScroll() {
+    if (!spacer) return;
+    var top = scrollTopNow();
+    if (top < highestTop) highestTop = top;
+    var next = spacerAfterScrollUp(installedHeight, installedTop, highestTop);
+    if (next <= 0) releaseSpacer();
+    else spacer.style.height = next + "px";
+  }
+
+  function hold(shrink) {
+    var m = metrics();
+    var extra = extraSpaceNeeded(m.top, m.view, m.height, shrink);
+    if (extra <= 0) return;
+
+    if (!spacer) {
+      spacer = document.createElement("div");
+      spacer.setAttribute("data-pk-collapse-spacer", "");
+      spacer.setAttribute("aria-hidden", "true");
+      spacer.style.width = "100%";
+      spacer.style.flex = "0 0 auto";
+      spacer.style.pointerEvents = "none";
+      document.body.appendChild(spacer);
+      window.addEventListener("scroll", onScroll, { passive: true });
+    }
+
+    // A second close stacks onto whatever is left and re-anchors: from here
+    // on, this is the position being protected.
+    installedHeight = spacer.offsetHeight + extra;
+    installedTop = m.top;
+    highestTop = m.top;
+    spacer.style.height = installedHeight + "px";
+  }
+
+  // Runs BEFORE the default action toggles the element, so the height read
+  // here is the full expanded one that is about to disappear.
+  function onSummaryActivate(e) {
+    var target = e.target;
+    if (!target || !target.closest) return;
+
+    var summary = target.closest("summary");
+    if (!summary) return;
+
+    var details = summary.closest("details");
+    if (!details || !details.classList.contains("collapse")) return;
+    if (!details.open) return; // opening: the document only grows
+    if (insideInnerScroller(details)) return;
+
+    var shrink = details.offsetHeight - summary.offsetHeight;
+    if (isFinite(shrink) && shrink > 0) hold(shrink);
+  }
+
+  document.addEventListener("click", onSummaryActivate, true);
+  document.addEventListener(
+    "keydown",
+    function(e) {
+      if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+        onSummaryActivate(e);
+      }
+    },
+    true
+  );
+
+  // Live navigation swaps the page content and resets the scroll position;
+  // whatever the old page was holding open is meaningless now.
+  window.addEventListener("phx:page-loading-stop", function() {
+    if (spacer && scrollTopNow() <= 0) releaseSpacer();
+  });
+})();
+
 (function() {
   if (typeof window === "undefined") return;
   window.PhoenixKitHooks = window.PhoenixKitHooks || {};
