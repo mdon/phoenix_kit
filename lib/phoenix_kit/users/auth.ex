@@ -2681,6 +2681,12 @@ defmodule PhoenixKit.Users.Auth do
       # user's related rows (memberships, assignments) still exist —
       # remediation the DB cascades can't do (ownership succession,
       # orphan audit trails). Best-effort: a raising hook never aborts.
+      # Hooks run OUTSIDE the delete transaction, deliberately: a hook's
+      # own writes (succession promotions, audit rows) must survive even
+      # if they use a different repo/pool. Accepted tradeoff: if the
+      # delete itself then fails, hook side-effects have already
+      # committed (e.g. an extra owner) — rare, admin-recoverable, and
+      # preferable to hooks silently vanishing with a rollback.
       run_before_user_delete_hooks(user.uuid)
 
       do_delete_user(user, opts, current_user)
@@ -2723,9 +2729,14 @@ defmodule PhoenixKit.Users.Auth do
               "before_user_delete hook #{inspect(module)} failed: #{Exception.message(e)}"
             )
         catch
-          :exit, reason ->
+          # `kind, reason` (not just :exit) — a hook that THROWS must not
+          # abort the deletion either.
+          kind, reason ->
             require Logger
-            Logger.error("before_user_delete hook #{inspect(module)} exited: #{inspect(reason)}")
+
+            Logger.error(
+              "before_user_delete hook #{inspect(module)} #{kind}: #{inspect(reason)}"
+            )
         end
       end
     end)
