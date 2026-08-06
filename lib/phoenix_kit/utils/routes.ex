@@ -9,6 +9,7 @@ defmodule PhoenixKit.Utils.Routes do
   alias PhoenixKit.Config
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
+  alias PhoenixKit.Users.Auth.Scope
 
   @default_locale Config.default_locale()
 
@@ -96,7 +97,7 @@ defmodule PhoenixKit.Utils.Routes do
   """
   @spec post_auth_path([term()]) :: String.t()
   def post_auth_path(candidates \\ []) when is_list(candidates) do
-    Enum.find(candidates, &safe_destination?/1) || after_login_path()
+    Enum.find(candidates, &usable_candidate?/1) || after_login_path()
   end
 
   # A candidate carries the same two requirements as the setting: local, and
@@ -104,7 +105,193 @@ defmodule PhoenixKit.Utils.Routes do
   # LESS trusted of the two — `?return_to=` is whatever a link contained — so
   # `?return_to=/users/log-out` on any auth link would otherwise sign the user
   # back out the instant they signed in.
-  defp safe_destination?(path), do: local_path?(path) and not auth_page?(path)
+  defp usable_candidate?(path), do: local_path?(path) and not auth_page?(path)
+
+  @typedoc """
+  The request a redirect is being built for. The application's router is read
+  from it, which is how `routable?/2` works. `nil` is accepted — it simply
+  makes every candidate fail closed, so the chain lands on a core-owned page.
+  """
+  @type request_context :: Plug.Conn.t() | Phoenix.LiveView.Socket.t() | nil
+
+  @doc """
+  Resolves where to send a visitor that core is *allowed* to send them.
+
+  Replaces every hardcoded `"/"` / `Routes.path("/")` destination in core.
+  `Routes.path("/")` emits a locale-prefixed root (`/en`); the route that would
+  serve it belongs to the host application, which core cannot declare, so on a
+  host that never declared one every such redirect 404s.
+
+  ## The chain
+
+  Authenticated (`opts[:scope]` passes `Scope.authenticated?/1`):
+
+    1. `:return_to` — the untrusted explicit destination
+    2. `/admin`, when `Scope.can_access_admin_area?/1` and `:skip_admin` is not set
+    3. `/dashboard`
+    4. the `after_login_path` setting
+
+  Anonymous:
+
+    1. the `main_page_path` setting, when set and still resolvable
+    2. — (falls through to the terminal)
+
+  Every candidate must be a local path (`local_path?/1`), not an auth page
+  (`auth_page?/1`), **and actually routable** (`routable?/2`). When nothing
+  survives, the terminal is `/admin` for a visitor who may reach the admin area
+  and `/users/log-in` for everyone else. Both are declared unconditionally by
+  `phoenix_kit_routes()` in every locale, so the fall-through cannot 404.
+
+  ## Options
+
+    * `:scope` — `%PhoenixKit.Users.Auth.Scope{}` or `nil`. **Pass it
+      explicitly.** Several call sites run on pipelines that never assign a
+      scope, and full logout still carries the just-logged-out user in
+      `conn.assigns` after the session has been cleared, so inferring it here
+      would answer "authenticated" about someone who no longer is.
+    * `:return_to` — a candidate path, or a list of them in priority order.
+      Honoured on the authenticated chain only: an anonymous pending
+      destination belongs in the `user_return_to` session key, not in a
+      redirect.
+    * `:skip_admin` — suppress step 2. Required wherever the caller is
+      *rejecting* the visitor from the admin area, or the redirect would send
+      them straight back to it.
+
+  ## The invariant
+
+  Every value returned is either a path the caller supplied or an administrator
+  configured **that has been proven to resolve in the router**, or one of two
+  paths core declares itself. There is no third branch, and neither `"/"` nor
+  `path("/")` is ever synthesized here. (An administrator who explicitly
+  configures `/` on a host that really serves it still gets `/` — that is the
+  point: `/` stays a legitimate *candidate*, it just stops being core's
+  *choice*.)
+  """
+  @spec safe_destination(request_context(), keyword()) :: String.t()
+  def safe_destination(context, opts \\ []) do
+    scope = Keyword.get(opts, :scope)
+    admin? = not Keyword.get(opts, :skip_admin, false) and Scope.can_access_admin_area?(scope)
+
+    candidates =
+      if Scope.authenticated?(scope) do
+        authenticated_candidates(opts, admin?)
+      else
+        anonymous_candidates()
+      end
+
+    found =
+      candidates
+      # Lazily: candidates are thunks so the settings read at the tail of the
+      # chain never happens for a visitor the earlier steps already placed.
+      |> Stream.map(& &1.())
+      |> Enum.find(&routable_candidate?(context, &1))
+
+    found || terminal(admin?)
+  end
+
+  defp authenticated_candidates(opts, admin?) do
+    explicit = Enum.map(List.wrap(Keyword.get(opts, :return_to)), fn c -> fn -> c end end)
+
+    explicit ++
+      [
+        fn -> if admin?, do: path("/admin") end,
+        # `/dashboard` is conditionally compiled by the host router
+        # (`user_dashboard_enabled`), which is exactly why it is probed with
+        # `routable?/2` like any other candidate rather than assumed.
+        fn -> path("/dashboard") end,
+        fn -> setting_candidate("after_login_path") end
+      ]
+  end
+
+  defp anonymous_candidates do
+    [fn -> main_page_path() end]
+  end
+
+  # The terminal is chosen by core, never by input, so it is emitted without a
+  # routability probe: both arms are declared unconditionally, in every locale.
+  defp terminal(true), do: path("/admin")
+  defp terminal(false), do: path("/users/log-in")
+
+  defp routable_candidate?(context, candidate) do
+    usable_candidate?(candidate) and routable?(context, candidate)
+  end
+
+  # Raw setting read. Deliberately NOT `after_login_path/0`, which substitutes
+  # `"/"` when the setting is blank or unsafe — that would smuggle the unowned
+  # root back into the chain as a value core synthesized rather than one an
+  # administrator chose.
+  defp setting_candidate(key) do
+    case key |> PhoenixKit.Settings.get_setting_cached("") |> to_string() |> String.trim() do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  @doc """
+  The configured site main page, or `nil` when unset or unusable.
+
+  `nil` rather than `"/"` is deliberate: `safe_destination/2` drops nil
+  candidates and falls through to a core-owned page, where `"/"` would
+  reintroduce the unowned path this mechanism exists to remove.
+
+  The setting is validated as a local path when saved and re-guarded here on
+  read, so a hand-edited DB row can't turn it into an open redirect.
+  """
+  @spec main_page_path() :: String.t() | nil
+  def main_page_path do
+    case setting_candidate("main_page_path") do
+      nil -> nil
+      value -> if usable_candidate?(value), do: value, else: nil
+    end
+  end
+
+  @doc """
+  Whether `path` actually resolves to a `GET` route in the application's router.
+
+  The router is taken from the request: `conn.private[:phoenix_router]`, set by
+  the generated router before dispatch, or `socket.router`, set when the
+  LiveView is mounted at the router.
+
+  **When the router cannot be determined this returns `false`.** The two failure
+  modes are asymmetric: emitting an unverified path is the 404 this whole
+  mechanism exists to eliminate, while skipping the candidate merely falls
+  through to a core-owned page that is guaranteed to exist.
+  """
+  @spec routable?(request_context(), term()) :: boolean()
+  def routable?(context, path) when is_binary(path) do
+    case router_for(context) do
+      nil ->
+        false
+
+      router ->
+        Phoenix.Router.route_info(router, "GET", path_only(path), host_for(context)) != :error
+    end
+  rescue
+    # A router module that isn't loaded under a release, or a malformed path.
+    _ -> false
+  catch
+    :exit, _ -> false
+  end
+
+  def routable?(_context, _path), do: false
+
+  defp router_for(%Plug.Conn{private: private}), do: Map.get(private, :phoenix_router)
+  defp router_for(%Phoenix.LiveView.Socket{router: router}), do: router
+  defp router_for(_), do: nil
+
+  defp host_for(%Plug.Conn{host: host}) when is_binary(host), do: host
+
+  defp host_for(%Phoenix.LiveView.Socket{host_uri: %URI{host: host}}) when is_binary(host),
+    do: host
+
+  # `socket.host_uri` is the atom `:not_mounted_at_router` outside a router, and
+  # routes without a `host:` constraint match any host anyway.
+  defp host_for(_), do: "localhost"
+
+  # `route_info/4` matches path SEGMENTS, so "/foo?x=1" would be probed as the
+  # single segment "foo?x=1" and never match. Same normalisation `auth_page?/1`
+  # applies.
+  defp path_only(path), do: path |> String.split(["?", "#"], parts: 2) |> hd()
 
   @doc """
   Renders `?return_to=<path>` for a link, or `""` when there is nothing safe to
