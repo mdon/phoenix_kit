@@ -5687,10 +5687,13 @@ if (typeof window.Chart === "undefined") {
 //     back before the shrink lands — the clamp then happens anyway. Scroll
 //     distance is exact and needs no animation-timing machinery.
 //
-// Only the window-scrolled case is handled: the spacer lives on document.body,
-// safely OUTSIDE the LiveView container (morphdom never touches it). Inside an
-// inner scroll container a body spacer is useless and an injected child would
-// be discarded on the next patch, so those bail out to the browser default.
+// The held height goes on the layout's [data-pk-collapse-pad] element when one
+// is present (PhoenixKit's admin layout marks its content column), so sticky
+// sidebars and page backgrounds extend through the blank area; otherwise a
+// body-level div is injected, which holds the position just as well but leaves
+// the blank area outside any app chrome. Only the window-scrolled case is
+// handled: inside an inner scroll container neither helps, so those bail out
+// to the browser default.
 (function() {
   if (typeof window === "undefined" || typeof document === "undefined") return;
 
@@ -5719,6 +5722,7 @@ if (typeof window.Chart === "undefined") {
   }
 
   var spacer = null;
+  var injected = false;
   var installedHeight = 0;
   var installedTop = 0;
   var highestTop = 0;
@@ -5742,9 +5746,37 @@ if (typeof window.Chart === "undefined") {
     return false;
   }
 
+  // The element that carries the held height. A layout that marks its content
+  // column with data-pk-collapse-pad gets the space INSIDE its own chrome, so
+  // sticky sidebars and page backgrounds extend through it; anything else
+  // falls back to a body-level div, which holds the scroll position just as
+  // well but leaves the blank area outside the app's layout.
+  function ensureSpacer() {
+    if (spacer && spacer.isConnected) return spacer;
+
+    var pad = document.querySelector("[data-pk-collapse-pad]");
+    if (pad) {
+      spacer = pad;
+      injected = false;
+    } else {
+      spacer = document.createElement("div");
+      spacer.setAttribute("data-pk-collapse-spacer", "");
+      spacer.setAttribute("aria-hidden", "true");
+      spacer.style.width = "100%";
+      spacer.style.flex = "0 0 auto";
+      spacer.style.pointerEvents = "none";
+      document.body.appendChild(spacer);
+      injected = true;
+    }
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return spacer;
+  }
+
   function releaseSpacer() {
     if (!spacer) return;
-    spacer.remove();
+    if (injected) spacer.remove();
+    else spacer.style.height = "";
     spacer = null;
     installedHeight = 0;
     window.removeEventListener("scroll", onScroll);
@@ -5764,16 +5796,7 @@ if (typeof window.Chart === "undefined") {
     var extra = extraSpaceNeeded(m.top, m.view, m.height, shrink);
     if (extra <= 0) return;
 
-    if (!spacer) {
-      spacer = document.createElement("div");
-      spacer.setAttribute("data-pk-collapse-spacer", "");
-      spacer.setAttribute("aria-hidden", "true");
-      spacer.style.width = "100%";
-      spacer.style.flex = "0 0 auto";
-      spacer.style.pointerEvents = "none";
-      document.body.appendChild(spacer);
-      window.addEventListener("scroll", onScroll, { passive: true });
-    }
+    ensureSpacer();
 
     // A second close stacks onto whatever is left and re-anchors: from here
     // on, this is the position being protected.
