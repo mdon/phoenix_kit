@@ -12,6 +12,23 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
   """
   use ExUnit.Case, async: true
 
+  # The chain reads settings (`main_page_path`, `after_login_path`). With no
+  # database that short-circuits to nil and this file needs nothing; with one
+  # reachable it becomes a real query from a process owning no sandbox
+  # connection, which raises rather than returning a miss.
+  #
+  # `test_repo_available` is the flag test_helper.exs already sets. The repo
+  # PROCESS starts even with no database — only its connections fail — so
+  # `Process.whereis/1` answers the wrong question and made every test here hang
+  # on a checkout that could never succeed.
+  setup do
+    if Application.get_env(:phoenix_kit, :test_repo_available, false) do
+      :ok = Ecto.Adapters.SQL.Sandbox.checkout(PhoenixKit.Test.Repo)
+    end
+
+    :ok
+  end
+
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
 
@@ -162,27 +179,42 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
       # EmptyRouter has no routes at all — not even `/` — so every candidate is
       # skipped.
       #
-      # Read this as pinning the DOCUMENTED fall-through, not as an endorsement
-      # of the emitted path: `EmptyRouter` never called `phoenix_kit_routes()`,
-      # so `/admin` does not resolve there either. The terminals are asserted
-      # rather than probed (see `safe_destination/2`'s "The invariant"), and a
-      # router with no PhoenixKit routes at all is not a host core can serve.
-      assert Routes.safe_destination(conn_for(EmptyRouter), scope: owner()) ==
+      # `EmptyRouter` never called `phoenix_kit_routes()`, so core's own landings
+      # do not resolve there either. The terminal is PROBED, so it does not hand
+      # back a path this router cannot serve — it exhausts every arm, logs the
+      # misconfiguration, and returns the last one.
+      #
+      # This used to assert `/admin` came back, which pinned the defect the
+      # probe removed: a router without that route was handed it regardless.
+      refute Routes.safe_destination(conn_for(EmptyRouter), scope: owner()) ==
                Routes.path("/admin")
 
-      # NOT `/users/log-in`: that page bounces an authenticated visitor back
-      # out through `post_auth_path/2`, so terminating a signed-in chain there
-      # would move the decision one hop instead of making it.
-      assert Routes.safe_destination(conn_for(EmptyRouter), scope: plain_user()) ==
+      # Not `/dashboard` either, and this is the case that matters most: a host
+      # setting `user_dashboard_enabled: false` compiles that route out, and the
+      # unprobed terminal used to hand it back anyway. `EmptyRouter` stands in
+      # for any router that does not declare it.
+      refute Routes.safe_destination(conn_for(EmptyRouter), scope: plain_user()) ==
                Routes.path("/dashboard")
 
-      assert Routes.safe_destination(conn_for(EmptyRouter), scope: owner(), skip_admin: true) ==
-               Routes.path("/dashboard")
+      # Whatever comes back, it is never an auth page for a signed-in visitor:
+      # that page bounces them out through `post_auth_path/2`, which re-enters
+      # the resolver, so it is a loop rather than a fallback.
+      for s <- [owner(), plain_user()] do
+        refute Routes.auth_page?(Routes.safe_destination(conn_for(EmptyRouter), scope: s))
+      end
     end
 
-    test "an undeterminable router falls through to the terminal" do
-      assert Routes.safe_destination(nil, scope: plain_user()) == Routes.path("/dashboard")
-      assert Routes.safe_destination(nil, scope: owner()) == Routes.path("/admin")
+    test "an undeterminable router falls through to the last arm, not to a dead core path" do
+      # `routable?/2` fails closed with no router, so no arm can be proven — the
+      # resolver logs and returns its last one rather than asserting a core path
+      # it cannot verify.
+      for s <- [plain_user(), owner()] do
+        result = Routes.safe_destination(nil, scope: s)
+
+        refute result == Routes.path("/dashboard")
+        refute result == Routes.path("/admin")
+        refute Routes.auth_page?(result)
+      end
     end
 
     test "no authenticated input terminates on an auth page" do
@@ -285,11 +317,12 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
         conn_for(EmptyRouter)
       ]
 
-      terminals = [
-        Routes.path("/admin"),
-        Routes.path("/dashboard"),
-        Routes.path("/users/log-in")
-      ]
+      # `EmptyRouter` declares nothing at all, so on it every arm of the
+      # terminal legitimately fails to resolve and the resolver logs and returns
+      # the last one. That host cannot be served by anything; it is kept in the
+      # matrix to prove the resolver does not crash there, and excluded from the
+      # routability assertion below by asking the router, not by naming paths.
+      routerless = fn ctx -> not Routes.routable?(ctx, Routes.path("/users/log-in")) end
 
       for s <- scopes, rt <- return_tos, skip <- [true, false], ctx <- contexts do
         result = Routes.safe_destination(ctx, scope: s, return_to: rt, skip_admin: skip)
@@ -300,8 +333,12 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
         # The locale-prefixed root — the shipped bug — is never synthesized.
         refute result == Routes.path("/"), context
 
-        # A bare `/` only ever comes back from a router that declares it.
-        if result == "/", do: assert(Routes.routable?(ctx, "/"), context)
+        # A bare `/` only ever comes back from a router that declares it — or
+        # from a host where NOTHING core owns resolves, which is the logged
+        # degenerate case the terminal probe surfaces rather than papering over.
+        if result == "/" and not routerless.(ctx) do
+          assert Routes.routable?(ctx, "/"), context
+        end
 
         # An auth page is only ever the ANONYMOUS terminal; sending a signed-in
         # visitor there just bounces them off it again.
@@ -310,8 +347,14 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
           refute Scope.authenticated?(s), context
         end
 
-        assert Routes.routable?(ctx, result) or result in terminals,
-               "unroutable destination #{inspect(result)} for #{context}"
+        # No waiver for terminals. They used to be exempt here, which is exactly
+        # why an unroutable `/dashboard` terminal passed this test while 404ing
+        # in production. The only exemption is a host that declares no routes at
+        # all, and it is decided by asking the router.
+        unless routerless.(ctx) do
+          assert Routes.routable?(ctx, result),
+                 "unroutable destination #{inspect(result)} for #{context}"
+        end
       end
     end
   end

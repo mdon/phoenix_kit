@@ -42,6 +42,17 @@ defmodule PhoenixKit.Utils.SafeDestinationSettingsTest do
   @core PhoenixKitWeb.Router
 
   setup do
+    # A cache MISS still falls through to `PhoenixKit.Settings`, and what happens
+    # next depends on the environment: with no database `test_helper.exs` turns
+    # `:update_mode` on and the read short-circuits to nil, but when a database
+    # IS reachable it becomes a real query from a process that owns no sandbox
+    # connection — an OwnershipError, not a miss. Checking out here makes the
+    # file behave the same either way. Written without a database and green;
+    # the first run against one failed exactly here.
+    if Application.get_env(:phoenix_kit, :test_repo_available, false) do
+      :ok = Ecto.Adapters.SQL.Sandbox.checkout(PhoenixKit.Test.Repo)
+    end
+
     start_supervised!({PhoenixKit.Cache.Registry, []})
     # No warmer: warming would query the database this file exists to avoid.
     start_supervised!({PhoenixKit.Cache, name: :settings})
@@ -93,11 +104,16 @@ defmodule PhoenixKit.Utils.SafeDestinationSettingsTest do
       # On a host that serves its home page this is simply correct...
       assert Routes.safe_destination(conn_for(HostRouter), scope: plain_user()) == "/"
 
-      # ...and on one that does not, the probe rejects it and core's own
-      # landing is used instead. This is the case the invariant is about: the
-      # value is core's default, not an administrator's choice, so it must not
-      # be trusted merely because it is present.
-      assert Routes.safe_destination(conn_for(EmptyRouter), scope: plain_user()) ==
+      # ...and on one that does not, the probe rejects it. This is the case the
+      # invariant is about: the value is core's default, not an administrator's
+      # choice, so it must not be trusted merely because it is present.
+      #
+      # `EmptyRouter` declares nothing at all, so core's own landings do not
+      # resolve there either and the resolver logs and returns its last arm.
+      # This assertion used to demand `/dashboard` back, which pinned the very
+      # defect the terminal probe removed: a router without `/dashboard` was
+      # handed `/dashboard` regardless, and it 404s.
+      refute Routes.safe_destination(conn_for(EmptyRouter), scope: plain_user()) ==
                Routes.path("/dashboard")
     end
 

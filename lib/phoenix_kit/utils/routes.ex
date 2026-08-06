@@ -216,13 +216,20 @@ defmodule PhoenixKit.Utils.Routes do
   and `path("/")`, the locale-prefixed root that started all this, is never
   synthesized here.
 
-  The three terminals are *asserted*, not probed: they are what core declares
-  through `phoenix_kit_routes()`, and probing them would only turn an
-  impossible-by-construction case into a different impossible-by-construction
-  case. The one host setting that can remove one of them —
-  `user_dashboard_enabled: false`, which compiles `/dashboard` out — is exactly
-  why `/dashboard` is *also* a probed candidate above; a host that disables it
-  and declares no `/` has given core nothing to aim at.
+  The terminals are probed too. An earlier version asserted them as
+  "impossible by construction"; that was false — `user_dashboard_enabled: false`
+  compiles `/dashboard` out of the router, so on a host that also declares no
+  `/` the authenticated terminal was a path that 404s.
+
+  When nothing core declares resolves on this host, the last arm is returned
+  *and* the cause is logged as an error. A 404 is unavoidable at that point —
+  core has been given nowhere to aim — but it reaches the operator as a named
+  misconfiguration rather than as a user complaint.
+
+  No arm of the authenticated terminal is an auth page, at any position:
+  `/users/log-in` redirects an authenticated visitor through
+  `post_auth_path/2`, which re-enters this function, so using it there is an
+  infinite redirect rather than a fallback.
   """
   @spec safe_destination(request_context(), keyword()) :: String.t()
   def safe_destination(context, opts \\ []) do
@@ -244,7 +251,7 @@ defmodule PhoenixKit.Utils.Routes do
       |> Stream.map(& &1.())
       |> Enum.find(&routable_candidate?(context, &1))
 
-    found || terminal(authenticated?, admin?)
+    found || terminal(context, authenticated?, admin?)
   end
 
   defp authenticated_candidates(opts, admin?) do
@@ -266,13 +273,59 @@ defmodule PhoenixKit.Utils.Routes do
     [fn -> main_page_path() end, fn -> "/" end]
   end
 
-  # The terminal is chosen by core, never by input, so it is emitted without a
-  # routability probe: all three arms are declared by `phoenix_kit_routes()`, in
-  # every locale. It follows AUTHENTICATION, not just the admin flag: sending a
-  # signed-in visitor to `/users/log-in` would only bounce them back off it.
-  defp terminal(_authenticated?, true), do: path("/admin")
-  defp terminal(true, false), do: path("/dashboard")
-  defp terminal(false, false), do: path("/users/log-in")
+  # The terminal follows AUTHENTICATION, not just the admin flag: sending a
+  # signed-in visitor to `/users/log-in` would bounce them straight back — that
+  # page redirects an authenticated visitor through `post_auth_path/2`, which
+  # re-enters this function, so an auth page as an authenticated terminal is an
+  # infinite redirect, not a fallback.
+  #
+  # It is PROBED, unlike an earlier version of this function which asserted the
+  # three arms were "impossible by construction". They are not: `/dashboard` is
+  # compiled out by `user_dashboard_enabled: false`, so on such a host that also
+  # declares no `/`, an authenticated non-admin was handed a path that 404s —
+  # the exact defect this module exists to remove.
+  defp terminal(context, authenticated?, admin?) do
+    arms =
+      if authenticated? do
+        # No auth page here, at any position: see the loop above.
+        [if(admin?, do: path("/admin")), path("/dashboard"), path("/admin"), "/"]
+      else
+        [path("/users/log-in"), "/"]
+      end
+
+    arms = Enum.reject(arms, &is_nil/1)
+
+    case Enum.find(arms, &routable?(context, &1)) do
+      nil -> no_reachable_destination(authenticated?, arms)
+      arm -> arm
+    end
+  end
+
+  # Nothing core declares is reachable on this host. Returning a path that 404s
+  # is unavoidable at that point, so the value of this branch is that the cause
+  # is named in the log rather than reaching an operator as "some users get a
+  # 404 after logging in".
+  defp no_reachable_destination(authenticated?, arms) do
+    fallback = List.last(arms)
+
+    require Logger
+
+    Logger.error("""
+    PhoenixKit has no reachable redirect destination for \
+    #{if authenticated?, do: "an authenticated", else: "an anonymous"} visitor.
+
+    Tried: #{Enum.join(arms, ", ")} — none resolves in this application's router.
+
+    Usual cause: `config :phoenix_kit, user_dashboard_enabled: false` (which \
+    compiles out /dashboard) on a host that also declares no root route. Enable \
+    the user dashboard, or declare a root route, or set the `main_page_path` \
+    setting to a page this application serves.
+
+    Falling back to #{fallback}, which will not resolve.\
+    """)
+
+    fallback
+  end
 
   defp routable_candidate?(context, candidate) do
     usable_candidate?(candidate) and routable?(context, candidate)
