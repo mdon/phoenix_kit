@@ -204,7 +204,9 @@ defmodule PhoenixKit.Utils.Routes do
     2. `"/"`
 
   Every candidate must be a local path (`local_path?/1`), not an auth page
-  (`auth_page?/1`), **and actually routable** (`routable?/2`).
+  (`auth_page?/1`), **and actually routable** (`routable?/2`). Under
+  `:skip_admin` it must additionally not be an admin-area path
+  (`admin_area_path?/1`) — see the option below.
 
   `"/"` is a candidate like any other, and only like any other. It is the
   host's home page — the one destination in this whole mechanism that core
@@ -231,9 +233,21 @@ defmodule PhoenixKit.Utils.Routes do
       Honoured on the authenticated chain only: an anonymous pending
       destination belongs in the `user_return_to` session key, not in a
       redirect.
-    * `:skip_admin` — suppress step 2. Required wherever the caller is
-      *rejecting* the visitor from the admin area, or the redirect would send
-      them straight back to it.
+    * `:skip_admin` — the caller is *rejecting* this visitor from the admin
+      area. It suppresses step 2 **and drops every remaining candidate that
+      resolves into the admin area** (`admin_area_path?/1`), whichever step
+      produced it — a `:return_to`, or an `after_login_path` an operator
+      pointed at `/admin/users`. Suppressing only step 2 was not enough: on a
+      host with `user_dashboard_enabled: false` the setting was the first
+      candidate left standing, it is routable, and handing it back re-entered
+      the same gate that had just refused the visitor — a candidate always won,
+      the terminal was never reached, and the browser gave up with
+      `ERR_TOO_MANY_REDIRECTS`.
+
+      The terminal is deliberately NOT filtered: it is the `/admin` index,
+      which the gate admits every authenticated visitor to, so arriving there
+      is a render rather than a second bounce. That asymmetry is the whole
+      point — the chain has somewhere to end.
 
   ## The invariant
 
@@ -265,6 +279,17 @@ defmodule PhoenixKit.Utils.Routes do
   and the probe exists to name a misconfigured install in the log instead of
   letting it surface as a mystery 404. See `terminal/2`.
 
+  That invariant is about the TERMINAL, and stating it was not enough to make
+  the chain terminate. A candidate that wins is returned instead of the
+  terminal, so under `:skip_admin` — the rejection path — the candidates are
+  held to the weaker fact the caller actually needs: **no candidate may be an
+  admin-area path.** Otherwise the resolver can answer with the very kind of
+  page the visitor was just refused, the gate refuses it again, and the
+  identical computation runs forever without ever reaching the terminal it was
+  promised. With the filter in place a `skip_admin` resolution is either a
+  non-admin path proven routable in this router, or the `/admin` index — and
+  the index admits everyone, so the next hop renders.
+
   The authenticated terminal is not an auth page: `/users/log-in` redirects an
   authenticated visitor through `post_auth_path/2`, which re-enters this
   function, so using it there is an infinite redirect rather than a fallback.
@@ -273,7 +298,8 @@ defmodule PhoenixKit.Utils.Routes do
   def safe_destination(context, opts \\ []) do
     scope = Keyword.get(opts, :scope)
     authenticated? = Scope.authenticated?(scope)
-    admin? = not Keyword.get(opts, :skip_admin, false) and Scope.can_access_admin_area?(scope)
+    skip_admin? = Keyword.get(opts, :skip_admin, false)
+    admin? = not skip_admin? and Scope.can_access_admin_area?(scope)
 
     candidates =
       if authenticated? do
@@ -287,7 +313,7 @@ defmodule PhoenixKit.Utils.Routes do
       # Lazily: candidates are thunks so the settings read at the tail of the
       # chain never happens for a visitor the earlier steps already placed.
       |> Stream.map(& &1.())
-      |> Enum.find(&routable_candidate?(context, &1))
+      |> Enum.find(&admissible_candidate?(context, &1, skip_admin?))
 
     found || terminal(context, authenticated?)
   end
@@ -332,10 +358,23 @@ defmodule PhoenixKit.Utils.Routes do
   #     version gated every /admin arm on it, and had to: an unconditional
   #     /admin arm looped, because the admin guard bounced a non-admin back
   #     through `safe_destination/2` with `skip_admin: true` and got the same
-  #     arm again. /admin no longer rejects an authenticated visitor, so there
-  #     is nothing left to bounce off and nothing left to loop. (`skip_admin`
-  #     still suppresses the /admin CANDIDATE above — that is a preference
-  #     between two pages the visitor may open, not a permission check.)
+  #     arm again. /admin no longer rejects an authenticated visitor, so THIS
+  #     ARM has nothing left to bounce off and nothing left to loop.
+  #
+  #     That is a statement about the terminal and nothing else — it was once
+  #     written as though it settled the whole function, and it did not. A
+  #     candidate that resolves is returned INSTEAD of the terminal, so an
+  #     admin-area candidate reproduced the very loop this arm had been cleared
+  #     of: the guard bounced the visitor back with `skip_admin: true`, the
+  #     candidate won again, and the terminal was never reached. Candidates
+  #     carry their own rule, in `admissible_candidate?/3`: under `skip_admin`
+  #     none of them may be an admin path. Only then is the terminal the one
+  #     admin path the resolver can produce on that path, and only then does
+  #     "nothing left to loop" describe the function rather than this line.
+  #
+  #     (`skip_admin` also suppresses the /admin CANDIDATE above — that one is a
+  #     preference between two pages the visitor may open, not a permission
+  #     check.)
   #
   #   * `/users/log-in` — licensed by a DIFFERENT fact: the public auth surface
   #     (`generate_public_live_routes/1` in `PhoenixKitWeb.Integration`)
@@ -384,6 +423,76 @@ defmodule PhoenixKit.Utils.Routes do
     end
 
     :ok
+  end
+
+  # A candidate has to be usable and routable — and, on the rejection path,
+  # admissible for a visitor who was just refused the admin area.
+  #
+  # Routability is necessary but NOT sufficient there. `/admin/users` resolves
+  # perfectly well; the visitor simply may not open it, and `:phoenix_kit_ensure_admin`
+  # answers that by calling straight back into this function with the same
+  # arguments. Probing only `routable?/2` is what let an `after_login_path`
+  # inside the admin area loop forever on a host with no `/dashboard` route.
+  #
+  # This is a PATH test rather than a permission one, deliberately. Asking
+  # `PhoenixKitWeb.Users.Auth.can_access_admin_view?/2` would answer the finer
+  # question — "may THIS scope open THAT page" — at three costs this module
+  # cannot pay: a call from `PhoenixKit.*` into `PhoenixKitWeb.*`, which is the
+  # wrong direction (`PhoenixKitWeb.Users.Auth` already depends on this module,
+  # so the two would be mutually recursive); a path→LiveView resolution that
+  # only works when a router is readable, while `safe_destination/2` is
+  # documented to work with `context: nil`; and a verdict that varies with
+  # permissions, module enablement and settings, so termination would rest on
+  # a computation rather than on the shape of the value. The categorical
+  # version needs none of that: under `skip_admin` no candidate is ever an
+  # admin path, so the only admin path the resolver can return is the terminal,
+  # which admits everyone. Termination by construction.
+  defp admissible_candidate?(context, candidate, true) do
+    not admin_area_path?(candidate) and routable_candidate?(context, candidate)
+  end
+
+  defp admissible_candidate?(context, candidate, false) do
+    routable_candidate?(context, candidate)
+  end
+
+  # Whether a REAL URL lands in the admin area. Not `admin_path?/1`, which asks
+  # the same thing of the argument to `path/1` — an unprefixed, unlocalized
+  # `"/admin/..."`. Candidates are the other shape: the value an operator typed
+  # into a setting or a `?return_to=` carried, already wearing the host's mount
+  # prefix and, on a multilingual site, a locale segment
+  # (`/phoenix_kit/et/admin/users`). So it is un-built the way `path/1` builds
+  # it — drop the configured `url_prefix`, allow one leading segment for the
+  # locale — and the remainder is compared by SEGMENT, so `/administrators`
+  # is not mistaken for the admin area.
+  #
+  # Over-strict in one direction on purpose, exactly as `auth_page?/1` is: a
+  # host page of its own at `/shop/admin` is refused as a rejection-path
+  # destination, because "one operator loses a redirect target they configured
+  # while being refused an admin page" is a better failure than an unbounded
+  # redirect loop.
+  defp admin_area_path?(candidate) when is_binary(candidate) do
+    segments =
+      candidate
+      |> path_only()
+      |> strip_url_prefix()
+      |> String.split("/", trim: true)
+
+    match?(["admin" | _], segments) or match?([_locale, "admin" | _], segments)
+  end
+
+  defp admin_area_path?(_candidate), do: false
+
+  # Mirrors the `base_path` computation in `path/1`: a `url_prefix` of `"/"`
+  # contributes no segment at all, anything else is a literal leading segment.
+  defp strip_url_prefix(path) do
+    prefix = Config.get_url_prefix()
+
+    cond do
+      prefix == "/" -> path
+      path == prefix -> "/"
+      String.starts_with?(path, prefix <> "/") -> String.replace_prefix(path, prefix, "")
+      true -> path
+    end
   end
 
   defp routable_candidate?(context, candidate) do

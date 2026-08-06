@@ -17,6 +17,8 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
   # captured rather than printed over the run.
   @moduletag :capture_log
 
+  alias Ecto.Adapters.SQL.Sandbox
+
   # The chain reads settings (`main_page_path`, `after_login_path`). With no
   # database that short-circuits to nil and this file needs nothing; with one
   # reachable it becomes a real query from a process owning no sandbox
@@ -28,7 +30,7 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
   # on a checkout that could never succeed.
   setup do
     if Application.get_env(:phoenix_kit, :test_repo_available, false) do
-      :ok = Ecto.Adapters.SQL.Sandbox.checkout(PhoenixKit.Test.Repo)
+      :ok = Sandbox.checkout(PhoenixKit.Test.Repo)
     end
 
     :ok
@@ -187,6 +189,30 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
 
       assert result == Routes.path("/dashboard")
       refute result =~ "/admin"
+    end
+
+    test "skip_admin refuses a return_to that points back into the admin area" do
+      # Routable, and refused all the same. `skip_admin` says the caller has
+      # just rejected this visitor from the admin area, so no CANDIDATE may put
+      # them back into it — routability is necessary but not sufficient there,
+      # because a gated admin page resolves perfectly well and then denies them,
+      # re-entering this function with the same arguments.
+      target = Routes.path("/admin/users")
+      assert Routes.routable?(conn_for(@core), target)
+
+      result =
+        Routes.safe_destination(conn_for(@core),
+          scope: owner(),
+          return_to: target,
+          skip_admin: true
+        )
+
+      refute result == target
+      assert result == Routes.path("/dashboard")
+
+      # Nothing changed off the rejection path: an explicit destination still
+      # wins for a visitor nobody has refused.
+      assert Routes.safe_destination(conn_for(@core), scope: owner(), return_to: target) == target
     end
 
     test "skip_admin is a no-op for a non-admin" do

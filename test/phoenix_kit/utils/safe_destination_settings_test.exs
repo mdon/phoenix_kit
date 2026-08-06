@@ -25,6 +25,7 @@ defmodule PhoenixKit.Utils.SafeDestinationSettingsTest do
   # rather than printed over the run.
   @moduletag :capture_log
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
 
@@ -44,6 +45,32 @@ defmodule PhoenixKit.Utils.SafeDestinationSettingsTest do
     use Phoenix.Router
   end
 
+  # A host that compiled the user dashboard out — `config :phoenix_kit,
+  # user_dashboard_enabled: false`, documented at `integration.ex:76` — while
+  # still mounting the core admin area. Declares BOTH URL shapes core emits for
+  # each admin page (prefixless-primary and locale-prefixed) and nothing else:
+  # no `/dashboard`, no `/`. That is what leaves `after_login_path` as the first
+  # candidate still standing on the rejection path.
+  defmodule NoDashboardRouter do
+    use Phoenix.Router
+
+    get "/phoenix_kit/admin",
+        PhoenixKit.Utils.SafeDestinationSettingsTest.FakeController,
+        :admin
+
+    get "/phoenix_kit/:locale/admin",
+        PhoenixKit.Utils.SafeDestinationSettingsTest.FakeController,
+        :admin_locale
+
+    get "/phoenix_kit/admin/users",
+        PhoenixKit.Utils.SafeDestinationSettingsTest.FakeController,
+        :admin_users
+
+    get "/phoenix_kit/:locale/admin/users",
+        PhoenixKit.Utils.SafeDestinationSettingsTest.FakeController,
+        :admin_users_locale
+  end
+
   @core PhoenixKitWeb.Router
 
   setup do
@@ -55,7 +82,7 @@ defmodule PhoenixKit.Utils.SafeDestinationSettingsTest do
     # file behave the same either way. Written without a database and green;
     # the first run against one failed exactly here.
     if Application.get_env(:phoenix_kit, :test_repo_available, false) do
-      :ok = Ecto.Adapters.SQL.Sandbox.checkout(PhoenixKit.Test.Repo)
+      :ok = Sandbox.checkout(PhoenixKit.Test.Repo)
     end
 
     start_supervised!({PhoenixKit.Cache.Registry, []})
@@ -137,6 +164,88 @@ defmodule PhoenixKit.Utils.SafeDestinationSettingsTest do
     end
   end
 
+  describe "after_login_path pointing INTO the admin area" do
+    # The loop a live-app review found, with its real inputs: `/dashboard`
+    # compiled out, "After login path" set to /admin/users, and an authenticated
+    # visitor holding zero permissions who requests a gated admin page.
+    #
+    # `:phoenix_kit_ensure_admin` denies them, `deny_admin_area/2` resolves with
+    # `skip_admin: true`, and `skip_admin` used to suppress only the `/admin`
+    # CANDIDATE. `/dashboard` did not resolve, so the setting was next — and it
+    # IS routable, so it won, and the visitor was handed back the same kind of
+    # page they had just been refused. The gate then ran the identical
+    # computation: ERR_TOO_MANY_REDIRECTS, with the terminal never reached
+    # because a candidate always won.
+    setup do
+      put_setting("after_login_path", Routes.path("/admin/users"))
+      %{ctx: conn_for(NoDashboardRouter), target: Routes.path("/admin/users")}
+    end
+
+    test "the preconditions really are the reviewer's scenario", %{ctx: ctx, target: target} do
+      # Without these the test would pass for the wrong reason — an unroutable
+      # setting is skipped by the routability probe alone.
+      refute Routes.routable?(ctx, Routes.path("/dashboard"))
+      refute Routes.routable?(ctx, "/")
+      assert Routes.routable?(ctx, target)
+      refute Scope.can_access_admin_area?(plain_user())
+    end
+
+    test "is not handed back to a visitor just refused the admin area", %{
+      ctx: ctx,
+      target: target
+    } do
+      result = Routes.safe_destination(ctx, scope: plain_user(), skip_admin: true)
+
+      refute result == target
+
+      # The terminal — the /admin INDEX, which the gate admits every
+      # authenticated visitor to. `skip_admin` filters CANDIDATES, never the
+      # terminal; a chain with no admin path at either end would have nowhere
+      # left to go.
+      assert result == Routes.path("/admin")
+    end
+
+    test "the bounce settles instead of looping", %{ctx: ctx} do
+      scope = plain_user()
+      first = Routes.safe_destination(ctx, scope: scope, skip_admin: true)
+
+      assert follow(ctx, scope, first) == {:rendered, Routes.path("/admin")}
+
+      # A fixed point, not a slow walk: re-resolving yields the same terminal.
+      assert Routes.safe_destination(ctx, scope: scope, skip_admin: true) == first
+    end
+
+    test "still wins where the caller is NOT rejecting anyone", %{ctx: ctx, target: target} do
+      # No `skip_admin`, so nobody has been refused anything and an operator's
+      # explicit choice is honoured exactly as before — the fix touches the
+      # rejection path only. If this visitor cannot open the page the gate
+      # bounces them ONCE, into the case above, which now terminates.
+      assert Routes.safe_destination(ctx, scope: plain_user()) == target
+    end
+  end
+
+  # `:phoenix_kit_ensure_admin` reduced to the two facts this models: the /admin
+  # INDEX admits every authenticated visitor (`landing_view?/1` is consulted
+  # before the admin-area gate), while any deeper admin page denies a scope
+  # holding no permission — and that denial re-enters the resolver with exactly
+  # these arguments (`deny_admin_area/2`). A non-admin destination is not this
+  # hook's business and simply renders.
+  #
+  # Bounded, because "does not terminate" is the defect: exhausting the fuel is
+  # the failure, reported as `{:looping, path}` so the assertion names the page
+  # the visitor was stuck on.
+  defp follow(ctx, scope, destination, fuel \\ 4)
+
+  defp follow(_ctx, _scope, destination, 0), do: {:looping, destination}
+
+  defp follow(ctx, scope, destination, fuel) do
+    if destination != Routes.path("/admin") and String.contains?(destination, "/admin") do
+      follow(ctx, scope, Routes.safe_destination(ctx, scope: scope, skip_admin: true), fuel - 1)
+    else
+      {:rendered, destination}
+    end
+  end
+
   describe "post_auth_path/2 — the return leg" do
     test "without a context: the setting, else the landing core guarantees" do
       # This used to assert `"/"` — the host's home page, which core does not
@@ -194,7 +303,7 @@ defmodule PhoenixKit.Utils.SafeDestinationSettingsTest do
                "/welcome"
     end
 
-    test "with a context, a host that really serves \"/\" still gets \"/\"" do
+    test ~s|with a context, a host that really serves "/" still gets "/"| do
       assert Routes.post_auth_path([], context: conn_for(HostRouter), scope: plain_user()) == "/"
     end
   end
