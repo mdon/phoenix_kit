@@ -2676,8 +2676,19 @@ defmodule PhoenixKit.Users.Auth do
   def delete_user(%User{} = user, opts \\ %{}) do
     current_user = Map.get(opts, :current_user)
 
-    with :ok <- validate_can_delete_user(user, current_user),
-         {:ok, result} <- execute_user_deletion(user, opts) do
+    with :ok <- validate_can_delete_user(user, current_user) do
+      # Module lifecycle hooks run BEFORE the row delete, while the
+      # user's related rows (memberships, assignments) still exist —
+      # remediation the DB cascades can't do (ownership succession,
+      # orphan audit trails). Best-effort: a raising hook never aborts.
+      run_before_user_delete_hooks(user.uuid)
+
+      do_delete_user(user, opts, current_user)
+    end
+  end
+
+  defp do_delete_user(user, opts, current_user) do
+    with {:ok, result} <- execute_user_deletion(user, opts) do
       PhoenixKit.Activity.log(%{
         action: "user.deleted",
         module: "users",
@@ -2690,9 +2701,36 @@ defmodule PhoenixKit.Users.Auth do
       })
 
       {:ok, result}
-    else
-      {:error, reason} -> {:error, reason}
     end
+  end
+
+  @doc """
+  Runs every discovered module's optional `before_user_delete/1` hook.
+  Public with an injectable module list so the dispatch is testable;
+  production callers use the discovered default.
+  """
+  def run_before_user_delete_hooks(user_uuid, modules \\ nil) do
+    (modules || PhoenixKit.ModuleRegistry.all_modules())
+    |> Enum.each(fn module ->
+      if Code.ensure_loaded?(module) and function_exported?(module, :before_user_delete, 1) do
+        try do
+          module.before_user_delete(user_uuid)
+        rescue
+          e ->
+            require Logger
+
+            Logger.error(
+              "before_user_delete hook #{inspect(module)} failed: #{Exception.message(e)}"
+            )
+        catch
+          :exit, reason ->
+            require Logger
+            Logger.error("before_user_delete hook #{inspect(module)} exited: #{inspect(reason)}")
+        end
+      end
+    end)
+
+    :ok
   end
 
   @doc """
