@@ -2734,9 +2734,7 @@ defmodule PhoenixKit.Users.Auth do
           kind, reason ->
             require Logger
 
-            Logger.error(
-              "before_user_delete hook #{inspect(module)} #{kind}: #{inspect(reason)}"
-            )
+            Logger.error("before_user_delete hook #{inspect(module)} #{kind}: #{inspect(reason)}")
         end
       end
     end)
