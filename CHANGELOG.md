@@ -1,3 +1,24 @@
+## 1.7.233 - 2026-08-06
+
+### Fixed
+- **Host apps that register their own module no longer fail to compile** (#684).
+  1.7.232 began emitting a compile-time `mod.__info__(:module)` reference for
+  every discovered or configured route module, so that Mix rebuilds a host
+  router when one of them changes. The reference was emitted unconditionally,
+  and `phoenix_kit_routes()` also expands inside phoenix_kit's own router —
+  which is built as a dependency, before any parent-app module exists. A host
+  that registers its OWN app module in `config :phoenix_kit, :modules` (or
+  `:route_modules`) therefore stopped building at all, with
+  `function TheHost.__info__/1 is undefined ... could not compile dependency
+  :phoenix_kit`. Registering the host module that way is documented practice,
+  not misuse: beam discovery cannot see the host app while the host is still
+  compiling, so `admin_tabs/0` on the host module is invisible without it. The
+  list is now filtered through `Code.ensure_compiled/1`. Where the module is
+  genuinely reachable — inside the host's own router — `ensure_compiled/1`
+  blocks on the parallel compiler and returns `{:module, _}`, so the reference
+  is still emitted and the recompile tracking added in 1.7.232 is unchanged;
+  only the case that cannot be referenced yet is skipped.
+
 ## 1.7.232 - 2026-08-05
 
 ### Added
