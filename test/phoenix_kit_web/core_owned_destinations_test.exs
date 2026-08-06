@@ -6,16 +6,19 @@ defmodule PhoenixKitWeb.CoreOwnedDestinationsTest do
   Three halves, all database-free:
 
     * the router-level facts the resolver's safety argument rests on — core does
-      NOT route `/` or its locale-prefixed twin, and DOES route the three
-      landings the chain can terminate at, in every locale shape;
+      NOT route `/` or its locale-prefixed twin, and DOES route the two landings
+      the chain can terminate at (plus `/dashboard`, still a candidate), in
+      every locale shape;
     * behavioral tests that directly invoke the mount functions of the three
       LiveViews that gate post-auth flow and assert the computed destination
-      resolves in a core-only router — the check the static scan cannot perform
+      resolves in a core-only router — the check a static scan cannot perform
       because the destination is stored in a variable before being passed to
       `redirect(to: destination)`;
-    * a source-level scan proving no destination site anywhere in `lib/` still
-      hardcodes a path with a literal `to: "/"` pattern. Kept as a cheap
-      supplementary guard; the behavioral tests above are the primary invariant.
+    * behavioral tests on the resolver itself, asserting that every chain
+      terminates on a path this router declares. These replaced a pair of
+      whole-file regexes over `lib/**/*.ex` that hunted for a literal `to: "/"`:
+      a regex can only prove a negative about source text, and it was blind to
+      exactly the computed-destination shape above.
 
   `PhoenixKitWeb.Router` is a real compiled router that calls
   `phoenix_kit_routes()` (documented as "used only for development and
@@ -24,6 +27,11 @@ defmodule PhoenixKitWeb.CoreOwnedDestinationsTest do
   """
   use ExUnit.Case, async: true
 
+  # `EmptyRouter` below cannot match core's own landing, which is the one case
+  # the resolver logs as a misconfiguration. Deliberate here.
+  @moduletag :capture_log
+
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User, as: AuthUser
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Users.Confirmation
@@ -32,8 +40,25 @@ defmodule PhoenixKitWeb.CoreOwnedDestinationsTest do
 
   @router PhoenixKitWeb.Router
 
+  # A host that mounted nothing at all: every candidate AND the terminal fail
+  # `routable?/2`, so the resolver has only its own guarantee left to stand on.
+  defmodule EmptyRouter do
+    use Phoenix.Router
+  end
+
   defp resolves?(path) do
     Phoenix.Router.route_info(@router, "GET", path, "localhost") != :error
+  end
+
+  defp conn_for(router), do: %Plug.Conn{private: %{phoenix_router: router}, host: "localhost"}
+
+  defp scope(roles, permissions \\ []) do
+    %Scope{
+      user: nil,
+      authenticated?: true,
+      cached_roles: roles,
+      cached_permissions: MapSet.new(permissions)
+    }
   end
 
   describe "what core does and does not route" do
@@ -48,7 +73,11 @@ defmodule PhoenixKitWeb.CoreOwnedDestinationsTest do
       refute resolves?(Routes.path("/"))
     end
 
-    test "every path the resolver can terminate at resolves, in every locale shape" do
+    test "every path the resolver can reach resolves, in every locale shape" do
+      # `/admin` and `/users/log-in` are the two the chain can TERMINATE at, and
+      # core declares both unconditionally. `/dashboard` is here as a candidate
+      # only — the host can still compile it out — so this asserts core's own
+      # router, which does declare it.
       for landing <- ["/admin", "/dashboard", "/users/log-in"],
           locale <- [nil, :none, "en", "de", "ru", "en-GB"] do
         path = Routes.path(landing, locale: locale)
@@ -60,14 +89,16 @@ defmodule PhoenixKitWeb.CoreOwnedDestinationsTest do
   end
 
   describe "LiveViews that gate post-auth flow assign routable destinations" do
-    # The static scan below proves no *literal* `to: "/"` or
-    # `to: Routes.path("/")` exists. These behavioral tests close the gap the
-    # scan cannot see: a destination computed into a variable and then passed
-    # to `redirect(to: destination)`.
+    # The destination each of these mounts computes goes into a variable before
+    # reaching `redirect(to: destination)`, so no source-level check can see it.
+    # These call the mounts and assert on the value.
     #
-    # All three LiveViews call `Routes.post_auth_path/2` in `mount/3`. Without
-    # `:context` that call silently returns `"/"` on any host that does not
-    # declare a root route — exactly the configuration this branch handles.
+    # All three LiveViews call `Routes.post_auth_path/2` in `mount/3`. That call
+    # used to synthesize `"/"` whenever no `:context` was threaded, which 404s
+    # on any host that declares no root route — the configuration this branch
+    # exists to handle. All three thread a context now, and the context-less
+    # tail is a core-owned landing rather than `"/"`, so the failure is closed
+    # from both ends.
     #
     # Each mount is called directly with a socket whose router is
     # `PhoenixKitWeb.Router` (which does not declare `"/"`). No database is
@@ -128,36 +159,66 @@ defmodule PhoenixKitWeb.CoreOwnedDestinationsTest do
     end
   end
 
-  describe "no destination site hardcodes an unowned path" do
-    # Supplementary cheap guard: catches *literal* `to: "/"` patterns before
-    # they are committed. The behavioral tests above are the primary invariant —
-    # they catch the variable-destination pattern this scan cannot see.
-    @hardcoded_root ~r/to:\s*"\/"/
-    @locale_root ~r/to:\s*Routes\.path\("\/"\)/
+  describe "the resolver terminates on a path core declares" do
+    # This replaced two whole-file regexes over `lib/**/*.ex` (`to: "/"` and
+    # `to: Routes.path("/")`). They proved a negative about source text and
+    # could not see the shape that actually mattered — a destination computed
+    # into a variable. What core promises is a property of the value the
+    # resolver returns, so that is what is asserted, against the router that is
+    # the oracle for "does core own this path".
 
-    test "lib/ contains no `to: \"/\"` and no `to: Routes.path(\"/\")`" do
-      offenders =
-        Path.wildcard("lib/**/*.ex")
-        |> Enum.flat_map(fn file ->
-          source = File.read!(file)
+    test "an authenticated visitor with nothing else to go on lands on /admin" do
+      # Two contexts where every candidate fails: a router that declares
+      # nothing, and no router at all (`routable?/2` fails closed). Both leave
+      # the terminal as the only thing standing, and the terminal is asserted
+      # rather than probed because core declares `/admin` unconditionally and
+      # admits every authenticated visitor to it.
+      for scope <- [scope(["User"]), scope(["Admin"]), scope(["Owner"])],
+          ctx <- [nil, conn_for(EmptyRouter)],
+          skip <- [true, false] do
+        result = Routes.safe_destination(ctx, scope: scope, skip_admin: skip)
 
-          cond do
-            Regex.match?(@locale_root, source) -> [{file, "to: Routes.path(\"/\")"}]
-            Regex.match?(@hardcoded_root, source) -> [{file, "to: \"/\""}]
-            true -> []
-          end
-        end)
+        assert result == Routes.path("/admin"),
+               "terminated on #{inspect(result)} for #{inspect(scope.cached_roles)} (skip=#{skip})"
 
-      assert offenders == [],
-             """
-             These files still send a visitor to a path core does not own:
+        assert resolves?(result),
+               "the terminal core guarantees does not resolve in core's own router: #{result}"
+      end
+    end
 
-               #{Enum.map_join(offenders, "\n  ", fn {f, pat} -> "#{f} — #{pat}" end)}
+    test "an anonymous visitor with nothing else to go on lands on /users/log-in" do
+      # Licensed by a separate fact from the /admin decision: the public auth
+      # surface declares this route unconditionally.
+      for ctx <- [nil, conn_for(EmptyRouter)] do
+        result = Routes.safe_destination(ctx, scope: nil)
 
-             `Routes.path("/")` emits a locale-prefixed root (`/en`) and a bare
-             `"/"` is the host's home page; core declares neither. Resolve the
-             destination with `Routes.safe_destination/2` instead.
-             """
+        assert result == Routes.path("/users/log-in")
+        assert resolves?(result)
+      end
+    end
+
+    test "post_auth_path with no context returns a path core declares" do
+      # The structural close for callers that have no conn/socket to thread.
+      # This returned a bare `"/"` — the host's home page, which core cannot
+      # declare and many hosts never route — until `/admin` became guaranteed.
+      result = Routes.post_auth_path([])
+
+      assert result == Routes.path("/admin")
+      assert resolves?(result)
+      refute Routes.auth_page?(result)
+    end
+
+    test "on core's own router every destination the resolver returns resolves" do
+      scopes = [nil, Scope.for_user(nil), scope(["User"]), scope(["Admin"]), scope(["Owner"])]
+      return_tos = [nil, "/", "/no/such/page", "https://evil.example", "/users/log-out"]
+
+      for s <- scopes, rt <- return_tos, skip <- [true, false] do
+        result =
+          Routes.safe_destination(conn_for(@router), scope: s, return_to: rt, skip_admin: skip)
+
+        assert resolves?(result),
+               "unroutable destination #{inspect(result)} (scope=#{inspect(s && s.cached_roles)} return_to=#{inspect(rt)} skip=#{skip})"
+      end
     end
   end
 end

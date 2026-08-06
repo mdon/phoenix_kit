@@ -20,6 +20,11 @@ defmodule PhoenixKit.Utils.SafeDestinationSettingsTest do
   """
   use ExUnit.Case, async: false
 
+  # `EmptyRouter` cannot match core's own landing, which is the one case the
+  # resolver logs as a misconfiguration. Expected here, so it is captured
+  # rather than printed over the run.
+  @moduletag :capture_log
+
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
 
@@ -108,13 +113,16 @@ defmodule PhoenixKit.Utils.SafeDestinationSettingsTest do
       # invariant is about: the value is core's default, not an administrator's
       # choice, so it must not be trusted merely because it is present.
       #
-      # `EmptyRouter` declares nothing at all, so core's own landings do not
-      # resolve there either and the resolver logs and returns its last arm.
-      # This assertion used to demand `/dashboard` back, which pinned the very
-      # defect the terminal probe removed: a router without `/dashboard` was
-      # handed `/dashboard` regardless, and it 404s.
-      refute Routes.safe_destination(conn_for(EmptyRouter), scope: plain_user()) ==
-               Routes.path("/dashboard")
+      # `EmptyRouter` declares nothing at all, so every candidate — the setting
+      # included — is skipped and the chain reaches its terminal.
+      #
+      # That terminal is `/admin`, the landing core declares unconditionally and
+      # admits every authenticated visitor to. It is not `/dashboard`, which the
+      # host can still compile out with `user_dashboard_enabled: false`; an
+      # earlier version of this assertion demanded exactly that and pinned the
+      # 404 it caused.
+      assert Routes.safe_destination(conn_for(EmptyRouter), scope: plain_user()) ==
+               Routes.path("/admin")
     end
 
     test "is ranked below the role landing, not above it" do
@@ -130,8 +138,16 @@ defmodule PhoenixKit.Utils.SafeDestinationSettingsTest do
   end
 
   describe "post_auth_path/2 — the return leg" do
-    test "without a context it is unchanged: the setting, else \"/\"" do
-      assert Routes.post_auth_path() == "/"
+    test "without a context: the setting, else the landing core guarantees" do
+      # This used to assert `"/"` — the host's home page, which core does not
+      # declare and many hosts never route. With no context there is nothing to
+      # probe, so the tail is now `/admin` outright: scope-blind on purpose,
+      # since core declares it unconditionally and admits every authenticated
+      # visitor. (Resolving it through `safe_destination(nil, …)` instead would
+      # run the anonymous chain and return the log-in page, which bounces an
+      # authenticated visitor straight back through here.)
+      assert Routes.post_auth_path() == Routes.path("/admin")
+      refute Routes.auth_page?(Routes.post_auth_path())
 
       put_setting("after_login_path", "/shop")
       assert Routes.post_auth_path() == "/shop"

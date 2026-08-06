@@ -162,8 +162,11 @@ settings live on the admin Users settings page (`/admin/settings/users`).
   use `Auth.remember_me_params/0`. **Never hardcode `%{"remember_me" => "true"}`**.
 - **Post-auth destination:** one resolver, `Routes.post_auth_path/1`. Precedence:
   explicit `return_to` (param or gate-stashed session key) > `after_registration_path`
-  > `after_login_path` > `"/"`. `log_in_user/3` honors a `"return_to"` param too.
-  Both settings validate as local paths on save and are re-guarded on read.
+  > `after_login_path` > `/admin`. `log_in_user/3` honors a `"return_to"` param too.
+  Both settings validate as local paths on save and are re-guarded on read. The
+  tail is `/admin`, not `"/"`: core declares that route unconditionally and admits
+  every authenticated visitor to it, while `"/"` belongs to the host and 404s
+  wherever no root route was declared.
 - ⚠️ **`Routes.local_path?/1` is the only redirect guard** — it rejects `//`,
   `/\`, and **ASCII control characters** (browsers strip tab/CR/LF, so
   `"/\t/evil.com"` lands as `//evil.com`; `Phoenix.Controller.redirect/2` blocks

@@ -53,6 +53,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.PhoenixVersion
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Users.Auth
 
   @doc """
   Renders content with the appropriate layout based on configuration and Phoenix version.
@@ -310,6 +311,28 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       current_locale_base:
         assigns[:current_locale] && DialectMapper.extract_base(assigns[:current_locale]),
       scope: assigns[:phoenix_kit_current_scope],
+      # Whether this visitor gets a navigation sidebar at all.
+      #
+      # `Scope.can_access_admin_area?/1` is the gate `:phoenix_kit_ensure_admin`
+      # applies before anything else, so failing it means every `/admin`
+      # destination redirects — the sidebar would render an empty 16rem column
+      # and a burger button opening an empty drawer. `/admin` itself is the
+      # guaranteed landing for EVERY authenticated user, so that case is now
+      # reachable: a visitor with no permissions gets the welcome page, the
+      # header (theme, language, their own account menu, sign-out) and no
+      # navigation. `AdminSidebar` applies the same gate to its own entries —
+      # this one collapses the chrome around them.
+      show_admin_nav: Scope.can_access_admin_area?(assigns[:phoenix_kit_current_scope]),
+      # The bell's "View all" footer points at `/admin/notifications`. Reading
+      # your own inbox is personal, not administrative — that is exactly what
+      # `@personal_admin_views` says — but the page still lives under `/admin`,
+      # so the admin-area gate bounces a visitor holding no permission. Ask the
+      # destination's own gate rather than re-deriving one.
+      can_open_inbox:
+        Auth.can_access_admin_view?(
+          assigns[:phoenix_kit_current_scope],
+          PhoenixKitWeb.Live.Notifications.Inbox
+        ),
       phoenix_kit_session_accounts:
         (assigns[:phoenix_kit_current_scope] &&
            assigns[:phoenix_kit_current_scope].multi_session_accounts) || [],
@@ -382,6 +405,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                 <div class="flex items-center gap-3 min-w-0">
                   <%!-- Burger Menu Button (Far left) --%>
                   <label
+                    :if={@show_admin_nav}
                     for="admin-mobile-menu"
                     class="btn btn-square btn-primary drawer-button p-0 lg:hidden"
                   >
@@ -404,11 +428,29 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     <%!-- On mobile, when a page has a title, hide the "Admin
                          Panel /" prefix and show just the page title — the full
                          breadcrumb is too wide and overlaps the right-side theme
-                         / notifications controls. --%>
-                    <span class={[
-                      "font-bold text-base-content shrink-0",
-                      @page_title && "hidden sm:inline"
-                    ]}>
+                         / notifications controls.
+
+                         Dropped entirely for a visitor with no admin rights.
+                         `/admin` is the landing EVERY authenticated user can
+                         reach, so this shell now renders for people who are not
+                         operators — and telling someone with no sidebar, no
+                         subtitle and no operator content that they are in the
+                         "Admin Panel" is the one claim on the page that would
+                         be false. What remains is the ordinary breadcrumb the
+                         markup already builds: project title / page title.
+                         Omission rather than a replacement label, because a new
+                         msgid would ship untranslated in every shipped locale
+                         while this reuses strings that are already there.
+                         `show_admin_nav` is the same gate the sidebar and the
+                         burger button use, so an operator's header is
+                         byte-identical to before. --%>
+                    <span
+                      :if={@show_admin_nav}
+                      class={[
+                        "font-bold text-base-content shrink-0",
+                        @page_title && "hidden sm:inline"
+                      ]}
+                    >
                       {gettext("Admin Panel")}
                     </span>
                     <%!-- Current page breadcrumb: " / Page Title · subtitle".
@@ -482,7 +524,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       sticky: true,
                       session: %{
                         "user_uuid" => bell_user.uuid,
-                        "locale" => assigns[:current_locale_base]
+                        "locale" => assigns[:current_locale_base],
+                        "can_open_inbox" => @can_open_inbox
                       }
                     )}
                   <% end %>
@@ -497,7 +540,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               </div>
             </header>
 
-            <div id="admin-drawer" class="drawer lg:drawer-open">
+            <%!-- Without `lg:drawer-open` AND without a `.drawer-side` child,
+                  daisyUI's `grid-auto-columns: max-content auto` leaves column
+                  one empty, so `.drawer-content` (grid-column-start: 2) spans
+                  the full width. --%>
+            <div id="admin-drawer" class={["drawer", @show_admin_nav && "lg:drawer-open"]}>
               <input id="admin-mobile-menu" type="checkbox" class="drawer-toggle" />
 
               <%!-- Main content --%>
@@ -522,6 +569,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                    side lives in phoenix_kit.js as document-level
                    listeners so no per-element cleanup is needed. --%>
               <div
+                :if={@show_admin_nav}
                 id="pk-admin-sidebar"
                 phx-hook="AdminSidebarScroll"
                 class="drawer-side lg:[scrollbar-gutter:stable]"

@@ -12,6 +12,11 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
   """
   use ExUnit.Case, async: true
 
+  # `EmptyRouter` deliberately cannot match core's own landing, which is the one
+  # case the resolver logs as a misconfiguration. Expected here, so it is
+  # captured rather than printed over the run.
+  @moduletag :capture_log
+
   # The chain reads settings (`main_page_path`, `after_login_path`). With no
   # database that short-circuits to nil and this file needs nothing; with one
   # reachable it becomes a real query from a process owning no sandbox
@@ -56,9 +61,11 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
 
   # Routes /admin (both plain and locale-prefixed) but NOT /dashboard.
   # Stands in for a host with `user_dashboard_enabled: false` that still mounts
-  # the core admin area. The buggy unconditional third terminal arm caused a
-  # non-admin to be sent straight back to /admin, which the auth guard then
-  # bounced with `skip_admin: true` — an infinite redirect loop.
+  # the core admin area — the shape that decides where a non-admin goes when
+  # their own page has been compiled out. It used to be steered away from
+  # /admin (the page rejected them, so the guard bounced them into a loop);
+  # `:phoenix_kit_ensure_admin` now exempts the admin index from its permission
+  # checks (`PhoenixKitWeb.Users.Auth.landing_view?/1`) and greets them instead.
   #
   # The paths cover both URL shapes core emits: prefixless-primary (/phoenix_kit/admin)
   # and locale-prefixed (/phoenix_kit/:locale/admin).
@@ -195,64 +202,77 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
       assert Routes.safe_destination(conn_for(HostRouter), scope: plain_user()) == "/"
     end
 
-    test "a plain user is never sent to /admin even when /admin resolves and /dashboard does not" do
+    test "a plain user IS sent to /admin when /dashboard is compiled out" do
       # AdminOnlyRouter routes /admin (both URL shapes) but NOT /dashboard.
-      # Before the fix the terminal's third arm was unconditional: the non-admin
-      # was sent to /admin, the auth guard bounced them with skip_admin: true,
-      # and safe_destination ran again — an infinite redirect loop.
-      result = Routes.safe_destination(conn_for(AdminOnlyRouter), scope: plain_user())
-
-      refute String.ends_with?(result, "/admin"),
-             "non-admin sent to admin area: #{result}"
-
-      # With skip_admin an admin is also in the non-admin branch; same guarantee.
-      result_skip =
-        Routes.safe_destination(conn_for(AdminOnlyRouter), scope: owner(), skip_admin: true)
-
-      refute String.ends_with?(result_skip, "/admin"),
-             "admin with skip_admin sent to admin area: #{result_skip}"
-    end
-
-    test "falls back to the core-owned terminal when nothing else resolves" do
-      # EmptyRouter has no routes at all — not even `/` — so every candidate is
-      # skipped.
       #
-      # `EmptyRouter` never called `phoenix_kit_routes()`, so core's own landings
-      # do not resolve there either. The terminal is PROBED, so it does not hand
-      # back a path this router cannot serve — it exhausts every arm, logs the
-      # misconfiguration, and returns the last one.
-      #
-      # This used to assert `/admin` came back, which pinned the defect the
-      # probe removed: a router without that route was handed it regardless.
-      refute Routes.safe_destination(conn_for(EmptyRouter), scope: owner()) ==
+      # This asserted the opposite until /admin became the guaranteed landing.
+      # The old terminal gated every /admin arm on `can_access_admin_area?`
+      # because the page rejected a non-admin: the guard bounced them back with
+      # `skip_admin: true`, the resolver produced the same arm, and the redirect
+      # never terminated. The admin index is now exempted from both permission
+      # checks by `:phoenix_kit_ensure_admin` itself
+      # (`PhoenixKitWeb.Users.Auth.landing_view?/1`) and greets a visitor
+      # holding no rights, so it is a legitimate landing for exactly the visitor
+      # the old gate had to steer away from — and there is nothing left to
+      # bounce off.
+      assert Routes.safe_destination(conn_for(AdminOnlyRouter), scope: plain_user()) ==
                Routes.path("/admin")
 
-      # Not `/dashboard` either, and this is the case that matters most: a host
-      # setting `user_dashboard_enabled: false` compiles that route out, and the
-      # unprobed terminal used to hand it back anyway. `EmptyRouter` stands in
-      # for any router that does not declare it.
-      refute Routes.safe_destination(conn_for(EmptyRouter), scope: plain_user()) ==
-               Routes.path("/dashboard")
+      # `skip_admin` suppresses the /admin CANDIDATE, not the terminal. It means
+      # "do not prefer the admin area"; the caller that sets it is rejecting the
+      # visitor from a deeper admin page, which the index is not.
+      assert Routes.safe_destination(conn_for(AdminOnlyRouter), scope: owner(), skip_admin: true) ==
+               Routes.path("/admin")
 
-      # Whatever comes back, it is never an auth page for a signed-in visitor:
-      # that page bounces them out through `post_auth_path/2`, which re-enters
-      # the resolver, so it is a loop rather than a fallback.
-      for s <- [owner(), plain_user()] do
-        refute Routes.auth_page?(Routes.safe_destination(conn_for(EmptyRouter), scope: s))
-      end
+      # And the candidate really is suppressed wherever another one resolves.
+      assert Routes.safe_destination(conn_for(@core), scope: owner(), skip_admin: true) ==
+               Routes.path("/dashboard")
     end
 
-    test "an undeterminable router falls through to the last arm, not to a dead core path" do
-      # `routable?/2` fails closed with no router, so no arm can be proven — the
-      # resolver logs and returns its last one rather than asserting a core path
-      # it cannot verify.
+    test "terminates on the guaranteed landing when nothing else resolves" do
+      # EmptyRouter has no routes at all — not even `/` — so every candidate is
+      # skipped, and it never called `phoenix_kit_routes()` either, so core's own
+      # landings do not resolve there.
+      #
+      # The terminal is ASSERTED rather than probed: /admin is declared
+      # unconditionally by core and admits every authenticated visitor, so there
+      # is nothing to fall through to and nothing to choose between. A router
+      # that cannot match it is misconfigured, and the resolver names that in
+      # the log while still returning the path.
+      #
+      # This used to `refute` both arms, which pinned the older design where the
+      # terminal was probed and could exhaust.
+      for s <- [owner(), plain_user()] do
+        result = Routes.safe_destination(conn_for(EmptyRouter), scope: s)
+
+        assert result == Routes.path("/admin")
+
+        # Never an auth page for a signed-in visitor: that page bounces them out
+        # through `post_auth_path/2`, which re-enters the resolver — a loop
+        # rather than a fallback.
+        refute Routes.auth_page?(result)
+      end
+
+      # The anonymous terminal is licensed by a different fact — the public auth
+      # surface declares /users/log-in unconditionally — so it is asserted too.
+      assert Routes.safe_destination(conn_for(EmptyRouter), scope: nil) ==
+               Routes.path("/users/log-in")
+    end
+
+    test "an undeterminable router still gets the guaranteed landing" do
+      # `routable?/2` fails closed with no router, so no candidate can be proven
+      # and the chain reaches the terminal immediately. This used to `refute`
+      # both core landings, because a probed terminal could not assert one
+      # either. It can now: the terminal does not depend on the router being
+      # readable, only on core having declared the route.
       for s <- [plain_user(), owner()] do
         result = Routes.safe_destination(nil, scope: s)
 
-        refute result == Routes.path("/dashboard")
-        refute result == Routes.path("/admin")
+        assert result == Routes.path("/admin")
         refute Routes.auth_page?(result)
       end
+
+      assert Routes.safe_destination(nil, scope: nil) == Routes.path("/users/log-in")
     end
 
     test "no authenticated input terminates on an auth page" do
@@ -342,7 +362,7 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
     # would regress every install that never had the locale-prefixed-root bug.
     # What core promises is that it never emits a path nobody has shown to
     # exist — every result is either PROVEN routable in the caller's own router
-    # or one of the three landings core declares itself.
+    # or one of the two landings core declares unconditionally.
     test "every result is either proven routable or a core-owned terminal" do
       scopes = [nil, anonymous(), owner(), admin(), client(), plain_user()]
       return_tos = [nil, "/shop", "https://evil.example", "//evil", "/\t/evil", "/users/log-out"]
@@ -353,15 +373,16 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
         socket_for(@core),
         conn_for(HostRouter),
         conn_for(EmptyRouter),
-        # Has /admin (both URL shapes) but no /dashboard: exercises the defect
-        # where the unconditional third terminal arm sent a non-admin to /admin
-        # when /dashboard was absent, producing an infinite redirect loop.
+        # Has /admin (both URL shapes) but no /dashboard — the host that
+        # compiled the user dashboard out. The terminal is what decides where a
+        # non-admin goes there.
         conn_for(AdminOnlyRouter)
       ]
 
-      # `EmptyRouter` and `AdminOnlyRouter` declare no core landings, so the
-      # terminal legitimately exhausts every arm and returns the last one. Both
-      # are excluded from the routability assertion below by asking the router.
+      # `EmptyRouter` and `AdminOnlyRouter` never mounted `phoenix_kit_routes()`,
+      # so core's landings are not all declared there and the terminal returns a
+      # path they cannot serve (logged, deliberately). Both are excluded from the
+      # routability assertion below by asking the router.
       routerless = fn ctx -> not Routes.routable?(ctx, Routes.path("/users/log-in")) end
 
       for s <- scopes, rt <- return_tos, skip <- [true, false], ctx <- contexts do
@@ -397,22 +418,26 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
                  "unroutable destination #{inspect(result)} for #{context}"
         end
 
-        # The admin area must only be selected when the visitor has the right to
-        # be there (can_access_admin_area?) AND the gate has not been suppressed
-        # (skip_admin). Before the fix the terminal's third /admin arm was
-        # unconditional: a non-admin on AdminOnlyRouter (has /admin, no
-        # /dashboard) was sent to /admin, the auth guard bounced them with
-        # skip_admin: true, and the loop never terminated.
+        # The authorisation dimension, which the `routable?` check above cannot
+        # catch: /admin IS routable in AdminOnlyRouter, so routability alone
+        # passes even when the destination is wrong for this visitor.
         #
-        # This assertion is what the `routable?` check above cannot catch: /admin
-        # IS routable in AdminOnlyRouter, so routability alone passes even when
-        # the destination is wrong. The authorisation dimension is the missing
-        # half.
-        admin_allowed? = not skip and Scope.can_access_admin_area?(s)
+        # This used to read "never /admin without `can_access_admin_area?`".
+        # That is no longer the rule — /admin is the guaranteed landing and
+        # greets a visitor who holds no rights. Two narrower facts survive, and
+        # they are what the old assertion was really protecting:
+        #
+        #   * an ANONYMOUS visitor is never sent into the admin area, and
+        #   * the only admin path the resolver ever synthesizes is the INDEX.
+        #     Deeper admin pages stay permission-gated and would bounce a
+        #     visitor back here — the loop the old `admin?` gate existed to
+        #     prevent.
+        if String.contains?(result, "/admin") do
+          assert Scope.authenticated?(s),
+                 "admin area selected for an anonymous visitor: #{result} (#{context})"
 
-        unless admin_allowed? do
-          refute String.ends_with?(result, "/admin"),
-                 "admin area selected without admin rights (skip=#{skip}): #{result} (#{context})"
+          assert result == Routes.path("/admin"),
+                 "resolver synthesized a gated admin page, not the index: #{result} (#{context})"
         end
       end
     end

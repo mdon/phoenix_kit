@@ -6,6 +6,8 @@ defmodule PhoenixKit.Utils.Routes do
   PhoenixKit prefix configured in the application.
   """
 
+  require Logger
+
   alias PhoenixKit.Config
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
@@ -77,7 +79,8 @@ defmodule PhoenixKit.Utils.Routes do
 
   Takes candidate destinations in priority order (e.g. a `?return_to=` param,
   then the session's `user_return_to`) and returns the first that passes
-  `local_path?/1`. Falls back to the `after_login_path` setting, then to `"/"`.
+  `local_path?/1`. Falls back to the `after_login_path` setting, then to
+  core's own guaranteed landing, `/admin`.
 
   The setting is validated as a local path when saved, but is re-guarded here
   so a hand-edited DB row can't turn a post-auth redirect into an open
@@ -89,25 +92,38 @@ defmodule PhoenixKit.Utils.Routes do
     * `:context` — the `conn`/`socket` the redirect is being built for. **Pass
       it wherever one is at hand.** `"/"` is the host's home page and core
       declares no route for it; with a context the tail of the chain is probed
-      with `routable?/2` and, when the host really has no `/`, resolved by
-      `safe_destination/2` instead of emitting a 404. Without one the tail is
-      taken at face value, which is what this function did before.
+      with `routable?/2` and, when the host really has no `/`, handed to
+      `safe_destination/2`, which can then pick the *best* destination for this
+      subject instead of merely a safe one. Without a context the tail is
+      `path("/admin")` — still safe, just less specific.
     * `:scope` — the subject, forwarded to `safe_destination/2` for that last
-      step. A signed-in visitor without it lands on the anonymous terminal.
+      step. Only consulted when a `:context` is present.
 
-  This matters beyond tidiness: `safe_destination/2`'s anonymous terminal is
-  `/users/log-in`, whose `on_mount` bounces an authenticated visitor straight
-  back through here. Left with a bare `"/"` fallback, the "core-owned
-  destination" guarantee would survive exactly one hop.
+  The context-less tail is `path("/admin")` and deliberately **not**
+  `safe_destination(nil, opts)`: with no scope to go on that call runs the
+  ANONYMOUS chain and terminates on `/users/log-in`, whose `on_mount` bounces
+  an authenticated visitor straight back through here — the "core-owned
+  destination" guarantee would survive exactly one hop. `/admin` is scope-blind
+  on purpose: core declares it unconditionally and admits every authenticated
+  visitor, so it cannot bounce anyone.
 
   ## Examples
 
       iex> PhoenixKit.Utils.Routes.post_auth_path(["/checkout"])
       "/checkout"
-      iex> PhoenixKit.Utils.Routes.post_auth_path(["https://evil.com", nil])
-      "/"
-      iex> PhoenixKit.Utils.Routes.post_auth_path(["/users/log-out"])
-      "/"
+
+  With nothing usable to go on the chain lands on core's guaranteed landing.
+  Its exact shape depends on the host's mount prefix and the language settings,
+  so these read as comparisons rather than literals — they asserted `"/"` back
+  when the tail was the host's unowned home page:
+
+      iex> alias PhoenixKit.Utils.Routes
+      iex> Routes.post_auth_path(["https://evil.com", nil]) == Routes.path("/admin")
+      true
+
+      iex> alias PhoenixKit.Utils.Routes
+      iex> Routes.post_auth_path(["/users/log-out"]) == Routes.path("/admin")
+      true
 
   """
   @spec post_auth_path([term()], keyword()) :: String.t()
@@ -124,12 +140,23 @@ defmodule PhoenixKit.Utils.Routes do
     #
     # `"/"` is the opposite case: nobody chose it, core synthesized it, and it
     # is the one destination core has no way to declare. So it is only used
-    # where the host proves it exists, and `safe_destination/2` takes over
+    # where the host proves it exists, and a core-owned landing takes over
     # where it does not.
     after_login_setting() || home_or_core_landing(Keyword.get(opts, :context), opts)
   end
 
-  defp home_or_core_landing(nil, _opts), do: "/"
+  # No context, so nothing can be probed: hand back the landing core declares
+  # unconditionally instead of synthesizing the host's `"/"`, which 404s on
+  # every install that never declared a root route.
+  #
+  # Scope-blind ON PURPOSE. Delegating to `safe_destination(nil, opts)` looks
+  # tidier and is wrong: with no scope that call runs the ANONYMOUS chain and
+  # terminates on `/users/log-in`, an auth page, which bounces an authenticated
+  # visitor straight back through `post_auth_path/2` — the one-hop loop
+  # described in that function's `@doc`. `/admin` admits every authenticated
+  # visitor and simply renders for them, so it is safe to return without
+  # knowing who is asking.
+  defp home_or_core_landing(nil, _opts), do: path("/admin")
 
   defp home_or_core_landing(context, opts) do
     if routable?(context, "/") do
@@ -186,12 +213,12 @@ defmodule PhoenixKit.Utils.Routes do
   silent regression for every already-working single-language install, where
   logging out has always landed on the site home.
 
-  When nothing survives, the terminal is core's own: `/admin` for a visitor who
-  may reach the admin area, `/dashboard` for anyone else who is signed in, and
-  `/users/log-in` for an anonymous visitor. The terminal follows authentication
-  rather than being one page, because `/users/log-in` bounces a signed-in
-  visitor straight back out again — terminating an authenticated chain there
-  would hand the decision to `post_auth_path/2`, one hop later.
+  When nothing survives, the terminal is core's own: `/admin` for any
+  authenticated visitor, `/users/log-in` for an anonymous one. The terminal
+  follows authentication rather than being a single page, because
+  `/users/log-in` bounces a signed-in visitor straight back out again —
+  terminating an authenticated chain there would hand the decision to
+  `post_auth_path/2`, one hop later.
 
   ## Options
 
@@ -212,24 +239,35 @@ defmodule PhoenixKit.Utils.Routes do
 
   Every value returned is either a path the caller supplied, an administrator
   configured, or the host's own `/` — **each proven to resolve in the router** —
-  or one of the three landings core declares itself. There is no third branch,
+  or one of the two landings core declares itself. There is no third branch,
   and `path("/")`, the locale-prefixed root that started all this, is never
   synthesized here.
 
-  The terminals are probed too. An earlier version asserted them as
-  "impossible by construction"; that was false — `user_dashboard_enabled: false`
-  compiles `/dashboard` out of the router, so on a host that also declares no
-  `/` the authenticated terminal was a path that 404s.
+  The invariant used to be "every candidate was probed, terminals included",
+  because core could promise nothing about its own pages: `/dashboard` is
+  compiled out by `user_dashboard_enabled: false`, and `/admin` used to reject
+  an authenticated visitor who held no admin rights. Neither is true of the
+  terminals any more:
 
-  When nothing core declares resolves on this host, the last arm is returned
-  *and* the cause is logged as an error. A 404 is unavoidable at that point —
-  core has been given nowhere to aim — but it reaches the operator as a named
-  misconfiguration rather than as a user complaint.
+    * `/admin` is declared unconditionally by the admin index route and, since
+      `:phoenix_kit_ensure_admin` exempts that one view from its permission
+      checks (`PhoenixKitWeb.Users.Auth.landing_view?/1`), admits every
+      authenticated visitor — one who holds no rights is greeted and shown
+      nothing else. So it can neither 404 nor bounce.
+    * `/users/log-in` is declared unconditionally too, by the public auth
+      surface. That is a **separate** fact from the `/admin` decision: it rests
+      on `generate_public_live_routes/1` in `PhoenixKitWeb.Integration`, not on
+      anything the admin area does, and it holds independently of it.
 
-  No arm of the authenticated terminal is an auth page, at any position:
-  `/users/log-in` redirects an authenticated visitor through
-  `post_auth_path/2`, which re-enters this function, so using it there is an
-  infinite redirect rather than a fallback.
+  So the invariant is now: **the chain ends at a path core declares
+  unconditionally and permits unconditionally.** The terminal is still handed
+  to `routable?/2`, but only as a diagnostic — the arm is returned either way,
+  and the probe exists to name a misconfigured install in the log instead of
+  letting it surface as a mystery 404. See `terminal/2`.
+
+  The authenticated terminal is not an auth page: `/users/log-in` redirects an
+  authenticated visitor through `post_auth_path/2`, which re-enters this
+  function, so using it there is an infinite redirect rather than a fallback.
   """
   @spec safe_destination(request_context(), keyword()) :: String.t()
   def safe_destination(context, opts \\ []) do
@@ -251,7 +289,7 @@ defmodule PhoenixKit.Utils.Routes do
       |> Stream.map(& &1.())
       |> Enum.find(&routable_candidate?(context, &1))
 
-    found || terminal(context, authenticated?, admin?)
+    found || terminal(context, authenticated?)
   end
 
   defp authenticated_candidates(opts, admin?) do
@@ -260,9 +298,11 @@ defmodule PhoenixKit.Utils.Routes do
     explicit ++
       [
         fn -> if admin?, do: path("/admin") end,
-        # `/dashboard` is conditionally compiled by the host router
-        # (`user_dashboard_enabled`), which is exactly why it is probed with
-        # `routable?/2` like any other candidate rather than assumed.
+        # A CANDIDATE, not the terminal. `/dashboard` is still conditionally
+        # compiled by the host router (`user_dashboard_enabled`, whose
+        # deprecation stands), so it is probed with `routable?/2` like any
+        # other candidate rather than assumed. Where the host compiled it out
+        # the chain simply moves on — nothing below depends on it any more.
         fn -> path("/dashboard") end,
         fn -> setting_candidate("after_login_path") end,
         fn -> "/" end
@@ -273,67 +313,77 @@ defmodule PhoenixKit.Utils.Routes do
     [fn -> main_page_path() end, fn -> "/" end]
   end
 
-  # The terminal follows AUTHENTICATION, not just the admin flag: sending a
-  # signed-in visitor to `/users/log-in` would bounce them straight back — that
-  # page redirects an authenticated visitor through `post_auth_path/2`, which
+  # The terminal follows AUTHENTICATION, not the admin flag: sending a signed-in
+  # visitor to `/users/log-in` would bounce them straight back — that page
+  # redirects an authenticated visitor through `post_auth_path/2`, which
   # re-enters this function, so an auth page as an authenticated terminal is an
   # infinite redirect, not a fallback.
   #
-  # It is PROBED, unlike an earlier version of this function which asserted the
-  # three arms were "impossible by construction". They are not: `/dashboard` is
-  # compiled out by `user_dashboard_enabled: false`, so on such a host that also
-  # declares no `/`, an authenticated non-admin was handed a path that 404s —
-  # the exact defect this module exists to remove.
-  defp terminal(context, authenticated?, admin?) do
-    arms =
-      if authenticated? do
-        # No auth page here, at any position: see the loop above.
-        #
-        # Every arm that leads to /admin is gated on `admin?`. Before this fix
-        # the third arm was unconditional: a non-admin on a host whose router
-        # has /admin but not /dashboard would be sent to /admin, the auth guard
-        # would bounce them with `skip_admin: true`, and `safe_destination`
-        # would run again with the same terminal — an infinite redirect loop.
-        # Gating all /admin arms on `admin?` means the non-admin terminal
-        # reduces to ["/dashboard", "/"], and if neither resolves the chain
-        # reaches `no_reachable_destination` (logged 404) instead of looping.
-        [if(admin?, do: path("/admin")), path("/dashboard"), if(admin?, do: path("/admin")), "/"]
-      else
-        [path("/users/log-in"), "/"]
-      end
+  # Both arms are ASSERTED rather than chosen, because each is a path core
+  # declares unconditionally AND permits unconditionally:
+  #
+  #   * `/admin` — the admin index route is declared unconditionally, and
+  #     `:phoenix_kit_ensure_admin` exempts that one view from both of its
+  #     permission checks (`PhoenixKitWeb.Users.Auth.landing_view?/1`), so every
+  #     authenticated visitor may open it; one holding no rights is greeted and
+  #     shown nothing else.
+  #
+  #     This is why there is no longer an `admin?` gate here. The previous
+  #     version gated every /admin arm on it, and had to: an unconditional
+  #     /admin arm looped, because the admin guard bounced a non-admin back
+  #     through `safe_destination/2` with `skip_admin: true` and got the same
+  #     arm again. /admin no longer rejects an authenticated visitor, so there
+  #     is nothing left to bounce off and nothing left to loop. (`skip_admin`
+  #     still suppresses the /admin CANDIDATE above — that is a preference
+  #     between two pages the visitor may open, not a permission check.)
+  #
+  #   * `/users/log-in` — licensed by a DIFFERENT fact: the public auth surface
+  #     (`generate_public_live_routes/1` in `PhoenixKitWeb.Integration`)
+  #     declares it unconditionally. That holds independently of anything the
+  #     admin area does, and would still hold if the /admin decision were
+  #     reversed.
+  #
+  # The trailing bare `"/"` arm went with them. It was there because neither
+  # core landing could be promised — and it is the one destination core cannot
+  # promise either, since the route belongs to the host.
+  #
+  # `routable?/2` is still consulted, but only as a DIAGNOSTIC: the arm is
+  # returned either way. See `unreachable_terminal/3`.
+  defp terminal(context, authenticated?) do
+    arm = if authenticated?, do: path("/admin"), else: path("/users/log-in")
 
-    arms = Enum.reject(arms, &is_nil/1)
+    unreachable_terminal(context, authenticated?, arm)
 
-    case Enum.find(arms, &routable?(context, &1)) do
-      nil -> no_reachable_destination(authenticated?, arms)
-      arm -> arm
-    end
+    arm
   end
 
-  # Nothing core declares is reachable on this host. Returning a path that 404s
-  # is unavoidable at that point, so the value of this branch is that the cause
-  # is named in the log rather than reaching an operator as "some users get a
-  # 404 after logging in".
-  defp no_reachable_destination(authenticated?, arms) do
-    fallback = List.last(arms)
+  # Core's own landing does not resolve in this host's router. After the two
+  # guarantees above that means the install is misconfigured rather than merely
+  # minimal — typically `phoenix_kit_routes()` mounted at a prefix that
+  # disagrees with `config :phoenix_kit, url_prefix:`. A 404 is unavoidable at
+  # that point, so the value of this branch is that the cause is named in the
+  # log rather than reaching an operator as "some users get a 404 after logging
+  # in".
+  #
+  # Silent when the router cannot be determined at all (no context, a conn
+  # before dispatch, a socket not mounted at the router): `routable?/2` fails
+  # closed there by design, and "nothing to ask" is not evidence of a
+  # misconfiguration.
+  defp unreachable_terminal(context, authenticated?, arm) do
+    if router_for(context) && not routable?(context, arm) do
+      Logger.error("""
+      PhoenixKit's guaranteed landing for \
+      #{if authenticated?, do: "an authenticated", else: "an anonymous"} visitor \
+      — #{arm} — does not resolve in this application's router. It is being used \
+      anyway, and it will 404.
 
-    require Logger
+      Core declares that route unconditionally, so a router that cannot match it \
+      is misconfigured rather than minimal. Check that `phoenix_kit_routes()` is \
+      mounted at the prefix `config :phoenix_kit, url_prefix:` names.\
+      """)
+    end
 
-    Logger.error("""
-    PhoenixKit has no reachable redirect destination for \
-    #{if authenticated?, do: "an authenticated", else: "an anonymous"} visitor.
-
-    Tried: #{Enum.join(arms, ", ")} — none resolves in this application's router.
-
-    Usual cause: `config :phoenix_kit, user_dashboard_enabled: false` (which \
-    compiles out /dashboard) on a host that also declares no root route. Enable \
-    the user dashboard, or declare a root route, or set the `main_page_path` \
-    setting to a page this application serves.
-
-    Falling back to #{fallback}, which will not resolve.\
-    """)
-
-    fallback
+    :ok
   end
 
   defp routable_candidate?(context, candidate) do

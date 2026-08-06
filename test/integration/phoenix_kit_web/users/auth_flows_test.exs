@@ -904,7 +904,15 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
       # update_setting/2 bypasses the changeset, so the guard has to hold on
       # the read side too.
       Settings.update_setting("after_login_path", "/users/log-out")
-      assert Routes.post_auth_path([]) == "/"
+
+      # The refused setting falls through to the context-less tail of
+      # `post_auth_path/2`. That tail used to be a bare `"/"`; it is now
+      # `/admin`, the landing core declares unconditionally and admits every
+      # authenticated visitor to. What the test is really pinning is unchanged:
+      # the stored `/users/log-out` never comes back, so a login cannot sign the
+      # user straight out again.
+      assert Routes.post_auth_path([]) == Routes.path("/admin")
+      refute Routes.auth_page?(Routes.post_auth_path([]))
     end
 
     test "magic-link login honors a return_to carried by the emailed link", %{conn: conn} do
