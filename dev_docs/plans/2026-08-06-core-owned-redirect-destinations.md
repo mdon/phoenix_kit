@@ -219,3 +219,88 @@ Remove that premise and most of the machinery becomes unnecessary.
 that it had switched off. That has to be deliberate: the setting keeps its name and
 starts meaning "show the dashboard's modules", not "remove the page". Worth an entry in
 the release notes rather than a silent change.
+
+### What the page shows today, and to whom
+
+`lib/phoenix_kit_web/live/dashboard.html.heex`, 373 lines, contains **zero permission
+checks** — measured, not assumed (`grep -cE 'can_access|has_module_access|holds_all|owner\?|Scope\.'`
+returns 0). Every card and both statistics sections render for anyone who reaches the
+page. That is survivable only while the page is de-facto admin-only; the moment it
+becomes the guaranteed landing for *every* authenticated user, it is an
+information-disclosure surface. **Gating is therefore a precondition of the idea, not a
+polish item.**
+
+| Card / section | Target | Line |
+|---|---|---|
+| Users | `/admin/users` | 26 |
+| Roles | `/admin/users/roles` | 41 |
+| Sessions | `/admin/users/sessions` | 56 |
+| Live Activity | `/admin/users/live_sessions` | 71 |
+| Add User | `/admin/users/new` | 86 |
+| Email | `/admin/emails` | — |
+| Platform Statistics (System Owners, Total Users) | — | 126 |
+| Active Sessions | — | 170 |
+| System Information | — | 335 |
+
+### The gating rule: derive it, don't restate it
+
+A card is visible **iff the visitor can open what it links to**. Core already owns that
+answer as a public function — `PhoenixKitWeb.Users.Auth.permission_key_for_admin_view/1`
+(`auth.ex:1556`), the same lookup `enforce_admin_view_permission/2` uses to admit or
+deny the destination itself:
+
+```elixir
+key = Auth.permission_key_for_admin_view(PhoenixKitWeb.Live.Users.Users)
+Scope.has_module_access?(scope, key)
+```
+
+Verified live against the four real role shapes in this install: all five user-management
+cards resolve to the single key `"users"`, held by Owner and Admin, and **not** by the
+Client (whose scope is `["client_portal", "notifications"]`) nor by a plain User (empty).
+So the rule reproduces the intended visibility exactly, with no second list to maintain.
+
+This matters more than it looks. A hand-written table of card→role would drift from the
+gate the same way the role badge and the account list drifted this week; deriving from
+`permission_key_for_admin_view/1` makes drift impossible by construction — if the
+destination's gate changes, the card follows automatically.
+
+Two sections have no destination LiveView and need an explicit rule instead: **Platform
+Statistics** and **System Information** are operator data, so Admin/Owner only —
+`Scope.holds_all_enabled_permissions?/1` rather than a role name, matching the
+role-agnostic policy the unmapped-view fallback already sets (`auth.ex`, "no role is
+special for feature access").
+
+### The welcome half
+
+Above the gated cards, visible to everyone, in the visitor's own language. A plain
+employee and a client then see a page that greets them and nothing else — which is
+precisely what makes the page safe to hand to every authenticated user, and what makes it
+a legitimate terminal for the resolver.
+
+⚠️ Its strings must be extracted at compile time. Runtime `Gettext.dgettext(Backend, …)`
+escapes extraction and silently renders English — the defect already found and fixed
+across the fork modules. Use `use Gettext` + the macro form.
+
+### Consequences for the work already merged on this branch
+
+- `home_or_core_landing(nil, _opts)` returns `path("/dashboard")` instead of the bare
+  `"/"` (`routes.ex:132`) — this is the structural close of GLM's Finding 1. The three
+  context-less callers (`confirmation.ex:25`, `referral_gate.ex:39`,
+  `confirmation_instructions.ex:120`) stop being a live 404 on the default
+  email-confirmation flow even if nobody threads a context.
+- Threading the context into those three callers stays worth doing — it yields a better
+  destination, not merely a safe one — but drops from blocking to ordinary.
+- `terminal/3` loses its probe: `/dashboard` is declared unconditionally and permitted
+  unconditionally, so `Enum.find(&routable?/2)` has a guaranteed answer.
+- `no_reachable_destination/2` becomes unreachable on any router that mounts
+  `phoenix_kit_routes()`. Keep it as a fail-closed guard, drop it from the documented
+  behaviour.
+- The invariant test stops needing to prove a negative by regex — GLM's Finding 2. It
+  becomes "the chain terminates at `/dashboard`", assertable behaviourally against a
+  router that declares no `/`.
+
+### Order of work
+
+Gating must land **with** the route becoming unconditional, not after it. Making
+`/dashboard` universal while the template still shows System Information to everyone
+would ship the disclosure. One change, two halves.
