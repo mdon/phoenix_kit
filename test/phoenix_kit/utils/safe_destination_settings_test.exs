@@ -146,6 +146,28 @@ defmodule PhoenixKit.Utils.SafeDestinationSettingsTest do
                Routes.path("/dashboard")
     end
 
+    test "after_login_path of \"/\" does not bypass the routability probe" do
+      # "/" is the synthesised core default written back into the DB row on every
+      # settings save — not a deliberate administrator choice. Before the fix,
+      # `after_login_setting/0` returned "/" as a truthy value, causing
+      # `home_after_auth/1` to return it immediately without passing through
+      # `home_or_core_landing/2`, the only place that probes routability.
+      #
+      # On a host with no root route (core router), post_auth_path would then
+      # emit "/" and produce a 404 — exactly the defect this branch was built to
+      # prevent. The fix: `after_login_setting/0` returns nil for "/" so the
+      # chain falls through to `home_or_core_landing/2`.
+      put_setting("after_login_path", "/")
+
+      # @core has no root route: falls through to safe_destination, which picks
+      # /dashboard for an authenticated plain_user.
+      assert Routes.post_auth_path([], context: conn_for(@core), scope: plain_user()) ==
+               Routes.path("/dashboard")
+
+      # HostRouter DOES declare "/": routable? returns true, so "/" is used.
+      assert Routes.post_auth_path([], context: conn_for(HostRouter), scope: plain_user()) == "/"
+    end
+
     test "an administrator's explicit setting is still honoured verbatim" do
       # Only the synthesized `"/"` is probed. `after_login_path` names a page in
       # the HOST's application; refusing it because this router cannot see that

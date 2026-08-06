@@ -54,6 +54,26 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
     use Phoenix.Router
   end
 
+  # Routes /admin (both plain and locale-prefixed) but NOT /dashboard.
+  # Stands in for a host with `user_dashboard_enabled: false` that still mounts
+  # the core admin area. The buggy unconditional third terminal arm caused a
+  # non-admin to be sent straight back to /admin, which the auth guard then
+  # bounced with `skip_admin: true` — an infinite redirect loop.
+  #
+  # The paths cover both URL shapes core emits: prefixless-primary (/phoenix_kit/admin)
+  # and locale-prefixed (/phoenix_kit/:locale/admin).
+  defmodule AdminOnlyRouter do
+    use Phoenix.Router
+
+    get "/phoenix_kit/admin",
+        PhoenixKit.Utils.SafeDestinationTest.FakeController,
+        :admin
+
+    get "/phoenix_kit/:locale/admin",
+        PhoenixKit.Utils.SafeDestinationTest.FakeController,
+        :admin_locale
+  end
+
   # The real core router — mounts `phoenix_kit_routes()`, so it is the oracle
   # for "does core own this path".
   @core PhoenixKitWeb.Router
@@ -173,6 +193,24 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
       # this branch — is still reached.
       assert Routes.safe_destination(conn_for(HostRouter), scope: owner()) == "/"
       assert Routes.safe_destination(conn_for(HostRouter), scope: plain_user()) == "/"
+    end
+
+    test "a plain user is never sent to /admin even when /admin resolves and /dashboard does not" do
+      # AdminOnlyRouter routes /admin (both URL shapes) but NOT /dashboard.
+      # Before the fix the terminal's third arm was unconditional: the non-admin
+      # was sent to /admin, the auth guard bounced them with skip_admin: true,
+      # and safe_destination ran again — an infinite redirect loop.
+      result = Routes.safe_destination(conn_for(AdminOnlyRouter), scope: plain_user())
+
+      refute String.ends_with?(result, "/admin"),
+             "non-admin sent to admin area: #{result}"
+
+      # With skip_admin an admin is also in the non-admin branch; same guarantee.
+      result_skip =
+        Routes.safe_destination(conn_for(AdminOnlyRouter), scope: owner(), skip_admin: true)
+
+      refute String.ends_with?(result_skip, "/admin"),
+             "admin with skip_admin sent to admin area: #{result_skip}"
     end
 
     test "falls back to the core-owned terminal when nothing else resolves" do
@@ -314,20 +352,23 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
         conn_for(@core),
         socket_for(@core),
         conn_for(HostRouter),
-        conn_for(EmptyRouter)
+        conn_for(EmptyRouter),
+        # Has /admin (both URL shapes) but no /dashboard: exercises the defect
+        # where the unconditional third terminal arm sent a non-admin to /admin
+        # when /dashboard was absent, producing an infinite redirect loop.
+        conn_for(AdminOnlyRouter)
       ]
 
-      # `EmptyRouter` declares nothing at all, so on it every arm of the
-      # terminal legitimately fails to resolve and the resolver logs and returns
-      # the last one. That host cannot be served by anything; it is kept in the
-      # matrix to prove the resolver does not crash there, and excluded from the
-      # routability assertion below by asking the router, not by naming paths.
+      # `EmptyRouter` and `AdminOnlyRouter` declare no core landings, so the
+      # terminal legitimately exhausts every arm and returns the last one. Both
+      # are excluded from the routability assertion below by asking the router.
       routerless = fn ctx -> not Routes.routable?(ctx, Routes.path("/users/log-in")) end
 
       for s <- scopes, rt <- return_tos, skip <- [true, false], ctx <- contexts do
         result = Routes.safe_destination(ctx, scope: s, return_to: rt, skip_admin: skip)
 
-        context = "scope=#{inspect(s && s.cached_roles)} return_to=#{inspect(rt)} skip=#{skip}"
+        context =
+          "scope=#{inspect(s && s.cached_roles)} return_to=#{inspect(rt)} skip=#{skip} ctx=#{inspect((ctx && get_in(ctx, [Access.key(:private, %{}), :phoenix_router])) || (ctx && Map.get(ctx, :router)))}"
 
         assert Routes.local_path?(result), context
         # The locale-prefixed root — the shipped bug — is never synthesized.
@@ -354,6 +395,24 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
         unless routerless.(ctx) do
           assert Routes.routable?(ctx, result),
                  "unroutable destination #{inspect(result)} for #{context}"
+        end
+
+        # The admin area must only be selected when the visitor has the right to
+        # be there (can_access_admin_area?) AND the gate has not been suppressed
+        # (skip_admin). Before the fix the terminal's third /admin arm was
+        # unconditional: a non-admin on AdminOnlyRouter (has /admin, no
+        # /dashboard) was sent to /admin, the auth guard bounced them with
+        # skip_admin: true, and the loop never terminated.
+        #
+        # This assertion is what the `routable?` check above cannot catch: /admin
+        # IS routable in AdminOnlyRouter, so routability alone passes even when
+        # the destination is wrong. The authorisation dimension is the missing
+        # half.
+        admin_allowed? = not skip and Scope.can_access_admin_area?(s)
+
+        unless admin_allowed? do
+          refute String.ends_with?(result, "/admin"),
+                 "admin area selected without admin rights (skip=#{skip}): #{result} (#{context})"
         end
       end
     end

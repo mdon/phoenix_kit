@@ -288,7 +288,16 @@ defmodule PhoenixKit.Utils.Routes do
     arms =
       if authenticated? do
         # No auth page here, at any position: see the loop above.
-        [if(admin?, do: path("/admin")), path("/dashboard"), path("/admin"), "/"]
+        #
+        # Every arm that leads to /admin is gated on `admin?`. Before this fix
+        # the third arm was unconditional: a non-admin on a host whose router
+        # has /admin but not /dashboard would be sent to /admin, the auth guard
+        # would bounce them with `skip_admin: true`, and `safe_destination`
+        # would run again with the same terminal — an infinite redirect loop.
+        # Gating all /admin arms on `admin?` means the non-admin terminal
+        # reduces to ["/dashboard", "/"], and if neither resolves the chain
+        # reaches `no_reachable_destination` (logged 404) instead of looping.
+        [if(admin?, do: path("/admin")), path("/dashboard"), if(admin?, do: path("/admin")), "/"]
       else
         [path("/users/log-in"), "/"]
       end
@@ -435,9 +444,21 @@ defmodule PhoenixKit.Utils.Routes do
   # rather than `"/"`: the caller decides what an unset setting falls back to,
   # and `post_auth_path/2` can only probe `"/"` if it can tell "the
   # administrator chose the home page" apart from "nobody chose anything".
+  #
+  # `"/"` is explicitly excluded here even though it is a usable local path,
+  # for the same reason main_page_path/0 returns nil rather than "/": it is
+  # the synthesized core default written back into the row on every settings
+  # save, not a deliberate administrator choice. Treating it as a configured
+  # value causes `home_after_auth/1` to return it immediately, bypassing
+  # `home_or_core_landing/2` — the only place that probes routability against
+  # the host's router. On a host with no root route, post_auth_path/2 would
+  # then return "/" and every post-login redirect 404s: the exact defect this
+  # module exists to prevent. An explicit non-default path (e.g. "/welcome")
+  # is still honoured verbatim — it names a page in the host application.
   defp after_login_setting do
     case setting_candidate("after_login_path") do
       nil -> nil
+      "/" -> nil
       value -> if usable_candidate?(value), do: value
     end
   end
