@@ -8,7 +8,9 @@ defmodule PhoenixKit.Integration.Users.OAuthEmailVerificationTest do
   use PhoenixKitWeb.ConnCase, async: true
 
   alias PhoenixKit.Settings
+  alias PhoenixKit.Settings.Setting.SettingsForm
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.UserToken
   alias PhoenixKit.Users.OAuth
   alias PhoenixKit.Users.OAuthProvider
 
@@ -171,9 +173,7 @@ defmodule PhoenixKit.Integration.Users.OAuthEmailVerificationTest do
       # iex. Assert both halves of the registration.
       assert Map.has_key?(Settings.get_defaults(), "oauth_require_verified_email")
 
-      assert :oauth_require_verified_email in PhoenixKit.Settings.Setting.SettingsForm.__schema__(
-               :fields
-             )
+      assert :oauth_require_verified_email in SettingsForm.__schema__(:fields)
     end
 
     test "a malformed raw_info is treated as no assertion, not as an error" do
@@ -227,5 +227,34 @@ defmodule PhoenixKit.Integration.Users.OAuthEmailVerificationTest do
       assert {:ok, confirmed, :created} = OAuth.find_or_create_user(data)
       assert confirmed.confirmed_at
     end
+
+    test "that is left unconfirmed is sent the confirmation mail" do
+      # Nothing else on this path sends it: `Auth.register_user/2` does not, and
+      # only the registration controller ever did. Without this the account is
+      # signed in and then bounced off every gate honouring
+      # `require_email_confirmation` with an empty inbox. The token row is the
+      # deterministic half of "the mail went out".
+      assert {:ok, created, :created} = OAuth.find_or_create_user(oauth_data(unique_email()))
+
+      assert confirm_tokens_for(created) == 1
+    end
+
+    test "one that IS vouched for is confirmed outright and gets no such mail" do
+      data = oauth_data(unique_email(), %{raw_info: %{user: %{"email_verified" => true}}})
+
+      assert {:ok, created, :created} = OAuth.find_or_create_user(data)
+      assert created.confirmed_at
+      assert confirm_tokens_for(created) == 0
+    end
+  end
+
+  defp confirm_tokens_for(user) do
+    import Ecto.Query
+
+    Repo.one(
+      from t in UserToken,
+        where: t.user_uuid == ^user.uuid and t.context == "confirm",
+        select: count(t.uuid)
+    )
   end
 end

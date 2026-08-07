@@ -47,7 +47,10 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
   setup do
     {:ok, seed} = Auth.register_user(%{email: unique_email(), password: "ValidPassword123!"})
     {:ok, _} = Auth.admin_confirm_user(seed)
-    :ok
+
+    # Handed back because the deletion tests need the sandbox's sole Owner by
+    # name: it is what the last-Owner guard protects.
+    {:ok, seed: Repo.get!(Auth.User, seed.uuid)}
   end
 
   describe "can_manage_user_credentials?/2" do
@@ -174,6 +177,55 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
 
       assert {:ok, updated} = Auth.update_user_status(target, %{"is_active" => false})
       refute updated.is_active
+    end
+  end
+
+  describe "deletion answers to the same rank rule" do
+    # `can_delete_user?/2` was cited as the model the credential rule mirrors,
+    # but it was two rules short of it: the only target it refused was an Admin,
+    # and it never asked whether the ACTOR held a staff role at all — that was
+    # deferred to a page gate which is true for any holder of a single
+    # permission. So a non-last Owner was deletable by an Admin, and by a
+    # Manager who happened to hold `users`.
+    test "an Admin may not delete an Owner while another Owner remains" do
+      # The setup seed is already an Owner, so the last-Owner guard is not what
+      # does the refusing here — the rank rule is.
+      target = owner_user()
+      admin = admin_user()
+
+      refute Auth.can_delete_user?(target, admin)
+      assert {:error, :target_is_owner} = Auth.delete_user(target, %{current_user: admin})
+      assert Repo.get(Auth.User, target.uuid)
+    end
+
+    test "a holder of the users permission with no staff role may delete nobody" do
+      staffless = plain_user()
+      target = plain_user()
+
+      refute Auth.can_delete_user?(target, staffless)
+
+      assert {:error, :insufficient_permissions} =
+               Auth.delete_user(target, %{current_user: staffless})
+
+      assert Repo.get(Auth.User, target.uuid)
+    end
+
+    test "an Admin may not delete another Admin, but may delete an ordinary user" do
+      refute Auth.can_delete_user?(admin_user(), admin_user())
+      assert Auth.can_delete_user?(plain_user(), admin_user())
+    end
+
+    test "an Owner may delete an Admin", %{seed: seed} do
+      assert Auth.can_delete_user?(admin_user(), seed)
+    end
+
+    test "the last-Owner guard keeps its own reason rather than the rank one",
+         %{seed: seed} do
+      # `seed` is the only Owner in this sandbox, so both rules would refuse an
+      # Admin actor. The target-only rule is checked first and must win, or the
+      # operator is told "no permission" for something no permission can fix.
+      assert {:error, :cannot_delete_last_owner} =
+               Auth.delete_user(seed, %{current_user: admin_user()})
     end
   end
 

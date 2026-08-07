@@ -287,6 +287,14 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
          |> assign(:show_delete_modal, false)
          |> put_flash(:error, gettext("Cannot delete the last system owner"))}
 
+      # The rank refusals from `validate_admin_authority_over/2`.
+      {:error, reason}
+      when reason in [:insufficient_permissions, :target_is_owner, :target_is_staff] ->
+        {:noreply,
+         socket
+         |> assign(:show_delete_modal, false)
+         |> put_flash(:error, gettext("You don't have permission to delete this user"))}
+
       {:error, _reason} ->
         {:noreply,
          socket

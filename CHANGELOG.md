@@ -1,3 +1,92 @@
+## 1.7.235 - 2026-08-07
+
+### Security
+
+- **Credential management on the admin user form now answers to rank, not to a
+  permission** (#686). `/admin/users/edit/:id` gated the password field on
+  `Scope.can_access_admin_area?/1` — true for **any** holder of a single
+  permission — while the comment above it said "Admin/Owner only", and nothing
+  else in the path checked rank. New `Auth.can_manage_user_credentials?/2`
+  decides by role and rank (your own account is yours; the actor must be
+  Owner/Admin; an Owner or Admin target may be managed only by an Owner), and it
+  gates the password field, the reset-mail button and the **email** field —
+  owning the address a reset link is delivered to takes an account just as
+  surely as setting the password does. `username` is dropped with them, since
+  `get_user_by_email_or_username_and_password/3` accepts it as a sign-in route.
+  Every event refuses independently of the template.
+- **Deactivation now revokes sessions instead of merely denying them** (#686).
+  `update_user_status/3` flipped `is_active` and left the token rows valid for
+  their full 60-day life; it now deletes the user's session tokens.
+- **Activation, deactivation and email-confirmation toggling are rank-checked in
+  the context** (#686). `update_user_status/3` and `toggle_user_confirmation/2`
+  take an `:actor` and enforce `Auth.can_manage_user_status?/2`; omitting the
+  actor is the system path (`Referrals`). The rule lived only in the edit
+  form's markup, so the user-list and user-detail pages reached both functions
+  ungated — a role holding only `users` could switch off an Admin, and
+  *unconfirming* an account locks it out of the eleven gates that honour
+  `require_email_confirmation`.
+- **Deleting a user answers to that same rank rule** (#686 post-merge review).
+  `can_delete_user?/2` refused only an *Admin* target and never checked the
+  actor's role at all, deferring that to a page gate that admits any single
+  permission holder. Because an Owner holds only the `Owner` role, an Admin —
+  or a `users`-permission role — could delete any Owner who was not the last
+  one. It now routes through the same authority check; the self and last-Owner
+  rules keep their own messages.
+- **Multi-session resolves the root account through the active-user filter**
+  (#686). `root_user/1` and `root_authenticated?/1` used a bare token lookup, so
+  a deactivated Owner/Admin holding a live cookie could still reach
+  `POST /users/session/impersonate/:uuid`. The same filter was added to
+  `PhoenixKitWeb.Users.Session`, the OAuth scope resolver and the maintenance
+  plug.
+- **A deactivated account is refused at the shared sign-in funnel** (#686).
+  `log_in_user/3` checks `is_active` itself — the password controller did, but
+  magic-link verification, QR-login completion and the OAuth callback called it
+  directly and did not.
+- **Stored XSS in the auth-page branding settings** (#686).
+  `AuthPageWrapper.bg_style_tag/1` built a `<style>` element by string
+  concatenation and emitted it with `raw/1`; a `<style>` body is raw character
+  data, so `</style>` in the background-colour value closed the element. The
+  value is free text on `/admin/settings/authorization` (key `settings`, held by
+  Manager as well as Admin) and is served to every **anonymous** visitor of the
+  login, registration and reset pages. New `PhoenixKit.Utils.CssValue` is an
+  allowlist that fails to `""`, applied on read (neutralising anything already
+  stored), in the one function that assembles the stylesheet, and on write.
+- **OAuth no longer attaches an external identity on email string equality**
+  (#686). `find_or_create_user/3` looked the callback address up locally and, on
+  a hit, confirmed that account and issued a session — no verification claim
+  read, no prior link required. Resolution is now ordered by the proof each case
+  carries: an existing `(provider, provider_uid)` link is decisive and consults
+  no email; a pre-existing local account requires the provider's own assertion
+  (Google/OIDC `email_verified`, GitHub per-address `verified`, Facebook
+  `verified`); a new account is created but auto-confirmed only on an assertion.
+  GitHub's strategy is now configured with `default_scope: "user:email"`, without
+  which the token cannot read `/user/emails` and the claim is never present.
+
+### Added
+
+- `oauth_require_verified_email` setting (default `"true"`, #686) with a
+  checkbox on the authorization settings page — lets a deployment lift the
+  verified-address requirement deliberately rather than by accident.
+
+### Fixed
+
+- **A new OAuth account that is left unconfirmed is now sent the confirmation
+  mail** (#686 post-merge review). Nothing on the OAuth path ever sent it —
+  `Auth.register_user/2` does not, and only the registration controller did — so
+  an account the provider did not vouch for was signed in with "Successfully
+  signed in!" and then bounced off every gate honouring
+  `require_email_confirmation`, with an empty inbox.
+- **The confirm/unconfirm menu entry is gated like its status twin** (#686
+  post-merge review). Only the status button was hidden for an out-of-rank
+  target, so the confirmation button next to it advertised an action the server
+  now refuses.
+- **The new per-row rank guard no longer queries per row** (#686 post-merge
+  review). `can_manage_user_status?/2` in the users-list template asked up to
+  four `EXISTS` questions per row — ~200 round trips on a fifty-row page, on
+  every sort, filter and PubSub re-render — even though `list_users_paginated/1`
+  already preloads `:roles`. The rank rule now reads a preloaded `:roles`
+  association when there is one, and the list hands it an actor loaded once.
+
 ## 1.7.234 - 2026-08-07
 
 ### Added

@@ -16,6 +16,9 @@ if Code.ensure_loaded?(Ueberauth) do
     alias PhoenixKit.Users.Auth.User
     alias PhoenixKit.Users.OAuthProvider
     alias PhoenixKit.Users.Referrals
+    alias PhoenixKit.Utils.Routes
+
+    require Logger
 
     @doc """
     Handles OAuth callback from Ueberauth.
@@ -336,14 +339,49 @@ if Code.ensure_loaded?(Ueberauth) do
         # treated as proven, so a squatted one cannot be laundered into a
         # confirmed local account.
         {:ok, user} ->
-          if provider_asserts_verified_email?(oauth_data),
-            do: maybe_confirm_user(user),
-            else: {:ok, user}
+          if provider_asserts_verified_email?(oauth_data) do
+            maybe_confirm_user(user)
+          else
+            deliver_oauth_confirmation(user)
+            {:ok, user}
+          end
 
         error ->
           error
       end
     end
+
+    # The mail the comment above promises. Nothing else on the OAuth path sends
+    # it — `Auth.register_user/2` does not, and only the registration controller
+    # ever did — so before this the unvouched-for account was signed in with
+    # "Successfully signed in!" and then bounced off every gate that honours
+    # `require_email_confirmation` (default on) with an empty inbox and no way
+    # back except guessing at /users/confirm.
+    #
+    # A delivery failure must not sink the sign-in: the account exists either
+    # way and the user can ask for the mail again from the confirmation page.
+    # Deliberately no `rescue` — this runs inside `handle_oauth_callback/2`'s
+    # transaction, and the same call also inserts the confirm token, so
+    # swallowing a raise there would leave a poisoned transaction that fails at
+    # commit anyway. Mailer failures arrive as `{:error, _}`, which is handled.
+    defp deliver_oauth_confirmation(%User{confirmed_at: nil} = user) do
+      case Auth.deliver_user_confirmation_instructions(
+             user,
+             &Routes.url("/users/confirm/#{&1}")
+           ) do
+        {:ok, _} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning(
+            "PhoenixKit: could not send OAuth confirmation mail to #{user.email}: #{inspect(reason)}"
+          )
+
+          :ok
+      end
+    end
+
+    defp deliver_oauth_confirmation(_user), do: :ok
 
     defp do_register_oauth_user(attrs, track_geolocation, ip_address) do
       if track_geolocation && ip_address do

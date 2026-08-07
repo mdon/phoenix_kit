@@ -2659,24 +2659,30 @@ defmodule PhoenixKit.Users.Auth do
 
   def can_delete_user?(_user, _current_user), do: false
 
-  # Validates deletion permissions and constraints
+  # Validates deletion permissions and constraints.
+  #
+  # Rule 3 used to be the whole authority check and it was two rules short: it
+  # only refused an ADMIN target, so an Owner who was not the last Owner could
+  # be deleted by an Admin, and it never asked whether the actor held a staff
+  # role at all — the comment deferred that to "the controller/LiveView", where
+  # the gate is `can_access_admin_area?/1`, true for any holder of a single
+  # permission. Deleting an account is at least as final as taking it over, so
+  # it now answers to the same rank rule as credentials and status.
   defp validate_can_delete_user(%User{} = user, %User{} = current_user) do
     cond do
       # Rule 1: Cannot delete self
       user.uuid == current_user.uuid ->
         {:error, :cannot_delete_self}
 
-      # Rule 2: Cannot delete last Owner
-      Roles.user_has_role_owner?(user) and count_remaining_owners(user.uuid) < 1 ->
+      # Rule 2: Cannot delete last Owner (a target-only rule, checked first so
+      # the last-Owner message survives even for an actor who outranks them)
+      has_system_role?(user, Role.system_roles().owner) and
+          count_remaining_owners(user.uuid) < 1 ->
         {:error, :cannot_delete_last_owner}
 
-      # Rule 3: Only Owner can delete Admin users
-      Roles.user_has_role_admin?(user) and not Roles.user_has_role_owner?(current_user) ->
-        {:error, :insufficient_permissions}
-
-      # Rule 4: Only Admin/Owner can delete (checked via scope in controller/LiveView)
+      # Rule 3: the shared rank rule — staff only, and never upwards
       true ->
-        :ok
+        validate_admin_authority_over(user, current_user)
     end
   end
 
@@ -2756,24 +2762,43 @@ defmodule PhoenixKit.Users.Auth do
   # so a caller that needs to explain the refusal can be given a public wrapper
   # without changing the decision itself.
   defp validate_admin_authority_over(%User{} = user, %User{} = current_user) do
-    actor_is_owner = Roles.user_has_role_owner?(current_user)
+    roles = Role.system_roles()
+    actor_is_owner = has_system_role?(current_user, roles.owner)
 
     cond do
       user.uuid == current_user.uuid ->
         :ok
 
-      not (actor_is_owner or Roles.user_has_role_admin?(current_user)) ->
+      not (actor_is_owner or has_system_role?(current_user, roles.admin)) ->
         {:error, :insufficient_permissions}
 
-      Roles.user_has_role_owner?(user) and not actor_is_owner ->
+      has_system_role?(user, roles.owner) and not actor_is_owner ->
         {:error, :target_is_owner}
 
-      Roles.user_has_role_admin?(user) and not actor_is_owner ->
+      has_system_role?(user, roles.admin) and not actor_is_owner ->
         {:error, :target_is_staff}
 
       true ->
         :ok
     end
+  end
+
+  # Reads the role set from a preloaded `:roles` association when the caller
+  # already has one, and only queries when it does not.
+  #
+  # This rule runs once per rendered row on `/admin/users`, and each evaluation
+  # asks up to four role questions — as four `EXISTS` queries that is 200 round
+  # trips on a fifty-row page, repeated on every sort, filter and PubSub
+  # re-render. `list_users_paginated/1` already preloads `:roles`, so the rows
+  # carry the answer; the templates additionally hand in an actor loaded the
+  # same way. Preloaded assignments are the live set — an inactive assignment
+  # is deleted, not flagged — so the two paths agree.
+  defp has_system_role?(%User{roles: roles}, role_name) when is_list(roles) do
+    Enum.any?(roles, &(&1.name == role_name))
+  end
+
+  defp has_system_role?(%User{} = user, role_name) do
+    Roles.user_has_role?(user, role_name)
   end
 
   # Count remaining active owners excluding the given user

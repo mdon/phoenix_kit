@@ -81,6 +81,11 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       socket
       |> assign(:per_page, @per_page)
       |> assign(:impersonation_actor, impersonation_actor)
+      # The rank predicates in the row menu ask the actor's roles once per row.
+      # The plug-supplied `@phoenix_kit_current_user` carries no `:roles`
+      # preload, so each of those questions is a query; loading the actor once
+      # here answers all of them from memory. See `Auth.can_manage_user_status?/2`.
+      |> assign(:actor_with_roles, actor_with_roles(socket))
       |> assign(:show_search, socket.assigns.search_query != "")
       |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
       |> assign(
@@ -105,6 +110,15 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> load_stats()
 
     {:ok, socket}
+  end
+
+  # Falls back to the plug-supplied struct if the actor cannot be re-read, so a
+  # missing preload degrades to the queried path rather than to no actor.
+  defp actor_with_roles(socket) do
+    case socket.assigns[:phoenix_kit_current_user] do
+      %{uuid: uuid} = current_user -> Auth.get_user_with_roles(uuid) || current_user
+      other -> other
+    end
   end
 
   # The list is loaded here rather than in mount/3: UrlState calls this after
@@ -637,6 +651,13 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
       {:error, :cannot_delete_last_owner} ->
         {:noreply, put_flash(socket, :error, gettext("Cannot delete the last system owner"))}
+
+      # The rank refusals from `validate_admin_authority_over/2`. Named, so a
+      # refusal reads as a permission decision rather than as a failure.
+      {:error, reason}
+      when reason in [:insufficient_permissions, :target_is_owner, :target_is_staff] ->
+        {:noreply,
+         put_flash(socket, :error, gettext("You don't have permission to delete this user"))}
 
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, gettext("Failed to delete user"))}
