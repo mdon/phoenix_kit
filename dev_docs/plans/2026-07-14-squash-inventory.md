@@ -328,21 +328,15 @@ accumulator stepped aside; its down/1 stamps '151').
 - V160 (ddl): settings.value VARCHAR(255)->TEXT (validation allowed 1000, column capped 255 —
   real crash class); catalog-only change; down/1 hard-fails if any value exceeds 255 chars.
 
-## Post-V160 additions (2026-08-04, V161 — shape-bimodality repair)
+## Post-V160 additions (2026-08-04, V163 after renumber — shape-bimodality repair)
 
-> ⚠️ **RENUMBER PENDING (7th event).** The 161 slot is already claimed upstream by TWO open
-> PRs — #681 (our own fork's `fix/case-insensitive-username`: citext `users.username`) and #682
-> (`mdon:main`: payment-option linkage) — so this repair migration must move to the first free
-> slot (162 or 163, whichever survives those two merging). It CANNOT be renumbered ahead of
-> time: the chain must stay contiguous, and jumping to 163 while 161/162 are absent locally
-> makes `change(1..163)` crash on the missing module (verified: `mix phoenix_kit.release_check`
-> FAILs with "V1..V161 is not contiguous — missing vNN.ex file(s) for version(s) N", and
-> `test/mix/tasks/phoenix_kit_release_check_test.exs` fails too — that is the safety net).
-> Ritual, to run at the rebase that first sees the merged upstream 161 (add/add conflict on the
-> same path — keep upstream's, move ours): rename the file + module, self-stamp and `down/1`
-> restamp, `@current_version` + moduledoc `⚡ LATEST` in `postgres.ex`, the
-> `v161_relaxed_columns_test.exs` filename/scan range, this heading — then REGENERATE the
-> manifest (its `chain_hash` pins the file set).
+> ✅ **RENUMBERED to V163 (7th event, done 2026-08-07).** The 161 slot went to upstream PR #681
+> (our own citext `users.username`) and 162 to #682 (payment-option linkage, itself renumbered
+> off 161) — this repair migration moved to V163 in the merge that brought upstream 1.7.233 in:
+> file+module, self-stamp `'163'`, `down/1` restamp `'162'`, `@current_version 163`, moduledoc
+> `⚡ LATEST`, and the guard test (`v163_relaxed_columns_test.exs`, `@exempt_version 163`).
+> The manifest must be REGENERATED before it is trusted again — its `chain_hash` still pins the
+> pre-merge V161 file set.
 
 - V161 (repair, no-op on any chain run from here on): fixes the fallout of V56/V57's missing
   flush() between UUIDFKColumns.up/1 (queues ~80 ADD COLUMNs) and add_constraints/1 (immediate

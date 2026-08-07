@@ -2,14 +2,13 @@
 
 Status: **REVIEWED DRAFT r2** (spec only; implementation not started).
 Written 2026-07-14 at v1.7.193/V148; revised 2026-07-16 at v1.7.196/V150; counters refreshed
-2026-08-04 at **v1.7.227/V160** (chain V01..V160, 160 modules, 27,311 lines — V148→V160 across
-three weeks of spec/tooling work, live confirmation of §3.1's cadence point; V152-V160 delta
+2026-08-07 at **v1.7.233/V163** (chain V01..V163 — 162 upstream + our V163 repair; 28,000 lines across 163 files — V148→V163 in three weeks of spec/tooling work, live confirmation of §3.1's cadence point; V152-V160 delta
 classified in the inventory appendix);
 **r2 = post-review revision** incorporating a 7-reviewer round:
 4 internal adversarial agents (claims / design / completeness / ops) + GLM-5.2, Kimi K2.7,
 Mistral Medium. Verdicts: claims-verifier APPROVE (all mechanical claims confirmed against HEAD;
 line refs re-anchored below), all others NEEDS-WORK → their ~50 findings are folded in here.
-Branch: `squash-migrations` (rebased onto upstream 1.7.198).
+Branch: `squash-migrations` (merged with feature/core-owned-redirect-destinations = upstream 1.7.233 + redirect work, 2026-08-07).
 Supersedes: `2026-06-15-squash-migrations-plan.md` (June plan; stale).
 Companion: `2026-07-14-squash-inventory.md` (per-version classification of all 150 migrations).
 
@@ -143,16 +142,16 @@ were removed from these documents. Everything else (unknown public Hex consumers
 bridge-path by design: the guard raises with the stopover message at ANY floor, and the bridge
 release stays on Hex permanently (§7.2).
 
-**Floor candidates** (repo at V160, 27,311 lines / 160 files; per-floor figures unchanged by
-1.7.194-227 — v01..v147 untouched, verified by git diff):
+**Floor candidates** (repo at V163, 28,000 lines / 163 files; per-floor deleted-line figures
+unchanged since 1.7.193 — v01..v147 never touched, verified by git diff):
 
 | floor | legacy files removed (v01..v{floor-1} deleted + v{floor} replaced by baseline) | lines removed | delta files remaining |
 |---|---|---|---|
-| 110 | 109 + 1 | 19,725 | 50 |
-| **121** | 120 + 1 | 21,537 | 39 |
-| **135** | 134 + 1 | 23,231 | 25 |
-| 147 | 146 + 1 | 25,155 | 13 |
-| **160** | 159 + 1 | 27,261 | 0 |
+| 110 | 109 + 1 | 19,725 | 53 |
+| **121** | 120 + 1 | 21,537 | 42 |
+| **135** | 134 + 1 | 23,231 | 28 |
+| 147 | 146 + 1 | 25,155 | 16 |
+| **163** | 162 + 1 | 27,950 | 0 |
 
 ---
 
