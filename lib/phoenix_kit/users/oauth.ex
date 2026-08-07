@@ -121,30 +121,33 @@ if Code.ensure_loaded?(Ueberauth) do
 
       oauth_data
       |> raw_user()
-      |> Map.get("emails", [])
+      |> fetch_claim(:emails)
       |> List.wrap()
-      |> Enum.any?(fn
-        %{"email" => email, "verified" => verified} ->
-          normalize_email(email) == address and truthy?(verified)
-
-        _other ->
-          false
+      |> Enum.any?(fn entry ->
+        is_map(entry) and
+          normalize_email(fetch_claim(entry, :email)) == address and
+          truthy?(fetch_claim(entry, :verified))
       end)
     end
 
+    # Facebook's `verified` is an ACCOUNT-level flag, not a per-address one —
+    # the Graph API surfaces no per-email verification in the basic scope. It is
+    # the strongest signal the provider gives, and it is weaker than Google's or
+    # GitHub's; a deployment that cares about the difference should not enable
+    # Facebook sign-in for accounts that already exist locally.
     defp provider_asserts_verified_email?(%{provider: "facebook"} = oauth_data) do
-      oauth_data |> raw_user() |> Map.get("verified") |> truthy?()
+      oauth_data |> raw_user() |> fetch_claim(:verified) |> truthy?()
     end
 
     # Google and any provider following the OpenID Connect claim name.
     defp provider_asserts_verified_email?(oauth_data) do
-      truthy?(oauth_data |> raw_user() |> Map.get("email_verified")) or
-        truthy?(oauth_data |> raw_info() |> Map.get("email_verified"))
+      truthy?(oauth_data |> raw_user() |> fetch_claim(:email_verified)) or
+        truthy?(oauth_data |> raw_info() |> fetch_claim(:email_verified))
     end
 
     # `raw_info` shape varies by strategy and is not guaranteed to be a plain
     # map, so both accessors normalise to `%{}` rather than letting a struct or
-    # a nil reach `get_in/2`.
+    # a nil reach a lookup.
     defp raw_info(oauth_data) do
       case Map.get(oauth_data, :raw_info) do
         %{} = info when not is_struct(info) -> info
@@ -152,12 +155,27 @@ if Code.ensure_loaded?(Ueberauth) do
       end
     end
 
+    # The shipped strategies build `raw_info` with ATOM keys —
+    # `%{token: ..., user: ...}` in ueberauth_google, ueberauth_github and
+    # ueberauth_facebook — while the user payload nested inside it is decoded
+    # JSON with STRING keys (`user["email"]`). Reading only one of the two
+    # spellings is how a verification gate ends up never firing, so every claim
+    # lookup here accepts both.
     defp raw_user(oauth_data) do
-      case oauth_data |> raw_info() |> Map.get("user") do
+      case oauth_data |> raw_info() |> fetch_claim(:user) do
         %{} = user when not is_struct(user) -> user
         _other -> %{}
       end
     end
+
+    defp fetch_claim(map, key) when is_map(map) and is_atom(key) do
+      case Map.fetch(map, key) do
+        {:ok, value} -> value
+        :error -> Map.get(map, Atom.to_string(key))
+      end
+    end
+
+    defp fetch_claim(_map, _key), do: nil
 
     defp truthy?(true), do: true
     defp truthy?("true"), do: true

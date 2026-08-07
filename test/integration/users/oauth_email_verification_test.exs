@@ -59,21 +59,47 @@ defmodule PhoenixKit.Integration.Users.OAuthEmailVerificationTest do
       assert {:error, :provider_email_unverified} = OAuth.find_or_create_user(data)
     end
 
-    test "is allowed when the provider asserts email_verified" do
+    test "is allowed when the provider asserts email_verified, in the shape the strategies emit" do
       email = unique_email()
       user = local_user(email)
 
-      data = oauth_data(email, %{raw_info: %{"user" => %{"email_verified" => true}}})
+      # ueberauth_google/github/facebook all build
+      # `raw_info: %{token: ..., user: ...}` with ATOM keys, and the payload
+      # nested under `:user` is decoded JSON with STRING keys. A gate that reads
+      # only `"user"` never fires on a real callback — this test is what pins
+      # that down.
+      data =
+        oauth_data(email, %{
+          raw_info: %{token: "tok", user: %{"email" => email, "email_verified" => true}}
+        })
 
       assert {:ok, found, :found} = OAuth.find_or_create_user(data)
       assert found.uuid == user.uuid
     end
 
-    test "accepts the string spelling providers sometimes send" do
+    test "accepts a string-keyed raw_info too, for providers that hand one over" do
       email = unique_email()
       _user = local_user(email)
 
-      data = oauth_data(email, %{raw_info: %{"user" => %{"email_verified" => "true"}}})
+      data = oauth_data(email, %{raw_info: %{"user" => %{"email_verified" => true}}})
+
+      assert {:ok, _user, :found} = OAuth.find_or_create_user(data)
+    end
+
+    test "accepts the string spelling of the claim value providers sometimes send" do
+      email = unique_email()
+      _user = local_user(email)
+
+      data = oauth_data(email, %{raw_info: %{user: %{"email_verified" => "true"}}})
+
+      assert {:ok, _user, :found} = OAuth.find_or_create_user(data)
+    end
+
+    test "an OIDC provider that puts the claim at the top level of raw_info" do
+      email = unique_email()
+      _user = local_user(email)
+
+      data = oauth_data(email, %{raw_info: %{email_verified: true}})
 
       assert {:ok, _user, :found} = OAuth.find_or_create_user(data)
     end
@@ -85,7 +111,7 @@ defmodule PhoenixKit.Integration.Users.OAuthEmailVerificationTest do
       matching =
         oauth_data(email, %{
           provider: "github",
-          raw_info: %{"user" => %{"emails" => [%{"email" => email, "verified" => true}]}}
+          raw_info: %{user: %{"emails" => [%{"email" => email, "verified" => true}]}}
         })
 
       assert {:ok, _user, :found} = OAuth.find_or_create_user(matching)
@@ -94,7 +120,7 @@ defmodule PhoenixKit.Integration.Users.OAuthEmailVerificationTest do
         oauth_data(email, %{
           provider: "github",
           raw_info: %{
-            "user" => %{
+            user: %{
               "emails" => [
                 %{"email" => "someone-else@example.com", "verified" => true},
                 %{"email" => email, "verified" => false}
@@ -110,7 +136,7 @@ defmodule PhoenixKit.Integration.Users.OAuthEmailVerificationTest do
       email = unique_email()
       _user = local_user(email)
 
-      for raw <- [nil, "not a map", %{"user" => "not a map"}, %{}] do
+      for raw <- [nil, "not a map", %{user: "not a map"}, %{"user" => "not a map"}, %{}] do
         data = oauth_data(email, %{raw_info: raw})
         assert {:error, :provider_email_unverified} = OAuth.find_or_create_user(data)
       end
