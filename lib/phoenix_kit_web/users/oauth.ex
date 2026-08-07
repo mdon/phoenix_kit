@@ -388,6 +388,9 @@ if Code.ensure_loaded?(Ueberauth) do
         token when is_binary(token) -> Auth.get_user_by_session_token(token)
         _ -> nil
       end
+      # Same reason as the twin in `PhoenixKitWeb.Users.Session`: a deactivated
+      # account resolves to anonymous, not to itself.
+      |> Auth.ensure_active_user()
       |> Scope.for_user()
     end
 

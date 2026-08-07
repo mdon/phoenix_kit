@@ -97,18 +97,18 @@ defmodule PhoenixKitWeb.Users.UserForm do
   # Creating a user is unconditional — a record that does not exist yet cannot
   # outrank anyone.
   defp assign_credential_authority(%{assigns: %{mode: :new}} = socket) do
-    assign(socket, :can_manage_credentials, true)
+    socket
+    |> assign(:can_manage_credentials, true)
+    |> assign(:can_manage_status, true)
   end
 
   defp assign_credential_authority(socket) do
-    assign(
-      socket,
-      :can_manage_credentials,
-      Auth.can_manage_user_credentials?(
-        socket.assigns.user,
-        socket.assigns[:phoenix_kit_current_user]
-      )
-    )
+    target = socket.assigns.user
+    actor = socket.assigns[:phoenix_kit_current_user]
+
+    socket
+    |> assign(:can_manage_credentials, Auth.can_manage_user_credentials?(target, actor))
+    |> assign(:can_manage_status, Auth.can_manage_user_status?(target, actor))
   end
 
   # :new keeps the generic "Create User" title (no record to name yet); :edit
@@ -424,6 +424,19 @@ defmodule PhoenixKitWeb.Users.UserForm do
   end
 
   def handle_event("toggle_user_status", _params, socket) do
+    if socket.assigns.can_manage_status do
+      do_toggle_user_status(socket)
+    else
+      {:noreply,
+       put_flash(
+         socket,
+         :error,
+         gettext("You don't have permission to change this user's status")
+       )}
+    end
+  end
+
+  defp do_toggle_user_status(socket) do
     user = socket.assigns.user
     new_status = !user.is_active
 

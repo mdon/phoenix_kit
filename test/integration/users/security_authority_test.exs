@@ -86,6 +86,26 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
 
       assert Auth.can_manage_user_credentials?(user, user)
     end
+  end
+
+  describe "can_manage_user_status?/2 applies the same rank rule" do
+    test "an Admin may deactivate an ordinary user but not an Owner or another Admin" do
+      admin = admin_user()
+
+      assert Auth.can_manage_user_status?(plain_user(), admin)
+      refute Auth.can_manage_user_status?(owner_user(), admin)
+      refute Auth.can_manage_user_status?(admin_user(), admin)
+    end
+
+    test "an Owner may deactivate anyone; a non-staff holder of `users` may deactivate nobody" do
+      owner = owner_user()
+
+      assert Auth.can_manage_user_status?(admin_user(), owner)
+      assert Auth.can_manage_user_status?(plain_user(), owner)
+
+      refute Auth.can_manage_user_status?(admin_user(), plain_user())
+      refute Auth.can_manage_user_status?(plain_user(), nil)
+    end
 
     test "a missing actor is refused rather than defaulting open" do
       refute Auth.can_manage_user_credentials?(plain_user(), nil)

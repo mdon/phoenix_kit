@@ -2661,7 +2661,7 @@ defmodule PhoenixKit.Users.Auth do
       false
   """
   def can_manage_user_credentials?(%User{} = user, %User{} = current_user) do
-    case validate_can_manage_user_credentials(user, current_user) do
+    case validate_admin_authority_over(user, current_user) do
       :ok -> true
       {:error, _reason} -> false
     end
@@ -2669,10 +2669,32 @@ defmodule PhoenixKit.Users.Auth do
 
   def can_manage_user_credentials?(_user, _current_user), do: false
 
-  # Validates credential-management authority. Kept private and expressed as
-  # `:ok | {:error, reason}` so a caller that needs to explain the refusal can
-  # be given a public wrapper later without changing the decision itself.
-  defp validate_can_manage_user_credentials(%User{} = user, %User{} = current_user) do
+  @doc """
+  True when `current_user` may activate or deactivate `user`.
+
+  Same authority as `can_manage_user_credentials?/2`, for the same reason:
+  deactivation is decided by rank, not by the `users` permission that admits a
+  visitor to the user pages. Without it a role holding only `users` can switch
+  off an Admin — or a non-last Owner — which is a denial of service against the
+  accounts that are meant to outrank it.
+
+  The last-Owner protection in `Roles.can_deactivate_user?/1` is a separate,
+  target-only rule and still applies on top of this one.
+  """
+  def can_manage_user_status?(%User{} = user, %User{} = current_user) do
+    case validate_admin_authority_over(user, current_user) do
+      :ok -> true
+      {:error, _reason} -> false
+    end
+  end
+
+  def can_manage_user_status?(_user, _current_user), do: false
+
+  # The shared rank rule behind every administrative action taken ON an account
+  # rather than BY one. Kept private and expressed as `:ok | {:error, reason}`
+  # so a caller that needs to explain the refusal can be given a public wrapper
+  # without changing the decision itself.
+  defp validate_admin_authority_over(%User{} = user, %User{} = current_user) do
     actor_is_owner = Roles.user_has_role_owner?(current_user)
 
     cond do
@@ -2693,7 +2715,7 @@ defmodule PhoenixKit.Users.Auth do
     end
   end
 
-  defp validate_can_manage_user_credentials(_user, _current_user) do
+  defp validate_admin_authority_over(_user, _current_user) do
     {:error, :invalid_current_user}
   end
 

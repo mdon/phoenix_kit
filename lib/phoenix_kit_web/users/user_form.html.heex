@@ -317,50 +317,73 @@
                 <% end %>
               </label>
 
-              <%= if @user.uuid == @phoenix_kit_current_user.uuid do %>
-                <div class="bg-base-200 p-4 rounded-lg">
-                  <div class="flex items-start gap-3">
-                    <.icon name="hero-information-circle-solid" class="w-5 h-5 mt-0.5 text-info" />
-                    <div class="text-sm">
-                      <p class="font-medium">Cannot modify own status</p>
-                      <p class="text-base-content/70 mt-1">
-                        You cannot deactivate your own account for security reasons.
-                      </p>
+              <%= cond do %>
+                <% @user.uuid == @phoenix_kit_current_user.uuid -> %>
+                  <div class="bg-base-200 p-4 rounded-lg">
+                    <div class="flex items-start gap-3">
+                      <.icon
+                        name="hero-information-circle-solid"
+                        class="w-5 h-5 mt-0.5 text-info"
+                      />
+                      <div class="text-sm">
+                        <p class="font-medium">Cannot modify own status</p>
+                        <p class="text-base-content/70 mt-1">
+                          You cannot deactivate your own account for security reasons.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              <% else %>
-                <div class="flex items-center gap-4 mt-2">
-                  <button
-                    type="button"
-                    phx-click="toggle_user_status"
-                    class={"btn btn-sm #{if @user.is_active, do: "btn-error btn-outline", else: "btn-success"}"}
-                  >
-                    <%= if @user.is_active do %>
-                      Deactivate User
-                    <% else %>
-                      Activate User
-                    <% end %>
-                  </button>
-                  <span class="text-sm text-base-content/70">
-                    <%= if @user.is_active do %>
-                      Deactivating will prevent this user from logging in
-                    <% else %>
-                      Activating will allow this user to log in
-                    <% end %>
-                  </span>
-                </div>
-
-                <%= if @user.is_active and PhoenixKit.Users.Roles.user_has_role_owner?(@user) do %>
-                  <div class="text-xs text-base-content/60 mt-3">
-                    <.icon
-                      name="hero-exclamation-triangle-solid"
-                      class="w-4 h-4 inline mr-1 text-warning"
-                    />
-                    <strong>Note:</strong>
-                    Cannot deactivate if this is the last active Owner in the system.
+                <% not @can_manage_status -> %>
+                  <%!-- The target outranks the actor. Deactivation is decided by
+                        rank, like credential management: holding `users` admits
+                        you to this page, it does not let you switch off an
+                        account that outranks yours. --%>
+                  <div class="bg-base-200 p-4 rounded-lg">
+                    <div class="flex items-start gap-3">
+                      <.icon
+                        name="hero-information-circle-solid"
+                        class="w-5 h-5 mt-0.5 text-info"
+                      />
+                      <div class="text-sm">
+                        <p class="font-medium">Cannot modify this user's status</p>
+                        <p class="text-base-content/70 mt-1">
+                          Only an Owner can activate or deactivate this account.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                <% end %>
+                <% true -> %>
+                  <div class="flex items-center gap-4 mt-2">
+                    <button
+                      type="button"
+                      phx-click="toggle_user_status"
+                      class={"btn btn-sm #{if @user.is_active, do: "btn-error btn-outline", else: "btn-success"}"}
+                    >
+                      <%= if @user.is_active do %>
+                        Deactivate User
+                      <% else %>
+                        Activate User
+                      <% end %>
+                    </button>
+                    <span class="text-sm text-base-content/70">
+                      <%= if @user.is_active do %>
+                        Deactivating will prevent this user from logging in
+                      <% else %>
+                        Activating will allow this user to log in
+                      <% end %>
+                    </span>
+                  </div>
+
+                  <%= if @user.is_active and PhoenixKit.Users.Roles.user_has_role_owner?(@user) do %>
+                    <div class="text-xs text-base-content/60 mt-3">
+                      <.icon
+                        name="hero-exclamation-triangle-solid"
+                        class="w-4 h-4 inline mr-1 text-warning"
+                      />
+                      <strong>Note:</strong>
+                      Cannot deactivate if this is the last active Owner in the system.
+                    </div>
+                  <% end %>
               <% end %>
             </div>
           <% end %>
