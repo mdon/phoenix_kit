@@ -2149,6 +2149,18 @@ defmodule PhoenixKit.Users.Auth do
          |> User.status_changeset(attrs)
          |> Repo.update() do
       {:ok, updated_user} ->
+        # Deactivation must REVOKE, not merely deny. Every gate that reads a
+        # session runs `ensure_active_user/1`, so a deactivated user is bounced
+        # from ordinary pages — but the token row itself survives for its full
+        # 60-day life, and any entry point that resolves a token without that
+        # filter still sees a live user behind it. Deleting the tokens here
+        # makes "deactivate" mean what an operator cutting off a departing or
+        # compromised account believes it means, and removes the standing
+        # dependency on every present and future caller remembering the filter.
+        if updated_user.is_active == false do
+          delete_all_user_session_tokens(updated_user)
+        end
+
         # Broadcast user status update event
         Events.broadcast_user_updated(updated_user)
         {:ok, updated_user}
@@ -2616,6 +2628,72 @@ defmodule PhoenixKit.Users.Auth do
   end
 
   defp validate_can_delete_user(_user, _current_user) do
+    {:error, :invalid_current_user}
+  end
+
+  @doc """
+  True when `current_user` may manage `user`'s credentials — set a new password,
+  send a password-reset mail, or change the address those mails are delivered to.
+
+  Credential management is the one admin action that hands over an account, so it
+  is decided by ROLE and by RANK, not by the `users` permission that admits a
+  visitor to the user pages. Holding `users` answers "may this person administer
+  users at all"; it must never answer "may this person take over that particular
+  account". The rules mirror `can_delete_user?/2` (only an Owner acts on an
+  Admin) and the impersonation authority in `PhoenixKitWeb.Users.MultiSession`
+  (an Owner is never a target for anyone but themselves), so the three
+  account-takeover surfaces agree.
+
+  1. Your own account is always yours to manage.
+  2. The actor must hold Owner or Admin **by role**.
+  3. An Owner target may be managed only by an Owner.
+  4. An Admin target may be managed only by an Owner.
+
+  Everything else — an ordinary user changing their own password — belongs on
+  their own settings page, not here.
+
+  ## Examples
+
+      iex> can_manage_user_credentials?(some_user, admin)
+      true
+
+      iex> can_manage_user_credentials?(owner, admin)
+      false
+  """
+  def can_manage_user_credentials?(%User{} = user, %User{} = current_user) do
+    case validate_can_manage_user_credentials(user, current_user) do
+      :ok -> true
+      {:error, _reason} -> false
+    end
+  end
+
+  def can_manage_user_credentials?(_user, _current_user), do: false
+
+  # Validates credential-management authority. Kept private and expressed as
+  # `:ok | {:error, reason}` so a caller that needs to explain the refusal can
+  # be given a public wrapper later without changing the decision itself.
+  defp validate_can_manage_user_credentials(%User{} = user, %User{} = current_user) do
+    actor_is_owner = Roles.user_has_role_owner?(current_user)
+
+    cond do
+      user.uuid == current_user.uuid ->
+        :ok
+
+      not (actor_is_owner or Roles.user_has_role_admin?(current_user)) ->
+        {:error, :insufficient_permissions}
+
+      Roles.user_has_role_owner?(user) and not actor_is_owner ->
+        {:error, :target_is_owner}
+
+      Roles.user_has_role_admin?(user) and not actor_is_owner ->
+        {:error, :target_is_staff}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_can_manage_user_credentials(_user, _current_user) do
     {:error, :invalid_current_user}
   end
 

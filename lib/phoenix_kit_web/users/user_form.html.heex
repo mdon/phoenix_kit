@@ -117,7 +117,11 @@
           class="space-y-6"
         >
           <div class="space-y-4">
-            <%!-- Email --%>
+            <%!-- Email. Read-only for an actor who may not manage this record's
+                 credentials: the reset link is delivered to this address, so
+                 rewriting it takes the account exactly as setting a password
+                 does. The server drops the field regardless — see
+                 `update_user_profile/3`. --%>
             <div class="w-full">
               <.input
                 field={form[:email]}
@@ -125,6 +129,7 @@
                 label="Email"
                 placeholder="user@example.com"
                 required
+                readonly={not @can_manage_credentials}
               />
             </div>
 
@@ -252,8 +257,13 @@
             </div>
           </div>
 
-          <%!-- Password Change Section (Edit mode, Admin/Owner only) --%>
-          <%= if @mode == :edit and PhoenixKit.Users.Auth.Scope.can_access_admin_area?(@phoenix_kit_current_scope) do %>
+          <%!-- Password Change Section (Edit mode, Admin/Owner only, and never
+                on a record that outranks the actor). `can_access_admin_area?/1`
+                used to stand here and does NOT mean Admin/Owner — it is true for
+                any holder of a single permission, so the comment and the guard
+                disagreed and a `users`-permission role could rewrite an Owner's
+                password. `@can_manage_credentials` is the rank-aware answer. --%>
+          <%= if @mode == :edit and @can_manage_credentials do %>
             <div class="form-control">
               <label class="label">
                 <span class="label-text font-semibold">Password Management</span>
@@ -832,8 +842,9 @@
         </div>
       <% end %>
 
-      <%!-- Password Reset via Email Section (Edit mode only) --%>
-      <%= if @mode == :edit do %>
+      <%!-- Password Reset via Email Section (Edit mode; hidden for an actor who
+            may not manage this record's credentials) --%>
+      <%= if @mode == :edit and @can_manage_credentials do %>
         <div class="bg-yellow-50 border border-yellow-200 dark:bg-warning/10 dark:border-warning/30 rounded-lg p-6 mt-6">
           <div class="flex items-start gap-3">
             <.icon
