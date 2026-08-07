@@ -472,6 +472,23 @@ defmodule PhoenixKitWeb.Integration do
 
     quote do
       # Core admin routes (under PhoenixKitWeb alias from parent scope)
+      #
+      # `/admin` — the admin INDEX — belongs HERE, in the admin live_session,
+      # even though it is the guaranteed landing every authenticated visitor
+      # can be sent to (the terminal of
+      # `PhoenixKit.Utils.Routes.safe_destination/2`). What admits a
+      # permission-less visitor is the GATE, not the router:
+      # `:phoenix_kit_ensure_admin` recognises this one view
+      # (`PhoenixKitWeb.Users.Auth.landing_view?/1`) and skips the admin-area
+      # and per-view permission checks for it alone — authentication, the
+      # account gate, the locale hook and maintenance mode still run for
+      # everyone.
+      #
+      # Keeping the route here is what makes the whole admin surface ONE
+      # live_session: LiveView cannot live-navigate across live_sessions, so a
+      # landing page in a different one turns every click into and out of the
+      # admin area into a full page reload (see
+      # `lib/phoenix_kit/dashboard/ADMIN_README.md`).
       live "/admin", Live.Dashboard, :index
       live "/admin/users", Live.Users.Users, :index
       live "/admin/users/new", Users.UserForm, :new, as: :user_form

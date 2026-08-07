@@ -22,6 +22,8 @@ defmodule PhoenixKitWeb.RoutePrecedenceTest do
   """
   use ExUnit.Case, async: true
 
+  alias PhoenixKitWeb.Users.Auth
+
   defmodule DummyController do
     @moduledoc false
     use Phoenix.Controller, formats: []
@@ -201,6 +203,166 @@ defmodule PhoenixKitWeb.RoutePrecedenceTest do
 
       #{Enum.map_join(shadowed, "\n", fn {declared, actual, params} -> "  #{declared}\n    -> #{actual}  #{inspect(params)}" end)}
       """
+    end
+  end
+
+  describe "the /admin index shares the admin live_session, and the GATE admits" do
+    # `/admin` is the terminal of `PhoenixKit.Utils.Routes.safe_destination/2`
+    # — the page core promises EVERY signed-in visitor can be sent to. A
+    # terminal that bounces its own visitor is an infinite redirect, so
+    # something has to admit a visitor holding no permissions.
+    #
+    # That something is the GATE, not the router. The index route stays in
+    # `live_session :phoenix_kit_admin` under `:phoenix_kit_ensure_admin` like
+    # every other `/admin/*` page, and the hook exempts this one VIEW
+    # (`PhoenixKitWeb.Users.Auth.landing_view?/1`) from its two permission
+    # checks. These tests pin the router half of that sentence: the exemption
+    # is a single view, and the admin surface is a single live_session.
+    #
+    # Why the router half matters. An earlier attempt moved the route to
+    # `live_session :phoenix_kit_authenticated` instead, which broke three
+    # things a test can still catch here:
+    #
+    #   * LiveView cannot live-navigate ACROSS live_sessions, so every click
+    #     from the landing into any admin page (and back) became a full page
+    #     reload — see `lib/phoenix_kit/dashboard/ADMIN_README.md`.
+    #   * that session carries `{PhoenixKitWeb.Dashboard.ContextProvider,
+    #     :default}`, which halt-redirects a visitor with zero contexts when a
+    #     host configures `empty_behavior: {:redirect, path}` — the guaranteed
+    #     landing bouncing its own visitor, the exact thing being prevented.
+    #   * its pipeline runs `:phoenix_kit_require_authenticated` BEFORE
+    #     `:phoenix_kit_locale_validation`, so an anonymous visitor to
+    #     `/<prefix>/et/admin` was sent to a login page in the site default
+    #     language.
+    #
+    # The behavioural half — who the gate lets through — is pinned in
+    # `test/phoenix_kit_web/users/auth_test.exs` ("admin_gate_decision/2"),
+    # which can drive the decision with literal scopes and no database.
+    defp admin_index_paths do
+      prefix =
+        PhoenixKit.Config.get_url_prefix()
+        |> to_string()
+        |> String.trim_trailing("/")
+
+      [prefix <> "/admin", prefix <> "/:locale/admin"]
+    end
+
+    # After the mount prefix (and an optional `:locale`), does the path start
+    # with the literal `admin` segment?
+    defp admin_surface_path?(path) do
+      prefix = prefix_segments()
+
+      significant =
+        case path |> String.split("/", trim: true) |> Enum.split(length(prefix)) do
+          {^prefix, rest} -> rest
+          _ -> []
+        end
+
+      case significant do
+        [":locale", "admin" | _] -> true
+        ["admin" | _] -> true
+        _ -> false
+      end
+    end
+
+    defp on_mount_ids(route) do
+      case route.metadata[:phoenix_live_view] do
+        {_view, _action, _opts, %{extra: %{on_mount: hooks}}} -> Enum.map(hooks, & &1.id)
+        _ -> []
+      end
+    end
+
+    defp live_view_module(route) do
+      case route.metadata[:phoenix_live_view] do
+        {view, _action, _opts, _extra} -> view
+        _ -> nil
+      end
+    end
+
+    test "both URL shapes exist, mount Live.Dashboard, and carry the ADMIN hook" do
+      routes = PhoenixKitWeb.Router.__routes__()
+
+      for path <- admin_index_paths() do
+        route = Enum.find(routes, &(&1.verb == :get and &1.path == path))
+
+        assert route, "#{path} is not declared — the guaranteed landing must exist in both shapes"
+
+        assert {PhoenixKitWeb.Live.Dashboard, :index, _opts, _extra} =
+                 route.metadata[:phoenix_live_view]
+
+        assert live_session_name(route) == :phoenix_kit_admin
+
+        # Exactly the admin hook chain — no ContextProvider, nothing extra.
+        # A second hook here is a second thing that may halt the mount, and
+        # the guaranteed landing must not be halt-able by anything but the
+        # account gate.
+        assert on_mount_ids(route) == [
+                 {PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_admin}
+               ]
+      end
+    end
+
+    test "the whole admin surface is ONE live_session, index included" do
+      admin_routes =
+        PhoenixKitWeb.Router.__routes__()
+        |> Enum.filter(&admin_surface_path?(&1.path))
+
+      assert length(admin_routes) > 20,
+             "expected the admin surface to hold its route table, found #{length(admin_routes)}"
+
+      # Both shapes of the index are in there, and they are not special.
+      assert Enum.all?(admin_index_paths(), fn p ->
+               Enum.any?(admin_routes, &(&1.verb == :get and &1.path == p))
+             end)
+
+      strays =
+        for route <- admin_routes,
+            live_session_name(route) != :phoenix_kit_admin,
+            do:
+              "  #{route.verb} #{route.path} -> #{inspect(live_session_name(route))} #{inspect(on_mount_ids(route))}"
+
+      assert strays == [], """
+      These /admin routes are NOT in live_session :phoenix_kit_admin:
+
+      #{Enum.join(strays, "\n")}
+
+      LiveView cannot live-navigate across live_sessions, so each of these
+      turns navigation to and from the rest of the admin area into a full page
+      reload. Admitting a visitor who lacks a permission is the GATE's job
+      (`PhoenixKitWeb.Users.Auth.admin_gate_decision/2`), never the router's.
+      """
+    end
+
+    test "exactly one admin route mounts the landing view" do
+      # The gate exemption is keyed on the VIEW, so a second route mounting
+      # `PhoenixKitWeb.Live.Dashboard` would silently inherit it — a whole
+      # extra page open to every authenticated visitor. Both URL shapes of
+      # `/admin` mount it; nothing else may.
+      landing_routes =
+        PhoenixKitWeb.Router.__routes__()
+        |> Enum.filter(&Auth.landing_view?(live_view_module(&1)))
+        |> Enum.map(& &1.path)
+        |> Enum.sort()
+
+      assert landing_routes == Enum.sort(admin_index_paths())
+    end
+
+    test "no OTHER admin view is treated as the landing" do
+      # The complement of the test above, stated over views rather than
+      # routes: `landing_view?/1` must answer false for every other admin
+      # LiveView the router mounts, or the exemption has widened.
+      admin_views =
+        PhoenixKitWeb.Router.__routes__()
+        |> Enum.filter(&admin_surface_path?(&1.path))
+        |> Enum.map(&live_view_module/1)
+        |> Enum.reject(&is_nil/1)
+        |> Enum.uniq()
+
+      assert length(admin_views) > 20
+
+      exempt = Enum.filter(admin_views, &Auth.landing_view?/1)
+
+      assert exempt == [PhoenixKitWeb.Live.Dashboard]
     end
   end
 end

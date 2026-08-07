@@ -76,6 +76,8 @@ ast-grep --lang elixir --pattern 'def $FUNC($$$ARGS) do $$$BODY end' lib/
   ```
 
   Adding `mix test` to `precommit` was tried and reverted: the suite is not green from a clean checkout (with no database ~5 "unit" tests still fail, because `Settings` reads hit the DB on a cache miss), so the gate would be permanently red. Fixing that is worth doing separately — until then, treat the suite as a deliberate manual step, not an oversight.
+
+  ⚠️ **A database-less run now sets `config :phoenix_kit, :update_mode, true`** (`test_helper.exs`, only when the repo is unreachable). That is what closed the "~5 unit tests fail" gap above: it short-circuits every `PhoenixKit.Settings` read to `nil` instead of queueing 4 s against a dead pool. The consequence is that on the unit half **every settings-dependent assertion runs against "nothing is configured"** — a test that needs a *value* cannot get one from the database and must prime the settings cache itself (start `PhoenixKit.Cache.Registry` + `{PhoenixKit.Cache, name: :settings}` and `PhoenixKit.Cache.put/3`; the cache is consulted before the short-circuit). `test/phoenix_kit/utils/safe_destination_settings_test.exs` is the worked example. Without that, an assertion about a configured setting is vacuously true.
 - **Commit messages:** start with `Add`, `Update`, `Fix`, `Remove`, `Merge`.
 - **Version management:** `mix.exs` `@version` + `CHANGELOG.md`. Run `mix compile`, `mix test`, `mix format`, `mix credo --strict` before committing. Get current versions:
   ```bash
@@ -160,8 +162,11 @@ settings live on the admin Users settings page (`/admin/settings/users`).
   use `Auth.remember_me_params/0`. **Never hardcode `%{"remember_me" => "true"}`**.
 - **Post-auth destination:** one resolver, `Routes.post_auth_path/1`. Precedence:
   explicit `return_to` (param or gate-stashed session key) > `after_registration_path`
-  > `after_login_path` > `"/"`. `log_in_user/3` honors a `"return_to"` param too.
-  Both settings validate as local paths on save and are re-guarded on read.
+  > `after_login_path` > `/admin`. `log_in_user/3` honors a `"return_to"` param too.
+  Both settings validate as local paths on save and are re-guarded on read. The
+  tail is `/admin`, not `"/"`: core declares that route unconditionally and admits
+  every authenticated visitor to it, while `"/"` belongs to the host and 404s
+  wherever no root route was declared.
 - ⚠️ **`Routes.local_path?/1` is the only redirect guard** — it rejects `//`,
   `/\`, and **ASCII control characters** (browsers strip tab/CR/LF, so
   `"/\t/evil.com"` lands as `//evil.com`; `Phoenix.Controller.redirect/2` blocks

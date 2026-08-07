@@ -19,17 +19,17 @@ msgstr ""
 msgid "Dashboard"
 msgstr "Панель управления"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:7
+#: lib/phoenix_kit_web/live/dashboard.html.heex:8
 #, elixir-autogen
 msgid "Welcome to the %{project_title} administration panel"
 msgstr "Добро пожаловать в панель администрирования %{project_title}"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:129
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:213
 #, elixir-autogen
 msgid "Platform Statistics"
 msgstr "Статистика платформы"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:338
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:422
 #, elixir-autogen
 msgid "System Information"
 msgstr "Системная информация"
@@ -38,7 +38,7 @@ msgstr "Системная информация"
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:77
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:92
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:265
-#: lib/phoenix_kit_web/live/dashboard.html.heex:26
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:106
 #: lib/phoenix_kit_web/live/users/roles.html.heex:95
 #: lib/phoenix_kit_web/live/users/roles.html.heex:162
 #: lib/phoenix_kit_web/live/users/user_details.ex:108
@@ -48,13 +48,13 @@ msgstr "Системная информация"
 msgid "Users"
 msgstr "Пользователи"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:27
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:107
 #, elixir-autogen
 msgid "User management"
 msgstr "Управление пользователями"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:128
-#: lib/phoenix_kit_web/live/dashboard.html.heex:41
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:122
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:44
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:163
 #: lib/phoenix_kit_web/live/users/users.html.heex:611
@@ -63,46 +63,46 @@ msgstr "Управление пользователями"
 msgid "Roles"
 msgstr "Роли"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:42
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:123
 #, elixir-autogen
 msgid "Role management"
 msgstr "Управление ролями"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:119
-#: lib/phoenix_kit_web/live/dashboard.html.heex:56
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:138
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:630
 #: lib/phoenix_kit_web/live/settings/users.html.heex:130
 #, elixir-autogen
 msgid "Sessions"
 msgstr "Сессии"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:57
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:139
 #, elixir-autogen
 msgid "Active sessions"
 msgstr "Активные сессии"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:71
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:154
 #, elixir-autogen
 msgid "Live Activity"
 msgstr "Активность в реальном времени"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:72
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:155
 #, elixir-autogen
 msgid "Real-time visitors"
 msgstr "Посетители в реальном времени"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:86
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:170
 #, elixir-autogen
 msgid "Add User"
 msgstr "Добавить пользователя"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:87
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:171
 #, elixir-autogen
 msgid "Create new account"
 msgstr "Создать новую учетную запись"
 
 #: lib/phoenix_kit/notifications/channels/email.ex:25
-#: lib/phoenix_kit_web/live/dashboard.html.heex:102
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:186
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:231
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:642
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:28
@@ -115,191 +115,191 @@ msgstr "Создать новую учетную запись"
 msgid "Email"
 msgstr "Электронная почта"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:103
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:187
 #, elixir-autogen
 msgid "Email logs & analytics"
 msgstr "Журналы и аналитика электронной почты"
 
 #: lib/modules/storage/web/health.html.heex:72
-#: lib/phoenix_kit_web/live/dashboard.html.heex:118
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:202
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:39
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:205
 #, elixir-autogen
 msgid "Refresh"
 msgstr "Обновить"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:119
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:203
 #, elixir-autogen
 msgid "Update statistics"
 msgstr "Обновить статистику"
 
 ## Statistics cards
-#: lib/phoenix_kit_web/live/dashboard.html.heex:137
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:221
 #: lib/phoenix_kit_web/live/users/users.html.heex:815
 #, elixir-autogen
 msgid "System Owners"
 msgstr "Владельцы системы"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:138
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:222
 #: lib/phoenix_kit_web/live/users/users.html.heex:816
 #, elixir-autogen
 msgid "Complete system authority"
 msgstr "Полные системные права"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:148
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:232
 #: lib/phoenix_kit_web/live/users/users.html.heex:827
 #, elixir-autogen
 msgid "Administrators"
 msgstr "Администраторы"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:149
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:233
 #: lib/phoenix_kit_web/live/users/users.html.heex:828
 #, elixir-autogen
 msgid "Management privileges"
 msgstr "Права управления"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:159
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:243
 #: lib/phoenix_kit_web/live/users/users.html.heex:803
 #, elixir-autogen
 msgid "Total Users"
 msgstr "Всего пользователей"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:160
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:244
 #, elixir-autogen
 msgid "Registered accounts"
 msgstr "Зарегистрированные аккаунты"
 
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:254
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:259
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1261
-#: lib/phoenix_kit_web/live/dashboard.html.heex:170
-#: lib/phoenix_kit_web/live/dashboard.html.heex:175
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:18
 #, elixir-autogen
 msgid "Active Sessions"
 msgstr "Активные сессии"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:176
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:260
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:19
 #, elixir-autogen
 msgid "Currently logged in"
 msgstr "В настоящее время в системе"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:186
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:270
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:30
 #, elixir-autogen
 msgid "Unique Users"
 msgstr "Уникальные пользователи"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:187
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:271
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:31
 #, elixir-autogen
 msgid "With active sessions"
 msgstr "С активными сессиями"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:197
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:281
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:42
 #, elixir-autogen
 msgid "Today's Sessions"
 msgstr "Сегодняшние сессии"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:198
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:282
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:43
 #, elixir-autogen
 msgid "New login activity"
 msgstr "Новая активность входа"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:208
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:292
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:54
 #, elixir-autogen
 msgid "Expired Sessions"
 msgstr "Истекшие сессии"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:209
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:293
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:55
 #, elixir-autogen
 msgid "Need cleanup"
 msgstr "Требуют очистки"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:220
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:304
 #, elixir-autogen
 msgid "Real-Time Activity"
 msgstr "Активность в реальном времени"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:225
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:309
 #, elixir-autogen
 msgid "Active Visitors"
 msgstr "Активные посетители"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:226
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:310
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:52
 #, elixir-autogen
 msgid "Real-time connections"
 msgstr "Соединения в реальном времени"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:236
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:320
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:64
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:144
 #, elixir-autogen
 msgid "Anonymous"
 msgstr "Анонимные"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:237
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:321
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:65
 #, elixir-autogen
 msgid "Unregistered visitors"
 msgstr "Незарегистрированные посетители"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:247
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:331
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:77
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:151
 #, elixir-autogen
 msgid "Authenticated"
 msgstr "Аутентифицированные"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:248
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:332
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:78
 #, elixir-autogen
 msgid "Logged in users"
 msgstr "Авторизованные пользователи"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:261
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:345
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:90
 #, elixir-autogen
 msgid "Unique Visitors"
 msgstr "Уникальные посетители"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:262
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:346
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:91
 #, elixir-autogen
 msgid "Individual connections"
 msgstr "Индивидуальные соединения"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:277
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:361
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:196
 #: lib/phoenix_kit_web/live/users/users.html.heex:855
 #, elixir-autogen
 msgid "Active Users"
 msgstr "Активные пользователи"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:278
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:362
 #: lib/phoenix_kit_web/live/users/users.html.heex:856
 #, elixir-autogen
 msgid "Currently online"
 msgstr "В настоящее время онлайн"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:289
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:373
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:197
 #: lib/phoenix_kit_web/live/users/users.html.heex:868
 #, elixir-autogen
 msgid "Inactive Users"
 msgstr "Неактивные пользователи"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:290
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:374
 #: lib/phoenix_kit_web/live/users/users.html.heex:869
 #, elixir-autogen
 msgid "Disabled accounts"
 msgstr "Отключенные аккаунты"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:301
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:385
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:144
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:237
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:295
@@ -310,45 +310,45 @@ msgstr "Отключенные аккаунты"
 msgid "Email Confirmed"
 msgstr "Email подтвержден"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:302
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:386
 #: lib/phoenix_kit_web/live/users/users.html.heex:882
 #, elixir-autogen
 msgid "Verified emails"
 msgstr "Проверенные email'ы"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:313
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:397
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:199
 #: lib/phoenix_kit_web/live/users/users.html.heex:894
 #, elixir-autogen
 msgid "Pending Email"
 msgstr "Email в ожидании"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:314
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:398
 #: lib/phoenix_kit_web/live/users/users.html.heex:895
 #, elixir-autogen
 msgid "Awaiting confirmation"
 msgstr "Ожидает подтверждения"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:325
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:409
 #: lib/phoenix_kit_web/live/users/users.html.heex:157
 #: lib/phoenix_kit_web/live/users/users.html.heex:839
 #, elixir-autogen
 msgid "Regular Users"
 msgstr "Обычные пользователи"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:326
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:410
 #: lib/phoenix_kit_web/live/users/users.html.heex:840
 #, elixir-autogen
 msgid "Standard access level"
 msgstr "Стандартный уровень доступа"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:362
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:446
 #, elixir-autogen
 msgid "Role System"
 msgstr "Система ролей"
 
 #: lib/phoenix_kit/integrations/providers.ex:825
-#: lib/phoenix_kit_web/live/dashboard.html.heex:366
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:450
 #, elixir-autogen
 msgid "Authentication"
 msgstr "Аутентификация"
@@ -356,7 +356,7 @@ msgstr "Аутентификация"
 #: lib/phoenix_kit_web/components/core/badge.ex:105
 #: lib/phoenix_kit_web/components/core/badge.ex:131
 #: lib/phoenix_kit_web/components/core/badge.ex:191
-#: lib/phoenix_kit_web/live/dashboard.html.heex:361
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:445
 #: lib/phoenix_kit_web/live/modules.html.heex:65
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:114
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:273
@@ -378,7 +378,7 @@ msgstr "Активно"
 #: lib/modules/storage/web/dimensions.html.heex:398
 #: lib/modules/storage/web/settings.html.heex:136
 #: lib/modules/storage/web/settings.html.heex:199
-#: lib/phoenix_kit_web/live/dashboard.html.heex:365
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:449
 #: lib/phoenix_kit_web/live/modules.html.heex:89
 #: lib/phoenix_kit_web/live/modules.html.heex:153
 #: lib/phoenix_kit_web/live/modules.html.heex:189
@@ -401,7 +401,7 @@ msgid "Enabled"
 msgstr "Включено"
 
 ## Flash messages
-#: lib/phoenix_kit_web/live/dashboard.ex:79
+#: lib/phoenix_kit_web/live/dashboard/overview.ex:246
 #, elixir-autogen
 msgid "Statistics refreshed successfully"
 msgstr "Статистика успешно обновлена"
@@ -899,7 +899,7 @@ msgstr "Пользовательские роли"
 msgid "Customize"
 msgstr "Настроить"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:358
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:442
 #, elixir-autogen, elixir-format
 msgid "DB / Latest Migration"
 msgstr "БД / Последняя миграция"
@@ -1597,7 +1597,7 @@ msgstr "Права для"
 msgid "Permissions updated for %{role_name}"
 msgstr "Права обновлены для %{role_name}"
 
-#: lib/phoenix_kit_web/live/dashboard.html.heex:346
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:430
 #, elixir-autogen, elixir-format
 msgid "PhoenixKit Version"
 msgstr "Версия PhoenixKit"
@@ -1858,7 +1858,7 @@ msgstr "Сохранено"
 
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:333
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:417
-#: lib/phoenix_kit_web/live/settings.html.heex:514
+#: lib/phoenix_kit_web/live/settings.html.heex:549
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:666
 #: lib/phoenix_kit_web/live/settings/users.html.heex:546
 #, elixir-autogen, elixir-format
@@ -1875,7 +1875,7 @@ msgstr "Выберите страну..."
 msgid "Select which sections and modules this role can access. You can only grant permissions that your own role has."
 msgstr "Выберите, к каким разделам и модулям эта роль имеет доступ. Вы можете предоставлять только те права, которыми обладает ваша роль."
 
-#: lib/modules/maintenance/web/maintenance_page_live.ex:116
+#: lib/modules/maintenance/web/maintenance_page_live.ex:124
 #: lib/modules/storage/web/bucket_form.html.heex:295
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:218
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:145
@@ -2438,6 +2438,7 @@ msgid "%{language} (Unknown language)"
 msgstr "%{language} (Неизвестный язык)"
 
 #: lib/phoenix_kit_web/live/settings.html.heex:307
+#: lib/phoenix_kit_web/live/settings.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "(empty)"
 msgstr "(пусто)"
@@ -2822,7 +2823,7 @@ msgstr "Используется сейчас"
 msgid "Custom User Fields"
 msgstr "Пользовательские поля"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:445
+#: lib/phoenix_kit_web/live/settings.html.heex:480
 #, elixir-autogen, elixir-format
 msgid "Date Format"
 msgstr "Формат даты"
@@ -2932,7 +2933,7 @@ msgstr "Поле"
 msgid "Field Key"
 msgstr "Ключ поля"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:402
+#: lib/phoenix_kit_web/live/settings.html.heex:437
 #, elixir-autogen, elixir-format
 msgid "First day of the week"
 msgstr "Первый день недели"
@@ -2988,12 +2989,12 @@ msgstr "Вход через Google"
 msgid "Height (px)"
 msgstr "Высота (пкс)"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:447
+#: lib/phoenix_kit_web/live/settings.html.heex:482
 #, elixir-autogen, elixir-format
 msgid "How dates are displayed"
 msgstr "Как отображаются даты"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:477
+#: lib/phoenix_kit_web/live/settings.html.heex:512
 #, elixir-autogen, elixir-format
 msgid "How times are displayed"
 msgstr "Как отображается время"
@@ -3283,7 +3284,7 @@ msgstr "Перезагрузить конфигурацию OAuth"
 msgid "Required field"
 msgstr "Обязательное поле"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:530
+#: lib/phoenix_kit_web/live/settings.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "Reset"
 msgstr "Сбросить"
@@ -3325,7 +3326,7 @@ msgstr "Роль, назначаемая при регистрации новы�
 msgid "SEO Settings"
 msgstr "Настройки SEO"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:516
+#: lib/phoenix_kit_web/live/settings.html.heex:551
 #, elixir-autogen, elixir-format
 msgid "Save All Settings"
 msgstr "Сохранить все настройки"
@@ -3444,7 +3445,7 @@ msgstr "Синхронизировать файлы"
 msgid "System Configuration"
 msgstr "Конфигурация системы"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:427
+#: lib/phoenix_kit_web/live/settings.html.heex:462
 #, elixir-autogen, elixir-format
 msgid "System default timezone"
 msgstr "Часовой пояс системы по умолчанию"
@@ -3481,12 +3482,12 @@ msgstr "Путь хранилища"
 msgid "This will reset dimensions and settings to defaults, and create a local bucket if none exist. Your uploaded files will NOT be deleted. Continue?"
 msgstr "Это сбросит размеры и настройки к значениям по умолчанию и создаст локальный бакет, если его нет. Загруженные файлы НЕ будут удалены. Продолжить?"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:475
+#: lib/phoenix_kit_web/live/settings.html.heex:510
 #, elixir-autogen, elixir-format
 msgid "Time Format"
 msgstr "Формат времени"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:425
+#: lib/phoenix_kit_web/live/settings.html.heex:460
 #, elixir-autogen, elixir-format
 msgid "Time Zone"
 msgstr "Часовой пояс"
@@ -3586,7 +3587,7 @@ msgstr "Видео использует шкалу CRF 0–51 (ниже = луч
 msgid "Visit"
 msgstr "Перейти"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:400
+#: lib/phoenix_kit_web/live/settings.html.heex:435
 #, elixir-autogen, elixir-format
 msgid "Week Start On"
 msgstr "Начало недели"
@@ -3953,7 +3954,7 @@ msgstr "Добавляйте участников со страницы реда
 msgid "Add one in Settings → Integrations"
 msgstr "Добавьте в Настройки → Интеграции"
 
-#: lib/modules/maintenance/web/maintenance_page_live.ex:106
+#: lib/modules/maintenance/web/maintenance_page_live.ex:114
 #, elixir-autogen, elixir-format
 msgid "Admin Preview"
 msgstr "Предпросмотр администратора"
@@ -4363,7 +4364,7 @@ msgstr "Включить аккаунты организаций"
 msgid "Enable required APIs"
 msgstr "Включить необходимые API"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:327
+#: lib/phoenix_kit_web/live/settings.html.heex:362
 #, elixir-autogen, elixir-format
 msgid "Enable user notifications"
 msgstr "Включить уведомления пользователей"
@@ -4398,7 +4399,7 @@ msgstr "Время окончания должно быть в будущем"
 msgid "Enter your API credentials from the developer console."
 msgstr "Введите учётные данные API из консоли разработчика."
 
-#: lib/modules/maintenance/web/maintenance_page_live.ex:144
+#: lib/modules/maintenance/web/maintenance_page_live.ex:152
 #, elixir-autogen, elixir-format
 msgid "Expected back in"
 msgstr "Ожидаемое время возвращения"
@@ -4688,7 +4689,7 @@ msgstr "Настройки режима обслуживания"
 msgid "Maintenance is active"
 msgstr "Режим обслуживания активен"
 
-#: lib/modules/maintenance/web/maintenance_page_live.ex:109
+#: lib/modules/maintenance/web/maintenance_page_live.ex:117
 #, elixir-autogen, elixir-format
 msgid "Maintenance is active — regular users see this page."
 msgstr "Режим обслуживания активен — обычные пользователи видят эту страницу."
@@ -4698,7 +4699,7 @@ msgstr "Режим обслуживания активен — обычные п
 msgid "Maintenance is active."
 msgstr "Режим обслуживания активен."
 
-#: lib/modules/maintenance/web/maintenance_page_live.ex:111
+#: lib/modules/maintenance/web/maintenance_page_live.ex:119
 #, elixir-autogen, elixir-format
 msgid "Maintenance is not active — this is a preview of the page."
 msgstr "Режим обслуживания неактивен — это предварительный просмотр страницы."
@@ -4917,7 +4918,7 @@ msgstr "Настройки уведомлений сохранены."
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1198
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:464
 #: lib/phoenix_kit_web/live/modules.html.heex:667
-#: lib/phoenix_kit_web/live/settings.html.heex:318
+#: lib/phoenix_kit_web/live/settings.html.heex:353
 #, elixir-autogen, elixir-format
 msgid "Notifications"
 msgstr "Уведомления"
@@ -4983,7 +4984,7 @@ msgstr "Пауза"
 msgid "Pending Invitations"
 msgstr "Ожидающие приглашения"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:321
+#: lib/phoenix_kit_web/live/settings.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Per-user inbox driven by the activity feed"
 msgstr "Персональный почтовый ящик, управляемый лентой активности"
@@ -5362,7 +5363,7 @@ msgstr "Скоро вернёмся..."
 msgid "Welcome to your personal dashboard"
 msgstr "Добро пожаловать в вашу личную панель управления"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:330
+#: lib/phoenix_kit_web/live/settings.html.heex:365
 #, elixir-autogen, elixir-format
 msgid "When on, users receive a bell notification whenever an activity targets them (e.g., their post is liked)."
 msgstr "При включении пользователи получают уведомление-колокольчик, когда активность направлена на них (например, их публикацию лайкнули)."
@@ -7666,7 +7667,7 @@ msgstr "Только видео"
 msgid "You need to configure at least one storage bucket before you can upload files."
 msgstr "Перед загрузкой файлов необходимо настроить хотя бы одно хранилище."
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:412
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:454
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:113
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
@@ -8097,7 +8098,7 @@ msgid "Clear filters"
 msgstr "Очистить фильтры"
 
 #: lib/phoenix_kit_web/live/activity/show.html.heex:37
-#: lib/phoenix_kit_web/live/settings.html.heex:394
+#: lib/phoenix_kit_web/live/settings.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "Date & Time"
 msgstr "Дата и время"
@@ -8993,7 +8994,7 @@ msgstr "Загрузить ещё"
 msgid "Loading…"
 msgstr "Загрузка…"
 
-#: lib/phoenix_kit_web/users/session.ex:109
+#: lib/phoenix_kit_web/users/session.ex:113
 #, elixir-autogen, elixir-format
 msgid "Logged out. Now signed in as %{email}."
 msgstr "Выполнен выход. Теперь вы вошли как %{email}."
@@ -9034,7 +9035,7 @@ msgstr "Изменить порядок 1 выбранного %{noun} (оста
 msgid "Showing %{loaded} of %{total} %{noun}"
 msgstr "Показано %{loaded} из %{total} %{noun}"
 
-#: lib/phoenix_kit_web/users/session.ex:241
+#: lib/phoenix_kit_web/users/session.ex:263
 #, elixir-autogen, elixir-format
 msgid "Switched to %{email}."
 msgstr "Переключено на %{email}."
@@ -9245,7 +9246,7 @@ msgstr "Создать папку"
 msgid "Created by %{name}"
 msgstr "Создал %{name}"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:338
+#: lib/phoenix_kit_web/live/settings.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Default notification link"
 msgstr "Ссылка уведомления по умолчанию"
@@ -9640,7 +9641,7 @@ msgstr "Просмотреть уведомления"
 msgid "View storage usage and media statistics. Coming soon."
 msgstr "Просмотр использования хранилища и статистики медиа. Скоро."
 
-#: lib/phoenix_kit_web/live/settings.html.heex:349
+#: lib/phoenix_kit_web/live/settings.html.heex:384
 #, elixir-autogen, elixir-format
 msgid "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
 msgstr "Куда ведёт уведомление, если у него нет собственной ссылки. По умолчанию /dashboard (доступен каждому вошедшему пользователю). Очистите поле, чтобы такие уведомления нельзя было нажать. Префикс URL и локаль добавляются автоматически."
@@ -9874,6 +9875,7 @@ msgstr "Войти под пользователем"
 msgid "Sign in to %{project_title}"
 msgstr "Войти в %{project_title}"
 
+#: lib/phoenix_kit_web/live/dashboard.ex:97
 #: lib/phoenix_kit_web/users/login.html.heex:8
 #, elixir-autogen, elixir-format
 msgid "Welcome back"
@@ -9911,7 +9913,7 @@ msgstr "Изменить иконку"
 msgid "Change image"
 msgstr "Изменить изображение"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:541
+#: lib/phoenix_kit_web/live/settings.html.heex:576
 #, elixir-autogen, elixir-format
 msgid "Changes apply system-wide after \"Save All Settings\". Registration and user defaults are managed on the Users page."
 msgstr "Изменения применяются ко всей системе после нажатия \"Сохранить все настройки\". Регистрация и настройки пользователей по умолчанию управляются на странице пользователей."
@@ -9931,13 +9933,13 @@ msgstr "Сейчас используется иконка сайта."
 msgid "Custom URLs"
 msgstr "Свои URL"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:458
-#: lib/phoenix_kit_web/live/settings.html.heex:488
+#: lib/phoenix_kit_web/live/settings.html.heex:493
+#: lib/phoenix_kit_web/live/settings.html.heex:523
 #, elixir-autogen, elixir-format
 msgid "Example:"
 msgstr "Пример:"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:312
+#: lib/phoenix_kit_web/live/settings.html.heex:347
 #, elixir-autogen, elixir-format
 msgid "Features"
 msgstr "Функции"
@@ -9987,7 +9989,7 @@ msgstr "Публичный базовый URL этого приложения"
 msgid "Recipient"
 msgstr "Получатель"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:525
+#: lib/phoenix_kit_web/live/settings.html.heex:560
 #, elixir-autogen, elixir-format
 msgid "Reset ALL settings to their defaults? Your title, logo, formats and feature toggles will be replaced. This cannot be undone."
 msgstr "Сбросить ВСЕ настройки к значениям по умолчанию? Ваш заголовок, логотип, форматы и переключатели функций будут заменены. Это действие нельзя отменить."
@@ -10230,12 +10232,12 @@ msgstr "Отслеживание отключено"
 msgid "You are not allowed to change the %{role} role"
 msgstr "Вам не разрешено изменять роль %{role}"
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:100
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:105
 #, elixir-autogen, elixir-format
 msgid "A browser is asking to sign in as you."
 msgstr "Браузер запрашивает вход в ваш аккаунт."
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:108
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:113
 #, elixir-autogen, elixir-format
 msgid "Approve"
 msgstr "Подтвердить"
@@ -10245,7 +10247,7 @@ msgstr "Подтвердить"
 msgid "Approve sign-in"
 msgstr "Подтвердить вход"
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:99
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:104
 #, elixir-autogen, elixir-format
 msgid "Approve this sign-in?"
 msgstr "Подтвердить этот вход?"
@@ -10260,7 +10262,7 @@ msgstr "Подтверждено — выполняется вход…"
 msgid "Back to sign in"
 msgstr "Вернуться к входу"
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:101
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:106
 #, elixir-autogen, elixir-format
 msgid "Browser"
 msgstr "Браузер"
@@ -10272,14 +10274,14 @@ msgstr "Браузер"
 msgid "Confirm Email"
 msgstr "Подтвердить email"
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:109
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:114
 #, elixir-autogen, elixir-format
 msgid "Deny"
 msgstr "Отклонить"
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:158
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:246
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:102
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:107
 #, elixir-autogen, elixir-format
 msgid "Device"
 msgstr "Устройство"
@@ -10306,12 +10308,12 @@ msgstr "Email не подтверждён"
 msgid "Enable QR code sign-in (scan from a signed-in phone)"
 msgstr "Включить вход по QR-коду (сканирование с телефона, где выполнен вход)"
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:103
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:108
 #, elixir-autogen, elixir-format
 msgid "IP address"
 msgstr "IP-адрес"
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:104
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:109
 #, elixir-autogen, elixir-format
 msgid "Location"
 msgstr "Местоположение"
@@ -10321,7 +10323,7 @@ msgstr "Местоположение"
 msgid "Location tracking is off, so this user has no registration location."
 msgstr "Отслеживание местоположения отключено, поэтому у этого пользователя нет местоположения регистрации."
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:107
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:112
 #, elixir-autogen, elixir-format
 msgid "Only approve if this is you. Approving signs that browser in to your account."
 msgstr "Подтверждайте только если это вы. Подтверждение выполнит вход этого браузера в ваш аккаунт."
@@ -10348,17 +10350,17 @@ msgstr "QR-код"
 
 #: lib/phoenix_kit_web/users/qr_login.ex:43
 #: lib/phoenix_kit_web/users/qr_login_confirm.ex:32
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:76
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:81
 #, elixir-autogen, elixir-format
 msgid "QR code sign-in is not available."
 msgstr "Вход по QR-коду недоступен."
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:112
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:117
 #, elixir-autogen, elixir-format
 msgid "Request denied."
 msgstr "Запрос отклонён."
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:105
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:110
 #, elixir-autogen, elixir-format
 msgid "Requested"
 msgstr "Запрошено"
@@ -10381,7 +10383,7 @@ msgid "Sign in with QR code"
 msgstr "Войти по QR-коду"
 
 ## Login page translations
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:110
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:115
 #, elixir-autogen, elixir-format
 msgid "Signed in"
 msgstr "Вход выполнен"
@@ -10412,17 +10414,17 @@ msgstr "Эта ссылка для входа по QR-коду недейств�
 msgid "This code expired."
 msgstr "Срок действия кода истёк."
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:113
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:118
 #, elixir-autogen, elixir-format
 msgid "This request expired or was already used."
 msgstr "Запрос истёк или уже был использован."
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:95
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:100
 #, elixir-autogen, elixir-format
 msgid "This sign-in request expired or is no longer valid."
 msgstr "Запрос на вход истёк или больше недействителен."
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:92
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:97
 #, elixir-autogen, elixir-format
 msgid "This sign-in was already handled."
 msgstr "Этот вход уже обработан."
@@ -10449,7 +10451,7 @@ msgstr "Используйте телефон, на котором вы уже �
 msgid "User UUID"
 msgstr "UUID пользователя"
 
-#: lib/phoenix_kit_web/users/qr_login_confirm.ex:111
+#: lib/phoenix_kit_web/users/qr_login_confirm.ex:116
 #, elixir-autogen, elixir-format
 msgid "You can close this page."
 msgstr "Эту страницу можно закрыть."
@@ -10497,7 +10499,7 @@ msgid "Or add via"
 msgstr "Или добавить через"
 
 #: lib/phoenix_kit_web/users/qr_login.ex:62
-#: lib/phoenix_kit_web/users/referral_gate.ex:79
+#: lib/phoenix_kit_web/users/referral_gate.ex:88
 #, elixir-autogen, elixir-format
 msgid "Too many attempts. Please try again shortly."
 msgstr "Слишком много попыток. Повторите чуть позже."
@@ -10945,12 +10947,12 @@ msgstr "Разрешить «Запомнить меня» (постоянные
 msgid "Always"
 msgstr "Всегда"
 
-#: lib/phoenix_kit_web/users/session.ex:304
+#: lib/phoenix_kit_web/users/session.ex:326
 #, elixir-autogen, elixir-format
 msgid "An owner account cannot be used."
 msgstr "Нельзя использовать аккаунт владельца."
 
-#: lib/phoenix_kit_web/live/settings.html.heex:377
+#: lib/phoenix_kit_web/live/settings.html.heex:412
 #, elixir-autogen, elixir-format
 msgid "Applies site-wide wherever the rich-text editor is rendered (posts, comments). Users can still switch modes inside the editor."
 msgstr "Действует на всём сайте везде, где отображается визуальный редактор (записи, комментарии). Пользователи по-прежнему могут переключать режим внутри редактора."
@@ -11056,7 +11058,7 @@ msgstr "Подключено как @%{username}"
 msgid "Connection works"
 msgstr "Соединение работает"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:356
+#: lib/phoenix_kit_web/live/settings.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Content Editor"
 msgstr "Редактор контента"
@@ -11185,7 +11187,7 @@ msgstr "Сейчас действует:"
 msgid "Daily"
 msgstr "Ежедневно"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:363
+#: lib/phoenix_kit_web/live/settings.html.heex:398
 #, elixir-autogen, elixir-format
 msgid "Default Editor Mode"
 msgstr "Режим редактора по умолчанию"
@@ -11446,7 +11448,7 @@ msgstr "Отметить все прочитанными"
 msgid "Mark read"
 msgstr "Отметить прочитанным"
 
-#: lib/phoenix_kit_web/users/session.ex:313
+#: lib/phoenix_kit_web/users/session.ex:335
 #, elixir-autogen, elixir-format
 msgid "Maximum number of accounts reached — remove one first."
 msgstr "Достигнуто максимальное число аккаунтов — сначала удалите один."
@@ -11461,7 +11463,7 @@ msgstr "Теги сообщения"
 msgid "Message your bot, then press Test above — we'll capture your chat so it can notify you."
 msgstr "Напишите своему боту, затем нажмите «Проверить» выше — мы запомним ваш чат, чтобы бот мог присылать уведомления."
 
-#: lib/phoenix_kit_web/live/settings.html.heex:366
+#: lib/phoenix_kit_web/live/settings.html.heex:401
 #, elixir-autogen, elixir-format
 msgid "Mode every content editor opens in"
 msgstr "Режим, в котором открывается любой редактор контента"
@@ -11566,7 +11568,7 @@ msgstr "Полученные уведомления появятся здесь.
 msgid "Numeric ID of a verified Brevo sender. Leave empty to send from the From address above."
 msgstr "Числовой ID подтверждённого отправителя Brevo. Оставьте пустым, чтобы отправлять с адреса, указанного выше."
 
-#: lib/phoenix_kit_web/users/session.ex:307
+#: lib/phoenix_kit_web/users/session.ex:329
 #, elixir-autogen, elixir-format
 msgid "Only an owner can sign in as another administrator."
 msgstr "Только владелец может войти от имени другого администратора."
@@ -11852,17 +11854,17 @@ msgstr "Тестовое письмо от %{site}"
 msgid "Test email sent to %{recipient}"
 msgstr "Тестовое письмо отправлено на %{recipient}"
 
-#: lib/phoenix_kit_web/users/session.ex:316
+#: lib/phoenix_kit_web/users/session.ex:338
 #, elixir-autogen, elixir-format
 msgid "That account is already in your session — switch to it instead."
 msgstr "Этот аккаунт уже есть в вашей сессии — просто переключитесь на него."
 
-#: lib/phoenix_kit_web/users/session.ex:310
+#: lib/phoenix_kit_web/users/session.ex:332
 #, elixir-autogen, elixir-format
 msgid "That account is deactivated."
 msgstr "Этот аккаунт деактивирован."
 
-#: lib/phoenix_kit_web/users/session.ex:309
+#: lib/phoenix_kit_web/users/session.ex:331
 #, elixir-autogen, elixir-format
 msgid "That is already your account."
 msgstr "Это и есть ваш аккаунт."
@@ -11943,7 +11945,7 @@ msgstr "Обновить профиль отправки"
 msgid "Used when no default transactional integration is selected below."
 msgstr "Используется, если ниже не выбрана транзакционная интеграция по умолчанию."
 
-#: lib/phoenix_kit_web/users/session.ex:282
+#: lib/phoenix_kit_web/users/session.ex:304
 #, elixir-autogen, elixir-format
 msgid "User not found."
 msgstr "Пользователь не найден."
@@ -11983,12 +11985,12 @@ msgstr "Кому пишет этот бот?"
 msgid "Yesterday"
 msgstr "Вчера"
 
-#: lib/phoenix_kit_web/users/session.ex:293
+#: lib/phoenix_kit_web/users/session.ex:315
 #, elixir-autogen, elixir-format
 msgid "You are now signed in as %{email}."
 msgstr "Теперь вы вошли как %{email}."
 
-#: lib/phoenix_kit_web/users/session.ex:302
+#: lib/phoenix_kit_web/users/session.ex:324
 #, elixir-autogen, elixir-format
 msgid "You do not have permission to sign in as another user."
 msgstr "У вас нет права входить от имени другого пользователя."
@@ -12124,7 +12126,7 @@ msgstr "Не удалось связаться с hex.pm, поэтому спи�
 msgid "Crawler Instructions"
 msgstr "Инструкции для поисковых роботов"
 
-#: lib/phoenix_kit_web/users/referral_gate.ex:62
+#: lib/phoenix_kit_web/users/referral_gate.ex:71
 #: lib/phoenix_kit_web/users/referral_gate.html.heex:8
 #, elixir-autogen, elixir-format
 msgid "Enter your referral code"
@@ -12166,9 +12168,9 @@ msgstr "Настройки SEO"
 msgid "Served at the site root as well as under the PhoenixKit prefix, because that is where crawlers look. A priv/static/sitemap.xml file would be served instead of this one."
 msgstr "Отдаётся как в корне сайта, так и по префиксу PhoenixKit, потому что именно там смотрят поисковые роботы. Файл priv/static/sitemap.xml будет отдан вместо этого."
 
-#: lib/phoenix_kit_web/users/referral_gate.ex:85
-#: lib/phoenix_kit_web/users/referral_gate.ex:95
-#: lib/phoenix_kit_web/users/referral_gate.ex:126
+#: lib/phoenix_kit_web/users/referral_gate.ex:94
+#: lib/phoenix_kit_web/users/referral_gate.ex:104
+#: lib/phoenix_kit_web/users/referral_gate.ex:135
 #, elixir-autogen, elixir-format
 msgid "That code can't be used"
 msgstr "Этот код нельзя использовать"
@@ -12183,7 +12185,7 @@ msgstr "Переключатель noindex выше и robots.txt — разны
 msgid "This site is invite-only. Enter the code you were given to continue."
 msgstr "Сайт доступен только по приглашениям. Введите полученный код, чтобы продолжить."
 
-#: lib/phoenix_kit_web/users/referral_gate.ex:117
+#: lib/phoenix_kit_web/users/referral_gate.ex:126
 #, elixir-autogen, elixir-format
 msgid "Welcome! Your referral code has been accepted."
 msgstr "Добро пожаловать! Ваш реферальный код принят."
@@ -12202,3 +12204,18 @@ msgstr "Файл priv/static/robots.txt существует, но в нём н�
 #, elixir-autogen, elixir-format
 msgid "priv/static/robots.txt points crawlers at your sitemap."
 msgstr "priv/static/robots.txt направляет поисковых роботов к карте сайта."
+
+#: lib/phoenix_kit_web/live/settings.html.heex:321
+#, elixir-autogen, elixir-format
+msgid "Local path of the site's home page"
+msgstr "Локальный путь главной страницы сайта"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:318
+#, elixir-autogen, elixir-format
+msgid "Main Page"
+msgstr "Главная страница"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:333
+#, elixir-autogen, elixir-format
+msgid "Where PhoenixKit sends visitors who are not signed in. Empty = the sign-in page."
+msgstr "Куда PhoenixKit направляет посетителей, не выполнивших вход. Пусто = страница входа."
