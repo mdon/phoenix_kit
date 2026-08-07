@@ -571,8 +571,9 @@ defmodule PhoenixKit.Migrations.Postgres do
   #   * `0 < target < initial_version` — target requests a below-floor
   #     shape this release can't produce; clamps to the floor instead of
   #     guessing. `{:clamped, current..(initial_version + 1)//-1,
-  #     initial_version}` (dormant while `initial_version` is 1 — no
-  #     integer satisfies `0 < target < 1`).
+  #     initial_version}` (was dormant while `initial_version` was 1 — no
+  #     integer satisfies `0 < target < 1`; LIVE since the squash raised the
+  #     floor to 135).
   #   * else — ordinary partial rollback, unchanged. `{:run,
   #     current..(target + 1)//-1}`.
   #

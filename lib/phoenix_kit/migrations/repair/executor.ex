@@ -272,7 +272,8 @@ defmodule PhoenixKit.Migrations.Repair.Executor do
   # `Ecto.Migration.repo()`, which only resolves inside an active
   # migration — unusable here) and a runtime-context arity taking `repo`
   # explicitly (`ensure_extension!/2`, `ensure_uuid_v7_function/2` — the
-  # same variants `PhoenixKit.Migrations.UUIDRepair` uses). The manifest's
+  # same variants the retired `UUIDRepair` used before the squash made its
+  # sub-V40 gate unreachable). The manifest's
   # `{:helper, mfa}` shape carries the migration-context arity's `args`
   # (e.g. `[name]`, not `[repo, name]` — it has no way to know which variant
   # a given runtime caller needs), so this dispatch tries `arity + 1` first

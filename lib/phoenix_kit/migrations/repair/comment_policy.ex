@@ -8,7 +8,8 @@ defmodule PhoenixKit.Migrations.Repair.CommentPolicy do
 
   §6.4's R3 ("`0 < comment < floor` → hard `BelowFloorError`") is written for
   the **post-squash** world, where `floor` is a real number greater than 1
-  (P3). On the current, un-squashed chain `initial_version/0` is `1`, so
+  (P3, now done). The chain is squashed at floor 135, so `initial_version/0`
+  is `135` and the below-floor branches below are LIVE, not hypothetical:
   `classify/3`'s `:below_floor` branch is unreachable today (no integer
   satisfies `0 < comment < 1`) — but the branch has to exist and be correct
   now so P3 only has to change what `floor` *is*, never how this module

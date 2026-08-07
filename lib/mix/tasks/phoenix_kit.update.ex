@@ -456,9 +456,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         # (`PhoenixKit.Migrations.Postgres.up/1`, once the generated
         # wrapper actually runs) — refuse up front instead, with the
         # bridge instructions, rather than hand the operator a migration
-        # file that is guaranteed to raise. Dormant while
-        # `initial_version/0` is 1 (current_version is always >= 1 here —
-        # `{:not_installed}` is a separate clause above).
+        # file that is guaranteed to raise. LIVE since the squash raised the
+        # floor to 135: any install still at V1..V134 lands here
+        # (current_version is always >= 1 in this clause — `{:not_installed}`
+        # is handled separately above).
         current_version > 0 and current_version < floor_version ->
           add_below_floor_notice(igniter, current_version, floor_version)
 
@@ -589,7 +590,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       Igniter.add_notice(igniter, notice)
     end
 
-    # Spec §5.2/§5.3 generation-time below-floor refusal. Dormant while
+    # Spec §5.2/§5.3 generation-time below-floor refusal. Was dormant while
     # `MigrationsPostgres.initial_version/0` is 1 — every installed DB is
     # already at or above that floor, so `current_version` can never land
     # here today. Mirrors `PhoenixKit.Migrations.BelowFloorError`'s message

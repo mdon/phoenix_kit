@@ -322,6 +322,16 @@ defmodule PhoenixKit.Migrations.Repair do
       Report.add_finding(report, finding(:oban_delegation_failed, :error, nil, nil, message))
   end
 
+  # Cached per run: the preflight already queried it, and a per-object query
+  # would be one round trip per compared object.
+  defp pg_major_supported?(ctx) do
+    case Map.get(ctx, :pg_major, :unset) do
+      :unset -> Probe.server_version_major(ctx.repo) in @supported_pg_majors
+      :unknown -> true
+      major -> major in @supported_pg_majors
+    end
+  end
+
   defp add_server_version_finding(report, ctx) do
     case Probe.server_version_major(ctx.repo) do
       :unknown ->
@@ -424,7 +434,7 @@ defmodule PhoenixKit.Migrations.Repair do
   defp object_finding(ctx, %{object: object, shape: shape} = resolved, snapshot, skip_validate?) do
     case Probe.lookup(snapshot, object.check) do
       nil -> presence_missing_finding(ctx, object, resolved, skip_validate?)
-      observed -> presence_present_finding(object, shape, observed)
+      observed -> presence_present_finding(object, shape, observed, pg_major_supported?(ctx))
     end
   end
 
@@ -502,7 +512,7 @@ defmodule PhoenixKit.Migrations.Repair do
     )
   end
 
-  defp presence_present_finding(%{presence: :legacy_optional} = object, _shape, _observed) do
+  defp presence_present_finding(%{presence: :legacy_optional} = object, _shape, _observed, _pg_ok) do
     finding(
       :legacy_optional_present,
       :info,
@@ -512,19 +522,34 @@ defmodule PhoenixKit.Migrations.Repair do
     )
   end
 
-  defp presence_present_finding(object, shape, observed) do
-    case Differ.compare(object.class, shape, observed) do
+  defp presence_present_finding(object, shape, observed, pg_major_supported?) do
+    result = Differ.compare(object.class, shape, observed)
+
+    case result do
       :match ->
         nil
 
       {:mismatch, reasons} ->
-        finding(
-          :wrong_shape,
-          :error,
-          object.id,
-          object.since,
-          "#{object.id}: " <> Enum.join(reasons, "; ")
-        )
+        # A mismatch whose every reason rests on pg_get_*def RENDERING (index
+        # predicates, CHECK/exclusion definitions — the two fields with no
+        # structural decomposition) is not trustworthy on a Postgres major this
+        # release was not verified against: the same expression can simply be
+        # re-rendered. Report it as info there instead of asserting drift, so a
+        # cross-major operator is not handed a wall of false errors — and keep
+        # it :error on a verified major, where a rendering difference IS drift.
+        downgrade? = not pg_major_supported? and Differ.deparse_text_only?(result)
+        marker = Differ.deparse_text_marker()
+        text = reasons |> Enum.map_join("; ", &String.replace_prefix(&1, marker, ""))
+
+        {kind, severity, suffix} =
+          if downgrade? do
+            {:deparse_rendering_differs, :info,
+             " (rendering-only difference, unverified PostgreSQL major — not treated as drift)"}
+          else
+            {:wrong_shape, :error, ""}
+          end
+
+        finding(kind, severity, object.id, object.since, "#{object.id}: " <> text <> suffix)
     end
   end
 

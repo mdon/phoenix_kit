@@ -83,6 +83,28 @@ defmodule PhoenixKit.Migrations.Repair.Differ do
   @typedoc "`:match`, or a mismatch with the field names that disagreed."
   @type result :: :match | {:mismatch, [String.t()]}
 
+  # Prefix stamped on reasons that compare pg_get_*def RENDERING rather than a
+  # structural catalog field. Two Postgres majors can render one identical
+  # expression differently (operator-precedence parenthesisation, array-cast
+  # placement, whitespace inside predicates), so a marked reason is only
+  # trustworthy on a major this release was verified against.
+  @deparse_text_marker "~deparse~ "
+
+  @doc "The marker prefix stamped on rendering-derived (not structural) reasons."
+  @spec deparse_text_marker() :: String.t()
+  def deparse_text_marker, do: @deparse_text_marker
+
+  @doc """
+  True when EVERY reason in a mismatch rests on deparse rendering rather than
+  a structural field — the case a cross-major server can produce with no real
+  drift behind it.
+  """
+  @spec deparse_text_only?({:mismatch, [String.t()]} | :match) :: boolean()
+  def deparse_text_only?({:mismatch, reasons}) when reasons != [],
+    do: Enum.all?(reasons, &String.starts_with?(&1, @deparse_text_marker))
+
+  def deparse_text_only?(_), do: false
+
   @doc """
   Compares `expected` against `observed` for `class`. Field lists in
   `{:mismatch, reasons}` are human-readable, one entry per disagreeing
@@ -142,7 +164,14 @@ defmodule PhoenixKit.Migrations.Repair.Differ do
       |> reason_field(:opclasses, expected, observed)
       |> reason_if(
         normalize_default(expected.predicate) != normalize_default(observed.predicate),
-        "predicate: expected #{inspect(expected.predicate)}, got #{inspect(observed.predicate)}"
+        # @deparse_text_marker: this reason rests on pg_get_expr's RENDERING,
+        # not on a structural field, so a different Postgres major can
+        # re-render an identical predicate and produce this reason with no real
+        # drift behind it. Repair downgrades a marked reason to :info when the
+        # connected major is outside the verified range (see
+        # PhoenixKit.Migrations.Repair's server-version preflight).
+        "#{@deparse_text_marker}predicate: expected #{inspect(expected.predicate)}, " <>
+          "got #{inspect(observed.predicate)}"
       )
 
     result(reasons)
@@ -172,7 +201,10 @@ defmodule PhoenixKit.Migrations.Repair.Differ do
       reason_if(
         [],
         normalize_default(expected.definition) != normalize_default(observed.definition),
-        "definition: expected #{inspect(expected.definition)}, got #{inspect(observed.definition)}"
+        # Same deparse-rendering caveat as :index predicates — see the marker's
+        # definition and Repair's server-version preflight.
+        "#{@deparse_text_marker}definition: expected #{inspect(expected.definition)}, " <>
+          "got #{inspect(observed.definition)}"
       )
 
     result(reasons)
