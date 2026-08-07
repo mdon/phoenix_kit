@@ -10,6 +10,12 @@ defmodule PhoenixKit.Install.Common do
   - Registering PhoenixKit's Mix compilers in a host's `mix.exs`
   """
 
+  # Igniter is optional (see mix.exs) and this module cannot be guarded away
+  # like the `PhoenixKit.Install.*` helpers — `mix phoenix_kit.status` and
+  # friends call its non-igniter half. The shim silences the undefined-module
+  # warnings for the igniter-only functions on a build without igniter.
+  use PhoenixKit.Install.IgniterCompat
+
   alias PhoenixKit.Config
   alias PhoenixKit.Migrations.Postgres
   alias PhoenixKit.Migrations.Postgres.Helpers

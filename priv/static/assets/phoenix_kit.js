@@ -1437,6 +1437,75 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // PhoenixKitUrlState Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Carries list state (search / filters / sort / page) in the address bar for
+  // a LiveView that cannot use push_patch.
+  //
+  // Why it exists: push_patch requires handle_params/3 to be exported, and
+  // exporting it makes a LiveView impossible to embed with live_render/3. An
+  // embeddable list therefore has to drive the URL from the client instead.
+  //
+  // Rendered by PhoenixKitWeb.Live.UrlState.url_state_sync/1 when the LiveView
+  // declares `mode: :history`; nothing else should mount it by hand.
+  //
+  // Three jobs:
+  //   1. on connect, report the query the page was opened with — an embedded
+  //      LiveView receives :not_mounted_at_router instead of params, so this is
+  //      the only way it can learn its own state;
+  //   2. rewrite the address bar when the server pushes a new query;
+  //   3. report Back and Forward, which is what makes history navigation work
+  //      without a router.
+  //
+  // Only the query is exchanged. The path stays client-side deliberately: an
+  // embedded LiveView has no idea which page it is on.
+  //
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.PhoenixKitUrlState = {
+    mounted() {
+      this.pushEvent("phoenix_kit_url_state", { query: window.location.search });
+
+      // Keep the ref: handleEvent registers on the LiveSocket, not on the
+      // element, so without removeHandleEvent in destroyed() every remount of
+      // this hook leaves another live callback behind and one server push runs
+      // the history write N times.
+      this.pkHandleRef = this.handleEvent("phoenix_kit_url_state", ({ query, replace }) => {
+        var next = window.location.pathname + (query ? "?" + query : "");
+
+        // Nothing moved — recording it would put a duplicate in the history
+        // stack and make one Back press look like it did nothing.
+        if (next === window.location.pathname + window.location.search) return;
+
+        if (replace) {
+          window.history.replaceState({}, "", next);
+        } else {
+          window.history.pushState({}, "", next);
+        }
+      });
+
+      this.pkOnPopState = function () {
+        this.pushEvent("phoenix_kit_url_state", { query: window.location.search });
+      }.bind(this);
+
+      window.addEventListener("popstate", this.pkOnPopState);
+    },
+
+    destroyed() {
+      if (this.pkOnPopState) {
+        window.removeEventListener("popstate", this.pkOnPopState);
+        this.pkOnPopState = null;
+      }
+
+      if (this.pkHandleRef) {
+        this.removeHandleEvent(this.pkHandleRef);
+        this.pkHandleRef = null;
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // PopupLink Hook
   // ---------------------------------------------------------------------------
   //

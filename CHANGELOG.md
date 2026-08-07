@@ -1,3 +1,468 @@
+## 1.7.233 - 2026-08-06
+
+### Fixed
+- **Host apps that register their own module no longer fail to compile** (#684).
+  1.7.232 began emitting a compile-time `mod.__info__(:module)` reference for
+  every discovered or configured route module, so that Mix rebuilds a host
+  router when one of them changes. The reference was emitted unconditionally,
+  and `phoenix_kit_routes()` also expands inside phoenix_kit's own router —
+  which is built as a dependency, before any parent-app module exists. A host
+  that registers its OWN app module in `config :phoenix_kit, :modules` (or
+  `:route_modules`) therefore stopped building at all, with
+  `function TheHost.__info__/1 is undefined ... could not compile dependency
+  :phoenix_kit`. Registering the host module that way is documented practice,
+  not misuse: beam discovery cannot see the host app while the host is still
+  compiling, so `admin_tabs/0` on the host module is invisible without it. The
+  list is now filtered through `Code.ensure_compiled/1`. Where the module is
+  genuinely reachable — inside the host's own router — `ensure_compiled/1`
+  blocks on the parallel compiler and returns `{:module, _}`, so the reference
+  is still emitted and the recompile tracking added in 1.7.232 is unchanged;
+  only the case that cannot be referenced yet is skipped.
+
+## 1.7.232 - 2026-08-05
+
+### Added
+- **Entry points for "Sign in as user"** (#683). `MultiSession.impersonate/2`,
+  its authority rules, the controller action and the POST route all shipped in
+  #672 with nothing in any template reaching them. The action now appears in
+  the "..." menu on the Users list (table and card views) and on the user
+  detail page, behind `impersonable?/2` / `impersonable_uuids/2` — predicates
+  that answer with the same private rule the request enforces, so a menu
+  cannot offer what the POST would refuse. The list decides a whole page of
+  rows against one actor lookup, reading each target's roles from the `:roles`
+  preload rather than a query per row. Nothing about who may impersonate whom
+  changed.
+- **The Edit action on the user detail page** joins Roles, Confirm Email and
+  Deactivate in the actions menu (#683), instead of sitting alone in the
+  breadcrumb bar where the header-deduplication sweep parked it.
+
+### Fixed
+- **Deactivated accounts are no longer offered for impersonation.** The menu
+  predicates asked the authority rules, which decide who may borrow whom; the
+  `:inactive` refusal is raised later, by `add_authenticated_user/2`. So every
+  deactivated row carried a "Sign in as user" item — next to the badge saying
+  the account is deactivated — and every click came back "That account is
+  deactivated." `user.is_active` is already on the struct the list renders, so
+  respecting it costs no query. `impersonate/2` is untouched and still
+  re-decides everything server-side.
+- **Doubled required-field markers** on the user, role and registration forms
+  (#683). `<.input>` renders the marker itself; six labels also hand-appended
+  `" *"`. `Organization Name` had the hand-written asterisk but no `required`
+  attribute, while the changeset does require it for organization accounts —
+  it gains the attribute, so the browser now agrees with the server.
+- **The admin nav role badge named the wrong role** (#683). It derived its
+  label from `Scope.can_access_admin_area?/1`, which is true for Owner, Admin
+  *or any single permission holder* — so a Client, who holds `client_portal`,
+  was labelled "Admin", and every custom role was flattened into three
+  buckets. The account list directly below it renders
+  `MultiSession.role_label/1` and said "Client" while the header said "Admin".
+  Both now share that function, reading the names the scope already loaded in
+  `cached_roles` instead of re-querying on a component that renders on every
+  admin page.
+- **Usernames generated from an email keep their letters** (#683). The cleanup
+  pass strips anything outside `[a-zA-Z0-9_]`, so `ülo.kask@` became
+  `lo_kask` — the first letter of the name silently gone — and a wholly
+  non-Latin local part collapsed to nothing. The address is now transliterated
+  first (`Ülo.Kask@` → `ulo_kask`, `Иван@` → `ivan`).
+
+### i18n
+- **`Person` → `Personal` as the account-type label.** The old source string
+  named a human being where the label names a *kind of account*, the
+  counterpart of `Organization`. Each locale takes the idiomatic
+  private-individual-vs-legal-entity term rather than a calque — Eraisik,
+  Privatperson, Particulier, Particular, Privato, Osoba prywatna, Физическое
+  лицо. The stored `account_type` value stays `"person"`.
+- **18 strings were in the source but in no `.pot` file**, so the SEO /
+  robots.txt settings page, the hex.pm package browser and the referral gate
+  ("Enter your referral code", "This site is invite-only…") rendered in
+  English in every locale. Extracted and translated in all seven.
+- **Four reworded strings were rendering their old translation.** `Continue`,
+  `Log out`, `Referral code` and `SEO settings` had matched fuzzily against
+  older entries, and fuzzy entries do render — German showed **"online"** on a
+  Continue button. Retranslated; no fuzzy entries remain.
+- Estonian and Russian repairs beyond those: a batch of entries whose
+  translation belonged to a neighbouring msgid ("Failed to delete user" under
+  the custom-field failure, "Current time" under "Current page", and ~20
+  more).
+
+### Internal
+- Post-merge review of #683: `dev_docs/pull_requests/2026/683-admin-ui-i18n-and-impersonation-entry-points/CLAUDE_REVIEW.md`.
+- Tests for the impersonation menu predicates — `impersonable?/2` agrees with
+  `impersonate/2` target by target, `impersonable_uuids/2` agrees with
+  `impersonable?/2` over a mixed list, and `impersonation_actor/1` is the ROOT
+  account after a switch — plus a unit suite for
+  `generate_username_from_email/1`, which had none.
+
+## 1.7.231 - 2026-08-05
+
+⚠️ **Two new migrations (V161, V162) — run `mix phoenix_kit.update`.** V161
+converts `phoenix_kit_users.username` to `citext` and **refuses to run** if
+your database already holds usernames differing only by case; it names the
+offending value so you can rename or merge the accounts, then re-run.
+
+### Added
+- **`PhoenixKitWeb.Live.UrlState` — URL-backed search, filter, sort and page
+  for list LiveViews** (#680). Typing in a list's search box filtered the
+  table but left the address bar untouched on most admin screens: the result
+  could not be shared, did not survive a reload, and Back walked out of the
+  page instead of back to the previous query. A workspace audit found 26
+  LiveViews with that defect and seven independently hand-rolled fixes on the
+  screens that did work — six of which rebuilt the path from a literal, so a
+  LiveView reachable at more than one route patched itself to the wrong page.
+
+  Declare the state, implement `handle_url_state/2`, push changes with
+  `push_url_state/3`. Params are keyed by **assign name** with `url_key:`
+  naming the query key separately, so adopting it touches no templates
+  (`users.html.heex`, 700 lines, needed no edit). Values equal to their
+  default are dropped from the query, so an unfiltered list stays
+  `/admin/users`. `cast:`/`in:` whitelist values and no atom is ever created
+  from user input; integer params carry a default ceiling of 1,000,000 so a
+  crafted `?page=` cannot reach Ecto as an `OFFSET` that overflows
+  PostgreSQL's `bigint`. The path comes from the live `uri`, unknown query
+  keys are preserved, and the callback runs only on a real change.
+
+  Converted: `users`, `sessions`, `live_sessions`, `jobs/index`,
+  `media_selector`.
+
+  ⚠️ **`mode: :patch` (the default) makes a LiveView un-embeddable.**
+  `push_patch` requires `handle_params/3` to be exported, and exporting it —
+  whatever its body — makes `live_render/3` raise. The two are mutually
+  exclusive in LiveView itself. `mode: :history` sidesteps both by driving the
+  address bar from a JS hook (`<.url_state_sync mode={:history} />`) instead
+  of touching `handle_params` at all. `MediaBrowser.Embed`'s `url_sync: true`
+  has always carried the `:patch` constraint through its injected stub; that
+  is now stated in its moduledoc rather than implied.
+- **`Utils.Slug` gains opt-in transliteration** (#682). A Cyrillic title
+  slugified to an empty string — every character fell outside `[a-z0-9]` and
+  was stripped. Callers read empty as "no slug yet", so a Ukrainian shop's CSV
+  catalogue could not be matched on re-import and inserted the whole feed
+  again on every run. `slugify(text, transliterate: true)` maps Russian and
+  Ukrainian Cyrillic to Latin and strips Latin diacritics. Opt-in, so existing
+  callers keep today's ASCII-only behaviour and a consumer passing the option
+  against an older core gets today's result rather than an error.
+- **`PhoenixKit.Install.StatusReport`** — the "what should the operator do
+  next" decision behind `mix phoenix_kit.status`, extracted so it can be
+  tested without pointing the task at a live database in each of five states.
+
+### Fixed
+- ⚠️ **V161: `phoenix_kit_users.username` is now `citext`** (#681). Two
+  accounts existed in production as `Pavel` and `pavel`. Nothing prevented it:
+  `phoenix_kit_users_username_uidx` was a plain btree on a `varchar` column,
+  `unsafe_validate_unique` compared exactly, and `get_user_by_username/1` is a
+  bare `Repo.get_by`. The mechanism was systematic rather than a fluke —
+  `generate_username_from_email/1` force-downcases while
+  `ensure_unique_username/3` checked availability case-sensitively, so a
+  username set manually with a capital was invisible to the generator, which
+  proposed the lowercase form, found it "free", and added no suffix.
+
+  Once such a pair existed, **login by username 500'd for both accounts**:
+  that path already lowercased both sides, so its query matched two rows and
+  `Repo.one/1` raised `Ecto.MultipleResultsError`. (An earlier draft of this
+  entry described the symptom as landing in the wrong account; the failure was
+  a hard error, not a silent cross-account login. `email` was unaffected — it
+  has been `citext` since V01.)
+
+  Postgres decides comparison semantics from the **column type**, so one
+  `ALTER` fixes uniqueness *and* every lookup, including a bare `Repo.get_by`.
+  A functional unique index on `lower(username)` would have fixed only the
+  constraint and left every read exact-match. `varchar → citext` is
+  binary-coercible, so there is no table rewrite; the column's index is
+  rebuilt, which is what makes it start rejecting case variants.
+- **Username login no longer sequentially scans the users table.**
+  `get_user_by_email_or_username_and_password/3` hand-rolled its case folding
+  as `fragment("LOWER(?)", u.username)`, which matches no index in the chain —
+  there is no functional index on `lower(username)`. Now that the column is
+  `citext`, plain equality is both correct and index-backed via
+  `phoenix_kit_users_username_uidx`. This was the only username lookup in the
+  codebase still scanning, on the one endpoint reachable without
+  authenticating.
+- **V162: payment-option linkage on billing orders** (#682). Adds a nullable
+  `payment_option_uuid` FK (plus its index) to `phoenix_kit_orders`, pointing
+  at `phoenix_kit_payment_options`. An order records *how* it is to be paid
+  via `payment_method`, a small closed vocabulary; what the customer actually
+  chose is a payment-option **row**, with its own name, instructions, provider
+  and billing-profile requirement. Several options can share one
+  `payment_method` ("Bank transfer (EU)" and "Bank transfer (UK)" are both
+  `bank`), and an option can be renamed or deactivated after the order is
+  placed. Without a link the choice was discarded at conversion, so an
+  operator processing a bank transfer could not tell which instructions the
+  customer had been shown. `ON DELETE SET NULL`: deleting a payment option is
+  an ordinary operator action and must neither be blocked by historical orders
+  nor destroy them.
+- **A tab gated on a sub-permission registers correctly** (#682). A module tab
+  may be gated on a sub-permission (`"shop.manage_settings"`). Registration
+  pushed that through `register_custom_key/2`, which rejects a dotted key —
+  and the raise aborted the rest of the callback, so the view → permission
+  mapping the admin gate reads was never cached. The module silently fell back
+  to the coarser base key for core's gate, and every boot logged a failure for
+  a key that was declared correctly. Sub-permissions are already declared
+  through `permission_metadata/0`, so registration now skips them.
+- **The automatic view gate requires the base of a dotted key** (#682). With
+  the dotted key now cached, the admin mount gate resolves one — and it was
+  calling `has_module_access?/2`, direct membership only, which by contract
+  leaves the base check to its caller. A scope holding an orphaned
+  `"shop.manage_settings"` without `"shop"` would have passed a gate the
+  sidebar, `can?/2` and every module's own check all refuse.
+- **The `PhoenixKitUrlState` JS hook no longer leaks a callback per remount.**
+  `handleEvent` registers on the LiveSocket, not the element, so `destroyed()`
+  has to call `removeHandleEvent` — it only removed the `popstate` listener.
+
+### Changed
+- **`mix phoenix_kit.status` says "code expects", not "update available".**
+  Everything it reports is measured against the version compiled into the
+  running release; it never asks Hex what exists, so it cannot tell you a
+  newer PhoenixKit is out. A version gap is not an optional upgrade being
+  offered — it means the schema disagrees with the code already querying it,
+  which surfaces as runtime errors on whatever the newer version added. When
+  core and a module are both behind, one command fixes both and both reasons
+  are now listed, so re-running does not turn up a second finding that was
+  already knowable.
+- **The test suite can use a database you already have.** `config/test.exs`
+  hardcoded `phoenix_kit_test`, which forces a role with `CREATEDB` — exactly
+  what a shared or managed instance withholds. `PGDATABASE` and `PGPOOL` now
+  join the `PGHOST`/`PGUSER`/`PGPASSWORD` that were already read. Defaults are
+  unchanged.
+- **`AGENTS.md` no longer claims `mix precommit` runs the test suite.** It
+  never did, and CI is `workflow_dispatch`, so in practice nothing ran the
+  Elixir suite automatically. Adding `mix test` to `precommit` was tried and
+  reverted — the suite is not green from a clean checkout (~5 "unit" tests
+  fail with no database, because `Settings` reads hit the DB on a cache miss),
+  and a permanently red gate teaches people to ignore the gate. The docs now
+  say running the suite is a manual step, and warn that `mix test` with no
+  database excludes every integration test **and still exits 0** — the failure
+  mode that matters most when the change is a migration.
+- Dependency bumps: `etcher` 0.10.0 → 0.10.2, `spitfire` 0.3.13 → 0.4.0.
+
+### Internal
+- Post-merge review of #680/#681/#682 with the findings above:
+  `dev_docs/pull_requests/2026/680-682-post-merge-review/CLAUDE_REVIEW.md`.
+- `test/phoenix_kit/migrations/v162_test.exs` — V162 shipped with no test.
+  Pins the column, the FK target, the index, and `ON DELETE SET NULL`
+  specifically: that is the migration's whole design decision, and a later
+  refactor reaching for a plain `references/2` would silently make it
+  `RESTRICT` with nothing failing.
+
+## 1.7.230 - 2026-08-04
+
+### Fixed
+- ⚠️ **`mix igniter.install phoenix_kit` failed on every freshly generated
+  Phoenix project.** Core declared `{:igniter, "~> 0.7"}` as a required
+  dependency in all environments. A stock `mix phx.new` app declares
+  `{:igniter, "~> 0.6", only: [:dev, :test]}`, and Mix refuses to converge the
+  two:
+
+  ```
+  Dependencies have diverged:
+  * igniter (Hex package) — the :only option for dependency igniter
+    Remove the :only restriction from your dep
+  ```
+
+  The install aborted before writing anything. Igniter is now
+  `optional: true`, so the host's own declaration wins and the documented
+  install path works on a clean project. The version requirement is unchanged
+  (`~> 0.6` and `~> 0.7` both admit igniter 0.7/0.8, so no host is forced to
+  move).
+
+  Making it optional means core must compile **without** igniter, which it
+  previously could not: `mix/tasks/phoenix_kit.gen.admin.page.ex` and
+  `phoenix_kit.gen.user.dashboard.ex` called `use Igniter.Mix.Task` unguarded
+  and hard-failed a `MIX_ENV=prod` build. Both now carry the same
+  `if Code.ensure_loaded?(Igniter.Mix.Task)` guard `phoenix_kit.install` and
+  `phoenix_kit.update` already had, and ten igniter-only `PhoenixKit.Install.*`
+  helpers are guarded on `Code.ensure_loaded?(Igniter)` so a production build
+  no longer prints a wall of "Igniter.X is undefined" warnings. The two helpers
+  that *cannot* be guarded away because their non-igniter half is called from
+  plain tasks — `Install.Common` (`mix phoenix_kit.status`) and
+  `Install.JsIntegration` (`mix phoenix_kit.assets.rebuild`) — instead use the
+  existing `Install.IgniterCompat` `:no_warn_undefined` shim, which grew the
+  three modules they reference. No task or helper changed behaviour when
+  igniter *is* present.
+
+  ⚠️ **Upgrading from ≤ 1.7.229 and your `mix.exs` does not list `:igniter`?**
+  You were getting it transitively from PhoenixKit; an optional dep is not
+  installed unless the host declares it, so after `mix deps.update phoenix_kit`
+  the code-generating tasks stop working. Add:
+
+  ```elixir
+  {:igniter, "~> 0.7", only: [:dev, :test]}
+  ```
+
+  `mix phoenix_kit.install` / `.update` / `.gen.*` now say exactly this when
+  invoked without igniter rather than vanishing from `mix help` (the two
+  `gen.*` tasks, newly guarded, had no fallback at all; `install` and `update`
+  had one each, and all four now share `Install.MissingIgniter`).
+  `PhoenixKit.Install.IgniterCompat` gained a `__mix_recompile__?/0` keyed on
+  igniter's availability, so adding the dep later actually rebuilds the tasks
+  instead of needing `mix deps.compile phoenix_kit --force`. Tasks that never
+  touch igniter — `phoenix_kit.status`, `.gen.migration`, `.assets.rebuild` —
+  are unaffected either way.
+
+- **`mix phoenix_kit.update` could crash when two modules needed migrating in
+  the same second.** Generated migration filenames took their version from a
+  bare `%Y%m%d%H%M%S` timestamp, so two modules upgraded together produced
+  duplicate Ecto migration versions. Timestamps are now offset per file and
+  bumped past anything already in `priv/repo/migrations`.
+
+- **`mix phoenix_kit.update` silently skipped modules whose migration
+  coordinator raised.** The failure was swallowed and the host saw nothing at
+  all, leaving it to assume its tables were current. Unreadable modules are now
+  reported by name with the error and an explicit note that they were not
+  migrated.
+
+- **`mix phoenix_kit.update` wrote module migrations to a hardcoded
+  `priv/repo/migrations`.** On a host whose first `:ecto_repos` entry is not
+  `MyApp.Repo`, the file landed in a directory the migrator never scans, so
+  `ecto.migrate` exited 0 having done nothing — and the run still printed
+  `✅ <module> migrated to V##`. The directory is now taken from the resolved
+  repo, and each module's version is **re-read from the database** afterwards
+  rather than assumed, so a migration that did not run is reported as a failure
+  with the path to check.
+
+- **`mix phoenix_kit.update` could hard-fail on a re-run after an interrupted
+  update.** The module path had no "migration already exists" guard (the core
+  path has had one all along), so a second run wrote a second file with the
+  same migration name and `mix ecto.migrate` refused everything with
+  `migration name ... is duplicated`. It now reuses the existing file.
+
+- **One bad module aborted the whole `mix phoenix_kit.update` run.** The
+  per-module `try/rescue` was lost in the rework, so a module that raised while
+  its migration file was written killed the task *after* core had migrated —
+  skipping every remaining module and the UUID repair pass. Each module is
+  isolated again.
+
+- **`mix phoenix_kit.status` reported `Next: Ready` directly under a
+  `1 unreadable ❌` module row.** An unreadable module is deliberately not
+  "pending" (migrating a module whose version cannot be read would be worse),
+  but it is not "ready" either. `Next` now names the modules to check.
+
+- **`mix phoenix_kit.status --verbose` claimed "No installed module owns
+  migrations" whenever the database was unreachable**, which is a different
+  fact from having none and sends anyone debugging a missing table the wrong
+  way. Not-queried and none-found are now distinct.
+
+- **A module coordinator reporting a non-integer version read as up to date.**
+  Under Erlang term ordering `nil >= 2` is `true`, so a coordinator returning
+  `nil` for "no version comment found" was classified `:up_to_date` and its
+  migration skipped forever, while both tasks reported everything current.
+  `Modules.classify/2` now requires integers and reports anything else as
+  `:error`.
+
+- **Soft-failure paths guarded with `rescue` alone now also `catch :exit`.**
+  Per the project's own convention, an unreachable database raises on an
+  unowned checkout but *exits* on a dead pool — so a dead pool crashed
+  `mix phoenix_kit.status` outright and killed the closing summary of an
+  otherwise-successful `mix phoenix_kit.update`.
+
+- **The sitemap's `x-default` could be claimed by a sibling-dialect entry**
+  (#679). Enabled codes are stored BCP-47 (`en-GB`) while sibling-dialect URLs
+  render lowercase (`/en-gb/…`), so the case-sensitive `String.contains?` never
+  recognised such an entry as language-prefixed and let it pass as the
+  unprefixed default. The default picker now matches case-insensitively, in
+  line with the per-entry hreflang extraction that already did.
+
+### Added
+- **The locale plug accepts enabled full-dialect URL segments** (#679) instead
+  of 301-ing every hyphenated segment to its base code. A segment that
+  case-insensitively matches an **enabled** language (`/en-gb/…` with `en-GB`
+  enabled) is now served as that locale, with the stored-case code on
+  `conn.assigns.current_locale` and its base on `current_locale_base`.
+  Disabled dialects, unknown dialects, and an empty enabled list (Languages
+  module off) all keep the historical redirect-to-base, so nothing changes for
+  an install that does not enable sibling dialects.
+
+  This is what makes two enabled dialects of one base addressable as distinct
+  public URLs — `phoenix_kit_publishing` gives the non-primary sibling its own
+  URL space and previously had it bounced to the base before its controller
+  ever ran. The prefixless-primary canonical redirect deliberately does not
+  apply on this branch: only non-primary siblings are addressed by full-code
+  URLs, and the primary keeps its base-coded (or prefixless) shape.
+
+- **`mix phoenix_kit.status` now reports the schema version of every module
+  that owns its migrations**, not just core. Modules implementing
+  `c:PhoenixKit.Module.migration_module/0` (`phoenix_kit_inbox`,
+  `phoenix_kit_boards`, `phoenix_kit_web_analytics`, `phoenix_kit_legal`,
+  `phoenix_kit_stats`) each report installed-vs-expected:
+
+  ```
+  PhoenixKit v1.7.230
+  ├── Installed: V159 ✅
+  ├── Database: Connected ✅
+  ├── Modules: 2 modules, 1 update available ⬆
+  │   ├── Boards: V01 ✅
+  │   └── Inbox: V01 → V02 available ⬆
+  └── Next: mix phoenix_kit.update (module schema behind: Inbox)
+  ```
+
+  `Next` is module-aware: a host whose core is current but whose module tables
+  are a version behind previously reported "Ready". `--verbose` adds each
+  module's coordinator and exact version numbers. The row is omitted entirely
+  when no installed module owns migrations, so a core-only install keeps its
+  compact three-line tree.
+
+- **`mix phoenix_kit.update`'s closing summary lists module versions too**, so
+  the last thing printed answers "what version is everything at?" rather than
+  covering core alone and leaving module versions in scrollback.
+
+### Changed
+- **`mix phoenix_kit.update` now writes every pending module migration first
+  and runs `ecto.migrate` once**, instead of a full migrator pass per module.
+- **New `PhoenixKit.Migrations.Modules`** — the shared read side of the
+  module-migration contract, used by both tasks. Discovery previously lived
+  inside `update` only, which is why `status` never knew modules existed. A
+  module whose coordinator raises, exits, or reports a non-integer version is
+  recorded as `:error`, never propagated, so a broken third-party module cannot
+  take down `mix phoenix_kit.status`. `classify/2` is public because it is the
+  whole read-side decision, and a private one could only be tested through a
+  hand-built entry that supplied the answer.
+- **New `PhoenixKit.Install.StatusTree`** — the tree layout, extracted from the
+  status task so it can be unit tested without a database. It was previously a
+  private function writing straight to `IO.puts/1`, so in practice changes to
+  it went unverified.
+
+## 1.7.229 - 2026-08-04
+
+### Changed
+- ⚠️ **The `leaf` requirement is now `~> 0.4.1 or ~> 0.5`, up from `~> 0.3`.**
+  **This raises the floor — hosts resolving leaf 0.3.x will be moved to 0.4.1+.**
+
+  `~> 0.3` spanned leaf 0.3 → 0.9. For a 0.x package, where each minor is
+  effectively a major, that claimed a support window core cannot back. It also
+  had a concrete cost: it let a resolver reach for leaf 0.5 while
+  `phoenix_kit_publishing` still excluded it, and rather than reporting a
+  conflict the resolver quietly settled on an older publishing release. Core
+  declares `leaf` for the whole tree — `phoenix_kit_comments` renders the
+  composer but inherits the dep from here — so this requirement governs every
+  host.
+
+  **If you vendor `leaf.js` or pin it from a CDN, update it to match.** leaf 0.5
+  is a server↔client contract change and a bundle left behind fails silently
+  (0.5.1 logs a console warning when it detects the mismatch). Hosts using the
+  documented `import "../../../deps/leaf/priv/static/assets/leaf.js"` move
+  automatically.
+
+## 1.7.228 - 2026-08-04
+
+### Removed
+- **The installer no longer rewrites the host's `assets/js/app.js` to add a
+  `viewport_width` connect param.** `mix phoenix_kit.install` / `mix
+  phoenix_kit.update` edited the host's LiveSocket options into
+  `params: () => ({_csrf_token: csrfToken, viewport_width: window.innerWidth})`,
+  justified by responsive PhoenixKit LiveViews reading the width server-side on
+  first render. **No such reader was ever written** — nothing in core or in any
+  module package reads `viewport_width`, and `phoenix_kit_dashboards`, the named
+  beneficiary, has no viewport logic at all. The producer shipped, the consumer
+  never did. Editing a host's application source to send a value nothing reads
+  is not something a library should do quietly, so the step and its transform
+  (`JsIntegration.inject_viewport_param/1` and helpers) are gone.
+
+  **Existing hosts keep the line** — this removes the step, not what earlier runs
+  already wrote. It is inert and safe to leave; delete it by hand if you want the
+  diff clean. Reported by a host that found the edit in an unexplained `git diff`.
+
+  Note for the report that prompted this: the edit came from
+  `phoenix_kit.install`/`update`, **not** from the `:phoenix_kit_js_sources`
+  compiler, which only ever writes `priv/static/assets/vendor/`.
+
 ## 1.7.227 - 2026-08-03
 
 Host-app feedback triage (#677) — ~43 reports from AI agents working on apps

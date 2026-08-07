@@ -28,9 +28,10 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Users.MultiSession
 
   @impl true
-  def mount(%{"id" => user_uuid}, _session, socket) do
+  def mount(%{"id" => user_uuid}, session, socket) do
     project_title = Settings.get_project_title()
 
     user = Auth.get_user_with_roles(user_uuid)
@@ -62,6 +63,10 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
           else
             {false, nil}
           end
+
+        # Root account of this session — who a "sign in as this user" would be
+        # judged against. A User struct, so no session token enters the socket.
+        impersonation_actor = MultiSession.impersonation_actor(session)
 
         crm_contact = load_crm_contact(socket, user)
 
@@ -111,6 +116,7 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
           |> assign(:connections_enabled, connections_enabled)
           |> assign(:connections_stats, connections_stats)
           |> assign(:crm_contact, crm_contact)
+          |> assign(:impersonation_actor, impersonation_actor)
           |> assign(:admin_notes, admin_notes)
           |> assign(:note_form, to_form(Auth.change_admin_note(%AdminNote{})))
           |> assign(:editing_note_uuid, nil)

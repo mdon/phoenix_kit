@@ -102,6 +102,13 @@ defmodule PhoenixKit.Settings do
     %{
       "project_title" => "PhoenixKit",
       "site_url" => "",
+      # Local path of the site's home page, used as the anonymous "home"
+      # destination. Empty = unset; core then falls back to its own
+      # locale-complete `/users/log-in` rather than `"/"`, which no core route
+      # serves. Must NOT default to `"/"`: an empty submitted field is written
+      # back as the default, so a `"/"` default would silently re-introduce the
+      # unowned path as a positively-configured first-priority candidate.
+      "main_page_path" => "",
       "allow_registration" => "true",
       # Enforce email confirmation before the app is usable ("true"/"false").
       # Confirmation emails send either way — this only gates enforcement.
