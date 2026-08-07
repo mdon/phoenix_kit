@@ -82,6 +82,13 @@ defmodule PhoenixKit.Squash.Verify do
 
   @ref_header_prefix "-- pk-squash-ref"
 
+  # Longest object name the chain builds by embedding the schema prefix
+  # (`phoenix_kit_files_user_file_checksum_index`, V26). Everything derived
+  # from it is a NAMEDATALEN budget — see scratch_name/2.
+  @longest_embedded_object_name 42
+  @max_schema_bytes 63 - 1 - @longest_embedded_object_name
+  @max_base_bytes @max_schema_bytes - 12
+
   @usage """
   Usage: MIX_ENV=test mix run dev_docs/squash/verify.exs [options]
 
@@ -609,14 +616,14 @@ defmodule PhoenixKit.Squash.Verify do
   defp s1_self(ctx) do
     to = MigrationRunner.current_version()
 
-    a = fresh_target(ctx, "s1a")
+    a = fresh_target(ctx, "s1_ref")
     IO.puts("  installing chain v#{to} into #{a} (run 1)...")
     MigrationRunner.run_old_chain(ctx.repo, a)
     dump_a = DumpHelper.dump!(a)
     retain(ctx, "s1_self_a.sql", dump_a, :verbose)
     maybe_save_s1_reference(ctx, a, dump_a)
 
-    b = fresh_target(ctx, "s1b")
+    b = fresh_target(ctx, "s1_alt")
     IO.puts("  installing chain v#{to} into #{b} (run 2)...")
     MigrationRunner.run_old_chain(ctx.repo, b)
     dump_b = DumpHelper.dump!(b)
@@ -656,7 +663,7 @@ defmodule PhoenixKit.Squash.Verify do
   end
 
   defp s2_self(ctx) do
-    a = fresh_target(ctx, "s2a")
+    a = fresh_target(ctx, "s2_ref")
     IO.puts("  installing into #{a} (run 1)...")
     MigrationRunner.run_old_chain(ctx.repo, a)
     seeds_a = DumpHelper.dump_seed_data!(a)
@@ -664,7 +671,7 @@ defmodule PhoenixKit.Squash.Verify do
     warn_if_templates_absent(seeds_a)
     maybe_save_s2_reference(ctx, seeds_a)
 
-    b = fresh_target(ctx, "s2b")
+    b = fresh_target(ctx, "s2_alt")
     IO.puts("  installing into #{b} (run 2)...")
     MigrationRunner.run_old_chain(ctx.repo, b)
     seeds_b = DumpHelper.dump_seed_data!(b)
@@ -699,7 +706,7 @@ defmodule PhoenixKit.Squash.Verify do
     floor = MigrationRunner.floor()
     current = MigrationRunner.current_version()
 
-    ref = fresh_target(ctx, "s3_ref")
+    ref = fresh_target(ctx, "s3_ref_")
     IO.puts("  building single-run reference install in #{ref}...")
     MigrationRunner.run_new_chain_fresh(ctx.repo, ref)
     ref_dump = DumpHelper.dump!(ref)
@@ -710,7 +717,7 @@ defmodule PhoenixKit.Squash.Verify do
     results =
       Enum.map(ks, fn k ->
         from_version = floor + k
-        t = fresh_target(ctx, "s3_from_#{from_version}")
+        t = fresh_target(ctx, "s3_f#{from_version}")
         IO.puts("  installing #{t} to v#{from_version}, then upgrading via up()...")
         MigrationRunner.run_new_chain_fresh(ctx.repo, t, to_version: from_version)
         MigrationRunner.run_new_chain_existing(ctx.repo, t, from_version)
@@ -1944,9 +1951,31 @@ defmodule PhoenixKit.Squash.Verify do
     name
   end
 
+  # The V26/V56 conventions embed the SCHEMA NAME INTO object names
+  # (`<prefix>_phoenix_kit_..._index`), so a scratch schema name is not free:
+  # schema + "_" + the longest emitted object name must stay within Postgres's
+  # 63-byte NAMEDATALEN or the identifier is silently TRUNCATED. Two
+  # consequences this guard exists to prevent, both observed for real:
+  #   * comparing two installs whose schema names differ in LENGTH truncates
+  #     one side only, and the dump differ reports a phantom rename
+  #     (`..._checksum_index` vs `..._checksum_inde`) — that is why every
+  #     comparison pair below uses equal-length slots;
+  #   * a long-enough name truncates BOTH sides, so the harness silently stops
+  #     testing the real object names the manifest expects.
+  # @longest_embedded_object_name is measured from the manifest; the budget is
+  # 63 - 1 - that.
   defp scratch_name(ctx, slot) do
     name = "#{ctx.base}_#{slot}"
     validate_identifier!(name)
+
+    if byte_size(name) > @max_schema_bytes do
+      raise "scratch schema #{inspect(name)} is #{byte_size(name)} bytes; the " <>
+              "V26/V56 prefix-embedded object names allow at most " <>
+              "#{@max_schema_bytes} (63 - 1 - #{@longest_embedded_object_name} for the " <>
+              "longest embedded name) before Postgres truncates identifiers — " <>
+              "shorten PK_SQUASH_SCHEMA or the slot"
+    end
+
     name
   end
 
@@ -2307,10 +2336,10 @@ defmodule PhoenixKit.Squash.Verify do
         other -> halt_usage("--mode must be 'a' or 'b', got #{inspect(other)}")
       end
 
-    base = System.get_env("PK_SQUASH_SCHEMA", "pk_squash_test")
+    base = System.get_env("PK_SQUASH_SCHEMA", "pk_sqv")
     validate_identifier!(base)
 
-    if byte_size(base) > 40 do
+    if byte_size(base) > @max_base_bytes do
       halt_usage(
         "PK_SQUASH_SCHEMA #{inspect(base)} too long (#{byte_size(base)} bytes); " <>
           "scratch suffixes must fit PostgreSQL's 63-byte identifier limit"

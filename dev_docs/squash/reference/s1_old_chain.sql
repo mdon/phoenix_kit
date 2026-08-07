@@ -1,9 +1,9 @@
--- pk-squash-ref kind=s1 schema=pk_squash_test_s1a chain_version=160
+-- pk-squash-ref kind=s1 schema=pk_squash_test_s1a chain_version=163
 --
 -- PostgreSQL database dump
 --
 
-\restrict daRKWjBfdjJbZbEezFyeRLtxw4YuxX8E9OIsa1fDbsAQQybmcAEvVMGRTsCJ0hC
+\restrict 9hvuQxm25zbFCzi0tVp6QqnRs3Cfd6kE8OyTcYJcNXW6MnUCuGrUsKuXjSloiyu
 
 -- Dumped from database version 17.4 (Debian 17.4-1.pgdg120+2)
 -- Dumped by pg_dump version 17.10 (Debian 17.10-1.pgdg13+1)
@@ -187,8 +187,8 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_admin_notes (
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    user_uuid uuid,
-    author_uuid uuid
+    user_uuid uuid NOT NULL,
+    author_uuid uuid NOT NULL
 );
 
 
@@ -329,8 +329,8 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_audit_logs (
     metadata jsonb DEFAULT '{}'::jsonb,
     inserted_at timestamp with time zone NOT NULL,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    target_user_uuid uuid,
-    admin_user_uuid uuid
+    target_user_uuid uuid NOT NULL,
+    admin_user_uuid uuid NOT NULL
 );
 
 
@@ -674,7 +674,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_comment_dislikes (
     comment_uuid uuid NOT NULL,
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -687,7 +687,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_comment_likes (
     comment_uuid uuid NOT NULL,
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -736,7 +736,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_comments_dislikes (
     comment_uuid uuid NOT NULL,
     inserted_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -749,7 +749,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_comments_likes (
     comment_uuid uuid NOT NULL,
     inserted_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -1178,7 +1178,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_email_events (
     subscription_type character varying(255),
     failure_reason character varying(255),
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    email_log_uuid uuid
+    email_log_uuid uuid NOT NULL
 );
 
 
@@ -1327,7 +1327,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_entities (
     date_created timestamp with time zone DEFAULT now() NOT NULL,
     date_updated timestamp with time zone DEFAULT now() NOT NULL,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    created_by_uuid uuid,
+    created_by_uuid uuid NOT NULL,
     "position" integer DEFAULT 0
 );
 
@@ -1345,8 +1345,8 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_entity_data (
     date_created timestamp with time zone DEFAULT now() NOT NULL,
     date_updated timestamp with time zone DEFAULT now() NOT NULL,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    created_by_uuid uuid,
-    entity_uuid uuid,
+    created_by_uuid uuid NOT NULL,
+    entity_uuid uuid NOT NULL,
     "position" integer,
     parent_uuid uuid
 );
@@ -1450,7 +1450,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_invoices (
     updated_at timestamp with time zone NOT NULL,
     paid_amount numeric(15,2) DEFAULT 0 NOT NULL,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    user_uuid uuid,
+    user_uuid uuid NOT NULL,
     order_uuid uuid,
     subscription_uuid uuid
 );
@@ -1758,7 +1758,8 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_orders (
     checkout_expires_at timestamp with time zone,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
     user_uuid uuid,
-    billing_profile_uuid uuid
+    billing_profile_uuid uuid,
+    payment_option_uuid uuid
 );
 
 
@@ -1801,7 +1802,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_payment_methods (
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -1864,7 +1865,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_post_comments (
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     dislike_count integer DEFAULT 0 NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -1877,7 +1878,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_post_dislikes (
     post_uuid uuid NOT NULL,
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -1909,7 +1910,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_post_groups (
     "position" integer DEFAULT 0 NOT NULL,
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -1922,7 +1923,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_post_likes (
     post_uuid uuid NOT NULL,
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -1951,7 +1952,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_post_mentions (
     mention_type character varying(255) DEFAULT 'mention'::character varying NOT NULL,
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -2020,7 +2021,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_posts (
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     dislike_count integer DEFAULT 0 NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -2269,8 +2270,8 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_publishing_versions (
 CREATE TABLE pk_squash_test_s1a.phoenix_kit_referral_code_usage (
     date_used timestamp with time zone DEFAULT now() NOT NULL,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    used_by_uuid uuid,
-    code_uuid uuid
+    used_by_uuid uuid NOT NULL,
+    code_uuid uuid NOT NULL
 );
 
 
@@ -2287,7 +2288,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_referral_codes (
     date_created timestamp with time zone DEFAULT now() NOT NULL,
     expiration_date timestamp with time zone,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    created_by_uuid uuid,
+    created_by_uuid uuid NOT NULL,
     beneficiary_uuid uuid
 );
 
@@ -2301,7 +2302,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_role_permissions (
     module_key character varying(120) NOT NULL,
     inserted_at timestamp with time zone DEFAULT now() NOT NULL,
     granted_by_uuid uuid,
-    role_uuid uuid
+    role_uuid uuid NOT NULL
 );
 
 
@@ -2366,7 +2367,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_shop_cart_items (
     inserted_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     selected_specs jsonb DEFAULT '{}'::jsonb,
-    cart_uuid uuid,
+    cart_uuid uuid NOT NULL,
     product_uuid uuid,
     variant_uuid uuid,
     CONSTRAINT phoenix_kit_shop_cart_items_quantity_positive CHECK ((quantity > 0))
@@ -2747,7 +2748,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_subscriptions (
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    user_uuid uuid,
+    user_uuid uuid NOT NULL,
     billing_profile_uuid uuid,
     payment_method_uuid uuid,
     subscription_type_uuid uuid
@@ -2873,7 +2874,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_ticket_comments (
     depth integer DEFAULT 0 NOT NULL,
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -2888,7 +2889,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_ticket_status_history (
     to_status character varying(255) NOT NULL,
     reason text,
     inserted_at timestamp with time zone NOT NULL,
-    changed_by_uuid uuid
+    changed_by_uuid uuid NOT NULL
 );
 
 
@@ -2929,7 +2930,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_transactions (
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    user_uuid uuid,
+    user_uuid uuid NOT NULL,
     invoice_uuid uuid
 );
 
@@ -2942,8 +2943,8 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_user_blocks (
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
     reason character varying(255),
     inserted_at timestamp with time zone NOT NULL,
-    blocker_uuid uuid,
-    blocked_uuid uuid
+    blocker_uuid uuid NOT NULL,
+    blocked_uuid uuid NOT NULL
 );
 
 
@@ -2956,8 +2957,8 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_user_blocks_history (
     action character varying(255) NOT NULL,
     reason character varying(255),
     inserted_at timestamp with time zone NOT NULL,
-    blocker_uuid uuid,
-    blocked_uuid uuid
+    blocker_uuid uuid NOT NULL,
+    blocked_uuid uuid NOT NULL
 );
 
 
@@ -2972,8 +2973,8 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_user_connections (
     responded_at timestamp with time zone,
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    requester_uuid uuid,
-    recipient_uuid uuid
+    requester_uuid uuid NOT NULL,
+    recipient_uuid uuid NOT NULL
 );
 
 
@@ -2985,9 +2986,9 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_user_connections_history (
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
     action character varying(255) NOT NULL,
     inserted_at timestamp with time zone NOT NULL,
-    user_a_uuid uuid,
-    user_b_uuid uuid,
-    actor_uuid uuid
+    user_a_uuid uuid NOT NULL,
+    user_b_uuid uuid NOT NULL,
+    actor_uuid uuid NOT NULL
 );
 
 
@@ -2998,8 +2999,8 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_user_connections_history (
 CREATE TABLE pk_squash_test_s1a.phoenix_kit_user_follows (
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
     inserted_at timestamp with time zone NOT NULL,
-    follower_uuid uuid,
-    followed_uuid uuid
+    follower_uuid uuid NOT NULL,
+    followed_uuid uuid NOT NULL
 );
 
 
@@ -3011,8 +3012,8 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_user_follows_history (
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
     action character varying(255) NOT NULL,
     inserted_at timestamp with time zone NOT NULL,
-    follower_uuid uuid,
-    followed_uuid uuid
+    follower_uuid uuid NOT NULL,
+    followed_uuid uuid NOT NULL
 );
 
 
@@ -3048,7 +3049,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_user_oauth_providers (
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    user_uuid uuid
+    user_uuid uuid NOT NULL
 );
 
 
@@ -3060,9 +3061,9 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_user_role_assignments (
     assigned_at timestamp with time zone DEFAULT now() NOT NULL,
     inserted_at timestamp with time zone NOT NULL,
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    user_uuid uuid,
+    user_uuid uuid NOT NULL,
     assigned_by_uuid uuid,
-    role_uuid uuid
+    role_uuid uuid NOT NULL
 );
 
 
@@ -3093,7 +3094,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_users (
     confirmed_at timestamp with time zone,
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    username character varying(255),
+    username public.citext,
     registration_ip character varying(45),
     registration_country character varying(2),
     registration_region character varying(100),
@@ -3121,7 +3122,7 @@ CREATE TABLE pk_squash_test_s1a.phoenix_kit_users_tokens (
     ip_address character varying(255),
     user_agent_hash character varying(255),
     uuid uuid DEFAULT pk_squash_test_s1a.uuid_generate_v7() NOT NULL,
-    user_uuid uuid,
+    user_uuid uuid NOT NULL,
     browser character varying(100),
     os character varying(100),
     CONSTRAINT user_uuid_required_for_non_registration_tokens CHECK (
@@ -7009,6 +7010,13 @@ CREATE UNIQUE INDEX phoenix_kit_orders_order_number_uidx ON pk_squash_test_s1a.p
 
 
 --
+-- Name: phoenix_kit_orders_payment_option_uuid_index; Type: INDEX; Schema: pk_squash_test_s1a; Owner: -
+--
+
+CREATE INDEX phoenix_kit_orders_payment_option_uuid_index ON pk_squash_test_s1a.phoenix_kit_orders USING btree (payment_option_uuid);
+
+
+--
 -- Name: phoenix_kit_orders_status_idx; Type: INDEX; Schema: pk_squash_test_s1a; Owner: -
 --
 
@@ -7111,13 +7119,6 @@ CREATE UNIQUE INDEX phoenix_kit_payment_methods_uuid_idx ON pk_squash_test_s1a.p
 --
 
 CREATE UNIQUE INDEX phoenix_kit_payment_methods_uuid_unique_index ON pk_squash_test_s1a.phoenix_kit_payment_methods USING btree (uuid);
-
-
---
--- Name: phoenix_kit_payment_options_uuid_idx; Type: INDEX; Schema: pk_squash_test_s1a; Owner: -
---
-
-CREATE UNIQUE INDEX phoenix_kit_payment_options_uuid_idx ON pk_squash_test_s1a.phoenix_kit_payment_options USING btree (uuid);
 
 
 --
@@ -7765,13 +7766,6 @@ CREATE INDEX phoenix_kit_shop_carts_user_uuid_idx ON pk_squash_test_s1a.phoenix_
 
 
 --
--- Name: phoenix_kit_shop_carts_uuid_idx; Type: INDEX; Schema: pk_squash_test_s1a; Owner: -
---
-
-CREATE UNIQUE INDEX phoenix_kit_shop_carts_uuid_idx ON pk_squash_test_s1a.phoenix_kit_shop_carts USING btree (uuid);
-
-
---
 -- Name: phoenix_kit_shop_categories_featured_product_uuid_idx; Type: INDEX; Schema: pk_squash_test_s1a; Owner: -
 --
 
@@ -7790,13 +7784,6 @@ CREATE INDEX phoenix_kit_shop_categories_parent_uuid_idx ON pk_squash_test_s1a.p
 --
 
 CREATE INDEX phoenix_kit_shop_categories_slug_gin_idx ON pk_squash_test_s1a.phoenix_kit_shop_categories USING gin (slug);
-
-
---
--- Name: phoenix_kit_shop_categories_uuid_idx; Type: INDEX; Schema: pk_squash_test_s1a; Owner: -
---
-
-CREATE UNIQUE INDEX phoenix_kit_shop_categories_uuid_idx ON pk_squash_test_s1a.phoenix_kit_shop_categories USING btree (uuid);
 
 
 --
@@ -7825,20 +7812,6 @@ CREATE INDEX phoenix_kit_shop_products_created_by_uuid_idx ON pk_squash_test_s1a
 --
 
 CREATE INDEX phoenix_kit_shop_products_slug_gin_idx ON pk_squash_test_s1a.phoenix_kit_shop_products USING gin (slug);
-
-
---
--- Name: phoenix_kit_shop_products_uuid_idx; Type: INDEX; Schema: pk_squash_test_s1a; Owner: -
---
-
-CREATE UNIQUE INDEX phoenix_kit_shop_products_uuid_idx ON pk_squash_test_s1a.phoenix_kit_shop_products USING btree (uuid);
-
-
---
--- Name: phoenix_kit_shop_shipping_methods_uuid_idx; Type: INDEX; Schema: pk_squash_test_s1a; Owner: -
---
-
-CREATE UNIQUE INDEX phoenix_kit_shop_shipping_methods_uuid_idx ON pk_squash_test_s1a.phoenix_kit_shop_shipping_methods USING btree (uuid);
 
 
 --
@@ -9116,6 +9089,70 @@ CREATE UNIQUE INDEX pk_squash_test_s1a_phoenix_kit_users_uuid_idx ON pk_squash_t
 
 
 --
+-- Name: phoenix_kit_admin_notes fk_admin_notes_author_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_admin_notes
+    ADD CONSTRAINT fk_admin_notes_author_uuid FOREIGN KEY (author_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_admin_notes fk_admin_notes_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_admin_notes
+    ADD CONSTRAINT fk_admin_notes_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_ai_requests fk_ai_requests_endpoint_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_ai_requests
+    ADD CONSTRAINT fk_ai_requests_endpoint_uuid FOREIGN KEY (endpoint_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_ai_endpoints(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_ai_requests fk_ai_requests_prompt_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_ai_requests
+    ADD CONSTRAINT fk_ai_requests_prompt_uuid FOREIGN KEY (prompt_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_ai_prompts(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_ai_requests fk_ai_requests_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_ai_requests
+    ADD CONSTRAINT fk_ai_requests_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_billing_profiles fk_billing_profiles_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_billing_profiles
+    ADD CONSTRAINT fk_billing_profiles_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_comment_dislikes fk_comment_dislikes_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_comment_dislikes
+    ADD CONSTRAINT fk_comment_dislikes_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_comment_likes fk_comment_likes_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_comment_likes
+    ADD CONSTRAINT fk_comment_likes_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
 -- Name: phoenix_kit_comments_dislikes fk_comments_dislikes_comment; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
 --
 
@@ -9160,7 +9197,47 @@ ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_comments
 --
 
 ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_comments
-    ADD CONSTRAINT fk_comments_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+    ADD CONSTRAINT fk_comments_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_email_events fk_email_events_email_log_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_email_events
+    ADD CONSTRAINT fk_email_events_email_log_uuid FOREIGN KEY (email_log_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_email_logs(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_entity_data fk_entity_data_entity_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_entity_data
+    ADD CONSTRAINT fk_entity_data_entity_uuid FOREIGN KEY (entity_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_entities(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_files fk_files_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_files
+    ADD CONSTRAINT fk_files_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_invoices fk_invoices_order_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_invoices
+    ADD CONSTRAINT fk_invoices_order_uuid FOREIGN KEY (order_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_orders(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_invoices fk_invoices_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_invoices
+    ADD CONSTRAINT fk_invoices_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE RESTRICT;
 
 
 --
@@ -9193,6 +9270,86 @@ ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_newsletters_deliveries
 
 ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_newsletters_deliveries
     ADD CONSTRAINT fk_newsletters_deliveries_user FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_orders fk_orders_billing_profile_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_orders
+    ADD CONSTRAINT fk_orders_billing_profile_uuid FOREIGN KEY (billing_profile_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_billing_profiles(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_orders fk_orders_payment_option; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_orders
+    ADD CONSTRAINT fk_orders_payment_option FOREIGN KEY (payment_option_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_payment_options(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_orders fk_orders_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_orders
+    ADD CONSTRAINT fk_orders_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_post_comments fk_post_comments_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_post_comments
+    ADD CONSTRAINT fk_post_comments_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_post_dislikes fk_post_dislikes_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_post_dislikes
+    ADD CONSTRAINT fk_post_dislikes_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_post_groups fk_post_groups_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_post_groups
+    ADD CONSTRAINT fk_post_groups_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_post_likes fk_post_likes_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_post_likes
+    ADD CONSTRAINT fk_post_likes_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_post_mentions fk_post_mentions_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_post_mentions
+    ADD CONSTRAINT fk_post_mentions_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_post_views fk_post_views_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_post_views
+    ADD CONSTRAINT fk_post_views_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_posts fk_posts_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_posts
+    ADD CONSTRAINT fk_posts_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
 
 
 --
@@ -9252,11 +9409,371 @@ ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_publishing_versions
 
 
 --
+-- Name: phoenix_kit_referral_code_usage fk_referral_code_usage_code_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_referral_code_usage
+    ADD CONSTRAINT fk_referral_code_usage_code_uuid FOREIGN KEY (code_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_referral_codes(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_role_permissions fk_role_permissions_granted_by_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_role_permissions
+    ADD CONSTRAINT fk_role_permissions_granted_by_uuid FOREIGN KEY (granted_by_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_role_permissions fk_role_permissions_role_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_role_permissions
+    ADD CONSTRAINT fk_role_permissions_role_uuid FOREIGN KEY (role_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_user_roles(uuid) ON DELETE CASCADE;
+
+
+--
 -- Name: phoenix_kit_scheduled_jobs fk_scheduled_jobs_created_by_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
 --
 
 ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_scheduled_jobs
     ADD CONSTRAINT fk_scheduled_jobs_created_by_uuid FOREIGN KEY (created_by_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_shop_cart_items fk_shop_cart_items_cart_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_shop_cart_items
+    ADD CONSTRAINT fk_shop_cart_items_cart_uuid FOREIGN KEY (cart_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_shop_carts(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_shop_cart_items fk_shop_cart_items_product_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_shop_cart_items
+    ADD CONSTRAINT fk_shop_cart_items_product_uuid FOREIGN KEY (product_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_shop_products(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_shop_carts fk_shop_carts_payment_option_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_shop_carts
+    ADD CONSTRAINT fk_shop_carts_payment_option_uuid FOREIGN KEY (payment_option_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_payment_options(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_shop_carts fk_shop_carts_shipping_method_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_shop_carts
+    ADD CONSTRAINT fk_shop_carts_shipping_method_uuid FOREIGN KEY (shipping_method_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_shop_shipping_methods(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_shop_carts fk_shop_carts_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_shop_carts
+    ADD CONSTRAINT fk_shop_carts_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_shop_categories fk_shop_categories_featured_product_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_shop_categories
+    ADD CONSTRAINT fk_shop_categories_featured_product_uuid FOREIGN KEY (featured_product_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_shop_products(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_shop_categories fk_shop_categories_parent_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_shop_categories
+    ADD CONSTRAINT fk_shop_categories_parent_uuid FOREIGN KEY (parent_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_shop_categories(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_shop_import_logs fk_shop_import_logs_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_shop_import_logs
+    ADD CONSTRAINT fk_shop_import_logs_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_shop_products fk_shop_products_category_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_shop_products
+    ADD CONSTRAINT fk_shop_products_category_uuid FOREIGN KEY (category_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_shop_categories(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_shop_products fk_shop_products_created_by_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_shop_products
+    ADD CONSTRAINT fk_shop_products_created_by_uuid FOREIGN KEY (created_by_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_sync_connections fk_sync_connections_approved_by_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_sync_connections
+    ADD CONSTRAINT fk_sync_connections_approved_by_uuid FOREIGN KEY (approved_by_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_sync_connections fk_sync_connections_created_by_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_sync_connections
+    ADD CONSTRAINT fk_sync_connections_created_by_uuid FOREIGN KEY (created_by_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_sync_connections fk_sync_connections_revoked_by_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_sync_connections
+    ADD CONSTRAINT fk_sync_connections_revoked_by_uuid FOREIGN KEY (revoked_by_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_sync_connections fk_sync_connections_suspended_by_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_sync_connections
+    ADD CONSTRAINT fk_sync_connections_suspended_by_uuid FOREIGN KEY (suspended_by_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_sync_transfers fk_sync_transfers_approved_by_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_sync_transfers
+    ADD CONSTRAINT fk_sync_transfers_approved_by_uuid FOREIGN KEY (approved_by_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_sync_transfers fk_sync_transfers_connection_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_sync_transfers
+    ADD CONSTRAINT fk_sync_transfers_connection_uuid FOREIGN KEY (connection_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_sync_connections(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_sync_transfers fk_sync_transfers_denied_by_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_sync_transfers
+    ADD CONSTRAINT fk_sync_transfers_denied_by_uuid FOREIGN KEY (denied_by_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_sync_transfers fk_sync_transfers_initiated_by_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_sync_transfers
+    ADD CONSTRAINT fk_sync_transfers_initiated_by_uuid FOREIGN KEY (initiated_by_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_ticket_comments fk_ticket_comments_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_ticket_comments
+    ADD CONSTRAINT fk_ticket_comments_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_ticket_status_history fk_ticket_status_history_changed_by_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_ticket_status_history
+    ADD CONSTRAINT fk_ticket_status_history_changed_by_uuid FOREIGN KEY (changed_by_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_tickets fk_tickets_assigned_to_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_tickets
+    ADD CONSTRAINT fk_tickets_assigned_to_uuid FOREIGN KEY (assigned_to_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_tickets fk_tickets_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_tickets
+    ADD CONSTRAINT fk_tickets_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_transactions fk_transactions_invoice_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_transactions
+    ADD CONSTRAINT fk_transactions_invoice_uuid FOREIGN KEY (invoice_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_invoices(uuid) ON DELETE RESTRICT;
+
+
+--
+-- Name: phoenix_kit_transactions fk_transactions_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_transactions
+    ADD CONSTRAINT fk_transactions_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE RESTRICT;
+
+
+--
+-- Name: phoenix_kit_user_blocks fk_user_blocks_blocked_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_blocks
+    ADD CONSTRAINT fk_user_blocks_blocked_uuid FOREIGN KEY (blocked_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_blocks fk_user_blocks_blocker_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_blocks
+    ADD CONSTRAINT fk_user_blocks_blocker_uuid FOREIGN KEY (blocker_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_blocks_history fk_user_blocks_history_blocked_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_blocks_history
+    ADD CONSTRAINT fk_user_blocks_history_blocked_uuid FOREIGN KEY (blocked_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_blocks_history fk_user_blocks_history_blocker_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_blocks_history
+    ADD CONSTRAINT fk_user_blocks_history_blocker_uuid FOREIGN KEY (blocker_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_connections_history fk_user_connections_history_actor_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_connections_history
+    ADD CONSTRAINT fk_user_connections_history_actor_uuid FOREIGN KEY (actor_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_connections_history fk_user_connections_history_user_a_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_connections_history
+    ADD CONSTRAINT fk_user_connections_history_user_a_uuid FOREIGN KEY (user_a_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_connections_history fk_user_connections_history_user_b_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_connections_history
+    ADD CONSTRAINT fk_user_connections_history_user_b_uuid FOREIGN KEY (user_b_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_connections fk_user_connections_recipient_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_connections
+    ADD CONSTRAINT fk_user_connections_recipient_uuid FOREIGN KEY (recipient_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_connections fk_user_connections_requester_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_connections
+    ADD CONSTRAINT fk_user_connections_requester_uuid FOREIGN KEY (requester_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_follows fk_user_follows_followed_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_follows
+    ADD CONSTRAINT fk_user_follows_followed_uuid FOREIGN KEY (followed_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_follows fk_user_follows_follower_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_follows
+    ADD CONSTRAINT fk_user_follows_follower_uuid FOREIGN KEY (follower_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_follows_history fk_user_follows_history_followed_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_follows_history
+    ADD CONSTRAINT fk_user_follows_history_followed_uuid FOREIGN KEY (followed_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_follows_history fk_user_follows_history_follower_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_follows_history
+    ADD CONSTRAINT fk_user_follows_history_follower_uuid FOREIGN KEY (follower_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_oauth_providers fk_user_oauth_providers_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_oauth_providers
+    ADD CONSTRAINT fk_user_oauth_providers_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_role_assignments fk_user_role_assignments_assigned_by_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_role_assignments
+    ADD CONSTRAINT fk_user_role_assignments_assigned_by_uuid FOREIGN KEY (assigned_by_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE SET NULL;
+
+
+--
+-- Name: phoenix_kit_user_role_assignments fk_user_role_assignments_role_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_role_assignments
+    ADD CONSTRAINT fk_user_role_assignments_role_uuid FOREIGN KEY (role_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_user_roles(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_user_role_assignments fk_user_role_assignments_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_user_role_assignments
+    ADD CONSTRAINT fk_user_role_assignments_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
+
+
+--
+-- Name: phoenix_kit_users_tokens fk_users_tokens_user_uuid; Type: FK CONSTRAINT; Schema: pk_squash_test_s1a; Owner: -
+--
+
+ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_users_tokens
+    ADD CONSTRAINT fk_users_tokens_user_uuid FOREIGN KEY (user_uuid) REFERENCES pk_squash_test_s1a.phoenix_kit_users(uuid) ON DELETE CASCADE;
 
 
 --
@@ -10359,5 +10876,5 @@ ALTER TABLE ONLY pk_squash_test_s1a.phoenix_kit_warehouse_transfers
 -- PostgreSQL database dump complete
 --
 
-\unrestrict daRKWjBfdjJbZbEezFyeRLtxw4YuxX8E9OIsa1fDbsAQQybmcAEvVMGRTsCJ0hC
+\unrestrict 9hvuQxm25zbFCzi0tVp6QqnRs3Cfd6kE8OyTcYJcNXW6MnUCuGrUsKuXjSloiyu
 

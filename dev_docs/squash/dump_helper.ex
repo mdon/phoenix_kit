@@ -793,6 +793,23 @@ defmodule PhoenixKit.Squash.DumpHelper do
         check!(false, "compare: whitelist must tolerate the drift (got #{inspect(other)})")
     end
 
+    dup_side =
+      "CREATE UNIQUE INDEX pk_x_phoenix_kit_t_uuid_idx ON pk_x.phoenix_kit_t USING btree (uuid);\n" <>
+        "CREATE UNIQUE INDEX phoenix_kit_t_uuid_idx ON pk_x.phoenix_kit_t USING btree (uuid);"
+
+    single_side =
+      "CREATE UNIQUE INDEX phoenix_kit_t_uuid_idx ON pk_y.phoenix_kit_t USING btree (uuid);"
+
+    check!(
+      normalise(dup_side, "pk_x") == normalise(single_side, "pk_y"),
+      "normalise: a prefix-embedded duplicate index folds to the single canonical form"
+    )
+
+    check!(
+      match?({:diff, _}, compare(single_side, "pk_y", "", "pk_z")),
+      "normalise: dedup never hides a genuinely absent object (one vs none still diffs)"
+    )
+
     check!(
       match?(
         {:diff, _},
@@ -975,6 +992,7 @@ defmodule PhoenixKit.Squash.DumpHelper do
     |> Enum.map(&normalise_statement(&1, schema_name))
     |> Enum.reject(&schema_create_statement?/1)
     |> Enum.sort()
+    |> Enum.dedup()
   end
 
   # \restrict / \unrestrict / \connect lines are psql meta-commands, not SQL;
