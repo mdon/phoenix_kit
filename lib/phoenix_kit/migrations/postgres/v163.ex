@@ -11,12 +11,13 @@ defmodule PhoenixKit.Migrations.Postgres.V163 do
   `set_not_null/4` and `add_fk_constraint/7` guard themselves with immediate
   `column_exists?`/`table_exists?` `information_schema` queries) with no
   `flush()` between them, and V57 (which re-runs the same pair) had no
-  `flush()` at all. On an incremental, one-version-at-a-time chain run
-  (`mix phoenix_kit.update` against an existing install) this never
-  mattered — Ecto's migrator flushes between migration modules regardless.
-  On a **single-shot** chain run (a fresh `mix phoenix_kit.install`, or this
-  repo's own squash-generator single-shot probe) the whole V1..V160 chain
-  queues into one command buffer until something flushes it, so
+  `flush()` at all. V56 and V57 are not separate Ecto migration modules —
+  they are sub-calls inside one parent `up/1` that share a single command
+  buffer — so ANY chain run crossing V56/V57 within one migrator invocation
+  hits this, whether it came from a fresh `mix phoenix_kit.install` (one
+  unpinned wrapper for the whole chain) or from an update wrapper whose
+  range happens to span those versions. The buffer is not flushed by an
+  immediate `repo().query`, so
   `add_constraints/1`'s guards ran against `information_schema` state that
   had not seen the columns `UUIDFKColumns.up/1` had *just* queued moments
   earlier in the same call — every guard failed closed, and ~46 `*_uuid`
@@ -55,8 +56,8 @@ defmodule PhoenixKit.Migrations.Postgres.V163 do
      in the same call, never live data). Skipped columns (either via the
      warn path or via `@relaxed_after_v57`) stay nullable **by design** —
      re-running V163 is an idempotent restamp no-op, it does not retry
-     them; `mix phoenix_kit.repair` is the tool for healing a column an
-     operator has since backfilled by hand.
+     them; a column an operator has since backfilled by
+     hand is enforced with a one-line `ALTER TABLE ... SET NOT NULL`.
 
   ### `@relaxed_after_v57` — columns a LATER version deliberately made nullable again
 
@@ -77,12 +78,14 @@ defmodule PhoenixKit.Migrations.Postgres.V163 do
       `parent_file_uuid`; `phoenix_kit_files_user_or_parent_check` enforces
       "one of the two is set" at the CHECK-constraint level instead.
       Re-imposing NOT NULL here would break `Storage.store_system_file`'s
-      tile generation on any fresh single-shot install (confirmed: this
-      also poisoned the manifest the squash generator captured from such
-      an install, since both stepwise and single-shot agreed on the same
-      wrong post-repair shape — the bimodality sweep that caught the
-      *naming* bug in this same version could not catch a shape both sides
-      agree on).
+      tile generation on any install whose run hit the flush bug.
+
+  The list also carries one entry that is not a later relaxation but a
+  contradiction inside V56/V57's own declarations —
+  `phoenix_kit_ticket_status_history.changed_by_uuid` is claimed by
+  `@not_null_uuid_fks` while `@fk_constraints` gives its FK
+  `ON DELETE SET NULL`, which NOT NULL makes unsatisfiable. See its inline
+  comment; `uuid_fk_columns_test.exs` asserts no other pair contradicts.
 
   `test/phoenix_kit/migrations/v163_relaxed_columns_test.exs` statically
   scans `v58.ex`..the current HEAD version for this exact pattern and fails
@@ -128,7 +131,17 @@ defmodule PhoenixKit.Migrations.Postgres.V163 do
     # V113 (v113.ex): system-managed media rows have no human owner, only
     # a parent_file_uuid; phoenix_kit_files_user_or_parent_check enforces
     # "one of the two" at the CHECK-constraint level instead.
-    {:phoenix_kit_files, "user_uuid"}
+    {:phoenix_kit_files, "user_uuid"},
+    # Not a later relaxation but a contradiction inside V56/V57's own two
+    # lists: `@not_null_uuid_fks` claims this column, while `@fk_constraints`
+    # declares its FK `ON DELETE SET NULL`. NOT NULL makes that FK
+    # unsatisfiable — deleting a user who ever changed a ticket status would
+    # fail with a not-null violation instead of blanking the author. On the
+    # broken installs this repair targets the column is nullable, so user
+    # deletion works today; enforcing NOT NULL would newly break it. Left
+    # nullable until the chain resolves which of the two declarations is
+    # wrong (`uuid_fk_columns_test.exs` asserts no OTHER pair contradicts).
+    {:phoenix_kit_ticket_status_history, "changed_by_uuid"}
   ]
 
   @doc false
@@ -191,8 +204,8 @@ defmodule PhoenixKit.Migrations.Postgres.V163 do
           IO.warn(
             "PhoenixKit V163: could not determine NULL count for #{table_str}.#{column} — " <>
               "leaving nullable. This column stays nullable by design (re-running V163 will " <>
-              "not retry it, it is an idempotent restamp no-op) — use mix phoenix_kit.repair " <>
-              "once the cause is understood."
+              "not retry it, it is an idempotent restamp no-op) — apply ALTER TABLE ... " <>
+              "ALTER COLUMN ... SET NOT NULL by hand once the cause is understood."
           )
 
         count ->
@@ -200,8 +213,8 @@ defmodule PhoenixKit.Migrations.Postgres.V163 do
             "PhoenixKit V163: #{table_str}.#{column} has #{count} NULL row(s) — leaving " <>
               "nullable (never backfilling live data). Investigate before enforcing NOT NULL. " <>
               "This column stays nullable by design (re-running V163 will not retry it, it is " <>
-              "an idempotent restamp no-op) — use mix phoenix_kit.repair once the NULLs are " <>
-              "resolved."
+              "an idempotent restamp no-op) — apply ALTER TABLE ... ALTER COLUMN ... SET " <>
+              "NOT NULL by hand once the NULL rows are resolved."
           )
       end
     end

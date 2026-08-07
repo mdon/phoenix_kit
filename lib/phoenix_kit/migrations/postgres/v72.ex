@@ -51,7 +51,7 @@ defmodule PhoenixKit.Migrations.Postgres.V72 do
   # because V56/V57's own flush-order bug (fixed) meant the constraint was
   # never actually created on a single-shot chain run by the time V72 ran —
   # V72's author, seeing it missing, guessed CASCADE instead of matching
-  # V56/V57's own already-declared intent. `V161` repairs any install that
+  # V56/V57's own already-declared intent. `V163` repairs any install that
   # already has the wrong CASCADE baked in.
   @missing_fk_constraints [
     {"phoenix_kit_comments", "user_uuid", "phoenix_kit_users", "uuid", "SET NULL"},

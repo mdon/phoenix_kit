@@ -61,6 +61,14 @@ defmodule PhoenixKit.Migrations.V163RelaxedColumnsTest do
 
   @tuple_pattern ~r/\{\s*"(phoenix_kit_[a-z0-9_]+)"\s*,\s*"([a-z0-9_]+)"\s*\}/i
 
+  # The Ecto DSL equivalent of DROP NOT NULL: `alter table(:t) do modify(:col,
+  # type, null: true) end`. Not used anywhere in the chain today, but this
+  # guard's whole purpose is to survive a FUTURE relaxation, and this form is
+  # legal. Table comes from the enclosing `alter table(...)`, so the scan
+  # pairs each modify with the nearest preceding table.
+  @alter_table_pattern ~r/alter\s+table\(\s*:?"?(phoenix_kit_[a-z0-9_]+)"?/i
+  @modify_null_pattern ~r/modify\(\s*:?"?([a-z_][a-z0-9_]*)"?[^)]*null:\s*true/i
+
   test "every not_null_uuid_fks/0 column dropped NOT NULL after V57 is in V163's exclusion list" do
     tracked = MapSet.new(UUIDFKColumns.not_null_uuid_fks())
     exclusion = MapSet.new(V163.relaxed_after_v57())
@@ -97,20 +105,73 @@ defmodule PhoenixKit.Migrations.V163RelaxedColumnsTest do
     """
   end
 
+  test "no not_null_uuid_fks/0 column has an FK declared ON DELETE SET NULL" do
+    # NOT NULL and `ON DELETE SET NULL` are mutually unsatisfiable: the FK
+    # wants to write NULL into a column that forbids it, so deleting the
+    # referenced row fails instead of blanking the reference. V56/V57 declare
+    # both lists, and one pair contradicts
+    # (phoenix_kit_ticket_status_history.changed_by_uuid) — V163 excludes it
+    # rather than enforcing the impossible half. This test pins that no OTHER
+    # pair does, so a new contradiction cannot slip in unnoticed.
+    source = File.read!(Path.join(File.cwd!(), "lib/phoenix_kit/migrations/uuid_fk_columns.ex"))
+
+    set_null =
+      ~r/\{:(\w+),\s*"(\w+)",\s*"\w+",\s*"\w+",\s*\n?\s*"SET NULL"\}/
+      |> Regex.scan(source)
+      |> MapSet.new(fn [_, table, column] -> {String.to_atom(table), column} end)
+
+    contradictions =
+      UUIDFKColumns.not_null_uuid_fks()
+      |> Enum.filter(&MapSet.member?(set_null, &1))
+      |> Enum.reject(&(&1 in V163.relaxed_after_v57()))
+
+    assert contradictions == [],
+           "these columns are declared NOT NULL while their FK is ON DELETE SET NULL, " <>
+             "which makes deleting the referenced row fail: #{inspect(contradictions)}. " <>
+             "Either drop them from @not_null_uuid_fks, change the FK action, or add them " <>
+             "to V163's @relaxed_after_v57 with a comment."
+  end
+
   # `File.cwd!/0` is the project root under `mix test` (this repo's own
   # convention throughout `dev_docs/squash/*.exs`, which reference `lib/...`
   # the same way) — `Application.app_dir/2` would resolve into `_build/`,
   # where only compiled `.beam` output lands, never the `.ex` sources this
   # test needs to read.
+  # KNOWN UNCOVERED FORM: a DO-block that drops NOT NULL on an interpolated
+  # `#{column}` taken from a module-attribute table list (v73.ex:117-140 does
+  # exactly this). No entry in it targets a `not_null_uuid_fks/0` member
+  # today, so there is no false negative — but a future version reusing that
+  # shape on a tracked column would slip past this scan. Anchoring it means
+  # resolving attribute lists at test time; flagged here instead.
   defp candidates_for_version(version) do
     path = Path.join(File.cwd!(), "lib/phoenix_kit/migrations/postgres/v#{version}.ex")
 
     if File.exists?(path) do
       text = File.read!(path)
-      inline_candidates(text) ++ tuple_candidates(text)
+      inline_candidates(text) ++ tuple_candidates(text) ++ dsl_candidates(text)
     else
       []
     end
+  end
+
+  defp dsl_candidates(text) do
+    # Walk the file once, remembering the last `alter table(...)` seen, and
+    # attribute every `modify(..., null: true)` to it.
+    text
+    |> String.split("\n")
+    |> Enum.reduce({nil, []}, fn line, {table, acc} ->
+      table =
+        case Regex.run(@alter_table_pattern, line) do
+          [_, t] -> t
+          nil -> table
+        end
+
+      case {table, Regex.run(@modify_null_pattern, line)} do
+        {t, [_, column]} when is_binary(t) -> {table, [{t, column} | acc]}
+        _ -> {table, acc}
+      end
+    end)
+    |> elem(1)
   end
 
   defp inline_candidates(text) do
