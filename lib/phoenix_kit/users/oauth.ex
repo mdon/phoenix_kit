@@ -40,16 +40,34 @@ if Code.ensure_loaded?(Ueberauth) do
     end
 
     @doc """
-    Finds an existing user by email or creates a new one from OAuth data.
+    Resolves the local account for an OAuth callback, creating one if needed.
+
+    Resolution order matters, because the three cases carry different proof:
+
+    1. **An existing link** (`provider` + `provider_uid`) is the strongest
+       signal there is — this exact external identity was attached to this
+       account before, and no email address is consulted.
+    2. **A pre-existing local account with the same email** is the takeover
+       case. Matching on the email string alone means whoever can get that
+       address attached to a provider account signs in as its owner, so the
+       provider must ASSERT it verified the address. Without that assertion the
+       callback is refused with `{:error, :provider_email_unverified}`.
+    3. **No local account** registers a new one.
+
+    The assertion requirement can be lifted with the `oauth_require_verified_email`
+    setting (default `true`) for a deployment whose provider does not surface a
+    verification claim; it is a deliberate, operator-visible decision rather
+    than a silent default.
     """
     def find_or_create_user(oauth_data, track_geolocation \\ false, ip_address \\ nil) do
-      case Auth.get_user_by_email(oauth_data.email) do
-        %User{} = user ->
-          # Auto-confirm email for existing users logging in via OAuth
-          {:ok, confirmed_user} = maybe_confirm_user(user)
-          {:ok, confirmed_user, :found}
+      cond do
+        linked_user = user_by_provider_identity(oauth_data) ->
+          {:ok, linked_user, :found}
 
-        nil ->
+        existing_user = Auth.get_user_by_email(oauth_data.email) ->
+          attach_to_existing_user(existing_user, oauth_data)
+
+        true ->
           case register_oauth_user(oauth_data, track_geolocation, ip_address) do
             {:ok, user} -> {:ok, user, :created}
             {:error, reason} -> {:error, reason}
@@ -57,8 +75,105 @@ if Code.ensure_loaded?(Ueberauth) do
       end
     end
 
+    # The account this external identity is already attached to, if any.
+    # `(provider, provider_uid)` has no unique index — the uniqueness the schema
+    # enforces is one row per `(user_uuid, provider)` — so this orders the
+    # result and takes the oldest rather than assuming a single row.
+    defp user_by_provider_identity(%{provider: provider, provider_uid: provider_uid})
+         when is_binary(provider) and is_binary(provider_uid) and provider_uid != "" do
+      from(p in OAuthProvider,
+        join: u in User,
+        on: u.uuid == p.user_uuid,
+        where: p.provider == ^provider and p.provider_uid == ^provider_uid,
+        order_by: [asc: p.inserted_at],
+        limit: 1,
+        select: u
+      )
+      |> Repo.one()
+    end
+
+    defp user_by_provider_identity(_oauth_data), do: nil
+
+    defp attach_to_existing_user(%User{} = user, oauth_data) do
+      if email_ownership_proven?(oauth_data) do
+        {:ok, confirmed_user} = maybe_confirm_user(user)
+        {:ok, confirmed_user, :found}
+      else
+        {:error, :provider_email_unverified}
+      end
+    end
+
+    # True when the provider states it verified the address, or when the
+    # operator has explicitly turned the requirement off.
+    defp email_ownership_proven?(oauth_data) do
+      not require_verified_email?() or provider_asserts_verified_email?(oauth_data)
+    end
+
+    defp require_verified_email? do
+      PhoenixKit.Settings.get_boolean_setting("oauth_require_verified_email", true)
+    end
+
+    # Reads the provider's own verification claim out of the raw callback
+    # payload. Each provider spells it differently, and an unrecognised shape
+    # answers false — an assertion we cannot find is not an assertion.
+    defp provider_asserts_verified_email?(%{provider: "github"} = oauth_data) do
+      address = normalize_email(oauth_data[:email])
+
+      oauth_data
+      |> raw_user()
+      |> Map.get("emails", [])
+      |> List.wrap()
+      |> Enum.any?(fn
+        %{"email" => email, "verified" => verified} ->
+          normalize_email(email) == address and truthy?(verified)
+
+        _other ->
+          false
+      end)
+    end
+
+    defp provider_asserts_verified_email?(%{provider: "facebook"} = oauth_data) do
+      oauth_data |> raw_user() |> Map.get("verified") |> truthy?()
+    end
+
+    # Google and any provider following the OpenID Connect claim name.
+    defp provider_asserts_verified_email?(oauth_data) do
+      truthy?(oauth_data |> raw_user() |> Map.get("email_verified")) or
+        truthy?(oauth_data |> raw_info() |> Map.get("email_verified"))
+    end
+
+    # `raw_info` shape varies by strategy and is not guaranteed to be a plain
+    # map, so both accessors normalise to `%{}` rather than letting a struct or
+    # a nil reach `get_in/2`.
+    defp raw_info(oauth_data) do
+      case Map.get(oauth_data, :raw_info) do
+        %{} = info when not is_struct(info) -> info
+        _other -> %{}
+      end
+    end
+
+    defp raw_user(oauth_data) do
+      case oauth_data |> raw_info() |> Map.get("user") do
+        %{} = user when not is_struct(user) -> user
+        _other -> %{}
+      end
+    end
+
+    defp truthy?(true), do: true
+    defp truthy?("true"), do: true
+    defp truthy?(_value), do: false
+
+    defp normalize_email(email) when is_binary(email),
+      do: email |> String.trim() |> String.downcase()
+
+    defp normalize_email(_email), do: nil
+
     # Auto-confirm email for unconfirmed users logging in via OAuth.
-    # OAuth providers verify email ownership, so we can trust it.
+    # Only when the provider ASSERTED it verified the address — the previous
+    # comment here ("OAuth providers verify email ownership, so we can trust
+    # it") was an assumption about every provider and every account type, and
+    # confirming on it turned an unverified provider address into a confirmed
+    # local account.
     defp maybe_confirm_user(%User{confirmed_at: nil} = user) do
       case Auth.admin_confirm_user(user) do
         {:ok, confirmed_user} ->
@@ -186,9 +301,18 @@ if Code.ensure_loaded?(Ueberauth) do
       # against a 3-per-email/10-per-IP budget, quietly turning it into 1 and 5.
       # (The gate work assumed this path was unlimited. It never was.)
       case do_register_oauth_user(attrs, track_geolocation, ip_address) do
-        # Auto-confirm email for OAuth users (providers verify email ownership)
-        {:ok, user} -> maybe_confirm_user(user)
-        error -> error
+        # Auto-confirm only on a provider assertion. A new account whose address
+        # the provider did not vouch for goes through the ordinary confirmation
+        # mail instead — registering is still allowed, but the address is not
+        # treated as proven, so a squatted one cannot be laundered into a
+        # confirmed local account.
+        {:ok, user} ->
+          if provider_asserts_verified_email?(oauth_data),
+            do: maybe_confirm_user(user),
+            else: {:ok, user}
+
+        error ->
+          error
       end
     end
 

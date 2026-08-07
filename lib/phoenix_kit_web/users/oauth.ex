@@ -286,6 +286,25 @@ if Code.ensure_loaded?(Ueberauth) do
           |> put_flash(:error, "Authentication failed: #{errors}")
           |> redirect(to: Routes.path("/users/log-in"))
 
+        {:error, :provider_email_unverified} ->
+          # An account with this address already exists locally and the provider
+          # did not assert that it verified the address, so attaching would be a
+          # takeover. Say what happened — a legitimate owner needs to know that
+          # signing in with a password is the way through, and that nothing is
+          # broken on their side.
+          Logger.warning(
+            "PhoenixKit: OAuth link refused for #{auth.info.email} via #{auth.provider} — " <>
+              "provider did not assert the address is verified and a local account already exists"
+          )
+
+          conn
+          |> put_flash(
+            :error,
+            "An account already exists for that email address. Sign in with your password " <>
+              "first, then connect this provider from your account settings."
+          )
+          |> redirect(to: Routes.path("/users/log-in"))
+
         {:error, reason} ->
           Logger.error("PhoenixKit: OAuth authentication error: #{inspect(reason)}")
 
