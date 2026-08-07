@@ -1,4 +1,4 @@
-## Unreleased
+## 1.7.234 - 2026-08-07
 
 ### Added
 - **One resolver for every redirect core owns** (#685). `Routes.safe_destination/2`
