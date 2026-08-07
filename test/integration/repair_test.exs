@@ -2,7 +2,7 @@ defmodule PhoenixKit.Integration.RepairTest do
   @moduledoc """
   End-to-end `PhoenixKit.Migrations.Repair` scenarios against a real
   Postgres, using `PhoenixKit.Test.FixtureExpectedSchema` as the manifest
-  and a dedicated schema (`"phoenix_kit_fixture_test"` — see `@prefix`
+  and a dedicated schema (`"pk_fixture_test"` — see `@prefix`
   below) so this suite never touches the real `public.phoenix_kit` chain
   the rest of the test suite depends on
   (`test/test_helper.exs`'s `ensure_current/2` boot). `@moduletag
@@ -34,7 +34,7 @@ defmodule PhoenixKit.Integration.RepairTest do
   Incidentally exercised by every test above, though none of them assert on
   it directly: Oban delegation (`Oban.Migration.up(prefix: @prefix,
   create_schema: false)` — every `Repair.repair/1` call below also creates
-  Oban's own tables inside `phoenix_kit_fixture_test`, cleaned up by the same
+  Oban's own tables inside `pk_fixture_test`, cleaned up by the same
   `on_exit` `DROP SCHEMA ... CASCADE`) and the server-version preflight
   finding (`:unsupported_pg_version` — silent unless the scratch DB's major
   falls outside `Repair`'s declared supported range).
@@ -83,7 +83,11 @@ defmodule PhoenixKit.Integration.RepairTest do
   alias PhoenixKit.Test.FixtureExpectedSchema
   alias PhoenixKit.Test.Repo
 
-  @prefix "phoenix_kit_fixture_test"
+  # Kept at or under Helpers.validate_prefix!/1's 20-byte length cap (the
+  # V26/V56 conventions embed the prefix into a handful of index names —
+  # the longest is 42 bytes — so anything longer risks the same
+  # 63-byte-NAMEDATALEN truncation the cap exists to reject outright).
+  @prefix "pk_fixture_test"
 
   setup do
     Sandbox.mode(Repo, :auto)
@@ -113,10 +117,10 @@ defmodule PhoenixKit.Integration.RepairTest do
       stamp(142)
 
       {:ok, report1} = Repair.verify(prefix: @prefix, repo: Repo)
-      assert_healthy_except_templates_gap(report1)
+      assert_healthy(report1)
 
       {:ok, report2} = Repair.verify(prefix: @prefix, repo: Repo)
-      assert_healthy_except_templates_gap(report2)
+      assert_healthy(report2)
       assert Report.summary(report1) == Report.summary(report2)
     end
   end
@@ -138,7 +142,7 @@ defmodule PhoenixKit.Integration.RepairTest do
       assert repaired.object_id == "column:phoenix_kit_fixture_widgets.owner_uuid"
 
       {:ok, final} = Repair.verify(prefix: @prefix, repo: Repo)
-      assert_healthy_except_templates_gap(final)
+      assert_healthy(final)
     end
 
     test "a dropped FK constraint is recreated NOT VALID and then validated" do
@@ -200,8 +204,13 @@ defmodule PhoenixKit.Integration.RepairTest do
 
   describe "revision scoping (S17)" do
     test "an old-shape column verifies clean at an old comment, then converges after the delta 'runs'" do
-      build_objects(100)
-      stamp(100)
+      # 140, not the pre-squash-era 100: must sit between the object's two
+      # revisions (53, 142) to exercise old-shape selection, AND at or above
+      # the real floor (`Postgres.initial_version/0`, 135 post-squash) or
+      # `classify/3` rejects it outright as `:below_floor` before the
+      # manifest is even consulted.
+      build_objects(140)
+      stamp(140)
 
       {:ok, report_old} = Repair.verify(prefix: @prefix, repo: Repo)
 
@@ -210,11 +219,10 @@ defmodule PhoenixKit.Integration.RepairTest do
                &(&1.object_id == "column:phoenix_kit_fixture_role_permissions.module_key")
              )
 
-      # Built and stamped exactly the since<=100 slice — nothing missing,
+      # Built and stamped exactly the since<=140 slice — nothing missing,
       # nothing mismatched, nothing stale-low: genuinely clean, not just
-      # "no errors" (modulo the templates best-effort gap every scenario
-      # here carries — see `assert_healthy_except_templates_gap/1`).
-      assert_healthy_except_templates_gap(report_old)
+      # "no errors".
+      assert_healthy(report_old)
 
       # Simulate "the real delta module ran" (widening V142's own migration,
       # never repair's job) — then confirm the newer comment/shape also
@@ -236,18 +244,28 @@ defmodule PhoenixKit.Integration.RepairTest do
 
   describe "adopt (S13)" do
     test "comment stripped from a healthy DB converges and stamps the floor" do
-      build_objects(142)
+      # Built to the FLOOR bound, not the fixture's full `since <= 142`
+      # range: `run_adopt/4` always verifies the `since <= ctx.floor` slice
+      # (`Postgres.initial_version/0`, now 135 post-squash, not the
+      # pre-squash 1 this test used to assume). Building past floor would
+      # resolve `phoenix_kit_fixture_role_permissions.module_key` (revisions
+      # at 53 and 142) to its NEWEST shape — genuinely correct for a V142
+      # install, but a `:wrong_shape` divergence against the floor-135-era
+      # shape adopt actually checks, which would fail the clean gate for a
+      # reason that has nothing to do with what this test exercises (see
+      # the "revision scoping" describe block for that).
+      build_objects(Postgres.initial_version())
       # No stamp() call — comment starts NULL (the half-installed/adopted case).
 
       {:ok, report} = Repair.verify(prefix: @prefix, repo: Repo)
       assert Enum.any?(Report.findings(report), &(&1.kind == :adopt_required))
 
       {:ok, adopted} = Repair.repair(prefix: @prefix, repo: Repo, adopt: true)
-      assert adopted.comment_action == {:adopted, 1}
+      assert adopted.comment_action == {:adopted, Postgres.initial_version()}
     end
 
     test "a missing since<=floor object is repaired additively before the clean gate is evaluated, and the stamp still lands" do
-      build_objects(142)
+      build_objects(Postgres.initial_version())
 
       Repo.query!("ALTER TABLE #{@prefix}.phoenix_kit_fixture_widgets DROP COLUMN name", [])
 
@@ -262,7 +280,7 @@ defmodule PhoenixKit.Integration.RepairTest do
       # absent, not present-with-a-mismatch, when it was evaluated) — the
       # clean gate (`CommentPolicy.floor_verify_clean?/1`) sees no
       # error-severity finding and the stamp lands.
-      assert report.comment_action == {:adopted, 1}
+      assert report.comment_action == {:adopted, Postgres.initial_version()}
     end
   end
 
@@ -318,28 +336,21 @@ defmodule PhoenixKit.Integration.RepairTest do
   # ── Assertion helpers ───────────────────────────────────────────────
 
   # `phoenix_kit_fixture_templates`'s seed row (`templates_helper_seed_object/0`
-  # in `FixtureExpectedSchema`) is `{:helper, mfa}`-created, `:best_effort` —
-  # it mirrors the real v15/v31 lineage where the referenced Mix task
-  # genuinely does not exist in this repository (the expected common case,
-  # not a defect; see `Object`'s moduledoc "Helper creates"). `build_objects/1`
-  # therefore never actually inserts that row (`Executor.create/4` returns
-  # `:best_effort_skipped`), so `Repair.verify/1` — which reports any missing
-  # object as `:missing`/`:repairable` without trying to predict whether a
-  # real repair would best-effort-skip it too — always finds it absent.
-  # Every scenario in this suite that builds objects up to and including
-  # `since: 2` therefore verifies at `exit_code` 1, never 0, on a DB that is
-  # otherwise perfectly healthy. This helper is the single place that
-  # encodes "healthy, modulo that one permanent, expected gap" so a real
-  # regression (a stray extra finding) still fails loudly.
-  defp assert_healthy_except_templates_gap(report) do
-    assert Report.exit_code(report) == 1
-
-    assert [
-             %{
-               kind: :missing,
-               severity: :repairable,
-               object_id: "seed:phoenix_kit_fixture_templates:__fixture_seeder__"
-             }
-           ] = Enum.filter(Report.findings(report), &(&1.severity in [:error, :repairable]))
+  # in `FixtureExpectedSchema`) is `{:helper, mfa}`-created — it mirrors the
+  # real v15/v31 lineage where the referenced Mix task genuinely does not
+  # exist in this repository (the expected common case, not a defect; see
+  # `Object`'s moduledoc "Helper creates"). `build_objects/1` therefore
+  # never actually inserts that row (`Executor.create/4` returns
+  # `:best_effort_skipped`), but `PhoenixKit.Migrations.Repair` predicts
+  # that deterministically (`Code.ensure_loaded?/1`, without ever calling
+  # `apply/3`) and reports NOTHING for it in either `verify/1` or
+  # `repair/1` — silence, not a `:missing`/`:repairable` or even an `:info`
+  # finding, so a DB that is otherwise perfectly healthy verifies at
+  # `exit_code` 0 with no error/repairable findings. This helper is the
+  # single place that encodes "healthy" so a real regression (a stray
+  # extra finding) still fails loudly.
+  defp assert_healthy(report) do
+    assert Report.exit_code(report) == 0
+    assert Enum.filter(Report.findings(report), &(&1.severity in [:error, :repairable])) == []
   end
 end

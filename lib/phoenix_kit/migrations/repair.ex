@@ -417,6 +417,9 @@ defmodule PhoenixKit.Migrations.Repair do
       Probe.seed_present?(ctx.repo, object.check) ->
         nil
 
+      best_effort_seed_module_absent?(object) ->
+        nil
+
       object.presence == :legacy_optional ->
         finding(
           :legacy_optional_absent,
@@ -433,10 +436,43 @@ defmodule PhoenixKit.Migrations.Repair do
 
   defp object_finding(ctx, %{object: object, shape: shape} = resolved, snapshot, skip_validate?) do
     case Probe.lookup(snapshot, object.check) do
-      nil -> presence_missing_finding(ctx, object, resolved, skip_validate?)
-      observed -> presence_present_finding(object, shape, observed, pg_major_supported?(ctx))
+      nil ->
+        presence_missing_finding(ctx, object, resolved, skip_validate?)
+
+      observed ->
+        presence_present_finding(
+          ctx,
+          resolved,
+          shape,
+          observed,
+          pg_major_supported?(ctx),
+          skip_validate?
+        )
     end
   end
+
+  # A `{:helper, mfa}` seed (the v15/v31 best-effort email-template
+  # lineage) whose companion module genuinely is not part of this install
+  # — a Mix task stripped from a release, or the optional emails module
+  # never added — is the documented expected common case (`Object`'s
+  # moduledoc, "Helper creates": "this is the expected common case, not a
+  # failure mode"), not drift. `Executor.create/4` already treats it as a
+  # silent no-op (`run_helper/3`'s `:seed` clause returns
+  # `:best_effort_skipped` for a missing module exactly like a module that
+  # raised), but until this fix that outcome was only ever visible to
+  # `repair/1` — `verify/1`'s dry-run clause of `missing_finding/3` never
+  # calls `Executor.create/4` at all, so it reported `:missing`/
+  # `:repairable` (a permanent error the two paths disagreed on) for
+  # something a real repair run would immediately shrug off. Predicting
+  # the "module absent" half in dry-run needs no `apply/3` call (unlike
+  # "module present but raised", which genuinely can't be known without
+  # running it) — so this goes one step further than just matching apply's
+  # `:info` finding: a correctly-configured, fully-caught-up install can
+  # now show a genuinely empty report instead of a permanent info line.
+  defp best_effort_seed_module_absent?(%{create: {:helper, {mod, _fun, _args}}}),
+    do: not Code.ensure_loaded?(mod)
+
+  defp best_effort_seed_module_absent?(_object), do: false
 
   defp presence_missing_finding(
          _ctx,
@@ -512,7 +548,14 @@ defmodule PhoenixKit.Migrations.Repair do
     )
   end
 
-  defp presence_present_finding(%{presence: :legacy_optional} = object, _shape, _observed, _pg_ok) do
+  defp presence_present_finding(
+         _ctx,
+         %{object: %{presence: :legacy_optional} = object},
+         _shape,
+         _observed,
+         _pg_ok,
+         _skip_validate?
+       ) do
     finding(
       :legacy_optional_present,
       :info,
@@ -522,7 +565,15 @@ defmodule PhoenixKit.Migrations.Repair do
     )
   end
 
-  defp presence_present_finding(object, shape, observed, pg_major_supported?) do
+  defp presence_present_finding(
+         ctx,
+         resolved,
+         shape,
+         observed,
+         pg_major_supported?,
+         skip_validate?
+       ) do
+    object = resolved.object
     result = Differ.compare(object.class, shape, observed)
 
     case result do
@@ -541,15 +592,79 @@ defmodule PhoenixKit.Migrations.Repair do
         marker = Differ.deparse_text_marker()
         text = reasons |> Enum.map_join("; ", &String.replace_prefix(&1, marker, ""))
 
-        {kind, severity, suffix} =
-          if downgrade? do
-            {:deparse_rendering_differs, :info,
-             " (rendering-only difference, unverified PostgreSQL major — not treated as drift)"}
-          else
-            {:wrong_shape, :error, ""}
-          end
+        cond do
+          downgrade? ->
+            finding(
+              :deparse_rendering_differs,
+              :info,
+              object.id,
+              object.since,
+              "#{object.id}: " <>
+                text <>
+                " (rendering-only difference, unverified PostgreSQL major — not treated as drift)"
+            )
 
-        finding(kind, severity, object.id, object.since, "#{object.id}: " <> text <> suffix)
+          # Function bodies are PhoenixKit-owned, revision-blind, idempotent
+          # creates — `ShapeSql`'s moduledoc already documents `:function`
+          # creates as safe to reissue ("ensure_uuid_v7_function/2, or a
+          # CREATE OR REPLACE FUNCTION ... there is no 'old shape' a later
+          # delta depends on the absence of"). Unlike every other class, a
+          # function shape mismatch is therefore additive-safe to self-heal
+          # by reissuing the object's own `create` (a schema-qualified
+          # `CREATE OR REPLACE`, never a `DROP`) — the mechanism this needed
+          # (`Helpers.do_ensure_uuid_v7_function/3` replacing an existing,
+          # differently-bodied function) was missing until this fix, so a
+          # pre-qualification-fix `uuid_generate_v7()` body stayed drifted
+          # forever with no repair path. A signature change Postgres
+          # genuinely can't apply in place (e.g. a changed return type)
+          # surfaces as `:create_failed`/`:error` instead of silently
+          # "succeeding" — additive-only is preserved by construction, not
+          # by this module refraining from trying.
+          object.class == :function ->
+            function_mismatch_finding(ctx, resolved, skip_validate?, text)
+
+          true ->
+            finding(:wrong_shape, :error, object.id, object.since, "#{object.id}: " <> text)
+        end
+    end
+  end
+
+  defp function_mismatch_finding(%{dry_run: true}, resolved, _skip_validate?, text) do
+    object = resolved.object
+
+    finding(
+      :wrong_shape,
+      :repairable,
+      object.id,
+      object.since,
+      "#{object.id}: " <> text <> " — would reissue CREATE OR REPLACE"
+    )
+  end
+
+  defp function_mismatch_finding(ctx, resolved, skip_validate?, text) do
+    object = resolved.object
+
+    case Executor.create(ctx.repo, resolved, ctx.prefix, skip_validate?) do
+      :created ->
+        finding(
+          :repaired,
+          :repairable,
+          object.id,
+          object.since,
+          "#{object.id}: " <> text <> " — reissued CREATE OR REPLACE"
+        )
+
+      {:create_failed, message} ->
+        finding(
+          :create_failed,
+          :error,
+          object.id,
+          object.since,
+          "#{object.id}: reissuing definition failed — #{message}"
+        )
+
+      other ->
+        outcome_finding(object, other)
     end
   end
 
@@ -629,7 +744,11 @@ defmodule PhoenixKit.Migrations.Repair do
   # ── R2/R5 cross-check + --heal-comment ──────────────────────────────
 
   defp add_cross_check_finding_and_action(report, ctx, objects, snapshot, comment) do
-    presence = Probe.presence_by_since(objects, snapshot)
+    presence =
+      objects
+      |> Probe.presence_by_since(snapshot)
+      |> pad_vacuous_versions(ctx.floor, comment)
+
     highest = CommentPolicy.highest_fully_present_version(presence)
 
     case CommentPolicy.marker_cross_check(comment, highest) do
@@ -637,10 +756,7 @@ defmodule PhoenixKit.Migrations.Repair do
         report
 
       {:ahead_of_schema, lower} ->
-        msg =
-          "comment claims V#{comment} but the highest fully-present version is V#{lower} " <>
-            "(objects since #{lower + 1}..#{comment} were missing and have been addressed above)"
-
+        msg = ahead_of_schema_message(ctx.dry_run, comment, lower)
         Report.add_finding(report, finding(:comment_ahead_of_schema, :info, nil, nil, msg))
 
       {:stale_low, target} ->
@@ -650,6 +766,40 @@ defmodule PhoenixKit.Migrations.Repair do
         )
         |> maybe_heal(ctx, target)
     end
+  end
+
+  # `Probe.presence_by_since/2` only emits a bucket for a `since` value some
+  # manifest object actually carries. A version that introduces NO manifest
+  # objects at all (e.g. V163 — `grep 'since: 163,' expected_schema.ex` is
+  # empty) then has no bucket whatsoever, so
+  # `CommentPolicy.highest_fully_present_version/1`'s take_while silently
+  # caps out at the highest OBJECT-BEARING since below it — every install
+  # sitting exactly at such a version (a fresh install at `current`, the
+  # common case) was reported as "comment ahead of schema" even though
+  # nothing is actually missing (there was nothing TO be missing). Pad
+  # every since in `floor..comment` that has no real bucket with `true`
+  # (vacuously present — nothing to check there). Real buckets are never
+  # touched (below `floor` included — genuine drift there must still halt
+  # `take_while`), and the padding is bounded by `comment`, not
+  # `ctx.current`: a healthy install sitting at an OLDER in-range comment
+  # must not have versions it hasn't reached yet vacuously counted as
+  # "present" merely because a later delta happens to add no objects.
+  defp pad_vacuous_versions(presence, floor, comment) do
+    known = Map.new(presence)
+    padding = for since <- floor..comment, not Map.has_key?(known, since), do: {since, true}
+
+    presence ++ padding
+  end
+
+  defp ahead_of_schema_message(true, comment, lower) do
+    "comment claims V#{comment} but the highest fully-present version is V#{lower} " <>
+      "(objects since #{lower + 1}..#{comment} are missing or diverged — see the findings " <>
+      "above; run mix phoenix_kit.repair to address them)"
+  end
+
+  defp ahead_of_schema_message(false, comment, lower) do
+    "comment claims V#{comment} but the highest fully-present version is V#{lower} " <>
+      "(objects since #{lower + 1}..#{comment} were missing and have been addressed above)"
   end
 
   defp stale_low_message(comment, target) do
