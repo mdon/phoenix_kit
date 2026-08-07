@@ -18,7 +18,13 @@ defmodule PhoenixKit.Squash.RepoHelper do
   missing password would only fail later with an opaque auth error — we
   validate eagerly instead.
 
-  Optional: `PGPORT` (default 5432), `PGSSL` ("true" enables SSL).
+  Optional: `PGPORT` (default 5432), `PGSSL` ("true" enables SSL), `PGPOOL`
+  (default 5 — matches the pre-PGPOOL hardcoded pool_size; a shared,
+  connection-constrained instance should set this explicitly, same as
+  `mix test`'s `config/test.exs` reader). A set-but-empty `PGPOOL=` is
+  treated as absent rather than raising (mirrors `config/test.exs`, fixed
+  after PR 681 found the opposite behavior confusing); a non-numeric or
+  non-positive value raises a message naming the variable and the value.
 
   Functions tagged `[DB]` need a live direct Postgres connection (never
   PgBouncer — it silently drops transactional DDL). Everything else is pure;
@@ -115,7 +121,8 @@ defmodule PhoenixKit.Squash.RepoHelper do
       username: fetch!(env, "PGUSER"),
       password: fetch!(env, "PGPASSWORD"),
       database: fetch!(env, "PGDATABASE"),
-      ssl: Map.get(env, "PGSSL") == "true"
+      ssl: Map.get(env, "PGSSL") == "true",
+      pool_size: parse_pool_size(Map.get(env, "PGPOOL"))
     }
   end
 
@@ -154,6 +161,31 @@ defmodule PhoenixKit.Squash.RepoHelper do
       "connection_env: blank PGDATABASE raises eagerly"
     )
 
+    check!(
+      connection_env(Map.delete(full, "PGPOOL")).pool_size == 5,
+      "connection_env: default pool_size"
+    )
+
+    check!(
+      connection_env(Map.put(full, "PGPOOL", "4")).pool_size == 4,
+      "connection_env: PGPOOL parsed"
+    )
+
+    check!(
+      connection_env(Map.put(full, "PGPOOL", "")).pool_size == 5,
+      "connection_env: blank PGPOOL treated as absent, not raised"
+    )
+
+    check!(
+      raised_message(fn -> connection_env(Map.put(full, "PGPOOL", "0")) end) =~ "PGPOOL",
+      "connection_env: non-positive PGPOOL raises eagerly"
+    )
+
+    check!(
+      raised_message(fn -> connection_env(Map.put(full, "PGPOOL", "abc")) end) =~ "PGPOOL",
+      "connection_env: non-numeric PGPOOL raises eagerly"
+    )
+
     :ok
   end
 
@@ -171,7 +203,7 @@ defmodule PhoenixKit.Squash.RepoHelper do
       password: ce.password,
       database: ce.database,
       ssl: ce.ssl,
-      pool_size: 5,
+      pool_size: ce.pool_size,
       # Disable sandbox so scripts can run DDL outside a transaction
       pool: DBConnection.ConnectionPool,
       log: false
@@ -192,6 +224,20 @@ defmodule PhoenixKit.Squash.RepoHelper do
     do: " (Postgrex never reads .pgpass; export PGPASSWORD explicitly)"
 
   defp fetch_hint(_name), do: ""
+
+  # Mirrors config/test.exs's PGPOOL reader (fixed post-PR-681): a set-but-
+  # empty value is UNSET, not a parse failure — System.get_env/2's fallback
+  # only fires when the var is entirely absent, so this can't be folded into
+  # a Map.get default.
+  defp parse_pool_size(nil), do: 5
+  defp parse_pool_size(""), do: 5
+
+  defp parse_pool_size(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {size, ""} when size > 0 -> size
+      _ -> raise "PGPOOL must be a positive integer, got: #{inspect(value)}"
+    end
+  end
 
   # Returns the raised RuntimeError message, or "" when nothing raised (so a
   # missing raise fails the =~ assertion instead of crashing it).
