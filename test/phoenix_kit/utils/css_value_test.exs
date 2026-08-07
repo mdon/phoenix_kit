@@ -67,8 +67,17 @@ defmodule PhoenixKit.Utils.CssValueTest do
     end
 
     test "constructs that reach the network or an evaluator" do
+      # These two are refused by the charset alone (`:` and `/`), so they do not
+      # exercise @color_forbidden — kept because they are the realistic spelling.
       assert CssValue.color("url(https://evil.example/x)") == ""
       assert CssValue.color("URL (https://evil.example/x)") == ""
+
+      # These do: every character is inside the allowed charset, so only the
+      # forbidden-construct pattern can reject them. Without it the first two
+      # would still pass and this test would still be green — which is why they
+      # are here.
+      assert CssValue.color("url(x)") == ""
+      assert CssValue.color("URL (x)") == ""
       assert CssValue.color("expression(alert(1))") == ""
     end
 
