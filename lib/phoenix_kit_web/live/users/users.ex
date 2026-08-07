@@ -658,7 +658,17 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   defp toggle_user_status_safely(socket, user) do
     new_status = !user.is_active
 
-    case Auth.update_user_status(user, %{"is_active" => new_status}) do
+    case Auth.update_user_status(user, %{"is_active" => new_status},
+           actor: socket.assigns.phoenix_kit_current_user
+         ) do
+      {:error, :insufficient_permissions} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext("You don't have permission to change this user's status")
+         )}
+
       {:ok, updated_user} ->
         status_text = if new_status, do: "activated", else: "deactivated"
         admin = socket.assigns.phoenix_kit_current_user
@@ -700,7 +710,15 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   defp toggle_user_confirmation_safely(socket, user) do
     admin = socket.assigns.phoenix_kit_current_user
 
-    case Auth.toggle_user_confirmation(user) do
+    case Auth.toggle_user_confirmation(user, actor: admin) do
+      {:error, :insufficient_permissions} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext("You don't have permission to change this user's confirmation")
+         )}
+
       {:ok, updated_user} ->
         action =
           if updated_user.confirmed_at,

@@ -49,7 +49,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   defp root_authenticated?(session) do
     with [root_token | _] <- stack_tokens(session),
-         %Auth.User{} <- Auth.get_user_by_session_token(root_token) do
+         %Auth.User{} <- root_user_from_token(root_token) do
       true
     else
       _ -> false
@@ -591,9 +591,21 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   defp root_user(session) do
     case stack_tokens(session) do
-      [root_token | _] -> Auth.get_user_by_session_token(root_token)
+      [root_token | _] -> root_user_from_token(root_token)
       _ -> nil
     end
+  end
+
+  # The root account decides both whether the switcher is offered and who may
+  # impersonate, so it must be resolved through the SAME active-user filter the
+  # plugs and `switch_to/2` apply. Resolving it with a bare token lookup left
+  # a deactivated Owner/Admin — a principal the system has explicitly cut off —
+  # holding a still-valid cookie that these two entry points accepted, letting
+  # them mint a fresh session as another live user.
+  defp root_user_from_token(root_token) do
+    root_token
+    |> Auth.get_user_by_session_token()
+    |> Auth.ensure_active_user()
   end
 
   defp log_event(action, %Auth.User{} = actor, %Auth.User{} = target) do

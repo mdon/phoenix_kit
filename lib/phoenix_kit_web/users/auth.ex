@@ -92,7 +92,28 @@ defmodule PhoenixKitWeb.Users.Auth do
   IP address and user agent to create a session fingerprint. This helps
   detect session hijacking attempts.
   """
-  def log_in_user(conn, user, params \\ %{}) do
+  def log_in_user(conn, user, params \\ %{})
+
+  # A deactivated account gets no session, whichever door it arrives at. The
+  # password controller checked `is_active` itself, but magic-link verification,
+  # QR-login completion and the OAuth callback all call this function directly
+  # and did not — they minted a token for an account the operator had switched
+  # off. The fetch plugs then resolved it to nil, so the practical result was a
+  # confusing dead session rather than access; putting the check on the shared
+  # funnel means no future entry point has to remember it.
+  def log_in_user(conn, %Auth.User{is_active: false} = user, _params) do
+    Logger.warning("PhoenixKit: refused sign-in for deactivated user #{user.uuid}")
+
+    conn
+    |> Phoenix.Controller.put_flash(
+      :error,
+      "This account is not active. Contact an administrator."
+    )
+    |> Phoenix.Controller.redirect(to: Routes.path("/users/log-in"))
+    |> halt()
+  end
+
+  def log_in_user(conn, user, params) do
     # Create session fingerprint if enabled
     opts =
       if SessionFingerprint.fingerprinting_enabled?() do
