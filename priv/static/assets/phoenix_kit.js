@@ -5844,24 +5844,43 @@ if (typeof window.Chart === "undefined") {
 
 // ---------------------------------------------------------------------------
 // Section flash. When a click in one place changes something in ANOTHER —
-// picking a starting point that rewrites the capability checklists, enabling
-// an extension that adds a permission row — the change is real but silent:
-// it happens inside a collapsed section the reader isn't looking at. A brief
-// highlight on the affected section says "that click landed here" without
-// opening anything or moving the page.
+// picking a starting point that rewrites a capability checklist, enabling an
+// extension that adds a permission row — the change is real but silent: it
+// lands inside a section the reader isn't looking at. A brief highlight says
+// "that click landed here" without opening anything or moving the page.
 //
-// Server side: push_event(socket, "pk-flash", %{ids: ["section-a", ...]}).
+// Server side:
+//
+//     push_event(socket, "pk-flash", %{
+//       sections: [%{id: "create-people", targets: ["authz-row-comment"]}]
+//     })
+//
 // LiveView dispatches pushed events on `window` as `phx:<name>`, so this
 // needs no hook and no per-element wiring.
 //
-// Honors prefers-reduced-motion: those readers get the same outline, held
-// briefly, without the pulse.
+// Granularity follows what the reader can actually see:
+//
+//   * Section OPEN — flash the changed ROWS. Highlighting the whole section
+//     when its contents are visible says "something in here" to someone who
+//     is already looking at it.
+//   * Section CLOSED — flash the section itself, and REMEMBER the rows. If
+//     they open it within `PENDING_MS`, the rows flash then. Otherwise the
+//     answer to "what changed?" dies with the highlight, which is the one
+//     question the flash provokes.
+//
+// A change touching more rows than `MAX_TARGETS` flashes the section instead:
+// past a handful, individual highlights read as strobing rather than as
+// information.
+//
+// Honors prefers-reduced-motion: same outline, no pulse.
 (function() {
   if (typeof window === "undefined" || typeof document === "undefined") return;
 
   var STYLE_ID = "pk-flash-style";
   var CLASS = "pk-flash";
   var DURATION = 1400;
+  var PENDING_MS = 10000;
+  var MAX_TARGETS = 6;
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -5877,6 +5896,7 @@ if (typeof window.Chart === "undefined") {
       "." + CLASS + " {" +
       "  animation: pk-flash-pulse 1.4s ease-out 1;" +
       "  border-color: var(--pk-flash-border, oklch(0.7 0.15 250 / 0.6));" +
+      "  border-radius: 0.5rem;" +
       "}" +
       "@media (prefers-reduced-motion: reduce) {" +
       "  ." + CLASS + " { animation: none; }" +
@@ -5885,13 +5905,12 @@ if (typeof window.Chart === "undefined") {
     document.head.appendChild(style);
   }
 
-  function flash(id) {
-    var el = document.getElementById(id);
+  function flash(el) {
     if (!el) return;
 
-    // Restart the animation when the same section flashes twice in a row:
-    // re-adding a class the element already has does nothing, so a rapid
-    // second change would look like nothing happened.
+    // Restart the animation when the same element flashes twice in a row:
+    // re-adding a class it already has does nothing, so a rapid second
+    // change would look like nothing happened.
     el.classList.remove(CLASS);
     void el.offsetWidth;
     el.classList.add(CLASS);
@@ -5902,12 +5921,76 @@ if (typeof window.Chart === "undefined") {
     }, DURATION);
   }
 
+  function flashIds(ids) {
+    ids.forEach(function(id) {
+      flash(document.getElementById(id));
+    });
+  }
+
+  // A <details> is the only thing here that can hide its own contents; any
+  // other container is treated as visible.
+  function collapsed(el) {
+    return el.tagName === "DETAILS" && !el.open;
+  }
+
+  function apply(section) {
+    var el = document.getElementById(section.id);
+    if (!el) return;
+
+    var targets = (section.targets || []).filter(function(id) {
+      return document.getElementById(id);
+    });
+
+    if (!targets.length || targets.length > MAX_TARGETS) {
+      flash(el);
+      return;
+    }
+
+    if (collapsed(el)) {
+      flash(el);
+      el.__pkPendingFlash = { targets: targets, until: Date.now() + PENDING_MS };
+    } else {
+      delete el.__pkPendingFlash;
+      flashIds(targets);
+    }
+  }
+
+  // Opening a section within the window answers "what changed in here?".
+  // Capture phase: `toggle` doesn't bubble.
+  document.addEventListener(
+    "toggle",
+    function(e) {
+      var el = e.target;
+      if (!el || el.tagName !== "DETAILS" || !el.open) return;
+
+      var pending = el.__pkPendingFlash;
+      if (!pending) return;
+
+      delete el.__pkPendingFlash;
+      if (Date.now() > pending.until) return;
+
+      ensureStyle();
+      // Let the reveal start before highlighting inside it, or the flash
+      // plays against content that is still zero-height.
+      window.setTimeout(function() {
+        flashIds(pending.targets);
+      }, 120);
+    },
+    true
+  );
+
   window.addEventListener("phx:pk-flash", function(event) {
-    var ids = (event.detail && event.detail.ids) || [];
-    if (!ids.length) return;
+    var detail = event.detail || {};
+    // `ids` is the whole-section form; `sections` carries row targets.
+    var sections =
+      detail.sections || (detail.ids || []).map(function(id) {
+        return { id: id, targets: [] };
+      });
+
+    if (!sections.length) return;
 
     ensureStyle();
-    ids.forEach(flash);
+    sections.forEach(apply);
   });
 })();
 
