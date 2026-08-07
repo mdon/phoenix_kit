@@ -1,3 +1,69 @@
+## Unreleased
+
+### Added
+- **One resolver for every redirect core owns** (#685). `Routes.safe_destination/2`
+  replaces eleven hardcoded `"/"` / `Routes.path("/")` destinations across
+  `auth.ex`, `session.ex`, `oauth.ex`, the confirmation, referral, QR and
+  password LiveViews and the maintenance page. Every candidate is proven to
+  resolve in the *host's own* router (`Phoenix.Router.route_info/4`, read off
+  `conn.private.phoenix_router` or `socket.router`) before anyone is sent there,
+  and the chain terminates on a path core declares **and permits**
+  unconditionally — `/admin` for an authenticated visitor, `/users/log-in` for
+  an anonymous one. `Routes.path("/")` emits a locale-prefixed root (`/en`)
+  whose route belongs to the host, so on any host that never declared one every
+  such redirect used to 404; measured before the workaround, `/` answered 200
+  while `/en`, `/et` and `/ru` all returned 404.
+- **`/admin` is now the guaranteed landing for every authenticated visitor**
+  (#685). `:phoenix_kit_ensure_admin` exempts that one view
+  (`PhoenixKitWeb.Users.Auth.landing_view?/1`) from the admin-area and per-view
+  permission checks — authentication, the account gate, maintenance mode and the
+  locale hook still run for everyone. A terminal that rejects its own visitor is
+  an infinite redirect rather than a fallback, so the page had to admit them and
+  is built for it: a visitor holding no permissions is greeted by name and shown
+  nothing else — no cards, no statistics, and not one operator query or PubSub
+  subscription on their behalf.
+- **`main_page_path` site setting** (#685) — the local path of the site's home
+  page, used as the anonymous "home" destination. In general site settings,
+  beside Project Title and Site Address. Empty (the default) means core falls
+  back to its own `/users/log-in`, which exists in every install and every
+  locale; it deliberately does **not** default to `"/"`, which no core route
+  serves.
+- `PhoenixKitWeb.Users.Auth.can_access_admin_view?/2` (#685) — the same decision
+  `:phoenix_kit_ensure_admin` enforces on mount, as a pure boolean, so a link,
+  card or nav entry and its destination cannot drift. `PhoenixKit.Admin.Events`
+  gains `unsubscribe_from_stats/0`, `unsubscribe_from_sessions/0` and
+  `unsubscribe_from_presence/0`.
+
+### Changed
+- **The admin dashboard is gated block by block** (#685). Its operator half
+  moved to `PhoenixKitWeb.Live.Dashboard.Overview` +
+  `PhoenixKitWeb.Components.Core.DashboardOverview`. Each card derives its
+  visibility from `can_access_admin_view?/2` on the page it links to, so a
+  visible card is never a redirect. Platform Statistics, System Information and
+  the Refresh button now require `Scope.holds_all_enabled_permissions?/1` — a
+  default Admin still passes (the check compares against the operator baseline,
+  opt-in keys excluded), but a narrow custom operator role that used to see the
+  whole dashboard now sees only the cards it holds permission for. The gate
+  decides *before* it queries, and re-decides on every mid-session permission
+  change: nobody is evicted from the landing, so the cards, the statistics and
+  the subscriptions behind them appear and disappear in place.
+- **The admin shell collapses for a visitor with no permissions** (#685). No
+  sidebar column, no burger button, no navigation landmark, no "Admin Panel"
+  breadcrumb label, and no "View all" footer on the notifications bell — the
+  menu never offers a page that would bounce the visitor on arrival. An
+  operator's header and sidebar are unchanged.
+
+### Fixed
+- **The home-page fallthrough no longer drops the visitor's language** (post-#685
+  review). The resolver offered only the bare `"/"` as its home-page candidate.
+  On a multilingual host that declared the locale-prefixed landing core's own
+  release notes ask for, a logout, a maintenance eject or a failed password
+  reset used to land on `/et` and instead flipped the visitor to the
+  default-language home — or, where the host declared **only** `/:locale`,
+  skipped the home page entirely and terminated on the sign-in page. Both shapes
+  are now offered, locale-prefixed first, and both are probed like every other
+  candidate, so this cannot reintroduce the 404 the resolver exists to prevent.
+
 ## 1.7.233 - 2026-08-06
 
 ### Fixed

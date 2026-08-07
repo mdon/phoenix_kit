@@ -180,6 +180,30 @@ to production.
 
 ## Follow-up: one universal dashboard, and why it closes the class
 
+> **⚠️ Superseded by what shipped in #685 — read this section as history, not as
+> a description of the code.** The idea below is right; the page it picked is
+> not the page that landed. Everything here names `/dashboard` as the guaranteed
+> landing. During implementation the landing became **`/admin`**
+> (`PhoenixKitWeb.Live.Dashboard`), exempted from the admin-area and per-view
+> permission checks by `PhoenixKitWeb.Users.Auth.landing_view?/1`, because
+> `/admin` is declared unconditionally while `/dashboard` is still compiled out
+> by `user_dashboard_enabled: false` — the conditional compilation this section
+> proposed removing was left in place. Consequently, in the shipped code:
+>
+> - `home_or_core_landing(nil, _opts)` returns `path("/admin")`, not
+>   `path("/dashboard")`;
+> - `/dashboard` is an ordinary probed **candidate**, not a terminal;
+> - the terminal probe was not deleted — `terminal/2` keeps it as a diagnostic
+>   that names a misconfigured install in the log (`unreachable_terminal/3`);
+> - the gating half of this section DID ship, on `/admin`:
+>   `PhoenixKitWeb.Live.Dashboard.Overview` derives every card gate from
+>   `Auth.can_access_admin_view?/2` and gates the statistics on
+>   `Scope.holds_all_enabled_permissions?/1`, exactly as argued below.
+>
+> `PhoenixKit.Utils.Routes.safe_destination/2`'s moduledoc is the current
+> source of truth for the chain.
+
+
 Everything above probes destinations because core cannot guarantee any of them exists.
 Remove that premise and most of the machinery becomes unnecessary.
 

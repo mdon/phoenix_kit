@@ -138,10 +138,10 @@ defmodule PhoenixKit.Utils.Routes do
     # in the host's application, and silently ignoring it because this router
     # cannot see that page would break the setting rather than protect it.
     #
-    # `"/"` is the opposite case: nobody chose it, core synthesized it, and it
+    # The home page is the opposite case: nobody chose it, core named it, and it
     # is the one destination core has no way to declare. So it is only used
-    # where the host proves it exists, and a core-owned landing takes over
-    # where it does not.
+    # where the host proves it exists — both shapes, see `home_candidates/0` —
+    # and a core-owned landing takes over where it does not.
     after_login_setting() || home_or_core_landing(Keyword.get(opts, :context), opts)
   end
 
@@ -159,11 +159,12 @@ defmodule PhoenixKit.Utils.Routes do
   defp home_or_core_landing(nil, _opts), do: path("/admin")
 
   defp home_or_core_landing(context, opts) do
-    if routable?(context, "/") do
-      "/"
-    else
-      safe_destination(context, scope: Keyword.get(opts, :scope))
-    end
+    found =
+      home_candidates()
+      |> Stream.map(& &1.())
+      |> Enum.find(&admissible_candidate?(context, &1, false))
+
+    found || safe_destination(context, scope: Keyword.get(opts, :scope))
   end
 
   # A candidate carries the same two requirements as the setting: local, and
@@ -196,24 +197,29 @@ defmodule PhoenixKit.Utils.Routes do
     2. `/admin`, when `Scope.can_access_admin_area?/1` and `:skip_admin` is not set
     3. `/dashboard`
     4. the `after_login_path` setting
-    5. `"/"`
+    5. the host's home page — `path("/")`, then `"/"`
 
   Anonymous:
 
     1. the `main_page_path` setting, when set and still resolvable
-    2. `"/"`
+    2. the host's home page — `path("/")`, then `"/"`
 
   Every candidate must be a local path (`local_path?/1`), not an auth page
   (`auth_page?/1`), **and actually routable** (`routable?/2`). Under
   `:skip_admin` it must additionally not be an admin-area path
   (`admin_area_path?/1`) — see the option below.
 
-  `"/"` is a candidate like any other, and only like any other. It is the
-  host's home page — the one destination in this whole mechanism that core
-  cannot declare — so it is used exactly where the host proves it declared it,
-  and skipped silently everywhere else. Dropping it entirely would have been a
-  silent regression for every already-working single-language install, where
-  logging out has always landed on the site home.
+  The home page is a candidate like any other, and only like any other. It is
+  the one destination in this whole mechanism that core cannot declare, so it
+  is used exactly where the host proves it declared it, and skipped silently
+  everywhere else. Dropping it entirely would have been a silent regression for
+  every already-working install, where logging out has always landed on the
+  site home.
+
+  Both shapes are offered, locale-prefixed first, because a multilingual host
+  may declare either or both — see `home_candidates/0`. The prefixed form is
+  what the eleven original call sites emitted; the defect was that they emitted
+  it *unprobed*, not that they named it.
 
   When nothing survives, the terminal is core's own: `/admin` for any
   authenticated visitor, `/users/log-in` for an anonymous one. The terminal
@@ -252,10 +258,15 @@ defmodule PhoenixKit.Utils.Routes do
   ## The invariant
 
   Every value returned is either a path the caller supplied, an administrator
-  configured, or the host's own `/` — **each proven to resolve in the router** —
-  or one of the two landings core declares itself. There is no third branch,
-  and `path("/")`, the locale-prefixed root that started all this, is never
-  synthesized here.
+  configured, or one of the two shapes of the host's own home page — **each
+  proven to resolve in the router** — or one of the two landings core declares
+  itself. There is no third branch, and nothing is ever returned unprobed
+  except those two landings, which core declares and permits unconditionally.
+
+  `path("/")`, the locale-prefixed root that started all this, is therefore
+  still a candidate — it simply may no longer be *synthesized*. That distinction
+  is the fix: the eleven original call sites returned it without asking whether
+  it resolved, which is why it 404'd.
 
   The invariant used to be "every candidate was probed, terminals included",
   because core could promise nothing about its own pages: `/dashboard` is
@@ -330,13 +341,40 @@ defmodule PhoenixKit.Utils.Routes do
         # other candidate rather than assumed. Where the host compiled it out
         # the chain simply moves on — nothing below depends on it any more.
         fn -> path("/dashboard") end,
-        fn -> setting_candidate("after_login_path") end,
-        fn -> "/" end
-      ]
+        fn -> setting_candidate("after_login_path") end
+      ] ++ home_candidates()
   end
 
   defp anonymous_candidates do
-    [fn -> main_page_path() end, fn -> "/" end]
+    [fn -> main_page_path() end] ++ home_candidates()
+  end
+
+  # The host's home page, in the two shapes core can name it by, most specific
+  # first. NEITHER is synthesized blind — both go through
+  # `admissible_candidate?/3` like every other candidate, and that probe is the
+  # whole difference from the defect this module was written for: the eleven
+  # call sites emitted `path("/")` UNPROBED, so it 404'd on every host that
+  # never declared a locale-prefixed root.
+  #
+  # Probed, `path("/")` is simply the BETTER of the two wherever the host did
+  # declare one — which is the setup core's own release notes have been asking
+  # hosts for. Dropping it left a real regression on those hosts: a logout, a
+  # maintenance eject or a password-reset failure used to land on `/et` and now
+  # landed on `/`, silently switching the visitor's language — or, where the
+  # host declared ONLY the locale-prefixed root, fell past the home page
+  # entirely and terminated on `/users/log-in`.
+  #
+  # It collapses to `"/"` whenever no locale prefix applies (a single-language
+  # install, or the default language configured prefixless); the second element
+  # is dropped then rather than probing the same path twice. Under a mount
+  # prefix it yields `/phoenix_kit/en`, which is core's own mount point and not
+  # the host's home at all — the probe simply refuses it, which is the point of
+  # asking the router instead of trusting the shape.
+  defp home_candidates do
+    case path("/") do
+      "/" -> [fn -> "/" end]
+      localized_root -> [fn -> localized_root end, fn -> "/" end]
+    end
   end
 
   # The terminal follows AUTHENTICATION, not the admin flag: sending a signed-in
