@@ -5842,6 +5842,75 @@ if (typeof window.Chart === "undefined") {
   });
 })();
 
+// ---------------------------------------------------------------------------
+// Section flash. When a click in one place changes something in ANOTHER —
+// picking a starting point that rewrites the capability checklists, enabling
+// an extension that adds a permission row — the change is real but silent:
+// it happens inside a collapsed section the reader isn't looking at. A brief
+// highlight on the affected section says "that click landed here" without
+// opening anything or moving the page.
+//
+// Server side: push_event(socket, "pk-flash", %{ids: ["section-a", ...]}).
+// LiveView dispatches pushed events on `window` as `phx:<name>`, so this
+// needs no hook and no per-element wiring.
+//
+// Honors prefers-reduced-motion: those readers get the same outline, held
+// briefly, without the pulse.
+(function() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+
+  var STYLE_ID = "pk-flash-style";
+  var CLASS = "pk-flash";
+  var DURATION = 1400;
+
+  function ensureStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+
+    var style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent =
+      "@keyframes pk-flash-pulse {" +
+      "  0% { box-shadow: 0 0 0 0 var(--pk-flash-color, oklch(0.7 0.15 250 / 0.55)); }" +
+      "  70% { box-shadow: 0 0 0 6px var(--pk-flash-color, oklch(0.7 0.15 250 / 0)); }" +
+      "  100% { box-shadow: 0 0 0 0 var(--pk-flash-color, oklch(0.7 0.15 250 / 0)); }" +
+      "}" +
+      "." + CLASS + " {" +
+      "  animation: pk-flash-pulse 1.4s ease-out 1;" +
+      "  border-color: var(--pk-flash-border, oklch(0.7 0.15 250 / 0.6));" +
+      "}" +
+      "@media (prefers-reduced-motion: reduce) {" +
+      "  ." + CLASS + " { animation: none; }" +
+      "}";
+
+    document.head.appendChild(style);
+  }
+
+  function flash(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+
+    // Restart the animation when the same section flashes twice in a row:
+    // re-adding a class the element already has does nothing, so a rapid
+    // second change would look like nothing happened.
+    el.classList.remove(CLASS);
+    void el.offsetWidth;
+    el.classList.add(CLASS);
+
+    window.clearTimeout(el.__pkFlashTimer);
+    el.__pkFlashTimer = window.setTimeout(function() {
+      el.classList.remove(CLASS);
+    }, DURATION);
+  }
+
+  window.addEventListener("phx:pk-flash", function(event) {
+    var ids = (event.detail && event.detail.ids) || [];
+    if (!ids.length) return;
+
+    ensureStyle();
+    ids.forEach(flash);
+  });
+})();
+
 (function() {
   if (typeof window === "undefined") return;
   window.PhoenixKitHooks = window.PhoenixKitHooks || {};
