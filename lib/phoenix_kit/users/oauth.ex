@@ -76,9 +76,20 @@ if Code.ensure_loaded?(Ueberauth) do
     end
 
     # The account this external identity is already attached to, if any.
-    # `(provider, provider_uid)` has no unique index — the uniqueness the schema
-    # enforces is one row per `(user_uuid, provider)` — so this orders the
-    # result and takes the oldest rather than assuming a single row.
+    #
+    # `(provider, provider_uid)` carries a UNIQUE index
+    # (`phoenix_kit_oauth_providers_provider_uid_idx`, migration V16), so at most
+    # one row can match; `limit: 1` is belt-and-braces against a database whose
+    # chain predates it, not a real ambiguity.
+    #
+    # ⚠️ Note on what this branch means: it treats an EXISTING link as proof of
+    # identity without consulting the email or any verification claim. That is
+    # right for the shipped providers, whose uid is an immutable server-assigned
+    # id — and it is NOT automatically right for a provider whose `sub`/`uid` a
+    # user can choose or recycle. It also means link rows written by an earlier
+    # release, when attaching happened on email equality alone, keep working:
+    # this gate protects new attachments, it cannot retroactively re-verify old
+    # ones. Auditing them is an operator task — see the release notes.
     defp user_by_provider_identity(%{provider: provider, provider_uid: provider_uid})
          when is_binary(provider) and is_binary(provider_uid) and provider_uid != "" do
       from(p in OAuthProvider,

@@ -7,6 +7,7 @@ defmodule PhoenixKit.Integration.Users.OAuthEmailVerificationTest do
   """
   use PhoenixKitWeb.ConnCase, async: true
 
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.OAuth
   alias PhoenixKit.Users.OAuthProvider
@@ -130,6 +131,49 @@ defmodule PhoenixKit.Integration.Users.OAuthEmailVerificationTest do
         })
 
       assert {:error, :provider_email_unverified} = OAuth.find_or_create_user(other_address)
+    end
+
+    test "GitHub as the strategy actually delivers it when the token lacks the email scope" do
+      # With `default_scope: ""` the GitHub strategy's GET /user/emails fails and
+      # the user payload arrives with NO "emails" key at all. That is the shape
+      # that made this gate unsatisfiable in practice, so it is pinned here:
+      # absence of the claim must refuse, and the fix for it is the scope in
+      # `OAuthConfig`, not a loosening of this rule.
+      email = unique_email()
+      _user = local_user(email)
+
+      data = oauth_data(email, %{provider: "github", raw_info: %{user: %{"login" => "someone"}}})
+
+      assert {:error, :provider_email_unverified} = OAuth.find_or_create_user(data)
+    end
+
+    test "the operator switch lifts the requirement and putting it back restores it" do
+      email = unique_email()
+      user = local_user(email)
+
+      {:ok, _} = Settings.update_setting("oauth_require_verified_email", "false")
+
+      assert {:ok, found, :found} = OAuth.find_or_create_user(oauth_data(email))
+      assert found.uuid == user.uuid
+
+      {:ok, _} = Settings.update_setting("oauth_require_verified_email", "true")
+
+      other_email = unique_email()
+      _other = local_user(other_email)
+
+      assert {:error, :provider_email_unverified} =
+               OAuth.find_or_create_user(oauth_data(other_email))
+    end
+
+    test "the setting is registered, so an operator can actually reach it" do
+      # It was read by the gate but declared nowhere — not in the defaults, not
+      # in the settings schema — so the documented escape hatch existed only in
+      # iex. Assert both halves of the registration.
+      assert Map.has_key?(Settings.get_defaults(), "oauth_require_verified_email")
+
+      assert :oauth_require_verified_email in PhoenixKit.Settings.Setting.SettingsForm.__schema__(
+               :fields
+             )
     end
 
     test "a malformed raw_info is treated as no assertion, not as an error" do

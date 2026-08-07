@@ -277,6 +277,7 @@ defmodule PhoenixKit.Settings.Setting do
       field :oauth_google_enabled, :string
       field :oauth_github_enabled, :string
       field :oauth_facebook_enabled, :string
+      field :oauth_require_verified_email, :string
       field :magic_link_login_enabled, :string
       field :magic_link_registration_enabled, :string
       field :new_user_default_role, :string
@@ -344,6 +345,7 @@ defmodule PhoenixKit.Settings.Setting do
         :oauth_google_enabled,
         :oauth_github_enabled,
         :oauth_facebook_enabled,
+        :oauth_require_verified_email,
         :magic_link_login_enabled,
         :magic_link_registration_enabled,
         :new_user_default_role,
