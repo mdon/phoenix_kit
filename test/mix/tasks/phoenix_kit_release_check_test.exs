@@ -96,13 +96,26 @@ defmodule Mix.Tasks.PhoenixKit.ReleaseCheckTest do
   end
 
   describe "check_manifest_chain_hash/0" do
-    test "SKIPs (not fails) while the manifest is not generated — today's real default state" do
-      refute Code.ensure_loaded?(PhoenixKit.Migrations.ExpectedSchema)
+    test "SKIPs (not fails) when no manifest resolves" do
+      # The real manifest IS generated on this branch (the squash promoted it
+      # into lib/), so the not-generated path is reached by pointing the
+      # resolver at a module that does not exist rather than by the default.
+      Application.put_env(:phoenix_kit, :expected_schema_module, NoSuchManifestModule)
 
       assert {:skip, message} = ReleaseCheck.check_manifest_chain_hash()
 
       assert message ==
                Resolver.not_generated_message() <> " — chain_hash freshness check skipped."
+    end
+
+    test "the real manifest's chain_hash is fresh against the on-disk chain" do
+      # Not a stub: this is the shipped manifest compared to a freshly computed
+      # hash, so editing a v*.ex without regenerating fails HERE, in the
+      # habitual `mix test` loop, not only in the manual release check.
+      assert Code.ensure_loaded?(PhoenixKit.Migrations.ExpectedSchema)
+
+      assert PhoenixKit.Migrations.ExpectedSchema.chain_hash() ==
+               elem(ReleaseCheck.compute_chain_hash(), 0)
     end
 
     test "fails when a resolved manifest's chain_hash no longer matches a fresh computation" do
@@ -124,13 +137,13 @@ defmodule Mix.Tasks.PhoenixKit.ReleaseCheckTest do
     end
   end
 
-  describe "check_migration_sync/0 against the real, un-squashed chain" do
-    test "passes today (initial=1, v01..v151 contiguous) with an explicit SKIP for chain_hash" do
+  describe "check_migration_sync/0 against the real, squashed chain" do
+    test "passes with the floor, contiguity and a fresh chain_hash all asserted" do
       assert {:pass, detail} = ReleaseCheck.check_migration_sync()
 
       refute detail =~ "FAIL"
-      assert detail =~ "SKIP"
-      assert detail =~ "P2"
+      refute detail =~ "SKIP"
+      assert detail =~ "chain_hash matches"
       assert detail =~ "V#{Postgres.initial_version()}..V#{Postgres.current_version()}"
     end
   end
