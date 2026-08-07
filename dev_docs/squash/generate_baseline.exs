@@ -1824,7 +1824,12 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
       "  #",
       "  # Class order: extensions < functions < sequences < tables < indexes <",
       "  # constraints < Oban delegation < seeds < version stamp (columns fold into",
-      "  # CREATE TABLE). All shapes are FINAL-state at V#{floor} (post-drop/rename).",
+      "  # CREATE TABLE). Every shape is AT-FLOOR (newest revision as_of_version <=",
+      "  # V#{floor}) — NOT necessarily final-state: an object a still-present delta",
+      "  # above this floor later alters or drops is emitted here in the form that",
+      "  # delta expects to find, so its ALTER/DROP has something to act on when the",
+      "  # chain actually runs (confirmed live: V152's bare `list_uuid` NOT NULL",
+      "  # relax against a floor-135 baseline that omitted the column entirely).",
       "  # Constraints keep their HISTORICAL names (pre-rename *_pkey names survive",
       "  # table renames), so fresh installs match upgraded installs (S1).",
       "",
@@ -1920,7 +1925,7 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
       functions ++
       ["", "    # -- sequences (before tables: nextval() column defaults)"] ++
       sequences ++
-      ["", "    # -- tables (final-state shapes)"] ++
+      ["", "    # -- tables (at-floor shapes; a delta above the floor may still alter/drop)"] ++
       tables ++
       ["", "    # -- indexes (bare names on CREATE)"] ++
       indexes ++
@@ -1931,7 +1936,7 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
         "    # -- Oban (delegated, never inlined; create_schema: false is load-bearing, V27)",
         "    Oban.Migration.up(prefix: prefix, create_schema: false)",
         "",
-        "    # -- seeds (final-state values; DO NOTHING / WHERE NOT EXISTS only)"
+        "    # -- seeds (at-floor values; DO NOTHING / WHERE NOT EXISTS only)"
       ] ++
       seeds ++
       seed_helper_lines ++
@@ -3181,6 +3186,35 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
     end
 
     assert!(String.contains?(src1, "phoenix_kit IS '1'"), "baseline v1: stamps its floor")
+
+    # Regression guard for the live V152 crash class, at a floor STRICTLY
+    # ABOVE `legacy_col`'s `since` (1 < 3 < dropped_at 5) — src1 above only
+    # proves carryover at the since == floor boundary (1 == 1), which cannot
+    # distinguish "carried because it predates the floor" from "carried
+    # because it happens to equal the floor". A real chain floor is never
+    # the exact version that introduced every carried object (V79 created
+    # `list_uuid`, floor 135 is 56 versions later) — this reuses the SAME
+    # objects/drops (no new fixture snapshot needed: `legacy_col` already
+    # satisfies since=1 <= 3 <= dropped_at-1=4) to pin the general case.
+    src3 =
+      Emitter.render_baseline(objects, 3, @meta,
+        module: "PhoenixKit.Squash.Generate.FixtureBaselineV3",
+        drops: drops
+      )
+
+    Code.string_to_quoted!(src3)
+
+    assert!(
+      String.contains?(src3, "legacy_col"),
+      "baseline v3: a column created BEFORE the floor (since 1 < 3) and dropped by a " <>
+        "still-live delta ABOVE the floor (dropped_at 5 > 3) is emitted by the baseline"
+    )
+
+    assert!(
+      not Map.has_key?(Map.new(objects, &{&1.id, &1}), "column:#{@widgets}.legacy_col"),
+      "baseline v3: the same dropped-above-floor column is absent from `objects` — the " <>
+        "manifest source list never carries drops at all, regardless of floor"
+    )
   end
 
   defp check_mismatch_detection!(final) do
@@ -3610,7 +3644,32 @@ defmodule PhoenixKit.Squash.Generate.Main do
       |> Enum.filter(&(&1.presence == :legacy_optional))
       |> Enum.map_join("\n", &"- #{&1.id} (since #{&1.since})")
 
-    drops_list = Enum.map_join(drops, "\n", &"- #{&1.id} (dropped at V#{&1.dropped_at})")
+    # Explicit, machine-greppable divergence marker between "gone by design"
+    # (dropped at/below the floor — the baseline never creates it, nothing to
+    # carry) and "carried into the baseline at its at-floor shape" (created
+    # at/before the floor, dropped by a delta that still runs ABOVE it — the
+    # exact V152 `list_uuid` class of gap: without this the object is silent
+    # in BOTH the manifest, since drops never appear there, at all floors, AND
+    # the report, so nothing short of a live migration crash surfaced it).
+    baseline_carried? = fn drop ->
+      is_integer(config.floor) and drop.since <= config.floor and drop.dropped_at > config.floor
+    end
+
+    drops_list =
+      Enum.map_join(drops, "\n", fn drop ->
+        tag =
+          if baseline_carried?.(drop) do
+            " [BASELINE-CARRIED: since V#{drop.since} <= floor #{config.floor} < " <>
+              "dropped_at V#{drop.dropped_at} — emitted in the baseline at its at-floor " <>
+              "shape so this still-live delta has something to act on]"
+          else
+            ""
+          end
+
+        "- #{drop.id} (dropped at V#{drop.dropped_at})#{tag}"
+      end)
+
+    carried_count = Enum.count(drops, baseline_carried?)
 
     compare_line =
       case compare_result do
@@ -3655,7 +3714,12 @@ defmodule PhoenixKit.Squash.Generate.Main do
 
     #{Enum.map_join(whitelist, "\n", &"- #{&1}")}
 
-    ## Dropped along the chain (EXCLUDED from the manifest)
+    ## Dropped along the chain (EXCLUDED from the manifest — final-state only)
+
+    #{carried_count} of #{length(drops)} are BASELINE-CARRIED (created at/before the floor,
+    dropped by a delta that still runs above it — emitted into V#{config.floor || "{floor}"} at
+    their at-floor shape; see spec 5.1's at-floor rule). The rest were dropped at/below the
+    floor and are correctly gone from BOTH the manifest and the baseline.
 
     #{drops_list}
 

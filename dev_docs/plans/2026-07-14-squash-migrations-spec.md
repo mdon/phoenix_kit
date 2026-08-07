@@ -210,9 +210,20 @@ Baseline content requirements (details per inventory; all floors below assume �
   queued DDL. Functions via `Helpers.ensure_uuid_v7_function/1` + `extract_primary_slug()`
   (`v52.ex:41`); all call sites via `Helpers.uuid_v7_call/1`. `@uuid_fn_version 40` + the `up/1`
   re-ensure stay.
-- Final-state shapes only (post-drop/rename); bare index names; per-column
-  `ADD COLUMN IF NOT EXISTS` coverage for repair-mode column healing; constraints via name-based
-  catalog guards; NO regclass in immediate checks.
+- **At-floor shapes, not final-state.** Every object present at V{floor} is emitted in the shape
+  it had AT the floor — its newest revision with `as_of_version <= floor` — including an object a
+  still-surviving delta ABOVE the floor later alters or drops. This is the opposite rule from the
+  manifest (§5.1 above, final-state only): a delta module is written against the shape the chain
+  would actually have produced by that point, so if the baseline silently omitted an object because
+  it's absent from the fully-migrated FINAL schema, the first still-live delta touching it has
+  nothing to act on and the chain breaks. Confirmed live: `V152.up/1`'s bare `ALTER COLUMN
+  list_uuid DROP NOT NULL` against a floor-135 baseline that never created the column, because
+  V156 — above the floor — drops it later and a final-state-only baseline excludes it on that
+  basis alone, with no floor-awareness. Concretely: an object belongs in the baseline when
+  `since <= floor` AND (`dropped_at` unset OR `dropped_at > floor`); objects dropped AT OR BELOW
+  the floor are correctly absent from both the baseline and the manifest (the ordinary case).
+  Bare index names; per-column `ADD COLUMN IF NOT EXISTS` coverage for repair-mode column healing;
+  constraints via name-based catalog guards; NO regclass in immediate checks.
 - **Oban**: `Oban.Migration.up(prefix:, create_schema: false)` exactly as V27; Oban objects are
   **delegated, never manifested** — verify/repair resolve Oban state via `Oban.Migration`'s own
   version/diagnostics, not shape comparison (host Oban versions legitimately differ; a manifested
