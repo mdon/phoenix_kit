@@ -743,6 +743,33 @@ defmodule PhoenixKit.Squash.DumpHelper do
       "normalise: embedded schema prefix stripped from the identifier"
     )
 
+    element_wise_check =
+      "ALTER TABLE t ADD CONSTRAINT t_kind_check CHECK (((kind)::text = ANY " <>
+        "(ARRAY[('a'::character varying)::text, ('b'::character varying)::text])));"
+
+    array_wise_check =
+      "ALTER TABLE t ADD CONSTRAINT t_kind_check CHECK (((kind)::text = ANY " <>
+        "((ARRAY['a'::character varying, 'b'::character varying])::text[])));"
+
+    check!(
+      normalise(element_wise_check, "pk_old") == normalise(array_wise_check, "pk_old"),
+      "normalise: element-wise and array-wise ANY(ARRAY[...]) casts fold to one form"
+    )
+
+    check!(
+      canonicalize_array_casts(array_wise_check) == array_wise_check,
+      "canonicalize_array_casts: already-canonical text passes through unchanged (idempotent)"
+    )
+
+    changed_check =
+      "ALTER TABLE t ADD CONSTRAINT t_kind_check CHECK (((kind)::text = ANY " <>
+        "(ARRAY[('a'::character varying)::text, ('c'::character varying)::text])));"
+
+    check!(
+      normalise(element_wise_check, "pk_old") != normalise(changed_check, "pk_old"),
+      "normalise: a genuine value-set change still differs after canonicalization"
+    )
+
     check!(
       compare(@twin_dump_a, "pk_old", @twin_dump_b, "pk_new") == :equal,
       "compare: twins are :equal"
@@ -967,6 +994,7 @@ defmodule PhoenixKit.Squash.DumpHelper do
   defp normalise_statement(stmt, schema_name) do
     stmt
     |> substitute_schema(schema_name)
+    |> canonicalize_array_casts()
     |> String.split("\n")
     |> Enum.map_join("\n", &String.trim_trailing/1)
   end
