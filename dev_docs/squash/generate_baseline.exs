@@ -230,6 +230,28 @@ defmodule PhoenixKit.Squash.Generate.Catalog do
   ORDER BY c.relname, a.attnum
   """
 
+  # `con.conindid` is NOT exclusively "the index this PK/UNIQUE constraint
+  # owns" — Postgres also points a FOREIGN KEY constraint's `conindid` at the
+  # unique index on the REFERENCED table/column it relies on for uniqueness
+  # (`contype = 'f'`, the far side of the FK, not the referencing side).
+  # Filtering on bare `con.oid IS NULL` silently drops every unique index
+  # that is merely an FK's target elsewhere in the schema. Confirmed live
+  # (`mix run` against a fresh install of the real chain):
+  # `phoenix_kit_ai_endpoints_uuid_idx` disappeared from BOTH this capture
+  # AND `PhoenixKit.Migrations.Repair.Probe`'s identical query (same bug,
+  # independently duplicated per this module's own header note on why the
+  # two copies exist) purely because `fk_ai_requests_endpoint_uuid` — a
+  # constraint on a DIFFERENT table, `phoenix_kit_ai_requests` — references
+  # it; the manifest then omitted the object entirely (dropped as
+  # `since <= 135`/no `dropped_at`, i.e. never seen at all, since the
+  # exclusion applies at every snapshot including v163's final one) and a
+  # LIVE `mix phoenix_kit.repair` run against ANY healthy install with an
+  # FK-referenced uuid index — a common shape, several dozen tables in this
+  # chain — reported the index "missing" and (harmlessly, `CREATE ...IF NOT
+  # EXISTS`) "repaired" one that was never gone. The join must restrict to
+  # `contype IN ('p', 'u')` — the only two constraint kinds where "this index
+  # backs a constraint ON ITS OWN TABLE, so don't ALSO list it as a bare
+  # index" is the intended rule.
   @indexes_sql """
   SELECT t.relname,
          ic.relname,
@@ -248,7 +270,8 @@ defmodule PhoenixKit.Squash.Generate.Catalog do
   JOIN pg_class t ON t.oid = i.indrelid
   JOIN pg_namespace n ON n.oid = t.relnamespace
   JOIN pg_am am ON am.oid = ic.relam
-  LEFT JOIN pg_constraint con ON con.conindid = i.indexrelid
+  LEFT JOIN pg_constraint con
+    ON con.conindid = i.indexrelid AND con.contype IN ('p', 'u')
   WHERE n.nspname = $1 AND con.oid IS NULL
   ORDER BY ic.relname
   """

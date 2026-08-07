@@ -49,7 +49,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "1ea7299175dddfaed97043307a61a1ad2bfe45c4c1299d927611de107c3a2864"
+  @chain_hash "cf51d5ef964c08fb1bb892dce77e7194f469565bb6dd85ade7893ab3eace4381"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -19955,6 +19955,37 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         backfill: nil
       },
       %{
+        id: "index:phoenix_kit_billing_profiles_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_billing_profiles_uuid_idx",
+             table: "phoenix_kit_billing_profiles",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_billing_profiles_uuid_idx ON __SCHEMA__.phoenix_kit_billing_profiles USING btree (uuid)",
+        since: 40,
+        class: :index,
+        revisions: [
+          {40,
+           %{
+             table: "phoenix_kit_billing_profiles",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_billing_profiles_uuid_idx ON __SCHEMA__.phoenix_kit_billing_profiles USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
         id: "index:phoenix_kit_currencies_uuid_idx",
         owner: :core,
         check:
@@ -19977,6 +20008,49 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              method: "btree",
              definition:
                "CREATE UNIQUE INDEX phoenix_kit_currencies_uuid_idx ON __SCHEMA__.phoenix_kit_currencies USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_db_sync_connections_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_db_sync_connections_uuid_idx",
+             table: "phoenix_kit_sync_connections",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_db_sync_connections_uuid_idx ON __SCHEMA__.phoenix_kit_sync_connections USING btree (uuid)",
+        since: 40,
+        class: :index,
+        revisions: [
+          {40,
+           %{
+             table: "phoenix_kit_db_sync_connections",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_db_sync_connections_uuid_idx ON __SCHEMA__.phoenix_kit_db_sync_connections USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }},
+          {44,
+           %{
+             table: "phoenix_kit_sync_connections",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_db_sync_connections_uuid_idx ON __SCHEMA__.phoenix_kit_sync_connections USING btree (uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
              name_template: nil
@@ -20091,6 +20165,37 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         backfill: nil
       },
       %{
+        id: "index:phoenix_kit_email_logs_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_email_logs_uuid_idx",
+             table: "phoenix_kit_email_logs",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_logs_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (uuid)",
+        since: 40,
+        class: :index,
+        revisions: [
+          {40,
+           %{
+             table: "phoenix_kit_email_logs",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_logs_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
         id: "index:phoenix_kit_email_metrics_uuid_idx",
         owner: :core,
         check:
@@ -20144,6 +20249,118 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              method: "btree",
              definition:
                "CREATE UNIQUE INDEX phoenix_kit_email_orphaned_events_uuid_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_entities_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{name: "phoenix_kit_entities_uuid_idx", table: "phoenix_kit_entities", kind: :index}},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_entities_uuid_idx ON __SCHEMA__.phoenix_kit_entities USING btree (uuid)",
+        since: 40,
+        class: :index,
+        revisions: [
+          {40,
+           %{
+             table: "phoenix_kit_entities",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_entities_uuid_idx ON __SCHEMA__.phoenix_kit_entities USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_entity_data_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_entity_data_uuid_idx",
+             table: "phoenix_kit_entity_data",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_entity_data_uuid_idx ON __SCHEMA__.phoenix_kit_entity_data USING btree (uuid)",
+        since: 40,
+        class: :index,
+        revisions: [
+          {40,
+           %{
+             table: "phoenix_kit_entity_data",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_entity_data_uuid_idx ON __SCHEMA__.phoenix_kit_entity_data USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_invoices_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{name: "phoenix_kit_invoices_uuid_idx", table: "phoenix_kit_invoices", kind: :index}},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_invoices_uuid_idx ON __SCHEMA__.phoenix_kit_invoices USING btree (uuid)",
+        since: 40,
+        class: :index,
+        revisions: [
+          {40,
+           %{
+             table: "phoenix_kit_invoices",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_invoices_uuid_idx ON __SCHEMA__.phoenix_kit_invoices USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_orders_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{name: "phoenix_kit_orders_uuid_idx", table: "phoenix_kit_orders", kind: :index}},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_orders_uuid_idx ON __SCHEMA__.phoenix_kit_orders USING btree (uuid)",
+        since: 40,
+        class: :index,
+        revisions: [
+          {40,
+           %{
+             table: "phoenix_kit_orders",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_orders_uuid_idx ON __SCHEMA__.phoenix_kit_orders USING btree (uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
              name_template: nil
@@ -20249,6 +20466,37 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              method: "btree",
              definition:
                "CREATE UNIQUE INDEX phoenix_kit_referral_code_usage_uuid_idx ON __SCHEMA__.phoenix_kit_referral_code_usage USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_referral_codes_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_referral_codes_uuid_idx",
+             table: "phoenix_kit_referral_codes",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_referral_codes_uuid_idx ON __SCHEMA__.phoenix_kit_referral_codes USING btree (uuid)",
+        since: 40,
+        class: :index,
+        revisions: [
+          {40,
+           %{
+             table: "phoenix_kit_referral_codes",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_referral_codes_uuid_idx ON __SCHEMA__.phoenix_kit_referral_codes USING btree (uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
              name_template: nil
@@ -30392,6 +30640,37 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         backfill: nil
       },
       %{
+        id: "index:phoenix_kit_email_templates_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "__PK_NAME_EXEMPT__phoenix_kit_email_templates_uuid_idx",
+             table: "phoenix_kit_email_templates",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS __PK_NAME_EXEMPT__phoenix_kit_email_templates_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (uuid)",
+        since: 56,
+        class: :index,
+        revisions: [
+          {56,
+           %{
+             table: "phoenix_kit_email_templates",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX __PK_NAME_EXEMPT__phoenix_kit_email_templates_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: :exempt
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
         id: "index:phoenix_kit_entities_created_by_uuid_idx",
         owner: :core,
         check:
@@ -30688,6 +30967,37 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              predicate: nil,
              opclasses: ["uuid_ops"],
              name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_payment_options_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "__PK_NAME_EXEMPT__phoenix_kit_payment_options_uuid_idx",
+             table: "phoenix_kit_payment_options",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS __PK_NAME_EXEMPT__phoenix_kit_payment_options_uuid_idx ON __SCHEMA__.phoenix_kit_payment_options USING btree (uuid)",
+        since: 56,
+        class: :index,
+        revisions: [
+          {56,
+           %{
+             table: "phoenix_kit_payment_options",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX __PK_NAME_EXEMPT__phoenix_kit_payment_options_uuid_idx ON __SCHEMA__.phoenix_kit_payment_options USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: :exempt
            }}
         ],
         presence: :required,
@@ -31372,6 +31682,37 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         backfill: nil
       },
       %{
+        id: "index:phoenix_kit_shop_carts_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "__PK_NAME_EXEMPT__phoenix_kit_shop_carts_uuid_idx",
+             table: "phoenix_kit_shop_carts",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS __PK_NAME_EXEMPT__phoenix_kit_shop_carts_uuid_idx ON __SCHEMA__.phoenix_kit_shop_carts USING btree (uuid)",
+        since: 56,
+        class: :index,
+        revisions: [
+          {56,
+           %{
+             table: "phoenix_kit_shop_carts",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX __PK_NAME_EXEMPT__phoenix_kit_shop_carts_uuid_idx ON __SCHEMA__.phoenix_kit_shop_carts USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: :exempt
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
         id: "index:phoenix_kit_shop_categories_featured_product_uuid_idx",
         owner: :core,
         check:
@@ -31428,6 +31769,37 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              predicate: nil,
              opclasses: ["uuid_ops"],
              name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_shop_categories_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "__PK_NAME_EXEMPT__phoenix_kit_shop_categories_uuid_idx",
+             table: "phoenix_kit_shop_categories",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS __PK_NAME_EXEMPT__phoenix_kit_shop_categories_uuid_idx ON __SCHEMA__.phoenix_kit_shop_categories USING btree (uuid)",
+        since: 56,
+        class: :index,
+        revisions: [
+          {56,
+           %{
+             table: "phoenix_kit_shop_categories",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX __PK_NAME_EXEMPT__phoenix_kit_shop_categories_uuid_idx ON __SCHEMA__.phoenix_kit_shop_categories USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: :exempt
            }}
         ],
         presence: :required,
@@ -31521,6 +31893,68 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              predicate: nil,
              opclasses: ["uuid_ops"],
              name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_shop_products_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "__PK_NAME_EXEMPT__phoenix_kit_shop_products_uuid_idx",
+             table: "phoenix_kit_shop_products",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS __PK_NAME_EXEMPT__phoenix_kit_shop_products_uuid_idx ON __SCHEMA__.phoenix_kit_shop_products USING btree (uuid)",
+        since: 56,
+        class: :index,
+        revisions: [
+          {56,
+           %{
+             table: "phoenix_kit_shop_products",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX __PK_NAME_EXEMPT__phoenix_kit_shop_products_uuid_idx ON __SCHEMA__.phoenix_kit_shop_products USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: :exempt
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_shop_shipping_methods_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "__PK_NAME_EXEMPT__phoenix_kit_shop_shipping_methods_uuid_idx",
+             table: "phoenix_kit_shop_shipping_methods",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS __PK_NAME_EXEMPT__phoenix_kit_shop_shipping_methods_uuid_idx ON __SCHEMA__.phoenix_kit_shop_shipping_methods USING btree (uuid)",
+        since: 56,
+        class: :index,
+        revisions: [
+          {56,
+           %{
+             table: "phoenix_kit_shop_shipping_methods",
+             keys: ["uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX __PK_NAME_EXEMPT__phoenix_kit_shop_shipping_methods_uuid_idx ON __SCHEMA__.phoenix_kit_shop_shipping_methods USING btree (uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: :exempt
            }}
         ],
         presence: :required,

@@ -2901,7 +2901,15 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
     """)
 
     execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_billing_profiles_uuid_idx ON #{p}phoenix_kit_billing_profiles USING btree (uuid)
+    """)
+
+    execute("""
     CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_currencies_uuid_idx ON #{p}phoenix_kit_currencies USING btree (uuid)
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_db_sync_connections_uuid_idx ON #{p}phoenix_kit_sync_connections USING btree (uuid)
     """)
 
     execute("""
@@ -2917,11 +2925,31 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
     """)
 
     execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_logs_uuid_idx ON #{p}phoenix_kit_email_logs USING btree (uuid)
+    """)
+
+    execute("""
     CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_metrics_uuid_idx ON #{p}phoenix_kit_email_metrics USING btree (uuid)
     """)
 
     execute("""
     CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_orphaned_events_uuid_idx ON #{p}phoenix_kit_email_orphaned_events USING btree (uuid)
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_entities_uuid_idx ON #{p}phoenix_kit_entities USING btree (uuid)
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_entity_data_uuid_idx ON #{p}phoenix_kit_entity_data USING btree (uuid)
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_invoices_uuid_idx ON #{p}phoenix_kit_invoices USING btree (uuid)
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_orders_uuid_idx ON #{p}phoenix_kit_orders USING btree (uuid)
     """)
 
     execute("""
@@ -2934,6 +2962,10 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
 
     execute("""
     CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_referral_code_usage_uuid_idx ON #{p}phoenix_kit_referral_code_usage USING btree (uuid)
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_referral_codes_uuid_idx ON #{p}phoenix_kit_referral_codes USING btree (uuid)
     """)
 
     execute("""
@@ -3253,6 +3285,10 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
     """)
 
     execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS #{pn}phoenix_kit_email_templates_uuid_idx ON #{p}phoenix_kit_email_templates USING btree (uuid)
+    """)
+
+    execute("""
     CREATE INDEX IF NOT EXISTS phoenix_kit_entities_created_by_uuid_idx ON #{p}phoenix_kit_entities USING btree (created_by_uuid)
     """)
 
@@ -3290,6 +3326,10 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
 
     execute("""
     CREATE INDEX IF NOT EXISTS phoenix_kit_payment_methods_user_uuid_idx ON #{p}phoenix_kit_payment_methods USING btree (user_uuid)
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS #{pn}phoenix_kit_payment_options_uuid_idx ON #{p}phoenix_kit_payment_options USING btree (uuid)
     """)
 
     execute("""
@@ -3381,11 +3421,19 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
     """)
 
     execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS #{pn}phoenix_kit_shop_carts_uuid_idx ON #{p}phoenix_kit_shop_carts USING btree (uuid)
+    """)
+
+    execute("""
     CREATE INDEX IF NOT EXISTS phoenix_kit_shop_categories_featured_product_uuid_idx ON #{p}phoenix_kit_shop_categories USING btree (featured_product_uuid)
     """)
 
     execute("""
     CREATE INDEX IF NOT EXISTS phoenix_kit_shop_categories_parent_uuid_idx ON #{p}phoenix_kit_shop_categories USING btree (parent_uuid)
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS #{pn}phoenix_kit_shop_categories_uuid_idx ON #{p}phoenix_kit_shop_categories USING btree (uuid)
     """)
 
     execute("""
@@ -3398,6 +3446,14 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
 
     execute("""
     CREATE INDEX IF NOT EXISTS phoenix_kit_shop_products_created_by_uuid_idx ON #{p}phoenix_kit_shop_products USING btree (created_by_uuid)
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS #{pn}phoenix_kit_shop_products_uuid_idx ON #{p}phoenix_kit_shop_products USING btree (uuid)
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS #{pn}phoenix_kit_shop_shipping_methods_uuid_idx ON #{p}phoenix_kit_shop_shipping_methods USING btree (uuid)
     """)
 
     execute("""

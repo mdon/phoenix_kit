@@ -120,6 +120,23 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
     AND NOT a.attisdropped
   """
 
+  # `con.conindid` is NOT exclusively "the index this PK/UNIQUE constraint owns" —
+  # Postgres also points a FOREIGN KEY constraint's `conindid` at the unique index
+  # on the REFERENCED table/column it relies on for uniqueness (`contype = 'f'`,
+  # on the far side of the FK, not the referencing side). Filtering on bare
+  # `con.oid IS NULL` therefore silently dropped every unique index that is
+  # merely an FK's target elsewhere in the schema — confirmed live: a fresh
+  # install's `phoenix_kit_ai_endpoints_uuid_idx` disappeared from the snapshot
+  # (and so, from `lookup/2`) purely because `fk_ai_requests_endpoint_uuid` (a
+  # constraint on a DIFFERENT table, `phoenix_kit_ai_requests`) references it —
+  # `repair` then reported the index "missing" and (harmlessly, `CREATE ...IF
+  # NOT EXISTS`) "repaired" one that was never gone, on every healthy install
+  # with an FK-referenced uuid index (a common shape — see `dev_docs/squash/
+  # generate_baseline.exs`'s `Catalog` module, which mirrors this same query and
+  # carried the identical bug). The join must restrict to `contype IN ('p','
+  # 'u')` — the only two constraint kinds where "this index backs a constraint
+  # ON ITS OWN TABLE, so don't ALSO list it as a bare index" is the intended
+  # rule.
   @indexes_sql """
   SELECT t.relname,
          ic.relname,
@@ -138,7 +155,8 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
   JOIN pg_class t ON t.oid = i.indrelid
   JOIN pg_namespace n ON n.oid = t.relnamespace
   JOIN pg_am am ON am.oid = ic.relam
-  LEFT JOIN pg_constraint con ON con.conindid = i.indexrelid
+  LEFT JOIN pg_constraint con
+    ON con.conindid = i.indexrelid AND con.contype IN ('p', 'u')
   WHERE n.nspname = $1 AND con.oid IS NULL
   """
 

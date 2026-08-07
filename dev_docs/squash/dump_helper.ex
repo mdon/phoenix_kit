@@ -35,8 +35,20 @@ defmodule PhoenixKit.Squash.DumpHelper do
      every install to the public-canonical name so named-vs-named and
      public-vs-named comparisons both work. (The manifest layer handles the
      same idiom separately via name templating — this fold is comparison-only.)
-  6. Whitespace: trailing whitespace trimmed per line; statements trimmed.
-  7. Ordering: statements sorted lexicographically (byte order) AFTER
+  6. `ARRAY[...]`-membership CHECK constraint canonicalization: Postgres has TWO
+     equally-valid ways to deparse `x = ANY (ARRAY['a','b']::type[])` once the
+     array is built from a cast type (e.g. `character varying`) — element-wise
+     (`ARRAY[('a'::type)::text, ('b'::type)::text]`) or array-wise
+     (`(ARRAY['a'::type, 'b'::type])::text[]`) — SAME constraint, same enforced
+     values, chosen non-deterministically by which exact SQL text originally
+     built the constraint's internal expression tree (confirmed empirically:
+     both forms appear in this project's own tooling output for otherwise
+     byte-identical constraints — spec section 6.2's "PG deparse differences
+     must be handled structurally" risk, realized). `canonicalize_array_casts/1`
+     folds ANY element-wise run into the array-wise form BEFORE the two dumps
+     are compared, so this can never register as a false S1 divergence again.
+  7. Whitespace: trailing whitespace trimmed per line; statements trimmed.
+  8. Ordering: statements sorted lexicographically (byte order) AFTER
      substitution, joined with `;\\n\\n` plus a trailing `;` — pg_dump object
      ordering differences can never produce a diff.
 
@@ -141,6 +153,13 @@ defmodule PhoenixKit.Squash.DumpHelper do
   # Dollar-quote opener after the initial `$`: an optional tag
   # ([A-Za-z_][A-Za-z0-9_]*) immediately followed by the closing `$`.
   @dollar_tag_re ~r/\A(?:[A-Za-z_][A-Za-z0-9_]*)?\$/
+
+  # Element-wise ARRAY[...]-membership cast run: one or more
+  # `('literal'::type)::text` elements, comma-separated, inside `ARRAY[...]`.
+  # Matched non-greedily is unnecessary — the element pattern itself cannot
+  # span a `]`, so this cannot over-match past the array's real close.
+  @array_cast_run_re ~r/ARRAY\[((?:\('[^']*'::[A-Za-z_ ]+\)::text,?\s*)+)\]/
+  @array_cast_element_re ~r/\('([^']*)'::([A-Za-z_ ]+)\)::text/
 
   # ---------------------------------------------------------------------------
   # Dumping (DB)
@@ -293,6 +312,33 @@ defmodule PhoenixKit.Squash.DumpHelper do
       )
     )
     |> then(&Regex.replace(boundary_regex(schema_name), &1, @schema_placeholder))
+  end
+
+  @doc """
+  Fold an element-wise `ARRAY[(x::type)::text, ...]` cast run into the
+  array-wise `(ARRAY[x::type, ...])::text[]` form. Pure; idempotent (a
+  string with no element-wise run, including one already in array-wise
+  form, passes through unchanged since its shape does not match
+  `@array_cast_run_re`).
+
+  See moduledoc rule 6 for why both forms are legitimate `pg_get_constraintdef`
+  output for the SAME constraint.
+
+      iex> DumpHelper.canonicalize_array_casts(
+      ...>   "ANY (ARRAY[('a'::character varying)::text, ('b'::character varying)::text])"
+      ...> )
+      "ANY ((ARRAY['a'::character varying, 'b'::character varying])::text[])"
+  """
+  @spec canonicalize_array_casts(String.t()) :: String.t()
+  def canonicalize_array_casts(text) when is_binary(text) do
+    Regex.replace(@array_cast_run_re, text, fn _whole, run ->
+      elements =
+        Enum.map(Regex.scan(@array_cast_element_re, run), fn [_whole, literal, type] ->
+          "'#{literal}'::#{String.trim(type)}"
+        end)
+
+      "(ARRAY[" <> Enum.join(elements, ", ") <> "])::text[]"
+    end)
   end
 
   @doc """

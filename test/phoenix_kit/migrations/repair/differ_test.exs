@@ -216,5 +216,33 @@ defmodule PhoenixKit.Migrations.Repair.DifferTest do
       observed = %{type: "c", definition: "  CHECK (x > 0)  "}
       assert Differ.compare(:constraint, expected, observed) == :match
     end
+
+    test "check: element-wise vs array-wise ANY(ARRAY[...]) deparse forms do not manufacture a mismatch" do
+      element_wise =
+        "CHECK (((kind)::text = ANY (ARRAY[('standard'::character varying)::text, " <>
+          "('smart'::character varying)::text])))"
+
+      array_wise =
+        "CHECK (((kind)::text = ANY ((ARRAY['standard'::character varying, " <>
+          "'smart'::character varying])::text[])))"
+
+      expected = %{type: "c", definition: element_wise}
+      observed = %{type: "c", definition: array_wise}
+
+      assert Differ.compare(:constraint, expected, observed) == :match
+      # Symmetric: whichever side has which form, both fold to the same shape.
+      assert Differ.compare(:constraint, observed, expected) == :match
+
+      # A genuine value-set change must still be caught through either form.
+      changed = %{
+        type: "c",
+        definition:
+          "CHECK (((kind)::text = ANY ((ARRAY['standard'::character varying, " <>
+            "'smart'::character varying, 'extra'::character varying])::text[])))"
+      }
+
+      assert {:mismatch, reasons} = Differ.compare(:constraint, expected, changed)
+      assert Enum.any?(reasons, &(&1 =~ "definition"))
+    end
   end
 end

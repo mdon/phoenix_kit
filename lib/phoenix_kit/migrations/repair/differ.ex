@@ -213,5 +213,39 @@ defmodule PhoenixKit.Migrations.Repair.Differ do
   # whitespace differences in an expression string (generation server vs
   # target server pretty-printing) do not manufacture a false mismatch.
   defp normalize_default(nil), do: nil
-  defp normalize_default(text) when is_binary(text), do: String.trim(text)
+
+  defp normalize_default(text) when is_binary(text),
+    do: text |> String.trim() |> canonicalize_array_casts()
+
+  # Postgres has TWO equally-valid deparse forms for `x = ANY (ARRAY[...])`
+  # once the array is built from a cast type (`character varying`, the
+  # common case for a status/kind column's CHECK): element-wise
+  # (`ARRAY[('a'::type)::text, ('b'::type)::text]`) or array-wise
+  # (`(ARRAY['a'::type, 'b'::type])::text[]`) — SAME constraint, same
+  # enforced values, chosen non-deterministically by which exact SQL text
+  # originally built the constraint's internal expression tree. Confirmed
+  # live: a freshly-installed, byte-for-byte-correct chain's own baseline
+  # renders the array-wise form (verbatim `pg_get_constraintdef` output
+  # captured at generation time) while `mix phoenix_kit.repair`'s *own*
+  # `Probe` re-reads the SAME constraint back in element-wise form on some
+  # installs — a `:wrong_shape` false positive on an otherwise-healthy
+  # database (spec §6.2's "PG deparse differences must be handled
+  # structurally" risk, realized in production, not just in tooling). This
+  # is the runtime twin of `PhoenixKit.Squash.DumpHelper.canonicalize_array_casts/1`
+  # (`dev_docs/squash/dump_helper.ex`) — same rule, independently duplicated
+  # here because this module ships in the compiled library and that one does
+  # not.
+  @array_cast_run_re ~r/ARRAY\[((?:\('[^']*'::[A-Za-z_ ]+\)::text,?\s*)+)\]/
+  @array_cast_element_re ~r/\('([^']*)'::([A-Za-z_ ]+)\)::text/
+
+  defp canonicalize_array_casts(text) do
+    Regex.replace(@array_cast_run_re, text, fn _whole, run ->
+      elements =
+        Enum.map(Regex.scan(@array_cast_element_re, run), fn [_whole, literal, type] ->
+          "'#{literal}'::#{String.trim(type)}"
+        end)
+
+      "(ARRAY[" <> Enum.join(elements, ", ") <> "])::text[]"
+    end)
+  end
 end
