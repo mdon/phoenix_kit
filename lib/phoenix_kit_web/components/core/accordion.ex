@@ -30,11 +30,21 @@ defmodule PhoenixKitWeb.Components.Core.Accordion do
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
+  alias PhoenixKitWeb.Components.Core.ChangeCue
 
   attr :id, :string, required: true
   attr :open, :boolean, default: false, doc: "initial state only — client-owned after mount"
   attr :class, :any, default: nil, doc: "extra classes on the <details>"
   attr :title_class, :any, default: nil, doc: "extra classes on the summary"
+
+  attr :cue, :boolean,
+    default: false,
+    doc:
+      "opt into `PhoenixKitWeb.Components.Core.ChangeCue`: the section can be highlighted when " <>
+        "something inside it changes while the reader is elsewhere, and carries a quiet marker " <>
+        "until they open it"
+
+  attr :cue_label, :string, default: nil, doc: "wording for that marker (default \"Updated\")"
 
   slot :title, required: true
   slot :content, required: true
@@ -44,11 +54,13 @@ defmodule PhoenixKitWeb.Components.Core.Accordion do
     <details
       id={@id}
       open={@open}
-      phx-mounted={JS.ignore_attributes(["open"])}
+      data-change-region={@cue && @id}
+      phx-mounted={JS.ignore_attributes(cue_owned_attributes(@cue))}
       class={["collapse collapse-arrow border border-base-200 bg-base-100", @class]}
     >
       <summary class={["collapse-title text-sm font-semibold", @title_class]}>
         {render_slot(@title)}
+        <ChangeCue.change_marker :if={@cue} label={@cue_label} />
       </summary>
       <div class="collapse-content">
         {render_slot(@content)}
@@ -56,4 +68,10 @@ defmodule PhoenixKitWeb.Components.Core.Accordion do
     </details>
     """
   end
+
+  # `data-changed` is set by the client and must survive patches for the
+  # same reason `open` must: the server has no idea the reader hasn't
+  # looked yet, and morphdom would drop the marker on the next keystroke.
+  defp cue_owned_attributes(true), do: ["open", "data-changed"]
+  defp cue_owned_attributes(_), do: ["open"]
 end

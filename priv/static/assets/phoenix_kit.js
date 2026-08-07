@@ -5843,44 +5843,41 @@ if (typeof window.Chart === "undefined") {
 })();
 
 // ---------------------------------------------------------------------------
-// Section flash. When a click in one place changes something in ANOTHER —
-// picking a starting point that rewrites a capability checklist, enabling an
-// extension that adds a permission row — the change is real but silent: it
-// lands inside a section the reader isn't looking at. A brief highlight says
-// "that click landed here" without opening anything or moving the page.
+// Change cue — "that choice changed something you can't see".
+// Server side: PhoenixKitWeb.Components.Core.ChangeCue.push/3, whose
+// moduledoc is the reference. This is the client half.
 //
-// Server side:
+// The server sends only WHAT changed (element ids). It cannot decide how to
+// show it, because it doesn't know what's on screen: whether a <details> is
+// open is client state, and so is the scroll position. So the client
+// resolves each id, walks up to its [data-change-region], and picks:
 //
-//     push_event(socket, "pk-flash", %{
-//       sections: [%{id: "create-people", targets: ["authz-row-comment"]}]
-//     })
+//   * region open   -> highlight the changed rows. Highlighting the whole
+//     region tells someone already reading it nothing.
+//   * region closed -> highlight the region and MARK it. Opening it replays
+//     the row highlights and clears the mark.
 //
-// LiveView dispatches pushed events on `window` as `phx:<name>`, so this
-// needs no hook and no per-element wiring.
+// The mark, not a timer, is what makes this survive reality. A highlight
+// that plays while the reader is scrolled away is simply lost, and an
+// N-second memory turns "what changed in here?" into a race against a
+// stopwatch. The mark waits.
 //
-// Granularity follows what the reader can actually see:
-//
-//   * Section OPEN — flash the changed ROWS. Highlighting the whole section
-//     when its contents are visible says "something in here" to someone who
-//     is already looking at it.
-//   * Section CLOSED — flash the section itself, and REMEMBER the rows. If
-//     they open it within `PENDING_MS`, the rows flash then. Otherwise the
-//     answer to "what changed?" dies with the highlight, which is the one
-//     question the flash provokes.
-//
-// A change touching more rows than `MAX_TARGETS` flashes the section instead:
-// past a handful, individual highlights read as strobing rather than as
-// information.
-//
-// Honors prefers-reduced-motion: same outline, no pulse.
+// Won't scroll, open anything, or move focus.
 (function() {
   if (typeof window === "undefined" || typeof document === "undefined") return;
 
-  var STYLE_ID = "pk-flash-style";
-  var CLASS = "pk-flash";
+  var STYLE_ID = "pk-change-cue-style";
+  var CLASS = "pk-cued";
+  var REGION = "[data-change-region]";
   var DURATION = 1400;
-  var PENDING_MS = 10000;
   var MAX_TARGETS = 6;
+  var ANNOUNCE_GAP = 1000;
+
+  // Pending rows per region id. Kept off the DOM node: LiveView can replace
+  // an element between the change and the reader opening it, and state on
+  // the old node would go with it.
+  var pending = {};
+  var lastAnnounce = 0;
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -5888,109 +5885,168 @@ if (typeof window.Chart === "undefined") {
     var style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent =
-      "@keyframes pk-flash-pulse {" +
-      "  0% { box-shadow: 0 0 0 0 var(--pk-flash-color, oklch(0.7 0.15 250 / 0.55)); }" +
-      "  70% { box-shadow: 0 0 0 6px var(--pk-flash-color, oklch(0.7 0.15 250 / 0)); }" +
-      "  100% { box-shadow: 0 0 0 0 var(--pk-flash-color, oklch(0.7 0.15 250 / 0)); }" +
+      "@keyframes pk-cue-pulse {" +
+      "  0% { box-shadow: 0 0 0 0 var(--pk-cue-color, oklch(0.7 0.15 250 / 0.55)); }" +
+      "  70% { box-shadow: 0 0 0 6px var(--pk-cue-color, oklch(0.7 0.15 250 / 0)); }" +
+      "  100% { box-shadow: 0 0 0 0 var(--pk-cue-color, oklch(0.7 0.15 250 / 0)); }" +
       "}" +
       "." + CLASS + " {" +
-      "  animation: pk-flash-pulse 1.4s ease-out 1;" +
-      "  border-color: var(--pk-flash-border, oklch(0.7 0.15 250 / 0.6));" +
+      "  animation: pk-cue-pulse 1.4s ease-out 1;" +
       "  border-radius: 0.5rem;" +
       "}" +
+      // The marker rides the region's own state, so it survives patches
+      // (the region declares data-changed client-owned) and needs no
+      // server round-trip to clear.
+      "[data-change-region][data-changed] [data-change-marker] { display: inline-flex; }" +
       "@media (prefers-reduced-motion: reduce) {" +
-      "  ." + CLASS + " { animation: none; }" +
+      "  ." + CLASS + " { animation: none; outline: 2px solid var(--pk-cue-color, currentColor); }" +
       "}";
 
     document.head.appendChild(style);
   }
 
-  function flash(el) {
+  function cue(el) {
     if (!el) return;
 
-    // Restart the animation when the same element flashes twice in a row:
-    // re-adding a class it already has does nothing, so a rapid second
-    // change would look like nothing happened.
+    // Restart rather than re-add: a class an element already has changes
+    // nothing, so a rapid second change would look like nothing happened.
     el.classList.remove(CLASS);
     void el.offsetWidth;
     el.classList.add(CLASS);
 
-    window.clearTimeout(el.__pkFlashTimer);
-    el.__pkFlashTimer = window.setTimeout(function() {
+    window.clearTimeout(el.__pkCueTimer);
+    el.__pkCueTimer = window.setTimeout(function() {
       el.classList.remove(CLASS);
     }, DURATION);
   }
 
-  function flashIds(ids) {
+  function announce(text) {
+    if (!text) return;
+
+    var now = Date.now();
+    if (now - lastAnnounce < ANNOUNCE_GAP) return;
+    lastAnnounce = now;
+
+    var live = document.getElementById("pk-change-cue-status");
+
+    if (!live) {
+      live = document.createElement("div");
+      live.id = "pk-change-cue-status";
+      live.setAttribute("role", "status");
+      live.setAttribute("aria-live", "polite");
+      live.setAttribute("aria-atomic", "true");
+      live.className = "sr-only";
+      document.body.appendChild(live);
+    }
+
+    live.textContent = text;
+  }
+
+  function markRegion(region, ids) {
+    region.setAttribute("data-changed", "");
+
+    var key = region.getAttribute("data-change-region") || region.id;
+    if (!key) return;
+
+    var held = pending[key] || [];
+    // Union: a second change while still closed adds to the answer rather
+    // than replacing it.
     ids.forEach(function(id) {
-      flash(document.getElementById(id));
+      if (held.indexOf(id) === -1) held.push(id);
+    });
+
+    pending[key] = held;
+  }
+
+  function apply(payload) {
+    var ids = payload.targets || [];
+    if (!ids.length) return;
+
+    ensureStyle();
+
+    var byRegion = new Map();
+    var loose = [];
+
+    ids.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+
+      var region = el.closest(REGION);
+
+      if (!region) {
+        loose.push(el);
+        return;
+      }
+
+      if (!byRegion.has(region)) byRegion.set(region, []);
+      byRegion.get(region).push(id);
+    });
+
+    loose.forEach(cue);
+
+    var announced = false;
+
+    byRegion.forEach(function(regionIds, region) {
+      var closed = region.tagName === "DETAILS" && !region.open;
+
+      if (closed) {
+        cue(region);
+        markRegion(region, regionIds);
+
+        // Announce once per push, and only for a change the reader cannot
+        // see — an open region announces itself by being visible.
+        if (!announced) {
+          announce(payload.announce);
+          announced = true;
+        }
+
+        return;
+      }
+
+      // Past a handful, individual highlights read as strobing rather than
+      // as information.
+      if (regionIds.length > MAX_TARGETS) {
+        cue(region);
+      } else {
+        regionIds.forEach(function(id) {
+          cue(document.getElementById(id));
+        });
+      }
     });
   }
 
-  // A <details> is the only thing here that can hide its own contents; any
-  // other container is treated as visible.
-  function collapsed(el) {
-    return el.tagName === "DETAILS" && !el.open;
-  }
-
-  function apply(section) {
-    var el = document.getElementById(section.id);
-    if (!el) return;
-
-    var targets = (section.targets || []).filter(function(id) {
-      return document.getElementById(id);
-    });
-
-    if (!targets.length || targets.length > MAX_TARGETS) {
-      flash(el);
-      return;
-    }
-
-    if (collapsed(el)) {
-      flash(el);
-      el.__pkPendingFlash = { targets: targets, until: Date.now() + PENDING_MS };
-    } else {
-      delete el.__pkPendingFlash;
-      flashIds(targets);
-    }
-  }
-
-  // Opening a section within the window answers "what changed in here?".
+  // Opening a marked region answers the question the mark raised.
   // Capture phase: `toggle` doesn't bubble.
   document.addEventListener(
     "toggle",
     function(e) {
-      var el = e.target;
-      if (!el || el.tagName !== "DETAILS" || !el.open) return;
+      var region = e.target;
+      if (!region || region.tagName !== "DETAILS" || !region.open) return;
+      if (!region.hasAttribute("data-changed")) return;
 
-      var pending = el.__pkPendingFlash;
-      if (!pending) return;
+      var key = region.getAttribute("data-change-region") || region.id;
+      var ids = (key && pending[key]) || [];
 
-      delete el.__pkPendingFlash;
-      if (Date.now() > pending.until) return;
+      region.removeAttribute("data-changed");
+      if (key) delete pending[key];
+      if (!ids.length) return;
 
       ensureStyle();
-      // Let the reveal start before highlighting inside it, or the flash
-      // plays against content that is still zero-height.
+
+      // Let the reveal start first, or the highlight plays against content
+      // that is still zero-height. Deliberately silent for screen readers:
+      // the change was already announced when it landed.
       window.setTimeout(function() {
-        flashIds(pending.targets);
+        ids.slice(0, MAX_TARGETS).forEach(function(id) {
+          cue(document.getElementById(id));
+        });
       }, 120);
     },
     true
   );
 
-  window.addEventListener("phx:pk-flash", function(event) {
-    var detail = event.detail || {};
-    // `ids` is the whole-section form; `sections` carries row targets.
-    var sections =
-      detail.sections || (detail.ids || []).map(function(id) {
-        return { id: id, targets: [] };
-      });
-
-    if (!sections.length) return;
-
-    ensureStyle();
-    sections.forEach(apply);
+  window.addEventListener("phx:pk:change-cue", function(event) {
+    apply(event.detail || {});
   });
 })();
 
