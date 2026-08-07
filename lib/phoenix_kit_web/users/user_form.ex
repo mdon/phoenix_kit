@@ -440,7 +440,9 @@ defmodule PhoenixKitWeb.Users.UserForm do
     user = socket.assigns.user
     new_status = !user.is_active
 
-    case Auth.update_user_status(user, %{"is_active" => new_status}) do
+    case Auth.update_user_status(user, %{"is_active" => new_status},
+           actor: socket.assigns[:phoenix_kit_current_user]
+         ) do
       {:ok, updated_user} ->
         status_text = if new_status, do: "activated", else: "deactivated"
 
@@ -641,7 +643,10 @@ defmodule PhoenixKitWeb.Users.UserForm do
       if socket.assigns.can_manage_credentials do
         profile_params
       else
-        Map.drop(profile_params, ["password", "email"])
+        # `username` goes with them: it is the second thing
+        # `get_user_by_email_or_username_and_password/3` accepts, so rewriting it
+        # takes away a sign-in route from an account the actor may not manage.
+        Map.drop(profile_params, ["password", "email", "username"])
       end
 
     password_provided =

@@ -1282,11 +1282,30 @@ defmodule PhoenixKit.Users.Auth do
       iex> toggle_user_confirmation(unconfirmed_user)
       {:ok, %User{confirmed_at: ~N[2023-01-01 12:00:00]}}
   """
-  def toggle_user_confirmation(%User{confirmed_at: nil} = user) do
+  def toggle_user_confirmation(user, opts \\ [])
+
+  def toggle_user_confirmation(%User{} = user, opts) do
+    # Same rank rule as status and credentials, and for the same reason:
+    # `require_email_confirmation` is honoured at eleven gates, so UNCONFIRMING
+    # an account locks it out of every protected page. Offered from the same
+    # pages, to the same holders of the `users` permission, it is the same
+    # denial of service against accounts that outrank the actor.
+    case Keyword.get(opts, :actor) do
+      %User{} = actor ->
+        if can_manage_user_status?(user, actor),
+          do: do_toggle_user_confirmation(user),
+          else: {:error, :insufficient_permissions}
+
+      _system ->
+        do_toggle_user_confirmation(user)
+    end
+  end
+
+  defp do_toggle_user_confirmation(%User{confirmed_at: nil} = user) do
     admin_confirm_user(user)
   end
 
-  def toggle_user_confirmation(%User{} = user) do
+  defp do_toggle_user_confirmation(%User{} = user) do
     admin_unconfirm_user(user)
   end
 
@@ -2110,20 +2129,54 @@ defmodule PhoenixKit.Users.Auth do
 
   Prevents deactivation of the last Owner to maintain system security.
 
+  ## Authorization
+
+  Pass `actor: %User{}` and the RANK rule is enforced here, in the context —
+  the actor must outrank the target (`can_manage_user_status?/2`). Do that from
+  every request-driven path. The rank check lived only in the admin edit form
+  once, and the user-list and user-detail pages reached this function without
+  it, so a role holding merely the `users` permission could deactivate an Admin
+  or a non-last Owner from two of the three pages. Enforcing it here is what
+  makes a fourth caller safe by construction.
+
+  Omitting `:actor` means "system-initiated" and performs NO authorization —
+  correct for `PhoenixKit.Users.Referrals` expiring an account, wrong for
+  anything a user asked for.
+
   ## Parameters
 
   - `user`: User to update
   - `attrs`: Status attributes (typically %{"is_active" => true/false})
+  - `opts`: `:actor` — the `%User{}` performing the change, when there is one
 
   ## Examples
 
-      iex> update_user_status(user, %{"is_active" => false})
+      iex> update_user_status(user, %{"is_active" => false}, actor: admin)
       {:ok, %User{}}
+
+      iex> update_user_status(owner, %{"is_active" => false}, actor: admin)
+      {:error, :insufficient_permissions}
 
       iex> update_user_status(last_owner, %{"is_active" => false})
       {:error, :cannot_deactivate_last_owner}
   """
-  def update_user_status(%User{} = user, attrs) do
+  def update_user_status(user, attrs, opts \\ [])
+
+  def update_user_status(%User{} = user, attrs, opts) do
+    case Keyword.get(opts, :actor) do
+      %User{} = actor ->
+        if can_manage_user_status?(user, actor) do
+          do_update_user_status_with_owner_guard(user, attrs)
+        else
+          {:error, :insufficient_permissions}
+        end
+
+      _system ->
+        do_update_user_status_with_owner_guard(user, attrs)
+    end
+  end
+
+  defp do_update_user_status_with_owner_guard(user, attrs) do
     # Check if this would deactivate the last owner
     if attrs["is_active"] == false or attrs[:is_active] == false do
       do_deactivate_user(user, attrs)
@@ -2678,9 +2731,17 @@ defmodule PhoenixKit.Users.Auth do
   off an Admin — or a non-last Owner — which is a denial of service against the
   accounts that are meant to outrank it.
 
+  Unlike credential management, **your own status is not yours to change**. The
+  admin UI has always said so ("You cannot deactivate your own account for
+  security reasons") but two of the three pages enforced it only in the
+  template, and the third not at all — so the rule lived in markup a client
+  composes for itself. It lives here now.
+
   The last-Owner protection in `Roles.can_deactivate_user?/1` is a separate,
   target-only rule and still applies on top of this one.
   """
+  def can_manage_user_status?(%User{uuid: uuid}, %User{uuid: uuid}), do: false
+
   def can_manage_user_status?(%User{} = user, %User{} = current_user) do
     case validate_admin_authority_over(user, current_user) do
       :ok -> true
@@ -2713,10 +2774,6 @@ defmodule PhoenixKit.Users.Auth do
       true ->
         :ok
     end
-  end
-
-  defp validate_admin_authority_over(_user, _current_user) do
-    {:error, :invalid_current_user}
   end
 
   # Count remaining active owners excluding the given user

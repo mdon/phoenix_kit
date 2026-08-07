@@ -640,22 +640,24 @@
                                 }
                                 variant={if user.confirmed_at, do: "success", else: "warning"}
                               />
-                              <.table_row_menu_button
-                                phx-click="request_status_toggle"
-                                phx-value-user_uuid={user.uuid}
-                                phx-value-is_active={to_string(user.is_active)}
-                                icon={
-                                  if user.is_active,
-                                    do: "hero-check-circle",
-                                    else: "hero-x-circle"
-                                }
-                                label={
-                                  if user.is_active,
-                                    do: gettext("Deactivate"),
-                                    else: gettext("Activate")
-                                }
-                                variant={if user.is_active, do: "success", else: "warning"}
-                              />
+                              <%= if Auth.can_manage_user_status?(user, @phoenix_kit_current_user) do %>
+                                <.table_row_menu_button
+                                  phx-click="request_status_toggle"
+                                  phx-value-user_uuid={user.uuid}
+                                  phx-value-is_active={to_string(user.is_active)}
+                                  icon={
+                                    if user.is_active,
+                                      do: "hero-check-circle",
+                                      else: "hero-x-circle"
+                                  }
+                                  label={
+                                    if user.is_active,
+                                      do: gettext("Deactivate"),
+                                      else: gettext("Activate")
+                                  }
+                                  variant={if user.is_active, do: "success", else: "warning"}
+                                />
+                              <% end %>
                               <%= if Auth.can_delete_user?(user, @phoenix_kit_current_user) do %>
                                 <.table_row_menu_divider />
                                 <.table_row_menu_button
@@ -744,14 +746,18 @@
                 }
                 variant={if user.confirmed_at, do: "success", else: "warning"}
               />
-              <.table_row_menu_button
-                phx-click="request_status_toggle"
-                phx-value-user_uuid={user.uuid}
-                phx-value-is_active={to_string(user.is_active)}
-                icon={if user.is_active, do: "hero-check-circle", else: "hero-x-circle"}
-                label={if user.is_active, do: gettext("Deactivate"), else: gettext("Activate")}
-                variant={if user.is_active, do: "success", else: "warning"}
-              />
+              <%!-- Same rank rule the context enforces, so the menu cannot offer
+                    an action the request would refuse. --%>
+              <%= if Auth.can_manage_user_status?(user, @phoenix_kit_current_user) do %>
+                <.table_row_menu_button
+                  phx-click="request_status_toggle"
+                  phx-value-user_uuid={user.uuid}
+                  phx-value-is_active={to_string(user.is_active)}
+                  icon={if user.is_active, do: "hero-check-circle", else: "hero-x-circle"}
+                  label={if user.is_active, do: gettext("Deactivate"), else: gettext("Activate")}
+                  variant={if user.is_active, do: "success", else: "warning"}
+                />
+              <% end %>
               <%= if Auth.can_delete_user?(user, @phoenix_kit_current_user) do %>
                 <.table_row_menu_divider />
                 <.table_row_menu_button

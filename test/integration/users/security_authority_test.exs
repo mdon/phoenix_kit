@@ -107,9 +107,73 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
       refute Auth.can_manage_user_status?(plain_user(), nil)
     end
 
+    test "your own status is not yours to change, unlike your own credentials" do
+      owner = owner_user()
+      admin = admin_user()
+
+      refute Auth.can_manage_user_status?(owner, owner)
+      refute Auth.can_manage_user_status?(admin, admin)
+
+      # The contrast is deliberate: changing your own password is ordinary,
+      # switching your own account off is not — and the admin form only ever
+      # said so in markup.
+      assert Auth.can_manage_user_credentials?(admin, admin)
+    end
+
     test "a missing actor is refused rather than defaulting open" do
       refute Auth.can_manage_user_credentials?(plain_user(), nil)
       refute Auth.can_manage_user_credentials?(nil, owner_user())
+    end
+  end
+
+  describe "update_user_status/3 enforces rank in the context" do
+    # The predicate tests above pass while a caller that never asks the
+    # predicate still flips the flag — which is exactly what happened: the guard
+    # was added to the edit form only, and the user-list and user-detail pages
+    # reached `update_user_status/2` ungated. These tests bind the rule to the
+    # function every caller goes through.
+    test "an out-of-rank actor is refused and nothing is written" do
+      owner = owner_user()
+      admin = admin_user()
+
+      assert {:error, :insufficient_permissions} =
+               Auth.update_user_status(owner, %{"is_active" => false}, actor: admin)
+
+      assert Repo.get!(Auth.User, owner.uuid).is_active
+    end
+
+    test "an Admin may not switch off another Admin" do
+      target = admin_user()
+
+      assert {:error, :insufficient_permissions} =
+               Auth.update_user_status(target, %{"is_active" => false}, actor: admin_user())
+
+      assert Repo.get!(Auth.User, target.uuid).is_active
+    end
+
+    test "a non-staff actor holding only a permission is refused" do
+      target = plain_user()
+
+      assert {:error, :insufficient_permissions} =
+               Auth.update_user_status(target, %{"is_active" => false}, actor: plain_user())
+
+      assert Repo.get!(Auth.User, target.uuid).is_active
+    end
+
+    test "an in-rank actor succeeds" do
+      target = plain_user()
+
+      assert {:ok, updated} =
+               Auth.update_user_status(target, %{"is_active" => false}, actor: admin_user())
+
+      refute updated.is_active
+    end
+
+    test "omitting the actor is the system path and still applies the last-Owner guard" do
+      target = plain_user()
+
+      assert {:ok, updated} = Auth.update_user_status(target, %{"is_active" => false})
+      refute updated.is_active
     end
   end
 
