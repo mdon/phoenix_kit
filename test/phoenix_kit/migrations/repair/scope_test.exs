@@ -145,5 +145,67 @@ defmodule PhoenixKit.Migrations.Repair.ScopeTest do
                  "column:phoenix_kit_fixture_widgets.uuid"
                ])
     end
+
+    test "within :constraint, a same-since FK never sorts before the PK it references — even when the FK's id is alphabetically earlier" do
+      # Reproduces a live regeneration failure (squash floor 135): most
+      # pre-floor objects collapse to the SAME `since`, so `id` becomes the
+      # deciding tiebreak — and alphabetical order has no notion of
+      # dependency. `phoenix_kit_file_instances_..._fkey` sorts before
+      # `phoenix_kit_files_pkey` purely because "_" < "s" in "file[_i]" vs
+      # "file[s]", which is exactly backwards: creating the FK first raises
+      # "no unique constraint matching given keys for referenced table".
+      pk = %{class: :constraint, since: 135, id: "constraint:phoenix_kit_files_pkey"}
+      pk_shape = %{type: "p"}
+
+      fk = %{
+        class: :constraint,
+        since: 135,
+        id: "constraint:phoenix_kit_file_instances_file_id_fkey"
+      }
+
+      fk_shape = %{type: "f"}
+
+      # Confirm the trap: without the fix, plain id-ordering would put the
+      # FK first (this assertion is the reason the fix has a third tier).
+      assert fk.id < pk.id
+
+      resolved = [
+        %{object: fk, shape: fk_shape},
+        %{object: pk, shape: pk_shape}
+      ]
+
+      ordered = Scope.execution_order(resolved)
+      assert Enum.map(ordered, & &1.object.id) == [pk.id, fk.id]
+    end
+
+    test "a same-since FK sorts after a same-since UNIQUE constraint it depends on too" do
+      unique = %{class: :constraint, since: 90, id: "constraint:aaa_first_alphabetically_key"}
+      unique_shape = %{type: "u"}
+      fk = %{class: :constraint, since: 90, id: "constraint:zzz_last_alphabetically_fkey"}
+      fk_shape = %{type: "f"}
+
+      resolved = [
+        %{object: fk, shape: fk_shape},
+        %{object: unique, shape: unique_shape}
+      ]
+
+      ordered = Scope.execution_order(resolved)
+      assert Enum.map(ordered, & &1.object.id) == [unique.id, fk.id]
+    end
+  end
+
+  describe "constraint_fk_rank/2" do
+    test "ranks a foreign-key constraint shape above every other constraint contype" do
+      assert Scope.constraint_fk_rank(:constraint, %{type: "f"}) == 1
+      assert Scope.constraint_fk_rank(:constraint, %{type: "p"}) == 0
+      assert Scope.constraint_fk_rank(:constraint, %{type: "u"}) == 0
+      assert Scope.constraint_fk_rank(:constraint, %{type: "c"}) == 0
+      assert Scope.constraint_fk_rank(:constraint, %{type: "x"}) == 0
+    end
+
+    test "is always 0 outside the :constraint class, regardless of shape" do
+      assert Scope.constraint_fk_rank(:column, %{type: "f"}) == 0
+      assert Scope.constraint_fk_rank(:index, %{}) == 0
+    end
   end
 end

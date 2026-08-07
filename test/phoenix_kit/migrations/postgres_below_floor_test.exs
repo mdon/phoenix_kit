@@ -5,125 +5,134 @@ defmodule PhoenixKit.Migrations.PostgresBelowFloorTest do
   DB-free tests for `PhoenixKit.Migrations.Postgres.plan_up/3` and
   `plan_down/3` — spec §5.2's registry-change cond order.
 
-  `@initial_version` compiles to `1` today (pre-squash), so the guard
-  branches these functions exist for are unreachable through the real
-  `up/1`/`down/1` (no integer satisfies `0 < v < 1`) — dormant, exactly as
-  the task that added this asked. `plan_up/3`/`plan_down/3` take
-  `initial_version` as a plain argument rather than reading the module
-  attribute, so this suite exercises the guard logic at a synthetic floor
-  (121, matching the spec's D2 floor candidate) directly, without needing
-  a module-attribute override or a database — the floor becomes real the
-  moment `@initial_version` is bumped; nothing here has to change.
+  Post-squash, `@initial_version` is 135 (`Postgres.initial_version/0`): every
+  branch these functions implement (below-floor raise, fresh-DB clamp,
+  teardown split at the floor) is now reachable through the real
+  `up/1`/`down/1`, not just a synthetic future floor as before the squash.
+
+  `plan_up/3`/`plan_down/3` still take `initial_version` as a plain argument
+  rather than reading the module attribute, so this suite exercises BOTH the
+  real compiled floor (via `Postgres.initial_version/0` and
+  `Postgres.current_version/0`, so a future floor raise needs no edits here)
+  AND a couple of synthetic floors (1, 200) to keep proving the guard logic
+  generically for any floor, not just today's.
   """
 
   alias PhoenixKit.Migrations.Postgres
 
-  describe "plan_up/3 at floor 1 (today's compiled shape)" do
-    test "fresh install (initial 0) runs the full chain, unclamped" do
-      assert Postgres.plan_up(0, 161, 1) == {:run, 1..161}
+  @floor Postgres.initial_version()
+  @current Postgres.current_version()
+
+  describe "plan_up/3 at the real compiled floor" do
+    test "a DB below the floor raises" do
+      assert Postgres.plan_up(90, @current, @floor) == {:raise, 90, @floor}
+      assert Postgres.plan_up(1, @current, @floor) == {:raise, 1, @floor}
+      assert Postgres.plan_up(@floor - 1, @current, @floor) == {:raise, @floor - 1, @floor}
     end
 
-    test "fresh install with version: 0 (pathological pin) clamps to the floor" do
-      assert Postgres.plan_up(0, 0, 1) == {:run, 1..1}
+    test "fresh install (initial 0) clamps the target up to the floor" do
+      assert Postgres.plan_up(0, @current, @floor) == {:run, @floor..@current}
+      # pinned below-floor wrapper (e.g. `up(version: 27)`) still clamps up
+      assert Postgres.plan_up(0, 27, @floor) == {:run, @floor..@floor}
+      # pathological version: 0 / negative pins clamp too
+      assert Postgres.plan_up(0, 0, @floor) == {:run, @floor..@floor}
+      assert Postgres.plan_up(0, -5, @floor) == {:run, @floor..@floor}
     end
 
-    test "fresh install with a negative version (pathological pin) clamps to the floor" do
-      assert Postgres.plan_up(0, -5, 1) == {:run, 1..1}
+    test "the floor boundary itself is NOT below-floor — a valid installed shape" do
+      assert Postgres.plan_up(@floor, @floor, @floor) == :noop
+      assert Postgres.plan_up(@floor, @current, @floor) == {:run_delta, (@floor + 1)..@current}
     end
 
-    test "delta upgrade runs from initial + 1 through target" do
-      assert Postgres.plan_up(56, 161, 1) == {:run_delta, 57..161}
+    test "ordinary delta upgrade from at-or-above the floor is unaffected" do
+      mid = @floor + 1
+      assert Postgres.plan_up(mid, @current, @floor) == {:run_delta, (mid + 1)..@current}
     end
 
     test "already at or past target is a no-op" do
+      assert Postgres.plan_up(@current, @current, @floor) == :noop
+      assert Postgres.plan_up(@current, @floor + 1, @floor) == :noop
+    end
+  end
+
+  describe "plan_down/3 at the real compiled floor" do
+    test "a current version below the floor raises regardless of target" do
+      assert Postgres.plan_down(90, 0, @floor) == {:raise, 90, @floor}
+      assert Postgres.plan_down(90, 50, @floor) == {:raise, 90, @floor}
+    end
+
+    test "full teardown splits the range at the floor boundary" do
+      assert Postgres.plan_down(@current, 0, @floor) ==
+               {:teardown, @current..(@floor + 1)//-1, @floor}
+    end
+
+    test "the teardown range never includes the floor (it's applied directly by down/1)" do
+      {:teardown, range, floor} = Postgres.plan_down(@current, 0, @floor)
+      refute floor in Enum.to_list(range)
+    end
+
+    test "a target below the floor clamps instead of tearing down" do
+      assert Postgres.plan_down(@current, 50, @floor) ==
+               {:clamped, @current..(@floor + 1)//-1, @floor}
+    end
+
+    test "a target at or above the floor is an ordinary partial rollback" do
+      mid = @floor + 1
+      assert Postgres.plan_down(@current, mid, @floor) == {:run, @current..(mid + 1)//-1}
+      assert Postgres.plan_down(@current, @floor, @floor) == {:run, @current..(@floor + 1)//-1}
+    end
+
+    test "already at or below target is a no-op" do
+      assert Postgres.plan_down(0, 0, @floor) == :noop
+      assert Postgres.plan_down(@floor + 1, @current, @floor) == :noop
+    end
+  end
+
+  describe "plan_up/3 — generic pure-function coverage at synthetic floors" do
+    test "floor 1 degenerates to the pre-squash unclamped chain (below-floor guard unreachable)" do
+      refute Enum.any?(0..200, fn v -> v > 0 and v < 1 end)
+
+      assert Postgres.plan_up(0, 161, 1) == {:run, 1..161}
+      assert Postgres.plan_up(0, 0, 1) == {:run, 1..1}
+      assert Postgres.plan_up(0, -5, 1) == {:run, 1..1}
+      assert Postgres.plan_up(56, 161, 1) == {:run_delta, 57..161}
       assert Postgres.plan_up(161, 161, 1) == :noop
       assert Postgres.plan_up(161, 100, 1) == :noop
     end
 
-    test "below-floor guard is unreachable at floor 1 (no v satisfies 0 < v < 1)" do
-      refute Enum.any?(0..200, fn v -> v > 0 and v < 1 end)
+    test "an arbitrary future floor (200) behaves identically in shape to today's" do
+      assert Postgres.plan_up(190, 210, 200) == {:raise, 190, 200}
+      assert Postgres.plan_up(0, 27, 200) == {:run, 200..200}
+      assert Postgres.plan_up(0, 210, 200) == {:run, 200..210}
+      assert Postgres.plan_up(200, 200, 200) == :noop
+      assert Postgres.plan_up(200, 210, 200) == {:run_delta, 201..210}
+      assert Postgres.plan_up(205, 210, 200) == {:run_delta, 206..210}
     end
   end
 
-  describe "plan_up/3 at a synthetic floor (dormant-today branch, proven reachable in general)" do
-    test "a DB below the floor raises" do
-      assert Postgres.plan_up(90, 161, 121) == {:raise, 90, 121}
-    end
-
-    test "the floor boundary itself is NOT below-floor" do
-      # initial == floor is a valid, already-installed shape (the baseline
-      # module IS the floor) — it must fall through to the ordinary delta
-      # path, never the raise branch.
-      assert Postgres.plan_up(121, 121, 121) == :noop
-      assert Postgres.plan_up(121, 161, 121) == {:run_delta, 122..161}
-    end
-
-    test "fresh install clamps the target up to the floor" do
-      assert Postgres.plan_up(0, 27, 121) == {:run, 121..121}
-      assert Postgres.plan_up(0, 161, 121) == {:run, 121..161}
-      assert Postgres.plan_up(0, 0, 121) == {:run, 121..121}
-    end
-
-    test "delta upgrade from at-or-above the floor is unaffected" do
-      assert Postgres.plan_up(130, 161, 121) == {:run_delta, 131..161}
-    end
-  end
-
-  describe "plan_down/3 at floor 1 (today's compiled shape)" do
+  describe "plan_down/3 — generic pure-function coverage at synthetic floors" do
     test "teardown degenerates to today's single-range semantics at floor 1" do
-      # This is the exact pinning the task asked for: at @initial_version
-      # == 1, the {range, floor} split down/1 now performs must produce
-      # the SAME flattened version list the old single
-      # `current..(target + 1)//-1` range did — see the `{:teardown, ...}`
-      # branch's comment in postgres.ex for why it is split at all.
       {:teardown, range, floor} = Postgres.plan_down(161, 0, 1)
-
       assert Enum.to_list(range) ++ [floor] == Enum.to_list(161..1//-1)
       assert floor == 1
+
+      {:teardown, range2, floor2} = Postgres.plan_down(1, 0, 1)
+      assert Enum.to_list(range2) ++ [floor2] == [1]
     end
 
-    test "teardown from the floor itself is a single-element degenerate case" do
-      {:teardown, range, floor} = Postgres.plan_down(1, 0, 1)
-
-      assert Enum.to_list(range) ++ [floor] == [1]
-    end
-
-    test "already at or below target is a no-op" do
-      assert Postgres.plan_down(0, 0, 1) == :noop
-      assert Postgres.plan_down(50, 100, 1) == :noop
-    end
-
-    test "ordinary partial rollback above the floor is unaffected" do
+    test "ordinary partial rollback above floor 1 is unaffected" do
       assert Postgres.plan_down(161, 50, 1) == {:run, 161..51//-1}
     end
 
-    test "below-floor guard and the below-floor clamp are unreachable at floor 1" do
-      refute Enum.any?(0..200, fn v -> v > 0 and v < 1 end)
-    end
-  end
-
-  describe "plan_down/3 at a synthetic floor (dormant-today branches, proven reachable in general)" do
-    test "a current version below the floor raises regardless of target" do
-      assert Postgres.plan_down(90, 0, 121) == {:raise, 90, 121}
-      assert Postgres.plan_down(90, 50, 121) == {:raise, 90, 121}
-    end
-
-    test "full teardown splits the range at the floor boundary" do
-      assert Postgres.plan_down(161, 0, 121) == {:teardown, 161..122//-1, 121}
-    end
-
-    test "the teardown range never includes the floor" do
-      {:teardown, range, _floor} = Postgres.plan_down(161, 0, 121)
-      refute 121 in Enum.to_list(range)
-    end
-
-    test "a target below the floor clamps instead of tearing down" do
-      assert Postgres.plan_down(161, 50, 121) == {:clamped, 161..122//-1, 121}
-    end
-
-    test "a target at or above the floor is an ordinary partial rollback" do
-      assert Postgres.plan_down(161, 130, 121) == {:run, 161..131//-1}
-      assert Postgres.plan_down(161, 121, 121) == {:run, 161..122//-1}
+    test "an arbitrary future floor (200) behaves identically in shape to today's" do
+      assert Postgres.plan_down(190, 0, 200) == {:raise, 190, 200}
+      assert Postgres.plan_down(190, 50, 200) == {:raise, 190, 200}
+      assert Postgres.plan_down(210, 0, 200) == {:teardown, 210..201//-1, 200}
+      assert Postgres.plan_down(210, 150, 200) == {:clamped, 210..201//-1, 200}
+      assert Postgres.plan_down(210, 205, 200) == {:run, 210..206//-1}
+      assert Postgres.plan_down(210, 200, 200) == {:run, 210..201//-1}
+      assert Postgres.plan_down(0, 0, 200) == :noop
+      assert Postgres.plan_down(205, 210, 200) == :noop
     end
   end
 end

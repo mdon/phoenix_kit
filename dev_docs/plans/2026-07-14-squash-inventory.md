@@ -387,3 +387,61 @@ that calls a helper module's `up/1` (queues DDL) immediately followed by another
 an immediate existence/state guard needs a `flush()` between them, or this exact bug class
 recurs under a fresh-install-only code path most contributors never manually exercise (stepwise,
 incremental upgrades are the much more commonly tested path).
+
+## What the squash changed (P3, floor 135)
+
+Executed 2026-08-07 against v1.7.233/V163 with **floor = 135** (operator-decided; not the 121
+candidate this document's earlier floor table anticipated). Mechanical outcome:
+
+- `lib/phoenix_kit/migrations/postgres/v01.ex`..`v134.ex` (134 files) deleted; `v135.ex`
+  replaced wholesale by the tool-generated baseline slice (`dev_docs/squash/output/v135.ex`,
+  11,156 lines / 1,199 `execute` statements — final post-V134 shape only, class-ordered
+  extensions < functions < sequences < tables < indexes < constraints < Oban delegation <
+  seeds < version stamp). `lib/phoenix_kit/migrations/postgres/` now holds 28 delta modules
+  (V136..V163) + `helpers.ex` + the new `v135.ex`, down from 163 version files.
+- `lib/phoenix_kit/migrations/expected_schema.ex` promoted from
+  `dev_docs/squash/output/expected_schema.ex` (the generated `PhoenixKit.Migrations.ExpectedSchema`
+  manifest — `PhoenixKit.Migrations.ExpectedSchema.Resolver`'s default module, confirmed
+  resolving via `objects/1`/`data_invariants/1`/`chain_hash/0`).
+- `postgres.ex`: `@initial_version` 1 → 135. `plan_up/3`/`plan_down/3` (already implementing
+  spec §5.2 pre-squash, dormant) are now live for real installs — below-floor raise, fresh-DB
+  clamp to V135, and the down/1 teardown split at the floor boundary all activated without code
+  changes to those functions themselves. The moduledoc's V01..V134 narrative (~1,125 lines)
+  collapsed into one baseline entry; V135..V163 entries and the ⚡ LATEST discipline kept as-is.
+  The dormant `{83, …}` `version_checks/0` heal entry (V83's comment-prefix bug — V83 is now
+  inside the baseline, below the floor) pruned to `[]`; the heal mechanism itself stays for a
+  future version's bug of the same class.
+- **`PhoenixKit.Migrations.UUIDFKColumns` was NOT retired**, despite this document's and the
+  spec's §5.4 note that its callers (v56/v57/v70) are "all below any candidate floor". That was
+  true when written but went stale: `V163` (added 2026-08-07, after the note) also calls
+  `UUIDFKColumns.not_null_uuid_fks/0` and `UUIDFKColumns.@fk_constraints`, and V163 is *above*
+  the floor — it survives the squash. Deleting `UUIDFKColumns` would have broken V163's compile.
+  Left in place, undocumented-as-dead (it is very much alive).
+- `PhoenixKit.Migrations.UUIDRepair` (the `< 40`-gated pre-1.7.0 upgrade repairer) and its
+  `mix phoenix_kit.update` pre-migration call site WERE retired — genuinely dead at floor 135
+  (every reachable `migrated_version` is either 0, handled as `:fresh_install`, or ≥ 135 ≥ 40,
+  both `check_needs_repair/3` clauses that return `false`). Removed: the module, its alias +
+  call site + `run_uuid_repair/1` in `phoenix_kit.update.ex`, its dedicated assertion in
+  `prefix_validation_test.exs`, and its name-drops in `helpers.ex`'s moduledoc.
+- Test disposition (spec §5.3): `v106_test.exs` deleted with nothing ported (it pinned
+  `V106.down/1`'s pre-check SQL, a rollback mechanism that no longer exists as a distinct step;
+  the schema fact it protected — no unique-name index survives on `phoenix_kit_projects` — is
+  already correct-by-omission in the generated manifest, confirmed via
+  `dev_docs/squash/output/generation_report.md`'s "Dropped along the chain" list). `v114_test.exs`
+  deleted with nothing ported (100% upgrade-only composite-key-rewrite logic, unreachable at
+  floor 135; the end-state invariant it protected is already a generator-emitted `data_invariant`
+  in the manifest, `since: 114`). `v107_test.exs`/`v112_test.exs`/`v113_test.exs`/`v125_test.exs`
+  had their genuinely load-bearing final-shape assertions (column types/nullability/defaults,
+  index predicates, FK delete actions, CHECK-constraint enforcement — NOT the migration
+  mechanism, none of these files could invoke `up/1`/`down/1` directly in the first place) ported
+  verbatim into the new `v135_baseline_schema_test.exs`; V107's upgrade-only backfill-correctness
+  tests were dropped (same reasoning as V114). `v145_test.exs` survives untouched, per spec.
+- Docs: `dev_docs/guides/2026-07-27-prefix-safe-migrations.md`'s V01/V27/V40/V51 idiom
+  name-drops rewritten to name the `V135` baseline module + `Helpers`, with the historical
+  version numbers kept parenthetically where they add provenance value. `AGENTS.md`/`CLAUDE.md`
+  itself (the `Prefix-safe migrations` section proper) already named no bare version numbers —
+  nothing to change there.
+- Manifest regenerated post-deletion (`PK_SQUASH_FLOOR=135 mix run dev_docs/squash/generate_baseline.exs`)
+  so `chain_hash()` pins the POST-deletion `v*.ex` file set, not the pre-squash one — see the P3
+  execution report for the regenerated hash and confirmation that below-floor `since` tags
+  collapsed to 135 as expected (the minimum supported comment IS the floor).

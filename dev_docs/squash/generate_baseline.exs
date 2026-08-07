@@ -721,6 +721,35 @@ defmodule PhoenixKit.Squash.Generate.Differ do
 
   def class_rank(class), do: Map.fetch!(@class_rank, class)
 
+  @doc """
+  Secondary sort tier within the `:constraint` class: foreign keys (contype
+  `"f"`) sort AFTER every non-FK constraint (PK/UNIQUE/CHECK, contype
+  `"p"`/`"u"`/`"c"`/`"x"`), regardless of `id`.
+
+  Emission relies on `{since, class_rank, ...}` ordering alone being enough
+  to guarantee a referenced table's own PK/UNIQUE exists before any FK
+  targeting it is created. That held only by accident pre-squash, when
+  `since` values were spread across ~160 versions — a referencing table's
+  FK and the referenced table's PK rarely shared the exact same `since`, so
+  the `id` tiebreak (pure alphabetical) rarely had to arbitrate between
+  them. Post-squash, nearly everything below the floor collapses to the
+  SAME `since` (the floor itself), so the `id` tiebreak alone decides —
+  and alphabetical order has no notion of "PK before the FK that needs
+  it" (`phoenix_kit_file_instances_..._fkey` < `phoenix_kit_files_pkey`
+  lexically, which is backwards). Splitting non-FK-before-FK as a THIRD
+  sort key restores correctness for any `since` tier, not just the
+  floor's, without needing a full per-table topological sort: every
+  non-FK constraint only depends on its own table (already ordered before
+  ANY constraint via `class_rank`), so putting all of them ahead of every
+  FK in the same tier is sufficient — a FK's referenced table's own
+  PK/UNIQUE is always in the same class, so it always lands first.
+  """
+  def constraint_fk_rank(:constraint, shape) when is_map(shape) do
+    if Map.get(shape, :type) == "f", do: 1, else: 0
+  end
+
+  def constraint_fk_rank(_class, _shape), do: 0
+
   @doc "Fold ascending [{version, snapshot}] into %{{class, key} => [event]}."
   def history(snapshots) do
     empty = Map.new(@classes, &{&1, %{}})
@@ -771,7 +800,22 @@ defmodule PhoenixKit.Squash.Generate.Differ do
 
   Returns %{objects: [intermediate], drops: [dropped-object info]} where objects
   carry class (singular), key, id, since, revisions, presence: :required.
-  Dropped objects are EXCLUDED from the manifest and surfaced for the report.
+  Dropped objects are EXCLUDED from the manifest (`objects/1`/`data_invariants/1`
+  describe the fully-migrated steady state only) and surfaced for the report —
+  but `drops` entries ALSO carry `since`/`revisions` (not just `dropped_at`),
+  because the baseline-slice renderer (`Emitter.render_baseline/4`) needs them
+  for objects dropped ABOVE the floor: such an object existed in the baseline's
+  own shape (it was introduced at/before the floor and survives into the
+  post-floor delta chain) even though it is absent from the fully-migrated
+  final state the plain manifest describes. Discovered live post-squash: with
+  `@initial_version` at a real floor, `since` values for everything below it
+  collapse to the floor itself, and this class of gap went from
+  theoretical-but-masked (pre-squash, "dropped along the chain" mostly meant
+  "dropped below any candidate floor, so it doesn't matter") to a hard crash —
+  `V152.up/1`'s bare `ALTER COLUMN list_uuid DROP NOT NULL` against a floor-135
+  baseline missing the column entirely, because V156 (above the floor) drops it
+  later and the old `catalog/2` excluded it from `objects` on that basis alone,
+  with no floor-awareness at all. See `render_baseline/4`'s `floor_carryover/3`.
   """
   def catalog(history, final_snapshot) do
     objects =
@@ -797,12 +841,27 @@ defmodule PhoenixKit.Squash.Generate.Differ do
       end)
       |> Enum.map(fn {{class, key}, events} ->
         {:dropped, dropped_at} = List.last(events)
-        %{class: singular(class), key: key, id: object_id(class, key), dropped_at: dropped_at}
+        {since, revisions} = since_and_revisions(events)
+
+        %{
+          class: singular(class),
+          key: key,
+          id: object_id(class, key),
+          since: since,
+          revisions: revisions,
+          dropped_at: dropped_at
+        }
       end)
       |> Enum.sort_by(& &1.id)
 
     %{
-      objects: Enum.sort_by(objects, &{&1.since, class_rank(&1.class), &1.id}),
+      objects:
+        Enum.sort_by(objects, fn object ->
+          {_v, shape} = List.last(object.revisions)
+
+          {object.since, class_rank(object.class), constraint_fk_rank(object.class, shape),
+           object.id}
+        end),
       drops: drops
     }
   end
@@ -1354,7 +1413,10 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
 
     objects
     |> Enum.reject(&skip_seed_row?/1)
-    |> Enum.sort_by(&{&1.since, Differ.class_rank(&1.class), &1.id})
+    |> Enum.sort_by(
+      &{&1.since, Differ.class_rank(&1.class),
+       Differ.constraint_fk_rank(&1.class, newest_shape(&1)), &1.id}
+    )
     |> Enum.map(fn object ->
       %{
         id: object.id,
@@ -1674,10 +1736,18 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
   intermediate objects (presence :required only; :legacy_optional drift is never
   reproduced), each object at its newest revision <= floor.
 
-  opts :module overrides the module name (fixture use).
+  opts :module overrides the module name (fixture use). opts :drops (default
+  `[]`) is `Differ.catalog/2`'s `drops` list — objects absent from the FINAL
+  (fully-migrated) state are correctly excluded from the plain `objects` list
+  (the manifest describes only the steady state), but an object introduced
+  at/before the floor and dropped by a delta ABOVE the floor still belongs in
+  the BASELINE — it existed at V{floor}, and the surviving delta drops it when
+  the chain actually runs. `floor_carryover/2` re-admits exactly those.
   """
   def render_baseline(objects, floor, meta, opts \\ []) do
     module = Keyword.get(opts, :module, "PhoenixKit.Migrations.Postgres.V#{floor}")
+    drops = Keyword.get(opts, :drops, [])
+    objects = objects ++ floor_carryover(drops, floor)
 
     slice =
       objects
@@ -1690,7 +1760,10 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
       |> Enum.reject(&skip_seed_row?/1)
       |> Enum.map(fn object -> Map.put(object, :shape, shape_at(object, floor)) end)
       |> Enum.reject(&is_nil(&1.shape))
-      |> Enum.sort_by(&{&1.since, Differ.class_rank(&1.class), &1.id})
+      |> Enum.sort_by(
+        &{&1.since, Differ.class_rank(&1.class), Differ.constraint_fk_rank(&1.class, &1.shape),
+         &1.id}
+      )
 
     by_class = Enum.group_by(slice, & &1.class)
     cols = columns_by_table(slice, & &1.shape)
@@ -1709,6 +1782,33 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
       )
 
     format(source)
+  end
+
+  # Objects dropped ABOVE the floor (introduced at/before it, removed by a
+  # still-existing delta module) belong in the baseline slice even though
+  # `Differ.catalog/2` excludes them from the plain manifest `objects` list
+  # (see `render_baseline/4`'s moduledoc for the full rationale — this is
+  # the fix for a live regeneration crash: `V152.up/1`'s bare `ALTER COLUMN
+  # list_uuid DROP NOT NULL` against a V135 baseline that never created the
+  # column, because V156 — above the floor — drops it later).
+  #
+  # `since <= floor`: it must have existed at the floor to belong in the
+  # baseline at all. `dropped_at > floor`: dropped AT OR BELOW the floor is
+  # correctly excluded (it never reached the floor's final state — the
+  # ordinary case `catalog/2` already always got right).
+  defp floor_carryover(drops, floor) do
+    for %{since: since, dropped_at: dropped_at} = drop <- drops,
+        since <= floor,
+        dropped_at > floor do
+      %{
+        class: drop.class,
+        key: drop.key,
+        id: drop.id,
+        since: drop.since,
+        revisions: drop.revisions,
+        presence: :required
+      }
+    end
   end
 
   defp baseline_header(module, floor, meta) do
@@ -2355,7 +2455,7 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
 
     manifest_src = check_manifest!(objects)
     check_manifest_compiles!(manifest_src)
-    check_baseline!(objects)
+    check_baseline!(objects, drops)
     check_mismatch_detection!(final)
 
     :ok
@@ -2978,15 +3078,17 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
     end
   end
 
-  defp check_baseline!(objects) do
+  defp check_baseline!(objects, drops) do
     src5 =
       Emitter.render_baseline(objects, 5, @meta,
-        module: "PhoenixKit.Squash.Generate.FixtureBaselineV5"
+        module: "PhoenixKit.Squash.Generate.FixtureBaselineV5",
+        drops: drops
       )
 
     src5_again =
       Emitter.render_baseline(objects, 5, @meta,
-        module: "PhoenixKit.Squash.Generate.FixtureBaselineV5"
+        module: "PhoenixKit.Squash.Generate.FixtureBaselineV5",
+        drops: drops
       )
 
     assert!(src5 == src5_again, "baseline: deterministic emission")
@@ -3041,7 +3143,8 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
 
     src1 =
       Emitter.render_baseline(objects, 1, @meta,
-        module: "PhoenixKit.Squash.Generate.FixtureBaselineV1"
+        module: "PhoenixKit.Squash.Generate.FixtureBaselineV1",
+        drops: drops
       )
 
     Code.string_to_quoted!(src1)
@@ -3049,6 +3152,18 @@ defmodule PhoenixKit.Squash.Generate.Fixture do
     assert!(
       String.contains?(src1, "character varying(50)"),
       "baseline v1: floor-scoped revision selected"
+    )
+
+    # `legacy_col`: since 1, dropped at 5 — ABOVE this floor (1), so it must
+    # be CARRIED OVER into the floor=1 baseline (floor_carryover/2's whole
+    # reason for existing: it existed at V1, and the still-live V5 delta is
+    # what actually drops it when the chain runs — the baseline must create
+    # it or V5's drop has nothing to act on). Contrast with src5 above,
+    # where `legacy_col` is correctly ABSENT (dropped AT floor 5, not above
+    # it — the ordinary case `Differ.catalog/2` always got right).
+    assert!(
+      String.contains?(src1, "legacy_col"),
+      "baseline v1: dropped-above-the-floor column is carried over"
     )
 
     for absent <- [
@@ -3391,7 +3506,7 @@ defmodule PhoenixKit.Squash.Generate.Main do
             nil
 
           floor ->
-            baseline_src = Emitter.render_baseline(objects, floor, meta)
+            baseline_src = Emitter.render_baseline(objects, floor, meta, drops: drops)
             Code.string_to_quoted!(baseline_src)
             path = Path.join(config.output_dir, "v#{floor}.ex")
             File.write!(path, baseline_src)

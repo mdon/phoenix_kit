@@ -103,7 +103,6 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     alias PhoenixKit.Migrations.Modules, as: MigrationModules
     alias PhoenixKit.Migrations.Postgres, as: MigrationsPostgres
-    alias PhoenixKit.Migrations.UUIDRepair
     # NOTE: Do NOT alias PhoenixKit.Utils.Routes here — it depends on
     # application config that isn't available during mix task execution.
 
@@ -682,12 +681,6 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     defp post_igniter_tasks(opts) do
       prefix = PrefixConfig.resolve_prefix(opts)
 
-      # CRITICAL: Run UUID repair BEFORE migrations
-      # This fixes upgrade path from PhoenixKit < 1.7.0 where uuid columns
-      # were not present in some tables, but later migrations use Ecto schemas
-      # that expect the uuid column to exist.
-      run_uuid_repair(prefix)
-
       # Update CSS integration (enables daisyUI themes if disabled)
       update_css_integration()
 
@@ -715,43 +708,6 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
       # Show migration status summary
       show_migration_status(prefix)
-    end
-
-    # Run UUID column repair for upgrades from pre-1.7.0 installations
-    defp run_uuid_repair(prefix) do
-      case UUIDRepair.maybe_repair(prefix: prefix) do
-        {:ok, :not_needed} ->
-          # No repair needed, continue silently
-          :ok
-
-        {:ok, :repaired} ->
-          Mix.shell().info("""
-
-          ✅ UUID columns repaired successfully!
-             This ensures compatibility with migrations that use Ecto schemas.
-          """)
-
-        {:error, reason} ->
-          Mix.shell().info("""
-
-          ⚠️  UUID repair encountered an issue: #{inspect(reason)}
-             You may need to add uuid columns manually before running migrations.
-
-             Manual fix (run in psql or your database client):
-               ALTER TABLE #{prefix}.phoenix_kit_settings
-               ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT #{prefix}.uuid_generate_v7();
-
-               ALTER TABLE #{prefix}.phoenix_kit_email_templates
-               ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT #{prefix}.uuid_generate_v7();
-          """)
-      end
-    rescue
-      error ->
-        Mix.shell().info("""
-
-        ⚠️  UUID repair check failed: #{inspect(error)}
-           If migrations fail, you may need to add uuid columns manually.
-        """)
     end
 
     # Run interactive migration for updates

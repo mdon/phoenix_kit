@@ -83,17 +83,45 @@ defmodule PhoenixKit.Migrations.Repair.Scope do
   def class_rank(class), do: Map.fetch!(@class_order, class)
 
   @doc """
+  Secondary tier within `class: :constraint`: foreign keys (`shape.type ==
+  "f"`) sort AFTER every non-FK constraint (PK/UNIQUE/CHECK), regardless of
+  `since`/`id`.
+
+  `class_rank/1` alone guarantees a table's own columns exist before any
+  constraint on it, but says nothing about constraints ordered against
+  EACH OTHER — a FK must never be attempted before the PK/UNIQUE it
+  references. In practice `since(FK) >= since(PK)` always holds for a real
+  historical chain (Postgres itself refuses to create a FK before the
+  referenced column has a unique constraint, so the original chain could
+  never have recorded it the other way round), so `since` already orders
+  most pairs correctly — the tier below only has to arbitrate the case
+  `since` cannot: two constraints tied at the same `since` (routine post-
+  squash, where most pre-floor objects share the floor's `since`), where
+  the fallback `id` tiebreak is pure alphabetical and has no notion of
+  "PK before the FK that needs it" (this exact class of bug reproduced
+  live: `phoenix_kit_file_instances_..._fkey` sorts before
+  `phoenix_kit_files_pkey` alphabetically, which is backwards — see
+  `dev_docs/squash/generate_baseline.exs`'s `Differ.constraint_fk_rank/2`,
+  the sibling fix for the manifest generator's own emission order).
+  """
+  @spec constraint_fk_rank(Object.class(), Object.shape()) :: 0 | 1
+  def constraint_fk_rank(:constraint, %{type: "f"}), do: 1
+  def constraint_fk_rank(_class, _shape), do: 0
+
+  @doc """
   Sorts resolved objects for execution: class order first (see
-  `class_rank/1`), then `since`, then `object.id` — a stable, deterministic
+  `class_rank/1`), then `since`, then non-FK-before-FK (see
+  `constraint_fk_rank/2`), then `object.id` — a stable, deterministic
   order independent of the manifest's own emission order (which sorts
-  `{since, class, id}` for diff-friendliness; this sorts for *execution
-  safety* — class always dominates, since a column must never be attempted
-  before its table regardless of which version introduced each).
+  `{since, class, fk_rank, id}` for diff-friendliness; this sorts for
+  *execution safety* — class always dominates, since a column must never
+  be attempted before its table regardless of which version introduced
+  each).
   """
   @spec execution_order(list(resolved())) :: list(resolved())
   def execution_order(resolved_objects) do
-    Enum.sort_by(resolved_objects, fn %{object: object} ->
-      {class_rank(object.class), object.since, object.id}
+    Enum.sort_by(resolved_objects, fn %{object: object, shape: shape} ->
+      {class_rank(object.class), object.since, constraint_fk_rank(object.class, shape), object.id}
     end)
   end
 end

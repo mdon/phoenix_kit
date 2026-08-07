@@ -294,10 +294,11 @@ defmodule PhoenixKit.Migrations.Repair do
   # Spec §6.1's pipeline step: after applying the object slice, before the
   # concurrency re-read. Oban objects are delegated, never manifested/
   # compared (S16) — this call is the whole of that delegation, exactly
-  # `Postgres.V27`'s own `Oban.Migration.up(prefix:, create_schema: false)`
+  # `Postgres.V135`'s own `Oban.Migration.up(prefix:, create_schema: false)`
+  # (originally V27's idiom, folded into the V135 baseline by the squash)
   # (`create_schema: false` is load-bearing there too: Oban defaults it to
   # `true` for non-public prefixes otherwise, which fails for a
-  # low-privilege role — CLAUDE.md). Unlike V27, this call has no real
+  # low-privilege role — CLAUDE.md). Unlike V135, this call has no real
   # migration wrapping it — `ObanRunner.up/2` bootstraps just enough of an
   # `Ecto.Migration.Runner` for `Oban.Migration.up/1` to run at all (see its
   # moduledoc for why a bare call raises "could not find migration runner

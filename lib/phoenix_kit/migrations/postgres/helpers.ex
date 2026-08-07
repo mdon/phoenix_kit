@@ -13,7 +13,7 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
     * `validate_prefix!/1` — rejects prefixes that can't be interpolated
       into SQL safely. Called at the `up/down` entry points and by the
       prefix-resolving tooling (`PrefixConfig.resolve_prefix/1`,
-      `Install.Common`, `UUIDRepair`).
+      `Install.Common`).
     * `ensure_extension!/1` — privilege-aware replacement for a bare
       `CREATE EXTENSION IF NOT EXISTS`. Postgres checks the CREATE
       privilege *before* the IF-NOT-EXISTS short-circuit, so the bare
@@ -27,8 +27,8 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
 
   Functions without a `repo` argument run in `Ecto.Migration` context
   (immediate existence checks via `repo().query/3`, DDL queued via
-  `execute/1`). The `repo`-taking variants are for runtime callers such
-  as `PhoenixKit.Migrations.UUIDRepair`.
+  `execute/1`). The `repo`-taking variants are for runtime callers outside
+  a migration context, e.g. `mix phoenix_kit.repair`.
   """
 
   @prefix_format ~r/^[a-z_][a-z0-9_]*$/

@@ -13,7 +13,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema.ResolverTest do
   end
 
   describe "default_module/0" do
-    test "names the real (not-yet-generated) manifest module" do
+    test "names the real manifest module" do
       assert Resolver.default_module() == PhoenixKit.Migrations.ExpectedSchema
     end
   end
@@ -28,15 +28,14 @@ defmodule PhoenixKit.Migrations.ExpectedSchema.ResolverTest do
   end
 
   describe "resolve/0 without an override" do
-    test "returns {:error, :not_generated} — the real manifest does not exist in this repo yet" do
-      # This is P2's central degrade-gracefully case (task hard rules): once
-      # P3's squash PR generates `PhoenixKit.Migrations.ExpectedSchema` for
-      # real, this specific assertion starts failing — that is expected and
-      # correct; replace it with an {:ok, ...} assertion at that point rather
-      # than deleting the test (resolve/0's default-path behavior still
-      # deserves coverage against the real module).
-      refute Code.ensure_loaded?(PhoenixKit.Migrations.ExpectedSchema)
-      assert Resolver.resolve() == {:error, :not_generated}
+    test "returns {:ok, the real manifest module} — P3's squash PR generated it for real" do
+      # Pre-P3 this asserted {:error, :not_generated} (P2's central
+      # degrade-gracefully case) — the real manifest genuinely did not
+      # exist in the repository yet. It does now; this is the {:ok, ...}
+      # replacement the old test's own comment called for, proving
+      # resolve/0's default-path behavior against the real module.
+      assert Code.ensure_loaded?(PhoenixKit.Migrations.ExpectedSchema)
+      assert Resolver.resolve() == {:ok, PhoenixKit.Migrations.ExpectedSchema}
     end
   end
 
@@ -77,7 +76,9 @@ defmodule PhoenixKit.Migrations.ExpectedSchema.ResolverTest do
       assert Resolver.resolve() == {:ok, PhoenixKit.Test.FixtureExpectedSchema}
 
       Application.delete_env(:phoenix_kit, :expected_schema_module)
-      assert Resolver.resolve() == {:error, :not_generated}
+      # The default now resolves to the real (generated) manifest module,
+      # not {:error, :not_generated} — see "resolve/0 without an override".
+      assert Resolver.resolve() == {:ok, PhoenixKit.Migrations.ExpectedSchema}
     end
   end
 end

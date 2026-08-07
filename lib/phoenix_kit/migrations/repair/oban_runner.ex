@@ -11,8 +11,9 @@ defmodule PhoenixKit.Migrations.Repair.ObanRunner do
   (`use Ecto.Migration` internally, calling `execute/1` to queue its DDL) —
   it needs an active `Ecto.Migration.Runner` process to talk to. Normally
   that Runner is supplied by `Ecto.Migrator.run/4` wrapping a real,
-  file-backed migration module (this is exactly how `Postgres.V27` already
-  delegates to Oban, inside the real chain). `PhoenixKit.Migrations.Repair`
+  file-backed migration module (this is exactly how `Postgres.V135` already
+  delegates to Oban, inside the real chain — originally V27's idiom, folded
+  into the V135 baseline by the squash). `PhoenixKit.Migrations.Repair`
   is not a migration, though — it is ordinary application code invoked from
   `mix phoenix_kit.repair`/`mix phoenix_kit.doctor` or a LiveView action —
   so there is no Runner in scope, and calling `Oban.Migration.up/1` directly
