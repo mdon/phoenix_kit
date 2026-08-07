@@ -160,6 +160,11 @@ defmodule PhoenixKitWeb.Users.Session do
       token when is_binary(token) -> Auth.get_user_by_session_token(token)
       _ -> nil
     end
+    # A deactivated account must never produce a non-anonymous scope, wherever
+    # the scope is read. `with_gate/3` already refuses before any mutation here,
+    # so this is defence in depth rather than the control — but the filter
+    # belongs on every token resolution, not only the ones currently load-bearing.
+    |> Auth.ensure_active_user()
     |> Scope.for_user()
   end
 

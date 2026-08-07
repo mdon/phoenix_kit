@@ -128,6 +128,10 @@ defmodule PhoenixKit.Settings do
       "oauth_google_enabled" => "false",
       "oauth_github_enabled" => "false",
       "oauth_facebook_enabled" => "false",
+      # Whether an OAuth callback may attach to an EXISTING local account
+      # without the provider asserting it verified the address. Default on:
+      # matching on the email string alone is an account-takeover primitive.
+      "oauth_require_verified_email" => "true",
       "magic_link_login_enabled" => "true",
       "magic_link_registration_enabled" => "true",
       "qr_login_enabled" => "false",

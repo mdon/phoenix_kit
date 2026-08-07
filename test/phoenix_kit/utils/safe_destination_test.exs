@@ -61,6 +61,19 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
     use Phoenix.Router
   end
 
+  # A multilingual host that declared BOTH shapes of its home page — the setup
+  # core's own release notes have been asking for ("the parent app declares a
+  # `/:locale` landing"). The literal below is what `Routes.path("/")` emits
+  # under this suite's config (`url_prefix: "/phoenix_kit"`, default locale
+  # `en`); it is asserted rather than assumed in the test that uses it, so a
+  # config change fails loudly instead of silently testing nothing.
+  defmodule LocalizedHomeRouter do
+    use Phoenix.Router
+
+    get "/", PhoenixKit.Utils.SafeDestinationTest.FakeController, :home
+    get "/phoenix_kit/en", PhoenixKit.Utils.SafeDestinationTest.FakeController, :locale_home
+  end
+
   # Routes /admin (both plain and locale-prefixed) but NOT /dashboard.
   # Stands in for a host with `user_dashboard_enabled: false` that still mounts
   # the core admin area — the shape that decides where a non-admin goes when
@@ -333,7 +346,9 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
              ) == Routes.path("/users/log-in")
     end
 
-    test "never selects the locale-prefixed root" do
+    test "never selects a locale-prefixed root the host does not declare" do
+      # The shipped defect: `path("/")` emitted without asking the router.
+      refute Routes.routable?(conn_for(@core), Routes.path("/"))
       refute Routes.safe_destination(conn_for(@core), scope: nil) == Routes.path("/")
       refute Routes.safe_destination(conn_for(@core), scope: nil) == "/"
     end
@@ -343,6 +358,22 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
       # candidate like any other, selected exactly where it resolves.
       assert Routes.safe_destination(conn_for(HostRouter), scope: nil) == "/"
       assert Routes.safe_destination(socket_for(HostRouter), scope: anonymous()) == "/"
+    end
+
+    test "prefers the locale-prefixed root where the host declares that too" do
+      # Guards the fixture: if the suite's prefix or default locale changes,
+      # `LocalizedHomeRouter` stops standing for what it claims to.
+      assert Routes.path("/") == "/phoenix_kit/en"
+      assert Routes.routable?(conn_for(LocalizedHomeRouter), Routes.path("/"))
+
+      # Both shapes resolve here, and the locale-carrying one wins — otherwise
+      # a logout on a multilingual host silently switches the visitor's
+      # language, which is what dropping the candidate altogether did.
+      assert Routes.safe_destination(conn_for(LocalizedHomeRouter), scope: nil) ==
+               Routes.path("/")
+
+      assert Routes.safe_destination(conn_for(LocalizedHomeRouter), scope: plain_user()) ==
+               Routes.path("/")
     end
   end
 
@@ -402,7 +433,11 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
         # Has /admin (both URL shapes) but no /dashboard — the host that
         # compiled the user dashboard out. The terminal is what decides where a
         # non-admin goes there.
-        conn_for(AdminOnlyRouter)
+        conn_for(AdminOnlyRouter),
+        # Declares BOTH shapes of its home page — the only context in which
+        # `Routes.path("/")` is a legitimate answer, and the one that would
+        # slip past the assertions below if they still refused it categorically.
+        conn_for(LocalizedHomeRouter)
       ]
 
       # `EmptyRouter` and `AdminOnlyRouter` never mounted `phoenix_kit_routes()`,
@@ -418,14 +453,14 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
           "scope=#{inspect(s && s.cached_roles)} return_to=#{inspect(rt)} skip=#{skip} ctx=#{inspect((ctx && get_in(ctx, [Access.key(:private, %{}), :phoenix_router])) || (ctx && Map.get(ctx, :router)))}"
 
         assert Routes.local_path?(result), context
-        # The locale-prefixed root — the shipped bug — is never synthesized.
-        refute result == Routes.path("/"), context
 
-        # A bare `/` only ever comes back from a router that declares it — or
-        # from a host where NOTHING core owns resolves, which is the logged
-        # degenerate case the terminal probe surfaces rather than papering over.
-        if result == "/" and not routerless.(ctx) do
-          assert Routes.routable?(ctx, "/"), context
+        # Neither shape of the home page is ever SYNTHESIZED — the shipped bug
+        # was returning `path("/")` without asking the router, not naming it.
+        # Both are allowed exactly where the host proves it declared them, and
+        # the general routability assertion below is what proves that; these
+        # two make the home page's own case explicit rather than incidental.
+        if result in [Routes.path("/"), "/"] and not routerless.(ctx) do
+          assert Routes.routable?(ctx, result), context
         end
 
         # An auth page is only ever the ANONYMOUS terminal; sending a signed-in

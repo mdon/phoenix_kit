@@ -287,6 +287,14 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
          |> assign(:show_delete_modal, false)
          |> put_flash(:error, gettext("Cannot delete the last system owner"))}
 
+      # The rank refusals from `validate_admin_authority_over/2`.
+      {:error, reason}
+      when reason in [:insufficient_permissions, :target_is_owner, :target_is_staff] ->
+        {:noreply,
+         socket
+         |> assign(:show_delete_modal, false)
+         |> put_flash(:error, gettext("You don't have permission to delete this user"))}
+
       {:error, _reason} ->
         {:noreply,
          socket
@@ -484,7 +492,17 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
     user = socket.assigns.user
     new_status = !user.is_active
 
-    case Auth.update_user_status(user, %{"is_active" => new_status}) do
+    case Auth.update_user_status(user, %{"is_active" => new_status},
+           actor: socket.assigns.phoenix_kit_current_user
+         ) do
+      {:error, :insufficient_permissions} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext("You don't have permission to change this user's status")
+         )}
+
       {:ok, updated_user} ->
         status_text = if new_status, do: "activated", else: "deactivated"
         admin = socket.assigns.phoenix_kit_current_user
@@ -522,7 +540,15 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
     user = socket.assigns.user
     admin = socket.assigns.phoenix_kit_current_user
 
-    case Auth.toggle_user_confirmation(user) do
+    case Auth.toggle_user_confirmation(user, actor: admin) do
+      {:error, :insufficient_permissions} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext("You don't have permission to change this user's confirmation")
+         )}
+
       {:ok, updated_user} ->
         action =
           if updated_user.confirmed_at,
