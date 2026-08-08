@@ -38,6 +38,25 @@ defmodule PhoenixKit.Migrations.Postgres do
     buggy shape is present
   - Repair-only: `down/1` restamps the comment, never undoes the fix
 
+  ### V163 - UUID primary-key integrity (catalog-driven repair, upstream #688)
+  - Repairs any `phoenix_kit_*` table whose `uuid` column is the wrong
+    type, nullable, or not the primary key — the state V40/V56/V74 each
+    assumed impossible and a production install reached anyway
+    (`phoenix_kit_email_events`: `varchar(255)`, nullable, no PK at all)
+  - Catalog-driven on purpose: every earlier attempt enumerated tables by
+    hand and this one was missing from every list
+  - Above two million rows the `ALTER COLUMN ... TYPE uuid` rewrite and the
+    `ADD PRIMARY KEY` are DEFERRED and logged with the command to run in a
+    maintenance window, rather than taking `ACCESS EXCLUSIVE` on a large
+    table mid-deploy; `mix phoenix_kit.doctor` is the loud channel
+  - Runs BEFORE V164 by construction, which is the order V164 needs: a
+    foreign key cannot reference a column with no unique/primary key, so
+    promoting `uuid` to PK here is what lets V164's FK repair validate
+  - NOTE: upstream's own moduledoc for this version is missing — its
+    heading landed above V162's body and V162's heading was lost. The
+    section below is written from `v163.ex`'s own moduledoc; carry this
+    correction back in the PR
+
   ### V162 - Payment-option linkage on billing orders
 
   Adds a nullable `payment_option_uuid` FK (+ index) to
