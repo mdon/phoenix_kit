@@ -46,6 +46,11 @@ defmodule PhoenixKitWeb.Components.Core.Textarea do
   end
 
   def textarea(assigns) do
+    # The site switch, checked at render: with mentions off the field is an
+    # ordinary textarea again — no hook, no hint promising a feature that
+    # would silently return nothing.
+    assigns = assign(assigns, :mentions, assigns.mentions and PhoenixKit.Mentions.enabled?())
+
     ~H"""
     <div phx-feedback-for={@name}>
       <%!-- Required marker, kept in sync with `<.input>`. --%>

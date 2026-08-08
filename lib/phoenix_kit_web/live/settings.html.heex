@@ -424,6 +424,32 @@
                 }
               />
             </div>
+
+            <%!-- Mentions --%>
+            <div class="form-control w-full">
+              <.checkbox
+                name="settings[mentions_enabled]"
+                checked={@settings["mentions_enabled"] == "true"}
+                label={gettext("Mentions and record links")}
+                wrapper_class="mb-3"
+              />
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  {gettext(
+                    "Lets people type @ to mention someone and # to link a record, anywhere they can write free text. Turning it off stops the suggestions; mentions already written stay readable as plain text."
+                  )}
+                </span>
+              </div>
+              <.unsaved_hint
+                dirty={@settings["mentions_enabled"] != @saved_settings["mentions_enabled"]}
+                saved={
+                  if(@saved_settings["mentions_enabled"] == "true",
+                    do: gettext("On"),
+                    else: gettext("Off")
+                  )
+                }
+              />
+            </div>
           </div>
 
           <.section_header icon="hero-clock" title={gettext("Date & Time")} />

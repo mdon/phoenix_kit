@@ -136,6 +136,10 @@ defmodule PhoenixKit.Settings do
       "magic_link_registration_enabled" => "true",
       "qr_login_enabled" => "false",
       "new_login_alert_enabled" => "false",
+      # Cross-module @ mentions and # record links. On by default: the
+      # feature is inert until someone actually types a trigger, and
+      # everything it stores degrades to plain text when it is off.
+      "mentions_enabled" => "true",
       "new_user_default_role" => "User",
       "new_user_default_status" => "true",
       "week_start_day" => "1",

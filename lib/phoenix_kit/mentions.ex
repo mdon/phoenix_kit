@@ -81,6 +81,7 @@ defmodule PhoenixKit.Mentions do
   alias PhoenixKit.RepoHelper
   alias PhoenixKit.ResourceLinks
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
 
   # A typeahead that takes longer than this is worse than one with fewer
   # results: the popup has to keep up with typing. Whatever has answered by
@@ -361,6 +362,70 @@ defmodule PhoenixKit.Mentions do
     e ->
       Logger.warning("[Mentions] resolve for #{type} failed: #{Exception.message(e)}")
       %{}
+  end
+
+  @doc """
+  Rewrites the mentions in `text` as MARKDOWN, resolved for this viewer.
+
+  For surfaces that render markdown rather than HEEx — comments, notes,
+  anything going through `MDEx`. Same three states as the component, with
+  one honest limitation: markdown output is sanitised afterwards, so a
+  redacted mention here is plain text rather than a button. The reader
+  still learns that something exists and that it isn't theirs; they just
+  can't ask for access from inside a rendered comment.
+
+      Mentions.to_markdown(comment.content, scope: scope)
+
+  Text with no mentions is returned unchanged, so this is safe to put in
+  front of every markdown render.
+  """
+  @spec to_markdown(String.t() | nil, keyword()) :: String.t()
+  def to_markdown(text, opts \\ [])
+
+  def to_markdown(text, _opts) when not is_binary(text), do: ""
+
+  def to_markdown(text, opts) do
+    tokens = Token.parse(text)
+
+    if tokens == [] do
+      text
+    else
+      context = context(text, opts)
+
+      text
+      |> Token.split()
+      |> Enum.map_join(fn
+        %Token{} = token -> token_markdown(token, Map.get(context, {token.type, token.uuid}))
+        piece -> piece
+      end)
+    end
+  end
+
+  defp token_markdown(token, %{state: :ok, title: title, path: path}) when is_binary(path) do
+    "[#{prefix(token)}#{escape_md(title)}](#{Routes.path(path)})"
+  end
+
+  defp token_markdown(token, %{state: :ok, title: title}) do
+    "#{prefix(token)}#{escape_md(title)}"
+  end
+
+  defp token_markdown(_token, %{state: :forbidden}), do: "🔒 no access"
+
+  defp token_markdown(token, _), do: "#{prefix(token)}#{escape_md(token.label)}"
+
+  defp prefix(%Token{kind: :user}), do: "@"
+  defp prefix(_), do: ""
+
+  # The label is attacker-controlled (a token can be hand-typed), and it is
+  # about to be spliced into markdown link syntax. `]` and `|` can't occur —
+  # the grammar refuses them — but `[`, `\` and backticks can, and an
+  # unescaped `[` splits the link.
+  defp escape_md(value) do
+    value
+    |> Kernel.to_string()
+    |> String.replace("\\", "\\\\")
+    |> String.replace("[", "\\[")
+    |> String.replace("`", "\\`")
   end
 
   # ── Index ───────────────────────────────────────────────────────────
