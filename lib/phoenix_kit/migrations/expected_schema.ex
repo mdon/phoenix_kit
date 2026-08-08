@@ -7,6 +7,22 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # v*.ex, regenerate; chain_hash/0 is the staleness detector (release_check + unit
   # test assert it).
   #
+  # SINCE GENERATION the chain head moved 163 -> 164 (upstream's V163, UUID
+  # primary-key integrity, PR #688; and this branch's own repair delta,
+  # renumbered to V164). The generation facts recorded below are deliberately
+  # left as they were — they describe the run that produced this DATA, not the
+  # current chain. Neither new version adds a manifest OBJECT: upstream's V163
+  # converges databases onto shapes this manifest already declares (verified:
+  # `column:phoenix_kit_email_events.uuid` is already `uuid`/`not_null: true`
+  # with the uuid_generate_v7 default, and
+  # `constraint:...phoenix_kit_email_events_pkey` is already required here), and
+  # V164's two effects are carried by the DECLARED POST-GENERATION CORRECTIONS
+  # marked inline below. Established empirically rather than by regenerating:
+  # s3, s7 and s8 — the scenarios that fail on any manifest/chain disagreement,
+  # including "a freshly installed chain must yield an EMPTY repair plan" — all
+  # pass against this manifest post-merge. `chain_hash` WAS restamped, so
+  # release_check gates the file set.
+  #
   # Chain at generation: object/revision/legacy_optional DATA was captured from a
   # per-version replay of the TRUE pre-squash chain (initial=1 current=163 files=163
   # — the only run that can see pre-floor-only bimodal drift, e.g. V28/V30's
@@ -49,7 +65,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "f84b699e38d71c8599514d00e0ade0f5a03b4061188e8e201bae93eef827ced9"
+  @chain_hash "2074b64a39296a4219db3433d871094eb2712991cba993154e16fe4b7dbcbca1"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -30056,7 +30072,17 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_users_tokens ADD COLUMN IF NOT EXISTS \"user_uuid\" uuid",
         since: 56,
         class: :column,
-        revisions: [{56, %{default: nil, type: "uuid", pos: 10, not_null: true}}],
+        # DECLARED POST-GENERATION CORRECTION (2026-08-08): `not_null: false`.
+        # V64's `user_uuid_required_for_non_registration_tokens` CHECK exempts
+        # magic-link REGISTRATION tokens, which have no user yet
+        # (`UserToken.build_email_token_for_context/2` sets `user_uuid: nil`,
+        # inserted as a bare struct — NOT NULL raises rather than returning a
+        # changeset error). The generator captured V56/V57's NOT NULL
+        # declaration, a snapshot predating that CHECK. Corrected here, in
+        # v135.ex's CREATE TABLE and in v164.ex's `@relaxed_after_v57` together;
+        # leaving it `true` would make repair re-impose NOT NULL on every run
+        # and break registration. Found by the Kimi review round.
+        revisions: [{56, %{default: nil, type: "uuid", pos: 10, not_null: false}}],
         presence: :required,
         backfill: nil
       },

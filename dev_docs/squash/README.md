@@ -207,7 +207,7 @@ detects the mismatch and skips instead of reporting a bogus diff.
 
 **Which range each scenario actually proves — and what is deliberately left
 unproven — is `COVERAGE.md`.** Read that first if the question is "is the chain
-verified to V163?"; this table is the per-scenario index.
+verified to V164?"; this table is the per-scenario index.
 
 Status as of the full `--mode b` run on 2026-08-08: **21 PASS, 0 FAIL**, three
 SKIPs, each named below. The phase labels in the Status column
@@ -217,6 +217,25 @@ deliverable a scenario waited on — all of them have since landed, so the label
 are history, not a to-do list. The only scenarios that do not run are the three
 SKIPs: `s4_seed` (needs the pre-squash checkout by construction), `s16`
 (assertion body pending) and `s18` (manual two-process trigger).
+
+The matrix was re-run after the renumber to `V164` (`6adf55b6`) and the merge of
+upstream's own `V163` (`10b36a7d`): 20 PASS, `s1`/`s2` skipped on a stale
+reference (the rebuilt references had been written into the bridge checkout's own
+`reference/` and needed promoting into this repo — done), and `s22` ERRORed on
+`FATAL: remaining connection slots are reserved for roles with the SUPERUSER
+attribute` — this shared server sits at 390-398 of 400 connections, so a long run
+can lose its slots mid-flight. Neither is a code result; both are re-run
+separately.
+
+**The manifest did NOT need regenerating for upstream's `V163`, and regenerating
+it here would be a mistake** — see "Manifest + reference policy" below: on this
+branch the generator would replay the squashed chain and produce a
+self-referential baseline. `V163` adds no manifest object; it converges databases
+onto shapes the manifest already declares (`phoenix_kit_email_events.uuid` is
+already `uuid`/`not_null` with the `uuid_generate_v7` default there, and its
+`_pkey` is already required). What proves manifest-vs-chain agreement is
+behavioural and it ran post-merge: `s3`, `s7` and `s8` — the last of which
+requires a freshly installed chain to yield an EMPTY repair plan — all pass.
 
 | Spec | Harness id(s) | Oracle (short) | Status |
 |---|---|---|---|
@@ -240,8 +259,8 @@ SKIPs: `s4_seed` (needs the pre-squash checkout by construction), `s16`
 | S18 | `s18` | concurrent migration mid-repair → distinct abort | P2 (stub) |
 | S19 | `s19` | `:create_failed` + diagnostics on V137-class data-dependent drift | P2 (stub) |
 | S20 | `s20` | comment > `@current_version`: repair hard-errors, doctor warns | P2 (stub) |
-| S21 | `s21` | `V163` repair: a flush-defect-damaged install is fully restored (every declared FK validated, every non-exempt `NOT NULL` re-imposed, comments FK back to `SET NULL`), a second pass is a byte-identical no-op, and an orphan-blocked FK is left `NOT VALID` with the row untouched | P3 |
-| S22 | `s22` | per-version composition: each delta `V136`..`V163` applied in its OWN migrator invocation yields schema + seeds byte-identical to one single invocation (the `V56`/`V57` defect class) | P3 |
+| S21 | `s21` | `V164` repair: a flush-defect-damaged install is fully restored (every declared FK validated, every non-exempt `NOT NULL` re-imposed, comments FK back to `SET NULL`), a second pass is a byte-identical no-op, and an orphan-blocked FK is left `NOT VALID` with the row untouched | P3 |
+| S22 | `s22` | per-version composition: each delta `V136`..`V164` applied in its OWN migrator invocation yields schema + seeds byte-identical to one single invocation (the `V56`/`V57` defect class) | P3 |
 
 Manual, operator-side (not in the harness): the 2026-07-12 hardened-install
 recipe (pre-created schema, no-CREATE role, PG15+ non-writable public)
@@ -280,11 +299,18 @@ against baseline + repair.
 
 - The `ExpectedSchema` manifest is **tool-generated with a deterministic
   emit order and a `chain_hash`**. It is NEVER hand-merged: after any rebase
-  that touches `v*.ex`, and after every **renumber event** (five so far;
-  latest V151→V152 2026-07-15), regenerate it with `generate_baseline.exs`
-  (§8.3 runbook). A migration PR may land with a stale manifest; the
-  `chain_hash` assertion in `release_check` **and** its plain-unit-test twin
-  are the release-time gate — regeneration must happen before publish.
+  that touches `v*.ex`, and after every **renumber event** (eight so far;
+  latest V163→V164 2026-08-07, when this delta moved off the `V163` slot upstream's
+  own UUID primary-key-integrity migration claimed the next day — see
+  `dev_docs/plans/2026-07-14-squash-inventory.md`'s "Post-V161 additions"), regenerate
+  it with `generate_baseline.exs` (§8.3 runbook). A migration PR may land with a stale
+  manifest; the `chain_hash` assertion in `release_check` **and** its plain-unit-test
+  twin are the release-time gate — regeneration must happen before publish. **Known
+  stale as of 2026-08-08**: the merge that brought upstream's real `V163` in
+  (`10b36a7d`) did not regenerate the manifest, so `expected_schema.ex` currently has
+  no knowledge of `V163`'s objects at all (confirmed: `git show 10b36a7d --stat --
+  lib/phoenix_kit/migrations/expected_schema.ex` is empty) — regeneration is
+  outstanding before the next full verify run can be trusted.
 - ⚠️ **Regenerate from a PRE-SQUASH checkout, never from the squashed
   branch.** The generator builds the baseline by replaying the chain it finds.
   On the squashed branch that chain already *starts* with the baseline, so the

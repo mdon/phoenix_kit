@@ -1,8 +1,8 @@
 # What is verified, per version range
 
-The squashed chain ships **29 files**: `V135` — a generated baseline that
-reproduces the cumulative schema of `V01`..`V134` in one step — plus **28
-ordinary deltas**, `V136`..`V163`. This page answers one question: for each part
+The squashed chain ships **30 files**: `V135` — a generated baseline that
+reproduces the cumulative schema of `V01`..`V134` in one step — plus **29
+ordinary deltas**, `V136`..`V164`. This page answers one question: for each part
 of that chain, which scenario proves it, and what is deliberately left unproven.
 
 Run everything with `verify.exs` (see README for invocation). Every claim below
@@ -10,8 +10,8 @@ was observed, not reasoned about; the SKIPs are named with their reason.
 
 ## The two properties that matter
 
-**Equivalence.** A fresh install of `V135 + V136..V163` must produce exactly what
-the pre-squash chain `V01..V163` produced. That is `s1` (schema) and `s2` (seed
+**Equivalence.** A fresh install of `V135 + V136..V164` must produce exactly what
+the pre-squash chain `V01..V164` produced. That is `s1` (schema) and `s2` (seed
 data), compared against tool-written references built on the pre-squash
 ("bridge") checkout. `s1_self`/`s2_self` are the oracles for the comparison
 itself: two independent installs of the *same* chain must compare equal, so a
@@ -29,8 +29,8 @@ one migrator invocation than when each ran in its own. `s3` and `s22` cover this
 | Range | What covers it |
 |---|---|
 | `V01`..`V134` (folded into the baseline) | `s1` + `s2` — the whole point of the references: they were produced by running the real, unfolded chain. `s6` tears the baseline back down to 0 and re-creates it identically. `s11` installs it into a named schema alongside a `public` install with no cross-leak. `s15` pins the version-comment stamp. |
-| `V136`..`V163` (live deltas) | `s1`/`s2` run the full chain, so every delta executes. `s3` upgrades from the floor and from floor+3 — deltas only — and lands byte-identical to a single-run install. `s22` applies **each delta in its own migrator invocation** and requires the result to equal the one-shot run, which is the per-version statement `s1`/`s3` do not make on their own. |
-| `V163` (the repair delta) | `s21` — damages a healthy install the way the flush defect did (drops every declared FK, drops every `NOT NULL`, flips the comments FK back to `CASCADE`), runs the chain, and asserts full restoration; then re-runs it and requires a byte-identical no-op; then, on a separate schema, leaves an orphan row in place and requires the constraint to be added `NOT VALID` with the row untouched. |
+| `V136`..`V164` (live deltas) | `s1`/`s2` run the full chain, so every delta executes. `s3` upgrades from the floor and from floor+3 — deltas only — and lands byte-identical to a single-run install. `s22` applies **each delta in its own migrator invocation** and requires the result to equal the one-shot run, which is the per-version statement `s1`/`s3` do not make on their own. |
+| `V164` (the repair delta) | `s21` — damages a healthy install the way the flush defect did (drops every declared FK, drops every `NOT NULL`, flips the comments FK back to `CASCADE`), runs the chain, and asserts full restoration; then re-runs it and requires a byte-identical no-op; then, on a separate schema, leaves an orphan row in place and requires the constraint to be added `NOT VALID` with the row untouched. |
 | Below the floor | `s4` — `up`, `down` **and** `ensure_current/2` on a persistent below-floor install must each raise the specific `BelowFloorError` with its bridge message; `ensure_current` additionally carries the `mix test.reset` hint. `s13` covers `--adopt`. |
 | Consumer wrappers | `s5` — replays the host application's real 54-file wrapper set (1 installer + 48 pinned wrappers + 5 interleaved consumer migrations), including the rollback round-trip and the named breakage class an unguarded consumer rename produces. |
 | The repair engine | `s7` tamper matrix, `s8` idempotence, `s9` report-only divergence, `s10` data preservation, `s12` pooled-connection detection, `s17` revision scoping, `s19` data-dependent create failure, `s20` comment ahead of `@current_version`. |

@@ -45,8 +45,8 @@ defmodule PhoenixKit.Migrations.V164RelaxedColumnsTest do
   # V164 itself is exempt — its own moduledoc discusses "DROP NOT NULL" in
   # prose (documenting the very thing this test guards), which is not a
   # real relaxation to catch. Every version strictly after it is fair game
-  # for a hypothetical future V164+ that relaxes a tracked column.
-  @exempt_version 163
+  # for a hypothetical future version that relaxes a tracked column.
+  @exempt_version 164
 
   # The flush-order bug V164 repairs was fixed in V56/V57 — a version at or
   # before V57 declaring `not_null_uuid_fks/0` in the first place is not a
@@ -71,12 +71,12 @@ defmodule PhoenixKit.Migrations.V164RelaxedColumnsTest do
 
   test "every not_null_uuid_fks/0 column dropped NOT NULL after V57 is in V164's exclusion list" do
     tracked = MapSet.new(UUIDFKColumns.not_null_uuid_fks())
-    exclusion = MapSet.new(V163.relaxed_after_v57())
+    exclusion = MapSet.new(V164.relaxed_after_v57())
 
     # The exclusion list itself must only ever name tracked columns — a
     # stale/typo'd entry would silently defeat this whole guard.
     assert MapSet.subset?(exclusion, tracked),
-           "V163.relaxed_after_v57/0 contains #{inspect(MapSet.difference(exclusion, tracked) |> MapSet.to_list())}, " <>
+           "V164.relaxed_after_v57/0 contains #{inspect(MapSet.difference(exclusion, tracked) |> MapSet.to_list())}, " <>
              "which #{if MapSet.size(exclusion) == 1, do: "is", else: "are"} not in " <>
              "UUIDFKColumns.not_null_uuid_fks/0 at all — fix or remove the stale entry"
 
@@ -91,7 +91,7 @@ defmodule PhoenixKit.Migrations.V164RelaxedColumnsTest do
 
     assert MapSet.size(missing) == 0, """
     Found #{MapSet.size(missing)} tracked not_null_uuid_fks/0 column(s) that a version \
-    after V57 drops NOT NULL on, but V163.relaxed_after_v57/0 does not list:
+    after V57 drops NOT NULL on, but V164.relaxed_after_v57/0 does not list:
 
     #{missing |> MapSet.to_list() |> Enum.map_join("\n", fn {t, c} -> "  - #{t}.#{c}" end)}
 
@@ -123,7 +123,7 @@ defmodule PhoenixKit.Migrations.V164RelaxedColumnsTest do
     contradictions =
       UUIDFKColumns.not_null_uuid_fks()
       |> Enum.filter(&MapSet.member?(set_null, &1))
-      |> Enum.reject(&(&1 in V163.relaxed_after_v57()))
+      |> Enum.reject(&(&1 in V164.relaxed_after_v57()))
 
     assert contradictions == [],
            "these columns are declared NOT NULL while their FK is ON DELETE SET NULL, " <>
@@ -192,5 +192,45 @@ defmodule PhoenixKit.Migrations.V164RelaxedColumnsTest do
     else
       []
     end
+  end
+
+  # A relaxation does not have to be a `DROP NOT NULL`. V64 expressed one as a
+  # CHECK instead — `CASE WHEN context = 'magic_link_registration' THEN true
+  # ELSE user_uuid IS NOT NULL END` on `phoenix_kit_users_tokens` — which the
+  # grep above cannot see, so `{:phoenix_kit_users_tokens, "user_uuid"}` sat in
+  # `not_null_uuid_fks/0` contradicting it until the 2026-08-08 review. A NOT
+  # NULL column makes such a CHECK dead code, and the CHECK is the statement of
+  # intent, so the column must not be on the NOT NULL list at all.
+  test "no not_null_uuid_fks/0 column is contradicted by a conditional CHECK constraint" do
+    tracked = MapSet.new(UUIDFKColumns.not_null_uuid_fks())
+
+    contradicted =
+      for path <- Path.wildcard("lib/phoenix_kit/migrations/postgres/v*.ex"),
+          text = File.read!(path),
+          String.contains?(text, "CHECK"),
+          {table, column} <- MapSet.to_list(tracked),
+          conditional_check_permitting_null?(text, table, column),
+          do: {table, column, Path.basename(path)}
+
+    assert contradicted == [],
+           "these not_null_uuid_fks/0 columns are covered by a CHECK that permits NULL " <>
+             "for some rows, which NOT NULL would turn into dead code — remove them from " <>
+             "the list (see how phoenix_kit_users_tokens.user_uuid was handled): " <>
+             inspect(contradicted)
+  end
+
+  # A CHECK that names the column, branches (`CASE`/`WHEN`), and asserts
+  # `<column> IS NOT NULL` only in one branch is conditional by construction:
+  # some rows are allowed to have NULL there.
+  defp conditional_check_permitting_null?(text, table, column) do
+    table = Atom.to_string(table)
+
+    text
+    |> String.split(~r/\n\s*\n/)
+    |> Enum.any?(fn chunk ->
+      String.contains?(chunk, "CHECK") and String.contains?(chunk, table) and
+        String.contains?(chunk, "WHEN") and
+        String.contains?(chunk, "#{column} IS NOT NULL")
+    end)
   end
 end

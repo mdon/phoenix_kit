@@ -190,7 +190,22 @@ defmodule PhoenixKit.Migrations.UUIDFKColumns do
 
   @not_null_uuid_fks [
     # Group A — User FKs
-    {:phoenix_kit_users_tokens, "user_uuid"},
+    #
+    # NOT `{:phoenix_kit_users_tokens, "user_uuid"}` — removed 2026-08-08 (Kimi
+    # review). V64 added
+    # `user_uuid_required_for_non_registration_tokens`:
+    #   CHECK (CASE WHEN context = 'magic_link_registration' THEN true
+    #               ELSE user_uuid IS NOT NULL END)
+    # i.e. magic-link REGISTRATION tokens are authorless by design — the user
+    # does not exist yet, `UserToken.build_email_token_for_context/2` builds
+    # them with `user_uuid: nil`, and `MagicLinkRegistration` inserts that
+    # struct with a bare `Repo.insert`, so a NOT NULL column RAISES instead of
+    # returning a changeset error. This list is V56/V57's snapshot of intent and
+    # predates that CHECK; the flush defect is the only reason single-shot
+    # installs never enforced it and registration still works on them. Enforcing
+    # it — here, in the V135 baseline, or in V164's repair — breaks magic-link
+    # registration. Kept as a comment rather than deleted silently so the next
+    # person does not "restore" it.
     {:phoenix_kit_user_role_assignments, "user_uuid"},
     {:phoenix_kit_admin_notes, "user_uuid"},
     {:phoenix_kit_admin_notes, "author_uuid"},

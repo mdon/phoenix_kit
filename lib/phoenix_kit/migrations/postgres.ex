@@ -628,7 +628,15 @@ defmodule PhoenixKit.Migrations.Postgres do
       current <= target ->
         :noop
 
-      target == 0 ->
+      # `<= 0`, not `== 0`: a negative target used to fall through to the
+      # `{:run, current..(target + 1)//-1}` clause below, which drops every
+      # table via the baseline's `down/1` and then dispatches V134..V1 —
+      # modules the squash deleted — raising `UndefinedFunctionError` on an
+      # install it had just destroyed. Pre-squash those modules existed and the
+      # run merely completed a full rollback, so the blast radius is new (Kimi
+      # review, 2026-08-08). Any target at or below zero means "remove
+      # everything", which is exactly the teardown path.
+      target <= 0 ->
         {:teardown, current..(initial_version + 1)//-1, initial_version}
 
       target > 0 and target < initial_version ->
@@ -637,6 +645,40 @@ defmodule PhoenixKit.Migrations.Postgres do
       true ->
         {:run, current..(target + 1)//-1}
     end
+  end
+
+  # Read-path twin of `parse_version_comment!/2`: reports rather than raises.
+  defp parse_version_comment_leniently(version, prefix) do
+    String.to_integer(String.trim(version))
+  rescue
+    ArgumentError ->
+      IO.warn(
+        "PhoenixKit: #{prefix}.phoenix_kit's version comment is #{inspect(version)}, which " <>
+          "is not a version number — reporting 0. `mix phoenix_kit.update` will REFUSE this " <>
+          "database until it is restamped; `mix phoenix_kit.doctor` reports the real state."
+      )
+
+      0
+  end
+
+  # `String.to_integer/1` raises a bare ArgumentError naming nothing useful when
+  # the comment was edited by hand ('v164', 'final', ' 164'). Same advice as the
+  # missing-comment path: this value decides which migrations run, so guessing is
+  # never the answer (Kimi review, 2026-08-08).
+  defp parse_version_comment!(version, opts) do
+    String.to_integer(String.trim(version))
+  rescue
+    ArgumentError ->
+      reraise(
+        """
+        PhoenixKit: #{opts.prefix}.phoenix_kit's version comment is #{inspect(version)}, \
+        which is not a version number. It decides which migrations run, so it cannot be \
+        guessed. Establish the real state with `mix phoenix_kit.doctor` and restamp it:
+
+            COMMENT ON TABLE #{opts.prefix}.phoenix_kit IS '<version>';
+        """,
+        __STACKTRACE__
+      )
   end
 
   @impl PhoenixKit.Migration
@@ -665,9 +707,25 @@ defmodule PhoenixKit.Migrations.Postgres do
         """
 
         case repo().query(version_query, [], log: false) do
-          {:ok, %{rows: [[version]]}} when is_binary(version) -> String.to_integer(version)
-          # Table exists but no version comment - assume version 1 (legacy V01 installation)
-          _ -> 1
+          {:ok, %{rows: [[version]]}} when is_binary(version) ->
+            parse_version_comment!(version, opts)
+
+          _ ->
+            raise """
+            PhoenixKit: #{opts.prefix}.phoenix_kit exists but carries no version comment.
+
+            The comment is the only record of which migrations this database has. \
+            Pre-squash a missing comment was read as "V01 legacy" and the chain simply \
+            replayed from the start; this release cannot do that — below-floor versions \
+            no longer exist here, so the guess would route a possibly CURRENT database to \
+            the 1.7.x bridge, whose backfill overwrites still-NULL tracked columns with \
+            freshly generated uuids pointing at nothing.
+
+            Establish the real state and restamp the comment by hand:
+
+                mix phoenix_kit.doctor       # reports schema-vs-comment discrepancies
+                COMMENT ON TABLE #{opts.prefix}.phoenix_kit IS '<version>';
+            """
         end
 
       {:ok, %{rows: [[false]]}} ->
@@ -772,10 +830,25 @@ defmodule PhoenixKit.Migrations.Postgres do
         AND pg_namespace.nspname = '#{escaped_prefix}'
         """
 
+        # Deliberately NOT the raising behaviour `migrated_version/1` now has for
+        # the same two cases. This twin is the READ path — `phoenix_kit.status`,
+        # the doctor, the admin UI — and an anomalous comment must not take the
+        # interface down; only the MIGRATOR must refuse, because only it acts on
+        # the value destructively. So the legacy guess stays, but stops being
+        # silent (Kimi review, 2026-08-08).
         case repo.query(version_query, [], log: false) do
-          {:ok, %{rows: [[version]]}} when is_binary(version) -> String.to_integer(version)
-          # Table exists but no version comment - assume version 1 (legacy V01 installation)
-          _ -> 1
+          {:ok, %{rows: [[version]]}} when is_binary(version) ->
+            parse_version_comment_leniently(version, escaped_prefix)
+
+          _ ->
+            IO.warn(
+              "PhoenixKit: #{escaped_prefix}.phoenix_kit exists but carries no version comment — " <>
+                "reporting V01 (legacy) for display purposes. `mix phoenix_kit.update` will " <>
+                "REFUSE this database until the comment is restamped; run " <>
+                "`mix phoenix_kit.doctor` to establish the real state."
+            )
+
+            1
         end
 
       {:ok, %{rows: [[false]]}} ->

@@ -67,11 +67,14 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
      backfills a live column with a random value to force the constraint
      through (unlike `UUIDFKColumns`' own conversion-era backfill, which
      only ever ran against columns it had *just* created moments earlier
-     in the same call, never live data). Skipped columns (either via the
-     warn path or via `@relaxed_after_v57`) stay nullable **by design** —
-     re-running V164 is an idempotent restamp no-op, it does not retry
-     them; a column an operator has since backfilled by
-     hand is enforced with a one-line `ALTER TABLE ... SET NOT NULL`.
+     in the same call, never live data). A column skipped via
+     `@relaxed_after_v57` stays nullable permanently — that is the point of
+     the list. A column skipped via the WARN path is different, and the text
+     here used to say otherwise: the NULL count is re-read on every run, so
+     once an operator resolves those rows a re-run DOES enforce NOT NULL.
+     Re-running is free for everything already enforced (the nullability probe
+     short-circuits before any ALTER), which is what makes it safe to re-run
+     after a partial failure.
 
   ### `@relaxed_after_v57` — columns a LATER version deliberately made nullable again
 
@@ -94,6 +97,19 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
       Re-imposing NOT NULL here would break `Storage.store_system_file`'s
       tile generation on any install whose run hit the flush bug.
 
+  A THIRD case exists that belongs in neither category: an entry that was
+  simply WRONG in `not_null_uuid_fks/0` from the start.
+  `{:phoenix_kit_users_tokens, "user_uuid"}` was removed from that list
+  outright on 2026-08-08 rather than excluded here, because V64's
+  `user_uuid_required_for_non_registration_tokens` CHECK deliberately permits
+  NULL for magic-link REGISTRATION tokens (no user exists yet) — so enforcing
+  NOT NULL breaks registration on a fresh install as surely as on a repaired
+  one, and the fix has to reach the baseline and the manifest too, not just
+  this repair. Removing it at the source makes every path agree; excluding it
+  here would have left V56/V57 still imposing it. The relaxation was invisible
+  to the `DROP NOT NULL` grep this list was built from because it was expressed
+  as a CHECK — `v164_relaxed_columns_test.exs` now scans for that shape too.
+
   The list also carries one entry that is not a later relaxation but a
   contradiction inside V56/V57's own declarations —
   `phoenix_kit_ticket_status_history.changed_by_uuid` is claimed by
@@ -101,7 +117,7 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
   `ON DELETE SET NULL`, which NOT NULL makes unsatisfiable. See its inline
   comment; `uuid_fk_columns_test.exs` asserts no other pair contradicts.
 
-  `test/phoenix_kit/migrations/v163_relaxed_columns_test.exs` statically
+  `test/phoenix_kit/migrations/v164_relaxed_columns_test.exs` statically
   scans `v58.ex`..the current HEAD version for this exact pattern and fails
   if it finds a `not_null_uuid_fks/0` member relaxed by a later version
   that is not listed here — a future relaxation cannot silently make this
@@ -180,8 +196,8 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
 
   # See the moduledoc section of the same name — a `not_null_uuid_fks/0`
   # member a LATER version deliberately dropped NOT NULL from again, so
-  # V163 must not re-impose it. Exposed publicly so
-  # `V163RelaxedColumnsTest` can assert this list stays a superset of every
+  # V164 must not re-impose it. Exposed publicly so
+  # `V164RelaxedColumnsTest` can assert this list stays a superset of every
   # `DROP NOT NULL` the chain applies to a tracked column after V57.
   @relaxed_after_v57 [
     # V113 (v113.ex): system-managed media rows have no human owner, only
@@ -255,7 +271,13 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
     table_str = Atom.to_string(table)
 
     if table_exists?(table_str, escaped_prefix) and
-         column_exists?(table_str, column, escaped_prefix) do
+         column_exists?(table_str, column, escaped_prefix) and
+         not column_not_null?(table_str, column, escaped_prefix) do
+      # The nullability check above is what makes a re-run genuinely free.
+      # Without it the ALTER was re-issued on every run, taking ACCESS EXCLUSIVE
+      # on each of ~45 tables (some of them large) only to assert what was
+      # already true — the "re-running is a no-op" claim was false in the way
+      # that matters operationally (Kimi review, 2026-08-08).
       table_name = prefix_table_name(table_str, prefix)
 
       case null_count(table_name, column) do
@@ -268,20 +290,39 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
         :unknown ->
           IO.warn(
             "PhoenixKit V164: could not determine NULL count for #{table_str}.#{column} — " <>
-              "leaving nullable. This column stays nullable by design (re-running V164 will " <>
-              "not retry it, it is an idempotent restamp no-op) — apply ALTER TABLE ... " <>
-              "ALTER COLUMN ... SET NOT NULL by hand once the cause is understood."
+              "leaving nullable. Re-running V164 WILL retry this column (the probe is a fresh " <>
+              "read each time), so once the cause is understood a re-run enforces it; or apply " <>
+              "ALTER TABLE ... ALTER COLUMN ... SET NOT NULL by hand."
           )
 
         count ->
           IO.warn(
             "PhoenixKit V164: #{table_str}.#{column} has #{count} NULL row(s) — leaving " <>
               "nullable (never backfilling live data). Investigate before enforcing NOT NULL. " <>
-              "This column stays nullable by design (re-running V164 will not retry it, it is " <>
-              "an idempotent restamp no-op) — apply ALTER TABLE ... ALTER COLUMN ... SET " <>
-              "NOT NULL by hand once the NULL rows are resolved."
+              "Re-running V164 WILL retry this column once those rows are resolved (the NULL " <>
+              "count is re-read on every run); or apply ALTER TABLE ... ALTER COLUMN ... SET " <>
+              "NOT NULL by hand."
           )
       end
+    end
+  end
+
+  # information_schema, schema-anchored — same idiom as every other probe here.
+  # `UUIDFKColumns.column_is_not_null?/3` is the same query; kept local so this
+  # version does not depend on a helper that a future refactor of that module
+  # could change out from under it.
+  defp column_not_null?(table, column, escaped_prefix) do
+    query = """
+    SELECT is_nullable = 'NO'
+    FROM information_schema.columns
+    WHERE table_name = '#{table}'
+      AND column_name = '#{column}'
+      AND table_schema = '#{escaped_prefix}'
+    """
+
+    case repo().query(query, [], log: false) do
+      {:ok, %{rows: [[true]]}} -> true
+      _ -> false
     end
   end
 
@@ -309,7 +350,7 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
   # Returns the labels of every constraint left NOT VALID, for the single
   # end-of-run summary `up/1` emits. Per-constraint warnings are easy to lose
   # in a deploy log between hundreds of other migration lines, and a run that
-  # left constraints unvalidated still exits successfully and stamps 163 — so
+  # left constraints unvalidated still exits successfully and stamps 164 — so
   # the operator needs one line at the end telling them there is follow-up
   # work, not only N interleaved warnings (GLM review, 2026-08-07).
   defp repair_missing_fks(prefix, escaped_prefix) do
@@ -394,8 +435,12 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
     # action happens to match. Adopt what is there and report the mismatch
     # instead of creating a duplicate whose semantics silently lose.
     case fk_shape_present(table_str, uuid_fk, ref_table, ref_col, escaped_prefix) do
-      {:present, ^constraint, _confdeltype} ->
-        :already_present
+      {:present, ^constraint, confdeltype} ->
+        # Compare the action even under the expected name. Adopting it blindly
+        # was the one path where a wrong ON DELETE produced no signal at all,
+        # while a differently-named twin earned a warning (Kimi review,
+        # 2026-08-08).
+        adopted_fk(table_str, uuid_fk, ref_table, ref_col, on_delete, constraint, confdeltype)
 
       {:present, other_name, confdeltype} ->
         adopted_fk(table_str, uuid_fk, ref_table, ref_col, on_delete, other_name, confdeltype)
@@ -475,10 +520,17 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
     JOIN pg_class t ON t.oid = c.conrelid
     JOIN pg_namespace n ON n.oid = t.relnamespace
     JOIN pg_class ft ON ft.oid = c.confrelid
+    JOIN pg_namespace fn ON fn.oid = ft.relnamespace
     WHERE c.contype = 'f'
       AND n.nspname = '#{escaped_prefix}'
       AND t.relname = '#{table_str}'
       AND ft.relname = '#{ref_table}'
+      -- The REFERENCED relation needs the same schema anchor as the referencing
+      -- one: without it a same-named table in another schema satisfies this
+      -- probe through a cross-schema FK, and the intra-schema constraint this
+      -- migration is supposed to create is silently skipped (Kimi review,
+      -- 2026-08-08).
+      AND fn.nspname = '#{escaped_prefix}'
       AND array_length(c.conkey, 1) = 1
       AND array_length(c.confkey, 1) = 1
       AND (SELECT a.attname FROM pg_attribute a
@@ -559,7 +611,7 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
     IO.warn(
       "PhoenixKit V164 SUMMARY: #{length(labels)} constraint(s) were added but could NOT be " <>
         "validated and remain NOT VALID — new writes are checked, pre-existing rows are not. " <>
-        "This migration still succeeded and the version comment now reads 163; re-running it " <>
+        "This migration still succeeded and the version comment now reads 164; re-running it " <>
         "does not retry them. Resolve the reported rows, then VALIDATE each by hand: " <>
         Enum.join(labels, "; ")
     )
@@ -620,7 +672,6 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
          table_exists?(@comments_ref_table, escaped_prefix) and
          column_exists?(@comments_ref_table, @comments_ref_column, escaped_prefix) do
       table_name = prefix_table_name(@comments_table, prefix)
-      ref_name = prefix_table_name(@comments_ref_table, prefix)
 
       case comments_fk_on_delete(escaped_prefix) do
         "c" ->
@@ -651,8 +702,29 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
           []
 
         nil ->
-          cleanup_orphaned_comments_fk_refs(table_name, ref_name)
-          add_comments_fk(prefix, escaped_prefix)
+          # Report and skip. This branch is only reachable when the generic FK
+          # pass above ALREADY tried and failed to create this constraint, which
+          # is the worst possible state to get aggressive in — and the old
+          # fallback was strictly more dangerous than the primary path (Kimi
+          # review, 2026-08-08): it issued an unguarded `UPDATE ... SET
+          # user_uuid = NULL` against live rows, contradicting this migration's
+          # own promise never to null out a reference, and then an unguarded
+          # `ADD CONSTRAINT` that re-raised the same error the guarded attempt
+          # had just swallowed — aborting the whole chain run AFTER that UPDATE
+          # had auto-committed. Reachable for real: an install whose
+          # `phoenix_kit_users.uuid` has no unique index (exactly what upstream's
+          # V163 repairs, and which V163 DEFERS above two million rows) fails the
+          # guarded add with 42830, lands here, and killed the deploy.
+          IO.warn(
+            "PhoenixKit V164: #{@comments_constraint} is absent and the guarded pass above " <>
+              "could not create it — see its warning for the PostgreSQL error. Leaving the " <>
+              "column as it is: this migration does not null out live references. Once the " <>
+              "cause is resolved (commonly a missing unique index on " <>
+              "#{@comments_ref_table}.#{@comments_ref_column} — upstream's V163 repairs that, " <>
+              "and defers it above 2M rows), re-run the chain or add the constraint by hand."
+          )
+
+          []
 
         other ->
           IO.warn(
@@ -700,29 +772,6 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
       {:not_valid, label} -> [label]
       :created -> []
     end
-  end
-
-  # Mirrors V72's own add_fk_constraint/7 orphan cleanup — only reachable
-  # in the defensive "constraint entirely absent" branch above.
-  defp cleanup_orphaned_comments_fk_refs(table_name, ref_name) do
-    execute("""
-    DO $$
-    DECLARE
-      affected INTEGER;
-    BEGIN
-      UPDATE #{table_name} t
-      SET #{@comments_fk_column} = NULL
-      WHERE t.#{@comments_fk_column} IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM #{ref_name} r WHERE r.#{@comments_ref_column} = t.#{@comments_fk_column}
-      );
-      GET DIAGNOSTICS affected = ROW_COUNT;
-      IF affected > 0 THEN
-        RAISE NOTICE 'PhoenixKit V164: cleaned up % orphaned rows in %.%',
-          affected, '#{table_name}', '#{@comments_fk_column}';
-      END IF;
-    END $$;
-    """)
   end
 
   # Name-anchored pg_constraint + pg_class + pg_namespace JOIN — never a
@@ -793,8 +842,19 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
 
   defp publishing_slug_index_needs_replacement?(escaped_prefix) do
     case index_definition(@publishing_index, @publishing_table, escaped_prefix) do
-      {:present, definition} -> not String.contains?(definition, @publishing_partial_clause)
-      :absent -> false
+      {:present, definition} ->
+        not String.contains?(definition, @publishing_partial_clause)
+
+      # Absent means REPAIR, not "nothing to do". The two statements below
+      # auto-commit separately (the wrapper disables the DDL transaction), so a
+      # CREATE that fails after the DROP committed leaves the table with no
+      # uniqueness on (group_uuid, slug) at all — and mapping absent to `false`
+      # made every later run skip it, stamp success, and let duplicate slugs
+      # accumulate silently (Kimi review, 2026-08-08). The caller's
+      # `table_exists?` guard already excludes installs without the publishing
+      # module, so reaching here means the index genuinely ought to exist.
+      :absent ->
+        true
     end
   end
 

@@ -2,7 +2,7 @@
 
 Status: **REVIEWED DRAFT r2** (spec only; implementation not started).
 Written 2026-07-14 at v1.7.193/V148; revised 2026-07-16 at v1.7.196/V150; counters refreshed
-2026-08-07 at **v1.7.233/V163** (chain V01..V163 — 162 upstream + our V163 repair; 28,000 lines across 163 files — V148→V163 in three weeks of spec/tooling work, live confirmation of §3.1's cadence point; V152-V160 delta
+2026-08-07 at **v1.7.233/V164** (chain V01..V164 — 162 upstream + our V164 repair; 28,000 lines across 163 files — V148→V164 in three weeks of spec/tooling work, live confirmation of §3.1's cadence point; V152-V160 delta
 classified in the inventory appendix);
 **r2 = post-review revision** incorporating a 7-reviewer round:
 4 internal adversarial agents (claims / design / completeness / ops) + GLM-5.2, Kimi K2.7,
@@ -10,7 +10,22 @@ Mistral Medium. Verdicts: claims-verifier APPROVE (all mechanical claims confirm
 line refs re-anchored below), all others NEEDS-WORK → their ~50 findings are folded in here.
 Branch: `squash-migrations` (merged with feature/core-owned-redirect-destinations = upstream 1.7.233 + redirect work, 2026-08-07).
 Supersedes: `2026-06-15-squash-migrations-plan.md` (June plan; stale).
-Companion: `2026-07-14-squash-inventory.md` (per-version classification of all 150 migrations).
+Companion: `2026-07-14-squash-inventory.md` (per-version classification of all 150 migrations, since
+extended by its own addenda through `V164`).
+
+**Counters re-checked 2026-08-08** (after `10b36a7d`, the merge of upstream's own `V163` — "UUID
+primary-key integrity", PR #688 — landed the day after this file's 2026-08-07 refresh; see the
+inventory's "Post-V161 additions" for the version-by-version detail). The "162 upstream + our V164
+repair; 163 files" accounting on the line above was correct on 2026-08-07 — at that point this
+branch's own repair delta had just moved to `V164` (leaving the `V163` slot deliberately open) and
+upstream's real `V163` had not yet been merged in. It is one version behind reality now: the
+pre-squash chain this line describes would be 164 files (`V01`..`V162`, upstream's real `V163`,
+and this branch's `V164`), not 163. It is **not** what `lib/phoenix_kit/migrations/postgres/`
+actually ships, which is unaffected either way — the squash already ran (floor 135, §4), so the
+shipped chain is 30 files (`V135` baseline + `V136`..`V164`, 29 deltas), a number this line was
+never describing. Left as originally written above rather than edited in place, since the
+surrounding prose ties it to specific reviewer-round claims verified against that exact HEAD;
+corrected here instead so a reader checking "does the file count match reality" is not misled.
 
 All `postgres.ex` line refs are re-anchored to v1.7.196 HEAD (verified by grep; 1.7.197-198
 added only the V149-V151 moduledoc entries above the code section — same-shift caveat applies):
@@ -142,7 +157,7 @@ were removed from these documents. Everything else (unknown public Hex consumers
 bridge-path by design: the guard raises with the stopover message at ANY floor, and the bridge
 release stays on Hex permanently (§7.2).
 
-**Floor candidates** (repo at V163, 28,000 lines / 163 files; per-floor deleted-line figures
+**Floor candidates** (repo at V164, 28,000 lines / 163 files; per-floor deleted-line figures
 unchanged since 1.7.193 — v01..v147 never touched, verified by git diff):
 
 | floor | legacy files removed (v01..v{floor-1} deleted + v{floor} replaced by baseline) | lines removed | delta files remaining |
@@ -464,6 +479,24 @@ transitive-only consumer gets pulled once modules widen; the guard is the loud b
    path: pin bridge → update → confirm ≥ floor on EVERY environment → move to `~> 2.0`.
 4. CHANGELOG/@version: maintainer-sanctioned for this task.
 
+**Status, checked 2026-08-08 against `git log upstream/main..HEAD` and the working tree.** The
+content of both stages has been built — item 1's repair engine/generator/manifest/gen.migration
+fixes landed first (commit `0e4d8e0d`), item 2's baseline + deletions + registry guards landed
+after (commit `af86e3af`) — but the *delivery* mechanism this section specifies (two independently
+mergeable PRs, the first with "zero `v*.ex` contention") has not happened: both stages are commits
+on this one branch, `squash-migrations`, and nothing from it has merged to `upstream/main` yet. The
+PR this branch is about to open (`dev_docs/pull_requests/2026/squash-migrations-PR.md`) is
+therefore a single PR carrying both stages, not the first of two — whether the maintainer wants it
+split before review is now their call, not a decision this branch made for them; flagged as an open
+item in the PR description. Item 3's bridge is no longer abstract: `mix.exs` on this branch reads
+`@version "1.7.235"`, and that is the concrete tag the upgrade guide
+(`dev_docs/guides/2026-08-07-upgrading-to-2.0-guide.md`) names as the bridge — but it is still the
+in-progress version on an unmerged, unreleased branch, not a cut, tagged Hex release; "permanently
+available on Hex" is a property it will have once published, not yet. Item 4 (CHANGELOG entry, the
+`@version` bump itself to `2.0.0`) has not been touched, per this task's own instruction that both
+files are maintainer-owned — confirmed by `git diff --stat` showing neither file changed on this
+branch.
+
 ### 7.3 Re-squash institutionalized
 
 Policy: re-squash when delta > ~100 versions or annually. **Every floor raise is a MAJOR bump
@@ -484,6 +517,21 @@ module packages ship widened pins (`"~> 1.7.196 or ~> 2.0"`). Verified: no modul
 internals → widening is a **patch release per module** (~14 coordinated releases), sequenced
 BEFORE/with the 2.0.0 publish (P5). Risk row §9; consumers advised to keep a direct core pin
 (transitive auto-pull).
+
+**Re-verified 2026-08-08** against every `phoenix_kit_*` checkout under `/www` that has its own
+`mix.exs` (excluding `/www/phoenix_kit_{ciuser,flushfix,i18n,imp,integration,qfix,sec,smtp,
+userfix}`, which `git worktree list` confirms are worktrees of core itself, `app: :phoenix_kit`,
+not separate consumer packages). The individual pins named above have all moved forward with the
+modules' own releases and are stale as *numbers*, but the **conclusion is unchanged and still
+blocking**: every checked-out module still pins a bare `~> 1.7.x` with nothing that would resolve
+against `2.0`, e.g. `catalogue`/`locations` `~> 1.7.189`, `entities`/`warehouse` `~> 1.7.214`,
+`emails` `~> 1.7.217`, `document_creator` `~> 1.7.189`, `ecommerce`/`manufacturing`/`projects`
+`~> 1.7.231`. `crm` uses a two-clause requirement, `"~> 1.7 and >= 1.7.219"`, which is a different
+*style* but the same outcome — it still excludes `2.0.0`. None of the ~14 coordinated
+patch-releases this section calls for have shipped; this remains fully open, and this survey (like
+the spec's original one) cannot see the module packages that are not checked out locally
+(billing, staff, ai, publishing, sync, dashboards, comments) — the "~14" figure itself is carried
+forward from the original spec, not re-derived here.
 
 ---
 

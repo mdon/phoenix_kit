@@ -1,9 +1,9 @@
--- pk-squash-ref kind=s1 schema=public chain_version=163
+-- pk-squash-ref kind=s1 schema=public chain_version=164
 --
 -- PostgreSQL database dump
 --
 
-\restrict Uued8pbRUXnMAeDvMlzlmgMlpofPlxhJfUuRJYNk7an7ErRjkXHwqA5LCYJba20
+\restrict UJnx2tS57ChMdqbG4WT4rx7FnuMLeYvAv6AlJB33s6TbFCa6DHlQrLEOQP4p32h
 
 -- Dumped from database version 17.4 (Debian 17.4-1.pgdg120+2)
 -- Dumped by pg_dump version 17.10 (Debian 17.10-1.pgdg13+1)
@@ -3122,7 +3122,7 @@ CREATE TABLE public.phoenix_kit_users_tokens (
     ip_address character varying(255),
     user_agent_hash character varying(255),
     uuid uuid DEFAULT public.uuid_generate_v7() NOT NULL,
-    user_uuid uuid NOT NULL,
+    user_uuid uuid,
     browser character varying(100),
     os character varying(100),
     CONSTRAINT user_uuid_required_for_non_registration_tokens CHECK (
@@ -10813,5 +10813,5 @@ ALTER TABLE ONLY public.phoenix_kit_warehouse_transfers
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Uued8pbRUXnMAeDvMlzlmgMlpofPlxhJfUuRJYNk7an7ErRjkXHwqA5LCYJba20
+\unrestrict UJnx2tS57ChMdqbG4WT4rx7FnuMLeYvAv6AlJB33s6TbFCa6DHlQrLEOQP4p32h
 

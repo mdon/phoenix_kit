@@ -120,7 +120,17 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
       "ip_address" character varying(255),
       "user_agent_hash" character varying(255),
       "uuid" uuid DEFAULT #{p}uuid_generate_v7() NOT NULL,
-      "user_uuid" uuid NOT NULL
+      -- DECLARED POST-GENERATION CORRECTION (2026-08-08): nullable on purpose.
+      -- V64's `user_uuid_required_for_non_registration_tokens` CHECK exempts
+      -- `context = 'magic_link_registration'` rows — a registration token has
+      -- no user yet, and `UserToken.build_email_token_for_context/2` builds it
+      -- with `user_uuid: nil`, inserted as a bare struct (so NOT NULL RAISES
+      -- rather than returning a changeset error). The generator captured
+      -- NOT NULL because V56/V57 declare this column in their NOT NULL list, a
+      -- snapshot predating V64's CHECK; on the real single-shot installs the
+      -- flush defect skipped that enforcement, which is why registration works
+      -- on them. See v164.ex's `@relaxed_after_v57`.
+      "user_uuid" uuid
     )
     """)
 

@@ -2,7 +2,7 @@
 
 2.0 consolidates the versioned migration chain. `V01`..`V134` no longer exist as
 individual modules; `V135` is a generated **baseline** that produces their
-cumulative schema in one step, and `V136`..`V163` remain as ordinary deltas.
+cumulative schema in one step, and `V136`..`V164` remain as ordinary deltas.
 Nothing about your data changes because of the consolidation itself — but this
 release also carries a **repair** for a long-standing defect, and that part does
 change behavior. Read the whole page before upgrading a production database.
@@ -17,11 +17,15 @@ release (the **bridge**, `{:phoenix_kit, "~> 1.7.235"}`), which still carries
 the full chain, and only then move the pin to `~> 2.0`. Separately, this
 release repairs schema damage that a migration-ordering defect left on
 essentially every install created by
-`mix phoenix_kit.install`. The fix is `V163` — an ordinary delta in the chain,
+`mix phoenix_kit.install`. The fix is `V164` — an ordinary delta in the chain,
 not a separate command — so it runs automatically the moment your update
 reaches it (step 3 below); it adds constraints, and on a large database that
 costs locks and a validation scan, so plan your maintenance window around
-step 3, not step 4.
+step 3, not step 4. `V163`, immediately before it in the same chain, is a
+separate repair (upstream's, not this one's) that promotes some tables'
+`uuid` columns to primary keys — `V164` depends on it having run, because a
+foreign key cannot reference a column with no primary key. Both apply in the
+same `mix phoenix_kit.update` run; you do not invoke them separately.
 
 ## Step by step
 
@@ -44,27 +48,29 @@ step 3, not step 4.
 
 3. **Move the pin** to `{:phoenix_kit, "~> 2.0"}` and run
    `mix phoenix_kit.update` as usual. **This is where the defect below actually
-   gets repaired** — `V163` runs as an ordinary delta in this same chain run
+   gets repaired** — `V164` runs as an ordinary delta in this same chain run
    and adds the missing constraints. On a large database that costs locks and
-   a validation scan (see "What V163 repairs" below); this is the step to run
+   a validation scan (see "What V164 repairs" below); this is the step to run
    in a maintenance window, not step 4.
 
-4. **(Optional — but REQUIRED if your version comment already reads `163`.)**
-   The chain only ever moves forward: a database whose comment already says
-   `163` is considered current, so `V163` will never run on it and the repair
-   below will never reach it. That happens if you tracked a pre-release build
-   whose `V163` predates the foreign-key half of the repair. Check with the
-   count query further down — a healthy install answers ~86, and 19 means the
-   defect is still there. `mix phoenix_kit.repair` is the way in: it creates the
-   missing constraints additively, using the same `NOT VALID` + `VALIDATE`
-   sequence, so everything this page says about locks and maintenance windows
-   applies to it too.
-
-   Otherwise this step is a completeness check only. `V163` in
-   step 3 already applied the fix this page is about — this step is not
-   required for it. `mix phoenix_kit.repair` compares your whole schema
-   against the full manifest and is worth running afterward only to catch
-   anything else that may have drifted, unrelated to this specific defect:
+4. **Optional completeness check.** `V163` and `V164` apply together in step 3
+   inside one `mix phoenix_kit.update` run, so an ordinary upgrade does not stop
+   partway between them — you will not observe an install permanently stuck at
+   comment `163` from following this guide. (A comment reading `163` mid-deploy
+   just means step 3 is still running: `V163` — upstream's own catalog-driven
+   `uuid`-column repair, unrelated in mechanism to the fix this guide is about —
+   has applied and `V164` has not reached its version-comment stamp yet. Continue
+   or re-run `mix phoenix_kit.update`; there is nothing else to do for that case.)
+   This step is for anyone who wants independent confirmation the repair took,
+   or who suspects step 3 stopped for an unrelated reason (see "A failed step 3
+   is safe to re-run" below): check with the count query further down — a
+   healthy install answers ~86, and 19 means the defect is still there.
+   `mix phoenix_kit.repair` compares your whole schema against the full manifest
+   and creates anything missing additively, using the same `NOT VALID` +
+   `VALIDATE` sequence `V164` itself uses, so everything this page says about
+   locks and maintenance windows applies to it too. It is not required if step 3
+   already completed — this is a completeness check, not a second application of
+   the fix:
 
    ```bash
    mix phoenix_kit.repair --dry-run      # reports only, changes nothing
@@ -82,9 +88,9 @@ step 3, not step 4.
    makes; `--dry-run` skips it, because previewing another library's migrator
    is not something this tool can do safely.
 
-## What V163 repairs, and why it exists
+## What V164 repairs, and why it exists
 
-The fix ships as `V163` (`lib/phoenix_kit/migrations/postgres/v163.ex`) — an
+The fix ships as `V164` (`lib/phoenix_kit/migrations/postgres/v164.ex`) — an
 ordinary delta, applied automatically wherever `mix phoenix_kit.update` reaches
 it (step 3 above). It is not `mix phoenix_kit.repair`, and it is not a
 separate step you have to remember to run.
@@ -104,7 +110,7 @@ Incrementally-upgraded installs that crossed `V56`/`V57` in separate narrow
 wrappers are unaffected. To see where you stand:
 
 ```sql
--- expect ~86 on a healthy install (measured against a fresh V135..V163 build):
+-- expect ~86 on a healthy install (measured against a fresh V135..V164 build):
 -- 70 are the UUID FK layer this repair targets, the rest are unrelated
 -- fk_-prefixed constraints already present elsewhere in the schema. A much
 -- lower number means the defect hit you.
@@ -153,11 +159,11 @@ Consequences you must plan for:
   and is safe to re-run — but this is the concrete reason to run step 3 with the
   application not serving writes rather than alongside live traffic.
 - **A failed step 3 is safe to re-run.** The generated update wrapper sets
-  `@disable_ddl_transaction true`, so a mid-`V163` failure does not roll back:
+  `@disable_ddl_transaction true`, so a mid-`V164` failure does not roll back:
   every constraint and column change issued before the failure is already
-  committed, but no `schema_migrations` row was inserted for `163` and the
-  version comment still reads `162`. Just run `mix phoenix_kit.update` again —
-  `V163` checks for each constraint and each `NOT NULL` before acting, so it
+  committed, but no `schema_migrations` row was inserted for `164` and the
+  version comment still reads `163`. Just run `mix phoenix_kit.update` again —
+  `V164` checks for each constraint and each `NOT NULL` before acting, so it
   picks up where it left off instead of redoing or duplicating work. This
   isn't a guarantee against every failure: if the cause is persistent (a
   permissions problem, for example), the re-run fails the same way and that
@@ -184,13 +190,13 @@ Consequences you must plan for:
   ```
 
   Swap in the child table, FK column and referenced column for any other pair
-  — the full list V163 validates is in
+  — the full list V164 validates is in
   `lib/phoenix_kit/migrations/uuid_fk_columns.ex`. Run this for every pair
   before your maintenance window so a nonzero count is an expected, planned
   outcome rather than a surprise in the migration log; the query below tells
   you afterward which of your predictions actually came true.
 - **An FK you already have under a different name is adopted, not duplicated.**
-  `V163` matches on shape — column, referenced table, referenced column — not on
+  `V164` matches on shape — column, referenced table, referenced column — not on
   constraint name, so an equivalent foreign key you or Ecto created as
   `<table>_<column>_fkey` is recognised and left alone. If its `ON DELETE`
   action differs from the one this chain declares, that is reported and still
@@ -200,10 +206,10 @@ Consequences you must plan for:
   migration should make for you. Reconcile it by hand if the declared action is
   the one you want.
 - ⚠️ **A degraded outcome still exits successfully.** If a constraint could not
-  be validated, could not be created, or a column had `NULL` rows, `V163` warns,
-  moves on, and the chain still stamps `163` — the deploy goes green with
+  be validated, could not be created, or a column had `NULL` rows, `V164` warns,
+  moves on, and the chain still stamps `164` — the deploy goes green with
   follow-up work outstanding. The run ends with a single
-  `PhoenixKit V163 SUMMARY:` line naming
+  `PhoenixKit V164 SUMMARY:` line naming
   every constraint left `NOT VALID`; **check step 3's output for it.** Each
   named constraint enforces new writes but not the rows already there, and
   re-running the migration will not retry them — clean up the reported rows and

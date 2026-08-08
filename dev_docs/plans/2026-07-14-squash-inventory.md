@@ -328,15 +328,32 @@ accumulator stepped aside; its down/1 stamps '151').
 - V160 (ddl): settings.value VARCHAR(255)->TEXT (validation allowed 1000, column capped 255 —
   real crash class); catalog-only change; down/1 hard-fails if any value exceeds 255 chars.
 
-## Post-V160 additions (2026-08-04, V163 after renumber — shape-bimodality repair)
+## Post-V160 additions (2026-08-04, V164 after renumber — shape-bimodality repair)
 
-> ✅ **RENUMBERED to V163 (7th event, done 2026-08-07).** The 161 slot went to upstream PR #681
-> (our own citext `users.username`) and 162 to #682 (payment-option linkage, itself renumbered
-> off 161) — this repair migration moved to V163 in the merge that brought upstream 1.7.233 in:
-> file+module, self-stamp `'163'`, `down/1` restamp `'162'`, `@current_version 163`, moduledoc
-> `⚡ LATEST`, and the guard test (`v163_relaxed_columns_test.exs`, `@exempt_version 163`).
-> The manifest must be REGENERATED before it is trusted again — its `chain_hash` still pins the
-> pre-merge V161 file set.
+> ✅ **RENUMBERED to V164 (done 2026-08-07).** The 161 slot went to upstream PR #681 (our own
+> citext `users.username`) and 162 to #682 (payment-option linkage, itself renumbered off 161) —
+> this repair migration moved to V164 in the merge that brought upstream 1.7.233 in: file+module
+> renamed, self-stamp `'164'`, `down/1` restamp `'163'`, `@current_version 164`, moduledoc
+> `⚡ LATEST`, and the guard test `v164_relaxed_columns_test.exs`. That restamp target (`'163'`)
+> was correct on the day it was written and stays correct today for an unrelated reason: the very
+> next day upstream landed its own real V163 (see "Post-V161 additions" below), so 163 is once
+> again the version directly below 164 — just a different migration's content than whatever sat
+> there when this line was drafted.
+>
+> **What the renumber left stale, confirmed live 2026-08-08 and NOT fixed by this docs-only
+> pass:** `v164.ex`'s own moduledoc and source still say `163` in three places that mean *this*
+> migration, not upstream's — a doc-comment citing `test/phoenix_kit/migrations/v163_relaxed_columns_test.exs`
+> (the real file is `v164_relaxed_columns_test.exs`), a comment naming `V163RelaxedColumnsTest`
+> (the real module is `V164RelaxedColumnsTest`), and, more seriously, the `IO.warn` text a
+> production run actually prints when a constraint is left `NOT VALID` — it says "the version
+> comment now reads 163", but `up/1` self-stamps `'164'` two lines away from where that string is
+> built, so the message is simply wrong. `test/phoenix_kit/migrations/v164_relaxed_columns_test.exs`
+> carries the matching artifact: `@exempt_version 163`, set by a version comment that says "V164
+> itself is exempt" — the constant should read `164`. None of this is a schema-correctness bug
+> (self-stamping and the actual restamp value are right; only prose and one log message are
+> wrong), but it will confuse the first person who reads the log or greps for the test file. Flag
+> for a follow-up lib/test change; out of scope for this pass (docs only, no `lib/`/`test/`
+> edits).
 
 - V161 (repair, no-op on any chain run from here on): fixes the fallout of V56/V57's missing
   flush() between UUIDFKColumns.up/1 (queues ~80 ADD COLUMNs) and add_constraints/1 (immediate
@@ -388,7 +405,7 @@ an immediate existence/state guard needs a `flush()` between them, or this exact
 recurs under a fresh-install-only code path most contributors never manually exercise (stepwise,
 incremental upgrades are the much more commonly tested path).
 
-### Hazard: install-PATH bimodality from prefix-unsafe DDL (found 2026-08-08 by Mode A, normalized by V163)
+### Hazard: install-PATH bimodality from prefix-unsafe DDL (found 2026-08-08 by Mode A, normalized by V164)
 
 A second bimodality axis, independent of the stepwise-vs-single-shot one above and invisible to
 every scenario that runs in a named scratch schema: two pre-squash migrations produce a
@@ -414,7 +431,7 @@ objects — confirmed against a live pre-production database, and reported by
 
 `--mode b` cannot see this by construction: both sides of its comparison are named schemas. It
 took the `--mode a` (public-path) oracle to surface it, which is the concrete argument for
-keeping that mode runnable. `V163` normalizes both objects onto the public/intended shape on
+keeping that mode runnable. `V164` normalizes both objects onto the public/intended shape on
 every install, so the axis is closed rather than tolerated; it is a complete no-op on a real
 public install, and the two names plus the index are listed in `verify.exs`'s committed
 `:legacy_optional` whitelist so the OLD chain's named-schema output may legitimately differ from
@@ -424,9 +441,105 @@ ours.
 a silent schema fork between install paths. `CLAUDE.md`'s prefix-safety rules already say index
 names stay bare on `CREATE` and are qualified on `DROP`; this is what happens when they are not.
 
+## Post-V161 additions (2026-08-08 — V162, upstream's real V163, and this delta's second renumber)
+
+- V162 (ddl): `phoenix_kit_orders.payment_option_uuid` — a nullable FK (+ default-named index) to
+  `phoenix_kit_payment_options`, `ON DELETE SET NULL`. Distinct from `payment_method` (the small
+  closed vocabulary — `bank`/`stripe`/`paypal`/…): this is the specific operator-configured option
+  row the customer picked, previously discarded at checkout. Idempotent by construction — a raw
+  guarded `DO $$` block rather than `add_if_not_exists` + `references`, because Ecto emits the
+  column and its constraint as separate statements and only the column carries `IF NOT EXISTS`
+  (v162.ex:33-79); the FK-existence check matches on presence of *any* FK on the column, not on a
+  specific constraint name, so a differently-named one from an earlier build of this same
+  migration is recognized and left alone rather than duplicated. Self-stamps `'162'`; `down/1`
+  drops the column and constraint, restamps `'161'`.
+
+- V163 (repair, upstream PR #688, catalog-driven, no-op on a correct install): fixes any
+  `phoenix_kit_*` table whose `uuid` column is the wrong type, nullable, or not the primary key —
+  the state `V40`/`V56`/`V74` each assumed impossible and a production install reached anyway. The
+  reported instance: `phoenix_kit_email_events.uuid` was `character varying(255)`, nullable, no
+  default, and the table had no primary key at all — invisible to `V40` (whose guard tests column
+  *existence*, not type, and an older release had already created the column as Ecto `:string`)
+  and to `V56` (whose native-type conversion pass was added seventeen days after V56 itself
+  shipped, so any host that crossed V56 in that window kept the broken column permanently). Rather
+  than enumerate tables by hand — every earlier attempt did, and this table was missing from every
+  list — V163 asks the catalog which tables are actually broken. Above two million rows the
+  `ALTER COLUMN ... TYPE uuid` rewrite and the `ADD PRIMARY KEY` are DEFERRED and logged with the
+  exact remediation command rather than taking an `ACCESS EXCLUSIVE` lock mid-deploy;
+  `mix phoenix_kit.doctor` is the loud channel for what was deferred. Never raises on the happy
+  path — a latent, one-table problem turned into a fleet-wide failed deploy would be worse than
+  the problem itself. Self-stamps `'163'`; this is upstream's own version, not this branch's.
+
+  **Order matters, and it is not incidental.** `V163` runs immediately before `V164` in the merged
+  chain, and `V164`'s own moduledoc states the dependency explicitly: "a foreign key cannot
+  reference a column with no unique/primary key, so promoting `uuid` to PK here is what lets
+  `V164`'s FK repair validate." Concretely — of `V164`'s ~70 declared foreign keys, every one whose
+  referenced column is a table's `uuid` primary key needs that PK to already exist before
+  `ADD CONSTRAINT ... FOREIGN KEY` can even attempt validation; on the one table `V163` names as
+  its worked example, `phoenix_kit_email_events`, that PK did not exist before `V163` ran. Running
+  the two in the opposite order is not merely untested, it is a chain that cannot validate.
+
+  **Correction owed to upstream.** Upstream's own moduledoc entry for `V163` did not survive their
+  merge into this branch intact — `postgres.ex`'s moduledoc section for `V163` landed positioned
+  above `V162`'s body, and `V162`'s own heading was lost in the process (mechanical fallout of two
+  moduledoc-collapsing edits landing on the same lines from different directions — this branch's
+  own V01..V134 collapse, and upstream's ordinary per-release entry, colliding at the merge base).
+  This branch's merge resolution restored both headings in the correct order and correct content
+  (`postgres.ex`, the `V164`/`V163`/`V162`/`V161` moduledoc block) — carry that fix back upstream;
+  it is not specific to this branch and their own `main` likely still has the defect.
+
+- V164 (this branch's own delta, finalized 2026-08-07, one migration by explicit decision — see
+  the "Post-V160 additions" section above for the full flush-order defect it repairs): the version
+  ultimately ships three repairs the branch carried as drafts at various points, folded into one
+  migration rather than split across several — re-imposing `NOT NULL` and the ~70 declared FK
+  constraints `V56`/`V57` silently skipped on any single-shot chain run, correcting
+  `fk_comments_user_uuid` from a guessed `CASCADE` to the originally-declared `SET NULL`, and
+  normalizing the two objects the "Hazard: install-PATH bimodality" section above documents
+  (`idx_publishing_posts_group_slug`'s missing partial predicate, and the
+  `phoenix_kit_subscription_plans_slug_uidx` → `..._types_slug_uidx` rename) onto the shape every
+  real `public` install already has. All three are additive/corrective and no-ops on a healthy
+  install; `S21` (see `dev_docs/squash/COVERAGE.md`) is the scenario that proves the repair half by
+  damaging a healthy install the same way the flush defect did and asserting full restoration.
+
+  **This delta's own renumbering is the seventh AND eighth events in the chain-wide ledger this
+  document and `dev_docs/squash/README.md` track.** The ledger through `V151`→`V152` (2026-07-15)
+  already stands at six (this document's own "Post-V148"/"Post-V151" addenda name the `V149`→`V150`
+  move the fifth and `V151`→`V152` the sixth). This delta's first move, `V161`→`V163` — made room for
+  upstream PRs #681 (citext `username`, landed as their real `V161`) and #682 (payment-option
+  linkage, landed as `V162`) — is the seventh. Its second move, `V163`→`V164`, made the day before
+  upstream's *own*, unrelated `V163` (UUID primary-key integrity, PR #688) landed and reclaimed the
+  slot this delta had just vacated, is the eighth. Two renumbers for the same delta inside a single
+  branch, on top of six earlier chain-wide ones, is exactly the argument for why nothing in the
+  harness or the tooling hardcodes a version number: floor and head are always read from the
+  compiled registry (`Postgres.initial_version/0` / `current_version/0`), never written as a
+  literal anywhere generation or verification runs.
+
+- **Manifest gap, confirmed live 2026-08-08, not closed by this docs-only pass.** The upstream
+  merge that brought `V163` in (`10b36a7d`) did not touch
+  `lib/phoenix_kit/migrations/expected_schema.ex` — `git show 10b36a7d --stat -- lib/phoenix_kit/migrations/expected_schema.ex`
+  returns nothing. The generated manifest therefore has zero knowledge of `V163`'s objects (the
+  `uuid`-column type/nullability/PK-promotion repairs on however many tables the catalog scan finds
+  broken on a given install). Per the policy this same document and `dev_docs/squash/README.md`
+  state ("regenerate after any rebase that touches `v*.ex`, and after every renumber event"), the
+  manifest needs regeneration before it can be trusted for any table `V163` touches — until then,
+  `mix phoenix_kit.repair`/verify's view of those objects reflects the pre-`V163` shape. The
+  manifest's own header comment (`expected_schema.ex:11-19`) independently confirms it predates
+  even the `V164` renumber's completion: it still describes the chain as "initial=1 current=163
+  files=163" / "initial=135 current=163 files=29", one version behind the code it ships next to
+  (`postgres.ex`'s `@current_version` is `164`; the file count is otherwise correct at 29 deltas).
+  The `@chain_hash` constant itself WAS updated in the `V164` renumber commit (`6adf55b6`) — only
+  the free-text header prose was left stale, and neither was touched again for `V163`. This is the
+  single largest open item this pass surfaced: the "21 PASS, 0 FAIL" full-matrix result
+  `dev_docs/squash/README.md` reports for 2026-08-08 predates both the final renumber commit and
+  the upstream merge, by commit-graph position (`6adf55b6` and `10b36a7d` are the two most recent
+  commits on this branch). Whether that run's PASS result still holds against the current HEAD is
+  unverified — regenerating the manifest and re-running the full scenario matrix against HEAD is a
+  prerequisite this document is not in a position to close (no `lib/` edits, no database scenarios
+  in this pass).
+
 ## What the squash changed (P3, floor 135)
 
-Executed 2026-08-07 against v1.7.233/V163 with **floor = 135** (operator-decided; not the 121
+Executed 2026-08-07 against v1.7.233/V164 with **floor = 135** (operator-decided; not the 121
 candidate this document's earlier floor table anticipated). Mechanical outcome:
 
 - `lib/phoenix_kit/migrations/postgres/v01.ex`..`v134.ex` (134 files) deleted; `v135.ex`
@@ -434,7 +547,7 @@ candidate this document's earlier floor table anticipated). Mechanical outcome:
   11,156 lines / 1,199 `execute` statements — final post-V134 shape only, class-ordered
   extensions < functions < sequences < tables < indexes < constraints < Oban delegation <
   seeds < version stamp). `lib/phoenix_kit/migrations/postgres/` now holds 28 delta modules
-  (V136..V163) + `helpers.ex` + the new `v135.ex`, down from 163 version files.
+  (V136..V164) + `helpers.ex` + the new `v135.ex`, down from 163 version files.
 - `lib/phoenix_kit/migrations/expected_schema.ex` promoted from
   `dev_docs/squash/output/expected_schema.ex` (the generated `PhoenixKit.Migrations.ExpectedSchema`
   manifest — `PhoenixKit.Migrations.ExpectedSchema.Resolver`'s default module, confirmed
@@ -443,15 +556,15 @@ candidate this document's earlier floor table anticipated). Mechanical outcome:
   spec §5.2 pre-squash, dormant) are now live for real installs — below-floor raise, fresh-DB
   clamp to V135, and the down/1 teardown split at the floor boundary all activated without code
   changes to those functions themselves. The moduledoc's V01..V134 narrative (~1,125 lines)
-  collapsed into one baseline entry; V135..V163 entries and the ⚡ LATEST discipline kept as-is.
+  collapsed into one baseline entry; V135..V164 entries and the ⚡ LATEST discipline kept as-is.
   The dormant `{83, …}` `version_checks/0` heal entry (V83's comment-prefix bug — V83 is now
   inside the baseline, below the floor) pruned to `[]`; the heal mechanism itself stays for a
   future version's bug of the same class.
 - **`PhoenixKit.Migrations.UUIDFKColumns` was NOT retired**, despite this document's and the
   spec's §5.4 note that its callers (v56/v57/v70) are "all below any candidate floor". That was
-  true when written but went stale: `V163` (added 2026-08-07, after the note) also calls
-  `UUIDFKColumns.not_null_uuid_fks/0` and `UUIDFKColumns.@fk_constraints`, and V163 is *above*
-  the floor — it survives the squash. Deleting `UUIDFKColumns` would have broken V163's compile.
+  true when written but went stale: `V164` (added 2026-08-07, after the note) also calls
+  `UUIDFKColumns.not_null_uuid_fks/0` and `UUIDFKColumns.@fk_constraints`, and V164 is *above*
+  the floor — it survives the squash. Deleting `UUIDFKColumns` would have broken V164's compile.
   Left in place, undocumented-as-dead (it is very much alive).
 - `PhoenixKit.Migrations.UUIDRepair` (the `< 40`-gated pre-1.7.0 upgrade repairer) and its
   `mix phoenix_kit.update` pre-migration call site WERE retired — genuinely dead at floor 135

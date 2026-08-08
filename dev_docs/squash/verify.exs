@@ -43,7 +43,7 @@ defmodule PhoenixKit.Squash.Verify do
   (SKIPs are fine), 1 otherwise, 2 for configuration/usage errors.
 
   S21 is a later addition, not part of the original spec's numbered S1-S20
-  matrix: it proves `PhoenixKit.Migrations.Postgres.V163` (the repair for
+  matrix: it proves `PhoenixKit.Migrations.Postgres.V164` (the repair for
   the historical V56/V57 flush-order defect, see that module's own
   moduledoc) actually repairs a damaged database, restores idempotently,
   and grants an orphan-blocked FK the documented NOT VALID grace — none of
@@ -79,7 +79,7 @@ defmodule PhoenixKit.Squash.Verify do
   """
 
   alias PhoenixKit.Migrations.Postgres
-  alias PhoenixKit.Migrations.Postgres.V163
+  alias PhoenixKit.Migrations.Postgres.V164
   alias PhoenixKit.Migrations.Repair
   alias PhoenixKit.Migrations.Repair.Environment, as: RepairEnvironment
   alias PhoenixKit.Migrations.Repair.Report
@@ -112,10 +112,18 @@ defmodule PhoenixKit.Squash.Verify do
   #   unique index on subscription_types.slug named `..._types_slug_uidx` on
   #   the public path and `..._plans_slug_uidx` on the named path. The baseline
   #   was generated from a NAMED-schema replay, so it carries the named-path
-  #   shapes; V163 normalizes every install onto the public/intended shapes
-  #   (a no-op on real public installs). These entries therefore tolerate the
-  #   OLD chain's named-schema output differing from ours BY DESIGN — in
-  #   `--mode a` there is no diff to tolerate at all.
+  #   shapes; V164 normalizes every install onto the public/intended shapes
+  #   (a no-op on real public installs).
+  #
+  #   These three are belt-and-braces, NOT load-bearing: measured on
+  #   2026-08-08, with a bridge checkout that carries V164, both modes compare
+  #   exactly on these objects and the only tolerated diff in `--mode a` was
+  #   `preferred_locale` (+ its index). They exist for the case where the
+  #   reference was built on a bridge checkout WITHOUT V164 — a real `1.7.235`
+  #   tag, say — where the old chain's named-schema output legitimately keeps
+  #   the unnormalized shapes. If you rebuild the references on a V164-carrying
+  #   bridge and want the strictest possible oracle, drop these three (or run
+  #   with `PK_SQUASH_WHITELIST` narrowed) and they should still compare equal.
   @legacy_optional_default [
     "phoenix_kit_users.preferred_locale",
     "phoenix_kit_users_preferred_locale_index",
@@ -448,10 +456,10 @@ defmodule PhoenixKit.Squash.Verify do
         id: "s21",
         spec: "S21",
         title:
-          "V163 repair: restores FKs/NOT NULL/comments-FK ON DELETE after the V56/V57 " <>
+          "V164 repair: restores FKs/NOT NULL/comments-FK ON DELETE after the V56/V57 " <>
             "flush-order defect, is idempotent, and grants an orphan-blocked FK NOT VALID",
         requires: [:squashed_registry, :db],
-        run: &s21_v163_repair/1
+        run: &s21_v164_repair/1
       },
       %{
         id: "s22",
@@ -1286,7 +1294,7 @@ defmodule PhoenixKit.Squash.Verify do
   # once more, and that generates exactly ONE further wrapper pinned to the new
   # head — so model it instead of leaving the install short. Without this, s5(i)
   # starts failing the day a delta is added rather than when something breaks
-  # (it did, when V163 grew the normalization). Fires only when a gap remains,
+  # (it did, when V164 grew the normalization). Fires only when a gap remains,
   # so the s5(iv) round-trip (to_max well below the set's end) is unaffected.
   defp catch_up_to_head(ctx, prefix, to_max) do
     last_pinned = S5Fixtures.wrapper_versions() |> Enum.map(&elem(&1, 1)) |> Enum.max()
@@ -2393,11 +2401,11 @@ defmodule PhoenixKit.Squash.Verify do
   end
 
   # ---------------------------------------------------------------------------
-  # S21 — V163 repair for the V56/V57 flush-order defect (added later; not
+  # S21 — V164 repair for the V56/V57 flush-order defect (added later; not
   # part of the original spec's S1-S20 matrix — see the moduledoc note).
   # ---------------------------------------------------------------------------
   #
-  # V163 (lib/phoenix_kit/migrations/postgres/v163.ex) repairs three things
+  # V164 (lib/phoenix_kit/migrations/postgres/v164.ex) repairs three things
   # on an install that crossed the historical V56/V57 flush-order bug:
   #   1. NOT NULL on UUIDFKColumns.not_null_uuid_fks/0, minus its own
   #      @relaxed_after_v57 exclusion list.
@@ -2409,25 +2417,25 @@ defmodule PhoenixKit.Squash.Verify do
   #
   # The real V56/V57 bug was a per-{table,column} information_schema guard
   # reading stale (unflushed) state — it hit the WHOLE not_null_uuid_fks/0
-  # and fk_constraints/0 lists uniformly, not just the slice V163 later
+  # and fk_constraints/0 lists uniformly, not just the slice V164 later
   # chooses to repair. So the defect simulation below drops NOT NULL on
   # EVERY not_null_uuid_fks/0 column (no exclusion) and every fk_constraints/0
   # FK — that is what actually reproduces "an install that crossed V56/V57 in
   # one migrator invocation". @relaxed_after_v57's two columns are then
-  # expected to STILL be nullable afterward specifically because V163 never
+  # expected to STILL be nullable afterward specifically because V164 never
   # touches them (by design), not because the healthy baseline happens to
   # leave them nullable on its own — it does not, for one of the two:
   # phoenix_kit_ticket_status_history.changed_by_uuid is baked as `NOT NULL`
   # in the squashed V135 baseline (verified against that file's CREATE
-  # TABLE) despite being on @relaxed_after_v57 — V163's own moduledoc
+  # TABLE) despite being on @relaxed_after_v57 — V164's own moduledoc
   # documents this as a genuine contradiction inside V56/V57's own two
   # declarations (its FK is ON DELETE SET NULL, which NOT NULL makes
   # unsatisfiable), not a later relaxation like phoenix_kit_files.user_uuid.
   # Asserting "still nullable" against the untouched baseline state would
   # therefore silently test nothing for that column; damaging it first and
-  # confirming V163 leaves it alone is the real assertion.
+  # confirming V164 leaves it alone is the real assertion.
 
-  defp s21_v163_repair(ctx) do
+  defp s21_v164_repair(ctx) do
     first_failure([
       s21_repair_and_idempotence(ctx),
       s21_orphan_grace(ctx)
@@ -2449,13 +2457,20 @@ defmodule PhoenixKit.Squash.Verify do
 
     s21_simulate_flush_defect!(ctx, t)
 
-    IO.puts("  [s21] restamping #{t} to v162 and running the chain to v163 (V163 repair)...")
-    restamp_comment!(ctx, t, 162)
-    MigrationRunner.run_new_chain_existing(ctx.repo, t, 162, to_version: 163)
+    repair_to = MigrationRunner.current_version()
+    repair_from = repair_to - 1
+
+    IO.puts(
+      "  [s21] restamping #{t} to v#{repair_from} and running the chain to " <>
+        "v#{repair_to} (the repair delta)..."
+    )
+
+    restamp_comment!(ctx, t, repair_from)
+    MigrationRunner.run_new_chain_existing(ctx.repo, t, repair_from, to_version: repair_to)
 
     case s21_assert_repaired(ctx, t) do
       :pass ->
-        IO.puts("  [s21] PASS: V163 restored every FK / NOT NULL / comments-FK direction")
+        IO.puts("  [s21] PASS: V164 restored every FK / NOT NULL / comments-FK direction")
         s21_idempotence(ctx, t)
 
       fail ->
@@ -2464,10 +2479,18 @@ defmodule PhoenixKit.Squash.Verify do
   end
 
   defp s21_idempotence(ctx, t) do
-    IO.puts("  [s21] re-running the repair a second time (restamp to v162, run to v163)...")
+    repair_to = MigrationRunner.current_version()
+    repair_from = repair_to - 1
+
+    IO.puts(
+      "  [s21] re-running the repair a second time (restamp to v#{repair_from}, " <>
+        "run to v#{repair_to})..."
+    )
+
     before_dump = DumpHelper.dump!(t)
-    restamp_comment!(ctx, t, 162)
-    MigrationRunner.run_new_chain_existing(ctx.repo, t, 162, to_version: 163)
+    repair_to = MigrationRunner.current_version()
+    restamp_comment!(ctx, t, repair_to - 1)
+    MigrationRunner.run_new_chain_existing(ctx.repo, t, repair_to - 1, to_version: repair_to)
     after_dump = DumpHelper.dump!(t)
 
     case compare_dumps(ctx, "s21_idempotent", before_dump, t, after_dump, t, []) do
@@ -2517,7 +2540,7 @@ defmodule PhoenixKit.Squash.Verify do
   end
 
   defp s21_assert_repaired(ctx, t) do
-    relaxed = V163.relaxed_after_v57()
+    relaxed = V164.relaxed_after_v57()
 
     problems =
       s21_check_fk_constraints(ctx, t) ++
@@ -2549,7 +2572,7 @@ defmodule PhoenixKit.Squash.Verify do
             ["#{constraint} exists but is NOT VALID (convalidated=false)"]
 
           {false, _} ->
-            # V163 matches FKs by SHAPE, not by name: where an equivalent FK
+            # V164 matches FKs by SHAPE, not by name: where an equivalent FK
             # already enforces this exact pair under another name (Ecto's
             # `<table>_<column>_fkey`, which the baseline creates for
             # phoenix_kit_ai_requests.prompt_uuid), it adopts that one instead of
@@ -2567,7 +2590,7 @@ defmodule PhoenixKit.Squash.Verify do
 
   # `pairs` is either (not_null_uuid_fks/0 -- @relaxed_after_v57), expected
   # NOT NULL again (expect_nullable? = false), or @relaxed_after_v57 itself,
-  # expected to stay nullable (expect_nullable? = true) — V163 never touches
+  # expected to stay nullable (expect_nullable? = true) — V164 never touches
   # the latter.
   defp s21_check_not_null(ctx, t, pairs, expect_nullable?) do
     Enum.flat_map(pairs, fn {table, column} ->
@@ -2584,7 +2607,7 @@ defmodule PhoenixKit.Squash.Verify do
           ["#{table_str}.#{column} is NOT NULL, expected to stay nullable (@relaxed_after_v57)"]
 
         _other ->
-          ["#{table_str}.#{column} is nullable, expected NOT NULL after V163's repair"]
+          ["#{table_str}.#{column} is nullable, expected NOT NULL after V164's repair"]
       end
     end)
   end
@@ -2725,8 +2748,8 @@ defmodule PhoenixKit.Squash.Verify do
     IO.puts(
       "  [s21C] building a fresh, healthy install into #{t}, dropping " <>
         "fk_billing_profiles_user_uuid, and inserting a #{@s21_orphan_table} row whose " <>
-        "#{@s21_orphan_fk_column} points at a non-existent user before restamping to v162 " <>
-        "and running V163..."
+        "#{@s21_orphan_fk_column} points at a non-existent user before restamping to " <>
+        "and running V164..."
     )
 
     MigrationRunner.run_new_chain_fresh(ctx.repo, t)
@@ -2743,8 +2766,9 @@ defmodule PhoenixKit.Squash.Verify do
         @s21_orphan_fk_column => "'#{@s21_orphan_uuid}'"
       })
 
-    restamp_comment!(ctx, t, 162)
-    MigrationRunner.run_new_chain_existing(ctx.repo, t, 162, to_version: 163)
+    repair_to = MigrationRunner.current_version()
+    restamp_comment!(ctx, t, repair_to - 1)
+    MigrationRunner.run_new_chain_existing(ctx.repo, t, repair_to - 1, to_version: repair_to)
 
     {exists, validated} = s21_fk_constraint_state(ctx, t, @s21_orphan_table, constraint)
     row_survived? = row_exists?(ctx, t, @s21_orphan_table, "uuid", row_uuid)
@@ -2758,17 +2782,17 @@ defmodule PhoenixKit.Squash.Verify do
 
     cond do
       not exists ->
-        {:fail, "s21(C): #{constraint} was not recreated by V163 despite the orphan row"}
+        {:fail, "s21(C): #{constraint} was not recreated by V164 despite the orphan row"}
 
       validated ->
         {:fail, "s21(C): #{constraint} validated despite the orphan row — expected NOT VALID"}
 
       not row_survived? ->
-        {:fail, "s21(C): the orphan #{@s21_orphan_table} row was deleted by V163's repair"}
+        {:fail, "s21(C): the orphan #{@s21_orphan_table} row was deleted by V164's repair"}
 
       current_fk_value != @s21_orphan_uuid ->
         {:fail,
-         "s21(C): the orphan row's #{@s21_orphan_fk_column} was modified by V163's repair " <>
+         "s21(C): the orphan row's #{@s21_orphan_fk_column} was modified by V164's repair " <>
            "(now #{inspect(current_fk_value)}, expected #{@s21_orphan_uuid} unchanged)"}
 
       true ->
