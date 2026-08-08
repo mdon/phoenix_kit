@@ -59,12 +59,17 @@ defmodule PhoenixKit.Mentions do
         def visible_resource_uuids(uuids, opts), do: [...]
       end
 
-  Both are optional. A handler without `search_resources/2` is resolvable but
-  not offerable — reasonable for a type that should be linkable from an
-  activity row yet never suggested. A handler without
-  `visible_resource_uuids/2` is treated as **public**: everything it resolves
-  is shown, which is right for genuinely public records and wrong for
-  anything else, so the fail-open is documented rather than silent.
+  A handler without `search_resources/2` is resolvable but not offerable —
+  reasonable for a type that should be linkable from an activity row yet
+  never suggested by the typeahead.
+
+  `visible_resource_uuids/2` is what makes a type mentionable at all.
+  Without it, a mention of that type renders REDACTED, because a token can
+  be typed by hand into any textarea and "the module didn't implement the
+  check" must never mean "show it to everyone". The only exception is
+  `user`: the `@` typeahead already lists every pingable account to anyone
+  who can reach the admin area, so a name is not something a mention can
+  leak.
   """
 
   import Ecto.Query
@@ -247,24 +252,42 @@ defmodule PhoenixKit.Mentions do
   the moduledoc. Anything that raises fails CLOSED (nothing visible): a
   broken permission check must not become an open door.
   """
+  # Types whose records are not secret, and which therefore need no
+  # per-viewer check. Only people: the `@` typeahead already lists every
+  # pingable account to anyone who can reach the admin area, so a name is
+  # not something a mention can leak. Everything else must opt in.
+  @public_types ~w(user)
+
   # A plain list, not a MapSet: dialyzer treats MapSet as opaque and flags
   # every spec that names it (the same false positive the flag resolver
   # works around). Callers that need membership build their own set.
+  #
+  # FAIL-CLOSED for anything not on @public_types. A token can be typed by
+  # hand into any textarea, so "this type didn't implement the check" must
+  # not mean "show it to everyone" — most registered types (posts, files,
+  # CRM contacts and companies, integrations) declare no check at all, and
+  # treating silence as consent renders their titles and live links to any
+  # reader who is handed a uuid.
   @spec visible(String.t(), [String.t()], keyword()) :: [String.t()]
   def visible(_type, [], _opts), do: []
 
   def visible(type, uuids, opts) do
-    case Map.get(ResourceLinks.handlers(), type) do
-      nil ->
+    cond do
+      type in @public_types ->
         uuids
 
-      mod ->
+      mod = Map.get(ResourceLinks.handlers(), type) ->
         if exports?(mod, :visible_resource_uuids, 2) do
           # credo:disable-for-next-line Credo.Check.Refactor.Apply
           mod |> apply(:visible_resource_uuids, [uuids, opts]) |> List.wrap()
         else
-          uuids
+          []
         end
+
+      true ->
+        # No handler at all: nothing can resolve it either, so this renders
+        # as the author's stored label — plain text, no link, no leak.
+        uuids
     end
   rescue
     e ->
@@ -470,30 +493,30 @@ defmodule PhoenixKit.Mentions do
     source_uuid = Keyword.get(opts, :source_uuid)
     preview = opts |> Keyword.get(:preview) |> preview_text()
 
-    delivered =
-      mentions
-      |> Enum.filter(&(&1.kind == "user" and is_nil(&1.notified_at)))
-      |> Enum.reject(&(&1.target_uuid == &1.actor_uuid))
-      |> Enum.filter(&can_open_source?(&1, source_type, source_uuid))
-      |> Enum.map(fn mention ->
-        Activity.log(%{
-          action: "mention.created",
-          module: "mentions",
-          mode: "manual",
-          actor_uuid: mention.actor_uuid,
-          resource_type: source_type || mention.source_type,
-          resource_uuid: source_uuid || mention.source_uuid,
-          target_uuid: mention.target_uuid,
-          metadata: %{
-            "notification_text" => "You were mentioned",
-            "preview" => preview
-          }
-        })
+    mentions
+    |> Enum.filter(&(&1.kind == "user" and is_nil(&1.notified_at)))
+    |> Enum.reject(&(&1.target_uuid == &1.actor_uuid))
+    |> Enum.filter(&can_open_source?(&1, source_type, source_uuid))
+    # Claim BEFORE sending: whoever wins the conditional update sends, and
+    # a concurrent save of the same text wins nothing and sends nothing.
+    |> claim_for_delivery()
+    |> Enum.each(fn mention ->
+      Activity.log(%{
+        action: "mention.created",
+        module: "mentions",
+        mode: "manual",
+        actor_uuid: mention.actor_uuid,
+        resource_type: source_type || mention.source_type,
+        resource_uuid: source_uuid || mention.source_uuid,
+        target_uuid: mention.target_uuid,
+        metadata: %{
+          "notification_text" => "You were mentioned",
+          "preview" => preview
+        }
+      })
+    end)
 
-        mention
-      end)
-
-    mark_notified(delivered)
+    :ok
   rescue
     e ->
       Logger.warning("[Mentions] notify failed: #{Exception.message(e)}")
@@ -536,20 +559,33 @@ defmodule PhoenixKit.Mentions do
     |> String.slice(0, 140)
   end
 
-  @doc "Marks mentions delivered so a later re-save can't ping them again."
-  @spec mark_notified([Mention.t()]) :: :ok
-  def mark_notified([]), do: :ok
+  @doc """
+  CLAIMS delivery for these mentions, returning the ones this caller won.
 
-  def mark_notified(mentions) do
+  `WHERE notified_at IS NULL` is what makes it a claim rather than a
+  stamp: two saves of the same field racing (a double submit, two tabs)
+  both see an unnotified row and would both send. Only the update that
+  actually changes a row may deliver.
+  """
+  @spec claim_for_delivery([Mention.t()]) :: [Mention.t()]
+  def claim_for_delivery([]), do: []
+
+  def claim_for_delivery(mentions) do
     uuids = Enum.map(mentions, & &1.uuid)
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    from(m in Mention, where: m.uuid in ^uuids)
-    |> repo().update_all(set: [notified_at: now])
+    {_count, claimed} =
+      from(m in Mention, where: m.uuid in ^uuids and is_nil(m.notified_at), select: m.uuid)
+      |> repo().update_all([set: [notified_at: now]], returning: false)
+      |> case do
+        {count, nil} -> {count, []}
+        other -> other
+      end
 
-    :ok
+    claimed = MapSet.new(claimed || [])
+    Enum.filter(mentions, &MapSet.member?(claimed, &1.uuid))
   rescue
-    _ -> :ok
+    _ -> []
   end
 
   defp exports?(mod, fun, arity) do

@@ -100,21 +100,56 @@ defmodule PhoenixKit.Mentions.Live do
     kind = if params["kind"] == "user", do: :user, else: :resource
     query = params["query"] || ""
 
+    # The SCOPE, not just the uuid. A handler asks `Authz.admin_all?` (or
+    # its own equivalent), which only answers for a scope — pass a bare
+    # uuid and a site admin silently gets the membership-only list, so
+    # every project they don't personally belong to vanishes from their
+    # own typeahead.
     results =
-      Mentions.search(kind, query, user_uuid: current_user_uuid(socket))
+      Mentions.search(kind, query,
+        scope: socket.assigns[:phoenix_kit_current_scope],
+        user_uuid: current_user_uuid(socket)
+      )
       |> Enum.map(fn r ->
+        kind = if r[:kind] == :user, do: :user, else: :resource
+
         %{
-          kind: Kernel.to_string(r[:kind] || :resource),
+          kind: Kernel.to_string(kind),
           type: r[:type],
           uuid: r[:uuid],
           title: r[:title],
-          subtitle: r[:subtitle]
+          subtitle: r[:subtitle],
+          # The finished token, built and validated HERE. The client used
+          # to assemble it by concatenation, which silently produced
+          # something unparseable whenever a record's own name contained a
+          # `|` or `]` — "Q3 | Launch" stored a broken token that no
+          # renderer would ever link and no index would ever record.
+          token: build_token(kind, r)
         }
       end)
+      |> Enum.filter(& &1.token)
 
     # `seq` is echoed back untouched so the client can drop replies for a
     # query the user has already typed past.
     %{results: results, seq: params["seq"]}
+  end
+
+  # Falls back to a sanitised label rather than dropping the result: a
+  # record whose name happens to contain a delimiter should still be
+  # mentionable, just under a name the grammar can hold.
+  defp build_token(kind, r) do
+    case Mentions.Token.to_string(kind, r[:type], r[:uuid], r[:title]) do
+      {:ok, token} ->
+        token
+
+      :error ->
+        cleaned = r[:title] |> Kernel.to_string() |> String.replace(["|", "]"], " ")
+
+        case Mentions.Token.to_string(kind, r[:type], r[:uuid], cleaned) do
+          {:ok, token} -> token
+          :error -> nil
+        end
+    end
   end
 
   defp current_user_uuid(socket) do

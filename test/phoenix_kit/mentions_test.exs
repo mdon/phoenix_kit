@@ -166,4 +166,36 @@ defmodule PhoenixKit.MentionsTest do
       assert Mentions.context(nil) == %{}
     end
   end
+
+  describe "visible/3 fails closed" do
+    # A token can be typed by hand into any textarea, so a type whose
+    # module declares no visibility check must not render live. Most
+    # registered types (posts, files, CRM contacts, integrations) declare
+    # none, and treating that silence as consent showed their titles and
+    # working links to any reader handed a uuid.
+
+    test "a registered type with no visibility check is redacted" do
+      # `post` is registered by core and implements no check.
+      assert Mentions.visible("post", [@uuid], []) == []
+
+      assert %{{"post", @uuid} => %{state: :forbidden}} =
+               Mentions.context("see #[post:#{@uuid}|Some Post]")
+    end
+
+    test "people stay visible — a name is not a secret here" do
+      # The @ typeahead already lists every pingable account to anyone in
+      # the admin area, so gating mentions of them protects nothing and
+      # would break every ping.
+      assert Mentions.visible("user", [@uuid], []) == [@uuid]
+    end
+
+    test "a type nobody registered renders as the author's words" do
+      # Nothing can resolve it, so there is no title to leak; the reader
+      # should get the sentence, not a lock icon.
+      assert Mentions.visible("nonesuch", [@uuid], []) == [@uuid]
+
+      assert %{{"nonesuch", @uuid} => %{state: :missing}} =
+               Mentions.context("see #[nonesuch:#{@uuid}|Some Thing]")
+    end
+  end
 end

@@ -6273,8 +6273,11 @@ if (typeof window.Chart === "undefined") {
         var value = self.el.value;
         var before = value.slice(0, self.active.start);
         var after = value.slice(self.el.selectionStart);
-        var trigger = r.kind === "user" ? "@" : "#";
-        var token = trigger + "[" + r.type + ":" + r.uuid + "|" + r.title + "]";
+        // The server sends the finished token: building it here by
+        // concatenation produced something unparseable whenever a
+        // record's own name contained a `|` or a `]`.
+        var token = r.token;
+        if (!token) return;
         self.el.value = before + token + " " + after;
         var caret = (before + token + " ").length;
         self.el.setSelectionRange(caret, caret);
