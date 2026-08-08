@@ -496,11 +496,15 @@ defmodule PhoenixKit.Mentions do
     mentions
     |> Enum.filter(&(&1.kind == "user" and is_nil(&1.notified_at)))
     |> Enum.reject(&(&1.target_uuid == &1.actor_uuid))
-    |> Enum.filter(&can_open_source?(&1, source_type, source_uuid))
+    |> Enum.map(&{&1, source_visibility(&1, source_type, source_uuid)})
+    |> Enum.reject(fn {_mention, visibility} -> visibility == :no end)
     # Claim BEFORE sending: whoever wins the conditional update sends, and
     # a concurrent save of the same text wins nothing and sends nothing.
-    |> claim_for_delivery()
-    |> Enum.each(fn mention ->
+    |> then(fn pairs ->
+      claimed = pairs |> Enum.map(&elem(&1, 0)) |> claim_for_delivery() |> MapSet.new(& &1.uuid)
+      Enum.filter(pairs, fn {mention, _} -> MapSet.member?(claimed, mention.uuid) end)
+    end)
+    |> Enum.each(fn {mention, visibility} ->
       Activity.log(%{
         action: "mention.created",
         module: "mentions",
@@ -511,7 +515,10 @@ defmodule PhoenixKit.Mentions do
         target_uuid: mention.target_uuid,
         metadata: %{
           "notification_text" => "You were mentioned",
-          "preview" => preview
+          # Only when something affirmatively said this person may read the
+          # source. Otherwise they get the ping and a link, and the link
+          # answers for itself.
+          "preview" => if(visibility == :yes, do: preview)
         }
       })
     end)
@@ -523,31 +530,40 @@ defmodule PhoenixKit.Mentions do
       :ok
   end
 
-  # Can the mentioned person actually open the thing they'd be notified
-  # about? Asked through the same per-type visibility contract everything
-  # else uses. A source type with no handler is assumed reachable — the
-  # same documented fail-open as `visible/3`, and the alternative would
-  # silently drop every ping in every module that hasn't opted in yet.
-  defp can_open_source?(mention, source_type, source_uuid) do
+  # Can the mentioned person open the thing they're being told about?
+  #
+  # Three-valued on purpose. `:yes` is an affirmative answer from the
+  # source type's own handler. `:unknown` means nothing can answer — the
+  # type has no handler, or its handler declares no visibility check —
+  # which is every source type except projects today.
+  #
+  # `:unknown` still delivers, because failing closed here would silently
+  # drop every ping in every module that hasn't adopted the contract, and
+  # a notification whose link 403s is a dead end, not a disclosure. What
+  # `:unknown` must NOT do is carry a preview of the text: that is the one
+  # place content actually leaves the system, and mailing an excerpt of a
+  # comment to someone the renderer would have shown a locked chip is the
+  # notify path quietly overruling the render path.
+  defp source_visibility(mention, source_type, source_uuid) do
     type = source_type || mention.source_type
     uuid = source_uuid || mention.source_uuid
 
     case Map.get(ResourceLinks.handlers(), type) do
       nil ->
-        true
+        :unknown
 
       mod ->
         if exports?(mod, :visible_resource_uuids, 2) do
           args = [[uuid], [user_uuid: mention.target_uuid]]
           # credo:disable-for-next-line Credo.Check.Refactor.Apply
           allowed = apply(mod, :visible_resource_uuids, args)
-          uuid in List.wrap(allowed)
+          if uuid in List.wrap(allowed), do: :yes, else: :no
         else
-          true
+          :unknown
         end
     end
   rescue
-    _ -> false
+    _ -> :no
   end
 
   defp preview_text(nil), do: nil

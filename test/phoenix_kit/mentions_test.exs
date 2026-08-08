@@ -198,4 +198,27 @@ defmodule PhoenixKit.MentionsTest do
                Mentions.context("see #[nonesuch:#{@uuid}|Some Thing]")
     end
   end
+
+  describe "a crafted record title cannot forge a second mention" do
+    test "a title carrying token syntax is neutralised, not concatenated" do
+      # The attack: name a record `x] @[user:<ceo>|see this`. If the client
+      # concatenated that into grammar, picking it from the typeahead would
+      # insert TWO valid tokens and ping the CEO as the victim, with the
+      # tail invisible once rendered. The token is built server-side and
+      # the grammar refuses those characters in a label.
+      ceo = "018e3c4a-9f6b-7890-abcd-ef1234567899"
+      hostile = "x] @[user:#{ceo}|see this"
+
+      assert Token.to_string(:resource, "project", @uuid, hostile) == :error
+
+      # And the sanitising fallback the picker uses keeps it to one token.
+      cleaned = String.replace(hostile, ["|", "]"], " ")
+      assert {:ok, token} = Token.to_string(:resource, "project", @uuid, cleaned)
+
+      assert [only_one] = Token.parse(token)
+      assert only_one.type == "project"
+      assert only_one.uuid == @uuid
+      refute Enum.any?(Token.parse(token), &(&1.uuid == ceo))
+    end
+  end
 end
