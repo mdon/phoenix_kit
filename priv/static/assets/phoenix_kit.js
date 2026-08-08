@@ -6153,3 +6153,206 @@ if (typeof window.Chart === "undefined") {
   adopt(window.TesseraHooks);
   adopt(window.EtcherHooks);
 })();
+
+// ---------------------------------------------------------------------------
+// MentionInput — @ pings and # record links in any plain textarea.
+//
+// The surface this has to reach is ~70 ordinary `<textarea>` fields, not a
+// rich editor, so this attaches to the field itself and owns nothing else.
+// It watches for a trigger character at a word boundary, tracks the query
+// the user types after it, asks the server, and renders a small list
+// anchored under the caret.
+//
+// The server decides WHAT can be inserted; this decides only where the menu
+// sits and when it closes. Everything it inserts is a complete token, so a
+// half-typed mention is always just text.
+//
+// State is per-hook-instance, never global: several LiveViews can share a
+// page, and two textareas on one page must not fight over one menu.
+// ---------------------------------------------------------------------------
+(function() {
+  if (typeof window === "undefined") return;
+  window.PhoenixKitHooks = window.PhoenixKitHooks || {};
+
+  // A trigger only counts at the start of a word. Without this, an email
+  // address turns the rest of the line into a search box.
+  function triggerAt(value, caret) {
+    var i = caret - 1;
+    while (i >= 0) {
+      var ch = value[i];
+      if (ch === "@" || ch === "#") {
+        var before = i === 0 ? " " : value[i - 1];
+        if (/[\s(\[]/.test(before) || i === 0) {
+          return { char: ch, start: i, query: value.slice(i + 1, caret) };
+        }
+        return null;
+      }
+      // A query is one short run of ordinary characters. Newlines and the
+      // token's own delimiters end it, so an unclosed menu can't swallow a
+      // paragraph.
+      if (/[\n\r\]|]/.test(ch)) return null;
+      if (caret - i > 40) return null;
+      i--;
+    }
+    return null;
+  }
+
+  window.PhoenixKitHooks.MentionInput = {
+    mounted: function() {
+      var self = this;
+      this.el.setAttribute("autocomplete", "off");
+      this.active = null;
+      this.results = [];
+      this.cursor = 0;
+      this.seq = 0;
+
+      this.menu = document.createElement("ul");
+      this.menu.className =
+        "pk-mention-menu menu menu-sm bg-base-100 rounded-box shadow-lg border border-base-300 " +
+        "absolute z-[9999] hidden max-h-64 overflow-y-auto w-72 p-1";
+      this.menu.setAttribute("role", "listbox");
+      document.body.appendChild(this.menu);
+
+      this.close = function() {
+        self.active = null;
+        self.results = [];
+        self.cursor = 0;
+        self.menu.classList.add("hidden");
+      };
+
+      this.render = function() {
+        if (!self.active || !self.results.length) {
+          self.menu.classList.add("hidden");
+          return;
+        }
+        self.menu.innerHTML = "";
+        self.results.forEach(function(r, idx) {
+          var li = document.createElement("li");
+          var a = document.createElement("a");
+          a.className = idx === self.cursor ? "active" : "";
+          a.setAttribute("role", "option");
+          var title = document.createElement("span");
+          title.className = "font-medium truncate";
+          title.textContent = r.title;
+          a.appendChild(title);
+          if (r.subtitle) {
+            var sub = document.createElement("span");
+            sub.className = "text-xs opacity-60 truncate";
+            sub.textContent = r.subtitle;
+            a.appendChild(sub);
+          }
+          // mousedown, not click: click fires after blur, and blur has
+          // already closed the menu by then.
+          a.addEventListener("mousedown", function(e) {
+            e.preventDefault();
+            self.choose(idx);
+          });
+          li.appendChild(a);
+          self.menu.appendChild(li);
+        });
+        self.position();
+        self.menu.classList.remove("hidden");
+      };
+
+      // Anchored to the field rather than the caret: measuring a caret
+      // inside a textarea needs a mirror element, and being a few lines off
+      // is a much smaller problem than a menu that drifts as the text
+      // reflows.
+      this.position = function() {
+        var rect = self.el.getBoundingClientRect();
+        var top = rect.bottom + window.scrollY + 4;
+        var left = rect.left + window.scrollX;
+        var maxLeft = window.scrollX + document.documentElement.clientWidth - self.menu.offsetWidth - 8;
+        self.menu.style.top = top + "px";
+        self.menu.style.left = Math.max(8, Math.min(left, maxLeft)) + "px";
+      };
+
+      this.choose = function(idx) {
+        var r = self.results[idx];
+        if (!r || !self.active) return;
+        var value = self.el.value;
+        var before = value.slice(0, self.active.start);
+        var after = value.slice(self.el.selectionStart);
+        var trigger = r.kind === "user" ? "@" : "#";
+        var token = trigger + "[" + r.type + ":" + r.uuid + "|" + r.title + "]";
+        self.el.value = before + token + " " + after;
+        var caret = (before + token + " ").length;
+        self.el.setSelectionRange(caret, caret);
+        self.close();
+        // The field is inside a phx-change form; without this the server
+        // never sees the inserted token and the next save writes the old
+        // text back over it.
+        self.el.dispatchEvent(new Event("input", { bubbles: true }));
+        self.el.focus();
+      };
+
+      this.search = function() {
+        var caret = self.el.selectionStart;
+        var found = triggerAt(self.el.value, caret);
+        if (!found) {
+          self.close();
+          return;
+        }
+        self.active = found;
+        self.seq += 1;
+        var seq = self.seq;
+        self.pushEvent(
+          "pk_mention_search",
+          { kind: found.char === "@" ? "user" : "resource", query: found.query, seq: seq },
+          function(reply) {
+            // Out-of-order replies: the user kept typing while this one was
+            // in flight, so its results describe a query that no longer
+            // exists. Dropping them stops the list flickering backwards.
+            if (!reply || reply.seq !== self.seq) return;
+            self.results = reply.results || [];
+            self.cursor = 0;
+            self.render();
+          }
+        );
+      };
+
+      this.onInput = function() { self.search(); };
+
+      this.onKeyDown = function(e) {
+        if (!self.active || !self.results.length) {
+          if (e.key === "Escape") self.close();
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          self.cursor = (self.cursor + 1) % self.results.length;
+          self.render();
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          self.cursor = (self.cursor - 1 + self.results.length) % self.results.length;
+          self.render();
+        } else if (e.key === "Enter" || e.key === "Tab") {
+          e.preventDefault();
+          self.choose(self.cursor);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          self.close();
+        }
+      };
+
+      this.onBlur = function() { window.setTimeout(self.close, 120); };
+
+      this.el.addEventListener("input", this.onInput);
+      this.el.addEventListener("click", this.onInput);
+      this.el.addEventListener("keydown", this.onKeyDown);
+      this.el.addEventListener("blur", this.onBlur);
+      this.repositionHandler = function() { if (self.active) self.position(); };
+      window.addEventListener("scroll", this.repositionHandler, true);
+      window.addEventListener("resize", this.repositionHandler);
+    },
+
+    destroyed: function() {
+      // The menu lives on document.body, so it outlives the hook's element
+      // unless it is taken down explicitly — a LiveView patch that replaces
+      // the textarea would otherwise leave an orphan floating over the page.
+      if (this.menu && this.menu.parentNode) this.menu.parentNode.removeChild(this.menu);
+      window.removeEventListener("scroll", this.repositionHandler, true);
+      window.removeEventListener("resize", this.repositionHandler);
+    }
+  };
+})();

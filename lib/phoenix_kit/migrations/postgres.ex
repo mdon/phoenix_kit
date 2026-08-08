@@ -7,8 +7,17 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
+  ### V165 - Cross-module mentions and access requests ⚡ LATEST
+
+  Adds `phoenix_kit_mentions` (the reverse index for `@`/`#` tokens — the
+  canonical mention lives in the text, this answers "what links here" and
+  gives notification fan-out something to diff) and
+  `phoenix_kit_access_requests` (asking the owner for access to a record a
+  mention pointed at but the reader cannot open). Neither target carries a
+  foreign key: both point into ~28 optional packages' tables.
+
   ### V164 - Repair the V56/V57 flush-order bug's fallout, and converge two
-  ### prefix-unsafe historical shapes ⚡ LATEST
+  ### prefix-unsafe historical shapes
   - Also folds in what an earlier draft carried as a separate V164: V68
     (partial `idx_publishing_posts_group_slug`) and V65 (the
     `phoenix_kit_subscription_plans_slug_uidx` -> `..._types_slug_uidx`
@@ -432,7 +441,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 164
+  @current_version 165
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
