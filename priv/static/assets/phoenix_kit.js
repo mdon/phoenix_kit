@@ -5942,6 +5942,62 @@ if (typeof window.Chart === "undefined") {
     live.textContent = text;
   }
 
+  function onScreen(el) {
+    var r = el.getBoundingClientRect();
+    return r.bottom > 0 && r.top < (window.innerHeight || 0);
+  }
+
+  // Opening a long section puts most of it below the fold, so a highlight
+  // down there plays to nobody — the reader opens it, sees nothing, and
+  // the cue has cost them a click and told them less than nothing. Cue
+  // what is on screen now, and watch the rest until they scroll to it.
+  function replay(ids) {
+    var waiting = [];
+
+    ids.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+
+      if (onScreen(el)) {
+        cue(el);
+      } else {
+        waiting.push(el);
+      }
+    });
+
+    if (!waiting.length || typeof IntersectionObserver === "undefined") return;
+
+    var observer = new IntersectionObserver(
+      function(entries) {
+        entries.forEach(function(entry) {
+          if (!entry.isIntersecting) return;
+          cue(entry.target);
+          observer.unobserve(entry.target);
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    waiting.forEach(function(el) {
+      observer.observe(el);
+    });
+
+    // Don't watch forever: a section left open and never scrolled to
+    // shouldn't hold observers for the life of the page.
+    window.setTimeout(function() {
+      observer.disconnect();
+    }, 30000);
+  }
+
+  // One utterance per pushed change, however many regions it touched, and
+  // only for changes the reader cannot see: an open region announces
+  // itself by being visible.
+  function announceOnce(payload) {
+    if (payload.__announced) return;
+    payload.__announced = true;
+    announce(payload.announce);
+  }
+
   function markRegion(region, ids) {
     region.setAttribute("data-changed", "");
 
@@ -5959,17 +6015,32 @@ if (typeof window.Chart === "undefined") {
   }
 
   function apply(payload) {
-    var ids = payload.targets || [];
-    if (!ids.length) return;
+    var targets = (payload.targets || []).map(function(t) {
+      // Ids alone are still accepted; the grouped form carries a fallback
+      // region for targets that may not exist any more.
+      return typeof t === "string" ? { id: t } : t;
+    });
+
+    if (!targets.length) return;
 
     ensureStyle();
 
     var byRegion = new Map();
     var loose = [];
+    // Regions whose change REMOVED the element. There is nothing left to
+    // highlight, so the region itself carries the news — and nothing is
+    // queued for replay, because a missing id will still be missing when
+    // they open it.
+    var vanished = new Set();
 
-    ids.forEach(function(id) {
-      var el = document.getElementById(id);
-      if (!el) return;
+    targets.forEach(function(target) {
+      var el = document.getElementById(target.id);
+
+      if (!el) {
+        var anchor = target.region && document.getElementById(target.region);
+        if (anchor) vanished.add(anchor);
+        return;
+      }
 
       var region = el.closest(REGION);
 
@@ -5979,12 +6050,23 @@ if (typeof window.Chart === "undefined") {
       }
 
       if (!byRegion.has(region)) byRegion.set(region, []);
-      byRegion.get(region).push(id);
+      byRegion.get(region).push(target.id);
     });
 
     loose.forEach(cue);
 
-    var announced = false;
+    vanished.forEach(function(region) {
+      // Don't double-cue a region that also has surviving targets — those
+      // are handled below, and a row highlight says more than a region one.
+      if (byRegion.has(region)) return;
+
+      cue(region);
+
+      if (region.tagName === "DETAILS" && !region.open) {
+        region.setAttribute("data-changed", "");
+        announceOnce(payload);
+      }
+    });
 
     byRegion.forEach(function(regionIds, region) {
       var closed = region.tagName === "DETAILS" && !region.open;
@@ -5992,14 +6074,7 @@ if (typeof window.Chart === "undefined") {
       if (closed) {
         cue(region);
         markRegion(region, regionIds);
-
-        // Announce once per push, and only for a change the reader cannot
-        // see — an open region announces itself by being visible.
-        if (!announced) {
-          announce(payload.announce);
-          announced = true;
-        }
-
+        announceOnce(payload);
         return;
       }
 
@@ -6037,16 +6112,27 @@ if (typeof window.Chart === "undefined") {
       // that is still zero-height. Deliberately silent for screen readers:
       // the change was already announced when it landed.
       window.setTimeout(function() {
-        ids.slice(0, MAX_TARGETS).forEach(function(id) {
-          cue(document.getElementById(id));
-        });
-      }, 120);
+        replay(ids.slice(0, MAX_TARGETS));
+      }, 160);
     },
     true
   );
 
+  function clearRegions(ids) {
+    ids.forEach(function(id) {
+      var region = document.getElementById(id);
+      if (region) region.removeAttribute("data-changed");
+      delete pending[id];
+    });
+  }
+
   window.addEventListener("phx:pk:change-cue", function(event) {
-    apply(event.detail || {});
+    var detail = event.detail || {};
+    // A region whose state went back to what the reader last saw has
+    // nothing to show. Without this, flipping a choice back and forth
+    // leaves every section marked.
+    if (detail.clear) clearRegions(detail.clear);
+    apply(detail);
   });
 })();
 

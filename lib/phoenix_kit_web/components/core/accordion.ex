@@ -58,7 +58,13 @@ defmodule PhoenixKitWeb.Components.Core.Accordion do
       phx-mounted={JS.ignore_attributes(cue_owned_attributes(@cue))}
       class={["collapse collapse-arrow border border-base-200 bg-base-100", @class]}
     >
-      <summary class={["collapse-title text-sm font-semibold", @title_class]}>
+      <%!-- Opening a cued region is the reader SEEING it, which is what
+           resets its baseline server-side. Alongside the native toggle,
+           not instead of it. --%>
+      <summary
+        class={["collapse-title text-sm font-semibold", @title_class]}
+        phx-click={@cue && JS.push(ChangeCue.seen_event(), value: %{"region" => @id})}
+      >
         {render_slot(@title)}
         <ChangeCue.change_marker :if={@cue} label={@cue_label} />
       </summary>
