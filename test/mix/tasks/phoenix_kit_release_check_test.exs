@@ -8,6 +8,7 @@ defmodule Mix.Tasks.PhoenixKit.ReleaseCheckTest do
   use ExUnit.Case, async: false
 
   alias Mix.Tasks.PhoenixKit.ReleaseCheck
+  alias PhoenixKit.Migrations.ExpectedSchema
   alias PhoenixKit.Migrations.ExpectedSchema.Resolver
   alias PhoenixKit.Migrations.Postgres
 
@@ -112,9 +113,9 @@ defmodule Mix.Tasks.PhoenixKit.ReleaseCheckTest do
       # Not a stub: this is the shipped manifest compared to a freshly computed
       # hash, so editing a v*.ex without regenerating fails HERE, in the
       # habitual `mix test` loop, not only in the manual release check.
-      assert Code.ensure_loaded?(PhoenixKit.Migrations.ExpectedSchema)
+      assert Code.ensure_loaded?(ExpectedSchema)
 
-      assert PhoenixKit.Migrations.ExpectedSchema.chain_hash() ==
+      assert ExpectedSchema.chain_hash() ==
                elem(ReleaseCheck.compute_chain_hash(), 0)
     end
 

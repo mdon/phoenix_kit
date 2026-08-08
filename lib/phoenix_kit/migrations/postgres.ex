@@ -7,7 +7,18 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V163 - Repair the V56/V57 flush-order bug's fallout ⚡ LATEST
+  ### V164 - Repair the V56/V57 flush-order bug's fallout, and converge two
+  ### prefix-unsafe historical shapes ⚡ LATEST
+  - Also folds in what an earlier draft carried as a separate V164: V68
+    (partial `idx_publishing_posts_group_slug`) and V65 (the
+    `phoenix_kit_subscription_plans_slug_uidx` -> `..._types_slug_uidx`
+    rename) each issued a BARE, unqualified DROP/ALTER guarded by `IF
+    EXISTS`: effective on `public`, a silent no-op in a named schema, so
+    the two install paths diverged and the `V135` baseline — generated
+    into a named schema — kept the unintended shape. This version
+    idempotently converges both onto the historical `public`/intended
+    shape, and is a no-op on every real public install. This release
+    ships ONE migration, so it lives here rather than in a second version
   - V56/V57 queued `UUIDFKColumns.up/1`'s `ADD COLUMN`s immediately before
     `add_constraints/1`'s immediate `column_exists?`/NOT NULL guards with
     no `flush()` between them (V57 had none at all) — harmless on an
@@ -352,7 +363,7 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ### Fresh Installation (0 -> Current)
   Applies the `V135` baseline (the consolidated V01..V134 shape), then
-  every delta V136..V163 in sequence (`plan_up/3`'s fresh-install clamp,
+  every delta V136..V164 in sequence (`plan_up/3`'s fresh-install clamp,
   spec §5.2 D13).
 
   ### Incremental Updates
@@ -399,9 +410,10 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   alias PhoenixKit.Migrations.BelowFloorError
   alias PhoenixKit.Migrations.Postgres.Helpers
+  alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 163
+  @current_version 164
   @default_prefix "public"
 
   # First version whose SQL referenced uuid_generate_v7() in the
@@ -423,6 +435,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   @impl PhoenixKit.Migration
   def up(opts) do
     opts = with_defaults(opts, @current_version)
+    acquire_chain_lock!()
     initial = migrated_version(opts)
 
     case plan_up(initial, opts.version, @initial_version) do
@@ -453,6 +466,8 @@ defmodule PhoenixKit.Migrations.Postgres do
       |> Map.put(:quoted_prefix, inspect(opts.prefix))
       |> Map.put(:escaped_prefix, String.replace(opts.prefix, "'", "\\'"))
       |> Map.put_new(:create_schema, opts.prefix != @default_prefix)
+
+    acquire_chain_lock!()
 
     current_version = migrated_version(opts)
 
@@ -905,6 +920,85 @@ defmodule PhoenixKit.Migrations.Postgres do
     # Add newline after the last step
     if current_step == total_steps do
       IO.puts("")
+    end
+  end
+
+  # Same key `PhoenixKit.Migrations.Repair` locks on (spec §6.1). Read what it
+  # does and does not buy before relying on it:
+  #
+  #   * A chain run that starts while a repair already holds the lock WAITS
+  #     here until that repair finishes (bounded, see below). That direction is
+  #     real exclusion, on the install path and the update path alike — the
+  #     acquire itself contends even when the lock cannot then be HELD.
+  #     Deliberately taken before the version read, so it also covers a run
+  #     that turns out to be a no-op: one statement, and if a repair really is
+  #     running, waiting for it is the correct answer rather than reading a
+  #     comment it is in the middle of changing.
+  #   * A repair that starts while a chain run is mid-DDL is NOT blocked. The
+  #     wrappers this chain runs under are generated with
+  #     `@disable_ddl_transaction true` (`mix phoenix_kit.update`,
+  #     `phoenix_kit.gen.migration`), so there is no enclosing transaction and
+  #     this statement auto-commits — the lock is released before the DDL that
+  #     follows it. Repair's before/after version-comment re-read
+  #     (`Repair.CommentPolicy.concurrent_migration?/2`, S18) is what catches
+  #     that direction, by detection rather than prevention.
+  #
+  # Transaction-scoped anyway, and deliberately not repair's session-scoped
+  # form: a session lock taken here would survive a raising migration and ride
+  # the connection back into the pool, where nothing ever unlocks it and every
+  # later repair on that key blocks forever. Releasing it by hand is not
+  # sufficient either — `execute/1` only QUEUES DDL, so an unlock at the end of
+  # `up/1` would fire before the queued statements are flushed. Making the
+  # remaining direction real needs a design change, not a bigger lock.
+  # `pg_try_...` in a bounded loop, never the blocking `pg_advisory_xact_lock`:
+  # `Ecto.Migrator` runs migrations with `timeout: :infinity`, so the blocking
+  # form turns a held lock into a silent, unbounded hang with nothing printed
+  # (Opus review 2026-08-07). Waiting is still the right behaviour — a repair
+  # mid-flight is exactly what this lock is for — but it has to be visible and
+  # it has to end.
+  @chain_lock_attempts 300
+  @chain_lock_sleep_ms 1_000
+
+  defp acquire_chain_lock!(attempts_left \\ @chain_lock_attempts) do
+    %{rows: [[acquired?]]} =
+      repo().query!(
+        "SELECT pg_try_advisory_xact_lock($1)",
+        [Environment.lock_key()],
+        log: false
+      )
+
+    cond do
+      acquired? ->
+        :ok
+
+      attempts_left > 1 ->
+        maybe_announce_lock_wait(attempts_left)
+        Process.sleep(@chain_lock_sleep_ms)
+        acquire_chain_lock!(attempts_left - 1)
+
+      true ->
+        raise """
+        PhoenixKit: could not start the migration chain — another process has held the \
+        PhoenixKit migration/repair advisory lock (key #{Environment.lock_key()}) for over \
+        #{div(@chain_lock_attempts * @chain_lock_sleep_ms, 1000)} seconds.
+
+        This is normally a `mix phoenix_kit.repair` still running against the same database. \
+        Wait for it to finish and re-run; the chain is idempotent. If nothing is running, an \
+        earlier crashed process may hold it — find the holder with:
+
+            SELECT pid, query FROM pg_locks l JOIN pg_stat_activity a USING (pid)
+            WHERE l.locktype = 'advisory';
+        """
+    end
+  end
+
+  defp maybe_announce_lock_wait(attempts_left) do
+    if attempts_left == @chain_lock_attempts or rem(attempts_left, 30) == 0 do
+      IO.puts(
+        :stderr,
+        "PhoenixKit: waiting for a concurrent PhoenixKit repair/migration to release the " <>
+          "migration lock before continuing..."
+      )
     end
   end
 

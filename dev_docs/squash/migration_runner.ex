@@ -194,6 +194,108 @@ defmodule PhoenixKit.Squash.MigrationRunner do
   end
 
   @doc """
+  Run the NEW chain's `up/1` entry point pinned at `version`, asserting
+  NOTHING about the schema's current state first. Models replaying ONE
+  wrapper migration file exactly as a consumer app's `mix ecto.migrate`
+  would — the D13 clamp / no-op / delta branch `PhoenixKit.Migrations.up/1`
+  lands in depends entirely on whatever the schema already holds, same as
+  the real thing. Unlike `run_new_chain_fresh/3` (requires an empty schema)
+  and `run_new_chain_existing/4` (requires an exact existing version), this
+  makes no precondition assertion — used by S5(i)'s replay of a realistic
+  accumulated wrapper sequence and S5(ii)'s synthetic pinned chain
+  `[27, 50, 120, current]` (spec 8.2).
+
+  Options: `:create_schema` (default `prefix != "public"`).
+
+  [DB]
+  """
+  def run_pinned_wrapper(repo, prefix, version, opts \\ []) do
+    create_schema = Keyword.get(opts, :create_schema, prefix != "public")
+
+    run_via_wrapper(repo, prefix, :up,
+      version: version,
+      prefix: prefix,
+      create_schema: create_schema
+    )
+  end
+
+  @doc """
+  Run the NEW chain's `down/1` entry point targeting `version`, with no
+  precondition — the down-direction counterpart to `run_pinned_wrapper/4`,
+  modeling one pinned wrapper's `down/0` (which calls
+  `PhoenixKit.Migrations.down(prefix:, version:)`) for S5(iv)'s
+  rollback-then-migrate round trip.
+
+  [DB]
+  """
+  def run_pinned_wrapper_down(repo, prefix, version) do
+    run_via_wrapper(repo, prefix, :down, version: version, prefix: prefix)
+  end
+
+  @doc """
+  Runs an arbitrary CONSUMER-authored migration body (quoted `up`/`down`
+  ASTs) through the same ephemeral-module + `Ecto.Migrator` pattern every
+  other function in this module uses — for S5's replay of REAL
+  consumer-authored migrations interleaved with PK wrapper files (spec 8.2
+  S5 i/iii/iv), which are not `PhoenixKit.Migrations.up/down` calls at all
+  and so don't fit `run_pinned_wrapper/4`.
+
+  The quoted bodies are built by the CALLER with `prefix` already
+  substituted as a literal (same reasoning as `create_wrapper_module!/2`'s
+  moduledoc note: `Ecto.Migrator` runs the migration body in a spawned
+  `Task`, so nothing can be smuggled in via the calling process's state).
+  Bare calls to `Ecto.Migration` macros/functions (`execute/1`,
+  `alter/2`, ...) inside those quoted bodies resolve correctly once
+  spliced into `mod` below — Elixir resolves unqualified calls at the
+  FINAL compilation site (this function's `Module.create/3`, which already
+  `use Ecto.Migration`s), not wherever the AST was textually written;
+  verified empirically before relying on it here.
+
+  `opts[:down]` (default `quote(do: :ok)`) is the quoted down body.
+  `opts[:disable_ddl_transaction]` (default `false`) mirrors the real
+  files' own `@disable_ddl_transaction` declaration (both PK-generated
+  update wrappers and Andi's byte-faithful V140 bridge migration set it).
+
+  [DB]
+  """
+  def run_consumer_migration!(repo, prefix, up_quoted, opts \\ []) do
+    down_quoted = Keyword.get(opts, :down, quote(do: :ok))
+    disable_ddl_transaction? = Keyword.get(opts, :disable_ddl_transaction, false)
+
+    mod =
+      Module.concat([
+        PhoenixKit.Squash.ConsumerRunner,
+        "T#{:os.system_time(:microsecond)}_#{System.unique_integer([:positive])}"
+      ])
+
+    contents =
+      if disable_ddl_transaction? do
+        quote do
+          use Ecto.Migration
+          @disable_ddl_transaction true
+          def up, do: unquote(up_quoted)
+          def down, do: unquote(down_quoted)
+        end
+      else
+        quote do
+          use Ecto.Migration
+          def up, do: unquote(up_quoted)
+          def down, do: unquote(down_quoted)
+        end
+      end
+
+    {:module, ^mod, _, _} = Module.create(mod, contents, Macro.Env.location(__ENV__))
+    fake_version = :os.system_time(:microsecond)
+
+    try do
+      Ecto.Migrator.up(repo, fake_version, mod, log: false, prefix: prefix)
+    after
+      :code.delete(mod)
+      :code.purge(mod)
+    end
+  end
+
+  @doc """
   Per-version stepping for the manifest generator: migrate ONE version at a
   time across `range` (an ascending `first..last` range), each step a
   SEPARATE `Ecto.Migrator` invocation, calling `callback.(version)` after
@@ -328,11 +430,16 @@ defmodule PhoenixKit.Squash.MigrationRunner do
 
         :down ->
           [version: Keyword.get(opts, :to_version, 0), prefix: prefix]
+
+        # ensure_current/2 IS the migrator caller, so it takes no version and
+        # is invoked directly rather than through a synthetic wrapper.
+        :ensure_current ->
+          [prefix: prefix, log: false]
       end
 
     result =
       try do
-        {:unexpected_success, run_via_wrapper(repo, prefix, entry_point, pk_opts)}
+        {:unexpected_success, invoke_entry_point(repo, prefix, entry_point, pk_opts)}
       rescue
         e -> {:raised, e}
       catch
@@ -457,6 +564,21 @@ defmodule PhoenixKit.Squash.MigrationRunner do
   # Ecto.Migrator migration. Threading :prefix keeps the bookkeeping row in
   # the target schema; a fake-version collision would make Ecto skip the
   # module silently, so :already_up is promoted to a raise.
+  # `ensure_current/2` reaches PhoenixKit.Migration.up/1 through its own
+  # Ecto.Migrator.up call and decorates the raised BelowFloorError with
+  # `context: :ensure_current`. Calling it directly (no wrapper module) is the
+  # whole point: it proves the decorating `rescue` still sees the exception
+  # after the migrator has carried it out of its spawned Task.
+  defp invoke_entry_point(repo, prefix, :ensure_current, pk_opts) do
+    Helpers.validate_prefix!(prefix)
+    ensure_bookkeeping_schema!(repo, prefix)
+    PhoenixKit.Migration.ensure_current(repo, pk_opts)
+  end
+
+  defp invoke_entry_point(repo, prefix, direction, pk_opts) do
+    run_via_wrapper(repo, prefix, direction, pk_opts)
+  end
+
   defp run_via_wrapper(repo, prefix, direction, pk_opts) do
     Helpers.validate_prefix!(prefix)
     ensure_bookkeeping_schema!(repo, prefix)

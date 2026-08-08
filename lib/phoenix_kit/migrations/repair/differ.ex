@@ -48,7 +48,11 @@ defmodule PhoenixKit.Migrations.Repair.Differ do
       signal folded into the same mismatch (still `:error` severity per
       spec's explicit list — this module does not invent a softer tier for
       it, it only labels *which* fields disagreed so an operator can judge a
-      cross-major artifact for themselves).
+      cross-major artifact for themselves). `NULLS NOT DISTINCT` (PG15+) has
+      no structured field of its own; no version in the chain declares it, and
+      until one does it is covered by `definition`, which `pg_get_indexdef`
+      renders it into. A version that starts using it should promote it to a
+      structured field rather than rely on that text comparison.
     * `:constraint` — dispatches on `type` (`pg_constraint.contype`):
       `"f"` (foreign key) compares `columns`/`foreign_table`/
       `foreign_columns`/`on_delete`/`on_update` — all decomposed,

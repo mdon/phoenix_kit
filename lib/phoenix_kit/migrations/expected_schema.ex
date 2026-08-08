@@ -49,7 +49,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "cf51d5ef964c08fb1bb892dce77e7194f469565bb6dd85ade7893ab3eace4381"
+  @chain_hash "f84b699e38d71c8599514d00e0ade0f5a03b4061188e8e201bae93eef827ced9"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -15497,7 +15497,17 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              name_template: nil
            }}
         ],
-        presence: :required,
+        # DECLARED POST-GENERATION CORRECTION (2026-08-08): install-path
+        # bimodal. The unique index on subscription_types.slug is named
+        # `..._types_slug_uidx` on every real (public) install and
+        # `..._plans_slug_uidx` on the named-schema path the generator replays
+        # — the table was renamed from subscription_plans between V33 and V65
+        # and the rename of its index did not carry across both paths. V163
+        # renames the stale name onto the correct one, so from 164 on this
+        # object is ABSENT and its twin below (since: 164) is the required one.
+        # Optional here rather than removed, because a pre-164 install still
+        # legitimately has it. Inventory: "Hazard: install-PATH bimodality".
+        presence: :legacy_optional,
         backfill: nil
       },
       %{
@@ -36088,6 +36098,28 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              definition:
                "CREATE UNIQUE INDEX idx_publishing_posts_group_slug ON __SCHEMA__.phoenix_kit_publishing_posts USING btree (group_uuid, slug)",
              predicate: nil,
+             opclasses: ["uuid_ops", "text_ops"],
+             name_template: nil
+           }},
+          # DECLARED POST-GENERATION CORRECTION (2026-08-08). V68 replaced this
+          # index with the partial form its own moduledoc calls the correct
+          # design, but its `DROP INDEX IF EXISTS` is not schema-qualified, so
+          # the replacement only happened on the `public` path; the generator
+          # replays into a NAMED schema and therefore captured the unreplaced
+          # shape (no revision at 68 above — that is the fingerprint). Every
+          # real install has the predicate; V164 normalizes the rest onto it.
+          # See dev_docs/plans/2026-07-14-squash-inventory.md, "Hazard:
+          # install-PATH bimodality". Gated by s7/s8: a manifest that disagrees
+          # with what the chain builds makes them fail.
+          {164,
+           %{
+             table: "phoenix_kit_publishing_posts",
+             keys: ["group_uuid", "slug"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX idx_publishing_posts_group_slug ON __SCHEMA__.phoenix_kit_publishing_posts USING btree (group_uuid, slug) WHERE (slug IS NOT NULL)",
+             predicate: "(slug IS NOT NULL)",
              opclasses: ["uuid_ops", "text_ops"],
              name_template: nil
            }}
@@ -67236,6 +67268,43 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              foreign_columns: ["uuid"],
              on_delete: "n",
              on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      # DECLARED POST-GENERATION CORRECTION (2026-08-08) — the twin of the
+      # `:legacy_optional` `index:phoenix_kit_subscription_plans_slug_uidx`
+      # above. From V164 on, the unique index on subscription_types.slug
+      # carries the name every real (public) install has always had. Emitted
+      # last because the generator's order is (since, class, id) and 164 is the
+      # highest `since` in the manifest.
+      %{
+        id: "index:phoenix_kit_subscription_types_slug_uidx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_subscription_types_slug_uidx",
+             table: "phoenix_kit_subscription_types",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_subscription_types_slug_uidx ON __SCHEMA__.phoenix_kit_subscription_types USING btree (slug)",
+        since: 164,
+        class: :index,
+        revisions: [
+          {164,
+           %{
+             table: "phoenix_kit_subscription_types",
+             keys: ["slug"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_subscription_types_slug_uidx ON __SCHEMA__.phoenix_kit_subscription_types USING btree (slug)",
+             predicate: nil,
+             opclasses: ["text_ops"],
+             name_template: nil
            }}
         ],
         presence: :required,

@@ -355,8 +355,20 @@ chain-legal but repair-illegal). Verify compares each object against the same re
 so a healthy DB at comment 135 with `module_key VARCHAR(50)` (final shape arrives at V142) is
 clean, not falsely divergent.
 
-**Concurrency (enforced, not documented):** repair takes an advisory lock; `Postgres.up/down`
-take the SAME lock key on direct connections so repair-vs-migration exclusion is real. Repair
+**Concurrency (one direction enforced, the other detected):** repair takes a session-level
+advisory lock, pinned to one connection via `repo.checkout/1`. `Postgres.up/down` take the SAME
+key, as a transaction-scoped `pg_try_advisory_xact_lock` in a bounded wait loop. That makes one
+direction real on every path: **a chain run cannot start while a repair holds the lock** — it
+waits, announces the wait, and fails with an actionable message rather than hanging if the lock
+is never released. The reverse is NOT prevented: the wrappers `mix phoenix_kit.update` and
+`phoenix_kit.gen.migration` generate set `@disable_ddl_transaction true`, and `Ecto.Migrator`
+runs such a migration outside a transaction (and in a `Task` with its own pooled connection), so
+the migration side's lock is released after its own statement and a repair starting mid-run is
+not blocked. A session-level lock cannot fix this: without an enclosing transaction each
+`repo()` query may check out a different connection, so lock and unlock would land on different
+backends. Closing that direction needs a different mechanism (e.g. repair holding a conflicting
+lock on `schema_migrations`, as Ecto's own `:table_lock` strategy does) — out of scope here.
+Until then the reverse race is caught, not prevented, by the comment re-read below. Repair
 re-reads the comment immediately after acquiring the lock and again before the final verify —
 if it moved, abort with a distinct "concurrent migration detected" status (S18). The create path
 tolerates `duplicate_object`/`duplicate_column` as `:already_present` (races resolve additively).
@@ -558,7 +570,7 @@ role, PG15+ non-writable public) against baseline + repair.
 | Comment lies (high, low, > current) | §6.4 R2/R5/R6 + marker probes + `--heal-comment` |
 | PgBouncer drops DDL / pooled repair | autocommit statements; pooled detection + `--unsafe-pooled`; comment-strip case lands in R4 --adopt |
 | Stale consumer wrappers / interleaved consumer migrations | clamp + qualified guarantee + consolidate_wrappers + S5(i-iv); down-desync invariant + doctor warning |
-| Repair races a live migration | shared advisory lock in up/down/repair + re-read + S18 |
+| Repair races a live migration | shared advisory lock blocks a migration STARTING during a repair; the reverse is detected by the comment re-read + S18, not prevented (§6.1) |
 | Repair create fails on data-dependent drift | per-statement `:create_failed` + diagnostics (S19) |
 | Oban version skew | delegated-not-manifested; S16 |
 | Module pins block 2.0 adoption / auto-pull transitive consumers | §7.4 coordinated pin-widening before publish; direct-pin advice |

@@ -17,6 +17,14 @@
 Code.require_file(Path.join(__DIR__, "repo_helper.ex"))
 Code.require_file(Path.join(__DIR__, "dump_helper.ex"))
 Code.require_file(Path.join(__DIR__, "migration_runner.ex"))
+Code.require_file(Path.join(__DIR__, "s5_fixtures.ex"))
+
+# S5(iv) uses ExUnit.CaptureIO to pin the clamped-down desync warning (spec
+# 5.2) — that needs ExUnit's own supervision tree (ExUnit.CaptureServer)
+# running, which `mix run` does not start on its own (only `mix test` does).
+# `autorun: false`: this script defines no ExUnit.Case modules, so there is
+# nothing to auto-run either way — explicit for clarity.
+ExUnit.start(autorun: false)
 
 defmodule PhoenixKit.Squash.Verify do
   @moduledoc """
@@ -33,6 +41,23 @@ defmodule PhoenixKit.Squash.Verify do
   are present as SKIP stubs and light up as the phases land — the harness is
   runnable at every stage. Exit code: 0 when nothing FAILed/ERRORed
   (SKIPs are fine), 1 otherwise, 2 for configuration/usage errors.
+
+  S21 is a later addition, not part of the original spec's numbered S1-S20
+  matrix: it proves `PhoenixKit.Migrations.Postgres.V163` (the repair for
+  the historical V56/V57 flush-order defect, see that module's own
+  moduledoc) actually repairs a damaged database, restores idempotently,
+  and grants an orphan-blocked FK the documented NOT VALID grace — none of
+  which had any automated coverage before it.
+
+  S22 is likewise a later addition. S1 proves fresh-install equivalence for
+  a SINGLE multi-version invocation; S3 proves an upgrade from the floor
+  lands on the same schema. Neither ever runs a delta in its OWN separate
+  `Ecto.Migrator` invocation the way a real consumer app applies pending
+  migrations one file at a time — which is exactly the shape the historical
+  V56/V57 defect took (misbehaving only when several versions ran inside
+  ONE migrator invocation). A version added later that reintroduces that
+  class would stay green under every other scenario here; S22 proves
+  per-version stepping is equivalent to a single combined invocation.
 
   ## Modes
 
@@ -54,12 +79,15 @@ defmodule PhoenixKit.Squash.Verify do
   """
 
   alias PhoenixKit.Migrations.Postgres
+  alias PhoenixKit.Migrations.Postgres.V163
   alias PhoenixKit.Migrations.Repair
   alias PhoenixKit.Migrations.Repair.Environment, as: RepairEnvironment
   alias PhoenixKit.Migrations.Repair.Report
+  alias PhoenixKit.Migrations.UUIDFKColumns
   alias PhoenixKit.Squash.DumpHelper
   alias PhoenixKit.Squash.MigrationRunner
   alias PhoenixKit.Squash.RepoHelper
+  alias PhoenixKit.Squash.S5Fixtures
 
   @script_dir __DIR__
 
@@ -74,10 +102,27 @@ defmodule PhoenixKit.Squash.Verify do
   # - V13's partial unique index on email_logs.aws_message_id: duplicated by
   #   V22's `_uidx`; the baseline keeps exactly one (V22's name), so V13's
   #   name is presence-optional.
+  # - The last three entries are bimodal by INSTALL PATH, not by run shape,
+  #   and are the reason `--mode a` exists (found by it, 2026-08-08). Two
+  #   pre-squash migrations are prefix-unsafe: V68's `DROP INDEX IF EXISTS
+  #   idx_publishing_posts_group_slug` is not schema-qualified, so in `public`
+  #   it replaced the index with the intended partial one while in a named
+  #   schema it silently found nothing and the following `CREATE ... IF NOT
+  #   EXISTS` silently did nothing either; the same class of accident left the
+  #   unique index on subscription_types.slug named `..._types_slug_uidx` on
+  #   the public path and `..._plans_slug_uidx` on the named path. The baseline
+  #   was generated from a NAMED-schema replay, so it carries the named-path
+  #   shapes; V163 normalizes every install onto the public/intended shapes
+  #   (a no-op on real public installs). These entries therefore tolerate the
+  #   OLD chain's named-schema output differing from ours BY DESIGN — in
+  #   `--mode a` there is no diff to tolerate at all.
   @legacy_optional_default [
     "phoenix_kit_users.preferred_locale",
     "phoenix_kit_users_preferred_locale_index",
-    "phoenix_kit_email_logs_aws_message_id_index"
+    "phoenix_kit_email_logs_aws_message_id_index",
+    "idx_publishing_posts_group_slug",
+    "phoenix_kit_subscription_plans_slug_uidx",
+    "phoenix_kit_subscription_types_slug_uidx"
   ]
 
   @ref_header_prefix "-- pk-squash-ref"
@@ -271,7 +316,8 @@ defmodule PhoenixKit.Squash.Verify do
       %{
         id: "s4",
         spec: "S4",
-        title: "below-floor guard: up() AND down() raise the specific BelowFloorError",
+        title:
+          "below-floor guard: up(), down() AND ensure_current/2 raise the specific BelowFloorError",
         requires: [:squashed_registry, :below_floor_error, :mode_b, :db],
         run: &s4_guard/1
       },
@@ -279,8 +325,8 @@ defmodule PhoenixKit.Squash.Verify do
         id: "s5",
         spec: "S5",
         title: "consumer wrapper replay (Andi 41-file set / synthetic pins / interleaved)",
-        requires: [:squashed_registry, :db],
-        run: &s5_stub/1
+        requires: [:squashed_registry, :repair_engine, :generated_manifest, :db],
+        run: &s5_all/1
       },
       %{
         id: "s6",
@@ -397,6 +443,24 @@ defmodule PhoenixKit.Squash.Verify do
         title: "comment > current: repair hard-errors, doctor warns, up() no-op documented",
         requires: [:repair_engine, :generated_manifest, :db],
         run: &s20_comment_above_current/1
+      },
+      %{
+        id: "s21",
+        spec: "S21",
+        title:
+          "V163 repair: restores FKs/NOT NULL/comments-FK ON DELETE after the V56/V57 " <>
+            "flush-order defect, is idempotent, and grants an orphan-blocked FK NOT VALID",
+        requires: [:squashed_registry, :db],
+        run: &s21_v163_repair/1
+      },
+      %{
+        id: "s22",
+        spec: "S22",
+        title:
+          "per-version stepping equivalence: each delta applied in its own migrator " <>
+            "invocation matches a single combined invocation (schema and seed data)",
+        requires: [:squashed_registry, :db],
+        run: &s22_stepwise_equivalence/1
       }
     ]
   end
@@ -795,13 +859,25 @@ defmodule PhoenixKit.Squash.Verify do
             entry_point: :down
           )
 
-        case {r_up, r_down} do
-          {:ok, :ok} ->
-            IO.puts("  up() and down() both raised BelowFloorError with the expected fields")
+        r_ensure =
+          MigrationRunner.assert_below_floor_error(ctx.repo, target, v,
+            matcher: ensure_current_matcher(v),
+            entry_point: :ensure_current
+          )
+
+        case {r_up, r_down, r_ensure} do
+          {:ok, :ok, :ok} ->
+            IO.puts(
+              "  up(), down() and ensure_current/2 all raised BelowFloorError with the " <>
+                "expected fields (ensure_current additionally carries the test-DB hint)"
+            )
+
             :pass
 
-          {up, down} ->
-            {:fail, "below-floor guard mismatch: up=#{inspect(up)} down=#{inspect(down)}"}
+          {up, down, ensure} ->
+            {:fail,
+             "below-floor guard mismatch: up=#{inspect(up)} down=#{inspect(down)} " <>
+               "ensure_current=#{inspect(ensure)}"}
         end
     end
   end
@@ -811,6 +887,20 @@ defmodule PhoenixKit.Squash.Verify do
   # until the bridge is tagged — add a field assert in s4_guard then). If P3
   # ships different field names this matcher fails loudly as
   # {:wrong_error, exception} — adjust it, never loosen it to any-raise-passes.
+  # Same fields, plus the two things only the ensure_current/2 path can prove:
+  # its `rescue` really re-tagged the context (Ecto.Migrator carried the
+  # exception out of its spawned Task un-wrapped), and the re-tag is what makes
+  # `message/1` append the `mix test.reset` hint instead of bridge-install
+  # advice that is wrong for a CI database.
+  defp ensure_current_matcher(db_version) do
+    base = below_floor_matcher(db_version)
+
+    fn e ->
+      base.(e) and Map.get(e, :context) == :ensure_current and
+        Exception.message(e) =~ "mix test.reset"
+    end
+  end
+
   defp below_floor_matcher(db_version) do
     error_mod = PhoenixKit.Migrations.BelowFloorError
     floor = MigrationRunner.floor()
@@ -822,14 +912,390 @@ defmodule PhoenixKit.Squash.Verify do
   end
 
   # ---------------------------------------------------------------------------
-  # S5 — consumer wrapper replay (stub: fixtures are a P3 deliverable)
+  # S5 — consumer wrapper replay (spec 8.2 S5 i-iv / 5.3; fixtures in
+  # s5_fixtures.ex, mined from /www/app/priv/repo/migrations — never edited)
   # ---------------------------------------------------------------------------
 
-  defp s5_stub(_ctx) do
-    {:skip, "pending-p3-fixtures",
-     "wrapper-replay fixtures (Andi's real 41-file set, synthetic pinned chain " <>
-       "[27,50,120,current], interleaved consumer migration, rollback round-trip) " <>
-       "are built in P3 alongside the squash PR (spec S5 i-iv)"}
+  defp s5_all(ctx) do
+    first_failure([
+      s5_wrapper_replay(ctx),
+      s5_synthetic_pins(ctx),
+      s5_interleaved_failure(ctx),
+      s5_rollback_roundtrip(ctx)
+    ])
+  end
+
+  # (i) Realistic accumulated wrapper set: Andi's real 54-file shape (1
+  # unpinned installer + 48 pinned update wrappers + 5 interleaved
+  # consumer-authored migrations touching PK-owned tables), replayed in
+  # their real chronological order against the NEW squashed chain. Oracle:
+  # lands at the current comment, and `Repair.verify/1` reports the PK
+  # schema itself fully conformant (exit 0) — Andi's own extra objects
+  # (markup_percentage, prefix, primary_supplier_uuid, the sample warehouse
+  # table) are not PK-manifest objects, so they don't count against this;
+  # a raw byte-dump comparison against a pristine install would need to
+  # whitelist each of them individually for no added assurance.
+  defp s5_wrapper_replay(ctx) do
+    ensure_generated_manifest_loaded!()
+    t = fresh_target(ctx, "s5_wrap")
+    current = MigrationRunner.current_version()
+
+    IO.puts(
+      "  [s5i] replaying installer + #{length(S5Fixtures.wrapper_versions())} update " <>
+        "wrapper(s), with interleaved consumer migrations at their real positions, " <>
+        "against #{t}..."
+    )
+
+    replay_wrapper_and_consumer_steps(ctx, t, installer: true, to_max: current)
+
+    v = MigrationRunner.migrated_version(ctx.repo, t)
+
+    if v != current do
+      {:fail, "s5(i): after the realistic replay, comment is #{v}, expected #{current}"}
+    else
+      {:ok, report} = Repair.verify(prefix: t, repo: ctx.repo)
+
+      if Report.exit_code(report) == 0 do
+        IO.puts("  [s5i] PASS: #{t} landed at v#{v}; repair verify reports the PK schema clean")
+        :pass
+      else
+        {:fail,
+         "s5(i): after the realistic replay, repair verify is NOT clean: " <>
+           "#{inspect(Report.summary(report))} — #{findings_detail(report)}"}
+      end
+    end
+  end
+
+  # (ii) Synthetic pinned chain [27, 50, 120, current] on a fresh schema —
+  # the D13 clamp acceptance case (spec 5.2/5.3): the first pin clamps a
+  # fresh install straight to the baseline, every below-comment pin after
+  # it is a no-op, and the final current-pinned wrapper carries the deltas
+  # the rest of the way. Step-by-step comment assertions PLUS a full dump
+  # comparison against a pristine single-shot install (no consumer extras
+  # here, so byte equality modulo the standard S1 whitelist is the right,
+  # stronger oracle).
+  defp s5_synthetic_pins(ctx) do
+    floor = MigrationRunner.floor()
+    current = MigrationRunner.current_version()
+    t = fresh_target(ctx, "s5_pins")
+    pins = [27, 50, 120, current]
+
+    IO.puts("  [s5ii] replaying synthetic pinned chain #{inspect(pins)} against #{t}...")
+
+    {_final, mismatches} =
+      Enum.reduce(pins, {0, []}, fn pin, {prev, mismatches} ->
+        MigrationRunner.run_pinned_wrapper(ctx.repo, t, pin, create_schema: prev == 0)
+        actual = MigrationRunner.migrated_version(ctx.repo, t)
+        expected = expected_after_pin(prev, pin, floor)
+
+        mismatches =
+          if actual == expected do
+            mismatches
+          else
+            [
+              "up(version: #{pin}) after prior comment #{prev}: expected #{expected}, got #{actual}"
+              | mismatches
+            ]
+          end
+
+        {actual, mismatches}
+      end)
+
+    if mismatches != [] do
+      {:fail, "s5(ii): #{Enum.join(Enum.reverse(mismatches), "; ")}"}
+    else
+      ref = fresh_target(ctx, "s5_pins_ref")
+      IO.puts("  [s5ii] building single-shot reference install in #{ref}...")
+      MigrationRunner.run_new_chain_fresh(ctx.repo, ref)
+      ref_dump = DumpHelper.dump!(ref)
+      dump = DumpHelper.dump!(t)
+      compare_dumps(ctx, "s5_synthetic_pins", ref_dump, ref, dump, t, ctx.whitelist)
+    end
+  end
+
+  # Pure mirror of Postgres.plan_up/3's routing (D13 clamp / no-op / delta),
+  # for asserting the synthetic pinned chain's comment after EACH step, not
+  # just the final one.
+  defp expected_after_pin(0, pin, floor), do: max(pin, floor)
+  defp expected_after_pin(prev, pin, _floor) when prev < pin, do: pin
+  defp expected_after_pin(prev, _pin, _floor), do: prev
+
+  # (iii) Interleaved consumer migration touching a below-floor-shaped
+  # object -> documented, actionable failure (spec 5.3's named breakage
+  # class). Same position and same object as the REAL guarded
+  # phoenix_kit_catalogue_v013_base_price.exs (s5_wrapper_replay/1 proves
+  # THAT one survives) — this is its unguarded sibling
+  # (S5Fixtures.unguarded_price_rename/1), a synthetic negative fixture, not
+  # a real Andi file. Oracle: raises, and the message actually names the
+  # missing column (actionable), not an opaque crash.
+  defp s5_interleaved_failure(ctx) do
+    t = fresh_target(ctx, "s5_fail")
+
+    IO.puts(
+      "  [s5iii] building #{t} to the same position the real guarded rename runs at, " <>
+        "then replaying its UNGUARDED sibling..."
+    )
+
+    MigrationRunner.run_pinned_wrapper(ctx.repo, t, 87, create_schema: true)
+    MigrationRunner.run_pinned_wrapper(ctx.repo, t, 88, create_schema: false)
+
+    v = MigrationRunner.migrated_version(ctx.repo, t)
+
+    result =
+      try do
+        MigrationRunner.run_consumer_migration!(ctx.repo, t, S5Fixtures.unguarded_price_rename(t))
+        {:unexpected_success, nil}
+      rescue
+        e -> {:raised, e}
+      catch
+        kind, value -> {:caught, kind, value}
+      end
+
+    case result do
+      {:raised, e} ->
+        message = Exception.message(e)
+
+        if message =~ ~r/price/i and message =~ ~r/does not exist|column/i do
+          IO.puts(
+            "  [s5iii] PASS: unguarded rename raised an actionable error at comment " <>
+              "v#{v}: #{String.slice(message, 0, 200)}"
+          )
+
+          :pass
+        else
+          {:fail,
+           "s5(iii): unguarded rename raised #{inspect(e.__struct__)}, but the message " <>
+             "doesn't name the missing column (not actionable): #{message}"}
+        end
+
+      {:unexpected_success, _} ->
+        {:fail,
+         "s5(iii): unguarded rename against comment v#{v} did NOT raise — the below-floor " <>
+           "breakage class spec 5.3 names is no longer reproducible here; re-check that " <>
+           "example is still valid"}
+
+      {:caught, kind, value} ->
+        {:fail,
+         "s5(iii): unguarded rename exited via #{inspect(kind)}/#{inspect(value)}, not a " <>
+           "normal raise"}
+    end
+  end
+
+  # (iv) Rollback -> migrate round trip, including one interleaved consumer
+  # migration's own down, landing back at a state repair finds fully clean
+  # (no spurious re-creates) — plus the below-floor clamped-down desync
+  # invariant (spec 5.2) that doctor's detection is built on: the PK
+  # comment stays pinned at the floor while Ecto's own bookkeeping in the
+  # scratch schema records the wrapper as rolled back, and a warning names
+  # the disagreement.
+  #
+  # Rollback TARGET is the wrapper step immediately before the ONE
+  # interleaved consumer migration under test (138, one before the
+  # warehouse-tables fixture at 139) — NOT the floor. Rolling all the way
+  # to the floor would also re-traverse wrapper steps 136..139, which host
+  # A DIFFERENT interleaved fixture (add_primary_supplier_uuid, at 138)
+  # whose OWN down was never called — Ecto tracks each migration file's
+  # applied state independently, so a real `mix ecto.rollback` targeting
+  # only the PK wrapper's version would never re-run that file either, and
+  # replaying it a second time (an unguarded ADD COLUMN, faithful to the
+  # real file) collides with itself. Rolling back exactly one step keeps
+  # the round trip to precisely "one interleaved consumer down" as
+  # documented, and confirmed live: rolling to the floor instead reproduces
+  # a duplicate_column error here — the double-run is fixture-harness
+  # infidelity to Ecto's per-file bookkeeping, not a squash defect.
+  @s5_rollback_step_before 138
+  @s5_rollback_step_after 139
+
+  defp s5_rollback_roundtrip(ctx) do
+    ensure_generated_manifest_loaded!()
+    current = MigrationRunner.current_version()
+    t = fresh_target(ctx, "s5_rt")
+
+    IO.puts(
+      "  [s5iv] building #{t} up through v#{@s5_rollback_step_after} (installer + wrappers, " <>
+        "plus the interleaved warehouse-tables consumer migration)..."
+    )
+
+    replay_wrapper_and_consumer_steps(ctx, t, installer: true, to_max: @s5_rollback_step_after)
+
+    [warehouse_fixture] = S5Fixtures.consumer_migrations_after(@s5_rollback_step_after)
+
+    IO.puts(
+      "  [s5iv] rolling #{t} back down to v#{@s5_rollback_step_before}: the interleaved " <>
+        "consumer migration's own down first (drops the sample warehouse table), then the " <>
+        "one PK wrapper step..."
+    )
+
+    MigrationRunner.run_consumer_migration!(ctx.repo, t, warehouse_fixture.down.(t))
+    MigrationRunner.run_pinned_wrapper_down(ctx.repo, t, @s5_rollback_step_before)
+    v_after_down = MigrationRunner.migrated_version(ctx.repo, t)
+
+    IO.puts(
+      "  [s5iv] migrating #{t} back up to v#{current} (replays v#{@s5_rollback_step_after}, " <>
+        "including the interleaved consumer migration's up again, then the remaining " <>
+        "untouched wrapper steps through v#{current})..."
+    )
+
+    replay_wrapper_and_consumer_steps(ctx, t,
+      installer: false,
+      to_min: @s5_rollback_step_before,
+      to_max: current
+    )
+
+    v_final = MigrationRunner.migrated_version(ctx.repo, t)
+
+    cond do
+      v_after_down != @s5_rollback_step_before ->
+        {:fail,
+         "s5(iv): after rolling down one step, comment reads #{v_after_down}, expected " <>
+           "#{@s5_rollback_step_before}"}
+
+      v_final != current ->
+        {:fail, "s5(iv): after migrating back up, comment reads #{v_final}, expected #{current}"}
+
+      true ->
+        ref = fresh_target(ctx, "s5_rt_ref")
+        IO.puts("  [s5iv] building single-shot reference install in #{ref}...")
+        MigrationRunner.run_new_chain_fresh(ctx.repo, ref)
+        {:ok, ref_report} = Repair.verify(prefix: ref, repo: ctx.repo)
+        {:ok, rt_report} = Repair.verify(prefix: t, repo: ctx.repo)
+
+        cond do
+          Report.exit_code(ref_report) != 0 ->
+            {:fail,
+             "s5(iv): fresh reference install is not itself clean per repair verify " <>
+               "(unrelated to the round trip): #{inspect(Report.summary(ref_report))}"}
+
+          Report.exit_code(rt_report) != 0 ->
+            {:fail,
+             "s5(iv): after the round trip, repair verify found something to fix (a " <>
+               "spurious missing column/object): #{inspect(Report.summary(rt_report))} — " <>
+               "#{findings_detail(rt_report)}"}
+
+          true ->
+            IO.puts("  [s5iv] round trip landed back at v#{v_final}; repair verify reports clean")
+
+            s5_below_floor_down_desync_check(ctx)
+        end
+    end
+  end
+
+  # spec 5.2's down/1 routing: `target == 0` is a FULL TEARDOWN (removes
+  # everything, including the floor's own down) — NOT the clamp case. The
+  # clamp is specifically `0 < target < @initial_version`, so this targets
+  # `1` (any value in `1..floor-1` clamps identically).
+  @s5_below_floor_down_target 1
+
+  defp s5_below_floor_down_desync_check(ctx) do
+    floor = MigrationRunner.floor()
+    t = fresh_target(ctx, "s5_desync")
+
+    IO.puts(
+      "  [s5iv] building #{t} to v#{floor}, then attempting a clamped " <>
+        "down(version: #{@s5_below_floor_down_target}) to pin the documented desync " <>
+        "warning (spec 5.2)..."
+    )
+
+    MigrationRunner.run_pinned_wrapper(ctx.repo, t, floor, create_schema: true)
+
+    output =
+      ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        MigrationRunner.run_pinned_wrapper_down(ctx.repo, t, @s5_below_floor_down_target)
+      end)
+
+    v_after = MigrationRunner.migrated_version(ctx.repo, t)
+
+    cond do
+      v_after != floor ->
+        {:fail,
+         "s5(iv): clamped down(version: #{@s5_below_floor_down_target}) moved the PK " <>
+           "comment to #{v_after}; expected it to stay pinned at floor v#{floor} (the " <>
+           "documented clamped-down invariant)"}
+
+      not (output =~ ~r/clamp/i and output =~ ~r/floor/i) ->
+        {:fail,
+         "s5(iv): clamped down(version: #{@s5_below_floor_down_target}) did not emit the " <>
+           "expected desync warning on stderr; got: #{inspect(output)}"}
+
+      true ->
+        IO.puts(
+          "  [s5iv] PASS: clamped down warned and the comment correctly stayed pinned at v#{floor}"
+        )
+
+        :pass
+    end
+  end
+
+  # `add_phoenix_kit_tables.exs` literally calls `PhoenixKit.Migrations.up([])`
+  # — no version pin, which `with_defaults/2` resolves to WHATEVER
+  # `@current_version` the INSTALLED package compiles to. Historically that
+  # was ~84 (the very next wrapper's `from`), not today's 163 — replaying it
+  # against TODAY's compiled code with an explicit `version: current()` pin
+  # would jump the schema straight to 163 in one shot, making every
+  # subsequent wrapper AND interleaved consumer fixture race against an
+  # already-fully-migrated schema (a real column collision was observed
+  # here: V146 and the real `add_primary_supplier_uuid_...` consumer file
+  # both add `phoenix_kit_cat_items.primary_supplier_uuid`, and only the
+  # SEQUENCE — consumer file first, V146 later finds it already there via
+  # its own `IF NOT EXISTS` — makes both succeed). Pinning below the floor
+  # instead reproduces what actually happened: `run_pinned_wrapper/4`'s D13
+  # clamp lands ANY below-floor target at exactly the floor either way, so
+  # `84` (real, documented evidence — the next wrapper's `from`) and
+  # `current()` are NOT interchangeable here despite both being legal
+  # `up/1` calls.
+  @installer_historical_version 84
+
+  # Replays the installer (if requested) then every wrapper step whose `to`
+  # falls in `(to_min, to_max]`, splicing in that step's interleaved
+  # consumer fixtures (S5Fixtures.consumer_migrations_after/1) right after
+  # it — shared by s5_wrapper_replay/1 (the full sequence) and
+  # s5_rollback_roundtrip/1 (which replays it in two slices, before and
+  # after a rollback).
+  defp replay_wrapper_and_consumer_steps(ctx, prefix, opts) do
+    include_installer? = Keyword.get(opts, :installer, false)
+    to_min = Keyword.get(opts, :to_min, 0)
+    to_max = Keyword.get(opts, :to_max, MigrationRunner.current_version())
+
+    if include_installer? do
+      MigrationRunner.run_pinned_wrapper(
+        ctx.repo,
+        prefix,
+        @installer_historical_version,
+        create_schema: true
+      )
+    end
+
+    S5Fixtures.wrapper_versions()
+    |> Enum.filter(fn {_from, to} -> to > to_min and to <= to_max end)
+    |> Enum.each(fn {_from, to} ->
+      MigrationRunner.run_pinned_wrapper(ctx.repo, prefix, to, create_schema: false)
+
+      Enum.each(S5Fixtures.consumer_migrations_after(to), fn fx ->
+        MigrationRunner.run_consumer_migration!(ctx.repo, prefix, fx.up.(prefix),
+          down: fx.down.(prefix),
+          disable_ddl_transaction: fx.disable_ddl_transaction
+        )
+      end)
+    end)
+
+    catch_up_to_head(ctx, prefix, to_max)
+  end
+
+  # The mined fixture set ends at whatever head the host app had when it was
+  # captured (163). A consumer who bumps the dep runs `mix phoenix_kit.update`
+  # once more, and that generates exactly ONE further wrapper pinned to the new
+  # head — so model it instead of leaving the install short. Without this, s5(i)
+  # starts failing the day a delta is added rather than when something breaks
+  # (it did, when V163 grew the normalization). Fires only when a gap remains,
+  # so the s5(iv) round-trip (to_max well below the set's end) is unaffected.
+  defp catch_up_to_head(ctx, prefix, to_max) do
+    last_pinned = S5Fixtures.wrapper_versions() |> Enum.map(&elem(&1, 1)) |> Enum.max()
+
+    if to_max > last_pinned do
+      MigrationRunner.run_pinned_wrapper(ctx.repo, prefix, to_max, create_schema: false)
+    end
+
+    :ok
   end
 
   # ---------------------------------------------------------------------------
@@ -1923,6 +2389,487 @@ defmodule PhoenixKit.Squash.Verify do
 
       true ->
         :pass
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # S21 — V163 repair for the V56/V57 flush-order defect (added later; not
+  # part of the original spec's S1-S20 matrix — see the moduledoc note).
+  # ---------------------------------------------------------------------------
+  #
+  # V163 (lib/phoenix_kit/migrations/postgres/v163.ex) repairs three things
+  # on an install that crossed the historical V56/V57 flush-order bug:
+  #   1. NOT NULL on UUIDFKColumns.not_null_uuid_fks/0, minus its own
+  #      @relaxed_after_v57 exclusion list.
+  #   2. every FK in UUIDFKColumns.fk_constraints/0 that is missing
+  #      (NOT VALID then VALIDATE, left NOT VALID with a warning if
+  #      validation fails against live orphan rows).
+  #   3. phoenix_kit_comments.fk_comments_user_uuid's ON DELETE action
+  #      (V72's guessed CASCADE -> the originally-declared SET NULL).
+  #
+  # The real V56/V57 bug was a per-{table,column} information_schema guard
+  # reading stale (unflushed) state — it hit the WHOLE not_null_uuid_fks/0
+  # and fk_constraints/0 lists uniformly, not just the slice V163 later
+  # chooses to repair. So the defect simulation below drops NOT NULL on
+  # EVERY not_null_uuid_fks/0 column (no exclusion) and every fk_constraints/0
+  # FK — that is what actually reproduces "an install that crossed V56/V57 in
+  # one migrator invocation". @relaxed_after_v57's two columns are then
+  # expected to STILL be nullable afterward specifically because V163 never
+  # touches them (by design), not because the healthy baseline happens to
+  # leave them nullable on its own — it does not, for one of the two:
+  # phoenix_kit_ticket_status_history.changed_by_uuid is baked as `NOT NULL`
+  # in the squashed V135 baseline (verified against that file's CREATE
+  # TABLE) despite being on @relaxed_after_v57 — V163's own moduledoc
+  # documents this as a genuine contradiction inside V56/V57's own two
+  # declarations (its FK is ON DELETE SET NULL, which NOT NULL makes
+  # unsatisfiable), not a later relaxation like phoenix_kit_files.user_uuid.
+  # Asserting "still nullable" against the untouched baseline state would
+  # therefore silently test nothing for that column; damaging it first and
+  # confirming V163 leaves it alone is the real assertion.
+
+  defp s21_v163_repair(ctx) do
+    first_failure([
+      s21_repair_and_idempotence(ctx),
+      s21_orphan_grace(ctx)
+    ])
+  end
+
+  # ── S21(A)+(B) — repair, then idempotence on the same schema ──────────
+
+  defp s21_repair_and_idempotence(ctx) do
+    t = fresh_target(ctx, "s21")
+    IO.puts("  [s21] building a fresh, healthy install (current chain) into #{t}...")
+    MigrationRunner.run_new_chain_fresh(ctx.repo, t)
+
+    IO.puts(
+      "  [s21] simulating the V56/V57 flush-order defect in #{t}: dropping every " <>
+        "fk_constraints/0 FK, DROP NOT NULL on every not_null_uuid_fks/0 column, and " <>
+        "recreating the comments FK with ON DELETE CASCADE..."
+    )
+
+    s21_simulate_flush_defect!(ctx, t)
+
+    IO.puts("  [s21] restamping #{t} to v162 and running the chain to v163 (V163 repair)...")
+    restamp_comment!(ctx, t, 162)
+    MigrationRunner.run_new_chain_existing(ctx.repo, t, 162, to_version: 163)
+
+    case s21_assert_repaired(ctx, t) do
+      :pass ->
+        IO.puts("  [s21] PASS: V163 restored every FK / NOT NULL / comments-FK direction")
+        s21_idempotence(ctx, t)
+
+      fail ->
+        fail
+    end
+  end
+
+  defp s21_idempotence(ctx, t) do
+    IO.puts("  [s21] re-running the repair a second time (restamp to v162, run to v163)...")
+    before_dump = DumpHelper.dump!(t)
+    restamp_comment!(ctx, t, 162)
+    MigrationRunner.run_new_chain_existing(ctx.repo, t, 162, to_version: 163)
+    after_dump = DumpHelper.dump!(t)
+
+    case compare_dumps(ctx, "s21_idempotent", before_dump, t, after_dump, t, []) do
+      :pass ->
+        case s21_assert_repaired(ctx, t) do
+          :pass ->
+            IO.puts("  [s21] PASS: second repair pass is a byte-identical no-op")
+            :pass
+
+          fail ->
+            fail
+        end
+
+      fail ->
+        fail
+    end
+  end
+
+  defp s21_simulate_flush_defect!(ctx, t) do
+    for {table, uuid_fk, _ref_table, _ref_col, _on_delete} <- UUIDFKColumns.fk_constraints() do
+      table_str = Atom.to_string(table)
+      constraint = UUIDFKColumns.fk_constraint_name(table_str, uuid_fk)
+
+      RepoHelper.query!(
+        ctx.repo,
+        ~s[ALTER TABLE IF EXISTS "#{t}"."#{table_str}" DROP CONSTRAINT IF EXISTS "#{constraint}"]
+      )
+    end
+
+    for {table, column} <- UUIDFKColumns.not_null_uuid_fks() do
+      table_str = Atom.to_string(table)
+
+      RepoHelper.query!(
+        ctx.repo,
+        ~s[ALTER TABLE IF EXISTS "#{t}"."#{table_str}" ALTER COLUMN "#{column}" DROP NOT NULL]
+      )
+    end
+
+    RepoHelper.query!(
+      ctx.repo,
+      ~s[ALTER TABLE "#{t}".phoenix_kit_comments ] <>
+        ~s[ADD CONSTRAINT fk_comments_user_uuid FOREIGN KEY (user_uuid) ] <>
+        ~s[REFERENCES "#{t}".phoenix_kit_users(uuid) ON DELETE CASCADE]
+    )
+
+    :ok
+  end
+
+  defp s21_assert_repaired(ctx, t) do
+    relaxed = V163.relaxed_after_v57()
+
+    problems =
+      s21_check_fk_constraints(ctx, t) ++
+        s21_check_not_null(ctx, t, UUIDFKColumns.not_null_uuid_fks() -- relaxed, false) ++
+        s21_check_not_null(ctx, t, relaxed, true) ++
+        List.wrap(s21_check_comments_fk(ctx, t))
+
+    if problems == [] do
+      :pass
+    else
+      {:fail, "s21: #{Enum.join(problems, "; ")}"}
+    end
+  end
+
+  defp s21_check_fk_constraints(ctx, t) do
+    UUIDFKColumns.fk_constraints()
+    |> Enum.flat_map(fn {table, uuid_fk, ref_table, ref_col, _on_delete} ->
+      table_str = Atom.to_string(table)
+
+      if s21_column_exists?(ctx, t, table_str, uuid_fk) and
+           s21_column_exists?(ctx, t, ref_table, ref_col) do
+        constraint = UUIDFKColumns.fk_constraint_name(table_str, uuid_fk)
+
+        case s21_fk_constraint_state(ctx, t, table_str, constraint) do
+          {true, true} ->
+            []
+
+          {true, false} ->
+            ["#{constraint} exists but is NOT VALID (convalidated=false)"]
+
+          {false, _} ->
+            # V163 matches FKs by SHAPE, not by name: where an equivalent FK
+            # already enforces this exact pair under another name (Ecto's
+            # `<table>_<column>_fkey`, which the baseline creates for
+            # phoenix_kit_ai_requests.prompt_uuid), it adopts that one instead of
+            # adding a duplicate whose declared ON DELETE would never take
+            # effect. So "the fk_-prefixed name is absent" is only a failure when
+            # NOTHING enforces the pair. Asserting the name alone would demand
+            # the very duplicate the repair now refuses to create.
+            s21_unenforced_pair(ctx, t, table_str, uuid_fk, ref_table, ref_col, constraint)
+        end
+      else
+        []
+      end
+    end)
+  end
+
+  # `pairs` is either (not_null_uuid_fks/0 -- @relaxed_after_v57), expected
+  # NOT NULL again (expect_nullable? = false), or @relaxed_after_v57 itself,
+  # expected to stay nullable (expect_nullable? = true) — V163 never touches
+  # the latter.
+  defp s21_check_not_null(ctx, t, pairs, expect_nullable?) do
+    Enum.flat_map(pairs, fn {table, column} ->
+      table_str = Atom.to_string(table)
+
+      case s21_column_nullable(ctx, t, table_str, column) do
+        nil ->
+          ["#{table_str}.#{column}: column not found (unexpected on a fresh install)"]
+
+        ^expect_nullable? ->
+          []
+
+        _other when expect_nullable? ->
+          ["#{table_str}.#{column} is NOT NULL, expected to stay nullable (@relaxed_after_v57)"]
+
+        _other ->
+          ["#{table_str}.#{column} is nullable, expected NOT NULL after V163's repair"]
+      end
+    end)
+  end
+
+  defp s21_check_comments_fk(ctx, t) do
+    case s21_fk_on_delete(ctx, t, "phoenix_kit_comments", "fk_comments_user_uuid") do
+      "n" -> nil
+      other -> "fk_comments_user_uuid confdeltype=#{inspect(other)}, expected \"n\" (SET NULL)"
+    end
+  end
+
+  defp s21_column_exists?(ctx, prefix, table, column) do
+    %{rows: [[exists]]} =
+      RepoHelper.query!(
+        ctx.repo,
+        "SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_schema = $1 " <>
+          "AND table_name = $2 AND column_name = $3)",
+        [prefix, table, column]
+      )
+
+    exists
+  end
+
+  defp s21_column_nullable(ctx, prefix, table, column) do
+    %{rows: rows} =
+      RepoHelper.query!(
+        ctx.repo,
+        "SELECT is_nullable FROM information_schema.columns WHERE table_schema = $1 " <>
+          "AND table_name = $2 AND column_name = $3",
+        [prefix, table, column]
+      )
+
+    case rows do
+      [["YES"]] -> true
+      [["NO"]] -> false
+      [] -> nil
+    end
+  end
+
+  # [] when some other constraint enforces (table.column -> ref_table.ref_col);
+  # a failure message naming the pair when nothing does.
+  defp s21_unenforced_pair(ctx, prefix, table, column, ref_table, ref_col, constraint) do
+    %{rows: rows} =
+      RepoHelper.query!(
+        ctx.repo,
+        """
+        SELECT c.conname, c.convalidated
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN pg_class ft ON ft.oid = c.confrelid
+        WHERE c.contype = 'f'
+          AND n.nspname = $1 AND t.relname = $2 AND ft.relname = $3
+          AND array_length(c.conkey, 1) = 1 AND array_length(c.confkey, 1) = 1
+          AND (SELECT a.attname FROM pg_attribute a
+               WHERE a.attrelid = c.conrelid AND a.attnum = c.conkey[1]) = $4
+          AND (SELECT a.attname FROM pg_attribute a
+               WHERE a.attrelid = c.confrelid AND a.attnum = c.confkey[1]) = $5
+        """,
+        [prefix, table, ref_table, column, ref_col]
+      )
+
+    case rows do
+      [] ->
+        [
+          "nothing enforces #{table}.#{column} -> #{ref_table}.#{ref_col} " <>
+            "(#{constraint} absent and no equivalently-shaped FK under any other name)"
+        ]
+
+      [[adopted, true] | _] ->
+        IO.puts("    [s21] #{table}.#{column}: adopted pre-existing #{adopted} (validated)")
+        []
+
+      [[adopted, false] | _] ->
+        ["#{adopted} enforces #{table}.#{column} but is NOT VALID"]
+    end
+  end
+
+  defp s21_fk_constraint_state(ctx, prefix, table, constraint) do
+    %{rows: rows} =
+      RepoHelper.query!(
+        ctx.repo,
+        "SELECT convalidated FROM pg_constraint c " <>
+          "JOIN pg_class t ON t.oid = c.conrelid " <>
+          "JOIN pg_namespace n ON n.oid = t.relnamespace " <>
+          "WHERE c.conname = $1 AND t.relname = $2 AND n.nspname = $3",
+        [constraint, table, prefix]
+      )
+
+    case rows do
+      [[validated]] -> {true, validated}
+      [] -> {false, nil}
+    end
+  end
+
+  defp s21_fk_on_delete(ctx, prefix, table, constraint) do
+    %{rows: rows} =
+      RepoHelper.query!(
+        ctx.repo,
+        "SELECT confdeltype FROM pg_constraint c " <>
+          "JOIN pg_class t ON t.oid = c.conrelid " <>
+          "JOIN pg_namespace n ON n.oid = t.relnamespace " <>
+          "WHERE c.conname = $1 AND t.relname = $2 AND n.nspname = $3",
+        [constraint, table, prefix]
+      )
+
+    case rows do
+      [[deltype]] -> deltype
+      [] -> nil
+    end
+  end
+
+  defp restamp_comment!(ctx, prefix, version) do
+    RepoHelper.query!(ctx.repo, ~s[COMMENT ON TABLE "#{prefix}".phoenix_kit IS '#{version}'])
+    :ok
+  end
+
+  # ── S21(C) — orphan grace: constraint added NOT VALID, no data loss ────
+  #
+  # phoenix_kit_billing_profiles.user_uuid (SET NULL) is the cheapest real
+  # fk_constraints/0 target to insert an orphan row against: its only
+  # NOT NULL-without-default columns are inserted_at/updated_at (both
+  # handled generically by insert_minimal_row!/4's "now()" clause), it
+  # carries no CHECK constraint, and — unlike phoenix_kit_role_permissions
+  # (a NOT NULL, still-enforced FK to phoenix_kit_user_roles) or
+  # phoenix_kit_tickets (a status column) — it has no OTHER column that
+  # would need a real parent row or a specific literal to insert around.
+  # Verified against lib/phoenix_kit/migrations/postgres/v135.ex's own
+  # CREATE TABLE + constraint list for this table.
+
+  @s21_orphan_table "phoenix_kit_billing_profiles"
+  @s21_orphan_fk_column "user_uuid"
+  @s21_orphan_uuid "00000000-0000-0000-0000-000000000000"
+
+  defp s21_orphan_grace(ctx) do
+    t = fresh_target(ctx, "s21_orph")
+
+    IO.puts(
+      "  [s21C] building a fresh, healthy install into #{t}, dropping " <>
+        "fk_billing_profiles_user_uuid, and inserting a #{@s21_orphan_table} row whose " <>
+        "#{@s21_orphan_fk_column} points at a non-existent user before restamping to v162 " <>
+        "and running V163..."
+    )
+
+    MigrationRunner.run_new_chain_fresh(ctx.repo, t)
+
+    constraint = UUIDFKColumns.fk_constraint_name(@s21_orphan_table, @s21_orphan_fk_column)
+
+    RepoHelper.query!(
+      ctx.repo,
+      ~s[ALTER TABLE "#{t}"."#{@s21_orphan_table}" DROP CONSTRAINT "#{constraint}"]
+    )
+
+    row_uuid =
+      insert_minimal_row!(ctx, t, @s21_orphan_table, %{
+        @s21_orphan_fk_column => "'#{@s21_orphan_uuid}'"
+      })
+
+    restamp_comment!(ctx, t, 162)
+    MigrationRunner.run_new_chain_existing(ctx.repo, t, 162, to_version: 163)
+
+    {exists, validated} = s21_fk_constraint_state(ctx, t, @s21_orphan_table, constraint)
+    row_survived? = row_exists?(ctx, t, @s21_orphan_table, "uuid", row_uuid)
+
+    %{rows: [[current_fk_value]]} =
+      RepoHelper.query!(
+        ctx.repo,
+        ~s[SELECT "#{@s21_orphan_fk_column}"::text FROM "#{t}"."#{@s21_orphan_table}" ] <>
+          ~s[WHERE "uuid" = '#{row_uuid}']
+      )
+
+    cond do
+      not exists ->
+        {:fail, "s21(C): #{constraint} was not recreated by V163 despite the orphan row"}
+
+      validated ->
+        {:fail, "s21(C): #{constraint} validated despite the orphan row — expected NOT VALID"}
+
+      not row_survived? ->
+        {:fail, "s21(C): the orphan #{@s21_orphan_table} row was deleted by V163's repair"}
+
+      current_fk_value != @s21_orphan_uuid ->
+        {:fail,
+         "s21(C): the orphan row's #{@s21_orphan_fk_column} was modified by V163's repair " <>
+           "(now #{inspect(current_fk_value)}, expected #{@s21_orphan_uuid} unchanged)"}
+
+      true ->
+        IO.puts(
+          "  [s21C] PASS: #{constraint} exists but NOT VALID (convalidated=false); orphan " <>
+            "row untouched"
+        )
+
+        :pass
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # S22 — per-version stepping equivalence (added later; not part of the
+  # original spec's S1-S20 matrix — see the moduledoc note).
+  # ---------------------------------------------------------------------------
+  #
+  # s1 proves fresh-install equivalence for ONE multi-version invocation; s3
+  # proves an upgrade from the floor (and floor+3) lands on the same schema.
+  # Neither ever migrates a delta in its OWN separate `Ecto.Migrator`
+  # invocation the way a real consumer app applies pending migrations one
+  # file at a time — which is exactly the shape of the historical V56/V57
+  # defect: `execute/1` merely queues DDL, so an immediate `repo().query`
+  # guard later in the SAME invocation could see only flushed state and miss
+  # an earlier version's still-queued change. A version added later that
+  # reintroduces that class would stay green under s1/s3/every other
+  # scenario here, since none of them ever isolates a delta into its own
+  # invocation. s22 closes that gap directly: build side A with the whole
+  # chain in ONE `up/1` call, build side B by stepping the baseline and then
+  # every delta through `MigrationRunner.run_chain_stepwise/5` (already used
+  # by `generate_baseline.exs` for its own per-version snapshots — no new
+  # migrator plumbing needed here), asserting the version comment after
+  # every single step, then diff A against B with the same dump + seed-data
+  # oracle every other scenario uses.
+
+  defp s22_stepwise_equivalence(ctx) do
+    floor = MigrationRunner.floor()
+    current = MigrationRunner.current_version()
+
+    a = fresh_target(ctx, "s22_one")
+    IO.puts("  [s22] single invocation: v#{floor}..v#{current} in one up() call into #{a}...")
+    MigrationRunner.run_new_chain_fresh(ctx.repo, a)
+
+    b = fresh_target(ctx, "s22_step")
+
+    IO.puts(
+      "  [s22] stepwise: baseline v#{floor}, then each delta v#{floor + 1}..v#{current} as " <>
+        "its own separate migrator invocation, into #{b}, asserting the version comment " <>
+        "after every step..."
+    )
+
+    mismatches = s22_run_stepwise_and_assert(ctx, b, floor, current)
+
+    if mismatches != [] do
+      {:fail, "s22: #{Enum.join(mismatches, "; ")}"}
+    else
+      delta_count = current - floor
+
+      IO.puts(
+        "  [s22] all #{delta_count + 1} steps landed (baseline v#{floor} + #{delta_count} " <>
+          "delta(s) v#{floor + 1}..v#{current}), each asserted individually"
+      )
+
+      dump_a = DumpHelper.dump!(a)
+      dump_b = DumpHelper.dump!(b)
+      seeds_a = DumpHelper.dump_seed_data!(a)
+      seeds_b = DumpHelper.dump_seed_data!(b)
+
+      first_failure([
+        compare_dumps(ctx, "s22", dump_a, a, dump_b, b, ctx.whitelist),
+        compare_seed_texts(ctx, "s22", seeds_a, a, seeds_b, b)
+      ])
+    end
+  end
+
+  # Drives `MigrationRunner.run_chain_stepwise/5` over `floor..current` on
+  # `prefix`, asserting after EACH step that the version comment reads the
+  # version just applied. Returns a list of human-readable mismatch strings
+  # (empty when every step matched). An Agent accumulates results because
+  # the stepwise callback runs synchronously, one step at a time, in THIS
+  # process — `run_chain_stepwise/5`'s own `Enum.each/2` calls it right
+  # after each `Ecto.Migrator.up/4` call returns, no Task boundary at this
+  # level — the same pattern `generate_baseline.exs`'s `run_stepwise/4` uses
+  # for its per-version catalog snapshots.
+  defp s22_run_stepwise_and_assert(ctx, prefix, floor, current) do
+    {:ok, results} = Agent.start_link(fn -> [] end)
+
+    try do
+      MigrationRunner.run_chain_stepwise(ctx.repo, prefix, floor..current, fn version ->
+        actual = MigrationRunner.migrated_version(ctx.repo, prefix)
+        Agent.update(results, &[{version, actual} | &1])
+      end)
+
+      results
+      |> Agent.get(&Enum.reverse/1)
+      |> Enum.filter(fn {expected, actual} -> actual != expected end)
+      |> Enum.map(fn {expected, actual} ->
+        "after stepping to v#{expected} the comment in #{prefix} reads #{actual}"
+      end)
+    after
+      Agent.stop(results)
     end
   end
 

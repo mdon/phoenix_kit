@@ -123,17 +123,18 @@ defmodule PhoenixKit.Migrations.Repair.Environment do
 
   # A 64-bit key derived from a fixed string, so it reads as intentional in
   # `pg_stat_activity`/`pg_locks` rather than an arbitrary magic number.
-  # LIMITATION (documented, not hidden): this key is known only to
-  # `PhoenixKit.Migrations.Repair` — `PhoenixKit.Migrations.Postgres.up/1`
-  # and `.down/1` do not (cannot, in P2: `postgres.ex` is out of scope for
-  # this phase) take it too, so this lock only serializes repair runs
-  # against EACH OTHER, not against a concurrently-running migration. Spec
-  # §6.1's "repair-vs-migration exclusion is real" needs `Postgres.up/down`
-  # to acquire the same key — a P3 change. Until then,
+  # Shared with `PhoenixKit.Migrations.Postgres.up/1` and `.down/1` (spec
+  # §6.1), which take it as `pg_advisory_xact_lock/1` rather than the
+  # session-level form used here. The two contend on the same key, but only in
+  # ONE direction: a chain run waits behind a repair that already holds this
+  # lock, while a repair started mid-chain-run is not blocked, because the
+  # generated wrappers disable their DDL transaction so the migration side's
+  # lock is released after its own statement. See
+  # `Postgres.acquire_chain_lock!/0` for why a session lock there is not the
+  # answer. Exclusion also requires a direct connection on BOTH sides, so
   # `PhoenixKit.Migrations.CommentPolicy.concurrent_migration?/2`'s
-  # before/after comment re-read is what actually catches a migration
-  # racing a repair (S18) — detection, not prevention, for that half of the
-  # race.
+  # before/after comment re-read (S18) remains the backstop for the pooled
+  # case and for the unprotected direction.
   @lock_key :erlang.crc32("phoenix_kit.migrations.repair")
 
   @doc "The advisory lock key repair uses — exposed for tests/diagnostics, never meant to be passed elsewhere."

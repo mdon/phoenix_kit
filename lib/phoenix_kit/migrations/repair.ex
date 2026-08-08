@@ -43,18 +43,19 @@ defmodule PhoenixKit.Migrations.Repair do
     * `:dry_run` — `repair/1` only; `verify/1` always runs as if this were
       `true` regardless of what is passed.
 
-  ## What this pipeline does NOT (yet) do
+  ## Repair vs. a concurrently running migration
 
-  Spec §6.1 describes `Postgres.up/1`/`.down/1` taking the *same* advisory
-  lock key on direct connections, so repair-vs-migration exclusion is a real
-  mutual exclusion. `lib/phoenix_kit/migrations/postgres.ex` is out of scope
-  for this phase (P2) — it is not touched by this change. Today, the lock
-  this module takes (`PhoenixKit.Migrations.Repair.Environment.with_lock/2`)
-  only serializes concurrent repair runs against **each other**; a migration
-  racing a repair is *detected*, not prevented, via the before/after
-  raw-comment re-read (`PhoenixKit.Migrations.Repair.CommentPolicy.concurrent_migration?/2`,
-  S18) — see `Environment`'s moduledoc for the full explanation. Wiring
-  `Postgres.up/down` to the same lock key is P3-scope.
+  `Postgres.up/1` and `.down/1` take the same advisory lock key this module
+  takes (`PhoenixKit.Migrations.Repair.Environment.with_lock/2`) — spec §6.1 —
+  but the exclusion that buys is **one-directional**: a chain run started while
+  a repair holds the lock waits for it, whereas a repair started while a chain
+  run is mid-DDL is not blocked, because the generated wrappers disable their
+  DDL transaction and the migration side's transaction-scoped lock is therefore
+  released after its own statement (see `Postgres.acquire_chain_lock!/0` for the
+  full reasoning). For that direction — and on a pooled connection, where
+  advisory locking cannot be trusted at all — the before/after raw-comment
+  re-read (`PhoenixKit.Migrations.Repair.CommentPolicy.concurrent_migration?/2`,
+  S18) remains the mechanism, and it *detects* rather than prevents.
   """
 
   alias PhoenixKit.Migrations.ExpectedSchema.Resolver

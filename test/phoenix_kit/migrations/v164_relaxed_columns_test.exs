@@ -1,12 +1,12 @@
-defmodule PhoenixKit.Migrations.V163RelaxedColumnsTest do
+defmodule PhoenixKit.Migrations.V164RelaxedColumnsTest do
   @moduledoc """
-  Self-maintenance guard for `PhoenixKit.Migrations.Postgres.V163`'s
+  Self-maintenance guard for `PhoenixKit.Migrations.Postgres.V164`'s
   `@relaxed_after_v57` list (see that module's moduledoc section of the
-  same name): V163 re-imposes NOT NULL on every
+  same name): V164 re-imposes NOT NULL on every
   `UUIDFKColumns.not_null_uuid_fks/0` column *except* the ones in that
   list. If some later version (after V57, where the flush-order bug this
   version repairs was fixed) drops NOT NULL again on a tracked column
-  without updating the exclusion list, V163 would silently start
+  without updating the exclusion list, V164 would silently start
   re-breaking that relaxation on every fresh single-shot install — exactly
   the class of bug GLM's review of `b213332e` caught for
   `phoenix_kit_files.user_uuid`/V113.
@@ -39,16 +39,16 @@ defmodule PhoenixKit.Migrations.V163RelaxedColumnsTest do
   use ExUnit.Case, async: true
 
   alias PhoenixKit.Migrations.Postgres
-  alias PhoenixKit.Migrations.Postgres.V163
+  alias PhoenixKit.Migrations.Postgres.V164
   alias PhoenixKit.Migrations.UUIDFKColumns
 
-  # V163 itself is exempt — its own moduledoc discusses "DROP NOT NULL" in
+  # V164 itself is exempt — its own moduledoc discusses "DROP NOT NULL" in
   # prose (documenting the very thing this test guards), which is not a
   # real relaxation to catch. Every version strictly after it is fair game
   # for a hypothetical future V164+ that relaxes a tracked column.
   @exempt_version 163
 
-  # The flush-order bug V163 repairs was fixed in V56/V57 — a version at or
+  # The flush-order bug V164 repairs was fixed in V56/V57 — a version at or
   # before V57 declaring `not_null_uuid_fks/0` in the first place is not a
   # "later" relaxation of it.
   @first_version_in_scope 58
@@ -69,7 +69,7 @@ defmodule PhoenixKit.Migrations.V163RelaxedColumnsTest do
   @alter_table_pattern ~r/alter\s+table\(\s*:?"?(phoenix_kit_[a-z0-9_]+)"?/i
   @modify_null_pattern ~r/modify\(\s*:?"?([a-z_][a-z0-9_]*)"?[^)]*null:\s*true/i
 
-  test "every not_null_uuid_fks/0 column dropped NOT NULL after V57 is in V163's exclusion list" do
+  test "every not_null_uuid_fks/0 column dropped NOT NULL after V57 is in V164's exclusion list" do
     tracked = MapSet.new(UUIDFKColumns.not_null_uuid_fks())
     exclusion = MapSet.new(V163.relaxed_after_v57())
 
@@ -97,8 +97,8 @@ defmodule PhoenixKit.Migrations.V163RelaxedColumnsTest do
 
     If this is a genuine, intentional relaxation (mirrors the phoenix_kit_files.user_uuid/V113 \
     case), read the migration to understand WHY, then add it to \
-    lib/phoenix_kit/migrations/postgres/v163.ex's @relaxed_after_v57 with a provenance comment \
-    (which version, why) and update V163's moduledoc "@relaxed_after_v57" section to match. If \
+    lib/phoenix_kit/migrations/postgres/v164.ex's @relaxed_after_v57 with a provenance comment \
+    (which version, why) and update V164's moduledoc "@relaxed_after_v57" section to match. If \
     this is a false positive (the extraction matched an unrelated {table, column} tuple that \
     doesn't actually back a DROP NOT NULL statement), narrow this test's extraction instead of \
     silently ignoring it.
@@ -110,7 +110,7 @@ defmodule PhoenixKit.Migrations.V163RelaxedColumnsTest do
     # wants to write NULL into a column that forbids it, so deleting the
     # referenced row fails instead of blanking the reference. V56/V57 declare
     # both lists, and one pair contradicts
-    # (phoenix_kit_ticket_status_history.changed_by_uuid) — V163 excludes it
+    # (phoenix_kit_ticket_status_history.changed_by_uuid) — V164 excludes it
     # rather than enforcing the impossible half. This test pins that no OTHER
     # pair does, so a new contradiction cannot slip in unnoticed.
     source = File.read!(Path.join(File.cwd!(), "lib/phoenix_kit/migrations/uuid_fk_columns.ex"))
@@ -129,7 +129,7 @@ defmodule PhoenixKit.Migrations.V163RelaxedColumnsTest do
            "these columns are declared NOT NULL while their FK is ON DELETE SET NULL, " <>
              "which makes deleting the referenced row fail: #{inspect(contradictions)}. " <>
              "Either drop them from @not_null_uuid_fks, change the FK action, or add them " <>
-             "to V163's @relaxed_after_v57 with a comment."
+             "to V164's @relaxed_after_v57 with a comment."
   end
 
   # `File.cwd!/0` is the project root under `mix test` (this repo's own

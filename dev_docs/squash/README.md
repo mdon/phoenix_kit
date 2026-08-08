@@ -17,9 +17,12 @@ MAINTAINER-ONLY tooling for the PhoenixKit migration-chain consolidation
 | `repo_helper.ex` | `PhoenixKit.Squash.RepoHelper` — env-wired Ecto repo bring-up (direct connection, sandbox escape) |
 | `dump_helper.ex` | `PhoenixKit.Squash.DumpHelper` — pg_dump + deterministic normalization (S1 oracle), seed-data dumping + uuid/timestamp normalization (S2 oracle), whitelist compare, `diff -u`. NB the S1 schema dump deliberately INCLUDES `oban_*` tables (the manifest excludes them, spec §6.1): S1 therefore also pins Oban-package consistency — an Oban version bump between the bridge reference build and the squash checkout will surface as an S1 diff (re-pin, don't chase phantom drift) |
 | `migration_runner.ex` | `PhoenixKit.Squash.MigrationRunner` — version-bounded `PhoenixKit.Migrations.up/down` runs via ephemeral `Ecto.Migrator` wrappers (prefix-threaded bookkeeping), stepwise per-version execution, below-floor assertion with a specific error matcher |
-| `verify.exs` | Scenario harness for the §8.2 matrix (S1-S13, S15-S20) — see the scenario table below |
+| `verify.exs` | Scenario harness for the §8.2 matrix (S1-S13, S15-S22) — see the scenario table below |
 | `generate_baseline.exs` | ExpectedSchema manifest generator (stepwise chain + per-version catalog diffs); its authoritative env/flag contract lives in its own header |
 | `reference/` | Tool-written S1/S2 reference dumps for cross-checkout comparison (regenerate, never hand-edit; keep out of hex — dev_docs already is) |
+| `reference_mode_a/` | The same, built in `--mode a` against `public` (kept apart: a public reference and a named-schema reference legitimately differ on shared-object paths) |
+| `COVERAGE.md` | What is verified per version range, and what is not |
+| `restamp_chain_hash.exs` | Recomputes `ExpectedSchema.chain_hash/0` over the shipped `v*.ex` set after promotion; writing requires `--restamp` |
 | `out/` | Retained dumps/diffs from `--verbose` runs and failures; disposable, do not commit |
 
 ## Floor parameterization — nothing is hardcoded
@@ -202,11 +205,18 @@ detects the mismatch and skips instead of reporting a bogus diff.
 
 ## Scenario table (§8.2 → harness ids → status)
 
-Status legend: **now+DB** = runnable as soon as an operator scratch DB
-exists (P0); **P2** = needs the pre-squash PR (repair engine / manifest /
-`ExpectedSchema`); **P3** = needs the squash PR (squashed registry, baseline,
-`BelowFloorError`); *stub* = requirement-gated skip whose body is wired up in
-that phase.
+**Which range each scenario actually proves — and what is deliberately left
+unproven — is `COVERAGE.md`.** Read that first if the question is "is the chain
+verified to V163?"; this table is the per-scenario index.
+
+Status as of the full `--mode b` run on 2026-08-08: **21 PASS, 0 FAIL**, three
+SKIPs, each named below. The phase labels in the Status column
+(**now+DB** = needs only an operator scratch DB; **P2** = repair engine /
+manifest; **P3** = squashed registry / baseline / `BelowFloorError`) record which
+deliverable a scenario waited on — all of them have since landed, so the labels
+are history, not a to-do list. The only scenarios that do not run are the three
+SKIPs: `s4_seed` (needs the pre-squash checkout by construction), `s16`
+(assertion body pending) and `s18` (manual two-process trigger).
 
 | Spec | Harness id(s) | Oracle (short) | Status |
 |---|---|---|---|
@@ -230,6 +240,8 @@ that phase.
 | S18 | `s18` | concurrent migration mid-repair → distinct abort | P2 (stub) |
 | S19 | `s19` | `:create_failed` + diagnostics on V137-class data-dependent drift | P2 (stub) |
 | S20 | `s20` | comment > `@current_version`: repair hard-errors, doctor warns | P2 (stub) |
+| S21 | `s21` | `V163` repair: a flush-defect-damaged install is fully restored (every declared FK validated, every non-exempt `NOT NULL` re-imposed, comments FK back to `SET NULL`), a second pass is a byte-identical no-op, and an orphan-blocked FK is left `NOT VALID` with the row untouched | P3 |
+| S22 | `s22` | per-version composition: each delta `V136`..`V163` applied in its OWN migrator invocation yields schema + seeds byte-identical to one single invocation (the `V56`/`V57` defect class) | P3 |
 
 Manual, operator-side (not in the harness): the 2026-07-12 hardened-install
 recipe (pre-created schema, no-CREATE role, PG15+ non-writable public)
@@ -273,6 +285,26 @@ against baseline + repair.
   (§8.3 runbook). A migration PR may land with a stale manifest; the
   `chain_hash` assertion in `release_check` **and** its plain-unit-test twin
   are the release-time gate — regeneration must happen before publish.
+- ⚠️ **Regenerate from a PRE-SQUASH checkout, never from the squashed
+  branch.** The generator builds the baseline by replaying the chain it finds.
+  On the squashed branch that chain already *starts* with the baseline, so the
+  run is self-referential: it can only reproduce what the current baseline
+  produces, and it loses everything the baseline knows that a replay of
+  `V135..HEAD` cannot show — the pre-floor bimodal drift the manifest depends
+  on, and objects created below the floor and dropped above it (`floor_carryover`).
+  Observed 2026-08-07: a regeneration run on the squashed branch emitted a
+  baseline that no longer seeded `phoenix_kit_role_permissions`, which failed
+  s2/s5/s8/s10 (25 seed rows appearing only under repair). The committed
+  baseline's own header comment records which kind of run produced it — read it
+  before overwriting the file.
+- ⚠️ **`chain_hash` is restamped after promotion, not by the generator.** The
+  generator cannot know the post-promotion `v*.ex` set — its own emitted
+  baseline joins that set only once you copy it into `lib/`, and any later edit
+  to a delta moves the hash again. Run
+  `mix run dev_docs/squash/restamp_chain_hash.exs --restamp` last, after `mix format`
+  (`--check` reports staleness without writing). Skipping it leaves
+  `release_check` reporting a stale manifest even though the manifest content
+  is correct.
 - The S1/S2 reference dumps in `reference/` follow the same policy:
   tool-written by `s1_self`/`s2_self` on the bridge checkout, header-stamped
   with the chain version, regenerated whenever the chain head moves, never

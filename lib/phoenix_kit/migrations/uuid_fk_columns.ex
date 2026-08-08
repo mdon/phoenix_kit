@@ -388,6 +388,31 @@ defmodule PhoenixKit.Migrations.UUIDFKColumns do
   @spec not_null_uuid_fks() :: [{atom(), String.t()}]
   def not_null_uuid_fks, do: @not_null_uuid_fks
 
+  @doc """
+  The `{table, uuid_fk, ref_table, ref_col, on_delete}` tuples
+  `add_constraints/1` builds FK constraints from — exposed for the same
+  reason as `not_null_uuid_fks/0`: `PhoenixKit.Migrations.Postgres.V163`
+  drives its missing-FK repair off this exact list rather than a second
+  copy of it. Not otherwise meant as a public contract.
+  """
+  @spec fk_constraints() :: [{atom(), String.t(), String.t(), String.t(), String.t()}]
+  def fk_constraints, do: @fk_constraints
+
+  @doc """
+  The FK constraint name `add_fk_constraint/7`/`drop_fk_constraint/4` use for
+  `{table, uuid_fk}` — `fk_<table minus the phoenix_kit_ prefix>_<uuid_fk>`.
+  Exposed so `V163`'s repair names constraints identically to what this
+  module itself would have created, instead of re-deriving the same string
+  format a second time.
+  """
+  @spec fk_constraint_name(atom() | String.t(), String.t()) :: String.t()
+  def fk_constraint_name(table, uuid_fk) do
+    table
+    |> to_string()
+    |> String.replace_prefix("phoenix_kit_", "")
+    |> then(&"fk_#{&1}_#{uuid_fk}")
+  end
+
   def up(%{prefix: prefix} = opts) do
     escaped_prefix = Map.get(opts, :escaped_prefix, prefix)
 
@@ -925,9 +950,4 @@ defmodule PhoenixKit.Migrations.UUIDFKColumns do
   defp prefix_table_name(table_name, nil), do: table_name
   defp prefix_table_name(table_name, "public"), do: "public.#{table_name}"
   defp prefix_table_name(table_name, prefix), do: "#{prefix}.#{table_name}"
-
-  defp fk_constraint_name(table_str, uuid_fk) do
-    short = String.replace_prefix(table_str, "phoenix_kit_", "")
-    "fk_#{short}_#{uuid_fk}"
-  end
 end
