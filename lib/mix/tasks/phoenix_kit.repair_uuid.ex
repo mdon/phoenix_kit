@@ -56,16 +56,25 @@ defmodule Mix.Tasks.PhoenixKit.RepairUuid do
     dry_run? = opts[:dry_run] || false
     repo = PhoenixKit.RepoHelper.repo()
 
-    broken =
-      repo
-      |> UUIDIntegrity.broken_tables(prefix)
-      |> filter_requested(tables)
+    broken = UUIDIntegrity.broken_tables(repo, prefix)
 
-    case broken do
-      [] ->
+    case {filter_requested(broken, tables), tables} do
+      {[], []} ->
         Mix.shell().info([:green, "✓ Every phoenix_kit table has a proper uuid primary key."])
 
-      found ->
+      # Named tables that need nothing must NOT report the global all-clear.
+      # V163's log tells an operator to run this task with a table name, so a
+      # typo — or a table already repaired, or the wrong --prefix — would
+      # otherwise answer "everything is fine" and change nothing.
+      {[], named} ->
+        Mix.shell().info([
+          :yellow,
+          "Nothing to do: none of the named table(s) need repair — #{Enum.join(named, ", ")}.",
+          :reset,
+          "\nRun without arguments to list every table that does (prefix: #{prefix})."
+        ])
+
+      {found, _} ->
         Mix.shell().info("Tables needing repair: #{length(found)}")
         Enum.each(found, &repair(repo, prefix, &1, dry_run?))
         report(dry_run?)
@@ -83,7 +92,15 @@ defmodule Mix.Tasks.PhoenixKit.RepairUuid do
 
     if UUIDIntegrity.castable?(repo, qualified, table) do
       rows = UUIDIntegrity.estimated_rows(repo, prefix, name)
-      Mix.shell().info([:cyan, "\n#{name}", :reset, " (~#{rows} rows) #{describe(table)}"])
+
+      Mix.shell().info([
+        :cyan,
+        "\n#{name}",
+        :reset,
+        " (~#{rows} rows) #{UUIDIntegrity.describe(table)}"
+      ])
+
+      announce_duplicates(repo, qualified, table)
 
       # concurrent_index: this task runs outside a transaction, so the unique
       # index can be built without holding the table against readers.
@@ -106,14 +123,18 @@ defmodule Mix.Tasks.PhoenixKit.RepairUuid do
     repo.query!(sql, [], timeout: :infinity)
   end
 
-  defp describe(%{type: type, nullable: nullable, has_pk: has_pk}) do
-    [
-      if(type != "uuid", do: "type=#{type}"),
-      if(nullable, do: "nullable"),
-      if(not has_pk, do: "no primary key")
-    ]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join(", ")
+  # The DELETE is the one destructive statement in the list `--dry-run` prints,
+  # and how many rows it takes is not visible from the SQL itself.
+  defp announce_duplicates(_repo, _qualified, %{has_pk: true}), do: :ok
+
+  defp announce_duplicates(repo, qualified, _table) do
+    case UUIDIntegrity.duplicate_rows(repo, qualified) do
+      n when n > 0 ->
+        Mix.shell().info([:yellow, "  #{n} row(s) share a uuid and will be DELETED"])
+
+      _ ->
+        :ok
+    end
   end
 
   defp report(true) do

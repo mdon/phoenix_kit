@@ -45,12 +45,13 @@ defmodule PhoenixKit.Migrations.Postgres.V163 do
   ## Large tables are deferred, not silently rewritten
 
   `ALTER COLUMN … TYPE uuid` rewrites the table under an `ACCESS EXCLUSIVE`
-  lock, and `ADD PRIMARY KEY` builds a unique index under the same lock. Both
-  are O(rows). On a big events table behind PgBouncer that is connection-pool
-  exhaustion during `mix ecto.migrate`, not a pause — so above two million rows
-  the rewrite is skipped and logged with the exact command to run in a
-  maintenance window. Setting the default and backfilling
-  are catalog-cheap or index-free and always run.
+  lock, `SET NOT NULL` scans it under the same lock, and `ADD PRIMARY KEY`
+  builds a unique index under it too. All three are O(rows), so the size limit
+  gates the whole repair rather than only the rewrite — a keyless table needs no
+  type change and would otherwise have had an index built over every row. On a
+  big events table behind PgBouncer that is connection-pool exhaustion during
+  `mix ecto.migrate`, not a pause, so above two million rows the table is left
+  exactly as it was and logged with the command to run in a maintenance window.
 
   This migration never raises on the happy path. A library does not own its
   hosts' deploy runbooks, and turning a latent problem (one audit table without
@@ -81,10 +82,12 @@ defmodule PhoenixKit.Migrations.Postgres.V163 do
     # Repaired tables need the generator to exist even if V40 never reached them.
     Helpers.ensure_uuid_v7_function(prefix)
 
-    # Fail fast rather than queue behind a long-running reader. The generated
-    # upgrade migration carries @disable_ddl_transaction, so this is autocommit:
-    # without a timeout an ALTER blocked by an open transaction waits forever and
-    # the deploy hangs rather than erroring.
+    # Fail fast rather than queue behind a long-running reader. The migration
+    # `mix phoenix_kit.update` generates carries @disable_ddl_transaction — the
+    # only path on which V163 has anything to do — so this is autocommit: without
+    # a timeout an ALTER blocked by an open transaction waits forever and the
+    # deploy hangs rather than erroring. (A fresh install runs the chain inside a
+    # transaction, but reaches V163 with nothing broken to repair.)
     execute("SET lock_timeout = '#{@lock_timeout_ms}ms'")
 
     repo()
@@ -124,19 +127,45 @@ defmodule PhoenixKit.Migrations.Postgres.V163 do
            AND uuid !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' LIMIT 20;
         """)
 
-      UUIDIntegrity.rewrite_needed?(table) and
-          UUIDIntegrity.estimated_rows(repo(), prefix, name) > limit ->
+      # The guard covers EVERY repair class, not just the rewrite. `ALTER COLUMN
+      # TYPE` rewrites the table, `SET NOT NULL` scans it, and `ADD PRIMARY KEY`
+      # builds a unique index over it — all three under ACCESS EXCLUSIVE, all
+      # three O(rows). Deferring only the rewrite left the worst case in: the
+      # table that prompted this work is an events table, and had it been uuid-
+      # typed-but-keyless it would have taken an index build over every row
+      # during `mix ecto.migrate` — exactly the outage this limit exists to stop.
+      UUIDIntegrity.estimated_rows(repo(), prefix, name) > limit ->
         Logger.warning("""
-        [PhoenixKit V163] #{name}: needs a uuid column rewrite but holds more \
-        than #{limit} rows. Skipped, because ALTER COLUMN TYPE takes an ACCESS \
-        EXCLUSIVE lock for the length of a full table rewrite. Run this in a \
-        maintenance window:
+        [PhoenixKit V163] #{name}: #{UUIDIntegrity.describe(table)} — but the \
+        table holds more than #{limit} rows. Skipped: the repair takes an ACCESS \
+        EXCLUSIVE lock for a full pass over the table. Run this in a maintenance \
+        window, where the key can be built CONCURRENTLY:
           mix phoenix_kit.repair_uuid #{name}
         `mix phoenix_kit.doctor` will keep reporting it until you do.
         """)
 
       true ->
+        warn_about_duplicates(qualified, table)
         run_isolated(qualified, prefix, table)
+    end
+  end
+
+  # Deleting rows is the only destructive thing V163 does, so it is never
+  # silent — an operator reading the deploy log sees the count before the
+  # DELETE runs, not after.
+  defp warn_about_duplicates(_qualified, %{has_pk: true}), do: :ok
+
+  defp warn_about_duplicates(qualified, %{name: name}) do
+    case UUIDIntegrity.duplicate_rows(repo(), qualified) do
+      n when n > 0 ->
+        Logger.warning("""
+        [PhoenixKit V163] #{name}: #{n} row(s) share a uuid with another row and \
+        will be DELETED — a primary key cannot be built over duplicates. One row \
+        per uuid is kept.
+        """)
+
+      _ ->
+        :ok
     end
   end
 

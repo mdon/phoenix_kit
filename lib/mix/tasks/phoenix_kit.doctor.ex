@@ -417,9 +417,6 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     Enum.join(overlaps, "\n       ")
   end
 
-  # Pre-migration: check for varchar/text uuid columns that should be native uuid type.
-  # A varchar uuid column on phoenix_kit_settings crashes the Ecto schema loader on startup,
-  # blocking migrations from even running.
   # A missing primary key is what the varchar column actually COST, and the type
   # check could not see it: a table can have a perfectly typed uuid column and
   # still have no key. Reported by a host whose phoenix_kit_email_events had
@@ -467,6 +464,9 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     end
   end
 
+  # Pre-migration: check for varchar/text uuid columns that should be native uuid type.
+  # A varchar uuid column on phoenix_kit_settings crashes the Ecto schema loader on startup,
+  # blocking migrations from even running.
   defp check_uuid_column_types(prefix) do
     repo = get_repo!()
     escaped_prefix = String.replace(prefix, "'", "\\'")

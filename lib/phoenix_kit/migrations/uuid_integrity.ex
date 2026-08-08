@@ -83,13 +83,35 @@ defmodule PhoenixKit.Migrations.UUIDIntegrity do
     end
   end
 
-  @doc "Whether this table's uuid column is not a proper primary key."
+  @doc """
+  Whether this table's uuid column is not a proper primary key.
+
+  `has_pk` is "the table has *a* primary key", not "the primary key is on
+  `uuid`". A table keyed on some other column is therefore reported healthy
+  once its uuid column is typed and non-null, even though uuid is still not the
+  key. Promoting it would mean dropping the existing key, which this migration
+  will not do unasked; no table in the chain is in that shape (V74 removed the
+  last of the legacy `id` keys), so the gap is recorded rather than coded around.
+  """
   def needs_repair?(%{type: type, nullable: nullable, has_pk: has_pk}) do
     type != "uuid" or nullable or not has_pk
   end
 
   @doc "Whether repairing this table requires rewriting it (a type change)."
   def rewrite_needed?(%{type: type}), do: type != "uuid"
+
+  @doc """
+  Human-readable summary of what is wrong with one table, for logs and output.
+  """
+  def describe(%{type: type, nullable: nullable, has_pk: has_pk}) do
+    [
+      if(type != "uuid", do: "type=#{type}"),
+      if(nullable, do: "nullable"),
+      if(not has_pk, do: "no primary key")
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(", ")
+  end
 
   @doc """
   Whether every non-null value in the column can be cast to `uuid`.
@@ -107,6 +129,28 @@ defmodule PhoenixKit.Migrations.UUIDIntegrity do
     """
 
     match?({:ok, %{rows: [[0]]}}, repo.query(sql, [], log: false))
+  end
+
+  @doc """
+  Rows that de-duplication would DELETE, counted before any DDL runs.
+
+  The delete in `repair_statements/4` is the only destructive step here, so both
+  callers announce it rather than discovering it afterwards. `lower(uuid::text)`
+  matches what the eventual cast to `uuid` collapses — two `varchar` rows
+  differing only in case are one row after the rewrite — and works whatever the
+  column's current type is.
+  """
+  def duplicate_rows(repo, qualified) do
+    sql = """
+    SELECT count(*) - count(DISTINCT lower(uuid::text))
+    FROM #{qualified}
+    WHERE uuid IS NOT NULL
+    """
+
+    case repo.query(sql, [], log: false) do
+      {:ok, %{rows: [[n]]}} when is_integer(n) -> n
+      _ -> 0
+    end
   end
 
   @doc """
@@ -153,8 +197,10 @@ defmodule PhoenixKit.Migrations.UUIDIntegrity do
 
   `concurrent_index: true` splits the key into a `CREATE UNIQUE INDEX
   CONCURRENTLY` plus `ADD PRIMARY KEY USING INDEX`, which holds the exclusive
-  lock only for the attach rather than the whole build. It cannot run inside a
-  transaction, so it is available to the mix task and not to the migration.
+  lock only for the attach rather than the whole build, and drops any leftover
+  index of that name first so an interrupted run is retryable. It cannot run
+  inside a transaction, so it is available to the mix task and not to the
+  migration.
   """
   def repair_statements(qualified, prefix, table, opts \\ []) do
     # Helpers.uuid_v7_call/1 resolves the function's real schema, so the call
@@ -175,12 +221,12 @@ defmodule PhoenixKit.Migrations.UUIDIntegrity do
       "ALTER TABLE #{qualified} ALTER COLUMN uuid SET NOT NULL"
     ]
 
-    type_stmt ++ common ++ pk_statements(qualified, table, concurrent?)
+    type_stmt ++ common ++ pk_statements(qualified, prefix, table, concurrent?)
   end
 
-  defp pk_statements(_qualified, %{has_pk: true}, _concurrent?), do: []
+  defp pk_statements(_qualified, _prefix, %{has_pk: true}, _concurrent?), do: []
 
-  defp pk_statements(qualified, table, concurrent?) do
+  defp pk_statements(qualified, prefix, table, concurrent?) do
     dedupe = """
     DELETE FROM #{qualified} a USING #{qualified} b
      WHERE a.ctid < b.ctid AND a.uuid = b.uuid
@@ -193,7 +239,13 @@ defmodule PhoenixKit.Migrations.UUIDIntegrity do
     if concurrent? do
       [
         dedupe,
-        "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS #{index_name} ON #{qualified} (uuid)",
+        # An interrupted CONCURRENTLY build leaves an INVALID index behind. With
+        # `IF NOT EXISTS` the retry would skip the rebuild and then fail on
+        # `USING INDEX` — a table stuck permanently one statement from done. The
+        # drop is unconditional so a retry starts from a known state; it is
+        # CONCURRENTLY too, and qualified, per the chain's DROP INDEX rule.
+        "DROP INDEX CONCURRENTLY IF EXISTS #{quote_ident(prefix)}.#{index_name}",
+        "CREATE UNIQUE INDEX CONCURRENTLY #{index_name} ON #{qualified} (uuid)",
         "ALTER TABLE #{qualified} ADD PRIMARY KEY USING INDEX #{index_name}"
       ]
     else

@@ -283,5 +283,75 @@ defmodule PhoenixKit.Integration.V163UUIDIntegrityTest do
       plain = UUIDIntegrity.repair_statements(UUIDIntegrity.qualify(@prefix, table), @prefix, tbl)
       refute Enum.any?(plain, &String.contains?(&1, "CONCURRENTLY"))
     end
+
+    test "the concurrent build drops any leftover index first, so a retry works",
+         %{table: table} do
+      create_broken(table)
+      tbl = Enum.find(UUIDIntegrity.broken_tables(repo(), @prefix), &(&1.name == table))
+
+      stmts =
+        UUIDIntegrity.repair_statements(UUIDIntegrity.qualify(@prefix, table), @prefix, tbl,
+          concurrent_index: true
+        )
+
+      idx = fn frag -> Enum.find_index(stmts, &String.contains?(&1, frag)) end
+
+      # An interrupted CONCURRENTLY build leaves an INVALID index. Without the
+      # drop, `IF NOT EXISTS` would skip the rebuild and the attach would fail
+      # on the invalid index — forever.
+      assert idx.("DROP INDEX CONCURRENTLY IF EXISTS") < idx.("CREATE UNIQUE INDEX")
+      refute Enum.any?(stmts, &String.contains?(&1, "CREATE UNIQUE INDEX CONCURRENTLY IF NOT"))
+
+      # DROP INDEX is the one place the chain requires a schema-qualified name.
+      drop = Enum.at(stmts, idx.("DROP INDEX"))
+      assert String.contains?(drop, ~s("#{@prefix}"."#{table}_uuid_pk_idx"))
+    end
+  end
+
+  describe "duplicate accounting" do
+    test "counts the rows the de-duplicating DELETE would remove", %{table: table} do
+      create_broken(table)
+      dup = Ecto.UUID.generate()
+      sql!("INSERT INTO #{table} (uuid, payload) VALUES ($1, 'a')", [dup])
+      sql!("INSERT INTO #{table} (uuid, payload) VALUES ($1, 'b')", [dup])
+      sql!("INSERT INTO #{table} (uuid, payload) VALUES ($1, 'c')", [Ecto.UUID.generate()])
+      sql!("INSERT INTO #{table} (uuid, payload) VALUES (NULL, 'backfilled')")
+
+      # Three rows survive de-duplication (one per uuid) plus the NULL, which
+      # gets its own generated uuid — so exactly one row is deleted.
+      assert UUIDIntegrity.duplicate_rows(repo(), UUIDIntegrity.qualify(@prefix, table)) == 1
+    end
+
+    test "case-differing varchar uuids collide once cast, and are counted", %{table: table} do
+      create_broken(table)
+      dup = Ecto.UUID.generate()
+      sql!("INSERT INTO #{table} (uuid, payload) VALUES ($1, 'lower')", [dup])
+      sql!("INSERT INTO #{table} (uuid, payload) VALUES ($1, 'upper')", [String.upcase(dup)])
+
+      assert UUIDIntegrity.duplicate_rows(repo(), UUIDIntegrity.qualify(@prefix, table)) == 1
+    end
+
+    test "a clean table reports none", %{table: table} do
+      create_broken(table)
+      sql!("INSERT INTO #{table} (uuid, payload) VALUES ($1, 'x')", [Ecto.UUID.generate()])
+
+      assert UUIDIntegrity.duplicate_rows(repo(), UUIDIntegrity.qualify(@prefix, table)) == 0
+    end
+  end
+
+  describe "describe/1" do
+    test "names every defect it found", %{table: table} do
+      create_broken(table)
+      tbl = Enum.find(UUIDIntegrity.broken_tables(repo(), @prefix), &(&1.name == table))
+
+      assert UUIDIntegrity.describe(tbl) == "type=character varying, nullable, no primary key"
+    end
+
+    test "a keyless but correctly typed column reports only the missing key", %{table: table} do
+      sql!("CREATE TABLE #{table} (uuid uuid NOT NULL, payload text)")
+      tbl = Enum.find(UUIDIntegrity.broken_tables(repo(), @prefix), &(&1.name == table))
+
+      assert UUIDIntegrity.describe(tbl) == "no primary key"
+    end
   end
 end
