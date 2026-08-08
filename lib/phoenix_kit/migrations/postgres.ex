@@ -529,7 +529,8 @@ defmodule PhoenixKit.Migrations.Postgres do
   - Replaces unique index with partial index (slug-mode only, WHERE slug IS NOT NULL)
   - Adds unique index on `(group_uuid, post_date, post_time)` for timestamp-mode posts
 
-  ### V162 - Payment-option linkage on billing orders ⚡ LATEST
+  ### V162 - Payment-option linkage on billing orders
+  ### V163 - UUID primary-key integrity (catalog-driven repair) ⚡ LATEST
 
   Adds a nullable `payment_option_uuid` FK (+ index) to
   `phoenix_kit_orders`, pointing at `phoenix_kit_payment_options`. The
@@ -1448,7 +1449,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 162
+  @current_version 163
   @default_prefix "public"
 
   # First version whose SQL references uuid_generate_v7(). Chains that
