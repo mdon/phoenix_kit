@@ -91,6 +91,7 @@ defmodule PhoenixKit.Mentions do
   @default_limit 8
 
   @enabled_setting "mentions_enabled"
+  @redact_setting "mentions_redact_titles"
 
   defp repo, do: RepoHelper.repo()
 
@@ -109,6 +110,26 @@ defmodule PhoenixKit.Mentions do
 
   @spec enabled_setting_key() :: String.t()
   def enabled_setting_key, do: @enabled_setting
+
+  @doc """
+  Extra-security mode: withhold the TITLE of a mention the viewer cannot
+  open, showing the label the author stored instead of a live one.
+
+  Off by default. On, a record renamed after being mentioned never shows
+  its new name to someone who can't open it — worth having where the name
+  itself is the sensitive part, and unnecessary noise where it isn't.
+  """
+  @spec redact_titles?() :: boolean()
+  def redact_titles? do
+    Settings.get_boolean_setting(@redact_setting, false)
+  rescue
+    _ -> false
+  catch
+    :exit, _ -> false
+  end
+
+  @spec redact_setting_key() :: String.t()
+  def redact_setting_key, do: @redact_setting
 
   # ── Search ──────────────────────────────────────────────────────────
 
@@ -321,10 +342,18 @@ defmodule PhoenixKit.Mentions do
         uuids = group |> Enum.map(& &1.uuid) |> Enum.uniq()
         allowed = type |> visible(uuids, opts) |> MapSet.new()
 
-        # Resolve ONLY what the viewer may see. Resolving the rest would
-        # pull titles nobody is allowed to read into memory a template
-        # could accidentally print.
-        resolved = allowed |> Enum.to_list() |> resolve_titles(type)
+        # Titles are resolved for EVERYTHING by default, including records
+        # the viewer can't open: a mention should read as the thing it
+        # names, and hiding the title leaves a hole where a noun should be.
+        # What the viewer still doesn't get is a way in — no link, and a
+        # lock saying so.
+        #
+        # `redact_titles?` is the opt-in for installs where a record's NAME
+        # is itself sensitive. There it resolves only what the viewer may
+        # see, and a forbidden mention falls back to the label the author
+        # stored — never a title refreshed after the fact.
+        to_resolve = if redact_titles?(), do: Enum.to_list(allowed), else: uuids
+        resolved = resolve_titles(to_resolve, type)
 
         Enum.reduce(group, acc, fn token, inner ->
           Map.put_new(inner, {type, token.uuid}, state_for(token, allowed, resolved))
@@ -336,7 +365,11 @@ defmodule PhoenixKit.Mentions do
   defp state_for(token, allowed, resolved) do
     cond do
       not MapSet.member?(allowed, token.uuid) ->
-        %{state: :forbidden}
+        # A title, but deliberately no path: the reader learns what it is
+        # called and that it isn't theirs to open. Falls back to the
+        # author's stored label when the title was withheld or the record
+        # is gone.
+        %{state: :forbidden, title: title_for(token, resolved)}
 
       info = Map.get(resolved, token.uuid) ->
         %{
@@ -348,6 +381,13 @@ defmodule PhoenixKit.Mentions do
 
       true ->
         %{state: :missing}
+    end
+  end
+
+  defp title_for(token, resolved) do
+    case Map.get(resolved, token.uuid) do
+      %{title: title} when is_binary(title) and title != "" -> title
+      _ -> token.label
     end
   end
 
@@ -409,7 +449,12 @@ defmodule PhoenixKit.Mentions do
     "#{prefix(token)}#{escape_md(title)}"
   end
 
-  defp token_markdown(_token, %{state: :forbidden}), do: "🔒 no access"
+  # Title plus a lock, and no link — same rule as the component. Markdown
+  # can't carry the request-access button (the output is sanitised), so the
+  # lock is where it ends here.
+  defp token_markdown(token, %{state: :forbidden} = info) do
+    "#{prefix(token)}#{escape_md(info[:title] || token.label)} 🔒"
+  end
 
   defp token_markdown(token, _), do: "#{prefix(token)}#{escape_md(token.label)}"
 

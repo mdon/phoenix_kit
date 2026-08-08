@@ -174,12 +174,24 @@ defmodule PhoenixKit.MentionsTest do
     # none, and treating that silence as consent showed their titles and
     # working links to any reader handed a uuid.
 
-    test "a registered type with no visibility check is redacted" do
+    test "a registered type with no visibility check is not openable" do
       # `post` is registered by core and implements no check.
       assert Mentions.visible("post", [@uuid], []) == []
 
       assert %{{"post", @uuid} => %{state: :forbidden}} =
                Mentions.context("see #[post:#{@uuid}|Some Post]")
+    end
+
+    test "a forbidden mention still carries a title to render" do
+      # The reader learns what it is called and that it isn't theirs — the
+      # sentence has to read as the thing it names. What they don't get is
+      # a link.
+      ctx = Mentions.context("see #[post:#{@uuid}|Some Post]")
+      info = Map.fetch!(ctx, {"post", @uuid})
+
+      assert info.state == :forbidden
+      assert info.title == "Some Post"
+      refute Map.has_key?(info, :path)
     end
 
     test "people stay visible — a name is not a secret here" do

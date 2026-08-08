@@ -66,4 +66,31 @@ defmodule PhoenixKitWeb.Components.Core.MentionTextTest do
       assert is_binary(render_text(nil))
     end
   end
+
+  describe "a mention the reader can't open" do
+    test "shows what it is called, with a lock and no link" do
+      # `post` is registered but declares no visibility check, so it
+      # resolves as forbidden for everyone.
+      html = render_text("blocked on #[post:#{@uuid}|Q3 Launch]")
+
+      assert html =~ "Q3 Launch", "the sentence has to read as the thing it names"
+      assert html =~ "hero-lock-closed"
+      refute html =~ "<a", "knowing its name is not the same as being let in"
+    end
+
+    test "clicking it asks for access" do
+      html = render_text("blocked on #[post:#{@uuid}|Q3 Launch]")
+
+      assert html =~ "pk_request_access"
+      assert html =~ @uuid
+    end
+
+    test "with requests turned off it is inert but still readable" do
+      html = render_text("blocked on #[post:#{@uuid}|Q3 Launch]", allow_request: false)
+
+      assert html =~ "Q3 Launch"
+      assert html =~ "hero-lock-closed"
+      refute html =~ "pk_request_access"
+    end
+  end
 end

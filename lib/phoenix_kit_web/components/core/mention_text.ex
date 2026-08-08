@@ -16,16 +16,15 @@ defmodule PhoenixKitWeb.Components.Core.MentionText do
       the label the author saw, unlinked. This is the case that justifies
       keeping the label in the text at all.
 
-    * **a redacted chip** — it exists and they may not see it. They are told
-      that much and nothing more: no title, no uuid in the markup, no href.
-      Clicking asks the owners for access.
+    * **the title plus a lock** — it exists and they may not open it. The
+      sentence still reads as the thing it names; the lock says it isn't
+      theirs, and clicking asks the owners for access. No link.
 
-  The third case is a deliberate product choice, and it has a cost worth
-  knowing: showing "you don't have access to this" reveals that *something*
-  is there. That is the Discord model, chosen because the alternative —
-  silently dropping the mention — leaves a sentence with a hole in it and no
-  way to act. What is never revealed is the title, and a refreshed title is
-  never shown to someone who cannot open the record.
+  The third case shows a LIVE title by default, on the view that a record's
+  name is rarely the secret — the access is. Installs where the name IS
+  sensitive turn on `mentions_redact_titles`, and a forbidden mention then
+  falls back to the label the author stored, so a record renamed after the
+  fact never shows its new name to someone who cannot open it.
 
   ## Wiring the request-access click
 
@@ -123,8 +122,15 @@ defmodule PhoenixKitWeb.Components.Core.MentionText do
     """
   end
 
-  defp piece(%{piece: {%Token{} = token, %{state: :forbidden}}} = assigns) do
-    assigns = assign(assigns, token: token)
+  # The title, plus a lock. The sentence stays readable — a mention blanked
+  # to "No access" leaves a hole where a noun should be — and the lock says
+  # plainly that this one isn't yours to open. No href: knowing what it is
+  # called is not the same as being let in.
+  #
+  # `title` comes from the context, which falls back to the author's stored
+  # label when the record is gone or the install has redaction turned on.
+  defp piece(%{piece: {%Token{} = token, %{state: :forbidden} = info}} = assigns) do
+    assigns = assign(assigns, token: token, label: info[:title] || token.label)
 
     ~H"""
     <button
@@ -133,17 +139,19 @@ defmodule PhoenixKitWeb.Components.Core.MentionText do
       phx-click="pk_request_access"
       phx-value-type={@token.type}
       phx-value-uuid={@token.uuid}
-      class="badge badge-ghost badge-sm gap-1 align-baseline cursor-pointer"
-    >
-      <.icon name="hero-lock-closed" class="w-3 h-3" />
-      {gettext("No access")}
-    </button><span
+      title={gettext("You don't have access — click to request it")}
+      class="inline-flex items-baseline gap-0.5 cursor-pointer opacity-70 hover:opacity-100 underline decoration-dotted underline-offset-2"
+    >{prefix_for(@token)}{@label}<.icon
+      name="hero-lock-closed"
+      class="w-3 h-3 shrink-0 self-center"
+    /></button><span
       :if={not @allow_request}
-      class="badge badge-ghost badge-sm gap-1 align-baseline"
-    >
-      <.icon name="hero-lock-closed" class="w-3 h-3" />
-      {gettext("No access")}
-    </span>
+      title={gettext("You don't have access to this")}
+      class="inline-flex items-baseline gap-0.5 opacity-70"
+    >{prefix_for(@token)}{@label}<.icon
+      name="hero-lock-closed"
+      class="w-3 h-3 shrink-0 self-center"
+    /></span>
     """
   end
 

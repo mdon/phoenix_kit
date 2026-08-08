@@ -440,8 +440,25 @@
                   )}
                 </span>
               </div>
+              <.checkbox
+                name="settings[mentions_redact_titles]"
+                checked={@settings["mentions_redact_titles"] == "true"}
+                label={gettext("Hide titles of records the reader can't open")}
+                wrapper_class="mb-3"
+              />
+              <div class="label">
+                <span class="label-text-alt text-xs text-base-content/50">
+                  {gettext(
+                    "By default a mention shows what it names even to someone without access, with a lock icon and no link. Turn this on where the name itself is sensitive; they then see the name as it was when it was written, not its current one."
+                  )}
+                </span>
+              </div>
               <.unsaved_hint
-                dirty={@settings["mentions_enabled"] != @saved_settings["mentions_enabled"]}
+                dirty={
+                  @settings["mentions_enabled"] != @saved_settings["mentions_enabled"] or
+                    @settings["mentions_redact_titles"] !=
+                      @saved_settings["mentions_redact_titles"]
+                }
                 saved={
                   if(@saved_settings["mentions_enabled"] == "true",
                     do: gettext("On"),
