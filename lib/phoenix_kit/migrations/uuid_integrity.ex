@@ -180,13 +180,15 @@ defmodule PhoenixKit.Migrations.UUIDIntegrity do
 
   defp pk_statements(_qualified, %{has_pk: true}, _concurrent?), do: []
 
-  defp pk_statements(qualified, _table, concurrent?) do
+  defp pk_statements(qualified, table, concurrent?) do
     dedupe = """
     DELETE FROM #{qualified} a USING #{qualified} b
      WHERE a.ctid < b.ctid AND a.uuid = b.uuid
     """
 
-    index_name = quote_ident("#{unqualified(qualified)}_uuid_pk_idx")
+    # Built from the catalog name directly — parsing it back out of the quoted
+    # qualified string would corrupt any name containing a dot or a quote.
+    index_name = quote_ident("#{table.name}_uuid_pk_idx")
 
     if concurrent? do
       [
@@ -212,8 +214,4 @@ defmodule PhoenixKit.Migrations.UUIDIntegrity do
 
   @doc false
   def quote_ident(ident), do: ~s("#{String.replace(ident, ~s("), ~s(""))}")
-
-  defp unqualified(qualified) do
-    qualified |> String.split(".") |> List.last() |> String.replace(~s("), "")
-  end
 end

@@ -150,6 +150,12 @@ defmodule PhoenixKit.Migrations.Postgres.V163 do
     qualified
     |> UUIDIntegrity.repair_statements(prefix, table)
     |> Enum.each(&execute/1)
+
+    # `execute/1` only QUEUES a command; without this the statements are flushed
+    # after `up/1` returns — outside the rescue below — and the isolation this
+    # function exists for would silently never fire. `flush/0` runs everything
+    # pending here, in scope, so a failure is caught and the next table proceeds.
+    flush()
   rescue
     error ->
       Logger.error("""
