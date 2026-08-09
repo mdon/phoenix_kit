@@ -38,12 +38,11 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
    15. **Child Start Order** — Does the Repo start before PhoenixKit/Oban in application.ex?
    16. **Update Mode** — Is update_mode active?
    17. **daisyUI Version** — Is the host's vendored daisyUI recent enough?
-   18. **Manifest Repair (dry-run)** — if the generated
-       `PhoenixKit.Migrations.ExpectedSchema` manifest exists,
-       `PhoenixKit.Migrations.Repair.verify/1` runs against it as an
-       additional, non-fatal check (never `:fail`). Passes and says so while
-       the manifest does not exist yet (P2, pending the squash PR's
-       scratch-DB generation step) — expected today, not a defect.
+   18. **Manifest Repair (dry-run)** — `PhoenixKit.Migrations.Repair.verify/1`
+       runs read-only against the generated
+       `PhoenixKit.Migrations.ExpectedSchema` manifest as an additional,
+       non-fatal check (never `:fail`). Passes and says so if the manifest
+       has been removed or overridden away in this checkout.
   """
 
   use Mix.Task

@@ -7,14 +7,13 @@ defmodule PhoenixKit.Migrations.Repair.CommentPolicy do
   ## Why "floor" here is `PhoenixKit.Migrations.Postgres.initial_version/0`, not a fixed number
 
   §6.4's R3 ("`0 < comment < floor` → hard `BelowFloorError`") is written for
-  the **post-squash** world, where `floor` is a real number greater than 1
-  (P3, now done). The chain is squashed at floor 135, so `initial_version/0`
-  is `135` and the below-floor branches below are LIVE, not hypothetical:
-  `classify/3`'s `:below_floor` branch is unreachable today (no integer
-  satisfies `0 < comment < 1`) — but the branch has to exist and be correct
-  now so P3 only has to change what `floor` *is*, never how this module
-  *decides*. Tests exercise it with synthetic floors (e.g. `121`) precisely
-  to prove that forward-readiness.
+  the **post-squash** world, where `floor` is a real number greater than 1.
+  The chain is squashed at floor 135, so `initial_version/0` is `135` and
+  `classify/3`'s `:below_floor` branch is LIVE: every install still at
+  V01..V134 lands in it. (It was dormant while the floor was 1 — no integer
+  satisfies `0 < comment < 1` — which is why the tests drive it with
+  synthetic floors like `121` rather than whatever `initial_version/0`
+  happens to compile to.)
 
   ## R1 ("never lower the comment")
 

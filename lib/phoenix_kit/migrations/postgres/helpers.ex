@@ -24,9 +24,10 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
       the install's schema (never wherever `search_path` happens to
       point, which pollutes `public` and fails outright on PG15+ where
       `public` isn't world-writable). Unlike `ensure_extension!/1`, this
-      one does NOT pre-check existence — it always queues `CREATE OR
-      REPLACE FUNCTION`, unconditionally. That is deliberate, not a missed
-      optimization: an `unless already exists` guard here (the original
+      one does NOT pre-check existence — it queues `CREATE OR REPLACE
+      FUNCTION` for every install whose role owns (or could own) the
+      function. That is deliberate, not a missed optimization: an
+      `unless already exists` guard here (the original
       shape) meant a function created before some later fix to this same
       body (e.g. the pgcrypto schema-qualification change) stayed on the
       OLD body forever — `CREATE OR REPLACE` never got a chance to run
@@ -37,6 +38,13 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
       the guard bought nothing but a stuck body — removing it is what lets
       `PhoenixKit.Migrations.Repair` self-heal a drifted body via this
       same helper instead of reporting a permanent, un-fixable finding.
+      The one case still checked first is an existing function owned by
+      *another* role: `CREATE OR REPLACE` requires ownership, and in
+      migration context the statement is only QUEUED, so that failure
+      arrives at flush time where no `rescue` here can reach it and the
+      migration aborts. That topology is documented and supported
+      (`PhoenixKit.Migration`'s moduledoc tells a DBA to pre-create the
+      function), so it is excluded before the statement is queued.
 
   Functions without a `repo` argument run in `Ecto.Migration` context
   (immediate existence checks via `repo().query/3`, DDL queued via
@@ -224,10 +232,14 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
   Ensures `uuid_generate_v7()` exists in the install's schema, in
   migration context.
 
-  Unconditionally queues a schema-qualified `CREATE OR REPLACE FUNCTION` —
-  no existence pre-check, on purpose (see moduledoc "`ensure_uuid_v7_function/1`").
-  The schema must exist when this runs; V01 owns schema creation, so
-  callers on the upgrade path (installed version > 0) are always safe.
+  Queues a schema-qualified `CREATE OR REPLACE FUNCTION` whenever this role
+  could actually run it — no "does it exist" pre-check, on purpose (see
+  moduledoc "`ensure_uuid_v7_function/1`"); the only thing checked first is
+  whether an existing function is owned by *another* role, which no rescue
+  in migration context could recover from (the DDL is queued, so the error
+  arrives at flush time). The schema must exist when this runs; V01 owns
+  schema creation, so callers on the upgrade path (installed version > 0)
+  are always safe.
   """
   @spec ensure_uuid_v7_function(String.t() | nil) :: :ok
   def ensure_uuid_v7_function(prefix) do
@@ -244,10 +256,30 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
   end
 
   defp do_ensure_uuid_v7_function(repo, prefix, executor) do
-    executor.("""
-    CREATE OR REPLACE FUNCTION #{schema(prefix)}.uuid_generate_v7()
-    #{uuid_v7_function_body(pgcrypto_schema(repo))}
-    """)
+    # The un-ownable case has to be excluded BEFORE the statement is queued,
+    # not rescued after. In migration context `executor` is
+    # `Ecto.Migration.execute/1`, which only QUEUES DDL — an
+    # insufficient_privilege error then surfaces at flush time, outside this
+    # function, where the `rescue` below can never see it and the whole
+    # migration aborts. That is the exact 2026-07-12 field topology
+    # `PhoenixKit.Migration`'s own moduledoc tells operators to adopt ("have
+    # the DBA … pre-create the function in the schema"), so it must not be
+    # left to a rescue that only fires for the runtime `repo.query!/3`
+    # variant. One cheap catalog read is the price of the unconditional
+    # `CREATE OR REPLACE` staying safe in both contexts.
+    if foreign_owned_uuid_v7_function?(repo, prefix) do
+      IO.warn(
+        "PhoenixKit: #{schema(prefix)}.uuid_generate_v7() already exists and is owned by " <>
+          "another role, so its body cannot be refreshed by this role. Leaving it in place. " <>
+          "If it predates the pgcrypto-schema qualification, ask the owner to run the " <>
+          "CREATE OR REPLACE from PhoenixKit.Migrations.Postgres.Helpers."
+      )
+    else
+      executor.("""
+      CREATE OR REPLACE FUNCTION #{schema(prefix)}.uuid_generate_v7()
+      #{uuid_v7_function_body(pgcrypto_schema(repo))}
+      """)
+    end
 
     :ok
   rescue
@@ -280,6 +312,30 @@ defmodule PhoenixKit.Migrations.Postgres.Helpers do
     do: code in [:insufficient_privilege, :duplicate_function]
 
   defp insufficient_privilege?(_), do: false
+
+  # True only when the function is already there AND this role could not
+  # `CREATE OR REPLACE` it. `pg_has_role(owner, 'USAGE')` is the same test
+  # Postgres itself applies for ownership of the replace, so a function owned
+  # by a role the migrating role is a member of still gets its body refreshed.
+  # Absent function, or an unreadable catalog, both answer `false` — queue the
+  # create and let a genuine failure surface.
+  defp foreign_owned_uuid_v7_function?(repo, prefix) do
+    case repo.query(
+           """
+           SELECT NOT pg_catalog.pg_has_role(p.proowner, 'USAGE')
+           FROM pg_proc p
+           JOIN pg_namespace n ON n.oid = p.pronamespace
+           WHERE p.proname = 'uuid_generate_v7' AND n.nspname = $1
+           """,
+           [schema(prefix)],
+           log: false
+         ) do
+      {:ok, %{rows: [[foreign?]]}} -> foreign? == true
+      _ -> false
+    end
+  rescue
+    _ -> false
+  end
 
   defp uuid_v7_function_present?(repo, prefix) do
     case repo.query(

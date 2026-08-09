@@ -284,11 +284,11 @@ defmodule Mix.Tasks.PhoenixKit.ReleaseCheck do
 
   defp loadable_version_module?(n), do: Code.ensure_loaded?(version_module(n))
 
-  # `PhoenixKit.Migrations.ExpectedSchema` (spec §5.1) does not exist in this
-  # repository yet — it is generated from a real migrated scratch DB and
-  # lands with the squash PR (P3). Every consumer resolves it through
-  # `Resolver.resolve/0` so "not generated yet" degrades identically
-  # everywhere instead of each call site guarding it separately. Public for
+  # `PhoenixKit.Migrations.ExpectedSchema` (spec §5.1) is generated from a
+  # real migrated scratch DB and ships with this release. Every consumer
+  # still resolves it through `Resolver.resolve/0` so a checkout where it has
+  # been removed or overridden degrades identically everywhere instead of
+  # each call site guarding it separately. Public for
   # testability (needs `Application.put_env(:phoenix_kit, :expected_schema_module, ...)`
   # to exercise the :ok/:error branches — see `Resolver`'s moduledoc); @doc false.
   @doc false

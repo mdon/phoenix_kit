@@ -590,10 +590,11 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       Igniter.add_notice(igniter, notice)
     end
 
-    # Spec §5.2/§5.3 generation-time below-floor refusal. Was dormant while
-    # `MigrationsPostgres.initial_version/0` is 1 — every installed DB is
-    # already at or above that floor, so `current_version` can never land
-    # here today. Mirrors `PhoenixKit.Migrations.BelowFloorError`'s message
+    # Spec §5.2/§5.3 generation-time below-floor refusal. LIVE since the
+    # squash raised `MigrationsPostgres.initial_version/0` to 135 — any
+    # install still at V01..V134 lands here. (Dormant while that floor was 1:
+    # every installed DB was already at or above it.) Mirrors
+    # `PhoenixKit.Migrations.BelowFloorError`'s message
     # (this path never touches the DB again, so it can't raise that
     # exception directly — it names the same bridge instructions instead).
     defp add_below_floor_notice(igniter, current_version, floor_version) do

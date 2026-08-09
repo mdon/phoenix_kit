@@ -364,7 +364,18 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
     |> Enum.map(fn {:skipped, reason} -> reason end)
     |> report_skipped_fks()
 
-    report_mismatched_actions(for {:mismatched_action, label} <- outcomes, do: label)
+    # `@comments_constraint` is deliberately excluded: it is the ONE entry in
+    # `fk_constraints/0` this migration also repairs by name (item 3), and on
+    # exactly the shape that repair exists for — V72's guessed CASCADE — the
+    # generic pass above sees a live FK whose action disagrees with the
+    # declaration and reports it. Emitting "Left untouched … Reconcile by hand"
+    # about the headline defect this version then goes on to fix, ten lines
+    # later in the same run, is a false statement in a deploy log.
+    report_mismatched_actions(
+      for {:mismatched_action, name, label} <- outcomes,
+          name != @comments_constraint,
+          do: label
+    )
 
     for {tag, label} <- outcomes, tag in [:not_valid, :failed], do: label
   end
@@ -454,7 +465,7 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
     if confdeltype == on_delete_char(on_delete) do
       :already_present
     else
-      {:mismatched_action,
+      {:mismatched_action, other_name,
        "#{table_str}.#{uuid_fk} -> #{ref_table}.#{ref_col} is already enforced by " <>
          "#{other_name} with ON DELETE #{on_delete_name(confdeltype)}, but this chain " <>
          "declares ON DELETE #{on_delete}"}

@@ -435,6 +435,16 @@ defmodule PhoenixKit.Migrations.Postgres do
   @current_version 164
   @default_prefix "public"
 
+  # The frozen pre-squash bridge: the last 1.7.x release, which still carries
+  # V01..V134 and is the only supported way back onto the floor from below it.
+  # `BelowFloorError` leaves this `nil` by design ("nil until that release is
+  # tagged"); it is tagged now (v1.7.236), so the two raise sites below name it
+  # instead of making the operator go and look up which release "the last
+  # 1.7.x" was. Bump this only if another 1.7.x ships after the 2.0 cut —
+  # naming an earlier 1.7.x stays correct advice either way, since every 1.7.x
+  # carries the whole pre-squash chain.
+  @bridge_version "1.7.236"
+
   # First version whose SQL referenced uuid_generate_v7() in the
   # pre-squash chain — V40/V56/V61/V63 were its historical
   # creation/repair sites, now folded into the V135 baseline's single
@@ -459,7 +469,11 @@ defmodule PhoenixKit.Migrations.Postgres do
 
     case plan_up(initial, opts.version, @initial_version) do
       {:raise, db_version, floor} ->
-        raise BelowFloorError, db_version: db_version, floor: floor, context: :up
+        raise BelowFloorError,
+          db_version: db_version,
+          floor: floor,
+          bridge_version: @bridge_version,
+          context: :up
 
       {:run, range} ->
         change(range, :up, opts)
@@ -497,7 +511,11 @@ defmodule PhoenixKit.Migrations.Postgres do
 
     case plan_down(current_version, target_version, @initial_version) do
       {:raise, db_version, floor} ->
-        raise BelowFloorError, db_version: db_version, floor: floor, context: :down
+        raise BelowFloorError,
+          db_version: db_version,
+          floor: floor,
+          bridge_version: @bridge_version,
+          context: :down
 
       {:teardown, range, floor} ->
         # `range` (current..(floor+1)//-1) never includes `floor` itself — a

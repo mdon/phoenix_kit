@@ -48,11 +48,13 @@ defmodule Mix.Tasks.PhoenixKit.Repair do
 
   ## Manifest not generated yet
 
-  `PhoenixKit.Migrations.ExpectedSchema` — the tool-generated manifest — does
-  not exist until the squash PR (P3) generates it from a real migrated
-  scratch database. Until then, every invocation of this task prints
+  `PhoenixKit.Migrations.ExpectedSchema` — the tool-generated manifest —
+  ships with this release, so the normal path is fully wired. The
+  not-generated branch remains for a checkout where the manifest has been
+  removed or replaced (`config :phoenix_kit, :expected_schema_module`):
+  every invocation then prints
   `PhoenixKit.Migrations.ExpectedSchema.Resolver.not_generated_message/0`
-  and exits `1`; this is expected, not a bug report.
+  and exits `1` rather than silently reporting a clean database.
   """
 
   use Mix.Task
