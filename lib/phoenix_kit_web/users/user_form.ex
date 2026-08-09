@@ -554,9 +554,30 @@ defmodule PhoenixKitWeb.Users.UserForm do
     end
   end
 
+  # Names that `Auth.update_user_fields/2` routes OUT of `custom_fields` and into
+  # the schema: it resolves each key with `String.to_existing_atom/1` and writes
+  # the value through `profile_changeset` when the name matches one of these.
+  @schema_identity_fields ~w(email username first_name last_name user_timezone)
+
   defp update_user(socket, user_params) do
     user = socket.assigns.user
-    custom_fields_params = Map.get(user_params, "custom_fields", %{})
+
+    # Dropped unconditionally, not only when the actor is out of rank. The form
+    # renders a real input for every one of these, so a `custom_fields` entry
+    # carrying one is never a legitimate submission from this page — and an
+    # unconditional filter cannot go stale the way an authority assign computed
+    # at mount can.
+    #
+    # Without this, the credential rank rule was bypassable end to end: the
+    # `Map.drop` in `update_user_profile/3` guards `profile_params`, and
+    # `custom_fields` went straight to `Auth.update_user_fields/2`, which wrote
+    # `:email` into the schema with no confirmation-token flow. An actor holding
+    # only the `users` permission could point an Owner's address at their own
+    # inbox and then take the account through the public password-reset page.
+    custom_fields_params =
+      user_params
+      |> Map.get("custom_fields", %{})
+      |> drop_schema_identity_fields()
 
     # Include pending avatar if it was changed via media selector
     custom_fields_params =
@@ -614,6 +635,11 @@ defmodule PhoenixKitWeb.Users.UserForm do
       {:error, :custom_fields_save} ->
         handle_custom_fields_save_error(socket)
 
+      # Without this clause the `with` raises `WithClauseError`: the atom matches
+      # neither the changeset clause above nor the binary one below.
+      {:error, :insufficient_permissions} ->
+        {:noreply, deny_credential_action(socket)}
+
       {:error, reason} when is_binary(reason) ->
         {:noreply, put_flash(socket, :error, reason)}
     end
@@ -639,8 +665,17 @@ defmodule PhoenixKitWeb.Users.UserForm do
     # link is delivered to takes an account just as surely as setting the
     # password does — so an actor who may not manage this record's credentials
     # gets both fields dropped here, whatever the params say.
+    #
+    # Asked again here rather than read off `@can_manage_credentials`, which is
+    # computed once in `mount/3`. The context re-evaluates the same rule when the
+    # password is written, so a stale assign made the two disagree: the form
+    # would write the credential fields on the strength of the old answer and
+    # then take a refusal from the context, leaving a partial write behind — and
+    # the refusal arrived as `{:error, :insufficient_permissions}`, which the
+    # clause below expects to be a changeset. The assign stays as the UI's
+    # answer; the write path asks for a fresh one.
     profile_params =
-      if socket.assigns.can_manage_credentials do
+      if credential_authority_now(socket, user) do
         profile_params
       else
         # `username` goes with them: it is the second thing
@@ -718,6 +753,15 @@ defmodule PhoenixKitWeb.Users.UserForm do
       {:error, _changeset} -> {:error, :custom_fields_save}
     end
   end
+
+  # Params arrive string-keyed from the wire; a non-map (a client sending
+  # `custom_fields=1`) is passed through untouched so the existing validation
+  # rejects it, rather than crashing here.
+  defp drop_schema_identity_fields(params) when is_map(params) do
+    Map.drop(params, @schema_identity_fields)
+  end
+
+  defp drop_schema_identity_fields(params), do: params
 
   defp update_account_type_fields(user, user_params) do
     account_type = Map.get(user_params, "account_type")
@@ -933,6 +977,26 @@ defmodule PhoenixKitWeb.Users.UserForm do
     assign(socket, :changeset, changeset)
   end
 
+  # The rule itself stays in the context — this only re-asks it against the
+  # target as it is RIGHT NOW, instead of as it was when the page mounted.
+  #
+  # The reload is the load-bearing part. `socket.assigns.user` carries a
+  # `:roles` list preloaded at mount, and `Auth.has_system_role?/2` reads that
+  # list when it is loaded rather than querying — so passing the mounted struct
+  # re-asks the question against the same stale answer and agrees with itself.
+  # The context, handed a struct whose association is not loaded, queries and
+  # gets the truth. That disagreement was the crash: the form wrote on the old
+  # answer, the context refused on the new one.
+  defp credential_authority_now(socket, user) do
+    case Auth.get_user(user.uuid) do
+      %Auth.User{} = fresh ->
+        Auth.can_manage_user_credentials?(fresh, socket.assigns[:phoenix_kit_current_user])
+
+      _ ->
+        false
+    end
+  end
+
   defp update_profile_and_password(socket, user, user_params) do
     # First validate profile update
     profile_params = Map.delete(user_params, "password")
@@ -948,6 +1012,15 @@ defmodule PhoenixKitWeb.Users.UserForm do
         case Auth.admin_update_user_password(updated_user, password_params, context) do
           {:ok, final_user} ->
             {:ok, final_user}
+
+          # The context refuses with an atom, not a changeset. Passed straight
+          # through, because `merge_password_errors/2` below would call `.errors`
+          # on it and take the LiveView down with a `BadMapError`. Reaching this
+          # clause means the fresh authority check above and the context's own
+          # disagreed, which should not happen — but a crash is a poor way to
+          # find that out.
+          {:error, :insufficient_permissions} ->
+            {:error, :insufficient_permissions}
 
           {:error, password_changeset} ->
             # If password update failed, return a combined changeset

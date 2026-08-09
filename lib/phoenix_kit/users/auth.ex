@@ -865,8 +865,17 @@ defmodule PhoenixKit.Users.Auth do
           {:error, :insufficient_permissions}
         end
 
-      _system ->
+      # Only an ABSENT actor is the system path — seeds, migrations and mix
+      # tasks pass no context at all. A value that is present but not a `%User{}`
+      # (a map decoded from JSON by a host controller, a bare uuid string) is a
+      # caller that meant to supply an actor and got the shape wrong; treating
+      # that as "no actor" would hand it the unchecked path. This is a library,
+      # so it cannot see its hosts' callers — it fails closed instead.
+      nil ->
         do_admin_update_user_password(user, attrs, context)
+
+      _malformed ->
+        {:error, :insufficient_permissions}
     end
   end
 

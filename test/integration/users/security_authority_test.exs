@@ -254,6 +254,27 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
       refute password_hash(actor) == before
     end
 
+    test "a present but malformed actor is refused rather than taking the system path" do
+      # The system path exists for seeds, migrations and mix tasks, which pass no
+      # actor at all. A value that is present but not a `%User{}` — a map decoded
+      # from JSON by a host application's controller, a bare uuid string — is a
+      # caller that meant to supply an actor and got the shape wrong, and letting
+      # it through unchecked is the worst of both readings. PhoenixKit is a
+      # library: it cannot see its hosts' callers, so this fails closed.
+      target = plain_user()
+      before = password_hash(target)
+
+      for malformed <- [%{"uuid" => Ecto.UUID.generate()}, "some-uuid-string", false, 42] do
+        assert {:error, :insufficient_permissions} =
+                 Auth.admin_update_user_password(target, %{password: "NewPassword123!"}, %{
+                   admin_user: malformed
+                 }),
+               "a #{inspect(malformed)} actor took the unchecked path"
+      end
+
+      assert password_hash(target) == before
+    end
+
     test "omitting the actor is the system path and still writes" do
       target = plain_user()
       before = password_hash(target)
