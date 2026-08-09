@@ -77,4 +77,24 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessorSanitizeTest do
     assert {:error, _} = ImageProcessor.sanitize(src, Path.join(dir, "y.jpg"))
     refute File.exists?(Path.join(dir, "y.jpg"))
   end
+
+  describe "not trusting the host's configuration" do
+    test "the format must be on the allowlist, not merely readable", %{tmp_dir: dir} do
+      # policy.xml is what actually disables ImageMagick's dangerous
+      # coders, and it belongs to whoever installed the binary. This code
+      # cannot assume it was configured, so it names the format it decodes
+      # and refuses anything outside a short list.
+      src = Path.join(dir, "x.gif")
+      File.write!(src, "GIF89a<svg xmlns=\"http://www.w3.org/2000/svg\" onload=\"alert(1)\"/>")
+
+      assert {:error, _} = ImageProcessor.sanitize(src, Path.join(dir, "out.jpg"))
+    end
+
+    test "a real image still passes", %{tmp_dir: dir} do
+      if imagemagick?() do
+        src = png(Path.join(dir, "fine.png"))
+        assert {:ok, _} = ImageProcessor.sanitize(src, Path.join(dir, "fine.jpg"))
+      end
+    end
+  end
 end

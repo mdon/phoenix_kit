@@ -212,6 +212,20 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
       {:error, "Image center-crop failed: #{inspect(e)}"}
   end
 
+  # 40 megapixels — comfortably above any real camera or screenshot, far
+  # below what it takes to hurt. `-resize` bounds the OUTPUT; the decoder
+  # still rasterizes the input in full first, so a 5MB PNG declaring
+  # 50000x50000 is ~10GB of RAM before a single pixel is written. The
+  # `-limit` flags turn that into a failure rather than an outage, but
+  # reading the header and refusing costs nothing and never starts it.
+  @sanitize_max_pixels 40_000_000
+
+  defp check_pixel_budget(width, height, max_pixels)
+       when is_integer(width) and is_integer(height) and width * height > max_pixels,
+       do: {:error, "image is too large"}
+
+  defp check_pixel_budget(_width, _height, _max_pixels), do: :ok
+
   @doc """
   Re-encodes an image to known-good bytes, discarding everything else.
 
@@ -248,42 +262,64 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     quality = Keyword.get(opts, :quality, 82)
     format = Keyword.get(opts, :format, "jpeg")
 
-    case extract_dimensions(input_path) do
-      {:ok, {width, height}} ->
-        args = [
-          # `[0]` takes the FIRST frame only. Without it a multi-frame GIF
-          # or a multi-page TIFF writes N output files, and an animation
-          # bomb is a cheap way to burn CPU and disk.
-          "#{input_path}[0]",
-          "-auto-orient",
-          # Strip metadata before anything else: EXIF, IPTC, XMP, colour
-          # profiles, comments. GPS coordinates in a bug report screenshot
-          # are a privacy leak the reporter did not intend.
-          "-strip",
-          "-alpha",
-          if(format == "png", do: "on", else: "remove"),
-          "-resize",
-          "#{max_edge}x#{max_edge}>",
-          "-quality",
-          Integer.to_string(quality),
-          "#{format}:#{output_path}"
-        ]
+    max_pixels = Keyword.get(opts, :max_pixels, @sanitize_max_pixels)
 
-        Logger.info("Sanitizing upload #{input_path} (#{width}x#{height}) -> #{output_path}")
+    with {:ok, {width, height}} <- extract_dimensions(input_path),
+         :ok <- check_pixel_budget(width, height, max_pixels),
+         {:ok, detected} <- detect_format(input_path) do
+      args =
+        [
+          # Resource ceilings, applied HERE rather than trusted to the
+          # host's policy.xml. A decompression bomb is a small file that
+          # decodes to gigabytes, and "the sysadmin configured ImageMagick
+          # correctly" is not a control this code can rely on.
+          "-limit",
+          "memory",
+          "256MiB",
+          "-limit",
+          "map",
+          "512MiB",
+          "-limit",
+          "disk",
+          "1GiB",
+          "-limit",
+          "time",
+          "20"
+        ] ++
+          [
+            # `[0]` takes the FIRST frame only: without it a multi-frame
+            # GIF writes N output files, which is a cheap way to burn disk.
+            # The format prefix pins how the bytes are decoded, so a file
+            # can never be interpreted as a coder we did not allow.
+            "#{detected}:#{input_path}[0]",
+            "-auto-orient",
+            # Strip metadata before anything else: EXIF, IPTC, XMP, colour
+            # profiles, comments. GPS coordinates in a bug report screenshot
+            # are a privacy leak the reporter did not intend.
+            "-strip",
+            "-alpha",
+            if(format == "png", do: "on", else: "remove"),
+            "-resize",
+            "#{max_edge}x#{max_edge}>",
+            "-quality",
+            Integer.to_string(quality),
+            "#{format}:#{output_path}"
+          ]
 
-        case System.cmd("convert", args, stderr_to_stdout: true) do
-          {_output, 0} ->
-            {:ok, output_path}
+      Logger.info(
+        "Sanitizing #{detected} upload #{input_path} (#{width}x#{height}) -> #{output_path}"
+      )
 
-          {output, exit_code} ->
-            Logger.warning("Upload sanitize failed (#{exit_code}): #{output}")
-            {:error, "could not process image"}
-        end
+      case System.cmd("convert", args, stderr_to_stdout: true) do
+        {_output, 0} ->
+          {:ok, output_path}
 
-      {:error, _reason} ->
-        # Unreadable as an image, whatever the filename or the claimed
-        # content type said.
-        {:error, "not a readable image"}
+        {output, exit_code} ->
+          Logger.warning("Upload sanitize failed (#{exit_code}): #{output}")
+          {:error, "could not process image"}
+      end
+    else
+      {:error, reason} -> {:error, reason}
     end
   rescue
     e ->
@@ -292,6 +328,28 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   end
 
   # Private functions
+
+  # What ImageMagick actually thinks this is, checked against a short
+  # allowlist. The extension and the browser's content-type are both the
+  # uploader's claims; this is the only reading that counts, and it does
+  # not depend on the host having configured policy.xml.
+  @sanitize_formats ~w(PNG JPEG JPG WEBP GIF)
+
+  defp detect_format(path) do
+    case System.cmd("identify", ["-format", "%m", "#{path}[0]"], stderr_to_stdout: true) do
+      {output, 0} ->
+        format = output |> String.trim() |> String.upcase()
+
+        if format in @sanitize_formats,
+          do: {:ok, format},
+          else: {:error, "unsupported image format"}
+
+      _ ->
+        {:error, "not a readable image"}
+    end
+  rescue
+    _ -> {:error, "not a readable image"}
+  end
 
   defp calculate_resize_spec(current_width, current_height, target_width, target_height) do
     case {target_width, target_height} do
