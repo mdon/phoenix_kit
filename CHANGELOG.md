@@ -37,6 +37,31 @@
 
 ### Changed
 
+- **Slug generation moved onto the `locale_slug` package** (#693) — a new required
+  runtime dependency, pure Elixir with no dependencies of its own.
+  `PhoenixKit.Utils.Slug` keeps its public shape (`slugify/2`, `transliterate/1`,
+  `ensure_unique/2`) and delegates the rule. The hand-rolled table could not
+  express a locale, and produced `gro-e-fu-ball` for `Größe Fußball`, `caf` for
+  `Café`, `n-c-d-t-st` for `Ünïcödé Tëst`, and an **empty** slug for any
+  Cyrillic-only title whose caller forgot `transliterate: true` — which callers
+  read as "no slug yet" and regenerated forever. Romanization is now always on
+  (`:transliterate` is accepted and ignored), `:locale` and `:max_length` are new
+  options, and Greek is covered.
+
+  ⚠️ **Stored slugs are not rewritten and existing URLs are unaffected**, but a
+  caller that *re-derives* a slug from a title to look up a row now derives a
+  different string. This is not confined to Cyrillic content — see the accented
+  Latin examples above.
+
+  ⚠️ **`Slug.transliterate/1` now lower-cases its result.** The old table had only
+  lowercase Cyrillic keys, so it left case alone and half-mapped uppercase input
+  (`Кашпо` → `Кashpo`). Core's only caller downcases first; external callers that
+  need the original casing must keep their own copy.
+- **`locale_slug` pinned `~> 0.1.0`** (#693 post-merge review), not `~> 0.1`. The
+  looser form admits every 0.x, and the exposure is not the API but the OUTPUT: a
+  revised romanization table changes the slug a host derives from the same title,
+  and slugs are persisted in URLs. Adopting a new minor should be a deliberate
+  PhoenixKit release, not a `mix deps.update` side effect.
 - **One canonical `User.display_name/1`, and no more published email addresses**
   (#692). Half a dozen private copies of the name chain ended `|| user.email`,
   which is how a public issue board came to print commenters' full addresses next

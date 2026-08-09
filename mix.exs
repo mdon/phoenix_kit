@@ -108,7 +108,15 @@ defmodule PhoenixKit.MixProject do
       # local_dep/2 keeps the Hex pin by default so published builds and CI are
       # unchanged, and swaps in a path dep when LOCALE_SLUG_PATH is exported —
       # matching the PHOENIX_LIVE_GANTT_PATH / PHOENIX_KIT_PATH convention.
-      local_dep(:locale_slug, "~> 0.1"),
+      #
+      # Pinned `~> 0.1.0`, not `~> 0.1`. The looser form admits every 0.x, and a
+      # 0.x package promises nothing about its API — but the real exposure here
+      # is not the API, it is the OUTPUT. A revised romanization table changes
+      # the slug a host derives from the same title, and slugs are persisted in
+      # URLs and compared for uniqueness, so a `mix deps.update` would rewrite
+      # content by way of a dependency bump. Adopting a new minor should be a
+      # deliberate PhoenixKit release with a CHANGELOG line, not a side effect.
+      local_dep(:locale_slug, "~> 0.1.0"),
       {:bandit, "~> 1.0"},
       {:esbuild, "~> 0.8", only: :dev},
       {:tailwind, "~> 0.5", only: :dev},

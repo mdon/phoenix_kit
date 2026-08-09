@@ -29,6 +29,13 @@ defmodule PhoenixKit.Utils.Slug do
   **Stored slugs are not rewritten** — only newly generated ones change. Existing URLs
   are unaffected.
 
+  What that sentence does not cover, and what to check before upgrading: a caller that
+  **re-derives** a slug from a title in order to find an existing row, rather than
+  reading the stored one, now derives a different string. The old default mangled
+  accented Latin as badly as it did Cyrillic — `Café` slugged to `caf`, `Ünïcödé Tëst`
+  to `n-c-d-t-st` — so the change is not confined to scripts nobody used. Deriving is
+  the wrong lookup key either way; this release is when it stops working quietly.
+
   ## Locale
 
   Pass `:locale` when the caller knows it; most do and were discarding it.
@@ -75,13 +82,23 @@ defmodule PhoenixKit.Utils.Slug do
   @doc """
   Romanizes `text` and leaves everything else alone.
 
-  Contract preserved exactly: characters with no mapping pass through unchanged. That
-  matters — `generate_username_from_email/1` calls this and then does
+  Spacing and punctuation survive, which is the part callers depend on —
+  `generate_username_from_email/1` calls this and then does
   `String.replace(".", "_")`, so folding punctuation into a separator here would turn
-  `ülo.kask@` into `ulokask` instead of `ulo_kask`.
+  `ülo.kask@` into `ulokask` instead of `ulo_kask`. Characters with no romanizer pass
+  through in their own script (`"日本"` stays `"日本"`), so a caller that needs ASCII
+  must still say so.
 
   Now covers Greek and the Latin letters that used to vanish, not just the
   Russian/Ukrainian Cyrillic this module hardcoded.
+
+  ## One thing that did change: the result is lower-cased
+
+  The old table only had lowercase Cyrillic keys, so it left case alone and mangled
+  uppercase input — `"Кашпо"` came back `"Кashpo"`, half-romanized. This lower-cases
+  first and maps the whole string, so `"MiXeD CaSe"` is now `"mixed case"` where it
+  used to be returned untouched. Core's only caller downcases before calling anyway;
+  a caller that needs the original casing has to keep its own copy.
   """
   @spec transliterate(String.t()) :: String.t()
   defdelegate transliterate(text), to: LocaleSlug
