@@ -172,15 +172,29 @@ defmodule PhoenixKit.Install.Common do
     }
 
     try do
-      # Use PhoenixKit's centralized runtime version detection function
       current_version = Postgres.migrated_version_runtime(opts)
 
-      if current_version > 0 do
-        # Valid version found in database
-        {:current_version, current_version}
-      else
-        # Primary detection failed, try alternative detection methods
-        check_alternative_version_detection(prefix, opts)
+      cond do
+        # `migrated_version_runtime/1` is the DISPLAY twin: for a table with no
+        # comment it deliberately guesses V01 so `status`, `doctor` and the admin
+        # UI keep rendering, and warns that the migrator will refuse. That design
+        # is right for a read path — but THIS function feeds the update task,
+        # which acts on the value, and V01 is below the floor, so the guess came
+        # back out of it as "install the 1.7.x bridge first": exactly the
+        # destructive advice the warning promises will not be given.
+        #
+        # A bare 1 is therefore re-asked through the strict reader, which can
+        # tell "the comment says 1" from "there is no comment". Only that one
+        # value is re-checked; every other version is taken as read.
+        current_version == 1 and try_direct_database_version_check(opts) == :unknown_version ->
+          {:unknown_version}
+
+        current_version > 0 ->
+          {:current_version, current_version}
+
+        true ->
+          # Primary detection failed, try alternative detection methods
+          check_alternative_version_detection(prefix, opts)
       end
     rescue
       error ->
@@ -435,6 +449,12 @@ defmodule PhoenixKit.Install.Common do
 
       {:unreachable, reason} ->
         {:unreachable, reason}
+
+      # Passed through rather than folded into one of the others: an install
+      # whose version is unreadable neither needs an update nor is up to date,
+      # and answering either would send a caller somewhere that writes.
+      {:unknown_version} ->
+        {:unknown_version}
 
       {:current_version, current_version} ->
         target_version = current_version()
