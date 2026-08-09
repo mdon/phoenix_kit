@@ -862,7 +862,7 @@ defmodule PhoenixKit.Users.Auth do
         if can_manage_user_credentials?(user, actor) do
           do_admin_update_user_password(user, attrs, context)
         else
-          {:error, :insufficient_permissions}
+          refuse_credential_write(user, actor)
         end
 
       # Only an ABSENT actor is the system path — seeds, migrations and mix
@@ -875,8 +875,25 @@ defmodule PhoenixKit.Users.Auth do
         do_admin_update_user_password(user, attrs, context)
 
       _malformed ->
+        Logger.warning(
+          "PhoenixKit: refused a password write for #{user.uuid} — :admin_user was present but not a %User{}"
+        )
+
         {:error, :insufficient_permissions}
     end
+  end
+
+  # A refusal that leaves no trace is a guard nobody can tell fired. The whole
+  # point of moving this rule into the context is the caller that does not exist
+  # yet; when it arrives and is blocked, the operator needs to be able to see
+  # that rather than debug a silent no-op. `do_deactivate_user/2` already sets
+  # this precedent for a milder refusal (see the last-Owner branch below).
+  defp refuse_credential_write(%User{} = user, %User{} = actor) do
+    Logger.warning(
+      "PhoenixKit: refused a password write for #{user.uuid} by #{actor.uuid} — actor is out of rank"
+    )
+
+    {:error, :insufficient_permissions}
   end
 
   defp do_admin_update_user_password(user, attrs, context) do
