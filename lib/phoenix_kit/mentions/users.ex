@@ -102,7 +102,10 @@ defmodule PhoenixKit.Mentions.Users do
       type: "user",
       uuid: user.uuid,
       title: display_name(user),
-      subtitle: user.email
+      # NOT the email. The title deliberately degrades to a local part, and
+      # printing the full address underneath it gives back exactly what that
+      # was protecting — in a menu, next to a name, ready to copy.
+      subtitle: nil
     }
   end
 
@@ -111,15 +114,7 @@ defmodule PhoenixKit.Mentions.Users do
   picked, and the fallback when the account is later deleted.
   """
   @spec display_name(User.t()) :: String.t()
-  def display_name(%User{} = user) do
-    full = [user.first_name, user.last_name] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ")
-
-    cond do
-      full != "" -> full
-      is_binary(user.username) and user.username != "" -> user.username
-      true -> user.email |> to_string() |> String.split("@") |> List.first()
-    end
-  end
+  def display_name(%User{} = user), do: User.display_name(user)
 
   @doc """
   Resolves mentioned user uuids to `%{uuid => %{title, path}}` — the

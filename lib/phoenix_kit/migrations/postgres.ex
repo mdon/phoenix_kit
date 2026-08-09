@@ -7,7 +7,22 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V165 - Cross-module mentions and access requests ⚡ LATEST
+  ### V166 - Frozen comment attribution ⚡ LATEST
+
+  Adds `author_display_name`, `attribution_mode`, `attributed_project_uuid`
+  and `attributed_label` to `phoenix_kit_comments`. A name resolved at
+  render time rewrites history — someone leaves or fills in a profile and
+  every comment they wrote is silently re-signed — so what the reader was
+  shown is pinned at write. The same applies to speaking on a project's
+  behalf, which is a choice made at the time and not a fact recomputed from
+  current membership. `user_uuid` is never cleared: posting as the project
+  changes what the PUBLIC sees and nothing else, so moderation and audit
+  keep their actor.
+
+  Existing rows are left NULL rather than backfilled — inventing a display
+  history we do not have would be worse than resolving those rows live.
+
+  ### V165 - Cross-module mentions and access requests
 
   Adds `phoenix_kit_mentions` (the reverse index for `@`/`#` tokens — the
   canonical mention lives in the text, this answers "what links here" and
@@ -441,7 +456,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 165
+  @current_version 166
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
