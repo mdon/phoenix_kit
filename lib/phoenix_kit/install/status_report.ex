@@ -29,6 +29,8 @@ defmodule PhoenixKit.Install.StatusReport do
 
     * `{:install, command}` — PhoenixKit has never been installed
     * `{:fix_connection, message}` — the database could not be reached
+    * `{:fix_version_comment, message}` — installed, but the version comment is
+      missing or unreadable; the fix is a restamp by hand, not an update
     * `{:update, command, reasons}` — schema behind the code; `reasons` says how
     * `{:check_modules, names}` — a module's version could not be read
     * `{:ready, message}` — database and code agree
@@ -36,6 +38,7 @@ defmodule PhoenixKit.Install.StatusReport do
   @type action ::
           {:install, String.t()}
           | {:fix_connection, String.t()}
+          | {:fix_version_comment, String.t()}
           | {:update, String.t(), [String.t()]}
           | {:check_modules, [String.t()]}
           | {:ready, String.t()}

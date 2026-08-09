@@ -146,8 +146,19 @@ defmodule PhoenixKit.Install.Common do
   Returns one of:
   - `{:not_installed}` - the database is reachable and has no PhoenixKit install at the prefix
   - `{:current_version, version}` - PhoenixKit is installed with given version
+  - `{:unknown_version}` - installed, but the version comment is missing or
+    unreadable. Distinct from both of the above **because both of them route a
+    caller somewhere that writes**: "not installed" to a fresh install, and a
+    fabricated low version to the 1.7.x bridge, whose backfill invents uuids for
+    still-NULL tracked columns and then deletes the rows that match no user.
+    Callers must surface this and stop.
   - `{:unreachable, reason}` - the database cannot be queried, so the install
     state is UNKNOWN — callers must not treat this as "not installed"
+
+  This list is the contract callers pattern-match against, so it is exhaustive
+  on purpose. `{:unknown_version}` was added after the other three, and the one
+  consumer whose clause set was not extended with it — `StatusReport.next_action/3`
+  — crashed `mix phoenix_kit.status` with a `FunctionClauseError` until it was.
 
   ## Parameters
   - `prefix` - Database schema prefix (default: "public")
@@ -440,7 +451,16 @@ defmodule PhoenixKit.Install.Common do
   - `{:up_to_date, current_version}` - Already up to date
   - `{:update_needed, current_version, target_version}` - Update available
   - `{:not_installed}` - PhoenixKit not installed
+  - `{:unknown_version}` - installed, version comment unreadable; neither up to
+    date nor updatable, and answering either would send the caller somewhere
+    that writes (see `check_installation_status/1`)
   - `{:unreachable, reason}` - database cannot be queried (state unknown)
+
+  > #### No callers in this repo {: .info}
+  >
+  > Public API for host applications; nothing in `lib/` calls it today, so the
+  > clause set here is not exercised by the suite. Check it by hand when adding
+  > a state to `check_installation_status/1`.
   """
   def check_update_needed(prefix \\ "public", force \\ false) do
     case check_installation_status(prefix) do
