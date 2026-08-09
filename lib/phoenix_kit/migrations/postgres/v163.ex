@@ -117,16 +117,13 @@ defmodule PhoenixKit.Migrations.Postgres.V163 do
     qualified = UUIDIntegrity.qualify(prefix, name)
 
     cond do
-      not UUIDIntegrity.castable?(repo(), qualified, table) ->
-        # Aborting the migration over one table's bad data would strand every
-        # other repair in this run, so this table is skipped and named.
-        Logger.error("""
-        [PhoenixKit V163] #{name}: the uuid column holds values that are not \
-        valid UUIDs, so it cannot be converted. Left unchanged. Inspect with:
-          SELECT uuid FROM #{qualified} WHERE uuid IS NOT NULL
-           AND uuid !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' LIMIT 20;
-        """)
-
+      # Checked BEFORE castability: `castable?/3` is a full-table
+      # `count(*) … !~*` scan, so asking it first made the deferral path pay an
+      # unbounded sequential scan on exactly the tables this limit exists to keep
+      # out of `mix ecto.migrate`. Read-only, so not the ACCESS EXCLUSIVE outage
+      # itself — but on a PgBouncer-fronted pool it pins a connection for minutes
+      # before deciding to skip. `estimated_rows/3` reads the catalog.
+      #
       # The guard covers EVERY repair class, not just the rewrite. `ALTER COLUMN
       # TYPE` rewrites the table, `SET NOT NULL` scans it, and `ADD PRIMARY KEY`
       # builds a unique index over it — all three under ACCESS EXCLUSIVE, all
@@ -142,6 +139,16 @@ defmodule PhoenixKit.Migrations.Postgres.V163 do
         window, where the key can be built CONCURRENTLY:
           mix phoenix_kit.repair_uuid #{name}
         `mix phoenix_kit.doctor` will keep reporting it until you do.
+        """)
+
+      not UUIDIntegrity.castable?(repo(), qualified, table) ->
+        # Aborting the migration over one table's bad data would strand every
+        # other repair in this run, so this table is skipped and named.
+        Logger.error("""
+        [PhoenixKit V163] #{name}: the uuid column holds values that are not \
+        valid UUIDs, so it cannot be converted. Left unchanged. Inspect with:
+          SELECT uuid FROM #{qualified} WHERE uuid IS NOT NULL
+           AND uuid !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' LIMIT 20;
         """)
 
       true ->
