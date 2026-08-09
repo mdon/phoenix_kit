@@ -58,13 +58,28 @@ defmodule PhoenixKitWeb.Components.Core.MentionText do
     default: true,
     doc: "offer \"ask for access\" on a redacted mention"
 
+  attr :withhold_titles, :boolean,
+    default: false,
+    doc: """
+    For PUBLIC surfaces. A mention the viewer may not see renders with no
+    title and no stored label at all, rather than the usual name-plus-lock.
+    Independent of the `mentions_redact_titles` setting, which is a
+    judgement about internal readers and says nothing about the open web.
+    """
+
   attr :rest, :global
 
   def mention_text(assigns) do
     assigns =
       assign_new(assigns, :pieces, fn ->
         %{text: text, scope: scope} = assigns
-        context = Mentions.context(text, user_uuid: user_uuid(scope), scope: scope)
+
+        context =
+          Mentions.context(text,
+            user_uuid: user_uuid(scope),
+            scope: scope,
+            withhold_titles: assigns.withhold_titles
+          )
 
         text
         |> Token.split()
@@ -119,6 +134,20 @@ defmodule PhoenixKitWeb.Components.Core.MentionText do
 
     ~H"""
     <span class="opacity-70" title={gettext("No longer available")}>{prefix_for(@token)}{@token.label}</span>
+    """
+  end
+
+  # A public surface asked us to withhold, and this one points outside what
+  # the page may show. No title, no label, no link — the reader learns that
+  # something is referenced and nothing about what it is. The sentence keeps
+  # its noun slot, which is why this is not simply deleted: "blocked by" with
+  # nothing after it reads as a bug.
+  defp piece(%{piece: {%Token{}, %{state: :private}}} = assigns) do
+    ~H"""
+    <span
+      title={gettext("Not shown on this page")}
+      class="inline-flex items-baseline gap-0.5 opacity-60"
+    >{gettext("private item")}<.icon name="hero-lock-closed" class="w-3 h-3 shrink-0 self-center" /></span>
     """
   end
 

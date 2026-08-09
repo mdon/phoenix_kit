@@ -352,17 +352,45 @@ defmodule PhoenixKit.Mentions do
         # is itself sensitive. There it resolves only what the viewer may
         # see, and a forbidden mention falls back to the label the author
         # stored — never a title refreshed after the fact.
-        to_resolve = if redact_titles?(), do: Enum.to_list(allowed), else: uuids
+        withhold = withhold_titles?(opts)
+        to_resolve = if redact_titles?() or withhold, do: Enum.to_list(allowed), else: uuids
         resolved = resolve_titles(to_resolve, type)
 
         Enum.reduce(group, acc, fn token, inner ->
-          Map.put_new(inner, {type, token.uuid}, state_for(token, allowed, resolved))
+          Map.put_new(inner, {type, token.uuid}, state_for(token, allowed, resolved, withhold))
         end)
       end)
     end
   end
 
-  defp state_for(token, allowed, resolved) do
+  # A PUBLIC surface asks for this. The global `redact_titles?` setting is
+  # a judgement about internal readers — "our record names are not secret"
+  # — and it is a perfectly reasonable one to leave off. It says nothing
+  # about the open web, and the two audiences share one renderer, so a page
+  # anyone can read has to be able to withhold on its own account.
+  defp withhold_titles?(opts), do: Keyword.get(opts, :withhold_titles, false) == true
+
+  # Neither the live title NOR the author's stored label. The label is the
+  # record's name as of writing, so falling back to it publishes exactly
+  # what withholding was meant to prevent — just a staler copy of it.
+  defp state_for(token, allowed, resolved, true) do
+    if MapSet.member?(allowed, token.uuid) do
+      # In scope for this reader: renders as it always did, minus one thing.
+      # A `user` mention is allowed for everyone (users are a public type),
+      # and its path is `/admin/users/view/:uuid` — so linking it from a
+      # public page hands an anonymous reader an admin URL and a user uuid,
+      # and quietly reads "listed inside the admin app" as "public on the
+      # open web". On a withheld surface a person is a NAME, not a door.
+      case state_for(token, allowed, resolved, false) do
+        %{state: :ok} = state when token.kind == :user -> Map.delete(state, :path)
+        state -> state
+      end
+    else
+      %{state: :private}
+    end
+  end
+
+  defp state_for(token, allowed, resolved, _withhold) do
     cond do
       not MapSet.member?(allowed, token.uuid) ->
         # A title, but deliberately no path: the reader learns what it is
@@ -455,6 +483,12 @@ defmodule PhoenixKit.Mentions do
   defp token_markdown(token, %{state: :forbidden} = info) do
     "#{prefix(token)}#{escape_md(info[:title] || token.label)} 🔒"
   end
+
+  # A withheld surface asked for no name, and the catch-all below would have
+  # handed back `token.label` — the record's name as of writing, which is
+  # the very thing withholding exists to suppress. Without this clause,
+  # passing `withhold_titles` into a markdown render silently does nothing.
+  defp token_markdown(_token, %{state: :private}), do: "private item 🔒"
 
   defp token_markdown(token, _), do: "#{prefix(token)}#{escape_md(token.label)}"
 
