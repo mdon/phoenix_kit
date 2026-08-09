@@ -258,9 +258,20 @@ call on a brand-new public component rather than a defect to patch.
 
 ---
 
-## BUG - HIGH — the schema manifest was not regenerated, and it blocks the next release
+## RELEASE BLOCKER (not a defect in this PR) — the schema manifest needs regenerating
 
-**File:** `lib/phoenix_kit/migrations/expected_schema.ex` (not touched by the PR — that is the defect)
+**File:** `lib/phoenix_kit/migrations/expected_schema.ex` (not touched by the PR — correctly so)
+
+> **Correction.** I first filed this as `BUG - HIGH` against #692. That was
+> wrong, and `dev_docs/squash/README.md` says so in as many words:
+>
+> > A migration PR may land with a stale manifest; the `chain_hash` assertion in
+> > `release_check` **and** its plain-unit-test twin are the release-time gate —
+> > regeneration must happen before publish.
+>
+> Landing stale is the documented workflow. This is a release-time task for
+> whoever publishes, not something the PR author skipped. The rest of the
+> section below stands as a description of the blocker.
 
 Found while cutting 1.7.237. `mix phoenix_kit.release_check`:
 
@@ -299,17 +310,42 @@ missing and `repair` would not create them, on exactly the newest objects most
 likely to be absent from a partially-migrated database. The hash exists to catch
 this, and restamping would suppress it.
 
-**Not fixed, and deliberately not worked around.** Regeneration needs a
-pre-squash checkout plus a PostgreSQL scratch database (see
-`dev_docs/squash/README.md`, "Manifest + reference policy"), neither of which
-exists in this environment. Two ways forward, both the maintainer's call:
+**Not fixed, and deliberately not worked around.** No PostgreSQL is reachable in
+this environment (nothing on 5432, no `psql`, no container runtime), so neither
+regeneration nor the behavioural backstop can run here.
 
-1. **Regenerate** — the correct fix, and the one the tooling asks for.
-2. **Restamp after proving it is safe** — run `verify.exs --scenario s7,s8`
-   against a real database (s7/s8 are the "a freshly installed chain must yield
-   an EMPTY repair plan" scenarios), and if they pass, restamp with a moduledoc
-   note recording what was established, matching the precedent already set there
-   twice. This accepts an under-declared manifest for V165/V166 objects.
+### The runbook has a gap for post-floor deltas, and V165/V166 fall in it
+
+Worth stating because "just regenerate" does not actually close this. The
+README requires regenerating **from a pre-squash checkout**, and the moduledoc
+records why: a run on the squashed branch is self-referential and loses
+pre-floor bimodal knowledge (observed 2026-08-07 — it dropped the
+`phoenix_kit_role_permissions` seed and failed s2/s5/s8/s10).
+
+But a pre-squash checkout's chain **ends at V163**. It cannot see V164, V165 or
+V166 at all. That is why V164's effects are carried in the manifest as
+hand-written `DECLARED POST-GENERATION CORRECTION` entries despite the
+never-hand-merge rule — there is no generator run that can produce them.
+
+So the honest options are:
+
+1. **Regenerate + hand-declare.** Pre-squash regeneration for the V1..V163 body,
+   then add V165's two tables and V166's four columns / constraint / index as
+   marked post-generation corrections, following the V164 precedent. Validate
+   with `verify.exs --scenario s7,s8` against a scratch DB. This is the complete
+   fix and it is a real piece of work in a 67k-line generated file.
+2. **Restamp only, and file the object gap.** One command. Makes the gate green
+   and leaves `verify`/`repair` blind to the V165/V166 objects — repair will not
+   recreate them if a database is missing them. Note this is not a new class of
+   risk: the README already records the manifest as **known stale since
+   2026-08-08** with "no knowledge of `V163`'s objects at all" and regeneration
+   "outstanding before the next full verify run can be trusted". Option 2 grows
+   an acknowledged debt by two tables rather than introducing one.
+
+Option 2 is defensible for shipping today precisely because the oracle is
+already documented as untrustworthy; it is still an explicit decision to take,
+not a step to perform quietly, which is why `restamp_chain_hash.exs` makes
+writing opt-in.
 
 ---
 
