@@ -42,6 +42,10 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
     Repo.get!(Auth.User, user.uuid)
   end
 
+  # Re-read rather than trust the struct: the credential tests assert on what
+  # was actually stored, so a guard that refuses only after writing still fails.
+  defp password_hash(user), do: Repo.get!(Auth.User, user.uuid).hashed_password
+
   # The first account in a fresh sandbox is auto-promoted to Owner; seed a
   # throwaway one so every user below gets the role the test asked for.
   setup do
@@ -177,6 +181,87 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
 
       assert {:ok, updated} = Auth.update_user_status(target, %{"is_active" => false})
       refute updated.is_active
+    end
+  end
+
+  describe "admin_update_user_password/3 enforces rank in the context" do
+    # The predicate has existed since the takeover fixes, but only the edit form
+    # ever asked it: `admin_update_user_password/3` itself took the actor purely
+    # as audit metadata (`context[:admin_user]`) and wrote the hash for anyone.
+    # Its sibling `update_user_status/3` was moved into the context for exactly
+    # this reason; credentials were left behind. These tests bind the rule to
+    # the function, so a second caller cannot reintroduce the gap.
+    #
+    # Each assertion checks the stored hash, not just the return value: a guard
+    # that refuses AFTER writing would still satisfy the tuple.
+    test "an Admin may not set an Owner's password — the takeover this closes" do
+      owner = owner_user()
+      before = password_hash(owner)
+
+      assert {:error, :insufficient_permissions} =
+               Auth.admin_update_user_password(owner, %{password: "NewPassword123!"}, %{
+                 admin_user: admin_user()
+               })
+
+      assert password_hash(owner) == before
+    end
+
+    test "an Admin may not set another Admin's password" do
+      target = admin_user()
+      before = password_hash(target)
+
+      assert {:error, :insufficient_permissions} =
+               Auth.admin_update_user_password(target, %{password: "NewPassword123!"}, %{
+                 admin_user: admin_user()
+               })
+
+      assert password_hash(target) == before
+    end
+
+    test "a non-staff actor holding only a permission is refused" do
+      target = plain_user()
+      before = password_hash(target)
+
+      assert {:error, :insufficient_permissions} =
+               Auth.admin_update_user_password(target, %{password: "NewPassword123!"}, %{
+                 admin_user: plain_user()
+               })
+
+      assert password_hash(target) == before
+    end
+
+    test "an in-rank actor succeeds" do
+      target = plain_user()
+      before = password_hash(target)
+
+      assert {:ok, _updated} =
+               Auth.admin_update_user_password(target, %{password: "NewPassword123!"}, %{
+                 admin_user: admin_user()
+               })
+
+      refute password_hash(target) == before
+    end
+
+    test "changing your own password is allowed, as it is for the predicate" do
+      actor = admin_user()
+      before = password_hash(actor)
+
+      assert {:ok, _updated} =
+               Auth.admin_update_user_password(actor, %{password: "NewPassword123!"}, %{
+                 admin_user: actor
+               })
+
+      refute password_hash(actor) == before
+    end
+
+    test "omitting the actor is the system path and still writes" do
+      target = plain_user()
+      before = password_hash(target)
+
+      assert {:ok, _updated} =
+               Auth.admin_update_user_password(target, %{password: "NewPassword123!"})
+
+      refute password_hash(target) == before
     end
   end
 

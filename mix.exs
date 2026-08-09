@@ -337,12 +337,25 @@ defmodule PhoenixKit.MixProject do
       prerelease: [
         "deps.get --check-locked",
         "deps.unlock --check-unused",
-        "cmd MIX_ENV=prod mix compile --force --warnings-as-errors",
+        # `env` prefix, not a bare assignment: `mix cmd` shells out through
+        # System.cmd/3, which execs the first word directly — "MIX_ENV=prod" is
+        # not an executable, so this step raised :enoent and the whole gate
+        # aborted before reaching deps.audit/hex.audit/docs/hex.build/
+        # release_check. Found 2026-08-09, the first time the gate was run to
+        # completion.
+        "cmd env MIX_ENV=prod mix compile --force --warnings-as-errors",
         "quality.ci",
         "deps.audit",
-        "hex.audit",
+        # Both hex.* steps run in a subprocess: after the dialyzer step has
+        # run in this VM, Hex-archive tasks stop resolving ("The task
+        # "hex.audit" could not be found") while project-dep tasks
+        # (deps.audit, docs, release_check) still do. Bisected 2026-08-09:
+        # `mix do format --check-formatted + credo --strict + hex.audit`
+        # passes, `mix do quality.ci + hex.audit` fails — the added step is
+        # dialyzer. A fresh VM per hex.* step is immune.
+        "cmd mix hex.audit",
         "docs",
-        "hex.build",
+        "cmd mix hex.build",
         "phoenix_kit.release_check"
       ]
     ]

@@ -822,9 +822,15 @@ defmodule PhoenixKit.Users.Auth do
     * `user` - The user whose password is being updated
     * `attrs` - Password attributes (password, password_confirmation)
     * `context` - Optional context map containing:
-      * `:admin_user` - The admin performing the action (for audit logging)
+      * `:admin_user` - The admin performing the action. **Authorizes as well as
+        audits**: when present, the write is refused unless
+        `can_manage_user_credentials?/2` allows this actor over this target.
       * `:ip_address` - IP address of the admin (for audit logging)
       * `:user_agent` - User agent of the admin (for audit logging)
+
+  Omitting `:admin_user` is the system path — seeds, migrations and mix tasks
+  act with no actor and are not rank-checked, matching `update_user_status/3`.
+  A web caller must always pass it; without it there is nothing to check.
 
   ## Examples
 
@@ -834,11 +840,37 @@ defmodule PhoenixKit.Users.Auth do
       iex> admin_update_user_password(user, %{password: "new_password", password_confirmation: "new_password"}, %{admin_user: admin, ip_address: "192.168.1.1"})
       {:ok, %User{}}
 
+      iex> admin_update_user_password(owner, %{password: "new_password"}, %{admin_user: admin})
+      {:error, :insufficient_permissions}
+
       iex> admin_update_user_password(user, %{password: "short"})
       {:error, %Ecto.Changeset{}}
 
   """
+  # The rank rule lives here rather than in the form that calls it. `:admin_user`
+  # was already threaded in for the audit row, so the actor was in hand the whole
+  # time and only the question was missing: the edit LiveView asked
+  # `can_manage_user_credentials?/2` to hide the UI and to refuse the event, but
+  # the context function wrote the hash for anyone who reached it. That is the
+  # same shape the status path had — a rule living in one LiveView while two
+  # other callers went around it — and it is why `update_user_status/3` was moved
+  # into the context. Credentials are the more final of the two, since setting a
+  # password also deletes every session token of the target.
   def admin_update_user_password(user, attrs, context \\ %{}) do
+    case Map.get(context, :admin_user) do
+      %User{} = actor ->
+        if can_manage_user_credentials?(user, actor) do
+          do_admin_update_user_password(user, attrs, context)
+        else
+          {:error, :insufficient_permissions}
+        end
+
+      _system ->
+        do_admin_update_user_password(user, attrs, context)
+    end
+  end
+
+  defp do_admin_update_user_password(user, attrs, context) do
     changeset = User.password_changeset(user, attrs)
 
     multi = Ecto.Multi.new()
