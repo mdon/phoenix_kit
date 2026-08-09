@@ -40,8 +40,9 @@ I verified the claims rather than reading them:
 | The test count | `mix test test/phoenix_kit/install/` — **86 tests, 6 doctests, 0 failures**, independently reproduced |
 | The new test actually bites | `next_action({:unknown_version}, …)` has no fallback clause, so removing it is a `FunctionClauseError`, as claimed |
 
-Two findings worth fixing — one of them leaves `mix precommit` **red on main** —
-three worth recording, and one note that changes tomorrow's release decision.
+Three findings worth fixing — one leaves `mix precommit` **red on main**, one
+leaves the PR's headline fix inert on a supported configuration — three worth
+recording, and one note that changes tomorrow's release decision.
 
 ---
 
@@ -86,6 +87,64 @@ one that could have caught this.
 
 **Fixed:** `{:fix_version_comment, String.t()}` added to `action()` and to the
 typedoc. Dialyzer back to `222 errors, 222 skipped`, exit 0.
+
+---
+
+## BUG - HIGH — the new guard fails OPEN, so the headline fix does not apply on every host
+
+**File:** `lib/phoenix_kit/install/common.ex`
+
+Does #694 fix the comment-less database? **For the common configuration, yes** —
+I traced it end to end rather than trusting the corrected commit message:
+`check_version_with_runtime_repo/2` really does return `1` for a comment-less
+table (`postgres.ex:903`), so the re-check fires and `{:unknown_version}` comes
+out. The unparseable-comment case is covered too, by a different route
+(`parse_version_comment_leniently/2` returns `0`, which falls through to
+`check_alternative_version_detection/2`, which has its own `:unknown_version`
+clause).
+
+But the guard is written as a positive test for one specific answer:
+
+```elixir
+current_version == 1 and try_direct_database_version_check(opts) == :unknown_version ->
+```
+
+It fires only when the re-check *positively reports* "there is no comment".
+Every way of **failing to answer** falls through to `{:current_version, 1}` —
+below the floor — and the operator is told to install the 1.7.x bridge. The one
+check standing between a comment-less database and the destructive advice is
+fail-open.
+
+That is reachable, not theoretical, because the two halves of the `cond` resolve
+the repo differently:
+
+| Call | Repo resolution |
+|---|---|
+| `migrated_version_runtime/1` (produces the `1`) | `Postgres.get_repo_with_fallback/0` — config, **then** start the app, **then** auto-detect from the Mix project |
+| `try_direct_database_version_check/1` (the guard) | `Config.get(:repo, nil)` — config only |
+
+On a host that never sets `config :phoenix_kit, repo:` and relies on
+auto-detection — a supported setup, which is why strategies 2 and 3 exist — the
+first finds the repo and returns `1`, the second finds nothing and returns `0`,
+`0 != :unknown_version`, and the guard silently does not fire. The PR's headline
+fix is inert there. The same is true for any transient failure of that second
+query, which is worth noting given the PR reports the shared PostgreSQL "at its
+connection ceiling all day".
+
+This is the same shape as the mistake `c661f1b9` corrected — a guard and the
+thing it guards reaching the database by different routes — one level further
+down.
+
+**Fixed:** inverted to `not comment_literally_says_one?(opts)`, so
+`{:current_version, 1}` requires an affirmative "the comment reads 1" and every
+other outcome is `{:unknown_version}`. Fail-closed is right here because the
+errors are asymmetric: a genuine V01 install sent to `doctor` first loses a
+minute and then learns the truth; a current database sent to the bridge has its
+still-NULL tracked columns backfilled with invented uuids and the rows deleted
+for matching no user.
+
+Not covered by a test — `check_installation_status/1` needs a live database, and
+none is reachable here. Worth adding when one is.
 
 ---
 
@@ -200,6 +259,7 @@ under-declares anything.
 | File | Change |
 |---|---|
 | `lib/phoenix_kit/install/status_report.ex` | `{:fix_version_comment, String.t()}` added to `action()` and its typedoc — unblocks dialyzer |
+| `lib/phoenix_kit/install/common.ex` | the comment-less guard fails closed: `{:current_version, 1}` now requires an affirmative "the comment reads 1" |
 | `lib/phoenix_kit/install/common.ex` | `check_installation_status/1` and `check_update_needed/2` docs list `{:unknown_version}`; the former records that the list is exhaustive by design and what happened when a consumer missed it; the latter records that it has no callers |
 
 ## Gate

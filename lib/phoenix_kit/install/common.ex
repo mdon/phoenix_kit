@@ -197,7 +197,7 @@ defmodule PhoenixKit.Install.Common do
         # A bare 1 is therefore re-asked through the strict reader, which can
         # tell "the comment says 1" from "there is no comment". Only that one
         # value is re-checked; every other version is taken as read.
-        current_version == 1 and try_direct_database_version_check(opts) == :unknown_version ->
+        current_version == 1 and not comment_literally_says_one?(opts) ->
           {:unknown_version}
 
         current_version > 0 ->
@@ -275,6 +275,32 @@ defmodule PhoenixKit.Install.Common do
   end
 
   # Try direct database connection (similar to what status command does)
+  # Only an affirmative "the comment reads 1" may produce `{:current_version, 1}`.
+  # Everything else — no comment, an unparseable one, a failed query, a repo this
+  # function cannot resolve — is unknown.
+  #
+  # Fail-CLOSED, because the two mistakes are not equally bad. A genuine V01
+  # install sent to `doctor` first loses a minute, and `doctor` then tells it the
+  # truth. A CURRENT database sent to the 1.7.x bridge has its still-NULL tracked
+  # columns backfilled with invented uuids and the rows deleted for matching no
+  # user.
+  #
+  # The earlier form asked `... == :unknown_version`, which only fires when the
+  # re-check positively reports "no comment" — so every way of FAILING to answer
+  # fell through to the destructive branch. That is not hypothetical:
+  # `try_direct_database_version_check/1` resolves the repo with
+  # `Config.get(:repo, nil)` alone, while `migrated_version_runtime/1` — the call
+  # that produced the 1 in the first place — resolves it through
+  # `Postgres.get_repo_with_fallback/0`, which additionally starts the app and
+  # auto-detects from the Mix project. On a host that never sets
+  # `config :phoenix_kit, repo:` and relies on that auto-detection, the first
+  # returns nil and the second returns the repo — so the guard silently did not
+  # fire on precisely the state it was written for. Same shape as the twin mixup
+  # this guard already exists to correct, one level down.
+  defp comment_literally_says_one?(opts) do
+    try_direct_database_version_check(opts) == 1
+  end
+
   defp try_direct_database_version_check(opts) do
     # Try to get the repo from application config first (same as status command)
     repo = Config.get(:repo, nil)
