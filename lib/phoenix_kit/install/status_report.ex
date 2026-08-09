@@ -67,6 +67,15 @@ defmodule PhoenixKit.Install.StatusReport do
     {:fix_connection, "Fix the database connection, then re-run mix phoenix_kit.status"}
   end
 
+  # Installed, but the version comment is missing or not a plain integer. The
+  # action is a restamp, not an update: every other task reads that comment, so
+  # until it says something true none of them can act safely. `doctor` first,
+  # because it is what establishes the real version to stamp.
+  def next_action({:unknown_version}, _modules, prefix) do
+    {:fix_version_comment,
+     "mix phoenix_kit.doctor — then COMMENT ON TABLE #{prefix}.phoenix_kit IS '<version>'"}
+  end
+
   # Core behind. Modules fold into the SAME action rather than being ignored:
   # one `mix phoenix_kit.update` fixes both, and an operator told only
   # "database is behind" would fix core, re-run, and meet a second finding that

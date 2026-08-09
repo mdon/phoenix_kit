@@ -641,6 +641,15 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
     )
   end
 
+  # `contype = 'f'` is load-bearing, not decoration. Detection before the ADD is
+  # shape-based (`fk_shape_present/5`), so a constraint that merely OWNS THE NAME
+  # — a CHECK, or an FK to a different column — reads as `:absent`; the guarded
+  # ADD then fails with 42710 and is swallowed by the `EXCEPTION WHEN OTHERS`
+  # handler. Verifying by name alone saw the colliding constraint, `validate_fk/7`
+  # issued a no-op VALIDATE against it, and the outcome was reported `:created`:
+  # one buried RAISE WARNING, no `{:failed, …}`, no SUMMARY line, comment stamped
+  # 164, and the declared foreign key not there. That is the same shape as the
+  # defects this migration exists to repair, inside the repair itself.
   defp fk_exists?(table_str, constraint, escaped_prefix) do
     query = """
     SELECT EXISTS (
@@ -648,6 +657,7 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
       JOIN pg_class t ON t.oid = c.conrelid
       JOIN pg_namespace n ON n.oid = t.relnamespace
       WHERE c.conname = '#{constraint}'
+        AND c.contype = 'f'
         AND t.relname = '#{table_str}'
         AND n.nspname = '#{escaped_prefix}'
     )

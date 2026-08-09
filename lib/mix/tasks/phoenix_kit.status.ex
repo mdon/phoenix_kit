@@ -241,6 +241,11 @@ defmodule Mix.Tasks.PhoenixKit.Status do
       {:unreachable, reason} ->
         {:unreachable, reason}
 
+      # `status` is the task an operator runs precisely because something looks
+      # wrong, so it must report this state rather than raise on it.
+      {:unknown_version} ->
+        {:unknown_version}
+
       {:current_version, version} ->
         target_version = Postgres.current_version()
 
@@ -339,6 +344,13 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     "#{IO.ANSI.yellow()}Unknown — database unreachable#{IO.ANSI.reset()}"
   end
 
+  # Installed, but the version comment is missing or unreadable. Red rather than
+  # yellow: unlike an unreachable database this will not fix itself, and no other
+  # task can act safely until it is restamped.
+  defp format_installation_status({:unknown_version}) do
+    "#{IO.ANSI.red()}Installed, version comment unreadable#{IO.ANSI.reset()}"
+  end
+
   defp format_installation_status({:up_to_date, version}) do
     "#{IO.ANSI.green()}V#{pad_version(version)} ✅#{IO.ANSI.reset()}"
   end
@@ -401,6 +413,12 @@ defmodule Mix.Tasks.PhoenixKit.Status do
 
   defp format_next_action({:fix_connection, message}) do
     "#{IO.ANSI.yellow()}#{message}#{IO.ANSI.reset()}"
+  end
+
+  # Same shape as :fix_connection — a state nothing else can act around until an
+  # operator resolves it by hand.
+  defp format_next_action({:fix_version_comment, message}) do
+    "#{IO.ANSI.red()}#{message}#{IO.ANSI.reset()}"
   end
 
   # Layout lives in PhoenixKit.Install.StatusTree so it can be unit tested

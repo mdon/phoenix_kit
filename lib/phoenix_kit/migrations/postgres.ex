@@ -469,6 +469,16 @@ defmodule PhoenixKit.Migrations.Postgres do
   # carries the whole pre-squash chain.
   @bridge_version "1.7.236"
 
+  @doc """
+  The release an below-floor host must install before this one.
+
+  Exposed because `mix phoenix_kit.update` refuses below-floor installs at
+  GENERATION time, before this module's raise sites are ever reached — so the
+  notice the operator sees first has to name the same version those raises do.
+  """
+  @spec bridge_version() :: String.t()
+  def bridge_version, do: @bridge_version
+
   # First version whose SQL referenced uuid_generate_v7() in the
   # pre-squash chain — V40/V56/V61/V63 were its historical
   # creation/repair sites, now folded into the V135 baseline's single
