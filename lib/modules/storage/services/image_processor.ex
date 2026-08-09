@@ -212,6 +212,85 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
       {:error, "Image center-crop failed: #{inspect(e)}"}
   end
 
+  @doc """
+  Re-encodes an image to known-good bytes, discarding everything else.
+
+  For uploads from people you do not trust. The point is not to *inspect*
+  the file — that is a losing game — but to stop serving the uploader's
+  bytes at all: what ends up stored is this encoder's output, produced by
+  decoding the input and writing a fresh image. A polyglot file (valid
+  GIF, valid JavaScript), an EXIF payload, a trailing ZIP, an embedded
+  colour profile — none of them survive being decoded to pixels and
+  written out again.
+
+  Also enforces a maximum edge length, because a 30000×30000 PNG is a
+  decompression bomb whatever its byte size, and rejects anything
+  ImageMagick cannot read as an image regardless of what the upload
+  claimed to be.
+
+  Returns `{:ok, output_path}` or `{:error, reason}`. Never raises.
+
+  ## Options
+
+    * `:max_edge` — longest side in pixels (default 2500); larger images
+      are scaled down, never up
+    * `:quality` — output quality (default 82)
+    * `:format` — output format (default "jpeg"; use "png" to keep
+      transparency)
+
+  ## Example
+
+      ImageProcessor.sanitize(upload.path, dest, format: "png")
+  """
+  @spec sanitize(String.t(), String.t(), keyword()) :: {:ok, String.t()} | {:error, String.t()}
+  def sanitize(input_path, output_path, opts \\ []) do
+    max_edge = Keyword.get(opts, :max_edge, 2500)
+    quality = Keyword.get(opts, :quality, 82)
+    format = Keyword.get(opts, :format, "jpeg")
+
+    case extract_dimensions(input_path) do
+      {:ok, {width, height}} ->
+        args = [
+          # `[0]` takes the FIRST frame only. Without it a multi-frame GIF
+          # or a multi-page TIFF writes N output files, and an animation
+          # bomb is a cheap way to burn CPU and disk.
+          "#{input_path}[0]",
+          "-auto-orient",
+          # Strip metadata before anything else: EXIF, IPTC, XMP, colour
+          # profiles, comments. GPS coordinates in a bug report screenshot
+          # are a privacy leak the reporter did not intend.
+          "-strip",
+          "-alpha",
+          if(format == "png", do: "on", else: "remove"),
+          "-resize",
+          "#{max_edge}x#{max_edge}>",
+          "-quality",
+          Integer.to_string(quality),
+          "#{format}:#{output_path}"
+        ]
+
+        Logger.info("Sanitizing upload #{input_path} (#{width}x#{height}) -> #{output_path}")
+
+        case System.cmd("convert", args, stderr_to_stdout: true) do
+          {_output, 0} ->
+            {:ok, output_path}
+
+          {output, exit_code} ->
+            Logger.warning("Upload sanitize failed (#{exit_code}): #{output}")
+            {:error, "could not process image"}
+        end
+
+      {:error, _reason} ->
+        # Unreadable as an image, whatever the filename or the claimed
+        # content type said.
+        {:error, "not a readable image"}
+    end
+  rescue
+    e ->
+      Logger.warning("Upload sanitize raised: #{Exception.message(e)}")
+      {:error, "could not process image"}
+  end
+
   # Private functions
 
   defp calculate_resize_spec(current_width, current_height, target_width, target_height) do
