@@ -482,6 +482,16 @@ defmodule Mix.Tasks.PhoenixKit.Status do
       {:unreachable, reason} ->
         IO.puts("  Database unreachable: #{inspect(reason)}")
 
+      # The non-verbose path reports this state; without a clause here the
+      # SAME run crashed with CaseClauseError the moment `--verbose` was added
+      # to it — after printing a correct tree, which is the worst place to die.
+      {:unknown_version} ->
+        IO.puts("  Current version: unreadable — the table exists but its")
+        IO.puts("  version comment is missing or is not a plain integer.")
+        IO.puts("  Establish the real state and restamp it by hand:")
+        IO.puts("    mix phoenix_kit.doctor")
+        IO.puts("    COMMENT ON TABLE #{prefix}.phoenix_kit IS '<version>';")
+
       {:up_to_date, version} ->
         IO.puts("  Current version: V#{pad_version(version)}")
         IO.puts("  Target version: V#{pad_version(Postgres.current_version())}")
