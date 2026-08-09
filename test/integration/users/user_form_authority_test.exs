@@ -41,6 +41,15 @@ defmodule PhoenixKit.Integration.Users.UserFormAuthorityTest do
     Repo.get!(Auth.User, user.uuid)
   end
 
+  # A value that is hostile AND schema-valid for its field. Both halves matter:
+  # hostile so the assertion means something, valid so the changeset is not
+  # rejected for a reason that has nothing to do with the filter under test. A
+  # value that fails validation makes the test pass no matter what the filter
+  # does, which is exactly how this test spent its life proving nothing.
+  defp poison_for(:email), do: "attacker@example.com"
+  defp poison_for(:user_timezone), do: "0"
+  defp poison_for(field), do: "attacker-#{field}"
+
   setup do
     {:ok, seed} = Auth.register_user(%{email: unique_email(), password: "ValidPassword123!"})
     {:ok, _} = Auth.admin_confirm_user(seed)
@@ -145,6 +154,13 @@ defmodule PhoenixKit.Integration.Users.UserFormAuthorityTest do
       after_submit = Repo.get!(Auth.User, target.uuid)
       assert after_submit.hashed_password == before.hashed_password
       assert after_submit.email == before.email
+
+      # The other half of "refuses cleanly": only the credential fields are
+      # dropped. Asserting the two unchanged fields alone is satisfied just as
+      # well by a regression that abandons the whole write — the crash this test
+      # was written for did exactly that, half-way through — so pin that the
+      # non-credential field this submission carried did land.
+      assert after_submit.first_name == "Renamed"
     end
 
     test "every field the context routes into the schema is dropped, not just the two",
@@ -159,18 +175,29 @@ defmodule PhoenixKit.Integration.Users.UserFormAuthorityTest do
 
       {:ok, view, _html} = live(conn, Routes.path("/admin/users/edit/#{owner.uuid}"))
 
-      poisoned =
-        Map.new(Auth.updatable_profile_fields(), fn field ->
-          {Atom.to_string(field), "attacker-#{field}"}
-        end)
-
-      render_submit(view, "save_user", %{
-        "user" => %{"first_name" => "Harmless", "custom_fields" => poisoned}
-      })
-
-      after_submit = Repo.get!(Auth.User, owner.uuid)
-
+      # ONE poisoned field per submission, not all five in one payload.
+      #
+      # The all-at-once form was vacuous and had never once exercised the bypass
+      # it is named after. `Auth.update_user_fields/2` routes every schema field
+      # it recognises into a SINGLE `profile_changeset`, and the generated value
+      # for `user_timezone` — "attacker-user_timezone" — fails that field's
+      # format validation. One invalid member made the whole changeset invalid,
+      # so nothing was written whether the filter ran or not, and the assertion
+      # loop compared an untouched row to itself. Verified: with
+      # `drop_schema_identity_fields/2` deleted, the old form still passed.
+      #
+      # Per-field submission is also what keeps this honest as the list grows: a
+      # sixth field with its own validator would silently re-vacuum a shared
+      # payload, and nothing would say so.
       for field <- Auth.updatable_profile_fields() do
+        {:ok, view, _html} = live(conn, Routes.path("/admin/users/edit/#{owner.uuid}"))
+
+        render_submit(view, "save_user", %{
+          "user" => %{"custom_fields" => %{Atom.to_string(field) => poison_for(field)}}
+        })
+
+        after_submit = Repo.get!(Auth.User, owner.uuid)
+
         assert Map.get(after_submit, field) == Map.get(owner, field),
                "#{field} reached the schema through custom_fields"
       end
