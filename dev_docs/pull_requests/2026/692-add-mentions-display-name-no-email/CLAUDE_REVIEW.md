@@ -258,6 +258,61 @@ call on a brand-new public component rather than a defect to patch.
 
 ---
 
+## BUG - HIGH — the schema manifest was not regenerated, and it blocks the next release
+
+**File:** `lib/phoenix_kit/migrations/expected_schema.ex` (not touched by the PR — that is the defect)
+
+Found while cutting 1.7.237. `mix phoenix_kit.release_check`:
+
+```
+FAIL Migration Version Sync
+     PhoenixKit.Migrations.ExpectedSchema.chain_hash/0 is stale — it no longer
+     matches a fresh hash over lib/phoenix_kit/migrations/postgres/v*.ex.
+```
+
+`chain_hash` is computed over the whole `v*.ex` set, so adding V165 and V166
+moved it by construction. The manifest's last touch is `b3ef57b2` (#689). **No
+release can be published until this is resolved.**
+
+The important part is that the usual quick fix is not available. There is a
+DB-free `dev_docs/squash/restamp_chain_hash.exs`, and the moduledoc shows it
+being used twice before — but both times on the explicit finding that the new
+versions added **no manifest object**:
+
+> Neither new version adds a manifest OBJECT: upstream's V163 converges databases
+> onto shapes this manifest already declares … Established empirically rather
+> than by regenerating: s3, s7 and s8 … all pass against this manifest post-merge.
+
+That is not true here. V165 creates `phoenix_kit_mentions` and
+`phoenix_kit_access_requests` outright; V166 adds four columns, a CHECK
+constraint and a partial index to `phoenix_kit_comments`. `ExpectedSchema`
+mentions **none** of them — `rg` returns zero hits for every one of those names.
+The restamp script rules itself out for exactly this case:
+
+> It is the right tool ONLY when the change cannot move the schema… When the
+> change adds, drops or reshapes anything, regenerate the manifest from a
+> pre-squash checkout instead and do not use this script.
+
+Restamping anyway would turn the gate green while leaving the repair engine's
+oracle blind to two tables and four columns: `verify` would not report them
+missing and `repair` would not create them, on exactly the newest objects most
+likely to be absent from a partially-migrated database. The hash exists to catch
+this, and restamping would suppress it.
+
+**Not fixed, and deliberately not worked around.** Regeneration needs a
+pre-squash checkout plus a PostgreSQL scratch database (see
+`dev_docs/squash/README.md`, "Manifest + reference policy"), neither of which
+exists in this environment. Two ways forward, both the maintainer's call:
+
+1. **Regenerate** — the correct fix, and the one the tooling asks for.
+2. **Restamp after proving it is safe** — run `verify.exs --scenario s7,s8`
+   against a real database (s7/s8 are the "a freshly installed chain must yield
+   an EMPTY repair plan" scenarios), and if they pass, restamp with a moduledoc
+   note recording what was established, matching the precedent already set there
+   twice. This accepts an under-declared manifest for V165/V166 objects.
+
+---
+
 ## NITPICK — access requests are unvalidated and unthrottled
 
 **Files:** `lib/phoenix_kit/mentions/live.ex`, `lib/phoenix_kit/mentions/access_requests.ex`
