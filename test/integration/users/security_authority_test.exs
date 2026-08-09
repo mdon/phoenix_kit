@@ -47,6 +47,10 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
   # was actually stored, so a guard that refuses only after writing still fails.
   defp password_hash(user), do: Repo.get!(Auth.User, user.uuid).hashed_password
 
+  # Same reason, for the confirmation toggle: the refusal has to be visible in
+  # the row, not merely in the return value.
+  defp confirmed_at(user), do: Repo.get!(Auth.User, user.uuid).confirmed_at
+
   # The actor this whole series exists to stop: a role that holds the `users`
   # permission — which is what admits it to the user pages — and no staff role.
   #
@@ -210,6 +214,25 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
       assert {:ok, updated} = Auth.update_user_status(target, %{"is_active" => false})
       refute updated.is_active
     end
+
+    test "a present but malformed actor is refused rather than taking the system path" do
+      # The system path exists for callers that pass no `:actor` at all —
+      # `PhoenixKit.Users.Referrals` expiring an account, plus seeds and mix
+      # tasks. A value that is present but not a `%User{}` (a map decoded from
+      # JSON by a host application's controller, a bare uuid string) is a caller
+      # that meant to supply an actor and got the shape wrong, and reading that
+      # as "no actor" hands it the unchecked path. Same table of shapes as the
+      # `admin_update_user_password/3` test below, because it is the same rule.
+      target = plain_user()
+
+      for malformed <- [%{"uuid" => Ecto.UUID.generate()}, "some-uuid-string", false, 42] do
+        assert {:error, :insufficient_permissions} =
+                 Auth.update_user_status(target, %{"is_active" => false}, actor: malformed),
+               "a #{inspect(malformed)} actor took the unchecked path"
+      end
+
+      assert Repo.get!(Auth.User, target.uuid).is_active
+    end
   end
 
   describe "admin_update_user_password/3 enforces rank in the context" do
@@ -329,6 +352,91 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
                Auth.admin_update_user_password(target, %{password: "NewPassword123!"})
 
       refute password_hash(target) == before
+    end
+  end
+
+  describe "toggle_user_confirmation/2 enforces rank in the context" do
+    # The third function offered from the same pages, to the same holders of the
+    # `users` permission, and until now the least covered: it had no test of the
+    # rank rule at all. Unconfirming is the sharper half of the toggle —
+    # `require_email_confirmation` is honoured at eleven gates, so clearing
+    # `confirmed_at` locks the target out of every protected page. That is the
+    # same denial of service `update_user_status/3` closes, against the same
+    # accounts that are meant to outrank the actor.
+    #
+    # Each assertion re-reads `confirmed_at` from the database rather than
+    # trusting the return value: a guard that refuses after writing would still
+    # satisfy the tuple.
+    test "an Admin may not unconfirm an Owner — the lockout this closes" do
+      owner = owner_user()
+
+      assert {:error, :insufficient_permissions} =
+               Auth.toggle_user_confirmation(owner, actor: admin_user())
+
+      assert confirmed_at(owner)
+    end
+
+    test "an Admin may not unconfirm another Admin" do
+      target = admin_user()
+
+      assert {:error, :insufficient_permissions} =
+               Auth.toggle_user_confirmation(target, actor: admin_user())
+
+      assert confirmed_at(target)
+    end
+
+    test "a non-staff actor holding only a permission is refused" do
+      target = plain_user()
+
+      assert {:error, :insufficient_permissions} =
+               Auth.toggle_user_confirmation(target, actor: users_permission_holder())
+
+      assert confirmed_at(target)
+    end
+
+    test "your own confirmation is not yours to toggle" do
+      # `can_manage_user_status?/2` is the shared predicate, and it refuses self
+      # where the credential rule allows it. Inherited here on purpose: locking
+      # yourself out of every gated page is the same accident, not a routine one.
+      actor = admin_user()
+
+      assert {:error, :insufficient_permissions} =
+               Auth.toggle_user_confirmation(actor, actor: actor)
+
+      assert confirmed_at(actor)
+    end
+
+    test "an in-rank actor may toggle in both directions" do
+      target = plain_user()
+      admin = admin_user()
+
+      assert {:ok, unconfirmed} = Auth.toggle_user_confirmation(target, actor: admin)
+      refute unconfirmed.confirmed_at
+      refute confirmed_at(target)
+
+      assert {:ok, reconfirmed} = Auth.toggle_user_confirmation(unconfirmed, actor: admin)
+      assert reconfirmed.confirmed_at
+      assert confirmed_at(target)
+    end
+
+    test "a present but malformed actor is refused rather than taking the system path" do
+      target = plain_user()
+
+      for malformed <- [%{"uuid" => Ecto.UUID.generate()}, "some-uuid-string", false, 42] do
+        assert {:error, :insufficient_permissions} =
+                 Auth.toggle_user_confirmation(target, actor: malformed),
+               "a #{inspect(malformed)} actor took the unchecked path"
+      end
+
+      assert confirmed_at(target)
+    end
+
+    test "omitting the actor is the system path and still writes" do
+      target = plain_user()
+
+      assert {:ok, updated} = Auth.toggle_user_confirmation(target)
+      refute updated.confirmed_at
+      refute confirmed_at(target)
     end
   end
 

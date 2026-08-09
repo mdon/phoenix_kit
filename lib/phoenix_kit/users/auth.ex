@@ -1342,6 +1342,16 @@ defmodule PhoenixKit.Users.Auth do
   @doc """
   Toggles user confirmation status (admin function).
 
+  ## Authorization
+
+  Pass `actor: %User{}` and the RANK rule is enforced here, in the context —
+  the actor must outrank the target (`can_manage_user_status?/2`). Do that from
+  every request-driven path.
+
+  Omitting `:actor` is the system path and performs NO authorization, matching
+  `update_user_status/3`. An `:actor` that is PRESENT but is not a `%User{}` is
+  refused rather than read as absent.
+
   ## Examples
 
       iex> toggle_user_confirmation(confirmed_user)
@@ -1349,6 +1359,9 @@ defmodule PhoenixKit.Users.Auth do
 
       iex> toggle_user_confirmation(unconfirmed_user)
       {:ok, %User{confirmed_at: ~N[2023-01-01 12:00:00]}}
+
+      iex> toggle_user_confirmation(owner, actor: admin)
+      {:error, :insufficient_permissions}
   """
   def toggle_user_confirmation(user, opts \\ [])
 
@@ -1364,8 +1377,22 @@ defmodule PhoenixKit.Users.Auth do
           do: do_toggle_user_confirmation(user),
           else: {:error, :insufficient_permissions}
 
-      _system ->
+      # Only an ABSENT actor is the system path — seeds, migrations and mix
+      # tasks pass no opts at all. A value that is present but not a `%User{}`
+      # (a map decoded from JSON by a host controller, a bare uuid string) is a
+      # caller that meant to supply an actor and got the shape wrong; treating
+      # that as "no actor" would hand it the unchecked path. Fails closed for
+      # the same reason `admin_update_user_password/3` does, and it matters most
+      # here: the unchecked path can clear `confirmed_at`.
+      nil ->
         do_toggle_user_confirmation(user)
+
+      _malformed ->
+        Logger.warning(
+          "PhoenixKit: refused a confirmation toggle for #{target_label(user)} — :actor was present but not a %User{}"
+        )
+
+        {:error, :insufficient_permissions}
     end
   end
 
@@ -2237,7 +2264,9 @@ defmodule PhoenixKit.Users.Auth do
 
   Omitting `:actor` means "system-initiated" and performs NO authorization —
   correct for `PhoenixKit.Users.Referrals` expiring an account, wrong for
-  anything a user asked for.
+  anything a user asked for. An `:actor` that is PRESENT but is not a `%User{}`
+  is refused rather than read as absent: it is a caller that meant to supply an
+  actor and got the shape wrong.
 
   ## Parameters
 
@@ -2267,8 +2296,22 @@ defmodule PhoenixKit.Users.Auth do
           {:error, :insufficient_permissions}
         end
 
-      _system ->
+      # Only an ABSENT actor is the system path — `PhoenixKit.Users.Referrals`
+      # expires an account with no `:actor` at all, as do seeds and mix tasks. A
+      # value that is present but not a `%User{}` (a map decoded from JSON by a
+      # host controller, a bare uuid string) is a caller that meant to supply an
+      # actor and got the shape wrong; treating that as "no actor" would hand it
+      # the unchecked path. Fails closed, matching
+      # `admin_update_user_password/3`.
+      nil ->
         do_update_user_status_with_owner_guard(user, attrs)
+
+      _malformed ->
+        Logger.warning(
+          "PhoenixKit: refused a status write for #{target_label(user)} — :actor was present but not a %User{}"
+        )
+
+        {:error, :insufficient_permissions}
     end
   end
 
