@@ -120,11 +120,16 @@ defmodule PhoenixKit.Integration.Users.UserFormAuthorityTest do
       # not a failure. What must hold either way is that neither credential of an
       # account this actor no longer outranks was rewritten.
       #
-      # `email` is in the payload on purpose. It is what makes this test
-      # discriminating: the password is protected by the context regardless, but
-      # the address is dropped only by the form — and only if the form asks the
-      # rank question against the target as it is now rather than as it was at
-      # mount. Revert the reload and this assertion goes red.
+      # `email` is in the payload on purpose: the password is protected by the
+      # context regardless, but the address is dropped only by the form, so this
+      # is what pins the form's own write-time check rather than the context's.
+      #
+      # It does NOT pin the reload inside `credential_authority_now/2` — that
+      # claim was made here and is wrong. `Auth.get_user!/1` leaves `:roles`
+      # unloaded, so `has_system_role?/2` queries by uuid either way and the
+      # mounted struct answers just as freshly. What goes red if the write-time
+      # check is reverted to `socket.assigns.can_manage_credentials` is this same
+      # assertion; the reload itself is unpinned belt-and-braces.
       try do
         render_submit(view, "save_user", %{
           "user" => %{
@@ -140,6 +145,55 @@ defmodule PhoenixKit.Integration.Users.UserFormAuthorityTest do
       after_submit = Repo.get!(Auth.User, target.uuid)
       assert after_submit.hashed_password == before.hashed_password
       assert after_submit.email == before.email
+    end
+
+    test "every field the context routes into the schema is dropped, not just the two",
+         %{conn: conn} do
+      # The pin against drift. The form filters `custom_fields` against
+      # `Auth.updatable_profile_fields/0`; the two tests above only exercise
+      # `email` and `username`, so a field added to that list and forgotten in
+      # the filter would leave them both green while re-opening the bypass for
+      # the new one. Submitting the whole list means the coverage grows with it.
+      owner = owner_user()
+      conn = log_in_user(conn, admin_user())
+
+      {:ok, view, _html} = live(conn, Routes.path("/admin/users/edit/#{owner.uuid}"))
+
+      poisoned =
+        Map.new(Auth.updatable_profile_fields(), fn field ->
+          {Atom.to_string(field), "attacker-#{field}"}
+        end)
+
+      render_submit(view, "save_user", %{
+        "user" => %{"first_name" => "Harmless", "custom_fields" => poisoned}
+      })
+
+      after_submit = Repo.get!(Auth.User, owner.uuid)
+
+      for field <- Auth.updatable_profile_fields() do
+        assert Map.get(after_submit, field) == Map.get(owner, field),
+               "#{field} reached the schema through custom_fields"
+      end
+    end
+
+    test "a legitimate custom field still saves alongside the filter", %{conn: conn} do
+      # The filter drops by name. Nothing else in the map may go with it — a
+      # `Map.drop` widened by accident (or a filter that bailed out of the whole
+      # submission on seeing a poisoned key) would show up here and nowhere else.
+      target = plain_user()
+      conn = log_in_user(conn, admin_user())
+
+      {:ok, view, _html} = live(conn, Routes.path("/admin/users/edit/#{target.uuid}"))
+
+      render_submit(view, "save_user", %{
+        "user" => %{
+          "custom_fields" => %{"email" => "attacker@example.com", "department" => "Engineering"}
+        }
+      })
+
+      after_submit = Repo.get!(Auth.User, target.uuid)
+      assert after_submit.email == target.email
+      assert get_in(after_submit.custom_fields, ["department"]) == "Engineering"
     end
 
     test "an Admin may still set these fields on a user they do outrank", %{conn: conn} do

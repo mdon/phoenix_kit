@@ -876,7 +876,7 @@ defmodule PhoenixKit.Users.Auth do
 
       _malformed ->
         Logger.warning(
-          "PhoenixKit: refused a password write for #{user.uuid} — :admin_user was present but not a %User{}"
+          "PhoenixKit: refused a password write for #{target_label(user)} — :admin_user was present but not a %User{}"
         )
 
         {:error, :insufficient_permissions}
@@ -888,13 +888,23 @@ defmodule PhoenixKit.Users.Auth do
   # yet; when it arrives and is blocked, the operator needs to be able to see
   # that rather than debug a silent no-op. `do_deactivate_user/2` already sets
   # this precedent for a milder refusal (see the last-Owner branch below).
-  defp refuse_credential_write(%User{} = user, %User{} = actor) do
+  defp refuse_credential_write(user, %User{} = actor) do
     Logger.warning(
-      "PhoenixKit: refused a password write for #{user.uuid} by #{actor.uuid} — actor is out of rank"
+      "PhoenixKit: refused a password write for #{target_label(user)} by #{actor.uuid} — actor is out of rank"
     )
 
     {:error, :insufficient_permissions}
   end
+
+  # The public head takes `user` unguarded, so both refusal branches can be
+  # handed whatever a host passes — and `can_manage_user_credentials?/2` answers
+  # `false` for a non-`%User{}` target rather than raising, which is how one
+  # reaches the refusal in the first place. Interpolating `user.uuid` there
+  # would raise `KeyError` on the JSON-decoded map the malformed-actor branch
+  # was written to expect, turning the fail-closed path into a crash: exactly
+  # the outcome the guard exists to prevent, and a louder one than the write.
+  defp target_label(%User{uuid: uuid}), do: uuid
+  defp target_label(_other), do: "an unrecognised target"
 
   defp do_admin_update_user_password(user, attrs, context) do
     changeset = User.password_changeset(user, attrs)
@@ -1806,6 +1816,24 @@ defmodule PhoenixKit.Users.Auth do
     end
   end
 
+  # Kept as a module attribute with a public reader rather than a literal inside
+  # `update_user_fields/2`, because a second list of the same names lives in the
+  # admin form — which drops them out of `custom_fields` precisely so they
+  # cannot reach the branch below unfiltered. Two hand-maintained copies of a
+  # security-relevant whitelist drift, and the drift is silent: adding a field
+  # here and forgetting the other copy re-opens the bypass for that one field.
+  # `test/integration/users/user_form_authority_test.exs` pins them together.
+  @updatable_profile_fields [:first_name, :last_name, :email, :username, :user_timezone]
+
+  @doc """
+  The schema fields `update_user_fields/2` routes OUT of `custom_fields` and
+  writes through `profile_changeset`.
+
+  Public so that callers filtering untrusted params against this rule read the
+  list rather than restating it.
+  """
+  def updatable_profile_fields, do: @updatable_profile_fields
+
   @doc """
   Updates both schema and custom fields in a single call.
 
@@ -1830,10 +1858,20 @@ defmodule PhoenixKit.Users.Auth do
 
       iex> update_user_fields(user, %{email: "invalid"})
       {:error, %Ecto.Changeset{}}
+
+  ## ⚠️ This function does not authorize, and `email` is a credential
+
+  A key named in `updatable_profile_fields/0` leaves `custom_fields` and is
+  written to the schema — including `:email`, with **no** confirmation-token
+  flow, and `:username`, which is the second credential
+  `get_user_by_email_or_username_and_password/3` accepts. Whoever may call this
+  may re-point the address a password-reset link is delivered to. Callers that
+  build `attrs` from request params must filter those names first (see
+  `PhoenixKitWeb.Users.UserForm`) or gate the call on
+  `can_manage_user_credentials?/2`.
   """
   def update_user_fields(%User{} = user, attrs) when is_map(attrs) do
-    # Fields that can be updated via profile_changeset
-    updatable_profile_fields = [:first_name, :last_name, :email, :username, :user_timezone]
+    updatable_profile_fields = updatable_profile_fields()
 
     # Split attrs into schema fields and custom fields using Map.has_key? pattern
     {schema_attrs, custom_attrs} =

@@ -554,11 +554,6 @@ defmodule PhoenixKitWeb.Users.UserForm do
     end
   end
 
-  # Names that `Auth.update_user_fields/2` routes OUT of `custom_fields` and into
-  # the schema: it resolves each key with `String.to_existing_atom/1` and writes
-  # the value through `profile_changeset` when the name matches one of these.
-  @schema_identity_fields ~w(email username first_name last_name user_timezone)
-
   defp update_user(socket, user_params) do
     user = socket.assigns.user
 
@@ -577,7 +572,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
     custom_fields_params =
       user_params
       |> Map.get("custom_fields", %{})
-      |> drop_schema_identity_fields()
+      |> drop_schema_identity_fields(socket)
 
     # Include pending avatar if it was changed via media selector
     custom_fields_params =
@@ -754,14 +749,46 @@ defmodule PhoenixKitWeb.Users.UserForm do
     end
   end
 
+  # Names that `Auth.update_user_fields/2` routes OUT of `custom_fields` and
+  # into the schema: it resolves each key with `String.to_existing_atom/1` and
+  # writes the value through `profile_changeset` when the name matches one of
+  # these. Read from the context rather than restated here — a copy would go
+  # stale the next time a profile field is added there, and silently, since the
+  # only symptom is that one field becoming writable through `custom_fields`
+  # again.
+  defp schema_identity_fields do
+    Enum.map(Auth.updatable_profile_fields(), &Atom.to_string/1)
+  end
+
   # Params arrive string-keyed from the wire; a non-map (a client sending
   # `custom_fields=1`) is passed through untouched so the existing validation
   # rejects it, rather than crashing here.
-  defp drop_schema_identity_fields(params) when is_map(params) do
-    Map.drop(params, @schema_identity_fields)
+  defp drop_schema_identity_fields(params, socket) when is_map(params) do
+    fields = schema_identity_fields()
+
+    case Map.take(params, fields) do
+      empty when map_size(empty) == 0 ->
+        params
+
+      dropped ->
+        # Logged for the same reason the context logs its refusal: this page
+        # renders a real input for every one of these names, so a `custom_fields`
+        # entry carrying one cannot be produced by the form and is a client
+        # composing its own payload. Dropping it silently is correct; dropping it
+        # invisibly leaves the one signal an operator would want.
+        actor = socket.assigns[:phoenix_kit_current_user]
+
+        Logger.warning(
+          "PhoenixKit: dropped schema identity fields #{inspect(Map.keys(dropped))} " <>
+            "from custom_fields for #{socket.assigns.user.uuid} " <>
+            "submitted by #{(actor && actor.uuid) || "an unauthenticated caller"}"
+        )
+
+        Map.drop(params, fields)
+    end
   end
 
-  defp drop_schema_identity_fields(params), do: params
+  defp drop_schema_identity_fields(params, _socket), do: params
 
   defp update_account_type_fields(user, user_params) do
     account_type = Map.get(user_params, "account_type")
@@ -977,16 +1004,19 @@ defmodule PhoenixKitWeb.Users.UserForm do
     assign(socket, :changeset, changeset)
   end
 
-  # The rule itself stays in the context — this only re-asks it against the
-  # target as it is RIGHT NOW, instead of as it was when the page mounted.
+  # The rule itself stays in the context — this only re-asks it at write time
+  # instead of reading `@can_manage_credentials`, which is computed once in
+  # `mount/3` and can be minutes old by the time the form is submitted.
   #
-  # The reload is the load-bearing part. `socket.assigns.user` carries a
-  # `:roles` list preloaded at mount, and `Auth.has_system_role?/2` reads that
-  # list when it is loaded rather than querying — so passing the mounted struct
-  # re-asks the question against the same stale answer and agrees with itself.
-  # The context, handed a struct whose association is not loaded, queries and
-  # gets the truth. That disagreement was the crash: the form wrote on the old
-  # answer, the context refused on the new one.
+  # Note what is and is not load-bearing here. `Auth.get_user!/1` does NOT
+  # preload `:roles`, so the mounted struct's association is `NotLoaded`,
+  # `Auth.has_system_role?/2` takes its querying clause, and
+  # `Roles.user_has_role?/2` keys on `user.uuid` alone — the rank half of the
+  # answer is therefore already fresh whichever struct is passed, and the same
+  # holds for the actor. What the reload buys is the rest: a target deleted
+  # since mount answers `false` here instead of being written, and the check
+  # keeps its meaning if `load_user_data/3` ever starts preloading `:roles`
+  # (at which point the mounted struct WOULD freeze the answer at mount).
   defp credential_authority_now(socket, user) do
     case Auth.get_user(user.uuid) do
       %Auth.User{} = fresh ->

@@ -1,3 +1,51 @@
+## Unreleased
+
+### Fixed
+
+- **The credential rank rule was bypassable through `custom_fields`** (#691).
+  `Auth.update_user_fields/2` routes a `custom_fields` key whose name matches a
+  profile field out of the JSONB column and writes it to the schema — including
+  `:email`, with no confirmation-token flow. The admin user form handed it
+  `params["custom_fields"]` verbatim, so the `Map.drop` that protects the profile
+  params never saw it: an actor holding only the `users` permission could point an
+  Owner's address at their own inbox and then take the account through the public
+  password-reset page. The form now filters those names out of `custom_fields`
+  unconditionally, `admin_update_user_password/3` enforces the rank rule in the
+  context rather than trusting its callers, and the refusal no longer reaches a
+  clause that expects a changeset (which crashed the LiveView after the profile
+  write had already committed).
+- **A present-but-malformed `:admin_user` no longer takes the unchecked system
+  path** (#691). Only an *absent* actor is a seed/migration/mix-task caller; a
+  value of the wrong shape is a caller that meant to supply one, and is refused.
+- **The credential refusal path no longer raises instead of refusing** (#691
+  post-merge review). `admin_update_user_password/3` takes its target unguarded
+  and `can_manage_user_credentials?/2` answers `false` for a non-`%User{}`, so a
+  host passing a JSON-decoded map as the *target* reached a refusal branch that
+  pattern-matched `%User{}` and interpolated `user.uuid` — `FunctionClauseError`
+  and `KeyError` respectively, where the pre-#691 code returned
+  `{:error, :insufficient_permissions}`. A fail-closed guard that crashes has
+  failed differently, not safely.
+- **The form's filter no longer keeps a second hand-maintained copy of the
+  field whitelist** (#691 post-merge review). It read a literal list that
+  duplicated the one inside `update_user_fields/2`; adding a profile field to the
+  context and forgetting the copy would have re-opened the bypass for that field,
+  silently and with the existing tests still green. Both now read
+  `Auth.updatable_profile_fields/0`, and a new test poisons `custom_fields` with
+  every name in it, so coverage grows with the list.
+
+### Changed
+
+- **`Auth.updatable_profile_fields/0`** (#691 post-merge review) — new public
+  reader for the fields `update_user_fields/2` writes to the schema, so callers
+  filtering untrusted params read the rule instead of restating it.
+  `update_user_fields/2`'s docs now state outright that it does not authorize and
+  that `:email` / `:username` are credentials.
+- **The admin form logs the identity fields it strips from `custom_fields`**
+  (#691 post-merge review). The page renders a real input for every one of those
+  names, so such a key on the wire means a client composed its own payload — a
+  stronger signal than the rank refusal the context already logs, and it was
+  being discarded without a word.
+
 ## 1.7.236 - 2026-08-08
 
 ### Added

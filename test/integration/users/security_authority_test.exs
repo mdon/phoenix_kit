@@ -303,6 +303,24 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
       assert password_hash(target) == before
     end
 
+    test "a malformed TARGET is refused rather than crashing the refusal path" do
+      # The mirror of the test above, on the other operand. The public head takes
+      # `user` unguarded, `can_manage_user_credentials?/2` answers `false` for a
+      # non-`%User{}` target rather than raising, and the refusal branch is then
+      # the one that has to survive the shape — it logs the target's uuid. It
+      # must reach for that uuid defensively: a fail-closed guard that raises
+      # instead of returning its error tuple has failed differently, not safely,
+      # and a host passing a JSON-decoded map is the exact case the actor branch
+      # was just written to expect.
+      for malformed <- [%{"uuid" => Ecto.UUID.generate()}, "some-uuid-string", nil, 42] do
+        assert {:error, :insufficient_permissions} =
+                 Auth.admin_update_user_password(malformed, %{password: "NewPassword123!"}, %{
+                   admin_user: admin_user()
+                 }),
+               "a #{inspect(malformed)} target did not refuse cleanly"
+      end
+    end
+
     test "omitting the actor is the system path and still writes" do
       target = plain_user()
       before = password_hash(target)
