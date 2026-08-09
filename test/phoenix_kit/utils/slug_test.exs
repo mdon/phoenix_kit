@@ -20,8 +20,14 @@ defmodule PhoenixKit.Utils.SlugTest do
       assert Slug.slugify(:not_a_string) == ""
     end
 
-    test "without transliteration a Cyrillic title still collapses to empty" do
-      assert Slug.slugify("Кашпо") == ""
+    test "a Cyrillic title slugs without needing transliterate: true" do
+      # This test used to assert the OPPOSITE — that a Cyrillic title "still collapses
+      # to empty" without the flag. That was the bug, not the contract: seven call
+      # sites across entities and ai omitted the flag and silently stored empty slugs,
+      # which callers read as "no slug yet" and regenerated forever. Romanization is
+      # the default now.
+      assert Slug.slugify("Кашпо") == "kashpo"
+      assert Slug.slugify("Кашпо", transliterate: true) == "kashpo"
     end
 
     test "transliterate: true turns a Cyrillic title into a real slug" do

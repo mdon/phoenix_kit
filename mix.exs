@@ -74,6 +74,17 @@ defmodule PhoenixKit.MixProject do
   defp elixirc_paths(_), do: ["lib"]
 
   # Dependencies - minimal and focused on library functionality
+  # Resolves a dep from Hex by default, or from a local checkout when <APP>_PATH is
+  # exported — e.g. LOCALE_SLUG_PATH=../../../Elixir/locale_slug. Unset means the
+  # published pin, so `mix hex.publish` and CI are unaffected. Never commit a
+  # hand-edited path: tuple; it ships a broken package.
+  defp local_dep(app, requirement) do
+    case System.get_env(String.upcase(Atom.to_string(app)) <> "_PATH") do
+      nil -> {app, requirement}
+      path -> {app, path: path, override: true}
+    end
+  end
+
   defp deps do
     [
       # Database
@@ -88,6 +99,16 @@ defmodule PhoenixKit.MixProject do
 
       # Web functionality
       {:gettext, "~> 1.0"},
+
+      # Slugs. Locale-aware because ö must expand to "oe" in German and fold to "o"
+      # in Estonian, and core's hand-rolled table could not express the difference —
+      # it produced "gro-e-fu-ball" for "Größe Fußball" and an EMPTY slug for any
+      # Cyrillic-only title. Pure Elixir, no dependencies of its own.
+      #
+      # local_dep/2 keeps the Hex pin by default so published builds and CI are
+      # unchanged, and swaps in a path dep when LOCALE_SLUG_PATH is exported —
+      # matching the PHOENIX_LIVE_GANTT_PATH / PHOENIX_KIT_PATH convention.
+      local_dep(:locale_slug, "~> 0.1"),
       {:bandit, "~> 1.0"},
       {:esbuild, "~> 0.8", only: :dev},
       {:tailwind, "~> 0.5", only: :dev},
