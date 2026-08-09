@@ -39,7 +39,6 @@ defmodule PhoenixKit.Migrations.Postgres.V165 do
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
-    schema = schema_name(prefix)
 
     Helpers.ensure_uuid_v7_function(prefix)
     uuid_default = Helpers.uuid_v7_call(prefix)
@@ -135,8 +134,7 @@ defmodule PhoenixKit.Migrations.Postgres.V165 do
       ON #{p}phoenix_kit_access_requests (resource_type, resource_uuid, status)
     """)
 
-    _ = schema
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '163'")
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '165'")
   end
 
   def down(opts) do
@@ -148,9 +146,6 @@ defmodule PhoenixKit.Migrations.Postgres.V165 do
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '164'")
   end
-
-  defp schema_name("public"), do: "public"
-  defp schema_name(prefix), do: prefix
 
   defp prefix_str("public"), do: "public."
   defp prefix_str(prefix), do: "#{prefix}."

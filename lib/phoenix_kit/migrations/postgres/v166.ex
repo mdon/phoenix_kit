@@ -37,7 +37,7 @@ defmodule PhoenixKit.Migrations.Postgres.V166 do
   or deleted, and the comment should still say what it said.
 
   No FK on `attributed_project_uuid` — projects live in an optional
-  package, exactly like the mention targets in V163.
+  package, exactly like the mention targets in V165.
   """
 
   use Ecto.Migration

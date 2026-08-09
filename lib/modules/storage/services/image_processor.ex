@@ -244,6 +244,17 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
 
   Returns `{:ok, output_path}` or `{:error, reason}`. Never raises.
 
+  ## ⚠️ Nothing in core calls this yet
+
+  It is a primitive, not a policy: no upload path in PhoenixKit routes
+  through it, so adding it did not change what any existing endpoint
+  stores. A caller that accepts untrusted uploads — a public portal
+  submission, an avatar from an unauthenticated form — has to invoke it
+  itself and store the OUTPUT path, discarding the original. Wiring it
+  into `Storage.upload/*` wholesale is not a drop-in: it re-encodes, which
+  is right for images from strangers and wrong for a designer uploading a
+  master PNG they expect back byte-for-byte.
+
   ## Options
 
     * `:max_edge` — longest side in pixels (default 2500); larger images

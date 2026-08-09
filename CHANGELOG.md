@@ -1,7 +1,69 @@
 ## Unreleased
 
+### Added
+
+- **Cross-module `@` mentions and `#` record links** (#692). `PhoenixKit.Mentions`
+  — typing `@` offers people, `#` offers records from every installed module. The
+  mention is stored as a self-contained token carrying its own label, so it
+  survives copy-paste, export, edit history and a module being uninstalled, and
+  degrades to readable text rather than a broken link. Titles are re-resolved per
+  viewer at render: a reader who may not open a record never sees a title
+  refreshed after the fact, and visibility fails CLOSED for any resource type
+  whose module declares no check. Adds `phoenix_kit_mentions` and
+  `phoenix_kit_access_requests` (**V165**), the `<.mention_text>` component,
+  `use PhoenixKit.Mentions.Live` for the write side, and `mentions` opt-in
+  attributes on `<.textarea>` and the multilang textarea. Settings:
+  `mentions_enabled` (default on), `mentions_redact_titles` (default off).
+- **Frozen comment attribution** (#692, **V166**). `author_display_name`,
+  `attribution_mode`, `attributed_project_uuid` and `attributed_label` on
+  `phoenix_kit_comments`: a name resolved at render time re-signs every comment
+  its author ever wrote, so what the reader was shown is pinned at write.
+  `user_uuid` is never cleared — posting as a project changes what the public
+  sees and nothing else.
+- **`Notifications.fan_out_from_activity/2`** (#692) — routes one committed
+  activity entry to many recipients through the same prefs/channel/digest
+  machinery, without inserting extra feed rows.
+- **`before_user_delete/1` module hook** (#692) — runs for every discovered
+  module before a user row is deleted, while their related rows still exist.
+  Best-effort: a hook that raises or throws is logged and never aborts the
+  deletion.
+- **`ImageProcessor.sanitize/3`** (#692) — re-encodes an untrusted upload to
+  known-good bytes (detected-and-allowlisted decoder, first frame only, metadata
+  stripped, local resource ceilings, declared-pixel-count refusal). A primitive:
+  no core upload path calls it yet.
+- **User-dashboard route auto-discovery** (#692) — an external module's
+  `user_dashboard_tabs/0` entry carrying a `live_view` now gets its route
+  generated, mirroring the admin-tab path.
+
+### Changed
+
+- **One canonical `User.display_name/1`, and no more published email addresses**
+  (#692). Half a dozen private copies of the name chain ended `|| user.email`,
+  which is how a public issue board came to print commenters' full addresses next
+  to their words. The chain is now organization name → first+last → username →
+  the email's **local part** → `"User"`, with every rung trimmed and rejected when
+  blank. Never the full address.
+
 ### Fixed
 
+- **V165 recorded the schema version as `163`** (#692 post-merge review). Every
+  other migration in the chain stamps its own number going up; V165's `up/1`
+  stamped two behind, so an install migrated to exactly 165 reported 163 — behind
+  where it started — and the next `ensure_current/2` re-ran V164 and V165. A full
+  run to head hid it, because V166 stamps immediately afterwards.
+- **A record's NAME could inject a markdown link into every mention of it**
+  (#692 post-merge review). `to_markdown/2` escapes the value it splices into
+  `[text](url)` on the reasoning that the token grammar refuses `]` — true of the
+  author's stored label, false of the live resolved title, which is the record's
+  current name and unconstrained. Renaming a record to
+  `Evil](https://evil.example)` turned every markdown-rendered mention of it, for
+  every reader, into a link to the attacker's URL. `]` is now escaped, and the
+  destination uses the CommonMark angle form so a `)` in a handler-supplied path
+  cannot close it either.
+- **`<.mention_text>` told hosts to `use PhoenixKit.Mentions.RequestAccess`**
+  (#692 post-merge review), which does not exist — the module is
+  `PhoenixKit.Mentions.Live`, and it needs `<.access_request_dialog>` rendered
+  alongside it or the click sets an assign nothing reads.
 - **The credential rank rule was bypassable through `custom_fields`** (#691).
   `Auth.update_user_fields/2` routes a `custom_fields` key whose name matches a
   profile field out of the JSONB column and writes it to the schema — including

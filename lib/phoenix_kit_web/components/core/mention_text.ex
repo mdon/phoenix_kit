@@ -31,7 +31,11 @@ defmodule PhoenixKitWeb.Components.Core.MentionText do
   The chip pushes `"pk_request_access"` with `type` and `uuid`. Handle it
   yourself, or get the handler and the dialog for free:
 
-      use PhoenixKit.Mentions.RequestAccess
+      use PhoenixKit.Mentions.Live
+
+  …then render `<.access_request_dialog request={@pk_access_request} />`
+  somewhere in the template — the handler only stages the request; the
+  dialog is what asks for the note and submits it.
 
   Without either, the click is inert — the chip still renders and still
   tells the reader why they cannot see the thing.

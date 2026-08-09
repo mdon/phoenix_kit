@@ -10,6 +10,7 @@ defmodule PhoenixKit.MentionsTest do
 
   alias PhoenixKit.Mentions
   alias PhoenixKit.Mentions.Token
+  alias PhoenixKit.Users.Auth
 
   @uuid "018e3c4a-9f6b-7890-abcd-ef1234567890"
   @other "018e3c4a-9f6b-7890-abcd-ef1234567891"
@@ -231,6 +232,38 @@ defmodule PhoenixKit.MentionsTest do
       assert only_one.type == "project"
       assert only_one.uuid == @uuid
       refute Enum.any?(Token.parse(token), &(&1.uuid == ceo))
+    end
+
+    test "a crafted record NAME cannot become a link of its own in markdown" do
+      # The other half of the same attack, on the value the grammar does not
+      # cover. `to_markdown/2` splices the LIVE resolved title into
+      # `[text](url)`, and that title is the record's current name — read
+      # from the module that owns it, not from the token. The label can't
+      # carry `]`; a name can. One rename then turns every markdown-rendered
+      # mention of that record, for every reader, into a link to wherever
+      # the name says.
+      #
+      # A user is the record here because "user" is the one type core both
+      # registers and treats as visible to everyone, so this reaches the
+      # `:ok` branch — the only one that emits a link — without standing up
+      # a fake handler.
+      {:ok, user} =
+        Auth.register_user(%{
+          email: "md_escape_#{System.unique_integer([:positive])}@example.com",
+          password: "ValidPassword123!"
+        })
+
+      {:ok, user} =
+        Auth.update_user_profile(user, %{"first_name" => "Evil](https://evil.example)"})
+
+      markdown = Mentions.to_markdown("hi @[user:#{user.uuid}|Evil]")
+
+      # The `]` that would close the link text early has to arrive escaped.
+      refute Regex.match?(~r/(?<!\\)\]\(https:\/\/evil\.example\)/, markdown)
+      assert markdown =~ "\\](https://evil.example)"
+
+      # And the real destination is still the real destination.
+      assert markdown =~ "/admin/users/view/#{user.uuid}"
     end
   end
 end

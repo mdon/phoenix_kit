@@ -470,7 +470,7 @@ defmodule PhoenixKit.Mentions do
   end
 
   defp token_markdown(token, %{state: :ok, title: title, path: path}) when is_binary(path) do
-    "[#{prefix(token)}#{escape_md(title)}](#{Routes.path(path)})"
+    "[#{prefix(token)}#{escape_md(title)}](#{escape_md_url(Routes.path(path))})"
   end
 
   defp token_markdown(token, %{state: :ok, title: title}) do
@@ -495,16 +495,42 @@ defmodule PhoenixKit.Mentions do
   defp prefix(%Token{kind: :user}), do: "@"
   defp prefix(_), do: ""
 
-  # The label is attacker-controlled (a token can be hand-typed), and it is
-  # about to be spliced into markdown link syntax. `]` and `|` can't occur —
-  # the grammar refuses them — but `[`, `\` and backticks can, and an
-  # unescaped `[` splits the link.
+  # Two different attacker-controlled values pass through here, and only one
+  # of them is constrained by the token grammar.
+  #
+  # `token.label` cannot contain `]` or `|` — `@label` refuses them, and
+  # `Token.to_string/4` refuses to build a token carrying them.
+  #
+  # The resolved `title` is not a label. It is the record's CURRENT name,
+  # read from whatever module owns it, and nothing in this system limits
+  # what that may contain. A record named `X](https://evil.example)` closes
+  # the link text early and the tail becomes a second, working link to
+  # wherever the name says — one rename turns every markdown-rendered
+  # mention of that record, for every reader, into a link the attacker
+  # chose. So `]` is escaped too: the grammar's guarantee covers the label
+  # and stops there.
   defp escape_md(value) do
     value
     |> Kernel.to_string()
     |> String.replace("\\", "\\\\")
     |> String.replace("[", "\\[")
+    |> String.replace("]", "\\]")
     |> String.replace("`", "\\`")
+  end
+
+  # The destination side of the same splice. Paths come from a module's own
+  # handler rather than from text, so this is the cheaper worry — but a `)`
+  # or a space closes the URL just as `]` closes the text, and the angle
+  # form is what CommonMark provides for exactly that.
+  defp escape_md_url(path) do
+    escaped =
+      path
+      |> Kernel.to_string()
+      |> String.replace("\\", "\\\\")
+      |> String.replace("<", "%3C")
+      |> String.replace(">", "%3E")
+
+    "<#{escaped}>"
   end
 
   # ── Index ───────────────────────────────────────────────────────────
