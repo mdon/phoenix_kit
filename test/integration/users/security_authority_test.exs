@@ -11,6 +11,7 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
   use PhoenixKitWeb.ConnCase, async: true
 
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.RoleAssignment
   alias PhoenixKit.Users.Roles
   alias PhoenixKitWeb.Users.MultiSession
@@ -45,6 +46,31 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
   # Re-read rather than trust the struct: the credential tests assert on what
   # was actually stored, so a guard that refuses only after writing still fails.
   defp password_hash(user), do: Repo.get!(Auth.User, user.uuid).hashed_password
+
+  # The actor this whole series exists to stop: a role that holds the `users`
+  # permission — which is what admits it to the user pages — and no staff role.
+  #
+  # Built properly rather than approximated with `plain_user/0`. Three tests here
+  # were named for this actor while handing the predicate a bare default-role
+  # user, so they passed for the wrong reason: the rule refuses an actor with no
+  # staff role whether or not it holds any permission, and the test could not
+  # tell those two cases apart. If `validate_admin_authority_over/2` ever starts
+  # consulting `Permissions`, the difference is the whole finding.
+  defp users_permission_holder do
+    user = plain_user()
+    suffix = System.unique_integer([:positive])
+
+    {:ok, role} =
+      Roles.create_role(%{
+        name: "SecTestUsersOnly#{suffix}",
+        description: "Holds the users permission and no staff rank"
+      })
+
+    {:ok, _} = Permissions.grant_permission(role.uuid, "users")
+    {:ok, _} = Roles.assign_role(user, role.name)
+
+    Repo.get!(Auth.User, user.uuid)
+  end
 
   # The first account in a fresh sandbox is auto-promoted to Owner; seed a
   # throwaway one so every user below gets the role the test asked for.
@@ -81,7 +107,7 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
     test "holding a permission is not holding a rank: a non-staff user may manage nobody" do
       # The `users` permission is what admits a visitor to /admin/users. It must
       # not decide whether they may take over an account there.
-      staffless = plain_user()
+      staffless = users_permission_holder()
 
       refute Auth.can_manage_user_credentials?(plain_user(), staffless)
       refute Auth.can_manage_user_credentials?(admin_user(), staffless)
@@ -162,7 +188,9 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
       target = plain_user()
 
       assert {:error, :insufficient_permissions} =
-               Auth.update_user_status(target, %{"is_active" => false}, actor: plain_user())
+               Auth.update_user_status(target, %{"is_active" => false},
+                 actor: users_permission_holder()
+               )
 
       assert Repo.get!(Auth.User, target.uuid).is_active
     end
@@ -224,7 +252,7 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
 
       assert {:error, :insufficient_permissions} =
                Auth.admin_update_user_password(target, %{password: "NewPassword123!"}, %{
-                 admin_user: plain_user()
+                 admin_user: users_permission_holder()
                })
 
       assert password_hash(target) == before
@@ -252,6 +280,27 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
                })
 
       refute password_hash(actor) == before
+    end
+
+    test "a present but malformed actor is refused rather than taking the system path" do
+      # The system path exists for seeds, migrations and mix tasks, which pass no
+      # actor at all. A value that is present but not a `%User{}` — a map decoded
+      # from JSON by a host application's controller, a bare uuid string — is a
+      # caller that meant to supply an actor and got the shape wrong, and letting
+      # it through unchecked is the worst of both readings. PhoenixKit is a
+      # library: it cannot see its hosts' callers, so this fails closed.
+      target = plain_user()
+      before = password_hash(target)
+
+      for malformed <- [%{"uuid" => Ecto.UUID.generate()}, "some-uuid-string", false, 42] do
+        assert {:error, :insufficient_permissions} =
+                 Auth.admin_update_user_password(target, %{password: "NewPassword123!"}, %{
+                   admin_user: malformed
+                 }),
+               "a #{inspect(malformed)} actor took the unchecked path"
+      end
+
+      assert password_hash(target) == before
     end
 
     test "omitting the actor is the system path and still writes" do
@@ -284,7 +333,7 @@ defmodule PhoenixKit.Integration.Users.SecurityAuthorityTest do
     end
 
     test "a holder of the users permission with no staff role may delete nobody" do
-      staffless = plain_user()
+      staffless = users_permission_holder()
       target = plain_user()
 
       refute Auth.can_delete_user?(target, staffless)
