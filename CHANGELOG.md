@@ -1,6 +1,45 @@
 ## 1.7.237 - 2026-08-09
 
+### ⚠️ Upgrade requirement — databases below V135 must stop at 1.7.236 first
+
+**The migration chain is squashed** (#689). `V01`..`V134` are replaced by a
+single `V135` baseline, and V135 is now the chain's **floor**: this release no
+longer carries the migration modules below it.
+
+- **At V135 or above** (any install kept current through 1.7.x): nothing to do.
+  Upgrade normally.
+- **Below V135**: `mix ecto.migrate` raises `PhoenixKit.Migrations.BelowFloorError`
+  and refuses, rather than migrating. Install **1.7.236** — the migration bridge,
+  the last release carrying the full pre-squash chain — run its migrations until
+  the reported version is at least V135, and only then upgrade to this release.
+  The error message names the bridge and the procedure.
+
+Check where you are with `mix phoenix_kit.status` **before** upgrading. Note that
+`{:phoenix_kit, "~> 1.7"}` will resolve to this release on a routine
+`mix deps.update`, so a below-floor host can be moved across the floor without
+having asked to be; the failure is a refused migration, not data loss, and the
+remedy above still applies.
+
+Nothing is rolled back through this release either: a below-floor install cannot
+`down` through it.
+
 ### Added
+
+- **Verify-and-repair for the schema** (#689). `mix phoenix_kit.repair` compares a
+  live database against a generated manifest of what the chain should have
+  produced (`PhoenixKit.Migrations.ExpectedSchema`) and can restore what is
+  missing; `mix phoenix_kit.repair_uuid` is the maintenance-window path for uuid
+  primary-key damage, building its unique index `CONCURRENTLY`. Both report
+  before they write, and `mix phoenix_kit.doctor` grew checks that use the same
+  manifest.
+- **`PhoenixKit.Migrations.BelowFloorError`** (#689) — the explicit refusal
+  described above, carrying the database's version, the floor, and the bridge
+  release to install. Names 1.7.236 rather than "the last 1.7.x" (#690).
+- **`mix prerelease`** (#690) — the release gate: locked deps, a production
+  compile, `quality.ci`, `deps.audit`, `hex.audit`, docs, `hex.build`, and
+  `mix phoenix_kit.release_check` (CHANGELOG heading, migration/version sync,
+  clean tree, branch, tag collision). It catches release-metadata drift that
+  `mix precommit` structurally cannot.
 
 - **Cross-module `@` mentions and `#` record links** (#692). `PhoenixKit.Mentions`
   — typing `@` offers people, `#` offers records from every installed module. The
@@ -71,6 +110,46 @@
 
 ### Fixed
 
+- **`admin_update_user_password/3` wrote the password hash for any caller**
+  (#690). The rank rule lived only in the admin edit form, which asks
+  `can_manage_user_credentials?/2` to hide the UI and refuse the event — the
+  context function itself asked nothing. The actor was already threaded through
+  `context` for the audit row, so it now authorizes as well as audits: an actor
+  present and out of rank is refused, and an absent actor stays the system path
+  for seeds, migrations and mix tasks. Not reachable through the shipped UI at
+  the time — this closed the second caller before it existed. See also the
+  `custom_fields` bypass below, which was the second caller.
+- **A comment-less database reported itself as version 1** (#694). A database
+  that is current but has lost its `phoenix_kit` version comment — the
+  half-installed or adopted state — resolved to version 1, which is below the
+  floor, so `mix phoenix_kit.update` answered "install the 1.7.x bridge first":
+  the one instruction the migrator refuses to give, because replaying the
+  pre-squash chain over a possibly-current database backfills still-NULL tracked
+  columns with invented uuids and then deletes the rows that match no user. The
+  state is now distinct from both a real version and "not installed", and routes
+  to `doctor` + restamp. `mix phoenix_kit.status` reports it instead of crashing.
+- **`mix phoenix_kit.repair` crashed on the anomaly it exists to diagnose**
+  (#694). `Repair.Probe.read_comment/2` used `String.to_integer/1` eleven lines
+  below a docstring promising it never raises, so the exact hand-edits the
+  migrator documents (`'v164'`, `' 164'`) ended the run in a bare
+  `** (ArgumentError) argument error`.
+- **`ensure_uuid_v7_function/1` aborted migrations on DBA-owned functions**
+  (#690). Its `insufficient_privilege` rescue was dead code in migration
+  context: `Ecto.Migration.execute/1` only *queues* the statement, so the error
+  arrives at flush time where no rescue can reach it. That is the topology
+  `PhoenixKit.Migration`'s own moduledoc tells a DBA to adopt, and the helper
+  runs on every delta upgrade. The un-ownable case is now excluded before the
+  statement is queued, via `pg_has_role` — so a function owned by a role the
+  migrating role belongs to is still refreshed.
+- **V164 warned "reconcile by hand" about the foreign key it then repairs**
+  (#690), and **verified that key by name alone** (#694) — a CHECK constraint
+  owning the same name read as present, the guarded ADD failed with 42710 into
+  an `EXCEPTION WHEN OTHERS`, and the outcome was reported `:created` with no
+  foreign key. `contype = 'f'` is now part of the test.
+- **V163's size guard is checked before castability** (#694). `castable?/3` is a
+  full-table scan, so asking it first made the deferral path pay an unbounded
+  sequential scan on exactly the tables the size limit exists to keep out of
+  `mix ecto.migrate`.
 - **V165 recorded the schema version as `163`** (#692 post-merge review). Every
   other migration in the chain stamps its own number going up; V165's `up/1`
   stamped two behind, so an install migrated to exactly 165 reported 163 — behind
@@ -127,6 +206,13 @@
   filtering untrusted params read the rule instead of restating it.
   `update_user_fields/2`'s docs now state outright that it does not authorize and
   that `:email` / `:username` are credentials.
+- **`StatusReport.next_action/3` gained `{:fix_version_comment, message}`**
+  (#694 post-merge review) — the state existed in the function but not in the
+  `action()` type, so dialyzer proved the consumer clause unreachable and
+  `mix precommit` failed. The comment-less guard also now fails **closed**: it
+  required an affirmative "the comment reads 1" only after review, having
+  previously fallen through to the destructive advice whenever the confirming
+  query could not answer.
 - **The admin form logs the identity fields it strips from `custom_fields`**
   (#691 post-merge review). The page renders a real input for every one of those
   names, so such a key on the wire means a client composed its own payload — a
