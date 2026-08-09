@@ -79,6 +79,15 @@ off) from machine audits, and advises preferring verified ones "for slugs you
 persist". Tables getting promoted and corrected is the expected shape of 0.x
 releases here.
 
+This is also settled policy in this very file, twelve lines further down —
+`leaf` carries a comment explaining why it is **not** `~> 0.3`:
+
+> for a 0.x package where each minor is effectively a major it claimed a support
+> window core cannot back
+
+The same argument applies to `locale_slug`, with the extra weight that `leaf`
+renders content while this one *names* it.
+
 **Fixed:** pinned `~> 0.1.0` (`>= 0.1.0 and < 0.2.0`). Adopting a new minor now
 requires a deliberate PhoenixKit release, which is where a slug-output change
 belongs. `mix.lock` is unchanged — 0.1.0 satisfies both.
