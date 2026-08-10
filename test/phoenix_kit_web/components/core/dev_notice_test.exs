@@ -4,6 +4,8 @@ defmodule PhoenixKitWeb.Components.Core.DevNoticeTest do
 
   import Phoenix.LiveViewTest
 
+  alias PhoenixKitWeb.Components.Core.DevNotice
+
   setup do
     prev_own = Application.get_env(:phoenix_kit, PhoenixKit.Mailer)
     prev_delegate = Application.get_env(:phoenix_kit, :mailer)
@@ -20,7 +22,7 @@ defmodule PhoenixKitWeb.Components.Core.DevNoticeTest do
   end
 
   defp render_notice do
-    render_component(&PhoenixKitWeb.Components.Core.DevNotice.dev_mailbox_notice/1, %{})
+    render_component(&DevNotice.dev_mailbox_notice/1, %{})
   end
 
   test "does not render when the resolved mailer is not local" do
