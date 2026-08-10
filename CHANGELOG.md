@@ -22,14 +22,19 @@ host from being carried across the floor by a routine `mix deps.update`: a
 `{:phoenix_kit, "~> 1.7"}` requirement does not resolve to 2.0, so reaching this
 release is now a deliberate act with a chance to read this section first.
 
-### ⚠️ Feature modules need a widened pin
+### Feature modules need a widened pin before you move to `~> 2.0`
 
-The same major that protects below-floor hosts makes `{:phoenix_kit, "~> 2.0"}`
-unsatisfiable alongside any `phoenix_kit_*` package still requiring `~> 1.7.x` —
-`mix deps.get` fails outright, with no degraded mode. Every module that pins core
-needs a widened requirement and a patch release; none of them call migration
-internals, so the change is the pin itself. Upgrade the modules you use together
-with core, not after it.
+`phoenix_kit_*` packages pin core at `~> 1.7.x`, which does not accept 2.0. So
+`{:phoenix_kit, "~> 2.0"}` alongside a module that has not yet widened its
+requirement is an unsatisfiable dependency: `mix deps.get` fails and names the
+conflict. Each module needs a widened requirement and a patch release; none of
+them call migration internals, so the change is the pin itself.
+
+**If you stay on `{:phoenix_kit, "~> 1.7"}`, nothing changes for you** — that
+requirement does not resolve to 2.0, which is the same property that protects
+below-floor installs. Move your own pin to `~> 2.0` once the modules you use have
+released theirs; until then the failure is a resolver error at `mix deps.get`
+time, not a broken build.
 
 Nothing is rolled back through this release either: a below-floor install cannot
 `down` through it.
