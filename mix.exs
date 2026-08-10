@@ -209,7 +209,14 @@ defmodule PhoenixKit.MixProject do
       {:etcher, "~> 0.9"},
 
       # QR device-handoff login ("scan to sign in" on the login page).
-      {:keyfob, "~> 0.1"},
+      #
+      # 0.1.1, not a bare `~> 0.1`: before it, a store that wasn't running
+      # made the store's reads raise and its GenServer-backed calls exit
+      # rather than returning the `:error` the behaviour declares. The
+      # completion controller's `with` matches return values, so `consume/2`
+      # exiting meant a 500 on the finish URL where "this link is invalid or
+      # has expired" was both the honest answer and the same outcome.
+      {:keyfob, "~> 0.1.1"},
 
       # Cloud provider regions
       {:aws_regions, "~> 0.1.0"},
