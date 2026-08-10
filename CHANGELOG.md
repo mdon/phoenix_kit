@@ -1,4 +1,4 @@
-## 1.7.237 - 2026-08-09
+## 2.0.0 - 2026-08-10
 
 ### ⚠️ Upgrade requirement — databases below V135 must stop at 1.7.236 first
 
@@ -14,11 +14,22 @@ longer carries the migration modules below it.
   the reported version is at least V135, and only then upgrade to this release.
   The error message names the bridge and the procedure.
 
-Check where you are with `mix phoenix_kit.status` **before** upgrading. Note that
-`{:phoenix_kit, "~> 1.7"}` will resolve to this release on a routine
-`mix deps.update`, so a below-floor host can be moved across the floor without
-having asked to be; the failure is a refused migration, not data loss, and the
-remedy above still applies.
+Check where you are with `mix phoenix_kit.status` **before** upgrading.
+
+**This is why the version is 2.0.0.** Refusing a below-floor install rather than
+migrating it is a breaking upgrade contract, and a major version is what stops a
+host from being carried across the floor by a routine `mix deps.update`: a
+`{:phoenix_kit, "~> 1.7"}` requirement does not resolve to 2.0, so reaching this
+release is now a deliberate act with a chance to read this section first.
+
+### ⚠️ Feature modules need a widened pin
+
+The same major that protects below-floor hosts makes `{:phoenix_kit, "~> 2.0"}`
+unsatisfiable alongside any `phoenix_kit_*` package still requiring `~> 1.7.x` —
+`mix deps.get` fails outright, with no degraded mode. Every module that pins core
+needs a widened requirement and a patch release; none of them call migration
+internals, so the change is the pin itself. Upgrade the modules you use together
+with core, not after it.
 
 Nothing is rolled back through this release either: a below-floor install cannot
 `down` through it.
@@ -35,6 +46,15 @@ Nothing is rolled back through this release either: a below-floor install cannot
 - **`PhoenixKit.Migrations.BelowFloorError`** (#689) — the explicit refusal
   described above, carrying the database's version, the floor, and the bridge
   release to install. Names 1.7.236 rather than "the last 1.7.x" (#690).
+- **`dev_mailbox_enabled` setting and its toggle** (#697) on
+  `/admin/settings/email-sending` — the section appears only when the resolved
+  transport is the local mailbox, and switching it on states the consequence.
+- **`PhoenixKit.Mailer.resolved_send_path/0`** (#697) — the one answer to "where
+  will this message actually go": `{:integration, uuid}` or
+  `{:mailer, module, adapter}`.
+- **Upload rate limiting** (#697) — `RateLimiter.check_upload_rate_limit/1`,
+  30/min keyed on the **uploading** account (never the attributed owner, which
+  would hand an admin a fresh window per victim uuid).
 - **`mix prerelease`** (#690) — the release gate: locked deps, a production
   compile, `quality.ci`, `deps.audit`, `hex.audit`, docs, `hex.build`, and
   `mix phoenix_kit.release_check` (CHANGELOG heading, migration/version sync,
@@ -76,6 +96,41 @@ Nothing is rolled back through this release either: a below-floor install cannot
 
 ### Changed
 
+- **⚠️ Local dev-mailbox delivery is now opt-in** (#697, issue #687). A stock
+  `mix phx.new` app puts `Swoosh.Adapters.Local` in `dev.exs` and forwards
+  `/dev/mailbox` with **no authentication** — and PhoenixKit sends password-reset,
+  magic-link, confirmation, email-change and invitation mail through it, each
+  carrying a single-use token that exists nowhere else (only its SHA-256 hash is
+  stored). Anyone who could reach the dev server could read those links.
+
+  New setting `dev_mailbox_enabled`, default **off**. While it is off and the
+  resolved transport is the local mailbox, mail is **not** handed to the adapter:
+  recipient, subject and body go to the server log, and the call returns
+  `{:ok, %{suppressed: true, …}}` so auth flows still succeed. The gate sits
+  before the tracking pipeline, so a suppressed message is not recorded as sent.
+  Turn it on for a closed environment at `/admin/settings/email-sending`, or
+  configure a send integration there.
+
+  **The cost, named:** an upgraded dev install stops filling `/dev/mailbox` until
+  someone flips the switch. Every suppressed send says so in the log, the
+  development notice changes visibly, and the settings page carries a banner.
+- **⚠️ `GET /api/files/:uuid/info` now requires authentication** (#697) and
+  answers only for a file the caller owns, or to an Owner/Admin — with an
+  identical `not_found` for a foreign and a missing file, so it is no longer an
+  existence oracle. This is documented host API: a caller using it anonymously,
+  such as a public gallery front-end, must now authenticate.
+- **`Config.mailer_local?/0` resolves the way `deliver_email/2` actually sends**
+  (#697, issue #687). It read `config :phoenix_kit, PhoenixKit.Mailer` alone, so
+  it was wrong in both directions: `false` on a delegation-mode host whose real
+  mailer is Local, and `true` on a host with the installer-written Local block
+  that delegates to a real mailer. New `PhoenixKit.Mailer.resolved_send_path/0`
+  is the single source — default send integration → delegated host mailer →
+  built-in — and anything asking "does mail land in the local mailbox?" must go
+  through it rather than a raw config read.
+- **The development notice no longer links to `/dev/mailbox`** (#697). It was
+  rendered to anonymous visitors on the login, registration, forgot-password and
+  magic-link pages — a signpost for a developer and a map for everyone else. The
+  copy now reflects the gate's state instead.
 - **Slug generation moved onto the `locale_slug` package** (#693) — a new required
   runtime dependency, pure Elixir with no dependencies of its own.
   `PhoenixKit.Utils.Slug` keeps its public shape (`slugify/2`, `transliterate/1`,
@@ -119,6 +174,54 @@ Nothing is rolled back through this release either: a below-floor install cannot
   for seeds, migrations and mix tasks. Not reachable through the shipped UI at
   the time — this closed the second caller before it existed. See also the
   `custom_fields` bypass below, which was the second caller.
+- **`POST /api/upload` and `GET /api/files/:uuid/info` required no
+  authentication** (#697). Both live in a scope that fetches a user but never
+  requires one. Upload took the file owner from `params["user_uuid"]` with the
+  check never written, so an anonymous client could attribute a 100 MB upload —
+  and the variant-processing job it enqueues — to any account. File-info handed
+  out freshly-signed capability URLs for any file uuid to anyone, defeating the
+  signing scheme, and its 200/404 split was a file-existence oracle. Upload now
+  authorizes before touching the body (401 when unauthenticated, the `user_uuid`
+  override honored only for an Owner/Admin, otherwise attributed to the
+  uploader) and is rate-limited at 30/min per account.
+- **`update_user_status/3` and `toggle_user_confirmation/2` wrote for a malformed
+  actor** (#696). Both ended in a catch-all that performed the *unchecked* write.
+  That branch exists for callers with no actor — seeds, mix tasks, and
+  `Users.Referrals` expiring an account — but it also swallowed an `:actor` that
+  was present and the wrong shape: a map decoded from JSON by a host controller,
+  a bare uuid string. `toggle_user_confirmation/2` is the serious one, since its
+  unchecked path clears `confirmed_at` and locks the target out of every
+  confirmation-gated page. Both now use the three-branch shape from
+  `admin_update_user_password/3`. An explicit `actor: nil` still takes the system
+  path, identically in all three.
+- **A never-analyzed table was sized as 0 rows** (#695). `reltuples = -1`
+  (PostgreSQL ≥ 14: never vacuumed or analyzed — a `pg_restore`, a
+  `CREATE TABLE AS`, logical replication, autovacuum off) was collapsed to `0`,
+  so V163's size guard read "small enough, proceed" for a table nobody had ever
+  measured. A restored 200k-row table took `ACCESS EXCLUSIVE` for a full rewrite
+  mid-deploy — the exact event the guard exists to prevent. `estimated_rows/3`
+  now answers `:unknown`, V163 defers on it, and `mix phoenix_kit.repair_uuid`
+  prints "size unknown — never analyzed" rather than "~0 rows" to whoever is
+  sizing a maintenance window.
+- **`mix phoenix_kit.repair --adopt` stamped over a corrupt version comment**
+  (#695). `Repair.Probe` collapsed "no comment" and "unreadable comment" into the
+  same `nil`, so the operator was told the comment was *missing* while the table
+  said `v164`, and adopt overwrote it — destroying the only record of what the
+  last person believed. Unreadable is now its own state and refuses instead.
+- **One flaky catalog read could abort V164 mid-run** (#695). Its post-ADD
+  verification moved to a probe that *raises*, where the check it replaced
+  returned false; V164 has no `rescue` and runs with `@disable_ddl_transaction`,
+  so a single failed read on one of ~70 constraints aborted with earlier repairs
+  already committed and the version comment never stamped, replaying the whole
+  version next time. A probe failure is now one `{:failed, …}` summary line.
+- **`comments_fk_on_delete/1` read a constraint by name alone** (#695), so a
+  CHECK or a foreign key on a different column owning `fk_comments_user_uuid`
+  answered for the real one — an impostor's `confdeltype` of `'n'` read as
+  "already SET NULL, nothing to do" and the genuinely missing foreign key was
+  never created.
+- **`mix phoenix_kit.status --verbose` crashed on an unreadable version comment**
+  (#695) — the non-verbose path reported the state correctly and the same run
+  then died with `CaseClauseError` immediately after printing a correct tree.
 - **A comment-less database reported itself as version 1** (#694). A database
   that is current but has lost its `phoenix_kit` version comment — the
   half-installed or adopted state — resolved to version 1, which is below the

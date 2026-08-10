@@ -420,12 +420,31 @@ read the notes. Cost: all seven modules above need a widened pin and a patch
 release, landing *before or with* the publish, or every host running one of them
 has an unsatisfiable dependency.
 
-My read: **1.7.237 is the better trade**, because the below-floor failure is a
-refused migration with a precise remedy, while the 2.0 failure is
-`mix deps.get` refusing to resolve for a host that did nothing wrong. But it is
-only the better trade if the below-floor requirement is impossible to miss in
-the release notes, which is why the CHANGELOG entry written in this pass leads
-with it rather than burying it under the feature list.
+My read at the time: 1.7.237 is the better trade, because the below-floor
+failure is a refused migration with a precise remedy while the 2.0 failure is
+`mix deps.get` refusing to resolve for a host that did nothing wrong.
+
+## DECIDED: 2.0.0 (Tim, 2026-08-10)
+
+The release ships as **2.0.0**, and the module pins are being widened the same
+day so the ecosystem lands with it rather than after it. That removes the cost I
+weighted most heavily — the unsatisfiable-dependency window is coordinated away
+rather than endured — and it restores the property the patch-release route could
+not offer: `{:phoenix_kit, "~> 1.7"}` does not resolve to 2.0, so no below-floor
+host is carried across the floor by a routine `mix deps.update`. Given the pin
+wave is happening anyway, this is the stronger of the two options and the first
+pass's original recommendation was right.
+
+`@version` is `2.0.0` and the CHANGELOG entry is retitled. Two consequences are
+now recorded in the release notes that were not before: the major is *why*
+below-floor hosts are protected, and feature modules need widened pins to
+resolve at all. The earlier "a routine `mix deps.update` can drag a host across
+the floor" warning was true of 1.7.237 and is **false** of 2.0.0 — it has been
+replaced rather than left to mislead.
+
+**Sequencing still matters:** publishing core 2.0.0 before the module patch
+releases leaves every host running a feature module unable to resolve. Publish
+the wave together, or core last.
 
 ## BLOCKER #6 is still open
 
