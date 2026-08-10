@@ -165,7 +165,63 @@ defmodule Mix.Tasks.PhoenixKit.Repair do
     IO.puts(
       "#{IO.ANSI.bright()}#{summary.total} finding(s)#{IO.ANSI.reset()} — #{inspect(summary.by_severity)}"
     )
+
+    breakdown(report.findings)
   end
+
+  # A severity count alone does not tell an operator what a run is ABOUT. A few
+  # hundred findings on a long-lived database are readable the moment they are
+  # grouped: "missing 221 / wrong_shape 32" separates absent objects from ones
+  # that exist in an older shape, and the per-table tally almost always shows
+  # the findings concentrated in one or two subsystems rather than spread across
+  # the schema. Without it the only way to tell those apart is to read every
+  # line, which is why a 265-finding report reads as a catastrophe.
+  defp breakdown([]), do: :ok
+
+  defp breakdown(findings) do
+    by_kind =
+      findings
+      |> Enum.frequencies_by(& &1.kind)
+      |> Enum.sort_by(fn {_kind, count} -> -count end)
+      |> Enum.map_join(" · ", fn {kind, count} -> "#{kind} #{count}" end)
+
+    IO.puts("  #{IO.ANSI.faint()}by kind:#{IO.ANSI.reset()}  #{by_kind}")
+
+    tables =
+      findings
+      |> Enum.map(&table_of/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.frequencies()
+      |> Enum.sort_by(fn {_table, count} -> -count end)
+
+    case tables do
+      [] ->
+        :ok
+
+      tables ->
+        shown = Enum.take(tables, 6)
+        rest = length(tables) - length(shown)
+
+        text =
+          Enum.map_join(shown, " · ", fn {table, count} -> "#{table} #{count}" end) <>
+            if rest > 0, do: " · +#{rest} more tables", else: ""
+
+        IO.puts("  #{IO.ANSI.faint()}by table:#{IO.ANSI.reset()} #{text}")
+    end
+  end
+
+  # object_id is "class:table.column", "class:table.constraint_name" or
+  # "class:table:seed_key" — the table is the segment between the first colon
+  # and the first `.` or `:` after it. Anything that does not parse is dropped
+  # rather than guessed at, so a malformed id cannot invent a table.
+  defp table_of(%{object_id: id}) when is_binary(id) do
+    case String.split(id, ":", parts: 2) do
+      [_class, rest] -> rest |> String.split([".", ":"], parts: 2) |> List.first()
+      _ -> nil
+    end
+  end
+
+  defp table_of(_finding), do: nil
 
   # ── Exit codes ──────────────────────────────────────────────────────
 
