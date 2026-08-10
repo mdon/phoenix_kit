@@ -50,6 +50,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   alias PhoenixKit.Install.ChildOrder
   alias PhoenixKit.Install.PrefixConfig
   alias PhoenixKit.Migrations.ExpectedSchema.Resolver
+  alias PhoenixKit.Migrations.Modules, as: MigrationModules
   alias PhoenixKit.Migrations.Postgres
   alias PhoenixKit.Migrations.Repair
   alias PhoenixKit.Migrations.Repair.Report
@@ -96,6 +97,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("Pool Configuration", fn -> check_pool_config() end),
       run_check("PgBouncer Detection", fn -> check_pgbouncer() end),
       run_check("Migration State", fn -> check_migration_state(prefix) end),
+      run_check("Module Schema Versions", fn -> check_module_schema_versions(prefix) end),
       run_check("Schema Drift", fn -> check_schema_drift(prefix) end),
       run_check("Pending Migrations", fn -> check_pending_migrations() end),
       run_check("UUID Column Types", fn -> check_uuid_column_types(prefix) end),
@@ -275,6 +277,42 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     {150, "phoenix_kit_users_tokens", "browser"},
     {150, "phoenix_kit_users_tokens", "os"}
   ]
+
+  # Core's marker says nothing about a module that owns its own chain, so every
+  # check above can pass while a module's tables sit versions behind the code
+  # querying them. That gap presents as an undefined-column 500 on the module's
+  # admin page — no migration error, and `doctor` previously gave the install a
+  # clean bill of health, which is the worst possible moment to be reassuring.
+  defp check_module_schema_versions(prefix) do
+    modules = MigrationModules.list(prefix: prefix)
+
+    failed = MigrationModules.failed(modules)
+    pending = MigrationModules.pending(modules)
+
+    cond do
+      modules == [] ->
+        {:pass, "No installed module owns migrations."}
+
+      pending != [] ->
+        {:fail,
+         "Behind: #{describe_module_versions(pending)}. " <>
+           "Run mix phoenix_kit.update --yes (mix ecto.migrate alone does not write these)."}
+
+      failed != [] ->
+        {:warn,
+         "Version unreadable for #{Enum.map_join(failed, ", ", & &1.name)} — " <>
+           "their tables may be behind and nothing can tell. See mix phoenix_kit.status --verbose."}
+
+      true ->
+        {:pass, "#{length(modules)} module(s), all at the version their code expects."}
+    end
+  end
+
+  defp describe_module_versions(entries) do
+    Enum.map_join(entries, ", ", fn entry ->
+      "#{entry.name} V#{entry.installed} (code expects V#{entry.target})"
+    end)
+  end
 
   defp check_schema_drift(prefix) do
     repo = get_repo!()
