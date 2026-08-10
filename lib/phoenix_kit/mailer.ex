@@ -246,10 +246,38 @@ defmodule PhoenixKit.Mailer do
   end
 
   defp deliver_via_configured_mailer(email, opts) do
+    mailer = get_mailer()
+
+    if configured_adapter(mailer) == Swoosh.Adapters.Local and not dev_mailbox_enabled?() do
+      # The local mailbox's /dev/mailbox page is unauthenticated by design and
+      # this mail carries single-use tokens that exist nowhere else — delivery
+      # is opt-in (issue #687). Returns before the tracking pipeline: a message
+      # that was never handed to an adapter must not be recorded as sent.
+      log_suppressed_local_delivery(email)
+      {:ok, %{id: "dev-mailbox-suppressed", suppressed: true}}
+    else
+      do_deliver_via_configured_mailer(email, opts, mailer)
+    end
+  end
+
+  defp dev_mailbox_enabled? do
+    PhoenixKit.Settings.get_boolean_setting("dev_mailbox_enabled", false)
+  end
+
+  defp log_suppressed_local_delivery(email) do
+    Logger.warning("""
+    PhoenixKit: outgoing email was NOT delivered — the local dev mailbox is disabled by default \
+    (its /dev/mailbox page is unauthenticated; see BeamLabEU/phoenix_kit#687).
+    To: #{inspect(email.to)} · Subject: #{email.subject}
+    #{email.text_body}
+    Enable the mailbox for this closed environment at /admin/settings/email-sending, \
+    or configure a send integration there.
+    """)
+  end
+
+  defp do_deliver_via_configured_mailer(email, opts, mailer) do
     with :ok <- check_recipient_allowed(email),
          {:continue, tracked_email} <- intercept_and_offer_queue(email, opts) do
-      mailer = get_mailer()
-
       result =
         if mailer == __MODULE__ do
           # Use built-in mailer with runtime config for AWS
