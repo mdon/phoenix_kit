@@ -88,6 +88,11 @@ defmodule PhoenixKit.Users.RateLimiter do
     # QR login request creation: 10 per minute per IP (pre-auth, no email to key on)
     qr_login_limit: 10,
     qr_login_window_ms: 60_000,
+    # File upload: 30 per minute per account. The endpoint requires auth, so an
+    # account is always available to key on; this bounds storage/queue abuse by
+    # an authenticated user without impeding a normal media-browser session.
+    upload_limit: 30,
+    upload_window_ms: 60_000,
     # Referral code validation: 20 per minute per IP. Pre-auth and IP-only —
     # there is no account to key on, and the point is to stop an anonymous
     # visitor searching the code space. Generous enough that a real person
@@ -151,6 +156,35 @@ defmodule PhoenixKit.Users.RateLimiter do
 
       {:error, :rate_limit_exceeded} = error ->
         log_rate_limit_violation("login", "email:#{email}", limit, window)
+        error
+    end
+  end
+
+  @doc """
+  Checks whether file uploads are within rate limit, keyed on the uploading
+  account. `POST /api/upload` requires authentication (see
+  `PhoenixKitWeb.UploadController.resolve_upload_user/2`), so there is always an
+  account to key on; this bounds storage-exhaustion and Oban-queue abuse by an
+  authenticated user.
+
+  ## Examples
+
+      iex> PhoenixKit.Users.RateLimiter.check_upload_rate_limit(user_uuid)
+      :ok
+  """
+  def check_upload_rate_limit(user_uuid) when is_binary(user_uuid) do
+    config = get_config()
+
+    key = "storage:upload:#{user_uuid}"
+    limit = Keyword.get(config, :upload_limit)
+    window = Keyword.get(config, :upload_window_ms)
+
+    case check_rate_limit(key, window, limit) do
+      :ok ->
+        :ok
+
+      {:error, :rate_limit_exceeded} = error ->
+        log_rate_limit_violation("upload", user_uuid, limit, window)
         error
     end
   end

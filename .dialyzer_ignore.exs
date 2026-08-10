@@ -88,6 +88,12 @@
   {"lib/phoenix_kit/test/fixtures.ex", :contract_with_opaque},
   # Callers of Scope.admin?/1 inherit the opaque mismatch from Scope.for_user/1
   {"lib/modules/maintenance/web/plugs/maintenance_mode.ex", :call_without_opaque},
+  # Same inheritance: the storage API controllers build a scope from the
+  # authenticated User with Scope.for_user/1 and pass it straight to
+  # Scope.can_access_admin_area?/1 to gate the upload owner-override and the
+  # file-info read.
+  {"lib/phoenix_kit_web/controllers/upload_controller.ex", :call_without_opaque},
+  {"lib/phoenix_kit_web/controllers/file_controller.ex", :call_without_opaque},
   # Same inheritance: the invite-only gate's User clause has no scope to work
   # from, so it builds one with Scope.for_user/1 and passes it straight to
   # Scope.holds_all_enabled_permissions?/1.
