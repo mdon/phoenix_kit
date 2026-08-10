@@ -16,6 +16,11 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     * `--prefix` - Database schema prefix. When omitted, resolves from
       `config :phoenix_kit, :prefix`, then defaults to "public".
     * `--verbose` - Show detailed diagnostic information
+    * `--exit-code` - Exit non-zero unless `Next` is `Ready`. For deploy scripts
+      and CI, which otherwise cannot tell a clean install from a module sitting
+      four versions behind — the report is identical on stdout either way.
+      Off by default so existing deploys that run this for its log line keep
+      passing.
 
   ## Examples
 
@@ -27,6 +32,9 @@ defmodule Mix.Tasks.PhoenixKit.Status do
 
       # Show detailed diagnostic information
       mix phoenix_kit.status --verbose
+
+      # Fail a deploy when core or any module schema is behind
+      mix phoenix_kit.status --exit-code
 
   ## Sample Output
 
@@ -92,7 +100,8 @@ defmodule Mix.Tasks.PhoenixKit.Status do
 
   @switches [
     prefix: :string,
-    verbose: :boolean
+    verbose: :boolean,
+    exit_code: :boolean
   ]
 
   @aliases [
@@ -119,8 +128,28 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     prefix = PrefixConfig.resolve_prefix(opts)
     verbose = opts[:verbose] || false
 
-    show_comprehensive_status(prefix, verbose)
+    prefix
+    |> show_comprehensive_status(verbose)
+    |> maybe_exit_non_zero(opts[:exit_code] || false)
   end
+
+  # Reporting a gap on stdout and then exiting 0 makes this task unusable as a
+  # deploy gate: a script that restarts the app after it cannot tell "Ready"
+  # from "a module is four versions behind". `--exit-code` is opt-in because
+  # the default is load-bearing the other way — deploys that run this purely
+  # for its log line must not start failing on an upgrade.
+  defp maybe_exit_non_zero(_next_action, false), do: :ok
+  defp maybe_exit_non_zero({:ready, _message}, true), do: :ok
+
+  defp maybe_exit_non_zero(next_action, true) do
+    Mix.raise("""
+    PhoenixKit is not up to date (--exit-code).
+
+      #{strip_ansi(format_next_action(next_action))}
+    """)
+  end
+
+  defp strip_ansi(string), do: String.replace(string, ~r/\e\[[0-9;]*m/, "")
 
   # Main status display function
   defp show_comprehensive_status(prefix, verbose) do
@@ -154,6 +183,8 @@ defmodule Mix.Tasks.PhoenixKit.Status do
     end
 
     IO.puts("")
+
+    next_action
   end
 
   # ── Module schema versions ──────────────────────────────────────────────────
