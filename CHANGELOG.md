@@ -1,3 +1,104 @@
+## 2.0.1 - 2026-08-10
+
+Closes the "reports a problem, then exits 0" gaps across `status`, `doctor` and
+`update`, and adopts `locale_slug` 0.2.0 so Cyrillic slugs beyond Russian stop
+coming back empty. No schema change — the chain stays at V166.
+
+### Added
+
+- **`mix phoenix_kit.status --exit-code`** (#701). The report is identical on
+  stdout whether an install is clean or has a module sitting four versions
+  behind, so a deploy script had nothing to gate on. Opt-in, because the default
+  is load-bearing the other way: pipelines that run the task purely for its log
+  line must not start failing on an upgrade. It **fails closed** — an install
+  whose core marker reads `Ready` while the module list was never queried exits
+  `1`, since the two reads are independent and a connection dropping between them
+  produces exactly the silent pass the flag exists to remove.
+- **`mix phoenix_kit.doctor` gains a "Module Schema Versions" check** (#701).
+  Core's version marker says nothing about a module that owns its own migration
+  chain, so an install could pass `status`, pass `doctor`, and still run code
+  against tables several versions behind — surfacing as an undefined-column 500
+  on that module's admin page, with no visible connection to the upgrade that
+  caused it. Fails on a module that is behind; warns, rather than passing, when a
+  version cannot be read at all.
+- **`mix phoenix_kit.doctor --exit-code`** (#701 post-merge review). Doctor
+  printed `N failures` and `Fix the FAIL items above before running migrations.`
+  and then exited `0` — including for the new module-version check, whose whole
+  purpose is to catch an install nothing else reports on. `status` and `repair`
+  both gate; doctor was the only one of the three that could not. Opt-in, same
+  reasoning as above. Warnings deliberately do not gate: several fire on healthy
+  installs (a pool capped by `update_mode`, an unlocatable `application.ex`), and
+  gating on them would put the flag straight back to a signal nobody can act on.
+
+### Changed
+
+- **`locale_slug` adopted at `~> 0.2.0`** (#701). 0.1.0's Cyrillic layer only
+  really covered Russian, and against core's `fallback: :empty` passing the
+  *correct* locale reproduced the bug the dependency exists to fix:
+  `slugify("Київ", locale: "uk")` and `slugify("България", locale: "bg")` both
+  returned `""`, which callers read as "not generated yet" and regenerate
+  forever. 0.2.0 returns `kyiv` and `bulgaria`. Cyrillic output is the only thing
+  that moves — German, Estonian, Greek, `script: :native` and plain accented
+  Latin are byte-identical. Stored slugs are never rewritten. The pin stays
+  three-segment on purpose: a revised romanization table changes slugs that are
+  persisted in URLs and compared for uniqueness, so adopting a minor is a
+  deliberate release decision, not something `mix deps.update` should do.
+- **`mix phoenix_kit.repair`'s footer groups findings by kind and by table**
+  (#701). A severity count does not say what a run is *about*. A few hundred
+  findings on a long-lived database become readable the moment they are grouped —
+  on one real install the new footer showed 97 of 265 findings concentrated in
+  five warehouse tables, the one fact that makes the report actionable, and
+  previously reachable only by reading every line.
+- **The "comment ahead of schema" message no longer overstates the damage**
+  (#701). `highest_fully_present_version/1` is a `take_while`: it stops at the
+  first version with a missing object and never looks higher. Reporting that as
+  "objects since N..comment are missing or diverged" claimed a range the check
+  had not examined — on a real install the headline read **V35..V166** when all
+  that had been established was that V35 was incomplete. The message now names
+  the boundary and states plainly what it does not mean.
+
+### Fixed
+
+- **Module schema migrations were skipped when the migrate step aborted** (#701).
+  A pending core migration raised *before* `run_module_migrations/1`, so no module
+  migration file was ever written — and the error message listed `mix ecto.migrate`
+  **first**, which applied the core chain, exited 0, and left the module's tables
+  where they were. The files are now written before the raise (including when the
+  operator answers "no" at the prompt, which the note says plainly), and the
+  advice leads with `mix phoenix_kit.update --yes`.
+- **`mix phoenix_kit.repair`'s by-table breakdown invented tables out of index
+  names** (#701 post-merge review). The table was parsed as "the segment between
+  the first `:` and the first following `.` or `:`", which four of the manifest's
+  eight object classes satisfy without carrying a table at all —
+  `index:idx_calendar_events_owner_starts_at` was tallied as a table of that
+  name. Against the manifest that is 616 index ids (plus 6 sequences, 3
+  extensions, 2 functions) inventing single-finding rows, versus 161 real tables.
+  Since missing tables come with their missing indexes, the `+N more tables` tail
+  was inflated worst on exactly the runs where an operator is trying to judge how
+  widespread the damage is — the number the feature was added to provide. Only
+  the four table-scoped classes now contribute; deriving a table from an index
+  *name* would be guessing, and those findings stay visible under `by kind`.
+- **The reworded "comment ahead of schema" message named a version that has
+  nothing to be missing** (#701 post-merge review). It derived the first gap as
+  `lower + 1`, but `highest_fully_present_version/1` returns the *`since` of the
+  last consecutive present bucket*, not an ordinal — its own doctest answers `114`
+  for a list whose first absent version is `137`, which rendered as "V115 is the
+  first version whose objects are not all present". Reachable in practice: the
+  bucket list is only contiguous from the migration floor up, and 28 chain
+  versions introduce no manifest object. The first genuinely absent bucket is now
+  read from the presence list.
+- **`mix phoenix_kit.doctor`'s module check dropped unreadable modules when
+  another module was behind** (#701 post-merge review). Its `cond` tested
+  "behind" before "unreadable", so a run with both reported only the first and
+  the unreadable module vanished from the report entirely — the one condition an
+  operator cannot discover any other way, and the reason `StatusReport.next_action/3`
+  and the status tree both surface it first. Both are now reported; the severity
+  stays `:fail`.
+- **The doctor moduledoc's "Checks Performed" list was five checks stale**
+  (#701 post-merge review) — missing UUID Primary Keys, User Dashboard, Sitemap
+  Discoverability, Demo Auth Pages and the new Module Schema Versions. Rebuilt
+  against the order `run/1` actually executes.
+
 ## 2.0.0 - 2026-08-10
 
 ### ⚠️ Upgrade requirement — databases below V135 must stop at 1.7.236 first

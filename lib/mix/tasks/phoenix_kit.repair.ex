@@ -210,18 +210,36 @@ defmodule Mix.Tasks.PhoenixKit.Repair do
     end
   end
 
-  # object_id is "class:table.column", "class:table.constraint_name" or
-  # "class:table:seed_key" — the table is the segment between the first colon
-  # and the first `.` or `:` after it. Anything that does not parse is dropped
-  # rather than guessed at, so a malformed id cannot invent a table.
-  defp table_of(%{object_id: id}) when is_binary(id) do
+  # Only the classes whose id is table-scoped BY CONSTRUCTION contribute a row:
+  #
+  #   table:<table>              column:<table>.<column>
+  #   constraint:<table>.<name>  seed:<table>:<seed_key>
+  #
+  # `index:`, `sequence:`, `function:` and `extension:` name the object itself
+  # and carry no table at all, so the old "segment before the first `.` or `:`"
+  # rule tallied `index:idx_calendar_events_owner_starts_at` as a table of that
+  # name. Not a rounding error: the manifest holds 616 index ids (plus 6
+  # sequences, 3 extensions, 2 functions) against 161 real tables, so a schema
+  # missing a subsystem invented one single-finding "table" per absent index and
+  # the `+N more tables` tail counted every one of them — inflating exactly the
+  # number an operator reads to judge how widespread the damage is.
+  #
+  # Recovering the table from an index NAME would be guessing, which is the one
+  # thing this tally must not do. Those findings stay visible under `by kind`.
+  @table_scoped_classes ~w(table column constraint seed)
+
+  @doc false
+  def table_of(%{object_id: id}) when is_binary(id) do
     case String.split(id, ":", parts: 2) do
-      [_class, rest] -> rest |> String.split([".", ":"], parts: 2) |> List.first()
-      _ -> nil
+      [class, rest] when class in @table_scoped_classes ->
+        rest |> String.split([".", ":"], parts: 2) |> List.first()
+
+      _ ->
+        nil
     end
   end
 
-  defp table_of(_finding), do: nil
+  def table_of(_finding), do: nil
 
   # ── Exit codes ──────────────────────────────────────────────────────
 
