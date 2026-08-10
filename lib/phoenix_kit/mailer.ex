@@ -68,6 +68,35 @@ defmodule PhoenixKit.Mailer do
   end
 
   @doc """
+  Where an outgoing message will actually be sent, resolved the same way
+  `deliver_email/2` resolves it: the operator's default send integration wins,
+  then the delegated host mailer (`config :phoenix_kit, :mailer`), then the
+  built-in one. The adapter element is `nil` when the resolved mailer has no
+  adapter configured.
+
+  `PhoenixKit.Config.mailer_local?/0` derives from this — anything that needs
+  to know "does mail land in the local dev mailbox?" must go through one of
+  the two, never through a raw config read (issue #687: the raw read answered
+  for a mailer that may not be the one sending, in both directions).
+  """
+  @spec resolved_send_path() :: {:integration, String.t()} | {:mailer, module(), module() | nil}
+  def resolved_send_path do
+    case default_send_integration_uuid() do
+      {:ok, uuid} ->
+        {:integration, uuid}
+
+      :error ->
+        mailer = get_mailer()
+        {:mailer, mailer, configured_adapter(mailer)}
+    end
+  end
+
+  defp configured_adapter(__MODULE__), do: PhoenixKit.Config.get(__MODULE__, [])[:adapter]
+
+  defp configured_adapter(mailer),
+    do: PhoenixKit.Config.get_parent_app_config(mailer, [])[:adapter]
+
+  @doc """
   Sends an email using a template from the database.
 
   This is the main function for sending emails using PhoenixKit's template system.
