@@ -117,6 +117,7 @@ memory.json
 CLAUDE.local.md
 
 *.tar
+*.tar.gz
 *.zip
 
 # Uploaded media files
