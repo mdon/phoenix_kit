@@ -33,6 +33,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # the current file set; it asserts nothing new about the manifest BODY, and
   # `verify.exs --scenario s7,s8` against a real database is still what does.
   #
+  # RESTAMPED AGAIN 2026-08-10, over 32 files (v135..v166), completing the
+  # declaration below. That stamp was computed before #695 landed, and #695 edited
+  # `v163.ex` (cond branch order) and `v164.ex` (a detection query's `contype`
+  # filter and a wrapped probe) — guard, probe and message logic only, no schema
+  # object, which is the one class `restamp_chain_hash.exs` permits. So the stamp
+  # was behind by exactly those two edits while the BODY was already correct.
+  #
+  # Still true and still the point: a restamp asserts nothing about the body, and
+  # the V165/V166 objects declared below have never been checked against a real
+  # database. `verify.exs --scenario s7,s8` is what would do that and has not run
+  # against this chain.
+  #
   # DECLARED POST-GENERATION (2026-08-09, release recheck of #692/#694): V165
   # adds `phoenix_kit_mentions` + `phoenix_kit_access_requests` (tables,
   # columns, indexes, checks, FKs); V166 adds four columns, one check and one
@@ -85,7 +97,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "753dc6219a06f6f31e5c2bd2baeb946b171c2f4f0ca6d6c8f37988ed3a29a2aa"
+  @chain_hash "596fca593c6972b65718d3ad6b44fe323ac1b92aeeebf8a42e3baed20dc6fb85"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
