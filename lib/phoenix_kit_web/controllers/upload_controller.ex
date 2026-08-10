@@ -9,6 +9,8 @@ defmodule PhoenixKitWeb.UploadController do
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.ProcessFileJob
+  alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Users.RateLimiter
   alias PhoenixKit.Utils.Format
 
   @upload_config %{
@@ -56,10 +58,14 @@ defmodule PhoenixKitWeb.UploadController do
       }
   """
   def create(conn, params) do
-    with {:ok, upload} <- extract_upload(params),
+    # Authorize BEFORE touching the upload body: an unauthenticated request must
+    # be refused without the server hashing, validating or storing 100 MB on its
+    # behalf.
+    with {:ok, user_uuid} <- resolve_upload_user(conn.assigns[:phoenix_kit_current_user], params),
+         :ok <- RateLimiter.check_upload_rate_limit(user_uuid),
+         {:ok, upload} <- extract_upload(params),
          :ok <- validate_file_type(upload),
          :ok <- validate_file_size(upload),
-         {:ok, user_uuid} <- get_current_user_uuid(conn, params),
          {:ok, file_uuid} <- process_upload(upload, user_uuid) do
       json(conn, %{
         file_uuid: file_uuid,
@@ -67,6 +73,21 @@ defmodule PhoenixKitWeb.UploadController do
         message: "Upload successful, variants will be generated shortly"
       })
     else
+      {:error, :no_user} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "UNAUTHORIZED", message: "Authentication required"})
+
+      {:error, :rate_limit_exceeded} ->
+        conn
+        |> put_status(:too_many_requests)
+        |> json(%{error: "RATE_LIMITED", message: "Too many uploads, try again shortly"})
+
+      {:error, :no_file} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "NO_FILE", message: "No file provided"})
+
       {:error, :invalid_file_type} ->
         conn
         |> put_status(:bad_request)
@@ -79,11 +100,6 @@ defmodule PhoenixKitWeb.UploadController do
           error: "FILE_TOO_LARGE",
           message: "File size exceeds maximum allowed (#{format_bytes(@upload_config.max_size)})"
         })
-
-      {:error, :no_user} ->
-        conn
-        |> put_status(:unauthorized)
-        |> json(%{error: "UNAUTHORIZED", message: "Authentication required"})
 
       {:error, %Ecto.Changeset{} = changeset} ->
         conn
@@ -130,24 +146,39 @@ defmodule PhoenixKitWeb.UploadController do
     end
   end
 
-  defp get_current_user_uuid(conn, params) do
-    # Check if user is authenticated
-    case conn.assigns[:phoenix_kit_current_user] do
-      %PhoenixKit.Users.Auth.User{uuid: user_uuid} ->
-        {:ok, user_uuid}
+  @doc """
+  Resolves the account an upload is attributed to, failing closed.
 
-      nil ->
-        # Try override from params (admin only)
-        case params["user_uuid"] do
-          user_uuid when is_binary(user_uuid) ->
-            # Verify admin permission here if needed
-            {:ok, user_uuid}
+  Requires an authenticated user (the first argument is
+  `conn.assigns[:phoenix_kit_current_user]`). The `user_uuid` request parameter
+  — attributing the upload to a *different* account — is honored ONLY when the
+  authenticated user can access the admin area; for everyone else it is ignored
+  and the upload is attributed to the uploader.
 
-          _ ->
-            {:error, :no_user}
+  An unauthenticated request is refused with `{:error, :no_user}`. The previous
+  behavior took the owner straight from `params["user_uuid"]` with the check
+  never written, so an anonymous client could attribute a 100 MB upload — and
+  the variant-processing job it enqueues — to any account (the #687 class, but a
+  write).
+  """
+  @spec resolve_upload_user(term(), map()) :: {:ok, binary()} | {:error, :no_user}
+  def resolve_upload_user(current_user, params) do
+    case current_user do
+      %PhoenixKit.Users.Auth.User{uuid: uuid} = user ->
+        override = params["user_uuid"]
+
+        if is_binary(override) and admin?(user) do
+          {:ok, override}
+        else
+          {:ok, uuid}
         end
+
+      _ ->
+        {:error, :no_user}
     end
   end
+
+  defp admin?(user), do: Scope.can_access_admin_area?(Scope.for_user(user))
 
   defp process_upload(upload, user_uuid) do
     with {:ok, stat} <- File.stat(upload.path),
