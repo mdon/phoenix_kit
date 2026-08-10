@@ -267,13 +267,12 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
 
   # The section only exists when mail would actually land in the local
   # mailbox — the resolution must match deliver_email/2, not a raw config
-  # read (issue #687), which is what resolved_send_path/0 guarantees.
+  # read (issue #687). mailer_local?/0 is that resolution plus the
+  # rescue/catch guard, so a dead pool degrades to a hidden section
+  # instead of a crashed mount.
   defp assign_dev_mailbox(socket) do
     socket
-    |> assign(
-      :mailbox_local?,
-      match?({:mailer, _, Swoosh.Adapters.Local}, Mailer.resolved_send_path())
-    )
+    |> assign(:mailbox_local?, Config.mailer_local?())
     |> assign(:dev_mailbox_enabled, Settings.get_boolean_setting("dev_mailbox_enabled", false))
   end
 

@@ -36,6 +36,10 @@ defmodule PhoenixKit.Integration.DevMailboxToggleTest do
       Application.delete_env(:phoenix_kit, :mailer)
       if prev_own, do: Application.put_env(:phoenix_kit, PhoenixKit.Mailer, prev_own)
       if prev_delegate, do: Application.put_env(:phoenix_kit, :mailer, prev_delegate)
+      # The sandbox rolls the settings row back, but the app-supervised ETS
+      # cache is not transactional — drop the key so the rolled-back "true"
+      # cannot leak into another module's gate-closed assertions.
+      PhoenixKit.Cache.invalidate(:settings, "dev_mailbox_enabled")
     end)
 
     %{conn: log_in_user(conn, owner_user())}

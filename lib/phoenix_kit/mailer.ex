@@ -78,6 +78,11 @@ defmodule PhoenixKit.Mailer do
   to know "does mail land in the local dev mailbox?" must go through one of
   the two, never through a raw config read (issue #687: the raw read answered
   for a mailer that may not be the one sending, in both directions).
+
+  For a delegated mailer the adapter is read from
+  `PhoenixKit.Config.get_parent_app/0`'s env, which assumes that app matches
+  the mailer's own `:otp_app` — the same assumption the SES detection in
+  delivery has always made. Set `:parent_app_name` explicitly if they differ.
   """
   @spec resolved_send_path() :: {:integration, String.t()} | {:mailer, module(), module() | nil}
   def resolved_send_path do
@@ -265,11 +270,16 @@ defmodule PhoenixKit.Mailer do
   end
 
   defp log_suppressed_local_delivery(email) do
+    # This log line is the developer's ONLY way to recover the single-use
+    # token while the mailbox is off — fall back to the HTML body for hosts
+    # whose overridden UserNotifier sends HTML-only mail.
+    body = email.text_body || email.html_body || ""
+
     Logger.warning("""
     PhoenixKit: outgoing email was NOT delivered — the local dev mailbox is disabled by default \
     (its /dev/mailbox page is unauthenticated; see BeamLabEU/phoenix_kit#687).
     To: #{inspect(email.to)} · Subject: #{email.subject}
-    #{email.text_body}
+    #{body}
     Enable the mailbox for this closed environment at /admin/settings/email-sending, \
     or configure a send integration there.
     """)

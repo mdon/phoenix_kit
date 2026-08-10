@@ -33,6 +33,10 @@ defmodule PhoenixKit.Integration.DevMailboxGateTest do
       if prev_own, do: Application.put_env(:phoenix_kit, PhoenixKit.Mailer, prev_own)
       if prev_delegate, do: Application.put_env(:phoenix_kit, :mailer, prev_delegate)
       if started_storage, do: Memory.stop()
+      # The sandbox rolls the settings row back, but the app-supervised ETS
+      # cache is not transactional — drop the key so the rolled-back "true"
+      # cannot leak into another module's gate-closed assertions.
+      PhoenixKit.Cache.invalidate(:settings, "dev_mailbox_enabled")
     end)
 
     email =
