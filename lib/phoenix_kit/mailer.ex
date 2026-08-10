@@ -242,6 +242,13 @@ defmodule PhoenixKit.Mailer do
   not a message id from a relay that has not seen it yet. Callers that only
   match `{:ok, _}` are unaffected; a caller that needs the message sent on this
   process can pass `skip_queue: true`.
+
+  When the resolved transport is the local dev mailbox and the
+  `dev_mailbox_enabled` setting is off (its default — see issue #687), the
+  message is written to the server log instead of being handed to any adapter,
+  and the result is `{:ok, %{id: "dev-mailbox-suppressed", suppressed: true}}`.
+  It reads as success on purpose — auth flows must not error over a dev-only
+  transport — but no mail was sent and nothing was recorded by tracking.
   """
   def deliver_email(email, opts \\ []) do
     case default_send_integration_uuid() do
