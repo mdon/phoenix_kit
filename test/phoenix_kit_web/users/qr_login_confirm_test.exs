@@ -77,6 +77,43 @@ defmodule PhoenixKitWeb.Users.QrLoginConfirmTest do
 
       assert {:expired, %{}} = QrLoginConfirm.look_up("anything")
     end
+
+    test "a store that EXITS still reads as expired" do
+      # The other half of the pair, and the likelier half. A host store over
+      # Redis or a database is reached through a `GenServer.call`, which does not
+      # raise when the process is gone or wedged — it EXITS (`:noproc`,
+      # `:timeout`). `rescue` does not catch that, so with only the raise clause
+      # this escaped `look_up/1` entirely and became the 500 on the dead render
+      # that the guard exists to prevent.
+      #
+      # This module's own dependency note names both shapes: before keyfob 0.1.1
+      # an unreachable store made its reads raise "and its GenServer-backed
+      # calls exit".
+      Application.put_env(:keyfob, :store, __MODULE__.ExitingStore)
+      on_exit(fn -> Application.delete_env(:keyfob, :store) end)
+
+      assert {:expired, %{}} = QrLoginConfirm.look_up("anything")
+    end
+  end
+
+  defmodule ExitingStore do
+    @moduledoc false
+    @behaviour Keyfob.Store
+
+    # Exactly how a GenServer-backed store fails when it is not running: the
+    # call exits with `:noproc`. Not `exit/1` by hand — the point is the shape
+    # a real store produces.
+    @impl true
+    def get(_key), do: GenServer.call(:phoenix_kit_no_such_keyfob_store, :get)
+
+    @impl true
+    def put(_key, _value, _ttl), do: :ok
+    @impl true
+    def update(_key, _fun), do: :error
+    @impl true
+    def take(_key), do: :error
+    @impl true
+    def delete(_key), do: :ok
   end
 
   defmodule RaisingStore do

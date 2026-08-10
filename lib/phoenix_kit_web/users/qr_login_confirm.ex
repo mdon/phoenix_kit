@@ -89,6 +89,27 @@ defmodule PhoenixKitWeb.Users.QrLoginConfirm do
     error ->
       Logger.warning("[PhoenixKit.QrLoginConfirm] could not read the request: #{inspect(error)}")
       {:expired, %{}}
+  catch
+    # `rescue` alone does not cover this, and this is the shape the failure
+    # actually takes. The comment above is right that a host `Keyfob.Store`
+    # over Redis or a database "can be unreachable in ways ETS cannot" — and
+    # the way those stores are reached is a `GenServer.call`, which EXITS
+    # (`:noproc` when the process is gone, `:timeout` when it is wedged)
+    # rather than raising. This module's own dependency note says so in as
+    # many words: before keyfob 0.1.1 an unreachable store made its reads
+    # raise "and its GenServer-backed calls EXIT".
+    #
+    # So the guard covered one of the two failure modes it was added for, and
+    # the uncovered one is the more likely of the pair for exactly the
+    # third-party stores the guard exists to survive — on the dead render,
+    # where the comment above notes the cost is a 500 page.
+    :exit, reason ->
+      Logger.warning(
+        "[PhoenixKit.QrLoginConfirm] store did not answer: #{inspect(reason)} — " <>
+          "presenting the request as expired"
+      )
+
+      {:expired, %{}}
   end
 
   def handle_event("keyfob_approve", _params, socket) do
