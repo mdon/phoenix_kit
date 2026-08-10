@@ -275,8 +275,23 @@ defmodule PhoenixKit.Mailer do
     end
   end
 
+  # Guarded like its sibling `PhoenixKit.Config.mailer_local?/0`, and for the
+  # reason AGENTS.md gives: a settings read is ETS-cached, so on a cache MISS it
+  # touches the database, and an unreachable one raises on an unowned checkout
+  # but *exits* on a dead pool — `rescue` alone does not cover it. This read is
+  # new to the delivery path, so before it nothing here could fail that way.
+  #
+  # `false` on failure is the fail-CLOSED direction: it suppresses the send and
+  # logs the token rather than handing a message full of single-use links to an
+  # unauthenticated mailbox because a pool blipped. Only reachable on a
+  # Local-adapter install — `and` short-circuits, so a production adapter never
+  # evaluates this at all.
   defp dev_mailbox_enabled? do
     PhoenixKit.Settings.get_boolean_setting("dev_mailbox_enabled", false)
+  rescue
+    _ -> false
+  catch
+    :exit, _ -> false
   end
 
   defp log_suppressed_local_delivery(email) do

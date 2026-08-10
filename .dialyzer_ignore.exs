@@ -90,8 +90,13 @@
   {"lib/modules/maintenance/web/plugs/maintenance_mode.ex", :call_without_opaque},
   # Same inheritance: the storage API controllers build a scope from the
   # authenticated User with Scope.for_user/1 and pass it straight to
-  # Scope.can_access_admin_area?/1 to gate the upload owner-override and the
-  # file-info read.
+  # Scope.system_role?/1 to gate the upload owner-override and the file-info
+  # read. Named precisely because the distinction is the point: both call sites
+  # deliberately use `system_role?/1` (Owner/Admin only) and NOT
+  # `can_access_admin_area?/1`, which is true for any holder of a single module
+  # permission and would let one read every other user's file metadata and
+  # signed variant URLs. Both controllers' own docs say so; this file should not
+  # be the one place that reads as though the weaker check is in use.
   {"lib/phoenix_kit_web/controllers/upload_controller.ex", :call_without_opaque},
   {"lib/phoenix_kit_web/controllers/file_controller.ex", :call_without_opaque},
   # Same inheritance: the invite-only gate's User clause has no scope to work
