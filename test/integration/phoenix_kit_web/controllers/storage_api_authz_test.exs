@@ -10,6 +10,8 @@ defmodule PhoenixKitWeb.StorageApiAuthzTest do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.RateLimiter
   alias PhoenixKit.Users.Roles
   alias PhoenixKitWeb.FileController
@@ -34,6 +36,16 @@ defmodule PhoenixKitWeb.StorageApiAuthzTest do
   defp admin_user do
     user = plain_user()
     Roles.assign_role(user, "Admin")
+    Repo.get!(Auth.User, user.uuid)
+  end
+
+  # A user who holds a module permission but NOT the Owner/Admin system role.
+  # `can_access_admin_area?/1` is true for them; `system_role?/1` is not — the
+  # exact distinction the storage gates must honor.
+  defp permission_holder_user do
+    user = plain_user()
+    user_role = Roles.get_role_by_name("User")
+    {:ok, _} = Permissions.grant_permission(user_role.uuid, "media")
     Repo.get!(Auth.User, user.uuid)
   end
 
@@ -84,6 +96,20 @@ defmodule PhoenixKitWeb.StorageApiAuthzTest do
       assert {:ok, "target-uuid"} =
                UploadController.resolve_upload_user(admin, %{"user_uuid" => "target-uuid"})
     end
+
+    test "a mere permission holder (not Owner/Admin) cannot override the owner" do
+      user = permission_holder_user()
+
+      # Proves this is the middle case: the broad `can_access_admin_area?/1`
+      # predicate would have let them through — `system_role?/1` does not.
+      assert Scope.can_access_admin_area?(Scope.for_user(user))
+      refute Scope.system_role?(Scope.for_user(user))
+
+      assert {:ok, uuid} =
+               UploadController.resolve_upload_user(user, %{"user_uuid" => "someone-else"})
+
+      assert uuid == user.uuid
+    end
   end
 
   describe "FileController file-info read guard — anonymous handout + enumeration" do
@@ -115,6 +141,16 @@ defmodule PhoenixKitWeb.StorageApiAuthzTest do
       file = make_file(owner.uuid)
       assert {:ok, got} = FileController.authorize_file_read(file, admin)
       assert got.uuid == file.uuid
+    end
+
+    test "a mere permission holder cannot read another user's file" do
+      owner = plain_user()
+      holder = permission_holder_user()
+      file = make_file(owner.uuid)
+
+      assert Scope.can_access_admin_area?(Scope.for_user(holder))
+      refute Scope.system_role?(Scope.for_user(holder))
+      assert {:error, :not_found} = FileController.authorize_file_read(file, holder)
     end
   end
 

@@ -141,15 +141,19 @@ defmodule PhoenixKitWeb.FileController do
   def require_user(_), do: {:error, :no_user}
 
   @doc """
-  Authorizes a file-info read. The owner (`file.user_uuid`) or an admin may
+  Authorizes a file-info read. The owner (`file.user_uuid`) or an Owner/Admin may
   read; everyone else — and a missing file — is `{:error, :not_found}`, the
   *same* result, so the endpoint is not a file-existence oracle.
+
+  The staff bypass is `Scope.system_role?/1` (Owner/Admin), NOT
+  `can_access_admin_area?/1`: a holder of a single module permission must not be
+  able to read every other user's file metadata and signed variant URLs.
   """
   @spec authorize_file_read(term(), User.t()) :: {:ok, map()} | {:error, :not_found}
   def authorize_file_read(nil, _user), do: {:error, :not_found}
 
   def authorize_file_read(%{user_uuid: owner} = file, %User{uuid: uuid} = user) do
-    if owner == uuid or Scope.can_access_admin_area?(Scope.for_user(user)) do
+    if owner == uuid or Scope.system_role?(Scope.for_user(user)) do
       {:ok, file}
     else
       {:error, :not_found}

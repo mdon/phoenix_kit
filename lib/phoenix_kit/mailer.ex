@@ -264,7 +264,10 @@ defmodule PhoenixKit.Mailer do
       # The local mailbox's /dev/mailbox page is unauthenticated by design and
       # this mail carries single-use tokens that exist nowhere else — delivery
       # is opt-in (issue #687). Returns before the tracking pipeline: a message
-      # that was never handed to an adapter must not be recorded as sent.
+      # that was never handed to an adapter must not be recorded as sent. This
+      # also short-circuits `check_recipient_allowed/1`; harmless, since nothing
+      # is delivered, but it means the blocklist is not exercised with the gate
+      # off against the Local adapter.
       log_suppressed_local_delivery(email)
       {:ok, %{id: "dev-mailbox-suppressed", suppressed: true}}
     else

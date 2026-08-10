@@ -58,15 +58,24 @@ defmodule PhoenixKitWeb.UploadController do
       }
   """
   def create(conn, params) do
-    # Authorize BEFORE touching the upload body: an unauthenticated request must
-    # be refused without the server hashing, validating or storing 100 MB on its
-    # behalf.
-    with {:ok, user_uuid} <- resolve_upload_user(conn.assigns[:phoenix_kit_current_user], params),
-         :ok <- RateLimiter.check_upload_rate_limit(user_uuid),
+    current_user = conn.assigns[:phoenix_kit_current_user]
+
+    # Authorize BEFORE the upload is processed: an unauthenticated request is
+    # refused without the server hashing, storing or enqueuing a job for it.
+    # (Plug has already parsed the multipart body and spooled the temp file by
+    # the time this runs, so the ordering saves the work, not the bandwidth.)
+    #
+    # Rate-limit the AUTHENTICATED UPLOADER, never the attributed owner: an
+    # admin override attributes the file to someone else, and keying the limit
+    # on that someone else would give the uploader a fresh window per victim
+    # uuid. `resolve_upload_user/2` returning {:ok, _} guarantees a %User{}, so
+    # `current_user.uuid` is safe.
+    with {:ok, owner_uuid} <- resolve_upload_user(current_user, params),
+         :ok <- RateLimiter.check_upload_rate_limit(current_user.uuid),
          {:ok, upload} <- extract_upload(params),
          :ok <- validate_file_type(upload),
          :ok <- validate_file_size(upload),
-         {:ok, file_uuid} <- process_upload(upload, user_uuid) do
+         {:ok, file_uuid} <- process_upload(upload, owner_uuid) do
       json(conn, %{
         file_uuid: file_uuid,
         status: "processing",
@@ -152,8 +161,9 @@ defmodule PhoenixKitWeb.UploadController do
   Requires an authenticated user (the first argument is
   `conn.assigns[:phoenix_kit_current_user]`). The `user_uuid` request parameter
   — attributing the upload to a *different* account — is honored ONLY when the
-  authenticated user can access the admin area; for everyone else it is ignored
-  and the upload is attributed to the uploader.
+  authenticated user holds the Owner or Admin system role; for everyone else
+  (including a user who merely holds some module permission) it is ignored and
+  the upload is attributed to the uploader.
 
   An unauthenticated request is refused with `{:error, :no_user}`. The previous
   behavior took the owner straight from `params["user_uuid"]` with the check
@@ -167,7 +177,7 @@ defmodule PhoenixKitWeb.UploadController do
       %PhoenixKit.Users.Auth.User{uuid: uuid} = user ->
         override = params["user_uuid"]
 
-        if is_binary(override) and admin?(user) do
+        if is_binary(override) and system_role?(user) do
           {:ok, override}
         else
           {:ok, uuid}
@@ -178,7 +188,10 @@ defmodule PhoenixKitWeb.UploadController do
     end
   end
 
-  defp admin?(user), do: Scope.can_access_admin_area?(Scope.for_user(user))
+  # Strictly Owner/Admin — NOT `can_access_admin_area?/1`, which is also true for
+  # any holder of a single module permission. Attributing an upload to another
+  # account is a cross-user action that belongs to the two system roles only.
+  defp system_role?(user), do: Scope.system_role?(Scope.for_user(user))
 
   defp process_upload(upload, user_uuid) do
     with {:ok, stat} <- File.stat(upload.path),
