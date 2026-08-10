@@ -810,15 +810,25 @@ defmodule PhoenixKit.Migrations.Repair do
     presence ++ padding
   end
 
+  # `highest_fully_present_version/1` is a `take_while`: it stops at the FIRST
+  # version with a missing object and never looks higher. Phrasing that as
+  # "objects since N..comment are missing" therefore overstates it by however
+  # much of the range was never examined — on a long-lived database the first
+  # gap can sit near the floor and make one cluster of absent objects read as a
+  # hundred broken versions. Name the boundary and say what it does not mean.
   defp ahead_of_schema_message(true, comment, lower) do
-    "comment claims V#{comment} but the highest fully-present version is V#{lower} " <>
-      "(objects since #{lower + 1}..#{comment} are missing or diverged — see the findings " <>
-      "above; run mix phoenix_kit.repair to address them)"
+    "comment claims V#{comment} but V#{lower + 1} is the first version whose objects " <>
+      "are not all present, so the schema cannot be confirmed past V#{lower} " <>
+      "(the check stops at the first gap — versions above V#{lower + 1} were not " <>
+      "examined and are not being called broken). Findings above list what is " <>
+      "actually absent; run mix phoenix_kit.repair to address them."
   end
 
   defp ahead_of_schema_message(false, comment, lower) do
-    "comment claims V#{comment} but the highest fully-present version is V#{lower} " <>
-      "(objects since #{lower + 1}..#{comment} were missing and have been addressed above)"
+    "comment claims V#{comment} but V#{lower + 1} was the first version whose objects " <>
+      "were not all present; what was missing has been addressed above. Re-run to " <>
+      "confirm — the check stops at the first gap, so a later one can only surface " <>
+      "once this one is closed."
   end
 
   defp stale_low_message(comment, target) do
