@@ -104,7 +104,13 @@ defmodule PhoenixKit.Users.RateLimiter do
     # fresh IP-keyed bucket — the account limit is the one that actually bounds
     # how much of the code space a determined attacker can sweep.
     referral_redemption_limit: 10,
-    referral_redemption_window_ms: 600_000
+    referral_redemption_window_ms: 600_000,
+    # Access requests from redacted mentions: 10 per 10 minutes per ACCOUNT.
+    # The partial unique index already stops repeat asks for the *same*
+    # resource; this caps how many distinct invented uuids one client can
+    # spam into the activity feed / admin queue.
+    access_request_limit: 10,
+    access_request_window_ms: 600_000
   ]
 
   @doc """
@@ -443,6 +449,39 @@ defmodule PhoenixKit.Users.RateLimiter do
   end
 
   def check_referral_redemption_rate_limit(_), do: :ok
+
+  @doc """
+  Checks if a logged-in account's mention access-request submissions are
+  within limit.
+
+  Keyed on the account: the request path is post-login, and the partial
+  unique index only bounds repeats for one resource. Without a per-account
+  limit a client can invent distinct uuids and fill the activity feed one
+  row at a time.
+
+  ## Examples
+
+      iex> PhoenixKit.Users.RateLimiter.check_access_request_rate_limit("0193a5e4-0000-7000-8000-000000000001")
+      :ok
+  """
+  def check_access_request_rate_limit(user_uuid) when is_binary(user_uuid) do
+    config = get_config()
+
+    key = "mentions:access_request:user:#{user_uuid}"
+    limit = Keyword.get(config, :access_request_limit)
+    window = Keyword.get(config, :access_request_window_ms)
+
+    case check_rate_limit(key, window, limit) do
+      :ok ->
+        :ok
+
+      {:error, :rate_limit_exceeded} = error ->
+        log_rate_limit_violation("access_request", "user:#{user_uuid}", limit, window)
+        error
+    end
+  end
+
+  def check_access_request_rate_limit(_), do: :ok
 
   @doc """
   Resets rate limit for a specific action and identifier.

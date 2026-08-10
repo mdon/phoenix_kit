@@ -258,6 +258,23 @@ Nothing is rolled back through this release either: a below-floor install cannot
   stamped two behind, so an install migrated to exactly 165 reported 163 — behind
   where it started — and the next `ensure_current/2` re-ran V164 and V165. A full
   run to head hid it, because V166 stamps immediately afterwards.
+- **The `@` mention typeahead no longer issues ~128 queries per keystroke**
+  (#692 recheck). `Mentions.Users.search/2` over-fetched and then called
+  `Scope.for_user/1` per candidate (roles + permissions each), so a full page of
+  results paid two round trips per row. The admin-area rule is now one SQL
+  `EXISTS` for Owner/Admin and one for any `role_permissions` grant, with the
+  `limit` applied in the database.
+- **Access requests no longer accept free-form type/uuid payloads unthrottled**
+  (#692 recheck). `AccessRequests.request/4` now requires a type registered in
+  `ResourceLinks.handlers/0`, a castable uuid, and a per-account rate limit
+  (10 / 10 minutes) — the partial unique index only stops repeats for the *same*
+  resource.
+- **`ExpectedSchema` knew nothing of V165/V166 objects** (#692 recheck). The
+  schema manifest was still stamped at V164, so `release_check` blocked the
+  release and `repair`/`verify` would have been blind to the two new tables and
+  the comment-attribution columns. V165/V166 objects are now hand-declared
+  (same post-generation path as V164) and `chain_hash` restamped over the 32
+  shipped files.
 - **A record's NAME could inject a markdown link into every mention of it**
   (#692 post-merge review). `to_markdown/2` escapes the value it splices into
   `[text](url)` on the reasoning that the token grammar refuses `]` — true of the
