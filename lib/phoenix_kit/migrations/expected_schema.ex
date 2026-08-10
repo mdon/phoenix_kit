@@ -67574,7 +67574,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
            %{
              type: "c",
              columns: nil,
-             definition: "CHECK (kind IN ('user', 'resource'))",
+             definition: "CHECK ((kind = ANY (ARRAY['user'::text, 'resource'::text])))",
              name_template: nil,
              foreign_table: nil,
              foreign_columns: nil,
@@ -67971,7 +67971,8 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
            %{
              type: "c",
              columns: nil,
-             definition: "CHECK (status IN ('pending', 'granted', 'denied', 'cancelled'))",
+             definition:
+               "CHECK ((status = ANY (ARRAY['pending'::text, 'granted'::text, 'denied'::text, 'cancelled'::text])))",
              name_template: nil,
              foreign_table: nil,
              foreign_columns: nil,
@@ -68057,7 +68058,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :index
            }},
         create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_access_requests_open_index ON __SCHEMA__.phoenix_kit_access_requests USING btree (requester_uuid, resource_type, resource_uuid) WHERE ((status)::text = 'pending'::text)",
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_access_requests_open_index ON __SCHEMA__.phoenix_kit_access_requests USING btree (requester_uuid, resource_type, resource_uuid) WHERE (status = 'pending'::text)",
         since: 165,
         class: :index,
         revisions: [
@@ -68068,8 +68069,8 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              unique: true,
              method: "btree",
              definition:
-               "CREATE UNIQUE INDEX phoenix_kit_access_requests_open_index ON __SCHEMA__.phoenix_kit_access_requests USING btree (requester_uuid, resource_type, resource_uuid) WHERE ((status)::text = 'pending'::text)",
-             predicate: "((status)::text = 'pending'::text)",
+               "CREATE UNIQUE INDEX phoenix_kit_access_requests_open_index ON __SCHEMA__.phoenix_kit_access_requests USING btree (requester_uuid, resource_type, resource_uuid) WHERE (status = 'pending'::text)",
+             predicate: "(status = 'pending'::text)",
              opclasses: ["uuid_ops", "text_ops", "uuid_ops"],
              name_template: nil
            }}
@@ -68187,7 +68188,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              type: "c",
              columns: nil,
              definition:
-               "CHECK (attribution_mode IS NULL OR attribution_mode IN ('personal', 'project'))",
+               "CHECK (((attribution_mode IS NULL) OR (attribution_mode = ANY (ARRAY['personal'::text, 'project'::text]))))",
              name_template: nil,
              foreign_table: nil,
              foreign_columns: nil,

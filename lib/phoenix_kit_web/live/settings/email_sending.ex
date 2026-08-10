@@ -20,7 +20,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   ## Module-contributed sections
 
   Modules can extend this page without the core page knowing anything
-  about them, via `PhoenixKit.Module.email_settings_sections/0` — see
+  about them, via `c:PhoenixKit.Module.email_settings_sections/0` — see
   `PhoenixKit.ModuleRegistry.all_email_settings_sections/0`. Each
   section is a module-owned `Phoenix.LiveComponent`, rendered below the
   core sections, gated by its declared permission (or shown to any admin
