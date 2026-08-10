@@ -803,6 +803,14 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     # It fires for the interactive "no" too: the exit code answers "is this
     # install up to date?", and the answer does not depend on why it is not.
     defp raise_pending_migration(reason, opts) do
+      # Hoisted out of the message below rather than called from inside the
+      # interpolation: this WRITES migration files to the host repo, and a side
+      # effect that big should be a visible statement on the failure path, not
+      # something a reader has to follow a formatting helper to discover. It
+      # runs even when the operator answered "no" — declining to *migrate* is
+      # not declining to have the file written, and the note says so.
+      staged = stage_module_migrations(opts)
+
       Mix.raise("""
       #{String.trim(reason)}
 
@@ -811,7 +819,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         mix phoenix_kit.update --yes     # re-run this task and migrate without prompting
                                          # (this is the one for CI/CD and deploy scripts)
         mix ecto.migrate                 # apply the migrations written so far
-      #{staged_module_note(opts)}
+      #{staged_module_note(staged)}
       """)
     end
 
@@ -823,20 +831,17 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     # connection to this run — core said V166 ✅ while a module sat four
     # versions behind.
     #
-    # Writing those files here is what makes `mix ecto.migrate` sufficient
-    # again. Re-running the task later reuses them rather than writing a
-    # duplicate (see `generate_module_migration/3`).
-    defp staged_module_note(opts) do
-      case stage_module_migrations(opts) do
-        [] ->
-          ""
+    # Writing those files is what makes `mix ecto.migrate` sufficient again.
+    # Re-running the task later reuses them rather than writing a duplicate
+    # (see `generate_module_migration/3`). Pure formatting — the write happens
+    # in `raise_pending_migration/2`, where it is visible.
+    defp staged_module_note([]), do: ""
 
-        staged ->
-          names = Enum.map_join(staged, ", ", & &1.name)
+    defp staged_module_note(staged) do
+      names = Enum.map_join(staged, ", ", & &1.name)
 
-          "\n  Module schema migrations were written for: #{names}.\n" <>
-            "  Either command above applies them; `mix phoenix_kit.status` reports what is left."
-      end
+      "\n  Module schema migrations were written for: #{names}.\n" <>
+        "  Either command above applies them; `mix phoenix_kit.status` reports what is left."
     end
 
     # The database is read here to decide what is pending, and this runs on a
