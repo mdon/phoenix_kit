@@ -109,14 +109,24 @@ defmodule PhoenixKit.MixProject do
       # unchanged, and swaps in a path dep when LOCALE_SLUG_PATH is exported —
       # matching the PHOENIX_LIVE_GANTT_PATH / PHOENIX_KIT_PATH convention.
       #
-      # Pinned `~> 0.1.0`, not `~> 0.1`. The looser form admits every 0.x, and a
-      # 0.x package promises nothing about its API — but the real exposure here
-      # is not the API, it is the OUTPUT. A revised romanization table changes
-      # the slug a host derives from the same title, and slugs are persisted in
-      # URLs and compared for uniqueness, so a `mix deps.update` would rewrite
-      # content by way of a dependency bump. Adopting a new minor should be a
-      # deliberate PhoenixKit release with a CHANGELOG line, not a side effect.
-      local_dep(:locale_slug, "~> 0.1.0"),
+      # Pinned three-segment (`~> 0.2.0`, not `~> 0.2`). The looser form admits
+      # every 0.x, and a 0.x package promises nothing about its API — but the
+      # real exposure here is not the API, it is the OUTPUT. A revised
+      # romanization table changes the slug a host derives from the same title,
+      # and slugs are persisted in URLs and compared for uniqueness, so a
+      # `mix deps.update` would rewrite content by way of a dependency bump.
+      # Adopting a new minor is a deliberate PhoenixKit release with a CHANGELOG
+      # line, not a side effect — which is what moving 0.1.0 → 0.2.0 is here.
+      #
+      # 0.2.0 changes CYRILLIC output only; German, Estonian, Greek and
+      # `script: :native` are byte-identical. It is adopted because 0.1.0 was
+      # broken for Cyrillic beyond Russian: with core's `fallback: :empty`,
+      # `slugify("Київ", locale: "uk")` and `slugify("България", locale: "bg")`
+      # both returned `""` — passing the CORRECT locale reproduced the empty-slug
+      # bug this dependency exists to fix, and an empty slug reads to callers as
+      # "not generated yet", so they regenerate forever. Stored slugs are not
+      # rewritten; only newly generated ones change.
+      local_dep(:locale_slug, "~> 0.2.0"),
       {:bandit, "~> 1.0"},
       {:esbuild, "~> 0.8", only: :dev},
       {:tailwind, "~> 0.5", only: :dev},
