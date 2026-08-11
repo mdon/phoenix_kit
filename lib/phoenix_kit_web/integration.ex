@@ -1148,6 +1148,89 @@ defmodule PhoenixKitWeb.Integration do
     end
   end
 
+  @doc false
+  # Warn when installed modules ship JS hooks the host will never load.
+  #
+  # A module declares its hook bundle with `js_sources/0`, and the ONLY thing
+  # that consumes that declaration is the `:phoenix_kit_js_sources` compiler.
+  # A host without it in `:compilers` gets nothing: no vendored bundle, no
+  # error, no warning — `window.PhoenixKitHooks` simply never gains those
+  # hooks, while the module's templates go on rendering `phx-hook="..."` names
+  # the LiveSocket has never heard of.
+  #
+  # That failure is the worst available shape. The page renders, the module
+  # looks installed, and only the half of the feature that needed JS is
+  # missing — so it reads as "this module is broken" rather than "its JS never
+  # loaded". `phoenix_kit_boards` shipped that state twice before anyone
+  # traced it, and a host running the CSS compiler but not the JS one (an easy
+  # asymmetry to end up with) hits it without ever having made a decision.
+  #
+  # Cheap to detect and worth saying out loud: if any module declares a bundle
+  # and the compiler is absent, name the modules and the one line that fixes
+  # it. Silence here has cost more than a warning ever will.
+  def warn_missing_js_compiler do
+    warn_missing_js_compiler(modules_declaring_js_sources(), js_compiler_configured?())
+  end
+
+  @doc false
+  # Split from the discovery so the decision can be tested for what it is: a
+  # question about two facts. Reaching it through the real dep tree would mean
+  # the interesting branch only runs on a host that happens to be misconfigured
+  # — i.e. never, in this library's own suite.
+  def warn_missing_js_compiler(modules, compiler_configured?)
+
+  def warn_missing_js_compiler([], _compiler_configured?), do: :ok
+  def warn_missing_js_compiler(_modules, true), do: :ok
+
+  def warn_missing_js_compiler(modules, false) do
+    IO.warn("""
+    PhoenixKit: these modules ship JavaScript hooks that will not be loaded:
+
+      #{Enum.map_join(modules, "\n  ", &inspect/1)}
+
+    They declare `js_sources/0`, which only the `:phoenix_kit_js_sources`
+    compiler consumes, and it is not in this app's `:compilers`. Their hooks
+    will be missing from `window.PhoenixKitHooks` with no further error —
+    their pages will render and the parts that need JavaScript will not work.
+
+    Add it to mix.exs:
+
+        compilers: [:phoenix_kit_js_sources, :phoenix_live_view] ++ Mix.compilers()
+
+    and make sure the root layout loads the vendored bundles before app.js:
+
+        <script src={~p"/assets/vendor/phoenix_kit.js"}></script>
+        <script src={~p"/assets/vendor/phoenix_kit_modules.js"}></script>
+    """)
+
+    :ok
+  end
+
+  defp modules_declaring_js_sources do
+    PhoenixKit.ModuleDiscovery.discover_external_modules()
+    |> Enum.filter(fn mod ->
+      Code.ensure_loaded?(mod) and function_exported?(mod, :js_sources, 0) and
+        mod.js_sources() != []
+    end)
+  rescue
+    # Discovery reaches into the dep tree; a warning is never worth failing a
+    # host's compile over.
+    _ -> []
+  end
+
+  # Mix is present while the host's router compiles, which is when this runs.
+  # Guarded anyway: releases and escripts can evaluate code with Mix unloaded,
+  # and there is nothing to warn about there — the compile already happened.
+  defp js_compiler_configured? do
+    if Code.ensure_loaded?(Mix.Project) and function_exported?(Mix.Project, :config, 0) do
+      :phoenix_kit_js_sources in (Mix.Project.config()[:compilers] || [])
+    else
+      true
+    end
+  rescue
+    _ -> true
+  end
+
   # Compile public routes from external route modules.
   # Each module should implement public_routes/1 (receives url_prefix).
   @doc false
@@ -1392,6 +1475,10 @@ defmodule PhoenixKitWeb.Integration do
     # here would be silently ignored (it was, for months). Which locales
     # are actually accepted is decided at runtime by the locale
     # validation plug; see `build_live_surface/5`.
+
+    # Every host compiles this macro, which makes it the one place that can
+    # see a host-side integration gap the compiler itself cannot report.
+    warn_missing_js_compiler()
 
     # External route modules with public/non-admin routes
     external_public_routes = compile_external_public_routes(url_prefix)
