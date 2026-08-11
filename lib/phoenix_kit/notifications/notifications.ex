@@ -34,6 +34,7 @@ defmodule PhoenixKit.Notifications do
   alias PhoenixKit.Notifications.Types
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Utils.Date, as: UtilsDate
 
   # ── Creation ─────────────────────────────────────────────────────────
 
@@ -280,6 +281,10 @@ defmodule PhoenixKit.Notifications do
       |> put_meta("notification_text", display[:text])
       |> put_meta("notification_icon", display[:icon])
       |> put_meta("notification_link", display[:link])
+      # What `upsert_inapp/3` later collapses on, and anything else the caller
+      # wants to carry. Both are dropped silently without this.
+      |> put_meta("dedupe_key", display[:dedupe_key])
+      |> Map.merge(display[:metadata] || %{})
 
     %Notification{}
     |> Notification.changeset(%{
@@ -297,6 +302,106 @@ defmodule PhoenixKit.Notifications do
       {:error, %Ecto.Changeset{} = cs} ->
         Logger.warning("Notifications.create_inapp failed: #{inspect(cs.errors)}")
         {:error, cs}
+    end
+  end
+
+  @doc """
+  Post an in-app notification, or refresh the one already standing for the
+  same `key`.
+
+  This is the GitHub-style collapsing entry — "3 new comments on earlier
+  chapters" — where a second event should update the row a user has not dealt
+  with yet rather than add another beside it.
+
+  Doing that without an API meant reaching past it: querying
+  `PhoenixKit.Notifications.Notification` directly, `update_all`-ing the row,
+  and then re-broadcasting `:notification_created` by hand, because the only
+  broadcast fired on insert. One host that tried it with a schemaless write
+  stringified `metadata` into the jsonb column and 500'd that user's bell.
+
+  ## What counts as "already standing"
+
+  An undismissed, **unseen** notification for the same recipient carrying the
+  same key. Once someone has read it, the next event is news again and gets
+  its own row — collapsing into something already read would hide it, and the
+  unseen-first ordering exists precisely so unread work stays visible.
+
+  ## Refreshing
+
+  `display` replaces the text/icon/link, and `inserted_at` moves to now so the
+  refreshed entry sorts as new. Any other metadata keys the caller passes are
+  merged, leaving keys it doesn't mention alone.
+
+      iex> upsert_inapp(user_uuid, "comments:chapter:42", %{text: "3 new comments"})
+      {:ok, %Notification{}}
+
+  Broadcasts either way — `{:notification_created, n}` for a new row,
+  `{:notification_updated, n}` for a refresh — so a bell that is already open
+  reflects it without the caller broadcasting anything itself.
+  """
+  @spec upsert_inapp(String.t(), String.t(), map()) ::
+          {:ok, Notification.t()} | {:error, term()}
+  def upsert_inapp(recipient_uuid, key, display)
+      when is_binary(recipient_uuid) and is_binary(key) and is_map(display) do
+    case find_collapsible(recipient_uuid, key) do
+      nil -> create_inapp(recipient_uuid, Map.put(display, :dedupe_key, key))
+      existing -> refresh_inapp(existing, display)
+    end
+  end
+
+  # Only unseen rows collapse — see the moduledoc above for why. Newest first
+  # so a duplicate key (possible if one was seen and a later one wasn't) folds
+  # into the one the user still has outstanding.
+  defp find_collapsible(recipient_uuid, key) do
+    Notification
+    |> where([n], n.recipient_uuid == ^recipient_uuid)
+    |> where([n], is_nil(n.dismissed_at) and is_nil(n.seen_at))
+    |> where([n], fragment("?->>'dedupe_key' = ?", n.metadata, ^key))
+    |> order_by([n], desc: n.inserted_at)
+    |> limit(1)
+    |> repo().one()
+  rescue
+    # A read that fails is not a reason to drop the notification — fall
+    # through and post a new one.
+    _ -> nil
+  end
+
+  defp refresh_inapp(%Notification{} = notification, display) do
+    patch =
+      %{}
+      |> put_meta("notification_text", display[:text])
+      |> put_meta("notification_icon", display[:icon])
+      |> put_meta("notification_link", display[:link])
+      |> Map.merge(display[:metadata] || %{})
+
+    now = UtilsDate.utc_now()
+
+    query =
+      from(n in Notification,
+        where: n.uuid == ^notification.uuid,
+        update: [
+          set: [
+            # Merged, not replaced: the caller is saying what changed, and the
+            # dedupe key it collapsed on lives in here too.
+            metadata: fragment("COALESCE(?, '{}'::jsonb) || ?", n.metadata, type(^patch, :map)),
+            # Moves to now so a refreshed entry sorts as new rather than
+            # staying wherever the first event of the run left it.
+            inserted_at: ^now
+          ]
+        ],
+        select: n
+      )
+
+    case repo().update_all(query, []) do
+      {1, [updated]} ->
+        updated = %{updated | activity: nil}
+        Events.broadcast(updated.recipient_uuid, {:notification_updated, updated})
+        {:ok, updated}
+
+      _ ->
+        # Dismissed or pruned between the read and the write — post a fresh
+        # one rather than losing the event.
+        create_inapp(notification.recipient_uuid, display)
     end
   end
 
