@@ -1166,13 +1166,26 @@ defmodule PhoenixKit.Users.Auth do
           SessionFingerprint.verify_fingerprint(
             conn,
             token_record.ip_address,
-            token_record.user_agent_hash
+            token_record.user_agent_hash,
+            session: session_label(token)
           )
       end
     else
       :ok
     end
   end
+
+  # A short, stable label for one session, so fingerprint lines can be
+  # correlated to each other and to a row in the sessions UI.
+  #
+  # Hashed and truncated because the raw token is a bearer credential and must
+  # never reach a log file — 8 hex characters is plenty to group a handful of
+  # lines by, and useless to anyone who steals the log.
+  defp session_label(token) when is_binary(token) do
+    :sha256 |> :crypto.hash(token) |> Base.encode16(case: :lower) |> binary_part(0, 8)
+  end
+
+  defp session_label(_), do: "unknown"
 
   @doc """
   Ensures the user is active by checking the is_active field.
