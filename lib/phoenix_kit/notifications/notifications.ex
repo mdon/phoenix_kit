@@ -345,7 +345,7 @@ defmodule PhoenixKit.Notifications do
       when is_binary(recipient_uuid) and is_binary(key) and is_map(display) do
     case find_collapsible(recipient_uuid, key) do
       nil -> create_inapp(recipient_uuid, Map.put(display, :dedupe_key, key))
-      existing -> refresh_inapp(existing, display)
+      existing -> refresh_inapp(existing, key, display)
     end
   end
 
@@ -366,7 +366,7 @@ defmodule PhoenixKit.Notifications do
     _ -> nil
   end
 
-  defp refresh_inapp(%Notification{} = notification, display) do
+  defp refresh_inapp(%Notification{} = notification, key, display) do
     patch =
       %{}
       |> put_meta("notification_text", display[:text])
@@ -379,6 +379,14 @@ defmodule PhoenixKit.Notifications do
     query =
       from(n in Notification,
         where: n.uuid == ^notification.uuid,
+        # The same guards `find_collapsible/2` reads through, repeated in the
+        # write. Without them the row count can never be 0 for a row that
+        # still exists, so the "dismissed or seen in between" fallback below
+        # was unreachable: a row the user dismissed or read after the read and
+        # before the write got refreshed anyway, and the event disappeared
+        # into a row they had already dealt with — the exact outcome the
+        # unseen-only rule exists to prevent.
+        where: is_nil(n.dismissed_at) and is_nil(n.seen_at),
         update: [
           set: [
             # Merged, not replaced: the caller is saying what changed, and the
@@ -399,9 +407,12 @@ defmodule PhoenixKit.Notifications do
         {:ok, updated}
 
       _ ->
-        # Dismissed or pruned between the read and the write — post a fresh
-        # one rather than losing the event.
-        create_inapp(notification.recipient_uuid, display)
+        # Dismissed, seen or pruned between the read and the write — post a
+        # fresh one rather than losing the event. It has to carry the dedupe
+        # key: a replacement row without one never collapses again, so a
+        # single lost race would silently turn collapsing off for that key
+        # forever.
+        create_inapp(notification.recipient_uuid, Map.put(display, :dedupe_key, key))
     end
   end
 

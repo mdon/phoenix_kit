@@ -122,6 +122,22 @@ defmodule PhoenixKit.Utils.SessionFingerprint do
     |> Base.encode16(case: :lower)
   end
 
+  # The level follows what actually happens to the request, which is the whole
+  # point of this logging pass: "possible hijacking attempt" logged at :error
+  # and then served anyway is what teaches people that :error means nothing
+  # here. Strict mode refuses EVERY mismatch — `PhoenixKitWeb.Users.Auth`
+  # answers both `{:warning, _}` and `{:error, _}` with
+  # `not strict_mode?()` — so under strict mode every one of these lines
+  # describes a request that was denied, and gets :error. Otherwise the
+  # request is served and the line takes the level its own severity earns.
+  defp log_mismatch(message, allowed_level) do
+    if strict_mode?() do
+      Logger.error(message <> " — access denied (strict mode)")
+    else
+      Logger.log(allowed_level, message <> " — allowed (strict mode off)")
+    end
+  end
+
   @doc """
   Verifies a session fingerprint against the current connection.
 
@@ -162,9 +178,10 @@ defmodule PhoenixKit.Utils.SessionFingerprint do
           :ok
 
         {false, true} ->
-          Logger.warning(
+          log_mismatch(
             "PhoenixKit: session #{session} changed IP (#{stored_ip} -> #{current_ip}), " <>
-              "same browser"
+              "same browser",
+            :warning
           )
 
           {:warning, :ip_mismatch}
@@ -175,25 +192,16 @@ defmodule PhoenixKit.Utils.SessionFingerprint do
           # numbers no one can read, for a thing that is almost never an
           # attack and never acted on. At warning level it was the bulk of a
           # 765-line log, which is how the lines that DO matter got lost.
-          Logger.info("PhoenixKit: session #{session} changed user agent, same IP")
+          log_mismatch("PhoenixKit: session #{session} changed user agent, same IP", :info)
 
           {:warning, :user_agent_mismatch}
 
         {false, false} ->
-          # The level follows what actually happens. In strict mode this
-          # denies the request, which is an error; otherwise the request is
-          # allowed and this is a warning. Logging "possible hijacking
-          # attempt" at :error and then serving the request anyway is what
-          # teaches people that :error means nothing here.
-          message =
+          log_mismatch(
             "PhoenixKit: session #{session} changed BOTH IP (#{stored_ip} -> #{current_ip}) " <>
-              "and user agent"
-
-          if strict_mode?() do
-            Logger.error(message <> " — access denied (strict mode)")
-          else
-            Logger.warning(message <> " — allowed (strict mode off)")
-          end
+              "and user agent",
+            :warning
+          )
 
           {:error, :fingerprint_mismatch}
       end

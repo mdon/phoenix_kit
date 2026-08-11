@@ -69,6 +69,25 @@ defmodule PhoenixKitWeb.JsCompilerWarningTest do
     end
   end
 
+  describe "it stays a warning" do
+    test "does not register a compiler diagnostic" do
+      # `IO.warn/1` does, and a diagnostic is a build failure on any host
+      # compiling with `--warnings-as-errors` — so the check that exists to
+      # save people a silent misconfiguration would instead break their CI on
+      # upgrade, over a mix.exs condition that is not a regression in their
+      # code. Everything else here is guarded against failing a host's
+      # compile; this is the same promise.
+      {_captured, diagnostics} =
+        Code.with_diagnostics(fn ->
+          capture_io(:stderr, fn ->
+            Integration.warn_missing_js_compiler([SomeModule.WithHooks], false)
+          end)
+        end)
+
+      assert diagnostics == []
+    end
+  end
+
   describe "discovery" do
     test "never fails the host's compile" do
       # This runs while the host's router compiles. Whatever module discovery

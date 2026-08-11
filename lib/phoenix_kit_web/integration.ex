@@ -1183,8 +1183,18 @@ defmodule PhoenixKitWeb.Integration do
   def warn_missing_js_compiler(_modules, true), do: :ok
 
   def warn_missing_js_compiler(modules, false) do
-    IO.warn("""
-    PhoenixKit: these modules ship JavaScript hooks that will not be loaded:
+    # `IO.warn/1` registers a compiler diagnostic, so on a host building with
+    # `--warnings-as-errors` — the ordinary CI setting — this did not warn,
+    # it broke the build, on upgrade, over a condition in mix.exs that was
+    # not a regression in the host's own code. That contradicted the point of
+    # the check twice over: the discovery below is rescued and the Mix lookup
+    # guarded precisely so this can never take a host's compile down, and a
+    # warning nobody can turn off except by editing mix.exs is a breaking
+    # change wearing a warning's clothes. Written straight to stderr instead:
+    # just as visible in the build output, not a diagnostic.
+    IO.puts(:stderr, """
+
+    warning: PhoenixKit: these modules ship JavaScript hooks that will not be loaded:
 
       #{Enum.map_join(modules, "\n  ", &inspect/1)}
 

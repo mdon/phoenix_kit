@@ -100,6 +100,37 @@ defmodule PhoenixKit.Utils.SessionFingerprintLoggingTest do
     end
   end
 
+  describe "strict mode denies every mismatch, so every line is an error" do
+    # The level-follows-consequence rule applied to one branch of three.
+    # Strict mode refuses the request for an IP-only and a user-agent-only
+    # change too — `PhoenixKitWeb.Users.Auth` answers `{:warning, _}` with
+    # `not strict_mode?()` exactly as it answers `{:error, _}` — so an
+    # operator working out why a user was logged out over a browser update
+    # was reading an :info line to find it.
+    setup do
+      original = Application.get_env(:phoenix_kit, :session_fingerprint_strict)
+      Application.put_env(:phoenix_kit, :session_fingerprint_strict, true)
+      on_exit(fn -> Application.put_env(:phoenix_kit, :session_fingerprint_strict, original) end)
+      :ok
+    end
+
+    test "a user-agent change that logs someone out is not an :info line" do
+      log = verify(conn(@stored_ip, "Mozilla/5.0 updated"))
+
+      assert log =~ "[error]"
+      assert log =~ "denied"
+      assert log =~ "changed user agent"
+    end
+
+    test "an IP change that logs someone out is not a mere warning" do
+      log = verify(conn(@other_ip, "Mozilla/5.0 original"))
+
+      assert log =~ "[error]"
+      assert log =~ "denied"
+      assert log =~ "changed IP"
+    end
+  end
+
   describe "correlation" do
     test "every line names the session it is about" do
       for c <- [conn(@other_ip, "Mozilla/5.0 original"), conn(@stored_ip, "Mozilla/5.0 new")] do

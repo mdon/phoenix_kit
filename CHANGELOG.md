@@ -1,3 +1,72 @@
+## 2.2.0 - 2026-08-11
+
+Notification collapsing, an honest fingerprint log, and a compile-time warning
+for a silent JS-hook misconfiguration. No schema change — the chain stays at
+V166.
+
+### Added
+
+- **`Notifications.upsert_inapp/3`** (#704) — the GitHub-style collapsing
+  entry. A repeat event refreshes the row already standing for the same key
+  ("3 new comments on earlier chapters") instead of posting another beside it.
+  Only **unseen** rows collapse: once someone has read a notification the next
+  event is news again and gets its own row, so nothing new can be hidden inside
+  something already dealt with. Broadcasts `{:notification_updated, n}` for a
+  refresh and `{:notification_created, n}` for a new row, so an open bell keeps
+  up without the caller broadcasting anything. Doing this before meant querying
+  the schema directly and re-broadcasting by hand — one host that tried it
+  schemalessly stringified `metadata` into the jsonb column and 500'd that
+  user's bell.
+
+  `create_inapp/2` now also carries `:dedupe_key` and merges a caller's
+  `:metadata`; both were dropped silently before.
+
+- **A compile-time warning when installed modules ship JS hooks the host will
+  never load** (#703). `js_sources/0` is consumed only by the
+  `:phoenix_kit_js_sources` compiler; a host without it in `:compilers` got no
+  bundle, no error and no warning, while the module's templates went on
+  rendering `phx-hook` names the LiveSocket had never heard of.
+  `phoenix_kit_boards` shipped that state twice before anyone traced it. Silent
+  when the compiler is present and when nothing declares a bundle.
+
+### Changed
+
+- **The session-fingerprint log says something worth reading** (#705). A
+  user-agent change with an unchanged IP is `:info`, not `:warning` — browsers
+  rewrite their UA roughly monthly, for every user, and one reporting app
+  carried 765 of these in a single log. Every line now names its session (a
+  truncated SHA-256 of the token; the raw token is a bearer credential and
+  never reaches the log), and the duplicate line in `PhoenixKitWeb.Users.Auth`
+  that said only `"for token"`, naming no token, is gone.
+
+- **A mismatch is logged at the level its consequence earns.** Strict mode
+  refuses *every* fingerprint mismatch, so under strict mode all of them log at
+  `:error` and say `access denied`; otherwise the request is served and the
+  line takes its own severity. Logging "possible hijacking attempt" at `:error`
+  and then serving the request is what taught people the log was noise — and
+  the inverse was just as bad: a strict-mode host logging someone out over a
+  browser update recorded it at `:info`, below the default threshold, so there
+  was no record at all.
+
+### Fixed
+
+- **`upsert_inapp/3` could silently stop collapsing forever.** When the row
+  vanished between the read and the write, the replacement was posted without
+  its dedupe key, so it could never be found again and every later event for
+  that key opened a new row.
+
+- **`upsert_inapp/3` could lose an event to a row the user had just dealt
+  with.** The `update_all` filtered on `uuid` alone, so a comment dismissed or
+  read between the read and the write was refreshed anyway: the update reported
+  success and the event ended up recorded only on a row that would never be
+  shown again. The unseen/undismissed guard now appears in the write as well as
+  the read.
+
+- **The JS-hook warning no longer breaks the build.** It was emitted with
+  `IO.warn/1`, which registers a compiler diagnostic — so on any host building
+  with `--warnings-as-errors` it failed the compile on upgrade, over a mix.exs
+  condition that was not a regression in the host's own code.
+
 ## 2.1.0 - 2026-08-11
 
 Notification reads sort unseen first. No schema change — the chain stays at V166.
