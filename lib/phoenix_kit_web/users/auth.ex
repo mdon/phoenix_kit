@@ -415,20 +415,15 @@ defmodule PhoenixKitWeb.Users.Auth do
           :ok ->
             true
 
-          {:warning, reason} ->
-            # Log warning but allow access (IP/UA can legitimately change)
-            Logger.warning("PhoenixKit: Session fingerprint warning: #{reason} for token")
-
-            # In non-strict mode, allow access despite warning
+          # Deliberately silent. `verify_fingerprint/4` has already logged
+          # what changed, for which session, at a level that matches whether
+          # the request is about to be refused — a second line here said only
+          # "for token", naming neither, and doubled the volume of the noisiest
+          # thing in the log.
+          {:warning, _reason} ->
             not SessionFingerprint.strict_mode?()
 
           {:error, :fingerprint_mismatch} ->
-            # Both IP and UA changed - likely hijacking
-            Logger.error(
-              "PhoenixKit: Session fingerprint mismatch detected - possible hijacking attempt"
-            )
-
-            # Strict mode: deny access; non-strict: log but allow
             not SessionFingerprint.strict_mode?()
 
           {:error, :token_not_found} ->

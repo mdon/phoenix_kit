@@ -141,7 +141,7 @@ defmodule PhoenixKit.Utils.SessionFingerprint do
       {:warning, :ip_mismatch}
 
   """
-  def verify_fingerprint(conn, stored_ip, stored_ua_hash) do
+  def verify_fingerprint(conn, stored_ip, stored_ua_hash, opts \\ []) do
     # Backward compatibility: if no fingerprint was stored, allow access
     if is_nil(stored_ip) and is_nil(stored_ua_hash) do
       :ok
@@ -152,36 +152,48 @@ defmodule PhoenixKit.Utils.SessionFingerprint do
       ip_matches? = is_nil(stored_ip) or stored_ip == current_ip
       ua_matches? = is_nil(stored_ua_hash) or stored_ua_hash == current_ua_hash
 
+      # Correlation, so a line names WHICH session it is about. Without it a
+      # log full of these says only that something, somewhere, changed — and
+      # the raw token must never be written down, so a truncated hash it is.
+      session = Keyword.get(opts, :session, "unknown")
+
       case {ip_matches?, ua_matches?} do
         {true, true} ->
           :ok
 
         {false, true} ->
-          Logger.warning("""
-          PhoenixKit: Session IP mismatch detected
-            Stored IP: #{stored_ip}
-            Current IP: #{current_ip}
-            User Agent matches: yes
-          """)
+          Logger.warning(
+            "PhoenixKit: session #{session} changed IP (#{stored_ip} -> #{current_ip}), " <>
+              "same browser"
+          )
 
           {:warning, :ip_mismatch}
 
         {true, false} ->
-          Logger.warning("""
-          PhoenixKit: Session User-Agent mismatch detected
-            IP matches: yes
-            User Agent changed
-          """)
+          # Info, not warning. Browsers rewrite their user agent on every
+          # update — roughly monthly, for every user — so this fires in
+          # numbers no one can read, for a thing that is almost never an
+          # attack and never acted on. At warning level it was the bulk of a
+          # 765-line log, which is how the lines that DO matter got lost.
+          Logger.info("PhoenixKit: session #{session} changed user agent, same IP")
 
           {:warning, :user_agent_mismatch}
 
         {false, false} ->
-          Logger.error("""
-          PhoenixKit: Session fingerprint mismatch - possible hijacking attempt
-            Stored IP: #{stored_ip}
-            Current IP: #{current_ip}
-            User Agent also changed
-          """)
+          # The level follows what actually happens. In strict mode this
+          # denies the request, which is an error; otherwise the request is
+          # allowed and this is a warning. Logging "possible hijacking
+          # attempt" at :error and then serving the request anyway is what
+          # teaches people that :error means nothing here.
+          message =
+            "PhoenixKit: session #{session} changed BOTH IP (#{stored_ip} -> #{current_ip}) " <>
+              "and user agent"
+
+          if strict_mode?() do
+            Logger.error(message <> " — access denied (strict mode)")
+          else
+            Logger.warning(message <> " — allowed (strict mode off)")
+          end
 
           {:error, :fingerprint_mismatch}
       end
