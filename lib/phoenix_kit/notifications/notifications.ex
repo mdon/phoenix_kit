@@ -455,8 +455,18 @@ defmodule PhoenixKit.Notifications do
   # `IS NOT NULL` rather than `is_nil(...)` inverted, because false sorts
   # before true — so unseen (NULL `seen_at`, hence false) comes first without
   # a negation to read past.
+  #
+  # `uuid` last makes the order total. `inserted_at` is `:utc_datetime`, so
+  # everything fanned out inside the same second ties, and a tie under
+  # LIMIT/OFFSET lets Postgres return a row on two pages or on neither. The
+  # keys are UUIDv7, which is time-ordered, so descending on it agrees with
+  # newest-first instead of scrambling the tied block.
   defp order_unseen_first(query) do
-    order_by(query, [n], asc: fragment("? IS NOT NULL", n.seen_at), desc: n.inserted_at)
+    order_by(query, [n],
+      asc: fragment("? IS NOT NULL", n.seen_at),
+      desc: n.inserted_at,
+      desc: n.uuid
+    )
   end
 
   @doc """
@@ -480,7 +490,10 @@ defmodule PhoenixKit.Notifications do
 
     rows =
       Notification
-      |> order_by([n], desc: n.inserted_at)
+      # `uuid` breaks second-granularity `inserted_at` ties so this offset
+      # paging is stable — see `order_unseen_first/1`. The seen-ness key is
+      # deliberately absent, per the note above.
+      |> order_by([n], desc: n.inserted_at, desc: n.uuid)
       |> limit(^per_page)
       |> offset(^((page - 1) * per_page))
       |> repo().all()

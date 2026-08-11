@@ -1,3 +1,38 @@
+## 2.1.0 - 2026-08-11
+
+Notification reads sort unseen first. No schema change — the chain stays at V166.
+
+### Changed
+
+- **A user's notifications now sort unseen-before-seen, newest-first within
+  each group** (#702), in both `Notifications.list_for_user/2` and
+  `recent_for_user/2`. Plain newest-first interleaved the two, so reading a
+  notification left it exactly where it was and anything still outstanding
+  ended up scattered among things already dealt with. It mattered most in the
+  bell: the dropdown shows ten, so an already-read notification could push an
+  unread one off the bottom entirely — the badge counted something opening the
+  bell did not show.
+
+  `admin_list/1` is deliberately unchanged. "Seen" belongs to the recipient,
+  and an admin scanning everybody's notifications is reading a chronological
+  record, not working an inbox.
+
+- **Notification ordering is now total.** `inserted_at` is second-granularity,
+  so a fan-out writing many rows inside one second tied every one of them, and
+  a tie under `LIMIT`/`OFFSET` lets Postgres return a row on two pages or on
+  neither. `uuid` is now the final sort key on all three paginated reads; the
+  keys are UUIDv7, so descending on it agrees with newest-first.
+
+### Fixed
+
+- **The notifications inbox rendered duplicate day headers.** `grouped/1`
+  chunked rows into day buckets on the day alone, which was correct only while
+  the list was globally chronological. Under the new order the day sequence
+  restarts at the seen block, so an inbox holding read and unread rows across
+  more than one day showed "Today" twice, a week of history apart. Sections are
+  now keyed on `{unread?, day}` and the unread run is labelled `Unread · <day>`,
+  so the outstanding work is named rather than inferred from row tint.
+
 ## 2.0.1 - 2026-08-10
 
 Closes the "reports a problem, then exits 0" gaps across `status`, `doctor` and
