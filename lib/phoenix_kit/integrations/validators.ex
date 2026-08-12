@@ -67,6 +67,62 @@ defmodule PhoenixKit.Integrations.Validators do
   end
 
   @doc """
+  Validates an Amazon Bedrock API key against the Bedrock control plane.
+
+  Lists foundation models in the configured region — the cheapest call that
+  proves both the key and the region at once. Bedrock long-term API keys
+  authenticate with a plain Bearer header (no SigV4), the same header the
+  OpenAI-compatible runtime endpoint accepts, so a green check here means the
+  AI module's completions path can authenticate too.
+  """
+  @spec amazon_bedrock(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
+  def amazon_bedrock(data) do
+    region = data["aws_region"]
+
+    cond do
+      blank?(data["api_key"]) ->
+        {:error, gettext("No credentials configured")}
+
+      blank?(region) ->
+        {:error, gettext("Region is required")}
+
+      # A malformed region would send the probe to a non-AWS hostname.
+      not Regex.match?(~r/^[a-z]{2}(-[a-z]+)+-\d$/, region) ->
+        {:error, gettext("Invalid region format (expected e.g. eu-central-1)")}
+
+      true ->
+        request_bedrock_models(region, data["api_key"])
+    end
+  end
+
+  defp request_bedrock_models(region, api_key) do
+    case Req.get("https://bedrock.#{region}.amazonaws.com/foundation-models",
+           headers: [{"authorization", "Bearer " <> api_key}],
+           receive_timeout: @http_timeout
+         ) do
+      {:ok, %{status: 200, body: %{"modelSummaries" => models}}} when is_list(models) ->
+        {:ok,
+         gettext("%{count} foundation models visible in %{region}",
+           count: length(models),
+           region: region
+         )}
+
+      {:ok, %{status: 200}} ->
+        :ok
+
+      {:ok, %{status: status}} when status in [401, 403] ->
+        {:error, gettext("Invalid credentials")}
+
+      {:ok, %{status: status}} ->
+        {:error, gettext("Bedrock error %{status}", status: status)}
+
+      {:error, reason} ->
+        Logger.warning("Bedrock connection check failed: #{inspect(reason)}")
+        {:error, gettext("Could not reach Bedrock in %{region}", region: region)}
+    end
+  end
+
+  @doc """
   Validates an SMTP relay by opening a real session and authenticating.
 
   The connection options come from `PhoenixKit.Mailer.SmtpTransport.config/1`, so

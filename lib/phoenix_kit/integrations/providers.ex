@@ -185,10 +185,12 @@ defmodule PhoenixKit.Integrations.Providers do
       deepseek(),
       xai(),
       elevenlabs(),
+      amazon_bedrock(),
       aws_ses(),
       smtp(),
       brevo_api(),
-      telegram()
+      telegram(),
+      github()
     ]
   end
 
@@ -676,6 +678,122 @@ defmodule PhoenixKit.Integrations.Providers do
             gettext(
               "The free tier includes a monthly character quota; paid plans raise the quota and unlock commercial use and additional voices."
             )
+        }
+      ]
+    }
+  end
+
+  # Bedrock's OpenAI-compatible chat endpoint is regional, but the registry
+  # `base_url` is static — the default below matches our primary region, and
+  # the AI endpoint form lets the operator override `base_url` per endpoint.
+  # Auth is a long-term Bedrock API key (plain Bearer, no SigV4) — the same
+  # header the OpenAI-compatible runtime endpoint accepts, so one credential
+  # serves both the validation probe and real completions.
+  defp amazon_bedrock do
+    %{
+      key: "amazon_bedrock",
+      scopes: [:system, :personal],
+      name: gettext("Amazon Bedrock"),
+      description:
+        gettext("AWS Bedrock LLMs (Anthropic, Meta, Amazon Nova…) via a Bedrock API key"),
+      icon: "hero-sparkles",
+      auth_type: :api_key,
+      oauth_config: nil,
+      base_url: "https://bedrock-runtime.eu-central-1.amazonaws.com/openai/v1",
+      # Region-aware — checked against the Bedrock control plane itself
+      # (ListFoundationModels), see PhoenixKit.Integrations.Validators.
+      validation: %{strategy: :amazon_bedrock},
+      setup_fields: [
+        %{
+          key: "api_key",
+          label: gettext("Bedrock API key"),
+          type: :password,
+          required: true,
+          placeholder: "ABSK…",
+          help: gettext("AWS console → Amazon Bedrock → API keys (long-term key)"),
+          options: nil
+        },
+        %{
+          key: "aws_region",
+          label: gettext("Region"),
+          type: :text,
+          required: true,
+          placeholder: "eu-central-1",
+          help: nil,
+          options: nil
+        }
+      ],
+      capabilities: [:ai_completions],
+      instructions: [
+        %{
+          title: gettext("Create a Bedrock API key"),
+          steps: [
+            {gettext(
+               "In the AWS console open **Amazon Bedrock → API keys** and generate a long-term key (or IAM → your user → Security credentials → Bedrock API keys)"
+             ), nil},
+            {gettext("Copy the key (shown once) and paste it into the form above"), nil}
+          ]
+        },
+        %{
+          title: gettext("Enable model access"),
+          steps: [
+            {gettext(
+               "In Bedrock → Model access enable the models you plan to call — a key with no enabled models validates but cannot complete"
+             ), nil},
+            {gettext(
+               "Pick the region where access was granted; the AI endpoint's base URL must use the same region"
+             ), nil}
+          ]
+        }
+      ]
+    }
+  end
+
+  # A read-only token for GitHub API consumers (e.g. org-statistics dashboard
+  # widgets). GraphQL requires authentication even for public data, so the
+  # least-privilege credential is a fine-grained PAT with public-repo
+  # read-only access.
+  defp github do
+    %{
+      key: "github",
+      scopes: [:system, :personal],
+      name: gettext("GitHub"),
+      description:
+        gettext("GitHub API token — org statistics, repositories (read-only is enough)"),
+      icon: "hero-code-bracket-square",
+      auth_type: :api_key,
+      oauth_config: nil,
+      # 200 with a valid token, 401 otherwise; standard Bearer auth.
+      validation: %{
+        url: "https://api.github.com/rate_limit",
+        method: :get,
+        auth_header: "Authorization",
+        auth_prefix: "Bearer "
+      },
+      setup_fields: [
+        %{
+          key: "api_key",
+          label: gettext("Personal access token"),
+          type: :password,
+          required: true,
+          placeholder: "github_pat_… / ghp_…",
+          help: gettext("github.com/settings/personal-access-tokens — fine-grained, read-only"),
+          options: nil
+        }
+      ],
+      capabilities: [:github_api],
+      instructions: [
+        %{
+          title: gettext("Create a token"),
+          steps: [
+            {gettext(
+               "Go to [Fine-grained tokens](https://github.com/settings/personal-access-tokens) and click **Generate new token**"
+             ), nil},
+            {gettext(
+               "Repository access: **Public repositories (read-only)** — no extra permissions needed for public-org statistics"
+             ), nil},
+            {gettext("Copy the token and paste it into the form above"), nil}
+          ]
         }
       ]
     }
