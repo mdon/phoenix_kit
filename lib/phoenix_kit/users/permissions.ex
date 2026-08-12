@@ -1047,8 +1047,17 @@ defmodule PhoenixKit.Users.Permissions do
   # lock was built to stop, reachable because the two paths never shared a lock.
   # Always acquired before `lock_role_module/3`, so the order is consistent and
   # cannot deadlock.
+  #
+  # FOR NO KEY UPDATE, not FOR UPDATE: no mutation path here changes the role's
+  # key, and FOR UPDATE also conflicts with the FOR KEY SHARE that Postgres
+  # takes on this row to validate the foreign key of every
+  # `phoenix_kit_user_role_assignments` insert. That made role assignment — a
+  # step in creating any user — block on unrelated permission edits, and the
+  # pair deadlocked (40P01) whenever two transactions held one role row each
+  # and then referenced the other's. FOR NO KEY UPDATE still excludes the
+  # concurrent grant/revoke/set_permissions this guard exists to exclude.
   defp lock_role_for_update(repo, role_uuid) do
-    from(r in Role, where: r.uuid == ^role_uuid, select: r.uuid, lock: "FOR UPDATE")
+    from(r in Role, where: r.uuid == ^role_uuid, select: r.uuid, lock: "FOR NO KEY UPDATE")
     |> repo.one()
   end
 

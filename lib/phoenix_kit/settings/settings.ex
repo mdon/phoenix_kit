@@ -246,7 +246,10 @@ defmodule PhoenixKit.Settings do
     # login redirect resolver). "No setting" is the honest answer; it lets
     # each caller apply its own documented default.
     error ->
-      Logger.warning("Settings read for #{inspect(key)} failed: #{inspect(error)}")
+      unless sandbox_ownership_error?(error) do
+        Logger.warning("Settings read for #{inspect(key)} failed: #{inspect(error)}")
+      end
+
       nil
   catch
     :exit, reason ->
@@ -1874,7 +1877,8 @@ defmodule PhoenixKit.Settings do
     error ->
       # Silence transient migration errors (missing uuid column, cached plan invalidation)
       # Also skip logging during compilation mode
-      unless migration_column_error?(error) or compilation_mode?() do
+      unless migration_column_error?(error) or sandbox_ownership_error?(error) or
+               compilation_mode?() do
         Logger.error("Failed to query setting #{key}: #{inspect(error)}")
       end
 
@@ -1956,6 +1960,20 @@ defmodule PhoenixKit.Settings do
   end
 
   defp migration_column_error?(_), do: false
+
+  # An Ecto sandbox ownership error means the *calling process* has no
+  # connection checked out — it is the test-suite spelling of
+  # `repo_available?() == false`, which this module already answers with a
+  # silent `nil`. It cannot occur outside a sandboxed repo, so nothing in
+  # production is quieted.
+  #
+  # Worth a named clause because it is otherwise the single loudest thing in a
+  # `mix test` run: with a reachable database `test_helper.exs` no longer sets
+  # `:update_mode`, so every settings read on the unit half (no `DataCase`, no
+  # checkout) reaches the pool, fails here, and logs at :error — hundreds of
+  # multi-line stack-free walls that bury the actual failures.
+  defp sandbox_ownership_error?(%DBConnection.OwnershipError{}), do: true
+  defp sandbox_ownership_error?(_), do: false
 
   @doc """
   Check if the repository is available and ready to accept queries.

@@ -1,3 +1,35 @@
+## Unreleased
+
+### Fixed
+
+- **Role rows are no longer a deadlock hotspot.** Every insert into
+  `phoenix_kit_user_role_assignments` makes PostgreSQL take a `FOR KEY SHARE`
+  lock on the referenced `phoenix_kit_user_roles` row to validate the foreign
+  key — and two paths were taking a conflicting plain `FOR UPDATE` on those
+  same rows: `Roles.ensure_first_user_is_owner/1` (the Owner row, on *every*
+  registration) and `Permissions.lock_role_for_update/2` (the target role row,
+  on every grant/revoke/`set_permissions`). Assigning a role therefore blocked
+  on unrelated permission edits, and two transactions each holding one role row
+  and then referencing the other's deadlocked outright (`40P01`). Both sites now
+  use `FOR NO KEY UPDATE`: neither mutates the role's key, so the guard still
+  excludes the writers it exists to exclude while leaving FK checks free.
+
+- **Registration no longer serializes app-wide.** `ensure_first_user_is_owner/1`
+  held that Owner-row lock on every single registration, so all registrations
+  queued behind one row for the life of the install. Once an active Owner
+  exists the answer can never flip back to "you are the first user", so the
+  count is now read unlocked and the lock is taken only while no Owner exists.
+  A missing Owner role row also rolls back cleanly instead of raising.
+
+- Silenced `DBConnection.OwnershipError` in `PhoenixKit.Settings` reads. It is
+  the Ecto-sandbox spelling of `repo_available?() == false`, which this module
+  already answers with a silent `nil`; it cannot occur outside a sandboxed
+  repo, so no production logging changes. It was emitting ~960 lines per
+  `mix test` run and burying real failures.
+
+- Fixed a call to the nonexistent `PhoenixKit.repo/0` in the notifications
+  inbox-grouping test (`RepoHelper.repo/0`), which had never run.
+
 ## 2.2.0 - 2026-08-11
 
 Notification collapsing, an honest fingerprint log, and a compile-time warning
