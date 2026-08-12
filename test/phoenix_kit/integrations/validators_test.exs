@@ -388,6 +388,19 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
     test "a missing permissions sweep keeps identity and quota" do
       assert Validators.aws_note("Account 1", nil, "Q") == "Account 1 · Q"
     end
+
+    test "a partial permissions map is read, not crashed on" do
+      assert Validators.aws_note(nil, %{ses: %{"ListConfigurationSets" => :granted}}, nil) =~
+               "SES"
+    end
+  end
+
+  describe "bedrock_host/1 follows the partition" do
+    test "the China partition gets its own suffix" do
+      assert Validators.bedrock_host("cn-north-1") =~ ".amazonaws.com.cn"
+      assert Validators.bedrock_host("eu-central-1") =~ ".amazonaws.com"
+      refute Validators.bedrock_host("eu-central-1") =~ ".cn"
+    end
   end
 
   defp stub(results) do

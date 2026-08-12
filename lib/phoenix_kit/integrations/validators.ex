@@ -131,7 +131,8 @@ defmodule PhoenixKit.Integrations.Validators do
   def aws_note(identity, perms, quota_note) do
     granted =
       for {key, label} <- [ses: "SES", sqs: "SQS", sns: "SNS"],
-          is_map(perms) and perms[key] |> Map.values() |> Enum.any?(&(&1 == :granted)),
+          is_map(perms),
+          perms |> Map.get(key, %{}) |> Map.values() |> Enum.any?(&(&1 == :granted)),
           do: label
 
     services =
@@ -162,9 +163,10 @@ defmodule PhoenixKit.Integrations.Validators do
   @spec amazon_bedrock(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
   def amazon_bedrock(data) do
     region = String.trim(data["aws_region"] || "")
+    api_key = String.trim(data["api_key"] || "")
 
     cond do
-      blank?(data["api_key"]) ->
+      blank?(api_key) ->
         {:error, gettext("No credentials configured")}
 
       blank?(region) ->
@@ -175,7 +177,7 @@ defmodule PhoenixKit.Integrations.Validators do
         {:error, gettext("Invalid region format (expected e.g. eu-central-1)")}
 
       true ->
-        Probe.run(fn -> request_bedrock_models(region, data["api_key"]) end)
+        Probe.run(fn -> request_bedrock_models(region, api_key) end)
     end
   end
 
@@ -191,7 +193,7 @@ defmodule PhoenixKit.Integrations.Validators do
   defp request_bedrock_models(region, api_key) do
     # retry: false — the outer Probe deadline is the only clock here; Req's
     # default transient retries would sleep through most of it.
-    case Req.get("https://bedrock.#{region}.amazonaws.com/foundation-models",
+    case Req.get("#{bedrock_host(region)}/foundation-models",
            headers: [{"authorization", "Bearer " <> api_key}],
            receive_timeout: @http_timeout,
            retry: false
@@ -212,7 +214,8 @@ defmodule PhoenixKit.Integrations.Validators do
       {:ok, %{status: 403}} ->
         {:error,
          gettext(
-           "Key authenticated but not authorised — allow bedrock:CallWithBearerToken (and ListFoundationModels) on its IAM identity"
+           "Key authenticated but not authorised in %{region} — allow bedrock:CallWithBearerToken (and ListFoundationModels) on its IAM identity, or check the key was issued for this region",
+           region: region
          )}
 
       {:ok, %{status: status}} ->
@@ -223,6 +226,12 @@ defmodule PhoenixKit.Integrations.Validators do
         {:error, gettext("Could not reach Bedrock in %{region}", region: region)}
     end
   end
+
+  @doc false
+  # The China partition answers on .amazonaws.com.cn — the global host does not
+  # resolve there at all, which would surface as "could not reach Bedrock".
+  def bedrock_host("cn-" <> _ = region), do: "https://bedrock.#{region}.amazonaws.com.cn"
+  def bedrock_host(region), do: "https://bedrock.#{region}.amazonaws.com"
 
   @doc false
   # Pure, public for tests. Sidesteps plural forms; the count is the region's
