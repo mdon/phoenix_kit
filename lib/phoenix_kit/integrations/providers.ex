@@ -695,7 +695,9 @@ defmodule PhoenixKit.Integrations.Providers do
       scopes: [:system, :personal],
       name: gettext("Amazon Bedrock"),
       description:
-        gettext("AWS Bedrock LLMs (Anthropic, Meta, Amazon Nova…) via a Bedrock API key"),
+        gettext(
+          "AWS Bedrock LLMs via a Bedrock API key (OpenAI-compatible endpoint: gpt-oss models; the rest via native Converse)"
+        ),
       icon: "hero-sparkles",
       auth_type: :api_key,
       oauth_config: nil,
@@ -759,7 +761,7 @@ defmodule PhoenixKit.Integrations.Providers do
                "The OpenAI-compatible endpoint (`…/openai/v1`) currently serves only the `openai.gpt-oss-*` models — Anthropic and the other Bedrock models answer on the native Converse API with the same key"
              ), nil},
             {gettext(
-               "Create an AI endpoint (Admin → AI → Endpoints) pointing at this connection with a `gpt-oss` model to complete through Bedrock"
+               "In the AI module, create an endpoint pointing at this connection with a `gpt-oss` model and a base URL in the SAME region as this key"
              ), nil}
           ]
         }
