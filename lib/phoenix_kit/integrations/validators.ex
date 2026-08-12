@@ -28,6 +28,7 @@ defmodule PhoenixKit.Integrations.Validators do
 
   require Logger
 
+  alias PhoenixKit.AWS.CredentialsVerifier
   alias PhoenixKit.Integrations.Probe
   alias PhoenixKit.Mailer.SmtpTransport
   alias PhoenixKit.Utils.Number
@@ -62,7 +63,49 @@ defmodule PhoenixKit.Integrations.Validators do
         {:error, gettext("Region is required")}
 
       true ->
-        Probe.run(fn -> request_send_quota(region, data) end)
+        Probe.run(fn ->
+          # The send-quota probe stays the AUTH VERDICT — its transient-
+          # signature retry logic is what keeps good keys from being called
+          # invalid. The CredentialsVerifier sweep (the same one the Emails
+          # settings page runs) only enriches a passing verdict with the
+          # account identity and per-service permissions.
+          case request_send_quota(region, data) do
+            :ok -> {:ok, aws_note(region, data, nil)}
+            {:ok, quota_note} -> {:ok, aws_note(region, data, quota_note)}
+            error -> error
+          end
+        end)
+    end
+  end
+
+  defp aws_note(region, data, quota_note) do
+    ak = data["access_key"]
+    sk = data["secret_key"]
+
+    identity =
+      case CredentialsVerifier.verify_credentials(ak, sk, region) do
+        {:ok, %{account_id: id}} -> gettext("Account %{id}", id: id)
+        _ -> nil
+      end
+
+    services =
+      case CredentialsVerifier.check_permissions(ak, sk, region) do
+        {:ok, perms} ->
+          Enum.map_join([ses: "SES", sqs: "SQS", sns: "SNS"], " · ", fn {key, label} ->
+            granted? = perms[key] |> Map.values() |> Enum.any?(&(&1 == :granted))
+            "#{label} #{if granted?, do: "✓", else: "—"}"
+          end)
+
+        _ ->
+          nil
+      end
+
+    [identity, services, quota_note]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" · ")
+    |> case do
+      "" -> nil
+      note -> note
     end
   end
 

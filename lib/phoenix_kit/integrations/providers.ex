@@ -729,19 +729,37 @@ defmodule PhoenixKit.Integrations.Providers do
           title: gettext("Create a Bedrock API key"),
           steps: [
             {gettext(
-               "In the AWS console open **Amazon Bedrock → API keys** and generate a long-term key (or IAM → your user → Security credentials → Bedrock API keys)"
+               "Open the [Bedrock console → API keys](https://console.aws.amazon.com/bedrock/home#/api-keys) and generate a **long-term** key (docs: [Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html))"
              ), nil},
-            {gettext("Copy the key (shown once) and paste it into the form above"), nil}
-          ]
+            {gettext(
+               "Or attach one to an existing IAM user: [IAM console](https://console.aws.amazon.com/iam/home#/users) → user → Security credentials → Bedrock API keys"
+             ), nil},
+            {gettext("Copy the key (shown once, `ABSK…`) and paste it into the form above"), nil}
+          ],
+          note:
+            gettext(
+              "The key's IAM identity must allow the `bedrock:CallWithBearerToken` action — without it every Bearer call answers 403 even when invoke permissions are in place."
+            )
         },
         %{
           title: gettext("Enable model access"),
           steps: [
             {gettext(
-               "In Bedrock → Model access enable the models you plan to call — a key with no enabled models validates but cannot complete"
+               "In [Bedrock → Model access](https://console.aws.amazon.com/bedrock/home#/modelaccess) enable the models you plan to call — a key with no enabled models validates but cannot complete"
              ), nil},
             {gettext(
                "Pick the region where access was granted; the AI endpoint's base URL must use the same region"
+             ), nil}
+          ]
+        },
+        %{
+          title: gettext("Use it from the AI module"),
+          steps: [
+            {gettext(
+               "The OpenAI-compatible endpoint (`…/openai/v1`) currently serves only the `openai.gpt-oss-*` models — Anthropic and the other Bedrock models answer on the native Converse API with the same key"
+             ), nil},
+            {gettext(
+               "Create an AI endpoint (Admin → AI → Endpoints) pointing at this connection with a `gpt-oss` model to complete through Bedrock"
              ), nil}
           ]
         }
@@ -845,7 +863,35 @@ defmodule PhoenixKit.Integrations.Providers do
           options: nil
         }
       ],
-      capabilities: [:email_send]
+      capabilities: [:email_send],
+      instructions: [
+        %{
+          title: gettext("Create an IAM user with SES access"),
+          steps: [
+            {gettext(
+               "In the [IAM console](https://console.aws.amazon.com/iam/home#/users) create a user for programmatic access and attach an SES policy (least privilege: `ses:SendEmail`/`ses:SendRawEmail`; docs: [SES setup](https://docs.aws.amazon.com/ses/latest/dg/setting-up.html))"
+             ), nil},
+            {gettext(
+               "Create an access key for that user (Security credentials → Create access key) and paste the ID and secret above"
+             ), nil}
+          ]
+        },
+        %{
+          title: gettext("Verify a sender in SES"),
+          steps: [
+            {gettext(
+               "In the [SES console](https://console.aws.amazon.com/ses/home#/identities) verify your domain or sender address — SES refuses to send from unverified identities"
+             ), nil},
+            {gettext(
+               "New accounts start in the SES sandbox (verified recipients only) — [request production access](https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html) before real sending"
+             ), nil}
+          ],
+          note:
+            gettext(
+              "This connection stores the credential. The full sending pipeline — configuration set, SNS topic, SQS event queue, delivery tracking — is configured in Admin → Settings → Emails, which can select this connection as its credential source."
+            )
+        }
+      ]
     }
   end
 
