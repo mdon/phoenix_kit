@@ -12242,10 +12242,15 @@ msgstr "Midagi pole veel valitud — riikide loendid on tähestikulises järjeko
 msgid "Require the provider to confirm the email address"
 msgstr "Nõua, et teenusepakkuja kinnitaks e-posti aadressi"
 
+#: lib/phoenix_kit_web/live/settings/organization.html.heex:229
+#, elixir-autogen, elixir-format
+msgid "Search countries..."
+msgstr "Otsi riike..."
+
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:60
 #, elixir-autogen, elixir-format
-msgid "Shown at the top of every country list, in this order"
-msgstr "Kuvatakse iga riikide loendi alguses, selles järjekorras"
+msgid "Shown at the top of every country list. Drag to reorder."
+msgstr "Kuvatakse iga riikide loendi alguses. Järjekorra muutmiseks lohista."
 
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:354
 #, elixir-autogen, elixir-format

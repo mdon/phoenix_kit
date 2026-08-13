@@ -12224,9 +12224,14 @@ msgstr ""
 msgid "Require the provider to confirm the email address"
 msgstr ""
 
+#: lib/phoenix_kit_web/live/settings/organization.html.heex:229
+#, elixir-autogen, elixir-format
+msgid "Search countries..."
+msgstr ""
+
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:60
 #, elixir-autogen, elixir-format
-msgid "Shown at the top of every country list, in this order"
+msgid "Shown at the top of every country list. Drag to reorder."
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:354

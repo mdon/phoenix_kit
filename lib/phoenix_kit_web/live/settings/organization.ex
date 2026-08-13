@@ -107,7 +107,10 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
     |> assign(:main_country_rows, main_country_rows(codes))
     |> assign(
       :main_country_options,
-      Enum.reject(CountryData.countries_for_select(), fn {_label, code} ->
+      # `priority: []` on purpose: the picker is where you go to CHANGE the
+      # pinned set, so it must not itself be reordered by it — otherwise the
+      # first thing the dropdown offers is whatever is already pinned.
+      Enum.reject(CountryData.countries_for_select(priority: []), fn {_label, code} ->
         MapSet.member?(chosen, code)
       end)
     )
@@ -115,16 +118,10 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
   end
 
   defp main_country_rows(codes) do
-    last = length(codes) - 1
-
-    codes
-    |> Enum.with_index()
-    |> Enum.map(fn {code, index} ->
+    Enum.map(codes, fn code ->
       %{
         code: code,
-        label: CountryData.get_flag(code) <> " " <> CountryData.get_country_name(code),
-        first?: index == 0,
-        last?: index == last
+        label: CountryData.get_flag(code) <> " " <> CountryData.get_country_name(code)
       }
     end)
   end
@@ -221,8 +218,15 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
      put_main_countries(socket, Enum.reject(socket.assigns.main_countries, &(&1 == code)))}
   end
 
-  def handle_event("move_main_country", %{"code" => code, "direction" => direction}, socket) do
-    {:noreply, put_main_countries(socket, move(socket.assigns.main_countries, code, direction))}
+  # SortableGrid pushes the full order on drop, so the list is taken as given
+  # rather than diffed — but only codes that were already pinned are honoured,
+  # so a forged payload can neither add a country nor drop one silently.
+  def handle_event("reorder_main_countries", %{"ordered_ids" => ordered}, socket) do
+    current = socket.assigns.main_countries
+    reordered = Enum.filter(ordered, &(&1 in current))
+    codes = reordered ++ (current -- reordered)
+
+    {:noreply, put_main_countries(socket, codes)}
   end
 
   def handle_event("apply_main_country_suggestion", _params, socket) do
@@ -445,27 +449,6 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
       {:error, _changeset} ->
         put_flash(socket, :error, gettext("Main countries could not be saved"))
     end
-  end
-
-  defp move(codes, code, direction) do
-    case Enum.find_index(codes, &(&1 == code)) do
-      nil -> codes
-      index -> swap(codes, index, target_index(index, direction, length(codes)))
-    end
-  end
-
-  defp target_index(index, "up", _length), do: max(index - 1, 0)
-  defp target_index(index, "down", length), do: min(index + 1, length - 1)
-  defp target_index(index, _direction, _length), do: index
-
-  defp swap(codes, index, index), do: codes
-
-  defp swap(codes, from, to) do
-    moved = Enum.at(codes, from)
-
-    codes
-    |> List.delete_at(from)
-    |> List.insert_at(to, moved)
   end
 
   defp save_bank_details(params, iban, swift) do
