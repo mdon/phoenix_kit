@@ -7,7 +7,20 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V166 - Frozen comment attribution ⚡ LATEST
+  ### V167 - Unique post slugs ⚡ LATEST
+
+  Makes `phoenix_kit_posts_slug_index` unique. It had been a plain btree
+  since V135 while its sibling `phoenix_kit_post_tags.slug` was unique, so
+  `Post`'s `unique_constraint(:slug)` had no index to translate and
+  `get_post_by_slug/2` — which fetches with `one()` — raised
+  `Ecto.MultipleResultsError` on any URL two posts shared.
+
+  Existing duplicates are suffixed `-2`, `-3` … following
+  `Slug.ensure_unique/2`, keeping the reachable post over a draft and then
+  the oldest. Two *live* posts on one slug raises instead: one of them has
+  to lose a working URL, and that is the operator's call.
+
+  ### V166 - Frozen comment attribution
 
   Adds `author_display_name`, `attribution_mode`, `attributed_project_uuid`
   and `attributed_label` to `phoenix_kit_comments`. A name resolved at
@@ -456,7 +469,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 166
+  @current_version 167
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

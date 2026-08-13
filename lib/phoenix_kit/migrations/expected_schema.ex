@@ -55,6 +55,14 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # files. `verify.exs --scenario s7,s8` against a real database is still
   # what proves the body.
   #
+  # V167 is carried the same way, and is the first of these to RESHAPE an
+  # existing object rather than add one: `index:phoenix_kit_posts_slug_index`
+  # gains a `{167, ...}` revision flipping `unique` to true. The revision is
+  # APPENDED — `Object.shape_at/2` takes the last revision at or below the
+  # database's version, so editing `{29, ...}` in place would tell every V166
+  # install its plain index is drift and offer a repair that cannot run,
+  # because the duplicate slugs V167 exists to clear are still there.
+  #
   # Chain at generation: object/revision/legacy_optional DATA was captured from a
   # per-version replay of the TRUE pre-squash chain (initial=1 current=163 files=163
   # — the only run that can see pre-floor-only bimodal drift, e.g. V28/V30's
@@ -97,7 +105,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "596fca593c6972b65718d3ad6b44fe323ac1b92aeeebf8a42e3baed20dc6fb85"
+  @chain_hash "6330e1b97baba68b9f2ed03843a7f552c36d47b97fb2a948befa9e95e320932d"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -10169,7 +10177,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           {:catalog,
            %{name: "phoenix_kit_posts_slug_index", table: "phoenix_kit_posts", kind: :index}},
         create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_posts_slug_index ON __SCHEMA__.phoenix_kit_posts USING btree (slug)",
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_posts_slug_index ON __SCHEMA__.phoenix_kit_posts USING btree (slug)",
         since: 29,
         class: :index,
         revisions: [
@@ -10181,6 +10189,23 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              method: "btree",
              definition:
                "CREATE INDEX phoenix_kit_posts_slug_index ON __SCHEMA__.phoenix_kit_posts USING btree (slug)",
+             predicate: nil,
+             opclasses: ["text_ops"],
+             name_template: nil
+           }},
+          # Appended, never edited in place. `Object.shape_at/2` takes the last
+          # revision <= the database's own version, so rewriting {29, ...}
+          # would tell every V166 install that its plain index is drift — and
+          # offer a repair that cannot succeed, because the duplicates the
+          # migration exists to clear are still sitting there.
+          {167,
+           %{
+             table: "phoenix_kit_posts",
+             keys: ["slug"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_posts_slug_index ON __SCHEMA__.phoenix_kit_posts USING btree (slug)",
              predicate: nil,
              opclasses: ["text_ops"],
              name_template: nil
