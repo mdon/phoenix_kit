@@ -882,20 +882,59 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
-    # Ensure cron plugin exists in the plugins list
-    defp ensure_cron_plugin(content, app_name) do
+    # Any module path ending in the old worker's name. The replacement used to
+    # be the literal "PhoenixKit.Posts.Workers.PublishScheduledPostsJob", a
+    # module that exists in no repo — the real one is
+    # `PhoenixKitPosts.Workers.PublishScheduledPostsJob`. So the Case 1 guard
+    # matched, `String.replace/3` found nothing, and the branch returned the
+    # content untouched while printing "🔄 Replacing…". Being `cond`'s first
+    # clause, it also shadowed Cases 2-4, so the core worker was never added
+    # either: an upgrading host kept the old posts worker, gained nothing, and
+    # was told the opposite. That is why hosts are found running both cron
+    # entries, which is what makes the posts sweep race itself on a single node.
+    @old_posts_worker ~r/[A-Za-z0-9_.]*\bPublishScheduledPostsJob\b/
+    @new_worker "PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker"
+
+    @doc """
+    Ensures the crontab schedules `ProcessScheduledJobsWorker`.
+
+    Public for the same reason as `ensure_worker_cron_entries/2`: so it can be
+    unit-tested directly against content strings.
+    """
+    @spec ensure_cron_plugin(String.t(), atom() | String.t()) :: String.t()
+    def ensure_cron_plugin(content, app_name) do
       cond do
-        # Case 1: Old worker exists - REPLACE it with new worker
-        String.contains?(content, "PublishScheduledPostsJob") ->
+        # Case 1: the old worker is scheduled and the core worker is not.
+        # Rename it in place — the core worker's catch-up already calls
+        # PhoenixKitPosts.process_scheduled_posts/0, so it subsumes the entry.
+        Regex.match?(@old_posts_worker, content) and
+            not String.contains?(content, "ProcessScheduledJobsWorker") ->
           Mix.shell().info(
             "  🔄 Replacing PublishScheduledPostsJob with ProcessScheduledJobsWorker..."
           )
 
-          String.replace(
-            content,
-            "PhoenixKit.Posts.Workers.PublishScheduledPostsJob",
-            "PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker"
+          Regex.replace(@old_posts_worker, content, @new_worker)
+
+        # Case 1b: both are scheduled. Rewriting the old entry would leave two
+        # identical crontab lines, so say what is there and change nothing —
+        # the two are independently cronned callers of the same sweep, and
+        # which one to drop is the host's decision, not ours.
+        Regex.match?(@old_posts_worker, content) ->
+          Mix.shell().error(
+            "  ⚠️  Both PublishScheduledPostsJob and ProcessScheduledJobsWorker are in the crontab"
           )
+
+          Mix.shell().error(
+            "     They run the same posts sweep from different queues, so scheduled posts can be"
+          )
+
+          Mix.shell().error(
+            "     published twice. Remove the PublishScheduledPostsJob entry — the core worker"
+          )
+
+          Mix.shell().error("     already covers it via catchup_scheduled_posts/0.")
+
+          content
 
         # Case 2: Cron plugin exists with new worker - already configured
         String.contains?(content, "Oban.Plugins.Cron") and

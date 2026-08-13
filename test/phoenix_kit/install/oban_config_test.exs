@@ -403,6 +403,60 @@ defmodule PhoenixKit.Install.ObanConfigTest do
     end
   end
 
+  describe "ensure_cron_plugin/2 — migrating off the old posts worker" do
+    defp crontab_with(worker) do
+      """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10],
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"* * * * *", #{worker}}
+           ]}
+        ]
+      """
+    end
+
+    test "renames the real module, which the old literal never matched" do
+      # The replacement was "PhoenixKit.Posts.Workers.PublishScheduledPostsJob",
+      # a module in no repo; the real one is PhoenixKitPosts.Workers.…. The
+      # guard matched, the replace found nothing, and because this is cond's
+      # first clause it shadowed every later case — so the core worker was
+      # never added either.
+      content = crontab_with("PhoenixKitPosts.Workers.PublishScheduledPostsJob")
+      updated = ObanConfig.ensure_cron_plugin(content, "my_app")
+
+      refute updated =~ "PublishScheduledPostsJob"
+      assert updated =~ "PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker"
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+
+    test "leaves a host that already has both alone rather than duplicating" do
+      # Rewriting here would produce two identical crontab lines.
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10],
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"* * * * *", PhoenixKitPosts.Workers.PublishScheduledPostsJob},
+             {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}
+           ]}
+        ]
+      """
+
+      assert ObanConfig.ensure_cron_plugin(content, "my_app") == content
+    end
+
+    test "a host already on the core worker is untouched" do
+      content = crontab_with("PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker")
+
+      assert ObanConfig.ensure_cron_plugin(content, "my_app") == content
+    end
+  end
+
   describe "ensure_scheduled_jobs_queue/2" do
     # The exact shape a host installed between 2025-12-28 and 1.7.63 still has:
     # the per-minute cron entry present, the queue it fires into absent.
