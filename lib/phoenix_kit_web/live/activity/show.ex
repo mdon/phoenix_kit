@@ -17,35 +17,38 @@ defmodule PhoenixKitWeb.Live.Activity.Show do
     scope = socket.assigns[:phoenix_kit_current_scope]
 
     if scope && Scope.has_module_access?(scope, "dashboard") do
-      case Activity.get_entry(uuid) do
-        nil ->
-          {:ok,
-           socket
-           |> put_flash(:error, gettext("Activity not found"))
-           |> push_navigate(to: Routes.path("/admin/activity"))}
+      entry = Activity.get_entry(uuid)
 
-        entry ->
-          project_title = Settings.get_project_title()
-          resource_user = resolve_resource_user(entry)
+      # A non-administrator may only open their OWN entries. Treat someone
+      # else's as not-found (same response as a missing uuid) so the detail
+      # page never leaks another user's audit record via its direct URL.
+      if is_nil(entry) or not can_view_entry?(scope, entry) do
+        {:ok,
+         socket
+         |> put_flash(:error, gettext("Activity not found"))
+         |> push_navigate(to: Routes.path("/admin/activity"))}
+      else
+        project_title = Settings.get_project_title()
+        resource_user = resolve_resource_user(entry)
 
-          # Resolve deep-links for the resource AND the actor/target (both users),
-          # so the who-did-it / who-it's-for identities are clickable too.
-          links =
-            [entry]
-            |> Enum.concat(user_items(entry))
-            |> PhoenixKit.ResourceLinks.resolve()
+        # Resolve deep-links for the resource AND the actor/target (both users),
+        # so the who-did-it / who-it's-for identities are clickable too.
+        links =
+          [entry]
+          |> Enum.concat(user_items(entry))
+          |> PhoenixKit.ResourceLinks.resolve()
 
-          socket =
-            socket
-            |> assign(:page_title, gettext("Activity Detail"))
-            |> assign(:project_title, project_title)
-            |> assign(:entry, entry)
-            |> assign(:resource_user, resource_user)
-            |> assign(:resource_link, links[{entry.resource_type, entry.resource_uuid}])
-            |> assign(:actor_link, links[{"user", entry.actor_uuid}])
-            |> assign(:target_link, links[{"user", entry.target_uuid}])
+        socket =
+          socket
+          |> assign(:page_title, gettext("Activity Detail"))
+          |> assign(:project_title, project_title)
+          |> assign(:entry, entry)
+          |> assign(:resource_user, resource_user)
+          |> assign(:resource_link, links[{entry.resource_type, entry.resource_uuid}])
+          |> assign(:actor_link, links[{"user", entry.actor_uuid}])
+          |> assign(:target_link, links[{"user", entry.target_uuid}])
 
-          {:ok, socket}
+        {:ok, socket}
       end
     else
       {:ok,
@@ -80,4 +83,17 @@ defmodule PhoenixKitWeb.Live.Activity.Show do
 
   defp mode_badge_color(mode), do: Activity.mode_badge_color(mode)
   defp action_badge_color(action), do: Activity.action_badge_color(action)
+
+  # Administrators — Admin or Owner (or any "*" superadmin role) — may open any
+  # entry; everyone else only their own. Mirrors the list-scoping gate in
+  # Activity.Index — keep the two in lock-step.
+  defp can_view_entry?(scope, entry) do
+    Activity.full_log_access?(scope) or own_entry?(scope, entry)
+  end
+
+  defp own_entry?(%Scope{user: %{uuid: uuid}}, %{actor_uuid: actor_uuid})
+       when is_binary(actor_uuid),
+       do: actor_uuid == uuid
+
+  defp own_entry?(_scope, _entry), do: false
 end
