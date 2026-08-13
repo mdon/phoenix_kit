@@ -466,24 +466,34 @@ defmodule PhoenixKit.Utils.CountryData do
   def get_currency_code(_), do: nil
 
   @doc """
-  Get country name.
+  Get country name in the active locale.
+
+  Takes the same `:locale` option as `countries_for_select/1` and falls back
+  to the English name when that locale has no translation for the country.
 
   ## Examples
 
-      iex> CountryData.get_country_name("EE")
+      iex> CountryData.get_country_name("EE", locale: "en")
       "Estonia"
+
+      iex> CountryData.get_country_name("EE", locale: "ru")
+      "Эстония"
 
       iex> CountryData.get_country_name("XX")
       nil
   """
-  def get_country_name(country_code) when is_binary(country_code) do
+  def get_country_name(country_code, opts \\ [])
+
+  def get_country_name(country_code, opts) when is_binary(country_code) do
+    locale = opts |> Keyword.get(:locale, active_locale()) |> normalize_locale()
+
     case get_country(country_code) do
-      %{name: name} -> name
+      %{} = country -> translated_name(country, locale)
       _ -> nil
     end
   end
 
-  def get_country_name(_), do: nil
+  def get_country_name(_, _), do: nil
 
   @doc """
   Get country flag (emoji).

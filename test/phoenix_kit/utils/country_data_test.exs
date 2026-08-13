@@ -94,6 +94,27 @@ defmodule PhoenixKit.Utils.CountryDataTest do
     end
   end
 
+  describe "get_country_name/2" do
+    test "translates into the requested locale" do
+      assert CountryData.get_country_name("EE", locale: "ru") == "Эстония"
+      assert CountryData.get_country_name("EE", locale: "en") == "Estonia"
+    end
+
+    test "falls back to the English name for an untranslated locale" do
+      assert CountryData.get_country_name("EE", locale: "xx") == "Estonia"
+    end
+
+    test "still answers nil for an unknown country" do
+      assert CountryData.get_country_name("XX") == nil
+      assert CountryData.get_country_name(nil) == nil
+    end
+
+    test "keeps its one-argument shape for existing callers" do
+      assert function_exported?(CountryData, :get_country_name, 1)
+      assert is_binary(CountryData.get_country_name("EE"))
+    end
+  end
+
   describe "eu_countries_for_select/1" do
     test "translates and pins like countries_for_select/1" do
       result = CountryData.eu_countries_for_select(locale: "ru", priority: ["EE"])
