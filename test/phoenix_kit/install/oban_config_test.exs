@@ -403,6 +403,229 @@ defmodule PhoenixKit.Install.ObanConfigTest do
     end
   end
 
+  describe "ensure_cron_plugin/2 — migrating off the old posts worker" do
+    defp crontab_with(worker) do
+      """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10],
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"* * * * *", #{worker}}
+           ]}
+        ]
+      """
+    end
+
+    test "renames the real module, which the old literal never matched" do
+      # The replacement was "PhoenixKit.Posts.Workers.PublishScheduledPostsJob",
+      # a module in no repo; the real one is PhoenixKitPosts.Workers.…. The
+      # guard matched, the replace found nothing, and because this is cond's
+      # first clause it shadowed every later case — so the core worker was
+      # never added either.
+      content = crontab_with("PhoenixKitPosts.Workers.PublishScheduledPostsJob")
+      updated = ObanConfig.ensure_cron_plugin(content, "my_app")
+
+      refute updated =~ "PublishScheduledPostsJob"
+      assert updated =~ "PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker"
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+
+    test "leaves a host that already has both alone rather than duplicating" do
+      # Rewriting here would produce two identical crontab lines.
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10],
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"* * * * *", PhoenixKitPosts.Workers.PublishScheduledPostsJob},
+             {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}
+           ]}
+        ]
+      """
+
+      assert ObanConfig.ensure_cron_plugin(content, "my_app") == content
+    end
+
+    test "a host already on the core worker is untouched" do
+      content = crontab_with("PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker")
+
+      assert ObanConfig.ensure_cron_plugin(content, "my_app") == content
+    end
+  end
+
+  describe "ensure_scheduled_jobs_queue/2" do
+    # The exact shape a host installed between 2025-12-28 and 1.7.63 still has:
+    # the per-minute cron entry present, the queue it fires into absent.
+    @queueless_host """
+    config :my_app, Oban,
+      repo: MyApp.Repo,
+      queues: [
+        default: 10,
+        emails: 50
+      ],
+      plugins: [
+        {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30},
+        {Oban.Plugins.Cron,
+         crontab: [
+           {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}
+         ]}
+      ]
+    """
+
+    test "adds the queue to a host whose crontab fires into it but never ran it" do
+      updated = ObanConfig.ensure_scheduled_jobs_queue(@queueless_host, "my_app")
+
+      assert updated =~ ~r/scheduled_jobs:\s*1/
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+
+    test "the crontab's worker reference alone does not count as the queue" do
+      # The regression that made this helper necessary: the entry naming
+      # PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker is already
+      # in the file. A looser check would read that as "configured" and leave
+      # the host exactly as broken as it was, silently.
+      refute @queueless_host =~ ~r/scheduled_jobs:\s*\d+/
+
+      assert ObanConfig.ensure_scheduled_jobs_queue(@queueless_host, "my_app") !=
+               @queueless_host
+    end
+
+    test "leaves an already-configured queue alone" do
+      configured = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [
+          default: 10,
+          scheduled_jobs: 1
+        ]
+      """
+
+      assert ObanConfig.ensure_scheduled_jobs_queue(configured, "my_app") == configured
+    end
+
+    test "does not double up when run twice" do
+      once = ObanConfig.ensure_scheduled_jobs_queue(@queueless_host, "my_app")
+      twice = ObanConfig.ensure_scheduled_jobs_queue(once, "my_app")
+
+      assert once == twice
+      assert length(Regex.scan(~r/scheduled_jobs:\s*\d+/, twice)) == 1
+    end
+
+    test "a queues block that already ends in a comma does not gain a second one" do
+      trailing = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [
+          default: 10,
+        ]
+      """
+
+      updated = ObanConfig.ensure_scheduled_jobs_queue(trailing, "my_app")
+
+      refute updated =~ ",,"
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+
+    test "leaves content untouched when there is no queues block to parse" do
+      no_queues = "config :my_app, Oban, repo: MyApp.Repo\n"
+
+      assert ObanConfig.ensure_scheduled_jobs_queue(no_queues, "my_app") == no_queues
+    end
+
+    test "a commented-out entry does not count as configured" do
+      # The nastiest shape available, because this function's own failure path
+      # prints "Please manually add: scheduled_jobs: 1" — so the line a host
+      # pastes in to remind itself is exactly what a whole-file match would
+      # read as "already done", leaving it broken with no output saying so.
+      commented = """
+      config :my_app, Oban,
+        queues: [
+          default: 10
+          # scheduled_jobs: 1
+        ]
+      """
+
+      updated = ObanConfig.ensure_scheduled_jobs_queue(commented, "my_app")
+
+      refute updated == commented
+      assert updated =~ ~r/^\s*scheduled_jobs: 1/m
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+
+    test "the keyword form of the queue counts as configured" do
+      # `scheduled_jobs: [limit: 1]` is the same queue. Appending a second
+      # entry gives the config a duplicate key, which parses — so nothing here
+      # would notice — and then Oban.Midwife's `{:ok, _} = start_queue(...)`
+      # raises on the second start and the host does not boot.
+      keyword_form = """
+      config :my_app, Oban,
+        queues: [
+          default: 10,
+          scheduled_jobs: [limit: 1]
+        ]
+      """
+
+      assert ObanConfig.ensure_scheduled_jobs_queue(keyword_form, "my_app") == keyword_form
+    end
+
+    test "never writes the queue into a neighbouring application's config" do
+      # An Oban block with no `queues:` of its own used to let the scan run
+      # past the end of the block and add the queue to whatever came next.
+      other_app = """
+      config :my_app, Oban,
+        repo: MyApp.Repo
+
+      config :other_app, OtherThing,
+        queues: [
+          alpha: 5
+        ]
+      """
+
+      assert ObanConfig.ensure_scheduled_jobs_queue(other_app, "my_app") == other_app
+    end
+
+    test "an entry with nested options keeps the insert at the outer level" do
+      # `default: [limit: 10]` is legal. Stopping at the first `]` would put
+      # the queue inside it, producing an option Oban rejects at boot — and
+      # the result parses, so only reading it catches the mistake.
+      nested = """
+      config :my_app, Oban,
+        queues: [
+          default: [
+            limit: 10
+          ],
+          emails: 50
+        ]
+      """
+
+      updated = ObanConfig.ensure_scheduled_jobs_queue(nested, "my_app")
+
+      assert {:ok, _} = Code.string_to_quoted(updated)
+
+      # Indentation is the tell: a sibling of `emails:` (4 spaces) is in the
+      # queues list; a sibling of `limit:` (6) is inside `default:`.
+      assert updated =~ ~r/^    emails: 50,\n    scheduled_jobs: 1$/m
+      assert updated =~ "default: [\n      limit: 10\n    ],"
+    end
+
+    test "an empty queues list is left alone rather than given a queue" do
+      # Oban documents `[]` as equivalent to `false` — "prevents any queues
+      # from starting on init". A node that says it runs nothing should not be
+      # handed a queue, and the old scan corrupted these anyway: `queues: []`
+      # ran on into the plugins block, and `queues: [\n]` wrote `queues: [,`.
+      for empty <- [
+            "config :my_app, Oban,\n  queues: [],\n  plugins: [\n    {Oban.Plugins.Pruner, max_age: 60}\n  ]\n",
+            "config :my_app, Oban,\n  queues: [\n  ]\n"
+          ] do
+        assert ObanConfig.ensure_scheduled_jobs_queue(empty, "my_app") == empty
+      end
+    end
+  end
+
   defp oban_worker?(module) do
     Code.ensure_loaded?(module) and
       function_exported?(module, :timeout, 1) and

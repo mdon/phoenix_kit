@@ -25,6 +25,8 @@ if Code.ensure_loaded?(Igniter) do
     @dialyzer {:nowarn_function, ensure_newsletters_delivery_queue: 2}
     @dialyzer {:nowarn_function, ensure_catalogue_pdf_queue: 2}
     @dialyzer {:nowarn_function, ensure_notifications_queue: 2}
+    @dialyzer {:nowarn_function, ensure_scheduled_jobs_queue: 2}
+    @dialyzer {:nowarn_function, insert_scheduled_jobs_queue: 2}
     @dialyzer {:nowarn_function, ensure_cron_plugin: 2}
     @dialyzer {:nowarn_function, ensure_digest_cron_entries: 2}
     @dialyzer {:nowarn_function, add_digest_entries_to_crontab: 3}
@@ -305,6 +307,7 @@ if Code.ensure_loaded?(Igniter) do
         |> ensure_newsletters_delivery_queue(app_name)
         |> ensure_catalogue_pdf_queue(app_name)
         |> ensure_notifications_queue(app_name)
+        |> ensure_scheduled_jobs_queue(app_name)
         |> ensure_cron_plugin(app_name)
         |> ensure_digest_cron_entries(app_name)
         |> ensure_worker_cron_entries(app_name)
@@ -597,6 +600,131 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
+    # The one queue a host can be missing through no fault of its own.
+    #
+    # The ProcessScheduledJobsWorker crontab entry entered the generated config
+    # on 2025-12-28 without the queue it runs in; the fresh-install block gained
+    # `scheduled_jobs: 1` on 2026-03-05, released in 1.7.63. Every host that
+    # installed in between got a per-minute cron entry firing into a queue
+    # nothing runs, and no upgrade repaired it, because this is the upgrade path
+    # and it had no helper for that queue — the other six queues did. One such
+    # host was found 15 days in with 21,337 jobs stuck in :available, growing at
+    # ~1,440/day, because Pruner only deletes terminal states.
+    #
+    @doc """
+    Ensures the `scheduled_jobs` queue exists in a host's existing Oban config.
+
+    Public for the same reason as `ensure_worker_cron_entries/2`: so it can be
+    unit-tested directly against content strings.
+    """
+    @spec ensure_scheduled_jobs_queue(String.t(), atom() | String.t()) :: String.t()
+    def ensure_scheduled_jobs_queue(content, app_name) do
+      if scheduled_jobs_queue_configured?(content) do
+        Mix.shell().info("  ℹ️  scheduled_jobs queue already configured")
+        content
+      else
+        Mix.shell().info("  ➕ Adding scheduled_jobs queue to Oban configuration...")
+        insert_scheduled_jobs_queue(content, app_name)
+      end
+    end
+
+    # Comment lines go before the check, for the same reason
+    # `oban_block_missing_prefix?/1` strips them and with a sharper edge here:
+    # the failure path below prints "Please manually add: scheduled_jobs: 1",
+    # so the exact line a host pastes in as a reminder-to-self is what would
+    # otherwise convince the next run the queue is already there — leaving it
+    # broken forever, quietly.
+    #
+    # `[` is accepted next to a bare integer because `scheduled_jobs: [limit: 1]`
+    # is the same queue in Oban's keyword form. Missing it would append a second
+    # entry, and a duplicate key is not a compile error: it survives into
+    # `Oban.Config.normalize_queues/1`, and `Oban.Midwife` asserts `{:ok, _}` on
+    # start_queue, so the second start returns `{:error, {:already_started, _}}`
+    # and the host does not boot.
+    defp scheduled_jobs_queue_configured?(content) do
+      Regex.match?(~r/^\s*scheduled_jobs:\s*(?:\d+|\[)/m, strip_comment_lines(content))
+    end
+
+    # Two ways string surgery on a queues list goes wrong, both already paid for
+    # elsewhere in this file:
+    #
+    #   * stopping at a nested list's bracket rather than the queues list's own
+    #     — `default: [limit: 10]` is legal, and inserting there produces an
+    #     option Oban rejects at boot. `ensure_lifeline_plugin/2` documents the
+    #     fix: anchor the closing `]` to the keyword's own indentation with a
+    #     backreference, which nested entries are always indented past.
+    #
+    #   * running out of this app's Oban block entirely. An Oban block with no
+    #     `queues:` at all let a lazy `.*?` walk into the next `config` entry
+    #     and add the queue to an unrelated application. The block is bounded
+    #     here by the next top-level `config`/`import_config`, the same boundary
+    #     `oban_block_missing_prefix?/1` uses.
+    #
+    # An empty `queues: []` deliberately finds no match and takes the manual
+    # path: Oban documents an empty list as equivalent to `false` — "prevents
+    # any queues from starting on init" — so a node that says it runs no queues
+    # should not silently be given one.
+    defp insert_scheduled_jobs_queue(content, app_name) do
+      case Regex.run(
+             ~r/(^config\s+:#{app_name},\s+Oban\b(?:(?!\n(?:config\s|import_config\s)).)*?\n([ \t]+)queues:\s*\[\n)(.*?)(\n\2\])/ms,
+             content,
+             capture: :all
+           ) do
+        [full_match, queues_open, indent, queues_content, queues_close] ->
+          Mix.shell().info("  ✓ Found queues block, adding scheduled_jobs queue")
+
+          updated_queues =
+            queues_open <> add_queue_entry(queues_content, indent <> "  ") <> queues_close
+
+          String.replace(content, full_match, updated_queues, global: false)
+
+        nil ->
+          Mix.shell().error(
+            "  ⚠️  Could not parse queues block for :#{app_name} - skipping scheduled_jobs queue update"
+          )
+
+          Mix.shell().error("     Please manually add: scheduled_jobs: 1")
+          content
+      end
+    end
+
+    # The entry goes after the last line carrying code, not at the end of the
+    # block. A queues list can end in comment lines, and appending the
+    # separating comma there puts it inside the comment — which leaves the
+    # previous entry and the new one with nothing between them, and a
+    # config.exs that no longer parses.
+    defp add_queue_entry(queues_content, entry_indent) do
+      entry = entry_indent <> "scheduled_jobs: 1"
+      lines = String.split(queues_content, "\n")
+
+      case last_code_line_index(lines) do
+        nil when queues_content == "" ->
+          entry
+
+        nil ->
+          queues_content <> "\n" <> entry
+
+        index ->
+          lines
+          |> List.update_at(index, fn line ->
+            if String.ends_with?(String.trim(line), ","), do: line, else: line <> ","
+          end)
+          |> List.insert_at(index + 1, entry)
+          |> Enum.join("\n")
+      end
+    end
+
+    defp last_code_line_index(lines) do
+      lines
+      |> Enum.with_index()
+      |> Enum.reverse()
+      |> Enum.find_value(fn {line, index} ->
+        trimmed = String.trim(line)
+
+        if trimmed != "" and not String.starts_with?(trimmed, "#"), do: index
+      end)
+    end
+
     # Ensure Pruner has max_age configured for 30-day retention
     defp ensure_pruner_max_age(content, _app_name) do
       # Check if max_age is already configured
@@ -754,20 +882,59 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
-    # Ensure cron plugin exists in the plugins list
-    defp ensure_cron_plugin(content, app_name) do
+    # Any module path ending in the old worker's name. The replacement used to
+    # be the literal "PhoenixKit.Posts.Workers.PublishScheduledPostsJob", a
+    # module that exists in no repo — the real one is
+    # `PhoenixKitPosts.Workers.PublishScheduledPostsJob`. So the Case 1 guard
+    # matched, `String.replace/3` found nothing, and the branch returned the
+    # content untouched while printing "🔄 Replacing…". Being `cond`'s first
+    # clause, it also shadowed Cases 2-4, so the core worker was never added
+    # either: an upgrading host kept the old posts worker, gained nothing, and
+    # was told the opposite. That is why hosts are found running both cron
+    # entries, which is what makes the posts sweep race itself on a single node.
+    @old_posts_worker ~r/[A-Za-z0-9_.]*\bPublishScheduledPostsJob\b/
+    @new_worker "PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker"
+
+    @doc """
+    Ensures the crontab schedules `ProcessScheduledJobsWorker`.
+
+    Public for the same reason as `ensure_worker_cron_entries/2`: so it can be
+    unit-tested directly against content strings.
+    """
+    @spec ensure_cron_plugin(String.t(), atom() | String.t()) :: String.t()
+    def ensure_cron_plugin(content, app_name) do
       cond do
-        # Case 1: Old worker exists - REPLACE it with new worker
-        String.contains?(content, "PublishScheduledPostsJob") ->
+        # Case 1: the old worker is scheduled and the core worker is not.
+        # Rename it in place — the core worker's catch-up already calls
+        # PhoenixKitPosts.process_scheduled_posts/0, so it subsumes the entry.
+        Regex.match?(@old_posts_worker, content) and
+            not String.contains?(content, "ProcessScheduledJobsWorker") ->
           Mix.shell().info(
             "  🔄 Replacing PublishScheduledPostsJob with ProcessScheduledJobsWorker..."
           )
 
-          String.replace(
-            content,
-            "PhoenixKit.Posts.Workers.PublishScheduledPostsJob",
-            "PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker"
+          Regex.replace(@old_posts_worker, content, @new_worker)
+
+        # Case 1b: both are scheduled. Rewriting the old entry would leave two
+        # identical crontab lines, so say what is there and change nothing —
+        # the two are independently cronned callers of the same sweep, and
+        # which one to drop is the host's decision, not ours.
+        Regex.match?(@old_posts_worker, content) ->
+          Mix.shell().error(
+            "  ⚠️  Both PublishScheduledPostsJob and ProcessScheduledJobsWorker are in the crontab"
           )
+
+          Mix.shell().error(
+            "     They run the same posts sweep from different queues, so scheduled posts can be"
+          )
+
+          Mix.shell().error(
+            "     published twice. Remove the PublishScheduledPostsJob entry — the core worker"
+          )
+
+          Mix.shell().error("     already covers it via catchup_scheduled_posts/0.")
+
+          content
 
         # Case 2: Cron plugin exists with new worker - already configured
         String.contains?(content, "Oban.Plugins.Cron") and
