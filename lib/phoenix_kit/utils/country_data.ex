@@ -287,25 +287,40 @@ defmodule PhoenixKit.Utils.CountryData do
   Get list of countries for select dropdown.
 
   Returns list of tuples {display_name, alpha2_code} for use
-  in Phoenix form selects.
+  in Phoenix form selects, sorted by the country name in the active locale.
+
+  ## Options
+
+    * `:locale` — locale for the country names. Defaults to the active
+      `PhoenixKitWeb.Gettext` locale, reduced to its base code. Locales
+      `BeamLabCountries` ships no translations for fall back to English, so a
+      host only ever loses the translation, never the entry.
+
+    * `:priority` — alpha-2 codes pinned to the top of the list, in the order
+      given; everything else follows alphabetically. Defaults to
+      `config :phoenix_kit, :country_select_priority`, so a host that serves
+      one region can put its own countries first without touching call sites.
 
   ## Examples
 
-      iex> countries = CountryData.countries_for_select()
+      iex> countries = CountryData.countries_for_select(locale: "en")
       iex> {"🇦🇫 Afghanistan", "AF"} in countries
       true
-  """
-  def countries_for_select do
-    list_countries()
-    |> Enum.map(fn c ->
-      display_name =
-        case c.flag do
-          nil -> c.name
-          "" -> c.name
-          flag -> flag <> " " <> c.name
-        end
 
-      {display_name, c.alpha2}
+      iex> CountryData.countries_for_select(locale: "ru", priority: ["EE", "FI"])
+      ...> |> Enum.take(2)
+      [{"🇪🇪 Эстония", "EE"}, {"🇫🇮 Финляндия", "FI"}]
+  """
+  def countries_for_select(opts \\ []) do
+    locale = opts |> Keyword.get(:locale, active_locale()) |> normalize_locale()
+    priority = opts |> Keyword.get(:priority, configured_priority()) |> normalize_priority()
+
+    entries = Enum.map(BeamLabCountries.all(), &select_entry(&1, locale))
+
+    {pinned, rest} = split_priority(entries, priority)
+
+    Enum.map(pinned ++ sort_by_name(rest), fn {_name, display_name, code} ->
+      {display_name, code}
     end)
   end
 
@@ -338,21 +353,94 @@ defmodule PhoenixKit.Utils.CountryData do
 
   @doc """
   Get list of EU countries for select dropdown.
-  """
-  def eu_countries_for_select do
-    eu_countries()
-    |> Enum.sort_by(& &1.name)
-    |> Enum.map(fn c ->
-      display_name =
-        case c.flag do
-          nil -> c.name
-          "" -> c.name
-          flag -> flag <> " " <> c.name
-        end
 
-      {display_name, c.alpha2}
+  Takes the same `:locale` and `:priority` options as
+  `countries_for_select/1`.
+  """
+  def eu_countries_for_select(opts \\ []) do
+    locale = opts |> Keyword.get(:locale, active_locale()) |> normalize_locale()
+    priority = opts |> Keyword.get(:priority, configured_priority()) |> normalize_priority()
+
+    entries = Enum.map(eu_countries(), &select_entry(&1, locale))
+    {pinned, rest} = split_priority(entries, priority)
+
+    Enum.map(pinned ++ sort_by_name(rest), fn {_name, display_name, code} ->
+      {display_name, code}
     end)
   end
+
+  # {sortable_name, display_name, alpha2} for one country in `locale`.
+  defp select_entry(country, locale) do
+    name = translated_name(country, locale)
+
+    display_name =
+      case country.flag do
+        nil -> name
+        "" -> name
+        flag -> flag <> " " <> name
+      end
+
+    {name, display_name, country.alpha2}
+  end
+
+  defp translated_name(country, locale) do
+    with true <- is_binary(locale),
+         true <- BeamLabCountries.Translations.locale_supported?(locale),
+         name when is_binary(name) <-
+           BeamLabCountries.Translations.get_name(country.alpha2, locale) do
+      name
+    else
+      _ -> country.name
+    end
+  end
+
+  # Pull the priority codes out in the order they were given; the remainder
+  # keeps its original order for the caller to sort.
+  defp split_priority(entries, []), do: {[], entries}
+
+  defp split_priority(entries, priority) do
+    index = Map.new(entries, fn {_name, _display, code} = entry -> {code, entry} end)
+
+    pinned_codes = Enum.filter(priority, &Map.has_key?(index, &1))
+    pinned = Enum.map(pinned_codes, &Map.fetch!(index, &1))
+    rest = Enum.reject(entries, fn {_name, _display, code} -> code in pinned_codes end)
+
+    {pinned, rest}
+  end
+
+  # Case- and diacritic-insensitive sort. Without ICU collation the byte order
+  # would exile every accented name past "Z" — "Ühendkuningriik" after
+  # "Zimbabwe" — which reads as a bug in any locale that uses them.
+  defp sort_by_name(entries) do
+    Enum.sort_by(entries, fn {name, _display, _code} ->
+      name |> String.downcase() |> :unicode.characters_to_nfd_binary()
+    end)
+  end
+
+  defp active_locale do
+    Gettext.get_locale(PhoenixKitWeb.Gettext)
+  end
+
+  defp normalize_locale(nil), do: nil
+
+  defp normalize_locale(locale) when is_binary(locale) do
+    locale |> String.split(["-", "_"]) |> hd() |> String.downcase()
+  end
+
+  defp normalize_locale(_), do: nil
+
+  defp configured_priority do
+    Application.get_env(:phoenix_kit, :country_select_priority, [])
+  end
+
+  defp normalize_priority(codes) when is_list(codes) do
+    codes
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.upcase/1)
+    |> Enum.uniq()
+  end
+
+  defp normalize_priority(_), do: []
 
   @doc """
   Get country currency code.
