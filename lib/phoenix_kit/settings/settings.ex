@@ -500,7 +500,10 @@ defmodule PhoenixKit.Settings do
     end
   rescue
     error ->
-      Logger.warning("Settings miss-fill query failed: #{inspect(error)}")
+      unless sandbox_ownership_error?(error) do
+        Logger.warning("Settings miss-fill query failed: #{inspect(error)}")
+      end
+
       :error
   catch
     # A dead connection pool exits rather than raising.
@@ -1913,7 +1916,8 @@ defmodule PhoenixKit.Settings do
     error ->
       # Silence transient migration errors (missing uuid column, cached plan invalidation)
       # Also skip logging during compilation mode
-      unless migration_column_error?(error) or compilation_mode?() do
+      unless migration_column_error?(error) or sandbox_ownership_error?(error) or
+               compilation_mode?() do
         Logger.error("Failed to query JSON setting #{key}: #{inspect(error)}")
       end
 
