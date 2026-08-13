@@ -39,8 +39,16 @@ defmodule PhoenixKit.Utils.CountryDataTest do
     end
 
     test "keeps every country regardless of locale" do
-      assert length(CountryData.countries_for_select(locale: "ru")) ==
-               length(CountryData.countries_for_select(locale: "en"))
+      # Same country *codes*, not just the same count — a locale-dependent
+      # filter bug could drop one country and pick up another while leaving
+      # the length unchanged at 250.
+      codes = fn locale ->
+        CountryData.countries_for_select(locale: locale)
+        |> Enum.map(&elem(&1, 1))
+        |> MapSet.new()
+      end
+
+      assert codes.("ru") == codes.("en")
     end
   end
 
@@ -79,7 +87,21 @@ defmodule PhoenixKit.Utils.CountryDataTest do
         CountryData.countries_for_select(locale: "en", priority: [])
         |> Enum.map(&without_flag(elem(&1, 0)))
 
-      assert names == Enum.sort_by(names, &:unicode.characters_to_nfd_binary(String.downcase(&1)))
+      index = fn name -> Enum.find_index(names, &(&1 == name)) end
+
+      # Literal neighbours from the real sorted (English) output, so that
+      # changing the sort key breaks this test — unlike the previous version,
+      # which re-derived the same NFD-fold-and-downcase key the implementation
+      # uses and therefore could never fail. Folding places each accented name
+      # next to its unaccented neighbours instead of exiling it past "Z".
+      assert index.("Azerbaijan") < index.("Åland Islands")
+      assert index.("Åland Islands") < index.("Bahamas")
+
+      assert index.("Costa Rica") < index.("Côte d'Ivoire")
+      assert index.("Côte d'Ivoire") < index.("Croatia")
+
+      assert index.("Tuvalu") < index.("Türkiye")
+      assert index.("Türkiye") < index.("Uganda")
     end
 
     test "sorts by the localized name, not the English one" do
@@ -110,6 +132,7 @@ defmodule PhoenixKit.Utils.CountryDataTest do
     end
 
     test "keeps its one-argument shape for existing callers" do
+      assert Code.ensure_loaded?(CountryData)
       assert function_exported?(CountryData, :get_country_name, 1)
       assert is_binary(CountryData.get_country_name("EE"))
     end
@@ -120,6 +143,33 @@ defmodule PhoenixKit.Utils.CountryDataTest do
       result = CountryData.eu_countries_for_select(locale: "ru", priority: ["EE"])
       assert hd(result) == {"🇪🇪 Эстония", "EE"}
       assert length(result) == 27
+    end
+  end
+
+  describe "zero-arity contract" do
+    test "countries_for_select/0 and eu_countries_for_select/0 stay exported" do
+      # phoenix_kit_billing's core_compat lists
+      # {CountryData, :countries_for_select, 0} as an unguarded runtime call
+      # (lib/phoenix_kit_billing/core_compat.ex) — a regression here breaks
+      # billing at boot. eu_countries_for_select/0 isn't in that list today,
+      # but it shares the same `opts \\ []` contract, so it's asserted here
+      # too rather than leaving it uncovered.
+      #
+      # function_exported?/3 answers false for a module that hasn't been
+      # loaded yet, regardless of what it defines, so ensure_loaded? first.
+      assert Code.ensure_loaded?(CountryData)
+      assert function_exported?(CountryData, :countries_for_select, 0)
+      assert function_exported?(CountryData, :eu_countries_for_select, 0)
+    end
+
+    test "countries_for_select/0 uses the active Gettext locale when :locale is omitted" do
+      previous = Gettext.get_locale(PhoenixKitWeb.Gettext)
+      on_exit(fn -> Gettext.put_locale(PhoenixKitWeb.Gettext, previous) end)
+
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "ru")
+
+      names = by_code(CountryData.countries_for_select())
+      assert names["EE"] == "🇪🇪 Эстония"
     end
   end
 end

@@ -289,17 +289,45 @@ defmodule PhoenixKit.Utils.CountryData do
   Returns list of tuples {display_name, alpha2_code} for use
   in Phoenix form selects, sorted by the country name in the active locale.
 
+  Names come from `BeamLabCountries.Translations`, not the country struct's
+  `:name` field — the two differ even in English, for 20 of the 250
+  countries (as of beamlab_countries 1.1.0). For example: GB "United
+  Kingdom of Great Britain and Northern Ireland" -> "United Kingdom", US
+  "United States of America" -> "United States", CZ "Czech Republic" ->
+  "Czechia", TR "Turkey" -> "Türkiye", KP "Korea (Democratic People's
+  Republic of)" -> "North Korea" (which also moves its place in the sorted
+  list, from the K's to the N's). A host that never passes `:locale` still
+  gets different strings, and a different order, than a version of this
+  function that read `.name` directly.
+
+  Sorting folds accented letters to their base form before comparing (e.g.
+  "ü" sorts with "u"), which is a deliberate approximation, not proper
+  collation — the BEAM has no ICU. It is correct for most Latin-script
+  locales, but wrong for locales that give diacritics their own place in
+  the alphabet: in Estonian, Ü belongs at the very end (after W, Õ, Ä, Ö),
+  and in Swedish, Å, Ä, Ö belong after Z; folding moves those names out of
+  that position instead of leaving them there. A host that needs strict
+  local collation should sort the returned list itself.
+
   ## Options
 
     * `:locale` — locale for the country names. Defaults to the active
-      `PhoenixKitWeb.Gettext` locale, reduced to its base code. Locales
-      `BeamLabCountries` ships no translations for fall back to English, so a
-      host only ever loses the translation, never the entry.
+      `PhoenixKitWeb.Gettext` locale, reduced to its base code (`"ru-RU"`
+      normalizes to `"ru"`). `BeamLabCountries` 1.1.0 ships translations for
+      `ar`, `de`, `en`, `es`, `fr`, `it`, `ja`, `ko`, `nl`, `pl`, `pt`, `ru`,
+      `sv`, `uk`, `zh` (`BeamLabCountries.Translations.supported_locales/0`);
+      any other locale falls back to the country's English name, and so
+      does an unsupported *value* such as an atom (`locale: :ru`) — a host
+      only ever loses the translation, never the entry.
 
     * `:priority` — alpha-2 codes pinned to the top of the list, in the order
       given; everything else follows alphabetically. Defaults to
       `config :phoenix_kit, :country_select_priority`, so a host that serves
       one region can put its own countries first without touching call sites.
+      A non-list value is treated as `[]`.
+
+  `opts` itself must be a keyword list — a map or a bare string raises
+  `FunctionClauseError` naming this function rather than `Keyword`.
 
   ## Examples
 
@@ -311,17 +339,13 @@ defmodule PhoenixKit.Utils.CountryData do
       ...> |> Enum.take(2)
       [{"🇪🇪 Эстония", "EE"}, {"🇫🇮 Финляндия", "FI"}]
   """
-  def countries_for_select(opts \\ []) do
+  def countries_for_select(opts \\ []) when is_list(opts) do
     locale = opts |> Keyword.get(:locale, active_locale()) |> normalize_locale()
     priority = opts |> Keyword.get(:priority, configured_priority()) |> normalize_priority()
 
-    entries = Enum.map(BeamLabCountries.all(), &select_entry(&1, locale))
+    {pinned, rest} = locale |> sorted_entries(:all) |> split_priority(priority)
 
-    {pinned, rest} = split_priority(entries, priority)
-
-    Enum.map(pinned ++ sort_by_name(rest), fn {_name, display_name, code} ->
-      {display_name, code}
-    end)
+    Enum.map(pinned ++ rest, fn {_name, display_name, code} -> {display_name, code} end)
   end
 
   @doc """
@@ -355,18 +379,16 @@ defmodule PhoenixKit.Utils.CountryData do
   Get list of EU countries for select dropdown.
 
   Takes the same `:locale` and `:priority` options as
-  `countries_for_select/1`.
+  `countries_for_select/1`, including its fallback, leniency, and sorting
+  caveats.
   """
-  def eu_countries_for_select(opts \\ []) do
+  def eu_countries_for_select(opts \\ []) when is_list(opts) do
     locale = opts |> Keyword.get(:locale, active_locale()) |> normalize_locale()
     priority = opts |> Keyword.get(:priority, configured_priority()) |> normalize_priority()
 
-    entries = Enum.map(eu_countries(), &select_entry(&1, locale))
-    {pinned, rest} = split_priority(entries, priority)
+    {pinned, rest} = locale |> sorted_entries(:eu) |> split_priority(priority)
 
-    Enum.map(pinned ++ sort_by_name(rest), fn {_name, display_name, code} ->
-      {display_name, code}
-    end)
+    Enum.map(pinned ++ rest, fn {_name, display_name, code} -> {display_name, code} end)
   end
 
   # {sortable_name, display_name, alpha2} for one country in `locale`.
@@ -394,8 +416,46 @@ defmodule PhoenixKit.Utils.CountryData do
     end
   end
 
+  # Localized, alphabetically-sorted {sortable_name, display_name, alpha2}
+  # entries for `source` (:all or :eu), memoized in :persistent_term per
+  # locale — countries_for_select/1 runs in LiveView mount twice per
+  # connection, and rebuilding + sort-keying ~250 translated names on every
+  # call was measured as the expensive part (the translation lookup itself
+  # is cheap). Keyed by locale *and* source so the EU subset can never
+  # collide with the full list. A cache miss computes once and stores;
+  # realistic callers only ever use the handful of locales this host's
+  # Gettext config and BeamLabCountries between them support, so the number
+  # of distinct writes is bounded. Priority pinning is deliberately *not*
+  # part of the cache key — split_priority/2 below is cheap (one pass over
+  # already-sorted input) and runs on every call, so
+  # `:country_select_priority` changes take effect immediately without
+  # invalidating anything.
+  defp sorted_entries(locale, source) do
+    key = {__MODULE__, :sorted_entries, source, locale}
+
+    case :persistent_term.get(key, :not_cached) do
+      :not_cached ->
+        entries =
+          source
+          |> countries_for_source()
+          |> Enum.map(&select_entry(&1, locale))
+          |> sort_by_name()
+
+        :persistent_term.put(key, entries)
+        entries
+
+      entries ->
+        entries
+    end
+  end
+
+  defp countries_for_source(:all), do: BeamLabCountries.all()
+  defp countries_for_source(:eu), do: eu_countries()
+
   # Pull the priority codes out in the order they were given; the remainder
-  # keeps its original order for the caller to sort.
+  # keeps its incoming order. Callers now pass the already-sorted output of
+  # sorted_entries/2, so that incoming order is alphabetical — no further
+  # sort needed.
   defp split_priority(entries, []), do: {[], entries}
 
   defp split_priority(entries, priority) do
@@ -408,9 +468,17 @@ defmodule PhoenixKit.Utils.CountryData do
     {pinned, rest}
   end
 
-  # Case- and diacritic-insensitive sort. Without ICU collation the byte order
-  # would exile every accented name past "Z" — "Ühendkuningriik" after
-  # "Zimbabwe" — which reads as a bug in any locale that uses them.
+  # Deliberate approximation, not proper collation: folding diacritics to
+  # their base letter before comparing is correct for locales that treat
+  # accented letters as variants of the base letter — most Latin-script
+  # locales (French, German, Spanish, Italian, Dutch, Polish, Portuguese,
+  # ...) — but wrong for locales that give diacritics their own position in
+  # the alphabet. Estonian sorts Ü at the very end, after W, Õ, Ä, Ö;
+  # Swedish sorts Å, Ä, Ö after Z. Folding pulls "Ühendkuningriik" into the U
+  # block and "Åland" between "Azerbajdzjan" and "Bahamas" instead of
+  # leaving them at the end, which is where correct collation puts them in
+  # those locales. Proper per-locale collation would need ICU, which the
+  # BEAM does not ship.
   defp sort_by_name(entries) do
     Enum.sort_by(entries, fn {name, _display, _code} ->
       name |> String.downcase() |> :unicode.characters_to_nfd_binary()
@@ -468,8 +536,13 @@ defmodule PhoenixKit.Utils.CountryData do
   @doc """
   Get country name in the active locale.
 
-  Takes the same `:locale` option as `countries_for_select/1` and falls back
+  Takes the same `:locale` option as `countries_for_select/1` — including
+  its supported-locale set and its fallback/leniency rules — and falls back
   to the English name when that locale has no translation for the country.
+
+  `opts` must be a keyword list. `get_country_name("EE", "ru")` is a
+  realistic slip (the option is `:locale`), and raises
+  `FunctionClauseError` naming this function rather than `Keyword`.
 
   ## Examples
 
@@ -484,7 +557,7 @@ defmodule PhoenixKit.Utils.CountryData do
   """
   def get_country_name(country_code, opts \\ [])
 
-  def get_country_name(country_code, opts) when is_binary(country_code) do
+  def get_country_name(country_code, opts) when is_binary(country_code) and is_list(opts) do
     locale = opts |> Keyword.get(:locale, active_locale()) |> normalize_locale()
 
     case get_country(country_code) do
@@ -493,7 +566,7 @@ defmodule PhoenixKit.Utils.CountryData do
     end
   end
 
-  def get_country_name(_, _), do: nil
+  def get_country_name(country_code, _opts) when not is_binary(country_code), do: nil
 
   @doc """
   Get country flag (emoji).
