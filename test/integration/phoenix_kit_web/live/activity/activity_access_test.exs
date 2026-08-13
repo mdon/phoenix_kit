@@ -74,6 +74,23 @@ defmodule PhoenixKitWeb.Live.Activity.AccessTest do
     entry
   end
 
+  # An action `actor` performed ON/FOR `target` — `target` is the subject, not
+  # the author. Used to pin that "own" is authorship, not being targeted.
+  defp log_targeting!(actor, target, action, metadata) do
+    {:ok, entry} =
+      Activity.log(%{
+        action: action,
+        module: "users",
+        actor_uuid: actor.uuid,
+        target_uuid: target.uuid,
+        resource_type: "user",
+        resource_uuid: target.uuid,
+        metadata: metadata
+      })
+
+    entry
+  end
+
   describe "render tolerance" do
     test "a qty field-change diff renders as 1 → 2 instead of crashing", %{conn: conn} do
       admin = admin_user()
@@ -150,6 +167,35 @@ defmodule PhoenixKitWeb.Live.Activity.AccessTest do
       user = dashboard_only_user()
       other = admin_user()
       entry = log!(other, "orders.created", %{"title" => "THEIRS"})
+
+      assert {:error, {:live_redirect, %{to: to}}} =
+               live(log_in_user(conn, user), Routes.path("/admin/activity/#{entry.uuid}"))
+
+      assert to =~ "/admin/activity"
+    end
+  end
+
+  # "Own" is authorship (actor), not being the subject (target). A record where
+  # the user is only the target must stay hidden from a non-administrator, in
+  # both the list and via the direct URL — the definition Activity.own_entry?/2
+  # fixes for both views.
+  describe "own == actor, not target" do
+    test "a dashboard-only user does NOT see an action merely targeting them", %{conn: conn} do
+      user = dashboard_only_user()
+      other = admin_user()
+
+      log_targeting!(other, user, "users.profile_updated", %{"note" => "TARGETED"})
+      log!(user, "orders.created", %{"title" => "AUTHORED"})
+
+      {:ok, _lv, html} = live(log_in_user(conn, user), Routes.path("/admin/activity"))
+      assert html =~ "AUTHORED"
+      refute html =~ "TARGETED"
+    end
+
+    test "a dashboard-only user is bounced from an entry that only targets them", %{conn: conn} do
+      user = dashboard_only_user()
+      other = admin_user()
+      entry = log_targeting!(other, user, "users.profile_updated", %{"note" => "TARGETED"})
 
       assert {:error, {:live_redirect, %{to: to}}} =
                live(log_in_user(conn, user), Routes.path("/admin/activity/#{entry.uuid}"))

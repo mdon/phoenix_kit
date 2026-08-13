@@ -251,8 +251,11 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
   defp mode_badge_color(mode), do: Activity.mode_badge_color(mode)
 
   # Which actor the list is pinned to: nil (unrestricted) for a full-access
-  # operator, else the current user's own uuid. Fail closed — a non-full scope
-  # with no resolvable user sees nothing, never everything.
+  # operator, else the current user's own uuid. Pinning `actor_uuid` is what
+  # makes "own" mean AUTHORED-BY — the same definition as Activity.own_entry?/2
+  # that the single-entry page enforces; a record merely targeting the user is
+  # deliberately not shown. Fail closed — a non-full scope with no resolvable
+  # user sees nothing, never everything.
   defp scoped_actor_uuid(true, _scope), do: nil
   defp scoped_actor_uuid(false, %Scope{user: %User{uuid: uuid}}) when is_binary(uuid), do: uuid
   defp scoped_actor_uuid(false, _scope), do: Ecto.UUID.generate()

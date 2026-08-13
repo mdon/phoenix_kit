@@ -88,12 +88,8 @@ defmodule PhoenixKitWeb.Live.Activity.Show do
   # entry; everyone else only their own. Mirrors the list-scoping gate in
   # Activity.Index — keep the two in lock-step.
   defp can_view_entry?(scope, entry) do
-    Activity.full_log_access?(scope) or own_entry?(scope, entry)
+    # "Own" == authored by this user (actor), NOT merely targeted at them —
+    # see Activity.own_entry?/2, the single definition shared with the list.
+    Activity.full_log_access?(scope) or Activity.own_entry?(scope, entry)
   end
-
-  defp own_entry?(%Scope{user: %{uuid: uuid}}, %{actor_uuid: actor_uuid})
-       when is_binary(actor_uuid),
-       do: actor_uuid == uuid
-
-  defp own_entry?(_scope, _entry), do: false
 end

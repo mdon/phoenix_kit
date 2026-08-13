@@ -360,6 +360,27 @@ defmodule PhoenixKit.Activity do
       Scope.has_role?(scope, Role.system_roles().admin)
   end
 
+  @doc """
+  Whether `entry` is `scope`'s OWN activity.
+
+  "Own" is defined by AUTHORSHIP: the scope's user is the entry's `actor_uuid`
+  (the account that performed the action). A record where the user is only the
+  `target_uuid` — someone else acted on or for them — is NOT their own and stays
+  hidden from a non-administrator.
+
+  This is the single definition the audit log enforces in two places, and they
+  must not drift: the list pins `actor_uuid` to the user (`Activity.Index`) and
+  the single-entry page gates on this predicate (`Activity.Show`). If "own" ever
+  needs to include target-side records, change it HERE and switch the list's
+  filter in lock-step — do not fork the rule per view.
+  """
+  @spec own_entry?(Scope.t() | nil, Entry.t()) :: boolean()
+  def own_entry?(%Scope{user: %{uuid: uuid}}, %Entry{actor_uuid: actor_uuid})
+      when is_binary(uuid) and is_binary(actor_uuid),
+      do: actor_uuid == uuid
+
+  def own_entry?(_scope, _entry), do: false
+
   @doc "Returns a CSS badge class based on the mode."
   def mode_badge_color("manual"), do: "badge-warning"
   def mode_badge_color("auto"), do: "badge-info"
