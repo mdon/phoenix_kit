@@ -626,6 +626,149 @@ defmodule PhoenixKit.Install.ObanConfigTest do
     end
   end
 
+  describe "ensure_queue/4 — the hardening applies to every queue, not just one" do
+    # ensure_scheduled_jobs_queue/2 was written hardened against six ways
+    # string surgery on a queues list goes wrong. The six sibling helpers that
+    # predated it each hand-rolled the same surgery and reproduced every one of
+    # those defects — and a bad insert is worse than the missing queue it was
+    # trying to add, because it corrupts the host's config.exs. They now share
+    # this implementation; these tests are what stops one drifting back out.
+
+    @queueless """
+    config :my_app, Oban,
+      repo: MyApp.Repo,
+      queues: [
+        default: 10,
+        emails: 50
+      ]
+    """
+
+    test "every queue the installer manages inserts into a real host config" do
+      for {queue, limit} <- [
+            {"posts", 10},
+            {"sitemap", 5},
+            {"shop_imports", 2},
+            {"newsletters_delivery", 10},
+            {"catalogue_pdf", 2},
+            {"notifications", 10},
+            {"scheduled_jobs", 1}
+          ] do
+        updated = ObanConfig.ensure_queue(@queueless, "my_app", queue, limit)
+
+        assert updated =~ ~r/^\s*#{queue}: #{limit}$/m, queue
+        assert {:ok, _} = Code.string_to_quoted(updated)
+        assert ObanConfig.ensure_queue(updated, "my_app", queue, limit) == updated, queue
+      end
+    end
+
+    test "a key merely ENDING in the queue's name does not count as configured" do
+      # The sibling check was an unanchored ~r/notifications:\s*\d+/, so a
+      # host's own `push_notifications: 5` satisfied it and the real
+      # `notifications` queue was never added — the exact silent-missing-queue
+      # failure the scheduled_jobs incident was about, one guard further up.
+      host = """
+      config :my_app, Oban,
+        queues: [
+          default: 10,
+          push_notifications: 5
+        ]
+      """
+
+      updated = ObanConfig.ensure_queue(host, "my_app", "notifications", 10)
+
+      assert updated =~ ~r/^\s*notifications: 10$/m
+      assert updated =~ "push_notifications: 5"
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+
+    test "a commented-out entry does not count as configured" do
+      commented = """
+      config :my_app, Oban,
+        queues: [
+          default: 10
+          # posts: 10
+        ]
+      """
+
+      updated = ObanConfig.ensure_queue(commented, "my_app", "posts", 10)
+
+      assert updated =~ ~r/^\s*posts: 10$/m
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+
+    test "the keyword form counts as configured, so no duplicate key is written" do
+      # A duplicate key parses, survives normalize_queues/1, and then
+      # Oban.Midwife's `{:ok, _} = start_queue(...)` raises on the second
+      # start — the host does not boot.
+      keyword_form = """
+      config :my_app, Oban,
+        queues: [
+          default: 10,
+          sitemap: [limit: 5]
+        ]
+      """
+
+      assert ObanConfig.ensure_queue(keyword_form, "my_app", "sitemap", 5) == keyword_form
+    end
+
+    test "never writes into a neighbouring application's config" do
+      other_app = """
+      config :my_app, Oban,
+        repo: MyApp.Repo
+
+      config :other_app, OtherThing,
+        queues: [
+          alpha: 5
+        ]
+      """
+
+      assert ObanConfig.ensure_queue(other_app, "my_app", "posts", 10) == other_app
+    end
+
+    test "an entry with nested options keeps the insert at the outer level" do
+      nested = """
+      config :my_app, Oban,
+        queues: [
+          default: [
+            limit: 10
+          ],
+          emails: 50
+        ]
+      """
+
+      updated = ObanConfig.ensure_queue(nested, "my_app", "catalogue_pdf", 2)
+
+      assert {:ok, _} = Code.string_to_quoted(updated)
+      assert updated =~ ~r/^    emails: 50,\n    catalogue_pdf: 2$/m
+      assert updated =~ "default: [\n      limit: 10\n    ],"
+    end
+
+    test "a queues list ending in a comment keeps the comma out of the comment" do
+      trailing_comment = """
+      config :my_app, Oban,
+        queues: [
+          default: 10
+          # keep this list alphabetical
+        ]
+      """
+
+      updated = ObanConfig.ensure_queue(trailing_comment, "my_app", "posts", 10)
+
+      assert {:ok, _} = Code.string_to_quoted(updated)
+      assert updated =~ "default: 10,"
+      assert updated =~ "# keep this list alphabetical"
+    end
+
+    test "an empty queues list is left alone rather than given a queue" do
+      for empty <- [
+            "config :my_app, Oban,\n  queues: [],\n  plugins: [\n    {Oban.Plugins.Pruner, max_age: 60}\n  ]\n",
+            "config :my_app, Oban,\n  queues: [\n  ]\n"
+          ] do
+        assert ObanConfig.ensure_queue(empty, "my_app", "posts", 10) == empty
+      end
+    end
+  end
+
   defp oban_worker?(module) do
     Code.ensure_loaded?(module) and
       function_exported?(module, :timeout, 1) and

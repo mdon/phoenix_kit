@@ -1,6 +1,99 @@
-## Unreleased
+## 2.3.0 - 2026-08-13
+
+Localized country selects with operator-chosen pinning, two new integration
+providers, and a scheduled-jobs sweep that no longer dies at `:debug`. No schema
+change — the chain stays at V166.
+
+### Added
+
+- **Country selects follow the active locale, and an operator can pin the
+  countries they actually serve.** `countries_for_select/1`,
+  `eu_countries_for_select/1` and `get_country_name/2` take `:locale` (defaulting
+  to the active Gettext locale, dialects reduced to their base — `ru-RU` → `ru`)
+  and `:priority` (alpha-2 codes pinned to the top, defaulting to the new
+  `country_select_priority` setting). Names come from
+  `BeamLabCountries.Translations` and a locale with no data falls back per
+  country, so a host only ever loses the translation, never the entry. Sorting
+  moves to the localized name with NFD accent folding — a deliberate
+  approximation, not collation; locales that give diacritics their own alphabet
+  position (Estonian's Ü, Swedish's Å/Ä/Ö) are sorted into the base letter's
+  block instead. Both functions still work with no arguments (#708).
+
+- **A "Main countries" card on Admin → Settings → Organization** to choose that
+  pinned list: drag to reorder, keyboard move buttons alongside (SortableJS is a
+  CDN fetch a strict CSP can block, and dragging has no keyboard path), a
+  searchable picker, and a suggestion derived from the organization's own
+  country by great-circle distance rather than from a constant baked into the
+  library. Nothing is pinned until an operator stores a list (#708).
+
+- **GitHub and Amazon Bedrock integration providers.** GitHub takes a
+  fine-grained read-only PAT, validated against `/rate_limit`. Bedrock takes a
+  long-term API key (plain Bearer, no SigV4) plus a region, validated with a new
+  `:amazon_bedrock` strategy that lists foundation models in that region — the
+  cheapest call proving the key, the region and `bedrock:CallWithBearerToken` at
+  once. Bedrock declares `:ai_completions`; both carry step-by-step setup
+  instructions (#707).
+
+- **`mix phoenix_kit.doctor` gained "Oban Cron Queues"** — reports crontab
+  entries whose queue this node does not run, resolving queues the way
+  `Oban.Plugins.Cron` does and staying quiet where a warning would be wrong
+  (`queues: false`, `queues: []`, `testing: :inline | :manual`). Its warning says
+  what taking the advice will do: configuring the queue releases the whole
+  backlog at once (#710).
+
+- `aws_ses` "Test connection" now reports the account id and which management
+  APIs the key may use (SES/SQS/SNS), via the same `CredentialsVerifier` sweep
+  the Emails settings page runs. Strictly additive — the send-quota probe remains
+  the verdict, and enrichment failing can never downgrade it (#707).
 
 ### Fixed
+
+- **The scheduled-jobs sweep died before doing any work, at `:debug`.**
+  `ProcessScheduledJobsWorker.perform/1` logged `job.id`, but `ScheduledJob`'s
+  key is `:uuid`. `Logger.debug` defers evaluation, so at `:info` the
+  interpolation never ran and the mistake stayed invisible; at `:debug` it raised
+  `KeyError` before reaching `process_pending_jobs/0`, and with `max_attempts: 1`
+  Oban discarded the sweep rather than retrying. A host running debug logging
+  published nothing at all, silently, for as long as it ran (#710).
+
+- **Upgrading never added the `scheduled_jobs` queue.** The crontab entry entered
+  the generated config on 2025-12-28 without it; the fresh-install block was
+  fixed in 1.7.63 but the upgrade path had no helper for that queue, so hosts
+  installed in between were never repaired — one was found 15 days in with 21,337
+  jobs stuck in `available`, growing ~1,440/day, because Pruner deletes terminal
+  states only. `ensure_scheduled_jobs_queue/2` fills the gap (#710).
+
+- **Every `ensure_*_queue` helper now shares one hardened implementation.** The
+  six that predated `scheduled_jobs` each hand-rolled the same string surgery on
+  the host's `queues:` list and reproduced the same defects — worse than the
+  missing queue, because a bad insert *corrupts* `config.exs`: `queues: [\n]`
+  wrote `queues: [,`, a nested `default: [limit: 10]` swallowed the insert into
+  an option Oban rejects at boot, and an Oban block with no `queues:` of its own
+  let the scan walk into a neighbouring application's config. Their unanchored
+  guards were also satisfied by a key merely *ending* in the queue's name, so a
+  host's own `push_notifications: 5` silently suppressed the real
+  `notifications` queue.
+
+- **The cron migration claimed to replace the old posts worker and did not.** The
+  replacement literal named `PhoenixKit.Posts.Workers.PublishScheduledPostsJob`,
+  a module in no repo — the real one is `PhoenixKitPosts.Workers.…`. The guard
+  matched, the replace found nothing, and being `cond`'s first clause it shadowed
+  every later case, so the core worker was never added either: an upgrading host
+  kept the old entry, gained nothing, and was told the opposite. Hosts running
+  both entries are now told to remove one rather than silently given a duplicate
+  (#710).
+
+- **The editor bundle is pinned to the leaf release we actually resolve.** The
+  CDN tag still served v0.3.2 while hex resolved 0.5.1 — almost everything leaf
+  adds is a server↔client contract, so the stale bundle rendered an identical
+  editor and quietly stopped implementing what the server expected. A test now
+  compares the pin against `Application.spec(:leaf, :vsn)` so the two cannot
+  drift again (#709).
+
+- The Organization settings page no longer builds country labels by
+  concatenating a nilable flag, which would have raised `ArgumentError` in
+  `load_settings/1` and taken the whole page down. Every current
+  `beamlab_countries` row carries a flag; this stops depending on that.
 
 - **Role rows are no longer a deadlock hotspot.** Every insert into
   `phoenix_kit_user_role_assignments` makes PostgreSQL take a `FOR KEY SHARE`
@@ -29,6 +122,10 @@
 
 - Fixed a call to the nonexistent `PhoenixKit.repo/0` in the notifications
   inbox-grouping test (`RepoHelper.repo/0`), which had never run.
+
+### i18n
+
+- New msgids for the Main countries card (`et`, `ru`, `en`) (#708).
 
 ## 2.2.0 - 2026-08-11
 

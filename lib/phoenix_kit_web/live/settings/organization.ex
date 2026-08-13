@@ -125,7 +125,7 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
     |> Enum.map(fn {code, index} ->
       %{
         code: code,
-        label: CountryData.get_flag(code) <> " " <> CountryData.get_country_name(code),
+        label: country_label(code),
         first?: index == 0,
         last?: index == last
       }
@@ -136,12 +136,23 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
     country
     |> CountryData.suggested_priority()
     |> Enum.reject(&MapSet.member?(chosen, &1))
-    |> Enum.map(fn code ->
-      %{
-        code: code,
-        label: CountryData.get_flag(code) <> " " <> CountryData.get_country_name(code)
-      }
-    end)
+    |> Enum.map(fn code -> %{code: code, label: country_label(code)} end)
+  end
+
+  # Same shape as CountryData's own select entries — flag, space, localized
+  # name — and defensive about the flag for the same reason its `select_entry/2`
+  # is: the struct field is nilable and blank on some rows in other datasets,
+  # and `nil <> " "` is an ArgumentError that would take the whole settings
+  # page down. Every one of beamlab_countries 1.1.0's 250 rows carries a flag,
+  # so this is about not depending on that.
+  defp country_label(code) do
+    name = CountryData.get_country_name(code) || code
+
+    case CountryData.get_flag(code) do
+      nil -> name
+      "" -> name
+      flag -> flag <> " " <> name
+    end
   end
 
   defp assign_tax_settings(socket, _company_info) do
