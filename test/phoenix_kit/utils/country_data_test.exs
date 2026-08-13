@@ -78,9 +78,13 @@ defmodule PhoenixKit.Utils.CountryDataTest do
       assert hd(result) == {"🇪🇪 Estonia", "EE"}
     end
 
-    test "defaults to the configured priority" do
+    test "pins nothing when no priority is given or stored" do
+      # There is no compile-time config underneath the setting, so an
+      # untouched install must be plain alphabetical. Setting the old config
+      # key must have no effect whatsoever.
       Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
-      assert hd(CountryData.countries_for_select(locale: "en")) == {"🇫🇮 Finland", "FI"}
+
+      assert hd(CountryData.countries_for_select(locale: "en")) == {"🇦🇫 Afghanistan", "AF"}
     end
 
     test "sorts the unpinned remainder alphabetically, accents folded" do
@@ -144,57 +148,47 @@ defmodule PhoenixKit.Utils.CountryDataTest do
     defp put_priority_setting(value),
       do: PhoenixKit.Cache.put(:settings, "country_select_priority", value)
 
-    test "the setting wins over the config" do
-      Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
+    test "the stored setting pins the countries" do
       put_priority_setting("EE, LV")
 
       assert CountryData.countries_for_select(locale: "en") |> Enum.take(2) == [
-               {"🇪🇪 Estonia", "EE"},
-               {"🇱🇻 Latvia", "LV"}
+               {"\u{1F1EA}\u{1F1EA} Estonia", "EE"},
+               {"\u{1F1F1}\u{1F1FB} Latvia", "LV"}
              ]
     end
 
-    test "a blank setting falls back to the config" do
-      Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
+    test "a blank setting pins nothing" do
       put_priority_setting("")
 
-      assert hd(CountryData.countries_for_select(locale: "en")) == {"🇫🇮 Finland", "FI"}
+      assert hd(CountryData.countries_for_select(locale: "en")) ==
+               {"\u{1F1E6}\u{1F1EB} Afghanistan", "AF"}
     end
 
-    test "an absent setting (never primed) falls back to the config" do
-      Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
-      # No put_priority_setting call: nothing was ever written for this key,
-      # simulating a host that never opened the settings page — as distinct
-      # from "a blank setting" above, which IS a written, empty row.
-
-      assert hd(CountryData.countries_for_select(locale: "en")) == {"🇫🇮 Finland", "FI"}
+    test "an absent setting pins nothing" do
+      # No put_priority_setting call: a host that never opened the settings
+      # page. Nothing is pinned — there is no config underneath to inherit.
+      assert hd(CountryData.countries_for_select(locale: "en")) ==
+               {"\u{1F1E6}\u{1F1EB} Afghanistan", "AF"}
     end
 
-    test "an explicit :priority still overrides both" do
+    test "the old config key is ignored entirely" do
       Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
       put_priority_setting("EE")
 
+      assert hd(CountryData.countries_for_select(locale: "en")) ==
+               {"\u{1F1EA}\u{1F1EA} Estonia", "EE"}
+
+      put_priority_setting("")
+
+      assert hd(CountryData.countries_for_select(locale: "en")) ==
+               {"\u{1F1E6}\u{1F1EB} Afghanistan", "AF"}
+    end
+
+    test "an explicit :priority overrides the setting" do
+      put_priority_setting("EE")
+
       assert hd(CountryData.countries_for_select(locale: "en", priority: ["LV"])) ==
-               {"🇱🇻 Latvia", "LV"}
-    end
-
-    test "a stored \"none\" sentinel beats the config" do
-      Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
-      put_priority_setting(CountryData.none_priority_value())
-
-      assert CountryData.countries_for_select(locale: "en") ==
-               CountryData.countries_for_select(locale: "en", priority: [])
-    end
-
-    test "the stored sentinel is recognized case-insensitively and trimmed" do
-      Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
-      unpinned = CountryData.countries_for_select(locale: "en", priority: [])
-
-      for stored <- ["NONE", "None", " none ", "\tnone\n"] do
-        put_priority_setting(stored)
-
-        assert CountryData.countries_for_select(locale: "en") == unpinned
-      end
+               {"\u{1F1F1}\u{1F1FB} Latvia", "LV"}
     end
   end
 
@@ -221,40 +215,46 @@ defmodule PhoenixKit.Utils.CountryDataTest do
     end
   end
 
-  describe "none_priority?/1 and none_priority_value/0" do
-    test "recognizes the sentinel case-insensitively and trimmed" do
-      assert CountryData.none_priority?("none")
-      assert CountryData.none_priority?("NONE")
-      assert CountryData.none_priority?("None")
-      assert CountryData.none_priority?(" none ")
-      assert CountryData.none_priority?("\tnone\n")
+  describe "suggested_priority/2" do
+    test "puts the host's own country first, then its nearest neighbours" do
+      assert ["EE" | neighbours] = CountryData.suggested_priority("EE", limit: 4)
+      assert "LV" in neighbours
+      assert "FI" in neighbours
+      assert length(neighbours) == 4
     end
 
-    test "rejects everything else, including near-misses" do
-      refute CountryData.none_priority?("EE")
-      refute CountryData.none_priority?("")
-      refute CountryData.none_priority?("none, EE")
-      refute CountryData.none_priority?("noneEE")
-      refute CountryData.none_priority?(nil)
-      refute CountryData.none_priority?(:none)
+    test "works anywhere, not just where the library was written" do
+      # The point of deriving this from the data rather than from a constant:
+      # a host in Germany or Singapore must get ITS neighbours.
+      assert ["DE" | de] = CountryData.suggested_priority("DE", limit: 3)
+      assert "NL" in de or "LU" in de
+
+      assert ["SG" | sg] = CountryData.suggested_priority("SG", limit: 3)
+      assert "MY" in sg
+      refute "EE" in sg
     end
 
-    test "the canonical value round-trips through the check" do
-      assert CountryData.none_priority_value() == "none"
-      assert CountryData.none_priority?(CountryData.none_priority_value())
+    test "never repeats the origin country" do
+      codes = CountryData.suggested_priority("EE", limit: 6)
+      assert Enum.count(codes, &(&1 == "EE")) == 1
+      assert codes == Enum.uniq(codes)
     end
 
-    test "the sentinel is not a real country code, so known_country_codes/1 would drop it" do
-      # This is why the settings form must check `none_priority?/1` BEFORE
-      # running the typed value through `parse_priority/1` and
-      # `known_country_codes/1`: without that check, "none" is just another
-      # unrecognized code and gets silently dropped like any other, storing
-      # blank instead of the sentinel.
-      refute CountryData.exists?(CountryData.none_priority_value())
+    test "honours :limit, including zero" do
+      assert length(CountryData.suggested_priority("EE", limit: 0)) == 1
+      assert length(CountryData.suggested_priority("EE", limit: 1)) == 2
+      assert length(CountryData.suggested_priority("EE")) == 5
+    end
 
-      assert CountryData.none_priority_value()
-             |> CountryData.parse_priority()
-             |> CountryData.known_country_codes() == []
+    test "answers [] for a code that names no country" do
+      assert CountryData.suggested_priority("XX") == []
+      assert CountryData.suggested_priority(nil) == []
+      assert CountryData.suggested_priority(123) == []
+    end
+
+    test "returns codes that are all real countries" do
+      codes = CountryData.suggested_priority("EE", limit: 8)
+      assert CountryData.known_country_codes(codes) == codes
     end
   end
 

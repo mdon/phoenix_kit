@@ -34,8 +34,6 @@ defmodule PhoenixKit.Utils.CountryData do
   alias PhoenixKit.Settings
   alias PhoenixKitBilling.IbanData
 
-  @none_priority "none"
-
   @doc """
   Get all countries sorted by name.
 
@@ -324,18 +322,15 @@ defmodule PhoenixKit.Utils.CountryData do
 
     * `:priority` — alpha-2 codes pinned to the top of the list, in the order
       given; everything else follows alphabetically. A non-list value is
-      treated as `[]`. The default comes from, in order: the
-      `country_select_priority` setting (Admin → Settings → Organization,
-      where an operator can reorder the dropdown without a deploy), then
-      `config :phoenix_kit, :country_select_priority` when that setting is
-      blank or unset. A stored value of `"none"` (case-insensitive, trimmed
-      — see `none_priority?/1`) is an explicit sentinel meaning "pin
-      nothing"; it is honoured over the config, which is the only way an
-      operator can disable pinning on a host that has the config set
-      without a deploy — a blank/absent setting can't be told apart from
-      "not configured" and falls back to the config just the same. A host
-      that serves one region can therefore put its own countries first
-      without touching any call site.
+      treated as `[]`. The default is the `country_select_priority` setting
+      (Admin → Settings → Organization), and nothing else: **there is no
+      compile-time config**, deliberately. A default baked into the library
+      would pin whatever countries its author serves, so every other host
+      would install it and find the dropdown already reordered before anyone
+      chose anything. Until an operator stores a list, nothing is pinned and
+      the order is plain alphabetical; `suggested_priority/2` is what the
+      settings UI offers them as a starting point, derived from their own
+      country rather than from a constant.
 
   `opts` itself must be a keyword list — a map or a bare string raises
   `FunctionClauseError` naming this function rather than `Keyword`.
@@ -521,35 +516,25 @@ defmodule PhoenixKit.Utils.CountryData do
     end
   end
 
-  # The admin-editable setting wins over the compile-time config, so an
-  # operator can reorder the dropdown without a deploy. A blank or absent
-  # setting means "not configured" and falls through to the config, which
-  # keeps every host that never opens the settings page working as before.
-  # A stored value of `"none"` (see `none_priority?/1`) is an explicit
-  # sentinel meaning "pin nothing", honoured over the config — the only way
-  # an operator can disable pinning on a host that has the config set,
-  # since a blank/absent setting can't be told apart from "not configured"
-  # at the settings layer.
+  # The stored setting is the ONLY source. There is deliberately no
+  # compile-time config fallback: a default baked into the library would
+  # pin whatever countries its author happens to serve, and every other
+  # host installs it to find a list already filtered before anyone chose
+  # anything. Nothing is pinned until an operator says so — see
+  # `suggested_priority/2` for how the settings UI proposes a starting
+  # list from the organization's own country instead of from a constant.
   #
   # Read through the cache: this runs on the hot path, and
   # `get_setting_cached/2` is consulted before the update-mode
   # short-circuit, so a primed key resolves without a database at all.
   # `Settings.get_setting_cached/2` — and the `get_setting/2` it falls back
   # to on a cache error — already rescue AND catch `:exit` internally, so
-  # the country list degrading to the config when the database is
-  # unreachable is handled entirely by the Settings layer, not by this
-  # function.
+  # an unreachable database degrades to "nothing pinned" rather than
+  # raising, without this function handling anything itself.
   defp configured_priority do
-    raw = Settings.get_setting_cached("country_select_priority", "")
-
-    if none_priority?(raw) do
-      []
-    else
-      case parse_priority(raw) do
-        [] -> Application.get_env(:phoenix_kit, :country_select_priority, [])
-        codes -> codes
-      end
-    end
+    "country_select_priority"
+    |> Settings.get_setting_cached("")
+    |> parse_priority()
   end
 
   @doc """
@@ -599,47 +584,95 @@ defmodule PhoenixKit.Utils.CountryData do
   def known_country_codes(_), do: []
 
   @doc """
-  The sentinel value for the `country_select_priority` setting that means
-  "pin nothing", honoured over `config :phoenix_kit,
-  :country_select_priority` by `countries_for_select/1` and
-  `eu_countries_for_select/1` (see `configured_priority/0`). A caller that
-  writes the setting (the Organization settings form) should store this
-  exact value rather than hardcoding the literal string, so the write side
-  and `none_priority?/1` never drift apart.
+  Suggest a starting priority list for a host based in `country_code`.
+
+  Returns that country first, then its nearest neighbours by great-circle
+  distance between country centroids — so a host in Estonia is offered
+  Latvia, Finland, Lithuania and Sweden, one in Germany gets Luxembourg,
+  the Netherlands, Czechia and Belgium, and one in Singapore gets Malaysia,
+  Indonesia and Cambodia. The point is that it is derived from the host's
+  own data rather than from a constant baked in by whoever wrote the
+  library.
+
+  This is a *suggestion* for the settings UI to offer, never applied on its
+  own: nothing is pinned until an operator stores a list. The result can
+  include dependent territories (Åland is the second-nearest thing to
+  Estonia) — the data has no "sovereign state" flag — so the operator is
+  expected to prune it.
+
+  Dissolved countries are excluded. Countries with no coordinates cannot be
+  ranked and are skipped.
+
+  ## Options
+
+    * `:limit` — how many neighbours to add after the country itself.
+      Defaults to 4.
 
   ## Examples
 
-      iex> CountryData.none_priority_value()
-      "none"
+      iex> CountryData.suggested_priority("EE", limit: 2)
+      ["EE", "LV", "AX"]
+
+      iex> CountryData.suggested_priority("XX")
+      []
   """
-  def none_priority_value, do: @none_priority
+  def suggested_priority(country_code, opts \\ [])
 
-  @doc """
-  True if `value`, trimmed and downcased, is the `"none"` sentinel.
+  def suggested_priority(country_code, opts) when is_binary(country_code) and is_list(opts) do
+    limit = Keyword.get(opts, :limit, 4)
 
-  This is the only way to disable country-priority pinning on a host that
-  has `config :phoenix_kit, :country_select_priority` set: a blank or
-  absent setting can't be told apart from "not configured"
-  (`Settings.get_setting_cached/2` returns the default for both) and falls
-  back to the config either way, so an operator needs an explicit value
-  that means "pin nothing" instead.
+    case get_country(country_code) do
+      %{geo: %{latitude: lat, longitude: lon}} = origin when is_number(lat) and is_number(lon) ->
+        [origin.alpha2 | nearest_codes(origin, limit)]
 
-  ## Examples
+      %{} = origin ->
+        [origin.alpha2]
 
-      iex> CountryData.none_priority?("none")
-      true
-
-      iex> CountryData.none_priority?(" NONE ")
-      true
-
-      iex> CountryData.none_priority?("EE")
-      false
-  """
-  def none_priority?(value) when is_binary(value) do
-    value |> String.trim() |> String.downcase() == @none_priority
+      _ ->
+        []
+    end
   end
 
-  def none_priority?(_), do: false
+  def suggested_priority(_, _), do: []
+
+  defp nearest_codes(origin, limit) when limit > 0 do
+    BeamLabCountries.all()
+    |> Enum.filter(&rankable_neighbour?(&1, origin))
+    |> Enum.sort_by(&distance_km(origin, &1))
+    |> Enum.take(limit)
+    |> Enum.map(& &1.alpha2)
+  end
+
+  defp nearest_codes(_origin, _limit), do: []
+
+  defp rankable_neighbour?(
+         %{alpha2: code, dissolved_on: nil, geo: %{latitude: lat, longitude: lon}},
+         origin
+       )
+       when is_number(lat) and is_number(lon),
+       do: code != origin.alpha2
+
+  defp rankable_neighbour?(_, _), do: false
+
+  # Haversine over the country centroids the dataset carries. Centroids are a
+  # coarse proxy for "neighbouring" — a large country's centroid can sit far
+  # from the border it shares with the origin — but the dataset has no border
+  # list, and the result only has to be a plausible starting point an operator
+  # then edits.
+  defp distance_km(a, b) do
+    lat1 = deg_to_rad(a.geo.latitude)
+    lat2 = deg_to_rad(b.geo.latitude)
+    dlat = lat2 - lat1
+    dlon = deg_to_rad(b.geo.longitude - a.geo.longitude)
+
+    h =
+      :math.pow(:math.sin(dlat / 2), 2) +
+        :math.cos(lat1) * :math.cos(lat2) * :math.pow(:math.sin(dlon / 2), 2)
+
+    6371 * 2 * :math.asin(min(1.0, :math.sqrt(h)))
+  end
+
+  defp deg_to_rad(degrees), do: degrees * :math.pi() / 180
 
   defp normalize_priority(codes) when is_list(codes) do
     codes

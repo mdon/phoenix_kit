@@ -48,24 +48,6 @@
               </div>
             </div>
 
-            <%!-- Row: countries pinned to the top of every country dropdown --%>
-            <div class="form-control">
-              <.input
-                type="text"
-                name="country_priority"
-                value={@country_priority}
-                label={gettext("Preferred countries")}
-                placeholder="EE, FI, LV, LT, SE"
-              />
-              <label class="label">
-                <span class="label-text-alt">
-                  {gettext(
-                    "Two-letter country codes, in the order they should appear at the top of every country dropdown. Unknown codes are dropped on save. Leave empty to use the application config, or enter \"none\" to disable pinning entirely."
-                  )}
-                </span>
-              </label>
-            </div>
-
             <div class="divider text-xs">{gettext("Address")}</div>
 
             <%!-- Row: Street Address --%>
@@ -174,8 +156,111 @@
         </div>
       </div>
 
-      <%!-- Right column: Bank + Tax + Site URL stacked --%>
+      <%!-- Right column: Main countries + Bank + Tax + Site URL stacked --%>
       <div class="space-y-6">
+        <%!-- Main countries --%>
+        <div class="card bg-base-100 shadow-xl">
+          <div class="card-body">
+            <h2 class="card-title">
+              <.icon name="hero-map-pin" class="w-5 h-5" />
+              {gettext("Main countries")}
+            </h2>
+            <p class="text-sm text-base-content/60">
+              {gettext("Shown at the top of every country list, in this order")}
+            </p>
+
+            <%= if @main_country_rows == [] do %>
+              <p class="text-sm text-base-content/50 mt-4">
+                {gettext("Nothing chosen yet — country lists are plain alphabetical.")}
+              </p>
+            <% else %>
+              <ul class="mt-4 divide-y divide-base-200">
+                <li
+                  :for={row <- @main_country_rows}
+                  class="flex items-center gap-1 py-2"
+                >
+                  <span class="grow truncate">{row.label}</span>
+
+                  <button
+                    type="button"
+                    phx-click="move_main_country"
+                    phx-value-code={row.code}
+                    phx-value-direction="up"
+                    class="btn btn-ghost btn-xs"
+                    disabled={row.first?}
+                    aria-label={gettext("Move up")}
+                  >
+                    <.icon name="hero-chevron-up" class="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    phx-click="move_main_country"
+                    phx-value-code={row.code}
+                    phx-value-direction="down"
+                    class="btn btn-ghost btn-xs"
+                    disabled={row.last?}
+                    aria-label={gettext("Move down")}
+                  >
+                    <.icon name="hero-chevron-down" class="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    phx-click="remove_main_country"
+                    phx-value-code={row.code}
+                    class="btn btn-ghost btn-xs text-error"
+                    aria-label={gettext("Remove")}
+                  >
+                    <.icon name="hero-x-mark" class="w-4 h-4" />
+                  </button>
+                </li>
+              </ul>
+            <% end %>
+
+            <%= if @main_country_suggestion != [] do %>
+              <div class="alert alert-info mt-4 flex-col items-start gap-2">
+                <span class="text-sm">
+                  {gettext("Based on your country: %{countries}",
+                    countries:
+                      Enum.map_join(@main_country_suggestion, ", ", fn suggested ->
+                        suggested.label
+                      end)
+                  )}
+                </span>
+                <button
+                  type="button"
+                  phx-click="apply_main_country_suggestion"
+                  class="btn btn-sm"
+                >
+                  <.icon name="hero-plus" class="w-4 h-4" />
+                  {gettext("Add these")}
+                </button>
+              </div>
+            <% end %>
+
+            <form
+              id="main-countries-add"
+              phx-submit="add_main_country"
+              class="flex items-end gap-2 mt-4"
+            >
+              <div class="grow">
+                <.select
+                  name="code"
+                  value=""
+                  options={@main_country_options}
+                  prompt={gettext("Select country...")}
+                  label={gettext("Add a country")}
+                />
+              </div>
+              <button type="submit" class="btn btn-primary">
+                <.icon name="hero-plus" class="w-4 h-4" />
+                {gettext("Add")}
+              </button>
+            </form>
+          </div>
+        </div>
+
         <%!-- Bank Details --%>
         <div class="card bg-base-100 shadow-xl">
           <div class="card-body">

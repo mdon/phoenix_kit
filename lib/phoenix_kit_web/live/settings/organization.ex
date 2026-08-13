@@ -84,7 +84,61 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
     |> assign(:countries, CountryData.countries_for_select())
     |> assign(:subdivision_label, get_subdivision_label(country))
     |> assign(:eu_country, eu_country?(country))
-    |> assign(:country_priority, Settings.get_setting_cached("country_select_priority", ""))
+    |> assign_main_countries(stored_main_countries(), country)
+  end
+
+  defp stored_main_countries do
+    "country_select_priority"
+    |> Settings.get_setting_cached("")
+    |> CountryData.parse_priority()
+    |> CountryData.known_country_codes()
+  end
+
+  # Everything the card renders is precomputed here rather than called from
+  # the template: a `defp` invoked from HEEX cannot be verified by the
+  # compiler. `:main_country_suggestion` is what the host's own country
+  # proposes and is deliberately empty once every suggested code is already
+  # in the list — there is nothing left to offer.
+  defp assign_main_countries(socket, codes, country) do
+    chosen = MapSet.new(codes)
+
+    socket
+    |> assign(:main_countries, codes)
+    |> assign(:main_country_rows, main_country_rows(codes))
+    |> assign(
+      :main_country_options,
+      Enum.reject(CountryData.countries_for_select(), fn {_label, code} ->
+        MapSet.member?(chosen, code)
+      end)
+    )
+    |> assign(:main_country_suggestion, main_country_suggestion(country, chosen))
+  end
+
+  defp main_country_rows(codes) do
+    last = length(codes) - 1
+
+    codes
+    |> Enum.with_index()
+    |> Enum.map(fn {code, index} ->
+      %{
+        code: code,
+        label: CountryData.get_flag(code) <> " " <> CountryData.get_country_name(code),
+        first?: index == 0,
+        last?: index == last
+      }
+    end)
+  end
+
+  defp main_country_suggestion(country, chosen) do
+    country
+    |> CountryData.suggested_priority()
+    |> Enum.reject(&MapSet.member?(chosen, &1))
+    |> Enum.map(fn code ->
+      %{
+        code: code,
+        label: CountryData.get_flag(code) <> " " <> CountryData.get_country_name(code)
+      }
+    end)
   end
 
   defp assign_tax_settings(socket, _company_info) do
@@ -136,29 +190,45 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
   def handle_event("save_company", params, socket) do
     data = extract_company_data(params)
 
-    # The country-priority list is an independent setting from the rest of
-    # the company form — it must persist whether or not the company data
-    # below validates, so it is saved unconditionally here rather than from
-    # inside the `[] ->` branch.
-    priority_result = save_country_priority(params["country_priority"])
+    case validate_company_data(data) do
+      [] ->
+        save_company_info(data, params)
 
-    socket =
-      case validate_company_data(data) do
-        [] ->
-          save_company_info(data, params)
+        # Broadcast to all admin sessions
+        broadcast_settings_change(:company_info_updated)
 
-          # Broadcast to all admin sessions
-          broadcast_settings_change(:company_info_updated)
+        {:noreply,
+         socket
+         |> load_settings()
+         |> put_flash(:info, gettext("Organization information saved"))}
 
-          socket
-          |> load_settings()
-          |> put_flash(:info, gettext("Organization information saved"))
+      errors ->
+        {:noreply, put_flash(socket, :error, Enum.join(errors, ". "))}
+    end
+  end
 
-        errors ->
-          put_flash(socket, :error, Enum.join(errors, ". "))
-      end
+  # The main-countries card writes on every action rather than behind a save
+  # button: each click is already a deliberate edit, and there is no second
+  # field whose validation could hold the list hostage.
+  def handle_event("add_main_country", %{"code" => code}, socket) do
+    {:noreply, put_main_countries(socket, socket.assigns.main_countries ++ [code])}
+  end
 
-    {:noreply, put_country_priority_flash(socket, priority_result)}
+  def handle_event("add_main_country", _params, socket), do: {:noreply, socket}
+
+  def handle_event("remove_main_country", %{"code" => code}, socket) do
+    {:noreply,
+     put_main_countries(socket, Enum.reject(socket.assigns.main_countries, &(&1 == code)))}
+  end
+
+  def handle_event("move_main_country", %{"code" => code, "direction" => direction}, socket) do
+    {:noreply, put_main_countries(socket, move(socket.assigns.main_countries, code, direction))}
+  end
+
+  def handle_event("apply_main_country_suggestion", _params, socket) do
+    suggested = Enum.map(socket.assigns.main_country_suggestion, & &1.code)
+
+    {:noreply, put_main_countries(socket, socket.assigns.main_countries ++ suggested)}
   end
 
   def handle_event("save_tax", params, socket) do
@@ -355,74 +425,47 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
     Settings.update_json_setting("company_info", company_info)
   end
 
-  # Stored normalized — upper-cased, deduplicated, unknown codes dropped — so
-  # what the operator sees after saving is exactly what the dropdown will do.
-  # Blank clears the setting, which hands the default back to
-  # `config :phoenix_kit, :country_select_priority`. Typing the literal word
-  # "none" (case-insensitive, trimmed — `CountryData.none_priority?/1`)
-  # stores the sentinel `CountryData.configured_priority/0` honours over
-  # that config, so it must be checked BEFORE `known_country_codes/1` runs —
-  # "none" is not a real country code and would otherwise be silently
-  # dropped just like any other unknown one, storing blank instead of the
-  # sentinel and leaving pinning impossible to turn off.
-  #
-  # Returns `{:ok, %{kept: [...], rejected: [...]}}` — the codes actually
-  # stored and the ones the operator typed that name no real country, for
-  # the caller to report — or `{:error, changeset}` if the write itself
-  # failed (e.g. over the settings value's 1000-character cap).
-  defp save_country_priority(value) do
-    trimmed = (value || "") |> String.trim()
+  # Only real, deduplicated country codes ever reach the setting: the card
+  # offers a picker over the country list, so there is no free text to
+  # sanitize, and `known_country_codes/1` is the belt-and-braces guard on a
+  # forged phx-value. An empty list means nothing is pinned and every country
+  # list is plain alphabetical — the setting is the only source, there is no
+  # config underneath it.
+  defp put_main_countries(socket, codes) do
+    codes =
+      codes
+      |> Enum.map(&String.upcase/1)
+      |> Enum.uniq()
+      |> CountryData.known_country_codes()
 
-    if CountryData.none_priority?(trimmed) do
-      write_country_priority(CountryData.none_priority_value(), %{kept: [], rejected: []})
-    else
-      typed = CountryData.parse_priority(trimmed)
-      known = CountryData.known_country_codes(typed)
-      rejected = typed -- known
+    case Settings.update_setting("country_select_priority", Enum.join(codes, ", ")) do
+      {:ok, _setting} ->
+        assign_main_countries(socket, codes, socket.assigns.company_country)
 
-      write_country_priority(Enum.join(known, ", "), %{kept: known, rejected: rejected})
+      {:error, _changeset} ->
+        put_flash(socket, :error, gettext("Main countries could not be saved"))
     end
   end
 
-  defp write_country_priority(stored_value, outcome) do
-    case Settings.update_setting("country_select_priority", stored_value) do
-      {:ok, _setting} -> {:ok, outcome}
-      {:error, changeset} -> {:error, changeset}
+  defp move(codes, code, direction) do
+    case Enum.find_index(codes, &(&1 == code)) do
+      nil -> codes
+      index -> swap(codes, index, target_index(index, direction, length(codes)))
     end
   end
 
-  # A partial drop still saved something, so it rides alongside whatever
-  # flash the company-info save already produced. A total drop (something
-  # was typed, nothing survived) gets the same treatment — it must not be
-  # silently folded into an unqualified "saved" flash — but says so plainly
-  # rather than implying a partial success. Both are :error, matching this
-  # LiveView's only two flash kinds; company_info's own flash is untouched
-  # either way.
-  defp put_country_priority_flash(socket, {:ok, %{rejected: []}}), do: socket
+  defp target_index(index, "up", _length), do: max(index - 1, 0)
+  defp target_index(index, "down", length), do: min(index + 1, length - 1)
+  defp target_index(index, _direction, _length), do: index
 
-  defp put_country_priority_flash(socket, {:ok, %{kept: [], rejected: rejected}}) do
-    put_flash(
-      socket,
-      :error,
-      gettext(
-        "None of the preferred-country codes you entered are valid, so preferred countries was cleared: %{codes}",
-        codes: Enum.join(rejected, ", ")
-      )
-    )
-  end
+  defp swap(codes, index, index), do: codes
 
-  defp put_country_priority_flash(socket, {:ok, %{rejected: rejected}}) do
-    put_flash(
-      socket,
-      :error,
-      gettext("Preferred countries saved, but ignored unrecognized code(s): %{codes}",
-        codes: Enum.join(rejected, ", ")
-      )
-    )
-  end
+  defp swap(codes, from, to) do
+    moved = Enum.at(codes, from)
 
-  defp put_country_priority_flash(socket, {:error, _changeset}) do
-    put_flash(socket, :error, gettext("Preferred countries could not be saved"))
+    codes
+    |> List.delete_at(from)
+    |> List.insert_at(to, moved)
   end
 
   defp save_bank_details(params, iban, swift) do
