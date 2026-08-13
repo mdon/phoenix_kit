@@ -116,6 +116,60 @@ defmodule PhoenixKit.Utils.CountryDataTest do
     end
   end
 
+  describe "countries_for_select/1 priority from settings" do
+    # The settings cache is consulted before the update-mode short-circuit, so
+    # priming it exercises the real read path with no database involved. The
+    # cache is a globally named process, hence async: false for the file.
+    setup do
+      start_supervised!({PhoenixKit.Cache.Registry, []})
+      start_supervised!({PhoenixKit.Cache, name: :settings})
+      :ok
+    end
+
+    defp put_priority_setting(value),
+      do: PhoenixKit.Cache.put(:settings, "country_select_priority", value)
+
+    test "the setting wins over the config" do
+      Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
+      put_priority_setting("EE, LV")
+
+      assert CountryData.countries_for_select(locale: "en") |> Enum.take(2) == [
+               {"🇪🇪 Estonia", "EE"},
+               {"🇱🇻 Latvia", "LV"}
+             ]
+    end
+
+    test "a blank setting falls back to the config" do
+      Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
+      put_priority_setting("")
+
+      assert hd(CountryData.countries_for_select(locale: "en")) == {"🇫🇮 Finland", "FI"}
+    end
+
+    test "an explicit :priority still overrides both" do
+      Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
+      put_priority_setting("EE")
+
+      assert hd(CountryData.countries_for_select(locale: "en", priority: ["LV"])) ==
+               {"🇱🇻 Latvia", "LV"}
+    end
+  end
+
+  describe "parse_priority/1 and known_country_codes/1" do
+    test "parses the separators an operator actually types" do
+      assert CountryData.parse_priority("EE, FI ; lv") == ["EE", "FI", "LV"]
+      assert CountryData.parse_priority("ee\nfi") == ["EE", "FI"]
+      assert CountryData.parse_priority("EE, EE") == ["EE"]
+      assert CountryData.parse_priority("") == []
+      assert CountryData.parse_priority(nil) == []
+    end
+
+    test "drops codes that name no country" do
+      assert CountryData.known_country_codes(["EE", "ZZ", "FI"]) == ["EE", "FI"]
+      assert CountryData.known_country_codes(["", nil, :ee]) == []
+    end
+  end
+
   describe "get_country_name/2" do
     test "translates into the requested locale" do
       assert CountryData.get_country_name("EE", locale: "ru") == "Эстония"

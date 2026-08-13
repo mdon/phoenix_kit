@@ -321,10 +321,13 @@ defmodule PhoenixKit.Utils.CountryData do
       only ever loses the translation, never the entry.
 
     * `:priority` — alpha-2 codes pinned to the top of the list, in the order
-      given; everything else follows alphabetically. Defaults to
-      `config :phoenix_kit, :country_select_priority`, so a host that serves
-      one region can put its own countries first without touching call sites.
-      A non-list value is treated as `[]`.
+      given; everything else follows alphabetically. A non-list value is
+      treated as `[]`. The default comes from, in order: the
+      `country_select_priority` setting (Admin → Settings → Organization,
+      where an operator can reorder the dropdown without a deploy), then
+      `config :phoenix_kit, :country_select_priority` when that setting is
+      blank or unset. A host that serves one region can therefore put its own
+      countries first without touching any call site.
 
   `opts` itself must be a keyword list — a map or a bare string raises
   `FunctionClauseError` naming this function rather than `Keyword`.
@@ -497,9 +500,75 @@ defmodule PhoenixKit.Utils.CountryData do
 
   defp normalize_locale(_), do: nil
 
+  # The admin-editable setting wins over the compile-time config, so an
+  # operator can reorder the dropdown without a deploy. A missing or blank
+  # setting means "not configured" and falls through to the config, which
+  # keeps every host that never opens the settings page working as before.
+  #
+  # Read through the cache: this runs on the hot path, and `get_setting_cached/2`
+  # is consulted before the update-mode short-circuit, so a primed key resolves
+  # without a database at all. A settings read can raise on an unowned checkout
+  # AND exit on a dead pool, so both are caught — the country list must not
+  # depend on the database being up.
   defp configured_priority do
-    Application.get_env(:phoenix_kit, :country_select_priority, [])
+    case setting_priority() do
+      [] -> Application.get_env(:phoenix_kit, :country_select_priority, [])
+      codes -> codes
+    end
   end
+
+  defp setting_priority do
+    "country_select_priority"
+    |> Settings.get_setting_cached("")
+    |> parse_priority()
+  rescue
+    _ -> []
+  catch
+    :exit, _ -> []
+  end
+
+  @doc """
+  Split an operator-entered priority string into alpha-2 codes.
+
+  Accepts the separators a human actually types — commas, spaces, semicolons,
+  newlines — so `"EE, FI"`, `"ee fi"` and `"EE;FI"` all parse. Unknown codes
+  are kept here and dropped later by the same normalization every caller of
+  `:priority` goes through; use `known_country_codes/1` to report them.
+
+  ## Examples
+
+      iex> CountryData.parse_priority("EE, FI ; lv")
+      ["EE", "FI", "LV"]
+
+      iex> CountryData.parse_priority("")
+      []
+  """
+  def parse_priority(value) when is_binary(value) do
+    value
+    |> String.split([",", ";", " ", "\n", "\t"], trim: true)
+    |> Enum.map(&(&1 |> String.trim() |> String.upcase()))
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  def parse_priority(_), do: []
+
+  @doc """
+  Keep only the codes that name a real country, in the order given.
+
+  The counterpart of `parse_priority/1` for a settings form: it tells the
+  operator which of the codes they typed will actually pin something.
+
+  ## Examples
+
+      iex> CountryData.known_country_codes(["EE", "ZZ", "FI"])
+      ["EE", "FI"]
+  """
+  def known_country_codes(codes) when is_list(codes) do
+    Enum.filter(codes, fn code -> is_binary(code) and get_country(code) != nil end)
+  end
+
+  def known_country_codes(_), do: []
 
   defp normalize_priority(codes) when is_list(codes) do
     codes

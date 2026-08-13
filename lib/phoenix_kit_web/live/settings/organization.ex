@@ -84,6 +84,7 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
     |> assign(:countries, CountryData.countries_for_select())
     |> assign(:subdivision_label, get_subdivision_label(country))
     |> assign(:eu_country, eu_country?(country))
+    |> assign(:country_priority, Settings.get_setting("country_select_priority", ""))
   end
 
   defp assign_tax_settings(socket, _company_info) do
@@ -344,6 +345,20 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
       })
 
     Settings.update_json_setting("company_info", company_info)
+    save_country_priority(params["country_priority"])
+  end
+
+  # Stored normalized — upper-cased, deduplicated, unknown codes dropped — so
+  # what the operator sees after saving is exactly what the dropdown will do.
+  # Blank clears the setting, which hands the default back to
+  # `config :phoenix_kit, :country_select_priority`.
+  defp save_country_priority(value) do
+    codes =
+      value
+      |> CountryData.parse_priority()
+      |> CountryData.known_country_codes()
+
+    Settings.update_setting("country_select_priority", Enum.join(codes, ", "))
   end
 
   defp save_bank_details(params, iban, swift) do

@@ -48,6 +48,24 @@
               </div>
             </div>
 
+            <%!-- Row: countries pinned to the top of every country dropdown --%>
+            <div class="form-control">
+              <.input
+                type="text"
+                name="country_priority"
+                value={@country_priority}
+                label={gettext("Preferred countries")}
+                placeholder="EE, FI, LV, LT, SE"
+              />
+              <label class="label">
+                <span class="label-text-alt">
+                  {gettext(
+                    "Two-letter country codes, in the order they should appear at the top of every country dropdown. Unknown codes are dropped on save. Leave empty to use the application config."
+                  )}
+                </span>
+              </label>
+            </div>
+
             <div class="divider text-xs">{gettext("Address")}</div>
 
             <%!-- Row: Street Address --%>
