@@ -193,6 +193,28 @@
                   <span class="grow truncate">{row.label}</span>
                   <button
                     type="button"
+                    phx-click="move_main_country"
+                    phx-value-code={row.code}
+                    phx-value-direction="up"
+                    class="btn btn-ghost btn-xs"
+                    disabled={row.first?}
+                    aria-label={gettext("Move up")}
+                  >
+                    <.icon name="hero-chevron-up" class="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="move_main_country"
+                    phx-value-code={row.code}
+                    phx-value-direction="down"
+                    class="btn btn-ghost btn-xs"
+                    disabled={row.last?}
+                    aria-label={gettext("Move down")}
+                  >
+                    <.icon name="hero-chevron-down" class="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
                     phx-click="remove_main_country"
                     phx-value-code={row.code}
                     class="btn btn-ghost btn-xs text-error"

@@ -246,6 +246,14 @@ defmodule PhoenixKit.Utils.CountryDataTest do
       assert length(CountryData.suggested_priority("EE")) == 5
     end
 
+    test "falls back to the default instead of raising on a non-integer :limit" do
+      default = CountryData.suggested_priority("EE")
+
+      assert CountryData.suggested_priority("EE", limit: nil) == default
+      assert CountryData.suggested_priority("EE", limit: "4") == default
+      assert CountryData.suggested_priority("EE", limit: 2.5) == default
+    end
+
     test "answers [] for a code that names no country" do
       assert CountryData.suggested_priority("XX") == []
       assert CountryData.suggested_priority(nil) == []

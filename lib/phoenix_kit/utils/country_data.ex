@@ -588,11 +588,11 @@ defmodule PhoenixKit.Utils.CountryData do
 
   Returns that country first, then its nearest neighbours by great-circle
   distance between country centroids — so a host in Estonia is offered
-  Latvia, Finland, Lithuania and Sweden, one in Germany gets Luxembourg,
+  Latvia, Åland, Finland and Lithuania, one in Germany gets Luxembourg,
   the Netherlands, Czechia and Belgium, and one in Singapore gets Malaysia,
-  Indonesia and Cambodia. The point is that it is derived from the host's
-  own data rather than from a constant baked in by whoever wrote the
-  library.
+  Indonesia, Cambodia and Brunei. The point is that it is derived from the
+  host's own data rather than from a constant baked in by whoever wrote
+  the library.
 
   This is a *suggestion* for the settings UI to offer, never applied on its
   own: nothing is pinned until an operator stores a list. The result can
@@ -619,7 +619,7 @@ defmodule PhoenixKit.Utils.CountryData do
   def suggested_priority(country_code, opts \\ [])
 
   def suggested_priority(country_code, opts) when is_binary(country_code) and is_list(opts) do
-    limit = Keyword.get(opts, :limit, 4)
+    limit = opts |> Keyword.get(:limit, 4) |> normalize_limit()
 
     case get_country(country_code) do
       %{geo: %{latitude: lat, longitude: lon}} = origin when is_number(lat) and is_number(lon) ->
@@ -634,6 +634,13 @@ defmodule PhoenixKit.Utils.CountryData do
   end
 
   def suggested_priority(_, _), do: []
+
+  # A non-integer `:limit` (nil, a string, a float — Erlang term ordering
+  # makes all of those `> 0`, so a guard alone won't stop them) falls back
+  # to the same default `suggested_priority/2` uses when `:limit` is
+  # omitted, rather than reaching `Enum.take/2` and raising.
+  defp normalize_limit(limit) when is_integer(limit), do: limit
+  defp normalize_limit(_), do: 4
 
   defp nearest_codes(origin, limit) when limit > 0 do
     BeamLabCountries.all()

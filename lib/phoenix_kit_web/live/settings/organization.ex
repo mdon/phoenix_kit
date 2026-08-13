@@ -118,10 +118,16 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
   end
 
   defp main_country_rows(codes) do
-    Enum.map(codes, fn code ->
+    last = length(codes) - 1
+
+    codes
+    |> Enum.with_index()
+    |> Enum.map(fn {code, index} ->
       %{
         code: code,
-        label: CountryData.get_flag(code) <> " " <> CountryData.get_country_name(code)
+        label: CountryData.get_flag(code) <> " " <> CountryData.get_country_name(code),
+        first?: index == 0,
+        last?: index == last
       }
     end)
   end
@@ -176,12 +182,20 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
         if rate != 0 and rate != current_rate, do: rate
       end
 
+    # The main-countries suggestion is derived from the company country too,
+    # so it goes stale the same way the tax rate would if left alone: an
+    # unsaved country pick must not leave the previous country's neighbours
+    # on screen.
+    suggestion =
+      main_country_suggestion(country_code, MapSet.new(socket.assigns.main_countries))
+
     {:noreply,
      socket
      |> assign(:company_country, country_code)
      |> assign(:subdivision_label, get_subdivision_label(country_code))
      |> assign(:eu_country, eu_country?(country_code))
-     |> assign(:suggested_tax_rate, suggested_rate)}
+     |> assign(:suggested_tax_rate, suggested_rate)
+     |> assign(:main_country_suggestion, suggestion)}
   end
 
   def handle_event("save_company", params, socket) do
@@ -207,7 +221,7 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
   # The main-countries card writes on every action rather than behind a save
   # button: each click is already a deliberate edit, and there is no second
   # field whose validation could hold the list hostage.
-  def handle_event("add_main_country", %{"code" => code}, socket) do
+  def handle_event("add_main_country", %{"code" => code}, socket) when is_binary(code) do
     {:noreply, put_main_countries(socket, socket.assigns.main_countries ++ [code])}
   end
 
@@ -218,16 +232,32 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
      put_main_countries(socket, Enum.reject(socket.assigns.main_countries, &(&1 == code)))}
   end
 
+  def handle_event("remove_main_country", _params, socket), do: {:noreply, socket}
+
   # SortableGrid pushes the full order on drop, so the list is taken as given
   # rather than diffed — but only codes that were already pinned are honoured,
   # so a forged payload can neither add a country nor drop one silently.
-  def handle_event("reorder_main_countries", %{"ordered_ids" => ordered}, socket) do
+  def handle_event("reorder_main_countries", %{"ordered_ids" => ordered}, socket)
+      when is_list(ordered) do
     current = socket.assigns.main_countries
     reordered = Enum.filter(ordered, &(&1 in current))
     codes = reordered ++ (current -- reordered)
 
     {:noreply, put_main_countries(socket, codes)}
   end
+
+  def handle_event("reorder_main_countries", _params, socket), do: {:noreply, socket}
+
+  # Restored alongside drag: SortableJS is a CDN fetch that a strict CSP or
+  # an offline deploy can block, and dragging itself has no keyboard path —
+  # without these buttons a keyboard/screen-reader operator could not
+  # reorder at all.
+  def handle_event("move_main_country", %{"code" => code, "direction" => direction}, socket)
+      when is_binary(code) and direction in ["up", "down"] do
+    {:noreply, put_main_countries(socket, move(socket.assigns.main_countries, code, direction))}
+  end
+
+  def handle_event("move_main_country", _params, socket), do: {:noreply, socket}
 
   def handle_event("apply_main_country_suggestion", _params, socket) do
     suggested = Enum.map(socket.assigns.main_country_suggestion, & &1.code)
@@ -442,13 +472,52 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
       |> Enum.uniq()
       |> CountryData.known_country_codes()
 
-    case Settings.update_setting("country_select_priority", Enum.join(codes, ", ")) do
-      {:ok, _setting} ->
-        assign_main_countries(socket, codes, socket.assigns.company_country)
+    if codes == socket.assigns.main_countries do
+      # Nothing actually changed (e.g. "Add" with an empty selection, or
+      # removing/reordering into the same set) — don't write an identical
+      # value and don't broadcast a no-op.
+      socket
+    else
+      case Settings.update_setting("country_select_priority", Enum.join(codes, ", ")) do
+        {:ok, _setting} ->
+          # Broadcast to all admin sessions, same mechanism the other cards
+          # use. `handle_info` only calls `load_settings/1` — it never
+          # broadcasts itself — so the acting session's own bounce-back
+          # cannot loop; it just reloads with the value already written.
+          broadcast_settings_change(:main_countries_updated)
 
-      {:error, _changeset} ->
-        put_flash(socket, :error, gettext("Main countries could not be saved"))
+          socket
+          # The Company card's country <.select> is computed once in
+          # `load_settings/1`; without recomputing it here it keeps
+          # offering the pre-pin alphabetical order until the next reload.
+          |> assign(:countries, CountryData.countries_for_select())
+          |> assign_main_countries(codes, socket.assigns.company_country)
+
+        {:error, _changeset} ->
+          put_flash(socket, :error, gettext("Main countries could not be saved"))
+      end
     end
+  end
+
+  defp move(codes, code, direction) do
+    case Enum.find_index(codes, &(&1 == code)) do
+      nil -> codes
+      index -> swap(codes, index, target_index(index, direction, length(codes)))
+    end
+  end
+
+  defp target_index(index, "up", _length), do: max(index - 1, 0)
+  defp target_index(index, "down", length), do: min(index + 1, length - 1)
+  defp target_index(index, _direction, _length), do: index
+
+  defp swap(codes, index, index), do: codes
+
+  defp swap(codes, from, to) do
+    moved = Enum.at(codes, from)
+
+    codes
+    |> List.delete_at(from)
+    |> List.insert_at(to, moved)
   end
 
   defp save_bank_details(params, iban, swift) do
