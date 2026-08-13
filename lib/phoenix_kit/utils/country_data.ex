@@ -34,6 +34,8 @@ defmodule PhoenixKit.Utils.CountryData do
   alias PhoenixKit.Settings
   alias PhoenixKitBilling.IbanData
 
+  @none_priority "none"
+
   @doc """
   Get all countries sorted by name.
 
@@ -326,8 +328,14 @@ defmodule PhoenixKit.Utils.CountryData do
       `country_select_priority` setting (Admin → Settings → Organization,
       where an operator can reorder the dropdown without a deploy), then
       `config :phoenix_kit, :country_select_priority` when that setting is
-      blank or unset. A host that serves one region can therefore put its own
-      countries first without touching any call site.
+      blank or unset. A stored value of `"none"` (case-insensitive, trimmed
+      — see `none_priority?/1`) is an explicit sentinel meaning "pin
+      nothing"; it is honoured over the config, which is the only way an
+      operator can disable pinning on a host that has the config set
+      without a deploy — a blank/absent setting can't be told apart from
+      "not configured" and falls back to the config just the same. A host
+      that serves one region can therefore put its own countries first
+      without touching any call site.
 
   `opts` itself must be a keyword list — a map or a bare string raises
   `FunctionClauseError` naming this function rather than `Keyword`.
@@ -343,8 +351,8 @@ defmodule PhoenixKit.Utils.CountryData do
       [{"🇪🇪 Эстония", "EE"}, {"🇫🇮 Финляндия", "FI"}]
   """
   def countries_for_select(opts \\ []) when is_list(opts) do
-    locale = opts |> Keyword.get(:locale, active_locale()) |> normalize_locale()
-    priority = opts |> Keyword.get(:priority, configured_priority()) |> normalize_priority()
+    locale = opts |> fetch_opt(:locale, &active_locale/0) |> normalize_locale()
+    priority = opts |> fetch_opt(:priority, &configured_priority/0) |> normalize_priority()
 
     {pinned, rest} = locale |> sorted_entries(:all) |> split_priority(priority)
 
@@ -386,8 +394,8 @@ defmodule PhoenixKit.Utils.CountryData do
   caveats.
   """
   def eu_countries_for_select(opts \\ []) when is_list(opts) do
-    locale = opts |> Keyword.get(:locale, active_locale()) |> normalize_locale()
-    priority = opts |> Keyword.get(:priority, configured_priority()) |> normalize_priority()
+    locale = opts |> fetch_opt(:locale, &active_locale/0) |> normalize_locale()
+    priority = opts |> fetch_opt(:priority, &configured_priority/0) |> normalize_priority()
 
     {pinned, rest} = locale |> sorted_entries(:eu) |> split_priority(priority)
 
@@ -500,31 +508,48 @@ defmodule PhoenixKit.Utils.CountryData do
 
   defp normalize_locale(_), do: nil
 
-  # The admin-editable setting wins over the compile-time config, so an
-  # operator can reorder the dropdown without a deploy. A missing or blank
-  # setting means "not configured" and falls through to the config, which
-  # keeps every host that never opens the settings page working as before.
-  #
-  # Read through the cache: this runs on the hot path, and `get_setting_cached/2`
-  # is consulted before the update-mode short-circuit, so a primed key resolves
-  # without a database at all. A settings read can raise on an unowned checkout
-  # AND exit on a dead pool, so both are caught — the country list must not
-  # depend on the database being up.
-  defp configured_priority do
-    case setting_priority() do
-      [] -> Application.get_env(:phoenix_kit, :country_select_priority, [])
-      codes -> codes
+  # Keyword.get(opts, key, default) evaluates `default` eagerly even when
+  # `opts` already has `key` — cheap when the default is a literal, but here
+  # the defaults are a Gettext lookup and a settings-cache read (which can
+  # fall through to a database query on a cold key), and the result would be
+  # thrown away whenever the caller passed an explicit value. Only compute
+  # the default in the :error branch.
+  defp fetch_opt(opts, key, default_fun) do
+    case Keyword.fetch(opts, key) do
+      {:ok, value} -> value
+      :error -> default_fun.()
     end
   end
 
-  defp setting_priority do
-    "country_select_priority"
-    |> Settings.get_setting_cached("")
-    |> parse_priority()
-  rescue
-    _ -> []
-  catch
-    :exit, _ -> []
+  # The admin-editable setting wins over the compile-time config, so an
+  # operator can reorder the dropdown without a deploy. A blank or absent
+  # setting means "not configured" and falls through to the config, which
+  # keeps every host that never opens the settings page working as before.
+  # A stored value of `"none"` (see `none_priority?/1`) is an explicit
+  # sentinel meaning "pin nothing", honoured over the config — the only way
+  # an operator can disable pinning on a host that has the config set,
+  # since a blank/absent setting can't be told apart from "not configured"
+  # at the settings layer.
+  #
+  # Read through the cache: this runs on the hot path, and
+  # `get_setting_cached/2` is consulted before the update-mode
+  # short-circuit, so a primed key resolves without a database at all.
+  # `Settings.get_setting_cached/2` — and the `get_setting/2` it falls back
+  # to on a cache error — already rescue AND catch `:exit` internally, so
+  # the country list degrading to the config when the database is
+  # unreachable is handled entirely by the Settings layer, not by this
+  # function.
+  defp configured_priority do
+    raw = Settings.get_setting_cached("country_select_priority", "")
+
+    if none_priority?(raw) do
+      []
+    else
+      case parse_priority(raw) do
+        [] -> Application.get_env(:phoenix_kit, :country_select_priority, [])
+        codes -> codes
+      end
+    end
   end
 
   @doc """
@@ -532,8 +557,11 @@ defmodule PhoenixKit.Utils.CountryData do
 
   Accepts the separators a human actually types — commas, spaces, semicolons,
   newlines — so `"EE, FI"`, `"ee fi"` and `"EE;FI"` all parse. Unknown codes
-  are kept here and dropped later by the same normalization every caller of
-  `:priority` goes through; use `known_country_codes/1` to report them.
+  are kept here, not dropped — `normalize_priority/1` only filters
+  non-binaries, upcases, and dedupes. They are dropped later, when
+  `split_priority/2` looks each one up against the real country list and
+  finds no match; use `known_country_codes/1` to report them to the
+  operator before that happens.
 
   ## Examples
 
@@ -569,6 +597,49 @@ defmodule PhoenixKit.Utils.CountryData do
   end
 
   def known_country_codes(_), do: []
+
+  @doc """
+  The sentinel value for the `country_select_priority` setting that means
+  "pin nothing", honoured over `config :phoenix_kit,
+  :country_select_priority` by `countries_for_select/1` and
+  `eu_countries_for_select/1` (see `configured_priority/0`). A caller that
+  writes the setting (the Organization settings form) should store this
+  exact value rather than hardcoding the literal string, so the write side
+  and `none_priority?/1` never drift apart.
+
+  ## Examples
+
+      iex> CountryData.none_priority_value()
+      "none"
+  """
+  def none_priority_value, do: @none_priority
+
+  @doc """
+  True if `value`, trimmed and downcased, is the `"none"` sentinel.
+
+  This is the only way to disable country-priority pinning on a host that
+  has `config :phoenix_kit, :country_select_priority` set: a blank or
+  absent setting can't be told apart from "not configured"
+  (`Settings.get_setting_cached/2` returns the default for both) and falls
+  back to the config either way, so an operator needs an explicit value
+  that means "pin nothing" instead.
+
+  ## Examples
+
+      iex> CountryData.none_priority?("none")
+      true
+
+      iex> CountryData.none_priority?(" NONE ")
+      true
+
+      iex> CountryData.none_priority?("EE")
+      false
+  """
+  def none_priority?(value) when is_binary(value) do
+    value |> String.trim() |> String.downcase() == @none_priority
+  end
+
+  def none_priority?(_), do: false
 
   defp normalize_priority(codes) when is_list(codes) do
     codes
@@ -627,7 +698,7 @@ defmodule PhoenixKit.Utils.CountryData do
   def get_country_name(country_code, opts \\ [])
 
   def get_country_name(country_code, opts) when is_binary(country_code) and is_list(opts) do
-    locale = opts |> Keyword.get(:locale, active_locale()) |> normalize_locale()
+    locale = opts |> fetch_opt(:locale, &active_locale/0) |> normalize_locale()
 
     case get_country(country_code) do
       %{} = country -> translated_name(country, locale)

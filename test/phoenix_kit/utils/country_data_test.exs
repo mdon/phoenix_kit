@@ -4,6 +4,7 @@ defmodule PhoenixKit.Utils.CountryDataTest do
   # No `doctest` here: this module's examples are written against the bare
   # `CountryData.` alias, which a doctest has no way to resolve.
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias PhoenixKit.Utils.CountryData
 
   setup do
@@ -120,7 +121,21 @@ defmodule PhoenixKit.Utils.CountryDataTest do
     # The settings cache is consulted before the update-mode short-circuit, so
     # priming it exercises the real read path with no database involved. The
     # cache is a globally named process, hence async: false for the file.
+    #
+    # A cache MISS still falls through to `PhoenixKit.Settings`: with no
+    # database `test_helper.exs` short-circuits that read to the default, but
+    # when a database IS reachable it becomes a real query from a process
+    # that owns no sandbox connection — an OwnershipError, not a miss.
+    # Checking out here (copied from `safe_destination_settings_test.exs`,
+    # which recorded the same failure on its first run against a database)
+    # makes the file behave the same either way. Every test below primes the
+    # key it reads except the "absent key" one, which is exactly why this
+    # guard is needed at the describe level rather than per-test.
     setup do
+      if Application.get_env(:phoenix_kit, :test_repo_available, false) do
+        :ok = Sandbox.checkout(PhoenixKit.Test.Repo)
+      end
+
       start_supervised!({PhoenixKit.Cache.Registry, []})
       start_supervised!({PhoenixKit.Cache, name: :settings})
       :ok
@@ -146,12 +161,40 @@ defmodule PhoenixKit.Utils.CountryDataTest do
       assert hd(CountryData.countries_for_select(locale: "en")) == {"🇫🇮 Finland", "FI"}
     end
 
+    test "an absent setting (never primed) falls back to the config" do
+      Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
+      # No put_priority_setting call: nothing was ever written for this key,
+      # simulating a host that never opened the settings page — as distinct
+      # from "a blank setting" above, which IS a written, empty row.
+
+      assert hd(CountryData.countries_for_select(locale: "en")) == {"🇫🇮 Finland", "FI"}
+    end
+
     test "an explicit :priority still overrides both" do
       Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
       put_priority_setting("EE")
 
       assert hd(CountryData.countries_for_select(locale: "en", priority: ["LV"])) ==
                {"🇱🇻 Latvia", "LV"}
+    end
+
+    test "a stored \"none\" sentinel beats the config" do
+      Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
+      put_priority_setting(CountryData.none_priority_value())
+
+      assert CountryData.countries_for_select(locale: "en") ==
+               CountryData.countries_for_select(locale: "en", priority: [])
+    end
+
+    test "the stored sentinel is recognized case-insensitively and trimmed" do
+      Application.put_env(:phoenix_kit, :country_select_priority, ["FI"])
+      unpinned = CountryData.countries_for_select(locale: "en", priority: [])
+
+      for stored <- ["NONE", "None", " none ", "\tnone\n"] do
+        put_priority_setting(stored)
+
+        assert CountryData.countries_for_select(locale: "en") == unpinned
+      end
     end
   end
 
@@ -167,6 +210,51 @@ defmodule PhoenixKit.Utils.CountryDataTest do
     test "drops codes that name no country" do
       assert CountryData.known_country_codes(["EE", "ZZ", "FI"]) == ["EE", "FI"]
       assert CountryData.known_country_codes(["", nil, :ee]) == []
+    end
+
+    test "a fully-rejected input keeps the unknown codes for reporting, but pins nothing" do
+      # The scenario the settings form's flash has to report: every code the
+      # operator typed is unknown, so nothing survives to be stored.
+      typed = CountryData.parse_priority("Estonia, USA, Suomi")
+      assert typed == ["ESTONIA", "USA", "SUOMI"]
+      assert CountryData.known_country_codes(typed) == []
+    end
+  end
+
+  describe "none_priority?/1 and none_priority_value/0" do
+    test "recognizes the sentinel case-insensitively and trimmed" do
+      assert CountryData.none_priority?("none")
+      assert CountryData.none_priority?("NONE")
+      assert CountryData.none_priority?("None")
+      assert CountryData.none_priority?(" none ")
+      assert CountryData.none_priority?("\tnone\n")
+    end
+
+    test "rejects everything else, including near-misses" do
+      refute CountryData.none_priority?("EE")
+      refute CountryData.none_priority?("")
+      refute CountryData.none_priority?("none, EE")
+      refute CountryData.none_priority?("noneEE")
+      refute CountryData.none_priority?(nil)
+      refute CountryData.none_priority?(:none)
+    end
+
+    test "the canonical value round-trips through the check" do
+      assert CountryData.none_priority_value() == "none"
+      assert CountryData.none_priority?(CountryData.none_priority_value())
+    end
+
+    test "the sentinel is not a real country code, so known_country_codes/1 would drop it" do
+      # This is why the settings form must check `none_priority?/1` BEFORE
+      # running the typed value through `parse_priority/1` and
+      # `known_country_codes/1`: without that check, "none" is just another
+      # unrecognized code and gets silently dropped like any other, storing
+      # blank instead of the sentinel.
+      refute CountryData.exists?(CountryData.none_priority_value())
+
+      assert CountryData.none_priority_value()
+             |> CountryData.parse_priority()
+             |> CountryData.known_country_codes() == []
     end
   end
 

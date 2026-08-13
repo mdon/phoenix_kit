@@ -84,7 +84,7 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
     |> assign(:countries, CountryData.countries_for_select())
     |> assign(:subdivision_label, get_subdivision_label(country))
     |> assign(:eu_country, eu_country?(country))
-    |> assign(:country_priority, Settings.get_setting("country_select_priority", ""))
+    |> assign(:country_priority, Settings.get_setting_cached("country_select_priority", ""))
   end
 
   defp assign_tax_settings(socket, _company_info) do
@@ -136,21 +136,29 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
   def handle_event("save_company", params, socket) do
     data = extract_company_data(params)
 
-    case validate_company_data(data) do
-      [] ->
-        save_company_info(data, params)
+    # The country-priority list is an independent setting from the rest of
+    # the company form — it must persist whether or not the company data
+    # below validates, so it is saved unconditionally here rather than from
+    # inside the `[] ->` branch.
+    priority_result = save_country_priority(params["country_priority"])
 
-        # Broadcast to all admin sessions
-        broadcast_settings_change(:company_info_updated)
+    socket =
+      case validate_company_data(data) do
+        [] ->
+          save_company_info(data, params)
 
-        {:noreply,
-         socket
-         |> load_settings()
-         |> put_flash(:info, gettext("Organization information saved"))}
+          # Broadcast to all admin sessions
+          broadcast_settings_change(:company_info_updated)
 
-      errors ->
-        {:noreply, put_flash(socket, :error, Enum.join(errors, ". "))}
-    end
+          socket
+          |> load_settings()
+          |> put_flash(:info, gettext("Organization information saved"))
+
+        errors ->
+          put_flash(socket, :error, Enum.join(errors, ". "))
+      end
+
+    {:noreply, put_country_priority_flash(socket, priority_result)}
   end
 
   def handle_event("save_tax", params, socket) do
@@ -345,20 +353,76 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
       })
 
     Settings.update_json_setting("company_info", company_info)
-    save_country_priority(params["country_priority"])
   end
 
   # Stored normalized — upper-cased, deduplicated, unknown codes dropped — so
   # what the operator sees after saving is exactly what the dropdown will do.
   # Blank clears the setting, which hands the default back to
-  # `config :phoenix_kit, :country_select_priority`.
+  # `config :phoenix_kit, :country_select_priority`. Typing the literal word
+  # "none" (case-insensitive, trimmed — `CountryData.none_priority?/1`)
+  # stores the sentinel `CountryData.configured_priority/0` honours over
+  # that config, so it must be checked BEFORE `known_country_codes/1` runs —
+  # "none" is not a real country code and would otherwise be silently
+  # dropped just like any other unknown one, storing blank instead of the
+  # sentinel and leaving pinning impossible to turn off.
+  #
+  # Returns `{:ok, %{kept: [...], rejected: [...]}}` — the codes actually
+  # stored and the ones the operator typed that name no real country, for
+  # the caller to report — or `{:error, changeset}` if the write itself
+  # failed (e.g. over the settings value's 1000-character cap).
   defp save_country_priority(value) do
-    codes =
-      value
-      |> CountryData.parse_priority()
-      |> CountryData.known_country_codes()
+    trimmed = (value || "") |> String.trim()
 
-    Settings.update_setting("country_select_priority", Enum.join(codes, ", "))
+    if CountryData.none_priority?(trimmed) do
+      write_country_priority(CountryData.none_priority_value(), %{kept: [], rejected: []})
+    else
+      typed = CountryData.parse_priority(trimmed)
+      known = CountryData.known_country_codes(typed)
+      rejected = typed -- known
+
+      write_country_priority(Enum.join(known, ", "), %{kept: known, rejected: rejected})
+    end
+  end
+
+  defp write_country_priority(stored_value, outcome) do
+    case Settings.update_setting("country_select_priority", stored_value) do
+      {:ok, _setting} -> {:ok, outcome}
+      {:error, changeset} -> {:error, changeset}
+    end
+  end
+
+  # A partial drop still saved something, so it rides alongside whatever
+  # flash the company-info save already produced. A total drop (something
+  # was typed, nothing survived) gets the same treatment — it must not be
+  # silently folded into an unqualified "saved" flash — but says so plainly
+  # rather than implying a partial success. Both are :error, matching this
+  # LiveView's only two flash kinds; company_info's own flash is untouched
+  # either way.
+  defp put_country_priority_flash(socket, {:ok, %{rejected: []}}), do: socket
+
+  defp put_country_priority_flash(socket, {:ok, %{kept: [], rejected: rejected}}) do
+    put_flash(
+      socket,
+      :error,
+      gettext(
+        "None of the preferred-country codes you entered are valid, so preferred countries was cleared: %{codes}",
+        codes: Enum.join(rejected, ", ")
+      )
+    )
+  end
+
+  defp put_country_priority_flash(socket, {:ok, %{rejected: rejected}}) do
+    put_flash(
+      socket,
+      :error,
+      gettext("Preferred countries saved, but ignored unrecognized code(s): %{codes}",
+        codes: Enum.join(rejected, ", ")
+      )
+    )
+  end
+
+  defp put_country_priority_flash(socket, {:error, _changeset}) do
+    put_flash(socket, :error, gettext("Preferred countries could not be saved"))
   end
 
   defp save_bank_details(params, iban, swift) do
