@@ -3962,13 +3962,19 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
   // LEAF EDITOR (loaded from CDN)
   //
-  // Auto-loads Leaf editor JS from CDN when the hook mounts.
-  // The Elixir LiveComponent comes from the {:leaf, "~> 0.3"} hex dependency.
-  // Keep this pin in lockstep with the resolved hex version in mix.lock.
+  // Auto-loads Leaf editor JS from CDN when the hook mounts, so a page with
+  // no editor on it pays nothing.
+  //
+  // The Elixir LiveComponent comes from the :leaf hex dependency, and this
+  // tag has to name the same release: almost everything leaf adds is a
+  // server<->client contract, and a bundle left behind still renders an
+  // identical editor while quietly not implementing what the server now
+  // expects. test/phoenix_kit_web/leaf_bundle_pin_test.exs holds the two
+  // together, because the comment that used to ask for it did not.
   // ============================================================================
 
   (function() {
-    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.3.2/priv/static/assets/leaf.js";
+    var LEAF_CDN = "https://cdn.jsdelivr.net/gh/alexdont/leaf@v0.5.1/priv/static/assets/leaf.js";
     var leafLoading = false;
     var leafCallbacks = [];
 
