@@ -12220,10 +12220,60 @@ msgstr "Главная страница"
 msgid "Where PhoenixKit sends visitors who are not signed in. Empty = the sign-in page."
 msgstr "Куда PhoenixKit направляет посетителей, не выполнивших вход. Пусто = страница входа."
 
+#: lib/phoenix_kit_web/live/settings/organization.html.heex:139
+#, elixir-autogen, elixir-format
+msgid "Add a country"
+msgstr "Добавить страну"
+
+#: lib/phoenix_kit_web/live/settings/organization.html.heex:127
+#, elixir-autogen, elixir-format
+msgid "Add these"
+msgstr "Добавить их"
+
+#: lib/phoenix_kit_web/live/settings/organization.html.heex:113
+#, elixir-autogen, elixir-format
+msgid "Based on your country: %{countries}"
+msgstr "Исходя из вашей страны: %{countries}"
+
+#: lib/phoenix_kit_web/live/settings/organization.html.heex:167
+#, elixir-autogen, elixir-format
+msgid "Main countries"
+msgstr "Основные страны"
+
+#: lib/phoenix_kit_web/live/settings/organization.ex:445
+#, elixir-autogen, elixir-format
+msgid "Main countries could not be saved"
+msgstr "Не удалось сохранить основные страны"
+
+#: lib/phoenix_kit_web/live/settings/organization.html.heex:96
+#, elixir-autogen, elixir-format
+msgid "Move down"
+msgstr "Переместить вниз"
+
+#: lib/phoenix_kit_web/live/settings/organization.html.heex:84
+#, elixir-autogen, elixir-format
+msgid "Move up"
+msgstr "Переместить вверх"
+
+#: lib/phoenix_kit_web/live/settings/organization.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Nothing chosen yet — country lists are plain alphabetical."
+msgstr "Пока ничего не выбрано — списки стран идут по алфавиту."
+
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "Require the provider to confirm the email address"
 msgstr "Требовать подтверждение адреса электронной почты от провайдера"
+
+#: lib/phoenix_kit_web/live/settings/organization.html.heex:229
+#, elixir-autogen, elixir-format
+msgid "Search countries..."
+msgstr "Поиск стран..."
+
+#: lib/phoenix_kit_web/live/settings/organization.html.heex:60
+#, elixir-autogen, elixir-format
+msgid "Shown at the top of every country list. Drag to reorder."
+msgstr "Показываются в начале каждого списка стран. Порядок меняется перетаскиванием."
 
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:354
 #, elixir-autogen, elixir-format
