@@ -105,7 +105,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "161db950897aa8ed8983659ce1e1321ecdf90cb5f145164aa01f832749b16fc4"
+  @chain_hash "e65bb901dbcb35ab47d3ed36ba0b34fc5780a1bbb2dff7bf89ae8f75f03507f5"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -29252,7 +29252,22 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_entity_data ADD COLUMN IF NOT EXISTS \"created_by_uuid\" uuid",
         since: 56,
         class: :column,
-        revisions: [{56, %{default: nil, type: "uuid", pos: 12, not_null: true}}],
+        # DECLARED POST-GENERATION CORRECTION (2026-08-14): a {169, not_null:
+        # false} revision. The public entity form is deliberately
+        # unauthenticated and has no creator to record, so anonymous submissions
+        # store NULL here (BeamLabEU/phoenix_kit#706). V169 drops the constraint;
+        # corrected here, in v135.ex's CREATE TABLE and in v164.ex's
+        # @relaxed_after_v57 together.
+        #
+        # A REVISION, not a rewrite of {56}: Scope resolves each object at the
+        # newest revision <= the database's comment, so claiming nullable from
+        # version 56 would make repair report a pre-V169 database — where the
+        # column is still legitimately NOT NULL — as wrong-shaped for the whole
+        # deploy window between shipping the code and running the migration.
+        revisions: [
+          {56, %{default: nil, type: "uuid", pos: 12, not_null: true}},
+          {169, %{default: nil, type: "uuid", pos: 12, not_null: false}}
+        ],
         presence: :required,
         backfill: nil
       },
@@ -33327,8 +33342,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              table: "phoenix_kit_ai_requests",
              kind: :constraint
            }},
-        create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'fk_ai_requests_prompt_uuid'\n      AND t.relname = 'phoenix_kit_ai_requests'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_ai_requests ADD CONSTRAINT fk_ai_requests_prompt_uuid FOREIGN KEY (prompt_uuid) REFERENCES __SCHEMA__.phoenix_kit_ai_prompts(uuid) ON DELETE SET NULL;\n  END IF;\nEND\n$$",
+        create: nil,
         since: 56,
         class: :constraint,
         revisions: [
@@ -33345,7 +33359,21 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              on_update: "a"
            }}
         ],
-        presence: :required,
+        # DECLARED POST-GENERATION CORRECTION (2026-08-14): `:legacy_optional`.
+        # v135 adds this FK twice under two names, each block guarded only by
+        # its own name, so a freshly migrated database ends up with BOTH this
+        # and `phoenix_kit_ai_requests_prompt_uuid_fkey` (BeamLabEU/phoenix_kit_ai#20).
+        # V169 drops this one and keeps the legacy name, which is what the
+        # installed base carries and what Ecto derives by default, so no live
+        # database needs a rename.
+        #
+        # Optional rather than deleted, because a pre-169 install still
+        # legitimately has it. Required would make repair RE-ADD the duplicate
+        # after every upgrade, and on legacy-only installs ADD a second
+        # constraint that was never there. `create: nil` above is what
+        # legacy_optional requires — repair must hold no SQL for an object it
+        # may not create.
+        presence: :legacy_optional,
         backfill: nil
       },
       %{

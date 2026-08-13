@@ -7,7 +7,22 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V168 - The remaining slug indexes ⚡ LATEST
+  ### V169 - Anonymous entity submissions, and one duplicate foreign key ⚡ LATEST
+
+  Makes `phoenix_kit_entity_data.created_by_uuid` nullable: the public entity
+  form is deliberately unauthenticated and has no creator to record, so on a
+  freshly migrated database every anonymous submission failed with a
+  `not_null_violation`. Long-lived installs were already storing NULL there.
+  Recorded in V164's `@relaxed_after_v57` and in the V135 baseline so repair and
+  a fresh install agree with it.
+
+  Also drops the duplicate foreign key V135 created on
+  `phoenix_kit_ai_requests.prompt_uuid`, keeping the legacy
+  `phoenix_kit_ai_requests_prompt_uuid_fkey` — the name the installed base
+  carries and the one Ecto derives by default — so no live database needs a
+  rename.
+
+  ### V168 - The remaining slug indexes
 
   Finishes what V167 started. An audit of every schema declaring a slug
   `unique_constraint/3` found two more with nothing to translate:
@@ -484,7 +499,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 168
+  @current_version 169
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
