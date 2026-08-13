@@ -7,7 +7,22 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V167 - Unique post slugs ⚡ LATEST
+  ### V168 - The remaining slug indexes ⚡ LATEST
+
+  Finishes what V167 started. An audit of every schema declaring a slug
+  `unique_constraint/3` found two more with nothing to translate:
+  `phoenix_kit_tickets` (plain btree since V135, while `Ticket` declares
+  `unique_constraint(:slug)` and `get_ticket_by_slug/2` fetches with
+  `one()`) and `phoenix_kit_post_groups` (no slug index at all, while
+  `PostGroup` names a composite `[:user_uuid, :slug]` index that exists
+  nowhere). The other six were already backed correctly.
+
+  Post-group slugs are unique **per user**, so that index is on
+  `(user_uuid, slug)` and the dedup partitions by the pair. Existing
+  duplicates are suffixed `-2`, `-3` … following `Slug.ensure_unique/2`,
+  the oldest row keeping the bare slug.
+
+  ### V167 - Unique post slugs
 
   Makes `phoenix_kit_posts_slug_index` unique. It had been a plain btree
   since V135 while its sibling `phoenix_kit_post_tags.slug` was unique, so
@@ -469,7 +484,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 167
+  @current_version 168
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

@@ -105,7 +105,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "6330e1b97baba68b9f2ed03843a7f552c36d47b97fb2a948befa9e95e320932d"
+  @chain_hash "161db950897aa8ed8983659ce1e1321ecdf90cb5f145164aa01f832749b16fc4"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -17519,7 +17519,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           {:catalog,
            %{name: "phoenix_kit_tickets_slug_index", table: "phoenix_kit_tickets", kind: :index}},
         create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_tickets_slug_index ON __SCHEMA__.phoenix_kit_tickets USING btree (slug)",
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_tickets_slug_index ON __SCHEMA__.phoenix_kit_tickets USING btree (slug)",
         since: 35,
         class: :index,
         revisions: [
@@ -17531,6 +17531,23 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              method: "btree",
              definition:
                "CREATE INDEX phoenix_kit_tickets_slug_index ON __SCHEMA__.phoenix_kit_tickets USING btree (slug)",
+             predicate: nil,
+             opclasses: ["text_ops"],
+             name_template: nil
+           }},
+          # Appended, never edited in place — the V167 rule. `Object.shape_at/2`
+          # takes the last revision <= the database's own version, so rewriting
+          # {35, ...} would tell every V167 install that its plain index is
+          # drift and offer a repair that cannot succeed, because the duplicate
+          # slugs V168 exists to clear are still sitting there.
+          {168,
+           %{
+             table: "phoenix_kit_tickets",
+             keys: ["slug"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_tickets_slug_index ON __SCHEMA__.phoenix_kit_tickets USING btree (slug)",
              predicate: nil,
              opclasses: ["text_ops"],
              name_template: nil
@@ -31183,6 +31200,44 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
                "CREATE INDEX phoenix_kit_post_groups_user_uuid_idx ON __SCHEMA__.phoenix_kit_post_groups USING btree (user_uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      # DECLARED POST-GENERATION (V168). New object rather than a reshape:
+      # `PhoenixKitPosts.PostGroup` has always declared
+      # `unique_constraint([:user_uuid, :slug], name:
+      # :phoenix_kit_post_groups_user_uuid_slug_index)`, but no index of that
+      # name has ever existed, so the constraint could never fire and one user
+      # could hold two groups on one slug. Scoped to the owner, not global —
+      # two different users may share a slug.
+      %{
+        id: "index:phoenix_kit_post_groups_user_uuid_slug_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_post_groups_user_uuid_slug_index",
+             table: "phoenix_kit_post_groups",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_post_groups_user_uuid_slug_index ON __SCHEMA__.phoenix_kit_post_groups USING btree (user_uuid, slug)",
+        since: 168,
+        class: :index,
+        revisions: [
+          {168,
+           %{
+             table: "phoenix_kit_post_groups",
+             keys: ["user_uuid", "slug"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_post_groups_user_uuid_slug_index ON __SCHEMA__.phoenix_kit_post_groups USING btree (user_uuid, slug)",
+             predicate: nil,
+             opclasses: ["uuid_ops", "text_ops"],
              name_template: nil
            }}
         ],
