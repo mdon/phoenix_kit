@@ -131,10 +131,16 @@
             <% end %>
           <% end %>
         <% is_binary(f.mime_type) and String.starts_with?(f.mime_type, "video/") -> %>
+          <%!-- w/h-full + object-contain, not max-w/h: max-* only caps, so a
+               small-intrinsic video (or one whose metadata hasn't loaded —
+               300×150 until then) rendered as a tiny box floating in the
+               lightbox. Filling the column and letterboxing via
+               object-contain sizes the player like the image viewer sizes
+               images, whatever the source dimensions. --%>
           <video
             src={f.urls["original"]}
             controls
-            class="max-w-full max-h-full rounded"
+            class="w-full h-full object-contain rounded"
             preload="metadata"
           >
             {gettext("Your browser does not support the video tag.")}
@@ -151,10 +157,13 @@
                open) and renders an interactive waveform driven by a single
                play/pause button. The hidden native <audio> is the playback
                source and the fallback (revealed) if the library can't load. --%>
+          <%!-- max-w + mx-auto so the player sits centered as a card instead
+               of the button/waveform stretching across the full lightbox
+               width on large screens. --%>
           <div
             id={"waveform-" <> f.file_uuid}
             phx-hook="WaveformPlayer"
-            class="flex flex-col gap-4 py-10 w-full px-8"
+            class="flex flex-col gap-4 py-10 w-full max-w-3xl mx-auto px-8"
           >
             <div class="flex items-center gap-2">
               <.icon name="hero-musical-note" class="w-5 h-5 text-base-content/50 shrink-0" />

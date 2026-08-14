@@ -3185,7 +3185,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         file_uuid: file.uuid,
         filename: file.original_file_name || file.file_name || "Unknown",
         original_filename: file.original_file_name,
-        file_type: file.file_type,
+        # Reconciled against the row's own mime/filename evidence, so a
+        # misclassified row (stored before the write boundary defended this
+        # column) degrades to the right rendering instead of a broken <img>.
+        file_type: Storage.display_file_type(file),
         mime_type: file.mime_type,
         size: file.size || 0,
         status: file.status,
@@ -3233,7 +3236,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
            user_uuid,
            file_hash,
            ext,
-           entry.client_name
+           entry.client_name,
+           mime_type: mime_type
          ) do
       {:ok, file, :duplicate} ->
         maybe_set_folder(file, socket)
@@ -3253,8 +3257,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     result = %{
       file_uuid: file.uuid,
       filename: entry.client_name,
-      file_type: file_type,
-      mime_type: mime_type,
+      # The row's values, not the local echo: the write boundary may have
+      # corrected the claimed type (and a :duplicate hit returns the earlier
+      # row, whose type/mime this upload never influenced).
+      file_type: file.file_type || file_type,
+      mime_type: file.mime_type || mime_type,
       size: file_size,
       status: file.status,
       urls: %{}

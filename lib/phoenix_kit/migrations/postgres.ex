@@ -7,7 +7,20 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V172 - SEO module renamed to Crawlers ⚡ LATEST
+  ### V173 - Repair misclassified media rows ⚡ LATEST
+
+  Two since-fixed writer defects left media rows whose classification
+  contradicts the file itself: the storage writer trusted whatever
+  `file_type` a caller claimed (one upload path stored every .mov and .mp3
+  as "image"), and it re-derived `mime_type` from an extension map with no
+  audio entries (every mp3 stored and served as application/octet-stream).
+  This pass repairs both from the rows' own evidence: blank/octet-stream
+  mimes with a known audio extension get the real audio mime (files and
+  file instances), and generic `file_type` values contradicted by the mime
+  are reclassified. System types ("tile") and rows without evidence are
+  left alone.
+
+  ### V172 - SEO module renamed to Crawlers
 
   The built-in SEO module becomes Crawlers: everything it held was bot
   policy (the noindex directive, crawler guidance, and now per-bot-group
@@ -535,7 +548,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 172
+  @current_version 173
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
