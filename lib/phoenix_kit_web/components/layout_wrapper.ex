@@ -967,6 +967,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       class="[scrollbar-gutter:stable]"
     >
       <head>
+        <%!-- Pre-paint: the standalone admin used to hardcode light and fix
+             it up on DOMContentLoaded — a guaranteed flash for dark users. --%>
+        <PhoenixKitWeb.Components.ThemeBootstrap.theme_bootstrap />
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content={Plug.CSRFProtection.get_csrf_token()} />

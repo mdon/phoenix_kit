@@ -345,6 +345,30 @@ defmodule PhoenixKit.ThemeConfig do
   def base_map, do: @base_map
 
   @doc """
+  The light/dark pair the "system" theme resolves to.
+
+  Derived from `:dashboard_themes` when it is a list: the first configured
+  name whose base is light, and the first whose base is dark. Either half
+  falls back to the built-in phoenix-* theme, so a host configuring only one
+  side still resolves both. With no configuration (`:all`), the built-ins.
+  The bootstrap script and every theme-JS block should take the pair from
+  here rather than hardcoding phoenix-light/phoenix-dark — hardcoding broke
+  system resolution for any host whose pair uses other names.
+  """
+  def system_pair do
+    configured =
+      case PhoenixKit.Config.get(:dashboard_themes, :all) do
+        list when is_list(list) -> Enum.filter(list, &Map.has_key?(@labels, &1))
+        _ -> []
+      end
+
+    light = Enum.find(configured, &(Map.get(@base_map, &1) == "light")) || "phoenix-light"
+    dark = Enum.find(configured, &(Map.get(@base_map, &1) == "dark")) || "phoenix-dark"
+
+    {light, dark}
+  end
+
+  @doc """
   Returns all theme names recognised by PhoenixKit.
   """
   def all_theme_names do

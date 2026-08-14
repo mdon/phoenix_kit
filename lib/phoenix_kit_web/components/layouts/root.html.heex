@@ -5,6 +5,9 @@
   data-theme="light"
 >
   <head>
+    <%!-- Pre-paint: without this the kit's own root layout was permanently
+         light — the data-theme="light" above is only the no-JS fallback. --%>
+    <PhoenixKitWeb.Components.ThemeBootstrap.theme_bootstrap />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />

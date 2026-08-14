@@ -85,6 +85,9 @@ show_context_selectors_map = assigns[:show_context_selectors_map] || %{}
 has_multi_selector = context_selector_configs != [] %> <!DOCTYPE html>
 <html lang="en">
   <head>
+    <%!-- Pre-paint: stamps the saved theme before the stylesheets load.
+         The larger script at the end of body still owns interaction. --%>
+    <PhoenixKitWeb.Components.ThemeBootstrap.theme_bootstrap />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={Plug.CSRFProtection.get_csrf_token()} />
