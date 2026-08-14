@@ -423,22 +423,22 @@ defmodule PhoenixKitWeb.Components.AdminNav do
               class="space-y-4"
             >
               <input type="hidden" name="return_to" value={@current_path} />
-              <div class="form-control">
-                <label class="label"><span class="label-text">Email or username</span></label>
+              <div class="fieldset">
+                <label class="label"><span class="fieldset-legend">Email or username</span></label>
                 <input
                   name="user[email_or_username]"
                   type="text"
                   required
-                  class="input input-bordered w-full"
+                  class="input w-full"
                 />
               </div>
-              <div class="form-control">
-                <label class="label"><span class="label-text">Password</span></label>
+              <div class="fieldset">
+                <label class="label"><span class="fieldset-legend">Password</span></label>
                 <input
                   name="user[password]"
                   type="password"
                   required
-                  class="input input-bordered w-full"
+                  class="input w-full"
                 />
               </div>
               <div class="modal-action">

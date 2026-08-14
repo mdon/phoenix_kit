@@ -903,8 +903,8 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
         # the input's intrinsic content width.
         base =
           if assigns.type == "textarea",
-            do: "textarea textarea-bordered w-full",
-            else: "input input-bordered w-full"
+            do: "textarea w-full",
+            else: "input w-full"
 
         base = if assigns.class, do: "#{base} #{assigns.class}", else: base
         if errors != [], do: "#{base} input-error", else: base
@@ -917,11 +917,11 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
          puts a small breathing room between label and field that
          matches the `<.input>` core component's `mb-2`. --%>
     <div
-      class="form-control flex flex-col gap-1"
+      class="fieldset flex flex-col gap-1"
       phx-feedback-for={if @is_primary, do: "#{@form_prefix}[#{@field_name}]"}
     >
       <label for={@input_id} class="label">
-        <span class="label-text font-semibold">
+        <span class="fieldset-legend font-semibold">
           {@label}
           <%= if @required && @is_primary do %>
             *
@@ -988,10 +988,10 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
       <% end %>
       <.error :for={msg <- @errors}>{msg}</.error>
       <label :if={@hint && @is_primary && @errors == []} class="label">
-        <span class="label-text-alt">{@hint}</span>
+        <span class="fieldset-label">{@hint}</span>
       </label>
       <label :if={@secondary_hint && !@is_primary} class="label">
-        <span class="label-text-alt">{@secondary_hint}</span>
+        <span class="fieldset-label">{@secondary_hint}</span>
       </label>
     </div>
     """

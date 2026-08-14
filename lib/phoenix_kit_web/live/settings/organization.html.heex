@@ -26,7 +26,7 @@
             <form phx-submit="save_company" class="space-y-4">
               <%!-- Row: Company Name + Country --%>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="form-control">
+                <div class="fieldset">
                   <.input
                     type="text"
                     name="company_name"
@@ -37,7 +37,7 @@
                   />
                 </div>
 
-                <div class="form-control">
+                <div class="fieldset">
                   <.select
                     name="company_country"
                     value={@company_country}
@@ -53,7 +53,7 @@
               <div class="divider text-xs">{gettext("Address")}</div>
 
               <%!-- Row: Street Address --%>
-              <div class="form-control">
+              <div class="fieldset">
                 <.input
                   type="text"
                   name="company_address_line1"
@@ -65,7 +65,7 @@
               </div>
 
               <%!-- Row: Address Line 2 --%>
-              <div class="form-control">
+              <div class="fieldset">
                 <.input
                   type="text"
                   name="company_address_line2"
@@ -77,7 +77,7 @@
 
               <%!-- Row: City + State/Province + Postal Code --%>
               <div class="grid grid-cols-3 gap-4">
-                <div class="form-control">
+                <div class="fieldset">
                   <.input
                     type="text"
                     name="company_city"
@@ -88,7 +88,7 @@
                   />
                 </div>
 
-                <div class="form-control">
+                <div class="fieldset">
                   <.input
                     type="text"
                     name="company_state"
@@ -98,7 +98,7 @@
                   />
                 </div>
 
-                <div class="form-control">
+                <div class="fieldset">
                   <.input
                     type="text"
                     name="company_postal_code"
@@ -114,7 +114,7 @@
 
               <%!-- Row: VAT Number + Registration Number --%>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="form-control">
+                <div class="fieldset">
                   <.input
                     type="text"
                     name="company_vat"
@@ -128,7 +128,7 @@
                   />
                   <%= if @eu_country do %>
                     <label class="label">
-                      <span class="label-text-alt text-info">
+                      <span class="fieldset-label text-info">
                         <.icon name="hero-information-circle" class="w-4 h-4 inline" />
                         {gettext("EU format: %{country}123456789", country: @company_country)}
                       </span>
@@ -136,7 +136,7 @@
                   <% end %>
                 </div>
 
-                <div class="form-control">
+                <div class="fieldset">
                   <.input
                     type="text"
                     name="company_registration"
@@ -284,7 +284,7 @@
             </p>
 
             <form phx-submit="save_bank" class="space-y-4 mt-4">
-              <div class="form-control">
+              <div class="fieldset">
                 <.input
                   type="text"
                   name="bank_name"
@@ -296,7 +296,7 @@
 
               <%!-- Row: IBAN + SWIFT --%>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div class="form-control sm:col-span-2">
+                <div class="fieldset sm:col-span-2">
                   <.input
                     type="text"
                     name="bank_iban"
@@ -307,7 +307,7 @@
                   />
                 </div>
 
-                <div class="form-control">
+                <div class="fieldset">
                   <.input
                     type="text"
                     name="bank_swift"
@@ -343,15 +343,15 @@
             <form phx-submit="save_tax" class="space-y-4 mt-4">
               <%!-- Row: Enable Tax + Tax Rate --%>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-                <div class="form-control">
+                <div class="fieldset">
                   <.checkbox name="tax_enabled" checked={@tax_enabled}>
                     <span class="font-medium">{gettext("Enable Tax")}</span>
                   </.checkbox>
                 </div>
 
-                <div class="form-control">
+                <div class="fieldset">
                   <label class="label">
-                    <span class="label-text">{gettext("Default Tax Rate")}</span>
+                    <span class="fieldset-legend">{gettext("Default Tax Rate")}</span>
                   </label>
                   <div class="join">
                     <.input
