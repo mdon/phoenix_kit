@@ -2463,6 +2463,12 @@
       show={@selecting_cover}
       mode={:single}
       file_type_filter={:image}
+      lock_file_type
+      title={
+        if @image_picker_target == "logo",
+          do: gettext("Select Logo"),
+          else: gettext("Select Cover Image")
+      }
       scope_folder_id={@editing_folder_header}
       selected_uuids={[]}
       phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}

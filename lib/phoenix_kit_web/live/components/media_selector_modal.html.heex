@@ -25,7 +25,7 @@
                 id={"media-selector-modal-title-#{@id}"}
                 class="text-xl sm:text-2xl font-bold text-base-content"
               >
-                {gettext("Select Media")}
+                {@title || default_title(assigns)}
               </h2>
               <p class="text-base-content/70 text-sm mt-1">
                 {selection_hint(@mode, @file_type_filter)}
@@ -204,10 +204,15 @@
           </div>
         </div>
         <%!-- Library browse: search, type filter, grid, pagination. Hidden in
-             upload-only mode (`browse: false`). --%>
-        <div :if={@browse} class="contents">
-          <%!-- Search and Filter Section --%>
-          <div class="card bg-base-200 shadow-md">
+             upload-only mode (`browse: false`). NOT `class="contents"`: a
+             display:contents box takes no margins, and the parent's
+             `space-y-4` child selector can't reach through it — the grid sat
+             flush against the search card. --%>
+        <div :if={@browse} class="space-y-4">
+          <%!-- Search and Filter Section. Hidden when it could do nothing:
+               a locked picker over an empty, unsearched library has nothing
+               to search and no filter to change. --%>
+          <div :if={show_search_bar?(assigns)} class="card bg-base-200 shadow-md">
             <div class="card-body p-4">
               <div class="flex flex-col md:flex-row gap-3">
                 <%!-- Search --%>
@@ -222,6 +227,16 @@
                         class="input-sm join-item flex-1"
                         wrapper_class="contents"
                       />
+                      <button
+                        :if={@search_query != ""}
+                        type="button"
+                        phx-click="clear_search"
+                        phx-target={@myself}
+                        class="btn btn-ghost btn-sm join-item"
+                        title={gettext("Clear search")}
+                      >
+                        <.icon name="hero-x-mark" class="w-4 h-4" />
+                      </button>
                       <button type="submit" class="btn btn-primary btn-sm join-item">
                         <.icon name="hero-magnifying-glass" class="w-4 h-4" />
                       </button>
@@ -249,21 +264,48 @@
               </div>
             </div>
           </div>
-          <%!-- Media Grid --%>
+          <%!-- Media Grid. Two distinct empty states: a search that came up
+               dry offers a way back (clear it); a genuinely empty library
+               points at the dropzone instead of implying files are hiding
+               behind better search terms. --%>
           <%= if Enum.empty?(@uploaded_files) do %>
-            <div class="text-center py-8">
-              <.icon name="hero-photo" class="w-12 h-12 mx-auto mb-3 text-base-content/30" />
-              <p class="text-sm text-base-content/70 mb-1">{gettext("No media files found")}</p>
-              <p class="text-xs text-base-content/50">
-                {gettext("Upload files using the area above or adjust your search filters")}
-              </p>
-            </div>
+            <%= if @search_query != "" do %>
+              <div class="text-center py-10">
+                <.icon
+                  name="hero-magnifying-glass"
+                  class="w-12 h-12 mx-auto mb-3 text-base-content/30"
+                />
+                <p class="text-sm text-base-content/70 mb-3">
+                  {gettext("No results for “%{query}”", query: @search_query)}
+                </p>
+                <button
+                  type="button"
+                  phx-click="clear_search"
+                  phx-target={@myself}
+                  class="btn btn-ghost btn-sm"
+                >
+                  <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Clear search")}
+                </button>
+              </div>
+            <% else %>
+              <div class="text-center py-10">
+                <.icon
+                  name={empty_icon(@file_type_filter)}
+                  class="w-12 h-12 mx-auto mb-3 text-base-content/30"
+                />
+                <p class="text-sm text-base-content/70 mb-1">{empty_title(@file_type_filter)}</p>
+                <p :if={@has_buckets} class="text-xs text-base-content/50">
+                  {gettext("Upload your first one using the area above")}
+                </p>
+              </div>
+            <% end %>
           <% else %>
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               <%= for file <- @uploaded_files do %>
                 <% is_selected = file.file_uuid in @selected_uuids %>
                 <div
                   phx-click="toggle_selection"
+                  phx-dblclick={@mode == :single && "quick_confirm"}
                   phx-value-file-uuid={file.file_uuid}
                   phx-target={@myself}
                   class={[
