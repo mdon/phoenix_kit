@@ -169,7 +169,16 @@ defmodule PhoenixKit.ThemeConfig do
   def translated_label("caramellatte"), do: gettext("Caramel Latte")
   def translated_label("abyss"), do: gettext("Abyss")
   def translated_label("silk"), do: gettext("Silk")
-  def translated_label(theme), do: Map.get(@labels, theme, theme)
+
+  def translated_label(theme),
+    do: Map.get(@labels, theme) || host_label(theme) || theme
+
+  defp host_label(theme) do
+    case host_theme_meta() do
+      %{^theme => %{label: label}} -> label
+      _ -> nil
+    end
+  end
 
   @doc """
   Returns a map of theme names to translated, user-facing labels.
@@ -305,7 +314,8 @@ defmodule PhoenixKit.ThemeConfig do
 
   def dropdown_themes(allowed_themes) when is_list(allowed_themes) do
     # Filter and preserve order from allowed_themes list
-    {known, unknown} = Enum.split_with(allowed_themes, &Map.has_key?(@labels, &1))
+    labels = label_map()
+    {known, unknown} = Enum.split_with(allowed_themes, &Map.has_key?(labels, &1))
 
     # A typo'd name used to vanish without a word — a picker configured with
     # only unknown names rendered EMPTY, and nothing said why. Once per
@@ -318,7 +328,7 @@ defmodule PhoenixKit.ThemeConfig do
       Logger.warning(
         "[PhoenixKit.ThemeConfig] :dashboard_themes contains unknown theme name(s) " <>
           "#{inspect(unknown)} — they will not appear in the picker. " <>
-          "Known names: #{inspect(Map.keys(@labels))}"
+          "Known names: #{inspect(Map.keys(label_map()))}"
       )
     end
 
@@ -329,7 +339,7 @@ defmodule PhoenixKit.ThemeConfig do
     %{
       value: theme,
       label: translated_label(theme),
-      preview_theme: Map.get(@preview_themes, theme),
+      preview_theme: Map.get(@preview_themes, theme, theme),
       type: if(theme == "system", do: :system, else: :theme)
     }
   end
@@ -337,12 +347,16 @@ defmodule PhoenixKit.ThemeConfig do
   @doc """
   Returns a map of theme names to user-facing labels.
   """
-  def label_map, do: @labels
+  def label_map do
+    Map.merge(@labels, Map.new(host_theme_meta(), fn {n, m} -> {n, m.label} end))
+  end
 
   @doc """
   Returns a map of theme names to their base variant (`"light"` or `"dark"`).
   """
-  def base_map, do: @base_map
+  def base_map do
+    Map.merge(@base_map, Map.new(host_theme_meta(), fn {n, m} -> {n, m.base} end))
+  end
 
   @doc """
   The light/dark pair the "system" theme resolves to.
@@ -356,14 +370,17 @@ defmodule PhoenixKit.ThemeConfig do
   system resolution for any host whose pair uses other names.
   """
   def system_pair do
+    labels = label_map()
+    bases = base_map()
+
     configured =
       case PhoenixKit.Config.get(:dashboard_themes, :all) do
-        list when is_list(list) -> Enum.filter(list, &Map.has_key?(@labels, &1))
+        list when is_list(list) -> Enum.filter(list, &Map.has_key?(labels, &1))
         _ -> []
       end
 
-    light = Enum.find(configured, &(Map.get(@base_map, &1) == "light")) || "phoenix-light"
-    dark = Enum.find(configured, &(Map.get(@base_map, &1) == "dark")) || "phoenix-dark"
+    light = Enum.find(configured, &(Map.get(bases, &1) == "light")) || "phoenix-light"
+    dark = Enum.find(configured, &(Map.get(bases, &1) == "dark")) || "phoenix-dark"
 
     {light, dark}
   end
@@ -387,7 +404,7 @@ defmodule PhoenixKit.ThemeConfig do
   shipped with the DaisyUI plugin.
   """
   def custom_theme_css do
-    @custom_theme_variables
+    theme_variables()
     |> Enum.map_join("\n\n", fn {theme, vars} ->
       variables =
         Enum.map_join(vars, "\n", fn {name, value} -> "  #{name}: #{value};" end)
@@ -395,4 +412,143 @@ defmodule PhoenixKit.ThemeConfig do
       "[data-theme=#{theme}]\n{\n#{variables}\n}"
     end)
   end
+
+  # ---------------------------------------------------------------------------
+  # Host theme definitions
+  #
+  # config :phoenix_kit, theme_definitions: %{
+  #   # Merge variables over a built-in theme:
+  #   "phoenix-dark" => %{variables: %{"--color-primary" => "oklch(72% 0.14 158)"}},
+  #   # Or define a new named theme:
+  #   "brand-light" => %{
+  #     label: "Brand Light",
+  #     base: :light,
+  #     extends: "phoenix-light",
+  #     variables: %{"--color-primary" => "oklch(48% 0.13 158)"}
+  #   }
+  # }
+  #
+  # Until this existed, a branded host rebrand meant duplicating ~50 variable
+  # lines in its own CSS and out-specificity-ing the inline block. Everything
+  # here is VALIDATED and raises on the first bad entry — the output is
+  # HTML.raw'd into a <style> tag, so silent acceptance would be an injection
+  # vector, and silent dropping is how the picker's typo bug worked. The
+  # merged result keeps the bare [data-theme=X] selectors and no !important,
+  # so a host's own stronger selector still wins as an escape hatch.
+  # ---------------------------------------------------------------------------
+
+  @theme_name_re ~r/^[a-z0-9][a-z0-9_-]*$/
+  # One CSS value: no statement/block/comment/import machinery, nothing that
+  # can close the declaration or the style tag.
+  @css_value_re ~r"^[^;{}<>]*$"
+  @allowed_var_prefixes ~w(--color- --radius- --size-)
+  @allowed_var_names ~w(--border --depth --noise color-scheme)
+
+  @doc """
+  The effective per-theme variable maps: built-ins with host
+  `:theme_definitions` merged in. Validated once and cached; raises on the
+  first invalid entry rather than dropping it.
+  """
+  def theme_variables do
+    definitions = PhoenixKit.Config.get(:theme_definitions, %{})
+
+    case :persistent_term.get({__MODULE__, :theme_variables}, nil) do
+      {^definitions, merged} ->
+        merged
+
+      _ ->
+        merged = build_theme_variables(definitions)
+        :persistent_term.put({__MODULE__, :theme_variables}, {definitions, merged})
+        merged
+    end
+  end
+
+  @doc "Host-defined themes only: `%{name => %{label, base}}` for the lookups."
+  def host_theme_meta do
+    for {name, %{} = defn} <- PhoenixKit.Config.get(:theme_definitions, %{}),
+        not Map.has_key?(@custom_theme_variables, name),
+        into: %{} do
+      {name, %{label: Map.fetch!(defn, :label), base: to_string(Map.fetch!(defn, :base))}}
+    end
+  end
+
+  defp build_theme_variables(definitions) when is_map(definitions) do
+    Enum.reduce(definitions, @custom_theme_variables, fn {name, defn}, acc ->
+      validate_theme_name!(name)
+      vars = Map.get(defn, :variables, %{})
+      Enum.each(vars, &validate_variable!(name, &1))
+
+      base_vars =
+        cond do
+          Map.has_key?(acc, name) ->
+            Map.fetch!(acc, name)
+
+          extends = defn[:extends] ->
+            Map.get(@custom_theme_variables, extends) ||
+              raise ArgumentError,
+                    "theme #{inspect(name)} extends unknown theme #{inspect(extends)}"
+
+          true ->
+            # A new theme with no parent: base decides the color-scheme, the
+            # variables must carry the rest.
+            validate_new_theme!(name, defn)
+            %{"color-scheme" => to_string(Map.fetch!(defn, :base))}
+        end
+
+      Map.put(acc, name, Map.merge(base_vars, stringify_keys(vars)))
+    end)
+  end
+
+  defp build_theme_variables(other) do
+    raise ArgumentError,
+          ":theme_definitions must be a map of theme name => definition, got: #{inspect(other)}"
+  end
+
+  defp validate_theme_name!(name) do
+    unless is_binary(name) and Regex.match?(@theme_name_re, name) do
+      raise ArgumentError,
+            "invalid theme name #{inspect(name)} in :theme_definitions — " <>
+              "lowercase letters, digits, - and _ only"
+    end
+  end
+
+  defp validate_new_theme!(name, defn) do
+    unless is_binary(defn[:label]) and defn[:label] != "" do
+      raise ArgumentError, "new theme #{inspect(name)} needs a :label"
+    end
+
+    unless defn[:base] in [:light, :dark, "light", "dark"] do
+      raise ArgumentError, "new theme #{inspect(name)} needs base: :light or :dark"
+    end
+  end
+
+  defp validate_variable!(theme, {var_name, value}) do
+    var_name = to_string(var_name)
+
+    allowed =
+      var_name in @allowed_var_names or
+        Enum.any?(@allowed_var_prefixes, &String.starts_with?(var_name, &1))
+
+    unless allowed do
+      raise ArgumentError,
+            "theme #{inspect(theme)}: variable #{inspect(var_name)} is not an " <>
+              "allowed theme token (#{inspect(@allowed_var_prefixes)} prefixes " <>
+              "or #{inspect(@allowed_var_names)})"
+    end
+
+    value = to_string(value)
+
+    safe =
+      Regex.match?(@css_value_re, value) and
+        not String.contains?(String.downcase(value), ["url(", "@import", "/*", "*/"]) and
+        (var_name != "color-scheme" or value in ["light", "dark"])
+
+    unless safe do
+      raise ArgumentError,
+            "theme #{inspect(theme)}: value #{inspect(value)} for #{inspect(var_name)} " <>
+              "is not a single plain CSS value"
+    end
+  end
+
+  defp stringify_keys(map), do: Map.new(map, fn {k, v} -> {to_string(k), to_string(v)} end)
 end
