@@ -268,57 +268,6 @@ defmodule PhoenixKit.ThemeConfig do
     "abyss" => "dark"
   }
 
-  @slider_targets %{
-    "system" => ["system"],
-    "light" => [
-      "light",
-      "phoenix-light",
-      "cupcake",
-      "bumblebee",
-      "emerald",
-      "corporate",
-      "retro",
-      "cyberpunk",
-      "valentine",
-      "garden",
-      "aqua",
-      "lofi",
-      "pastel",
-      "fantasy",
-      "wireframe",
-      "cmyk",
-      "autumn",
-      "acid",
-      "lemonade",
-      "winter",
-      "caramellatte",
-      "silk"
-    ],
-    "dark" => [
-      "dark",
-      "phoenix-dark",
-      "synthwave",
-      "halloween",
-      "forest",
-      "black",
-      "luxury",
-      "dracula",
-      "business",
-      "night",
-      "coffee",
-      "dim",
-      "nord",
-      "sunset",
-      "abyss"
-    ]
-  }
-
-  @slider_primary %{
-    "system" => "system",
-    "light" => "phoenix-light",
-    "dark" => "phoenix-dark"
-  }
-
   @doc """
   Returns the logical default theme name stored in the user's preferences.
   """
@@ -328,24 +277,6 @@ defmodule PhoenixKit.ThemeConfig do
   Returns the initial theme applied to the `<html>` element on first render.
   """
   def default_html_theme, do: @default_html_theme
-
-  @doc """
-  Fetches the current theme (alias for `default_theme/0`).
-  """
-  def get_theme, do: default_theme()
-
-  @doc """
-  Returns theme data attributes for HTML elements.
-  """
-  def theme_data_attributes, do: [{"data-theme", default_html_theme()}]
-
-  @doc """
-  Returns modern CSS variables for the theme system.
-
-  Currently unused but kept for backwards compatibility with previous helper
-  implementations.
-  """
-  def modern_css_variables, do: ""
 
   @doc """
   Returns the ordered list of themes displayed in dropdown selectors.
@@ -374,9 +305,24 @@ defmodule PhoenixKit.ThemeConfig do
 
   def dropdown_themes(allowed_themes) when is_list(allowed_themes) do
     # Filter and preserve order from allowed_themes list
-    allowed_themes
-    |> Enum.filter(&Map.has_key?(@labels, &1))
-    |> Enum.map(&theme_to_map/1)
+    {known, unknown} = Enum.split_with(allowed_themes, &Map.has_key?(@labels, &1))
+
+    # A typo'd name used to vanish without a word — a picker configured with
+    # only unknown names rendered EMPTY, and nothing said why. Once per
+    # unknown set, not per render: this runs on every mount.
+    if unknown != [] and :persistent_term.get({__MODULE__, :warned, unknown}, false) == false do
+      :persistent_term.put({__MODULE__, :warned, unknown}, true)
+
+      require Logger
+
+      Logger.warning(
+        "[PhoenixKit.ThemeConfig] :dashboard_themes contains unknown theme name(s) " <>
+          "#{inspect(unknown)} — they will not appear in the picker. " <>
+          "Known names: #{inspect(Map.keys(@labels))}"
+      )
+    end
+
+    Enum.map(known, &theme_to_map/1)
   end
 
   defp theme_to_map(theme) do
@@ -397,34 +343,6 @@ defmodule PhoenixKit.ThemeConfig do
   Returns a map of theme names to their base variant (`"light"` or `"dark"`).
   """
   def base_map, do: @base_map
-
-  @doc """
-  Returns the list of target aliases used by the slider buttons for the given
-  group (`"system"`, `"light"`, or `"dark"`).
-  """
-  def slider_targets(group) when is_binary(group) do
-    Map.get(@slider_targets, group, [])
-  end
-
-  @doc """
-  Returns the slider target configuration map with string keys.
-  Suitable for encoding to JSON for client-side usage.
-  """
-  def slider_target_map, do: @slider_targets
-
-  @doc """
-  Returns the canonical theme dispatched when a slider button is pressed.
-  """
-  def slider_primary_theme(group) when is_binary(group) do
-    Map.get(@slider_primary, group, "system")
-  end
-
-  @doc """
-  Returns the theme slot metadata used by slider buttons.
-  """
-  def slider_primary_map do
-    @slider_primary
-  end
 
   @doc """
   Returns all theme names recognised by PhoenixKit.

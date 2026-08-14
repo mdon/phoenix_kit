@@ -714,32 +714,32 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           icon.classList.toggle('scale-100', isActive);
                           icon.classList.toggle('scale-75', !isActive);
                         });
-                    } else if (btn.dataset.themeRole === 'slider-button') {
-                      btn.classList.toggle('text-primary', isActive);
-                      btn.setAttribute('aria-pressed', String(isActive));
+                    } else if (btn.dataset.themeRole === 'toggle-option') {
+                      // The pair toggle: hide the ACTIVE theme's button so
+                      // the one left visible is the one you'd switch to.
+                      // (Replaces a 'slider-button' branch whose markup no
+                      // template renders.)
+                      btn.classList.toggle('hidden', isActive);
                     }
                   });
 
-                  // Notify global PhoenixKit theme listeners
-                  // Dispatch from a fake element with data-phx-theme attribute for compatibility with parent app listeners
-                  // The event bubbles up to window, allowing window-level listeners to work correctly
-                  try {
-                    const fakeTarget = document.createElement('div');
-                    fakeTarget.dataset.phxTheme = theme;
-                    const event = new CustomEvent('phx:set-theme', {
-                      detail: { theme },
-                      bubbles: true
-                    });
-                    fakeTarget.dispatchEvent(event);
-                  } catch (error) {
-                    console.warn('PhoenixKit admin theme controller: unable to dispatch phx:set-theme', error);
-                  }
-
-                  if (window.PhoenixKitTheme && typeof window.PhoenixKitTheme.setTheme === 'function') {
+                  // Notify window-level listeners — host root layouts included.
+                  // The old version dispatched from a detached element and
+                  // claimed the event "bubbles up to window": it cannot — a
+                  // node outside the DOM has no path to bubble along, so no
+                  // host listener ever heard a kit-side theme change. Guarded,
+                  // because this object also LISTENS for phx:set-theme on
+                  // window: dispatchEvent is synchronous, so the flag is set
+                  // for exactly the duration of our own event and the listener
+                  // ignores it, while external events still come through.
+                  if (!this._dispatchingTheme) {
+                    this._dispatchingTheme = true;
                     try {
-                      window.PhoenixKitTheme.setTheme(theme);
+                      window.dispatchEvent(new CustomEvent('phx:set-theme', { detail: { theme } }));
                     } catch (error) {
-                      console.warn('PhoenixKit admin theme controller: unable to sync PhoenixKitTheme', error);
+                      console.warn('PhoenixKit admin theme controller: unable to dispatch phx:set-theme', error);
+                    } finally {
+                      this._dispatchingTheme = false;
                     }
                   }
                 },
@@ -752,10 +752,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     }
                   });
 
-                  // Also listen for phx:set-theme from theme_controller component
+                  // Also listen for phx:set-theme from theme_controller
+                  // component and from host code. Skip our own dispatches —
+                  // see the guard in setTheme.
                   window.addEventListener('phx:set-theme', (e) => {
-                    if (e?.detail?.theme) {
-                      this.setTheme(e.detail.theme);
+                    const theme = e?.detail?.theme ?? e?.target?.dataset?.phxTheme;
+                    if (theme && !this._dispatchingTheme) {
+                      this.setTheme(theme);
                     }
                   });
                 },
