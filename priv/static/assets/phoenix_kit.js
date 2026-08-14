@@ -4043,7 +4043,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.10.0/priv/static/fresco.js";
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.11.0/priv/static/fresco.js";
     var frescoLoading = false;
     var frescoCallbacks = [];
 
@@ -4137,7 +4137,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.3.1/priv/static/tessera.js";
+    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.3.5/priv/static/tessera.js";
     var tesseraLoading = false;
     var tesseraCallbacks = [];
 
@@ -4188,17 +4188,20 @@ if (typeof window.Chart === "undefined") {
   //
   // Lazy-fetches Etcher's annotation layer JS. Pairs with Fresco — attaches
   // to a host viewer/canvas via `fresco_id` and adds the pencil toolbar,
-  // draw tools, and shape persistence. Comes from the {:etcher, "~> 0.6"}
-  // hex dependency. Same parent-pre-import short-circuit as Fresco.
+  // draw tools, and shape persistence. Comes from the :etcher hex
+  // dependency. Same parent-pre-import short-circuit as Fresco.
   //
-  // Keep this version pin in sync with the hex dep + the GitHub release tag
-  // (jsDelivr resolves `gh/<user>/<repo>@<tag>`). A stale pin silently serves
-  // an old etcher.js — toolbar hooks like `etcher:line-params-changed` then
-  // never fire even though the server side is wired for them.
+  // This pin must name the release hex resolved —
+  // test/phoenix_kit_web/vendored_cdn_pins_test.exs holds every gh/ pin in
+  // this file to its mix.lock entry, because the comment that used to ask
+  // for it did not: this one sat three minors behind. A stale pin silently
+  // serves an old etcher.js — toolbar hooks like
+  // `etcher:line-params-changed` then never fire even though the server
+  // side is wired for them.
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.9.0/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.12.0/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 
