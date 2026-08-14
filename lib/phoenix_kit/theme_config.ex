@@ -18,9 +18,11 @@ defmodule PhoenixKit.ThemeConfig do
 
           config :phoenix_kit, dashboard_themes: ["phoenix-light", "phoenix-dark"]
 
-      **Exactly two concrete themes render as a sun/moon toggle** instead of a
-      dropdown; any other shape (more themes, or `"system"` in the list) keeps
-      the dropdown, because three or more states need a menu.
+      **Exactly two concrete themes — one light, one dark — render as a
+      sun/moon toggle** instead of a dropdown; any other shape (more themes,
+      `"system"` in the list, or a same-base pair) keeps the dropdown,
+      because three or more states need a menu and sun/moon semantics need
+      both bases.
 
     * **Palette overrides go through `:theme_definitions`** — see the
       "Host configuration" section: override built-in palettes or define
@@ -383,10 +385,41 @@ defmodule PhoenixKit.ThemeConfig do
         _ -> []
       end
 
-    light = Enum.find(configured, &(Map.get(bases, &1) == "light")) || "phoenix-light"
-    dark = Enum.find(configured, &(Map.get(bases, &1) == "dark")) || "phoenix-dark"
+    light = Enum.find(configured, &(Map.get(bases, &1) == "light"))
+    dark = Enum.find(configured, &(Map.get(bases, &1) == "dark"))
 
-    {light, dark}
+    if configured != [] and (light == nil or dark == nil) do
+      warn_half_missing(configured, light, dark)
+    end
+
+    {light || "phoenix-light", dark || "phoenix-dark"}
+  end
+
+  # A pair half falling back OUTSIDE the configured list means "system" can
+  # resolve to a theme the picker never offers — legal, but almost always a
+  # config oversight (e.g. two dark themes and no light one). Once per
+  # configured set, not per render.
+  defp warn_half_missing(configured, light, dark) do
+    key = {__MODULE__, :system_pair_warned, configured}
+
+    if :persistent_term.get(key, false) == false do
+      :persistent_term.put(key, true)
+
+      missing =
+        case {light, dark} do
+          {nil, nil} -> "no light or dark theme"
+          {nil, _} -> "no light theme"
+          {_, nil} -> "no dark theme"
+        end
+
+      require Logger
+
+      Logger.warning(
+        "[PhoenixKit.ThemeConfig] :dashboard_themes #{inspect(configured)} has " <>
+          "#{missing}, so \"system\" will resolve to a built-in phoenix-* theme " <>
+          "that is not in the picker. Add one theme of each base to avoid this."
+      )
+    end
   end
 
   @doc """

@@ -125,16 +125,15 @@ defmodule PhoenixKitWeb.Components.ThemeControllerScript do
             const isActive = targets.includes(theme) || targets.includes(resolved);
 
             if (btn.dataset.themeRole === 'toggle') {
-              // The persistent pair toggle: aria-pressed = dark half on,
-              // icons swap, and data-phx-theme always points at the OTHER
-              // theme — it is what the button's JS.dispatch carries, so the
-              // click needs no state of its own.
+              // The persistent pair toggle: aria-pressed = dark half on, and
+              // data-phx-theme always points at the OTHER theme — it is what
+              // the button's JS.dispatch carries, so the click needs no
+              // state of its own. Icon visibility is CSS (keyed off
+              // html[data-theme], rendered next to the button), correct from
+              // the first paint with no JS involved.
               const isDark = resolved === btn.dataset.themeDark;
               btn.setAttribute('aria-pressed', String(isDark));
               btn.dataset.phxTheme = isDark ? btn.dataset.themeLight : btn.dataset.themeDark;
-              btn.querySelectorAll('[data-toggle-icon]').forEach((icon) => {
-                icon.classList.toggle('hidden', (icon.dataset.toggleIcon === 'dark') !== isDark);
-              });
             } else if (btn.dataset.themeRole === 'dropdown-option') {
               btn.classList.toggle('bg-base-200', isActive);
               btn.classList.toggle('ring-2', isActive);

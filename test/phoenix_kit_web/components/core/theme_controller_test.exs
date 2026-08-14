@@ -80,6 +80,44 @@ defmodule PhoenixKitWeb.Components.Core.ThemeControllerTest do
     end
   end
 
+  describe "a same-base pair is not a toggle" do
+    test ":auto falls back to the dropdown for two lights" do
+      # Sun/moon icons and aria-pressed "dark on" semantics are false over
+      # two themes of the same base.
+      html = render_picker(["light", "cupcake"])
+
+      assert html =~ ~s(data-theme-role="dropdown-option")
+      refute html =~ ~s(data-theme-role="toggle")
+    end
+
+    test ":toggle raises for two darks" do
+      assert_raise ArgumentError, ~r/one light and one dark/, fn ->
+        render_component(&ThemeController.theme_controller/1,
+          themes: ["dark", "night"],
+          mode: :toggle,
+          id: "t"
+        )
+      end
+    end
+  end
+
+  describe "toggle icon visibility is CSS, correct from first paint" do
+    test "renders rules keyed off html[data-theme], scoped to the pair" do
+      # The JS-swapped version flashed the sun at dark-mode users until the
+      # end-of-body script initialized; CSS keyed off the pre-paint stamp
+      # cannot be wrong. Scoped by [data-theme-dark] so multiple toggles
+      # coexist without id requirements.
+      html = render_picker(["phoenix-light", "phoenix-dark"])
+
+      assert html =~
+               "html[data-theme=\"phoenix-dark\"] [data-theme-dark=\"phoenix-dark\"] [data-toggle-icon=\"light\"]"
+
+      assert html =~ "html:not([data-theme=\"phoenix-dark\"])"
+      # neither icon is JS-hidden anymore
+      refute html =~ "data-toggle-icon=\"dark\" class=\"hidden\""
+    end
+  end
+
   describe "anything other than a pure pair keeps the dropdown" do
     test "three themes" do
       html = render_picker(["phoenix-light", "phoenix-dark", "nord"])

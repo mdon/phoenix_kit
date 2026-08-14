@@ -171,6 +171,32 @@ defmodule PhoenixKit.ThemeDefinitionsTest do
     end
   end
 
+  describe "system_pair fallback warning" do
+    import ExUnit.CaptureLog
+
+    test "warns once when the configured list has no light theme" do
+      # "system" resolving to a theme outside the picker is legal but almost
+      # always a config oversight — say so, once per configured set.
+      Application.put_env(:phoenix_kit, :dashboard_themes, ["dracula", "night"])
+
+      log = capture_log(fn -> ThemeConfig.system_pair() end)
+
+      assert log =~ "no light theme"
+      assert ThemeConfig.system_pair() == {"phoenix-light", "dracula"}
+
+      # second call: silent (persistent_term latch)
+      assert capture_log(fn -> ThemeConfig.system_pair() end) == ""
+    after
+      :persistent_term.erase({ThemeConfig, :system_pair_warned, ["dracula", "night"]})
+    end
+
+    test "a complete pair warns about nothing" do
+      Application.put_env(:phoenix_kit, :dashboard_themes, ["light", "dark"])
+
+      assert capture_log(fn -> ThemeConfig.system_pair() end) == ""
+    end
+  end
+
   describe "meta feeding the JS embeds" do
     test "extends inherits the parent's base when none is given" do
       put_defs(%{"brand" => %{label: "Brand", extends: "phoenix-dark", variables: %{}}})
