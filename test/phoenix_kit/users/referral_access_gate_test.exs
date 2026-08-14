@@ -16,6 +16,11 @@ defmodule PhoenixKit.Users.ReferralAccessGateTest do
   """
   use PhoenixKit.DataCase, async: false
 
+  # These tests assert BOOTSTRAP semantics (first-user-becomes-Owner, last-
+  # Owner guards, owner counts), so the suite's committed seed Owner is
+  # demoted inside this test's own sandbox transaction — see DataCase.
+  setup {PhoenixKit.DataCase, :demote_seed_owner}
+
   alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth

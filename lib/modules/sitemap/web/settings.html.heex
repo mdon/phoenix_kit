@@ -673,10 +673,10 @@
               "Served at the site root as well as under the PhoenixKit prefix, because that is where crawlers look. A priv/static/sitemap.xml file would be served instead of this one."
             )}
             <.link
-              navigate={Routes.path("/admin/settings/seo")}
+              navigate={Routes.path("/admin/settings/crawlers")}
               class="link link-primary"
             >
-              {gettext("SEO settings")}
+              {gettext("Crawler settings")}
             </.link>
             {gettext("has the robots.txt line that points crawlers here.")}
           </p>

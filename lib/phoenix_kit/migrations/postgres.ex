@@ -7,7 +7,30 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V170 - Notification collapsing gets indexes and a uniqueness backstop ⚡ LATEST
+  ### V172 - SEO module renamed to Crawlers ⚡ LATEST
+
+  The built-in SEO module becomes Crawlers: everything it held was bot
+  policy (the noindex directive, crawler guidance, and now per-bot-group
+  access controls), while actual SEO work lives in the external
+  phoenix_kit_seo package. Settings rows are renamed
+  (seo_module_enabled/seo_no_index -> crawlers_*), roles granted seo gain
+  crawlers, and the old seo grants stay for the repair manifest.
+
+  ### V171 - Shop slugs unique per (base language, value)
+
+  Product and category slugs are jsonb maps, and the only uniqueness the
+  database enforced was an expression index on the alphabetically-first
+  key's value — under-enforcing (other languages unconstrained, collisions
+  surfacing on "add translation") and over-enforcing (`{"en":"hat"}` vs
+  `{"de":"hat"}` collided though they can never shadow each other in a
+  URL) at once. Trigger-maintained projection tables
+  (`phoenix_kit_shop_{product,category}_slugs`, PK `(lang, value)`) now
+  enforce the bucket the resolver actually reads. Existing duplicates are
+  suffixed `-2`, `-3` …; two LIVE rows sharing a bucket raise instead —
+  which URL survives is the operator's call. The old indexes are dropped;
+  `extract_primary_slug` stays, unused.
+
+  ### V170 - Notification collapsing gets indexes and a uniqueness backstop
 
   Two indexes for the `upsert_inapp/3` collapsing API. A partial UNIQUE index
   on `(recipient_uuid, metadata->>'dedupe_key')` over undismissed unseen rows
@@ -512,7 +535,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 170
+  @current_version 172
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

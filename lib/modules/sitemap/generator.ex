@@ -30,8 +30,8 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
 
   require Logger
 
+  alias PhoenixKit.Modules.Crawlers
   alias PhoenixKit.Modules.Languages
-  alias PhoenixKit.Modules.SEO
   alias PhoenixKit.Modules.Sitemap
   alias PhoenixKit.Modules.Sitemap.Cache
   alias PhoenixKit.Modules.Sitemap.FileStorage
@@ -89,7 +89,7 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
     xsl_enabled = Keyword.get(opts, :xsl_enabled, true)
 
     cond do
-      seo_no_index?() ->
+      crawlers_no_index?() ->
         do_generate_no_index(xsl_style, xsl_enabled)
 
       Sitemap.flat_mode?() ->
@@ -100,7 +100,7 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
     end
   end
 
-  # When the SEO module's global `noindex` directive is active the site is
+  # When the Crawlers module's global `noindex` directive is active the site is
   # asking search engines not to index it, so we publish an empty (but valid)
   # `<urlset>` rather than advertising crawlable URLs, for both flat and index
   # modes. Note this makes `/sitemap.xml` serve a `<urlset>` (not a
@@ -112,7 +112,7 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
   # layouts emit for the same setting — an empty sitemap always pairs with a
   # noindex meta.
   defp do_generate_no_index(xsl_style, xsl_enabled) do
-    Logger.debug("Sitemap: seo_no_index active — publishing empty sitemap")
+    Logger.debug("Sitemap: crawlers_no_index active — publishing empty sitemap")
 
     xml = build_urlset_xml([], xsl_style, xsl_enabled)
     FileStorage.save_index(xml)
@@ -121,9 +121,9 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
     {:ok, %{index_xml: xml, modules: [], total_urls: 0}}
   end
 
-  # Defensive: never let an SEO lookup error break sitemap generation.
-  defp seo_no_index? do
-    SEO.no_index_enabled?()
+  # Defensive: never let a Crawlers lookup error break sitemap generation.
+  defp crawlers_no_index? do
+    Crawlers.no_index_enabled?()
   rescue
     _ -> false
   end
@@ -369,7 +369,7 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
       style not in ["hierarchical", "grouped", "flat"] ->
         {:error, :invalid_style}
 
-      seo_no_index?() ->
+      crawlers_no_index?() ->
         # noindex active: never advertise URLs and never serve a stale cached
         # HTML sitemap — render an empty one, bypassing the cache.
         HtmlGenerator.generate(opts, [], :"html_#{style}", cache: false)

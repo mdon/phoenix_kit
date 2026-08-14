@@ -45,9 +45,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   alias Phoenix.HTML
   alias PhoenixKit.Config
+  alias PhoenixKit.Modules.Crawlers
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
-  alias PhoenixKit.Modules.SEO
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.ThemeConfig
   alias PhoenixKit.Users.Auth.Scope
@@ -174,7 +174,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
             PhoenixKit.Settings.get_content_language()
         end
       end)
-      |> assign_new(:seo_no_index, fn -> SEO.no_index_enabled?() end)
+      |> assign_new(:crawlers_no_index, fn -> Crawlers.no_index_enabled?() end)
+      |> assign_new(:crawlers_verifications, fn -> Crawlers.verification_metas() end)
 
     # Handle both inner_content (Phoenix 1.7-) and inner_block (Phoenix 1.8+)
     assigns = normalize_content_assigns(assigns)
@@ -977,10 +978,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
           {assigns[:page_title] || "Admin"}
         </.live_title>
         <.phoenix_kit_favicon />
-        <%= if assigns[:seo_no_index] do %>
-          <meta name="robots" content="noindex,nofollow" />
-          <meta name="googlebot" content="noindex,nofollow" />
-        <% end %>
+        <PhoenixKitWeb.Components.Core.CrawlerMetas.crawler_metas />
         <link phx-track-static rel="stylesheet" href="/assets/css/app.css" />
         <%!-- PhoenixKit Cookie Consent Widget Setup --%>
         <.phoenix_kit_globals />
@@ -1124,7 +1122,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     |> Map.put_new(:phoenix_kit_integrated, true)
     |> Map.put_new(:phoenix_kit_version, get_phoenix_kit_version())
     |> Map.put_new(:phoenix_version_info, PhoenixVersion.get_version_info())
-    |> Map.put_new(:seo_no_index, assigns[:seo_no_index] || false)
+    |> Map.put_new(:crawlers_no_index, assigns[:crawlers_no_index] || false)
+    |> Map.put_new(:crawlers_verifications, assigns[:crawlers_verifications] || [])
   end
 
   # Extract current user from scope for parent layout compatibility
