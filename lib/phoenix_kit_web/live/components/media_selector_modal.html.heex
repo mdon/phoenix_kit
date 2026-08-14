@@ -16,53 +16,46 @@
       phx-click="noop"
       phx-target={@myself}
     >
-      <%!-- Header with Actions --%>
+      <%!-- Header: title + hint left, Cancel/Confirm right. One row, no ✕ —
+           Cancel IS the close (and Esc / backdrop-click still work via
+           PkDialog), so a separate ✕ was the same action twice. On small
+           screens the buttons wrap under the title, full-width. --%>
       <header class="border-b border-base-200 px-3 py-3 sm:px-6 sm:py-4">
-        <div class="flex flex-col gap-3">
-          <div class="flex justify-between items-start">
-            <div>
-              <h2
-                id={"media-selector-modal-title-#{@id}"}
-                class="text-xl sm:text-2xl font-bold text-base-content"
-              >
-                {@title || default_title(assigns)}
-              </h2>
-              <p class="text-base-content/70 text-sm mt-1">
-                {selection_hint(@mode, @file_type_filter)}
-                <%= if @selected_uuids != [] do %>
-                  <span class="badge badge-primary ml-2">
-                    <%= if @max_select && @mode == :multiple do %>
-                      {gettext("%{count} of %{max} selected",
-                        count: length(@selected_uuids),
-                        max: @max_select
-                      )}
-                    <% else %>
-                      {ngettext(
-                        "%{count} selected",
-                        "%{count} selected",
-                        length(@selected_uuids),
-                        count: length(@selected_uuids)
-                      )}
-                    <% end %>
-                  </span>
-                <% end %>
-                <%= if @limit_hit do %>
-                  <span class="badge badge-warning ml-2">
-                    {gettext("Maximum %{count} files", count: @max_select)}
-                  </span>
-                <% end %>
-              </p>
-            </div>
-            <button
-              type="button"
-              phx-click="close_modal"
-              phx-target={@myself}
-              class="btn btn-ghost btn-sm btn-square"
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2
+              id={"media-selector-modal-title-#{@id}"}
+              class="text-xl sm:text-2xl font-bold text-base-content"
             >
-              <.icon name="hero-x-mark" class="w-5 h-5" />
-            </button>
+              {@title || default_title(assigns)}
+            </h2>
+            <p class="text-base-content/70 text-sm mt-1">
+              {selection_hint(@mode, @file_type_filter)}
+              <%= if @selected_uuids != [] do %>
+                <span class="badge badge-primary ml-2">
+                  <%= if @max_select && @mode == :multiple do %>
+                    {gettext("%{count} of %{max} selected",
+                      count: length(@selected_uuids),
+                      max: @max_select
+                    )}
+                  <% else %>
+                    {ngettext(
+                      "%{count} selected",
+                      "%{count} selected",
+                      length(@selected_uuids),
+                      count: length(@selected_uuids)
+                    )}
+                  <% end %>
+                </span>
+              <% end %>
+              <%= if @limit_hit do %>
+                <span class="badge badge-warning ml-2">
+                  {gettext("Maximum %{count} files", count: @max_select)}
+                </span>
+              <% end %>
+            </p>
           </div>
-          <div class="flex gap-2 sm:justify-end">
+          <div class="flex gap-2 sm:shrink-0">
             <button
               type="button"
               phx-click="close_modal"

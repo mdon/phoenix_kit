@@ -76,6 +76,10 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
       choosing FOR. nil (default) derives a type-aware fallback: a locked
       image picker titles itself "Select Image" (or "Select Images" in
       `:multiple` mode); everything else stays "Select Media".
+    * `always_show_search` — `false` (default) lets the search/filter row
+      hide itself when it could do nothing: a locked picker browsing without
+      a query shows it only once the library holds 10+ files (below that
+      everything fits on one screen). `true` forces the row to always render.
     * `browse` — `true` (default) shows the library grid + search + type filter;
       `false` is upload-only (dropzone + Confirm; uploaded files auto-select)
     * `user_uuid` — when set, restricts the library to files owned by
@@ -150,6 +154,9 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
       # nil falls back to a type-aware default — a locked image picker titles
       # itself "Select Image", not the generic "Select Media".
       |> assign_new(:title, fn -> nil end)
+      # Force the search/filter row even over a tiny library — see
+      # show_search_bar?/1 for when it hides on its own.
+      |> assign_new(:always_show_search, fn -> false end)
       |> assign_new(:search_query, fn -> "" end)
       |> assign_new(:current_page, fn -> 1 end)
       |> assign_new(:per_page, fn -> @per_page end)
@@ -279,13 +286,24 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
 
   defp default_title(_assigns), do: gettext("Select Media")
 
-  # The search/filter row earns its place only when it can do something. A
-  # locked picker over an empty, unsearched library has nothing to search and
-  # no filter to change — showing controls above "No images yet" reads like
-  # the images are hiding somewhere. Unlocked pickers keep the row: switching
-  # the type filter may reveal files of another type.
+  # Below this many files everything fits on one screen and search is noise.
+  # Well under @per_page (30), so the threshold can never hide search from a
+  # library that actually paginates.
+  @search_bar_threshold 10
+
+  # The search/filter row earns its place only when it can do something.
+  # An active query always keeps it (the user must be able to refine or
+  # clear), `always_show_search` forces it, and unlocked pickers keep it
+  # because the type dropdown is the only way to widen the scope back out.
+  # What remains is a locked picker browsing without a query — there the row
+  # shows only once the library is big enough for search to beat scrolling.
   defp show_search_bar?(assigns) do
-    not (assigns.lock_file_type and assigns.search_query == "" and assigns.total_count == 0)
+    cond do
+      assigns.always_show_search -> true
+      assigns.search_query != "" -> true
+      not assigns.lock_file_type -> true
+      true -> assigns.total_count >= @search_bar_threshold
+    end
   end
 
   # Empty-state copy per type, split by whether a search came up dry or the
