@@ -40,6 +40,18 @@ defmodule PhoenixKit.Migrations.Postgres.V168 do
   generated slug — but "unlikely" is not a thing to bet a migration on, and that same
   timestamp is being deleted by the changeset work this migration accompanies.
 
+  ## Why tickets rename silently where V167 refused
+
+  V167 raises when two *live* posts share a slug; this migration suffixes duplicate
+  ticket slugs without asking. That is deliberate, not drift. A duplicated slug means
+  `get_ticket_by_slug/2` raises `Ecto.MultipleResultsError` on **every** request for
+  it — both tickets' URLs are already broken — so renaming the newer one strictly
+  improves things: the older URL starts working again and the newer ticket gets a
+  slug that resolves. Refusing would block the whole upgrade to ask an operator about
+  a URL that is already dead. Posts earned the refusal because *which* post keeps a
+  slug is an editorial and SEO identity question; between two support tickets,
+  oldest-wins has no second defensible answer.
+
   ## Why not CONCURRENTLY
 
   It is *available* — the wrappers this chain runs under are generated with
