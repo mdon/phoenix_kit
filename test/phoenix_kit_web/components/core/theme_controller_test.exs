@@ -29,7 +29,18 @@ defmodule PhoenixKitWeb.Components.Core.ThemeControllerTest do
       assert html =~ "hero-moon"
       assert html =~ ~s(data-theme-light="phoenix-light")
       assert html =~ ~s(data-theme-dark="phoenix-dark")
-      assert html =~ ~s(data-theme-next="phoenix-dark")
+      assert html =~ ~s(data-phx-theme="phoenix-dark")
+    end
+
+    test "the click is a real dispatch, not a kit-script-only listener" do
+      # Same phx:set-theme + data-phx-theme contract as the dropdown options
+      # and the stock Phoenix root-layout script — so the toggle works in
+      # host layouts that never render ThemeControllerScript. Without this
+      # the button was silently dead outside the kit's own layouts.
+      html = render_picker(["phoenix-light", "phoenix-dark"])
+
+      assert html =~ "phx-click"
+      assert html =~ "phx:set-theme"
     end
 
     test "order in the config does not decide which half is dark" do

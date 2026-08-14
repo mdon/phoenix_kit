@@ -8,6 +8,7 @@ defmodule PhoenixKit.ThemeDefinitionsTest do
       Application.delete_env(:phoenix_kit, :theme_definitions)
       Application.delete_env(:phoenix_kit, :dashboard_themes)
       :persistent_term.erase({ThemeConfig, :theme_variables})
+      :persistent_term.erase({ThemeConfig, :host_theme_meta})
     end)
   end
 
@@ -114,6 +115,82 @@ defmodule PhoenixKit.ThemeDefinitionsTest do
       assert_raise ArgumentError, ~r/extends unknown theme/, fn ->
         ThemeConfig.custom_theme_css()
       end
+    end
+
+    test "an extends-only definition without a label raises, not KeyError" do
+      # This shape passed the CSS validator but crashed host_theme_meta with
+      # a bare KeyError from the top of <head> — the quorum's M1.
+      put_defs(%{"child" => %{extends: "phoenix-light", variables: %{}}})
+
+      assert_raise ArgumentError, ~r/needs a :label/, fn ->
+        ThemeConfig.host_theme_meta()
+      end
+
+      assert_raise ArgumentError, ~r/needs a :label/, fn ->
+        ThemeConfig.custom_theme_css()
+      end
+    end
+
+    test "an invalid explicit base raises even when :extends could cover it" do
+      put_defs(%{
+        "child" => %{label: "C", base: "junk", extends: "phoenix-light", variables: %{}}
+      })
+
+      assert_raise ArgumentError, ~r/needs base: :light or :dark/, fn ->
+        ThemeConfig.host_theme_meta()
+      end
+    end
+
+    test "a non-map definition raises everywhere, never silently skips" do
+      put_defs(%{"weird" => "not-a-map"})
+
+      assert_raise ArgumentError, ~r/definition must be a map/, fn ->
+        ThemeConfig.host_theme_meta()
+      end
+    end
+
+    test "a poisoned theme NAME cannot reach the lookups feeding inline JS" do
+      # host_theme_meta once read the raw config unvalidated — the quorum's
+      # B1 bypass: base_map/label_map/system_pair fed inline <script> blocks.
+      put_defs(%{"</script><script>x</script>" => %{label: "X", base: :dark}})
+
+      assert_raise ArgumentError, ~r/invalid theme name/, fn ->
+        ThemeConfig.base_map()
+      end
+    end
+
+    test "a variable NAME that escapes the declaration is rejected" do
+      # Passed the old prefix-only check — the quorum's B2.
+      put_defs(%{
+        "phoenix-dark" => %{variables: %{"--color-x;}</style><script>y" => "red"}}
+      })
+
+      assert_raise ArgumentError, ~r/not an\s+allowed theme token/s, fn ->
+        ThemeConfig.custom_theme_css()
+      end
+    end
+  end
+
+  describe "meta feeding the JS embeds" do
+    test "extends inherits the parent's base when none is given" do
+      put_defs(%{"brand" => %{label: "Brand", extends: "phoenix-dark", variables: %{}}})
+
+      assert ThemeConfig.host_theme_meta() == %{"brand" => %{label: "Brand", base: "dark"}}
+      assert ThemeConfig.base_map()["brand"] == "dark"
+    end
+
+    test "an explicit base wins over the parent's color-scheme in the CSS" do
+      put_defs(%{
+        "brand" => %{label: "Brand", base: :dark, extends: "phoenix-light", variables: %{}}
+      })
+
+      assert ThemeConfig.theme_variables()["brand"]["color-scheme"] == "dark"
+    end
+
+    test "host labels appear in translated_label_map" do
+      put_defs(%{"brand" => %{label: "Brand Co", base: :light, variables: %{}}})
+
+      assert ThemeConfig.translated_label_map()["brand"] == "Brand Co"
     end
   end
 end

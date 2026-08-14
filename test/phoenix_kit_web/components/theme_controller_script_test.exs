@@ -6,7 +6,12 @@ defmodule PhoenixKitWeb.Components.ThemeControllerScriptTest do
   alias PhoenixKitWeb.Components.ThemeControllerScript
 
   setup do
-    on_exit(fn -> Application.delete_env(:phoenix_kit, :dashboard_themes) end)
+    on_exit(fn ->
+      Application.delete_env(:phoenix_kit, :dashboard_themes)
+      Application.delete_env(:phoenix_kit, :theme_definitions)
+      :persistent_term.erase({PhoenixKit.ThemeConfig, :theme_variables})
+      :persistent_term.erase({PhoenixKit.ThemeConfig, :host_theme_meta})
+    end)
   end
 
   defp render_script do
@@ -43,19 +48,42 @@ defmodule PhoenixKitWeb.Components.ThemeControllerScriptTest do
 
     # pair toggle contract (theme_controller.ex :toggle mode)
     assert html =~ "themeRole === 'toggle'"
-    assert html =~ "themeNext"
+    assert html =~ "phxTheme"
     # dropdown option indicators
     assert html =~ "themeRole === 'dropdown-option'"
     assert html =~ "data-theme-active-indicator"
-    # admin dropdown open/close a11y
-    assert html =~ "data-theme-dropdown"
-    assert html =~ "aria-expanded"
     # cross-tab + OS-change + LiveView event listeners
     assert html =~ "addEventListener('storage'"
     assert html =~ "prefers-color-scheme"
     assert html =~ "phx:set-theme"
+    # LiveView patches wipe client-written picker state; the script re-stamps
+    assert html =~ "phx:page-loading-stop"
     # legacy host event, kept for compatibility
     assert html =~ "phx:set-admin-theme"
+  end
+
+  test "consuming a window event never re-announces it to hosts" do
+    # Hosts used to hear every dropdown selection twice: once from the
+    # option's own JS.dispatch bubbling, once from the script's synthetic
+    # re-dispatch. Consumed events now pass announce=false.
+    html = render_script()
+
+    assert html =~ "setTheme(theme, false)"
+    # the legacy phx:set-admin-theme translation is the one announced path
+    assert html =~ "setTheme(e.detail.theme, true)"
+  end
+
+  test "a hostile host-theme LABEL cannot close the script tag" do
+    # Labels are free text by design — the sink escapes them (:html_safe),
+    # so </script> arrives as \u003C/script\u003E.
+    Application.put_env(:phoenix_kit, :theme_definitions, %{
+      "brand" => %{label: "</script><script>alert(1)</script>", base: :light}
+    })
+
+    html = render_script()
+
+    refute html =~ "</script><script>"
+    assert html =~ "u003C"
   end
 
   test "unknown configured names cannot smuggle script out through the pair" do

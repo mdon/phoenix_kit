@@ -14,8 +14,14 @@ defmodule PhoenixKitWeb.Components.ThemeControllerScript do
   Everything data-shaped is generated from `PhoenixKit.ThemeConfig` at
   render time, so host `:theme_definitions` flow through with zero JS
   changes. The script is idempotent per page (`window.__pkThemeController`
-  guard) and every DOM hook is optional — a page with no dropdown panels,
-  no label element, or no toggle simply skips those branches.
+  guard) and every DOM hook is optional — a page with no label element or
+  no toggle simply skips those branches.
+
+  Event contract: picker elements dispatch `phx:set-theme` themselves (a
+  `JS.dispatch` bubbling to `window`), so hosts hear each selection exactly
+  once whether or not this script is present. The script CONSUMES that
+  event to persist and reflect; it re-announces only changes that did not
+  arrive as a window event (the legacy `phx:set-admin-theme` translation).
 
   Renders at the end of `<body>`; the pre-paint half of the story is
   `PhoenixKitWeb.Components.ThemeBootstrap` in `<head>`.
@@ -31,12 +37,18 @@ defmodule PhoenixKitWeb.Components.ThemeControllerScript do
   def theme_controller_script(assigns) do
     {light, dark} = ThemeConfig.system_pair()
 
+    # :html_safe turns < and > into \\u003C/\\u003E so no config- or
+    # translation-derived string can close this <script> tag. The theme
+    # NAMES are validated upstream (ThemeConfig), but labels are free text.
     assigns =
       assigns
       |> assign(:light, light)
       |> assign(:dark, dark)
-      |> assign(:base_map_json, Jason.encode!(ThemeConfig.base_map()))
-      |> assign(:labels_json, Jason.encode!(ThemeConfig.translated_label_map()))
+      |> assign(:base_map_json, Jason.encode!(ThemeConfig.base_map(), escape: :html_safe))
+      |> assign(
+        :labels_json,
+        Jason.encode!(ThemeConfig.translated_label_map(), escape: :html_safe)
+      )
 
     ~H"""
     <script>
@@ -53,7 +65,29 @@ defmodule PhoenixKitWeb.Components.ThemeControllerScript do
         const media = window.matchMedia?.('(prefers-color-scheme: dark)') || null;
 
         let dispatching = false;
-        let dropdowns = [];
+
+        // localStorage can throw wholesale (sandboxed iframes, storage-blocked
+        // modes). Guarded here so a throw degrades to non-persistent theming
+        // instead of killing init before any listener attaches.
+        const storage = {
+          get() {
+            try {
+              return localStorage.getItem(STORAGE_KEY);
+            } catch (e) {
+              return null;
+            }
+          },
+          set(value) {
+            try {
+              localStorage.setItem(STORAGE_KEY, value);
+            } catch (e) {}
+          },
+          remove() {
+            try {
+              localStorage.removeItem(STORAGE_KEY);
+            } catch (e) {}
+          }
+        };
 
         function resolve(theme) {
           if (theme !== 'system') return theme;
@@ -92,11 +126,12 @@ defmodule PhoenixKitWeb.Components.ThemeControllerScript do
 
             if (btn.dataset.themeRole === 'toggle') {
               // The persistent pair toggle: aria-pressed = dark half on,
-              // icons swap, and data-theme-next always points at the OTHER
-              // theme so the click handler needs no state of its own.
+              // icons swap, and data-phx-theme always points at the OTHER
+              // theme — it is what the button's JS.dispatch carries, so the
+              // click needs no state of its own.
               const isDark = resolved === btn.dataset.themeDark;
               btn.setAttribute('aria-pressed', String(isDark));
-              btn.dataset.themeNext = isDark ? btn.dataset.themeLight : btn.dataset.themeDark;
+              btn.dataset.phxTheme = isDark ? btn.dataset.themeLight : btn.dataset.themeDark;
               btn.querySelectorAll('[data-toggle-icon]').forEach((icon) => {
                 icon.classList.toggle('hidden', (icon.dataset.toggleIcon === 'dark') !== isDark);
               });
@@ -114,23 +149,19 @@ defmodule PhoenixKitWeb.Components.ThemeControllerScript do
           });
         }
 
-        function setTheme(theme) {
+        // announce=false when the change arrived as a window event: it
+        // already bubbled past every host listener, and re-dispatching made
+        // hosts hear each selection twice.
+        function setTheme(theme, announce) {
           apply(theme);
 
           if (theme === 'system') {
-            localStorage.removeItem(STORAGE_KEY);
+            storage.remove();
           } else {
-            localStorage.setItem(STORAGE_KEY, theme);
+            storage.set(theme);
           }
 
-          dropdowns.forEach((entry) => setDropdownState(entry, false));
-
-          // Notify window-level listeners — host root layouts included.
-          // Guarded, because this script also LISTENS for phx:set-theme on
-          // window: dispatchEvent is synchronous, so the flag is set for
-          // exactly the duration of our own event and the listener ignores
-          // it, while external events still come through.
-          if (!dispatching) {
+          if (announce && !dispatching) {
             dispatching = true;
             try {
               window.dispatchEvent(new CustomEvent('phx:set-theme', { detail: { theme } }));
@@ -142,66 +173,15 @@ defmodule PhoenixKitWeb.Components.ThemeControllerScript do
           }
         }
 
-        function setDropdownState(entry, isOpen) {
-          if (!entry?.button || !entry?.panel) return;
-
-          entry.button.setAttribute('aria-expanded', String(!!isOpen));
-          entry.panel.setAttribute('aria-hidden', String(!isOpen));
-          entry.panel.classList.toggle('pointer-events-auto', !!isOpen);
-          entry.panel.classList.toggle('pointer-events-none', !isOpen);
-          entry.panel.classList.toggle('opacity-100', !!isOpen);
-          entry.panel.classList.toggle('opacity-0', !isOpen);
-          entry.panel.classList.toggle('-translate-y-2', !isOpen);
-          entry.panel.classList.toggle('translate-y-0', !!isOpen);
-        }
-
-        function registerDropdowns() {
-          dropdowns = Array.from(document.querySelectorAll('[data-theme-dropdown]')).map(
-            (container) => ({
-              container,
-              button: container.querySelector('[data-theme-toggle]'),
-              panel: container.querySelector('[data-theme-dropdown-panel]')
-            })
-          );
-
-          dropdowns.forEach((entry) => {
-            setDropdownState(entry, false);
-            if (!entry.button || !entry.panel) return;
-
-            entry.button.addEventListener('click', (event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              const expanded = entry.button.getAttribute('aria-expanded') === 'true';
-              setDropdownState(entry, !expanded);
-            });
-
-            entry.panel.addEventListener('click', (event) => event.stopPropagation());
-          });
-        }
-
         function init() {
-          registerDropdowns();
-
           // apply, not setTheme: initialization reflects the saved choice
           // into the UI but should neither rewrite storage nor announce a
           // change nobody made.
-          apply(localStorage.getItem(STORAGE_KEY) || 'system');
-
-          // The pair toggle dispatches whatever its data-theme-next holds —
-          // no per-button phx-click, no state of its own. The same document
-          // click closes any dropdown the click landed outside of.
-          document.addEventListener('click', (e) => {
-            const toggle = e.target.closest?.('[data-theme-role="toggle"]');
-            if (toggle?.dataset.themeNext) setTheme(toggle.dataset.themeNext);
-
-            if (!dropdowns.some((entry) => entry.container?.contains(e.target))) {
-              dropdowns.forEach((entry) => setDropdownState(entry, false));
-            }
-          });
+          apply(storage.get() || 'system');
 
           // Follow the OS while in system mode.
           media?.addEventListener('change', () => {
-            if ((localStorage.getItem(STORAGE_KEY) || 'system') === 'system') apply('system');
+            if ((storage.get() || 'system') === 'system') apply('system');
           });
 
           // A theme picked in another tab: ThemeBootstrap already restamps
@@ -212,17 +192,26 @@ defmodule PhoenixKitWeb.Components.ThemeControllerScript do
             if (e.key === STORAGE_KEY) apply(e.newValue || 'system');
           });
 
-          // Theme changes announced by LiveView (JS.dispatch / push_event)
-          // or host code. Skip our own dispatches — see the guard above.
+          // LiveView patches rebuild picker markup mid-session, wiping the
+          // client-written state (aria-pressed, data-phx-theme, icon
+          // visibility) back to its SSR defaults. Re-stamp after every
+          // completed navigation/patch.
+          window.addEventListener('phx:page-loading-stop', () => apply(storage.get() || 'system'));
+
+          // Theme selections: every picker element (dropdown options and the
+          // pair toggle alike) dispatches phx:set-theme itself via
+          // JS.dispatch, carrying the theme in detail or data-phx-theme.
+          // Skip our own re-dispatches — see the guard in setTheme.
           window.addEventListener('phx:set-theme', (e) => {
             const theme = e?.detail?.theme ?? e?.target?.dataset?.phxTheme;
-            if (theme && !dispatching) setTheme(theme);
+            if (theme && !dispatching) setTheme(theme, false);
           });
 
           // Legacy event name — nothing in the kit emits it anymore, kept
-          // only so hosts that adopted it keep working.
+          // only so hosts that adopted it keep working. Announced, so host
+          // listeners for the modern event still hear the change.
           document.addEventListener('phx:set-admin-theme', (e) => {
-            if (e?.detail?.theme) setTheme(e.detail.theme);
+            if (e?.detail?.theme) setTheme(e.detail.theme, true);
           });
         }
 

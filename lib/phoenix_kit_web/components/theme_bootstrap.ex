@@ -35,7 +35,13 @@ defmodule PhoenixKitWeb.Components.ThemeBootstrap do
       assigns
       |> assign(:light, light)
       |> assign(:dark, dark)
-      |> assign(:base_map_json, Jason.encode!(ThemeConfig.base_map()))
+      |> assign(
+        :base_map_json,
+        # :html_safe escapes < and > so no config-derived name can close
+        # this <script> tag. Names are validated upstream too; this is the
+        # sink-side half of that defense.
+        Jason.encode!(ThemeConfig.base_map(), escape: :html_safe)
+      )
 
     ~H"""
     <script>

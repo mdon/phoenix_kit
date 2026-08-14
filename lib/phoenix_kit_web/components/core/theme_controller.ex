@@ -79,9 +79,15 @@ defmodule PhoenixKitWeb.Components.Core.ThemeController do
   # button per theme and hid the active one — which removed the element the
   # keyboard user had just focused, dropping focus to <body> on every
   # activation. This button never disappears: aria-pressed says whether the
-  # dark half of the pair is on, the layout JS swaps the sun/moon icons and
-  # keeps data-theme-next pointing at the OTHER theme, and a click dispatches
-  # whatever data-theme-next holds.
+  # dark half of the pair is on, the theme script swaps the sun/moon icons
+  # and keeps data-phx-theme pointing at the OTHER theme.
+  #
+  # The click is a real JS.dispatch, same contract as the dropdown options:
+  # phx:set-theme bubbles to window, where BOTH the kit's ThemeControllerScript
+  # and the stock Phoenix root-layout script read e.target.dataset.phxTheme.
+  # An earlier version relied solely on a click listener inside the kit
+  # script, which made the button silently dead in host layouts that render
+  # this component without the kit's layouts.
   defp theme_toggle_pair(assigns) do
     [a, b] = assigns.dropdown_themes
     {light, dark} = if toggle_base(a.value) == "dark", do: {b, a}, else: {a, b}
@@ -94,9 +100,10 @@ defmodule PhoenixKitWeb.Components.Core.ThemeController do
         type="button"
         data-theme-role="toggle"
         data-theme-target={@dark.value}
-        data-theme-next={@dark.value}
+        data-phx-theme={@dark.value}
         data-theme-light={@light.value}
         data-theme-dark={@dark.value}
+        phx-click={JS.dispatch("phx:set-theme")}
         title={"#{@light.label} / #{@dark.label}"}
         aria-label={"#{@light.label} / #{@dark.label}"}
         aria-pressed="false"
