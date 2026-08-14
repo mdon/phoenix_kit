@@ -56,6 +56,10 @@ defmodule PhoenixKit.Migrations.Postgres.V167 do
     WHERE rp.module_key = 'seo'
     ON CONFLICT DO NOTHING
     """)
+
+    # Single-step runs rely on the migration stamping its own marker — the
+    # runner only writes it for multi-step ranges.
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '167'")
   end
 
   def down(opts) do
@@ -77,6 +81,9 @@ defmodule PhoenixKit.Migrations.Postgres.V167 do
     DELETE FROM #{p}phoenix_kit_role_permissions
     WHERE module_key = 'crawlers'
     """)
+
+    # Rollback lands on the version that precedes this one.
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '166'")
   end
 
   # Rename a settings row by key, tolerating every partial state: if only the
