@@ -978,15 +978,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
           {assigns[:page_title] || "Admin"}
         </.live_title>
         <.phoenix_kit_favicon />
-        <%= if assigns[:crawlers_no_index] do %>
-          <meta name="robots" content="noindex,nofollow" />
-          <meta name="googlebot" content="noindex,nofollow" />
-        <% end %>
-        <meta
-          :for={{name, content} <- assigns[:crawlers_verifications] || []}
-          name={name}
-          content={content}
-        />
+        <PhoenixKitWeb.Components.Core.CrawlerMetas.crawler_metas />
         <link phx-track-static rel="stylesheet" href="/assets/css/app.css" />
         <%!-- PhoenixKit Cookie Consent Widget Setup --%>
         <.phoenix_kit_globals />
