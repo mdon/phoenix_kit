@@ -1,31 +1,4 @@
-## 2.7.0 - 2026-08-14
-
-Upload progress bars finally say what is actually happening: how big the file
-is, how fast it is moving, and — once the bar hits 100% — that the *server* is
-the one still working. No more guessing whether the network is slow, the image
-is giant, or the box is lagging.
-
-### Added
-
-- **Live upload stats under every progress bar** (`UploadStats` JS hook +
-  `<.upload_entry_stats>` in `Core.FileUpload`). The server only patches
-  `data-progress`; the browser computes transferred bytes, transfer speed over
-  a sliding 5s window, and ETA ("3.2 MB / 12.4 MB · 2.8 MB/s · 4s left"),
-  ticking every 500ms so a stalled transfer visibly decays toward zero instead
-  of freezing at its last good number. At 100% the line flips to a running
-  "Processing on server… Ns" clock for the phase where the entry is being
-  consumed and the bar used to sit frozen. Wired into both `<.file_upload>`
-  variants, the media selector modal, and MediaBrowser's inline drag-drop
-  list. Pure helpers are exported for `mix test.js`.
-
-- **MediaBrowser keeps processed uploads on screen.** The drag-drop path
-  consumes the upload entry the moment the transfer ends and then stored the
-  file synchronously inside `update/2` — the row vanished and nothing showed
-  until the batch flash. Uploads now drain through a queued two-phase
-  `send_update_after` cycle: a "Processing on server…" spinner row paints
-  *before* each store runs, files process one per cycle so multi-file drops
-  stay progressive, and the batch commit defers while the queue is non-empty
-  rather than flashing a partial count.
+## 2.6.0 - 2026-08-14
 
 The built-in SEO module becomes **Crawlers** and grows into the one page where an
 operator decides who may read the site; shop slugs get a uniqueness bucket that
