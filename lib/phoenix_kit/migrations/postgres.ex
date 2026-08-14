@@ -7,7 +7,21 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V170 - SEO module renamed to Crawlers ⚡ LATEST
+  ### V171 - Shop slugs unique per (base language, value) ⚡ LATEST
+
+  Product and category slugs are jsonb maps, and the only uniqueness the
+  database enforced was an expression index on the alphabetically-first
+  key's value — under-enforcing (other languages unconstrained, collisions
+  surfacing on "add translation") and over-enforcing (`{"en":"hat"}` vs
+  `{"de":"hat"}` collided though they can never shadow each other in a
+  URL) at once. Trigger-maintained projection tables
+  (`phoenix_kit_shop_{product,category}_slugs`, PK `(lang, value)`) now
+  enforce the bucket the resolver actually reads. Existing duplicates are
+  suffixed `-2`, `-3` …; two LIVE rows sharing a bucket raise instead —
+  which URL survives is the operator's call. The old indexes are dropped;
+  `extract_primary_slug` stays, unused.
+
+  ### V170 - SEO module renamed to Crawlers
 
   The built-in SEO module becomes Crawlers: everything it held was bot
   policy (the noindex directive, crawler guidance, and now per-bot-group
@@ -508,7 +522,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 170
+  @current_version 171
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
