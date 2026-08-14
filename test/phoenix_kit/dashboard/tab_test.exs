@@ -224,6 +224,17 @@ defmodule PhoenixKit.Dashboard.TabTest do
     end
   end
 
+  describe "group_header/1 visibility" do
+    test "an explicit visible: false is preserved, not coerced to true" do
+      # `opts[:visible] || true` turned false into true — the map constructor
+      # and divider/1 always handled this correctly with is_nil checks.
+      assert Tab.group_header(id: :h, label: "H", priority: 1, visible: false).visible ==
+               false
+
+      assert Tab.group_header(id: :h, label: "H", priority: 1).visible == true
+    end
+  end
+
   describe "divider/1 and group_header/1 gettext support" do
     test "Tab.divider/1 round-trips gettext_backend and gettext_domain" do
       tab =

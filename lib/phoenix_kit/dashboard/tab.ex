@@ -426,7 +426,7 @@ defmodule PhoenixKit.Dashboard.Tab do
       priority: opts[:priority] || 500,
       group: opts[:group],
       match: :exact,
-      visible: opts[:visible] || true,
+      visible: if(is_nil(opts[:visible]), do: true, else: opts[:visible]),
       metadata: %{
         type: :group_header,
         collapsible: opts[:collapsible] || false,
