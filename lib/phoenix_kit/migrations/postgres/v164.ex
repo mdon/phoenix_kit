@@ -217,7 +217,7 @@ defmodule PhoenixKit.Migrations.Postgres.V164 do
     # V169 (v169.ex): the public entity form is deliberately unauthenticated
     # and has no creator to record, so anonymous submissions store NULL here.
     # Re-imposing NOT NULL would make every one of them fail again with the
-    # `not_null_violation` V167 exists to end (BeamLabEU/phoenix_kit#706). The
+    # `not_null_violation` V169 exists to end (BeamLabEU/phoenix_kit#706). The
     # column carries no FK to `phoenix_kit_users` on any install, so nothing
     # downstream assumed a real user either.
     {:phoenix_kit_entity_data, "created_by_uuid"}

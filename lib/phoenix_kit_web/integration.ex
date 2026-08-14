@@ -1177,7 +1177,51 @@ defmodule PhoenixKitWeb.Integration do
   # and the compiler is absent, name the modules and the one line that fixes
   # it. Silence here has cost more than a warning ever will.
   def warn_missing_js_compiler do
-    warn_missing_js_compiler(modules_declaring_js_sources(), js_compiler_configured?())
+    modules = modules_declaring_js_sources()
+
+    # A module PACKAGE compiling its own (test) router is not a host. Its
+    # mix.exs legitimately has no :phoenix_kit_js_sources compiler — the
+    # host it ships to is where that belongs — yet discovery finds the
+    # package's own beams and `Mix.Project.config/0` answers for the
+    # package, so without this check every `mix test` in e.g.
+    # phoenix_kit_boards printed the fix-your-mix.exs warning for a
+    # configuration that was already correct. Recurring false warnings
+    # train exactly the scroll-past behavior this warning exists to fight.
+    # The tell: a host never compiles a js_sources module from its own
+    # source tree; a package always does.
+    if Enum.any?(modules, &compiled_from_current_project?/1) do
+      :ok
+    else
+      warn_missing_js_compiler(modules, js_compiler_configured?())
+    end
+  end
+
+  # Public (@doc false) so the suppression can be tested with real modules:
+  # this library's own modules ARE compiled from the current project when its
+  # suite runs, and dep-compiled modules are not.
+  #
+  # Hex deps compile from `<cwd>/deps/...` — UNDER the project directory —
+  # so "under cwd" alone would call every dep locally compiled and suppress
+  # the warning on exactly the hosts it exists for. Path deps (`../sibling`)
+  # sit outside cwd and were never at risk.
+  @doc false
+  def compiled_from_current_project?(mod) do
+    cwd = File.cwd!()
+
+    case mod.module_info(:compile)[:source] do
+      source when is_list(source) ->
+        path = List.to_string(source)
+
+        String.starts_with?(path, cwd <> "/") and
+          not String.starts_with?(path, cwd <> "/deps/")
+
+      _ ->
+        false
+    end
+  rescue
+    _ -> false
+  catch
+    _kind, _value -> false
   end
 
   @doc false
@@ -1234,6 +1278,12 @@ defmodule PhoenixKitWeb.Integration do
     # Discovery reaches into the dep tree; a warning is never worth failing a
     # host's compile over.
     _ -> []
+  catch
+    # A discovered module's js_sources/0 can throw or exit as well as raise
+    # (a compile-time call into an unstarted process exits) — `rescue` alone
+    # let those escape the macro expansion and abort the host's compile,
+    # which is precisely what the comment above promises cannot happen.
+    _kind, _value -> []
   end
 
   # Mix is present while the host's router compiles, which is when this runs.

@@ -1,3 +1,172 @@
+## 2.5.0 - 2026-08-14
+
+Ten findings from a high-effort review of the recently merged notifications,
+fingerprint-logging and JS-compiler work, two of which needed schema support.
+Chain moves V169 → **V170**.
+
+### Fixed
+
+- **Two concurrent upserts for the same dedupe key both inserted.** Parallel
+  Oban workers or two nodes both read `nil` from `find_collapsible/2` and both
+  created a row, so the user got two unseen notifications for one logical key —
+  pinned to the top by the unseen-first ordering — and later refreshes folded
+  into only one of them, leaving the stale twin until it was dismissed by hand.
+  V170's partial UNIQUE index turns the second insert into a constraint
+  violation that `insert_collapsible/3` retries as a collapse (#713).
+
+- **`upsert_inapp/3` ignored the `notifications_enabled` kill switch.** It is a
+  host-facing entry point, and "off" that quietly did not apply to the newest
+  creation path was not off. Returns `{:ok, :skipped}` like `create/1` (#713).
+
+- **Caller metadata could clobber reserved keys.** Metadata now merges *first*
+  and reserved keys stamp on top, so a passed-through map can no longer
+  overwrite `dedupe_key` — which silently disabled collapsing — or the display
+  keys. Caller keys are normalised to strings, so `%{notification_text: …}`
+  cannot coexist with the string key and win by adapter ordering (#713).
+
+- **`find_collapsible/2` lacked `catch :exit`.** A dead pool *exits* rather than
+  raising, bypassing `rescue` and crashing the caller its comment promised it
+  would not — the soft-failure rule this project applies everywhere else. Both
+  clauses log now, so a permanent query bug degrading upsert into
+  insert-always is diagnosable rather than silent (#713).
+
+- **The inbox ignored `:notification_updated`.** The bell handled it, the inbox
+  did not, so an open inbox showed stale rows at exactly the moment an upsert
+  refreshed one. A scrape test now holds the whitelist to *every* event the
+  library broadcasts, so the next event added fails the test until the inbox
+  handles it (#713).
+
+- **One fingerprint mismatch logged three lines, two of them wrong.** The #705
+  dedup had only landed in `fetch_phoenix_kit_current_user`; the scope plug still
+  carried the old `"(scope)"` warning and an `:error`-level "possible hijacking"
+  line for requests that were then served normally — and the shipped
+  `:phoenix_kit_admin_only` pipeline runs both plugs. Verification now runs at
+  most once per request, with the verdict cached in `conn.private` and shared
+  (#713).
+
+- **`session_label` could never match the sessions UI.** The log used a
+  truncated sha256 while the UI shows hex of the raw token's first 4 bytes, so
+  the promised log↔UI correlation failed every time. Both derivations are now
+  the same one, held together by a test (#713).
+
+### Migrations
+
+- **V170** adds two indexes to `phoenix_kit_notifications`:
+
+  - `phoenix_kit_notifications_dedupe_unseen_idx` — **partial UNIQUE** on
+    `(recipient_uuid, metadata->>'dedupe_key')` over undismissed, unseen, keyed
+    rows. Serves `find_collapsible/2`'s exact predicate *and* is the uniqueness
+    backstop above. Rows without a dedupe key — everything the fan-out path
+    creates — are outside the predicate and unaffected.
+  - `phoenix_kit_notifications_recipient_unseen_first_idx` — matches
+    `order_unseen_first/1`'s ORDER BY term-for-term, so the bell's
+    `recent_for_user` and the inbox pages come off an index again instead of
+    walking a recipient's whole undismissed backlog on every mount.
+
+  Existing duplicates are **dismissed, not deleted** — all but the newest unseen
+  row per `(recipient, key)`, the same "newest wins" choice `find_collapsible/2`
+  makes. The fold and the index creation share one `SHARE ROW EXCLUSIVE` lock so
+  a concurrent insert cannot re-introduce a duplicate in the gap between them.
+
+## 2.4.0 - 2026-08-14
+
+Slug uniqueness gets both halves it was missing — a changeset helper and the
+indexes to back it — plus anonymous entity submissions, and an activity log that
+is no longer readable by every dashboard-holder. Chain moves V166 → **V169**.
+
+### Added
+
+- **`PhoenixKit.Utils.Slug.put_slug/3`** — the changeset glue between
+  `slugify/2` and `ensure_unique/2` that core never owned, so it was hand-rolled
+  **14 times across 8 packages** and each copy got a different subset right. It
+  distinguishes the three states `get_change(:slug)` conflates: an explicit slug
+  wins, an explicitly blanked one regenerates, and *no slug in the changeset*
+  means unchanged — which is what every edit form sends, and why saving one
+  used to move a live URL. Suffixes `-2`, `-3` … until free, excludes the row
+  itself on update, honours a schema prefix, and takes `:scope` for per-owner
+  uniqueness. The probe is an allocator, not an integrity boundary — callers
+  still declare `unique_constraint/3`, which is what makes it true (#711).
+
+  Adopters must pin **`{:phoenix_kit, "~> 2.4"}`**: `~> 2.0` resolves to a core
+  without this function, and the failure lands in the consumer's app.
+
+- **`PhoenixKit.Activity.full_log_access?/1` and `own_entry?/2`** — the shared
+  definition of "may read the whole audit log" and "is this entry mine",
+  deliberately in one place so the list and the detail page cannot drift (#712).
+
+### Fixed
+
+- **`/admin/activity` crashed on any entry whose metadata held a map.** A
+  field-change diff (`%{"qty" => %{"from" => 1, "to" => 2}}`) was interpolated
+  straight into the template, raising `Protocol.UndefinedError` for
+  `String.Chars` on a Map. Rendered as `1 → 2` now, via
+  `Activity.humanize_metadata_value/1`; legacy rows that stored an `inspect`-ed
+  Decimal are unwrapped to the number rather than leaking Elixir syntax (#712).
+
+- **The full activity log was visible to every holder of the `dashboard`
+  permission.** It is now administrators-only — Admin, Owner, or a `"*"`
+  superadmin role; everyone else sees only entries they authored. Enforced
+  server-side in the query (the pagination total is scoped too, so it cannot
+  leak the existence of hidden entries), and the detail page answers *not found*
+  rather than confirming another user's record exists. "Own" means **actor**,
+  not target (#712).
+
+- **Anonymous public entity submissions failed on a freshly migrated database.**
+  `phoenix_kit_entity_data.created_by_uuid` was NOT NULL while the public entity
+  form is deliberately unauthenticated, so every submission raised a
+  `not_null_violation` out of an unauthenticated controller. **V169** relaxes the
+  column, resolving a split where long-lived installs already measured
+  `is_nullable = YES` and fresh ones `NO`. Auto-filling the first Owner was
+  implemented first and rejected: it puts a named person in front of every
+  anonymous submission and files it in their audit trail (#711, #706).
+
+- **Eleven `foreign_key_constraint/2` declarations could never match.** Ecto
+  matches by name and this chain names most foreign keys `fk_<table>_<column>`,
+  not the `<table>_<column>_fkey` the bare declaration derives — so violations
+  escaped as raw `Ecto.ConstraintError` 500s across storage, admin notes, OAuth
+  providers, role assignments and role permissions. Names were taken from a
+  migrated database rather than read off the chain, because a renamed column can
+  leave a constraint carrying its old name. A new test pins the rule so the next
+  schema cannot repeat it (#711).
+
+- **`ensure_unique/2` overflowed a `:max_length` the caller had already
+  applied** — `slugify(title, max_length: 20)` plus `-2` is 22 characters, which
+  silently defeats an SEO cap and *raises* against `varchar(n)`. It now trims the
+  base per candidate, since `-10` needs one more character than `-9` (#711).
+
+- **`V169.down/1` locked a table it never checked existed.** `up/1` guards its
+  `phoenix_kit_entity_data` work on table existence; `down/1` reached straight
+  for `LOCK TABLE`, which has no `IF EXISTS` form — so rolling back on an install
+  without the entity tables aborted with `relation does not exist`, having had
+  nothing to undo. Found in post-merge review; `lock_table_guard_test.exs` now
+  pins the rule for every `LOCK TABLE` in the chain.
+
+### Migrations
+
+- **V167** — `phoenix_kit_posts_slug_index` becomes unique. It had been a plain
+  btree since V135 while its sibling `post_tags.slug` was unique, so `Post`'s
+  `unique_constraint(:slug)` had no index to translate and `get_post_by_slug/2`
+  (which fetches with `one()`) raised `Ecto.MultipleResultsError` on any shared
+  URL. Existing duplicates are suffixed by the same rule `ensure_unique/2`
+  applies at runtime, keeping a reachable post over a draft and then the oldest;
+  **two live posts on one slug raises instead**, because which one keeps the URL
+  is the operator's call.
+
+- **V168** — the remaining two. `phoenix_kit_tickets` had a plain btree;
+  `phoenix_kit_post_groups` had no slug index at all while `PostGroup` named a
+  composite `[:user_uuid, :slug]` index that existed nowhere. Post-group slugs
+  are unique **per user**, so that index is scoped to the owner.
+
+- **V169** — the nullable creator column and the duplicate `prompt_uuid` foreign
+  key described above. The **legacy** `phoenix_kit_ai_requests_prompt_uuid_fkey`
+  is the survivor, since it is what the installed base carries and what Ecto
+  derives by default, so no live database is renamed.
+
+  The `DROP` before each `CREATE UNIQUE INDEX` is load-bearing:
+  `CREATE UNIQUE INDEX IF NOT EXISTS` matches on **name**, so building a unique
+  index over a non-unique one of the same name skips with a notice and reports
+  success while uniqueness stays unenforced.
+
 ## 2.3.0 - 2026-08-13
 
 Localized country selects with operator-chosen pinning, two new integration

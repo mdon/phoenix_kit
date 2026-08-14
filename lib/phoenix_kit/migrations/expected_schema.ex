@@ -105,7 +105,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "0dcdd2d6caf26b74d480e1fea2eeec2c6b19fd5a0204cca98deb69b8e914e0f3"
+  @chain_hash "b4d0d57e198b4a22b52c89618d2ee90d59626f39759d254dee918860ac14a782"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -49170,6 +49170,81 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
                "CREATE INDEX phoenix_kit_notifications_recipient_inbox_index ON __SCHEMA__.phoenix_kit_notifications USING btree (recipient_uuid, inserted_at DESC) WHERE (dismissed_at IS NULL)",
              predicate: "(dismissed_at IS NULL)",
              opclasses: ["uuid_ops", "timestamptz_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      # DECLARED POST-GENERATION (2026-08-14): V170 adds these two indexes for
+      # the notification-collapsing API — carried the same way the V165..V167
+      # objects are (hand-declared, chain_hash restamped over the shipped
+      # files). Definitions and opclasses were captured from pg_get_indexdef /
+      # pg_index on a live V169 database after creating the indexes, not
+      # hand-derived. `verify.exs --scenario s7,s8` against a real database is
+      # still what proves the body.
+      %{
+        id: "index:phoenix_kit_notifications_dedupe_unseen_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_notifications_dedupe_unseen_idx",
+             table: "phoenix_kit_notifications",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_notifications_dedupe_unseen_idx ON __SCHEMA__.phoenix_kit_notifications USING btree (recipient_uuid, ((metadata ->> 'dedupe_key'::text))) WHERE ((seen_at IS NULL) AND (dismissed_at IS NULL) AND ((metadata ->> 'dedupe_key'::text) IS NOT NULL))",
+        since: 170,
+        class: :index,
+        revisions: [
+          {170,
+           %{
+             table: "phoenix_kit_notifications",
+             keys: ["recipient_uuid", "((metadata ->> 'dedupe_key'::text))"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_notifications_dedupe_unseen_idx ON __SCHEMA__.phoenix_kit_notifications USING btree (recipient_uuid, ((metadata ->> 'dedupe_key'::text))) WHERE ((seen_at IS NULL) AND (dismissed_at IS NULL) AND ((metadata ->> 'dedupe_key'::text) IS NOT NULL))",
+             predicate:
+               "((seen_at IS NULL) AND (dismissed_at IS NULL) AND ((metadata ->> 'dedupe_key'::text) IS NOT NULL))",
+             opclasses: ["uuid_ops", "text_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_notifications_recipient_unseen_first_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_notifications_recipient_unseen_first_idx",
+             table: "phoenix_kit_notifications",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_notifications_recipient_unseen_first_idx ON __SCHEMA__.phoenix_kit_notifications USING btree (recipient_uuid, ((seen_at IS NOT NULL)), inserted_at DESC, uuid DESC) WHERE (dismissed_at IS NULL)",
+        since: 170,
+        class: :index,
+        revisions: [
+          {170,
+           %{
+             table: "phoenix_kit_notifications",
+             keys: [
+               "recipient_uuid",
+               "((seen_at IS NOT NULL))",
+               "inserted_at",
+               "uuid"
+             ],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_notifications_recipient_unseen_first_idx ON __SCHEMA__.phoenix_kit_notifications USING btree (recipient_uuid, ((seen_at IS NOT NULL)), inserted_at DESC, uuid DESC) WHERE (dismissed_at IS NULL)",
+             predicate: "(dismissed_at IS NULL)",
+             opclasses: ["uuid_ops", "bool_ops", "timestamptz_ops", "uuid_ops"],
              name_template: nil
            }}
         ],

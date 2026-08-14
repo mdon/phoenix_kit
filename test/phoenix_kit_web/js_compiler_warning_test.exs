@@ -95,5 +95,50 @@ defmodule PhoenixKitWeb.JsCompilerWarningTest do
       # for.
       assert Integration.warn_missing_js_compiler() == :ok
     end
+
+    test "a throw or exit from a module's js_sources/0 is contained too" do
+      # `rescue` alone let a `throw` or an `exit` (a compile-time call into
+      # an unstarted process exits) escape the macro expansion and abort the
+      # host's compile — precisely what the guarantee above promises cannot
+      # happen. Pinned at the source level because the discovery seam is
+      # private and dep-driven: what matters is that the containment clause
+      # exists next to the rescue.
+      source = File.read!("lib/phoenix_kit_web/integration.ex")
+
+      [_, body] =
+        Regex.run(
+          ~r/defp modules_declaring_js_sources do(.*?)\n  end/s,
+          source
+        )
+
+      assert body =~ "rescue"
+
+      assert body =~ "catch",
+             "modules_declaring_js_sources rescues raises only — a throw/exit " <>
+               "from a discovered module's js_sources/0 fails the host's compile"
+    end
+  end
+
+  describe "a module package compiling its own router" do
+    # `phoenix_kit_boards` running its own test suite expands
+    # `phoenix_kit_routes()`: discovery finds the package's own beam, and
+    # `Mix.Project.config/0` answers for the package — whose mix.exs
+    # legitimately has no `:phoenix_kit_js_sources` compiler, because it is
+    # not a host. Every compile printed the fix-your-mix.exs warning for a
+    # correct configuration. The tell is compile provenance: a host never
+    # compiles a js_sources module from its own source tree; a package
+    # always does.
+    test "its own modules are recognized as locally compiled" do
+      # This library's modules ARE the current project while this suite runs.
+      assert Integration.compiled_from_current_project?(PhoenixKitWeb.Integration)
+    end
+
+    test "dep-compiled modules are not" do
+      refute Integration.compiled_from_current_project?(Phoenix.Router)
+    end
+
+    test "junk never raises out of the provenance check" do
+      refute Integration.compiled_from_current_project?(:not_a_real_module_at_all)
+    end
   end
 end

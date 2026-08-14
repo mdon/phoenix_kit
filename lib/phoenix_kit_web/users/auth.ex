@@ -407,32 +407,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp do_fetch_phoenix_kit_current_user(conn) do
     {user_token, conn} = ensure_user_token(conn)
-
-    # Verify session fingerprint if token exists
-    fingerprint_valid? =
-      if user_token do
-        case Auth.verify_session_fingerprint(conn, user_token) do
-          :ok ->
-            true
-
-          # Deliberately silent. `verify_fingerprint/4` has already logged
-          # what changed, for which session, at a level that matches whether
-          # the request is about to be refused — a second line here said only
-          # "for token", naming neither, and doubled the volume of the noisiest
-          # thing in the log.
-          {:warning, _reason} ->
-            not SessionFingerprint.strict_mode?()
-
-          {:error, :fingerprint_mismatch} ->
-            not SessionFingerprint.strict_mode?()
-
-          {:error, :token_not_found} ->
-            # Token expired or invalid
-            false
-        end
-      else
-        true
-      end
+    {conn, fingerprint_valid?} = check_fingerprint_once(conn, user_token)
 
     user =
       if fingerprint_valid? do
@@ -448,6 +423,42 @@ defmodule PhoenixKitWeb.Users.Auth do
     assign(conn, :phoenix_kit_current_user, active_user)
   end
 
+  # Verify the session fingerprint at most ONCE per request, whatever the
+  # pipeline shape. The shipped `:phoenix_kit_admin_only` pipeline runs BOTH
+  # fetch plugs, and each used to verify independently — so every mismatch
+  # was checked twice and `verify_fingerprint/4` logged its line twice. The
+  # first verification's result is cached on the conn and reused.
+  #
+  # No logging here on any branch, deliberately: `verify_fingerprint/4` has
+  # already logged what changed, for which session, at a level that matches
+  # whether the request is about to be refused — extra lines here said only
+  # "for token", naming neither, and doubled (or tripled) the volume of the
+  # noisiest thing in the log.
+  defp check_fingerprint_once(conn, nil), do: {conn, true}
+
+  defp check_fingerprint_once(conn, user_token) do
+    case conn.private[:phoenix_kit_fingerprint_valid] do
+      nil ->
+        result = Auth.verify_session_fingerprint(conn, user_token)
+        valid? = fingerprint_allows_access?(result)
+        {Plug.Conn.put_private(conn, :phoenix_kit_fingerprint_valid, valid?), valid?}
+
+      valid? ->
+        {conn, valid?}
+    end
+  end
+
+  defp fingerprint_allows_access?(:ok), do: true
+
+  defp fingerprint_allows_access?({:warning, _reason}),
+    do: not SessionFingerprint.strict_mode?()
+
+  defp fingerprint_allows_access?({:error, :fingerprint_mismatch}),
+    do: not SessionFingerprint.strict_mode?()
+
+  # Token expired or invalid
+  defp fingerprint_allows_access?({:error, :token_not_found}), do: false
+
   @doc """
   Fetches the current user and creates a scope for authentication context.
 
@@ -462,36 +473,12 @@ defmodule PhoenixKitWeb.Users.Auth do
   def fetch_phoenix_kit_current_scope(conn, _opts) do
     {user_token, conn} = ensure_user_token(conn)
 
-    # Verify session fingerprint if token exists
-    fingerprint_valid? =
-      if user_token do
-        case Auth.verify_session_fingerprint(conn, user_token) do
-          :ok ->
-            true
-
-          {:warning, reason} ->
-            # Log warning but allow access (IP/UA can legitimately change)
-            Logger.warning("PhoenixKit: Session fingerprint warning: #{reason} for token (scope)")
-
-            # In non-strict mode, allow access despite warning
-            not SessionFingerprint.strict_mode?()
-
-          {:error, :fingerprint_mismatch} ->
-            # Both IP and UA changed - likely hijacking
-            Logger.error(
-              "PhoenixKit: Session fingerprint mismatch detected in scope - possible hijacking"
-            )
-
-            # Strict mode: deny access; non-strict: log but allow
-            not SessionFingerprint.strict_mode?()
-
-          {:error, :token_not_found} ->
-            # Token expired or invalid
-            false
-        end
-      else
-        true
-      end
+    # Shares the once-per-request verification (and its no-extra-logging
+    # policy) with `fetch_phoenix_kit_current_user` — this plug used to
+    # carry its own copy of the old logging, so a pipeline running both
+    # plugs logged every mismatch three times, including an `:error`
+    # "possible hijacking" line for requests that were then served.
+    {conn, fingerprint_valid?} = check_fingerprint_once(conn, user_token)
 
     user =
       if fingerprint_valid? do

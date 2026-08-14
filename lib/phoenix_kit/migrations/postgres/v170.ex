@@ -1,33 +1,55 @@
 defmodule PhoenixKit.Migrations.Postgres.V170 do
   @moduledoc """
-  V170: the built-in SEO module becomes Crawlers.
+  V170: index support and a uniqueness backstop for notification collapsing.
 
-  Everything the module holds is bot policy — the noindex directive, crawler
-  guidance, and (from this release) per-bot-group access controls — while
-  actual SEO work lives in the external `phoenix_kit_seo` package. The rename
-  frees the name for the thing that owns it and stops the settings page
-  overselling itself. Data moves in two places:
+  `Notifications.upsert_inapp/3` (added alongside the unseen-first inbox
+  ordering) shipped with neither:
 
-  ## Settings rows
+    * **The dedupe lookup walked the inbox.** `find_collapsible/2` filters on
+      `metadata->>'dedupe_key'` under recipient + unseen, and the only inbox
+      index — `(recipient_uuid, inserted_at DESC) WHERE dismissed_at IS NULL`
+      (V104, re-created by the V135 squash) — cannot serve either that lookup
+      or the new `(seen_at IS NOT NULL, inserted_at DESC, uuid DESC)` ordering,
+      so every bell mount and every upsert re-sorted or re-walked a
+      recipient's whole undismissed backlog (thousands of rows for a user who
+      never dismisses, multiplied by fan-out on the write path).
 
-  `seo_module_enabled` → `crawlers_module_enabled` and `seo_no_index` →
-  `crawlers_no_index`, with the `module` tag on any `'seo'`-tagged row
-  updated to `'crawlers'`. Guarded so a half-migrated database (both keys
-  present) deduplicates rather than violating the unique key: the old row is
-  renamed only when the new key is absent, and any leftover old row is then
-  deleted. The old row's value wins over a stray new one — it is the one the
-  running site was actually honoring.
+    * **The find-then-insert had no backstop.** Two concurrent upserts for the
+      same absent key (parallel Oban workers, two nodes) both read nil and
+      both inserted; the user got two unseen rows for one logical key, pinned
+      to the top by the unseen-first ordering, and later refreshes folded into
+      only one of them — the stale twin sat there until manually dismissed.
 
-  ## Permission rows
+  Two indexes fix both:
 
-  Roles granted `'seo'` gain `'crawlers'`. The old `'seo'` rows are **kept,
-  deliberately**: the ExpectedSchema manifest (repair) still lists the V135
-  `'seo'` seed as required, so deleting the rows here would make
-  `mix phoenix_kit.repair` re-create them on its next run — a migration and a
-  repair tool fighting over the same row. The stale grants are inert (no
-  module registers the `'seo'` key, so no page reads them, and the
-  permissions matrix only renders registered keys) and their removal belongs
-  to the next manifest regeneration, where the seed entry itself moves.
+    * `phoenix_kit_notifications_dedupe_unseen_idx` — partial UNIQUE on
+      `(recipient_uuid, (metadata->>'dedupe_key'))` over undismissed, unseen,
+      keyed rows. Serves `find_collapsible/2`'s exact predicate AND turns the
+      race's second insert into a constraint violation the code retries as a
+      collapse (`Notifications.insert_collapsible/3`). Rows without a dedupe
+      key — every notification the fan-out path creates — are outside the
+      partial predicate and completely unaffected.
+
+    * `phoenix_kit_notifications_recipient_unseen_first_idx` — on
+      `(recipient_uuid, (seen_at IS NOT NULL), inserted_at DESC, uuid DESC)`
+      over undismissed rows, matching `order_unseen_first/1`'s ORDER BY
+      expression term-for-term so the bell's `recent_for_user` and the inbox
+      pages come straight off the index again.
+
+  ## Existing duplicates
+
+  A unique index cannot be created over rows that already violate it, and the
+  raced installs are exactly the ones carrying duplicates. Before creating the
+  index, all but the newest unseen row per `(recipient, key)` — the same
+  "newest wins" choice `find_collapsible/2` makes, `inserted_at` then `uuid`
+  (UUIDv7, time-ordered below the timestamp's granularity) — are marked
+  **dismissed**. Dismissal, not deletion: the rows and their history remain,
+  they simply stop occupying the inbox — which is where the collapsing API
+  would have put them had it won the race in the first place.
+
+  The fold and the index creation share one `SHARE ROW EXCLUSIVE` table lock,
+  so a concurrent insert cannot re-introduce a duplicate in the gap between
+  them and abort the migration.
   """
 
   use Ecto.Migration
@@ -35,30 +57,59 @@ defmodule PhoenixKit.Migrations.Postgres.V170 do
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
+    schema = schema_name(prefix)
 
-    rename_setting(p, "seo_module_enabled", "crawlers_module_enabled", "crawlers")
-    rename_setting(p, "seo_no_index", "crawlers_no_index", "crawlers")
-
-    # Any remaining rows tagged with the old module name (operator-created or
-    # future settings written before an upgrade) follow the module.
     execute("""
-    UPDATE #{p}phoenix_kit_settings
-    SET "module" = 'crawlers'
-    WHERE "module" = 'seo'
+    DO $$
+    BEGIN
+      -- The table guard exists for the same reason every LOCK TABLE in this
+      -- chain carries one: LOCK has no IF EXISTS form, and a database that
+      -- somehow lacks the table must skip, not abort the whole migration.
+      IF EXISTS (
+        SELECT 1 FROM pg_class t
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        WHERE t.relname = 'phoenix_kit_notifications' AND n.nspname = '#{schema}'
+      ) AND NOT EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE indexname = 'phoenix_kit_notifications_dedupe_unseen_idx'
+          AND schemaname = '#{schema}'
+      ) THEN
+        -- Writes blocked (reads fine) from the duplicate fold through index
+        -- creation, so no new duplicate can slip into the gap and abort us.
+        LOCK TABLE #{p}phoenix_kit_notifications IN SHARE ROW EXCLUSIVE MODE;
+
+        WITH ranked AS (
+          SELECT uuid,
+                 row_number() OVER (
+                   PARTITION BY recipient_uuid, metadata->>'dedupe_key'
+                   ORDER BY inserted_at DESC, uuid DESC
+                 ) AS rn
+          FROM #{p}phoenix_kit_notifications
+          WHERE seen_at IS NULL
+            AND dismissed_at IS NULL
+            AND metadata->>'dedupe_key' IS NOT NULL
+        )
+        UPDATE #{p}phoenix_kit_notifications n
+        SET dismissed_at = now()
+        FROM ranked r
+        WHERE n.uuid = r.uuid AND r.rn > 1;
+
+        CREATE UNIQUE INDEX phoenix_kit_notifications_dedupe_unseen_idx
+        ON #{p}phoenix_kit_notifications (recipient_uuid, (metadata->>'dedupe_key'))
+        WHERE seen_at IS NULL
+          AND dismissed_at IS NULL
+          AND metadata->>'dedupe_key' IS NOT NULL;
+      END IF;
+    END
+    $$
     """)
 
-    # Copy the permission grant. ON CONFLICT covers re-runs and the fresh
-    # install path (V135 seeds 'seo', this version adds 'crawlers' beside it).
     execute("""
-    INSERT INTO #{p}phoenix_kit_role_permissions ("role_uuid", "module_key")
-    SELECT rp.role_uuid, 'crawlers'
-    FROM #{p}phoenix_kit_role_permissions rp
-    WHERE rp.module_key = 'seo'
-    ON CONFLICT DO NOTHING
+    CREATE INDEX IF NOT EXISTS phoenix_kit_notifications_recipient_unseen_first_idx
+    ON #{p}phoenix_kit_notifications (recipient_uuid, (seen_at IS NOT NULL), inserted_at DESC, uuid DESC)
+    WHERE dismissed_at IS NULL
     """)
 
-    # Single-step runs rely on the migration stamping its own marker — the
-    # runner only writes it for multi-step ranges.
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '170'")
   end
 
@@ -66,58 +117,18 @@ defmodule PhoenixKit.Migrations.Postgres.V170 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    rename_setting(p, "crawlers_module_enabled", "seo_module_enabled", "seo")
-    rename_setting(p, "crawlers_no_index", "seo_no_index", "seo")
+    # The duplicate fold is deliberately not undone: the dismissed twins were
+    # duplicates the collapsing API would never have created, and nothing
+    # records which rows the fold touched versus which the user dismissed.
+    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_notifications_recipient_unseen_first_idx")
 
-    # Only operator rows that up/1's broad retag moved go back to 'seo'.
-    # The new-feature rows (crawlers_allow_*, verification, llms extra) never
-    # existed under the old name — retagging them would invent history, and
-    # V166-era code reads none of them either way.
-    execute("""
-    UPDATE #{p}phoenix_kit_settings
-    SET "module" = 'seo'
-    WHERE "module" = 'crawlers'
-      AND "key" NOT LIKE 'crawlers%'
-    """)
+    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_notifications_dedupe_unseen_idx")
 
-    # The 'seo' grants were never deleted on the way up, so going down only
-    # removes the copies this version created.
-    execute("""
-    DELETE FROM #{p}phoenix_kit_role_permissions
-    WHERE module_key = 'crawlers'
-    """)
-
-    # Rollback lands on the version that precedes this one.
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '169'")
   end
 
-  # Rename a settings row by key, tolerating every partial state: if only the
-  # old key exists it is renamed in place (value preserved); if both exist the
-  # old row is dropped in favor of… itself — the old value is what the site
-  # was honoring, so the new row is overwritten from it first.
-  defp rename_setting(p, old_key, new_key, module_tag) do
-    execute("""
-    UPDATE #{p}phoenix_kit_settings new
-    SET "value" = old."value",
-        "value_json" = old."value_json"
-    FROM #{p}phoenix_kit_settings old
-    WHERE new."key" = '#{new_key}' AND old."key" = '#{old_key}'
-    """)
-
-    execute("""
-    UPDATE #{p}phoenix_kit_settings
-    SET "key" = '#{new_key}', "module" = '#{module_tag}'
-    WHERE "key" = '#{old_key}'
-      AND NOT EXISTS (
-        SELECT 1 FROM #{p}phoenix_kit_settings s2 WHERE s2."key" = '#{new_key}'
-      )
-    """)
-
-    execute("""
-    DELETE FROM #{p}phoenix_kit_settings
-    WHERE "key" = '#{old_key}'
-    """)
-  end
+  defp schema_name("public"), do: "public"
+  defp schema_name(prefix), do: prefix
 
   defp prefix_str("public"), do: "public."
   defp prefix_str(prefix), do: "#{prefix}."

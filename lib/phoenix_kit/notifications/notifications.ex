@@ -276,15 +276,21 @@ defmodule PhoenixKit.Notifications do
   """
   @spec create_inapp(String.t(), map()) :: {:ok, Notification.t()} | {:error, term()}
   def create_inapp(recipient_uuid, display) when is_binary(recipient_uuid) and is_map(display) do
+    # Caller metadata first, reserved keys on top — the reverse order let a
+    # passed-through `metadata` (say, copied off a prior notification)
+    # silently clobber the `dedupe_key` the upsert had just decided on,
+    # turning collapsing off for that key with nothing logged. A reserved
+    # key is only stamped when the caller supplied the display field, so
+    # setting `notification_text` via metadata alone still works.
     metadata =
-      %{}
+      display[:metadata]
+      |> stringify_keys()
       |> put_meta("notification_text", display[:text])
       |> put_meta("notification_icon", display[:icon])
       |> put_meta("notification_link", display[:link])
-      # What `upsert_inapp/3` later collapses on, and anything else the caller
-      # wants to carry. Both are dropped silently without this.
+      # What `upsert_inapp/3` later collapses on. Dropped silently without
+      # this.
       |> put_meta("dedupe_key", display[:dedupe_key])
-      |> Map.merge(display[:metadata] || %{})
 
     %Notification{}
     |> Notification.changeset(%{
@@ -292,6 +298,9 @@ defmodule PhoenixKit.Notifications do
       activity_uuid: nil,
       metadata: metadata
     })
+    |> Ecto.Changeset.unique_constraint(:metadata,
+      name: :phoenix_kit_notifications_dedupe_unseen_idx
+    )
     |> repo().insert()
     |> case do
       {:ok, notification} ->
@@ -300,8 +309,21 @@ defmodule PhoenixKit.Notifications do
         {:ok, notification}
 
       {:error, %Ecto.Changeset{} = cs} ->
-        Logger.warning("Notifications.create_inapp failed: #{inspect(cs.errors)}")
+        # The dedupe uniqueness trip is an ANTICIPATED outcome — it is how
+        # `insert_collapsible/3` learns it lost the race and should fold —
+        # so it doesn't warrant a warning; everything else does.
+        unless dedupe_conflict?(cs) do
+          Logger.warning("Notifications.create_inapp failed: #{inspect(cs.errors)}")
+        end
+
         {:error, cs}
+    end
+  end
+
+  defp dedupe_conflict?(%Ecto.Changeset{errors: errors}) do
+    case Keyword.get(errors, :metadata) do
+      {_, opts} -> Keyword.get(opts, :constraint) == :unique
+      _ -> false
     end
   end
 
@@ -338,41 +360,86 @@ defmodule PhoenixKit.Notifications do
   Broadcasts either way — `{:notification_created, n}` for a new row,
   `{:notification_updated, n}` for a refresh — so a bell that is already open
   reflects it without the caller broadcasting anything itself.
+
+  Honors the `notifications_enabled` kill switch like `create/1` does,
+  returning `{:ok, :skipped}` when notifications are off — this is a
+  host-facing entry point, not the digest's private lane, and "off" that
+  quietly doesn't apply to the newest creation path isn't off.
   """
   @spec upsert_inapp(String.t(), String.t(), map()) ::
-          {:ok, Notification.t()} | {:error, term()}
+          {:ok, Notification.t()} | {:ok, :skipped} | {:error, term()}
   def upsert_inapp(recipient_uuid, key, display)
       when is_binary(recipient_uuid) and is_binary(key) and is_map(display) do
-    case find_collapsible(recipient_uuid, key) do
-      nil -> create_inapp(recipient_uuid, Map.put(display, :dedupe_key, key))
-      existing -> refresh_inapp(existing, key, display)
+    if enabled?() do
+      case find_collapsible(recipient_uuid, key) do
+        nil -> insert_collapsible(recipient_uuid, key, display)
+        existing -> refresh_inapp(existing, key, display)
+      end
+    else
+      {:ok, :skipped}
+    end
+  end
+
+  # Insert a fresh keyed row — with the concurrency backstop. Two concurrent
+  # upserts for the same absent key (parallel Oban workers, two nodes) both
+  # read nil from `find_collapsible/2`; without the partial unique index
+  # (V170) both inserted, and the user got two unseen rows for one logical
+  # key. The second insert now trips the constraint, and the loser retries
+  # the find — the winner's row is there to collapse onto.
+  defp insert_collapsible(recipient_uuid, key, display) do
+    case create_inapp(recipient_uuid, Map.put(display, :dedupe_key, key)) do
+      {:error, %Ecto.Changeset{errors: errors} = cs} ->
+        if Keyword.has_key?(errors, :metadata) do
+          case find_collapsible(recipient_uuid, key) do
+            nil -> {:error, cs}
+            existing -> refresh_inapp(existing, key, display)
+          end
+        else
+          {:error, cs}
+        end
+
+      other ->
+        other
     end
   end
 
   # Only unseen rows collapse — see the moduledoc above for why. Newest first
-  # so a duplicate key (possible if one was seen and a later one wasn't) folds
-  # into the one the user still has outstanding.
+  # (uuid as the tie-break: UUIDv7 is time-ordered below `inserted_at`'s
+  # second granularity) so a duplicate key folds into the one the user most
+  # recently got.
   defp find_collapsible(recipient_uuid, key) do
     Notification
     |> where([n], n.recipient_uuid == ^recipient_uuid)
     |> where([n], is_nil(n.dismissed_at) and is_nil(n.seen_at))
     |> where([n], fragment("?->>'dedupe_key' = ?", n.metadata, ^key))
-    |> order_by([n], desc: n.inserted_at)
+    |> order_by([n], desc: n.inserted_at, desc: n.uuid)
     |> limit(1)
     |> repo().one()
   rescue
     # A read that fails is not a reason to drop the notification — fall
-    # through and post a new one.
-    _ -> nil
+    # through and post a new one. Logged so a permanent failure (a query or
+    # schema bug turning every call into nil) is diagnosable instead of
+    # silently degrading upsert into insert-always.
+    error ->
+      Logger.warning("Notifications.find_collapsible failed: #{Exception.message(error)}")
+      nil
+  catch
+    # An unreachable DB raises on an unowned checkout but EXITS on a dead
+    # pool — the soft-failure rule needs both.
+    :exit, reason ->
+      Logger.warning("Notifications.find_collapsible exited: #{inspect(reason)}")
+      nil
   end
 
   defp refresh_inapp(%Notification{} = notification, key, display) do
+    # Same order as `create_inapp/2`: caller metadata first, reserved keys
+    # on top, so a passed-through metadata map cannot clobber them.
     patch =
-      %{}
+      display[:metadata]
+      |> stringify_keys()
       |> put_meta("notification_text", display[:text])
       |> put_meta("notification_icon", display[:icon])
       |> put_meta("notification_link", display[:link])
-      |> Map.merge(display[:metadata] || %{})
 
     now = UtilsDate.utc_now()
 
@@ -518,6 +585,17 @@ defmodule PhoenixKit.Notifications do
   defp put_meta(meta, _key, nil), do: meta
   defp put_meta(meta, _key, ""), do: meta
   defp put_meta(meta, key, val), do: Map.put(meta, key, val)
+
+  # Caller metadata arrives with whatever keys the caller typed —
+  # `%{notification_text: ...}` and `%{"notification_text" => ...}` are the
+  # same key once serialized to jsonb, but as an Elixir map they coexist and
+  # which one wins the JSON encoding is adapter-order-dependent. Normalized
+  # here so the reserved-key stamping above has one namespace to win in.
+  defp stringify_keys(nil), do: %{}
+
+  defp stringify_keys(map) when is_map(map) do
+    Map.new(map, fn {k, v} -> {to_string(k), v} end)
+  end
 
   # ── Reads ────────────────────────────────────────────────────────────
 

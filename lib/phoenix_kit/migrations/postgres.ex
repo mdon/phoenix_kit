@@ -7,7 +7,7 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V170 - SEO module renamed to Crawlers ⚡ LATEST
+  ### V171 - SEO module renamed to Crawlers ⚡ LATEST
 
   The built-in SEO module becomes Crawlers: everything it held was bot
   policy (the noindex directive, crawler guidance, and now per-bot-group
@@ -15,6 +15,19 @@ defmodule PhoenixKit.Migrations.Postgres do
   phoenix_kit_seo package. Settings rows are renamed
   (seo_module_enabled/seo_no_index -> crawlers_*), roles granted seo gain
   crawlers, and the old seo grants stay for the repair manifest.
+
+  ### V170 - Notification collapsing gets indexes and a uniqueness backstop
+
+  Two indexes for the `upsert_inapp/3` collapsing API. A partial UNIQUE index
+  on `(recipient_uuid, metadata->>'dedupe_key')` over undismissed unseen rows
+  serves the dedupe lookup and turns the find-then-insert race (two workers
+  both inserting the same key) into a constraint the code retries as a
+  collapse; existing duplicate unseen rows are folded — all but the newest per
+  key marked dismissed — before the index is created. A second index on
+  `(recipient_uuid, seen_at IS NOT NULL, inserted_at DESC, uuid DESC)` over
+  undismissed rows matches the unseen-first inbox ordering term-for-term, so
+  the bell and inbox reads come straight off an index again. Rows without a
+  dedupe key are outside both the uniqueness rule and the fold.
 
   ### V169 - Anonymous entity submissions, and one duplicate foreign key
 
@@ -508,7 +521,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 170
+  @current_version 171
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

@@ -14,7 +14,7 @@ defmodule PhoenixKit do
   replaced still claimed `"1.3.3"` several majors later.
 
       PhoenixKit.version()
-      #=> "2.3.0"
+      #=> "2.5.0"
 
   """
   @spec version() :: String.t()
