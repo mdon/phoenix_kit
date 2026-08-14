@@ -44,6 +44,49 @@ defmodule PhoenixKitWeb.Components.Core.ThemeController do
 
     assigns = assign(assigns, :dropdown_themes, dropdown_themes)
 
+    # Exactly two concrete themes is a light/dark pair, and a dropdown for a
+    # binary choice is ceremony — render a toggle instead. The behaviour is
+    # keyed on the LIST, not a new option, so a host that narrows
+    # :dashboard_themes to its two branded themes gets the toggle without
+    # learning anything new. "system" keeps the dropdown: three states need a
+    # menu.
+    if match?([%{type: :theme}, %{type: :theme}], dropdown_themes) do
+      theme_toggle_pair(assigns)
+    else
+      theme_dropdown(assigns)
+    end
+  end
+
+  # One button per theme, each dispatching the same phx:set-theme event the
+  # dropdown uses; the layout JS hides whichever button's theme is ACTIVE, so
+  # what remains visible is the one you'd switch to — sun offers light, moon
+  # offers dark, exactly one at a time. Before that JS first runs both are
+  # rendered; it resolves on the same tick as the initial theme application.
+  defp theme_toggle_pair(assigns) do
+    ~H"""
+    <div class={["flex items-center", @class]} {@rest} data-theme-toggle id={@id}>
+      <button
+        :for={theme <- @dropdown_themes}
+        type="button"
+        phx-click={JS.dispatch("phx:set-theme", detail: %{theme: theme.value})}
+        data-theme-target={theme.value}
+        data-theme-role="toggle-option"
+        title={theme.label}
+        aria-label={theme.label}
+        class="btn btn-sm btn-ghost btn-circle"
+      >
+        <.icon
+          name={if toggle_base(theme.value) == "dark", do: "hero-moon", else: "hero-sun"}
+          class="w-5 h-5"
+        />
+      </button>
+    </div>
+    """
+  end
+
+  defp toggle_base(theme), do: Map.get(ThemeConfig.base_map(), theme, "light")
+
+  defp theme_dropdown(assigns) do
     ~H"""
     <div class={["flex flex-col gap-3 w-full", @class]} {@rest}>
       <div class="relative w-full" data-theme-dropdown>

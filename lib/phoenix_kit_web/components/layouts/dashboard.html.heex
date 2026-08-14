@@ -387,7 +387,11 @@ has_multi_selector = context_selector_configs != [] %> <!DOCTYPE html>
           document.querySelectorAll('[data-theme-target]').forEach(btn => {
             const targets = (btn.dataset.themeTarget || '').split(',').map(s => s.trim()).filter(Boolean);
             const isActive = targets.includes(theme);
-            if (btn.dataset.themeRole === 'dropdown-option') {
+            if (btn.dataset.themeRole === 'toggle-option') {
+              // The pair toggle: hide the ACTIVE theme's button so the one
+              // left visible is the one you'd switch to.
+              btn.classList.toggle('hidden', isActive);
+            } else if (btn.dataset.themeRole === 'dropdown-option') {
               btn.classList.toggle('bg-base-200', isActive);
               btn.classList.toggle('ring-2', isActive);
               btn.classList.toggle('ring-primary/70', isActive);
