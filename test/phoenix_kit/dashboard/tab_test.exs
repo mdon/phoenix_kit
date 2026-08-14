@@ -231,7 +231,43 @@ defmodule PhoenixKit.Dashboard.TabTest do
       assert Tab.group_header(id: :h, label: "H", priority: 1, visible: false).visible ==
                false
 
-      assert Tab.group_header(id: :h, label: "H", priority: 1).visible == true
+      assert Tab.visible?(Tab.group_header(id: :h, label: "H", priority: 1), %{})
+    end
+  end
+
+  describe "parameterized paths hide themselves" do
+    test "a :param path is hidden unless the host explicitly opts in" do
+      # These entries are routes, not navigation — they used to render a
+      # literal ":uuid" in the sidebar unless hand-marked visible: false.
+      route = Tab.new!(id: :show, label: "Project", path: "projects/:uuid")
+
+      refute Tab.visible?(route, %{})
+      assert Tab.hard_hidden?(route)
+
+      forced = Tab.new!(id: :show, label: "Project", path: "projects/:uuid", visible: true)
+      assert Tab.visible?(forced, %{})
+      refute Tab.hard_hidden?(forced)
+    end
+
+    test "splat segments count as parameters" do
+      assert Tab.parameterized_path?("files/*rest")
+    end
+
+    test "colons that are not parameter segments do not count" do
+      # External URLs, ports, mailto — the reason detection is per-segment
+      # rather than a substring search for ":".
+      refute Tab.parameterized_path?("https://example.com/docs")
+      refute Tab.parameterized_path?("http://example.com:8080/x")
+      refute Tab.parameterized_path?("mailto:hi@example.com")
+      refute Tab.parameterized_path?(nil)
+    end
+
+    test "a bare struct literal gets the same auto behavior" do
+      # Struct literals bypass every constructor (the moduledoc's own
+      # examples use them), so the default must live in visible?/2, not in
+      # constructor normalization.
+      refute Tab.visible?(%Tab{id: :x, label: "X", path: "x/:id"}, %{})
+      assert Tab.visible?(%Tab{id: :x, label: "X", path: "x"}, %{})
     end
   end
 
