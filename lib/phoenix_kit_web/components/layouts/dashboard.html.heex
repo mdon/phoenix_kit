@@ -404,9 +404,12 @@ has_multi_selector = context_selector_configs != [] %> <!DOCTYPE html>
           });
         }
 
-        // Initialize
+        // Initialize — setTheme, not applyTheme: applyTheme only writes the
+        // attribute, so active indicators (and the pair toggle's hide-the-
+        // active-button rule) never initialized, leaving both toggle buttons
+        // visible until the first click.
         const saved = localStorage.getItem(STORAGE_KEY) || 'system';
-        applyTheme(saved);
+        setTheme(saved);
 
         // Listen for system theme changes
         window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', () => {
