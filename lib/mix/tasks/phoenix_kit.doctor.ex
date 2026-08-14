@@ -131,7 +131,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("daisyUI Version", fn -> check_daisyui() end),
       run_check("User Dashboard (deprecated)", fn -> check_user_dashboard_deprecation() end),
       run_check("Sitemap Discoverability", fn -> check_sitemap_serving() end),
-      run_check("Crawler Visibility", fn -> check_crawler_visibility() end),
+      run_check("Crawler Visibility", fn -> check_crawler_visibility(prefix) end),
       run_check("Demo Auth Pages", fn -> check_demo_routes() end),
       run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end)
     ]
@@ -1334,13 +1334,17 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # indexable (Google will happily index a dev box; both directions have
   # happened here). Heuristic on the hostname, so it PASSes with a note when
   # the host cannot be determined rather than guessing.
-  defp check_crawler_visibility do
+  #
+  # Settings are read via direct SQL, NOT PhoenixKit.Settings: the doctor runs
+  # in update_mode, which short-circuits every Settings read to its default —
+  # through that API this check would report "disabled" on every install.
+  defp check_crawler_visibility(prefix) do
     cond do
-      not Crawlers.module_enabled?() ->
+      crawler_setting?(prefix, "crawlers_module_enabled", false) == false ->
         {:pass, "Crawlers module disabled — no directives active."}
 
-      Crawlers.no_index_enabled?() ->
-        case host_flavor() do
+      crawler_setting?(prefix, "crawlers_no_index", false) ->
+        case host_flavor(prefix) do
           {:staging, host} ->
             {:pass, "Global noindex is ON for #{host}, which looks like staging — as intended."}
 
@@ -1357,14 +1361,18 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         end
 
       true ->
-        case host_flavor() do
+        case host_flavor(prefix) do
           {:staging, host} ->
             {:warn,
              "#{host} looks like a staging/dev deployment and is INDEXABLE — search " <>
                "engines will index it. Consider the noindex toggle in Settings → Crawlers."}
 
           _ ->
-            blocked = Crawlers.blocked_groups()
+            blocked =
+              Enum.reject(
+                PhoenixKit.Modules.Crawlers.Bots.group_keys(),
+                &crawler_setting?(prefix, Crawlers.group_setting_key(&1), true)
+              )
 
             summary =
               case blocked do
@@ -1381,11 +1389,26 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     :exit, _ -> {:pass, "Crawler settings unreadable (no database?) — skipping."}
   end
 
+  # A boolean settings row, read straight from the table (see moduledoc of the
+  # check above for why). Missing row → the given default.
+  defp crawler_setting?(prefix, key, default) do
+    repo = get_repo!()
+    p = if prefix == "public", do: "public.", else: "#{prefix}."
+
+    case repo.query!("SELECT value FROM #{p}phoenix_kit_settings WHERE key = $1", [key]) do
+      %{rows: [[value] | _]} -> value == "true"
+      _ -> default
+    end
+  end
+
   # :staging / :production by hostname shape, :unknown when no URL is
   # configured. Label-based matching, not substring — "device.com" must not
-  # read as a dev box, while "max-dev2.example" must.
-  defp host_flavor do
-    with url when is_binary(url) and url != "" <- Routes.base_url(),
+  # read as a dev box, while "max-dev2.example" must. The site_url setting is
+  # read via SQL (update_mode, as above) with the endpoint config as fallback.
+  defp host_flavor(prefix) do
+    url = configured_site_url(prefix) || endpoint_url()
+
+    with url when is_binary(url) and url != "" <- url,
          %URI{host: host} when is_binary(host) and host != "" <- URI.parse(url) do
       if staging_host?(host), do: {:staging, host}, else: {:production, host}
     else
@@ -1393,6 +1416,24 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     end
   rescue
     _ -> :unknown
+  end
+
+  defp configured_site_url(prefix) do
+    repo = get_repo!()
+    p = if prefix == "public", do: "public.", else: "#{prefix}."
+
+    case repo.query!("SELECT value FROM #{p}phoenix_kit_settings WHERE key = 'site_url'", []) do
+      %{rows: [[value] | _]} when is_binary(value) and value != "" -> value
+      _ -> nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  defp endpoint_url do
+    Routes.base_url()
+  rescue
+    _ -> nil
   end
 
   @staging_labels ~w(localhost local staging stage dev develop development test testing demo preview sandbox)
