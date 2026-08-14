@@ -636,240 +636,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   });
                 }
               });
-
-              // Theme configuration and controller
-              const themeBaseMap = <%= ThemeConfig.base_map() |> Phoenix.json_library().encode!() |> Phoenix.HTML.raw() %>;
-              const themeLabels = <%= ThemeConfig.translated_label_map() |> Phoenix.json_library().encode!() |> Phoenix.HTML.raw() %>;
-
-              // Admin theme controller for PhoenixKit with animated slider
-              const adminThemeController = {
-                init() {
-                  // Safely query for dropdown controllers with null checks
-                  const dropdownContainers = document.querySelectorAll('[data-theme-dropdown]');
-
-                  this.dropdownControllers = Array.from(dropdownContainers).map((container) => ({
-                    container,
-                    button: container.querySelector('[data-theme-toggle]'),
-                    panel: container.querySelector('[data-theme-dropdown-panel]'),
-                    label: container.querySelector('[data-theme-current-label]')
-                  }));
-
-                  this.registerDropdownAccessibility();
-
-                  this.systemMediaQuery =
-                    typeof window.matchMedia === 'function'
-                      ? window.matchMedia('(prefers-color-scheme: dark)')
-                      : null;
-
-                  if (this.systemMediaQuery) {
-                    this.systemMediaQuery.addEventListener('change', () => {
-                      if ((localStorage.getItem('phx:theme') || 'system') === 'system') {
-                        this.applyThemeAttributes('system');
-                      }
-                    });
-                  }
-
-                  const savedTheme = localStorage.getItem('phx:theme') || 'system';
-                  this.setTheme(savedTheme);
-                  this.setupListeners();
-                },
-
-                setTheme(theme) {
-                  const resolvedTheme = this.applyThemeAttributes(theme, themeBaseMap);
-
-                  if (theme === 'system') {
-                    localStorage.removeItem('phx:theme');
-                  } else {
-                    localStorage.setItem('phx:theme', theme);
-                  }
-
-                  if (this.dropdownControllers?.length) {
-                    this.dropdownControllers.forEach((entry) => {
-                      if (entry.label) {
-                        entry.label.textContent = themeLabels[theme] || this.toTitle(theme);
-                      }
-                      this.setDropdownState(entry, false);
-                    });
-                  }
-
-                  // Update active state for all theme buttons
-                  const themeButtons = document.querySelectorAll('[data-theme-target]');
-
-                  themeButtons.forEach((btn) => {
-                    const targets = (btn.dataset.themeTarget || '')
-                      .split(',')
-                      .map((value) => value.trim())
-                      .filter(Boolean);
-                    const isActive =
-                      targets.includes(theme) || targets.includes(resolvedTheme);
-
-                    if (btn.dataset.themeRole === 'dropdown-option') {
-                      btn.classList.toggle('bg-base-200', isActive);
-                      btn.classList.toggle('ring-2', isActive);
-                      btn.classList.toggle('ring-primary/70', isActive);
-                      btn.setAttribute('aria-selected', String(isActive));
-                      btn
-                        .querySelectorAll('[data-theme-active-indicator]')
-                        .forEach((icon) => {
-                          icon.classList.toggle('opacity-100', isActive);
-                          icon.classList.toggle('scale-100', isActive);
-                          icon.classList.toggle('scale-75', !isActive);
-                        });
-                    } else if (btn.dataset.themeRole === 'toggle') {
-                      const dark = btn.dataset.themeDark;
-                      const light = btn.dataset.themeLight;
-                      const isDark = resolvedTheme === dark;
-                      btn.setAttribute('aria-pressed', String(isDark));
-                      btn.dataset.themeNext = isDark ? light : dark;
-                      btn.querySelectorAll('[data-toggle-icon]').forEach((icon) => {
-                        icon.classList.toggle(
-                          'hidden',
-                          (icon.dataset.toggleIcon === 'dark') !== isDark
-                        );
-                      });
-                    }
-                  });
-
-                  // Notify window-level listeners — host root layouts included.
-                  // The old version dispatched from a detached element and
-                  // claimed the event "bubbles up to window": it cannot — a
-                  // node outside the DOM has no path to bubble along, so no
-                  // host listener ever heard a kit-side theme change. Guarded,
-                  // because this object also LISTENS for phx:set-theme on
-                  // window: dispatchEvent is synchronous, so the flag is set
-                  // for exactly the duration of our own event and the listener
-                  // ignores it, while external events still come through.
-                  if (!this._dispatchingTheme) {
-                    this._dispatchingTheme = true;
-                    try {
-                      window.dispatchEvent(new CustomEvent('phx:set-theme', { detail: { theme } }));
-                    } catch (error) {
-                      console.warn('PhoenixKit admin theme controller: unable to dispatch phx:set-theme', error);
-                    } finally {
-                      this._dispatchingTheme = false;
-                    }
-                  }
-                },
-
-                setupListeners() {
-                  // The pair toggle dispatches whatever its data-theme-next
-                  // holds — no per-button phx-click, no state of its own.
-                  document.addEventListener('click', (e) => {
-                    const btn = e.target.closest?.('[data-theme-role="toggle"]');
-                    if (btn?.dataset.themeNext) this.setTheme(btn.dataset.themeNext);
-                  });
-
-                  // Listen to Phoenix LiveView theme events (both variants)
-                  document.addEventListener('phx:set-admin-theme', (e) => {
-                    if (e?.detail?.theme) {
-                      this.setTheme(e.detail.theme);
-                    }
-                  });
-
-                  // Also listen for phx:set-theme from theme_controller
-                  // component and from host code. Skip our own dispatches —
-                  // see the guard in setTheme.
-                  window.addEventListener('phx:set-theme', (e) => {
-                    const theme = e?.detail?.theme ?? e?.target?.dataset?.phxTheme;
-                    if (theme && !this._dispatchingTheme) {
-                      this.setTheme(theme);
-                    }
-                  });
-                },
-
-                registerDropdownAccessibility() {
-                  if (!this.dropdownControllers?.length) return;
-
-                  this.dropdownControllers.forEach((entry) => {
-                    this.setDropdownState(entry, false);
-
-                    if (!entry.button || !entry.panel) return;
-
-                    entry.button.addEventListener('click', (event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      const expanded = entry.button.getAttribute('aria-expanded') === 'true';
-                      this.setDropdownState(entry, !expanded);
-                    });
-
-                    entry.panel.addEventListener('click', (event) => {
-                      event.stopPropagation();
-                    });
-                  });
-
-                  document.addEventListener('click', (event) => {
-                    const clickedInside = this.dropdownControllers.some((entry) =>
-                      entry.container?.contains(event.target)
-                    );
-
-                    if (!clickedInside) {
-                      this.dropdownControllers.forEach((entry) => this.setDropdownState(entry, false));
-                    }
-                  });
-                },
-
-                toTitle(value) {
-                  return value
-                    .split('-')
-                    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-                    .join(' ');
-                },
-
-                setDropdownState(entry, isOpen) {
-                  if (!entry?.button || !entry?.panel) return;
-
-                  entry.button.setAttribute('aria-expanded', String(!!isOpen));
-                  entry.panel.setAttribute('aria-hidden', String(!isOpen));
-                  entry.panel.classList.toggle('pointer-events-auto', !!isOpen);
-                  entry.panel.classList.toggle('pointer-events-none', !isOpen);
-                  entry.panel.classList.toggle('opacity-100', !!isOpen);
-                  entry.panel.classList.toggle('opacity-0', !isOpen);
-                  entry.panel.classList.toggle('-translate-y-2', !isOpen);
-                  entry.panel.classList.toggle('translate-y-0', !!isOpen);
-                },
-
-                applyThemeAttributes(theme, baseMap = {}) {
-                  const resolvedTheme =
-                    theme === 'system'
-                      ? this.systemMediaQuery && this.systemMediaQuery.matches
-                        ? 'phoenix-dark'
-                        : 'phoenix-light'
-                      : theme;
-
-                  if (document.documentElement) {
-                    document.documentElement.setAttribute('data-theme', resolvedTheme);
-                    document.documentElement.dataset.theme = resolvedTheme;
-                    document.documentElement.setAttribute(
-                      'data-admin-theme-base',
-                      theme === 'system' ? 'system' : baseMap[resolvedTheme] || resolvedTheme
-                    );
-                  }
-
-                  if (document.body) {
-                    document.body.setAttribute('data-theme', resolvedTheme);
-                    document.body.dataset.theme = resolvedTheme;
-                    document.body.setAttribute(
-                      'data-admin-theme-base',
-                      theme === 'system' ? 'system' : baseMap[resolvedTheme] || resolvedTheme
-                    );
-                    document.body.classList.add('bg-base-100', 'transition-colors');
-                  }
-
-                  return resolvedTheme;
-                }
-              };
-
-              // Always initialize after DOM is fully loaded to avoid race conditions
-              if (document.readyState === 'loading' || document.readyState === 'interactive') {
-                // DOM still loading, wait for DOMContentLoaded
-                document.addEventListener('DOMContentLoaded', () => {
-                  adminThemeController.init();
-                });
-              } else {
-                // DOM already loaded (readyState === 'complete'), safe to init immediately
-                adminThemeController.init();
-              }
             </script>
+            <%!-- Shared theme controller (dropdown a11y, pair toggle,
+                 indicators, host dispatch) — the near-copy that lived here
+                 moved to one generated script serving every layout. --%>
+            <PhoenixKitWeb.Components.ThemeControllerScript.theme_controller_script />
             """
           end
         }
@@ -977,7 +748,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     <html
       lang={@content_language || "en"}
       data-theme="light"
-      data-admin-theme-base="system"
       class="[scrollbar-gutter:stable]"
     >
       <head>
@@ -1006,7 +776,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
           </script>
         <% end %>
       </head>
-      <body class="bg-base-100 antialiased transition-colors" data-admin-theme-base="system">
+      <body class="bg-base-100 antialiased transition-colors">
         <%!-- Admin pages without parent headers --%>
         <main class="min-h-screen bg-base-100 transition-colors">
           <.flash_group flash={@flash} />
