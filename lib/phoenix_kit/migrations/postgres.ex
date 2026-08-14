@@ -7,7 +7,8 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V166 - Frozen comment attribution ⚡ LATEST
+  ### V166 - Frozen comment attribution
+  ### V167 - SEO module renamed to Crawlers ⚡ LATEST
 
   Adds `author_display_name`, `attribution_mode`, `attributed_project_uuid`
   and `attributed_label` to `phoenix_kit_comments`. A name resolved at
@@ -456,7 +457,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 166
+  @current_version 167
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

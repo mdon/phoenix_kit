@@ -191,6 +191,11 @@ defmodule PhoenixKitWeb.Integration do
       # Define the auto-setup pipeline
       pipeline :phoenix_kit_auto_setup do
         plug PhoenixKitWeb.Plugs.RequestTimer
+        # Best-effort bot blocking (default off; see the plug's moduledoc).
+        # Early, before auth work is spent on a request we intend to 403 —
+        # but only on page pipelines: the public sitemap/llms.txt scopes skip
+        # it on purpose, policy files must stay fetchable by any bot.
+        plug PhoenixKitWeb.Plugs.CrawlerBlocker
         plug PhoenixKitWeb.Users.Auth, :fetch_phoenix_kit_current_user
         plug PhoenixKitWeb.Integration, :phoenix_kit_auto_setup
       end
@@ -320,7 +325,10 @@ defmodule PhoenixKitWeb.Integration do
       end
 
       # Sitemap routes - public XML/XSL endpoints, no session/CSRF/auto_setup needed
+      # llms.txt rides along: same public, session-free shape, and policy files
+      # must stay fetchable even by bots the Crawlers module blocks.
       scope unquote(url_prefix) do
+        get "/llms.txt", PhoenixKit.Modules.Crawlers.Web.Controller, :llms_txt
         get "/sitemap.xml", PhoenixKit.Modules.Sitemap.Web.Controller, :xml
         get "/sitemap.html", PhoenixKit.Modules.Sitemap.Web.Controller, :html
         get "/sitemaps/:filename", PhoenixKit.Modules.Sitemap.Web.Controller, :module_sitemap
@@ -544,7 +552,7 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/settings/languages/frontend", Live.Modules.Languages, :frontend
 
       live "/admin/settings/maintenance", Live.Modules.Maintenance.Settings, :index
-      live "/admin/settings/seo", Live.Settings.SEO, :index
+      live "/admin/settings/crawlers", Live.Settings.Crawlers, :index
       live "/admin/settings/media", Live.Modules.Storage.Settings, :index
       live "/admin/settings/media/buckets/new", Live.Modules.Storage.BucketForm, :new
       live "/admin/settings/media/buckets/:id/edit", Live.Modules.Storage.BucketForm, :edit
@@ -1382,6 +1390,7 @@ defmodule PhoenixKitWeb.Integration do
   defp root_sitemap_routes(_url_prefix) do
     quote do
       scope "/" do
+        get "/llms.txt", PhoenixKit.Modules.Crawlers.Web.Controller, :llms_txt
         get "/sitemap.xml", PhoenixKit.Modules.Sitemap.Web.Controller, :xml
         get "/sitemap.html", PhoenixKit.Modules.Sitemap.Web.Controller, :html
         get "/sitemaps/:filename", PhoenixKit.Modules.Sitemap.Web.Controller, :module_sitemap

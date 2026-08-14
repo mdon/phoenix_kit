@@ -10,7 +10,7 @@ defmodule PhoenixKit.Users.Permissions do
 
   Core sections: dashboard, users, media, settings, modules
   Feature modules: billing, shop, emails, entities, tickets, posts, comments,
-    ai, publishing, sitemap, seo, maintenance, storage,
+    ai, publishing, sitemap, crawlers, maintenance, storage,
     languages, connections, legal, db, jobs
 
   ## Sub-Permissions (fine-grained)

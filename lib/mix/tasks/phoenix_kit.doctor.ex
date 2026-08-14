@@ -50,8 +50,10 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
    20. **daisyUI Version** — Is the host's vendored daisyUI recent enough?
    21. **User Dashboard (deprecated)** — Is the host still on the retired dashboard?
    22. **Sitemap Discoverability** — Is the sitemap actually reachable?
-   23. **Demo Auth Pages** — Are the demo auth routes still exposed?
-   24. **Manifest Repair (dry-run)** — `PhoenixKit.Migrations.Repair.verify/1`
+   23. **Crawler Visibility** — noindex on a production-looking host, or a
+       staging-looking host left indexable
+   24. **Demo Auth Pages** — Are the demo auth routes still exposed?
+   25. **Manifest Repair (dry-run)** — `PhoenixKit.Migrations.Repair.verify/1`
        runs read-only against the generated
        `PhoenixKit.Migrations.ExpectedSchema` manifest as an additional,
        non-fatal check (never `:fail`). Passes and says so if the manifest
@@ -67,7 +69,9 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   alias PhoenixKit.Migrations.Postgres
   alias PhoenixKit.Migrations.Repair
   alias PhoenixKit.Migrations.Repair.Report
+  alias PhoenixKit.Modules.Crawlers
   alias PhoenixKit.Modules.Sitemap.RouteResolver
+  alias PhoenixKit.Utils.Routes
 
   @shortdoc "Diagnoses PhoenixKit installation, migration, and runtime issues"
 
@@ -127,6 +131,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("daisyUI Version", fn -> check_daisyui() end),
       run_check("User Dashboard (deprecated)", fn -> check_user_dashboard_deprecation() end),
       run_check("Sitemap Discoverability", fn -> check_sitemap_serving() end),
+      run_check("Crawler Visibility", fn -> check_crawler_visibility() end),
       run_check("Demo Auth Pages", fn -> check_demo_routes() end),
       run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end)
     ]
@@ -1323,6 +1328,96 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # Plug.Static runs before the router, host routes declared before
   # `phoenix_kit_routes()` bind first, and PhoenixKit is last. A host that
   # reported "the sitemap 404s" had simply never been told any of that.
+  # The two crawler-visibility footguns, in both directions: a production host
+  # carrying the global noindex directive (the silent SEO killer — the switch
+  # was for staging and someone shipped it), and a staging-looking host that is
+  # indexable (Google will happily index a dev box; both directions have
+  # happened here). Heuristic on the hostname, so it PASSes with a note when
+  # the host cannot be determined rather than guessing.
+  defp check_crawler_visibility do
+    cond do
+      not Crawlers.module_enabled?() ->
+        {:pass, "Crawlers module disabled — no directives active."}
+
+      Crawlers.no_index_enabled?() ->
+        case host_flavor() do
+          {:staging, host} ->
+            {:pass, "Global noindex is ON for #{host}, which looks like staging — as intended."}
+
+          {:production, host} ->
+            {:warn,
+             "The global noindex directive is ON and #{host} does not look like a staging " <>
+               "host. If this is production, every page is telling search engines to drop " <>
+               "it. Turn it off in Settings → Crawlers."}
+
+          :unknown ->
+            {:pass,
+             "Global noindex is ON (host undetermined — if this deployment is " <>
+               "production, turn it off in Settings → Crawlers)."}
+        end
+
+      true ->
+        case host_flavor() do
+          {:staging, host} ->
+            {:warn,
+             "#{host} looks like a staging/dev deployment and is INDEXABLE — search " <>
+               "engines will index it. Consider the noindex toggle in Settings → Crawlers."}
+
+          _ ->
+            blocked = Crawlers.blocked_groups()
+
+            summary =
+              case blocked do
+                [] -> "all bot groups allowed"
+                keys -> "blocked bot groups: #{Enum.join(keys, ", ")}"
+              end
+
+            {:pass, "Site indexable, noindex off; #{summary}."}
+        end
+    end
+  rescue
+    _ -> {:pass, "Crawler settings unreadable (no database?) — skipping."}
+  catch
+    :exit, _ -> {:pass, "Crawler settings unreadable (no database?) — skipping."}
+  end
+
+  # :staging / :production by hostname shape, :unknown when no URL is
+  # configured. Label-based matching, not substring — "device.com" must not
+  # read as a dev box, while "max-dev2.example" must.
+  defp host_flavor do
+    with url when is_binary(url) and url != "" <- Routes.base_url(),
+         %URI{host: host} when is_binary(host) and host != "" <- URI.parse(url) do
+      if staging_host?(host), do: {:staging, host}, else: {:production, host}
+    else
+      _ -> :unknown
+    end
+  rescue
+    _ -> :unknown
+  end
+
+  @staging_labels ~w(localhost local staging stage dev develop development test testing demo preview sandbox)
+
+  defp staging_host?(host) do
+    cond do
+      host in ["localhost", "127.0.0.1", "0.0.0.0", "[::1]"] -> true
+      String.ends_with?(host, ".local") -> true
+      String.contains?(host, "ngrok") or String.ends_with?(host, "lvh.me") -> true
+      ip_address?(host) -> true
+      true -> host |> String.split([".", "-"]) |> Enum.any?(&staging_label?/1)
+    end
+  end
+
+  defp staging_label?(label) do
+    # Strip a trailing ordinal so "dev2" and "staging3" match while "device"
+    # (whose stem is not in the list) does not.
+    base = String.replace(label, ~r/\d+$/, "")
+    base != "" and base in @staging_labels
+  end
+
+  defp ip_address?(host) do
+    match?({:ok, _}, :inet.parse_address(String.to_charlist(host)))
+  end
+
   defp check_sitemap_serving do
     case {static_sitemap_file(), sitemap_route_owner()} do
       {path, _} when is_binary(path) ->

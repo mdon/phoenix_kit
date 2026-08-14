@@ -46,10 +46,10 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias Phoenix.LiveView
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.ModuleRegistry
+  alias PhoenixKit.Modules.Crawlers
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Modules.Maintenance
-  alias PhoenixKit.Modules.SEO
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.{Scope, User}
   alias PhoenixKit.Users.LoginAlerts
@@ -984,12 +984,15 @@ defmodule PhoenixKitWeb.Users.Auth do
       |> maybe_update_locale_from_params(params)
       # This hook fires on `handle_params` for every LiveView mounted through
       # PhoenixKit's on_mount chain (admin and host-app public pages alike),
-      # so it is the one place that can guarantee `:seo_no_index` reaches
+      # so it is the one place that can guarantee `:crawlers_no_index` reaches
       # root.html.heex's noindex meta tag before the first render — unlike
       # LayoutWrapper.app_layout_inner/1, which only wraps admin/plugin views
       # and never runs for a host app's own public LiveViews. assign_new is
       # a no-op if LayoutWrapper already set it, so this is safe either way.
-      |> Phoenix.Component.assign_new(:seo_no_index, fn -> SEO.no_index_enabled?() end)
+      |> Phoenix.Component.assign_new(:crawlers_no_index, fn -> Crawlers.no_index_enabled?() end)
+      |> Phoenix.Component.assign_new(:crawlers_verifications, fn ->
+        Crawlers.verification_metas()
+      end)
 
     {:cont, socket}
   end
@@ -1507,7 +1510,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     {"integrations_system", "/admin/settings/integrations/website"},
     # Settings sub-pages (lower priority landing pages)
     {"languages", "/admin/settings/languages"},
-    {"seo", "/admin/settings/seo"},
+    {"crawlers", "/admin/settings/crawlers"},
     {"sitemap", "/admin/settings/sitemap"},
     {"maintenance", "/admin/settings/maintenance"},
     {"legal", "/admin/settings/legal"},
@@ -1877,7 +1880,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Settings.EmailSending => "settings",
     PhoenixKitWeb.Live.Settings.SendProfiles => "settings",
     PhoenixKitWeb.Live.Settings.SendProfileForm => "settings",
-    PhoenixKitWeb.Live.Settings.SEO => "seo",
+    PhoenixKitWeb.Live.Settings.Crawlers => "crawlers",
     PhoenixKitWeb.Live.Modules.Languages => "languages",
     PhoenixKitWeb.Live.Modules.Maintenance.Settings => "maintenance",
     PhoenixKitWeb.Live.Modules.Storage.Settings => "media",
