@@ -1,3 +1,73 @@
+## 2.5.0 - 2026-08-14
+
+Ten findings from a high-effort review of the recently merged notifications,
+fingerprint-logging and JS-compiler work, two of which needed schema support.
+Chain moves V169 → **V170**.
+
+### Fixed
+
+- **Two concurrent upserts for the same dedupe key both inserted.** Parallel
+  Oban workers or two nodes both read `nil` from `find_collapsible/2` and both
+  created a row, so the user got two unseen notifications for one logical key —
+  pinned to the top by the unseen-first ordering — and later refreshes folded
+  into only one of them, leaving the stale twin until it was dismissed by hand.
+  V170's partial UNIQUE index turns the second insert into a constraint
+  violation that `insert_collapsible/3` retries as a collapse (#713).
+
+- **`upsert_inapp/3` ignored the `notifications_enabled` kill switch.** It is a
+  host-facing entry point, and "off" that quietly did not apply to the newest
+  creation path was not off. Returns `{:ok, :skipped}` like `create/1` (#713).
+
+- **Caller metadata could clobber reserved keys.** Metadata now merges *first*
+  and reserved keys stamp on top, so a passed-through map can no longer
+  overwrite `dedupe_key` — which silently disabled collapsing — or the display
+  keys. Caller keys are normalised to strings, so `%{notification_text: …}`
+  cannot coexist with the string key and win by adapter ordering (#713).
+
+- **`find_collapsible/2` lacked `catch :exit`.** A dead pool *exits* rather than
+  raising, bypassing `rescue` and crashing the caller its comment promised it
+  would not — the soft-failure rule this project applies everywhere else. Both
+  clauses log now, so a permanent query bug degrading upsert into
+  insert-always is diagnosable rather than silent (#713).
+
+- **The inbox ignored `:notification_updated`.** The bell handled it, the inbox
+  did not, so an open inbox showed stale rows at exactly the moment an upsert
+  refreshed one. A scrape test now holds the whitelist to *every* event the
+  library broadcasts, so the next event added fails the test until the inbox
+  handles it (#713).
+
+- **One fingerprint mismatch logged three lines, two of them wrong.** The #705
+  dedup had only landed in `fetch_phoenix_kit_current_user`; the scope plug still
+  carried the old `"(scope)"` warning and an `:error`-level "possible hijacking"
+  line for requests that were then served normally — and the shipped
+  `:phoenix_kit_admin_only` pipeline runs both plugs. Verification now runs at
+  most once per request, with the verdict cached in `conn.private` and shared
+  (#713).
+
+- **`session_label` could never match the sessions UI.** The log used a
+  truncated sha256 while the UI shows hex of the raw token's first 4 bytes, so
+  the promised log↔UI correlation failed every time. Both derivations are now
+  the same one, held together by a test (#713).
+
+### Migrations
+
+- **V170** adds two indexes to `phoenix_kit_notifications`:
+
+  - `phoenix_kit_notifications_dedupe_unseen_idx` — **partial UNIQUE** on
+    `(recipient_uuid, metadata->>'dedupe_key')` over undismissed, unseen, keyed
+    rows. Serves `find_collapsible/2`'s exact predicate *and* is the uniqueness
+    backstop above. Rows without a dedupe key — everything the fan-out path
+    creates — are outside the predicate and unaffected.
+  - `phoenix_kit_notifications_recipient_unseen_first_idx` — matches
+    `order_unseen_first/1`'s ORDER BY term-for-term, so the bell's
+    `recent_for_user` and the inbox pages come off an index again instead of
+    walking a recipient's whole undismissed backlog on every mount.
+
+  Existing duplicates are **dismissed, not deleted** — all but the newest unseen
+  row per `(recipient, key)`, the same "newest wins" choice `find_collapsible/2`
+  makes. The fold and the index creation share one `SHARE ROW EXCLUSIVE` lock so
+  a concurrent insert cannot re-introduce a duplicate in the gap between them.
+
 ## 2.4.0 - 2026-08-14
 
 Slug uniqueness gets both halves it was missing — a changeset helper and the
