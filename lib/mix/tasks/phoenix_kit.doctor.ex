@@ -70,6 +70,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   alias PhoenixKit.Migrations.Repair
   alias PhoenixKit.Migrations.Repair.Report
   alias PhoenixKit.Modules.Crawlers
+  alias PhoenixKit.Modules.Crawlers.Bots
   alias PhoenixKit.Modules.Sitemap.RouteResolver
   alias PhoenixKit.Utils.Routes
 
@@ -1370,7 +1371,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
           _ ->
             blocked =
               Enum.reject(
-                PhoenixKit.Modules.Crawlers.Bots.group_keys(),
+                Bots.group_keys(),
                 &crawler_setting?(prefix, Crawlers.group_setting_key(&1), true)
               )
 
