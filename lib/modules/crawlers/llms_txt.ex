@@ -9,13 +9,14 @@ defmodule PhoenixKit.Modules.Crawlers.LlmsTxt do
 
       # <project title>
 
-      > <operator-provided or default summary line>
-
       <operator-provided extra markdown, verbatim>
 
   The head is generated from Settings so a fresh install serves something
   truthful with zero configuration; the tail is the operator's, edited on the
-  Crawlers settings page and stored as a setting. Serving happens in
+  Crawlers settings page and stored as a setting. There is deliberately no
+  generated `> summary` blockquote — llmstxt.org allows one, but core has no
+  setting that says what the site *is*, and a fabricated line is worse than
+  none. Serving happens in
   `PhoenixKit.Modules.Crawlers.Web.Controller`, at the site root and under the
   kit prefix — the root is where tools look, same reasoning as `/sitemap.xml`.
   """

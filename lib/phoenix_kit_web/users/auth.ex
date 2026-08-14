@@ -971,15 +971,18 @@ defmodule PhoenixKitWeb.Users.Auth do
       |> maybe_update_locale_from_params(params)
       # This hook fires on `handle_params` for every LiveView mounted through
       # PhoenixKit's on_mount chain (admin and host-app public pages alike),
-      # so it is the one place that can guarantee `:crawlers_no_index` reaches
-      # root.html.heex's noindex meta tag before the first render — unlike
-      # LayoutWrapper.app_layout_inner/1, which only wraps admin/plugin views
-      # and never runs for a host app's own public LiveViews. assign_new is
-      # a no-op if LayoutWrapper already set it, so this is safe either way.
+      # so it is the one place that can publish `:crawlers_no_index` to a host
+      # app's own public LiveViews — LayoutWrapper.app_layout_inner/1 only
+      # wraps admin/plugin views. assign_new is a no-op if LayoutWrapper
+      # already set it, so this is safe either way.
+      #
+      # The head metas no longer read it: `Core.CrawlerMetas` reads the
+      # settings itself so it works in a HOST root layout too. This assign
+      # stays as the published read-only signal for host templates that want
+      # to branch on the directive. Deliberately just the one — a second
+      # assign for the verification metas would be two more settings reads on
+      # every navigation with nothing to read them.
       |> Phoenix.Component.assign_new(:crawlers_no_index, fn -> Crawlers.no_index_enabled?() end)
-      |> Phoenix.Component.assign_new(:crawlers_verifications, fn ->
-        Crawlers.verification_metas()
-      end)
 
     {:cont, socket}
   end

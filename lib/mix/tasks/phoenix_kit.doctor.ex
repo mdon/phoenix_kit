@@ -1323,12 +1323,6 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     _ -> {:pass, "Could not introspect routes — skipping."}
   end
 
-  # Which layer answers GET /sitemap.xml, and whether robots.txt points at it.
-  #
-  # Three layers can claim that path and nothing tells a host which one won:
-  # Plug.Static runs before the router, host routes declared before
-  # `phoenix_kit_routes()` bind first, and PhoenixKit is last. A host that
-  # reported "the sitemap 404s" had simply never been told any of that.
   # The two crawler-visibility footguns, in both directions: a production host
   # carrying the global noindex directive (the silent SEO killer — the switch
   # was for staging and someone shipped it), and a staging-looking host that is
@@ -1462,6 +1456,12 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     match?({:ok, _}, :inet.parse_address(String.to_charlist(host)))
   end
 
+  # Which layer answers GET /sitemap.xml, and whether robots.txt points at it.
+  #
+  # Three layers can claim that path and nothing tells a host which one won:
+  # Plug.Static runs before the router, host routes declared before
+  # `phoenix_kit_routes()` bind first, and PhoenixKit is last. A host that
+  # reported "the sitemap 404s" had simply never been told any of that.
   defp check_sitemap_serving do
     case {static_sitemap_file(), sitemap_route_owner()} do
       {path, _} when is_binary(path) ->

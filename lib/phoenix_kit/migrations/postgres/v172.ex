@@ -80,11 +80,17 @@ defmodule PhoenixKit.Migrations.Postgres.V172 do
       AND "key" NOT LIKE 'crawlers%'
     """)
 
-    # The 'seo' grants were never deleted on the way up, so going down only
-    # removes the copies this version created.
+    # The 'seo' grants were never deleted on the way up, so going down removes
+    # only the copies this version created — the ones whose role still holds
+    # 'seo'. A 'crawlers' grant an operator added afterwards to a role that
+    # never had 'seo' is theirs, not ours, and survives the rollback.
     execute("""
-    DELETE FROM #{p}phoenix_kit_role_permissions
-    WHERE module_key = 'crawlers'
+    DELETE FROM #{p}phoenix_kit_role_permissions rp
+    WHERE rp.module_key = 'crawlers'
+      AND EXISTS (
+        SELECT 1 FROM #{p}phoenix_kit_role_permissions seo
+        WHERE seo.role_uuid = rp.role_uuid AND seo.module_key = 'seo'
+      )
     """)
 
     # Rollback lands on the version that precedes this one.

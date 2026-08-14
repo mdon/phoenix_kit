@@ -126,6 +126,10 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
     Crawlers.no_index_enabled?()
   rescue
     _ -> false
+  catch
+    # An unreachable database RAISES on an unowned checkout but EXITS on a
+    # dead pool; rescue alone leaves the exit path unguarded.
+    :exit, _ -> false
   end
 
   defp do_generate_index(base_url, opts, sources, xsl_style, xsl_enabled) do

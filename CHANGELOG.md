@@ -1,3 +1,133 @@
+## 2.6.0 - 2026-08-14
+
+The built-in SEO module becomes **Crawlers** and grows into the one page where an
+operator decides who may read the site; shop slugs get a uniqueness bucket that
+matches the URL the resolver actually serves; scheduled jobs stop double-firing;
+and every vendored CDN pin is now held to its lock. Chain moves V170 → **V172**
+(#714, #715).
+
+### Added
+
+- **Crawlers module** (`PhoenixKit.Modules.Crawlers`, settings at
+  `/admin/settings/crawlers`, permission key `crawlers`). Per-bot-group access
+  toggles over a curated registry — search engines, AI training scrapers, AI
+  assistants, SEO tool crawlers, web archives — all default-allowed, so enabling
+  the module changes nothing until the operator decides otherwise (#714).
+
+- **Generated `robots.txt`.** The settings page renders the complete file the
+  toggles describe, for copy-paste. Core still deliberately does not serve it:
+  `robots.txt` is host policy and `Plug.Static` answers before the router (#714).
+
+- **`llms.txt`**, served at the site root and under the kit prefix (same reasoning
+  as `/sitemap.xml`), 404ing while the module is disabled. Heading from the project
+  title, body from an operator-edited setting (#714).
+
+- **Search-engine verification metas** (`google-site-verification`,
+  `msvalidate.01`). Pasting a whole `<meta>` tag extracts the content value (#714).
+
+- **`PhoenixKitWeb.Components.Core.CrawlerMetas`** — a head component that reads its
+  own settings, so it renders in ANY root layout. Most installs render the head in
+  the host app's root layout, where core's assigns never arrive, and the previous
+  assign-based noindex meta silently reached no page on those installs. Core's two
+  shells use it; hosts embed one line (#714).
+
+- **`PhoenixKitWeb.Plugs.CrawlerBlocker`** — default-off, honestly advisory 403 for
+  user-agents of blocked groups, wired into the kit page pipeline. Policy-file
+  scopes skip it on purpose: `robots.txt` and `llms.txt` must stay fetchable by the
+  bots they are about (#714).
+
+- **Doctor check "Crawler Visibility"** — warns on noindex left ON for a
+  production-looking host, and on a staging-looking host left indexable (#714).
+
+- **`PhoenixKit.Conformance.ComponentAssigns`** — a static check that a HEEx function
+  component never reads an assign it neither declares nor assigns itself. The
+  compiler validates call sites, never callee bodies, which let a `KeyError` behind
+  an `:if={...}` guard ship for four releases (#714).
+
+### Changed
+
+- **V172 renames the SEO module to Crawlers.** Settings rows
+  (`seo_module_enabled`/`seo_no_index` → `crawlers_*`) are renamed with a dedupe
+  guard where the old row's value wins — it is what the running site was honouring —
+  and roles granted `seo` gain `crawlers`. The old `seo` permission rows are kept
+  deliberately: the repair manifest still lists the V135 `seo` seed, so deleting
+  them would set `mix phoenix_kit.repair` and this migration fighting over the same
+  row. A deprecated `PhoenixKit.Modules.SEO` shim keeps host callers compiling, and
+  frees the `seo` module key for the external `phoenix_kit_seo` package (#714).
+
+- **V171 gives shop slugs a uniqueness bucket of (base language, value).** The
+  V52-era expression index on the alphabetically-first key's value under- and
+  over-enforced at once: other languages were unconstrained, so collisions surfaced
+  far from the save that caused them, while `{"en":"hat"}` and `{"de":"hat"}`
+  collided though they can never shadow each other in a URL. Trigger-maintained
+  projection tables now enforce the bucket the resolver reads, and their pkeys give
+  `phoenix_kit_ecommerce` a real `unique_constraint` to name — a collision comes back
+  as a changeset error on `:slug` instead of a raw `Postgrex.Error` (#714).
+
+- **Scheduled jobs are claimed before they run.** The plain `SELECT` let two
+  overlapping sweeps — core's cron worker and a host calling the public function, or
+  two nodes — both see the same rows and both fire the handler, which host handlers
+  are not required to survive. A row is now claimed with a CAS into a new
+  `processing` status and only the winner executes; a sweep that dies holds its claim
+  until a reclaim window returns the row to `pending` (or to `failed` once attempts
+  are spent). Both terminal marks are CAS'd, so a late mark from a slow sweep cannot
+  stomp a row that has already been requeued (#714).
+
+- **Every vendored CDN pin is held to the version the lock resolves.** #709 fixed
+  leaf's pin and pinned it with a leaf-only test; the three sibling pins in the same
+  file had all drifted — etcher by three minors, so none of the 0.12.0 tldraw-parity
+  work reached any host. The test is generalized to every `gh/` pin, resolves the
+  expected version from `Application.spec/2`, and fails when a pin appears for a
+  repo it does not cover (#715).
+
+### Fixed
+
+- **A maintenance broadcast killed admins' LiveViews.** The on_mount hook returned
+  `{:cont, ...}` for an admin — maintenance never blocks them, so there was nothing
+  left to do — which handed `{:maintenance_status_changed, _}` to the LiveView's own
+  `handle_info`. Any view without a clause for it (most of them) died in
+  `FunctionClauseError` the moment a toggle broadcast, or the hook's own
+  end-of-window timer, fired while an admin had the page open (#714).
+
+- **V171's dedup counted slug entries instead of owner rows.** A single row carrying
+  two spellings of one language at the same value (`{"en":"hat","en-GB":"hat"}`)
+  projects — via the trigger's `SELECT DISTINCT` — to one projection row, so it is
+  not a collision. Counting entries made it one: an `active` row in that shape
+  aborted the upgrade with `shared by 2 live rows`, naming a second row the operator
+  would never find, and a non-live one had a spelling silently rewritten to `hat-2`,
+  giving the row two public URLs where it had one. Both loops now count
+  `DISTINCT uuid`, and a row that does lose a bucket moves all its spellings to the
+  one candidate (post-merge review of #714).
+
+- **`V172.down/1` deleted every `crawlers` permission grant**, though its comment
+  promised only the copies `up/1` made. After the upgrade `crawlers` is a first-class
+  key in the admin matrix, so a rollback discarded grants an operator had added to
+  roles that never held `seo` — and re-running `up/1` could not restore them. The
+  delete is now qualified by a surviving `seo` grant for the same role (post-merge
+  review of #714).
+
+- **Empty Crawlers string settings failed their first write.** The three optional
+  slots (Google/Bing verification, llms.txt extra) were not in `@optional_settings`,
+  so the first write of an empty value — with no row yet — failed validation and a
+  form saving both slots half-applied: the non-empty one landed, the empty one
+  errored, and the flash reported failure (#714).
+
+- **Three doc sites named V170 as the rename migration; it is V172.** V170 is a real,
+  unrelated migration, so the stale numbers from an in-flight renumber pointed anyone
+  debugging a half-renamed settings table at the wrong file (post-merge review
+  of #714).
+
+- **`:crawlers_verifications` was assigned on every LiveView navigation and read by
+  nothing.** `CrawlerMetas` reads its own settings, which is the whole point of it;
+  the assign-based path it replaced was kept and extended, costing two unguarded
+  settings reads per navigation for a value with no reader. Removed;
+  `:crawlers_no_index` stays as the published signal for host templates (post-merge
+  review of #714).
+
+- **`crawlers_no_index?/0` in the sitemap generator guarded `rescue` but not
+  `catch :exit`.** An unreachable database raises on an unowned checkout but *exits*
+  on a dead pool (post-merge review of #714).
+
 ## 2.5.0 - 2026-08-14
 
 Ten findings from a high-effort review of the recently merged notifications,

@@ -418,9 +418,10 @@ defmodule PhoenixKit.ScheduledJobs do
 
     now = UtilsDate.utc_now()
 
-    # attempts were already incremented by the claim's contract: a claimed run
-    # that fails counts as one attempt. The row returns to "pending" while
-    # attempts remain, mirroring fail_changeset/2's retry semantics.
+    # The claim itself does not touch `attempts` — this is where a claimed run
+    # that failed spends its one attempt, so the +1 lives in both branches and
+    # the threshold is read as `attempts + 1`. The row returns to "pending"
+    # while attempts remain, mirroring fail_changeset/2's retry semantics.
     {_, _} =
       from(j in ScheduledJob,
         where: j.uuid == ^job.uuid,

@@ -175,7 +175,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         end
       end)
       |> assign_new(:crawlers_no_index, fn -> Crawlers.no_index_enabled?() end)
-      |> assign_new(:crawlers_verifications, fn -> Crawlers.verification_metas() end)
 
     # Handle both inner_content (Phoenix 1.7-) and inner_block (Phoenix 1.8+)
     assigns = normalize_content_assigns(assigns)
@@ -1123,7 +1122,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     |> Map.put_new(:phoenix_kit_version, get_phoenix_kit_version())
     |> Map.put_new(:phoenix_version_info, PhoenixVersion.get_version_info())
     |> Map.put_new(:crawlers_no_index, assigns[:crawlers_no_index] || false)
-    |> Map.put_new(:crawlers_verifications, assigns[:crawlers_verifications] || [])
   end
 
   # Extract current user from scope for parent layout compatibility

@@ -1,4 +1,4 @@
-defmodule PhoenixKitWeb.Users.AuthSeoNoIndexTest do
+defmodule PhoenixKitWeb.Users.AuthCrawlersNoIndexTest do
   @moduledoc """
   Regression test for `crawlers_no_index` not reaching a host application's own
   public LiveViews. `PhoenixKitWeb.Components.LayoutWrapper.app_layout_inner/1`

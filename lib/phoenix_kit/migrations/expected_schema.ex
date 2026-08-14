@@ -105,7 +105,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "46a7f3533500bb2db41cedb071ea9c5d291491eab68709a084126704c205c57c"
+  @chain_hash "e66e9d1066c77364a974a72474cd1bbc8d4080c5e1bdf353410d042221ce6401"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -27574,7 +27574,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              table: "phoenix_kit_shop_categories",
              kind: :index
            }},
-        # DROPPED BY V171: superseded by the phoenix_kit_shop_categorie_slugs
+        # DROPPED BY V171: superseded by the phoenix_kit_shop_category_slugs
         # projection pkey, which enforces (base language, value) — the bucket
         # the resolver reads — instead of the alphabetically-first key's value.
         # legacy_optional: still present on installs below 171, gone at 171+,

@@ -128,14 +128,24 @@ defmodule PhoenixKit.Migrations.Postgres.ShopSlugProjection do
   @doc """
   The V171 dedup for one parent table, as a single `DO` block.
 
-  Buckets every jsonb slug entry by (base language, value). Two LIVE rows in
-  one bucket RAISE — one of them must lose a working public URL, and that is
-  an editorial decision, not an unattended upgrade's (V167 precedent: refuse,
-  and name the value). Otherwise the keeper is live first, then oldest
-  `inserted_at`, then uuid — `timestamps()` stores whole seconds, so ties are
-  ordinary — and every later entry is rewritten in place to `value-2`,
-  `value-3`, … probing the WHOLE table so an unrelated `hat-2` pushes the
-  suffix to `hat-3` (`Slug.ensure_unique/2`'s rule, applied in SQL).
+  Buckets every jsonb slug entry by (base language, value), counting **owner
+  rows, not entries**: one row carrying two spellings of a language at the
+  same value (`{"en":"hat","en-GB":"hat"}`) projects — via the trigger's
+  `SELECT DISTINCT` — to a single projection row, so it is not a collision
+  and must be left alone. Counting entries instead made it one: an active
+  product in that shape aborted the upgrade with "shared by 2 live rows",
+  and a draft one had a spelling silently rewritten to `hat-2`, changing a
+  live URL to satisfy a constraint that was never in danger.
+
+  Two LIVE rows in one bucket RAISE — one of them must lose a working public
+  URL, and that is an editorial decision, not an unattended upgrade's (V167
+  precedent: refuse, and name the value). Otherwise the keeper is live first,
+  then oldest `inserted_at`, then uuid — `timestamps()` stores whole seconds,
+  so ties are ordinary — and every later row is rewritten in place to
+  `value-2`, `value-3`, … probing the WHOLE table so an unrelated `hat-2`
+  pushes the suffix to `hat-3` (`Slug.ensure_unique/2`'s rule, applied in
+  SQL). A losing row's spellings move together, to the one candidate: they
+  share the bucket, so splitting them would invent a second URL.
 
   Parameterized by table name so the integration tests can drive the same
   SQL against a scratch clone and manufacture the duplicates a current
@@ -147,19 +157,19 @@ defmodule PhoenixKit.Migrations.Postgres.ShopSlugProjection do
     DECLARE
       g RECORD;
       r RECORD;
+      k text;
       candidate text;
       n int;
     BEGIN
       FOR g IN
         SELECT lower(split_part(e.key, '-', 1)) AS lang,
                e.value AS val,
-               count(*) FILTER (WHERE t.status IN #{live_statuses}) AS live_n,
-               count(*) AS n_rows
+               count(DISTINCT t.uuid) FILTER (WHERE t.status IN #{live_statuses}) AS live_n
           FROM #{p}#{table} t,
                jsonb_each_text(COALESCE(t.slug, '{}'::jsonb)) e
          WHERE e.value <> ''
          GROUP BY 1, 2
-        HAVING count(*) > 1
+        HAVING count(DISTINCT t.uuid) > 1
       LOOP
         IF g.live_n > 1 THEN
           RAISE EXCEPTION
@@ -170,18 +180,33 @@ defmodule PhoenixKit.Migrations.Postgres.ShopSlugProjection do
 
       FOR r IN
         SELECT * FROM (
-          SELECT t.uuid,
-                 e.key,
-                 e.value,
-                 lower(split_part(e.key, '-', 1)) AS lang,
+          SELECT owned.uuid,
+                 owned.lang,
+                 owned.value,
+                 owned.keys,
                  row_number() OVER (
-                   PARTITION BY lower(split_part(e.key, '-', 1)), e.value
-                   ORDER BY CASE WHEN t.status IN #{live_statuses} THEN 0 ELSE 1 END,
-                            t.inserted_at ASC,
-                            t.uuid ASC) AS rn
-            FROM #{p}#{table} t,
-                 jsonb_each_text(COALESCE(t.slug, '{}'::jsonb)) e
-           WHERE e.value <> '') ranked
+                   PARTITION BY owned.lang, owned.value
+                   ORDER BY owned.live_rank,
+                            owned.inserted_at ASC,
+                            owned.uuid ASC) AS rn
+            FROM (
+              -- One row per (owner, bucket): every spelling the owner spends
+              -- on this bucket, collected so they can move together.
+              SELECT t.uuid,
+                     lower(split_part(e.key, '-', 1)) AS lang,
+                     e.value AS value,
+                     array_agg(e.key) AS keys,
+                     CASE WHEN t.status IN #{live_statuses} THEN 0 ELSE 1 END AS live_rank,
+                     t.inserted_at
+                FROM #{p}#{table} t,
+                     jsonb_each_text(COALESCE(t.slug, '{}'::jsonb)) e
+               WHERE e.value <> ''
+               GROUP BY t.uuid,
+                        lower(split_part(e.key, '-', 1)),
+                        e.value,
+                        CASE WHEN t.status IN #{live_statuses} THEN 0 ELSE 1 END,
+                        t.inserted_at
+            ) owned) ranked
          WHERE rn > 1
          ORDER BY lang, value, rn
       LOOP
@@ -200,11 +225,13 @@ defmodule PhoenixKit.Migrations.Postgres.ShopSlugProjection do
           n := n + 1;
         END LOOP;
 
-        RAISE NOTICE 'V171: #{table} % slug [%] % -> %', r.uuid, r.key, r.value, candidate;
+        RAISE NOTICE 'V171: #{table} % slug % % -> %', r.uuid, r.keys, r.value, candidate;
 
-        UPDATE #{p}#{table}
-           SET slug = jsonb_set(slug, ARRAY[r.key], to_jsonb(candidate))
-         WHERE uuid = r.uuid;
+        FOREACH k IN ARRAY r.keys LOOP
+          UPDATE #{p}#{table}
+             SET slug = jsonb_set(slug, ARRAY[k], to_jsonb(candidate))
+           WHERE uuid = r.uuid;
+        END LOOP;
       END LOOP;
     END $$;
     """

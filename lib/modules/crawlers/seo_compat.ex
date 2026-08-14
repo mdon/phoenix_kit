@@ -2,7 +2,7 @@ defmodule PhoenixKit.Modules.SEO do
   @moduledoc """
   Deprecated alias for `PhoenixKit.Modules.Crawlers`.
 
-  The built-in SEO module was renamed in V170 — everything it held was bot
+  The built-in SEO module was renamed in V172 — everything it held was bot
   policy (noindex directive, crawler guidance), and the SEO name now belongs
   to the external `phoenix_kit_seo` package. This shim keeps host code that
   called the old module compiling and working; new code should call

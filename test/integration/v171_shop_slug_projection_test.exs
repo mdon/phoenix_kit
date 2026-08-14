@@ -157,15 +157,34 @@ defmodule PhoenixKit.Integration.V171ShopSlugProjectionTest do
       assert slug_of(t, b) == %{"en-US" => "hat"}
     end
 
-    test "one row carrying two spellings of a language is self-deduped", %{table: t} do
+    test "one row carrying two spellings of a language is left alone", %{table: t} do
+      # The trigger folds both spellings into the single bucket (en, hat) with
+      # SELECT DISTINCT, so there is no constraint to satisfy — rewriting one
+      # of them would invent a second URL for a row that has one.
       row = row!(t, %{"en" => "hat", "en-GB" => "hat"}, "draft", 100)
 
       dedupe!(t)
 
-      assert slug_of(t, row) in [
-               %{"en" => "hat", "en-GB" => "hat-2"},
-               %{"en" => "hat-2", "en-GB" => "hat"}
-             ]
+      assert slug_of(t, row) == %{"en" => "hat", "en-GB" => "hat"}
+    end
+
+    test "an ACTIVE row's own spellings never read as two live rows", %{table: t} do
+      # Counting entries rather than owners aborted the whole upgrade here.
+      row = row!(t, %{"en" => "hat", "en-US" => "hat"}, "active", 100)
+
+      dedupe!(t)
+
+      assert slug_of(t, row) == %{"en" => "hat", "en-US" => "hat"}
+    end
+
+    test "a losing row's spellings move together to one candidate", %{table: t} do
+      keeper = row!(t, %{"en" => "hat"}, "active", 300)
+      loser = row!(t, %{"en" => "hat", "en-GB" => "hat"}, "draft", 100)
+
+      dedupe!(t)
+
+      assert slug_of(t, keeper) == %{"en" => "hat"}
+      assert slug_of(t, loser) == %{"en" => "hat-2", "en-GB" => "hat-2"}
     end
 
     test "different languages sharing a value are left alone", %{table: t} do
