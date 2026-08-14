@@ -1178,14 +1178,23 @@ defmodule PhoenixKit.Users.Auth do
   # A short, stable label for one session, so fingerprint lines can be
   # correlated to each other and to a row in the sessions UI.
   #
-  # Hashed and truncated because the raw token is a bearer credential and must
-  # never reach a log file — 8 hex characters is plenty to group a handful of
-  # lines by, and useless to anyone who steals the log.
-  defp session_label(token) when is_binary(token) do
-    :sha256 |> :crypto.hash(token) |> Base.encode16(case: :lower) |> binary_part(0, 8)
+  # THE SAME derivation the sessions UI displays as its token preview —
+  # `encode(substring(token, 1, 4), 'hex')` in `PhoenixKit.Users.Sessions` —
+  # because the label exists to be searched for on that page, and the
+  # previous derivation (truncated sha256) could never match it: an operator
+  # pasting the logged label into the sessions search got zero results every
+  # time. Four of the token's ~32 random bytes in a log is not a usable
+  # credential (the UI already shows admins these same bytes), and 8 hex
+  # characters is plenty to group a handful of lines by.
+  #
+  # Public (@doc false) so the test suite can hold the two derivations
+  # together — they drifted apart silently once already.
+  @doc false
+  def session_label(token) when is_binary(token) and byte_size(token) >= 4 do
+    token |> binary_part(0, 4) |> Base.encode16(case: :lower)
   end
 
-  defp session_label(_), do: "unknown"
+  def session_label(_), do: "unknown"
 
   @doc """
   Ensures the user is active by checking the is_active field.
