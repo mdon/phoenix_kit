@@ -342,6 +342,9 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
   defp scheduled_job_badge_class(status) do
     case status do
       "pending" -> "badge-warning"
+      # Claimed by a sweep and currently executing — same colour as Oban's
+      # "executing" above, because it is the same phase of life.
+      "processing" -> "badge-primary"
       "executed" -> "badge-success"
       "failed" -> "badge-error"
       "cancelled" -> "badge-ghost"
