@@ -55,6 +55,14 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # files. `verify.exs --scenario s7,s8` against a real database is still
   # what proves the body.
   #
+  # V167 is carried the same way, and is the first of these to RESHAPE an
+  # existing object rather than add one: `index:phoenix_kit_posts_slug_index`
+  # gains a `{167, ...}` revision flipping `unique` to true. The revision is
+  # APPENDED — `Object.shape_at/2` takes the last revision at or below the
+  # database's version, so editing `{29, ...}` in place would tell every V166
+  # install its plain index is drift and offer a repair that cannot run,
+  # because the duplicate slugs V167 exists to clear are still there.
+  #
   # Chain at generation: object/revision/legacy_optional DATA was captured from a
   # per-version replay of the TRUE pre-squash chain (initial=1 current=163 files=163
   # — the only run that can see pre-floor-only bimodal drift, e.g. V28/V30's
@@ -97,7 +105,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "596fca593c6972b65718d3ad6b44fe323ac1b92aeeebf8a42e3baed20dc6fb85"
+  @chain_hash "78dc50c67d775e4ddb5e89864f8dfb45079496ec30800b9e795ff0b6ec823cbe"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -10169,7 +10177,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           {:catalog,
            %{name: "phoenix_kit_posts_slug_index", table: "phoenix_kit_posts", kind: :index}},
         create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_posts_slug_index ON __SCHEMA__.phoenix_kit_posts USING btree (slug)",
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_posts_slug_index ON __SCHEMA__.phoenix_kit_posts USING btree (slug)",
         since: 29,
         class: :index,
         revisions: [
@@ -10181,6 +10189,23 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              method: "btree",
              definition:
                "CREATE INDEX phoenix_kit_posts_slug_index ON __SCHEMA__.phoenix_kit_posts USING btree (slug)",
+             predicate: nil,
+             opclasses: ["text_ops"],
+             name_template: nil
+           }},
+          # Appended, never edited in place. `Object.shape_at/2` takes the last
+          # revision <= the database's own version, so rewriting {29, ...}
+          # would tell every V166 install that its plain index is drift — and
+          # offer a repair that cannot succeed, because the duplicates the
+          # migration exists to clear are still sitting there.
+          {167,
+           %{
+             table: "phoenix_kit_posts",
+             keys: ["slug"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_posts_slug_index ON __SCHEMA__.phoenix_kit_posts USING btree (slug)",
              predicate: nil,
              opclasses: ["text_ops"],
              name_template: nil
@@ -17494,7 +17519,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           {:catalog,
            %{name: "phoenix_kit_tickets_slug_index", table: "phoenix_kit_tickets", kind: :index}},
         create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_tickets_slug_index ON __SCHEMA__.phoenix_kit_tickets USING btree (slug)",
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_tickets_slug_index ON __SCHEMA__.phoenix_kit_tickets USING btree (slug)",
         since: 35,
         class: :index,
         revisions: [
@@ -17506,6 +17531,23 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              method: "btree",
              definition:
                "CREATE INDEX phoenix_kit_tickets_slug_index ON __SCHEMA__.phoenix_kit_tickets USING btree (slug)",
+             predicate: nil,
+             opclasses: ["text_ops"],
+             name_template: nil
+           }},
+          # Appended, never edited in place — the V167 rule. `Object.shape_at/2`
+          # takes the last revision <= the database's own version, so rewriting
+          # {35, ...} would tell every V167 install that its plain index is
+          # drift and offer a repair that cannot succeed, because the duplicate
+          # slugs V168 exists to clear are still sitting there.
+          {168,
+           %{
+             table: "phoenix_kit_tickets",
+             keys: ["slug"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_tickets_slug_index ON __SCHEMA__.phoenix_kit_tickets USING btree (slug)",
              predicate: nil,
              opclasses: ["text_ops"],
              name_template: nil
@@ -29210,7 +29252,22 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_entity_data ADD COLUMN IF NOT EXISTS \"created_by_uuid\" uuid",
         since: 56,
         class: :column,
-        revisions: [{56, %{default: nil, type: "uuid", pos: 12, not_null: true}}],
+        # DECLARED POST-GENERATION CORRECTION (2026-08-14): a {169, not_null:
+        # false} revision. The public entity form is deliberately
+        # unauthenticated and has no creator to record, so anonymous submissions
+        # store NULL here (BeamLabEU/phoenix_kit#706). V169 drops the constraint;
+        # corrected here, in v135.ex's CREATE TABLE and in v164.ex's
+        # @relaxed_after_v57 together.
+        #
+        # A REVISION, not a rewrite of {56}: Scope resolves each object at the
+        # newest revision <= the database's comment, so claiming nullable from
+        # version 56 would make repair report a pre-V169 database — where the
+        # column is still legitimately NOT NULL — as wrong-shaped for the whole
+        # deploy window between shipping the code and running the migration.
+        revisions: [
+          {56, %{default: nil, type: "uuid", pos: 12, not_null: true}},
+          {169, %{default: nil, type: "uuid", pos: 12, not_null: false}}
+        ],
         presence: :required,
         backfill: nil
       },
@@ -31158,6 +31215,44 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
                "CREATE INDEX phoenix_kit_post_groups_user_uuid_idx ON __SCHEMA__.phoenix_kit_post_groups USING btree (user_uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      # DECLARED POST-GENERATION (V168). New object rather than a reshape:
+      # `PhoenixKitPosts.PostGroup` has always declared
+      # `unique_constraint([:user_uuid, :slug], name:
+      # :phoenix_kit_post_groups_user_uuid_slug_index)`, but no index of that
+      # name has ever existed, so the constraint could never fire and one user
+      # could hold two groups on one slug. Scoped to the owner, not global —
+      # two different users may share a slug.
+      %{
+        id: "index:phoenix_kit_post_groups_user_uuid_slug_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_post_groups_user_uuid_slug_index",
+             table: "phoenix_kit_post_groups",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_post_groups_user_uuid_slug_index ON __SCHEMA__.phoenix_kit_post_groups USING btree (user_uuid, slug)",
+        since: 168,
+        class: :index,
+        revisions: [
+          {168,
+           %{
+             table: "phoenix_kit_post_groups",
+             keys: ["user_uuid", "slug"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_post_groups_user_uuid_slug_index ON __SCHEMA__.phoenix_kit_post_groups USING btree (user_uuid, slug)",
+             predicate: nil,
+             opclasses: ["uuid_ops", "text_ops"],
              name_template: nil
            }}
         ],
@@ -33247,8 +33342,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              table: "phoenix_kit_ai_requests",
              kind: :constraint
            }},
-        create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'fk_ai_requests_prompt_uuid'\n      AND t.relname = 'phoenix_kit_ai_requests'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_ai_requests ADD CONSTRAINT fk_ai_requests_prompt_uuid FOREIGN KEY (prompt_uuid) REFERENCES __SCHEMA__.phoenix_kit_ai_prompts(uuid) ON DELETE SET NULL;\n  END IF;\nEND\n$$",
+        create: nil,
         since: 56,
         class: :constraint,
         revisions: [
@@ -33265,7 +33359,21 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              on_update: "a"
            }}
         ],
-        presence: :required,
+        # DECLARED POST-GENERATION CORRECTION (2026-08-14): `:legacy_optional`.
+        # v135 adds this FK twice under two names, each block guarded only by
+        # its own name, so a freshly migrated database ends up with BOTH this
+        # and `phoenix_kit_ai_requests_prompt_uuid_fkey` (BeamLabEU/phoenix_kit_ai#20).
+        # V169 drops this one and keeps the legacy name, which is what the
+        # installed base carries and what Ecto derives by default, so no live
+        # database needs a rename.
+        #
+        # Optional rather than deleted, because a pre-169 install still
+        # legitimately has it. Required would make repair RE-ADD the duplicate
+        # after every upgrade, and on legacy-only installs ADD a second
+        # constraint that was never there. `create: nil` above is what
+        # legacy_optional requires — repair must hold no SQL for an object it
+        # may not create.
+        presence: :legacy_optional,
         backfill: nil
       },
       %{
