@@ -474,16 +474,22 @@ defmodule PhoenixKit.ThemeConfig do
   # so a host's own stronger selector still wins as an escape hatch.
   # ---------------------------------------------------------------------------
 
-  @theme_name_re ~r/^[a-z0-9][a-z0-9_-]*$/
+  # \A..\z, not ^..$: $ tolerates one trailing newline, and "brand\n"
+  # reaching the single-quoted JS interpolations would break the string —
+  # availability, not injection, but real.
+  @theme_name_re ~r/\A[a-z0-9][a-z0-9_-]*\z/
   # One CSS value: no statement/block/comment/import machinery, nothing that
   # can close the declaration or the style tag.
-  @css_value_re ~r"^[^;{}<>]*$"
+  # Backslash is forbidden outright: CSS escape sequences re-read after
+  # validation ("u\\72l(" is "url(" to the parser), so any escape can walk
+  # around a substring blocklist. No allowed token's value needs one.
+  @css_value_re ~r"\A[^;{}<>\\]*\z"
   @allowed_var_prefixes ~w(--color- --radius- --size-)
   @allowed_var_names ~w(--border --depth --noise color-scheme)
   # The full NAME shape, on top of the prefix allowlist: a prefix check alone
   # let "--color-x;}</style>..." through, and the name is interpolated into
   # the declaration just like the value is.
-  @var_name_re ~r/^--[a-z0-9-]+$/
+  @var_name_re ~r/\A--[a-z0-9-]+\z/
 
   @doc """
   The effective per-theme variable maps: built-ins with host

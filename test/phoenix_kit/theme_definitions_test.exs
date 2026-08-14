@@ -159,6 +159,26 @@ defmodule PhoenixKit.ThemeDefinitionsTest do
       end
     end
 
+    test "a trailing newline in a theme name is rejected, not tolerated by $" do
+      # "brand\n" reaching the single-quoted JS interpolation would break the
+      # script string — availability-only, but the anchor is one character.
+      put_defs(%{"brand\n" => %{label: "B", base: :light}})
+
+      assert_raise ArgumentError, ~r/invalid theme name/, fn ->
+        ThemeConfig.host_theme_meta()
+      end
+    end
+
+    test "CSS escape sequences in values are rejected outright" do
+      # "u\\72l(" is "url(" once the CSS parser decodes the escape — any
+      # backslash lets a value walk around a substring blocklist.
+      put_defs(%{"phoenix-dark" => %{variables: %{"--color-primary" => "u\\72l(https://x)"}}})
+
+      assert_raise ArgumentError, ~r/not a single plain CSS value/, fn ->
+        ThemeConfig.custom_theme_css()
+      end
+    end
+
     test "a variable NAME that escapes the declaration is rejected" do
       # Passed the old prefix-only check — the quorum's B2.
       put_defs(%{
