@@ -174,7 +174,13 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
   def admin_theme_controller(assigns) do
     ~H"""
-    <.theme_controller themes={:all} id="admin-theme-dropdown" />
+    <%!-- :dashboard_themes applies HERE too — hardcoding :all meant a host's
+         narrowed theme list governed only the user dashboard while every
+         admin page kept the full catalogue, silently. --%>
+    <.theme_controller
+      themes={PhoenixKit.Config.get(:dashboard_themes, :all)}
+      id="admin-theme-dropdown"
+    />
     """
   end
 

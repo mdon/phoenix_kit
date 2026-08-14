@@ -1,4 +1,6 @@
 defmodule PhoenixKitWeb.Components.MediaBrowser do
+  alias PhoenixKit.Utils.Pagination
+
   @moduledoc """
   MediaBrowser LiveComponent — embeddable media management UI.
 
@@ -502,7 +504,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:trash_count, full_trash_count(folder_or_scope(current_folder, scope)))
     |> assign(:uploaded_files, files)
     |> assign(:total_count, total_count)
-    |> assign(:total_pages, ceil(total_count / per_page))
+    |> assign(:total_pages, Pagination.total_pages(total_count, per_page))
     |> then(
       &if(scoped_fallback?,
         do: put_flash(&1, :info, gettext("Folder not accessible — showing root")),
@@ -1120,7 +1122,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:uploaded_files, files)
        |> assign(:current_page, 1)
        |> assign(:total_count, total_count)
-       |> assign(:total_pages, ceil(total_count / per_page))
+       |> assign(:total_pages, Pagination.total_pages(total_count, per_page))
        |> reset_stacks()}
     end
   end
@@ -1173,7 +1175,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:uploaded_files, files)
        |> assign(:current_page, 1)
        |> assign(:total_count, total_count)
-       |> assign(:total_pages, ceil(total_count / per_page))
+       |> assign(:total_pages, Pagination.total_pages(total_count, per_page))
        |> reset_stacks()}
     end
   end
@@ -1217,7 +1219,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:uploaded_files, files)
        |> assign(:current_page, 1)
        |> assign(:total_count, total_count)
-       |> assign(:total_pages, ceil(total_count / per_page))}
+       |> assign(:total_pages, Pagination.total_pages(total_count, per_page))}
     end
   end
 
@@ -2054,7 +2056,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:folders, folders)
      |> assign(:uploaded_files, files)
      |> assign(:total_count, total_count)
-     |> assign(:total_pages, ceil(total_count / socket.assigns.per_page))
+     |> assign(:total_pages, Pagination.total_pages(total_count, socket.assigns.per_page))
      |> assign(:current_page, 1)
      # Trash and normal view show disjoint rows, so a carried-over selection
      # is invisible — and dangerous: delete_selected keys its permanent
@@ -2162,7 +2164,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:filter_orphaned, filter_orphaned)
        |> assign(:uploaded_files, files)
        |> assign(:current_page, 1)
-       |> assign(:total_pages, ceil(total_count / per_page))
+       |> assign(:total_pages, Pagination.total_pages(total_count, per_page))
        |> assign(:total_count, total_count)
        |> assign(:orphaned_count, orphaned_count)}
     end
@@ -2347,7 +2349,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:uploaded_files, files)
        |> assign(:current_page, 1)
        |> assign(:total_count, total_count)
-       |> assign(:total_pages, ceil(total_count / per_page))}
+       |> assign(:total_pages, Pagination.total_pages(total_count, per_page))}
     end
   end
 
@@ -2394,7 +2396,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:uploaded_files, files)
        |> assign(:current_page, 1)
        |> assign(:total_count, total_count)
-       |> assign(:total_pages, ceil(total_count / per_page))
+       |> assign(:total_pages, Pagination.total_pages(total_count, per_page))
        |> auto_expand_breadcrumbs(breadcrumbs)}
     end
   end
@@ -2475,7 +2477,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         true -> load_scoped_files(scope, page, per_page, folder_uuid, search, extra)
       end
 
-    total_pages = ceil(total_count / per_page)
+    total_pages = Pagination.total_pages(total_count, per_page)
 
     # Deleting the last item of the last page leaves current_page out of
     # range — an empty grid with the pagination footer hidden. Clamp back to

@@ -46,7 +46,7 @@ defmodule PhoenixKitWeb.Components.Core.Button do
 
   attr :variant, :string,
     default: "primary",
-    values: ~w(primary secondary accent neutral ghost link outline),
+    values: ~w(primary secondary accent neutral ghost link outline info success warning error),
     doc: "Base colour. Replaces the default; use `class` for anything outside this set."
 
   attr :size, :string,
@@ -105,6 +105,14 @@ defmodule PhoenixKitWeb.Components.Core.Button do
   defp variant_class("ghost"), do: "btn-ghost"
   defp variant_class("link"), do: "btn-link"
   defp variant_class("outline"), do: "btn-outline"
+  # The status half of daisyUI's palette — hosts previously had to fall back
+  # to raw <button> markup for a delete button, because appending btn-error
+  # via `class` collides with the variant's own colour class and stylesheet
+  # order decides who wins.
+  defp variant_class("info"), do: "btn-info"
+  defp variant_class("success"), do: "btn-success"
+  defp variant_class("warning"), do: "btn-warning"
+  defp variant_class("error"), do: "btn-error"
   defp variant_class(_), do: "btn-primary"
 
   defp size_class("xs"), do: "btn-xs"

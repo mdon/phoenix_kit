@@ -1,4 +1,6 @@
 defmodule PhoenixKit.Activity do
+  alias PhoenixKit.Utils.Pagination
+
   @moduledoc """
   Activity feed for tracking business-level actions across the platform.
 
@@ -177,7 +179,7 @@ defmodule PhoenixKit.Activity do
       total: total,
       page: page,
       per_page: per_page,
-      total_pages: max(ceil(total / per_page), 1)
+      total_pages: Pagination.total_pages(total, per_page)
     }
   end
 
