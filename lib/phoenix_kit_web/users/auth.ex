@@ -2062,7 +2062,13 @@ defmodule PhoenixKitWeb.Users.Auth do
     scope = socket.assigns[:phoenix_kit_current_scope]
 
     if scope && (Scope.can_access_admin_area?(scope) || Scope.owner?(scope)) do
-      {:cont, socket}
+      # HALT, not cont: for an admin the message is fully handled — maintenance
+      # never blocks them, so there is nothing further to do. Continuing handed
+      # the message to the LiveView's own handle_info, and any LV without a
+      # clause for it (most of them) died in FunctionClauseError the moment a
+      # maintenance toggle broadcast — or this hook's own end-of-window timer —
+      # fired while an admin had the page open.
+      {:halt, socket}
     else
       # Schedule may have changed — re-read the end time and reset the auto-off timer.
       # Note: we intentionally distrust the payload's :active value and re-check via

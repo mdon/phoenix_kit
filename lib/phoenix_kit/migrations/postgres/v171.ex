@@ -1,64 +1,82 @@
 defmodule PhoenixKit.Migrations.Postgres.V171 do
   @moduledoc """
-  V171: the built-in SEO module becomes Crawlers.
+  V171: shop slugs become unique per (base language, value).
 
-  Everything the module holds is bot policy — the noindex directive, crawler
-  guidance, and (from this release) per-bot-group access controls — while
-  actual SEO work lives in the external `phoenix_kit_seo` package. The rename
-  frees the name for the thing that owns it and stops the settings page
-  overselling itself. Data moves in two places:
+  ## The gap
 
-  ## Settings rows
+  Product and category slugs are jsonb maps of language → slug, and the only
+  uniqueness the database enforced since V52 was an expression index on
+  `extract_primary_slug(slug)` — the alphabetically-first key's value. That
+  bucket is wrong in both directions:
 
-  `seo_module_enabled` → `crawlers_module_enabled` and `seo_no_index` →
-  `crawlers_no_index`, with the `module` tag on any `'seo'`-tagged row
-  updated to `'crawlers'`. Guarded so a half-migrated database (both keys
-  present) deduplicates rather than violating the unique key: the old row is
-  renamed only when the new key is absent, and any leftover old row is then
-  deleted. The old row's value wins over a stray new one — it is the one the
-  running site was actually honoring.
+    * **under-enforced**: only the primary language was constrained, so
+      `{"en":"hat"}` and `{"de":"hut","en":"hat"}` coexisted sharing
+      `en=hat`, and the collision surfaced on whichever save later ADDED a
+      translation — an error on "add translation", far from "create product";
+    * **over-enforced**: `{"en":"hat"}` and `{"de":"hat"}` collided on the
+      bare value even though a URL request always carries a language and the
+      two can never shadow each other.
 
-  ## Permission rows
+  The resolver expands a requested language over its spellings ("en",
+  "en-US", …), so the correct bucket is **(base language, value)** — exactly
+  what `PhoenixKit.Migrations.Postgres.ShopSlugProjection` builds: a
+  trigger-maintained projection table per parent whose PRIMARY KEY is the
+  constraint. Its moduledoc carries the full design; this migration is
+  dedup → build → drop the old indexes.
 
-  Roles granted `'seo'` gain `'crawlers'`. The old `'seo'` rows are **kept,
-  deliberately**: the ExpectedSchema manifest (repair) still lists the V135
-  `'seo'` seed as required, so deleting the rows here would make
-  `mix phoenix_kit.repair` re-create them on its next run — a migration and a
-  repair tool fighting over the same row. The stale grants are inert (no
-  module registers the `'seo'` key, so no page reads them, and the
-  permissions matrix only renders registered keys) and their removal belongs
-  to the next manifest regeneration, where the seed entry itself moves.
+  ## Renaming rows, and the line this will not cross
+
+  Existing installs may hold rows that collide in the new bucket, and the
+  projection's primary key cannot be built over them. Extras are suffixed
+  `-2`, `-3` … by `Slug.ensure_unique/2`'s rule (keeper: live > oldest >
+  uuid). **Two live rows sharing a bucket raise instead** — one of them must
+  lose a working public URL, and that is the operator's call, not an
+  unattended upgrade's (V167 precedent: refuse, and name the value).
+
+  ## `extract_primary_slug` stays
+
+  No Elixir code calls it; the two indexes were its only consumers. Dropping
+  a function other installs' catalogs still carry is manifest churn for no
+  gain — it simply becomes unused (the V169 treatment for the old indexes
+  themselves: `presence: :legacy_optional` in the manifest, `create: nil`).
+
+  ## down/1 is lossy, and may refuse
+
+  The suffixed slugs are not restored (nothing records the originals —
+  V151/V167 precedent), and recreating the old UNIQUE primary-slug indexes
+  can FAIL outright: data legitimate under V171 — `{"en":"hat"}` alongside
+  `{"de":"hat"}` — collides in the old bucket. That refusal is honest; an
+  operator rolling back must first undo whatever cross-language pairs were
+  created under the new contract.
   """
 
   use Ecto.Migration
+
+  alias PhoenixKit.Migrations.Postgres.ShopSlugProjection
 
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    rename_setting(p, "seo_module_enabled", "crawlers_module_enabled", "crawlers")
-    rename_setting(p, "seo_no_index", "crawlers_no_index", "crawlers")
+    # Bounded rather than indefinite: the trigger creation takes ACCESS
+    # EXCLUSIVE on each parent, and a migration waiting forever behind a long
+    # read is a silent hang with nothing printed (V163 precedent).
+    execute("SET lock_timeout = '5000ms'")
 
-    # Any remaining rows tagged with the old module name (operator-created or
-    # future settings written before an upgrade) follow the module.
-    execute("""
-    UPDATE #{p}phoenix_kit_settings
-    SET "module" = 'crawlers'
-    WHERE "module" = 'seo'
-    """)
+    for spec <- ShopSlugProjection.specs() do
+      execute(ShopSlugProjection.dedupe_sql(spec.parent, spec.live_statuses, p))
 
-    # Copy the permission grant. ON CONFLICT covers re-runs and the fresh
-    # install path (V135 seeds 'seo', this version adds 'crawlers' beside it).
-    execute("""
-    INSERT INTO #{p}phoenix_kit_role_permissions ("role_uuid", "module_key")
-    SELECT rp.role_uuid, 'crawlers'
-    FROM #{p}phoenix_kit_role_permissions rp
-    WHERE rp.module_key = 'seo'
-    ON CONFLICT DO NOTHING
-    """)
+      for sql <- ShopSlugProjection.up_sql(spec, p) do
+        execute(sql)
+      end
+    end
 
-    # Single-step runs rely on the migration stamping its own marker — the
-    # runner only writes it for multi-step ranges.
+    # The old expression indexes are superseded, not replaced in place — the
+    # projection pkeys enforce the corrected bucket. Dropped AFTER the
+    # projection exists so there is no window with no enforcement at all.
+    execute("DROP INDEX IF EXISTS #{p}idx_shop_products_slug_primary")
+    execute("DROP INDEX IF EXISTS #{p}idx_shop_categories_slug_primary")
+
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '171'")
   end
 
@@ -66,57 +84,29 @@ defmodule PhoenixKit.Migrations.Postgres.V171 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    rename_setting(p, "crawlers_module_enabled", "seo_module_enabled", "seo")
-    rename_setting(p, "crawlers_no_index", "seo_no_index", "seo")
+    for spec <- Enum.reverse(ShopSlugProjection.specs()) do
+      for sql <- ShopSlugProjection.down_sql(spec, p) do
+        execute(sql)
+      end
+    end
 
-    # Only operator rows that up/1's broad retag moved go back to 'seo'.
-    # The new-feature rows (crawlers_allow_*, verification, llms extra) never
-    # existed under the old name — retagging them would invent history, and
-    # V166-era code reads none of them either way.
+    # See the moduledoc: these can refuse over data that is legitimate under
+    # V171. A refusal here is the correct outcome, not a bug.
     execute("""
-    UPDATE #{p}phoenix_kit_settings
-    SET "module" = 'seo'
-    WHERE "module" = 'crawlers'
-      AND "key" NOT LIKE 'crawlers%'
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_shop_products_slug_primary
+      ON #{p}phoenix_kit_shop_products
+      USING btree (#{p}extract_primary_slug(slug))
+      WHERE (#{p}extract_primary_slug(slug) IS NOT NULL)
     """)
 
-    # The 'seo' grants were never deleted on the way up, so going down only
-    # removes the copies this version created.
     execute("""
-    DELETE FROM #{p}phoenix_kit_role_permissions
-    WHERE module_key = 'crawlers'
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_shop_categories_slug_primary
+      ON #{p}phoenix_kit_shop_categories
+      USING btree (#{p}extract_primary_slug(slug))
+      WHERE (#{p}extract_primary_slug(slug) IS NOT NULL)
     """)
 
-    # Rollback lands on the version that precedes this one.
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '170'")
-  end
-
-  # Rename a settings row by key, tolerating every partial state: if only the
-  # old key exists it is renamed in place (value preserved); if both exist the
-  # old row is dropped in favor of… itself — the old value is what the site
-  # was honoring, so the new row is overwritten from it first.
-  defp rename_setting(p, old_key, new_key, module_tag) do
-    execute("""
-    UPDATE #{p}phoenix_kit_settings new
-    SET "value" = old."value",
-        "value_json" = old."value_json"
-    FROM #{p}phoenix_kit_settings old
-    WHERE new."key" = '#{new_key}' AND old."key" = '#{old_key}'
-    """)
-
-    execute("""
-    UPDATE #{p}phoenix_kit_settings
-    SET "key" = '#{new_key}', "module" = '#{module_tag}'
-    WHERE "key" = '#{old_key}'
-      AND NOT EXISTS (
-        SELECT 1 FROM #{p}phoenix_kit_settings s2 WHERE s2."key" = '#{new_key}'
-      )
-    """)
-
-    execute("""
-    DELETE FROM #{p}phoenix_kit_settings
-    WHERE "key" = '#{old_key}'
-    """)
   end
 
   defp prefix_str("public"), do: "public."

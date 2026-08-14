@@ -105,7 +105,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "b4d0d57e198b4a22b52c89618d2ee90d59626f39759d254dee918860ac14a782"
+  @chain_hash "46a7f3533500bb2db41cedb071ea9c5d291491eab68709a084126704c205c57c"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -27574,8 +27574,12 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              table: "phoenix_kit_shop_categories",
              kind: :index
            }},
-        create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS idx_shop_categories_slug_primary ON __SCHEMA__.phoenix_kit_shop_categories USING btree (__SCHEMA__.extract_primary_slug(slug)) WHERE (__SCHEMA__.extract_primary_slug(slug) IS NOT NULL)",
+        # DROPPED BY V171: superseded by the phoenix_kit_shop_categorie_slugs
+        # projection pkey, which enforces (base language, value) — the bucket
+        # the resolver reads — instead of the alphabetically-first key's value.
+        # legacy_optional: still present on installs below 171, gone at 171+,
+        # and never to be repaired back in.
+        create: nil,
         since: 52,
         class: :index,
         revisions: [
@@ -27592,7 +27596,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              name_template: nil
            }}
         ],
-        presence: :required,
+        presence: :legacy_optional,
         backfill: nil
       },
       %{
@@ -27605,8 +27609,12 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              table: "phoenix_kit_shop_products",
              kind: :index
            }},
-        create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS idx_shop_products_slug_primary ON __SCHEMA__.phoenix_kit_shop_products USING btree (__SCHEMA__.extract_primary_slug(slug)) WHERE (__SCHEMA__.extract_primary_slug(slug) IS NOT NULL)",
+        # DROPPED BY V171: superseded by the phoenix_kit_shop_product_slugs
+        # projection pkey, which enforces (base language, value) — the bucket
+        # the resolver reads — instead of the alphabetically-first key's value.
+        # legacy_optional: still present on installs below 171, gone at 171+,
+        # and never to be repaired back in.
+        create: nil,
         since: 52,
         class: :index,
         revisions: [
@@ -27620,6 +27628,97 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
                "CREATE UNIQUE INDEX idx_shop_products_slug_primary ON __SCHEMA__.phoenix_kit_shop_products USING btree (__SCHEMA__.extract_primary_slug(slug)) WHERE (__SCHEMA__.extract_primary_slug(slug) IS NOT NULL)",
              predicate: "(__SCHEMA__.extract_primary_slug(slug) IS NOT NULL)",
              opclasses: ["text_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :legacy_optional,
+        backfill: nil
+      },
+      # DECLARED POST-GENERATION (V171): the shop slug projection tables and
+      # their pkeys, hand-declared the way V165/V166/V168's objects are — a
+      # full regenerate needs a pre-squash checkout that cannot see them. The
+      # trigger functions are deliberately NOT declared: the manifest has no
+      # :function/:trigger class, and inventing one for two objects is drift
+      # risk without a consumer. `ShopSlugProjection.up_sql/2` is idempotent
+      # and owns the full build, which is what a repair should call.
+      %{
+        id: "table:phoenix_kit_shop_product_slugs",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_shop_product_slugs", kind: :table}},
+        create:
+          "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_shop_product_slugs (lang text NOT NULL, value text NOT NULL, product_uuid uuid NOT NULL REFERENCES __SCHEMA__.phoenix_kit_shop_products(uuid) ON DELETE CASCADE, PRIMARY KEY (lang, value))",
+        since: 171,
+        class: :table,
+        revisions: [{171, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_shop_product_slugs_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_shop_product_slugs_pkey",
+             table: "phoenix_kit_shop_product_slugs",
+             kind: :index
+           }},
+        create: nil,
+        since: 171,
+        class: :index,
+        revisions: [
+          {171,
+           %{
+             table: "phoenix_kit_shop_product_slugs",
+             keys: ["lang", "value"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_shop_product_slugs_pkey ON __SCHEMA__.phoenix_kit_shop_product_slugs USING btree (lang, value)",
+             predicate: nil,
+             opclasses: ["text_ops", "text_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "table:phoenix_kit_shop_category_slugs",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_shop_category_slugs", kind: :table}},
+        create:
+          "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_shop_category_slugs (lang text NOT NULL, value text NOT NULL, category_uuid uuid NOT NULL REFERENCES __SCHEMA__.phoenix_kit_shop_categories(uuid) ON DELETE CASCADE, PRIMARY KEY (lang, value))",
+        since: 171,
+        class: :table,
+        revisions: [{171, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_shop_category_slugs_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_shop_category_slugs_pkey",
+             table: "phoenix_kit_shop_category_slugs",
+             kind: :index
+           }},
+        create: nil,
+        since: 171,
+        class: :index,
+        revisions: [
+          {171,
+           %{
+             table: "phoenix_kit_shop_category_slugs",
+             keys: ["lang", "value"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_shop_category_slugs_pkey ON __SCHEMA__.phoenix_kit_shop_category_slugs USING btree (lang, value)",
+             predicate: nil,
+             opclasses: ["text_ops", "text_ops"],
              name_template: nil
            }}
         ],
