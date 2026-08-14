@@ -156,6 +156,7 @@ defmodule PhoenixKit.Migrations.Postgres.V169 do
   def down(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
+    schema = schema_name(prefix)
 
     # The de-duplication is deliberately NOT rolled back.
     #
@@ -178,18 +179,28 @@ defmodule PhoenixKit.Migrations.Postgres.V169 do
     DECLARE
       null_rows bigint;
     BEGIN
-      -- Take the lock the ALTER will need BEFORE counting. Otherwise a
-      -- concurrent insert can add a NULL between the count and the ALTER, and
-      -- the rollback aborts on exactly the case this branch exists to avoid.
-      LOCK TABLE #{p}phoenix_kit_entity_data IN EXCLUSIVE MODE;
+      -- Guarded on the table for the same reason `up/1` is: `LOCK TABLE` has no
+      -- IF EXISTS, so an install without the entity tables would abort the whole
+      -- rollback on `relation does not exist` — and `up/1` deliberately skipped
+      -- them, so there is nothing here to undo.
+      IF EXISTS (
+        SELECT 1 FROM pg_class t
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        WHERE t.relname = 'phoenix_kit_entity_data' AND n.nspname = '#{schema}'
+      ) THEN
+        -- Take the lock the ALTER will need BEFORE counting. Otherwise a
+        -- concurrent insert can add a NULL between the count and the ALTER, and
+        -- the rollback aborts on exactly the case this branch exists to avoid.
+        LOCK TABLE #{p}phoenix_kit_entity_data IN EXCLUSIVE MODE;
 
-      SELECT count(*) INTO null_rows
-      FROM #{p}phoenix_kit_entity_data WHERE created_by_uuid IS NULL;
+        SELECT count(*) INTO null_rows
+        FROM #{p}phoenix_kit_entity_data WHERE created_by_uuid IS NULL;
 
-      IF null_rows = 0 THEN
-        ALTER TABLE #{p}phoenix_kit_entity_data ALTER COLUMN "created_by_uuid" SET NOT NULL;
-      ELSE
-        RAISE WARNING 'phoenix_kit_entity_data.created_by_uuid left nullable: % row(s) have no creator (anonymous public submissions). Resolve them before re-imposing NOT NULL.', null_rows;
+        IF null_rows = 0 THEN
+          ALTER TABLE #{p}phoenix_kit_entity_data ALTER COLUMN "created_by_uuid" SET NOT NULL;
+        ELSE
+          RAISE WARNING 'phoenix_kit_entity_data.created_by_uuid left nullable: % row(s) have no creator (anonymous public submissions). Resolve them before re-imposing NOT NULL.', null_rows;
+        END IF;
       END IF;
     END
     $$

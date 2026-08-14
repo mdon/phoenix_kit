@@ -54,7 +54,7 @@ defmodule PhoenixKit.Migrations.V164RelaxedColumnsTest do
   @first_version_in_scope 58
 
   # Identifiers may be double-quoted on either side — the chain writes both
-  # (`ALTER COLUMN "created_by_uuid"` in V167, bare elsewhere), and Postgres
+  # (`ALTER COLUMN "created_by_uuid"` in V169, bare elsewhere), and Postgres
   # treats them identically. Without the optional quotes this scan silently
   # skipped a real relaxation, which is precisely the false NEGATIVE the
   # moduledoc calls the failure mode that matters.
