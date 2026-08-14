@@ -28,13 +28,14 @@ defmodule PhoenixKit.Conformance.ComponentAssigns do
       requires call-site analysis this check does not do.
     * **`render/1` is skipped** — LiveView/extracted-template modules read the
       socket's assigns, which are not declared per-component.
-    * **Self-assigned counts as declared — when rooted at `assigns`**: keys
-      given to `assign/2,3`, `assign_new/3`, literal-key `Map.put/3` and
-      literal-map `Map.merge/2` whose receiver chain starts at the `assigns`
-      var, directly or through pipes. `Map.put(assigns.user, :src, ...)` puts
-      nothing into assigns and donates nothing. One accepted gap: a DISCARDED
-      `assign(assigns, :x, v)` still donates `:x` — telling discarded from
-      used needs dataflow this check does not do.
+    * **Self-assigned counts as declared — only via a rebind**: the template
+      reads whatever the `assigns` VAR holds when `~H` runs, and keys enter it
+      only through `assigns = ...`. So keys are collected exclusively from the
+      right-hand side of such rebinds (`assign/2,3`, `assign_new/3`,
+      literal-key `Map.put/3`, literal-map `Map.merge/2`, rooted at `assigns`,
+      straight or piped). A DISCARDED `assign(assigns, :x, v)` feeds nothing
+      and donates nothing, and `Map.put(assigns.user, :src, ...)` puts a key
+      into a sub-map, not into assigns.
     * **Reserved assigns** (`@inner_block`, `@myself`, `@rest`, `@flash`,
       `@socket`, and LiveView's internals) always pass, as do declared slot
       names.
@@ -229,7 +230,7 @@ defmodule PhoenixKit.Conformance.ComponentAssigns do
     declared =
       component.bodies
       |> Enum.reduce(component.declared, fn body, acc ->
-        MapSet.union(acc, self_assigned_keys(body))
+        MapSet.union(acc, rebind_assigned_keys(body))
       end)
 
     component.bodies
@@ -256,7 +257,7 @@ defmodule PhoenixKit.Conformance.ComponentAssigns do
   defp opaque?(body) do
     {_, opaque} =
       Macro.prewalk(body, false, fn
-        {:=, _, [lhs, rhs]} = node, acc ->
+        {op, _, [lhs, rhs]} = node, acc when op in [:=, :<-] ->
           if assigns_arg?(lhs) and not transparent_chain?(rhs),
             do: {node, true},
             else: {node, acc}
@@ -327,19 +328,30 @@ defmodule PhoenixKit.Conformance.ComponentAssigns do
 
   defp rooted_transparent_call?(_), do: false
 
-  # Keys the body itself puts into assigns — ROOTED collection: a call only
-  # donates its keys when its receiver chain starts at the `assigns` var, either
-  # directly (`assign(assigns, :x, v)`) or through a pipe
-  # (`assigns |> assign(...) |> assign(...)`). The first draft collected keys
-  # from ANY receiver, and `Map.put(assigns.user, :src, ...)` then hid a real
-  # `@src` KeyError behind a key that was never put into assigns at all
-  # (caught by external review). A `%{other | ...}`-style derivation of assigns
-  # is opaque and already skipped before this runs.
-  #
-  # Known accepted gap: a discarded `assign(assigns, :x, v)` whose result is
-  # never rebound still donates `:x`. Telling "discarded" from "used" needs
-  # statement-position dataflow; the miscollection can only hide a report in a
-  # component that is already buggy in a way dialyzer flags (unused return).
+  # Keys enter the template's assigns ONLY through `assigns = ...` rebinds —
+  # the sigil reads the var, not the history of calls — so collection walks the
+  # body for rebind nodes and harvests keys from their right-hand sides alone.
+  # Two review-caught bugs shaped this: receiver-blind collection let
+  # `Map.put(assigns.user, :src, ...)` hide a real `@src` KeyError, and
+  # body-wide collection let a DISCARDED `assign(assigns, :ready, true)` donate
+  # a key it never delivered. Rootedness is still enforced within the rhs.
+  defp rebind_assigned_keys(body) do
+    {_, keys} =
+      Macro.prewalk(body, MapSet.new(), fn
+        # `assigns <- assign(...)` inside a `with` binds the var exactly like
+        # `=` does — the AST operator differs, the semantics don't.
+        {op, _, [lhs, rhs]} = node, acc when op in [:=, :<-] ->
+          if assigns_arg?(lhs),
+            do: {node, MapSet.union(acc, self_assigned_keys(rhs))},
+            else: {node, acc}
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    keys
+  end
+
   defp self_assigned_keys(body) do
     {_, keys} =
       Macro.prewalk(body, MapSet.new(), fn

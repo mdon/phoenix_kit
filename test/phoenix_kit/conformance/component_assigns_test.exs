@@ -27,6 +27,8 @@ defmodule PhoenixKit.Conformance.ComponentAssignsTest do
     "unary_minus.ex" => [{:refund, :amount}],
     "nested_interpolation.ex" => [{:chip, :selected}, {:chip, :variant}],
     "receiver_map_put.ex" => [{:avatar, :src}],
+    "discarded_assign.ex" => [{:card, :ready}],
+    "with_bind.ex" => [],
     "attr_then_deprecated.ex" => [{:old_badge, :missing}],
     "interp_read.ex" => [{:hand, :other_deg}],
     "self_assign.ex" => [],
