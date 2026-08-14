@@ -37,48 +37,75 @@ defmodule PhoenixKitWeb.Components.Core.ThemeController do
   attr :themes, :any, default: :all
   attr :id, :string, default: "theme-dropdown"
   attr :class, :string, default: nil
+
+  attr :mode, :atom,
+    default: :auto,
+    values: [:auto, :dropdown, :toggle],
+    doc: """
+    :auto renders a toggle when the theme list is exactly two concrete themes
+    and a dropdown otherwise; :dropdown and :toggle force the shape. :toggle
+    raises unless the list is exactly two — a toggle over three states would
+    have hidden state. (A :cycle mode was considered and rejected: hidden
+    state, no accessibility story, and it makes configuration ORDER
+    behavioural.)
+    """
+
   attr :rest, :global
 
   def theme_controller(assigns) do
     dropdown_themes = ThemeConfig.dropdown_themes(assigns.themes)
 
     assigns = assign(assigns, :dropdown_themes, dropdown_themes)
+    pair? = match?([%{type: :theme}, %{type: :theme}], dropdown_themes)
 
-    # Exactly two concrete themes is a light/dark pair, and a dropdown for a
-    # binary choice is ceremony — render a toggle instead. The behaviour is
-    # keyed on the LIST, not a new option, so a host that narrows
-    # :dashboard_themes to its two branded themes gets the toggle without
-    # learning anything new. "system" keeps the dropdown: three states need a
-    # menu.
-    if match?([%{type: :theme}, %{type: :theme}], dropdown_themes) do
-      theme_toggle_pair(assigns)
-    else
-      theme_dropdown(assigns)
+    case {assigns.mode, pair?} do
+      {:toggle, false} ->
+        raise ArgumentError,
+              "theme_controller mode: :toggle needs exactly two concrete themes, " <>
+                "got: #{inspect(Enum.map(dropdown_themes, & &1.value))}"
+
+      {:dropdown, _} ->
+        theme_dropdown(assigns)
+
+      {_, true} ->
+        theme_toggle_pair(assigns)
+
+      _ ->
+        theme_dropdown(assigns)
     end
   end
 
-  # One button per theme, each dispatching the same phx:set-theme event the
-  # dropdown uses; the layout JS hides whichever button's theme is ACTIVE, so
-  # what remains visible is the one you'd switch to — sun offers light, moon
-  # offers dark, exactly one at a time. Before that JS first runs both are
-  # rendered; it resolves on the same tick as the initial theme application.
+  # ONE persistent button, not one-per-theme. The first version rendered a
+  # button per theme and hid the active one — which removed the element the
+  # keyboard user had just focused, dropping focus to <body> on every
+  # activation. This button never disappears: aria-pressed says whether the
+  # dark half of the pair is on, the layout JS swaps the sun/moon icons and
+  # keeps data-theme-next pointing at the OTHER theme, and a click dispatches
+  # whatever data-theme-next holds.
   defp theme_toggle_pair(assigns) do
+    [a, b] = assigns.dropdown_themes
+    {light, dark} = if toggle_base(a.value) == "dark", do: {b, a}, else: {a, b}
+
+    assigns = assign(assigns, light: light, dark: dark)
+
     ~H"""
-    <div class={["flex items-center", @class]} {@rest} data-theme-toggle id={@id}>
+    <div class={["flex items-center", @class]} {@rest} id={@id}>
       <button
-        :for={theme <- @dropdown_themes}
         type="button"
-        phx-click={JS.dispatch("phx:set-theme", detail: %{theme: theme.value})}
-        data-theme-target={theme.value}
-        data-theme-role="toggle-option"
-        title={theme.label}
-        aria-label={theme.label}
+        data-theme-role="toggle"
+        data-theme-target={@dark.value}
+        data-theme-next={@dark.value}
+        data-theme-light={@light.value}
+        data-theme-dark={@dark.value}
+        title={"#{@light.label} / #{@dark.label}"}
+        aria-label={"#{@light.label} / #{@dark.label}"}
+        aria-pressed="false"
         class="btn btn-sm btn-ghost btn-circle"
       >
-        <.icon
-          name={if toggle_base(theme.value) == "dark", do: "hero-moon", else: "hero-sun"}
-          class="w-5 h-5"
-        />
+        <span data-toggle-icon="light"><.icon name="hero-sun" class="w-5 h-5" /></span>
+        <span data-toggle-icon="dark" class="hidden">
+          <.icon name="hero-moon" class="w-5 h-5" />
+        </span>
       </button>
     </div>
     """

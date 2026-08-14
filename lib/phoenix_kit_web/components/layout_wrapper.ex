@@ -700,7 +700,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       .split(',')
                       .map((value) => value.trim())
                       .filter(Boolean);
-                    const isActive = targets.includes(theme);
+                    const isActive =
+                      targets.includes(theme) || targets.includes(resolvedTheme);
 
                     if (btn.dataset.themeRole === 'dropdown-option') {
                       btn.classList.toggle('bg-base-200', isActive);
@@ -714,12 +715,18 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           icon.classList.toggle('scale-100', isActive);
                           icon.classList.toggle('scale-75', !isActive);
                         });
-                    } else if (btn.dataset.themeRole === 'toggle-option') {
-                      // The pair toggle: hide the ACTIVE theme's button so
-                      // the one left visible is the one you'd switch to.
-                      // (Replaces a 'slider-button' branch whose markup no
-                      // template renders.)
-                      btn.classList.toggle('hidden', isActive);
+                    } else if (btn.dataset.themeRole === 'toggle') {
+                      const dark = btn.dataset.themeDark;
+                      const light = btn.dataset.themeLight;
+                      const isDark = resolvedTheme === dark;
+                      btn.setAttribute('aria-pressed', String(isDark));
+                      btn.dataset.themeNext = isDark ? light : dark;
+                      btn.querySelectorAll('[data-toggle-icon]').forEach((icon) => {
+                        icon.classList.toggle(
+                          'hidden',
+                          (icon.dataset.toggleIcon === 'dark') !== isDark
+                        );
+                      });
                     }
                   });
 
@@ -745,6 +752,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                 },
 
                 setupListeners() {
+                  // The pair toggle dispatches whatever its data-theme-next
+                  // holds — no per-button phx-click, no state of its own.
+                  document.addEventListener('click', (e) => {
+                    const btn = e.target.closest?.('[data-theme-role="toggle"]');
+                    if (btn?.dataset.themeNext) this.setTheme(btn.dataset.themeNext);
+                  });
+
                   // Listen to Phoenix LiveView theme events (both variants)
                   document.addEventListener('phx:set-admin-theme', (e) => {
                     if (e?.detail?.theme) {
