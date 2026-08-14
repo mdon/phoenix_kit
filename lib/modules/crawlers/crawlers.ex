@@ -2,7 +2,7 @@ defmodule PhoenixKit.Modules.Crawlers do
   @moduledoc """
   Crawlers module — who may read this site, and what we tell them.
 
-  Renamed from `PhoenixKit.Modules.SEO` (V167 migrates the stored settings and
+  Renamed from `PhoenixKit.Modules.SEO` (V170 migrates the stored settings and
   permission rows): everything here is bot *policy* — indexing directives,
   per-bot-group access, crawler guidance — while actual SEO work (rank
   tracking) lives in the external `phoenix_kit_seo` package. The old name

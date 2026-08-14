@@ -1,33 +1,62 @@
 defmodule PhoenixKit.Migrations.Postgres.V167 do
   @moduledoc """
-  V167: the built-in SEO module becomes Crawlers.
+  V167: post slugs are unique, and the index finally says so.
 
-  Everything the module holds is bot policy — the noindex directive, crawler
-  guidance, and (from this release) per-bot-group access controls — while
-  actual SEO work lives in the external `phoenix_kit_seo` package. The rename
-  frees the name for the thing that owns it and stops the settings page
-  overselling itself. Data moves in two places:
+  ## The gap
 
-  ## Settings rows
+  `phoenix_kit_posts.slug` has carried a plain btree since V135, while its
+  sibling `phoenix_kit_post_tags.slug` has been unique the whole time. Two
+  things downstream assume the uniqueness that was never enforced:
+  `PhoenixKitPosts.Post` declares `unique_constraint(:slug)`, which had no
+  index to translate and so could never fire, and `get_post_by_slug/2` fetches
+  with `repo().one()` — which raises `Ecto.MultipleResultsError` the moment two
+  rows share a slug. A duplicate therefore did not degrade that URL, it broke
+  it, and the error surfaced far from the save that caused it.
 
-  `seo_module_enabled` → `crawlers_module_enabled` and `seo_no_index` →
-  `crawlers_no_index`, with the `module` tag on any `'seo'`-tagged row
-  updated to `'crawlers'`. Guarded so a half-migrated database (both keys
-  present) deduplicates rather than violating the unique key: the old row is
-  renamed only when the new key is absent, and any leftover old row is then
-  deleted. The old row's value wins over a stray new one — it is the one the
-  running site was actually honoring.
+  Nothing was stopping duplicates either: two posts titled the same slugified
+  identically and both were written. That generation gap is fixed in
+  `phoenix_kit_posts` (it now calls `PhoenixKit.Utils.Slug.ensure_unique/2`),
+  but that check is advisory — it probes, then writes, and it falls back to the
+  unsuffixed slug if the repo is unreachable. Only this index closes it.
 
-  ## Permission rows
+  ## Renaming rows, and the line this will not cross
 
-  Roles granted `'seo'` gain `'crawlers'`. The old `'seo'` rows are **kept,
-  deliberately**: the ExpectedSchema manifest (repair) still lists the V135
-  `'seo'` seed as required, so deleting the rows here would make
-  `mix phoenix_kit.repair` re-create them on its next run — a migration and a
-  repair tool fighting over the same row. The stale grants are inert (no
-  module registers the `'seo'` key, so no page reads them, and the
-  permissions matrix only renders registered keys) and their removal belongs
-  to the next manifest regeneration, where the seed entry itself moves.
+  Existing installs may already hold duplicates, and a unique index cannot be
+  created over them. Extras are suffixed `-2`, `-3` … until free, which is the
+  same rule `Slug.ensure_unique/2` applies at runtime — so the repair produces
+  exactly what the application would have, and is auditable against it.
+
+  Renaming a slug moves a URL, so the keeper is chosen to make that as
+  survivable as possible: a publicly reachable post outranks a draft, then the
+  oldest wins, then uuid breaks the tie. `timestamps(type: :utc_datetime)`
+  stores whole seconds with no DB default, so ties are ordinary rather than
+  theoretical, and without the uuid the choice would be arbitrary per run.
+
+  **Two live posts sharing a slug raises instead.** One of them has to lose a
+  working public URL, and which one is an editorial decision that belongs to
+  whoever runs the site — not to an upgrade running unattended. V161 sets the
+  precedent: refuse, and name the value. Drafts are suffixed silently because
+  a draft has no URL anyone can have linked.
+
+  ## Why `IF NOT EXISTS` is not enough on its own
+
+  `CREATE UNIQUE INDEX IF NOT EXISTS` matches on the index NAME only. Against
+  the existing non-unique `phoenix_kit_posts_slug_index` it emits "relation
+  already exists, skipping" and leaves it non-unique — duplicates keep
+  inserting, and the migration reports success. Verified against PostgreSQL 17.
+  The explicit `DROP` below is load-bearing, not tidiness.
+
+  The name is kept deliberately. `Post` declares a bare
+  `unique_constraint(:slug)`, so Ecto infers `phoenix_kit_posts_slug_index`;
+  renaming the index would silently stop that constraint translating and turn
+  a friendly validation error back into a raw `Postgrex.Error`.
+
+  No `CONCURRENTLY`: a fresh install runs this chain inside a transaction, and
+  `v163_uuid_integrity_test.exs` asserts the chain never emits it.
+
+  `phoenix_kit_post_groups` is deliberately untouched — its schema declares a
+  composite `[:user_uuid, :slug]` constraint, so a global unique would be
+  wrong there, and it is a separate missing index.
   """
 
   use Ecto.Migration
@@ -36,29 +65,89 @@ defmodule PhoenixKit.Migrations.Postgres.V167 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    rename_setting(p, "seo_module_enabled", "crawlers_module_enabled", "crawlers")
-    rename_setting(p, "seo_no_index", "crawlers_no_index", "crawlers")
+    # Bounded rather than indefinite: this takes an ACCESS EXCLUSIVE lock to
+    # swap the index, and a migration that waits forever behind a long read is
+    # a silent hang with nothing printed (V163 precedent).
+    execute("SET lock_timeout = '5000ms'")
 
-    # Any remaining rows tagged with the old module name (operator-created or
-    # future settings written before an upgrade) follow the module.
     execute("""
-    UPDATE #{p}phoenix_kit_settings
-    SET "module" = 'crawlers'
-    WHERE "module" = 'seo'
+    DO $$
+    DECLARE
+      g RECORD;
+      r RECORD;
+      suffix text;
+      base text;
+      candidate text;
+      n int;
+    BEGIN
+      -- Refuse before rewriting anything: two reachable posts on one slug is
+      -- an editorial call, and this runs unattended.
+      FOR g IN
+        SELECT slug,
+               count(*) FILTER (
+                 WHERE status IN ('public', 'unlisted', 'scheduled')) AS live_n
+          FROM #{p}phoenix_kit_posts
+         GROUP BY slug
+        HAVING count(*) > 1
+      LOOP
+        IF g.live_n > 1 THEN
+          RAISE EXCEPTION
+            'Cannot apply V167: slug % is shared by % live posts. Give one of them a different slug, then upgrade.',
+            g.slug, g.live_n;
+        END IF;
+      END LOOP;
+
+      FOR r IN
+        SELECT uuid, slug FROM (
+          SELECT uuid,
+                 slug,
+                 row_number() OVER (
+                   PARTITION BY slug
+                   ORDER BY CASE
+                              WHEN status IN ('public', 'unlisted', 'scheduled') THEN 0
+                              ELSE 1
+                            END,
+                            inserted_at ASC,
+                            uuid ASC) AS rn
+            FROM #{p}phoenix_kit_posts) ranked
+         WHERE rn > 1
+         ORDER BY slug, rn
+      LOOP
+        n := 2;
+
+        LOOP
+          suffix := '-' || n;
+
+          -- slug is varchar(255) and Postgres ERRORS on overflow rather than
+          -- truncating, so the base is trimmed to leave room for the suffix.
+          -- The trailing-dash strip stops "foo-" || "-2".
+          base := regexp_replace(left(r.slug, 255 - length(suffix)), '-+$', '');
+          candidate := base || suffix;
+
+          -- Probes every slug, not just this group's, so an unrelated post
+          -- already holding "foo-2" pushes this one to "foo-3".
+          EXIT WHEN NOT EXISTS (
+            SELECT 1 FROM #{p}phoenix_kit_posts WHERE slug = candidate);
+
+          n := n + 1;
+        END LOOP;
+
+        RAISE NOTICE 'V167: post % slug % -> %', r.uuid, r.slug, candidate;
+
+        UPDATE #{p}phoenix_kit_posts SET slug = candidate WHERE uuid = r.uuid;
+      END LOOP;
+    END $$;
     """)
 
-    # Copy the permission grant. ON CONFLICT covers re-runs and the fresh
-    # install path (V135 seeds 'seo', this version adds 'crawlers' beside it).
+    # See the moduledoc: IF NOT EXISTS matches by name, so without this the
+    # CREATE below is a no-op that stamps the bug as fixed.
+    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_posts_slug_index")
+
     execute("""
-    INSERT INTO #{p}phoenix_kit_role_permissions ("role_uuid", "module_key")
-    SELECT rp.role_uuid, 'crawlers'
-    FROM #{p}phoenix_kit_role_permissions rp
-    WHERE rp.module_key = 'seo'
-    ON CONFLICT DO NOTHING
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_posts_slug_index
+      ON #{p}phoenix_kit_posts USING btree (slug)
     """)
 
-    # Single-step runs rely on the migration stamping its own marker — the
-    # runner only writes it for multi-step ranges.
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '167'")
   end
 
@@ -66,57 +155,18 @@ defmodule PhoenixKit.Migrations.Postgres.V167 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    rename_setting(p, "crawlers_module_enabled", "seo_module_enabled", "seo")
-    rename_setting(p, "crawlers_no_index", "seo_no_index", "seo")
+    # Lossy, and says so. The index reverts; the slugs this migration
+    # suffixed do not, because the rows they were taken from are gone as far
+    # as this direction can tell. Restoring them would need the original
+    # values, which nothing records (V151 precedent for a one-way repair).
+    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_posts_slug_index")
 
-    # Only operator rows that up/1's broad retag moved go back to 'seo'.
-    # The new-feature rows (crawlers_allow_*, verification, llms extra) never
-    # existed under the old name — retagging them would invent history, and
-    # V166-era code reads none of them either way.
     execute("""
-    UPDATE #{p}phoenix_kit_settings
-    SET "module" = 'seo'
-    WHERE "module" = 'crawlers'
-      AND "key" NOT LIKE 'crawlers%'
+    CREATE INDEX IF NOT EXISTS phoenix_kit_posts_slug_index
+      ON #{p}phoenix_kit_posts USING btree (slug)
     """)
 
-    # The 'seo' grants were never deleted on the way up, so going down only
-    # removes the copies this version created.
-    execute("""
-    DELETE FROM #{p}phoenix_kit_role_permissions
-    WHERE module_key = 'crawlers'
-    """)
-
-    # Rollback lands on the version that precedes this one.
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '166'")
-  end
-
-  # Rename a settings row by key, tolerating every partial state: if only the
-  # old key exists it is renamed in place (value preserved); if both exist the
-  # old row is dropped in favor of… itself — the old value is what the site
-  # was honoring, so the new row is overwritten from it first.
-  defp rename_setting(p, old_key, new_key, module_tag) do
-    execute("""
-    UPDATE #{p}phoenix_kit_settings new
-    SET "value" = old."value",
-        "value_json" = old."value_json"
-    FROM #{p}phoenix_kit_settings old
-    WHERE new."key" = '#{new_key}' AND old."key" = '#{old_key}'
-    """)
-
-    execute("""
-    UPDATE #{p}phoenix_kit_settings
-    SET "key" = '#{new_key}', "module" = '#{module_tag}'
-    WHERE "key" = '#{old_key}'
-      AND NOT EXISTS (
-        SELECT 1 FROM #{p}phoenix_kit_settings s2 WHERE s2."key" = '#{new_key}'
-      )
-    """)
-
-    execute("""
-    DELETE FROM #{p}phoenix_kit_settings
-    WHERE "key" = '#{old_key}'
-    """)
   end
 
   defp prefix_str("public"), do: "public."
