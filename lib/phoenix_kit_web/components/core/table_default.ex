@@ -608,19 +608,13 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   Drag-handle cell for table-view DnD reorder.
 
   Renders a `<td>` containing the `hero-bars-3` grip icon, with the
-  classes the SortableGrid hook needs to find it (`.pk-drag-handle`)
-  plus the canonical hide-until-hover behavior used elsewhere in the
-  codebase (catalogue category rows, entities card view, etc.):
-
-    * Default: `opacity-0` — icon is invisible.
-    * Row hover: `group-hover/row:opacity-100` — icon fades in.
-
-  Requires the enclosing `<.table_default_row>` to carry the `group/row`
-  marker class — which it does by default, so consumers don't have
-  to wire anything beyond placing this cell + the matching
-  `<.drag_handle_header_cell>` in the header. The named group keeps the
-  reveal keyed to row hover without clobbering any unnamed `group-hover:`
-  utilities a consumer nests inside a cell.
+  classes the SortableGrid hook needs to find it (`.pk-drag-handle`).
+  The icon is **always visible** — a muted tone that strengthens on
+  hover. It used to hide until row hover (`opacity-0
+  group-hover/row:opacity-100`), but an affordance you cannot see is
+  one nobody discovers: users had no idea rows were draggable until
+  they happened to mouse over the right cell. Deliberate product call
+  (2026-08-14) — do not quietly restore the hover reveal.
 
   Pair this with a `<tbody phx-hook="SortableGrid">` setup (see the
   `<.table_default>` moduledoc / phoenix_kit_projects reference call
@@ -642,7 +636,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     <td
       class={[
         "pk-drag-handle cursor-grab active:cursor-grabbing",
-        "text-base-content/30 opacity-0 group-hover/row:opacity-100 transition-opacity",
+        "text-base-content/40 hover:text-base-content/70 transition-colors",
         @class
       ]}
       title={@title}
