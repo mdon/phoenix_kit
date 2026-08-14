@@ -109,6 +109,75 @@ defmodule PhoenixKit.Integration.Notifications.UpsertTest do
       assert updated.metadata["notification_text"] == "second"
     end
 
+    test "caller metadata cannot clobber the dedupe key" do
+      # The reserved keys are stamped AFTER the caller's metadata merges. The
+      # old order let a passed-through metadata map (say, copied off a prior
+      # notification) overwrite the key the upsert had just decided on —
+      # which silently turned collapsing off for that key, with no error.
+      user = create_user()
+
+      {:ok, first} =
+        Notifications.upsert_inapp(user.uuid, "k", %{
+          text: "1 new",
+          metadata: %{"dedupe_key" => "stale", "keep" => "me"}
+        })
+
+      assert first.metadata["dedupe_key"] == "k",
+             "the key the API collapsed on must win over pass-through metadata"
+
+      {:ok, second} = Notifications.upsert_inapp(user.uuid, "k", %{text: "2 new"})
+      assert second.uuid == first.uuid, "collapsing must still work after the attempt"
+      assert second.metadata["keep"] == "me"
+    end
+
+    test "atom-keyed caller metadata lands in the same namespace as the display fields" do
+      # `%{notification_text: ...}` and `%{"notification_text" => ...}` are one
+      # key in jsonb but two in an Elixir map — which one won the JSON encoding
+      # was adapter-order-dependent. Keys are normalized to strings before the
+      # display fields stamp on top.
+      user = create_user()
+
+      {:ok, n} =
+        Notifications.upsert_inapp(user.uuid, "k", %{
+          text: "the real text",
+          metadata: %{notification_text: "the impostor", chapter: "12"}
+        })
+
+      assert n.metadata["notification_text"] == "the real text"
+      assert n.metadata["chapter"] == "12"
+      refute Map.has_key?(n.metadata, :notification_text)
+    end
+
+    test "the unique index turns a raced double-insert into a collapse" do
+      # Two concurrent upserts for the same absent key both read nil from the
+      # find. The loser's insert now trips the V170 partial unique index
+      # instead of standing up a duplicate unseen row, and the public API
+      # retries the find and folds.
+      user = create_user()
+
+      {:ok, first} = Notifications.create_inapp(user.uuid, %{text: "1", dedupe_key: "k"})
+
+      # What the race's loser does: insert without re-checking.
+      assert {:error, %Ecto.Changeset{}} =
+               Notifications.create_inapp(user.uuid, %{text: "2", dedupe_key: "k"}),
+             "a second unseen row for the same key must be refused, not inserted"
+
+      {:ok, updated} = Notifications.upsert_inapp(user.uuid, "k", %{text: "3"})
+      assert updated.uuid == first.uuid
+      assert texts(user) == ["3"]
+    end
+
+    test "unkeyed rows are untouched by the uniqueness rule" do
+      # The index is partial: everything the fan-out path creates carries no
+      # dedupe key and must keep inserting freely.
+      user = create_user()
+
+      {:ok, _} = Notifications.create_inapp(user.uuid, %{text: "a"})
+      {:ok, _} = Notifications.create_inapp(user.uuid, %{text: "b"})
+
+      assert length(texts(user)) == 2
+    end
+
     test "broadcasts both ways, so an open bell keeps up" do
       # Without this the host had to re-broadcast by hand, because the only
       # broadcast fired on insert.
