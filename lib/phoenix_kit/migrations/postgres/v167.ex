@@ -69,10 +69,15 @@ defmodule PhoenixKit.Migrations.Postgres.V167 do
     rename_setting(p, "crawlers_module_enabled", "seo_module_enabled", "seo")
     rename_setting(p, "crawlers_no_index", "seo_no_index", "seo")
 
+    # Only operator rows that up/1's broad retag moved go back to 'seo'.
+    # The new-feature rows (crawlers_allow_*, verification, llms extra) never
+    # existed under the old name — retagging them would invent history, and
+    # V166-era code reads none of them either way.
     execute("""
     UPDATE #{p}phoenix_kit_settings
     SET "module" = 'seo'
     WHERE "module" = 'crawlers'
+      AND "key" NOT LIKE 'crawlers%'
     """)
 
     # The 'seo' grants were never deleted on the way up, so going down only

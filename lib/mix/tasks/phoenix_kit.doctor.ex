@@ -1411,6 +1411,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
     with url when is_binary(url) and url != "" <- url,
          %URI{host: host} when is_binary(host) and host != "" <- URI.parse(url) do
+      # DNS names are case-insensitive; the label list is lowercase.
+      host = String.downcase(host)
       if staging_host?(host), do: {:staging, host}, else: {:production, host}
     else
       _ -> :unknown

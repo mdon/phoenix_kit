@@ -12,8 +12,14 @@ defmodule PhoenixKitWeb.Components.Core.CrawlerMetas do
 
       <PhoenixKitWeb.Components.Core.CrawlerMetas.crawler_metas />
 
-  Renders nothing while the Crawlers module is disabled, and never raises —
-  with no database (installer context) it degrades to empty.
+  The noindex directive renders whenever it is set, **not** gated on the
+  module toggle: it is a safety switch, and the long-standing contract (pinned
+  by `auth_crawlers_no_index_test`) is that a set directive is honored — a
+  disabled module must not silently expose a staging site to indexing.
+  (`disable_module/0` clears the directive through the API; this covers state
+  written around it.) The verification metas ARE module-gated — they are new
+  behavior, and module off means off. Never raises — with no database
+  (installer context) it degrades to empty.
   """
 
   use Phoenix.Component
@@ -41,11 +47,8 @@ defmodule PhoenixKitWeb.Components.Core.CrawlerMetas do
   end
 
   defp read_state do
-    if Crawlers.module_enabled?() do
-      {Crawlers.no_index_enabled?(), Crawlers.verification_metas()}
-    else
-      {false, []}
-    end
+    verifications = if Crawlers.module_enabled?(), do: Crawlers.verification_metas(), else: []
+    {Crawlers.no_index_enabled?(), verifications}
   rescue
     _ -> {false, []}
   catch
