@@ -298,7 +298,8 @@ defmodule PhoenixKit.ThemeConfig do
 
   ## Options
 
-  - `:all` or `nil` - Returns all themes (default)
+  - `:all` or `nil` - Returns all themes (default), built-in catalogue
+    then host `:theme_definitions` names
   - List of theme names - Returns only the specified themes in order
 
   ## Examples
@@ -315,7 +316,17 @@ defmodule PhoenixKit.ThemeConfig do
   def dropdown_themes(:all), do: dropdown_themes(nil)
 
   def dropdown_themes(nil) do
-    Enum.map(@dropdown_order, &theme_to_map/1)
+    # Host-defined names belong in the default catalogue too — :all used
+    # to be compile-time @dropdown_order only, so a :theme_definitions
+    # theme was in CSS / labels / system_pair but invisible in the
+    # picker until the host also listed it in :dashboard_themes.
+    host_names =
+      host_theme_meta()
+      |> Map.keys()
+      |> Enum.reject(&Map.has_key?(@labels, &1))
+      |> Enum.sort()
+
+    Enum.map(@dropdown_order ++ host_names, &theme_to_map/1)
   end
 
   def dropdown_themes(allowed_themes) when is_list(allowed_themes) do
@@ -426,7 +437,7 @@ defmodule PhoenixKit.ThemeConfig do
   Returns all theme names recognised by PhoenixKit.
   """
   def all_theme_names do
-    Map.keys(@labels)
+    Map.keys(label_map())
   end
 
   @doc """
@@ -464,6 +475,10 @@ defmodule PhoenixKit.ThemeConfig do
   #     variables: %{"--color-primary" => "oklch(48% 0.13 158)"}
   #   }
   # }
+  #
+  # :extends may name a built-in PhoenixKit palette (phoenix-light /
+  # phoenix-dark) only — not a daisyUI catalogue theme and not another
+  # host-defined name. Chain off phoenix-* or start from scratch.
   #
   # Until this existed, a branded host rebrand meant duplicating ~50 variable
   # lines in its own CSS and out-specificity-ing the inline block. Everything

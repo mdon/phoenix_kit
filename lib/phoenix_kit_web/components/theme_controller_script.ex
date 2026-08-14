@@ -69,10 +69,12 @@ defmodule PhoenixKitWeb.Components.ThemeControllerScript do
         // localStorage can throw wholesale (sandboxed iframes, storage-blocked
         // modes). Guarded here so a throw degrades to non-persistent theming
         // instead of killing init before any listener attaches.
+        const LEGACY_KEY = 'phoenix_kit_theme';
+
         const storage = {
           get() {
             try {
-              return localStorage.getItem(STORAGE_KEY);
+              return localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY);
             } catch (e) {
               return null;
             }

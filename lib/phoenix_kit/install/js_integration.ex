@@ -65,9 +65,12 @@ defmodule PhoenixKit.Install.JsIntegration do
   default theme and swap after load — the one page class the kit's own
   layouts (which all render the bootstrap themselves) cannot cover.
 
-  Skipped when the layout already renders the component, or already carries
-  its own `phx:theme` script — the phx.new 1.8 template ships one that does
-  the same job.
+  Skipped when the layout already renders the component. A stock
+  `phx:theme` script (phx.new 1.8) is NOT a substitute: it treats
+  `"system"` as "remove `data-theme`", which is how branded hosts flashed
+  daisyUI's default over the configured pair. Those layouts still get
+  the bootstrap, injected just before `</head>` so it runs *after* the
+  stock script and the configured pair wins.
 
   Safe to run multiple times (idempotent). Called from both install and
   `mix phoenix_kit.update`, so existing hosts pick it up on upgrade.
@@ -82,15 +85,9 @@ defmodule PhoenixKit.Install.JsIntegration do
       {:ok, layout_path} ->
         content = File.read!(layout_path)
 
-        cond do
-          String.contains?(content, "ThemeBootstrap") ->
-            igniter
-
-          String.contains?(content, "phx:theme") ->
-            igniter
-
-          true ->
-            inject_theme_bootstrap(igniter, layout_path, content)
+        case theme_bootstrap_plan(content) do
+          :already_present -> igniter
+          _ -> inject_theme_bootstrap(igniter, layout_path, content)
         end
 
       {:error, :not_found} ->
@@ -107,14 +104,42 @@ defmodule PhoenixKit.Install.JsIntegration do
     end
   end
 
-  defp inject_theme_bootstrap(igniter, layout_path, content) do
+  # Where the bootstrap should land. Public so the two placement rules
+  # (skip if already present; after a stock phx:theme script, not before)
+  # can be asserted without writing a host layout to disk.
+  @doc false
+  def theme_bootstrap_plan(content) when is_binary(content) do
+    cond do
+      String.contains?(content, "ThemeBootstrap") -> :already_present
+      String.contains?(content, "phx:theme") -> :before_head_close
+      true -> :top_of_head
+    end
+  end
+
+  # Pure half of the write — returns the updated HTML, or the original
+  # when there is nowhere to land. The `<head>` matcher must not also
+  # match `<header>`.
+  @doc false
+  def inject_theme_bootstrap_into(content) when is_binary(content) do
     block = """
         #{@bootstrap_marker}
         <PhoenixKitWeb.Components.ThemeBootstrap.theme_bootstrap />\
     """
 
-    updated =
-      String.replace(content, ~r{(<head[^>]*>)}, "\\1\n#{block}", global: false)
+    case theme_bootstrap_plan(content) do
+      :before_head_close ->
+        String.replace(content, "</head>", "    #{block}\n  </head>", global: false)
+
+      :top_of_head ->
+        String.replace(content, ~r{(<head(?:\s[^>]*)?>)}, "\\1\n#{block}", global: false)
+
+      :already_present ->
+        content
+    end
+  end
+
+  defp inject_theme_bootstrap(igniter, layout_path, content) do
+    updated = inject_theme_bootstrap_into(content)
 
     if updated != content do
       File.write!(layout_path, updated)

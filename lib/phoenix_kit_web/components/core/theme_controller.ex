@@ -133,7 +133,7 @@ defmodule PhoenixKitWeb.Components.Core.ThemeController do
   # is safe to interpolate: dropdown_themes/1 filters to KNOWN theme names,
   # and the regex is the belt to that suspender.
   defp toggle_icon_css(dark_value) do
-    if dark_value =~ ~r/^[a-z0-9_-]+$/ do
+    if dark_value =~ ~r/\A[a-z0-9_-]+\z/ do
       """
       <style>
         html[data-theme="#{dark_value}"] [data-theme-dark="#{dark_value}"] [data-toggle-icon="light"] { display: none; }
@@ -165,6 +165,7 @@ defmodule PhoenixKitWeb.Components.Core.ThemeController do
                 <button
                   type="button"
                   phx-click={JS.dispatch("phx:set-theme", detail: %{theme: theme.value})}
+                  data-phx-theme={theme.value}
                   data-tip={theme.value}
                   data-theme-target={theme.value}
                   data-theme-role="dropdown-option"

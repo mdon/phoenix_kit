@@ -32,10 +32,10 @@ defmodule PhoenixKitWeb.Components.Core.Button do
   append: the class list hardcoded `btn-primary`, so `class="btn-ghost"` left
   both on the element and daisyUI's rule ordering decided the winner.
 
-  The vocabulary matches `pk_link_button/1`'s, which is the kit's own set —
-  not the scaffold's `values: ~w(primary)`, a knob that cannot vary. For a
-  colour outside it, pass `class="btn-error"`: that is the intended escape
-  hatch, not a workaround.
+  The kit's set — not the scaffold's `values: ~w(primary)`, a knob that
+  cannot vary. Status colours (`info` / `success` / `warning` / `error`)
+  are first-class variants: passing `class="btn-error"` next to the
+  default `btn-primary` is how stylesheet order used to pick the winner.
 
   Variant and size map to literal classes rather than interpolating
   `"btn-\#{@variant}"`, because Tailwind scans **source** for literal class

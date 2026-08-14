@@ -126,6 +126,18 @@ defmodule PhoenixKitWeb.Components.Core.ThemeControllerTest do
       refute html =~ ~s(data-theme-role="toggle")
     end
 
+    test "dropdown options carry data-phx-theme so a stock phx:theme script works" do
+      # The toggle had this; the options only put the name in JS.dispatch
+      # detail. phx.new 1.8's script reads e.target.dataset.phxTheme and
+      # falls back to "system" — every dropdown click would reset the theme
+      # on a host that kept that script.
+      html = render_picker(["phoenix-light", "nord", "dracula"])
+
+      assert html =~ ~s(data-phx-theme="phoenix-light")
+      assert html =~ ~s(data-phx-theme="nord")
+      assert html =~ ~s(data-phx-theme="dracula")
+    end
+
     test "a pair plus system — three states need a menu" do
       html = render_picker(["system", "phoenix-light", "phoenix-dark"])
 
