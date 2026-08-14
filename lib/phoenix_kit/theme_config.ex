@@ -5,6 +5,28 @@ defmodule PhoenixKit.ThemeConfig do
   This module centralises the theme metadata used across the admin UI so that
   PhoenixKit and the consuming application stay in sync. Updating or adding a
   theme requires changing this module and the shared CSS asset only.
+
+  ## Host configuration
+
+  This is the page a host developer theming their app lands on, so the knobs
+  live here too — a real install went un-branded for weeks because the one
+  below was documented nowhere a themer would look:
+
+    * `config :phoenix_kit, dashboard_themes: [...]` — which themes the admin
+      picker offers. Defaults to `:all` (the entire daisyUI catalogue). Most
+      branded hosts want exactly their pair:
+
+          config :phoenix_kit, dashboard_themes: ["phoenix-light", "phoenix-dark"]
+
+      **Exactly two concrete themes render as a sun/moon toggle** instead of a
+      dropdown; any other shape (more themes, or `"system"` in the list) keeps
+      the dropdown, because three or more states need a menu.
+
+    * **Palette overrides have no config hook yet.** `custom_theme_variables/0`
+      is a hardcoded module attribute injected as an inline `<style>` by the
+      dashboard layout. Until a hook exists, a host rebrands the built-in
+      themes from its own CSS — `html[data-theme="phoenix-dark"] { ... }`
+      outranks the inline block's bare attribute selectors.
   """
 
   use Gettext, backend: PhoenixKitWeb.Gettext
