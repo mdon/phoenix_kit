@@ -272,16 +272,21 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # Fires only on a brand-new user draw (Etcher's `_finalizeShape`).
   # Undo/redo, drags, color picks all bypass this — they go through
   # `annotations-changed` for persistence but don't re-open the
-  # composer. Text shapes get Etcher's inline editor and skip the
-  # popup. Markers are pure marking for now — they still persist (via
-  # `annotations-changed`) but skip the composer too, so highlighting
-  # doesn't prompt for a title/comment; it's just a line. If the
-  # composer is already open mid-compose, keep its target — a second
-  # quick draw shouldn't ambush an in-flight title/comment.
+  # composer. The label-bearing kinds (text, and since Etcher 0.12 also
+  # callout and dimension) get Etcher's inline label editor and MUST
+  # skip the popup: the composer would steal focus the instant the
+  # inline editor opened, the editor commits on blur, and an empty
+  # commit on those kinds deletes the just-placed shape — the user saw
+  # their callout vanish under the popover. Markers are pure marking
+  # for now — they still persist (via `annotations-changed`) but skip
+  # the composer too, so highlighting doesn't prompt for a
+  # title/comment; it's just a line. If the composer is already open
+  # mid-compose, keep its target — a second quick draw shouldn't
+  # ambush an in-flight title/comment.
   def handle_event("etcher:shape-drawn", %{"uuid" => uuid, "kind" => kind}, socket) do
     socket =
       cond do
-        kind in ["text", "marker"] ->
+        kind in ["text", "callout", "dimension", "marker"] ->
           socket
 
         is_binary(socket.assigns[:composing_annotation_uuid]) ->
@@ -477,11 +482,12 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
               :skip
 
             current ->
-              Storage.EtcherAdapter.update(uuid, a)
+              Storage.EtcherAdapter.update(uuid, persistable_attrs(a, current))
 
             true ->
               attrs =
                 a
+                |> persistable_attrs(nil)
                 |> Map.put("target_type", "file")
                 |> Map.put("target_uuid", file_uuid)
                 |> creator_attrs(socket)
@@ -551,15 +557,86 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # Etcher re-broadcasts the *entire* annotation list on every shape
   # mutation, so a file with N annotations would otherwise issue N
   # UPDATEs per interaction. An annotation is worth a DB write only when
-  # Etcher-owned mutable state actually moved — geometry, style or kind.
-  # (title / metadata are edited through the composer, not via
-  # annotations-changed.) Comparing against the last-known struct lets
-  # the untouched rows skip their no-op UPDATE.
-  defp annotation_unchanged?(wire, current) do
+  # Etcher-owned mutable state actually moved — geometry, style, kind,
+  # the label text, or the label's layout keys. The label half is load-
+  # bearing: this used to compare geometry/style/kind only ("titles are
+  # edited through the composer"), so a label typed into Etcher's inline
+  # editor — the ONLY way text/callout/dimension collect their text since
+  # 0.12 — changed nothing the comparison looked at, the write was
+  # skipped, and every label silently vanished on the next open.
+  # Comparing against the last-known struct lets the untouched rows skip
+  # their no-op UPDATE.
+  #
+  # `@etcher_label_meta_keys` — the metadata keys Etcher itself writes for a
+  # label's layout: where a dragged label sits, its alignment, its remembered
+  # colour. Persisted so a placed label doesn't snap back on reload. `title`
+  # is NOT here: the text lives in the dedicated `title` column
+  # (`load_annotations_for/1` surfaces it back as `metadata.title` for the
+  # JS).
+  @etcher_label_meta_keys ~w(title_box title_align title_offset title_color)
+
+  # The keys `load_annotations_for/1` injects into metadata at load — the
+  # comment preview and the column-sourced title. `viewer_annotations` holds
+  # those CURATED maps, not schema rows, so anything persisting "the stored
+  # metadata" must first subtract these or the derived preview gets baked
+  # into the row (and a stale comment count outlives the comments it
+  # counted). `comment_author` is deliberately absent: for markers it IS
+  # stored metadata (the byline stamp), and dropping it on a marker drag
+  # would erase who drew it.
+  @load_injected_meta_keys ~w(title comment_count comment_created_at comment_text
+                              comment_thumbnail_url comment_has_attachment)
+
+  # Public (@doc false) with `persistable_attrs/2` so the unit suite can pin
+  # the label round-trip — the bug class here (a metadata-only change judged
+  # "unchanged", a curated map read as a schema struct) produced no error,
+  # just labels that quietly vanished on the next open.
+  @doc false
+  def annotation_unchanged?(wire, current) do
     wire["geometry"] == current.geometry and
       wire["style"] == current.style and
-      wire["kind"] == current.kind
+      wire["kind"] == current.kind and
+      wire_title(wire) == stored_title(current) and
+      wire_label_metadata(wire) == Map.take(current.metadata || %{}, @etcher_label_meta_keys)
   end
+
+  # What the wire annotation is allowed to persist: everything except raw
+  # `metadata`, which is replaced by the curated merge — Etcher's label keys
+  # from the wire over the stored row's other keys (marker author stamps and
+  # anything else server-side code owns), minus the load-injected preview.
+  # The label text goes to the `title` column.
+  @doc false
+  def persistable_attrs(wire, current) do
+    stored_meta =
+      ((current && current.metadata) || %{})
+      |> Map.drop(@etcher_label_meta_keys)
+      |> Map.drop(@load_injected_meta_keys)
+
+    wire
+    |> Map.put("metadata", Map.merge(stored_meta, wire_label_metadata(wire)))
+    |> Map.put("title", wire_title(wire))
+  end
+
+  # The label text as the curated map carries it — `load_annotations_for/1`
+  # surfaces the `title` column as `metadata.title` (there is no :title key
+  # on these maps; reading one crashed the LV on every label commit).
+  defp stored_title(%{metadata: %{"title" => title}}) when is_binary(title), do: title
+  defp stored_title(_), do: nil
+
+  defp wire_label_metadata(%{"metadata" => %{} = meta}),
+    do: Map.take(meta, @etcher_label_meta_keys)
+
+  defp wire_label_metadata(_), do: %{}
+
+  # Blank collapses to nil so an emptied label clears the column instead of
+  # storing "".
+  defp wire_title(%{"metadata" => %{"title" => title}}) when is_binary(title) do
+    case String.trim(title) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp wire_title(_), do: nil
 
   # For every annotation newly created in this batch, push an
   # `etcher:patch-shape` event with the freshly-loaded metadata
