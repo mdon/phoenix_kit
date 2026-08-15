@@ -501,6 +501,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
             wrote?
 
           {:ok, _} ->
+            _ = maybe_seed_label_comment(socket, file_uuid, a, current)
             true
 
           {:error, reason} ->
@@ -621,6 +622,57 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # on these maps; reading one crashed the LV on every label commit).
   defp stored_title(%{metadata: %{"title" => title}}) when is_binary(title), do: title
   defp stored_title(_), do: nil
+
+  # A label typed into Etcher's inline editor becomes the annotation's
+  # anchor comment — the same comment the composer would have posted — so a
+  # labelled dimension/callout is likeable and answerable like any other
+  # annotation instead of a mute shape (the label-bearing kinds skip the
+  # composer entirely; without this their thread never exists).
+  #
+  # Seeded only on the label's FIRST text (no stored title yet) and only
+  # when the annotation has no comments, so relabelling never rewrites a
+  # thread and a composer-posted comment is never duplicated. Soft-fails
+  # without the optional comments package or an authenticated user. The
+  # caller's post-write reload picks the fresh comment up for the tooltip
+  # preview, and `refresh_file_comments/1` repaints the sidebar.
+  defp maybe_seed_label_comment(socket, file_uuid, wire, current) do
+    with true <- seed_label_comment?(wire, current),
+         %{uuid: user_uuid} <- socket.assigns[:current_user],
+         true <- comments_installed?() do
+      case PhoenixKitComments.create_comment("file", file_uuid, user_uuid, %{
+             content: wire_title(wire),
+             metadata: %{"annotation_uuid" => wire["uuid"]}
+           }) do
+        {:ok, _comment} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning(
+            "[MediaCanvasViewer] label comment seed failed uuid=#{inspect(wire["uuid"])}: #{inspect(reason)}"
+          )
+      end
+    else
+      _ -> :ok
+    end
+  end
+
+  # Public (@doc false) so the unit suite can pin the seeding decision
+  # without the optional comments package installed.
+  @doc false
+  def seed_label_comment?(wire, current) do
+    is_binary(wire_title(wire)) and is_nil(current && stored_title(current)) and
+      stored_comment_count(current) == 0
+  end
+
+  defp stored_comment_count(%{metadata: %{"comment_count" => count}}) when is_integer(count),
+    do: count
+
+  defp stored_comment_count(_), do: 0
+
+  defp comments_installed? do
+    Code.ensure_loaded?(PhoenixKitComments) and
+      function_exported?(PhoenixKitComments, :create_comment, 4)
+  end
 
   defp wire_label_metadata(%{"metadata" => %{} = meta}),
     do: Map.take(meta, @etcher_label_meta_keys)

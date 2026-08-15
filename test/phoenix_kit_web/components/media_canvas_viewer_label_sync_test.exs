@@ -86,6 +86,33 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerLabelSyncTest do
     end
   end
 
+  describe "seed_label_comment?/2" do
+    test "a label's first text on a fresh shape seeds the anchor comment" do
+      w = wire(%{"metadata" => %{"title" => "measure this"}})
+
+      # Brand-new shape (no current) and a first-labelled existing one both
+      # qualify — the thread the composer would have created never existed.
+      assert Viewer.seed_label_comment?(w, nil)
+      assert Viewer.seed_label_comment?(w, curated(%{}))
+    end
+
+    test "relabelling never rewrites a thread" do
+      w = wire(%{"metadata" => %{"title" => "new text"}})
+      c = curated(%{metadata: %{"title" => "old text", "comment_count" => 0}})
+
+      refute Viewer.seed_label_comment?(w, c)
+    end
+
+    test "an existing thread is never duplicated, and no label seeds nothing" do
+      w = wire(%{"metadata" => %{"title" => "t"}})
+      commented = curated(%{metadata: %{"comment_count" => 2}})
+      refute Viewer.seed_label_comment?(w, commented)
+
+      refute Viewer.seed_label_comment?(wire(%{"metadata" => %{}}), nil)
+      refute Viewer.seed_label_comment?(wire(%{"metadata" => %{"title" => "  "}}), nil)
+    end
+  end
+
   describe "persistable_attrs/2" do
     test "the label text goes to the title column, trimmed, blank collapsing to nil" do
       attrs = Viewer.persistable_attrs(wire(%{"metadata" => %{"title" => "  hi  "}}), nil)
