@@ -3436,7 +3436,10 @@ if (typeof window.Chart === "undefined") {
   window.PhoenixKitHooks.TableCardView = {
     mounted() {
       var key = this.el.dataset.storageKey || (this.el.id + "-view");
-      var saved = localStorage.getItem(key) || "table";
+      // "comfy" (comfortable rows — the table with more space per row and
+      // larger thumbs, via the `pk-comfy` marker class) is the default; the
+      // dense table and the card grid are the explicit alternatives.
+      var saved = localStorage.getItem(key) || "comfy";
       this.storageKey = key;
       this.currentMode = saved;
       this.applyMode(saved);
@@ -3494,10 +3497,14 @@ if (typeof window.Chart === "undefined") {
         tableEl.classList.remove("md:block");
         cardEl.classList.remove("md:hidden");
       } else {
+        // "table" (compact) and "comfy" (comfortable) both show the table
+        // branch; comfy additionally marks it so `[.pk-comfy_&]` utilities
+        // in the table markup can widen paddings and thumbnails.
         tableEl.classList.remove("md:hidden");
         tableEl.classList.add("md:block");
         cardEl.classList.add("md:hidden");
       }
+      tableEl.classList.toggle("pk-comfy", mode === "comfy");
 
       btns.forEach(function(b) {
         b.classList.toggle("btn-active", b.dataset.viewAction === mode);
