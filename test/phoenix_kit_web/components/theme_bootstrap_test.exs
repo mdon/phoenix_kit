@@ -47,6 +47,28 @@ defmodule PhoenixKitWeb.Components.ThemeBootstrapTest do
     assert html =~ "addEventListener('storage'"
   end
 
+  test "ships the custom-theme palettes next to the stamp" do
+    # A script-only bootstrap on a host layout stamped phoenix-dark
+    # before any [data-theme=phoenix-dark] variables existed.
+    html = render_bootstrap()
+
+    assert html =~ ~s(data-phoenix-kit-themes)
+    assert html =~ "[data-theme=phoenix-dark]"
+    assert html =~ "--color-base-100"
+  end
+
+  test "promotes the legacy phoenix_kit_theme storage key" do
+    html = render_bootstrap()
+
+    assert html =~ "phoenix_kit_theme"
+  end
+
+  test "is idempotent when two layouts render it" do
+    html = render_bootstrap()
+
+    assert html =~ "window.__pkThemeBootstrap"
+  end
+
   test "unknown configured names cannot smuggle script out through the pair" do
     # system_pair filters to KNOWN names, so config junk never reaches the
     # inline script.

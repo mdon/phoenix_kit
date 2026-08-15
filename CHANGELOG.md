@@ -1,10 +1,11 @@
 ## 2.6.0 - 2026-08-14
 
 The built-in SEO module becomes **Crawlers** and grows into the one page where an
-operator decides who may read the site; shop slugs get a uniqueness bucket that
-matches the URL the resolver actually serves; scheduled jobs stop double-firing;
-and every vendored CDN pin is now held to its lock. Chain moves V170 → **V172**
-(#714, #715).
+operator decides who may read the site; the theme system becomes one generated
+controller plus a pre-paint bootstrap that hosts can brand from config; shop
+slugs get a uniqueness bucket that matches the URL the resolver actually serves;
+scheduled jobs stop double-firing; and every vendored CDN pin is now held to its
+lock. Chain moves V170 → **V172** (#714, #715, #716).
 
 ### Added
 
@@ -44,6 +45,26 @@ and every vendored CDN pin is now held to its lock. Chain moves V170 → **V172*
   compiler validates call sites, never callee bodies, which let a `KeyError` behind
   an `:if={...}` guard ship for four releases (#714).
 
+- **Host-branded themes from config** (`:theme_definitions`). Override a built-in
+  palette or define a named theme (`:label`, `:base`, optional `:extends` /
+  `:variables`); one validation pass feeds both the CSS and the JS embeds.
+  Injection-hardened at both sinks (#716).
+
+- **One theme controller script** (`ThemeControllerScript`) replaces the three
+  drifted copies (dashboard inline, admin inline, static `phoenix_kit_themes.js`).
+  Pre-paint `ThemeBootstrap` stamps the saved choice — and now ships the palettes
+  next to the stamp — so a dark-OS visitor is not painted `color-scheme: dark`
+  over light variables. Picker modes `:auto | :dropdown | :toggle`; a light/dark
+  pair renders one persistent `aria-pressed` toggle (#716).
+
+- **`PhoenixKit.Utils.Pagination`** — `parse_page/1` and `total_pages/2` (floored
+  at 1). The unfloored `ceil` copies fed `1..0` decreasing ranges on empty lists
+  (#716).
+
+- **`<button variant="error">` (and info/success/warning).** Status colours are
+  first-class variants; appending `btn-error` through `class` collided with the
+  variant's own colour and stylesheet order decided who won (#716).
+
 ### Changed
 
 - **V172 renames the SEO module to Crawlers.** Settings rows
@@ -79,6 +100,21 @@ and every vendored CDN pin is now held to its lock. Chain moves V170 → **V172*
   work reached any host. The test is generalized to every `gh/` pin, resolves the
   expected version from `Application.spec/2`, and fails when a pin appears for a
   repo it does not cover (#715).
+
+- **Admin theme picker honours `:dashboard_themes`.** Hardcoding `:all` meant a
+  host's narrowed list governed only the user dashboard (#716).
+
+- **Removed unused `ThemeConfig` helpers** (`get_theme/0`,
+  `theme_data_attributes/0`, `modern_css_variables/0`, the slider maps). They
+  had no remaining in-repo callers; a host still calling them will not compile
+  (#716).
+
+- **Route-pattern tabs hide themselves from navigation.** `admin_dashboard_tabs`
+  entries whose path carries `:param` or `*splat` segments are routes, not nav —
+  they rendered a literal `:uuid` in the sidebar unless every host remembered
+  `visible: false`. Detection is per-segment, so `https://`, ports, and `mailto:`
+  are unaffected; `visible: true` is the opt-out. Nil-scope callers no longer
+  receive `visible: false` tabs unfiltered (#716).
 
 ### Fixed
 
@@ -127,6 +163,41 @@ and every vendored CDN pin is now held to its lock. Chain moves V170 → **V172*
 - **`crawlers_no_index?/0` in the sitemap generator guarded `rescue` but not
   `catch :exit`.** An unreachable database raises on an unowned checkout but *exits*
   on a dead pool (post-merge review of #714).
+
+- **Host `:theme_definitions` never appeared in the default picker.**
+  `dropdown_themes(:all)` was the compile-time catalogue only, so a branded
+  theme landed in CSS / labels / `system_pair` and not in the picker until the
+  host also listed it in `:dashboard_themes` (post-merge review of #716).
+
+- **ThemeBootstrap stamped `phoenix-dark` without shipping the palettes.**
+  Standalone admin and every host layout the installer injects into painted
+  `color-scheme: dark` over daisyUI's light variables until a later body
+  `<style>` arrived. The custom-theme CSS now travels with the stamp
+  (post-merge review of #716).
+
+- **Dropdown options had no `data-phx-theme`.** The toggle used the stock
+  Phoenix contract; the options put the name only in `JS.dispatch` detail.
+  phx.new 1.8's script reads `dataset.phxTheme` and falls back to `"system"`,
+  so every dropdown click reset the theme on a host that kept that script
+  (post-merge review of #716).
+
+- **`mix phoenix_kit.update` skipped the bootstrap on every phx.new 1.8 host.**
+  Any `phx:theme` substring was treated as "already done"; that script's
+  `"system"` path *removes* `data-theme`. Those layouts now get the bootstrap
+  just before `</head>`, after the stock script (post-merge review of #716).
+
+- **Pagination extract missed `media_selector.ex` and
+  `Auth.list_users_paginated/1`.** Same unfloored empty-list `1..0` range the
+  helper exists to stop (post-merge review of #716).
+
+- **Referral 0.4 backfill used `function_exported?/3` without
+  `Code.ensure_loaded?/1`.** Under a release the new `signup_use_exists?`
+  looked missing and the users the feature exists to admit stayed parked
+  (post-merge review of #716).
+
+- **Accounts that redeemed a code before the satisfied-stamp existed were
+  parked at the referral wall.** The gate now asks the installed module and
+  stamps on a hit, so each account pays the query at most once (#716).
 
 ## 2.5.0 - 2026-08-14
 

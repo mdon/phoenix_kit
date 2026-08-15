@@ -1,4 +1,6 @@
 defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
+  alias PhoenixKit.Utils.Pagination
+
   @moduledoc """
   Media selector modal component.
 
@@ -200,7 +202,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
     socket =
       if assigns[:show] do
         {files, total_count} = load_files(socket, socket.assigns.current_page)
-        total_pages = ceil(total_count / socket.assigns.per_page)
+        total_pages = Pagination.total_pages(total_count, socket.assigns.per_page)
 
         socket
         |> assign(:uploaded_files, files)
@@ -451,7 +453,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
       |> refresh_upload_accept(parsed_filter)
 
     {files, total_count} = load_files(socket, 1)
-    total_pages = ceil(total_count / socket.assigns.per_page)
+    total_pages = Pagination.total_pages(total_count, socket.assigns.per_page)
 
     socket =
       socket
@@ -472,7 +474,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
       end
 
     {files, total_count} = load_files(socket, page)
-    total_pages = ceil(total_count / socket.assigns.per_page)
+    total_pages = Pagination.total_pages(total_count, socket.assigns.per_page)
 
     socket =
       socket
@@ -494,7 +496,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
 
   def handle_event("save", _params, socket) do
     {files, total_count} = load_files(socket, 1)
-    total_pages = ceil(total_count / socket.assigns.per_page)
+    total_pages = Pagination.total_pages(total_count, socket.assigns.per_page)
 
     socket =
       socket
@@ -528,7 +530,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
       |> assign(:current_page, 1)
 
     {files, total_count} = load_files(socket, 1)
-    total_pages = ceil(total_count / socket.assigns.per_page)
+    total_pages = Pagination.total_pages(total_count, socket.assigns.per_page)
 
     socket
     |> assign(:uploaded_files, files)
@@ -560,7 +562,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
             file_uuid when is_binary(file_uuid) ->
               # Success - reload files and auto-select
               {files, total_count} = load_files(socket, socket.assigns.current_page)
-              total_pages = ceil(total_count / socket.assigns.per_page)
+              total_pages = Pagination.total_pages(total_count, socket.assigns.per_page)
 
               selected_uuids =
                 case socket.assigns.mode do

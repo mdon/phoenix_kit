@@ -736,6 +736,7 @@ defmodule PhoenixKit.Users.Referrals do
   # target out of compile-time xref, so core needs no dependency on the package.
   defp dispatch(fun, args) do
     with mod when not is_nil(mod) <- ModuleRegistry.get_by_key(@key),
+         true <- Code.ensure_loaded?(mod),
          true <- function_exported?(mod, fun, length(args)) do
       {:ok, apply(mod, fun, args)}
     else

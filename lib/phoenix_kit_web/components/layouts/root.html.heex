@@ -47,6 +47,13 @@
       {assigns[:page_title]}
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <%!-- The bootstrap above stamps phoenix-*/host theme names; without this
+         block those names had no palette on auth pages — a dark-OS visitor
+         got data-theme="phoenix-dark" + color-scheme: dark over light
+         variables. --%>
+    <style data-phoenix-kit-themes>
+      <%= Phoenix.HTML.raw(PhoenixKit.ThemeConfig.custom_theme_css()) %>
+    </style>
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
     <%!-- PhoenixKit Cookie Consent Widget Setup --%>

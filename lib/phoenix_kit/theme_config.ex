@@ -18,15 +18,17 @@ defmodule PhoenixKit.ThemeConfig do
 
           config :phoenix_kit, dashboard_themes: ["phoenix-light", "phoenix-dark"]
 
-      **Exactly two concrete themes render as a sun/moon toggle** instead of a
-      dropdown; any other shape (more themes, or `"system"` in the list) keeps
-      the dropdown, because three or more states need a menu.
+      **Exactly two concrete themes — one light, one dark — render as a
+      sun/moon toggle** instead of a dropdown; any other shape (more themes,
+      `"system"` in the list, or a same-base pair) keeps the dropdown,
+      because three or more states need a menu and sun/moon semantics need
+      both bases.
 
-    * **Palette overrides have no config hook yet.** `custom_theme_variables/0`
-      is a hardcoded module attribute injected as an inline `<style>` by the
-      dashboard layout. Until a hook exists, a host rebrands the built-in
-      themes from its own CSS — `html[data-theme="phoenix-dark"] { ... }`
-      outranks the inline block's bare attribute selectors.
+    * **Palette overrides go through `:theme_definitions`** — see the
+      "Host configuration" section: override built-in palettes or define
+      new named themes entirely from config. The old workaround (out-ranking
+      the inline `<style>` from host CSS via `html[data-theme=...]`
+      selectors) still works but is no longer needed.
   """
 
   use Gettext, backend: PhoenixKitWeb.Gettext
@@ -188,7 +190,11 @@ defmodule PhoenixKit.ThemeConfig do
   embeds built from a JSON-encoded map.
   """
   def translated_label_map do
-    Map.new(@labels, fn {key, _label} -> {key, translated_label(key)} end)
+    # Host themes included — @labels alone left host-defined names without
+    # labels in the JS embeds while every other lookup knew them.
+    @labels
+    |> Map.merge(host_theme_meta())
+    |> Map.new(fn {key, _} -> {key, translated_label(key)} end)
   end
 
   @dropdown_order [
@@ -292,7 +298,8 @@ defmodule PhoenixKit.ThemeConfig do
 
   ## Options
 
-  - `:all` or `nil` - Returns all themes (default)
+  - `:all` or `nil` - Returns all themes (default), built-in catalogue
+    then host `:theme_definitions` names
   - List of theme names - Returns only the specified themes in order
 
   ## Examples
@@ -309,7 +316,17 @@ defmodule PhoenixKit.ThemeConfig do
   def dropdown_themes(:all), do: dropdown_themes(nil)
 
   def dropdown_themes(nil) do
-    Enum.map(@dropdown_order, &theme_to_map/1)
+    # Host-defined names belong in the default catalogue too — :all used
+    # to be compile-time @dropdown_order only, so a :theme_definitions
+    # theme was in CSS / labels / system_pair but invisible in the
+    # picker until the host also listed it in :dashboard_themes.
+    host_names =
+      host_theme_meta()
+      |> Map.keys()
+      |> Enum.reject(&Map.has_key?(@labels, &1))
+      |> Enum.sort()
+
+    Enum.map(@dropdown_order ++ host_names, &theme_to_map/1)
   end
 
   def dropdown_themes(allowed_themes) when is_list(allowed_themes) do
@@ -379,17 +396,48 @@ defmodule PhoenixKit.ThemeConfig do
         _ -> []
       end
 
-    light = Enum.find(configured, &(Map.get(bases, &1) == "light")) || "phoenix-light"
-    dark = Enum.find(configured, &(Map.get(bases, &1) == "dark")) || "phoenix-dark"
+    light = Enum.find(configured, &(Map.get(bases, &1) == "light"))
+    dark = Enum.find(configured, &(Map.get(bases, &1) == "dark"))
 
-    {light, dark}
+    if configured != [] and (light == nil or dark == nil) do
+      warn_half_missing(configured, light, dark)
+    end
+
+    {light || "phoenix-light", dark || "phoenix-dark"}
+  end
+
+  # A pair half falling back OUTSIDE the configured list means "system" can
+  # resolve to a theme the picker never offers — legal, but almost always a
+  # config oversight (e.g. two dark themes and no light one). Once per
+  # configured set, not per render.
+  defp warn_half_missing(configured, light, dark) do
+    key = {__MODULE__, :system_pair_warned, configured}
+
+    if :persistent_term.get(key, false) == false do
+      :persistent_term.put(key, true)
+
+      missing =
+        case {light, dark} do
+          {nil, nil} -> "no light or dark theme"
+          {nil, _} -> "no light theme"
+          {_, nil} -> "no dark theme"
+        end
+
+      require Logger
+
+      Logger.warning(
+        "[PhoenixKit.ThemeConfig] :dashboard_themes #{inspect(configured)} has " <>
+          "#{missing}, so \"system\" will resolve to a built-in phoenix-* theme " <>
+          "that is not in the picker. Add one theme of each base to avoid this."
+      )
+    end
   end
 
   @doc """
   Returns all theme names recognised by PhoenixKit.
   """
   def all_theme_names do
-    Map.keys(@labels)
+    Map.keys(label_map())
   end
 
   @doc """
@@ -428,6 +476,10 @@ defmodule PhoenixKit.ThemeConfig do
   #   }
   # }
   #
+  # :extends may name a built-in PhoenixKit palette (phoenix-light /
+  # phoenix-dark) only — not a daisyUI catalogue theme and not another
+  # host-defined name. Chain off phoenix-* or start from scratch.
+  #
   # Until this existed, a branded host rebrand meant duplicating ~50 variable
   # lines in its own CSS and out-specificity-ing the inline block. Everything
   # here is VALIDATED and raises on the first bad entry — the output is
@@ -437,12 +489,22 @@ defmodule PhoenixKit.ThemeConfig do
   # so a host's own stronger selector still wins as an escape hatch.
   # ---------------------------------------------------------------------------
 
-  @theme_name_re ~r/^[a-z0-9][a-z0-9_-]*$/
+  # \A..\z, not ^..$: $ tolerates one trailing newline, and "brand\n"
+  # reaching the single-quoted JS interpolations would break the string —
+  # availability, not injection, but real.
+  @theme_name_re ~r/\A[a-z0-9][a-z0-9_-]*\z/
   # One CSS value: no statement/block/comment/import machinery, nothing that
   # can close the declaration or the style tag.
-  @css_value_re ~r"^[^;{}<>]*$"
+  # Backslash is forbidden outright: CSS escape sequences re-read after
+  # validation ("u\\72l(" is "url(" to the parser), so any escape can walk
+  # around a substring blocklist. No allowed token's value needs one.
+  @css_value_re ~r"\A[^;{}<>\\]*\z"
   @allowed_var_prefixes ~w(--color- --radius- --size-)
   @allowed_var_names ~w(--border --depth --noise color-scheme)
+  # The full NAME shape, on top of the prefix allowlist: a prefix check alone
+  # let "--color-x;}</style>..." through, and the name is interpolated into
+  # the declaration just like the value is.
+  @var_name_re ~r/\A--[a-z0-9-]+\z/
 
   @doc """
   The effective per-theme variable maps: built-ins with host
@@ -463,46 +525,91 @@ defmodule PhoenixKit.ThemeConfig do
     end
   end
 
-  @doc "Host-defined themes only: `%{name => %{label, base}}` for the lookups."
+  @doc """
+  Host-defined themes only: `%{name => %{label, base}}` for the lookups.
+
+  Fully validated — this is the path the JS embeds (`base_map/0`,
+  `label_map/0`, `system_pair/0`) read from, so it applies the same rules
+  as `theme_variables/0` rather than trusting the raw config. An early
+  version read the config directly; a definition the CSS validator would
+  have rejected (or crashed on) sailed through here into inline scripts.
+  """
   def host_theme_meta do
-    for {name, %{} = defn} <- PhoenixKit.Config.get(:theme_definitions, %{}),
-        not Map.has_key?(@custom_theme_variables, name),
-        into: %{} do
-      {name, %{label: Map.fetch!(defn, :label), base: to_string(Map.fetch!(defn, :base))}}
+    definitions = PhoenixKit.Config.get(:theme_definitions, %{})
+
+    case :persistent_term.get({__MODULE__, :host_theme_meta}, nil) do
+      {^definitions, meta} ->
+        meta
+
+      _ ->
+        meta = build_host_theme_meta(definitions)
+        :persistent_term.put({__MODULE__, :host_theme_meta}, {definitions, meta})
+        meta
     end
   end
 
-  defp build_theme_variables(definitions) when is_map(definitions) do
-    Enum.reduce(definitions, @custom_theme_variables, fn {name, defn}, acc ->
+  # The single validation pass over :theme_definitions. Everything either
+  # raises with the offending entry named or comes out normalized; both
+  # theme_variables/0 and the name/label/base lookups build on this, so a
+  # definition cannot be acceptable to one consumer and poison for another.
+  defp build_host_theme_meta(definitions) when is_map(definitions) do
+    Enum.reduce(definitions, %{}, fn {name, defn}, acc ->
       validate_theme_name!(name)
+
+      unless is_map(defn) do
+        raise ArgumentError,
+              "theme #{inspect(name)}: definition must be a map, got: #{inspect(defn)}"
+      end
+
+      # An override of a built-in keeps the built-in's label and base.
+      if Map.has_key?(@custom_theme_variables, name) do
+        acc
+      else
+        Map.put(acc, name, %{
+          label: new_theme_label!(name, defn),
+          base: new_theme_base!(name, defn)
+        })
+      end
+    end)
+  end
+
+  defp build_host_theme_meta(other) do
+    raise ArgumentError,
+          ":theme_definitions must be a map of theme name => definition, got: #{inspect(other)}"
+  end
+
+  defp build_theme_variables(definitions) when is_map(definitions) do
+    # Validates every entry (names, shapes, labels, bases, extends) before
+    # any CSS is assembled.
+    meta = build_host_theme_meta(definitions)
+
+    Enum.reduce(definitions, @custom_theme_variables, fn {name, defn}, acc ->
       vars = Map.get(defn, :variables, %{})
       Enum.each(vars, &validate_variable!(name, &1))
 
       base_vars =
         cond do
-          Map.has_key?(acc, name) ->
+          Map.has_key?(@custom_theme_variables, name) ->
             Map.fetch!(acc, name)
 
           extends = defn[:extends] ->
-            Map.get(@custom_theme_variables, extends) ||
-              raise ArgumentError,
-                    "theme #{inspect(name)} extends unknown theme #{inspect(extends)}"
+            # Known-valid via meta; color-scheme follows the theme's own
+            # base, which may deliberately differ from the parent's.
+            @custom_theme_variables
+            |> Map.fetch!(extends)
+            |> Map.put("color-scheme", Map.fetch!(meta, name).base)
 
           true ->
             # A new theme with no parent: base decides the color-scheme, the
             # variables must carry the rest.
-            validate_new_theme!(name, defn)
-            %{"color-scheme" => to_string(Map.fetch!(defn, :base))}
+            %{"color-scheme" => Map.fetch!(meta, name).base}
         end
 
       Map.put(acc, name, Map.merge(base_vars, stringify_keys(vars)))
     end)
   end
 
-  defp build_theme_variables(other) do
-    raise ArgumentError,
-          ":theme_definitions must be a map of theme name => definition, got: #{inspect(other)}"
-  end
+  defp build_theme_variables(other), do: build_host_theme_meta(other)
 
   defp validate_theme_name!(name) do
     unless is_binary(name) and Regex.match?(@theme_name_re, name) do
@@ -512,13 +619,52 @@ defmodule PhoenixKit.ThemeConfig do
     end
   end
 
-  defp validate_new_theme!(name, defn) do
-    unless is_binary(defn[:label]) and defn[:label] != "" do
+  defp new_theme_label!(name, defn) do
+    label = defn[:label]
+
+    unless is_binary(label) and label != "" do
       raise ArgumentError, "new theme #{inspect(name)} needs a :label"
     end
 
-    unless defn[:base] in [:light, :dark, "light", "dark"] do
-      raise ArgumentError, "new theme #{inspect(name)} needs base: :light or :dark"
+    label
+  end
+
+  # Explicit base wins and must be valid even when :extends is present —
+  # falling through to inheritance on a junk base would silently ignore it.
+  # Without an explicit base, the parent's is inherited. :extends itself is
+  # checked whenever given, so an extends-only definition cannot name an
+  # unknown parent and then crash a later consumer.
+  defp new_theme_base!(name, defn) do
+    if extends = defn[:extends] do
+      parent_base!(name, extends)
+    end
+
+    cond do
+      base = defn[:base] ->
+        unless base in [:light, :dark, "light", "dark"] do
+          raise ArgumentError,
+                "new theme #{inspect(name)} needs base: :light or :dark, got: #{inspect(base)}"
+        end
+
+        to_string(base)
+
+      extends = defn[:extends] ->
+        parent_base!(name, extends)
+
+      true ->
+        raise ArgumentError,
+              "new theme #{inspect(name)} needs base: :light or :dark (or :extends to inherit it)"
+    end
+  end
+
+  defp parent_base!(name, extends) do
+    case @custom_theme_variables do
+      %{^extends => %{"color-scheme" => base}} ->
+        base
+
+      _ ->
+        raise ArgumentError,
+              "theme #{inspect(name)} extends unknown theme #{inspect(extends)}"
     end
   end
 
@@ -527,7 +673,8 @@ defmodule PhoenixKit.ThemeConfig do
 
     allowed =
       var_name in @allowed_var_names or
-        Enum.any?(@allowed_var_prefixes, &String.starts_with?(var_name, &1))
+        (Regex.match?(@var_name_re, var_name) and
+           Enum.any?(@allowed_var_prefixes, &String.starts_with?(var_name, &1)))
 
     unless allowed do
       raise ArgumentError,
