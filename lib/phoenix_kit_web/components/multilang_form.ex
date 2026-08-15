@@ -660,6 +660,7 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
           primary_divider={true}
           variant={:tabs}
           size={:sm}
+          class="w-full"
         />
       </div>
     </div>
