@@ -142,6 +142,7 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.MessageTagBadge
       import PhoenixKitWeb.Components.Core.NumberFormatter
       import PhoenixKitWeb.Components.Core.TableDefault
+      import PhoenixKitWeb.Components.Core.TreeTable
       import PhoenixKitWeb.Components.Core.TableRowMenu
       import PhoenixKitWeb.Components.Core.BulkSelect
       import PhoenixKitWeb.Components.Core.Sortable

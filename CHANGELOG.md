@@ -1,3 +1,82 @@
+## 2.7.0 - 2026-08-15
+
+Catalogue gets reusable, translatable attribute groups; list tables grow a
+comfortable density between compact and cards; uploads say what is happening
+after the bar hits 100%. Chain moves V172 → **V173** (#718).
+
+### Added
+
+- **V173 — catalogue attribute groups.** Four tables (groups / attributes /
+  values / item assignments) for `phoenix_kit_catalogue`: a group owns
+  ordered attributes, each attribute owns ordered values with an explicit
+  `is_default`, and items link through a join table. One-group-per-item is
+  a droppable `UNIQUE (item_uuid)` index, so multi-group later is not a
+  data migration. Definition-tree FKs are `RESTRICT`; a group any item still
+  references can only be archived. ExpectedSchema entries were emitted from
+  a migrated database and `chain_hash` restamped (#718).
+
+- **`Core.TreeTable`** (`<.tree_name_cell>`). File-explorer name cell —
+  depth indent, disclosure chevron, optional type icon — that composes
+  into `<.table_default>` rows instead of replacing the table. The consumer
+  owns the walk and the expanded set (#718).
+
+- **Comfortable view mode** on `<.table_default>` and the `TableCardView`
+  hook. The same table with roomier cell padding (`pk-comfy`), sitting
+  between compact rows and cards, and the default when nothing is stored
+  (#718).
+
+- **Live upload transfer stats.** The `UploadStats` JS hook computes
+  transferred bytes, sliding-window speed, and ETA from the patched
+  `data-progress` attribute, then flips to a ticking "Processing on
+  server…" clock at 100%. Wired through `<.upload_entry_stats>` on both
+  `<.file_upload>` variants, the media selector, and MediaBrowser
+  (#718).
+
+### Changed
+
+- **FolderExplorer wrapper `class` attr.** The hardcoded `hidden lg:block`
+  is now overridable so embeds outside MediaBrowser can pick their own
+  breakpoint (#718).
+
+- **Drag handles stay visible.** A muted grip that strengthens on hover
+  replaces `opacity-0` + `group-hover/row` — an affordance you cannot see
+  is one nobody discovers (#718).
+
+- **Multilang tabs drop the "Content Language" header** by default
+  (`show_header` / `show_info` remain as an opt-in). The tab strip itself
+  stretches full width (#718).
+
+- **Media picker names its purpose.** Callers pass a `title` (Select
+  Avatar, Select Cover Image, …); a locked picker without one derives a
+  type-aware heading. Search hides below ten files on a locked picker,
+  empty libraries get a type-aware empty state, a dry search offers
+  Clear search, and double-click confirms in single mode (#718).
+
+- **MediaBrowser upload drain is two-phase.** Pending stores queue through
+  `send_update_after` so a "Processing on server…" row paints before each
+  store, and the batch flash waits until the queue is empty (#718).
+
+### Fixed
+
+- **Media picker grid sat flush against the search bar.** The browse
+  wrapper's `display:contents` swallowed the parent's `space-y-4`
+  (#718).
+
+- **V173 rollback uses plain `DROP TABLE`s** in dependency order. CASCADE
+  could have taken out FKs or views a parent app hung off these tables
+  (#718).
+
+- **`tree_name_cell` is imported** with the other list-UI primitives, so
+  a `use PhoenixKitWeb, :html` caller does not need a manual import
+  (post-merge review of #718).
+
+- **Uncontrolled tables first-paint comfortable**, matching the JS hook's
+  default, instead of flashing compact until `localStorage` is read
+  (post-merge review of #718).
+
+- **Long tree-cell names truncate** inside the flex row instead of
+  overflowing the cell (post-merge review of #718).
+
 ## 2.6.0 - 2026-08-14
 
 The built-in SEO module becomes **Crawlers** and grows into the one page where an

@@ -23,6 +23,7 @@ defmodule PhoenixKitWeb.Components.Core.TreeTableTest do
       toggle_event="toggle_node"
       value="uuid-1"
       icon={assigns[:icon]}
+      icon_class={assigns[:icon_class]}
     >
       Node name
     </.tree_name_cell>
@@ -63,5 +64,26 @@ defmodule PhoenixKitWeb.Components.Core.TreeTableTest do
   test "leading icon renders with default class" do
     html = render_cell(%{depth: 0, expandable: false, expanded: false, icon: "hero-folder"})
     assert html =~ "hero-folder"
+    assert html =~ "w-4 h-4 shrink-0"
+  end
+
+  test "custom icon_class replaces the default" do
+    html =
+      render_cell(%{
+        depth: 0,
+        expandable: false,
+        expanded: false,
+        icon: "hero-folder",
+        icon_class: "w-5 h-5 text-warning"
+      })
+
+    assert html =~ "w-5 h-5 text-warning"
+    refute html =~ "w-4 h-4 shrink-0"
+  end
+
+  test "name content is wrapped so long labels truncate inside the flex cell" do
+    html = render_cell(%{depth: 0, expandable: false, expanded: false})
+    assert html =~ ~s(class="min-w-0 truncate")
+    assert html =~ "Node name"
   end
 end
