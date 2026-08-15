@@ -92,9 +92,28 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
     {:ok,
      socket
      |> assign(assigns)
+     |> apply_initial_title()
      |> assign(:giphy_enabled?, PhoenixKitComments.giphy_enabled?())
      |> assign(:attachments_enabled?, PhoenixKitComments.attachments_enabled?())
      |> assign(:max_length, PhoenixKitComments.get_max_length())}
+  end
+
+  # `initial_title` (optional) pre-fills the title field — the
+  # label-first flow opens this composer AFTER the user typed the shape's
+  # label inline, so the title they already wrote shouldn't be asked for
+  # twice. Applied exactly once per initial_title value: re-renders (and
+  # the user clearing the field on purpose) never re-stamp it.
+  defp apply_initial_title(socket) do
+    initial = socket.assigns[:initial_title]
+
+    if is_binary(initial) and initial != "" and
+         socket.assigns[:initial_title_applied] != initial do
+      socket
+      |> assign(:new_title, initial)
+      |> assign(:initial_title_applied, initial)
+    else
+      socket
+    end
   end
 
   # ──────────────────────────────────────────────────────────────

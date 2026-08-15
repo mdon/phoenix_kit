@@ -113,6 +113,29 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerLabelSyncTest do
     end
   end
 
+  describe "divert_label_to_composer?/2" do
+    test "callout and dimension first-labels open the composer; text seeds silently" do
+      for kind <- ["callout", "dimension"] do
+        w = wire(%{"kind" => kind, "metadata" => %{"title" => "measure this"}})
+        assert Viewer.divert_label_to_composer?(w, nil)
+      end
+
+      # A text shape IS its message — no composer, straight to the seed.
+      w = wire(%{"kind" => "text", "metadata" => %{"title" => "just a note"}})
+      refute Viewer.divert_label_to_composer?(w, nil)
+    end
+
+    test "only the FIRST label diverts — relabels and commented shapes do not" do
+      w = wire(%{"kind" => "callout", "metadata" => %{"title" => "new"}})
+
+      relabel = curated(%{metadata: %{"title" => "old", "comment_count" => 0}})
+      refute Viewer.divert_label_to_composer?(w, relabel)
+
+      commented = curated(%{metadata: %{"comment_count" => 1}})
+      refute Viewer.divert_label_to_composer?(w, commented)
+    end
+  end
+
   describe "persistable_attrs/2" do
     test "the label text goes to the title column, trimmed, blank collapsing to nil" do
       attrs = Viewer.persistable_attrs(wire(%{"metadata" => %{"title" => "  hi  "}}), nil)

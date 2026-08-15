@@ -97,6 +97,8 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      |> assign(:viewer_canvas, nil)
      |> assign(:viewer_annotations, [])
      |> assign(:composing_annotation_uuid, nil)
+     |> assign(:composing_origin, nil)
+     |> assign(:composing_prefill_title, nil)
      |> assign(:etcher_colors, @default_etcher_colors)
      |> assign(:etcher_line_params, @default_etcher_line_params)
      |> assign(:viewer_only, false)
@@ -110,11 +112,29 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   @impl true
   def update(%{action: :annotation_composer_posted} = assigns, socket) do
+    # A title-only post from the label-first flow (callout/dimension:
+    # label typed inline, composer asked for the body, none given) still
+    # owes the annotation its anchor comment — the label text stands in,
+    # so the shape is likeable/answerable either way.
+    if socket.assigns[:composing_origin] == :label and assigns[:comment] == nil do
+      _ = seed_annotation_comment(socket, assigns[:annotation_uuid], assigns[:title])
+    end
+
     {:ok, finalize_annotation_compose(socket, assigns[:annotation_uuid], assigns[:title])}
   end
 
   def update(%{action: :annotation_composer_cancelled} = assigns, socket) do
-    {:ok, rollback_annotation_compose(socket, assigns[:annotation_uuid])}
+    case socket.assigns[:composing_origin] do
+      # Label-first flow: the shape already carries a committed label —
+      # cancelling the body must NOT delete it (rollback is for abandoning
+      # a just-drawn composer shape). Seed the label as the anchor comment
+      # instead, then close.
+      :label ->
+        {:ok, close_label_compose(socket, assigns[:annotation_uuid])}
+
+      _ ->
+        {:ok, rollback_annotation_compose(socket, assigns[:annotation_uuid])}
+    end
   end
 
   # Auto-hide timer for the rotation save-status pill (scheduled by
@@ -293,7 +313,10 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
           socket
 
         true ->
-          assign(socket, :composing_annotation_uuid, uuid)
+          socket
+          |> assign(:composing_annotation_uuid, uuid)
+          |> assign(:composing_origin, :draw)
+          |> assign(:composing_prefill_title, nil)
       end
 
     {:noreply, socket}
@@ -471,8 +494,8 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     new_in_batch =
       Enum.reject(new_annotations, fn a -> Map.has_key?(current_by_uuid, a["uuid"]) end)
 
-    wrote? =
-      Enum.reduce(new_annotations, false, fn a, wrote? ->
+    {wrote?, label_compose} =
+      Enum.reduce(new_annotations, {false, nil}, fn a, {wrote?, label_compose} ->
         uuid = a["uuid"]
         current = Map.get(current_by_uuid, uuid)
 
@@ -498,18 +521,34 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
         case result do
           :skip ->
-            wrote?
+            {wrote?, label_compose}
 
           {:ok, _} ->
-            _ = maybe_seed_label_comment(socket, file_uuid, a, current)
-            true
+            # A callout/dimension getting its FIRST label diverts to the
+            # composer (label as title, body asked for) instead of the
+            # silent seed — but only one at a time, and only when no
+            # composer is already mid-compose. Everything else (text
+            # shapes, relabels while the composer is busy) seeds the
+            # anchor comment directly.
+            divert? =
+              label_compose == nil and
+                divert_label_to_composer?(a, current) and
+                is_nil(socket.assigns[:composing_annotation_uuid]) and
+                socket.assigns[:current_user] != nil
+
+            if divert? do
+              {true, {uuid, wire_title(a)}}
+            else
+              _ = maybe_seed_label_comment(socket, file_uuid, a, current)
+              {true, label_compose}
+            end
 
           {:error, reason} ->
             Logger.warning(
               "[MediaCanvasViewer] annotation persist failed kind=#{inspect(a["kind"])} uuid=#{inspect(uuid)}: #{inspect(reason)}"
             )
 
-            wrote?
+            {wrote?, label_compose}
         end
       end)
 
@@ -548,11 +587,26 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       |> assign(:viewer_annotations, refreshed)
       |> assign(:viewer_canvas, build_viewer_canvas(file, refreshed))
       |> push_metadata_patches(file_uuid, new_in_batch, refreshed)
+      |> maybe_open_label_composer(label_compose)
     else
       # Etcher re-broadcast with no net change — skip the reload and
       # canvas rebuild entirely.
       socket
     end
+  end
+
+  # The label-first compose: a callout/dimension just got its first label,
+  # so the composer opens with that label as the title and asks for the
+  # body. `:label` origin changes what Cancel means — the shape (and its
+  # committed label) survives; only the body is skipped, with the label
+  # seeded as the anchor comment so the thread still exists.
+  defp maybe_open_label_composer(socket, nil), do: socket
+
+  defp maybe_open_label_composer(socket, {uuid, title}) do
+    socket
+    |> assign(:composing_annotation_uuid, uuid)
+    |> assign(:composing_origin, :label)
+    |> assign(:composing_prefill_title, title)
   end
 
   # Etcher re-broadcasts the *entire* annotation list on every shape
@@ -636,23 +690,63 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # caller's post-write reload picks the fresh comment up for the tooltip
   # preview, and `refresh_file_comments/1` repaints the sidebar.
   defp maybe_seed_label_comment(socket, file_uuid, wire, current) do
-    with true <- seed_label_comment?(wire, current),
+    if seed_label_comment?(wire, current) do
+      create_anchor_comment(socket, file_uuid, wire["uuid"], wire_title(wire))
+    else
+      :ok
+    end
+  end
+
+  # The effectful half all seeding paths share: post the anchor comment,
+  # guarded on the optional comments package and an authenticated user.
+  defp create_anchor_comment(socket, file_uuid, annotation_uuid, content) do
+    with true <- is_binary(content) and content != "",
          %{uuid: user_uuid} <- socket.assigns[:current_user],
          true <- comments_installed?() do
       case PhoenixKitComments.create_comment("file", file_uuid, user_uuid, %{
-             content: wire_title(wire),
-             metadata: %{"annotation_uuid" => wire["uuid"]}
+             content: content,
+             metadata: %{"annotation_uuid" => annotation_uuid}
            }) do
         {:ok, _comment} ->
           :ok
 
         {:error, reason} ->
           Logger.warning(
-            "[MediaCanvasViewer] label comment seed failed uuid=#{inspect(wire["uuid"])}: #{inspect(reason)}"
+            "[MediaCanvasViewer] label comment seed failed uuid=#{inspect(annotation_uuid)}: #{inspect(reason)}"
           )
       end
     else
       _ -> :ok
+    end
+  end
+
+  # Seed for an already-persisted annotation (the label-first composer's
+  # Cancel and title-only Post land here — the label is committed, the
+  # composer produced no comment, and the shape still deserves its
+  # thread). `content` nil falls back to the stored label; an annotation
+  # that meanwhile gained a comment is left alone.
+  defp seed_annotation_comment(socket, annotation_uuid, content) do
+    file_uuid =
+      case socket.assigns[:file] do
+        %{file_uuid: uuid} -> uuid
+        _ -> nil
+      end
+
+    current =
+      Enum.find(socket.assigns[:viewer_annotations] || [], fn a ->
+        to_string(a.uuid) == to_string(annotation_uuid)
+      end)
+
+    content =
+      case is_binary(content) && String.trim(content) do
+        trimmed when is_binary(trimmed) and trimmed != "" -> trimmed
+        _ -> current && stored_title(current)
+      end
+
+    if is_binary(file_uuid) and stored_comment_count(current) == 0 do
+      create_anchor_comment(socket, file_uuid, annotation_uuid, content)
+    else
+      :ok
     end
   end
 
@@ -662,6 +756,16 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   def seed_label_comment?(wire, current) do
     is_binary(wire_title(wire)) and is_nil(current && stored_title(current)) and
       stored_comment_count(current) == 0
+  end
+
+  # The kinds whose first label opens the composer for a body instead of
+  # seeding silently — the label-bearing tools an admin annotates WITH.
+  # Text stays silent: a text shape usually IS its whole message.
+  @label_composer_kinds ~w(callout dimension)
+
+  @doc false
+  def divert_label_to_composer?(wire, current) do
+    wire["kind"] in @label_composer_kinds and seed_label_comment?(wire, current)
   end
 
   defp stored_comment_count(%{metadata: %{"comment_count" => count}}) when is_integer(count),
@@ -984,7 +1088,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
     socket =
       socket
-      |> assign(:composing_annotation_uuid, nil)
+      |> clear_composer()
       |> assign(:viewer_annotations, fresh)
       |> rebuild_viewer_canvas(fresh)
       |> put_flash(:info, gettext("Annotation saved"))
@@ -1118,7 +1222,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # which sync_annotations picks up to delete the DB row + cascade
   # the comment hard-delete.
   defp rollback_annotation_compose(socket, annotation_uuid) do
-    socket = assign(socket, :composing_annotation_uuid, nil)
+    socket = clear_composer(socket)
 
     case {annotation_uuid, socket.assigns[:file]} do
       {uuid, %{file_uuid: file_uuid}}
@@ -1131,6 +1235,50 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       _ ->
         socket
     end
+  end
+
+  # Closing the label-first composer without a post: the annotation and
+  # its label stay (they were committed before the composer opened), the
+  # label is seeded as the anchor comment, and the reload/patch mirrors
+  # `finalize_annotation_compose/3` — minus the title write, which would
+  # null the label on cancel.
+  defp close_label_compose(socket, annotation_uuid) do
+    _ = seed_annotation_comment(socket, annotation_uuid, nil)
+    refresh_file_comments(socket)
+
+    file_uuid =
+      case socket.assigns[:file] do
+        %{file_uuid: uuid} -> uuid
+        _ -> nil
+      end
+
+    fresh = if file_uuid, do: load_annotations_for(file_uuid), else: []
+
+    socket =
+      socket
+      |> clear_composer()
+      |> assign(:viewer_annotations, fresh)
+      |> rebuild_viewer_canvas(fresh)
+
+    case file_uuid &&
+           Enum.find(fresh, fn a -> to_string(a.uuid) == to_string(annotation_uuid) end) do
+      %{} = ann ->
+        Phoenix.LiveView.push_event(socket, "etcher:patch-shape", %{
+          fresco_id: "media-zoom-" <> file_uuid,
+          uuid: ann.uuid,
+          metadata: ann.metadata
+        })
+
+      _ ->
+        socket
+    end
+  end
+
+  defp clear_composer(socket) do
+    socket
+    |> assign(:composing_annotation_uuid, nil)
+    |> assign(:composing_origin, nil)
+    |> assign(:composing_prefill_title, nil)
   end
 
   # Poke the file's CommentsComponent to reload after server-side
