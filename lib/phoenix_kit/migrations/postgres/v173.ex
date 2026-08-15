@@ -180,10 +180,12 @@ defmodule PhoenixKit.Migrations.Postgres.V173 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_item_attribute_groups CASCADE")
-    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_attribute_values CASCADE")
-    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_attributes CASCADE")
-    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_attribute_groups CASCADE")
+    # Plain drops in dependency order — CASCADE could silently take out
+    # FKs or views a parent application hung off these tables later.
+    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_item_attribute_groups")
+    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_attribute_values")
+    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_attributes")
+    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_attribute_groups")
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '172'")
   end
