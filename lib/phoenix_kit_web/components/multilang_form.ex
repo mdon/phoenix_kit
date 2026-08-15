@@ -587,18 +587,22 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
     * `language_tabs` — list of tab maps from `PhoenixKit.Utils.Multilang.build_language_tabs/0`
     * `current_lang` — the currently selected language code
     * `compact` — force compact mode (short codes). Default: nil (auto)
-    * `show_header` — show the "Content Language" header. Default: true
+    * `show_header` — show the "Content Language" header row (title +
+      info tooltip + "Primary: …" label). Default: **false** — removed as
+      a deliberate product call (2026-08-15): the tab strip itself says
+      "languages", and the primary language is already marked by the star
+      on its tab, so the row was redundant chrome that pushed the actual
+      fields down. The attr remains as an opt-in escape hatch.
     * `show_info` — show an info tooltip next to the header. Default:
-      true. The tooltip surface explains the primary-language /
-      fallback semantics on hover; requires `show_header: true` to
-      have an anchor element.
+      false (it anchors inside the header, so it follows the same call);
+      requires `show_header: true` to have an anchor element.
   """
   attr :multilang_enabled, :boolean, required: true
   attr :language_tabs, :list, required: true
   attr :current_lang, :string, required: true
   attr :compact, :boolean, default: nil
-  attr :show_header, :boolean, default: true
-  attr :show_info, :boolean, default: true
+  attr :show_header, :boolean, default: false
+  attr :show_info, :boolean, default: false
   attr :class, :string, default: "card-body pb-0"
 
   def multilang_tabs(assigns) do
