@@ -2772,6 +2772,42 @@ if (typeof window.Chart === "undefined") {
     },
   };
 
+  // ---------------------------------------------------------------------------
+  // EtcherTooltipActions
+  //
+  // Routes Etcher's `etcher:tooltip-action` CustomEvent (a tooltip button
+  // press — the tooltip swallows raw clicks, so Etcher 0.13 re-dispatches
+  // them on the layer host, bubbling). Sits on the viewer column that wraps
+  // the canvas + layer:
+  //   pk-reply → pushEventTo the owning LiveComponent ("annotation_reply"),
+  //              which ensures the shape's master comment and opens the
+  //              body-only reply popup.
+  //   pk-edit  → pure client-side: layer.editLabel(uuid) opens Etcher's
+  //              inline label editor, same as double-clicking the shape.
+  // ---------------------------------------------------------------------------
+  window.PhoenixKitHooks.EtcherTooltipActions = {
+    mounted() {
+      var self = this;
+      this._onTooltipAction = function(e) {
+        var d = (e && e.detail) || {};
+        if (!d.uuid) return;
+        if (d.action === "pk-reply") {
+          self.pushEventTo(self.el, "annotation_reply", { uuid: d.uuid });
+        } else if (d.action === "pk-edit") {
+          var layer = window.Etcher && window.Etcher.layerFor &&
+                      window.Etcher.layerFor(d.fresco_id);
+          if (layer && typeof layer.editLabel === "function") layer.editLabel(d.uuid);
+        }
+      };
+      this.el.addEventListener("etcher:tooltip-action", this._onTooltipAction);
+    },
+    destroyed() {
+      if (this._onTooltipAction) {
+        this.el.removeEventListener("etcher:tooltip-action", this._onTooltipAction);
+      }
+    }
+  };
+
   window.PhoenixKitHooks.AnnotationComposerPosition = {
     mounted() {
       this._reposition = () => this.reposition();
@@ -4913,8 +4949,15 @@ if (typeof window.Chart === "undefined") {
       return pkEscape(m.title || m.comment_author || pkCapitalize(shape.kind));
     },
 
-    // Footer → "May 12, 2026 · 3 comments". Date and count are both
-    // optional; if neither is set the row is omitted entirely.
+    // Footer → "May 12, 2026 · 3 comments", plus the Reply / Edit action
+    // buttons that drive the annotation-discussion flow. The buttons only
+    // render on surfaces that hydrate PhoenixKit's comment contract
+    // (`comment_count` present — the media viewer); boards shapes carry no
+    // comment metadata and keep the plain tooltip. Etcher re-dispatches
+    // their clicks as `etcher:tooltip-action` (the tooltip swallows raw
+    // clicks), which the EtcherTooltipActions hook routes: Reply to the
+    // viewer LiveComponent, Edit straight into Etcher's label editor.
+    // Reply works on anyone's shape; Edit respects readonly.
     footer: function(shape) {
       var m = shape.metadata || {};
       var parts = [];
@@ -4923,7 +4966,25 @@ if (typeof window.Chart === "undefined") {
       if (count > 0) {
         parts.push(count + " " + (count === 1 ? "comment" : "comments"));
       }
-      return parts.length ? parts.join(" · ") : null;
+
+      var btnStyle =
+        "background:none;border:none;padding:0;margin-left:10px;cursor:pointer;" +
+        "font:inherit;color:#93c5fd;text-decoration:underline";
+      var actions = "";
+      if (shape.uuid && m.comment_count != null) {
+        actions +=
+          '<button type="button" data-etcher-action="pk-reply" style="' + btnStyle +
+          '">Reply</button>';
+        if (!shape.readonly) {
+          actions +=
+            '<button type="button" data-etcher-action="pk-edit" style="' + btnStyle +
+            '">Edit</button>';
+        }
+      }
+
+      var meta = parts.length ? parts.join(" · ") : "";
+      if (!meta && !actions) return null;
+      return meta + actions;
     },
 
     // Body → optional thumbnail (image or paperclip) + truncated
