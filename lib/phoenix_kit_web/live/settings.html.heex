@@ -630,6 +630,11 @@
     id="settings-media-selector"
     show={@show_media_selector}
     mode={:single}
+    title={
+      if @media_selector_target == "site_icon",
+        do: gettext("Select Site Icon"),
+        else: gettext("Select Logo")
+    }
     selected_uuids={[]}
     phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
   />

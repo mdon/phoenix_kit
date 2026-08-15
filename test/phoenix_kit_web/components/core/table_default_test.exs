@@ -274,11 +274,12 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
         """)
 
       assert result =~ "<tr"
-      # `group/row` is what makes `<.drag_handle_cell>`'s opacity-0 +
-      # group-hover/row:opacity-100 reveal-on-hover work. Named (not bare
+      # `group/row` drives `group-hover/row:*` reveals keyed to row hover —
+      # the row-menu ⋮ icon still relies on it (the drag handle no longer
+      # does; it is always visible as of 2026-08-14). Named (not bare
       # `group`) so it doesn't clobber unnamed `group-hover:` utilities a
-      # consumer nests inside a cell. Removing it would silently kill the
-      # drag-handle UX.
+      # consumer nests inside a cell. Removing it would silently kill those
+      # hover reveals.
       assert result =~ "group/row"
     end
 
@@ -315,7 +316,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
   # ── drag_handle_cell/1 + drag_handle_header_cell/1 ─────────────────
 
   describe "drag_handle_cell/1" do
-    test "renders td with pk-drag-handle + group-hover hide-until-hover classes" do
+    test "renders td with pk-drag-handle classes, always visible" do
       assigns = %{}
 
       result =
@@ -327,10 +328,11 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
       # SortableJS hook reads this selector for the drag handle.
       assert result =~ "pk-drag-handle"
       assert result =~ "cursor-grab"
-      # Hide-until-hover: parent row has `group/row`, this cell has
-      # `opacity-0 group-hover/row:opacity-100`.
-      assert result =~ "opacity-0"
-      assert result =~ "group-hover/row:opacity-100"
+      # Always visible (deliberate product call, 2026-08-14): an affordance
+      # you cannot see is one nobody discovers. The old hide-until-hover
+      # classes must NOT come back.
+      refute result =~ "opacity-0"
+      refute result =~ "group-hover/row:opacity-100"
       # Default heroicon for the handle.
       assert result =~ "hero-bars-3"
     end

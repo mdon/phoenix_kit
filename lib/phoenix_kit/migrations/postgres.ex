@@ -7,7 +7,20 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V172 - SEO module renamed to Crawlers ⚡ LATEST
+  ### V173 - Catalogue attribute groups ⚡ LATEST
+
+  Reusable, translatable attribute groups for the `phoenix_kit_catalogue`
+  module: a group ("Idea doors") owns attributes ("Color", "Trim"), each
+  attribute owns ordered values ("White", "Oak") with an explicit default,
+  and items link to a group through an assignment table (one group per
+  item enforced by a droppable unique index, so multi-group later is not
+  a data migration). Groups referenced by items can only be archived, not
+  deleted (RESTRICT FKs throughout; the module deletes unreferenced draft
+  groups via an explicit transactional cascade). Names and values carry
+  the module's per-language JSONB `data` translations with stable slug
+  keys as durable identity.
+
+  ### V172 - SEO module renamed to Crawlers
 
   The built-in SEO module becomes Crawlers: everything it held was bot
   policy (the noindex directive, crawler guidance, and now per-bot-group
@@ -535,7 +548,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 172
+  @current_version 173
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

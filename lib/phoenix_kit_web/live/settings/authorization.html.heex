@@ -696,6 +696,11 @@
     id="authorization-media-selector"
     show={@show_media_selector}
     mode={:single}
+    title={
+      if @media_selection_target == :background,
+        do: gettext("Select Background Image"),
+        else: gettext("Select Logo")
+    }
     selected_uuids={[]}
     phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
   />

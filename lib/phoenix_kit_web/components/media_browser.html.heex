@@ -169,6 +169,29 @@
                             {entry.progress}%
                           </span>
                         </div>
+                        <.upload_entry_stats entry={entry} />
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+
+              <%!-- Files handed off to the server: the transfer entry is
+                   already consumed, but the store/variant work is still
+                   running in this component's drain queue. Without these
+                   rows the file simply vanishes until the batch flash. --%>
+              <%= if processing_upload_entries(assigns) != [] do %>
+                <div class="space-y-2 mb-4">
+                  <%= for entry <- processing_upload_entries(assigns) do %>
+                    <div class="flex items-center gap-3 p-3 border border-base-300 rounded-lg bg-base-100">
+                      <span class="loading loading-spinner loading-xs text-primary"></span>
+                      <div class="flex-1 min-w-0">
+                        <p class="font-medium text-sm truncate">{entry.client_name}</p>
+                        <p class="text-xs text-base-content/60 tabular-nums">
+                          {Format.bytes(entry.client_size, base: 1000, decimals: 2)} · {gettext(
+                            "Processing on server…"
+                          )}
+                        </p>
                       </div>
                     </div>
                   <% end %>
@@ -2440,6 +2463,12 @@
       show={@selecting_cover}
       mode={:single}
       file_type_filter={:image}
+      lock_file_type
+      title={
+        if @image_picker_target == "logo",
+          do: gettext("Select Logo"),
+          else: gettext("Select Cover Image")
+      }
       scope_folder_id={@editing_folder_header}
       selected_uuids={[]}
       phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
