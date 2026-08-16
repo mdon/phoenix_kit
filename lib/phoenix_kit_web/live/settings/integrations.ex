@@ -15,6 +15,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   import PhoenixKitWeb.Components.Core.RowLink, only: [row_link: 1]
 
   alias PhoenixKit.Integrations
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.Events
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Settings
@@ -30,6 +31,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
       |> assign(:page_title, gettext("Integrations"))
       |> assign(:project_title, project_title)
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
+      |> assign(:encryption_status, Encryption.status())
       |> load_connections()
       |> assign(:validating, nil)
 
@@ -174,4 +176,39 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   defp integration_status_badge("disconnected"), do: {"badge-ghost", gettext("Not connected")}
   defp integration_status_badge("error"), do: {"badge-error", gettext("Error")}
   defp integration_status_badge(_), do: {"badge-ghost", gettext("Not configured")}
+
+  # Deliberately no clause for `:dedicated` — the template guards rendering
+  # on `@encryption_status != :dedicated`, so the healthy case never reaches
+  # these.
+  defp encryption_status_title(:legacy_secret_key_base),
+    do: gettext("Credentials are protected only by a shared application secret")
+
+  defp encryption_status_title(:disabled_no_key),
+    do: gettext("Credentials are stored in plain text")
+
+  defp encryption_status_title(:disabled_explicit),
+    do: gettext("Encryption is turned off for integration credentials")
+
+  defp encryption_status_detail(:legacy_secret_key_base) do
+    gettext(
+      "No dedicated encryption key is configured, so credentials below fall back to a key " <>
+        "derived from secret_key_base — a secret shared with session signing and CSRF tokens. " <>
+        "Anyone who can read secret_key_base can decrypt every credential here. Run " <>
+        "mix phoenix_kit.integrations.rotate_key to fix this."
+    )
+  end
+
+  defp encryption_status_detail(:disabled_no_key) do
+    gettext(
+      "No encryption key could be resolved. New and existing credentials below are stored as " <>
+        "plain text in the database."
+    )
+  end
+
+  defp encryption_status_detail(:disabled_explicit) do
+    gettext(
+      "integration_encryption_enabled is set to false. Credentials below are stored as plain " <>
+        "text in the database."
+    )
+  end
 end

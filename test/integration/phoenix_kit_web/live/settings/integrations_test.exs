@@ -17,6 +17,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
   use PhoenixKitWeb.ConnCase, async: true
 
   alias PhoenixKit.Integrations
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
@@ -59,6 +60,22 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
     test "renders the page title", %{conn: conn} do
       {:ok, _view, html} = live(conn, @list_path)
       assert html =~ "Integrations"
+    end
+
+    test "shows the encryption warning banner when only the legacy key is active",
+         %{conn: conn} do
+      # The test suite's config/test.exs stamps a flat secret_key_base but no
+      # dedicated integrations_encryption_key, so this page renders under the
+      # SAME "legacy fallback" tier as a real, never-configured production
+      # install — proving the banner wiring (assign → template) actually
+      # fires, not just that `Encryption.status/0` returns the right atom in
+      # isolation (already covered by encryption_test.exs).
+      refute Encryption.status() == :dedicated
+
+      {:ok, _view, html} = live(conn, @list_path)
+
+      assert html =~ "alert-warning"
+      assert html =~ "mix phoenix_kit.integrations.rotate_key"
     end
 
     test "shows name verbatim for default-named connections (no special casing)",
