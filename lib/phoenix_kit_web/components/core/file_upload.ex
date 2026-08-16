@@ -28,7 +28,11 @@ defmodule PhoenixKitWeb.Components.Core.FileUpload do
   alias PhoenixKit.Utils.Format
 
   attr :upload, :any, required: true
-  attr :label, :string, default: nil, doc: "Button label; defaults to a translated \"Upload Files\""
+
+  attr :label, :string,
+    default: nil,
+    doc: "Button label; defaults to a translated \"Upload Files\""
+
   attr :icon, :string, default: "hero-cloud-arrow-up"
   attr :accept_description, :string, default: nil
   attr :max_size_description, :string, default: nil
@@ -164,7 +168,9 @@ defmodule PhoenixKitWeb.Components.Core.FileUpload do
         <div class="flex flex-col items-center gap-2">
           <.icon name={@icon} class="w-8 h-8 text-primary" />
           <div>
-            <p class="font-semibold text-base-content">{gettext("Drag files here or click to browse")}</p>
+            <p class="font-semibold text-base-content">
+              {gettext("Drag files here or click to browse")}
+            </p>
             <p class="text-sm text-base-content/70 mt-1">
               <%= if @accept_description do %>
                 {@accept_description}
