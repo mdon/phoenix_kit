@@ -298,6 +298,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
         # credo:disable-for-next-line Credo.Check.Design.AliasUsage
         PhoenixKitWeb.CommentsForwarding.forward_leaf_changed(msg, socket)
       end
+
+      # The embedded CommentsComponent (media viewer sidebar) reports
+      # create/delete to the HOST process — LiveComponents can't receive
+      # handle_info, so the message lands here. The component has already
+      # refreshed its own thread; the host just must not crash. Without
+      # this clause, deleting a comment killed the LV (FunctionClauseError
+      # → remount), which read as "the page refreshed and the media modal
+      # closed".
+      def handle_info({:comments_updated, _}, socket), do: {:noreply, socket}
     end
   end
 end

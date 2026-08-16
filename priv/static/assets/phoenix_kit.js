@@ -2797,6 +2797,18 @@ if (typeof window.Chart === "undefined") {
           var layer = window.Etcher && window.Etcher.layerFor &&
                       window.Etcher.layerFor(d.fresco_id);
           if (layer && typeof layer.editLabel === "function") layer.editLabel(d.uuid);
+        } else if (d.action === "pk-view") {
+          // Take the user to the shape's thread: the sidebar comment cards
+          // carry data-annotation-uuid (CommentsComponent), same document.
+          var card = document.querySelector(
+            '[data-annotation-uuid="' + d.uuid + '"]'
+          );
+          if (card) {
+            card.scrollIntoView({ behavior: "smooth", block: "center" });
+            card.style.transition = "box-shadow 200ms ease";
+            card.style.boxShadow = "0 0 0 2px #3b82f6";
+            setTimeout(function() { card.style.boxShadow = ""; }, 1600);
+          }
         }
       };
       this.el.addEventListener("etcher:tooltip-action", this._onTooltipAction);
@@ -4949,15 +4961,10 @@ if (typeof window.Chart === "undefined") {
       return pkEscape(m.title || m.comment_author || pkCapitalize(shape.kind));
     },
 
-    // Footer → "May 12, 2026 · 3 comments", plus the Reply / Edit action
-    // buttons that drive the annotation-discussion flow. The buttons only
-    // render on surfaces that hydrate PhoenixKit's comment contract
-    // (`comment_count` present — the media viewer); boards shapes carry no
-    // comment metadata and keep the plain tooltip. Etcher re-dispatches
-    // their clicks as `etcher:tooltip-action` (the tooltip swallows raw
-    // clicks), which the EtcherTooltipActions hook routes: Reply to the
-    // viewer LiveComponent, Edit straight into Etcher's label editor.
-    // Reply works on anyone's shape; Edit respects readonly.
+    // Footer → "May 12, 2026 · 3 comments". Date and count are both
+    // optional; if neither is set the row is omitted entirely. (The
+    // Reply / Edit / View actions are HEADER buttons — see
+    // `window.Etcher.tooltipActions` below.)
     footer: function(shape) {
       var m = shape.metadata || {};
       var parts = [];
@@ -4966,25 +4973,7 @@ if (typeof window.Chart === "undefined") {
       if (count > 0) {
         parts.push(count + " " + (count === 1 ? "comment" : "comments"));
       }
-
-      var btnStyle =
-        "background:none;border:none;padding:0;margin-left:10px;cursor:pointer;" +
-        "font:inherit;color:#93c5fd;text-decoration:underline";
-      var actions = "";
-      if (shape.uuid && m.comment_count != null) {
-        actions +=
-          '<button type="button" data-etcher-action="pk-reply" style="' + btnStyle +
-          '">Reply</button>';
-        if (!shape.readonly) {
-          actions +=
-            '<button type="button" data-etcher-action="pk-edit" style="' + btnStyle +
-            '">Edit</button>';
-        }
-      }
-
-      var meta = parts.length ? parts.join(" · ") : "";
-      if (!meta && !actions) return null;
-      return meta + actions;
+      return parts.length ? parts.join(" · ") : null;
     },
 
     // Body → optional thumbnail (image or paperclip) + truncated
@@ -5016,6 +5005,54 @@ if (typeof window.Chart === "undefined") {
       html += "</div></div>";
       return html;
     }
+  };
+
+  // ==========================================================================
+  // Etcher tooltip header actions — Reply / Edit / View
+  // ==========================================================================
+  //
+  // Real buttons on the tooltip's header row, next to Etcher's trash
+  // (Etcher 0.13's `window.Etcher.tooltipActions`). Only on surfaces that
+  // hydrate PhoenixKit's comment contract (`comment_count` present — the
+  // media viewer); boards shapes carry no comment metadata and keep the
+  // plain tooltip. Clicks re-dispatch as `etcher:tooltip-action`, routed by
+  // the EtcherTooltipActions hook below:
+  //   Reply — anyone, any persisted shape: opens the discussion flow.
+  //   Edit  — non-readonly shapes: Etcher's inline label editor.
+  //   View  — only when discussion exists: scrolls the sidebar to the
+  //           shape's comment thread and flashes it.
+  var pkTooltipIcons = {
+    reply:
+      '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"' +
+      ' stroke-width="1.8" stroke="currentColor" aria-hidden="true">' +
+      '<path stroke-linecap="round" stroke-linejoin="round"' +
+      ' d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.068.157 2.148.279 3.238.364.466.037.893.281 1.153.671L12 20.25l2.652-3.978c.26-.39.687-.634 1.153-.67 1.09-.086 2.17-.208 3.238-.365 1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z"/></svg>',
+    edit:
+      '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"' +
+      ' stroke-width="1.8" stroke="currentColor" aria-hidden="true">' +
+      '<path stroke-linecap="round" stroke-linejoin="round"' +
+      ' d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125"/></svg>',
+    view:
+      '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"' +
+      ' stroke-width="1.8" stroke="currentColor" aria-hidden="true">' +
+      '<path stroke-linecap="round" stroke-linejoin="round"' +
+      ' d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/>' +
+      '<path stroke-linecap="round" stroke-linejoin="round"' +
+      ' d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>'
+  };
+
+  window.Etcher.tooltipActions = function(shape) {
+    var m = shape.metadata || {};
+    if (!shape.uuid || m.comment_count == null) return [];
+
+    var actions = [{ action: "pk-reply", title: "Reply", icon: pkTooltipIcons.reply }];
+    if (!shape.readonly) {
+      actions.push({ action: "pk-edit", title: "Edit label", icon: pkTooltipIcons.edit });
+    }
+    if ((m.comment_count || 0) > 0) {
+      actions.push({ action: "pk-view", title: "View discussion", icon: pkTooltipIcons.view });
+    }
+    return actions;
   };
 
   // ---------------------------------------------------------------------------
