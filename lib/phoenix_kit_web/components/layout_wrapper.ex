@@ -421,14 +421,20 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   <div class="flex items-center gap-1 min-w-0">
                     <.link
                       href="/"
-                      class="font-bold text-base-content hover:opacity-80 transition-opacity hidden sm:inline truncate"
+                      class={[
+                        "font-bold text-base-content hover:opacity-80 transition-opacity truncate",
+                        (@page_title && "hidden lg:inline") || "hidden sm:inline"
+                      ]}
                     >
                       {@project_title}
                     </.link>
-                    <%!-- On mobile, when a page has a title, hide the "Admin
-                         Panel /" prefix and show just the page title — the full
-                         breadcrumb is too wide and overlaps the right-side theme
-                         / notifications controls.
+                    <%!-- Progressive collapse when a page has a title: below lg
+                         the site name + "Admin Panel" give way to a "…" that
+                         still links home (the burger appears at lg too, so this
+                         is where width runs out); below sm even the "…" and the
+                         section crumb go and just the page title remains — the
+                         full breadcrumb overlaps the right-side theme /
+                         notifications controls.
 
                          Dropped entirely for a visitor with no admin rights.
                          `/admin` is the landing EVERY authenticated user can
@@ -448,11 +454,19 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       :if={@show_admin_nav}
                       class={[
                         "font-bold text-base-content shrink-0",
-                        @page_title && "hidden sm:inline"
+                        @page_title && "hidden lg:inline"
                       ]}
                     >
                       {gettext("Admin Panel")}
                     </span>
+                    <.link
+                      :if={@page_title}
+                      href="/"
+                      title={@project_title}
+                      class="hidden sm:inline lg:hidden font-bold text-base-content/50 hover:text-base-content transition-opacity shrink-0"
+                    >
+                      …
+                    </.link>
                     <%!-- Current page breadcrumb: " / Page Title · subtitle".
                          Pushed in via page_title / page_subtitle so pages can
                          drop their own in-content header and reclaim the space. --%>
