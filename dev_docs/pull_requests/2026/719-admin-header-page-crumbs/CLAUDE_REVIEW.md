@@ -146,3 +146,5 @@ The attr was added; the moduledoc and `@doc` list were not.
 unused deps, format-check, credo --strict, dialyzer, JS tests.
 Targeted tests: `column_settings`, `layout_wrapper_admin_header`,
 `url_state`. All green.
+
+Ships as **2.8.0**.

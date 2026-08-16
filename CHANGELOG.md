@@ -1,3 +1,52 @@
+## 2.8.0 - 2026-08-16
+
+The admin header becomes a real breadcrumb for drill-down pages, and
+catalogue's live column editor lands in core as a reusable modal. UrlState
+stops leaking router path params into every patched query (#719).
+
+### Added
+
+- **`page_crumbs` on `app_layout`.** Extra `%{label, path | patch}` crumbs
+  between `page_section` and the page title for pages nested deeper than
+  one level. The last crumb stays visible below `sm`; earlier crumbs and
+  the section drop first, so a drilled page reads `… / parent / page`
+  instead of the bare title (#719).
+
+- **`Core.ColumnSettings`** (`<.column_settings_modal>`). Live
+  column-configuration modal: Shown list (SortableGrid drag-reorder,
+  remove) beside Available (click to add), Reset + Close, no Apply
+  step. Labels accept strings or 0-arity functions. The consumer owns
+  the catalog, selection, and persistence (#719).
+
+- **`table_row_menu_link` `patch` attr.** Same-LiveView navigation for
+  menus that drill via `push_patch` (#719).
+
+### Changed
+
+- **Admin header progressive collapse.** Below `lg` the site name and
+  "Admin Panel" give way to a home-linked `…`; below `sm` the trail
+  truncates from the left rather than collapsing to the page title
+  (#719).
+
+### Fixed
+
+- **UrlState extras come from the URI query string**, not LiveView's
+  merged params map. A `/:uuid` segment was being re-encoded into every
+  patched URL (`?q=oak` became `?q=oak&uuid=<uuid>`). `decode/2`'s spec
+  now admits `:not_mounted_at_router` (#719).
+
+- **ColumnSettings Shown list is actually sortable.** Rows use the
+  `sortable-item` class SortableGrid reads; a custom `.col-item` was
+  silently ignored. Drag starts on `.pk-drag-handle` only (post-merge
+  review of #719).
+
+- **`page_crumbs` accept `patch:`** for same-LiveView drill trails,
+  matching the row-menu attr the PR already added (post-merge review
+  of #719).
+
+- **`column_settings_modal` is imported** with the other list-UI
+  primitives (post-merge review of #719).
+
 ## 2.7.0 - 2026-08-15
 
 Catalogue gets reusable, translatable attribute groups; list tables grow a
