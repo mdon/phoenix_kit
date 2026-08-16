@@ -103,6 +103,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
     # A crumb without :path renders as plain text, not a link.
     assert html =~ "Unlinked"
     refute html =~ ~s(href="Unlinked")
+    # The LAST crumb survives below sm (trail truncates from the left);
+    # earlier crumbs collapse with the rest of the prefix.
+    assert html =~ "items-center gap-1.5 min-w-0 flex"
+    assert html =~ "hidden sm:flex shrink-0"
     # Order: section before crumbs before title — checked inside the top
     # bar's breadcrumb (anchored past "Admin Panel"; the drawer markup
     # earlier in the document also mentions the page title).
