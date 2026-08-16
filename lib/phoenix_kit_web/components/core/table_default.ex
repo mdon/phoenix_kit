@@ -95,12 +95,15 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
 
   ## Controlled view mode
 
-  By default the card/table toggle is driven entirely client-side (JS hook + localStorage).
-  Pass `view_mode="card"` or `view_mode="table"` to take control from the assigns side —
-  the component then renders ONLY that view (no JS toggle) and the toolbar buttons emit
-  `phx-click={view_event}` with `phx-value-mode="card"|"table"` so the consumer can drive
-  state via `push_patch` (URL-backed) or `assign`. Use this when the view choice must
-  survive across LV navigation or be part of the URL.
+  By default the card / comfortable / compact toggle is driven entirely
+  client-side (JS hook + localStorage; comfortable is the default when
+  nothing is stored). Pass `view_mode="card"`, `view_mode="comfy"`, or
+  `view_mode="table"` to take control from the assigns side — the
+  component then renders ONLY that view (no JS toggle) and the toolbar
+  buttons emit `phx-click={view_event}` with
+  `phx-value-mode="card"|"comfy"|"table"` so the consumer can drive
+  state via `push_patch` (URL-backed) or `assign`. Use this when the
+  view choice must survive across LV navigation or be part of the URL.
   """
   attr :id, :string, default: nil
   attr :class, :any, default: ""
@@ -313,12 +316,17 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
            In controlled mode, visibility is purely driven by @view_mode. --%>
       <div
         data-table-view=""
-        class={[
-          is_nil(@view_mode) && "hidden md:block",
-          @view_mode == "table" && "block",
-          @view_mode == "comfy" && "block pk-comfy",
-          @view_mode == "card" && "hidden"
-        ]}
+        class={
+          [
+            # `pk-comfy` on the uncontrolled branch matches the JS hook's
+            # default so first paint is comfortable, not a compact flash
+            # that jumps after localStorage is read.
+            is_nil(@view_mode) && "hidden md:block pk-comfy",
+            @view_mode == "table" && "block",
+            @view_mode == "comfy" && "block pk-comfy",
+            @view_mode == "card" && "hidden"
+          ]
+        }
       >
         <div class={@wrapper_class}>
           <%!-- The stacked-variant utilities react to the `pk-comfy` marker

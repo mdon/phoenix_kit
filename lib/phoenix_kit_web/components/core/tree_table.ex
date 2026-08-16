@@ -107,7 +107,9 @@ defmodule PhoenixKitWeb.Components.Core.TreeTable do
         </button>
         <span :if={!@expandable} class="w-5 shrink-0"></span>
         <.icon :if={@icon} name={@icon} class={@icon_class_resolved} />
-        {render_slot(@inner_block)}
+        <span class="min-w-0 truncate">
+          {render_slot(@inner_block)}
+        </span>
       </div>
     </td>
     """
