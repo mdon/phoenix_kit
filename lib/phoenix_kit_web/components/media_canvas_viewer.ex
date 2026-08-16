@@ -116,6 +116,15 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     {:ok, close_reply_compose(socket)}
   end
 
+  # Comment activity elsewhere in the LV (sidebar delete, another
+  # session's post relayed by the host) — reload annotations so the
+  # tooltip's comment_* fields and the on-shape badges match the table,
+  # and patch every in-DOM shape (the canvas is phx-update="ignore";
+  # patch-shape is the only road in).
+  def update(%{action: :refresh_annotations}, socket) do
+    {:ok, refresh_annotations(socket)}
+  end
+
   def update(%{action: :annotation_composer_cancelled}, socket) do
     # Nothing to roll back: shapes are never held hostage by the reply
     # popup. (If Reply had just lazily created the master comment, it
@@ -593,7 +602,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # counted). `comment_author` is deliberately absent: for markers it IS
   # stored metadata (the byline stamp), and dropping it on a marker drag
   # would erase who drew it.
-  @load_injected_meta_keys ~w(title comment_count comment_created_at comment_text
+  @load_injected_meta_keys ~w(title badge comment_count comment_created_at comment_text
                               comment_thumbnail_url comment_has_attachment)
 
   # Public (@doc false) with `persistable_attrs/2` so the unit suite can pin
@@ -734,6 +743,33 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   defp comments_installed? do
     Code.ensure_loaded?(PhoenixKitComments) and
       function_exported?(PhoenixKitComments, :create_comment, 4)
+  end
+
+  # Reload + rebuild + patch EVERY shape's metadata in place. Patching all
+  # (not a diff) is deliberate: metadata is cheap, N is small, and the one
+  # shape that changed is exactly the one we can't cheaply identify from a
+  # broadcast that names only the file.
+  defp refresh_annotations(socket) do
+    case socket.assigns[:file] do
+      %{file_uuid: file_uuid} ->
+        fresh = load_annotations_for(file_uuid)
+
+        socket =
+          socket
+          |> assign(:viewer_annotations, fresh)
+          |> rebuild_viewer_canvas(fresh)
+
+        Enum.reduce(fresh, socket, fn ann, acc ->
+          Phoenix.LiveView.push_event(acc, "etcher:patch-shape", %{
+            fresco_id: "media-zoom-" <> file_uuid,
+            uuid: ann.uuid,
+            metadata: ann.metadata
+          })
+        end)
+
+      _ ->
+        socket
+    end
   end
 
   defp wire_label_metadata(%{"metadata" => %{} = meta}),
@@ -948,9 +984,11 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
       # `badge` drives Etcher's on-shape count bubble (0.13): the number
       # of discussion entries, so a glance at the canvas shows which
-      # shapes people are talking about. Zero omits the key — Etcher
-      # removes the bubble for absent/0.
-      badge_meta = if count > 0, do: %{"badge" => count}, else: %{}
+      # shapes people are talking about. ALWAYS present, zero included:
+      # `patchShape` merges metadata, so an omitted key would leave a
+      # stale bubble on the shape after its last comment is deleted —
+      # Etcher hides the bubble for 0 itself.
+      badge_meta = %{"badge" => count}
 
       %{
         uuid: a.uuid,

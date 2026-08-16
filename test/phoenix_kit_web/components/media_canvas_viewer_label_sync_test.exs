@@ -104,6 +104,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerLabelSyncTest do
             "title_color" => "#123456",
             "comment_count" => 7,
             "comment_text" => "spoofed",
+            "badge" => 7,
             "rogue_key" => true
           }
         })

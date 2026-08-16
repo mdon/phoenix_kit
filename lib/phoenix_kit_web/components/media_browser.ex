@@ -142,6 +142,26 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Lifecycle
   # ──────────────────────────────────────────────────────────────
 
+  # Comment activity on a file (relayed by the Embed macro from the
+  # `{:comments_updated, ...}` process message). When the open viewer shows
+  # that file, poke its canvas component to reload annotations — the
+  # tooltip's "N comments" and the on-shape badge are derived from the
+  # comment table and would otherwise stay stale until the next open.
+  def update(%{file_comments_changed: %{resource_uuid: file_uuid}}, socket) do
+    case socket.assigns[:viewer_file] do
+      %{file_uuid: ^file_uuid} = f ->
+        send_update(PhoenixKitWeb.Components.MediaCanvasViewer,
+          id: viewer_component_id(f),
+          action: :refresh_annotations
+        )
+
+      _ ->
+        :ok
+    end
+
+    {:ok, socket}
+  end
+
   def update(assigns, socket) do
     socket =
       socket
@@ -733,6 +753,24 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> Enum.each(&send_update(__MODULE__, [{:id, &1} | update]))
 
     socket
+  end
+
+  @doc false
+  # Called by the Embed macro's `{:comments_updated, ...}` handle_info
+  # clause (the comments component reports to the host PROCESS; components
+  # can't receive handle_info). Fans the payload out to every registered
+  # browser so an open viewer refreshes its counts/badges.
+  def notify_file_comments_changed(socket, payload) do
+    {:noreply, forward_to_browsers(socket, file_comments_changed: payload)}
+  end
+
+  @doc false
+  # The canvas viewer's component id — single source for the heex render
+  # and the refresh poke above, which must address the SAME component
+  # instance. Encodes the dims + variant count so a processing-completion
+  # refresh remounts with the real canvas (see the heex comment).
+  def viewer_component_id(f) do
+    "media-canvas-viewer-#{f.file_uuid}-#{f.width || 0}x#{f.height || 0}-#{map_size(f.urls)}"
   end
 
   @doc false
