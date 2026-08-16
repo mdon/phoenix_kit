@@ -12801,3 +12801,12 @@ msgstr "Téléversez le premier via la zone ci-dessus"
 #, elixir-autogen, elixir-format
 msgid "left"
 msgstr "restant"
+
+msgid "Upload Files"
+msgstr "Téléverser des fichiers"
+
+msgid "Drop your files to upload"
+msgstr "Déposez vos fichiers à téléverser"
+
+msgid "Maximum file size: %{size}"
+msgstr "Taille maximale du fichier : %{size}"

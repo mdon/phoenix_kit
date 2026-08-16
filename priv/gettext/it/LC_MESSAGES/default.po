@@ -12801,3 +12801,12 @@ msgstr "Carica il primo usando l'area qui sopra"
 #, elixir-autogen, elixir-format
 msgid "left"
 msgstr "rimanenti"
+
+msgid "Upload Files"
+msgstr "Carica file"
+
+msgid "Drop your files to upload"
+msgstr "Trascina i file da caricare"
+
+msgid "Maximum file size: %{size}"
+msgstr "Dimensione massima del file: %{size}"

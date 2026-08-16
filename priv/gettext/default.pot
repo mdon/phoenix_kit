@@ -12800,3 +12800,12 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "left"
 msgstr ""
+
+msgid "Upload Files"
+msgstr ""
+
+msgid "Drop your files to upload"
+msgstr ""
+
+msgid "Maximum file size: %{size}"
+msgstr ""

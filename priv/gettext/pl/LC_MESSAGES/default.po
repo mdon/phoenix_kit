@@ -12829,3 +12829,12 @@ msgstr "Prześlij pierwszy plik w polu powyżej"
 #, elixir-autogen, elixir-format
 msgid "left"
 msgstr "pozostało"
+
+msgid "Upload Files"
+msgstr "Prześlij pliki"
+
+msgid "Drop your files to upload"
+msgstr "Upuść pliki, aby przesłać"
+
+msgid "Maximum file size: %{size}"
+msgstr "Maksymalny rozmiar pliku: %{size}"
