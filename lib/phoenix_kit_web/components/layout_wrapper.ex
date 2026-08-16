@@ -94,6 +94,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     doc:
       "Prefixed path (via `PhoenixKit.Utils.Routes.path/1`) the `page_section` crumb links to. Renders as plain text when omitted."
 
+  attr :page_crumbs, :list,
+    default: [],
+    doc:
+      "Extra breadcrumb crumbs rendered between `page_section` and `page_title`, for pages nested deeper than one level (e.g. catalogue / category drill trails): `[%{label: \"Plumbing\", path: \"/…\"}]`. `path` is optional — omitted renders plain text. Collapses along with the rest of the breadcrumb prefix on mobile."
+
   attr :page_action, :map,
     default: nil,
     doc:
@@ -300,6 +305,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       page_subtitle: assigns[:page_subtitle],
       page_section: assigns[:page_section],
       page_section_path: assigns[:page_section_path],
+      page_crumbs: assigns[:page_crumbs] || [],
       page_action: assigns[:page_action],
       # The slot travels here as an ordinary key; `assigns[:action]` is
       # `nil` for every caller that does not pass one, and the render
@@ -421,14 +427,20 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   <div class="flex items-center gap-1 min-w-0">
                     <.link
                       href="/"
-                      class="font-bold text-base-content hover:opacity-80 transition-opacity hidden sm:inline truncate"
+                      class={[
+                        "font-bold text-base-content hover:opacity-80 transition-opacity truncate",
+                        (@page_title && "hidden lg:inline") || "hidden sm:inline"
+                      ]}
                     >
                       {@project_title}
                     </.link>
-                    <%!-- On mobile, when a page has a title, hide the "Admin
-                         Panel /" prefix and show just the page title — the full
-                         breadcrumb is too wide and overlaps the right-side theme
-                         / notifications controls.
+                    <%!-- Progressive collapse when a page has a title, dropping
+                         from the LEFT so the tail of the trail survives: below
+                         lg the site name + "Admin Panel" give way to a "…" that
+                         still links home (the burger appears at lg too, so this
+                         is where width runs out); below sm the section and all
+                         but the LAST page_crumb go too, leaving
+                         "… / parent / page".
 
                          Dropped entirely for a visitor with no admin rights.
                          `/admin` is the landing EVERY authenticated user can
@@ -448,16 +460,24 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       :if={@show_admin_nav}
                       class={[
                         "font-bold text-base-content shrink-0",
-                        @page_title && "hidden sm:inline"
+                        @page_title && "hidden lg:inline"
                       ]}
                     >
                       {gettext("Admin Panel")}
                     </span>
+                    <.link
+                      :if={@page_title}
+                      href="/"
+                      title={@project_title}
+                      class="lg:hidden font-bold text-base-content/50 hover:text-base-content transition-opacity shrink-0"
+                    >
+                      …
+                    </.link>
                     <%!-- Current page breadcrumb: " / Page Title · subtitle".
                          Pushed in via page_title / page_subtitle so pages can
                          drop their own in-content header and reclaim the space. --%>
                     <span :if={@page_title} class="flex items-center gap-1.5 min-w-0">
-                      <span class="text-base-content/30 shrink-0 hidden sm:inline">/</span>
+                      <span class="text-base-content/30 shrink-0">/</span>
                       <span
                         :if={@page_section}
                         class="hidden sm:flex items-center gap-1.5 shrink-0"
@@ -471,6 +491,32 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         </.link>
                         <span :if={!@page_section_path} class="font-semibold text-base-content/60">
                           {@page_section}
+                        </span>
+                        <span class="text-base-content/30">/</span>
+                      </span>
+                      <%!-- Deeper crumbs (page_crumbs): between the section and
+                           the page title, for drill-down pages. The LAST crumb
+                           (the page's parent) stays visible below sm — the
+                           trail truncates from the left, not all at once. --%>
+                      <span
+                        :for={{crumb, idx} <- Enum.with_index(@page_crumbs)}
+                        class={[
+                          "items-center gap-1.5 min-w-0",
+                          if(idx == length(@page_crumbs) - 1,
+                            do: "flex",
+                            else: "hidden sm:flex shrink-0"
+                          )
+                        ]}
+                      >
+                        <.link
+                          :if={crumb[:path]}
+                          navigate={crumb[:path]}
+                          class="font-semibold text-base-content/60 hover:text-base-content transition-opacity truncate"
+                        >
+                          {crumb.label}
+                        </.link>
+                        <span :if={!crumb[:path]} class="font-semibold text-base-content/60 truncate">
+                          {crumb.label}
                         </span>
                         <span class="text-base-content/30">/</span>
                       </span>
