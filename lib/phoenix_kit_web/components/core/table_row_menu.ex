@@ -166,6 +166,7 @@ defmodule PhoenixKitWeb.Components.Core.TableRowMenu do
     does; a `phx-click` cannot, because it never touches the session cookie.
   """
   attr :navigate, :string, default: nil
+  attr :patch, :string, default: nil, doc: "push_patch destination (same-LiveView navigation)"
   attr :href, :string, default: nil
   attr :icon, :string, default: nil
   attr :label, :string, required: true
@@ -177,6 +178,7 @@ defmodule PhoenixKitWeb.Components.Core.TableRowMenu do
     <li role="none">
       <.link
         navigate={@navigate}
+        patch={@patch}
         href={@href}
         role="menuitem"
         class={[
