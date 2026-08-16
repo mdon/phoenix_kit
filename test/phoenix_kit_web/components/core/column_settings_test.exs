@@ -3,10 +3,12 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettingsTest do
   Render tests for `<.column_settings_modal>`. Pins:
 
   - shown list renders selected ids (in order) with drag handles + remove
+  - Shown rows use `sortable-item` + `data-sortable-handle` (SortableGrid contract)
   - available list renders unselected columns as add buttons
   - selected ids missing from the catalog are ignored (unmanaged columns)
   - labels accept strings and 0-arity functions
   - footer is Reset + Close (live editor — no Apply)
+  - `target` is forwarded to clicks and the SortableGrid hook
   - show={false} renders nothing
   """
   use ExUnit.Case, async: true
@@ -37,6 +39,14 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettingsTest do
     assert html =~ "pk-drag-handle"
     assert html =~ ~s(phx-click="remove_column")
     assert html =~ "Price (fn)"
+    # SortableGrid hardcodes `.sortable-item` for draggable / ordered_ids;
+    # a custom class (the original `.col-item`) is silently ignored.
+    assert html =~ ~s(phx-hook="SortableGrid")
+    assert html =~ ~s(data-sortable-event="reorder_columns")
+    assert html =~ ~s(data-sortable-items=".sortable-item")
+    assert html =~ ~s(data-sortable-handle=".pk-drag-handle")
+    assert html =~ ~s(class="sortable-item)
+    refute html =~ "col-item"
   end
 
   test "unselected columns render as add buttons" do
@@ -56,6 +66,23 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettingsTest do
     assert html =~ ~s(phx-click="reset_columns")
     assert html =~ ~s(phx-click="hide_column_modal")
     refute html =~ "apply_columns"
+  end
+
+  test "target is forwarded onto clicks and the SortableGrid hook" do
+    assigns = %{columns: columns()}
+
+    html =
+      rendered_to_string(~H"""
+      <.column_settings_modal
+        show={true}
+        columns={@columns}
+        selected={["sku"]}
+        target="#pk-columns-lc"
+      />
+      """)
+
+    assert html =~ ~s(phx-target="#pk-columns-lc")
+    assert html =~ ~s(data-sortable-target="#pk-columns-lc")
   end
 
   test "hidden when show is false" do

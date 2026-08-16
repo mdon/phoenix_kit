@@ -15,7 +15,7 @@ defmodule PhoenixKitWeb.Components.Core.TableRowMenu do
   ## Components
 
   - `table_row_menu/1` — wrapper with trigger button, accepts items as inner_block
-  - `table_row_menu_link/1` — navigation item (`navigate` or `href`)
+  - `table_row_menu_link/1` — navigation item (`navigate`, `patch`, or `href`)
   - `table_row_menu_button/1` — action item (`phx-click` and other events)
   - `table_row_menu_divider/1` — visual separator between groups
 
@@ -152,6 +152,7 @@ defmodule PhoenixKitWeb.Components.Core.TableRowMenu do
   ## Attributes
 
   * `navigate` - LiveView navigate path (optional)
+  * `patch` - LiveView patch path for same-LiveView navigation (optional)
   * `href` - Regular href (optional)
   * `icon` - Heroicon name, e.g. "hero-eye" (optional)
   * `label` - Item label text (required)

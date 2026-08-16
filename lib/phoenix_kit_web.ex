@@ -147,6 +147,7 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.BulkSelect
       import PhoenixKitWeb.Components.Core.Sortable
       import PhoenixKitWeb.Components.Core.ReorderModal
+      import PhoenixKitWeb.Components.Core.ColumnSettings
       import PhoenixKitWeb.Components.Core.OAuthUtils
       import PhoenixKitWeb.Components.Core.OAuthProvider
       import PhoenixKitWeb.Components.Core.OAuthCheckbox

@@ -97,7 +97,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :page_crumbs, :list,
     default: [],
     doc:
-      "Extra breadcrumb crumbs rendered between `page_section` and `page_title`, for pages nested deeper than one level (e.g. catalogue / category drill trails): `[%{label: \"Plumbing\", path: \"/…\"}]`. `path` is optional — omitted renders plain text. Collapses along with the rest of the breadcrumb prefix on mobile."
+      "Extra breadcrumb crumbs rendered between `page_section` and `page_title`, for pages nested deeper than one level (e.g. catalogue / category drill trails): `[%{label: \"Plumbing\", path: \"/…\"}]`. `path` is a `push_navigate` target; `patch` is a `push_patch` target for same-LiveView drill trails. Both are optional — omitted renders plain text. The last crumb stays visible below `sm` (the trail truncates from the left); earlier crumbs collapse with the section."
 
   attr :page_action, :map,
     default: nil,
@@ -497,7 +497,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       <%!-- Deeper crumbs (page_crumbs): between the section and
                            the page title, for drill-down pages. The LAST crumb
                            (the page's parent) stays visible below sm — the
-                           trail truncates from the left, not all at once. --%>
+                           trail truncates from the left, not all at once.
+                           `patch` is same-LiveView; `path` is navigate. --%>
                       <span
                         :for={{crumb, idx} <- Enum.with_index(@page_crumbs)}
                         class={[
@@ -509,13 +510,23 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         ]}
                       >
                         <.link
-                          :if={crumb[:path]}
+                          :if={crumb[:patch]}
+                          patch={crumb[:patch]}
+                          class="font-semibold text-base-content/60 hover:text-base-content transition-opacity truncate"
+                        >
+                          {crumb.label}
+                        </.link>
+                        <.link
+                          :if={is_nil(crumb[:patch]) and crumb[:path]}
                           navigate={crumb[:path]}
                           class="font-semibold text-base-content/60 hover:text-base-content transition-opacity truncate"
                         >
                           {crumb.label}
                         </.link>
-                        <span :if={!crumb[:path]} class="font-semibold text-base-content/60 truncate">
+                        <span
+                          :if={is_nil(crumb[:patch]) and is_nil(crumb[:path])}
+                          class="font-semibold text-base-content/60 truncate"
+                        >
                           {crumb.label}
                         </span>
                         <span class="text-base-content/30">/</span>

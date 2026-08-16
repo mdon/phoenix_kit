@@ -9,8 +9,10 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettings do
   ## Ownership model
 
   Pure presentation. The consumer owns the column catalog, the selected
-  list, and persistence, and implements these events (LiveView-level —
-  add `phx-target` wiring yourself if embedding in a LiveComponent):
+  list, and persistence, and implements these events. LiveView callers
+  need no extra wiring; LiveComponent callers pass `target` (a CSS
+  selector for the component root) so clicks and the SortableGrid hook
+  reach that component instead of the host LiveView:
 
       add_column        %{"column_id" => id}
       remove_column     %{"column_id" => id}
@@ -31,6 +33,11 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettings do
   render, so gettext labels stay lazy). Ids in `selected` that are not in
   `columns` are ignored, so consumers with unmanaged always-on columns
   (a Name column outside the editor) can pass their full list.
+
+  Shown rows use the `sortable-item` class the SortableGrid hook actually
+  reads (`draggable`, item-count, `ordered_ids`). A custom class is
+  ignored. Drag starts only on `.pk-drag-handle` so the remove button is
+  not a drag surface.
   """
 
   use Phoenix.Component
@@ -48,6 +55,11 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettings do
 
   attr :selected, :list, required: true, doc: "Shown column ids, in display order."
 
+  attr :target, :any,
+    default: nil,
+    doc:
+      "Optional LiveComponent CSS selector (e.g. `#my-table`). Set on every `phx-click` and on `data-sortable-target` so a LiveComponent consumer receives add/remove/reorder/reset/close."
+
   def column_settings_modal(assigns) do
     map = Map.new(assigns.columns, &{&1.id, &1})
 
@@ -58,8 +70,8 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettings do
       |> assign(:hidden, Enum.reject(assigns.columns, &(&1.id in assigns.selected)))
 
     ~H"""
-    <.modal :if={@show} id={@id} show on_close="hide_column_modal">
-      <h3 class="text-lg font-semibold mb-3">{gettext("Columns")}</h3>
+    <.modal :if={@show} id={@id} show on_close="hide_column_modal" max_width="lg">
+      <:title>{gettext("Columns")}</:title>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <p class="text-xs uppercase text-base-content/50 mb-2">{gettext("Shown")}</p>
@@ -68,13 +80,15 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettings do
             phx-hook="SortableGrid"
             data-sortable="true"
             data-sortable-event="reorder_columns"
-            data-sortable-items=".col-item"
+            data-sortable-items=".sortable-item"
+            data-sortable-handle=".pk-drag-handle"
+            data-sortable-target={@target}
             class="space-y-1"
           >
             <li
               :for={id <- @shown}
               data-id={id}
-              class="col-item flex items-center gap-2 px-2 py-1 rounded bg-base-200"
+              class="sortable-item flex items-center gap-2 px-2 py-1 rounded bg-base-200"
             >
               <.icon
                 name="hero-bars-3"
@@ -84,6 +98,7 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettings do
               <button
                 type="button"
                 phx-click="remove_column"
+                phx-target={@target}
                 phx-value-column_id={id}
                 class="btn btn-ghost btn-xs btn-square text-error cursor-pointer"
                 title={gettext("Remove")}
@@ -100,6 +115,7 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettings do
               <button
                 type="button"
                 phx-click="add_column"
+                phx-target={@target}
                 phx-value-column_id={c.id}
                 class="flex items-center gap-2 w-full text-left text-sm px-2 py-1 rounded hover:bg-base-200 cursor-pointer transition-colors"
               >
@@ -110,14 +126,24 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettings do
           </ul>
         </div>
       </div>
-      <div class="flex justify-between mt-4">
-        <button type="button" phx-click="reset_columns" class="btn btn-ghost btn-sm">
+      <:actions>
+        <button
+          type="button"
+          phx-click="reset_columns"
+          phx-target={@target}
+          class="btn btn-ghost btn-sm"
+        >
           {gettext("Reset")}
         </button>
-        <button type="button" phx-click="hide_column_modal" class="btn btn-primary btn-sm">
+        <button
+          type="button"
+          phx-click="hide_column_modal"
+          phx-target={@target}
+          class="btn btn-primary btn-sm"
+        >
           {gettext("Close")}
         </button>
-      </div>
+      </:actions>
     </.modal>
     """
   end
