@@ -45,13 +45,16 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
 
   ## The gap between rotating and restarting
 
-  Immediately after a (non-dry-run) rotation, stored connections are
-  encrypted under the NEW secret, but the running app is still configured
-  with the OLD key — reads will fail until you set the new key and restart.
-  There is no dual-key fallback during that window (a silent fallback here
-  would undermine the whole point: see
-  `PhoenixKit.Integrations.Encryption`'s decrypt-failure handling). Restart
-  promptly.
+  Rotation only changes what's in the database; the running app keeps using
+  the OLD key until you set the new one and restart. In that window, READS
+  of a rotated connection fail loudly (see
+  `PhoenixKit.Integrations.Encryption`'s decrypt-failure handling) — and so
+  does any WRITE that lands in the meantime (most notably an OAuth token
+  auto-refresh), since it saves under the still-active OLD key into a row
+  this task already moved to the new secret. There is no dual-key fallback
+  to paper over this (it would silently mask exactly the failure class this
+  task exists to prevent). Restart promptly — treat the window as a brief
+  maintenance window, not a fire-and-forget background step.
   """
 
   use Mix.Task
@@ -64,15 +67,41 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
 
   @impl Mix.Task
   def run(argv) do
-    {opts, _argv, _errors} = OptionParser.parse(argv, switches: @switches)
+    case parse_args(argv) do
+      {:ok, opts} ->
+        Mix.Task.run("app.start")
+        if Keyword.get(opts, :dry_run, false), do: run_dry(), else: run_real(opts)
 
-    Mix.Task.run("app.start")
-
-    if Keyword.get(opts, :dry_run, false) do
-      run_dry()
-    else
-      run_real(opts)
+      {:error, message} ->
+        Mix.raise(message)
     end
+  end
+
+  # Parses this task's CLI args, `{:ok, opts} | {:error, message}`. Public
+  # (but undocumented, `@doc false`) and pure — `run/1` isn't itself a
+  # unit-test seam (it starts the app), but this decision is — same
+  # reasoning as `Mix.Tasks.PhoenixKit.Repair.exit_code/1`. Deliberately
+  # `strict:` rather than `switches:`: with `switches:`, an unrecognized or
+  # misspelled flag — `--dryrun` instead of `--dry-run` — is silently
+  # accepted as an extra boolean under its OWN (wrong) key rather than
+  # erroring, so `Keyword.get(opts, :dry_run, false)` would quietly default
+  # to `false` and run a REAL rotation instead of the dry run the caller
+  # typed the flag to get. `strict:` turns that same typo into a parse
+  # error here instead.
+  @doc false
+  @spec parse_args([String.t()]) :: {:ok, keyword()} | {:error, String.t()}
+  def parse_args(argv) do
+    case OptionParser.parse(argv, strict: @switches) do
+      {opts, _argv, []} -> {:ok, opts}
+      {_opts, _argv, errors} -> {:error, "Invalid option(s): #{format_option_errors(errors)}"}
+    end
+  end
+
+  defp format_option_errors(errors) do
+    Enum.map_join(errors, ", ", fn
+      {flag, nil} -> flag
+      {flag, value} -> "#{flag}=#{inspect(value)}"
+    end)
   end
 
   defp run_dry do
@@ -84,19 +113,40 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
 
       {:error, {:decrypt_failed, uuid, reason}} ->
         Mix.raise(decrypt_failed_message(uuid, reason))
+
+      {:error, {:encryption_disabled, status}} ->
+        Mix.raise(encryption_disabled_message(status))
     end
   end
 
   defp run_real(opts) do
-    supplied_key = Keyword.get(opts, :new_key)
-    new_secret = supplied_key || generate_secret()
+    {new_secret, supplied?} = resolve_new_secret(opts)
 
     case KeyRotation.rotate(new_secret) do
       {:ok, %{rotated: n}} ->
-        print_success(n, new_secret, supplied_key != nil)
+        print_success(n, new_secret, supplied?)
 
       {:error, {:decrypt_failed, uuid, reason}} ->
         Mix.raise(decrypt_failed_message(uuid, reason))
+
+      {:error, {:encryption_disabled, status}} ->
+        Mix.raise(encryption_disabled_message(status))
+    end
+  end
+
+  # Resolves the secret a real (non-dry-run) rotation writes under:
+  # `{secret, supplied?}`. An empty `--new-key=""` behaves like the flag was
+  # never passed at all (generates a fresh secret) rather than like a real,
+  # empty secret was supplied — the latter would reach
+  # `KeyRotation.rotate/2`'s `new_secret != ""` guard and crash with an
+  # unhelpful `FunctionClauseError` instead of doing the obviously-intended
+  # thing. Public for the same testability reason as `parse_args/1`.
+  @doc false
+  @spec resolve_new_secret(keyword()) :: {String.t(), boolean()}
+  def resolve_new_secret(opts) do
+    case Keyword.get(opts, :new_key) do
+      value when is_binary(value) and value != "" -> {value, true}
+      _ -> {generate_secret(), false}
     end
   end
 
@@ -105,6 +155,13 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
       "Rotation aborted — NOTHING was written, not even for rows that decrypted fine. " <>
       "Investigate this row (it may already be encrypted under a different key from an " <>
       "earlier partial change, or genuinely corrupted) before retrying."
+  end
+
+  defp encryption_disabled_message(status) do
+    "Refusing to rotate — encryption is not active (status: #{inspect(status)}). " <>
+      "Rotation re-encrypts under a new secret; with no key active there is nothing " <>
+      "meaningful to rotate. Set integration_encryption_enabled: true and configure a key " <>
+      "first."
   end
 
   defp generate_secret, do: 32 |> :crypto.strong_rand_bytes() |> Base.encode64()

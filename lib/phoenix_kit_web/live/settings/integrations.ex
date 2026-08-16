@@ -31,7 +31,6 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
       |> assign(:page_title, gettext("Integrations"))
       |> assign(:project_title, project_title)
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
-      |> assign(:encryption_status, Encryption.status())
       |> load_connections()
       |> assign(:validating, nil)
 
@@ -121,6 +120,14 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # ---------------------------------------------------------------------------
 
   defp load_connections(socket) do
+    # Recomputed on every reload (mount AND every PubSub-triggered refresh
+    # below), not just once at mount — this is a long-lived LiveView, and an
+    # admin who rotates the key / flips integration_encryption_enabled while
+    # the page is open should see the banner update on the next connection
+    # event rather than only after a fresh page load. `status/0` is a pure
+    # config read (see its own doc), so recomputing it here is free.
+    socket = assign(socket, :encryption_status, Encryption.status())
+
     # System page: only providers usable system-wide, and only SYSTEM-owned
     # connections (owner: :system) — a user's personal connection never leaks here.
     providers = Providers.for_scope(:system)

@@ -4,9 +4,26 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
   — the fact-based check the S001 rotation requirement calls for: does
   changing the encryption key actually preserve saved integrations, or does
   it silently strand them.
+
+  ## What "row locking (concurrent-write safety)" below does and doesn't prove
+
+  It confirms, via `Ecto.Adapters.SQL.to_sql/3` on the exact query
+  `KeyRotation.locked_rows_query/0` builds, that the row-fetch is genuinely
+  `SELECT ... FOR UPDATE` — not merely claimed in a comment. It does NOT drive
+  a genuine two-connection race (a second transaction actually blocking on
+  the lock, then observing the rotated value once released): that needs two
+  independently-committing connections coordinated around the lock, which
+  is more infrastructure than a single-process ExUnit test naturally
+  provides — the same call `PhoenixKit.Integration.RepairTest` makes for
+  its own S18 concurrent-migration scenario (see that file's moduledoc).
+  The SQL-fact check here is what makes the guarantee inspectable without
+  that infrastructure: `FOR UPDATE` is a standard, well-defined Postgres
+  primitive — once it's confirmed to be in the actual query, the blocking
+  behavior it provides is a property of Postgres, not of this test suite.
   """
   use PhoenixKit.DataCase, async: false
 
+  alias Ecto.Adapters.SQL, as: EctoSQL
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.KeyRotation
@@ -125,6 +142,42 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
 
       assert {:error, {:decrypt_failed, ^uuid, :decrypt_failed_under_current_key}} =
                KeyRotation.rotate("unused", dry_run: true)
+    end
+  end
+
+  describe "row locking (concurrent-write safety)" do
+    test "the row-fetch query is a genuine SELECT ... FOR UPDATE, not just claimed in a comment" do
+      {sql, _params} =
+        EctoSQL.to_sql(
+          :all,
+          PhoenixKit.RepoHelper.repo(),
+          KeyRotation.locked_rows_query()
+        )
+
+      assert sql =~ "FOR UPDATE"
+    end
+  end
+
+  describe "rotate/2 — encryption not active" do
+    test "refuses to run when integration_encryption_enabled is false" do
+      original = Application.get_env(:phoenix_kit, :integration_encryption_enabled)
+      on_exit(fn -> restore_env(:integration_encryption_enabled, original) end)
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, false)
+
+      assert {:error, {:encryption_disabled, :disabled_explicit}} =
+               KeyRotation.rotate("some-secret")
+    end
+
+    test "refuses to run when no key resolves at all" do
+      original_parent = Application.get_env(:phoenix_kit, :parent_module)
+      on_exit(fn -> restore_env(:parent_module, original_parent) end)
+
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.delete_env(:phoenix_kit, :secret_key_base)
+      Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
+
+      assert {:error, {:encryption_disabled, :disabled_no_key}} =
+               KeyRotation.rotate("some-secret")
     end
   end
 

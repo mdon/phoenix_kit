@@ -234,7 +234,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       assert log =~ "api_key"
     end
 
-    test "other, still-decryptable fields on the same row are unaffected" do
+    test "a non-sensitive field is untouched when a sensitive field on the same row fails to decrypt" do
       Application.delete_env(:phoenix_kit, :integrations_encryption_key)
       Application.put_env(:phoenix_kit, :secret_key_base, "key-A-for-this-test")
 
@@ -249,6 +249,28 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       decrypted = Encryption.decrypt_fields(encrypted)
       refute Map.has_key?(decrypted, "api_key")
       assert decrypted["provider"] == "openrouter"
+    end
+
+    test "a corrupted field's decrypt failure does not affect a sibling sensitive field still decryptable under the same key" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-A-for-this-test")
+
+      encrypted =
+        Encryption.encrypt_fields(%{
+          "api_key" => "will-be-corrupted",
+          "bot_token" => "stays-readable"
+        })
+
+      # The active key never changes in this test — only this ONE field's
+      # stored bytes are damaged (truncated, breaking base64 decoding).
+      # Proves a per-field decrypt failure doesn't cascade to a SENSITIVE
+      # sibling field that decrypts fine under the same, still-active key —
+      # the thing the old test's name promised and its body never checked.
+      corrupted = Map.update!(encrypted, "api_key", &String.slice(&1, 0..-6//1))
+
+      decrypted = Encryption.decrypt_fields(corrupted)
+      refute Map.has_key?(decrypted, "api_key")
+      assert decrypted["bot_token"] == "stays-readable"
     end
   end
 

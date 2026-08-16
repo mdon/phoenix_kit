@@ -183,6 +183,19 @@ defmodule PhoenixKit.Integrations.Encryption do
     do_encrypt_fields(data, derive_key(secret))
   end
 
+  @doc """
+  Whether `value` looks like an already-encrypted field value (carries the
+  current `enc:v1:` prefix).
+
+  Public so callers outside this module — `PhoenixKit.Integrations.KeyRotation`
+  detecting which fields were encrypted before a rotation — don't hardcode
+  the prefix literal themselves. A future `enc:v2:` format only needs to
+  update this one place.
+  """
+  @spec encrypted?(term()) :: boolean()
+  def encrypted?(value) when is_binary(value), do: String.starts_with?(value, @encrypted_prefix)
+  def encrypted?(_value), do: false
+
   # ---------------------------------------------------------------------------
   # Private
   # ---------------------------------------------------------------------------
