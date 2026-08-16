@@ -94,10 +94,17 @@
               initial_rotation={@viewer_rotation}
               persist_rotation={@persist_rotation}
             />
+            <%!-- connectors={:off} is the HARD form (Etcher 0.13): the      --%>
+            <%!-- soft default loses to the user's saved toggle, which is    --%>
+            <%!-- shared across every Etcher surface in the browser — a      --%>
+            <%!-- toggle flipped on a board followed people here, where the  --%>
+            <%!-- anchors point at nothing (no arrow tool below). Hard off   --%>
+            <%!-- also hides the toggle from the toolbar.                    --%>
             <Etcher.layer
               fresco_id={"media-zoom-" <> f.file_uuid}
               colors={@etcher_colors}
               line_params={@etcher_line_params}
+              connectors={:off}
               tools={[
                 :grabber,
                 :image,
