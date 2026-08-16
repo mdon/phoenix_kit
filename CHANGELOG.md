@@ -1,3 +1,26 @@
+## 2.8.1 - 2026-08-16
+
+### Added
+
+- **UploadGuard.** `Core.FileUpload` now blocks accidental tab close/refresh
+  while a file is mid-upload — the browser's native `beforeunload` dialog
+  fires instead of silently losing an in-flight transfer (LiveView uploads
+  aren't resumed). Applies to both the drag-drop and button variants (#720).
+
+### Changed
+
+- **`Core.FileUpload` static strings are translatable.** "Cancel upload",
+  "Drag files here or click to browse", "Drop your files to upload", and
+  "Maximum file size: …" now go through `gettext`; the `label` attr defaults
+  to a translated "Upload Files" instead of a hardcoded string (#720).
+
+### Fixed
+
+- **`default.pot` extraction drift.** `Core.ColumnSettings`' "Columns" and
+  "Shown" labels (added in 2.8.0) had never been extracted, leaving them
+  untranslated in every non-English locale. Re-extracted and translated into
+  de/es/et/fr/it/pl/ru.
+
 ## 2.8.0 - 2026-08-16
 
 The admin header becomes a real breadcrumb for drill-down pages, and
