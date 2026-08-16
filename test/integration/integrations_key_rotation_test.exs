@@ -145,8 +145,8 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
     end
   end
 
-  describe "row locking (concurrent-write safety)" do
-    test "the row-fetch query is a genuine SELECT ... FOR UPDATE, not just claimed in a comment" do
+  describe "row locking (concurrent-write safety) — what it does and does not prove" do
+    test "the real-rotation row-fetch query is a genuine SELECT ... FOR UPDATE" do
       {sql, _params} =
         EctoSQL.to_sql(
           :all,
@@ -155,6 +155,17 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
         )
 
       assert sql =~ "FOR UPDATE"
+    end
+
+    test "the dry-run row-fetch query takes NO lock — a dry run must never block a live writer" do
+      {sql, _params} =
+        EctoSQL.to_sql(
+          :all,
+          PhoenixKit.RepoHelper.repo(),
+          KeyRotation.rotate_rows_query()
+        )
+
+      refute sql =~ "FOR UPDATE"
     end
   end
 

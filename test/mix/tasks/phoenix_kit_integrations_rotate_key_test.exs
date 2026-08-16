@@ -41,25 +41,28 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKeyTest do
     test "a wrong-type value for a known flag is REJECTED" do
       assert {:error, _message} = RotateKeyTask.parse_args(["--dry-run=notaboolean"])
     end
+
+    test "an explicitly empty --new-key=\"\" is REJECTED, not silently substituted" do
+      # Round-1 review fixed this by treating "" like the flag was never
+      # passed (generate a fresh secret). Round-2 review flagged that fix
+      # itself as risky: `--new-key="$MAYBE_UNSET"` with an empty variable
+      # would silently rotate under a RANDOM key the caller never chose,
+      # printed to stdout exactly once — unrecoverable if that output isn't
+      # captured. An explicitly-empty value the caller DID pass must be
+      # rejected, the same way a misspelled flag is, not quietly replaced.
+      assert {:error, message} = RotateKeyTask.parse_args(["--new-key="])
+      assert message =~ "new-key"
+      assert message =~ "empty"
+    end
   end
 
-  describe "resolve_new_secret/1 — the empty-string fix" do
+  describe "resolve_new_secret/1" do
     test "a supplied non-empty key is used as-is, marked supplied" do
       assert {"abc123", true} = RotateKeyTask.resolve_new_secret(new_key: "abc123")
     end
 
     test "no --new-key generates a fresh, non-empty secret, marked not supplied" do
       assert {secret, false} = RotateKeyTask.resolve_new_secret([])
-      assert is_binary(secret) and secret != ""
-    end
-
-    test "an explicitly empty --new-key=\"\" behaves like it was never passed" do
-      # Before the fix: `Keyword.get(opts, :new_key)` returned `""`, which is
-      # truthy under `||`, so `new_secret = ""` reached
-      # `KeyRotation.rotate/2`'s `new_secret != ""` guard and crashed with a
-      # FunctionClauseError instead of doing the obviously-intended thing
-      # (generate a real secret).
-      assert {secret, false} = RotateKeyTask.resolve_new_secret(new_key: "")
       assert is_binary(secret) and secret != ""
     end
   end

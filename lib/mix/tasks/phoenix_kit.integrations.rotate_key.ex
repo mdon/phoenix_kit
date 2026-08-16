@@ -38,22 +38,41 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
 
     * `--dry-run` — runs the decrypt-and-verify pass over every row and
       reports how many WOULD rotate, without generating a key or writing
-      anything. Use this first to catch an already-broken row before
-      committing to a real rotation.
+      anything. Unlike a real rotation, this does NOT take row locks —
+      it's a plain read, safe to run against live traffic at any time, not
+      just before committing to a real rotation.
     * `--new-key` — supply your own secret instead of generating one (e.g.
-      one already stored in a secrets manager). Skipped in `--dry-run`.
+      one already stored in a secrets manager). Skipped in `--dry-run`. Must
+      not be empty — `--new-key=""` is refused outright rather than
+      silently falling back to a generated secret, since that's very likely
+      a shell variable that resolved empty (`--new-key="$MAYBE_UNSET"`) and
+      not something you meant to ask for.
+
+  ## Run this with nothing else writing to integration connections
+
+  A real rotation's row lock only defends against ONE direction of a race
+  with a concurrent writer (an OAuth token auto-refresh, a "Test
+  Connection" click, ...) — see `PhoenixKit.Integrations.KeyRotation`'s
+  moduledoc, "Atomicity and concurrent writers", for the exact mechanism
+  and what it does NOT cover. In short: a writer that already read a row
+  before rotation locked it can still silently overwrite the freshly
+  rotated row with old-key content after rotation commits, and `rotate/2`
+  will have already reported success by then. **Pause anything that could
+  write to integration connections (most concretely: an OAuth token-refresh
+  worker) before running this for real.** Treat it as a maintenance-window
+  operation.
 
   ## The gap between rotating and restarting
 
   Rotation only changes what's in the database; the running app keeps using
-  the OLD key until you set the new one and restart. In that window, READS
-  of a rotated connection fail loudly (see
-  `PhoenixKit.Integrations.Encryption`'s decrypt-failure handling) — and so
-  does any WRITE that lands in the meantime (most notably an OAuth token
-  auto-refresh), since it saves under the still-active OLD key into a row
-  this task already moved to the new secret. There is no dual-key fallback
-  to paper over this (it would silently mask exactly the failure class this
-  task exists to prevent). Restart promptly — treat the window as a brief
+  the OLD key until you set the new one and restart. In that window, on top
+  of the concurrent-write race above, READS of a rotated connection fail
+  loudly (see `PhoenixKit.Integrations.Encryption`'s decrypt-failure
+  handling) — and so does any WRITE that lands in the meantime, for the
+  same reason: it saves under the still-active OLD key into a row this task
+  already moved to the new secret. There is no dual-key fallback to paper
+  over this (it would silently mask exactly the failure class this task
+  exists to prevent). Restart promptly — treat the window as a brief
   maintenance window, not a fire-and-forget background step.
   """
 
@@ -92,8 +111,29 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
   @spec parse_args([String.t()]) :: {:ok, keyword()} | {:error, String.t()}
   def parse_args(argv) do
     case OptionParser.parse(argv, strict: @switches) do
-      {opts, _argv, []} -> {:ok, opts}
+      {opts, _argv, []} -> validate_new_key(opts)
       {_opts, _argv, errors} -> {:error, "Invalid option(s): #{format_option_errors(errors)}"}
+    end
+  end
+
+  # An explicitly empty `--new-key=""` is refused rather than silently
+  # treated as "flag not passed, generate one instead" — the fix for a
+  # round-1 review finding that itself turned out to be risky. Generating
+  # and using a random secret when the caller passed an EMPTY value (most
+  # plausibly `--new-key="$SOME_VAR"` where the variable resolved empty) is
+  # a real rotation under a key the caller never chose and that is printed
+  # to stdout exactly once — if that output isn't captured, the credential
+  # is unrecoverable even though the command "succeeded". Silently
+  # substituting behavior for a value the caller DID supply, just wrong, is
+  # the same class of surprise `strict:` above exists to prevent.
+  defp validate_new_key(opts) do
+    case Keyword.get(opts, :new_key) do
+      "" ->
+        {:error,
+         "--new-key was passed but empty. Omit the flag entirely to generate a secret, or pass a real one."}
+
+      _ ->
+        {:ok, opts}
     end
   end
 
@@ -135,18 +175,17 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
   end
 
   # Resolves the secret a real (non-dry-run) rotation writes under:
-  # `{secret, supplied?}`. An empty `--new-key=""` behaves like the flag was
-  # never passed at all (generates a fresh secret) rather than like a real,
-  # empty secret was supplied — the latter would reach
-  # `KeyRotation.rotate/2`'s `new_secret != ""` guard and crash with an
-  # unhelpful `FunctionClauseError` instead of doing the obviously-intended
-  # thing. Public for the same testability reason as `parse_args/1`.
+  # `{secret, supplied?}`. Trusts `opts` came through `parse_args/1`, which
+  # already rejects an explicitly-empty `--new-key=""` (see
+  # `validate_new_key/1`) — so `nil` here means the flag was genuinely never
+  # passed, not "passed but empty", and generating a secret is unambiguously
+  # correct. Public for the same testability reason as `parse_args/1`.
   @doc false
   @spec resolve_new_secret(keyword()) :: {String.t(), boolean()}
   def resolve_new_secret(opts) do
     case Keyword.get(opts, :new_key) do
-      value when is_binary(value) and value != "" -> {value, true}
-      _ -> {generate_secret(), false}
+      value when is_binary(value) -> {value, true}
+      nil -> {generate_secret(), false}
     end
   end
 

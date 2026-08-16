@@ -18,12 +18,15 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   moduledoc on key rotation. `mix phoenix_kit.integrations.rotate_key` wraps
   this module for interactive use.
 
-  Refuses to run at all when `Encryption.status/0` is `:disabled_no_key` or
-  `:disabled_explicit` — with encryption off, "decrypt under the current
-  key" is a no-op (nothing is actually encrypted), so a rotation would
-  either silently leave already-plaintext values alone while encrypting
-  only some fields, or report success while having changed nothing
-  meaningful. Turn encryption on first.
+  Refuses to run at all unless `Encryption.status/0` is `:dedicated` or
+  `:legacy_secret_key_base` (an allowlist of the statuses that mean "a real
+  key is active" — NOT a blocklist of the disabled ones, so a status this
+  module doesn't recognize refuses by default instead of silently being
+  treated as safe to rotate). With encryption off, "decrypt under the
+  current key" is a no-op (nothing is actually encrypted), so a rotation
+  would either silently leave already-plaintext values alone while
+  encrypting only some fields, or report success while having changed
+  nothing meaningful. Turn encryption on first.
 
   ## How it decides what "the current key" is
 
@@ -36,18 +39,51 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   active configured key at the moment rotation runs (setting it first would
   make the CURRENT rows unreadable before rotation even starts).
 
-  ## Atomicity and concurrent writers
+  ## Atomicity and concurrent writers — what the row lock does and does not buy
 
-  Every row is read with a row-level lock (`SELECT ... FOR UPDATE`) inside
-  the SAME transaction that performs the write — not a plain read followed
-  by a separate write transaction. That matters: this table also takes
-  writes from live traffic (an OAuth token auto-refresh calling
-  `PhoenixKit.Integrations.save_setup/4`, a "Test Connection" click stamping
-  `last_validated_at`, ...). Reading rows outside a lock and writing a
-  re-encrypted snapshot back later would silently overwrite any such
-  concurrent write with a stale copy — the row-level lock instead makes a
-  concurrent writer BLOCK until this transaction commits or rolls back, so
-  no write is ever lost to a lost-update race.
+  A REAL (non-dry-run) rotation fetches every row with a row-level lock
+  (`SELECT ... FOR UPDATE`) inside the SAME transaction that performs the
+  write — not a plain read followed by a separate write transaction. `mix
+  phoenix_kit.integrations.rotate_key --dry-run` does NOT take this lock
+  (see below) — it is a pure read, safe to run against live traffic.
+
+  This lock defends exactly ONE direction of the race against a concurrent
+  writer (an OAuth token auto-refresh calling
+  `PhoenixKit.Integrations.save_setup/4`, a "Test Connection" click, ...):
+  if that writer is ALREADY mid-transaction against a row when rotation
+  tries to lock it, rotation's `SELECT ... FOR UPDATE` blocks until the
+  writer commits or rolls back — so rotation always re-encrypts the LATEST
+  committed value, never a torn or stale one.
+
+  **It does NOT defend the other direction.** If a writer already read a
+  row (has old field values in memory) BEFORE rotation acquired the lock,
+  that writer's own `UPDATE` — issued later, and possibly left queued
+  behind rotation's lock in the meantime — still applies AFTER rotation
+  commits, carrying content built from what it read and re-encrypted under
+  whichever key was active when it computed that content: the OLD key,
+  since the app's config never changes mid-rotation. That write silently
+  overwrites rotation's freshly re-encrypted row with a value the NEW key
+  cannot read. `rotate/2` already reported success by the time this
+  happens — its transaction committed before the writer's queued `UPDATE`
+  landed — and the affected field's later decrypt failure at restart is
+  indistinguishable, from the log line alone, from unrelated corruption.
+
+  Closing this properly needs either optimistic concurrency (a version
+  column compared-and-swapped on every write — `PhoenixKit.Settings.Setting`
+  does not carry one today, and adding one is a schema change touching
+  every settings row in every install, not scoped to integrations) or
+  making every OTHER write path in `PhoenixKit.Integrations` also
+  read-lock inside a transaction (`save_setup/4`, `disconnect/3`,
+  `record_validation/3`, `rename_connection/4`, `refresh_access_token/1` —
+  a change to hot, already-shipped write paths well beyond what this
+  rotation feature should carry). Neither is attempted here.
+
+  **Practical consequence: rotation is only fully safe with nothing else
+  writing to `phoenix_kit_settings` rows where `module = "integrations"`
+  for its duration.** Pause anything that could (most concretely: an OAuth
+  token-refresh worker) before running a real rotation. Treat it as a
+  maintenance-window operation, not a fire-and-forget background step — the
+  row lock narrows the race, it does not close it.
 
   A genuine write failure (a DB error while saving a re-encrypted row, not a
   decrypt failure) is NOT converted into an `{:error, _}` return — it raises,
@@ -66,7 +102,8 @@ defmodule PhoenixKit.Integrations.KeyRotation do
 
   Rotation only changes what's IN THE DATABASE; the running app's
   configured key does not change until the operator edits config and
-  restarts. In the window between those two events:
+  restarts. In the window between those two events, on top of the
+  concurrent-write race above:
 
     * **Reads** of a rotated connection fail (loudly — see
       `PhoenixKit.Integrations.Encryption`'s decrypt-failure handling) under
@@ -102,10 +139,10 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   `opts`:
 
     * `:dry_run` (default `false`) — runs the decrypt-and-verify pass
-      against every row, under the same row locks a real run would take
-      (released immediately, nothing is written) but writes nothing and
-      does not require `new_secret` to be a real value the caller intends
-      to use.
+      against every row and writes nothing. Unlike a real rotation, this
+      does NOT take row locks — it's a plain read, safe to run against live
+      traffic — and does not require `new_secret` to be a real value the
+      caller intends to use.
 
   Returns:
 
@@ -117,20 +154,25 @@ defmodule PhoenixKit.Integrations.KeyRotation do
       already be encrypted under a different key from a prior partial
       change, or genuinely corrupted) before retrying.
     * `{:error, {:encryption_disabled, status}}` — refused to run;
-      `Encryption.status/0` is `:disabled_no_key` or `:disabled_explicit`,
-      so there is no active key for "rotate" to mean anything relative to.
+      `Encryption.status/0` is not one of the recognized "a real key is
+      active" statuses, so there is no active key for "rotate" to mean
+      anything relative to.
   """
   @spec rotate(String.t(), keyword()) ::
           {:ok, %{rotated: non_neg_integer(), dry_run: boolean()}}
           | {:error, {:decrypt_failed, String.t(), failure_reason()}}
           | {:error, {:encryption_disabled, Encryption.key_status()}}
   def rotate(new_secret, opts \\ []) when is_binary(new_secret) and new_secret != "" do
+    # Allowlist, not a blocklist of the disabled statuses: a status this
+    # module doesn't recognize (a future addition to `key_status/0` that
+    # doesn't fit either "safe to rotate" bucket) refuses by default
+    # instead of silently being treated as active.
     case Encryption.status() do
-      status when status in [:disabled_no_key, :disabled_explicit] ->
-        {:error, {:encryption_disabled, status}}
-
-      _active ->
+      status when status in [:dedicated, :legacy_secret_key_base] ->
         do_rotate(new_secret, Keyword.get(opts, :dry_run, false))
+
+      status ->
+        {:error, {:encryption_disabled, status}}
     end
   end
 
@@ -141,17 +183,41 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   # is genuinely in the SQL PhoenixKit sends, not just claimed in a comment
   # — `run/1`-style functions aren't a unit-test seam, but a pure query
   # builder is (same reasoning as `Mix.Tasks.PhoenixKit.Repair.exit_code/1`).
+  # Used ONLY by a real rotation — `rotate_rows_query/0` (no lock) is what
+  # dry-run reads through, so "just looking" never blocks a live writer.
   @doc false
   @spec locked_rows_query() :: Ecto.Query.t()
   def locked_rows_query do
-    from(s in Setting, where: s.module == ^@settings_module, lock: "FOR UPDATE")
+    from(s in rotate_rows_query(), lock: "FOR UPDATE")
+  end
+
+  @doc false
+  @spec rotate_rows_query() :: Ecto.Query.t()
+  def rotate_rows_query do
+    from(s in Setting, where: s.module == ^@settings_module)
   end
 
   # ---------------------------------------------------------------------------
   # Private
   # ---------------------------------------------------------------------------
 
-  defp do_rotate(new_secret, dry_run) do
+  # Dry-run is a plain, unlocked read: it writes nothing and needs no
+  # transactional consistency guarantee beyond "one consistent snapshot of
+  # the table right now" (which a single SELECT already gives), so it must
+  # not take FOR UPDATE locks or hold anything open against live traffic —
+  # the whole point of a dry run is that running it has no side effects an
+  # operator needs to reason about.
+  defp do_rotate(_new_secret, true = _dry_run) do
+    repo = PhoenixKit.RepoHelper.repo()
+    rows = repo.all(rotate_rows_query())
+
+    case decrypt_all(rows) do
+      {:error, uuid, reason} -> {:error, {:decrypt_failed, uuid, reason}}
+      {:ok, plans} -> {:ok, %{rotated: length(plans), dry_run: true}}
+    end
+  end
+
+  defp do_rotate(new_secret, false = _dry_run) do
     repo = PhoenixKit.RepoHelper.repo()
 
     repo.transaction(fn ->
@@ -162,15 +228,8 @@ defmodule PhoenixKit.Integrations.KeyRotation do
           repo.rollback({:decrypt_failed, uuid, reason})
 
         {:ok, plans} ->
-          if dry_run do
-            # Rows were locked to get a consistent count, but a dry run
-            # writes nothing — rollback releases the locks immediately
-            # instead of holding them for the length of a real rotation.
-            repo.rollback({:dry_run, length(plans)})
-          else
-            Enum.each(plans, &rotate_row(&1, new_secret, repo))
-            length(plans)
-          end
+          Enum.each(plans, &rotate_row(&1, new_secret, repo))
+          length(plans)
       end
     end)
     |> normalize_result()
@@ -185,7 +244,6 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   end
 
   defp normalize_result({:ok, count}), do: {:ok, %{rotated: count, dry_run: false}}
-  defp normalize_result({:error, {:dry_run, count}}), do: {:ok, %{rotated: count, dry_run: true}}
   defp normalize_result({:error, {:decrypt_failed, _uuid, _reason}} = error), do: error
 
   # Decrypts every row under the CURRENTLY active key and confirms nothing
