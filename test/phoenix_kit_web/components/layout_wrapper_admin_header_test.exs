@@ -118,6 +118,32 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
     assert catalogues_at < plumbing_at and plumbing_at < copper_at
   end
 
+  test "a page_crumb with patch is a same-LiveView link, not a navigate" do
+    assigns = %{scope: owner_scope()}
+
+    html =
+      ~H"""
+      <LayoutWrapper.app_layout
+        flash={%{}}
+        socket={nil}
+        current_path="/admin"
+        page_title="Pipes"
+        page_section="Catalogues"
+        page_section_path="/admin/catalogue"
+        page_crumbs={[%{label: "Plumbing", patch: "/admin/catalogue/c1"}]}
+        project_title="Acme"
+        phoenix_kit_current_scope={@scope}
+      >
+        <span id="pk-test-body">body</span>
+      </LayoutWrapper.app_layout>
+      """
+      |> rendered_to_string()
+
+    assert html =~ ~s(href="/admin/catalogue/c1")
+    assert html =~ ~s(data-phx-link="patch")
+    assert html =~ "Plumbing"
+  end
+
   test "the breadcrumb tracks the same gate as the sidebar, not the page" do
     # `show_admin_nav` is one decision: no nav, no burger, no "Admin Panel".
     plain = admin_shell(plain_user_scope())
