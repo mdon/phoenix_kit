@@ -94,6 +94,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     doc:
       "Prefixed path (via `PhoenixKit.Utils.Routes.path/1`) the `page_section` crumb links to. Renders as plain text when omitted."
 
+  attr :page_crumbs, :list,
+    default: [],
+    doc:
+      "Extra breadcrumb crumbs rendered between `page_section` and `page_title`, for pages nested deeper than one level (e.g. catalogue / category drill trails): `[%{label: \"Plumbing\", path: \"/…\"}]`. `path` is optional — omitted renders plain text. Collapses along with the rest of the breadcrumb prefix on mobile."
+
   attr :page_action, :map,
     default: nil,
     doc:
@@ -300,6 +305,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       page_subtitle: assigns[:page_subtitle],
       page_section: assigns[:page_section],
       page_section_path: assigns[:page_section_path],
+      page_crumbs: assigns[:page_crumbs] || [],
       page_action: assigns[:page_action],
       # The slot travels here as an ordinary key; `assigns[:action]` is
       # `nil` for every caller that does not pass one, and the render
@@ -485,6 +491,25 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         </.link>
                         <span :if={!@page_section_path} class="font-semibold text-base-content/60">
                           {@page_section}
+                        </span>
+                        <span class="text-base-content/30">/</span>
+                      </span>
+                      <%!-- Deeper crumbs (page_crumbs): between the section and
+                           the page title, for drill-down pages. Same collapse
+                           rules as the section crumb. --%>
+                      <span
+                        :for={crumb <- @page_crumbs}
+                        class="hidden sm:flex items-center gap-1.5 shrink-0 min-w-0"
+                      >
+                        <.link
+                          :if={crumb[:path]}
+                          navigate={crumb[:path]}
+                          class="font-semibold text-base-content/60 hover:text-base-content transition-opacity truncate"
+                        >
+                          {crumb.label}
+                        </.link>
+                        <span :if={!crumb[:path]} class="font-semibold text-base-content/60 truncate">
+                          {crumb.label}
                         </span>
                         <span class="text-base-content/30">/</span>
                       </span>

@@ -74,6 +74,46 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
     assert html =~ "Dashboard"
   end
 
+  test "page_crumbs render between the section and the title, linked when given a path" do
+    assigns = %{scope: owner_scope()}
+
+    html =
+      ~H"""
+      <LayoutWrapper.app_layout
+        flash={%{}}
+        socket={nil}
+        current_path="/admin"
+        page_title="Copper"
+        page_section="Catalogues"
+        page_section_path="/admin/catalogue"
+        page_crumbs={[
+          %{label: "Plumbing", path: "/admin/catalogue/c1"},
+          %{label: "Unlinked"}
+        ]}
+        project_title="Acme"
+        phoenix_kit_current_scope={@scope}
+      >
+        <span id="pk-test-body">body</span>
+      </LayoutWrapper.app_layout>
+      """
+      |> rendered_to_string()
+
+    assert html =~ ~s(href="/admin/catalogue/c1")
+    assert html =~ "Plumbing"
+    # A crumb without :path renders as plain text, not a link.
+    assert html =~ "Unlinked"
+    refute html =~ ~s(href="Unlinked")
+    # Order: section before crumbs before title — checked inside the top
+    # bar's breadcrumb (anchored past "Admin Panel"; the drawer markup
+    # earlier in the document also mentions the page title).
+    {admin_at, _} = :binary.match(html, "Admin Panel")
+    header = binary_part(html, admin_at, byte_size(html) - admin_at)
+    catalogues_at = :binary.match(header, "Catalogues") |> elem(0)
+    plumbing_at = :binary.match(header, "Plumbing") |> elem(0)
+    copper_at = :binary.match(header, "Copper") |> elem(0)
+    assert catalogues_at < plumbing_at and plumbing_at < copper_at
+  end
+
   test "the breadcrumb tracks the same gate as the sidebar, not the page" do
     # `show_admin_nav` is one decision: no nav, no burger, no "Admin Panel".
     plain = admin_shell(plain_user_scope())
