@@ -12809,3 +12809,12 @@ msgstr "Sube el primero usando el área de arriba"
 #, elixir-autogen, elixir-format
 msgid "left"
 msgstr "restante"
+
+msgid "Upload Files"
+msgstr "Subir archivos"
+
+msgid "Drop your files to upload"
+msgstr "Suelta tus archivos para subirlos"
+
+msgid "Maximum file size: %{size}"
+msgstr "Tamaño máximo de archivo: %{size}"

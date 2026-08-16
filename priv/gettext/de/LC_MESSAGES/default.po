@@ -12801,3 +12801,12 @@ msgstr "Laden Sie die erste Datei über den Bereich oben hoch"
 #, elixir-autogen, elixir-format
 msgid "left"
 msgstr "verbleibend"
+
+msgid "Upload Files"
+msgstr "Dateien hochladen"
+
+msgid "Drop your files to upload"
+msgstr "Dateien zum Hochladen hier ablegen"
+
+msgid "Maximum file size: %{size}"
+msgstr "Maximale Dateigröße: %{size}"

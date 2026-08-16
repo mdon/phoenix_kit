@@ -12818,3 +12818,12 @@ msgstr "Laadi esimene üles ülaloleva ala kaudu"
 #, elixir-autogen, elixir-format
 msgid "left"
 msgstr "jäänud"
+
+msgid "Upload Files"
+msgstr "Laadi failid üles"
+
+msgid "Drop your files to upload"
+msgstr "Lohista failid üleslaadimiseks siia"
+
+msgid "Maximum file size: %{size}"
+msgstr "Maksimaalne failisuurus: %{size}"

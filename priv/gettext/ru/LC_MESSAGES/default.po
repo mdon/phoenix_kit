@@ -12841,3 +12841,12 @@ msgstr "Загрузите первый файл через область вы�
 #, elixir-autogen, elixir-format
 msgid "left"
 msgstr "осталось"
+
+msgid "Upload Files"
+msgstr "Загрузить файлы"
+
+msgid "Drop your files to upload"
+msgstr "Перетащите файлы для загрузки"
+
+msgid "Maximum file size: %{size}"
+msgstr "Максимальный размер файла: %{size}"

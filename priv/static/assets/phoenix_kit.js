@@ -6522,3 +6522,38 @@ if (typeof window.Chart === "undefined") {
     module.exports.uploadStatsText = uploadStatsText;
   }
 })();
+
+// ============================================================================
+// UploadGuard - native leave-page guard while uploads are in flight
+// ============================================================================
+//
+// Attached to an upload component's root. The server patches
+// `data-active` ("true" while any upload entry exists); while active, the
+// browser's own beforeunload dialog blocks an accidental refresh / tab
+// close that would kill the transfer (interrupted LiveView uploads are not
+// resumed). This replaces disclaimer prose with actual protection. Note it
+// guards full page unloads only — LiveView patch/navigate stays free.
+(function() {
+  "use strict";
+
+  window.PhoenixKitHooks = window.PhoenixKitHooks || {};
+
+  window.PhoenixKitHooks.UploadGuard = {
+    mounted() {
+      var self = this;
+      this.handler = function(e) {
+        if (self.el.dataset.active === "true") {
+          e.preventDefault();
+          // Chrome requires returnValue to show the dialog; the text is
+          // browser-controlled either way.
+          e.returnValue = "";
+        }
+      };
+      window.addEventListener("beforeunload", this.handler);
+    },
+
+    destroyed() {
+      window.removeEventListener("beforeunload", this.handler);
+    }
+  };
+})();
