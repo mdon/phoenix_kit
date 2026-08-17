@@ -21,6 +21,11 @@ defmodule PhoenixKit.Modules.Sitemap.DomainMode do
   `x-default` for the primary domain's language when the group has it
   (omitted otherwise — never mislabel another language as x-default).
 
+  An enabled language that has NO domain of its own keeps its locale prefix
+  and lives on the primary domain, so its URLs are published from the primary
+  domain's file (they are already what this module's alternates point at).
+  Mapped hosts stay strictly single-language.
+
   Runs inside Oban jobs and unpiped controller requests: language resolution
   here never consults the request-scoped default-language override — the
   unprefixed-entry fallback reads the raw `is_default` flag, mirroring the
@@ -117,10 +122,52 @@ defmodule PhoenixKit.Modules.Sitemap.DomainMode do
           |> Map.values()
           |> Enum.map(&group_by_language(&1, base_url, default_lang, enabled_bases))
 
-        Map.new(domains, fn %{host: host, language: lang} ->
-          {host, domain_entries(groups, lang, host_by_lang, primary, base_url)}
+        Map.new(domains, fn %{host: host, language: lang, primary: primary?} ->
+          own = domain_entries(groups, lang, host_by_lang, primary, base_url)
+
+          entries =
+            if primary?,
+              do:
+                Enum.sort_by(
+                  own ++ domainless_entries(groups, host_by_lang, primary, base_url),
+                  & &1.loc
+                ),
+              else: own
+
+          {host, entries}
         end)
     end
+  end
+
+  # An enabled language that has no domain of its own is served with its locale
+  # prefix on the primary domain — that is exactly the URL `home_url/5` already
+  # builds for it, and what every group's alternates already point at. Those
+  # pages need a `<loc>` of their own somewhere, and the primary domain's file
+  # is the only set served from the host they live on.
+  #
+  # Without this, activating domain mode silently DROPS every URL of such a
+  # language: the legacy set that used to carry them is only served to
+  # unmapped hosts, and no mapped host's file admits a foreign language.
+  defp domainless_entries(groups, host_by_lang, primary, base_url) do
+    Enum.flat_map(groups, fn by_lang ->
+      case Enum.reject(by_lang, fn {lang, _} -> Map.has_key?(host_by_lang, lang) end) do
+        [] ->
+          []
+
+        domainless ->
+          # Same alternates as every other duplicate of this group — computed
+          # once here for the same reason `domain_entries/5` computes it once.
+          alternates = group_alternates(by_lang, host_by_lang, primary, base_url)
+
+          Enum.map(domainless, fn {lang, entry} ->
+            %{
+              entry
+              | loc: home_url(lang, entry, host_by_lang, primary, base_url),
+                alternates: alternates
+            }
+          end)
+      end
+    end)
   end
 
   defp group_by_language(members, base_url, default_lang, enabled_bases) do
