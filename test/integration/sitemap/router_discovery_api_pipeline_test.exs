@@ -107,6 +107,19 @@ defmodule PhoenixKit.Integration.Sitemap.RouterDiscoveryApiPipelineTest do
            ]
   end
 
+  test "a junk element in sitemap_non_page_pipelines does not take the source down" do
+    # The setting is hand-edited JSON. A non-string element used to raise inside
+    # collect/1, whose rescue swallowed it and returned [] — one typo in a
+    # settings field emptied the entire router-discovery source, silently.
+    {:ok, _} =
+      Settings.update_setting("sitemap_non_page_pipelines", JSON.encode!(["phoenix_kit_api", 1]))
+
+    locs = RouterDiscovery.collect(base_url: @base_url) |> Enum.map(& &1.loc) |> Enum.sort()
+
+    # The good element still filters; the junk one is ignored, not fatal.
+    assert locs == ["#{@base_url}/about", "#{@base_url}/caddy/ask"]
+  end
+
   test "default_non_page_pipelines/0 exposes the JSON pipelines it filters on" do
     defaults = RouterDiscovery.default_non_page_pipelines()
 

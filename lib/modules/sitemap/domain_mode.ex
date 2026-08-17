@@ -129,7 +129,7 @@ defmodule PhoenixKit.Modules.Sitemap.DomainMode do
             if primary?,
               do:
                 Enum.sort_by(
-                  own ++ domainless_entries(groups, host_by_lang, primary, base_url),
+                  own ++ extra_for_primary(own, groups, host_by_lang, primary, base_url),
                   & &1.loc
                 ),
               else: own
@@ -137,6 +137,20 @@ defmodule PhoenixKit.Modules.Sitemap.DomainMode do
           {host, entries}
         end)
     end
+  end
+
+  # The primary domain's own language owns its URLs. A domainless language's
+  # entry can land on the same URL when the site's default language is NOT the
+  # primary domain's language and has no domain: its URLs carry no locale
+  # prefix, so re-hosting puts them on the primary's root — where that domain's
+  # own language already is. Publishing both would put the same <loc> in one
+  # file twice; the host's own language wins.
+  defp extra_for_primary(own, groups, host_by_lang, primary, base_url) do
+    taken = MapSet.new(own, & &1.loc)
+
+    groups
+    |> domainless_entries(host_by_lang, primary, base_url)
+    |> Enum.reject(&MapSet.member?(taken, &1.loc))
   end
 
   # An enabled language that has no domain of its own is served with its locale

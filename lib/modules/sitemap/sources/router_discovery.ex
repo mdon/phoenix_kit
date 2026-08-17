@@ -338,12 +338,12 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
 
       json_string when is_binary(json_string) ->
         case JSON.decode(json_string) do
-          {:ok, pipelines} when is_list(pipelines) -> Enum.map(pipelines, &safe_to_atom/1)
+          {:ok, pipelines} when is_list(pipelines) -> to_atoms(pipelines)
           _ -> @default_non_page_pipelines
         end
 
       pipelines when is_list(pipelines) ->
-        Enum.map(pipelines, &safe_to_atom/1)
+        to_atoms(pipelines)
 
       _ ->
         @default_non_page_pipelines
@@ -392,22 +392,30 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
       json_string when is_binary(json_string) ->
         case JSON.decode(json_string) do
           {:ok, pipelines} when is_list(pipelines) ->
-            Enum.map(pipelines, &safe_to_atom/1)
+            to_atoms(pipelines)
 
           _ ->
             []
         end
 
       pipelines when is_list(pipelines) ->
-        Enum.map(pipelines, &safe_to_atom/1)
+        to_atoms(pipelines)
 
       _ ->
         []
     end
   end
 
+  defp to_atoms(values), do: values |> Enum.map(&safe_to_atom/1) |> Enum.reject(&is_nil/1)
+
   defp safe_to_atom(value) when is_atom(value), do: value
   defp safe_to_atom(value) when is_binary(value), do: String.to_atom(value)
+
+  # A settings list is hand-edited JSON; one bad element must not take the
+  # source down with it. Without this clause the FunctionClauseError is caught
+  # by `collect/1`'s rescue and every discovered route disappears from the
+  # sitemap silently — a typo in a settings field emptying a whole source.
+  defp safe_to_atom(_other), do: nil
 
   defp disabled_module_route?(path) do
     Enum.any?(@module_route_prefixes, fn {prefix, {mod, fun}} ->
