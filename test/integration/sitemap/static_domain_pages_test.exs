@@ -8,6 +8,10 @@ defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesProviderStub do
   end
 
   def empty, do: []
+
+  # The primary domain hosts a language that is NOT the site default, and the
+  # site default (en) has no domain at all.
+  def primary_is_not_default, do: [%{host: "site.example.fr", language: "fr", primary: true}]
 end
 
 defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesTest do
@@ -117,6 +121,27 @@ defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesTest do
 
     assert "https://site.example.fr/lookbook" in fr_locs
     refute Enum.any?(fr_locs, &String.contains?(&1, "/fr/"))
+  end
+
+  test "primary hosting a non-default language does not duplicate its home page" do
+    # The site default (en) has no domain, so its unprefixed home page URL
+    # re-hosts onto the primary's root — where the primary's own language (fr)
+    # now also has one. Both would be the same <loc> in the same file.
+    Application.put_env(:phoenix_kit, :sitemap_domains_provider, {Stub, :primary_is_not_default})
+
+    entries =
+      Static.collect(base_url: @base, language: "en", is_default_language: true) ++
+        Static.collect(
+          base_url: @base,
+          language: "fr",
+          is_default_language: false,
+          domain_pass: true
+        )
+
+    locs = DomainMode.rebuild_for_domains(entries, @base)["site.example.fr"] |> Enum.map(& &1.loc)
+
+    assert locs == ["https://site.example.fr/"]
+    assert Enum.uniq(locs) == locs
   end
 
   test "generate_all keeps the prefixed intermediate out of the legacy set" do
