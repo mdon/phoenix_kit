@@ -102,6 +102,7 @@ defmodule PhoenixKit.Modules.Sitemap do
   use PhoenixKit.Module
 
   alias PhoenixKit.Dashboard.Tab
+  alias PhoenixKit.Modules.Sitemap.Generator
   alias PhoenixKit.Modules.Sitemap.SchedulerWorker
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
@@ -551,23 +552,22 @@ defmodule PhoenixKit.Modules.Sitemap do
   ## Regeneration Functions
 
   @doc """
-  Triggers sitemap regeneration.
+  Regenerates every sitemap file and returns the generator's result.
 
-  This function will be called by the Generator module to perform the actual
-  sitemap generation. Pass optional scope for audit logging.
+  Runs `Generator.generate_all/1` against the configured base URL. Pass an
+  optional scope for audit logging. Use `Generator.invalidate_and_regenerate/0`
+  instead when the work should be queued rather than done in the caller.
 
   ## Examples
 
       iex> PhoenixKit.Modules.Sitemap.regenerate(scope)
-      {:ok, %{xml: xml_content, html: html_content, url_count: 150}}
+      {:ok, %{index_xml: "<?xml ...", modules: [...], total_urls: 150}}
   """
   @spec regenerate(any()) :: {:ok, map()} | {:error, any()}
   def regenerate(scope \\ nil) do
     if enabled?() do
-      # This will be implemented by PhoenixKit.Modules.Sitemap.Generator
-      # For now, return a placeholder
       Logger.info("Sitemap regeneration triggered by #{inspect(scope)}")
-      {:ok, %{status: :pending, message: "Generator not yet implemented"}}
+      Generator.generate_all(base_url: get_base_url())
     else
       {:error, :sitemap_disabled}
     end
