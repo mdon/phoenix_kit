@@ -8,6 +8,10 @@ defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesProviderStub do
   end
 
   def empty, do: []
+
+  # The primary domain hosts a language that is NOT the site default, and the
+  # site default (en) has no domain at all.
+  def primary_is_not_default, do: [%{host: "site.example.fr", language: "fr", primary: true}]
 end
 
 defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesTest do
@@ -119,6 +123,27 @@ defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesTest do
     refute Enum.any?(fr_locs, &String.contains?(&1, "/fr/"))
   end
 
+  test "primary hosting a non-default language does not duplicate its home page" do
+    # The site default (en) has no domain, so its unprefixed home page URL
+    # re-hosts onto the primary's root — where the primary's own language (fr)
+    # now also has one. Both would be the same <loc> in the same file.
+    Application.put_env(:phoenix_kit, :sitemap_domains_provider, {Stub, :primary_is_not_default})
+
+    entries =
+      Static.collect(base_url: @base, language: "en", is_default_language: true) ++
+        Static.collect(
+          base_url: @base,
+          language: "fr",
+          is_default_language: false,
+          domain_pass: true
+        )
+
+    locs = DomainMode.rebuild_for_domains(entries, @base)["site.example.fr"] |> Enum.map(& &1.loc)
+
+    assert locs == ["https://site.example.fr/"]
+    assert Enum.uniq(locs) == locs
+  end
+
   test "generate_all keeps the prefixed intermediate out of the legacy set" do
     {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", true)
     {:ok, _} = Settings.update_boolean_setting("crawlers_no_index", false)
@@ -135,6 +160,26 @@ defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesTest do
     fr_xml = File.read!(path)
     assert fr_xml =~ "<loc>https://site.example.fr/</loc>"
     refute fr_xml =~ "/fr/"
+  end
+
+  test "index mode keeps it out of the per-module static file too" do
+    # Flat vs index is decided by router discovery; the test above only
+    # exercises flat mode, where the legacy set is one urlset. In index mode the
+    # legacy set is per-module files, and sitemap-static.xml is the one that
+    # would carry a leaked /fr/ entry.
+    {:ok, _} = Settings.update_boolean_setting("sitemap_router_discovery_enabled", false)
+    {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", true)
+    {:ok, _} = Settings.update_boolean_setting("crawlers_no_index", false)
+    {:ok, _} = Settings.update_setting("site_url", @base)
+
+    assert {:ok, _} = Generator.generate_all(base_url: @base)
+
+    static_path = FileStorage.module_file_path("sitemap-static")
+    assert File.exists?(static_path)
+    refute File.read!(static_path) =~ "#{@base}/fr/"
+
+    {:ok, fr_path} = FileStorage.domain_file_path("site.example.fr", "sitemap")
+    assert File.read!(fr_path) =~ "<loc>https://site.example.fr/</loc>"
   end
 
   test "the mapped domain's file ends up carrying its own home page" do
