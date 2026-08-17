@@ -292,7 +292,11 @@ defmodule PhoenixKitWeb.Integration do
         pipe_through [:browser, :phoenix_kit_auto_setup]
 
         live_session :phoenix_kit_maintenance,
-          on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_mount_current_scope}] do
+          on_mount:
+            unquote(
+              extra_on_mount() ++
+                [{PhoenixKitWeb.Users.Auth, :phoenix_kit_mount_current_scope}]
+            ) do
           live "/maintenance", Live.Modules.Maintenance.Page, :index
         end
       end
@@ -811,10 +815,14 @@ defmodule PhoenixKitWeb.Integration do
     quote do
       if unquote(PhoenixKit.Config.user_dashboard_enabled?()) do
         live_session unquote(session_name),
-          on_mount: [
-            {PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope},
-            {PhoenixKitWeb.Dashboard.ContextProvider, :default}
-          ] do
+          on_mount:
+            unquote(
+              extra_on_mount() ++
+                [
+                  {PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope},
+                  {PhoenixKitWeb.Dashboard.ContextProvider, :default}
+                ]
+            ) do
           live "/dashboard", Live.Dashboard.Index, :index
           live "/dashboard/settings", Live.Dashboard.Settings, :edit
 
@@ -1412,7 +1420,8 @@ defmodule PhoenixKitWeb.Integration do
     root_routes = {route_macro, [], [:""]}
 
     quote do
-      live_session unquote(session_name), on_mount: unquote(on_mount) do
+      live_session unquote(session_name),
+        on_mount: unquote(extra_on_mount() ++ on_mount) do
         scope "#{unquote(url_prefix)}/:locale", PhoenixKitWeb do
           pipe_through unquote(pipelines)
           unquote(localized_routes)
@@ -1424,6 +1433,24 @@ defmodule PhoenixKitWeb.Integration do
         end
       end
     end
+  end
+
+  # Extra on_mount hooks the HOST app adds to every PhoenixKit
+  # live_session (e.g., a multi-domain default-language hook):
+  #
+  #     config :phoenix_kit, extra_live_session_on_mount:
+  #       [{MyAppWeb.DomainLanguageHook, :default}]
+  #
+  # PREPENDED, not appended: request-context hooks must run before the auth
+  # hooks, whose {:halt, redirect} paths already resolve locale-prefixed
+  # URLs via Languages.get_default_language/0 — appended hooks would never
+  # run on that path and the redirect would use the site-wide default.
+  # Extra hooks therefore must not assume an authenticated socket.
+  #
+  # Read at router compile time; __mix_recompile__? below invalidates the
+  # host router when this config changes.
+  defp extra_on_mount do
+    Application.get_env(:phoenix_kit, :extra_live_session_on_mount, [])
   end
 
   # Root-level sitemap endpoints, for installs mounted under a prefix. See the
@@ -1627,10 +1654,15 @@ defmodule PhoenixKitWeb.Integration do
       # Recompile router when deps change (mix.lock is updated by mix deps.get)
       @external_resource unquote(mix_lock_path)
 
-      # Precise check: only actually recompile if the set of PhoenixKit modules changed
+      # Precise check: recompile if the set of PhoenixKit modules changed, or
+      # if the host's extra_live_session_on_mount config no longer matches the
+      # value baked in at compile time (plain Application.get_env at macro
+      # expansion is not tracked by the compiler's compile_env mechanism).
       @doc false
       def __mix_recompile__? do
-        unquote(current_hash) != PhoenixKit.ModuleDiscovery.module_hash()
+        unquote(current_hash) != PhoenixKit.ModuleDiscovery.module_hash() or
+          unquote(Macro.escape(extra_on_mount())) !=
+            Application.get_env(:phoenix_kit, :extra_live_session_on_mount, [])
       end
 
       # Compile-time dependency on each route module (see the comment at
