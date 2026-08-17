@@ -48,6 +48,13 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
 
   Custom pipelines can be added via `sitemap_protected_pipelines` setting.
 
+  Routes served by a JSON pipeline are excluded too, wherever they are
+  mounted — `:api` and `:phoenix_kit_api`. The path patterns above only catch
+  API endpoints that sit under `/api`; a module mounting its own API
+  (`/sync/api/status`) or a host's infrastructure hook outside `/api`
+  (Caddy's on-demand-TLS `/caddy/ask`) escapes them, and the pipeline is the
+  route's own declaration that it does not serve a page.
+
   LiveView routes using authentication `on_mount` hooks are also excluded:
   - `{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope}` - Ensures user is authenticated
   - `{PhoenixKitWeb.Users.Auth, :phoenix_kit_redirect_if_authenticated_scope}` - Redirects if already authenticated
@@ -155,6 +162,18 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
     :admin_only
   ]
 
+  # Pipelines that answer with JSON rather than pages. A route piped through
+  # one of them is an API endpoint wherever it is mounted, which the path
+  # patterns above only catch when it happens to sit under "/api" — a module
+  # mounting its API under its own prefix ("/sync/api/status", declared
+  # `pipe_through [:phoenix_kit_api]`) or a host's infrastructure endpoint
+  # outside "/api" entirely (Caddy's on-demand-TLS "/caddy/ask" hook,
+  # declared `pipe_through :api`) both slip past them.
+  @default_non_page_pipelines [
+    :api,
+    :phoenix_kit_api
+  ]
+
   # Default on_mount hooks that require authentication (for LiveView routes)
   # Format: {Module, hook_name} - matches against on_mount id tuples
   @default_protected_on_mount_hooks [
@@ -250,6 +269,14 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
   @spec default_protected_pipelines() :: [atom()]
   def default_protected_pipelines, do: @default_protected_pipelines
 
+  @doc """
+  Returns the pipelines whose routes serve JSON rather than pages.
+
+  Routes piped through any of these are skipped regardless of their path.
+  """
+  @spec default_non_page_pipelines() :: [atom()]
+  def default_non_page_pipelines, do: @default_non_page_pipelines
+
   defp do_collect(opts) do
     base_url = Keyword.get(opts, :base_url)
     exclude_patterns = compile_patterns(effective_exclude_patterns(), "exclude")
@@ -265,20 +292,30 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
     get_route?(route) and
       not excluded?(route.path, exclude_patterns) and
       included?(route.path, include_only) and
-      not protected_by_route_info?(route) and
+      not excluded_by_route_info?(route) and
       not disabled_module_route?(route.path)
   end
 
-  # Single route_info call checks both pipelines and on_mount hooks
-  defp protected_by_route_info?(route) do
+  # Single route_info call checks pipelines (both auth-protected and
+  # JSON-serving) and on_mount hooks
+  defp excluded_by_route_info?(route) do
     case get_route_info(route.path) do
       nil ->
         false
 
       info ->
-        has_protected_pipeline?(info) or has_protected_on_mount?(info)
+        has_protected_pipeline?(info) or has_non_page_pipeline?(info) or
+          has_protected_on_mount?(info)
     end
   end
+
+  # A JSON pipeline is the route's own declaration that it does not serve a
+  # page — a fact about the route, not a guess from its path.
+  defp has_non_page_pipeline?(%{pipe_through: pipelines}) when is_list(pipelines) do
+    Enum.any?(@default_non_page_pipelines, &(&1 in pipelines))
+  end
+
+  defp has_non_page_pipeline?(_), do: false
 
   # Get route_info once per route (instead of twice)
   defp get_route_info(path) do
