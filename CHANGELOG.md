@@ -1,3 +1,32 @@
+## 2.12.0 - 2026-08-17
+
+Every mapped sitemap domain gets its own static pages, with the review
+follow-ups needed to ship it safely (#730).
+
+### Added
+
+- **A mapped sitemap domain now gets its own static pages** (home page and
+  any other `sitemap_static_routes` / `sitemap_custom_urls` entry) — a
+  language with a domain of its own serves these prefix-free from that host,
+  but `Sources.Static` previously emitted them for the default language
+  only, so every non-primary domain's sitemap was missing its own home page
+  while still listing its products. The prefixed URL this collects is an
+  intermediate for `DomainMode` to re-host, not a published one — it never
+  reaches the legacy/index set served to unmapped hosts (#730).
+- **`sitemap_non_page_pipelines` setting** — an escape hatch for the
+  JSON-pipeline route exclusion added in 2.11.0: unlike
+  `sitemap_protected_pipelines`, this one *replaces* the default pipeline
+  list rather than extending it, so a host that serves real pages through a
+  pipeline literally named `:api` can take it off the list. Saving `[]`
+  turns pipeline-based exclusion off entirely (#730).
+
+### Fixed
+
+- **`Sitemap.regenerate/1` accepted an unconfigured `site_url`** and would
+  have written host-less `<loc>` entries instead of failing — it now returns
+  `{:error, :base_url_not_configured}`, matching the guard
+  `SchedulerWorker` already had for scheduled regeneration (#730).
+
 ## 2.11.0 - 2026-08-17
 
 Sitemap round-out (domainless-language URLs, a real `regenerate/1`, JSON-pipeline
