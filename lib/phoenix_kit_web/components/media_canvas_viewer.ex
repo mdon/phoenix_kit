@@ -638,7 +638,13 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # The label text as the curated map carries it — `load_annotations_for/1`
   # surfaces the `title` column as `metadata.title` (there is no :title key
   # on these maps; reading one crashed the LV on every label commit).
-  defp stored_title(%{metadata: %{"title" => title}}) when is_binary(title), do: title
+  defp stored_title(%{metadata: %{"title" => title}}) when is_binary(title) do
+    case String.trim(title) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
   defp stored_title(_), do: nil
 
   # ── The Reply flow's master comment ───────────────────────────────────
@@ -681,9 +687,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       # (its kind), since its card would otherwise have no text at all.
       title = stored_title(ann)
 
-      attrs = %{
-        content: if(title, do: "", else: master_content(ann)),
-        allow_empty_content: title != nil,
+      base_attrs = %{
         metadata: %{
           "annotation_uuid" => to_string(ann.uuid),
           "annotation_master" => true
@@ -691,20 +695,42 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
         inserted_at: Map.get(ann, :inserted_at)
       }
 
+      bodiless_attrs = Map.merge(base_attrs, %{content: "", allow_empty_content: true})
+
+      attrs =
+        if title, do: bodiless_attrs, else: Map.put(base_attrs, :content, master_content(ann))
+
       case PhoenixKitComments.create_comment("file", file_uuid, author_uuid, attrs) do
         {:ok, comment} ->
           {:ok, to_string(comment.uuid)}
 
-        {:error, reason} ->
-          Logger.warning(
-            "[MediaCanvasViewer] master comment create failed uuid=#{inspect(ann.uuid)}: #{inspect(reason)}"
-          )
+        # `allow_empty_content` isn't honored by every installed
+        # phoenix_kit_comments release yet — an older version doesn't know
+        # the key, casts it away, and its empty-body validator then rejects
+        # the now-contentless comment. Retry once with the label as content
+        # (the pre-fix behavior) so Reply still works against that version.
+        {:error, :empty_comment} when title != nil ->
+          retry_attrs = Map.put(base_attrs, :content, master_content(ann))
 
-          :error
+          case PhoenixKitComments.create_comment("file", file_uuid, author_uuid, retry_attrs) do
+            {:ok, comment} -> {:ok, to_string(comment.uuid)}
+            {:error, reason} -> log_master_comment_failure(ann, reason)
+          end
+
+        {:error, reason} ->
+          log_master_comment_failure(ann, reason)
       end
     else
       _ -> :error
     end
+  end
+
+  defp log_master_comment_failure(ann, reason) do
+    Logger.warning(
+      "[MediaCanvasViewer] master comment create failed uuid=#{inspect(ann.uuid)}: #{inspect(reason)}"
+    )
+
+    :error
   end
 
   defp master_content(ann) do
