@@ -13,6 +13,8 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
   require Logger
 
   alias ExAws.S3.Upload
+  alias PhoenixKit.Integrations
+  alias PhoenixKit.Integrations.Encryption
 
   @behaviour PhoenixKit.Modules.Storage.Provider
 
@@ -150,9 +152,11 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
   # Build per-request ExAws config from bucket credentials.
   # Passed to ExAws.request/2 instead of using global Application.put_env.
   defp aws_config(bucket) do
+    {access_key_id, secret_access_key} = resolve_credentials(bucket)
+
     config = [
-      access_key_id: bucket.access_key_id,
-      secret_access_key: bucket.secret_access_key,
+      access_key_id: access_key_id,
+      secret_access_key: secret_access_key,
       region: bucket.region || "us-east-1"
     ]
 
@@ -161,5 +165,39 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
     else
       config
     end
+  end
+
+  # Resolves the actual (plaintext) access key id / secret access key for a
+  # bucket — the one place this happens, right where the ExAws config needs
+  # them. `Bucket.changeset/2` guarantees only one of the two credential
+  # sources below is ever set on a saved bucket.
+  #
+  # Public and `@doc false` (not part of the `Provider` behaviour) purely so
+  # the test suite can exercise both branches directly, without a real S3
+  # endpoint — same rationale as `V174.repair_statements/1`.
+  @doc false
+  @spec resolve_credentials(PhoenixKit.Modules.Storage.Bucket.t()) ::
+          {String.t() | nil, String.t() | nil}
+  def resolve_credentials(%{integration_uuid: integration_uuid})
+      when is_binary(integration_uuid) and integration_uuid != "" do
+    case Integrations.get_credentials(integration_uuid) do
+      # "access_key"/"secret_key" is the generic key-secret shape
+      # `PhoenixKit.Integrations` providers already use for AWS-style
+      # credentials (see `aws_ses` and `PhoenixKit.Mailer.swoosh_config_for/1`)
+      # — the `object_storage` provider this bucket-side integration_uuid
+      # exists for is expected to follow the same convention.
+      {:ok, creds} -> {creds["access_key"], creds["secret_key"]}
+      {:error, _reason} -> {nil, nil}
+    end
+  end
+
+  def resolve_credentials(bucket) do
+    secret =
+      case Encryption.decrypt_value(bucket.secret_access_key) do
+        {:ok, plaintext} -> plaintext
+        {:error, _reason} -> nil
+      end
+
+    {bucket.access_key_id, secret}
   end
 end

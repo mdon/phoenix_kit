@@ -24,8 +24,9 @@ Storage provider configurations (local disk, AWS S3, Backblaze B2, Cloudflare R2
 - region (string, nullable) - AWS region or equivalent
 - endpoint (string, nullable) - Custom S3-compatible endpoint
 - bucket_name (string, nullable) - S3 bucket name
-- access_key_id (string, nullable) - Encrypted credentials
-- secret_access_key (string, nullable) - Encrypted credentials
+- access_key_id (string, nullable) - Credentials identifier, not a secret — not encrypted
+- secret_access_key (string, nullable) - Encrypted at rest
+- integration_uuid (uuid, nullable, no FK) - Alternative credential source (a PhoenixKit.Integrations connection); mutually exclusive with access_key_id/secret_access_key
 - cdn_url (string, nullable) - CDN endpoint for file serving
 - path_prefix (string, nullable) - Base path for files
 - enabled (boolean, default: true)
@@ -947,7 +948,10 @@ lib/
 - ✅ Role-based permissions (leverage existing role system)
 
 ### Credentials Storage
-- ✅ Encrypt S3 credentials in database
+- ✅ Encrypt `secret_access_key` at rest (`PhoenixKit.Integrations.Encryption`, AES-256-GCM)
+- ✅ `access_key_id` is a credentials identifier, not a secret — stored as-is, not encrypted
+- ✅ Cloud buckets may reference a `PhoenixKit.Integrations` connection (`integration_uuid`)
+  instead of storing keys directly — mutually exclusive with direct credentials
 - ✅ Use environment variables for secrets
 - ✅ Never log credentials
 

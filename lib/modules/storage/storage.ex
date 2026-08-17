@@ -123,7 +123,10 @@ defmodule PhoenixKit.Modules.Storage do
   @doc """
   Gets a single bucket by ID.
 
-  Returns `nil` if bucket does not exist.
+  Returns `nil` if bucket does not exist. `secret_access_key` is returned
+  as stored (encrypted, see `PhoenixKit.Integrations.Encryption`) — this
+  accessor does not decrypt it. Decrypt only where the plaintext is
+  actually needed (e.g. `Providers.S3.resolve_credentials/1`).
   """
   def get_bucket(id), do: repo().get(Bucket, id)
 

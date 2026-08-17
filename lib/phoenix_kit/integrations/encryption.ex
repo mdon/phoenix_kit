@@ -76,6 +76,65 @@ defmodule PhoenixKit.Integrations.Encryption do
     encryption_key() != nil
   end
 
+  @doc """
+  Encrypt a single value, for callers with a bare field to protect rather
+  than a full `encrypt_fields/1`-shaped map (e.g. an Ecto schema field like
+  `PhoenixKit.Modules.Storage.Bucket.secret_access_key`).
+
+  Same cipher, key derivation and `enc:v1:` prefix as `encrypt_fields/1`.
+  Nil/empty and already-encrypted values (see `encrypted?/1`) pass through
+  unchanged; so does any value when encryption is unavailable (no
+  `secret_key_base`).
+  """
+  @spec encrypt_value(String.t() | nil) :: String.t() | nil
+  def encrypt_value(nil), do: nil
+  def encrypt_value(""), do: ""
+
+  def encrypt_value(value) when is_binary(value) do
+    if encrypted?(value) do
+      value
+    else
+      case encryption_key() do
+        nil -> value
+        key -> encrypt_value(value, key)
+      end
+    end
+  end
+
+  @doc """
+  Decrypt a value produced by `encrypt_value/1`.
+
+  Returns `{:ok, plaintext}`. A value without the `enc:v1:` prefix is
+  returned as `{:ok, value}` unchanged — backwards compatibility with
+  data written before encryption was applied. `{:error, reason}` only for
+  a value that IS prefixed but fails to decrypt (wrong/rotated key,
+  corrupted ciphertext).
+  """
+  @spec decrypt_value(String.t() | nil) :: {:ok, String.t() | nil} | {:error, term()}
+  def decrypt_value(nil), do: {:ok, nil}
+  def decrypt_value(""), do: {:ok, ""}
+
+  def decrypt_value(value) when is_binary(value) do
+    if encrypted?(value) do
+      case encryption_key() do
+        nil -> {:ok, value}
+        key -> decrypt_value(value, key)
+      end
+    else
+      {:ok, value}
+    end
+  end
+
+  @doc """
+  Whether `value` carries the `enc:v1:` encrypted-value prefix.
+
+  Used to keep `encrypt_value/1` idempotent (never double-encrypt) and to
+  let callers tell an already-migrated field apart from legacy plaintext.
+  """
+  @spec encrypted?(String.t() | nil) :: boolean()
+  def encrypted?(value) when is_binary(value), do: String.starts_with?(value, @encrypted_prefix)
+  def encrypted?(_value), do: false
+
   # ---------------------------------------------------------------------------
   # Private
   # ---------------------------------------------------------------------------
