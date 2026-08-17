@@ -952,6 +952,9 @@ lib/
 - ✅ `access_key_id` is a credentials identifier, not a secret — stored as-is, not encrypted
 - ✅ Cloud buckets may reference a `PhoenixKit.Integrations` connection (`integration_uuid`)
   instead of storing keys directly — mutually exclusive with direct credentials
+- ⚠️ No bulk backfill for a `secret_access_key` already in the column when encryption was
+  added — it stays plaintext until the next save of the bucket for ANY reason (the
+  changeset re-derives and re-encrypts it opportunistically, not on a schedule)
 - ✅ Use environment variables for secrets
 - ✅ Never log credentials
 
