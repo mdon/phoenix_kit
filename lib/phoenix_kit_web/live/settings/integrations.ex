@@ -196,6 +196,13 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   defp encryption_status_title(:disabled_explicit),
     do: gettext("Encryption is turned off for integration credentials")
 
+  # Catch-all: the template renders this banner for ANY status other than
+  # `:dedicated` (see the guard note above), so a future `key_status/0`
+  # value this page hasn't been taught about must degrade to a generic
+  # warning instead of a `FunctionClauseError` crashing the settings page.
+  defp encryption_status_title(_other),
+    do: gettext("Integration credential encryption needs attention")
+
   defp encryption_status_detail(:legacy_secret_key_base) do
     gettext(
       "No dedicated encryption key is configured, so credentials below fall back to a key " <>
@@ -216,6 +223,15 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     gettext(
       "integration_encryption_enabled is set to false. Credentials below are stored as plain " <>
         "text in the database."
+    )
+  end
+
+  # See `encryption_status_title/1`'s catch-all note.
+  defp encryption_status_detail(_other) do
+    gettext(
+      "The current encryption status could not be described by this admin page — it may be " <>
+        "newer than what this page recognizes. Check PhoenixKit.Integrations.Encryption.status/0 " <>
+        "directly."
     )
   end
 end

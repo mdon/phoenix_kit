@@ -466,7 +466,7 @@ msgstr "Acerca de los permisos"
 msgid "Accept All"
 msgstr "Aceptar todo"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1105
+#: lib/phoenix_kit/integrations/integrations.ex:1133
 #: lib/phoenix_kit/integrations/validators.ex:598
 #: lib/phoenix_kit_web/live/activity/index.ex:66
 #: lib/phoenix_kit_web/live/activity/show.ex:56
@@ -1437,8 +1437,8 @@ msgstr "Noindex/nofollow activado. Los motores de búsqueda no indexarán este s
 msgid "Not authenticated"
 msgstr "No autenticado"
 
-#: lib/phoenix_kit/integrations/integrations.ex:940
-#: lib/phoenix_kit/integrations/integrations.ex:947
+#: lib/phoenix_kit/integrations/integrations.ex:968
+#: lib/phoenix_kit/integrations/integrations.ex:975
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:29
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:302
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:86
@@ -4219,7 +4219,7 @@ msgstr "Copie el **ID de cliente** y el **secreto de cliente** en el formulario 
 msgid "Copy the key and paste it into the form above"
 msgstr "Copie la clave y péguela en el formulario de arriba"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1107
+#: lib/phoenix_kit/integrations/integrations.ex:1135
 #: lib/phoenix_kit/integrations/probe.ex:102
 #, elixir-autogen, elixir-format
 msgid "Could not reach the service"
@@ -4598,7 +4598,7 @@ msgstr "Integración eliminada"
 msgid "Integrations"
 msgstr "Integraciones"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1104
+#: lib/phoenix_kit/integrations/integrations.ex:1132
 #: lib/phoenix_kit/integrations/validators.ex:208
 #: lib/phoenix_kit/integrations/validators.ex:378
 #: lib/phoenix_kit/integrations/validators.ex:412
@@ -4831,7 +4831,7 @@ msgstr "Vaya a la sección de OAuth con la barra de búsqueda o el menú de hamb
 msgid "No Media Buckets Configured"
 msgstr "No hay buckets de medios configurados"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1054
+#: lib/phoenix_kit/integrations/integrations.ex:1082
 #, elixir-autogen, elixir-format
 msgid "No access token"
 msgstr "Sin token de acceso"
@@ -4842,7 +4842,7 @@ msgstr "Sin token de acceso"
 msgid "No copies"
 msgstr "Sin copias"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1087
+#: lib/phoenix_kit/integrations/integrations.ex:1115
 #: lib/phoenix_kit/integrations/validators.ex:170
 #: lib/phoenix_kit/integrations/validators.ex:577
 #, elixir-autogen, elixir-format
@@ -5133,7 +5133,7 @@ msgstr "Seleccione un usuario para agregar…"
 msgid "Service"
 msgstr "Servicio"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1106
+#: lib/phoenix_kit/integrations/integrations.ex:1134
 #, elixir-autogen, elixir-format
 msgid "Service error %{status}"
 msgstr "Error del servicio %{status}"
@@ -5328,8 +5328,8 @@ msgstr "En **URI de redirección autorizados**, añada: `{redirect_uri}`"
 msgid "Under-replicated"
 msgstr "Con replicación insuficiente"
 
-#: lib/phoenix_kit/integrations/integrations.ex:939
-#: lib/phoenix_kit/integrations/integrations.ex:1032
+#: lib/phoenix_kit/integrations/integrations.ex:967
+#: lib/phoenix_kit/integrations/integrations.ex:1060
 #, elixir-autogen, elixir-format
 msgid "Unknown provider"
 msgstr "Proveedor desconocido"
@@ -5339,8 +5339,8 @@ msgstr "Proveedor desconocido"
 msgid "Use the dropdown above to add members"
 msgstr "Use el desplegable de arriba para agregar miembros"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1009
-#: lib/phoenix_kit/integrations/integrations.ex:1045
+#: lib/phoenix_kit/integrations/integrations.ex:1037
+#: lib/phoenix_kit/integrations/integrations.ex:1073
 #, elixir-autogen, elixir-format
 msgid "Validation failed unexpectedly"
 msgstr "La validación falló de forma inesperada"
@@ -12847,17 +12847,27 @@ msgstr "Las credenciales se almacenan en texto sin cifrar"
 msgid "Encryption is turned off for integration credentials"
 msgstr "El cifrado está desactivado para las credenciales de integración"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:200
+#: lib/phoenix_kit_web/live/settings/integrations.ex:207
 #, elixir-autogen, elixir-format
 msgid "No dedicated encryption key is configured, so credentials below fall back to a key derived from secret_key_base — a secret shared with session signing and CSRF tokens. Anyone who can read secret_key_base can decrypt every credential here. Run mix phoenix_kit.integrations.rotate_key to fix this."
 msgstr "No hay configurada una clave de cifrado dedicada, por lo que las credenciales de abajo recurren a una clave derivada de secret_key_base — un secreto compartido con la firma de sesión y los tokens CSRF. Cualquiera que pueda leer secret_key_base puede descifrar aquí cualquier credencial. Ejecute mix phoenix_kit.integrations.rotate_key para solucionarlo."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:209
+#: lib/phoenix_kit_web/live/settings/integrations.ex:216
 #, elixir-autogen, elixir-format
 msgid "No encryption key could be resolved. New and existing credentials below are stored as plain text in the database."
 msgstr "No se pudo determinar ninguna clave de cifrado. Las credenciales nuevas y existentes de abajo se almacenan en texto sin cifrar en la base de datos."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:216
+#: lib/phoenix_kit_web/live/settings/integrations.ex:223
 #, elixir-autogen, elixir-format
 msgid "integration_encryption_enabled is set to false. Credentials below are stored as plain text in the database."
 msgstr "integration_encryption_enabled está establecido en false. Las credenciales de abajo se almacenan en texto sin cifrar en la base de datos."
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:204
+#, elixir-autogen, elixir-format
+msgid "Integration credential encryption needs attention"
+msgstr "El cifrado de credenciales de integración requiere atención"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:231
+#, elixir-autogen, elixir-format
+msgid "The current encryption status could not be described by this admin page — it may be newer than what this page recognizes. Check PhoenixKit.Integrations.Encryption.status/0 directly."
+msgstr "El estado de cifrado actual no pudo describirse en esta página de administración — puede ser más reciente de lo que esta página reconoce. Compruebe PhoenixKit.Integrations.Encryption.status/0 directamente."

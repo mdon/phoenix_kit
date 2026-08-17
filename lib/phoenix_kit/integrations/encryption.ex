@@ -45,9 +45,23 @@ defmodule PhoenixKit.Integrations.Encryption do
   > `mix phoenix_kit.integrations.rotate_key`) to re-encrypt every stored
   > connection under the new secret BEFORE switching the app's config over
   > to it.
+  >
+  > A field that's temporarily undecryptable (mismatched key, mid-rotation)
+  > is never permanently lost by an unrelated write in the meantime — see
+  > `decrypt_fields_with_failures/1` and
+  > `PhoenixKit.Integrations.save_setup/4`'s write path. The stored
+  > ciphertext survives untouched until the correct key is active again.
   """
 
   require Logger
+
+  # A dedicated key this short provides essentially no assurance over the
+  # legacy fallback it's meant to replace — without a floor, a 1-character
+  # `:integrations_encryption_key` reports as the healthy `:dedicated` tier
+  # (banner hidden, no boot warning) just as confidently as a real random
+  # secret would. Not an attempt at full entropy validation, just a floor
+  # against the comically weak end.
+  @min_dedicated_key_length 20
 
   @sensitive_fields ~w(
     access_token refresh_token client_secret
@@ -107,6 +121,32 @@ defmodule PhoenixKit.Integrations.Encryption do
   end
 
   def decrypt_fields(other), do: other
+
+  @doc """
+  Same as `decrypt_fields/1`, but also returns the names of any fields that
+  looked encrypted (carried the `enc:v1:` prefix) yet failed to decrypt
+  under the currently active key.
+
+  `decrypt_fields/1` drops an undecryptable field entirely — correct for
+  every caller that treats the result as a live credential to use or
+  display, since a caller must never mistake stale ciphertext for a real
+  value. But `PhoenixKit.Integrations.resolve_uuid/2` also hands this same
+  map to write paths that merge new attributes onto it and save the result
+  wholesale: for THOSE callers, "absent because it failed to decrypt" and
+  "absent because nothing was ever there" are not the same thing — the
+  first must not be permanently erased by an unrelated write. The returned
+  field-name list lets a write path restore an untouched field's original
+  ciphertext from storage (see `PhoenixKit.Integrations.save_setup/4`,
+  `refresh_access_token/1`, `exchange_code/4`, `record_validation/3`)
+  without ever exposing that ciphertext as if it were usable.
+  """
+  @spec decrypt_fields_with_failures(map()) :: {map(), [String.t()]}
+  def decrypt_fields_with_failures(data) when is_map(data) do
+    case encryption_key() do
+      nil -> {data, []}
+      key -> do_decrypt_fields_tracking(data, key)
+    end
+  end
 
   @doc """
   Check if encryption is available and enabled.
@@ -224,13 +264,21 @@ defmodule PhoenixKit.Integrations.Encryption do
   end
 
   defp do_decrypt_fields(data, key) do
-    Enum.reduce(@sensitive_fields, data, fn field, acc ->
+    {result, _failed_fields} = do_decrypt_fields_tracking(data, key)
+    result
+  end
+
+  defp do_decrypt_fields_tracking(data, key) do
+    Enum.reduce(@sensitive_fields, {data, []}, fn field, {acc, failed_fields} ->
       case Map.get(acc, field) do
         value when is_binary(value) and value != "" ->
-          maybe_decrypt_field(acc, field, value, key)
+          case maybe_decrypt_field(acc, field, value, key) do
+            {:ok, new_acc} -> {new_acc, failed_fields}
+            {:failed, new_acc} -> {new_acc, [field | failed_fields]}
+          end
 
         _ ->
-          acc
+          {acc, failed_fields}
       end
     end)
   end
@@ -239,7 +287,7 @@ defmodule PhoenixKit.Integrations.Encryption do
     if String.starts_with?(value, @encrypted_prefix) do
       case decrypt_value(value, key) do
         {:ok, plaintext} ->
-          Map.put(acc, field, plaintext)
+          {:ok, Map.put(acc, field, plaintext)}
 
         {:error, reason} ->
           # Returning `acc` unchanged here used to hand back the raw
@@ -249,7 +297,10 @@ defmodule PhoenixKit.Integrations.Encryption do
           # isn't a real secret, so a key change without running
           # `PhoenixKit.Integrations.KeyRotation.rotate/2` first produced a
           # garbled Authorization header instead of a loud, diagnosable
-          # failure. Treat an undecryptable field as absent instead.
+          # failure. Treat an undecryptable field as absent instead — the
+          # `:failed` tag lets `decrypt_fields_with_failures/1` tell a write
+          # path this field is absent ONLY because it can't be read right
+          # now, not because it was never there.
           Logger.error(
             "[Integrations.Encryption] Failed to decrypt field #{inspect(field)} " <>
               "(#{inspect(reason)}) — the active key does not match the one this value was " <>
@@ -258,10 +309,10 @@ defmodule PhoenixKit.Integrations.Encryption do
               "mix phoenix_kit.integrations.rotate_key first."
           )
 
-          Map.delete(acc, field)
+          {:failed, Map.delete(acc, field)}
       end
     else
-      acc
+      {:ok, acc}
     end
   end
 
@@ -321,8 +372,11 @@ defmodule PhoenixKit.Integrations.Encryption do
 
   defp dedicated_key do
     case PhoenixKit.Config.get(:integrations_encryption_key) do
-      {:ok, secret} when is_binary(secret) and secret != "" -> secret
-      _ -> nil
+      {:ok, secret} when is_binary(secret) ->
+        if String.length(secret) >= @min_dedicated_key_length, do: secret
+
+      _ ->
+        nil
     end
   end
 

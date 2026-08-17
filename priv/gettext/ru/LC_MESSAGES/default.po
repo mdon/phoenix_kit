@@ -466,7 +466,7 @@ msgstr "О правах доступа"
 msgid "Accept All"
 msgstr "Принять все"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1105
+#: lib/phoenix_kit/integrations/integrations.ex:1133
 #: lib/phoenix_kit/integrations/validators.ex:598
 #: lib/phoenix_kit_web/live/activity/index.ex:66
 #: lib/phoenix_kit_web/live/activity/show.ex:56
@@ -1437,8 +1437,8 @@ msgstr "Noindex/nofollow включены. Поисковые системы н�
 msgid "Not authenticated"
 msgstr "Не аутентифицирован"
 
-#: lib/phoenix_kit/integrations/integrations.ex:940
-#: lib/phoenix_kit/integrations/integrations.ex:947
+#: lib/phoenix_kit/integrations/integrations.ex:968
+#: lib/phoenix_kit/integrations/integrations.ex:975
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:29
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:302
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:86
@@ -4220,7 +4220,7 @@ msgstr "Скопируйте **ID клиента** и **Секрет клиен�
 msgid "Copy the key and paste it into the form above"
 msgstr "Скопируйте ключ и вставьте его в форму выше"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1107
+#: lib/phoenix_kit/integrations/integrations.ex:1135
 #: lib/phoenix_kit/integrations/probe.ex:102
 #, elixir-autogen, elixir-format
 msgid "Could not reach the service"
@@ -4599,7 +4599,7 @@ msgstr "Интеграция удалена"
 msgid "Integrations"
 msgstr "Интеграции"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1104
+#: lib/phoenix_kit/integrations/integrations.ex:1132
 #: lib/phoenix_kit/integrations/validators.ex:208
 #: lib/phoenix_kit/integrations/validators.ex:378
 #: lib/phoenix_kit/integrations/validators.ex:412
@@ -4832,7 +4832,7 @@ msgstr "Перейдите в раздел OAuth с помощью строки 
 msgid "No Media Buckets Configured"
 msgstr "Медиа-бакеты не настроены"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1054
+#: lib/phoenix_kit/integrations/integrations.ex:1082
 #, elixir-autogen, elixir-format
 msgid "No access token"
 msgstr "Токен доступа отсутствует"
@@ -4843,7 +4843,7 @@ msgstr "Токен доступа отсутствует"
 msgid "No copies"
 msgstr "Нет копий"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1087
+#: lib/phoenix_kit/integrations/integrations.ex:1115
 #: lib/phoenix_kit/integrations/validators.ex:170
 #: lib/phoenix_kit/integrations/validators.ex:577
 #, elixir-autogen, elixir-format
@@ -5134,7 +5134,7 @@ msgstr "Выберите пользователя для добавления...
 msgid "Service"
 msgstr "Сервис"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1106
+#: lib/phoenix_kit/integrations/integrations.ex:1134
 #, elixir-autogen, elixir-format
 msgid "Service error %{status}"
 msgstr "Ошибка сервиса %{status}"
@@ -5329,8 +5329,8 @@ msgstr "В разделе **Авторизованные URI перенапра�
 msgid "Under-replicated"
 msgstr "Недостаточно реплицировано"
 
-#: lib/phoenix_kit/integrations/integrations.ex:939
-#: lib/phoenix_kit/integrations/integrations.ex:1032
+#: lib/phoenix_kit/integrations/integrations.ex:967
+#: lib/phoenix_kit/integrations/integrations.ex:1060
 #, elixir-autogen, elixir-format
 msgid "Unknown provider"
 msgstr "Неизвестный провайдер"
@@ -5340,8 +5340,8 @@ msgstr "Неизвестный провайдер"
 msgid "Use the dropdown above to add members"
 msgstr "Используйте выпадающий список выше для добавления участников"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1009
-#: lib/phoenix_kit/integrations/integrations.ex:1045
+#: lib/phoenix_kit/integrations/integrations.ex:1037
+#: lib/phoenix_kit/integrations/integrations.ex:1073
 #, elixir-autogen, elixir-format
 msgid "Validation failed unexpectedly"
 msgstr "Валидация неожиданно не удалась"
@@ -12879,17 +12879,27 @@ msgstr "Учётные данные хранятся открытым текст
 msgid "Encryption is turned off for integration credentials"
 msgstr "Шифрование отключено для учётных данных интеграций"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:200
+#: lib/phoenix_kit_web/live/settings/integrations.ex:207
 #, elixir-autogen, elixir-format
 msgid "No dedicated encryption key is configured, so credentials below fall back to a key derived from secret_key_base — a secret shared with session signing and CSRF tokens. Anyone who can read secret_key_base can decrypt every credential here. Run mix phoenix_kit.integrations.rotate_key to fix this."
 msgstr "Отдельный ключ шифрования не задан, поэтому учётные данные ниже используют запасной ключ, производный от secret_key_base — секрета, который также используется для подписи сессий и CSRF-токенов. Любой, кто может прочитать secret_key_base, может расшифровать здесь любые учётные данные. Выполните mix phoenix_kit.integrations.rotate_key, чтобы это исправить."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:209
+#: lib/phoenix_kit_web/live/settings/integrations.ex:216
 #, elixir-autogen, elixir-format
 msgid "No encryption key could be resolved. New and existing credentials below are stored as plain text in the database."
 msgstr "Не удалось определить ключ шифрования. Новые и уже сохранённые учётные данные ниже хранятся в базе данных открытым текстом."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:216
+#: lib/phoenix_kit_web/live/settings/integrations.ex:223
 #, elixir-autogen, elixir-format
 msgid "integration_encryption_enabled is set to false. Credentials below are stored as plain text in the database."
 msgstr "integration_encryption_enabled установлено в false. Учётные данные ниже хранятся в базе данных открытым текстом."
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:204
+#, elixir-autogen, elixir-format
+msgid "Integration credential encryption needs attention"
+msgstr "Шифрование учётных данных интеграций требует внимания"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:231
+#, elixir-autogen, elixir-format
+msgid "The current encryption status could not be described by this admin page — it may be newer than what this page recognizes. Check PhoenixKit.Integrations.Encryption.status/0 directly."
+msgstr "Текущий статус шифрования не удалось описать на этой странице администрирования — возможно, он новее, чем распознаёт эта страница. Проверьте PhoenixKit.Integrations.Encryption.status/0 напрямую."

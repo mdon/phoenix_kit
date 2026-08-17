@@ -72,18 +72,27 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
   command returns, it ends when the app is running under the new key. In
   that window:
 
-    * A READ of a rotated connection fails loudly (see
-      `PhoenixKit.Integrations.Encryption`'s decrypt-failure handling) under
-      the still-active old key.
+    * A READ of a rotated connection does not raise or crash — a field
+      that can't be decrypted under the still-active old key is logged
+      and silently dropped from whatever asked for it (see
+      `PhoenixKit.Integrations.Encryption`'s decrypt-failure handling),
+      same as any other decrypt failure. Not an exception to catch — the
+      field is simply absent.
     * A WRITE that must first read-and-merge the existing row (most writes
-      in `PhoenixKit.Integrations` work this way) hits that same loud
-      failure once it tries to decrypt a row this task already rotated.
-    * A WRITE carrying values read BEFORE rotation ran — the race the
-      section above describes — is not caught by that check at all: it
-      lands silently, still encrypted under the OLD key, into a row this
-      task already moved to the new secret. That value then fails to
-      decrypt once the app restarts onto the new key, indistinguishable
-      from unrelated corruption.
+      in `PhoenixKit.Integrations` work this way, including fully
+      automatic ones like a validation-status update after every
+      token-refresh attempt) is NOT destructive just because it hits a
+      row this task already rotated: it restores the untouched field's
+      ciphertext before saving, as long as the write itself doesn't
+      supply a fresh value for that exact field. The field stays exactly
+      as rotation left it and decrypts fine again once the app restarts.
+    * A WRITE that DOES supply a fresh value for that exact field is
+      still at risk, whether it's this simple gap or the race the section
+      above describes: whatever gets encrypted uses whichever key is
+      ACTIVE, which is still the OLD one until the app restarts, so that
+      value lands under the OLD key in a row this task already moved to
+      the new secret. It then fails to decrypt once the app restarts onto
+      the new key, indistinguishable from unrelated corruption.
 
   There is no dual-key fallback to paper over any of this (it would
   silently mask exactly the failure class this task exists to prevent).

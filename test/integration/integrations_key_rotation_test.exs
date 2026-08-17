@@ -73,7 +73,8 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
       before1 = raw_value_json(uuid1)
       assert String.starts_with?(before1["api_key"], "enc:v1:")
 
-      assert {:ok, %{rotated: 2, dry_run: false}} = KeyRotation.rotate("brand-new-secret")
+      assert {:ok, %{rotated: 2, dry_run: false}} =
+               KeyRotation.rotate("brand-new-secret-well-over-min-length")
 
       after1 = raw_value_json(uuid1)
       after2 = raw_value_json(uuid2)
@@ -89,20 +90,43 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
 
       # The NEW secret, once configured as the active key, round-trips —
       # proving rotation wrote something *usable*, not just something new.
-      Application.put_env(:phoenix_kit, :integrations_encryption_key, "brand-new-secret")
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "brand-new-secret-well-over-min-length"
+      )
+
       assert Encryption.decrypt_fields(after1)["api_key"] == "sk-one"
       assert Encryption.decrypt_fields(after2)["api_key"] == "sk-two"
     end
 
-    test "a connection with no sensitive fields rotates as a no-op and stays readable" do
+    test "a connection with no sensitive fields is scanned but not counted as rotated, and stays readable" do
       {:ok, %{uuid: uuid}} = Integrations.add_connection("openrouter", "empty")
+      before_rotation = raw_value_json(uuid)
 
-      assert {:ok, %{rotated: 1}} = KeyRotation.rotate("brand-new-secret")
+      # `rotated` counts rows that actually carry an encrypted field, not
+      # every row scanned — a row with nothing to decrypt would otherwise
+      # get a wasted `UPDATE` with byte-identical `value_json` and be
+      # misreported as rotated.
+      assert {:ok, %{rotated: 0}} = KeyRotation.rotate("brand-new-secret-well-over-min-length")
 
-      Application.put_env(:phoenix_kit, :integrations_encryption_key, "brand-new-secret")
+      assert raw_value_json(uuid) == before_rotation
+
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "brand-new-secret-well-over-min-length"
+      )
 
       assert {:ok, %{provider: "openrouter"}} =
                Integrations.get_integration_by_uuid(uuid, :system)
+    end
+
+    test "rotated counts only rows that actually carry an encrypted field, in a mixed set" do
+      _empty_uuid = seed_connection("openrouter", "empty", %{})
+      _with_key_uuid = seed_connection("openrouter", "with-key", %{"api_key" => "sk-live"})
+
+      assert {:ok, %{rotated: 1}} = KeyRotation.rotate("brand-new-secret-well-over-min-length")
     end
 
     test "aborts and writes NOTHING when any row fails to decrypt under the current key" do
@@ -115,7 +139,7 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
       corrupted = corrupt_row!(uuid_bad, "sk-bad", "some-other-secret")
 
       assert {:error, {:decrypt_failed, failed_uuid, :decrypt_failed_under_current_key}} =
-               KeyRotation.rotate("brand-new-secret")
+               KeyRotation.rotate("brand-new-secret-well-over-min-length")
 
       assert failed_uuid == uuid_bad
 

@@ -25,11 +25,13 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsEncryptionBannerTest do
     original_dedicated = Application.get_env(:phoenix_kit, :integrations_encryption_key)
     original_flat = Application.get_env(:phoenix_kit, :secret_key_base)
     original_enabled = Application.get_env(:phoenix_kit, :integration_encryption_enabled)
+    original_parent = Application.get_env(:phoenix_kit, :parent_module)
 
     on_exit(fn ->
       restore_env(:integrations_encryption_key, original_dedicated)
       restore_env(:secret_key_base, original_flat)
       restore_env(:integration_encryption_enabled, original_enabled)
+      restore_env(:parent_module, original_parent)
     end)
 
     %{conn: log_in_user(conn, user)}
@@ -70,6 +72,24 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsEncryptionBannerTest do
 
     assert html =~ "alert-warning"
     assert html =~ "Encryption is turned off for integration credentials"
+  end
+
+  test "shows the plaintext warning when no encryption key resolves at all", %{conn: conn} do
+    # Neither a dedicated key nor a flat secret_key_base is configured, AND
+    # the host endpoint lookup itself can't resolve — the exact path that
+    # used to be misreported as `:disabled_no_key` for the OPPOSITE reason
+    # (Endpoint not started yet because `PhoenixKit.Supervisor` runs before
+    # it) when this boot check ran too early. Here the endpoint genuinely
+    # can't be found, so `:disabled_no_key` is the correct, honest status.
+    Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+    Application.delete_env(:phoenix_kit, :secret_key_base)
+    Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
+    assert Encryption.status() == :disabled_no_key
+
+    {:ok, _view, html} = live(conn, @list_path)
+
+    assert html =~ "alert-warning"
+    assert html =~ "Credentials are stored in plain text"
   end
 
   defp restore_env(key, nil), do: Application.delete_env(:phoenix_kit, key)

@@ -474,7 +474,7 @@ msgstr "Õiguste kohta"
 msgid "Accept All"
 msgstr "Nõustu kõigega"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1105
+#: lib/phoenix_kit/integrations/integrations.ex:1133
 #: lib/phoenix_kit/integrations/validators.ex:598
 #: lib/phoenix_kit_web/live/activity/index.ex:66
 #: lib/phoenix_kit_web/live/activity/show.ex:56
@@ -1445,8 +1445,8 @@ msgstr "Noindex/nofollow lubatud. Otsingumootorid ei indekseeri seda saiti."
 msgid "Not authenticated"
 msgstr "Autentimata"
 
-#: lib/phoenix_kit/integrations/integrations.ex:940
-#: lib/phoenix_kit/integrations/integrations.ex:947
+#: lib/phoenix_kit/integrations/integrations.ex:968
+#: lib/phoenix_kit/integrations/integrations.ex:975
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:29
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:302
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:86
@@ -4225,7 +4225,7 @@ msgstr "Kopeeri **Kliendi ID** ja **Kliendi saladus** ülalolevasse vormi"
 msgid "Copy the key and paste it into the form above"
 msgstr "Kopeeri võti ja kleebi see ülalolevasse vormi"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1107
+#: lib/phoenix_kit/integrations/integrations.ex:1135
 #: lib/phoenix_kit/integrations/probe.ex:102
 #, elixir-autogen, elixir-format
 msgid "Could not reach the service"
@@ -4604,7 +4604,7 @@ msgstr "Integratsioon kustutatud"
 msgid "Integrations"
 msgstr "Integratsioonid"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1104
+#: lib/phoenix_kit/integrations/integrations.ex:1132
 #: lib/phoenix_kit/integrations/validators.ex:208
 #: lib/phoenix_kit/integrations/validators.ex:378
 #: lib/phoenix_kit/integrations/validators.ex:412
@@ -4837,7 +4837,7 @@ msgstr "Navigeerige OAuth jaotisesse otsinguribi või hamburgeri menüü abil: o
 msgid "No Media Buckets Configured"
 msgstr "Meedia bucketid pole konfigureeritud"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1054
+#: lib/phoenix_kit/integrations/integrations.ex:1082
 #, elixir-autogen, elixir-format
 msgid "No access token"
 msgstr "Juurdepääsutokenit pole"
@@ -4848,7 +4848,7 @@ msgstr "Juurdepääsutokenit pole"
 msgid "No copies"
 msgstr "Koopiaid pole"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1087
+#: lib/phoenix_kit/integrations/integrations.ex:1115
 #: lib/phoenix_kit/integrations/validators.ex:170
 #: lib/phoenix_kit/integrations/validators.ex:577
 #, elixir-autogen, elixir-format
@@ -5139,7 +5139,7 @@ msgstr "Vali lisatav kasutaja..."
 msgid "Service"
 msgstr "Teenus"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1106
+#: lib/phoenix_kit/integrations/integrations.ex:1134
 #, elixir-autogen, elixir-format
 msgid "Service error %{status}"
 msgstr "Teenuse viga %{status}"
@@ -5334,8 +5334,8 @@ msgstr "**Volitatud ümbersuunamise URL-id** all lisage: `{redirect_uri}`"
 msgid "Under-replicated"
 msgstr "Ebapiisav replikatsioon"
 
-#: lib/phoenix_kit/integrations/integrations.ex:939
-#: lib/phoenix_kit/integrations/integrations.ex:1032
+#: lib/phoenix_kit/integrations/integrations.ex:967
+#: lib/phoenix_kit/integrations/integrations.ex:1060
 #, elixir-autogen, elixir-format
 msgid "Unknown provider"
 msgstr "Tundmatu teenusepakkuja"
@@ -5345,8 +5345,8 @@ msgstr "Tundmatu teenusepakkuja"
 msgid "Use the dropdown above to add members"
 msgstr "Kasuta ülalolevat rippmenüüd liikmete lisamiseks"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1009
-#: lib/phoenix_kit/integrations/integrations.ex:1045
+#: lib/phoenix_kit/integrations/integrations.ex:1037
+#: lib/phoenix_kit/integrations/integrations.ex:1073
 #, elixir-autogen, elixir-format
 msgid "Validation failed unexpectedly"
 msgstr "Valideerimine ebaõnnestus ootamatult"
@@ -12856,17 +12856,27 @@ msgstr "Mandaadid salvestatakse selgel kujul"
 msgid "Encryption is turned off for integration credentials"
 msgstr "Krüpteerimine on integratsioonide mandaatide jaoks välja lülitatud"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:200
+#: lib/phoenix_kit_web/live/settings/integrations.ex:207
 #, elixir-autogen, elixir-format
 msgid "No dedicated encryption key is configured, so credentials below fall back to a key derived from secret_key_base — a secret shared with session signing and CSRF tokens. Anyone who can read secret_key_base can decrypt every credential here. Run mix phoenix_kit.integrations.rotate_key to fix this."
 msgstr "Eraldi krüpteerimisvõtit pole seadistatud, seega kasutavad allolevad mandaadid secret_key_base'ist tuletatud võtit — saladust, mida jagatakse seansi allkirjastamise ja CSRF-lubadega. Igaüks, kes saab lugeda secret_key_base'i, saab siin dešifreerida iga mandaadi. Selle parandamiseks käivitage mix phoenix_kit.integrations.rotate_key."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:209
+#: lib/phoenix_kit_web/live/settings/integrations.ex:216
 #, elixir-autogen, elixir-format
 msgid "No encryption key could be resolved. New and existing credentials below are stored as plain text in the database."
 msgstr "Krüpteerimisvõtit ei õnnestunud tuvastada. Allolevad uued ja olemasolevad mandaadid salvestatakse andmebaasi selgel kujul."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:216
+#: lib/phoenix_kit_web/live/settings/integrations.ex:223
 #, elixir-autogen, elixir-format
 msgid "integration_encryption_enabled is set to false. Credentials below are stored as plain text in the database."
 msgstr "integration_encryption_enabled on seatud väärtusele false. Allolevad mandaadid salvestatakse andmebaasi selgel kujul."
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:204
+#, elixir-autogen, elixir-format
+msgid "Integration credential encryption needs attention"
+msgstr "Integratsiooni mandaatide krüpteerimine vajab tähelepanu"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:231
+#, elixir-autogen, elixir-format
+msgid "The current encryption status could not be described by this admin page — it may be newer than what this page recognizes. Check PhoenixKit.Integrations.Encryption.status/0 directly."
+msgstr "Praegust krüpteerimise olekut ei õnnestunud sellel haldusleheküljel kirjeldada — see võib olla uuem kui see lehekülg ära tunneb. Kontrollige otse PhoenixKit.Integrations.Encryption.status/0."

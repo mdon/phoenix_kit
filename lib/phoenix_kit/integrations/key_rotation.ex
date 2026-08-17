@@ -115,16 +115,32 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   restarts. In the window between those two events, on top of the
   concurrent-write race above:
 
-    * **Reads** of a rotated connection fail (loudly — see
-      `PhoenixKit.Integrations.Encryption`'s decrypt-failure handling) under
-      the still-active old key.
-    * **Writes** are just as affected, not only reads: anything that saves
-      new credential data during the window — most notably an OAuth token
-      auto-refresh — is encrypted under the OLD key (still the active
-      config), landing back in a row this rotation already moved to the
-      NEW secret. That write's own credential value will then fail to
-      decrypt once the app is restarted onto the new key, exactly like an
-      un-rotated row would.
+    * **Reads** of a rotated connection do not raise or crash — a field
+      that can't be decrypted under the still-active old key is logged
+      (`Logger.error`) and silently dropped from whatever asked for it
+      (see `PhoenixKit.Integrations.Encryption`'s decrypt-failure
+      handling), same as any other decrypt failure. Not an exception a
+      caller has to handle — the field is simply absent.
+    * **A write that reads-and-merges the existing row and does NOT touch
+      the stuck field is no longer destructive.** Most writes in
+      `PhoenixKit.Integrations` work this way, including fully automatic
+      ones (a validation-status update after every token-refresh attempt,
+      with no operator involved) — and used to permanently erase a field
+      it couldn't decrypt, because the map it saved back never had that
+      field in it. That's fixed: such a write restores the field's
+      untouched ciphertext from storage before saving, as long as the
+      write itself doesn't supply a fresh value for that exact key. The
+      field stays exactly as this rotation left it — encrypted under the
+      NEW secret — and decrypts fine again the moment the app restarts.
+    * **A write that DOES supply a fresh value for that exact field is
+      still at risk.** Whatever gets encrypted at write time uses
+      whichever key is ACTIVE, which is still the OLD one until the app
+      restarts — so that one field lands back under the OLD key, in a row
+      this rotation already moved to the NEW secret, and will fail to
+      decrypt once the app restarts onto the new key, same as an
+      un-rotated row would. This is the write half of the same race
+      "Atomicity and concurrent writers" describes above, not a separate
+      one.
 
   There is deliberately no dual-key read fallback to paper over this gap (it
   would silently mask exactly the class of failure this module exists to
@@ -224,8 +240,11 @@ defmodule PhoenixKit.Integrations.KeyRotation do
     rows = repo.all(rotate_rows_query())
 
     case decrypt_all(rows) do
-      {:error, uuid, reason} -> {:error, {:decrypt_failed, uuid, reason}}
-      {:ok, plans} -> {:ok, %{rotated: length(plans), dry_run: true}}
+      {:error, uuid, reason} ->
+        {:error, {:decrypt_failed, uuid, reason}}
+
+      {:ok, plans} ->
+        {:ok, %{rotated: Enum.count(plans, &has_encrypted_field?/1), dry_run: true}}
     end
   end
 
@@ -240,11 +259,23 @@ defmodule PhoenixKit.Integrations.KeyRotation do
           repo.rollback({:decrypt_failed, uuid, reason})
 
         {:ok, plans} ->
-          Enum.each(plans, &rotate_row(&1, new_secret, repo))
-          length(plans)
+          to_rotate = Enum.filter(plans, &has_encrypted_field?/1)
+          Enum.each(to_rotate, &rotate_row(&1, new_secret, repo))
+          length(to_rotate)
       end
     end)
     |> normalize_result()
+  end
+
+  # A row scanned during the verify pass is not necessarily a row that
+  # NEEDS rotating — one with no sensitive fields at all decrypts trivially
+  # (nothing to decrypt) and re-encrypting it is a no-op that would still
+  # issue an `UPDATE` with byte-identical `value_json`. Counting it as
+  # "rotated" overstates what happened, and writing it wastes a row lock
+  # for nothing. Scoped to rows that actually carry an encrypted field.
+  defp has_encrypted_field?({%Setting{value_json: raw}, _decrypted}) do
+    raw = raw || %{}
+    Enum.any?(Encryption.sensitive_fields(), fn field -> Encryption.encrypted?(raw[field]) end)
   end
 
   defp rotate_row({setting, decrypted}, new_secret, repo) do
