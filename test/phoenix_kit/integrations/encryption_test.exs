@@ -186,6 +186,387 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
     end
   end
 
+  describe "decrypt failure safety (active key does not match the encrypting key)" do
+    import ExUnit.CaptureLog
+
+    setup do
+      original_dedicated = Application.get_env(:phoenix_kit, :integrations_encryption_key)
+      original_flat = Application.get_env(:phoenix_kit, :secret_key_base)
+
+      on_exit(fn ->
+        restore_env(:integrations_encryption_key, original_dedicated)
+        restore_env(:secret_key_base, original_flat)
+      end)
+
+      :ok
+    end
+
+    test "an undecryptable field is dropped, never handed back as raw ciphertext" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-A-for-this-test")
+
+      encrypted = Encryption.encrypt_fields(%{"api_key" => "sk-live-real-secret"})
+      assert String.starts_with?(encrypted["api_key"], "enc:v1:")
+
+      # Simulate a key change made without running the rotation task first —
+      # exactly the condition that must trip this safety net.
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-B-completely-different")
+
+      decrypted = Encryption.decrypt_fields(encrypted)
+
+      # The field must be ABSENT, not the leftover "enc:v1:..." string — a
+      # caller checking `data["api_key"]` for presence must see nothing,
+      # not something that merely fails to work as a real credential.
+      refute Map.has_key?(decrypted, "api_key")
+    end
+
+    test "logs the decrypt failure instead of failing silently" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-A-for-this-test")
+
+      encrypted = Encryption.encrypt_fields(%{"api_key" => "sk-live-real-secret"})
+
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-B-completely-different")
+
+      log = capture_log(fn -> Encryption.decrypt_fields(encrypted) end)
+
+      assert log =~ "Failed to decrypt field"
+      assert log =~ "api_key"
+    end
+
+    test "a non-sensitive field is untouched when a sensitive field on the same row fails to decrypt" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-A-for-this-test")
+
+      encrypted =
+        Encryption.encrypt_fields(%{
+          "api_key" => "will-become-unreadable",
+          "provider" => "openrouter"
+        })
+
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-B-completely-different")
+
+      decrypted = Encryption.decrypt_fields(encrypted)
+      refute Map.has_key?(decrypted, "api_key")
+      assert decrypted["provider"] == "openrouter"
+    end
+
+    test "a corrupted field's decrypt failure does not affect a sibling sensitive field still decryptable under the same key" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-A-for-this-test")
+
+      encrypted =
+        Encryption.encrypt_fields(%{
+          "api_key" => "will-be-corrupted",
+          "bot_token" => "stays-readable"
+        })
+
+      # The active key never changes in this test — only this ONE field's
+      # stored bytes are damaged (truncated, breaking base64 decoding).
+      # Proves a per-field decrypt failure doesn't cascade to a SENSITIVE
+      # sibling field that decrypts fine under the same, still-active key —
+      # the thing the old test's name promised and its body never checked.
+      corrupted = Map.update!(encrypted, "api_key", &String.slice(&1, 0..-6//1))
+
+      decrypted = Encryption.decrypt_fields(corrupted)
+      refute Map.has_key?(decrypted, "api_key")
+      assert decrypted["bot_token"] == "stays-readable"
+    end
+  end
+
+  describe "decrypt_fields_with_failures/1 — the write-side companion" do
+    setup do
+      original_dedicated = Application.get_env(:phoenix_kit, :integrations_encryption_key)
+      original_flat = Application.get_env(:phoenix_kit, :secret_key_base)
+      original_parent = Application.get_env(:phoenix_kit, :parent_module)
+
+      on_exit(fn ->
+        restore_env(:integrations_encryption_key, original_dedicated)
+        restore_env(:secret_key_base, original_flat)
+        restore_env(:parent_module, original_parent)
+      end)
+
+      :ok
+    end
+
+    test "reports a field that failed to decrypt by name, in addition to dropping it" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-A-for-this-test")
+
+      encrypted = Encryption.encrypt_fields(%{"api_key" => "sk-live-real-secret"})
+
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-B-completely-different")
+
+      {decrypted, failed} = Encryption.decrypt_fields_with_failures(encrypted)
+
+      refute Map.has_key?(decrypted, "api_key")
+      assert failed == ["api_key"]
+    end
+
+    test "returns the same map decrypt_fields/1 would, with an empty failure list, when everything decrypts" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-A-for-this-test")
+
+      encrypted =
+        Encryption.encrypt_fields(%{"api_key" => "sk-live", "provider" => "openrouter"})
+
+      {decrypted, failed} = Encryption.decrypt_fields_with_failures(encrypted)
+
+      assert decrypted == Encryption.decrypt_fields(encrypted)
+      assert failed == []
+    end
+
+    test "reports every field that failed, not just the first" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-A-for-this-test")
+
+      encrypted =
+        Encryption.encrypt_fields(%{
+          "api_key" => "sk-live",
+          "bot_token" => "bot-live"
+        })
+
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-B-completely-different")
+
+      {_decrypted, failed} = Encryption.decrypt_fields_with_failures(encrypted)
+
+      assert Enum.sort(failed) == ["api_key", "bot_token"]
+    end
+
+    test "returns an empty failure list when encryption is disabled (nothing to fail)" do
+      Application.delete_env(:phoenix_kit, :secret_key_base)
+      Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
+
+      refute Encryption.enabled?()
+
+      data = %{"api_key" => "plain"}
+      assert Encryption.decrypt_fields_with_failures(data) == {data, []}
+    end
+  end
+
+  describe "dedicated key vs. legacy secret_key_base precedence" do
+    setup do
+      original_dedicated = Application.get_env(:phoenix_kit, :integrations_encryption_key)
+      original_flat = Application.get_env(:phoenix_kit, :secret_key_base)
+
+      on_exit(fn ->
+        restore_env(:integrations_encryption_key, original_dedicated)
+        restore_env(:secret_key_base, original_flat)
+      end)
+
+      :ok
+    end
+
+    test "status/0 reports :dedicated when a dedicated key is configured, even with a legacy key present" do
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "dedicated-secret-well-over-min-length"
+      )
+
+      Application.put_env(:phoenix_kit, :secret_key_base, "legacy-secret")
+
+      assert Encryption.status() == :dedicated
+    end
+
+    test "a value encrypted under the dedicated key does not decrypt once only the legacy key resolves" do
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "dedicated-secret-well-over-min-length"
+      )
+
+      Application.put_env(:phoenix_kit, :secret_key_base, "legacy-secret")
+
+      encrypted = Encryption.encrypt_fields(%{"api_key" => "under-dedicated-key"})
+
+      # The dedicated key is removed WITHOUT rotating first — the legacy tier
+      # takes over, and it must not accidentally read a value it never wrote.
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      assert Encryption.status() == :legacy_secret_key_base
+
+      decrypted = Encryption.decrypt_fields(encrypted)
+      refute Map.has_key?(decrypted, "api_key")
+    end
+
+    test "round-trips correctly while the dedicated key stays configured" do
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "dedicated-secret-well-over-min-length"
+      )
+
+      encrypted = Encryption.encrypt_fields(%{"api_key" => "plain"})
+      assert String.starts_with?(encrypted["api_key"], "enc:v1:")
+      assert Encryption.decrypt_fields(encrypted)["api_key"] == "plain"
+    end
+
+    test "a dedicated key shorter than the minimum length does not count as dedicated" do
+      # Without a floor, a 1-character `integrations_encryption_key` reports
+      # as the healthy `:dedicated` tier — false assurance. A too-short
+      # dedicated key must fall through the same tier chain an absent one
+      # would, not silently pass as "the real thing".
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, "x")
+      Application.put_env(:phoenix_kit, :secret_key_base, "legacy-secret")
+
+      assert Encryption.status() == :legacy_secret_key_base
+    end
+
+    test "warn_if_insecure/0 tells an operator with a too-short key apart from one who set nothing" do
+      import ExUnit.CaptureLog
+
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, "too-short")
+      Application.put_env(:phoenix_kit, :secret_key_base, "legacy-secret")
+
+      # Falls back to the legacy tier (same as an absent key would)...
+      assert Encryption.status() == :legacy_secret_key_base
+
+      log = capture_log(fn -> Encryption.warn_if_insecure() end)
+
+      # ...but the operator who configured a key, just too short, must not
+      # be told "no dedicated key is configured" — they configured one.
+      assert log =~ "is shorter than"
+      assert log =~ "IGNORED"
+      refute log =~ "no dedicated key is"
+    end
+  end
+
+  describe "status/0 and warn_if_insecure/0" do
+    import ExUnit.CaptureLog
+
+    setup do
+      original_dedicated = Application.get_env(:phoenix_kit, :integrations_encryption_key)
+      original_flat = Application.get_env(:phoenix_kit, :secret_key_base)
+      original_enabled = Application.get_env(:phoenix_kit, :integration_encryption_enabled)
+      original_parent = Application.get_env(:phoenix_kit, :parent_module)
+
+      on_exit(fn ->
+        restore_env(:integrations_encryption_key, original_dedicated)
+        restore_env(:secret_key_base, original_flat)
+        restore_env(:integration_encryption_enabled, original_enabled)
+        restore_env(:parent_module, original_parent)
+      end)
+
+      :ok
+    end
+
+    test ":disabled_explicit when integration_encryption_enabled is false, regardless of key availability" do
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, "dedicated")
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, false)
+
+      assert Encryption.status() == :disabled_explicit
+    end
+
+    test ":disabled_no_key when enabled but no key material resolves at all" do
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, true)
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.delete_env(:phoenix_kit, :secret_key_base)
+      Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
+
+      assert Encryption.status() == :disabled_no_key
+    end
+
+    test ":disabled_no_key when the only configured key is too short and nothing else resolves" do
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, true)
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, "too-short")
+      Application.delete_env(:phoenix_kit, :secret_key_base)
+      Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
+
+      assert Encryption.status() == :disabled_no_key
+
+      log = capture_log(fn -> Encryption.warn_if_insecure() end)
+      assert log =~ "is shorter than"
+      refute log =~ "no encryption key could be resolved"
+    end
+
+    test ":legacy_secret_key_base when only secret_key_base resolves" do
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, true)
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, "legacy")
+
+      assert Encryption.status() == :legacy_secret_key_base
+    end
+
+    test ":dedicated when a dedicated key is configured" do
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, true)
+
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "dedicated-secret-well-over-min-length"
+      )
+
+      assert Encryption.status() == :dedicated
+    end
+
+    test "warn_if_insecure/0 logs nothing for the healthy :dedicated case" do
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "dedicated-secret-well-over-min-length"
+      )
+
+      log = capture_log(fn -> assert Encryption.warn_if_insecure() == :ok end)
+      assert log == ""
+    end
+
+    test "warn_if_insecure/0 warns about the legacy fallback" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, "legacy")
+
+      log = capture_log(fn -> Encryption.warn_if_insecure() end)
+      assert log =~ "secret_key_base"
+    end
+
+    test "warn_if_insecure/0 warns about plaintext storage when explicitly disabled" do
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, false)
+
+      log = capture_log(fn -> Encryption.warn_if_insecure() end)
+      assert log =~ "PLAINTEXT"
+    end
+  end
+
+  describe "encrypt_fields_with_secret/2 (rotation primitive)" do
+    setup do
+      original_dedicated = Application.get_env(:phoenix_kit, :integrations_encryption_key)
+      on_exit(fn -> restore_env(:integrations_encryption_key, original_dedicated) end)
+      :ok
+    end
+
+    test "encrypts under an explicit secret, independent of the configured key" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+
+      encrypted =
+        Encryption.encrypt_fields_with_secret(
+          %{"api_key" => "value"},
+          "explicit-secret-well-over-min-length"
+        )
+
+      assert String.starts_with?(encrypted["api_key"], "enc:v1:")
+
+      # Once that same secret becomes the configured dedicated key, it decrypts.
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "explicit-secret-well-over-min-length"
+      )
+
+      assert Encryption.decrypt_fields(encrypted)["api_key"] == "value"
+    end
+
+    test "a value encrypted with one explicit secret does not decrypt under another" do
+      encrypted = Encryption.encrypt_fields_with_secret(%{"api_key" => "value"}, "secret-one")
+
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "secret-two-well-over-min-length"
+      )
+
+      refute Map.has_key?(Encryption.decrypt_fields(encrypted), "api_key")
+    end
+  end
+
   describe "sensitive_fields/0" do
     test "returns expected fields" do
       fields = Encryption.sensitive_fields()

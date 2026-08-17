@@ -6,23 +6,62 @@ defmodule PhoenixKit.Integrations.Encryption do
   `api_key`, `bot_token`, `secret_key`, `password` before storing in the
   database. Decrypts them when reading.
 
-  Uses the application's `secret_key_base` as the root key, deriving a
-  dedicated integration encryption key via a SHA-256 hash.
+  ## Key resolution
+
+  The AES key is derived (SHA-256) from a secret, tried in this order:
+
+    1. **Dedicated key** — `config :phoenix_kit, :integrations_encryption_key`.
+       The recommended setup: a random secret independent of anything else
+       in the app, generated with `mix phoenix_kit.integrations.rotate_key`
+       and wired from an environment variable in `runtime.exs`, e.g.
+
+           config :phoenix_kit,
+             integrations_encryption_key: System.get_env("PHOENIX_KIT_INTEGRATIONS_ENCRYPTION_KEY")
+
+    2. **Legacy fallback** — the application's `secret_key_base` (flat
+       `config :phoenix_kit, :secret_key_base`, or the host app's own
+       Endpoint secret). This is what every install used before the
+       dedicated key existed, and it stays supported for backwards
+       compatibility — but it means anyone who can read `secret_key_base`
+       (env, config file, git history) can decrypt every stored integration
+       credential, since that secret is shared with session signing, CSRF
+       tokens, and everything else Phoenix derives from it. `status/0`
+       reports this tier as `:legacy_secret_key_base` and
+       `PhoenixKit.Supervisor` logs a boot warning about it — see
+       `warn_if_insecure/0`.
+
+  Set `config :phoenix_kit, integration_encryption_enabled: false` to turn
+  encryption off entirely (new and existing writes store plaintext). This is
+  reported as `:disabled_explicit` by `status/0` and is also warned about at
+  boot — the setting takes effect silently, but its EFFECT is never silent.
 
   > #### Key rotation {: .warning}
-  > The key is derived deterministically from `secret_key_base`. Rotating
-  > `secret_key_base` makes every existing `enc:v1:` value undecryptable
-  > (reads fall back to the stored ciphertext, effectively data loss). There
-  > is no re-wrap/migration path today; the `enc:v1:` prefix reserves room
-  > for a future versioned KDF that could re-encrypt on read.
-
-  ## Configuration
-
-  Encryption is enabled by default when `secret_key_base` is configured.
-  To disable, set:
-
-      config :phoenix_kit, integration_encryption_enabled: false
+  > Changing which secret produces the key — setting a dedicated key for the
+  > first time, or rotating an existing one — makes every existing `enc:v1:`
+  > value undecryptable under the new key. There is no dual-key fallback at
+  > read time (that would silently mask a misconfigured key with plaintext
+  > read failures, the opposite of the point). Use
+  > `PhoenixKit.Integrations.KeyRotation.rotate/2` (or
+  > `mix phoenix_kit.integrations.rotate_key`) to re-encrypt every stored
+  > connection under the new secret BEFORE switching the app's config over
+  > to it.
+  >
+  > A field that's temporarily undecryptable (mismatched key, mid-rotation)
+  > is never permanently lost by an unrelated write in the meantime — see
+  > `decrypt_fields_with_failures/1` and
+  > `PhoenixKit.Integrations.save_setup/4`'s write path. The stored
+  > ciphertext survives untouched until the correct key is active again.
   """
+
+  require Logger
+
+  # A dedicated key this short provides essentially no assurance over the
+  # legacy fallback it's meant to replace — without a floor, a 1-character
+  # `:integrations_encryption_key` reports as the healthy `:dedicated` tier
+  # (banner hidden, no boot warning) just as confidently as a real random
+  # secret would. Not an attempt at full entropy validation, just a floor
+  # against the comically weak end.
+  @min_dedicated_key_length 20
 
   @sensitive_fields ~w(
     access_token refresh_token client_secret
@@ -31,6 +70,21 @@ defmodule PhoenixKit.Integrations.Encryption do
 
   # Prefix to identify encrypted values
   @encrypted_prefix "enc:v1:"
+
+  @typedoc """
+  Which secret currently backs the encryption key, from most to least secure:
+
+    * `:dedicated` — a dedicated `:integrations_encryption_key` is set.
+    * `:legacy_secret_key_base` — no dedicated key; falling back to a key
+      derived from `secret_key_base`. Functional, but shares its secret
+      with the rest of the app.
+    * `:disabled_no_key` — encryption is enabled but no key material at all
+      resolves (neither a dedicated key nor a usable `secret_key_base`).
+      New writes store plaintext.
+    * `:disabled_explicit` — `integration_encryption_enabled: false`. New
+      writes store plaintext.
+  """
+  @type key_status :: :dedicated | :legacy_secret_key_base | :disabled_no_key | :disabled_explicit
 
   @doc """
   Returns the list of field keys that are encrypted.
@@ -69,12 +123,129 @@ defmodule PhoenixKit.Integrations.Encryption do
   def decrypt_fields(other), do: other
 
   @doc """
+  Same as `decrypt_fields/1`, but also returns the names of any fields that
+  looked encrypted (carried the `enc:v1:` prefix) yet failed to decrypt
+  under the currently active key.
+
+  `decrypt_fields/1` drops an undecryptable field entirely — correct for
+  every caller that treats the result as a live credential to use or
+  display, since a caller must never mistake stale ciphertext for a real
+  value. But `PhoenixKit.Integrations.resolve_uuid/2` also hands this same
+  map to write paths that merge new attributes onto it and save the result
+  wholesale: for THOSE callers, "absent because it failed to decrypt" and
+  "absent because nothing was ever there" are not the same thing — the
+  first must not be permanently erased by an unrelated write. The returned
+  field-name list lets a write path restore an untouched field's original
+  ciphertext from storage (see `PhoenixKit.Integrations.save_setup/4`,
+  `refresh_access_token/1`, `exchange_code/4`, `record_validation/3`)
+  without ever exposing that ciphertext as if it were usable.
+  """
+  @spec decrypt_fields_with_failures(map()) :: {map(), [String.t()]}
+  def decrypt_fields_with_failures(data) when is_map(data) do
+    case encryption_key() do
+      nil -> {data, []}
+      key -> do_decrypt_fields_tracking(data, key)
+    end
+  end
+
+  @doc """
   Check if encryption is available and enabled.
+
+  True for both the `:dedicated` and `:legacy_secret_key_base` tiers — this
+  answers "will values be encrypted at all", not "how well". Use `status/0`
+  to distinguish the two.
   """
   @spec enabled?() :: boolean()
   def enabled? do
     encryption_key() != nil
   end
+
+  @doc """
+  Reports which secret currently backs the encryption key. See `t:key_status/0`.
+
+  Never raises, never touches the database — pure config/endpoint
+  introspection, safe to call from a boot hook or a LiveView `mount/3`.
+  """
+  @spec status() :: key_status()
+  def status do
+    if encryption_enabled_flag?() do
+      case resolve_tier() do
+        {:dedicated, _secret} -> :dedicated
+        {:legacy, _secret} -> :legacy_secret_key_base
+        :none -> :disabled_no_key
+      end
+    else
+      :disabled_explicit
+    end
+  end
+
+  @doc """
+  Logs a one-time warning when integration credentials are not protected by
+  a dedicated key — called once at boot by `PhoenixKit.boot/1`.
+  Deliberately silent (no log line) for the healthy `:dedicated` case; the
+  common, correctly-configured install must produce zero noise here.
+
+  An `:integrations_encryption_key` shorter than the minimum length gets
+  its OWN message rather than being folded into the "no dedicated key"
+  wording below — an operator who set one, just too short, needs
+  different advice than one who never set it, and telling them "no
+  dedicated key is configured" when they configured one is simply false.
+
+  Never raises — returns `:ok` unconditionally.
+  """
+  @spec warn_if_insecure() :: :ok
+  def warn_if_insecure do
+    if dedicated_key_too_short?() do
+      Logger.warning(dedicated_key_too_short_warning())
+    end
+
+    case status() do
+      :dedicated ->
+        :ok
+
+      :legacy_secret_key_base ->
+        unless dedicated_key_too_short?(), do: Logger.warning(legacy_key_warning())
+
+      :disabled_no_key ->
+        unless dedicated_key_too_short?(),
+          do: Logger.warning(plaintext_warning("no encryption key could be resolved"))
+
+      :disabled_explicit ->
+        Logger.warning(plaintext_warning("integration_encryption_enabled is set to false"))
+    end
+
+    :ok
+  end
+
+  @doc """
+  Encrypts sensitive fields using an EXPLICIT secret, bypassing the
+  configured-key resolution entirely — the rotation primitive.
+
+  `secret` is derived the same way a configured key would be
+  (`derive_key/1`); this does not read `:integrations_encryption_key` or
+  `secret_key_base`. Used by `PhoenixKit.Integrations.KeyRotation` to write
+  values under a NEW secret before that secret becomes the active
+  configured key — which is the whole point of rotation: the new key must
+  be usable to encrypt before it's the one `encryption_key/0` resolves to.
+  """
+  @spec encrypt_fields_with_secret(map(), String.t()) :: map()
+  def encrypt_fields_with_secret(data, secret)
+      when is_map(data) and is_binary(secret) and secret != "" do
+    do_encrypt_fields(data, derive_key(secret))
+  end
+
+  @doc """
+  Whether `value` looks like an already-encrypted field value (carries the
+  current `enc:v1:` prefix).
+
+  Public so callers outside this module — `PhoenixKit.Integrations.KeyRotation`
+  detecting which fields were encrypted before a rotation — don't hardcode
+  the prefix literal themselves. A future `enc:v2:` format only needs to
+  update this one place.
+  """
+  @spec encrypted?(term()) :: boolean()
+  def encrypted?(value) when is_binary(value), do: String.starts_with?(value, @encrypted_prefix)
+  def encrypted?(_value), do: false
 
   # ---------------------------------------------------------------------------
   # Private
@@ -104,13 +275,21 @@ defmodule PhoenixKit.Integrations.Encryption do
   end
 
   defp do_decrypt_fields(data, key) do
-    Enum.reduce(@sensitive_fields, data, fn field, acc ->
+    {result, _failed_fields} = do_decrypt_fields_tracking(data, key)
+    result
+  end
+
+  defp do_decrypt_fields_tracking(data, key) do
+    Enum.reduce(@sensitive_fields, {data, []}, fn field, {acc, failed_fields} ->
       case Map.get(acc, field) do
         value when is_binary(value) and value != "" ->
-          maybe_decrypt_field(acc, field, value, key)
+          case maybe_decrypt_field(acc, field, value, key) do
+            {:ok, new_acc} -> {new_acc, failed_fields}
+            {:failed, new_acc} -> {new_acc, [field | failed_fields]}
+          end
 
         _ ->
-          acc
+          {acc, failed_fields}
       end
     end)
   end
@@ -118,11 +297,33 @@ defmodule PhoenixKit.Integrations.Encryption do
   defp maybe_decrypt_field(acc, field, value, key) do
     if String.starts_with?(value, @encrypted_prefix) do
       case decrypt_value(value, key) do
-        {:ok, plaintext} -> Map.put(acc, field, plaintext)
-        {:error, _} -> acc
+        {:ok, plaintext} ->
+          {:ok, Map.put(acc, field, plaintext)}
+
+        {:error, reason} ->
+          # Returning `acc` unchanged here used to hand back the raw
+          # `enc:v1:...` ciphertext as if it were the live credential —
+          # silently, with no log line. Downstream code (bearer-token
+          # resolution, "has credentials?" checks) has no idea that string
+          # isn't a real secret, so a key change without running
+          # `PhoenixKit.Integrations.KeyRotation.rotate/2` first produced a
+          # garbled Authorization header instead of a loud, diagnosable
+          # failure. Treat an undecryptable field as absent instead — the
+          # `:failed` tag lets `decrypt_fields_with_failures/1` tell a write
+          # path this field is absent ONLY because it can't be read right
+          # now, not because it was never there.
+          Logger.error(
+            "[Integrations.Encryption] Failed to decrypt field #{inspect(field)} " <>
+              "(#{inspect(reason)}) — the active key does not match the one this value was " <>
+              "encrypted under. Treating the credential as missing rather than returning " <>
+              "ciphertext. If you just changed the encryption key/secret_key_base, run " <>
+              "mix phoenix_kit.integrations.rotate_key first."
+          )
+
+          {:failed, Map.delete(acc, field)}
       end
     else
-      acc
+      {:ok, acc}
     end
   end
 
@@ -148,13 +349,64 @@ defmodule PhoenixKit.Integrations.Encryption do
   defp decrypt_value(_, _key), do: {:error, :not_encrypted}
 
   defp encryption_key do
-    if Application.get_env(:phoenix_kit, :integration_encryption_enabled, true) do
-      case secret_key_base() do
-        secret when is_binary(secret) and secret != "" -> derive_key(secret)
-        _ -> nil
+    if encryption_enabled_flag?() do
+      case resolve_tier() do
+        {_tier, secret} -> derive_key(secret)
+        :none -> nil
       end
     else
       nil
+    end
+  end
+
+  defp encryption_enabled_flag? do
+    Application.get_env(:phoenix_kit, :integration_encryption_enabled, true)
+  end
+
+  # `:dedicated` (an explicit `:integrations_encryption_key`) always wins over
+  # `:legacy` (the secret_key_base-derived fallback) — a host that has set up
+  # a dedicated key has already opted into the safer tier, and silently
+  # preferring the legacy one for some values would leave part of the data
+  # under the weaker key with no way to tell which.
+  defp resolve_tier do
+    case dedicated_key() do
+      secret when is_binary(secret) and secret != "" ->
+        {:dedicated, secret}
+
+      _ ->
+        case secret_key_base() do
+          secret when is_binary(secret) and secret != "" -> {:legacy, secret}
+          _ -> :none
+        end
+    end
+  end
+
+  defp dedicated_key do
+    case configured_dedicated_key() do
+      {:ok, secret} -> secret
+      _ -> nil
+    end
+  end
+
+  # Whether an `:integrations_encryption_key` IS configured (non-blank) but
+  # rejected for being shorter than `@min_dedicated_key_length` — distinct
+  # from simply not having one set at all. `warn_if_insecure/0` uses this to
+  # give an operator who configured a weak key different advice than one
+  # who never configured one.
+  @spec dedicated_key_too_short?() :: boolean()
+  defp dedicated_key_too_short? do
+    match?(:too_short, configured_dedicated_key())
+  end
+
+  defp configured_dedicated_key do
+    case PhoenixKit.Config.get(:integrations_encryption_key) do
+      {:ok, secret} when is_binary(secret) and secret != "" ->
+        if String.length(secret) >= @min_dedicated_key_length,
+          do: {:ok, secret},
+          else: :too_short
+
+      _ ->
+        :unset
     end
   end
 
@@ -188,5 +440,31 @@ defmodule PhoenixKit.Integrations.Encryption do
   defp derive_key(secret) do
     # Derive a dedicated 32-byte key for integration encryption
     :crypto.hash(:sha256, "phoenix_kit_integrations:" <> secret)
+  end
+
+  defp legacy_key_warning do
+    "[PhoenixKit.Integrations] Integration credentials (API keys, OAuth tokens, bot tokens, " <>
+      "etc.) are encrypted with a key derived from secret_key_base — no dedicated key is " <>
+      "configured. secret_key_base is shared with session signing and CSRF tokens, and " <>
+      "anyone who can read it (environment, a config file, git history) can decrypt every " <>
+      "stored integration credential. Run `mix phoenix_kit.integrations.rotate_key` to " <>
+      "generate a dedicated key and migrate existing connections to it, then configure " <>
+      "integrations_encryption_key and restart."
+  end
+
+  defp plaintext_warning(why) do
+    "[PhoenixKit.Integrations] Integration credentials (API keys, OAuth tokens, bot tokens, " <>
+      "etc.) are being stored in PLAINTEXT (#{why}). Anyone with read access to the database " <>
+      "can read every stored integration credential directly. If this is unintentional, set " <>
+      "integration_encryption_enabled: true and configure integrations_encryption_key."
+  end
+
+  defp dedicated_key_too_short_warning do
+    "[PhoenixKit.Integrations] The configured integrations_encryption_key is shorter than " <>
+      "#{@min_dedicated_key_length} characters and is being IGNORED as too weak to provide " <>
+      "real assurance — this is not the same as no dedicated key being configured, it was " <>
+      "rejected. Falling back to whatever weaker tier would otherwise apply. Generate a real " <>
+      "secret with `mix phoenix_kit.integrations.rotate_key` and configure " <>
+      "integrations_encryption_key with it."
   end
 end
