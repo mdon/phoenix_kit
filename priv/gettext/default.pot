@@ -788,7 +788,7 @@ msgstr ""
 msgid "Consent widget settings saved"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:623
+#: lib/phoenix_kit_web/components/multilang_form.ex:662
 #, elixir-autogen, elixir-format
 msgid "Content Language"
 msgstr ""
@@ -1618,7 +1618,7 @@ msgstr ""
 msgid "Primary"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:647
+#: lib/phoenix_kit_web/components/multilang_form.ex:686
 #, elixir-autogen, elixir-format
 msgid "Primary: %{lang}"
 msgstr ""
@@ -2331,7 +2331,7 @@ msgstr ""
 msgid "Live Preview"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:739
+#: lib/phoenix_kit_web/components/multilang_form.ex:778
 #, elixir-autogen, elixir-format
 msgid "Loading language content"
 msgstr ""
@@ -2408,7 +2408,7 @@ msgstr ""
 msgid "Unconfirm"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:636
+#: lib/phoenix_kit_web/components/multilang_form.ex:675
 #, elixir-autogen, elixir-format
 msgid "Use the language tabs below to translate this record's content. The primary language (marked with a star) is required. Other languages are optional — any empty fields will fall back to the primary language value."
 msgstr ""
@@ -12607,7 +12607,7 @@ msgstr ""
 
 #: lib/phoenix_kit/mentions/live.ex:206
 #: lib/phoenix_kit_web/components/core/textarea.ex:78
-#: lib/phoenix_kit_web/components/multilang_form.ex:962
+#: lib/phoenix_kit_web/components/multilang_form.ex:1001
 #, elixir-autogen, elixir-format
 msgid "Type @ to mention someone, # to link a record."
 msgstr ""
@@ -12821,4 +12821,34 @@ msgstr ""
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:289
 #, elixir-autogen, elixir-format
 msgid "Reply to this annotation"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:191
+#, elixir-autogen, elixir-format
+msgid "Credentials are protected only by a shared application secret"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:194
+#, elixir-autogen, elixir-format
+msgid "Credentials are stored in plain text"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:197
+#, elixir-autogen, elixir-format
+msgid "Encryption is turned off for integration credentials"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:200
+#, elixir-autogen, elixir-format
+msgid "No dedicated encryption key is configured, so credentials below fall back to a key derived from secret_key_base — a secret shared with session signing and CSRF tokens. Anyone who can read secret_key_base can decrypt every credential here. Run mix phoenix_kit.integrations.rotate_key to fix this."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:209
+#, elixir-autogen, elixir-format
+msgid "No encryption key could be resolved. New and existing credentials below are stored as plain text in the database."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:216
+#, elixir-autogen, elixir-format
+msgid "integration_encryption_enabled is set to false. Credentials below are stored as plain text in the database."
 msgstr ""

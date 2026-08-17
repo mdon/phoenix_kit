@@ -800,7 +800,7 @@ msgstr "Ühendused"
 msgid "Consent widget settings saved"
 msgstr "Nõusolekuviidiku seaded salvestatud"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:623
+#: lib/phoenix_kit_web/components/multilang_form.ex:662
 #, elixir-autogen, elixir-format
 msgid "Content Language"
 msgstr "Sisu keel"
@@ -1630,7 +1630,7 @@ msgstr "Postitused – sisu säilitatud, märgitud kustutatud autorina"
 msgid "Primary"
 msgstr "Peamine"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:647
+#: lib/phoenix_kit_web/components/multilang_form.ex:686
 #, elixir-autogen, elixir-format
 msgid "Primary: %{lang}"
 msgstr "Peamine: %{lang}"
@@ -2344,7 +2344,7 @@ msgstr "Peida"
 msgid "Live Preview"
 msgstr "Reaalajas eelvaade"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:739
+#: lib/phoenix_kit_web/components/multilang_form.ex:778
 #, elixir-autogen, elixir-format
 msgid "Loading language content"
 msgstr "Keele sisu laadimine"
@@ -2421,7 +2421,7 @@ msgstr "Süsteem"
 msgid "Unconfirm"
 msgstr "Tühista kinnitus"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:636
+#: lib/phoenix_kit_web/components/multilang_form.ex:675
 #, elixir-autogen, elixir-format
 msgid "Use the language tabs below to translate this record's content. The primary language (marked with a star) is required. Other languages are optional — any empty fields will fall back to the primary language value."
 msgstr "Kasuta allpool olevaid keelekaarti selle kirje sisu tõlkimiseks. Esmane keel (tärniga tähistatud) on kohustuslik. Muud keeled on valikulised — tühjad väljad kasutavad esmase keele väärtust."
@@ -12625,7 +12625,7 @@ msgstr ""
 
 #: lib/phoenix_kit/mentions/live.ex:206
 #: lib/phoenix_kit_web/components/core/textarea.ex:78
-#: lib/phoenix_kit_web/components/multilang_form.ex:962
+#: lib/phoenix_kit_web/components/multilang_form.ex:1001
 #, elixir-autogen, elixir-format
 msgid "Type @ to mention someone, # to link a record."
 msgstr ""
@@ -12840,3 +12840,33 @@ msgstr "Kuvatud"
 #, elixir-autogen, elixir-format
 msgid "Reply to this annotation"
 msgstr "Vasta sellele märkusele"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:191
+#, elixir-autogen, elixir-format
+msgid "Credentials are protected only by a shared application secret"
+msgstr "Mandaadid on kaitstud ainult rakenduse jagatud saladusega"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:194
+#, elixir-autogen, elixir-format
+msgid "Credentials are stored in plain text"
+msgstr "Mandaadid salvestatakse selgel kujul"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:197
+#, elixir-autogen, elixir-format
+msgid "Encryption is turned off for integration credentials"
+msgstr "Krüpteerimine on integratsioonide mandaatide jaoks välja lülitatud"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:200
+#, elixir-autogen, elixir-format
+msgid "No dedicated encryption key is configured, so credentials below fall back to a key derived from secret_key_base — a secret shared with session signing and CSRF tokens. Anyone who can read secret_key_base can decrypt every credential here. Run mix phoenix_kit.integrations.rotate_key to fix this."
+msgstr "Eraldi krüpteerimisvõtit pole seadistatud, seega kasutavad allolevad mandaadid secret_key_base'ist tuletatud võtit — saladust, mida jagatakse seansi allkirjastamise ja CSRF-lubadega. Igaüks, kes saab lugeda secret_key_base'i, saab siin dešifreerida iga mandaadi. Selle parandamiseks käivitage mix phoenix_kit.integrations.rotate_key."
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:209
+#, elixir-autogen, elixir-format
+msgid "No encryption key could be resolved. New and existing credentials below are stored as plain text in the database."
+msgstr "Krüpteerimisvõtit ei õnnestunud tuvastada. Allolevad uued ja olemasolevad mandaadid salvestatakse andmebaasi selgel kujul."
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:216
+#, elixir-autogen, elixir-format
+msgid "integration_encryption_enabled is set to false. Credentials below are stored as plain text in the database."
+msgstr "integration_encryption_enabled on seatud väärtusele false. Allolevad mandaadid salvestatakse andmebaasi selgel kujul."

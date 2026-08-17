@@ -789,7 +789,7 @@ msgstr "Connessioni"
 msgid "Consent widget settings saved"
 msgstr "Impostazioni del widget di consenso salvate"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:623
+#: lib/phoenix_kit_web/components/multilang_form.ex:662
 #, elixir-autogen, elixir-format
 msgid "Content Language"
 msgstr "Lingua del contenuto"
@@ -1619,7 +1619,7 @@ msgstr "Post – contenuto conservato, autore contrassegnato come eliminato"
 msgid "Primary"
 msgstr "Principale"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:647
+#: lib/phoenix_kit_web/components/multilang_form.ex:686
 #, elixir-autogen, elixir-format
 msgid "Primary: %{lang}"
 msgstr "Principale: %{lang}"
@@ -2332,7 +2332,7 @@ msgstr "Nascondi"
 msgid "Live Preview"
 msgstr "Anteprima in tempo reale"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:739
+#: lib/phoenix_kit_web/components/multilang_form.ex:778
 #, elixir-autogen, elixir-format
 msgid "Loading language content"
 msgstr "Caricamento dei contenuti della lingua"
@@ -2409,7 +2409,7 @@ msgstr "Sistema"
 msgid "Unconfirm"
 msgstr "Annulla la conferma"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:636
+#: lib/phoenix_kit_web/components/multilang_form.ex:675
 #, elixir-autogen, elixir-format
 msgid "Use the language tabs below to translate this record's content. The primary language (marked with a star) is required. Other languages are optional — any empty fields will fall back to the primary language value."
 msgstr "Usa le schede delle lingue qui sotto per tradurre il contenuto di questo record. La lingua principale (contrassegnata da una stella) è obbligatoria. Le altre lingue sono opzionali: i campi vuoti useranno il valore della lingua principale."
@@ -12608,7 +12608,7 @@ msgstr ""
 
 #: lib/phoenix_kit/mentions/live.ex:206
 #: lib/phoenix_kit_web/components/core/textarea.ex:78
-#: lib/phoenix_kit_web/components/multilang_form.ex:962
+#: lib/phoenix_kit_web/components/multilang_form.ex:1001
 #, elixir-autogen, elixir-format
 msgid "Type @ to mention someone, # to link a record."
 msgstr ""
@@ -12823,3 +12823,33 @@ msgstr "Mostrate"
 #, elixir-autogen, elixir-format
 msgid "Reply to this annotation"
 msgstr "Rispondi a questa annotazione"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:191
+#, elixir-autogen, elixir-format
+msgid "Credentials are protected only by a shared application secret"
+msgstr "Le credenziali sono protette solo da un segreto dell'applicazione condiviso"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:194
+#, elixir-autogen, elixir-format
+msgid "Credentials are stored in plain text"
+msgstr "Le credenziali sono memorizzate in chiaro"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:197
+#, elixir-autogen, elixir-format
+msgid "Encryption is turned off for integration credentials"
+msgstr "La crittografia è disattivata per le credenziali di integrazione"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:200
+#, elixir-autogen, elixir-format
+msgid "No dedicated encryption key is configured, so credentials below fall back to a key derived from secret_key_base — a secret shared with session signing and CSRF tokens. Anyone who can read secret_key_base can decrypt every credential here. Run mix phoenix_kit.integrations.rotate_key to fix this."
+msgstr "Non è configurata alcuna chiave di crittografia dedicata, quindi le credenziali sottostanti ricadono su una chiave derivata da secret_key_base — un segreto condiviso con la firma di sessione e i token CSRF. Chiunque possa leggere secret_key_base può decrittografare qui ogni credenziale. Esegui mix phoenix_kit.integrations.rotate_key per risolvere il problema."
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:209
+#, elixir-autogen, elixir-format
+msgid "No encryption key could be resolved. New and existing credentials below are stored as plain text in the database."
+msgstr "Non è stato possibile determinare alcuna chiave di crittografia. Le credenziali nuove ed esistenti sottostanti sono memorizzate in chiaro nel database."
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:216
+#, elixir-autogen, elixir-format
+msgid "integration_encryption_enabled is set to false. Credentials below are stored as plain text in the database."
+msgstr "integration_encryption_enabled è impostato su false. Le credenziali sottostanti sono memorizzate in chiaro nel database."

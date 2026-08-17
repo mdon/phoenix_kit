@@ -792,7 +792,7 @@ msgstr "Связи"
 msgid "Consent widget settings saved"
 msgstr "Настройки виджета согласия сохранены"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:623
+#: lib/phoenix_kit_web/components/multilang_form.ex:662
 #, elixir-autogen, elixir-format
 msgid "Content Language"
 msgstr "Язык контента"
@@ -1622,7 +1622,7 @@ msgstr "Публикации — контент сохранён, автор о�
 msgid "Primary"
 msgstr "Основной"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:647
+#: lib/phoenix_kit_web/components/multilang_form.ex:686
 #, elixir-autogen, elixir-format
 msgid "Primary: %{lang}"
 msgstr "Основной: %{lang}"
@@ -2338,7 +2338,7 @@ msgstr "Скрыть"
 msgid "Live Preview"
 msgstr "Живой предварительный просмотр"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:739
+#: lib/phoenix_kit_web/components/multilang_form.ex:778
 #, elixir-autogen, elixir-format
 msgid "Loading language content"
 msgstr "Загрузка языкового контента"
@@ -2416,7 +2416,7 @@ msgstr "Система"
 msgid "Unconfirm"
 msgstr "Снять подтверждение"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:636
+#: lib/phoenix_kit_web/components/multilang_form.ex:675
 #, elixir-autogen, elixir-format
 msgid "Use the language tabs below to translate this record's content. The primary language (marked with a star) is required. Other languages are optional — any empty fields will fall back to the primary language value."
 msgstr "Используйте языковые вкладки ниже для перевода контента этой записи. Основной язык (отмечен звёздочкой) обязателен. Остальные языки необязательны — пустые поля будут использовать значение основного языка."
@@ -12648,7 +12648,7 @@ msgstr ""
 
 #: lib/phoenix_kit/mentions/live.ex:206
 #: lib/phoenix_kit_web/components/core/textarea.ex:78
-#: lib/phoenix_kit_web/components/multilang_form.ex:962
+#: lib/phoenix_kit_web/components/multilang_form.ex:1001
 #, elixir-autogen, elixir-format
 msgid "Type @ to mention someone, # to link a record."
 msgstr ""
@@ -12863,3 +12863,33 @@ msgstr "Показанные"
 #, elixir-autogen, elixir-format
 msgid "Reply to this annotation"
 msgstr "Ответить на эту аннотацию"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:191
+#, elixir-autogen, elixir-format
+msgid "Credentials are protected only by a shared application secret"
+msgstr "Учётные данные защищены только общим секретом приложения"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:194
+#, elixir-autogen, elixir-format
+msgid "Credentials are stored in plain text"
+msgstr "Учётные данные хранятся открытым текстом"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:197
+#, elixir-autogen, elixir-format
+msgid "Encryption is turned off for integration credentials"
+msgstr "Шифрование отключено для учётных данных интеграций"
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:200
+#, elixir-autogen, elixir-format
+msgid "No dedicated encryption key is configured, so credentials below fall back to a key derived from secret_key_base — a secret shared with session signing and CSRF tokens. Anyone who can read secret_key_base can decrypt every credential here. Run mix phoenix_kit.integrations.rotate_key to fix this."
+msgstr "Отдельный ключ шифрования не задан, поэтому учётные данные ниже используют запасной ключ, производный от secret_key_base — секрета, который также используется для подписи сессий и CSRF-токенов. Любой, кто может прочитать secret_key_base, может расшифровать здесь любые учётные данные. Выполните mix phoenix_kit.integrations.rotate_key, чтобы это исправить."
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:209
+#, elixir-autogen, elixir-format
+msgid "No encryption key could be resolved. New and existing credentials below are stored as plain text in the database."
+msgstr "Не удалось определить ключ шифрования. Новые и уже сохранённые учётные данные ниже хранятся в базе данных открытым текстом."
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:216
+#, elixir-autogen, elixir-format
+msgid "integration_encryption_enabled is set to false. Credentials below are stored as plain text in the database."
+msgstr "integration_encryption_enabled установлено в false. Учётные данные ниже хранятся в базе данных открытым текстом."
