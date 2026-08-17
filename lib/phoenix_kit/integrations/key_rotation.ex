@@ -78,12 +78,21 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   a change to hot, already-shipped write paths well beyond what this
   rotation feature should carry). Neither is attempted here.
 
-  **Practical consequence: rotation is only fully safe with nothing else
-  writing to `phoenix_kit_settings` rows where `module = "integrations"`
-  for its duration.** Pause anything that could (most concretely: an OAuth
-  token-refresh worker) before running a real rotation. Treat it as a
-  maintenance-window operation, not a fire-and-forget background step — the
-  row lock narrows the race, it does not close it.
+  **Practical consequence: nothing should write to `phoenix_kit_settings`
+  rows where `module = "integrations"` from before you start a real
+  rotation until the app has been restarted onto the new key** — not just
+  for the few seconds `rotate/2` itself is running. A write landing
+  anywhere in that whole span, including well after `rotate/2` has already
+  returned `{:ok, _}`, can still land on the old key: silently reverting a
+  row rotation just finished (this section), or getting silently stranded
+  once the restart happens (see "The gap between rotating and restarting"
+  below) — the same failure mode from either end of the same window. Pause
+  anything that could write (most concretely: an OAuth token-refresh
+  worker) before starting, and do not resume it until the restart is done
+  — resuming as soon as `rotate/2` returns, before restarting, walks
+  straight into this window. Treat the ENTIRE span — start to restart — as
+  one maintenance window, not just the rotation command itself. The row
+  lock narrows the race, it does not close it.
 
   A genuine write failure (a DB error while saving a re-encrypted row, not a
   decrypt failure) is NOT converted into an `{:error, _}` return — it raises,
@@ -118,9 +127,11 @@ defmodule PhoenixKit.Integrations.KeyRotation do
 
   There is deliberately no dual-key read fallback to paper over this gap (it
   would silently mask exactly the class of failure this module exists to
-  prevent). Restart promptly after rotating; for a connection with an
-  active OAuth refresh cycle, treat the rotation window like a brief
-  maintenance window rather than a fire-and-forget background task.
+  prevent). Restart promptly after rotating, and keep writers paused until
+  you do — this gap is the SAME maintenance window "Atomicity and
+  concurrent writers" above requires, not a separate, shorter one. It does
+  not end when `rotate/2` returns; it ends when the app is running under
+  the new key.
   """
 
   import Ecto.Query, only: [from: 2]

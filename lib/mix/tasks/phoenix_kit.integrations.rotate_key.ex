@@ -59,21 +59,35 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
   rotated row with old-key content after rotation commits, and `rotate/2`
   will have already reported success by then. **Pause anything that could
   write to integration connections (most concretely: an OAuth token-refresh
-  worker) before running this for real.** Treat it as a maintenance-window
-  operation.
+  worker) before running this for real, and do not resume it until you have
+  restarted the app under the new key** — not just until this command
+  returns. Treat the whole span, start to restart, as one maintenance
+  window.
 
   ## The gap between rotating and restarting
 
   Rotation only changes what's in the database; the running app keeps using
-  the OLD key until you set the new one and restart. In that window, on top
-  of the concurrent-write race above, READS of a rotated connection fail
-  loudly (see `PhoenixKit.Integrations.Encryption`'s decrypt-failure
-  handling) — and so does any WRITE that lands in the meantime, for the
-  same reason: it saves under the still-active OLD key into a row this task
-  already moved to the new secret. There is no dual-key fallback to paper
-  over this (it would silently mask exactly the failure class this task
-  exists to prevent). Restart promptly — treat the window as a brief
-  maintenance window, not a fire-and-forget background step.
+  the OLD key until you set the new one and restart. This is the SAME
+  maintenance window the section above requires — it doesn't end when this
+  command returns, it ends when the app is running under the new key. In
+  that window:
+
+    * A READ of a rotated connection fails loudly (see
+      `PhoenixKit.Integrations.Encryption`'s decrypt-failure handling) under
+      the still-active old key.
+    * A WRITE that must first read-and-merge the existing row (most writes
+      in `PhoenixKit.Integrations` work this way) hits that same loud
+      failure once it tries to decrypt a row this task already rotated.
+    * A WRITE carrying values read BEFORE rotation ran — the race the
+      section above describes — is not caught by that check at all: it
+      lands silently, still encrypted under the OLD key, into a row this
+      task already moved to the new secret. That value then fails to
+      decrypt once the app restarts onto the new key, indistinguishable
+      from unrelated corruption.
+
+  There is no dual-key fallback to paper over any of this (it would
+  silently mask exactly the failure class this task exists to prevent).
+  Restart promptly, and keep writers paused until you do.
   """
 
   use Mix.Task
