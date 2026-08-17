@@ -31,6 +31,16 @@ defmodule PhoenixKit.Integration.Sitemap.RegenerateTest do
     assert result.index_xml =~ "<?xml"
   end
 
+  test "regenerate/1 refuses when no base URL is configured" do
+    {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", true)
+    {:ok, _} = Settings.update_setting("site_url", "")
+
+    # Generator.generate_all/1 only rejects nil, so an unset site_url would
+    # otherwise be written into the files as host-less <loc>s. The scheduler
+    # guards this; so must this entry point.
+    assert Sitemap.regenerate() == {:error, :base_url_not_configured}
+  end
+
   test "regenerate/1 refuses when the module is disabled" do
     {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", false)
 

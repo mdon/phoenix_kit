@@ -81,6 +81,29 @@ defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesTest do
     assert collect("en", true) == ["#{@base}/"]
   end
 
+  test "a custom URL reaches the mapped domain prefix-free, not as a /lang/ path" do
+    {:ok, _} =
+      Settings.update_setting(
+        "sitemap_custom_urls",
+        JSON.encode!([%{"path" => "/lookbook", "title" => "Lookbook"}])
+      )
+
+    # The prefix on the collected entry is bookkeeping for DomainMode, not the
+    # published URL: re-hosting strips it, so the crawler is given the same
+    # path it is served on that host — never https://<fr-host>/fr/lookbook.
+    assert "#{@base}/fr/lookbook" in collect("fr", false)
+
+    entries =
+      Static.collect(base_url: @base, language: "en", is_default_language: true) ++
+        Static.collect(base_url: @base, language: "fr", is_default_language: false)
+
+    result = DomainMode.rebuild_for_domains(entries, @base)
+    fr_locs = Enum.map(result["site.example.fr"], & &1.loc)
+
+    assert "https://site.example.fr/lookbook" in fr_locs
+    refute Enum.any?(fr_locs, &String.contains?(&1, "/fr/"))
+  end
+
   test "the mapped domain's file ends up carrying its own home page" do
     entries = Static.collect(base_url: @base, language: "en", is_default_language: true)
 

@@ -55,6 +55,15 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
   (Caddy's on-demand-TLS `/caddy/ask`) escapes them, and the pipeline is the
   route's own declaration that it does not serve a page.
 
+  `sitemap_non_page_pipelines` **replaces** that list (unlike
+  `sitemap_protected_pipelines`, which adds to its defaults): `:api` is a
+  generic name, so a host that serves real pages through a pipeline called
+  `:api` must be able to take it off the list. Saving `[]` turns
+  pipeline-based exclusion off entirely.
+
+      Settings.update_setting("sitemap_non_page_pipelines",
+        JSON.encode!(["phoenix_kit_api"]))
+
   LiveView routes using authentication `on_mount` hooks are also excluded:
   - `{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope}` - Ensures user is authenticated
   - `{PhoenixKitWeb.Users.Auth, :phoenix_kit_redirect_if_authenticated_scope}` - Redirects if already authenticated
@@ -312,10 +321,34 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
   # A JSON pipeline is the route's own declaration that it does not serve a
   # page — a fact about the route, not a guess from its path.
   defp has_non_page_pipeline?(%{pipe_through: pipelines}) when is_list(pipelines) do
-    Enum.any?(@default_non_page_pipelines, &(&1 in pipelines))
+    Enum.any?(non_page_pipelines(), &(&1 in pipelines))
   end
 
   defp has_non_page_pipeline?(_), do: false
+
+  # `sitemap_non_page_pipelines` REPLACES the defaults rather than adding to
+  # them (the opposite of `sitemap_protected_pipelines`): `:api` is a generic
+  # name, and a host that serves real pages through a pipeline of that name
+  # needs a way to take it OFF the list. Saving `[]` disables pipeline-based
+  # exclusion entirely.
+  defp non_page_pipelines do
+    case Settings.get_setting("sitemap_non_page_pipelines") do
+      nil ->
+        @default_non_page_pipelines
+
+      json_string when is_binary(json_string) ->
+        case JSON.decode(json_string) do
+          {:ok, pipelines} when is_list(pipelines) -> Enum.map(pipelines, &safe_to_atom/1)
+          _ -> @default_non_page_pipelines
+        end
+
+      pipelines when is_list(pipelines) ->
+        Enum.map(pipelines, &safe_to_atom/1)
+
+      _ ->
+        @default_non_page_pipelines
+    end
+  end
 
   # Get route_info once per route (instead of twice)
   defp get_route_info(path) do

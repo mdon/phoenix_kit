@@ -108,7 +108,10 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
   def collect(opts \\ []) do
     is_default = Keyword.get(opts, :is_default_language, true)
     language = Keyword.get(opts, :language)
-    domain_hosted? = domain_hosted_language?(language)
+    # The default language never needs the lookup: it is emitted either way,
+    # and it keeps `skip_language_prefix` regardless. Saves one provider call
+    # per generation pass on every install.
+    domain_hosted? = not is_default and domain_hosted_language?(language)
 
     # Static pages only generate URLs for the default language: in a
     # prefix-based install a "/de/..." static page would 404.
