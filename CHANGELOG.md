@@ -1,3 +1,172 @@
+## 2.10.0 - 2026-08-17
+
+Locale resolution gets smarter about dialect/bare-code mismatches, hosts
+running multiple domains gain a request-scoped default-language override, and
+sitemaps can now be generated, cached, and served per domain (#722, #723,
+#724).
+
+### Added
+
+- **Multilang dialect/bare-code resolution.** Reading translatable content no
+  longer requires an exact locale-code match — a bare code (`"en"`) resolves
+  against a full-dialect record (`"en-US"`) and vice versa, and a same-base
+  sibling is used as a deterministic, primary-preferring fallback when the
+  requested code has no data of its own. `PhoenixKitWeb.Users.Auth` gained
+  `resolve_active_dialect/1` (resolves a base code to the host's actually
+  *enabled* dialect) and `put_gettext_locale/1` (de-duplicating the
+  `Gettext.put_locale/2` pair previously repeated at 7 call sites); LiveView
+  navigation to a full-dialect URL segment (`/en-GB/...`) is now honored the
+  same way the HTTP plug already honored it (#722).
+- **`PhoenixKit.Modules.Languages.put_request_default_language/1` /
+  `request_default_language/0`.** A `Process`-scoped override that
+  `get_default_language/0` consults before falling back to the configured
+  `is_default` language, for multi-domain hosts that want a different
+  default language per request. `pass nil` or `""` to clear it. Explicitly
+  process-scoped — not inherited by `Task`/Oban (#723).
+- **`PhoenixKitWeb.Integration.extra_on_mount/0`**, read from
+  `config :phoenix_kit, :extra_live_session_on_mount`, prepended to the
+  `on_mount` list of every `live_session` PhoenixKit generates (public,
+  admin, authenticated dashboard, deprecated user-dashboard, maintenance),
+  so a host can hook `put_request_default_language/1` into its own
+  domain-resolution logic on the LiveView socket path (#723).
+- **Per-domain sitemap generation, storage, cache, and serving.** A host app
+  can map several domains to distinct languages (one domain = one canonical
+  language); `PhoenixKit.Modules.Sitemap.DomainMode` builds a per-host
+  `sitemap.xml`/`sitemaps/*` set by re-hosting each language's
+  already-collected entries and computing cross-domain hreflang alternates
+  once per canonical group. Host strings are validated/normalized once and
+  re-validated in `FileStorage` as defense in depth; `Cache.invalidate/0` and
+  `cleanup_stale_domain_dirs/0` sweep per-host directories so stale/renamed
+  domains don't linger (#724).
+
+### Fixed
+
+Post-merge review of #722/#723/#724 found and fixed the following before
+release:
+
+- **`same_base?/2` collapsed genuinely distinct sibling dialects** (e.g.
+  independently-maintained `en-US` and `en-GB` content), not just
+  bare/dialect naming-drift of the *same* language slot. Saving a secondary
+  dialect tab could silently overwrite the primary language's data, or
+  promoting a dialect to primary could delete an unrelated sibling as a
+  false "ghost." Narrowed the equivalence to same-string or literal
+  bare-code-of-the-other only.
+- **Request-scoped language override lost to a same-base dialect earlier in
+  the configured list.** An exact-code override (e.g. `"fr-CA"`) could
+  resolve to a different, earlier-listed dialect of the same base (`"fr-FR"`)
+  on any host with 2+ enabled dialects sharing a base, because the lookup
+  OR'd "exact match" and "base match" into one `Enum.find/2` pass instead of
+  trying exact matches first.
+- **`put_request_default_language("")` silently forced English** instead of
+  behaving like "no override" (its documented behavior for `nil` and for any
+  unknown/disabled code) — a naive host plug computing the override from an
+  unmapped host (`Map.get(domain_map, host, "")`) would trip this on every
+  unmapped domain.
+- **Domain-mode sitemap generation force-collected in index mode**,
+  bypassing `enabled?/0` and leaking a disabled source's URLs into the
+  public, crawlable per-domain files — even though those same URLs were
+  correctly absent from `/sitemap.xml` and every per-module file. Index-mode
+  domain-file collection now honors `enabled?/0` exactly like the legacy
+  per-module path; flat mode's existing, separately-documented force-collect
+  behavior is unchanged.
+
+## 2.9.0 - 2026-08-17
+
+Media file-type integrity gets defended at the write boundary and repaired
+for rows already corrupted, and the media viewer's shape annotations grow a
+real discussion flow (#721).
+
+### Added
+
+- **Annotation discussions.** Drawing a shape on the media viewer's canvas
+  no longer opens a composer — every kind saves silently, with labels typed
+  through Etcher's inline editor. The tooltip gets three header buttons
+  (Etcher 0.13's `tooltipActions`): **Reply** lazily creates the shape's
+  master comment (content = label, author = shape creator, backdated to the
+  shape's creation) and opens a body-only popup that threads under it;
+  **Edit** reopens Etcher's inline label editor; **View** scrolls the
+  sidebar to the shape's thread. Shapes show a live comment-count badge that
+  refreshes on create/delete via the existing comments PubSub relay.
+- **`Storage.store_file_in_buckets/7` `:mime_type` opt.** Callers can now
+  pass the browser-observed mime (`client_type` / `content_type`) so it's
+  stored verbatim instead of guessed from the extension; all core upload
+  call sites (`UploadController`, `MediaBrowser`, `MediaSelectorModal`,
+  `MediaSelector`) now pass it.
+- **`Storage.display_file_type/1`.** Reconciles a stored row's `file_type`
+  against its own mime/filename evidence for display, so a row misclassified
+  before this release (e.g. a `.mov` stored as `"image"`) renders correctly
+  without needing the repair migration to have run.
+- **V174 migration** — repairs media rows corrupted by two now-fixed writer
+  defects: blank/octet-stream mimes with a known audio extension get the
+  real audio mime (files and file instances), and generic `file_type` values
+  contradicted by the mime are reclassified. System types (`"tile"`) and
+  rows without evidence are left untouched; the migration is idempotent and
+  its `down/1` is deliberately a no-op (there's no record of the pre-repair
+  values to restore).
+
+### Fixed
+
+- **Upload paths could poison `file_type` for every downstream surface.**
+  The storage write boundary now cross-checks a caller's claimed `file_type`
+  against the mime/filename evidence and corrects a contradicted generic
+  claim, so one careless call site (e.g. an external module hardcoding
+  `"image"`) can no longer break the thumbnail grid, type filters, and
+  variant processing for every file it uploads.
+- **`determine_mime_type/1` had no audio entries.** Every `.mp3`/`.m4a`/
+  `.wav` guessed from an extension landed as `application/octet-stream` and
+  was served that way. Now routed through `MIME.type/1` with an audio
+  fallback map for the extensions it still answers octet-stream for.
+- **Etcher label text silently vanished on reload.** `annotation_unchanged?`
+  compared geometry/style/kind only, so a label typed into Etcher's inline
+  editor (the only way text/callout/dimension shapes collect text since
+  Etcher 0.12) changed nothing the comparison looked at and the write was
+  skipped.
+- **Committing a shape label crashed the LiveView.** The sync path read a
+  curated map (as `load_annotations_for/1` produces it) as if it were the
+  `Annotation` schema struct.
+- **Deleting a sidebar comment killed the whole LiveView**, which read as
+  "the page refreshed and the media modal closed" — the `Embed` macro now
+  handles the `{:comments_updated, ...}` message the comments component
+  reports to the host process.
+- **The media viewer's connector anchors are now hard-disabled** (`connectors={:off}`)
+  instead of following a shared saved preference that could follow a user in
+  from boards, where the anchors point at nothing.
+- **Lightbox video/audio sizing.** Video fills the column via
+  `object-contain` instead of floating as a tiny box at its intrinsic size;
+  the audio player is centered with a max width instead of stretching full
+  width.
+- **`default.pot` extraction drift + missing translations.** The composer's
+  copy change ("Reply to this annotation") had never been extracted;
+  re-extracted and translated into de/es/et/fr/it/pl/ru.
+
+### Dependencies
+
+- **etcher 0.13.0** (was 0.12.1) — adds `tooltipActions` and the hard
+  `connectors={:off}` layer option.
+
+## 2.8.1 - 2026-08-16
+
+### Added
+
+- **UploadGuard.** `Core.FileUpload` now blocks accidental tab close/refresh
+  while a file is mid-upload — the browser's native `beforeunload` dialog
+  fires instead of silently losing an in-flight transfer (LiveView uploads
+  aren't resumed). Applies to both the drag-drop and button variants (#720).
+
+### Changed
+
+- **`Core.FileUpload` static strings are translatable.** "Cancel upload",
+  "Drag files here or click to browse", "Drop your files to upload", and
+  "Maximum file size: …" now go through `gettext`; the `label` attr defaults
+  to a translated "Upload Files" instead of a hardcoded string (#720).
+
+### Fixed
+
+- **`default.pot` extraction drift.** `Core.ColumnSettings`' "Columns" and
+  "Shown" labels (added in 2.8.0) had never been extracted, leaving them
+  untranslated in every non-English locale. Re-extracted and translated into
+  de/es/et/fr/it/pl/ru.
+
 ## 2.8.0 - 2026-08-16
 
 The admin header becomes a real breadcrumb for drill-down pages, and
