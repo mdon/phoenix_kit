@@ -172,30 +172,64 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
   # them. `Bucket.changeset/2` guarantees only one of the two credential
   # sources below is ever set on a saved bucket.
   #
+  # Every failure path here returns {nil, nil} / a nil secret rather than
+  # raising — a bad/expired credential should fail as an ExAws auth error on
+  # the actual request, not crash the caller. Each path logs why first,
+  # naming the bucket and the failure REASON only, never a credential value.
+  #
   # Public and `@doc false` (not part of the `Provider` behaviour) purely so
   # the test suite can exercise both branches directly, without a real S3
   # endpoint — same rationale as `V174.repair_statements/1`.
   @doc false
   @spec resolve_credentials(PhoenixKit.Modules.Storage.Bucket.t()) ::
           {String.t() | nil, String.t() | nil}
-  def resolve_credentials(%{integration_uuid: integration_uuid})
+  def resolve_credentials(%{integration_uuid: integration_uuid} = bucket)
       when is_binary(integration_uuid) and integration_uuid != "" do
     case Integrations.get_credentials(integration_uuid) do
-      # "access_key"/"secret_key" is the generic key-secret shape
-      # `PhoenixKit.Integrations` providers already use for AWS-style
-      # credentials (see `aws_ses` and `PhoenixKit.Mailer.swoosh_config_for/1`)
-      # — the `object_storage` provider this bucket-side integration_uuid
-      # exists for is expected to follow the same convention.
-      {:ok, creds} -> {creds["access_key"], creds["secret_key"]}
-      {:error, _reason} -> {nil, nil}
+      {:ok, creds} ->
+        # "access_key"/"secret_key" is the generic key-secret shape
+        # `PhoenixKit.Integrations` providers use for AWS-style credentials
+        # (see `aws_ses`, and `PhoenixKit.Mailer.swoosh_config_for/1`) — the
+        # `object_storage` provider this bucket-side integration_uuid exists
+        # for (`PhoenixKit.Integrations.Providers.object_storage/0`, added in
+        # a parallel branch) declares the same two field keys.
+        access_key = creds["access_key"]
+        secret_key = creds["secret_key"]
+
+        if is_binary(access_key) and access_key != "" and is_binary(secret_key) and
+             secret_key != "" do
+          {access_key, secret_key}
+        else
+          Logger.error(
+            "S3 bucket #{bucket.name}: integration #{integration_uuid} has no " <>
+              "access_key/secret_key configured"
+          )
+
+          {nil, nil}
+        end
+
+      {:error, reason} ->
+        Logger.error(
+          "S3 bucket #{bucket.name}: failed to resolve credentials from integration " <>
+            "#{integration_uuid}: #{inspect(reason)}"
+        )
+
+        {nil, nil}
     end
   end
 
   def resolve_credentials(bucket) do
     secret =
       case Encryption.decrypt_value(bucket.secret_access_key) do
-        {:ok, plaintext} -> plaintext
-        {:error, _reason} -> nil
+        {:ok, plaintext} ->
+          plaintext
+
+        {:error, reason} ->
+          Logger.error(
+            "S3 bucket #{bucket.name}: failed to decrypt secret_access_key: #{inspect(reason)}"
+          )
+
+          nil
       end
 
     {bucket.access_key_id, secret}

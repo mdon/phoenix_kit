@@ -6,7 +6,10 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3ResolveCredentialsTest do
   connection. `@doc false` and public for exactly this: testable without a
   real S3 endpoint (same rationale as `V174.repair_statements/1`).
   """
-  use PhoenixKit.DataCase, async: true
+  # async: false — setup below stamps the global `:phoenix_kit,
+  # :secret_key_base` app env, which other concurrently-running async tests
+  # could observe mid-test. Same rationale as PhoenixKit.Integrations.EncryptionTest.
+  use PhoenixKit.DataCase, async: false
 
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Encryption

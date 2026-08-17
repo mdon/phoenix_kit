@@ -138,10 +138,9 @@ defmodule PhoenixKit.Modules.Storage.BucketTest do
 
       refute changeset.valid?
 
-      assert "specify either integration_uuid or access_key_id/secret_access_key, not both" in errors_on(
-               changeset,
-               :integration_uuid
-             )
+      assert ("clear access_key_id and secret_access_key before setting integration_uuid " <>
+                "(or clear integration_uuid to use direct credentials instead) — only one " <>
+                "credential source at a time") in errors_on(changeset, :integration_uuid)
     end
 
     test "rejects integration_uuid set alongside secret_access_key" do
@@ -156,10 +155,9 @@ defmodule PhoenixKit.Modules.Storage.BucketTest do
 
       refute changeset.valid?
 
-      assert "specify either integration_uuid or access_key_id/secret_access_key, not both" in errors_on(
-               changeset,
-               :integration_uuid
-             )
+      assert ("clear access_key_id and secret_access_key before setting integration_uuid " <>
+                "(or clear integration_uuid to use direct credentials instead) — only one " <>
+                "credential source at a time") in errors_on(changeset, :integration_uuid)
     end
 
     test "rejects integration_uuid alongside direct credentials even for a local bucket" do
@@ -173,10 +171,27 @@ defmodule PhoenixKit.Modules.Storage.BucketTest do
 
       refute changeset.valid?
 
-      assert "specify either integration_uuid or access_key_id/secret_access_key, not both" in errors_on(
-               changeset,
-               :integration_uuid
-             )
+      assert ("clear access_key_id and secret_access_key before setting integration_uuid " <>
+                "(or clear integration_uuid to use direct credentials instead) — only one " <>
+                "credential source at a time") in errors_on(changeset, :integration_uuid)
+    end
+
+    test "rejects setting integration_uuid on a bucket that already has direct credentials, even when this change doesn't touch them" do
+      bucket = %Bucket{
+        name: "Existing S3",
+        provider: "s3",
+        bucket_name: "my-bucket",
+        access_key_id: "AKIAEXAMPLE",
+        secret_access_key: Encryption.encrypt_value("super-secret-value")
+      }
+
+      changeset = Bucket.changeset(bucket, %{integration_uuid: @integration_uuid})
+
+      refute changeset.valid?
+
+      assert ("clear access_key_id and secret_access_key before setting integration_uuid " <>
+                "(or clear integration_uuid to use direct credentials instead) — only one " <>
+                "credential source at a time") in errors_on(changeset, :integration_uuid)
     end
   end
 

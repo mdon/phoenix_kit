@@ -252,8 +252,10 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
     end
   end
 
-  describe "encrypt_value/1 when encryption is unavailable" do
-    test "returns the value unchanged" do
+  describe "encrypt_value/1 and decrypt_value/1 when encryption is unavailable" do
+    import ExUnit.CaptureLog
+
+    setup do
       original_flat = Application.get_env(:phoenix_kit, :secret_key_base)
       original_parent = Application.get_env(:phoenix_kit, :parent_module)
       Application.delete_env(:phoenix_kit, :secret_key_base)
@@ -265,7 +267,32 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       end)
 
       refute Encryption.enabled?()
-      assert Encryption.encrypt_value("plaintext") == "plaintext"
+      :ok
+    end
+
+    test "encrypt_value/1 returns the value unchanged and logs a warning naming the function, not the value" do
+      log =
+        capture_log(fn ->
+          assert Encryption.encrypt_value("s3-secret-should-not-be-logged") ==
+                   "s3-secret-should-not-be-logged"
+        end)
+
+      assert log =~ "encrypt_value/1"
+      assert log =~ "no encryption key available"
+      refute log =~ "s3-secret-should-not-be-logged"
+    end
+
+    test "decrypt_value/1 returns {:error, :encryption_unavailable} for an already-encrypted value — never the ciphertext or a fabricated plaintext" do
+      # Shape of a real enc:v1: value — this test only needs the prefix to
+      # be recognized as "encrypted", not a value that decrypts cleanly.
+      still_prefixed = "enc:v1:" <> Base.encode64(:crypto.strong_rand_bytes(40))
+
+      assert Encryption.decrypt_value(still_prefixed) == {:error, :encryption_unavailable}
+    end
+
+    test "decrypt_value/1 still passes through legacy plaintext (no prefix) even with no key" do
+      assert Encryption.decrypt_value("legacy-plaintext-secret") ==
+               {:ok, "legacy-plaintext-secret"}
     end
   end
 

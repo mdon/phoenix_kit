@@ -24,6 +24,8 @@ defmodule PhoenixKit.Integrations.Encryption do
       config :phoenix_kit, integration_encryption_enabled: false
   """
 
+  require Logger
+
   @sensitive_fields ~w(
     access_token refresh_token client_secret
     api_key bot_token secret_key password
@@ -83,8 +85,12 @@ defmodule PhoenixKit.Integrations.Encryption do
 
   Same cipher, key derivation and `enc:v1:` prefix as `encrypt_fields/1`.
   Nil/empty and already-encrypted values (see `encrypted?/1`) pass through
-  unchanged; so does any value when encryption is unavailable (no
-  `secret_key_base`).
+  unchanged. When encryption is unavailable (no `secret_key_base`), the
+  value is stored as plaintext — same as `encrypt_fields/1` — but this
+  path logs a warning, since a caller that reaches for single-value
+  encryption is usually protecting something as sensitive as the fields
+  `encrypt_fields/1` already covers, and a schema field silently staying
+  plaintext is exactly the gap this API exists to close.
   """
   @spec encrypt_value(String.t() | nil) :: String.t() | nil
   def encrypt_value(nil), do: nil
@@ -95,8 +101,16 @@ defmodule PhoenixKit.Integrations.Encryption do
       value
     else
       case encryption_key() do
-        nil -> value
-        key -> encrypt_value(value, key)
+        nil ->
+          Logger.warning(
+            "PhoenixKit.Integrations.Encryption.encrypt_value/1: no encryption key available " <>
+              "(secret_key_base not configured) — storing value as plaintext"
+          )
+
+          value
+
+        key ->
+          encrypt_value(value, key)
       end
     end
   end
@@ -106,9 +120,12 @@ defmodule PhoenixKit.Integrations.Encryption do
 
   Returns `{:ok, plaintext}`. A value without the `enc:v1:` prefix is
   returned as `{:ok, value}` unchanged — backwards compatibility with
-  data written before encryption was applied. `{:error, reason}` only for
-  a value that IS prefixed but fails to decrypt (wrong/rotated key,
-  corrupted ciphertext).
+  data written before encryption was applied. `{:error, :encryption_unavailable}`
+  when the value IS prefixed but no encryption key is available (no
+  `secret_key_base`) — unlike the nil-key path in `encrypt_value/1`, there
+  is no plaintext to fall back to here, only ciphertext nobody can read
+  right now. `{:error, reason}` for any other decrypt failure (wrong/rotated
+  key, corrupted ciphertext).
   """
   @spec decrypt_value(String.t() | nil) :: {:ok, String.t() | nil} | {:error, term()}
   def decrypt_value(nil), do: {:ok, nil}
@@ -117,7 +134,7 @@ defmodule PhoenixKit.Integrations.Encryption do
   def decrypt_value(value) when is_binary(value) do
     if encrypted?(value) do
       case encryption_key() do
-        nil -> {:ok, value}
+        nil -> {:error, :encryption_unavailable}
         key -> decrypt_value(value, key)
       end
     else

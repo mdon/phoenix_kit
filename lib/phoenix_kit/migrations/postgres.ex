@@ -13,7 +13,10 @@ defmodule PhoenixKit.Migrations.Postgres do
   index) so a cloud bucket can point at a `PhoenixKit.Integrations`
   connection instead of storing `access_key_id`/`secret_access_key`
   directly. `Bucket.changeset/2` rejects setting both a `secret_access_key`
-  and an `integration_uuid` on the same bucket record.
+  and an `integration_uuid` on the same bucket record. Also widens
+  `secret_access_key` from `varchar(255)` to `text` — encrypted at rest as
+  of this same change, and the encrypted encoding overflows 255 chars past
+  a ~158-char plaintext secret.
 
   ### V174 - Repair misclassified media rows
 

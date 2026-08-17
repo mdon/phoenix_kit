@@ -23,7 +23,11 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   - `access_key_id` - Credentials identifier (nullable, stored as-is — not a secret)
   - `secret_access_key` - Encrypted at rest via `PhoenixKit.Integrations.Encryption`
     (nullable); decrypted only at the point of use (e.g. `Providers.S3`'s AWS
-    config builder), never by a general accessor like `Storage.get_bucket/1`
+    config builder), never by a general accessor like `Storage.get_bucket/1`.
+    A value already in this column when encryption was added is migrated
+    opportunistically, not by a bulk backfill: the changeset re-derives and
+    re-encrypts it on the next save of the bucket for ANY reason (see
+    `encrypt_secret_access_key/1`), so it stays plaintext only until then
   - `integration_uuid` - Alternative credential source: a `PhoenixKit.Integrations`
     connection uuid (nullable, no FK). Mutually exclusive with
     `access_key_id`/`secret_access_key` — a changeset may set one source or the
@@ -113,7 +117,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
     field :endpoint, :string
     field :bucket_name, :string
     field :access_key_id, :string
-    field :secret_access_key, :string
+    field :secret_access_key, :string, redact: true
     field :integration_uuid, UUIDv7
     field :cdn_url, :string
     field :access_type, :string, default: "public"
@@ -147,7 +151,9 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
 
   `secret_access_key` is encrypted at rest (see
   `PhoenixKit.Integrations.Encryption`) as part of this changeset —
-  already-encrypted values pass through unchanged.
+  already-encrypted values pass through unchanged. A row written before
+  encryption existed stays plaintext until the next save of any kind (no
+  bulk backfill — see the `secret_access_key` field doc above).
   """
   def changeset(bucket, attrs) do
     bucket
@@ -192,7 +198,9 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
       add_error(
         changeset,
         :integration_uuid,
-        "specify either integration_uuid or access_key_id/secret_access_key, not both"
+        "clear access_key_id and secret_access_key before setting integration_uuid " <>
+          "(or clear integration_uuid to use direct credentials instead) — only one " <>
+          "credential source at a time"
       )
     else
       changeset
