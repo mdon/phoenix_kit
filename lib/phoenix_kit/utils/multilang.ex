@@ -25,6 +25,7 @@ defmodule PhoenixKit.Utils.Multilang do
   """
 
   alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Modules.Languages.DialectMapper
 
   @primary_language_key "_primary_language"
 
@@ -81,15 +82,50 @@ defmodule PhoenixKit.Utils.Multilang do
       primary = primary_language_from_data(data)
       primary_data = Map.get(data, primary, %{})
 
-      if lang_code == primary do
-        primary_data
-      else
-        lang_data = Map.get(data, lang_code, %{})
-        Map.merge(primary_data, lang_data)
-      end
+      # Always merge primary ⊕ override. A lang that IS the primary (or
+      # a dialect sibling with no own entry) resolves to the primary
+      # entry, and merging it onto itself is a no-op — while a sibling
+      # WITH its own entry ("en" override under primary "en-US") still
+      # wins, which a same-language short-circuit would wrongly skip.
+      Map.merge(primary_data, language_entry(data, lang_code))
     else
       data || %{}
     end
+  end
+
+  # Language codes differ per host: the Languages module may register
+  # bare base codes ("en") while the locale pipeline resolves URLs to
+  # full dialects ("en-US") — or the reverse. An exact-key miss
+  # therefore falls back to the base code, then to any stored language
+  # entry sharing the base, so a record translated under "en" still
+  # resolves for a viewer whose `current_locale` is "en-US" (the
+  # sticky-primary-language bug: English UI showing Estonian names).
+  defp language_entry(data, lang_code) do
+    with :error <- fetch_lang_map(data, lang_code),
+         base = DialectMapper.extract_base(lang_code),
+         :error <- fetch_lang_map(data, base),
+         :error <- fetch_same_base(data, base) do
+      %{}
+    else
+      {:ok, entry} -> entry
+    end
+  end
+
+  defp fetch_lang_map(data, key) do
+    case Map.get(data, key) do
+      %{} = entry -> {:ok, entry}
+      _ -> :error
+    end
+  end
+
+  defp fetch_same_base(data, base) do
+    Enum.find_value(data, :error, fn
+      {key, %{} = entry} when is_binary(key) and key != @primary_language_key ->
+        if DialectMapper.extract_base(key) == base, do: {:ok, entry}
+
+      _ ->
+        nil
+    end)
   end
 
   @doc """

@@ -25,6 +25,30 @@ defmodule PhoenixKit.Utils.MultilangTest do
   end
 
   describe "get_language_data/2" do
+    test "dialect locale resolves bare-code translations (tim-dev shape)" do
+      # Host registers bare codes (primary "et", translations under
+      # "en"), but the locale pipeline resolves /en/ URLs to "en-US".
+      data = %{
+        "_primary_language" => "et",
+        "et" => %{"_name" => "KORVID"},
+        "en" => %{"_name" => "BASKETS"}
+      }
+
+      assert Multilang.get_language_data(data, "en-US")["_name"] == "BASKETS"
+      # And the reverse: dialect-stored translations found via bare code.
+      dialect_data = %{
+        "_primary_language" => "et",
+        "et" => %{"_name" => "KORVID"},
+        "en-GB" => %{"_name" => "BASKETS"}
+      }
+
+      assert Multilang.get_language_data(dialect_data, "en")["_name"] == "BASKETS"
+      # A dialect of the PRIMARY language returns the primary data.
+      assert Multilang.get_language_data(data, "et-EE")["_name"] == "KORVID"
+      # Unrelated locales still merge to the primary base.
+      assert Multilang.get_language_data(data, "fr")["_name"] == "KORVID"
+    end
+
     test "returns primary data for primary language" do
       data = %{
         @primary_key => "en-US",
