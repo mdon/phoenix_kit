@@ -162,6 +162,26 @@ defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesTest do
     refute fr_xml =~ "/fr/"
   end
 
+  test "index mode keeps it out of the per-module static file too" do
+    # Flat vs index is decided by router discovery; the test above only
+    # exercises flat mode, where the legacy set is one urlset. In index mode the
+    # legacy set is per-module files, and sitemap-static.xml is the one that
+    # would carry a leaked /fr/ entry.
+    {:ok, _} = Settings.update_boolean_setting("sitemap_router_discovery_enabled", false)
+    {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", true)
+    {:ok, _} = Settings.update_boolean_setting("crawlers_no_index", false)
+    {:ok, _} = Settings.update_setting("site_url", @base)
+
+    assert {:ok, _} = Generator.generate_all(base_url: @base)
+
+    static_path = FileStorage.module_file_path("sitemap-static")
+    assert File.exists?(static_path)
+    refute File.read!(static_path) =~ "#{@base}/fr/"
+
+    {:ok, fr_path} = FileStorage.domain_file_path("site.example.fr", "sitemap")
+    assert File.read!(fr_path) =~ "<loc>https://site.example.fr/</loc>"
+  end
+
   test "the mapped domain's file ends up carrying its own home page" do
     entries = Static.collect(base_url: @base, language: "en", is_default_language: true)
 
