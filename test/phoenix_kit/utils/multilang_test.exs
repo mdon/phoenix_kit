@@ -217,6 +217,37 @@ defmodule PhoenixKit.Utils.MultilangTest do
       refute Map.has_key?(cleared, "en-GB")
     end
 
+    test "genuinely distinct sibling dialects are never collapsed into one another (regression)" do
+      # en-US (primary) and en-GB are two REAL, independently co-enabled
+      # dialects (the tab UI supports this — compute_short_code/2
+      # disambiguates the collision). Saving the en-GB tab must store its
+      # own override, never overwrite the primary entry: en-GB is a
+      # sibling of en-US, not a bare/dialect naming-drift of it.
+      data = %{"_primary_language" => "en-US", "en-US" => %{"_name" => "American"}}
+
+      updated = Multilang.put_language_data(data, "en-GB", %{"_name" => "British"})
+
+      assert updated["en-US"]["_name"] == "American"
+      assert updated["en-GB"]["_name"] == "British"
+
+      # Reading each dialect back gets its own content, not the other's.
+      assert Multilang.get_language_data(updated, "en-US")["_name"] == "American"
+      assert Multilang.get_language_data(updated, "en-GB")["_name"] == "British"
+
+      # Saving a THIRD distinct secondary sibling (en-CA) must not drop an
+      # existing, unrelated secondary sibling (en-GB) — both are real,
+      # independently maintained translations under a non-English primary.
+      mixed = %{
+        "_primary_language" => "et",
+        "et" => %{"_name" => "KORVID"},
+        "en-GB" => %{"_name" => "Hampers"}
+      }
+
+      updated2 = Multilang.put_language_data(mixed, "en-CA", %{"_name" => "Baskets"})
+      assert updated2["en-CA"]["_name"] == "Baskets"
+      assert updated2["en-GB"]["_name"] == "Hampers"
+    end
+
     test "get_raw_language_data finds dialect-sibling entries" do
       data = %{"_primary_language" => "et", "en-US" => %{"_name" => "Baskets"}}
       assert Multilang.get_raw_language_data(data, "en")["_name"] == "Baskets"
@@ -354,6 +385,28 @@ defmodule PhoenixKit.Utils.MultilangTest do
 
     test "returns nil unchanged" do
       assert Multilang.rekey_primary(nil, "en-US") == nil
+    end
+
+    test "promoting a sibling of the new primary keeps OTHER real siblings intact (regression)" do
+      # et is primary; en-US and en-GB are two distinct, independently
+      # maintained secondary dialects. Promoting en-US to primary must
+      # only fold en-US itself into the new primary (it becomes the
+      # promoted entry) — en-GB is a genuinely different translation and
+      # must survive as its own secondary override, not get swept as a
+      # "stale ghost" merely for sharing a base with the new primary.
+      data = %{
+        "_primary_language" => "et",
+        "et" => %{"_name" => "KORVID"},
+        "en-US" => %{"_name" => "American Baskets"},
+        "en-GB" => %{"_name" => "British Hampers"}
+      }
+
+      result = Multilang.rekey_primary(data, "en-US")
+
+      assert result["_primary_language"] == "en-US"
+      assert result["en-US"]["_name"] == "American Baskets"
+      assert result["en-GB"]["_name"] == "British Hampers"
+      assert Map.has_key?(result, "et")
     end
   end
 end

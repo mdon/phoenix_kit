@@ -227,10 +227,12 @@ defmodule PhoenixKit.Utils.Multilang do
       # bogus override; it IS the primary.
       Map.put(base_data, primary, new_field_data)
     else
-      # Secondary language: only store overrides. Any dialect-sibling
-      # entries of the written language are dropped so a record never
-      # accumulates two entries for one base language ("en" + "en-GB"),
-      # which would leave reads racing stale data.
+      # Secondary language: only store overrides. Any entry that is the
+      # same conceptual language under a different precision (a bare
+      # "en" vs "en-US" naming-drift ghost of the code being written) is
+      # dropped so it can't shadow the fresh write. A genuinely distinct
+      # sibling dialect ("en-GB" while writing "en-CA") is NOT dropped —
+      # see `same_base?/2`.
       primary_data = Map.get(base_data, primary, %{})
       overrides = compute_overrides(new_field_data, primary_data)
       base_data = drop_base_siblings(base_data, lang_code, primary)
@@ -243,20 +245,27 @@ defmodule PhoenixKit.Utils.Multilang do
     end
   end
 
-  defp same_base?(a, b) when is_binary(a) and is_binary(b),
-    do: DialectMapper.extract_base(a) == DialectMapper.extract_base(b)
+  # Narrow equivalence: true only when `a` and `b` name the SAME
+  # conceptual language under different precision — identical codes, or
+  # one is literally the bare base-code form of the other ("en" /
+  # "en-US"). Deliberately NOT "any two codes sharing a base", which
+  # would also match two genuinely distinct, independently co-enabled
+  # sibling dialects ("en-US" primary + "en-GB" secondary — a supported
+  # configuration per `compute_short_code/2`'s tab-collision handling).
+  # Collapsing those would let editing one dialect's tab silently
+  # overwrite or delete the other's stored content.
+  defp same_base?(a, b) when is_binary(a) and is_binary(b) do
+    a == b or a == DialectMapper.extract_base(b) or b == DialectMapper.extract_base(a)
+  end
 
-  defp same_base?(a, a), do: true
   defp same_base?(_, _), do: false
 
   defp drop_base_siblings(data, lang_code, primary) do
-    base = DialectMapper.extract_base(lang_code)
-
     Enum.reduce(data, data, fn
       {key, %{}}, acc
       when is_binary(key) and key != lang_code and key != primary and
              key != @primary_language_key ->
-        if DialectMapper.extract_base(key) == base, do: Map.delete(acc, key), else: acc
+        if same_base?(key, lang_code), do: Map.delete(acc, key), else: acc
 
       _, acc ->
         acc
