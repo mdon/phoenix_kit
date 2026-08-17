@@ -1,3 +1,47 @@
+## 2.11.0 - 2026-08-17
+
+Sitemap round-out (domainless-language URLs, a real `regenerate/1`, JSON-pipeline
+route exclusion), independent integrations encryption keys with rotation, and a
+media-annotation comment fix, with etcher bumped to 0.13.1 (#725, #726, #727,
+#728, #729).
+
+### Added
+
+- **Integrations encryption key rotation.** `mix phoenix_kit.integrations.rotate_key`
+  re-encrypts (or, for a still-plaintext row from before this release, encrypts for
+  the first time) every stored integration credential under the currently
+  configured key, and the encryption key can now be decoupled from
+  `secret_key_base` via a dedicated config, with an admin-UI warning when a host is
+  still relying on the legacy shared-key fallback (#728).
+- **`sitemap_router_discovery` now excludes JSON-pipeline routes**, not just
+  `^/api`-path routes — a route piped through `:api` or `:phoenix_kit_api` is
+  recognized as non-page regardless of where it's mounted (a module's own API
+  prefix, or a host's infrastructure endpoint like Caddy's on-demand-TLS ask
+  hook) (#727).
+
+### Fixed
+
+- **Domain-mode sitemap dropped every URL for a language with no domain of its
+  own.** Domainless languages now fall back into the primary domain's file with
+  their locale-prefixed path intact, computed the same way as a mapped
+  language's alternates (#725).
+- **`Sitemap.regenerate/1` returned a "not implemented" placeholder** instead of
+  actually regenerating the sitemap; wired to the same `Generator` call the
+  sitemap controller already uses (#726).
+- **Master comment on a labelled annotation shape repeated the shape's label**
+  as the comment body, even though the sidebar already renders the label as the
+  thread's heading — post-merge review found the described fallback for older
+  `phoenix_kit_comments` releases didn't actually work (the new
+  `allow_empty_content` flag doesn't exist in any released version, so the
+  bodiless-content attempt always failed and **Reply silently did nothing** for
+  every labelled shape); fixed by retrying with the label as content on that
+  specific failure, so the flow works today and upgrades transparently once
+  `phoenix_kit_comments` ships real support for the flag (#729).
+- **etcher bumped to 0.13.1** — the annotation tooltip anchored above the shape
+  element, which for a labelled shape is exactly where the label floats,
+  covering it; the anchor box is now the shape unioned with its label and badge
+  (#729).
+
 ## 2.10.0 - 2026-08-17
 
 Locale resolution gets smarter about dialect/bare-code mismatches, hosts
