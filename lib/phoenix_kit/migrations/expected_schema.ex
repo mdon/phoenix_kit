@@ -84,13 +84,23 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # session); the manifest BODY is otherwise unchanged from the V173 restamp
   # two entries up.
   #
-  # V175 (2026-08-17) is carried the same way: one column + one partial index
-  # on `phoenix_kit_buckets` (`integration_uuid`, the Storage/Integrations
-  # credential-encryption fix), hand-declared at the end of objects/1 from
-  # `V175.up/1`'s SQL rather than introspected — same class of change as the
-  # V165/V166/V170/V171 hand declarations above (not V173's introspected
-  # ones). chain_hash restamped over the shipped set; `verify.exs --scenario
-  # s7,s8` against a real database has not run against this exact chain.
+  # V175 (2026-08-17) is carried the same way, but spans TWO classes: a new
+  # column + partial index on `phoenix_kit_buckets` (`integration_uuid`, the
+  # Storage/Integrations credential-encryption fix) — same class as the
+  # V165/V166/V170/V171 hand declarations above — AND a reshape of an
+  # EXISTING object, `column:phoenix_kit_buckets.secret_access_key`
+  # (`character varying(255)` -> `text`, since encrypting it can overflow
+  # 255 chars), which is the V167 class: a `{175, ...}` revision APPENDED to
+  # that column's existing `{20, ...}`, never rewritten in place, `create:`
+  # carrying the newest shape. All three objects hand-declared at the end of
+  # objects/1 from `V175.up/1`'s SQL rather than introspected (not V173's
+  # introspected ones).
+  #
+  # @chain_hash below is DELIBERATELY STALE as of this note — it still
+  # reflects the pre-V175 shipped set. Restamping is a separate, later step
+  # (its own commit, nothing else in it); do not treat the constant below as
+  # current until that lands. `verify.exs --scenario s7,s8` against a real
+  # database has not run against this exact chain either way.
   #
   # Chain at generation: object/revision/legacy_optional DATA was captured from a
   # per-version replay of the TRUE pre-squash chain (initial=1 current=163 files=163
@@ -5145,11 +5155,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         check:
           {:catalog, %{table: "phoenix_kit_buckets", column: "secret_access_key", kind: :column}},
         create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_buckets ADD COLUMN IF NOT EXISTS \"secret_access_key\" character varying(255)",
+          "ALTER TABLE __SCHEMA__.phoenix_kit_buckets ADD COLUMN IF NOT EXISTS \"secret_access_key\" text",
         since: 20,
         class: :column,
         revisions: [
-          {20, %{default: nil, type: "character varying(255)", pos: 8, not_null: false}}
+          {20, %{default: nil, type: "character varying(255)", pos: 8, not_null: false}},
+          # Appended, never edited in place. `Object.shape_at/2` takes the last
+          # revision <= the database's own version, so rewriting {20, ...}
+          # would tell every pre-V175 install that its varchar(255) column is
+          # drift. V175 widens it to text (encrypted secret_access_key can
+          # overflow 255 chars — see V175's moduledoc); `create:` above
+          # carries this newest shape, same as V167's `phoenix_kit_posts_slug_index`.
+          {175, %{default: nil, type: "text", pos: 8, not_null: false}}
         ],
         presence: :required,
         backfill: nil
@@ -69702,8 +69719,12 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
       # transcribed from `V175.up/1`: no FK (same loose-uuid pattern V145/V152's
       # send-profile `integration_uuid` and V165/V166's `attributed_project_uuid`
       # use), partial index mirrors V166's `attributed_project_uuid` index
-      # exactly (most buckets are `local` and carry no integration).
-      # chain_hash restamped over the shipped v*.ex set afterwards.
+      # exactly (most buckets are `local` and carry no integration). V175's
+      # OTHER object — the `secret_access_key` varchar(255)->text reshape — is
+      # an appended revision on that column's EXISTING entry above
+      # (`column:phoenix_kit_buckets.secret_access_key`), not a new object
+      # here; see the V167 precedent cited there. chain_hash restamp is a
+      # separate, later step — not done as part of this declaration.
 
       %{
         id: "column:phoenix_kit_buckets.integration_uuid",
