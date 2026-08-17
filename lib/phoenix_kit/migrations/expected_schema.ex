@@ -96,11 +96,11 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # objects/1 from `V175.up/1`'s SQL rather than introspected (not V173's
   # introspected ones).
   #
-  # @chain_hash below is DELIBERATELY STALE as of this note — it still
-  # reflects the pre-V175 shipped set. Restamping is a separate, later step
-  # (its own commit, nothing else in it); do not treat the constant below as
-  # current until that lands. `verify.exs --scenario s7,s8` against a real
-  # database has not run against this exact chain either way.
+  # @chain_hash below was restamped over the 41 shipped v175 files in its own
+  # commit (nothing else in it), after the object declarations above landed
+  # and confirmed the restamp target was unaffected by that content-only
+  # change. `verify.exs --scenario s7,s8` against a real database has not run
+  # against this exact chain either way.
   #
   # Chain at generation: object/revision/legacy_optional DATA was captured from a
   # per-version replay of the TRUE pre-squash chain (initial=1 current=163 files=163
@@ -69723,8 +69723,8 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
       # OTHER object — the `secret_access_key` varchar(255)->text reshape — is
       # an appended revision on that column's EXISTING entry above
       # (`column:phoenix_kit_buckets.secret_access_key`), not a new object
-      # here; see the V167 precedent cited there. chain_hash restamp is a
-      # separate, later step — not done as part of this declaration.
+      # here; see the V167 precedent cited there. chain_hash was restamped in
+      # its own later commit, not as part of this declaration.
 
       %{
         id: "column:phoenix_kit_buckets.integration_uuid",
