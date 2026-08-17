@@ -4,7 +4,6 @@ defmodule PhoenixKit.Supervisor do
   """
   use Supervisor
 
-  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Users.Permissions
 
@@ -111,28 +110,6 @@ defmodule PhoenixKit.Supervisor do
            end
          end},
         id: :normalize_languages
-      ),
-      # One-time boot check: warns (never raises) when integration credentials
-      # are not protected by a dedicated encryption key. Runs here — after the
-      # host's Repo/Endpoint have started (this supervisor is a child of the
-      # HOST's tree) — rather than in PhoenixKit.Application.start/2, which
-      # runs before the host Endpoint exists and would misreport every host
-      # relying on the (supported, common) secret_key_base fallback as broken.
-      Supervisor.child_spec(
-        {Task,
-         fn ->
-           try do
-             Encryption.warn_if_insecure()
-           rescue
-             error ->
-               require Logger
-
-               Logger.error(
-                 "[PhoenixKit] Failed to check integrations encryption status at startup: #{inspect(error)}"
-               )
-           end
-         end},
-        id: :warn_integrations_encryption
       ),
       # Rate limiter backend MUST be started before any authentication requests
       PhoenixKit.Users.RateLimiter.Backend,
