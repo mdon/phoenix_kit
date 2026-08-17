@@ -1,3 +1,24 @@
+## 2.12.1 - 2026-08-17
+
+Two defects in the sitemap domain-mode code that landed with 2.12.0, found by
+reviewing that release's own follow-up commits after it shipped (#731).
+
+### Fixed
+
+- **Duplicate `<loc>` on the primary sitemap domain.** When the primary
+  domain hosts a language that is NOT the site default, and the site default
+  has no domain of its own, the default language's unprefixed home page
+  re-hosted onto exactly the URL the primary's own language already
+  occupied — the same URL twice in one file. The host's own language now
+  wins its URL and the colliding domainless entry is dropped (#731).
+- **One junk element in `sitemap_non_page_pipelines` emptied the whole
+  router-discovery source, silently.** A hand-edited settings value like
+  `["phoenix_kit_api", 1]` raised inside `safe_to_atom/1`, which `collect/1`'s
+  rescue swallowed — removing every discovered route from the sitemap with
+  nothing in the log. Junk elements are now ignored while the good ones still
+  apply; this also hardens `sitemap_protected_pipelines`, which shares the
+  same helper (#731).
+
 ## 2.12.0 - 2026-08-17
 
 Every mapped sitemap domain gets its own static pages, with the review
