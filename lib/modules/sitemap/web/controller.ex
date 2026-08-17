@@ -23,6 +23,7 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Controller do
   require Logger
 
   alias PhoenixKit.Modules.Sitemap
+  alias PhoenixKit.Modules.Sitemap.DomainMode
   alias PhoenixKit.Modules.Sitemap.FileStorage
   alias PhoenixKit.Modules.Sitemap.Generator
 
@@ -49,10 +50,15 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Controller do
           _ -> get_xsl_style(config)
         end
 
-      if Map.get(params, "format") == "html" do
-        serve_html(conn, config, xsl_style)
-      else
-        serve_index_xml(conn, xsl_style)
+      cond do
+        Map.get(params, "format") == "html" ->
+          serve_html(conn, config, xsl_style)
+
+        domain_host(conn) ->
+          serve_domain_file(conn, domain_host(conn), "sitemap", xsl_style)
+
+        true ->
+          serve_index_xml(conn, xsl_style)
       end
     else
       conn
@@ -68,9 +74,23 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Controller do
   The `.xml` extension is appended automatically.
   """
   def module_sitemap(conn, %{"filename" => raw_filename}) do
+    # Strip .xml extension if provided in URL
+    filename = String.trim_trailing(raw_filename, ".xml")
+
     cond do
       !Sitemap.enabled?() ->
         send_plain_error(conn, 404, "Sitemap not available")
+
+      not Regex.match?(@filename_pattern, filename) ->
+        send_plain_error(conn, 400, "Invalid filename")
+
+      host = domain_host(conn) ->
+        # A mapped host only ever resolves inside its own domain dir (split
+        # chunks like sitemap-2); never the legacy module files. Checked
+        # BEFORE the flat-mode 404 — domain sets are always flat-with-split,
+        # independent of the legacy mode, so a >50k domain's chunk files
+        # must stay reachable even when the site runs in flat mode.
+        serve_domain_file(conn, host, filename, nil)
 
       Sitemap.flat_mode?() ->
         send_plain_error(
@@ -80,14 +100,50 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Controller do
         )
 
       true ->
-        # Strip .xml extension if provided in URL
-        filename = String.trim_trailing(raw_filename, ".xml")
+        serve_module_file(conn, filename)
+    end
+  end
 
-        if Regex.match?(@filename_pattern, filename) do
-          serve_module_file(conn, filename)
-        else
-          send_plain_error(conn, 400, "Invalid filename")
+  # The request host when domain mode is active and the host is mapped.
+  defp domain_host(conn) do
+    case Enum.find(DomainMode.domains(), &(&1.host == String.downcase(conn.host || ""))) do
+      %{host: host} -> host
+      _ -> nil
+    end
+  end
+
+  # Serves one host's domain sitemap file: file if present, else regenerate
+  # everything on demand (same policy as the legacy index path).
+  defp serve_domain_file(conn, host, filename, xsl_style) do
+    with {:ok, path} <- FileStorage.domain_file_path(host, filename),
+         true <- File.exists?(path) do
+      serve_file_with_etag(conn, path, domain_file_stat(path))
+    else
+      _ ->
+        style = xsl_style || get_xsl_style(Sitemap.get_config())
+
+        case Generator.generate_all(base_url: Sitemap.get_base_url(), xsl_style: style) do
+          {:ok, _} ->
+            with {:ok, path} <- FileStorage.domain_file_path(host, filename),
+                 true <- File.exists?(path) do
+              serve_file_with_etag(conn, path, domain_file_stat(path))
+            else
+              _ -> send_plain_error(conn, 404, "Sitemap not found")
+            end
+
+          {:error, _} ->
+            send_plain_error(conn, 500, "Sitemap generation failed")
         end
+    end
+  end
+
+  # generate_etag_from_stat/1 expects the {:ok, mtime, size} shape
+  # (FileStorage.get_file_stat/0's contract) — a raw File.stat result would
+  # silently degrade every domain file to the shared "default" ETag.
+  defp domain_file_stat(path) do
+    case File.stat(path) do
+      {:ok, %{mtime: mtime, size: size}} -> {:ok, mtime, size}
+      _ -> :error
     end
   end
 
