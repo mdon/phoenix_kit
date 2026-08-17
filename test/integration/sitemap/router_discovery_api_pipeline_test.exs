@@ -85,6 +85,28 @@ defmodule PhoenixKit.Integration.Sitemap.RouterDiscoveryApiPipelineTest do
     assert locs == ["#{@base_url}/about"]
   end
 
+  test "sitemap_non_page_pipelines replaces the defaults, so a host can rescue its own :api" do
+    # A host whose :api pipeline serves real pages takes it off the list.
+    {:ok, _} =
+      Settings.update_setting("sitemap_non_page_pipelines", JSON.encode!(["phoenix_kit_api"]))
+
+    locs = RouterDiscovery.collect(base_url: @base_url) |> Enum.map(& &1.loc) |> Enum.sort()
+
+    assert locs == ["#{@base_url}/about", "#{@base_url}/caddy/ask"]
+  end
+
+  test "an empty sitemap_non_page_pipelines turns pipeline-based exclusion off" do
+    {:ok, _} = Settings.update_setting("sitemap_non_page_pipelines", JSON.encode!([]))
+
+    locs = RouterDiscovery.collect(base_url: @base_url) |> Enum.map(& &1.loc) |> Enum.sort()
+
+    assert locs == [
+             "#{@base_url}/about",
+             "#{@base_url}/caddy/ask",
+             "#{@base_url}/sync/api/status"
+           ]
+  end
+
   test "default_non_page_pipelines/0 exposes the JSON pipelines it filters on" do
     defaults = RouterDiscovery.default_non_page_pipelines()
 

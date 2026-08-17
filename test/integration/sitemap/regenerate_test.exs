@@ -24,11 +24,30 @@ defmodule PhoenixKit.Integration.Sitemap.RegenerateTest do
   test "regenerate/1 runs the generator instead of returning a placeholder" do
     {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", true)
 
+    # Give the run something it must find, so the assertions below prove real
+    # collection happened rather than an empty-but-valid document.
+    {:ok, _} =
+      Settings.update_setting(
+        "sitemap_custom_urls",
+        JSON.encode!([%{"path" => "/regenerate-probe", "title" => "Probe"}])
+      )
+
     assert {:ok, result} = Sitemap.regenerate(:test_scope)
 
     refute match?(%{status: :pending}, result)
-    assert is_integer(result.total_urls)
+    assert result.total_urls >= 1
     assert result.index_xml =~ "<?xml"
+    assert result.index_xml =~ "/regenerate-probe"
+  end
+
+  test "regenerate/1 refuses when no base URL is configured" do
+    {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", true)
+    {:ok, _} = Settings.update_setting("site_url", "")
+
+    # Generator.generate_all/1 only rejects nil, so an unset site_url would
+    # otherwise be written into the files as host-less <loc>s. The scheduler
+    # guards this; so must this entry point.
+    assert Sitemap.regenerate() == {:error, :base_url_not_configured}
   end
 
   test "regenerate/1 refuses when the module is disabled" do

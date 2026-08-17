@@ -63,11 +63,13 @@ defmodule PhoenixKit.Modules.Sitemap do
 
   ## Usage Examples
 
-      # Check if sitemap module is enabled
-      if PhoenixKit.Modules.Sitemap.enabled?() do
-        # Generate sitemap
-        PhoenixKit.Modules.Sitemap.regenerate(scope)
-      end
+      # Regenerate every sitemap file, inline — this walks every source and
+      # language, so do not call it from a request. From a controller or
+      # LiveView use the queued path instead:
+      PhoenixKit.Modules.Sitemap.Generator.invalidate_and_regenerate()
+
+      # Inline, for a mix task or a worker that wants the result:
+      {:ok, %{total_urls: _}} = PhoenixKit.Modules.Sitemap.regenerate(scope)
 
       # Get configuration
       config = PhoenixKit.Modules.Sitemap.get_config()
@@ -565,11 +567,21 @@ defmodule PhoenixKit.Modules.Sitemap do
   """
   @spec regenerate(any()) :: {:ok, map()} | {:error, any()}
   def regenerate(scope \\ nil) do
-    if enabled?() do
-      Logger.info("Sitemap regeneration triggered by #{inspect(scope)}")
-      Generator.generate_all(base_url: get_base_url())
-    else
-      {:error, :sitemap_disabled}
+    base_url = get_base_url()
+
+    cond do
+      not enabled?() ->
+        {:error, :sitemap_disabled}
+
+      # `get_base_url/0` falls back to "", which `Generator.generate_all/1`
+      # accepts (it only rejects nil) and turns into host-less `<loc>`s. The
+      # scheduler guards this before regenerating; so does this entry point.
+      base_url == "" ->
+        {:error, :base_url_not_configured}
+
+      true ->
+        Logger.info("Sitemap regeneration triggered by #{inspect(scope)}")
+        Generator.generate_all(base_url: base_url)
     end
   end
 
