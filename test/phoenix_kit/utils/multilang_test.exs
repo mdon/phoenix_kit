@@ -25,6 +25,30 @@ defmodule PhoenixKit.Utils.MultilangTest do
   end
 
   describe "get_language_data/2" do
+    test "dialect locale resolves bare-code translations (tim-dev shape)" do
+      # Host registers bare codes (primary "et", translations under
+      # "en"), but the locale pipeline resolves /en/ URLs to "en-US".
+      data = %{
+        "_primary_language" => "et",
+        "et" => %{"_name" => "KORVID"},
+        "en" => %{"_name" => "BASKETS"}
+      }
+
+      assert Multilang.get_language_data(data, "en-US")["_name"] == "BASKETS"
+      # And the reverse: dialect-stored translations found via bare code.
+      dialect_data = %{
+        "_primary_language" => "et",
+        "et" => %{"_name" => "KORVID"},
+        "en-GB" => %{"_name" => "BASKETS"}
+      }
+
+      assert Multilang.get_language_data(dialect_data, "en")["_name"] == "BASKETS"
+      # A dialect of the PRIMARY language returns the primary data.
+      assert Multilang.get_language_data(data, "et-EE")["_name"] == "KORVID"
+      # Unrelated locales still merge to the primary base.
+      assert Multilang.get_language_data(data, "fr")["_name"] == "KORVID"
+    end
+
     test "returns primary data for primary language" do
       data = %{
         @primary_key => "en-US",
@@ -112,6 +136,93 @@ defmodule PhoenixKit.Utils.MultilangTest do
   end
 
   describe "put_language_data/3" do
+    test "explicit rekey still works same-base; get_primary_data survives key drift (sweep)" do
+      # An EXPLICIT same-base rekey still works (maybe_rekey_data's
+      # skip is host-settings-gated and covered by the code path, not
+      # drivable here without the settings DB).
+      data = %{"_primary_language" => "en", "en" => %{"_name" => "X"}}
+      assert Multilang.rekey_primary(data, "en-US")["_primary_language"] == "en-US"
+
+      # get_primary_data falls back across siblings when the embedded
+      # marker's exact key is missing.
+      drifted = %{"_primary_language" => "en-US", "en" => %{"_name" => "X"}}
+      assert Multilang.get_primary_data(drifted)["_name"] == "X"
+    end
+
+    test "sibling fallback is deterministic and primary-preferring (sweep)" do
+      # Multiple entries share a base: the PRIMARY entry wins the
+      # fallback (complete field set), never map iteration order.
+      data = %{
+        "_primary_language" => "en-US",
+        "en-US" => %{"_name" => "Primary"},
+        "en-GB" => %{"_name" => "Override"}
+      }
+
+      assert Multilang.get_language_data(data, "en-AU")["_name"] == "Primary"
+
+      # Without a same-base primary, the lexicographically first sibling.
+      data2 = %{
+        "_primary_language" => "et",
+        "et" => %{"_name" => "Eesti"},
+        "en-US" => %{"_name" => "US"},
+        "en-GB" => %{"_name" => "GB"}
+      }
+
+      assert Multilang.get_language_data(data2, "en-AU")["_name"] == "GB"
+    end
+
+    test "rekey_primary leaves no same-base ghost override (sweep)" do
+      # en → en-US rekey: the old primary key must not survive as an
+      # override, or it hijacks the base fallback for every en-* viewer.
+      data = %{
+        "_primary_language" => "en",
+        "en" => %{"_name" => "Old"},
+        "en-US" => %{"_name" => "New"},
+        "et" => %{"_name" => "Eesti"}
+      }
+
+      rekeyed = Multilang.rekey_primary(data, "en-US")
+      assert rekeyed["_primary_language"] == "en-US"
+      assert rekeyed["en-US"]["_name"] == "New"
+      refute Map.has_key?(rekeyed, "en")
+      # Unrelated languages recompute normally.
+      assert rekeyed["et"]["_name"] == "Eesti"
+      assert Multilang.get_language_data(rekeyed, "en-GB")["_name"] == "New"
+    end
+
+    test "write normalization across code shapes (bulletproofing sweep)" do
+      # A primary-tab save arriving under a dialect sibling of the
+      # record's embedded primary updates the PRIMARY entry — no forked
+      # override, no stale reads.
+      data = %{"_primary_language" => "en-US", "en-US" => %{"_name" => "Old"}}
+      updated = Multilang.put_language_data(data, "en", %{"_name" => "New"})
+      assert updated["en-US"]["_name"] == "New"
+      refute Map.has_key?(updated, "en")
+
+      # A secondary write drops dialect-sibling entries of its language,
+      # so one base language never carries two racing entries.
+      mixed = %{
+        "_primary_language" => "et",
+        "et" => %{"_name" => "KORVID"},
+        "en-GB" => %{"_name" => "Hampers"}
+      }
+
+      updated = Multilang.put_language_data(mixed, "en", %{"_name" => "Baskets"})
+      assert updated["en"]["_name"] == "Baskets"
+      refute Map.has_key?(updated, "en-GB")
+
+      # And clearing an override also clears its siblings.
+      cleared = Multilang.put_language_data(mixed, "en", %{"_name" => "KORVID"})
+      refute Map.has_key?(cleared, "en")
+      refute Map.has_key?(cleared, "en-GB")
+    end
+
+    test "get_raw_language_data finds dialect-sibling entries" do
+      data = %{"_primary_language" => "et", "en-US" => %{"_name" => "Baskets"}}
+      assert Multilang.get_raw_language_data(data, "en")["_name"] == "Baskets"
+      assert Multilang.get_raw_language_data(data, "ru") == %{}
+    end
+
     test "stores all fields for primary language" do
       result = Multilang.put_language_data(nil, "en-US", %{"name" => "Acme"})
       assert result[@primary_key] == "en-US"
