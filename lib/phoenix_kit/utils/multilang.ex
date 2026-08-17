@@ -87,7 +87,7 @@ defmodule PhoenixKit.Utils.Multilang do
       # entry, and merging it onto itself is a no-op — while a sibling
       # WITH its own entry ("en" override under primary "en-US") still
       # wins, which a same-language short-circuit would wrongly skip.
-      Map.merge(primary_data, language_entry(data, lang_code))
+      Map.merge(primary_data, language_entry(data, lang_code, primary))
     else
       data || %{}
     end
@@ -100,11 +100,11 @@ defmodule PhoenixKit.Utils.Multilang do
   # entry sharing the base, so a record translated under "en" still
   # resolves for a viewer whose `current_locale` is "en-US" (the
   # sticky-primary-language bug: English UI showing Estonian names).
-  defp language_entry(data, lang_code) do
+  defp language_entry(data, lang_code, primary) do
     with :error <- fetch_lang_map(data, lang_code),
          base = DialectMapper.extract_base(lang_code),
          :error <- fetch_lang_map(data, base),
-         :error <- fetch_same_base(data, base) do
+         :error <- fetch_same_base(data, base, primary) do
       %{}
     else
       {:ok, entry} -> entry
@@ -118,14 +118,27 @@ defmodule PhoenixKit.Utils.Multilang do
     end
   end
 
-  defp fetch_same_base(data, base) do
-    Enum.find_value(data, :error, fn
-      {key, %{} = entry} when is_binary(key) and key != @primary_language_key ->
-        if DialectMapper.extract_base(key) == base, do: {:ok, entry}
+  # Deterministic sibling pick: prefer the record's PRIMARY entry (the
+  # complete field set), else the lexicographically first sibling — map
+  # iteration order must never decide which translation a viewer sees.
+  defp fetch_same_base(data, base, primary) do
+    same_base_keys =
+      data
+      |> Enum.filter(fn
+        {key, %{}} when is_binary(key) and key != @primary_language_key ->
+          DialectMapper.extract_base(key) == base
 
-      _ ->
-        nil
-    end)
+        _ ->
+          false
+      end)
+      |> Enum.map(&elem(&1, 0))
+      |> Enum.sort()
+
+    cond do
+      same_base_keys == [] -> :error
+      is_binary(primary) and primary in same_base_keys -> {:ok, Map.fetch!(data, primary)}
+      true -> {:ok, Map.fetch!(data, hd(same_base_keys))}
+    end
   end
 
   @doc """
@@ -135,7 +148,14 @@ defmodule PhoenixKit.Utils.Multilang do
   def get_primary_data(data) do
     if multilang_data?(data) do
       primary = primary_language_from_data(data)
-      Map.get(data, primary, %{})
+
+      # Base fallback: hand-written or migrated data whose entry key's
+      # shape drifted from `_primary_language` ("en" entry, "en-US"
+      # marker) must not read as empty.
+      case Map.get(data, primary) do
+        %{} = entry -> entry
+        _ -> language_entry(data, primary, primary)
+      end
     else
       data || %{}
     end
@@ -148,7 +168,11 @@ defmodule PhoenixKit.Utils.Multilang do
   @spec get_raw_language_data(map() | nil, String.t()) :: map()
   def get_raw_language_data(data, lang_code) do
     if multilang_data?(data) do
-      Map.get(data, lang_code, %{})
+      # Same base-code fallback as `get_language_data/2`: an editor tab
+      # for "en" must find an entry stored under "en-US" (or vice
+      # versa) instead of rendering blank — the next save then migrates
+      # it to the tab's code via `put_language_data/3`'s normalization.
+      language_entry(data, lang_code, primary_language_from_data(data))
     else
       data || %{}
     end
@@ -196,13 +220,20 @@ defmodule PhoenixKit.Utils.Multilang do
         %{@primary_language_key => primary, primary => existing_data}
       end
 
-    if lang_code == primary do
-      # Primary language: store all fields
-      Map.put(base_data, lang_code, new_field_data)
+    if same_base?(lang_code, primary) do
+      # Primary language: store all fields — under the record's OWN
+      # primary key. A dialect-sibling code (form sends "en", record
+      # embeds "en-US" from an earlier host config) must not fork a
+      # bogus override; it IS the primary.
+      Map.put(base_data, primary, new_field_data)
     else
-      # Secondary language: only store overrides
+      # Secondary language: only store overrides. Any dialect-sibling
+      # entries of the written language are dropped so a record never
+      # accumulates two entries for one base language ("en" + "en-GB"),
+      # which would leave reads racing stale data.
       primary_data = Map.get(base_data, primary, %{})
       overrides = compute_overrides(new_field_data, primary_data)
+      base_data = drop_base_siblings(base_data, lang_code, primary)
 
       if map_size(overrides) == 0 do
         Map.delete(base_data, lang_code)
@@ -210,6 +241,26 @@ defmodule PhoenixKit.Utils.Multilang do
         Map.put(base_data, lang_code, overrides)
       end
     end
+  end
+
+  defp same_base?(a, b) when is_binary(a) and is_binary(b),
+    do: DialectMapper.extract_base(a) == DialectMapper.extract_base(b)
+
+  defp same_base?(a, a), do: true
+  defp same_base?(_, _), do: false
+
+  defp drop_base_siblings(data, lang_code, primary) do
+    base = DialectMapper.extract_base(lang_code)
+
+    Enum.reduce(data, data, fn
+      {key, %{}}, acc
+      when is_binary(key) and key != lang_code and key != primary and
+             key != @primary_language_key ->
+        if DialectMapper.extract_base(key) == base, do: Map.delete(acc, key), else: acc
+
+      _, acc ->
+        acc
+    end)
   end
 
   @doc """
@@ -292,7 +343,12 @@ defmodule PhoenixKit.Utils.Multilang do
       global = primary_language()
       embedded = primary_language_from_data(data)
 
-      if embedded != global do
+      # Same-BASE drift ("en" vs "en-US") is not a primary change:
+      # reads fall back across siblings and writes normalize onto the
+      # embedded key, so rekeying would only churn data (and, for
+      # override-only new-primary entries, risk promoting a partial
+      # field set). Only a genuinely different language rekeys.
+      if embedded != global and not same_base?(embedded, global) do
         rekey_primary(data, global)
       else
         data
@@ -358,11 +414,20 @@ defmodule PhoenixKit.Utils.Multilang do
         acc
 
       {lang, lang_data}, acc when is_map(lang_data) ->
-        # Reconstruct full data using OLD primary as base (overrides were against old primary)
-        full_lang_data = Map.merge(old_primary_data, lang_data)
-        # Then diff against the NEW primary to compute new overrides
-        overrides = compute_overrides(full_lang_data, promoted)
-        put_or_remove_language(acc, lang, overrides)
+        if same_base?(lang, new_primary) do
+          # A dialect sibling of the NEW primary (typically the old
+          # primary itself after an en → en-US style rekey) must not
+          # survive as an override: its content was already promoted,
+          # and a stale ghost would hijack the base-code fallback for
+          # every other dialect of that language.
+          Map.delete(acc, lang)
+        else
+          # Reconstruct full data using OLD primary as base (overrides
+          # were against old primary), then diff against the NEW primary.
+          full_lang_data = Map.merge(old_primary_data, lang_data)
+          overrides = compute_overrides(full_lang_data, promoted)
+          put_or_remove_language(acc, lang, overrides)
+        end
 
       {_key, _value}, acc ->
         acc
