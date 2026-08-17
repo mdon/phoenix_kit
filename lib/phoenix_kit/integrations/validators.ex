@@ -558,6 +558,104 @@ defmodule PhoenixKit.Integrations.Validators do
     end
   end
 
+  # --- Object Storage (S3-compatible) ----------------------------------------
+
+  @doc """
+  Validates S3-compatible object storage credentials against the storage API
+  itself (AWS S3, Cloudflare R2, Backblaze B2, Tigris, or a self-hosted
+  endpoint).
+
+  Calls `ListBuckets` — an account-level operation that needs no bucket name,
+  so it works before the operator has picked one. Built via `ExAws.S3`
+  (already a dependency); the `region`/`endpoint` config shape mirrors
+  `PhoenixKit.Modules.Storage.Providers.S3`'s `aws_config/1`, which builds the
+  same request for the same four providers.
+  """
+  @spec object_storage(map()) :: :ok | {:error, String.t()}
+  def object_storage(data) do
+    if blank?(data["access_key"]) or blank?(data["secret_key"]) do
+      {:error, gettext("Incomplete credentials")}
+    else
+      Probe.run(fn -> request_list_buckets(data) end)
+    end
+  end
+
+  defp request_list_buckets(data) do
+    ExAws.S3.list_buckets()
+    |> ExAws.request(object_storage_config(data))
+    |> case do
+      {:ok, _result} -> :ok
+      {:error, reason} -> interpret_object_storage_error(reason)
+    end
+  rescue
+    error ->
+      Logger.warning("Object storage connection check failed: #{inspect(error)}")
+      {:error, gettext("Could not reach the storage endpoint")}
+  catch
+    # hackney reaches its connection pool through GenServer.call, which exits
+    # rather than raising — `rescue` alone does not see it (see the SES
+    # request above).
+    :exit, reason ->
+      Logger.warning("Object storage connection check exited: #{inspect(reason)}")
+      {:error, gettext("Could not reach the storage endpoint")}
+  end
+
+  defp object_storage_config(data) do
+    base = [
+      access_key_id: data["access_key"],
+      secret_access_key: data["secret_key"],
+      region: object_storage_region(data),
+      # ExAws otherwise retries transport errors ten times with backoff,
+      # which would keep an unreachable endpoint hanging well past any
+      # reasonable check — same override `request_send_quota/2` uses.
+      retries: [max_attempts: 2, base_backoff_in_ms: 10, max_backoff_in_ms: 1_000],
+      http_opts: [recv_timeout: 5_000, connect_timeout: 5_000]
+    ]
+
+    case object_storage_endpoint(data) do
+      # No custom endpoint: let ExAws resolve the standard AWS S3 host for
+      # the region, same as a plain AWS S3 connection would.
+      nil -> base
+      endpoint -> base ++ [host: endpoint, scheme: "https://"]
+    end
+  end
+
+  defp object_storage_region(data) do
+    if blank?(data["region"]), do: "us-east-1", else: String.trim(data["region"])
+  end
+
+  defp object_storage_endpoint(data) do
+    if blank?(data["endpoint"]), do: nil, else: String.trim(data["endpoint"])
+  end
+
+  @doc false
+  # Pure: an ExAws error reason in, an operator-facing verdict out. Public so
+  # the mapping can be tested without a network round trip. Same shape as
+  # `interpret_ses_error/1`, with S3's own error codes.
+  def interpret_object_storage_error({:http_error, _status, response}) do
+    case aws_error_code(response) do
+      code when code in ~w(InvalidAccessKeyId SignatureDoesNotMatch) ->
+        {:error, gettext("Invalid credentials")}
+
+      # The signature is valid — the identity is real — it just lacks
+      # ListBuckets/ListAllMyBuckets. Realistic for a scoped token limited to
+      # a single bucket (common with R2 API tokens and B2 application keys),
+      # so this must not read as "wrong keys": that sends the operator off to
+      # reissue credentials that were never the problem.
+      "AccessDenied" <> _ ->
+        {:error, gettext("Credentials are valid, but not authorized to list buckets")}
+
+      nil ->
+        {:error, gettext("Could not reach the storage endpoint")}
+
+      code ->
+        {:error, gettext("Storage error: %{code}", code: code)}
+    end
+  end
+
+  def interpret_object_storage_error(_reason),
+    do: {:error, gettext("Could not reach the storage endpoint")}
+
   # --- Brevo ------------------------------------------------------------
 
   @doc """

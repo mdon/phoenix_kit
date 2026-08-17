@@ -403,6 +403,81 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
     end
   end
 
+  describe "object_storage/1 refuses to guess" do
+    test "missing keys are reported without a network round trip" do
+      assert {:error, _} = Validators.object_storage(%{})
+      assert {:error, _} = Validators.object_storage(%{"access_key" => "AKIA_T"})
+      assert {:error, _} = Validators.object_storage(%{"secret_key" => "S"})
+    end
+
+    test "region and endpoint stay optional -- only credentials gate the network call" do
+      # No region: still attempts a real request (the default region is filled
+      # in behind the scenes) rather than being rejected up front.
+      creds = %{"access_key" => "AKIA_T", "secret_key" => "S", "endpoint" => "127.0.0.1"}
+      assert {:error, message} = Validators.object_storage(creds)
+      assert message =~ "reach"
+    end
+  end
+
+  describe "object_storage/1 really connects" do
+    test "an unreachable endpoint is rejected, distinctly from bad credentials" do
+      # Nothing listens on 127.0.0.1:443 in the test environment -- fails
+      # immediately, no outside network needed (mirrors the SMTP relay test).
+      creds = %{"access_key" => "AKIA_T", "secret_key" => "S", "endpoint" => "127.0.0.1"}
+
+      assert {:error, message} = Validators.object_storage(creds)
+      assert message =~ "reach"
+      refute message =~ "credentials"
+      refute message =~ "Incomplete"
+    end
+  end
+
+  describe "interpret_object_storage_error/1" do
+    test "InvalidAccessKeyId and SignatureDoesNotMatch mean the credentials are wrong" do
+      for code <- ~w(InvalidAccessKeyId SignatureDoesNotMatch) do
+        assert {:error, message} = Validators.interpret_object_storage_error(s3_error(code))
+        assert message =~ "Invalid credentials"
+      end
+    end
+
+    test "AccessDenied means the key is real but lacks ListBuckets -- distinct from invalid credentials" do
+      # Realistic for a scoped token limited to a single bucket (common with R2
+      # API tokens and B2 application keys), so this must not read as "wrong
+      # keys" -- that would send the operator off to reissue credentials that
+      # were never the problem.
+      assert {:error, message} =
+               Validators.interpret_object_storage_error(s3_error("AccessDenied"))
+
+      assert message =~ "not authorized"
+      refute message =~ "Invalid credentials"
+    end
+
+    test "an unrecognised code is surfaced verbatim rather than guessed at" do
+      assert {:error, message} =
+               Validators.interpret_object_storage_error(s3_error("SlowDown"))
+
+      assert message =~ "SlowDown"
+    end
+
+    test "a body with no code, and anything that is not an HTTP error, are transport failures" do
+      assert {:error, message} =
+               Validators.interpret_object_storage_error(
+                 {:http_error, 500, %{body: "<html>502</html>"}}
+               )
+
+      assert message =~ "reach"
+      assert {:error, message} = Validators.interpret_object_storage_error(:timeout)
+      assert message =~ "reach"
+    end
+  end
+
+  defp s3_error(code) do
+    {:http_error, 403,
+     %{
+       body: "<?xml version=\"1.0\"?><Error><Code>#{code}</Code><Message>x</Message></Error>"
+     }}
+  end
+
   defp stub(results) do
     {:ok, agent} = Agent.start_link(fn -> results end)
     on_exit(fn -> if Process.alive?(agent), do: Agent.stop(agent) end)

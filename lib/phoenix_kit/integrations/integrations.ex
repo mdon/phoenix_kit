@@ -1066,6 +1066,9 @@ defmodule PhoenixKit.Integrations do
   defp do_validate(%{auth_type: :key_secret, validation: %{strategy: :aws_ses}}, data),
     do: Validators.aws_ses(data)
 
+  defp do_validate(%{auth_type: :key_secret, validation: %{strategy: :object_storage}}, data),
+    do: Validators.object_storage(data)
+
   defp do_validate(%{auth_type: :credentials, validation: %{strategy: :smtp}}, data),
     do: Validators.smtp(data)
 
