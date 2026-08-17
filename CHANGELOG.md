@@ -1,10 +1,162 @@
+## 2.8.1 - 2026-08-16
+
+### Added
+
+- **UploadGuard.** `Core.FileUpload` now blocks accidental tab close/refresh
+  while a file is mid-upload — the browser's native `beforeunload` dialog
+  fires instead of silently losing an in-flight transfer (LiveView uploads
+  aren't resumed). Applies to both the drag-drop and button variants (#720).
+
+### Changed
+
+- **`Core.FileUpload` static strings are translatable.** "Cancel upload",
+  "Drag files here or click to browse", "Drop your files to upload", and
+  "Maximum file size: …" now go through `gettext`; the `label` attr defaults
+  to a translated "Upload Files" instead of a hardcoded string (#720).
+
+### Fixed
+
+- **`default.pot` extraction drift.** `Core.ColumnSettings`' "Columns" and
+  "Shown" labels (added in 2.8.0) had never been extracted, leaving them
+  untranslated in every non-English locale. Re-extracted and translated into
+  de/es/et/fr/it/pl/ru.
+
+## 2.8.0 - 2026-08-16
+
+The admin header becomes a real breadcrumb for drill-down pages, and
+catalogue's live column editor lands in core as a reusable modal. UrlState
+stops leaking router path params into every patched query (#719).
+
+### Added
+
+- **`page_crumbs` on `app_layout`.** Extra `%{label, path | patch}` crumbs
+  between `page_section` and the page title for pages nested deeper than
+  one level. The last crumb stays visible below `sm`; earlier crumbs and
+  the section drop first, so a drilled page reads `… / parent / page`
+  instead of the bare title (#719).
+
+- **`Core.ColumnSettings`** (`<.column_settings_modal>`). Live
+  column-configuration modal: Shown list (SortableGrid drag-reorder,
+  remove) beside Available (click to add), Reset + Close, no Apply
+  step. Labels accept strings or 0-arity functions. The consumer owns
+  the catalog, selection, and persistence (#719).
+
+- **`table_row_menu_link` `patch` attr.** Same-LiveView navigation for
+  menus that drill via `push_patch` (#719).
+
+### Changed
+
+- **Admin header progressive collapse.** Below `lg` the site name and
+  "Admin Panel" give way to a home-linked `…`; below `sm` the trail
+  truncates from the left rather than collapsing to the page title
+  (#719).
+
+### Fixed
+
+- **UrlState extras come from the URI query string**, not LiveView's
+  merged params map. A `/:uuid` segment was being re-encoded into every
+  patched URL (`?q=oak` became `?q=oak&uuid=<uuid>`). `decode/2`'s spec
+  now admits `:not_mounted_at_router` (#719).
+
+- **ColumnSettings Shown list is actually sortable.** Rows use the
+  `sortable-item` class SortableGrid reads; a custom `.col-item` was
+  silently ignored. Drag starts on `.pk-drag-handle` only (post-merge
+  review of #719).
+
+- **`page_crumbs` accept `patch:`** for same-LiveView drill trails,
+  matching the row-menu attr the PR already added (post-merge review
+  of #719).
+
+- **`column_settings_modal` is imported** with the other list-UI
+  primitives (post-merge review of #719).
+
+## 2.7.0 - 2026-08-15
+
+Catalogue gets reusable, translatable attribute groups; list tables grow a
+comfortable density between compact and cards; uploads say what is happening
+after the bar hits 100%. Chain moves V172 → **V173** (#718).
+
+### Added
+
+- **V173 — catalogue attribute groups.** Four tables (groups / attributes /
+  values / item assignments) for `phoenix_kit_catalogue`: a group owns
+  ordered attributes, each attribute owns ordered values with an explicit
+  `is_default`, and items link through a join table. One-group-per-item is
+  a droppable `UNIQUE (item_uuid)` index, so multi-group later is not a
+  data migration. Definition-tree FKs are `RESTRICT`; a group any item still
+  references can only be archived. ExpectedSchema entries were emitted from
+  a migrated database and `chain_hash` restamped (#718).
+
+- **`Core.TreeTable`** (`<.tree_name_cell>`). File-explorer name cell —
+  depth indent, disclosure chevron, optional type icon — that composes
+  into `<.table_default>` rows instead of replacing the table. The consumer
+  owns the walk and the expanded set (#718).
+
+- **Comfortable view mode** on `<.table_default>` and the `TableCardView`
+  hook. The same table with roomier cell padding (`pk-comfy`), sitting
+  between compact rows and cards, and the default when nothing is stored
+  (#718).
+
+- **Live upload transfer stats.** The `UploadStats` JS hook computes
+  transferred bytes, sliding-window speed, and ETA from the patched
+  `data-progress` attribute, then flips to a ticking "Processing on
+  server…" clock at 100%. Wired through `<.upload_entry_stats>` on both
+  `<.file_upload>` variants, the media selector, and MediaBrowser
+  (#718).
+
+### Changed
+
+- **FolderExplorer wrapper `class` attr.** The hardcoded `hidden lg:block`
+  is now overridable so embeds outside MediaBrowser can pick their own
+  breakpoint (#718).
+
+- **Drag handles stay visible.** A muted grip that strengthens on hover
+  replaces `opacity-0` + `group-hover/row` — an affordance you cannot see
+  is one nobody discovers (#718).
+
+- **Multilang tabs drop the "Content Language" header** by default
+  (`show_header` / `show_info` remain as an opt-in). The tab strip itself
+  stretches full width (#718).
+
+- **Media picker names its purpose.** Callers pass a `title` (Select
+  Avatar, Select Cover Image, …); a locked picker without one derives a
+  type-aware heading. Search hides below ten files on a locked picker,
+  empty libraries get a type-aware empty state, a dry search offers
+  Clear search, and double-click confirms in single mode (#718).
+
+- **MediaBrowser upload drain is two-phase.** Pending stores queue through
+  `send_update_after` so a "Processing on server…" row paints before each
+  store, and the batch flash waits until the queue is empty (#718).
+
+### Fixed
+
+- **Media picker grid sat flush against the search bar.** The browse
+  wrapper's `display:contents` swallowed the parent's `space-y-4`
+  (#718).
+
+- **V173 rollback uses plain `DROP TABLE`s** in dependency order. CASCADE
+  could have taken out FKs or views a parent app hung off these tables
+  (#718).
+
+- **`tree_name_cell` is imported** with the other list-UI primitives, so
+  a `use PhoenixKitWeb, :html` caller does not need a manual import
+  (post-merge review of #718).
+
+- **Uncontrolled tables first-paint comfortable**, matching the JS hook's
+  default, instead of flashing compact until `localStorage` is read
+  (post-merge review of #718).
+
+- **Long tree-cell names truncate** inside the flex row instead of
+  overflowing the cell (post-merge review of #718).
+
 ## 2.6.0 - 2026-08-14
 
 The built-in SEO module becomes **Crawlers** and grows into the one page where an
-operator decides who may read the site; shop slugs get a uniqueness bucket that
-matches the URL the resolver actually serves; scheduled jobs stop double-firing;
-and every vendored CDN pin is now held to its lock. Chain moves V170 → **V172**
-(#714, #715).
+operator decides who may read the site; the theme system becomes one generated
+controller plus a pre-paint bootstrap that hosts can brand from config; shop
+slugs get a uniqueness bucket that matches the URL the resolver actually serves;
+scheduled jobs stop double-firing; and every vendored CDN pin is now held to its
+lock. Chain moves V170 → **V172** (#714, #715, #716).
 
 ### Added
 
@@ -44,6 +196,26 @@ and every vendored CDN pin is now held to its lock. Chain moves V170 → **V172*
   compiler validates call sites, never callee bodies, which let a `KeyError` behind
   an `:if={...}` guard ship for four releases (#714).
 
+- **Host-branded themes from config** (`:theme_definitions`). Override a built-in
+  palette or define a named theme (`:label`, `:base`, optional `:extends` /
+  `:variables`); one validation pass feeds both the CSS and the JS embeds.
+  Injection-hardened at both sinks (#716).
+
+- **One theme controller script** (`ThemeControllerScript`) replaces the three
+  drifted copies (dashboard inline, admin inline, static `phoenix_kit_themes.js`).
+  Pre-paint `ThemeBootstrap` stamps the saved choice — and now ships the palettes
+  next to the stamp — so a dark-OS visitor is not painted `color-scheme: dark`
+  over light variables. Picker modes `:auto | :dropdown | :toggle`; a light/dark
+  pair renders one persistent `aria-pressed` toggle (#716).
+
+- **`PhoenixKit.Utils.Pagination`** — `parse_page/1` and `total_pages/2` (floored
+  at 1). The unfloored `ceil` copies fed `1..0` decreasing ranges on empty lists
+  (#716).
+
+- **`<button variant="error">` (and info/success/warning).** Status colours are
+  first-class variants; appending `btn-error` through `class` collided with the
+  variant's own colour and stylesheet order decided who won (#716).
+
 ### Changed
 
 - **V172 renames the SEO module to Crawlers.** Settings rows
@@ -79,6 +251,21 @@ and every vendored CDN pin is now held to its lock. Chain moves V170 → **V172*
   work reached any host. The test is generalized to every `gh/` pin, resolves the
   expected version from `Application.spec/2`, and fails when a pin appears for a
   repo it does not cover (#715).
+
+- **Admin theme picker honours `:dashboard_themes`.** Hardcoding `:all` meant a
+  host's narrowed list governed only the user dashboard (#716).
+
+- **Removed unused `ThemeConfig` helpers** (`get_theme/0`,
+  `theme_data_attributes/0`, `modern_css_variables/0`, the slider maps). They
+  had no remaining in-repo callers; a host still calling them will not compile
+  (#716).
+
+- **Route-pattern tabs hide themselves from navigation.** `admin_dashboard_tabs`
+  entries whose path carries `:param` or `*splat` segments are routes, not nav —
+  they rendered a literal `:uuid` in the sidebar unless every host remembered
+  `visible: false`. Detection is per-segment, so `https://`, ports, and `mailto:`
+  are unaffected; `visible: true` is the opt-out. Nil-scope callers no longer
+  receive `visible: false` tabs unfiltered (#716).
 
 ### Fixed
 
@@ -127,6 +314,41 @@ and every vendored CDN pin is now held to its lock. Chain moves V170 → **V172*
 - **`crawlers_no_index?/0` in the sitemap generator guarded `rescue` but not
   `catch :exit`.** An unreachable database raises on an unowned checkout but *exits*
   on a dead pool (post-merge review of #714).
+
+- **Host `:theme_definitions` never appeared in the default picker.**
+  `dropdown_themes(:all)` was the compile-time catalogue only, so a branded
+  theme landed in CSS / labels / `system_pair` and not in the picker until the
+  host also listed it in `:dashboard_themes` (post-merge review of #716).
+
+- **ThemeBootstrap stamped `phoenix-dark` without shipping the palettes.**
+  Standalone admin and every host layout the installer injects into painted
+  `color-scheme: dark` over daisyUI's light variables until a later body
+  `<style>` arrived. The custom-theme CSS now travels with the stamp
+  (post-merge review of #716).
+
+- **Dropdown options had no `data-phx-theme`.** The toggle used the stock
+  Phoenix contract; the options put the name only in `JS.dispatch` detail.
+  phx.new 1.8's script reads `dataset.phxTheme` and falls back to `"system"`,
+  so every dropdown click reset the theme on a host that kept that script
+  (post-merge review of #716).
+
+- **`mix phoenix_kit.update` skipped the bootstrap on every phx.new 1.8 host.**
+  Any `phx:theme` substring was treated as "already done"; that script's
+  `"system"` path *removes* `data-theme`. Those layouts now get the bootstrap
+  just before `</head>`, after the stock script (post-merge review of #716).
+
+- **Pagination extract missed `media_selector.ex` and
+  `Auth.list_users_paginated/1`.** Same unfloored empty-list `1..0` range the
+  helper exists to stop (post-merge review of #716).
+
+- **Referral 0.4 backfill used `function_exported?/3` without
+  `Code.ensure_loaded?/1`.** Under a release the new `signup_use_exists?`
+  looked missing and the users the feature exists to admit stayed parked
+  (post-merge review of #716).
+
+- **Accounts that redeemed a code before the satisfied-stamp existed were
+  parked at the referral wall.** The gate now asks the installed module and
+  stamps on a hit, so each account pays the query at most once (#716).
 
 ## 2.5.0 - 2026-08-14
 

@@ -69,6 +69,16 @@ defmodule PhoenixKit.ThemeDefinitionsTest do
       # And system resolution uses the host pair.
       assert ThemeConfig.system_pair() == {"brand-light", "phoenix-dark"}
     end
+
+    test "appear in the default :all picker without a :dashboard_themes list" do
+      # :all used to be compile-time @dropdown_order only, so a host
+      # theme was in CSS / labels / system_pair but never offered.
+      values = ThemeConfig.dropdown_themes(:all) |> Enum.map(& &1.value)
+
+      assert "brand-light" in values
+      assert "phoenix-light" in values
+      assert ThemeConfig.all_theme_names() |> Enum.member?("brand-light")
+    end
   end
 
   describe "validation raises, never drops" do

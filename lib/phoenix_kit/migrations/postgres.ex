@@ -7,7 +7,7 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V173 - Repair misclassified media rows ⚡ LATEST
+  ### V174 - Repair misclassified media rows ⚡ LATEST
 
   Two since-fixed writer defects left media rows whose classification
   contradicts the file itself: the storage writer trusted whatever
@@ -19,6 +19,19 @@ defmodule PhoenixKit.Migrations.Postgres do
   file instances), and generic `file_type` values contradicted by the mime
   are reclassified. System types ("tile") and rows without evidence are
   left alone.
+
+  ### V173 - Catalogue attribute groups
+
+  Reusable, translatable attribute groups for the `phoenix_kit_catalogue`
+  module: a group ("Idea doors") owns attributes ("Color", "Trim"), each
+  attribute owns ordered values ("White", "Oak") with an explicit default,
+  and items link to a group through an assignment table (one group per
+  item enforced by a droppable unique index, so multi-group later is not
+  a data migration). Groups referenced by items can only be archived, not
+  deleted (RESTRICT FKs throughout; the module deletes unreferenced draft
+  groups via an explicit transactional cascade). Names and values carry
+  the module's per-language JSONB `data` translations with stable slug
+  keys as durable identity.
 
   ### V172 - SEO module renamed to Crawlers
 
@@ -548,7 +561,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 173
+  @current_version 174
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

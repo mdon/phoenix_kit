@@ -970,6 +970,8 @@
         show={@show_media_selector}
         mode={:single}
         file_type_filter={:image}
+        lock_file_type
+        title={gettext("Select Avatar")}
         selected_uuids={[current_avatar_uuid]}
         phoenix_kit_current_user={@phoenix_kit_current_user}
       />
@@ -980,6 +982,8 @@
         show={@show_media_selector}
         mode={:single}
         file_type_filter={:image}
+        lock_file_type
+        title={gettext("Select Avatar")}
         phoenix_kit_current_user={@phoenix_kit_current_user}
       />
     <% end %>

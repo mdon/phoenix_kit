@@ -205,7 +205,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         {:ok, apply_nav_params(socket, socket.assigns.nav_params)}
 
       Map.has_key?(assigns, :pending_upload) ->
-        {:ok, process_pending_upload(socket, assigns.pending_upload)}
+        {:ok, enqueue_pending_upload(socket, assigns.pending_upload)}
+
+      Map.get(assigns, :action) == :drain_upload_queue ->
+        {:ok, drain_upload_queue(socket)}
 
       # Background processing finished (see attach_file_event_forwarding/1).
       Map.has_key?(assigns, :file_processed) ->
@@ -233,6 +236,74 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       true ->
         {:ok, socket}
     end
+  end
+
+  # Uploads land here one message at a time from handle_parent_info, but the
+  # transfer row is already gone — the parent consumed the entry the moment the
+  # transfer finished. Processing synchronously inside update/2 would therefore
+  # leave nothing on screen while the server stores the file. Queue it instead
+  # and drain via send_update_after, so a render showing the "Processing on
+  # server…" rows always lands before (and between) the actual stores.
+  defp enqueue_pending_upload(socket, {path, entry}) do
+    queue = (socket.assigns[:upload_process_queue] || []) ++ [{path, entry}]
+
+    socket
+    |> assign(:upload_process_queue, queue)
+    |> schedule_upload_drain()
+  end
+
+  defp schedule_upload_drain(socket) do
+    if socket.assigns[:upload_drain_scheduled] do
+      socket
+    else
+      Phoenix.LiveView.send_update_after(
+        __MODULE__,
+        [id: socket.assigns.id, action: :drain_upload_queue],
+        0
+      )
+
+      assign(socket, :upload_drain_scheduled, true)
+    end
+  end
+
+  # Two-phase on purpose: an assign made in the same update/2 that does the
+  # work only renders AFTER the work, so the first cycle merely surfaces the
+  # file as in-flight (`:upload_processing`) and re-schedules; the second
+  # cycle finds it staged and runs the store while its spinner row is already
+  # painted. One file per cycle keeps multi-file drops progressive.
+  defp drain_upload_queue(socket) do
+    socket = assign(socket, :upload_drain_scheduled, false)
+
+    case {socket.assigns[:upload_processing], socket.assigns[:upload_process_queue] || []} do
+      {nil, []} ->
+        socket
+
+      {nil, [next | rest]} ->
+        socket
+        |> assign(:upload_processing, next)
+        |> assign(:upload_process_queue, rest)
+        |> schedule_upload_drain()
+
+      {{path, entry}, _queued} ->
+        socket
+        |> assign(:upload_processing, nil)
+        |> process_pending_upload({path, entry})
+        |> then(fn s ->
+          if (s.assigns[:upload_process_queue] || []) == [] do
+            s
+          else
+            schedule_upload_drain(s)
+          end
+        end)
+    end
+  end
+
+  # The in-flight file plus everything still queued, as upload entries for the
+  # template's "Processing on server…" rows.
+  defp processing_upload_entries(assigns) do
+    [assigns[:upload_processing] | assigns[:upload_process_queue] || []]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(fn {_path, entry} -> entry end)
   end
 
   # Processes one entry and buffers the result. A single reload + flash is
@@ -368,14 +439,27 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp commit_upload_batch(socket) do
-    batch = socket.assigns[:pending_batch] || []
-    {flash_type, flash_msg} = build_upload_flash_message(Enum.reverse(batch))
+    if socket.assigns[:upload_processing] != nil or
+         (socket.assigns[:upload_process_queue] || []) != [] do
+      # Files are still draining — committing now would flash a partial count
+      # and reload mid-batch. Check again after the current file finishes.
+      Phoenix.LiveView.send_update_after(
+        __MODULE__,
+        [id: socket.assigns.id, action: :commit_upload_batch],
+        250
+      )
 
-    socket
-    |> assign(:pending_batch, [])
-    |> assign(:batch_scheduled, false)
-    |> reload_current_page()
-    |> put_flash(flash_type, flash_msg)
+      socket
+    else
+      batch = socket.assigns[:pending_batch] || []
+      {flash_type, flash_msg} = build_upload_flash_message(Enum.reverse(batch))
+
+      socket
+      |> assign(:pending_batch, [])
+      |> assign(:batch_scheduled, false)
+      |> reload_current_page()
+      |> put_flash(flash_type, flash_msg)
+    end
   end
 
   # Sets the open folder's cover (background) or logo (icon) — per
@@ -602,6 +686,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:last_uploaded_file_uuids, [])
     |> assign(:pending_batch, [])
     |> assign(:batch_scheduled, false)
+    |> assign(:upload_process_queue, [])
+    |> assign(:upload_processing, nil)
+    |> assign(:upload_drain_scheduled, false)
     |> assign(:filter_orphaned, false)
     |> assign(:filter_trash, false)
     |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))

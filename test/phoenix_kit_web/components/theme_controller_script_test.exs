@@ -43,6 +43,12 @@ defmodule PhoenixKitWeb.Components.ThemeControllerScriptTest do
     assert html =~ "window.__pkThemeController"
   end
 
+  test "falls back to the legacy phoenix_kit_theme storage key" do
+    html = render_script()
+
+    assert html =~ "phoenix_kit_theme"
+  end
+
   test "carries every consumer the two deleted copies served" do
     html = render_script()
 

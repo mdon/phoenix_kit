@@ -76,6 +76,7 @@ defmodule PhoenixKit.Users.Auth do
   alias PhoenixKit.Users.{CustomFields, RateLimiter, Role, Roles}
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Geolocation
+  alias PhoenixKit.Utils.Pagination
   alias PhoenixKit.Utils.SessionFingerprint
   alias PhoenixKit.Utils.UUID, as: UUIDUtils
 
@@ -2427,7 +2428,7 @@ defmodule PhoenixKit.Users.Auth do
       |> maybe_filter_by_account_type(account_type_filter)
 
     total_count = PhoenixKit.RepoHelper.aggregate(query, :count, :uuid)
-    total_pages = div(total_count + page_size - 1, page_size)
+    total_pages = Pagination.total_pages(total_count, page_size)
 
     users =
       query

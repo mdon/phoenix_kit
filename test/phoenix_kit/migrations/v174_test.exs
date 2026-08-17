@@ -1,8 +1,8 @@
-defmodule PhoenixKit.Migrations.Postgres.V173Test do
+defmodule PhoenixKit.Migrations.Postgres.V174Test do
   @moduledoc """
-  V173's data repair, run against seeded misclassified rows.
+  V174's data repair, run against seeded misclassified rows.
 
-  V173.up/1 can't be invoked outside an `Ecto.Migrator` runner (same
+  V174.up/1 can't be invoked outside an `Ecto.Migrator` runner (same
   constraint as V164Test and friends), and by the time any test runs the
   chain has already been applied — to empty tables, proving nothing. So the
   migration exposes its statements via `repair_statements/1` (up/1 executes
@@ -13,12 +13,12 @@ defmodule PhoenixKit.Migrations.Postgres.V173Test do
   """
   use PhoenixKit.DataCase, async: true
 
-  alias PhoenixKit.Migrations.Postgres.V173
+  alias PhoenixKit.Migrations.Postgres.V174
   alias PhoenixKit.Test.Repo
   alias PhoenixKit.Users.Auth
 
   defp run_repair do
-    Enum.map(V173.repair_statements("public."), &Repo.query!(&1))
+    Enum.map(V174.repair_statements("public."), &Repo.query!(&1))
   end
 
   # Schemaless insert_all speaks the driver's types, so uuids stay 16-byte
@@ -27,7 +27,7 @@ defmodule PhoenixKit.Migrations.Postgres.V173Test do
   defp owner_uuid do
     {:ok, user} =
       Auth.register_user(%{
-        email: "v173-#{System.unique_integer([:positive])}@example.com",
+        email: "v174-#{System.unique_integer([:positive])}@example.com",
         password: "ValidPassword123!"
       })
 

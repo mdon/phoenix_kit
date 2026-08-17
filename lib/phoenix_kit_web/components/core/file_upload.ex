@@ -21,11 +21,18 @@ defmodule PhoenixKitWeb.Components.Core.FileUpload do
   - `max_size_description` (optional) - Text describing max file size
   """
   use Phoenix.Component
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   import PhoenixKitWeb.Components.Core.Icon
 
+  alias PhoenixKit.Utils.Format
+
   attr :upload, :any, required: true
-  attr :label, :string, default: "Upload Files"
+
+  attr :label, :string,
+    default: nil,
+    doc: "Button label; defaults to a translated \"Upload Files\""
+
   attr :icon, :string, default: "hero-cloud-arrow-up"
   attr :accept_description, :string, default: nil
   attr :max_size_description, :string, default: nil
@@ -52,9 +59,48 @@ defmodule PhoenixKitWeb.Components.Core.FileUpload do
     end
   end
 
+  @doc """
+  Live transfer stats for one upload entry, rendered under its progress bar.
+
+  The server only patches `data-progress`; the `UploadStats` JS hook computes
+  transferred bytes, speed, and ETA in the browser ("3.2 MB / 12.4 MB ·
+  2.8 MB/s · 4s left") and flips to a ticking "Processing on server…" once
+  the transfer reaches 100% — the phase where the bar used to sit frozen with
+  no hint whether the network, the file size, or the server was to blame.
+  The hook owns the element's text; the server-rendered size is only the
+  pre-mount fallback.
+  """
+  attr :entry, :any, required: true, doc: "a Phoenix.LiveView.UploadEntry"
+  attr :class, :string, default: "block text-xs text-base-content/60 tabular-nums mt-1"
+
+  def upload_entry_stats(assigns) do
+    ~H"""
+    <span
+      id={"pk-upload-stats-#{@entry.upload_ref}-#{@entry.ref}"}
+      phx-hook="UploadStats"
+      data-progress={@entry.progress}
+      data-size={@entry.client_size}
+      data-label-processing={gettext("Processing on server…")}
+      data-label-left={gettext("left")}
+      class={@class}
+    >
+      {Format.bytes(@entry.client_size, base: 1000, decimals: 2)}
+    </span>
+    """
+  end
+
   defp full_upload(assigns) do
     ~H"""
-    <div class="space-y-4">
+    <%!-- UploadGuard: while any entry is in flight (data-active), the
+         browser's own beforeunload dialog blocks an accidental refresh /
+         close that would kill the transfer — interrupted LiveView
+         uploads are not resumed. Protection instead of disclaimer prose. --%>
+    <div
+      id={"pk-upload-guard-" <> @upload.ref}
+      phx-hook="UploadGuard"
+      data-active={to_string(@upload.entries != [])}
+      class="space-y-4"
+    >
       <%!-- STANDALONE wraps the drop zone in its own form so `phx-change`
            has something to hang on. Embedded, it must not: nested `<form>`
            elements are invalid HTML, and the browser resolves that by
@@ -85,9 +131,10 @@ defmodule PhoenixKitWeb.Components.Core.FileUpload do
                     {entry.progress}%
                   </progress>
                   <span class="text-xs text-base-content/60 min-w-max">
-                    Uploading… {entry.progress}%
+                    {entry.progress}%
                   </span>
                 </div>
+                <.upload_entry_stats entry={entry} />
               </div>
 
               <%!-- Cancel Button --%>
@@ -96,7 +143,7 @@ defmodule PhoenixKitWeb.Components.Core.FileUpload do
                 phx-click="cancel_upload"
                 phx-value-ref={entry.ref}
                 class="btn btn-xs btn-ghost text-error"
-                title="Cancel upload"
+                title={gettext("Cancel upload")}
               >
                 <.icon name="hero-x-mark" class="w-4 h-4" />
               </button>
@@ -121,12 +168,14 @@ defmodule PhoenixKitWeb.Components.Core.FileUpload do
         <div class="flex flex-col items-center gap-2">
           <.icon name={@icon} class="w-8 h-8 text-primary" />
           <div>
-            <p class="font-semibold text-base-content">Drag files here or click to browse</p>
+            <p class="font-semibold text-base-content">
+              {gettext("Drag files here or click to browse")}
+            </p>
             <p class="text-sm text-base-content/70 mt-1">
               <%= if @accept_description do %>
                 {@accept_description}
               <% else %>
-                Drop your files to upload
+                {gettext("Drop your files to upload")}
               <% end %>
             </p>
           </div>
@@ -139,7 +188,7 @@ defmodule PhoenixKitWeb.Components.Core.FileUpload do
     <%= if @accept_description != nil or @max_size_description != nil do %>
       <p class="text-sm text-base-content/70 text-center">
         <%= if @max_size_description do %>
-          Maximum file size: {@max_size_description}
+          {gettext("Maximum file size: %{size}", size: @max_size_description)}
         <% end %>
       </p>
     <% end %>
@@ -148,13 +197,18 @@ defmodule PhoenixKitWeb.Components.Core.FileUpload do
 
   defp button_upload(assigns) do
     ~H"""
-    <div class="space-y-3">
+    <div
+      id={"pk-upload-guard-btn-" <> @upload.ref}
+      phx-hook="UploadGuard"
+      data-active={to_string(@upload.entries != [])}
+      class="space-y-3"
+    >
       <form phx-change="validate" id={"button-upload-form-" <> @upload.ref}>
         <label
           for={@upload.ref}
           class="btn btn-primary btn-block"
         >
-          <.icon name={@icon} class="w-5 h-5" /> {@label}
+          <.icon name={@icon} class="w-5 h-5" /> {@label || gettext("Upload Files")}
         </label>
         <.live_file_input upload={@upload} class="hidden" />
       </form>
@@ -173,6 +227,7 @@ defmodule PhoenixKitWeb.Components.Core.FileUpload do
                 >
                   {entry.progress}%
                 </progress>
+                <.upload_entry_stats entry={entry} />
               </div>
 
               <%!-- Cancel Button --%>
@@ -181,7 +236,7 @@ defmodule PhoenixKitWeb.Components.Core.FileUpload do
                 phx-click="cancel_upload"
                 phx-value-ref={entry.ref}
                 class="btn btn-xs btn-ghost text-error"
-                title="Cancel upload"
+                title={gettext("Cancel upload")}
               >
                 <.icon name="hero-x-mark" class="w-4 h-4" />
               </button>

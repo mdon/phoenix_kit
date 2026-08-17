@@ -1,144 +1,192 @@
 defmodule PhoenixKit.Migrations.Postgres.V173 do
   @moduledoc """
-  V173: repair misclassified media rows (file_type / mime_type).
+  V173: Catalogue attribute groups — reusable, translatable product options.
 
-  ## The corruption
+  Four additive objects for the `phoenix_kit_catalogue` module. A group
+  ("Idea doors") owns attributes ("Color", "Trim"), each attribute owns
+  ordered values ("White", "Oak"); an item is linked to a group through an
+  assignment table and inherits everything the group defines. This replaces
+  nothing: the hand-typed per-item metadata in `cat_items.data["meta"]`
+  stays untouched and is surfaced read/editable by the module UI.
 
-  Two writer defects, both since fixed at the write boundary
-  (`Storage.store_file_in_buckets/7`), left rows whose stored classification
-  contradicts what the file demonstrably is:
+  ## phoenix_kit_cat_attribute_groups
+  Global (cross-catalogue) definition roots. `name` is the primary-language
+  display text; other languages live in `data` per the module's JSONB
+  translation convention. `status` archived ≠ deleted: an archived group
+  stays readable on items that hold it but leaves the assignment picker.
 
-    * **`file_type` poisoned by the caller.** The storage writer stored
-      whatever `file_type` the call site claimed, unchecked. A live example:
-      an external module's upload path hardcoded `"image"` while its picker
-      accepted audio and video too — every `.mov` and `.mp3` dropped on a
-      board landed as `file_type: "image"`, and the media page trusts that
-      column everywhere (broken `<img>` tiles, invisible to the video/audio
-      filters, image variant processing run against a QuickTime file).
+  ## phoenix_kit_cat_attributes
+  One row per characteristic in a group. `key` is a stable slug unique
+  within its group — the durable identity translations can never change.
+  `kind` semantics come from the product design: `'fixed'` = a single
+  value shown on the product card; `'multi'` = a list of options, one of
+  which is chosen downstream (per order line, in the parent app).
 
-    * **`mime_type` guessed from a map with no audio entries.** The writer
-      discarded the mime the caller observed and re-derived it from the
-      extension via a hand-rolled map that knew no audio type at all, so
-      every mp3/m4a/wav was stored — and **served** (`file_controller`
-      answers with the instance's mime) — as `application/octet-stream`.
+  ## phoenix_kit_cat_attribute_values
+  Ordered values per attribute. `is_default` is explicit — display order
+  and commercial default are independent (finishes may sort alphabetically
+  while Oak is the standard) — with a partial unique index allowing at
+  most one default per attribute.
 
-  ## The repair
+  ## phoenix_kit_cat_item_attribute_groups
+  Item↔group assignment. A join table from day one — the current
+  one-group-per-item business rule is carried by the `UNIQUE (item_uuid)`
+  index, so the planned multi-group future is "drop one index", not a data
+  migration. `ON DELETE RESTRICT` on the group side makes archive (not
+  delete) the only path for a group any item still references. The
+  definition-tree FKs are RESTRICT as well — the module convention is
+  app-level cascades (`permanently_delete_*` deletes values → attributes →
+  group in one transaction, gated on no remaining assignments), never a
+  silent DB cascade, because future exception rules and parent-app order
+  lines will hold value UUIDs.
 
-  Same evidence-over-claim rule the write boundary now applies, in SQL:
+  Downstream contract (documented, not enforced here): order lines in the
+  parent app that record a chosen value must snapshot the resolved labels
+  and keys at order time — the UUID reference alone is identity, not
+  history, and later renames/translation fixes must not rewrite old orders.
 
-  1. Rows (files AND file instances) whose mime is blank/octet-stream but
-     whose extension is in the known audio set get the real audio mime —
-     mirrors `Storage`'s `@audio_mime_fallbacks`.
-  2. Files whose (now-repaired) mime contradicts a *generic* `file_type`
-     take the mime's classification — mirrors `Storage.determine_file_type/2`'s
-     mime branch. Rows with no evidence (unknown mime) keep their claim, and
-     non-generic system types (`"tile"`) are never touched: internal
-     machinery chose those deliberately and the classifier knows nothing
-     about them.
-
-  Width/height/duration and missing variants are NOT backfilled here — the
-  variant pipeline owns those, and re-queueing jobs is not a migration's
-  business. A repaired row simply renders correctly from now on.
-
-  ## Down
-
-  Deliberately a no-op (marker stamp only). The pre-repair values were
-  wrong, there is no record of which rows held them, and re-corrupting data
-  is not a rollback anyone wants.
+  All operations are idempotent.
   """
 
   use Ecto.Migration
 
-  # Mirrors `Storage`'s @audio_mime_fallbacks — the extensions the `mime`
-  # library answers octet-stream for. `ltrim(lower(…))` because callers never
-  # agreed on whether `ext` carries the leading dot.
-  @audio_mime_case """
-  CASE ltrim(lower(ext), '.')
-    WHEN 'mp3' THEN 'audio/mpeg'
-    WHEN 'wav' THEN 'audio/wav'
-    WHEN 'ogg' THEN 'audio/ogg'
-    WHEN 'oga' THEN 'audio/ogg'
-    WHEN 'm4a' THEN 'audio/mp4'
-    WHEN 'aac' THEN 'audio/aac'
-    WHEN 'flac' THEN 'audio/flac'
-    WHEN 'opus' THEN 'audio/opus'
-    WHEN 'weba' THEN 'audio/webm'
-    WHEN 'mid' THEN 'audio/midi'
-    WHEN 'midi' THEN 'audio/midi'
-  END
-  """
-
-  # Mirrors `Storage.determine_file_type/2`'s mime branch (`classify_mime/1`).
-  # NULL when the mime carries no verdict — the WHERE clauses treat that as
-  # "no evidence, leave the row alone".
-  @classify_mime_case """
-  CASE
-    WHEN mime_type LIKE 'image/%' THEN 'image'
-    WHEN mime_type LIKE 'video/%' THEN 'video'
-    WHEN mime_type LIKE 'audio/%' THEN 'audio'
-    WHEN mime_type LIKE 'text/%' THEN 'document'
-    WHEN mime_type IN (
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ) THEN 'document'
-    WHEN mime_type LIKE '%zip%' OR mime_type LIKE '%archive%' THEN 'archive'
-  END
-  """
+  alias PhoenixKit.Migrations.Postgres.Helpers
 
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    Enum.each(repair_statements(p), &execute/1)
+    Helpers.ensure_uuid_v7_function(prefix)
+    uuid_default = Helpers.uuid_v7_call(prefix)
 
-    # Single-step runs rely on the migration stamping its own marker — the
-    # runner only writes it for multi-step ranges.
+    # ── Definition roots ─────────────────────────────────────────────
+    execute("""
+    CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_cat_attribute_groups (
+      uuid UUID PRIMARY KEY DEFAULT #{uuid_default},
+      name VARCHAR(255) NOT NULL,
+      data JSONB NOT NULL DEFAULT '{}',
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      position INTEGER NOT NULL DEFAULT 0,
+      inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT phoenix_kit_cat_attribute_groups_status_check
+        CHECK (status IN ('active', 'archived'))
+    )
+    """)
+
+    # ── Attributes within a group ────────────────────────────────────
+    execute("""
+    CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_cat_attributes (
+      uuid UUID PRIMARY KEY DEFAULT #{uuid_default},
+      group_uuid UUID NOT NULL
+        REFERENCES #{p}phoenix_kit_cat_attribute_groups(uuid) ON DELETE RESTRICT,
+      key VARCHAR(100) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      data JSONB NOT NULL DEFAULT '{}',
+      kind VARCHAR(20) NOT NULL DEFAULT 'multi',
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      position INTEGER NOT NULL DEFAULT 0,
+      inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT phoenix_kit_cat_attributes_kind_check
+        CHECK (kind IN ('fixed', 'multi')),
+      CONSTRAINT phoenix_kit_cat_attributes_status_check
+        CHECK (status IN ('active', 'archived'))
+    )
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_cat_attributes_group_key_index
+      ON #{p}phoenix_kit_cat_attributes (group_uuid, key)
+    """)
+
+    execute("""
+    CREATE INDEX IF NOT EXISTS phoenix_kit_cat_attributes_group_position_index
+      ON #{p}phoenix_kit_cat_attributes (group_uuid, position)
+    """)
+
+    # ── Values within an attribute ───────────────────────────────────
+    execute("""
+    CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_cat_attribute_values (
+      uuid UUID PRIMARY KEY DEFAULT #{uuid_default},
+      attribute_uuid UUID NOT NULL
+        REFERENCES #{p}phoenix_kit_cat_attributes(uuid) ON DELETE RESTRICT,
+      key VARCHAR(100) NOT NULL,
+      value VARCHAR(255) NOT NULL,
+      data JSONB NOT NULL DEFAULT '{}',
+      is_default BOOLEAN NOT NULL DEFAULT FALSE,
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      position INTEGER NOT NULL DEFAULT 0,
+      inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT phoenix_kit_cat_attribute_values_status_check
+        CHECK (status IN ('active', 'archived'))
+    )
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_cat_attribute_values_attr_key_index
+      ON #{p}phoenix_kit_cat_attribute_values (attribute_uuid, key)
+    """)
+
+    execute("""
+    CREATE INDEX IF NOT EXISTS phoenix_kit_cat_attribute_values_attr_position_index
+      ON #{p}phoenix_kit_cat_attribute_values (attribute_uuid, position)
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_cat_attribute_values_default_index
+      ON #{p}phoenix_kit_cat_attribute_values (attribute_uuid) WHERE is_default
+    """)
+
+    # ── Item ↔ group assignment ──────────────────────────────────────
+    execute("""
+    CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_cat_item_attribute_groups (
+      uuid UUID PRIMARY KEY DEFAULT #{uuid_default},
+      item_uuid UUID NOT NULL
+        REFERENCES #{p}phoenix_kit_cat_items(uuid) ON DELETE CASCADE,
+      attribute_group_uuid UUID NOT NULL
+        REFERENCES #{p}phoenix_kit_cat_attribute_groups(uuid) ON DELETE RESTRICT,
+      position INTEGER NOT NULL DEFAULT 0,
+      inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+    """)
+
+    # One group per item is the CURRENT business rule, deliberately carried
+    # by this index alone. Multi-group support = replace this with a
+    # UNIQUE (item_uuid, attribute_group_uuid) index; no data moves.
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_cat_item_attr_groups_item_index
+      ON #{p}phoenix_kit_cat_item_attribute_groups (item_uuid)
+    """)
+
+    execute("""
+    CREATE INDEX IF NOT EXISTS phoenix_kit_cat_item_attr_groups_group_index
+      ON #{p}phoenix_kit_cat_item_attribute_groups (attribute_group_uuid)
+    """)
+
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '173'")
   end
 
-  # Public (and idempotent) so the test suite can run the REAL statements
-  # against seeded misclassified rows — the chain has already been applied to
-  # empty tables by the time any test runs, so testing through the migrator
-  # would assert nothing. `p` is the rendered prefix including the trailing
-  # dot (`prefix_str/1`).
-  @doc false
-  def repair_statements(p) do
-    [
-      # 1a. Audio mime repair on file rows.
-      """
-      UPDATE #{p}phoenix_kit_files
-      SET mime_type = #{@audio_mime_case}
-      WHERE (mime_type IS NULL OR mime_type IN ('', 'application/octet-stream'))
-        AND #{@audio_mime_case} IS NOT NULL
-      """,
-      # 1b. Same repair on instance rows — these are what `file_controller`
-      # serves, so their octet-stream is the one a browser's <audio> tag saw.
-      """
-      UPDATE #{p}phoenix_kit_file_instances
-      SET mime_type = #{@audio_mime_case}
-      WHERE (mime_type IS NULL OR mime_type IN ('', 'application/octet-stream'))
-        AND #{@audio_mime_case} IS NOT NULL
-      """,
-      # 2. Reclassify generic file_type claims the mime evidence contradicts.
-      # Runs after the mime repair so a resurrected audio/* mime reclassifies
-      # its row in the same pass.
-      """
-      UPDATE #{p}phoenix_kit_files
-      SET file_type = #{@classify_mime_case}
-      WHERE file_type IN ('image', 'video', 'audio', 'document', 'archive', 'other')
-        AND #{@classify_mime_case} IS NOT NULL
-        AND file_type IS DISTINCT FROM #{@classify_mime_case}
-      """
-    ]
-  end
+  @doc """
+  Rolls V173 back by dropping the four tables in dependency order.
 
+  **Lossy rollback:** all attribute groups, attributes, values, and
+  item↔group assignments are lost. Items themselves — including their
+  legacy hand-typed `data["meta"]` metadata — are untouched.
+  """
   def down(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    # Data repair only — nothing to reverse (see moduledoc). Rollback lands
-    # on the version that precedes this one.
+    # Plain drops in dependency order — CASCADE could silently take out
+    # FKs or views a parent application hung off these tables later.
+    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_item_attribute_groups")
+    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_attribute_values")
+    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_attributes")
+    execute("DROP TABLE IF EXISTS #{p}phoenix_kit_cat_attribute_groups")
+
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '172'")
   end
 
