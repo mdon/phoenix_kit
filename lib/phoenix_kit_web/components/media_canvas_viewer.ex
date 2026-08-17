@@ -674,8 +674,16 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
          true <- comments_installed?() do
       author_uuid = Map.get(ann, :creator_uuid) || replier_uuid
 
+      # A labelled shape's master is BODILESS: the sidebar already renders
+      # the annotation title as the thread's decoration heading, so putting
+      # the label into the content too made every thread open by saying the
+      # same thing twice. Only an unlabelled shape gets a content stand-in
+      # (its kind), since its card would otherwise have no text at all.
+      title = stored_title(ann)
+
       attrs = %{
-        content: master_content(ann),
+        content: if(title, do: "", else: master_content(ann)),
+        allow_empty_content: title != nil,
         metadata: %{
           "annotation_uuid" => to_string(ann.uuid),
           "annotation_master" => true
