@@ -181,23 +181,34 @@ defmodule PhoenixKit.Integrations.Encryption do
 
   @doc """
   Logs a one-time warning when integration credentials are not protected by
-  a dedicated key — called once at boot by `PhoenixKit.Supervisor`.
+  a dedicated key — called once at boot by `PhoenixKit.boot/1`.
   Deliberately silent (no log line) for the healthy `:dedicated` case; the
   common, correctly-configured install must produce zero noise here.
+
+  An `:integrations_encryption_key` shorter than the minimum length gets
+  its OWN message rather than being folded into the "no dedicated key"
+  wording below — an operator who set one, just too short, needs
+  different advice than one who never set it, and telling them "no
+  dedicated key is configured" when they configured one is simply false.
 
   Never raises — returns `:ok` unconditionally.
   """
   @spec warn_if_insecure() :: :ok
   def warn_if_insecure do
+    if dedicated_key_too_short?() do
+      Logger.warning(dedicated_key_too_short_warning())
+    end
+
     case status() do
       :dedicated ->
         :ok
 
       :legacy_secret_key_base ->
-        Logger.warning(legacy_key_warning())
+        unless dedicated_key_too_short?(), do: Logger.warning(legacy_key_warning())
 
       :disabled_no_key ->
-        Logger.warning(plaintext_warning("no encryption key could be resolved"))
+        unless dedicated_key_too_short?(),
+          do: Logger.warning(plaintext_warning("no encryption key could be resolved"))
 
       :disabled_explicit ->
         Logger.warning(plaintext_warning("integration_encryption_enabled is set to false"))
@@ -371,12 +382,31 @@ defmodule PhoenixKit.Integrations.Encryption do
   end
 
   defp dedicated_key do
+    case configured_dedicated_key() do
+      {:ok, secret} -> secret
+      _ -> nil
+    end
+  end
+
+  # Whether an `:integrations_encryption_key` IS configured (non-blank) but
+  # rejected for being shorter than `@min_dedicated_key_length` — distinct
+  # from simply not having one set at all. `warn_if_insecure/0` uses this to
+  # give an operator who configured a weak key different advice than one
+  # who never configured one.
+  @spec dedicated_key_too_short?() :: boolean()
+  defp dedicated_key_too_short? do
+    match?(:too_short, configured_dedicated_key())
+  end
+
+  defp configured_dedicated_key do
     case PhoenixKit.Config.get(:integrations_encryption_key) do
-      {:ok, secret} when is_binary(secret) ->
-        if String.length(secret) >= @min_dedicated_key_length, do: secret
+      {:ok, secret} when is_binary(secret) and secret != "" ->
+        if String.length(secret) >= @min_dedicated_key_length,
+          do: {:ok, secret},
+          else: :too_short
 
       _ ->
-        nil
+        :unset
     end
   end
 
@@ -427,5 +457,14 @@ defmodule PhoenixKit.Integrations.Encryption do
       "etc.) are being stored in PLAINTEXT (#{why}). Anyone with read access to the database " <>
       "can read every stored integration credential directly. If this is unintentional, set " <>
       "integration_encryption_enabled: true and configure integrations_encryption_key."
+  end
+
+  defp dedicated_key_too_short_warning do
+    "[PhoenixKit.Integrations] The configured integrations_encryption_key is shorter than " <>
+      "#{@min_dedicated_key_length} characters and is being IGNORED as too weak to provide " <>
+      "real assurance — this is not the same as no dedicated key being configured, it was " <>
+      "rejected. Falling back to whatever weaker tier would otherwise apply. Generate a real " <>
+      "secret with `mix phoenix_kit.integrations.rotate_key` and configure " <>
+      "integrations_encryption_key with it."
   end
 end

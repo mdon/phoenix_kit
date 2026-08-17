@@ -117,6 +117,32 @@ defmodule PhoenixKit.Integration.IntegrationsEncryptionWriteSafetyTest do
     end
   end
 
+  describe "a fresh value for the same field always wins over carry-forward" do
+    test "save_setup with a NEW value for the currently-undecryptable field saves the new value, not the restored ciphertext" do
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("openrouter", "default")
+      {:ok, _} = Integrations.save_setup(uuid, %{"api_key" => "sk-old-undecryptable-value"})
+
+      # api_key can no longer decrypt under the now-active key -- the exact
+      # condition `carry_forward_undecryptable/3` reacts to.
+      Application.put_env(:phoenix_kit, :secret_key_base, "key-B-completely-different")
+
+      # The caller explicitly supplies a FRESH value for that same field --
+      # `Map.has_key?(acc, field)` must be true after the merge, so
+      # `carry_forward_undecryptable/3` leaves it alone instead of
+      # overwriting it with the restored old ciphertext.
+      {:ok, saved} = Integrations.save_setup(uuid, %{"api_key" => "sk-new-fresh-value"})
+      assert saved["api_key"] == "sk-new-fresh-value"
+
+      after_write = raw_value_json(uuid)
+      assert String.starts_with?(after_write["api_key"], "enc:v1:")
+
+      # Decrypts under the CURRENT (key-B) key -- proving it was freshly
+      # encrypted just now, not the old ciphertext (which key-B can't
+      # read) silently carried forward under a different value.
+      assert Encryption.decrypt_fields(after_write)["api_key"] == "sk-new-fresh-value"
+    end
+  end
+
   describe "a field a caller genuinely means to remove stays removed" do
     test "disconnect still clears an undecryptable field instead of restoring it" do
       {:ok, %{uuid: uuid}} = Integrations.add_connection("openrouter", "default")

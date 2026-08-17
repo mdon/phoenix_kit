@@ -411,6 +411,24 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
 
       assert Encryption.status() == :legacy_secret_key_base
     end
+
+    test "warn_if_insecure/0 tells an operator with a too-short key apart from one who set nothing" do
+      import ExUnit.CaptureLog
+
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, "too-short")
+      Application.put_env(:phoenix_kit, :secret_key_base, "legacy-secret")
+
+      # Falls back to the legacy tier (same as an absent key would)...
+      assert Encryption.status() == :legacy_secret_key_base
+
+      log = capture_log(fn -> Encryption.warn_if_insecure() end)
+
+      # ...but the operator who configured a key, just too short, must not
+      # be told "no dedicated key is configured" — they configured one.
+      assert log =~ "is shorter than"
+      assert log =~ "IGNORED"
+      refute log =~ "no dedicated key is"
+    end
   end
 
   describe "status/0 and warn_if_insecure/0" do
@@ -455,6 +473,10 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
 
       assert Encryption.status() == :disabled_no_key
+
+      log = capture_log(fn -> Encryption.warn_if_insecure() end)
+      assert log =~ "is shorter than"
+      refute log =~ "no encryption key could be resolved"
     end
 
     test ":legacy_secret_key_base when only secret_key_base resolves" do

@@ -244,7 +244,7 @@ defmodule PhoenixKit.Integrations.KeyRotation do
         {:error, {:decrypt_failed, uuid, reason}}
 
       {:ok, plans} ->
-        {:ok, %{rotated: Enum.count(plans, &has_encrypted_field?/1), dry_run: true}}
+        {:ok, %{rotated: Enum.count(plans, &has_sensitive_field?/1), dry_run: true}}
     end
   end
 
@@ -259,7 +259,7 @@ defmodule PhoenixKit.Integrations.KeyRotation do
           repo.rollback({:decrypt_failed, uuid, reason})
 
         {:ok, plans} ->
-          to_rotate = Enum.filter(plans, &has_encrypted_field?/1)
+          to_rotate = Enum.filter(plans, &has_sensitive_field?/1)
           Enum.each(to_rotate, &rotate_row(&1, new_secret, repo))
           length(to_rotate)
       end
@@ -272,11 +272,23 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   # (nothing to decrypt) and re-encrypting it is a no-op that would still
   # issue an `UPDATE` with byte-identical `value_json`. Counting it as
   # "rotated" overstates what happened, and writing it wastes a row lock
-  # for nothing. Scoped to rows that actually carry an encrypted field.
-  defp has_encrypted_field?({%Setting{value_json: raw}, _decrypted}) do
-    raw = raw || %{}
-    Enum.any?(Encryption.sensitive_fields(), fn field -> Encryption.encrypted?(raw[field]) end)
+  # for nothing. Scoped to rows that actually carry a sensitive field —
+  # checked on the DECRYPTED view, not on whether the RAW stored value
+  # already looks like `enc:v1:` ciphertext. That distinction matters: a
+  # row written while encryption was off (or predating the feature) has a
+  # genuine secret sitting in `value_json` as plain text, no prefix at
+  # all. `Encryption.decrypt_fields/1` passes plaintext through unchanged,
+  # so it still shows up in `decrypted` — checking the raw value instead
+  # would silently skip exactly the rows a first rotation exists to
+  # protect (reported success, wrote nothing, for a scenario that is
+  # rotation's whole point per the moduledoc's "First adoption" case).
+  defp has_sensitive_field?({_setting, decrypted}) do
+    Enum.any?(Encryption.sensitive_fields(), fn field ->
+      present?(Map.get(decrypted, field))
+    end)
   end
+
+  defp present?(value), do: is_binary(value) and value != ""
 
   defp rotate_row({setting, decrypted}, new_secret, repo) do
     new_value = Encryption.encrypt_fields_with_secret(decrypted, new_secret)

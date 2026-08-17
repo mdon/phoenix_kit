@@ -65,6 +65,21 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
     corrupted
   end
 
+  # Writes a field's value verbatim, bypassing `Encryption.encrypt_fields/1`
+  # entirely — simulates a row whose sensitive field was saved while
+  # encryption was off (or predates the feature), i.e. genuinely plaintext
+  # in `value_json`, not merely undecryptable ciphertext.
+  defp write_plaintext_field!(uuid, field, value) do
+    updated = Map.put(raw_value_json(uuid) || %{}, field, value)
+
+    uuid
+    |> Queries.get_setting_by_uuid()
+    |> Setting.update_changeset(%{value_json: updated})
+    |> Queries.update_setting()
+
+    updated
+  end
+
   describe "rotate/2 — real run" do
     test "re-encrypts every connection under the new secret; the old key can no longer read it" do
       uuid1 = seed_connection("openrouter", "one", %{"api_key" => "sk-one"})
@@ -127,6 +142,36 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
       _with_key_uuid = seed_connection("openrouter", "with-key", %{"api_key" => "sk-live"})
 
       assert {:ok, %{rotated: 1}} = KeyRotation.rotate("brand-new-secret-well-over-min-length")
+    end
+
+    test "a row whose sensitive field is still PLAINTEXT gets encrypted, not skipped" do
+      # The exact scenario rotation exists for on "first adoption": a row
+      # written while encryption was off (or predating the feature) has a
+      # genuine secret sitting in value_json with no `enc:v1:` prefix at
+      # all. `has_sensitive_field?/1` must key off the DECRYPTED view
+      # (which passes plaintext through unchanged), not off "does the raw
+      # value already look encrypted" -- the latter would skip precisely
+      # the rows a first rotation is meant to protect.
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("openrouter", "plaintext")
+      write_plaintext_field!(uuid, "api_key", "sk-plaintext-secret")
+
+      before_rotation = raw_value_json(uuid)
+      refute String.starts_with?(before_rotation["api_key"], "enc:v1:")
+
+      assert {:ok, %{rotated: 1, dry_run: false}} =
+               KeyRotation.rotate("brand-new-secret-well-over-min-length")
+
+      after_rotation = raw_value_json(uuid)
+      assert String.starts_with?(after_rotation["api_key"], "enc:v1:")
+      refute after_rotation["api_key"] == before_rotation["api_key"]
+
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "brand-new-secret-well-over-min-length"
+      )
+
+      assert Encryption.decrypt_fields(after_rotation)["api_key"] == "sk-plaintext-secret"
     end
 
     test "aborts and writes NOTHING when any row fails to decrypt under the current key" do
