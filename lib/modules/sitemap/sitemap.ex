@@ -63,11 +63,13 @@ defmodule PhoenixKit.Modules.Sitemap do
 
   ## Usage Examples
 
-      # Check if sitemap module is enabled
-      if PhoenixKit.Modules.Sitemap.enabled?() do
-        # Generate sitemap
-        PhoenixKit.Modules.Sitemap.regenerate(scope)
-      end
+      # Regenerate every sitemap file, inline — this walks every source and
+      # language, so do not call it from a request. From a controller or
+      # LiveView use the queued path instead:
+      PhoenixKit.Modules.Sitemap.Generator.invalidate_and_regenerate()
+
+      # Inline, for a mix task or a worker that wants the result:
+      {:ok, %{total_urls: _}} = PhoenixKit.Modules.Sitemap.regenerate(scope)
 
       # Get configuration
       config = PhoenixKit.Modules.Sitemap.get_config()

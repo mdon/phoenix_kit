@@ -28,6 +28,8 @@ defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesTest do
 
   alias PhoenixKit.Integration.Sitemap.StaticDomainPagesProviderStub, as: Stub
   alias PhoenixKit.Modules.Sitemap.DomainMode
+  alias PhoenixKit.Modules.Sitemap.FileStorage
+  alias PhoenixKit.Modules.Sitemap.Generator
   alias PhoenixKit.Modules.Sitemap.Sources.Static
   alias PhoenixKit.Settings
 
@@ -56,14 +58,22 @@ defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesTest do
     :ok
   end
 
-  defp collect(language, is_default?) do
-    [base_url: @base, language: language, is_default_language: is_default?]
+  defp collect(language, is_default?, extra \\ [domain_pass: true]) do
+    ([base_url: @base, language: language, is_default_language: is_default?] ++ extra)
     |> Static.collect()
     |> Enum.map(& &1.loc)
   end
 
   test "a language with its own domain gets the static pages, prefixed for re-hosting" do
     assert collect("fr", false) == ["#{@base}/fr/"]
+  end
+
+  test "without the domain pass a mapped language still gets nothing" do
+    # The prefixed URL is an intermediate for DomainMode only. The legacy
+    # collection (served verbatim to unmapped hosts) must not see it — there
+    # is nothing there to strip the prefix, and https://<primary>/fr/ is
+    # usually not a page.
+    assert collect("fr", false, []) == []
   end
 
   test "a language without a domain still gets nothing" do
@@ -95,7 +105,12 @@ defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesTest do
 
     entries =
       Static.collect(base_url: @base, language: "en", is_default_language: true) ++
-        Static.collect(base_url: @base, language: "fr", is_default_language: false)
+        Static.collect(
+          base_url: @base,
+          language: "fr",
+          is_default_language: false,
+          domain_pass: true
+        )
 
     result = DomainMode.rebuild_for_domains(entries, @base)
     fr_locs = Enum.map(result["site.example.fr"], & &1.loc)
@@ -104,11 +119,35 @@ defmodule PhoenixKit.Integration.Sitemap.StaticDomainPagesTest do
     refute Enum.any?(fr_locs, &String.contains?(&1, "/fr/"))
   end
 
+  test "generate_all keeps the prefixed intermediate out of the legacy set" do
+    {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", true)
+    {:ok, _} = Settings.update_boolean_setting("crawlers_no_index", false)
+    {:ok, _} = Settings.update_setting("site_url", @base)
+
+    assert {:ok, %{index_xml: index_xml}} = Generator.generate_all(base_url: @base)
+
+    # The legacy file is what an unmapped host is served, verbatim.
+    refute index_xml =~ "#{@base}/fr/"
+
+    # ...while the fr domain's own file gets the home page it was missing.
+    {:ok, path} = FileStorage.domain_file_path("site.example.fr", "sitemap")
+    assert File.exists?(path)
+    fr_xml = File.read!(path)
+    assert fr_xml =~ "<loc>https://site.example.fr/</loc>"
+    refute fr_xml =~ "/fr/"
+  end
+
   test "the mapped domain's file ends up carrying its own home page" do
     entries = Static.collect(base_url: @base, language: "en", is_default_language: true)
 
     entries =
-      entries ++ Static.collect(base_url: @base, language: "fr", is_default_language: false)
+      entries ++
+        Static.collect(
+          base_url: @base,
+          language: "fr",
+          is_default_language: false,
+          domain_pass: true
+        )
 
     result = DomainMode.rebuild_for_domains(entries, @base)
 
