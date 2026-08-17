@@ -131,9 +131,8 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
   end
 
   # An explicitly empty `--new-key=""` is refused rather than silently
-  # treated as "flag not passed, generate one instead" — the fix for a
-  # round-1 review finding that itself turned out to be risky. Generating
-  # and using a random secret when the caller passed an EMPTY value (most
+  # treated as "flag not passed, generate one instead". Generating and
+  # using a random secret when the caller passed an EMPTY value (most
   # plausibly `--new-key="$SOME_VAR"` where the variable resolved empty) is
   # a real rotation under a key the caller never chose and that is printed
   # to stdout exactly once — if that output isn't captured, the credential

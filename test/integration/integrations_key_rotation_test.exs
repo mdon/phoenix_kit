@@ -1,9 +1,8 @@
 defmodule PhoenixKit.Integration.KeyRotationTest do
   @moduledoc """
   Exercises `PhoenixKit.Integrations.KeyRotation` against real database rows
-  — the fact-based check the S001 rotation requirement calls for: does
-  changing the encryption key actually preserve saved integrations, or does
-  it silently strand them.
+  — a fact-based check of whether changing the encryption key actually
+  preserves saved integrations, or silently strands them.
 
   ## What "row locking (concurrent-write safety)" below does and doesn't prove
 

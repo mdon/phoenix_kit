@@ -23,12 +23,11 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKeyTest do
     end
 
     test "a misspelled flag is REJECTED, not silently ignored" do
-      # This is the exact scenario the round-1 review flagged as the most
-      # dangerous finding: with non-strict OptionParser parsing, "--dryrun"
-      # (missing hyphen) used to be accepted as an unrelated boolean flag
-      # under its own wrong key, `dry_run` silently stayed `false`, and the
-      # task ran a REAL rotation instead of the dry run the caller typed
-      # this flag to get. `strict:` must turn this into a parse error.
+      # With non-strict OptionParser parsing, "--dryrun" (missing hyphen)
+      # would be accepted as an unrelated boolean flag under its own wrong
+      # key, `dry_run` would silently stay `false`, and the task would run
+      # a REAL rotation instead of the dry run the caller typed this flag
+      # to get. `strict:` turns that into a parse error instead.
       assert {:error, message} = RotateKeyTask.parse_args(["--dryrun"])
       assert message =~ "dryrun"
     end
@@ -43,13 +42,13 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKeyTest do
     end
 
     test "an explicitly empty --new-key=\"\" is REJECTED, not silently substituted" do
-      # Round-1 review fixed this by treating "" like the flag was never
-      # passed (generate a fresh secret). Round-2 review flagged that fix
-      # itself as risky: `--new-key="$MAYBE_UNSET"` with an empty variable
-      # would silently rotate under a RANDOM key the caller never chose,
-      # printed to stdout exactly once — unrecoverable if that output isn't
-      # captured. An explicitly-empty value the caller DID pass must be
-      # rejected, the same way a misspelled flag is, not quietly replaced.
+      # Treating "" like the flag was never passed (generate a fresh
+      # secret instead) would be its own hazard: `--new-key="$MAYBE_UNSET"`
+      # with an empty variable would silently rotate under a RANDOM key
+      # the caller never chose, printed to stdout exactly once —
+      # unrecoverable if that output isn't captured. An explicitly-empty
+      # value the caller DID pass must be rejected, the same way a
+      # misspelled flag is, not quietly replaced with different behavior.
       assert {:error, message} = RotateKeyTask.parse_args(["--new-key="])
       assert message =~ "new-key"
       assert message =~ "empty"

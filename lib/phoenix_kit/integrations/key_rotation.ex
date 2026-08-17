@@ -104,8 +104,9 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   If any row fails to decrypt under the current key, the whole transaction
   rolls back and NOTHING is written — a rotation that silently skipped a
   broken row would be exactly the kind of failure this module exists to
-  prevent (see the "does this code ever fire" note in
-  `PhoenixKit.Integrations.Encryption`'s decrypt path).
+  prevent (see `PhoenixKit.Integrations.Encryption.decrypt_fields/1`'s own
+  handling of a decrypt failure: it logs and drops the field rather than
+  returning the raw ciphertext as if it were the value).
 
   ## The gap between rotating and restarting
 
