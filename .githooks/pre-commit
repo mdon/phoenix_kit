@@ -68,9 +68,10 @@ memory_limit_human() {
     esac
 }
 
-# Which step of `mix quality` (format -> credo --strict -> dialyzer) was
-# running. The alias stops at the first failure, so the newest stage that
-# printed anything is the one that broke - hence newest-stage-first.
+# Which step of `mix quality.ci` (format --check-formatted -> credo --strict
+# -> dialyzer) was running. The alias stops at the first failure, so the
+# newest stage that printed anything is the one that broke - hence
+# newest-stage-first.
 failing_stage() {
     local log="$1"
     if grep -qE 'Starting Dialyzer|Finding suitable PLTs|Checking PLT|Total errors:' "$log"; then
@@ -86,10 +87,12 @@ advise_memory() {
     echo ""
     echo "   Nothing in the checks needs fixing. Give the step more memory, or"
     echo "   run less at once - one command per BEAM:"
-    echo "     mix compile --warnings-as-errors"
+    echo "     mix compile --warnings-as-errors --all-warnings"
+    echo "     mix deps.unlock --check-unused"
     echo "     mix format --check-formatted"
     echo "     mix credo --strict"
     echo "     mix dialyzer          # heaviest; builds priv/plts/dialyzer.plt"
+    echo "     mix test.js"
     echo "   Do NOT bypass the hook by default - it also catches real problems."
 }
 
@@ -178,9 +181,15 @@ run_step() {
     echo "✅ $name passed"
 }
 
-run_step "Compilation" "🔨 Compiling code..." mix compile --warnings-as-errors
-run_step "Documentation generation" "📚 Generating documentation..." mix docs
-run_step "Code quality checks" "🔍 Running code quality checks..." mix quality
+# Mirrors `mix precommit` (mix.exs) step for step, so a hook-approved commit
+# cannot still fail precommit/CI on something this hook skipped. In
+# particular: `quality.ci`, not `quality` - the latter's `format` step
+# rewrites files after they are staged, leaving the tree dirty right after a
+# commit that just claimed to pass.
+run_step "Compilation" "🔨 Compiling code..." mix compile --warnings-as-errors --all-warnings
+run_step "Unused dependencies" "📦 Checking for unused dependencies..." mix deps.unlock --check-unused
+run_step "Code quality checks" "🔍 Running code quality checks..." mix quality.ci
+run_step "JavaScript tests" "🧪 Running JavaScript tests..." mix test.js
 
 rm -rf "$LOG_DIR"
 echo "🎉 All pre-commit checks passed! Proceeding with commit..."

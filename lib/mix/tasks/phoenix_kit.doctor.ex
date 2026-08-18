@@ -62,6 +62,11 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
        `PhoenixKit.Migrations.ExpectedSchema` manifest as an additional,
        non-fatal check (never `:fail`). Passes and says so if the manifest
        has been removed or overridden away in this checkout.
+   26. **Git Hooks** — is `.githooks/pre-commit` enabled via
+       `core.hooksPath`? Only runs inside a checkout of phoenix_kit itself
+       (`.githooks/pre-commit` is a phoenix_kit-repo convention, not
+       something installed into a consuming host app) — silently skipped
+       otherwise.
   """
 
   use Mix.Task
@@ -113,34 +118,34 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
     header("PhoenixKit Doctor")
 
-    results = [
-      run_check("Repo Detection", fn -> check_repo_detection() end),
-      run_check("DB Connectivity", fn -> check_db_connectivity() end),
-      run_check("Pool Configuration", fn -> check_pool_config() end),
-      run_check("PgBouncer Detection", fn -> check_pgbouncer() end),
-      run_check("Migration State", fn -> check_migration_state(prefix) end),
-      run_check("Module Schema Versions", fn -> check_module_schema_versions(prefix) end),
-      run_check("Schema Drift", fn -> check_schema_drift(prefix) end),
-      run_check("Pending Migrations", fn -> check_pending_migrations() end),
-      run_check("UUID Column Types", fn -> check_uuid_column_types(prefix) end),
-      run_check("UUID Primary Keys", fn -> check_uuid_primary_keys(prefix) end),
-      run_check("NULL UUIDs in FK Sources", fn -> check_null_uuids(prefix) end),
-      run_check("Orphaned FK References", fn -> check_orphaned_fk_refs(prefix) end),
-      run_check("Lock Conflicts", fn -> check_lock_conflicts() end),
-      run_check("Orphaned Connections", fn -> check_orphaned_connections() end),
-      run_check("Oban Configuration", fn -> check_oban_config(oban_config) end),
-      run_check("Oban Cron Queues", fn -> check_cron_queues(oban_config) end),
-      run_check("PhoenixKit Supervisor", fn -> check_supervisor_state() end),
-      run_check("Child Start Order", fn -> check_child_order() end),
-      run_check("Update Mode", fn -> check_update_mode() end),
-      run_check("daisyUI Version", fn -> check_daisyui() end),
-      run_check("User Dashboard (deprecated)", fn -> check_user_dashboard_deprecation() end),
-      run_check("Sitemap Discoverability", fn -> check_sitemap_serving() end),
-      run_check("Crawler Visibility", fn -> check_crawler_visibility(prefix) end),
-      run_check("Demo Auth Pages", fn -> check_demo_routes() end),
-      run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end),
-      run_check("Git Hooks", fn -> check_git_hooks() end)
-    ]
+    results =
+      [
+        run_check("Repo Detection", fn -> check_repo_detection() end),
+        run_check("DB Connectivity", fn -> check_db_connectivity() end),
+        run_check("Pool Configuration", fn -> check_pool_config() end),
+        run_check("PgBouncer Detection", fn -> check_pgbouncer() end),
+        run_check("Migration State", fn -> check_migration_state(prefix) end),
+        run_check("Module Schema Versions", fn -> check_module_schema_versions(prefix) end),
+        run_check("Schema Drift", fn -> check_schema_drift(prefix) end),
+        run_check("Pending Migrations", fn -> check_pending_migrations() end),
+        run_check("UUID Column Types", fn -> check_uuid_column_types(prefix) end),
+        run_check("UUID Primary Keys", fn -> check_uuid_primary_keys(prefix) end),
+        run_check("NULL UUIDs in FK Sources", fn -> check_null_uuids(prefix) end),
+        run_check("Orphaned FK References", fn -> check_orphaned_fk_refs(prefix) end),
+        run_check("Lock Conflicts", fn -> check_lock_conflicts() end),
+        run_check("Orphaned Connections", fn -> check_orphaned_connections() end),
+        run_check("Oban Configuration", fn -> check_oban_config(oban_config) end),
+        run_check("Oban Cron Queues", fn -> check_cron_queues(oban_config) end),
+        run_check("PhoenixKit Supervisor", fn -> check_supervisor_state() end),
+        run_check("Child Start Order", fn -> check_child_order() end),
+        run_check("Update Mode", fn -> check_update_mode() end),
+        run_check("daisyUI Version", fn -> check_daisyui() end),
+        run_check("User Dashboard (deprecated)", fn -> check_user_dashboard_deprecation() end),
+        run_check("Sitemap Discoverability", fn -> check_sitemap_serving() end),
+        run_check("Crawler Visibility", fn -> check_crawler_visibility(prefix) end),
+        run_check("Demo Auth Pages", fn -> check_demo_routes() end),
+        run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end)
+      ] ++ git_hooks_check()
 
     IO.puts("")
     summary(results)
@@ -253,6 +258,19 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   end
 
   # ── Check implementations (return {:pass|:warn|:fail, detail}) ──────
+
+  # `.githooks/pre-commit` is a phoenix_kit-core-repo convention (see
+  # AGENTS.md) — nothing installs or copies it into a consuming host app, so
+  # the check is meaningless (and permanently unfixable) run from one. Scope
+  # it to a checkout of phoenix_kit itself, the same way `oban_config` above
+  # already distinguishes "the host's app" from `:phoenix_kit`.
+  defp git_hooks_check do
+    if Mix.Project.config()[:app] == :phoenix_kit do
+      [run_check("Git Hooks", fn -> check_git_hooks() end)]
+    else
+      []
+    end
+  end
 
   defp check_git_hooks do
     git_hooks_verdict(gather_git_hooks_state())
