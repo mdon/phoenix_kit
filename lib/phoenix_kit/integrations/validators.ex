@@ -570,6 +570,11 @@ defmodule PhoenixKit.Integrations.Validators do
   (already a dependency); the `region`/`endpoint` config shape mirrors
   `PhoenixKit.Modules.Storage.Providers.S3`'s `aws_config/1`, which builds the
   same request for the same four providers.
+
+  Without a custom endpoint, the standard regional AWS host is used —
+  including the `.amazonaws.com.cn` host for the China partition. A GovCloud
+  environment that requires the FIPS endpoint (`s3-fips.<region>.amazonaws.com`)
+  rather than the standard one should set it explicitly via `endpoint`.
   """
   @spec object_storage(map()) :: :ok | {:error, String.t()}
   def object_storage(data) do
@@ -655,14 +660,22 @@ defmodule PhoenixKit.Integrations.Validators do
     # correct credentials in those regions would read as "could not reach
     # the storage endpoint". Same trap `aws_ses`'s `send_quota_request/2`
     # dodges above by building the SES host itself instead of trusting ExAws.
+    # ExAws's resolver DOES get the China partition right, though (`.cn`
+    # suffix) — `object_storage_default_host/1` below keeps that one case.
     host =
       case object_storage_endpoint(data) do
-        nil -> "s3.#{region}.amazonaws.com"
+        nil -> object_storage_default_host(region)
         endpoint -> endpoint
       end
 
     base ++ [host: host, scheme: "https://"]
   end
+
+  # The China partition answers on .amazonaws.com.cn — the global host does
+  # not resolve there at all. Same split `bedrock_host/1` above uses for the
+  # same reason.
+  defp object_storage_default_host("cn-" <> _ = region), do: "s3.#{region}.amazonaws.com.cn"
+  defp object_storage_default_host(region), do: "s3.#{region}.amazonaws.com"
 
   defp object_storage_region(data) do
     if blank?(data["region"]), do: "us-east-1", else: String.trim(data["region"])

@@ -461,6 +461,22 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
       assert Keyword.get(config, :host) == "s3.il-central-1.amazonaws.com"
     end
 
+    test "the China partition still gets its .cn suffix" do
+      # Unlike il-central-1/mx-central-1, ExAws's own resolver gets THIS
+      # partition right (confirmed:
+      # ExAws.Config.Defaults.host(:s3, "cn-north-1") ==
+      # "s3.cn-north-1.amazonaws.com.cn") -- a naive always-hardcode-.com
+      # fix would regress a case ExAws already handled correctly.
+      config =
+        Validators.object_storage_config(%{
+          "access_key" => "AKIA_T",
+          "secret_key" => "S",
+          "region" => "cn-north-1"
+        })
+
+      assert Keyword.get(config, :host) == "s3.cn-north-1.amazonaws.com.cn"
+    end
+
     test "no region falls back to us-east-1, both as the signing region and the host" do
       config = Validators.object_storage_config(%{"access_key" => "AKIA_T", "secret_key" => "S"})
 
