@@ -572,7 +572,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 175
+  @current_version 176
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
