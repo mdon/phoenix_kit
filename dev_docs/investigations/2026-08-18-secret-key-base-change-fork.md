@@ -1,11 +1,32 @@
 # If `secret_key_base` changes, what happens to encrypted integration credentials
 
-2026-08-18. Written for the owner's decision. Options with their prices — the
-choice is not made here.
+2026-08-18. Written for the owner's decision, and **decided**: encryption of
+bucket credentials proceeds, the repository gets cleaned later, it is private.
+Sites are not held up for this. Kept because the mechanics below stay true and
+the options still have to be picked from eventually.
 
 Prompted by a live question from decor pre-prod: 2.13.0 encrypts
 `secret_access_key` with a key derived from `secret_key_base`, and the question
 was what that means for real buckets.
+
+## Correction to an earlier framing of this document
+
+An earlier version of this page described losing the key as though every
+consequence were equally grave. It is not, and the distinction changes which
+option is worth paying for.
+
+**Most of what is stored here is re-issuable.** A bucket `secret_access_key` can
+be regenerated in the provider's console: the worst case of losing the
+encryption key is **downtime plus issuing a new pair**, not irreversible loss.
+The same is broadly true of API keys and bot tokens.
+
+What is *not* freely re-issuable is anything that required a human to consent —
+an OAuth refresh token means asking every affected user to reconnect, which is
+cheap in a pre-prod site and expensive in a live one with real users.
+
+So the honest severity is: **operational, not existential**, for the storage
+case that prompted this. A backup of the key is still worth taking; stopping
+work over it is not.
 
 ## The mechanism, stated plainly
 
@@ -32,8 +53,11 @@ decrypted under the new one. The behaviour is **fail-closed, not silent**:
 * nothing is corrupted or overwritten — the ciphertext stays in the database and
   becomes readable again if the old `secret_key_base` is restored.
 
-**The data is not destroyed by the change. It is destroyed by losing the old
-`secret_key_base` afterwards.**
+**The data is not destroyed by the change.** The ciphertext becomes unreadable
+if the old `secret_key_base` is lost afterwards — but for a re-issuable secret
+that means re-issuing it, not losing something unrecoverable. Weigh it as
+downtime, and reserve "unrecoverable" for credentials that needed a human to
+grant them.
 
 ## The trap worth naming first
 
