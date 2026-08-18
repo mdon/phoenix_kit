@@ -349,6 +349,50 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
             :ok
         end
 
+        # Clause priority WITHIN the weaker tiers, which nothing guarded until a
+        # checker mutated it and 85 tests stayed green. The dedicated tier had
+        # this covered — "claims a fallback the signals deny" fires the moment a
+        # fault clause outranks a working tier — but inside :legacy and :none
+        # both orderings render a self-consistent fallback story, so no
+        # invariant above could tell them apart.
+        #
+        # What decides it is a fact about other code, verified by running: while
+        # `integrations_encryption_key` holds a rejected value,
+        # `dedicated_candidate/2` never consults the store, so the store cannot
+        # be the thing to fix. And the pairing is provable — a store that cannot
+        # be read cannot have supplied a secret to reject, so `too_short?` beside
+        # an unreadable store means the rejected key is in config (checked: a
+        # short config key beside an unreadable store gives `too_short?: true`;
+        # the same store with no config key gives `too_short?: false`).
+        #
+        # So a rejected key outranks every other fault in its tier, and must be
+        # reported as such.
+        if signals.enabled? and signals.too_short? and signals.tier != :dedicated do
+          assert elem(report.diagnosis, 1) == :key_too_short,
+                 "#{where}: a rejected key outranked by #{inspect(elem(report.diagnosis, 1))}"
+
+          assert detail =~ "rejected as shorter than",
+                 "#{where}: the rejected key is not reported at all"
+        end
+
+        # And the advice may not assert WHERE the rejected secret lives when the
+        # signals do not settle it. With a store holding a secret, either that
+        # secret or a config key could be the rejected one — verified by
+        # running: no config key plus an eight-character key file gives
+        # `too_short?: true` with `store: {:holding, _}`, and naming
+        # integrations_encryption_key there is false twice over.
+        if signals.enabled? and signals.too_short? and signals.tier != :dedicated do
+          case signals.store do
+            {:holding, _loc} ->
+              assert detail =~ "either integrations_encryption_key or the secret in",
+                     "#{where}: names one source where the signals allow two"
+
+            _other ->
+              assert detail =~ "integrations_encryption_key",
+                     "#{where}: the rejected key's only possible home is not named"
+          end
+        end
+
         # No storage line for a key stored nowhere, and no bare location that
         # reads as "saved here" when it is not.
         case signals.store do

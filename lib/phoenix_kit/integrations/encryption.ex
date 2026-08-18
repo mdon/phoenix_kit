@@ -488,7 +488,7 @@ defmodule PhoenixKit.Integrations.Encryption do
     report(signals, {:legacy_secret_key_base, :key_too_short}, :warn,
       summary: too_short_summary(),
       consequence: fallback_consequence(),
-      action: replace_key_action(),
+      action: replace_key_action(signals.store),
       rotation_safe?: true,
       tier_label: "FALLBACK key — the configured key was rejected as too short"
     )
@@ -533,8 +533,8 @@ defmodule PhoenixKit.Integrations.Encryption do
         "NO key resolved at all — integration credentials are being written in PLAINTEXT",
       action:
         "Do NOT run `mix phoenix_kit.integrations.rotate_key` — it refuses while no key is " <>
-          "active. Replace integrations_encryption_key with a secret of at least " <>
-          "#{@min_dedicated_key_length} characters and restart",
+          "active. Replace the rejected secret — #{rejected_secret_location(signals.store)} " <>
+          "— with one of at least #{@min_dedicated_key_length} characters and restart",
       rotation_safe?: false,
       tier_label: nil
     )
@@ -621,12 +621,36 @@ defmodule PhoenixKit.Integrations.Encryption do
         "#{@min_dedicated_key_length} characters, which is not the same as none being " <>
         "configured"
 
-  defp replace_key_action,
+  # WHERE the rejected secret lives is not always knowable, and the advice used
+  # to assert it anyway — it named `integrations_encryption_key` unconditionally,
+  # including in the state where there is no such key and the short secret is
+  # the one in the STORE. Verified by running: with no config key and an
+  # eight-character secret in the key file, the signals are
+  # `%{tier: :legacy, too_short?: true, store: {:holding, _}}`, and every word of
+  # "while a rejected key sits there the key store is not consulted at all" is
+  # false — the store IS what was consulted, and it is what must be fixed.
+  #
+  # The signals already settle it in three of the four store states, so no new
+  # signal is needed to stop claiming what is not known. An unreadable store or
+  # one holding nothing cannot have supplied a secret to reject, so there the
+  # source is provably config (verified: a short key in config beside an
+  # unreadable store gives `too_short?: true`; the same store with no config key
+  # gives `too_short?: false`). Only `{:holding, _}` is ambiguous, and there the
+  # advice names both and says which one wins.
+  defp replace_key_action(store),
     do:
-      "Replace integrations_encryption_key with a real secret — while a rejected key sits " <>
-        "there the key store is not consulted at all, so repairing or filling the store " <>
-        "changes nothing. `mix phoenix_kit.integrations.rotate_key` generates one, and " <>
-        "stores it for you if a key store is configured"
+      "Replace the rejected secret — #{rejected_secret_location(store)}. Config wins when " <>
+        "it is set, and while it holds a rejected value the key store is not consulted at " <>
+        "all. `mix phoenix_kit.integrations.rotate_key` generates a replacement, and stores " <>
+        "it for you if a key store is configured"
+
+  # ONE phrase for where the rejected secret lives, shared by both clauses that
+  # tell an operator to replace it, so neither can drift into asserting a
+  # location the signals do not establish.
+  defp rejected_secret_location({:holding, location}),
+    do: "it is either integrations_encryption_key or the secret in #{location}"
+
+  defp rejected_secret_location(_store), do: "integrations_encryption_key"
 
   # The two absences the reviewer asked to keep apart: nothing configured at all
   # versus a store that is configured and empty. Set one up, versus put a secret

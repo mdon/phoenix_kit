@@ -540,7 +540,13 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       )
 
       log = capture_log(fn -> assert Encryption.warn_if_insecure() == :ok end)
-      assert log == ""
+
+      # "This check says nothing", not "the log is empty". `capture_log/1`
+      # collects everything the VM emits during the call, including a Postgrex
+      # reconnection attempt from an unrelated pool, so the stricter assertion
+      # fails on timing rather than on behaviour — observed doing exactly that
+      # in a full run, and passing in isolation three times over.
+      refute log =~ "[PhoenixKit.Integrations]"
     end
 
     test "warn_if_insecure/0 warns about the legacy fallback" do
@@ -959,7 +965,11 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
   end
 
   describe "key_signals/0 is one pass over the environment" do
+    alias Mix.Tasks.PhoenixKit.Doctor, as: DoctorTask
     alias PhoenixKit.Integrations.EncryptionTest.FlakyStore
+    alias PhoenixKitWeb.Live.Settings.Integrations, as: Page
+
+    @legacy_secret String.duplicate("s", 64)
 
     setup do
       previous = %{
@@ -988,7 +998,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       end)
 
       Application.put_env(:phoenix_kit, :integration_encryption_enabled, true)
-      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("s", 64))
+      Application.put_env(:phoenix_kit, :secret_key_base, @legacy_secret)
       Application.delete_env(:phoenix_kit, :integrations_encryption_key)
       KeyStore.invalidate_cache()
       :persistent_term.erase({Encryption, :store_failure_logged})
@@ -1014,6 +1024,62 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
 
       # Whatever it decided, the parts of it agree.
       assert signals.fingerprint == expected_fingerprint(signals)
+    end
+
+    # The historical bug itself, reproduced end to end rather than caught as a
+    # side effect. Every assertion above works on the SIGNALS; the defect an
+    # operator actually met was in the RENDERED line — a twelve-hex number
+    # printed under a label naming a different key. Nothing rendered it in a
+    # test, so reproducing it took hand assembly, and a suite that cannot
+    # reproduce a bug cannot prove it stays fixed.
+    #
+    # The trigger is the real one: a store that fails a read and answers the
+    # next. Before the gather became one pass this printed the fingerprint of
+    # the STORED key under "derived from secret_key_base" — two sites comparing
+    # those numbers would have compared unlike keys while both pages claimed the
+    # same tier, which is precisely what the fingerprint exists to prevent.
+    test "the printed fingerprint is the key its own label names" do
+      counter = :counters.new(1, [])
+      Application.put_env(:phoenix_kit, :integrations_key_store, {FlakyStore, counter: counter})
+      KeyStore.invalidate_cache()
+
+      report = Encryption.key_report()
+      {_status, detail} = DoctorTask.integration_key_result(report, true)
+
+      assert [_all, printed, label] =
+               Regex.run(~r/Fingerprint ([0-9a-f]{12}) \(([^)]+)\)/, detail),
+             "no fingerprint line to check in:\n#{detail}"
+
+      assert printed == fingerprint_of(secret_named_by(label)),
+             "the doctor printed #{printed} under #{inspect(label)}, which names a key whose " <>
+               "fingerprint is #{fingerprint_of(secret_named_by(label))}"
+
+      # The admin page labels the same number from the same report, in its own
+      # translated words, and must name the same key.
+      page_label = Page.fingerprint_tier(report.diagnosis)
+
+      assert printed == fingerprint_of(secret_named_by(page_label)),
+             "the admin page labelled #{printed} as #{inspect(page_label)}"
+    end
+
+    # Which key a label claims. Deliberately exhaustive with no catch-all: a new
+    # label that this cannot classify must fail the test rather than pass it by
+    # default, because an unclassifiable label is exactly how a number ends up
+    # beside a tier nobody checked.
+    defp secret_named_by(label) do
+      cond do
+        label =~ "secret_key_base" -> @legacy_secret
+        label =~ "FALLBACK" -> @legacy_secret
+        label =~ "dedicated" -> FlakyStore.secret()
+      end
+    end
+
+    defp fingerprint_of(secret) do
+      key = :crypto.hash(:sha256, "phoenix_kit_integrations:" <> secret)
+
+      :sha256
+      |> :crypto.pbkdf2_hmac(key, "phoenix_kit_integrations_fingerprint:v2", 100_000, 6)
+      |> Base.encode16(case: :lower)
     end
 
     test "every signal in the map comes from the same reads, for either answer" do
@@ -1049,17 +1115,10 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       secret =
         case tier do
           :dedicated -> FlakyStore.secret()
-          :legacy -> String.duplicate("s", 64)
+          :legacy -> @legacy_secret
         end
 
-      key = :crypto.hash(:sha256, "phoenix_kit_integrations:" <> secret)
-
-      digest =
-        :sha256
-        |> :crypto.pbkdf2_hmac(key, "phoenix_kit_integrations_fingerprint:v2", 100_000, 6)
-        |> Base.encode16(case: :lower)
-
-      {:ok, digest}
+      {:ok, fingerprint_of(secret)}
     end
   end
 

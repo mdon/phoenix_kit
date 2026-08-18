@@ -228,3 +228,132 @@ exactly.
 Worth keeping because it is the same defect one level out: a number that looked
 like an improvement, resting on an assumption nobody checked — that adding a
 file only adds.
+
+## Round 6, verdict FIX — the two gaps the checker's mutations found
+
+The check was run differently, and that is why it found something: the plan came
+from a checker, the mutations were **someone else's**, and they were applied by a
+third line in an isolated copy. Four mutations; one hit a named test exactly, two
+hit two tests each, and one — **the `:legacy` clause order — hit nothing at all.
+Zero red out of 85.**
+
+Reproduced here before touching anything: swapping the two `:legacy` clauses left
+`103 tests, 0 failures`.
+
+### Why my own mutations missed it
+
+Not an accident of choice. Every mutation I ran was a revert of something I had
+just changed, and I had changed the DEDICATED ordering. The dedicated tier was
+therefore covered twice over — "claims a fallback the signals deny" fires the
+moment a fault clause outranks a working tier. Inside `:legacy` both orderings
+render a *self-consistent fallback story*: same tier, same fallback claim, same
+fingerprint label. Nothing above the clause could tell them apart, because
+nothing above the clause knew which fault an operator has to clear first.
+
+A mutation set derived from one's own diff tests the edits, not the code. That is
+the shape of the class one level out again, and it took someone else's mutation
+to show it.
+
+### What decides the order, and it is a fact, not a preference
+
+While `integrations_encryption_key` holds a rejected value,
+`dedicated_candidate/2` never consults the store — so the store cannot be the
+thing to fix, and a clause that says "repair the store first" there is advice
+that changes nothing. Verified by running, along with the pairing that makes the
+state unambiguous:
+
+    short config key + unreadable store  ->  too_short?: true
+    no config key    + unreadable store  ->  too_short?: false
+
+An unreadable store cannot supply a secret to reject. So `too_short?` beside an
+unreadable store *proves* the rejected key is in config.
+
+Two invariants added to the enumeration, both keyed on the signals:
+
+* where encryption is on, the key is rejected and the tier is not `:dedicated`,
+  the diagnosis must be `:key_too_short` — a rejected key outranks every other
+  fault in its tier;
+* the rendered detail must actually report it (`"rejected as shorter than"`), so
+  keeping the atom while dropping the sentence does not slip through.
+
+Mutations, both now red with the right message:
+
+    swap the :legacy clauses  -> "a rejected key outranked by :store_unreadable"
+    swap the :none clauses    -> "a rejected key outranked by :store_unreadable"
+
+### Found while closing that: the advice named a file it could not know
+
+Pulling the thread produced a seventh instance, in text written last round.
+`replace_key_action/0` said *"Replace integrations_encryption_key … while a
+rejected key sits there the key store is not consulted at all"* — unconditionally.
+Verified by running:
+
+    no config key, an 8-character secret in the key FILE
+    -> %{tier: :legacy, too_short?: true, store: {:holding, _}}
+
+There is no `integrations_encryption_key` to replace, and the store is precisely
+what *was* consulted and what must be fixed. Every word of that sentence is false
+in the state where the store holds the rejected secret.
+
+No new signal was needed to stop asserting it: the existing store signal settles
+the question in three of its four values (`:absent`, `{:no_secret_yet, _}` and
+`{:unreadable, _}` all prove the source is config), and only `{:holding, _}` is
+ambiguous. The advice now names both there and says which wins, through one
+shared phrase so the two clauses that give it cannot drift apart.
+
+Mutation: reassert the config key unconditionally → `"names one source where the
+signals allow two"`.
+
+## The second gap: the historical bug was never reproduced, only deflected
+
+The checker's other finding, and the more uncomfortable one. Reverting the clause
+made the suite red — but by a structural side effect in the doctor's test, not
+because anything reproduced the bug. The symptom an operator actually met — a
+twelve-hex number printed under a label naming a different key — had to be
+assembled by hand to be seen.
+
+Every invariant I wrote works on the SIGNALS. That was the right correction after
+round 4 (a report agrees with itself perfectly), and it left the rendered line
+unguarded end to end.
+
+Now `encryption_test.exs` renders it: the flaky store, the real resolution, the
+doctor's own output parsed for `Fingerprint <hex> (<label>)`, the label mapped to
+the key it names, and that key's fingerprint derived independently in the test.
+The admin page's label is checked against the same number. The mapping has **no
+catch-all** — a label it cannot classify fails, because an unclassifiable label is
+how a number ends up beside a tier nobody checked.
+
+Reverting the one-pass gather now prints the bug verbatim:
+
+    the doctor printed 67dfa503e189 under "derived from secret_key_base",
+    which names a key whose fingerprint is 826f21f672e5
+
+## One flake fixed in passing
+
+`warn_if_insecure/0 logs nothing for the healthy :dedicated case` asserted
+`log == ""`. `capture_log/1` collects everything the VM emits during the call,
+including a Postgrex reconnection attempt from an unrelated pool — observed
+failing on exactly that in a full run and passing three times in isolation. The
+assertion now states the invariant it meant: this check emits nothing **of its
+own**.
+
+## Suite, after the verdict work
+
+```
+round 6 as delivered:  43 doctests, 3938 tests, 0 failures, 1554 excluded
+after the two gaps:    43 doctests, 3939 tests, 0 failures, 1554 excluded
+```
+
+Excluded unchanged; the one added test is the historical reproduction.
+
+### On the 12 failures seen in the isolated copy
+
+Not reproduced here (0 failures, and `tests`/`excluded` match the copy's numbers
+exactly), so what follows is a mechanism, not a diagnosis.
+`media_viewer_test.exs` documents its own dependency in its moduledoc: it needs
+the DB calls to fail *in one particular way* — "`curate_file/1` calls catch
+`DBConnection.OwnershipError` and resolve to nil". This container's pool fails a
+different way under load, `DBConnection.ConnectionError` with a queue timeout,
+which those rescues do not cover. A test that rests on **how** another component
+fails is the same class this contract is about, one layer out; whether that is
+what bit the copy needs a run there, not an argument here.
