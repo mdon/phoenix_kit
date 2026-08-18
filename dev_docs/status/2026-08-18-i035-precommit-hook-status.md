@@ -1,6 +1,6 @@
 # I035 - Pre-commit hook failure diagnosis: status at pause
 
-**Last Updated**: 2026-08-18 (paused by owner, ~2.5h, pending limit rollback or further word)
+**Last Updated**: 2026-08-18 (proposal implemented, see PR #736; originally paused by owner, ~2.5h, pending limit rollback or further word)
 **Branch**: `security-integrations-encryption-key`
 **Full report**: `dev_docs/investigations/2026-08-17-precommit-hook-misattributed-failure.md`
 
@@ -42,11 +42,19 @@ output.
 
 ## Not done / open
 
-* **The proposal is not implemented.** Nothing under `.githooks/` exists;
-  `core.hooksPath` is unset. Deliberate: it is the repo owner's call.
-* **The hook is still untracked**, so it lives in one directory on one machine.
-  The report carries a byte-exact copy, but a copy does not install itself.
-  This is the single biggest loose end.
+* ~~The proposal is not implemented.~~ **Done 2026-08-18** - implemented on
+  branch `feature/tracked-git-hooks` and opened as
+  [BeamLabEU/phoenix_kit#736](https://github.com/BeamLabEU/phoenix_kit/pull/736):
+  the hook is tracked at `.githooks/pre-commit` (mode 100755) and
+  `mix phoenix_kit.doctor` gained a "Git Hooks" check that reports three states -
+  enabled, definitely not enabled, and could-not-check - rather than guessing.
+  Write-up: `dev_docs/investigations/2026-08-18-tracked-git-hooks.md` on that
+  branch. Awaiting upstream merge.
+* **`core.hooksPath` is still unset here, on purpose.** It lives in the common
+  config and applies to every worktree at once, while `.githooks/` exists only
+  on the PR branch - enabling it before the PR lands would leave lines on other
+  branches with no hook at all, silently. Enable it, and delete the leftover
+  `.git/hooks/pre-commit`, only after the change is on every active branch.
 * **PLT rebuilds remain expensive and frequent** - any merge touching `mix.lock`
   triggers one, and this branch took two within an hour. Raising the limit made
   them survivable, not cheap. `priv/plts/` still does not exist, so the
