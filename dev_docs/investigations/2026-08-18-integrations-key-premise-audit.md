@@ -189,3 +189,42 @@ anything.
   check, not a ride on this one.
 * **Gettext extraction** for the changed admin-page strings: still a
   maintainer-run step, unchanged from round 5.
+
+## The suite, before and after
+
+Stated as two numbers because "fewer failures" is too easily "fewer executed":
+
+```
+before:  43 doctests, 3932 tests, 1 failure,  1554 excluded
+after:   43 doctests, 3938 tests, 0 failures, 1554 excluded
+```
+
+The excluded count is identical, so nothing stopped being run: 1554 is the
+integration half, excluded because no database is reachable from this container.
+Executed went from 2378 to 2384 — the six tests added here.
+
+The one failure was this branch's own: `test/phoenix_kit_test.exs:130` pinned the
+boot phrase "no dedicated key is configured", which round 3 replaced when the
+wording moved into a single source. The earlier rounds ran the files they
+touched, and this one was not among them.
+
+### The number that first came back was wrong, and how it showed
+
+The first "after" run read `3937 tests, 0 failures, 1550 excluded` — four fewer
+excluded than before. Six tests were added and four disappeared from the
+excluded half, which is the exact shape of "the suite got smaller and looked
+better".
+
+Cause: the new unit test was called
+`PhoenixKitWeb.Live.Settings.IntegrationsEncryptionBannerTest`, and a **tracked
+integration test of that exact name already existed** at
+`test/integration/phoenix_kit_web/live/settings/`. Two modules of one name means
+the second silently redefines the first — Elixir says so in one `warning:
+redefining module` line, buried in a 250-second run — and the four integration
+tests it carried stopped being counted. Renamed to
+`…IntegrationsBannerClausesTest`; the re-run matched the baseline's 1554
+exactly.
+
+Worth keeping because it is the same defect one level out: a number that looked
+like an improvement, resting on an assumption nobody checked — that adding a
+file only adds.
