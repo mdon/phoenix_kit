@@ -400,21 +400,9 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
       "store and write it there, or set it as integrations_encryption_key directly."
   end
 
-  # Reasons carry a path and a cause, never the secret — a secret in an error
-  # message reaches a log or a support ticket, and then it is compromised.
-  defp describe_store_error({:inside_repository, path}),
-    do: "#{path} is inside a git working tree; a secret must not live where it can be committed"
-
-  defp describe_store_error({:verification_failed, :absent_after_write}),
-    do: "the write reported success but the secret was not there when read back"
-
-  defp describe_store_error({:verification_failed, :mismatch}),
-    do: "the value read back did not match what was written"
-
-  defp describe_store_error({:verification_failed, reason}),
-    do: "read-back failed: #{inspect(reason)}"
-
-  defp describe_store_error({:empty, path}), do: "#{path} exists but is empty"
-  defp describe_store_error({kind, path, reason}), do: "#{kind} at #{path}: #{inspect(reason)}"
-  defp describe_store_error(other), do: inspect(other)
+  # Delegates to the store's own describer, which withholds the payload of any
+  # error shape it does not recognise: a host-supplied store may return a term
+  # that quotes the value it failed to store, and an inspect/1 fallback would
+  # copy that straight into an operator-facing message.
+  defp describe_store_error(reason), do: KeyStore.describe_error(reason)
 end

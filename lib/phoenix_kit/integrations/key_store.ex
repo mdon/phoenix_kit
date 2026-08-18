@@ -232,6 +232,48 @@ defmodule PhoenixKit.Integrations.KeyStore do
     end
   end
 
+  @doc """
+  A short description of a store error, safe to put in a log or a message.
+
+  Deliberately NOT `inspect/1` of the whole term. The reasons produced here are
+  known to be safe, but a host-supplied store returns whatever it likes from
+  `read/1` and `write/2` — including, plausibly, an error that quotes the value
+  it failed to store. Only the recognised shapes are formatted; anything else is
+  reduced to its outermost tag, so an unknown term cannot carry a secret into a
+  log by accident.
+  """
+  @spec describe_error(term()) :: String.t()
+  def describe_error({:inside_repository, path}),
+    do: "#{path} is inside a git working tree; a secret must not live where it can be committed"
+
+  def describe_error({:verification_failed, :absent_after_write}),
+    do: "the write reported success but the secret was not there when read back"
+
+  def describe_error({:verification_failed, :mismatch}),
+    do: "the value read back did not match what was written"
+
+  def describe_error({:verification_failed, reason}),
+    do: "read-back failed: #{describe_error(reason)}"
+
+  def describe_error({:empty, path}), do: "#{path} exists but is empty"
+  def describe_error({:store_unavailable, module}), do: "#{inspect(module)} is not loaded"
+
+  def describe_error({:store_missing_callback, module, fun, arity}),
+    do: "#{inspect(module)} does not export #{fun}/#{arity}"
+
+  def describe_error({:store_raised, module, fun, kind}),
+    do: "#{inspect(module)}.#{fun} raised #{inspect(kind)}"
+
+  def describe_error({kind, path, reason}) when is_atom(kind) and is_binary(path),
+    do: "#{kind} at #{path}: #{inspect(reason)}"
+
+  # Unknown shape from a host-supplied store: keep the tag, drop the payload.
+  def describe_error(reason) when is_tuple(reason) and tuple_size(reason) > 0,
+    do: "#{inspect(elem(reason, 0))} (details withheld — they came from a third-party store)"
+
+  def describe_error(reason) when is_atom(reason), do: inspect(reason)
+  def describe_error(_reason), do: "an unrecognised error (details withheld)"
+
   @doc "Drops the memoised secret. Safe to call when nothing is cached."
   @spec invalidate_cache() :: :ok
   def invalidate_cache do

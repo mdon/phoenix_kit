@@ -202,8 +202,23 @@ defmodule PhoenixKit.Integrations.KeyStoreTest do
     end
 
     # Caching a failure would turn a file that is briefly unreadable during a
-    # deployment into a permanently broken one for the life of the VM.
-    test "a failure is not cached" do
+    # deployment into a permanently broken one for the life of the VM. The
+    # earlier version of this test primed the cache with :not_configured, which
+    # is not a failure at all — it asserted nothing about the branch it names.
+    test "a genuine read ERROR is not cached, and recovery is picked up" do
+      tmp_dir = outside_tmp_dir()
+      opts = configure(tmp_dir)
+
+      # Exists and holds nothing: an error, not "nothing stored yet".
+      File.write!(FileStore.path(opts), "")
+      assert {:error, {:empty, _}} = KeyStore.cached_read()
+      assert {:error, {:empty, _}} = KeyStore.cached_read()
+
+      :ok = FileStore.write(@secret, opts)
+      assert {:ok, @secret} = KeyStore.cached_read()
+    end
+
+    test "an absent store is not cached either" do
       tmp_dir = outside_tmp_dir()
       opts = configure(tmp_dir)
 
@@ -404,5 +419,28 @@ defmodule PhoenixKit.Integrations.KeyStoreTest do
   defmodule PartialStore do
     @moduledoc false
     def write(_secret, _opts), do: :ok
+  end
+
+  describe "describe_error/1 withholds what it does not recognise" do
+    test "known shapes are spelled out" do
+      assert KeyStore.describe_error({:empty, "/k"}) =~ "exists but is empty"
+      assert KeyStore.describe_error({:verification_failed, :mismatch}) =~ "did not match"
+      assert KeyStore.describe_error({:store_unavailable, Foo}) =~ "not loaded"
+    end
+
+    # A host-supplied store returns whatever it likes. An inspect/1 fallback
+    # would copy an error that quotes the value it failed to store straight into
+    # an operator-facing message.
+    test "an unknown tuple keeps only its tag, never its payload" do
+      described = KeyStore.describe_error({:some_custom_failure, @secret})
+
+      assert described =~ "some_custom_failure"
+      assert described =~ "details withheld"
+      refute described =~ @secret
+    end
+
+    test "an unknown non-tuple term is withheld entirely" do
+      refute KeyStore.describe_error(%{secret: @secret}) =~ @secret
+    end
   end
 end

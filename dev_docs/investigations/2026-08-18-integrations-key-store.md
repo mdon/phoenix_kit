@@ -102,7 +102,7 @@ failure path contains the secret.
 
 ## Verification
 
-### Unit — 40 tests, 0 failures
+### Unit — 44 tests, 0 failures
 
 Round-trip; `0600`/`0700`; trailing newline tolerated; no `.tmp` left behind;
 missing file vs empty file vs whitespace-only file; refusal inside a clone and
@@ -249,6 +249,89 @@ Left as noted, not fixed: the reviewer's point that a `preflight` creates
 directories even if the rotation later aborts, and that `--new-key` with
 surrounding whitespace would mismatch on read-back (the store trims). Both are
 real and neither can lose data.
+
+## Independent review round (Pi) — SHIP, with follow-ups applied
+
+An independent checker returned **SHIP**, and separately flagged residual
+vectors. Notably it found **none** of the seven defects the internal Opus review
+had produced, which is evidence the earlier fixes actually landed rather than
+being declared. What it raised, and what happened:
+
+### Its highest-priced question: does the broken-store advice send you to rotate_key?
+
+It could not check — that branch is outside the diff — and said so instead of
+guessing. Checked here, and the answer is **no**: the `:disabled_no_key` branch
+prints `plaintext_warning/1`, which advises `integration_encryption_enabled` and
+`integrations_encryption_key` and never mentions rotation
+(`encryption.ex:529-534`). Even if run, `KeyRotation.rotate/2` refuses outright
+when encryption is inactive, so the catastrophic path does not exist.
+
+The finding was still right, just cheaper than feared. In that state the message
+was wrong twice: it never mentioned that a store is configured and broken — the
+actual cause — and it recommended setting `integrations_encryption_key`, which
+would then permanently **shadow** the store. The store-unreadable branch, added
+for `:legacy_secret_key_base`, was missing here. Now present, verified:
+
+    tier: :disabled_no_key
+    [warning] A key store is configured (...) but its secret could not be read:
+              NO key resolved at all — integration credentials are being written
+              in PLAINTEXT. Do NOT run `mix phoenix_kit.integrations.rotate_key`
+              to fix this ... Repair the store first.
+
+Writing that fix produced a smaller version of the same defect and it is worth
+recording: the reused message said *"encryption fell back to the
+secret_key_base-derived key"* — false in this branch, where nothing was fallen
+back to. The wording is now chosen per tier, and both were checked:
+
+    tier: :legacy_secret_key_base  -> "...fell back to the secret_key_base-derived key,
+                                       so values written under the stored key will not decrypt"
+    tier: :disabled_no_key         -> "NO key resolved at all — ... written in PLAINTEXT"
+
+### The `inspect/1` fallback could carry a third-party store's secret
+
+`describe_store_error/1` and the store-failure log ended in `inspect(reason)`.
+Reasons produced here are safe, but a host-supplied store returns whatever it
+likes — plausibly an error quoting the value it failed to store. Replaced with
+`KeyStore.describe_error/1`, which formats only recognised shapes and reduces
+anything else to its outermost tag. Tested: an unknown `{:some_custom_failure,
+secret}` yields the tag plus "details withheld", and the secret is absent.
+
+### The "failures not cached" test tested the wrong thing
+
+It primed the cache with `:not_configured`, which is not a failure, so it
+asserted nothing about the branch it named. Now uses a genuine
+`{:error, {:empty, _}}`, asserts it is re-read rather than cached, and that
+recovery is picked up. The `:not_configured` case kept as its own test.
+
+### Breaking changes, stated plainly
+
+Two, neither previously called out:
+
+* `--new-key` now **refuses** a secret shorter than
+  `Encryption.min_dedicated_key_length/0` (20). Previously accepted, and the
+  result was silent data loss on the next boot — but a script passing a short
+  key will now fail where it used to "succeed".
+* The no-store success text changed (it now says the secret was saved nowhere).
+  Anything scraping that output will see different wording.
+
+### Left as noted, not fixed
+
+`ensure_dir/1` chmods a pre-existing directory 0700 best-effort and does not
+fail if it cannot — tightening someone else's directory is not this code's call,
+and refusing to store the key over it would be worse. `preflight` creates
+directories even if the rotation later aborts. `--new-key` with surrounding
+whitespace mismatches on read-back because the store trims. None can lose data.
+
+### Still open: the existing suite
+
+Three further attempts to run the DataCase-based tests in this container, all
+unsuccessful: `MIX_ENV=test mix compile --force`, `mix test --no-compile`, and
+loading the module directly. The last is the informative one —
+`MIX_ENV=test mix run -e 'Code.ensure_loaded(PhoenixKit.DataCase)'` returns
+`{:module, PhoenixKit.DataCase}` from `_build/test/.../Elixir.PhoenixKit.DataCase.beam`,
+so the module exists and is loadable; only `mix test` fails to see it. Whatever
+this is, it is not in this change's diff, and the regression status of the
+existing rotation and encryption tests remains **unknown, not green**.
 
 ## Three things found on the way
 

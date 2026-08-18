@@ -221,14 +221,22 @@ defmodule PhoenixKit.Integrations.Encryption do
 
       :legacy_secret_key_base ->
         cond do
-          store_unreadable?() -> Logger.warning(store_unreadable_warning())
+          store_unreadable?() -> Logger.warning(store_unreadable_warning(:legacy))
           dedicated_key_too_short?() -> :ok
           true -> Logger.warning(legacy_key_warning())
         end
 
       :disabled_no_key ->
-        unless dedicated_key_too_short?(),
-          do: Logger.warning(plaintext_warning("no encryption key could be resolved"))
+        cond do
+          # Reached when the store is broken AND no legacy secret resolves
+          # either. Saying "no encryption key could be resolved" here is true
+          # but useless, and the advice that follows it — configure
+          # integrations_encryption_key — would permanently SHADOW the store the
+          # operator already has. Name the real cause instead.
+          store_unreadable?() -> Logger.warning(store_unreadable_warning(:no_key))
+          dedicated_key_too_short?() -> :ok
+          true -> Logger.warning(plaintext_warning("no encryption key could be resolved"))
+        end
 
       :disabled_explicit ->
         Logger.warning(plaintext_warning("integration_encryption_enabled is set to false"))
@@ -468,7 +476,7 @@ defmodule PhoenixKit.Integrations.Encryption do
 
       Logger.error(
         "[PhoenixKit.Integrations] A key store IS configured but its secret could not be " <>
-          "read (#{inspect(reason)}). Falling back to a weaker key tier: values encrypted " <>
+          "read (#{KeyStore.describe_error(reason)}). Falling back to a weaker key tier: values encrypted " <>
           "under the stored key will NOT decrypt, and anything written now will be encrypted " <>
           "under the fallback instead — repairing the store later will not make those rows " <>
           "readable. Fix the store before writing anything else."
@@ -540,11 +548,26 @@ defmodule PhoenixKit.Integrations.Encryption do
       match?({:error, _}, KeyStore.cached_read())
   end
 
-  defp store_unreadable_warning do
+  # The consequence differs by tier and must be stated as it actually is. Saying
+  # "fell back to the secret_key_base-derived key" when no key resolved at all
+  # would be the same kind of confidently-wrong diagnosis this whole area is
+  # about: there is no fallback in that case, credentials go to disk in the
+  # clear.
+  defp store_unreadable_warning(tier) do
     location = KeyStore.describe() || "the configured key store"
 
+    consequence =
+      case tier do
+        :legacy ->
+          "encryption fell back to the secret_key_base-derived key, so values written under " <>
+            "the stored key will not decrypt"
+
+        :no_key ->
+          "NO key resolved at all — integration credentials are being written in PLAINTEXT"
+      end
+
     "[PhoenixKit.Integrations] A key store is configured (#{location}) but its secret could " <>
-      "not be read, so encryption fell back to the secret_key_base-derived key. Do NOT run " <>
+      "not be read: #{consequence}. Do NOT run " <>
       "`mix phoenix_kit.integrations.rotate_key` to fix this — the stored key may still be " <>
       "the one your data is encrypted under. Repair the store first."
   end
