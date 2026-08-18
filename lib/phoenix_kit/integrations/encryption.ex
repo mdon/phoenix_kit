@@ -283,115 +283,168 @@ defmodule PhoenixKit.Integrations.Encryption do
   very key the data is encrypted under, while rotating would abandon it.
   """
   @spec key_diagnosis() :: key_diagnosis()
-  def key_diagnosis do
-    status = status()
-
-    reason =
-      cond do
-        status == :disabled_explicit -> :turned_off
-        status == :dedicated -> :ok
-        store_unreadable?() -> :store_unreadable
-        dedicated_key_too_short?() -> :key_too_short
-        status == :legacy_secret_key_base -> :no_dedicated_key
-        true -> :no_key_material
-      end
-
-    {status, reason}
-  end
+  def key_diagnosis, do: key_report().diagnosis
 
   @typedoc """
-  What to tell an operator about the current key state, as facts rather than
-  prose.
+  The raw signals the key state is made of, gathered in one pass.
 
-  Three surfaces speak about this — the boot warning, `mix phoenix_kit.doctor`
-  and the admin page — and every time one of them composed its own sentence it
-  eventually said something the others contradicted. Twice that sentence claimed
-  a fallback key in a state where none exists and credentials go to disk in the
-  clear. So the wording lives here, once, and the surfaces render it.
-
-    * `:severity` — `:ok`, `:warn`, or `:fail`. `:fail` is reserved for
-      credentials being stored in plaintext **without** the operator having
-      asked for it: a deploy gate should stop for that.
-    * `:rotation_safe?` — whether `mix phoenix_kit.integrations.rotate_key` is
-      the right advice. It is NOT, when a configured key store is merely
-      unreadable: the stored key may be the one the data is encrypted under, and
-      rotating abandons it.
+  Deliberately separate from the verdict below. Everything that decides what an
+  operator should be told is read here, once, and then the verdict is a function
+  of this map alone — it consults nothing further. Three rounds of fixes each
+  produced a message contradicting itself because a later step went back to the
+  environment for one more fact and got a different answer than the step before.
   """
-  @type key_advice :: %{
+  @type key_signals :: %{
+          enabled?: boolean(),
+          tier: :dedicated | :legacy | :none,
+          too_short?: boolean(),
+          store: :absent | {:unreadable, String.t()} | {:holding, String.t()},
+          fingerprint: :none | {:ok, String.t()}
+        }
+
+  @typedoc """
+  Everything a surface needs to say about the key state, decided together.
+
+  One clause of `key_report/1` produces a whole one of these. There is no path
+  by which its parts can disagree: the fingerprint and the tier that produced it
+  are a single term, and `:key_store` is `nil` unless a store is actually
+  configured.
+  """
+  @type key_report :: %{
+          diagnosis: key_diagnosis(),
           severity: :ok | :warn | :fail,
           summary: String.t(),
           consequence: String.t(),
           action: String.t(),
-          rotation_safe?: boolean()
+          rotation_safe?: boolean(),
+          fingerprint: :none | {:ok, String.t(), String.t()},
+          key_store: String.t() | nil
         }
 
   @doc """
-  Operator-facing advice for the current key state. See `t:key_advice/0`.
+  Reads every signal the key verdict depends on, in one pass.
   """
-  @spec key_advice() :: key_advice()
-  def key_advice do
-    build_advice(key_diagnosis())
+  @spec key_signals() :: key_signals()
+  def key_signals do
+    %{
+      enabled?: encryption_enabled_flag?(),
+      tier: raw_tier(),
+      too_short?: dedicated_key_too_short?(),
+      store: store_state(),
+      fingerprint: key_fingerprint()
+    }
+  end
+
+  defp raw_tier do
+    case resolve_tier() do
+      {:dedicated, _secret} -> :dedicated
+      {:legacy, _secret} -> :legacy
+      :none -> :none
+    end
+  end
+
+  # "No store configured" and "a store is configured but cannot be read" call
+  # for opposite advice — set one up, versus repair this one and write nothing
+  # meanwhile — so they are distinct signals rather than one absence.
+  defp store_state do
+    case {KeyStore.configured?(), KeyStore.cached_read()} do
+      {false, _} -> :absent
+      {true, {:error, _}} -> {:unreadable, KeyStore.describe() || "the configured key store"}
+      {true, _} -> {:holding, KeyStore.describe() || "the configured key store"}
+    end
   end
 
   @doc """
-  `key_advice/0` flattened into one sentence, for a log line or a task.
-
-  Public so `mix phoenix_kit.doctor` prints the same words this module logs —
-  the previous split let the task drop the part saying that repairing a store
-  later does not recover anything written in the meantime.
+  The complete report for the current state.
   """
-  @spec key_advice_message() :: String.t()
-  def key_advice_message do
-    advice = key_advice()
+  @spec key_report() :: key_report()
+  def key_report, do: key_report(key_signals())
 
-    [advice.summary, advice.consequence, advice.action]
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.join(". ")
+  @doc """
+  The verdict for a set of signals — one ordered clause per reachable state.
+
+  Public because the acceptance criterion here is an enumeration: every
+  reachable combination rendered whole and read for self-contradiction. That
+  needs a seam that takes the state rather than discovering it.
+
+  Clause order is the priority an operator should act in. An unreadable store
+  outranks everything below it: repairing it may restore the very key the data
+  is encrypted under, while the advice attached to the lower clauses would send
+  them away from it.
+  """
+  @spec key_report(key_signals()) :: key_report()
+
+  # Turned off deliberately. Nothing below matters — a short key or an unread
+  # store is irrelevant when no encryption is being attempted.
+  def key_report(%{enabled?: false} = signals) do
+    report(signals, {:disabled_explicit, :turned_off}, :warn,
+      summary: "encryption is switched off (integration_encryption_enabled: false)",
+      consequence:
+        "integration credentials are being written in PLAINTEXT, readable by anyone with " <>
+          "read access to the database",
+      action: "If that is unintentional, set integration_encryption_enabled: true",
+      rotation_safe?: false,
+      tier_label: nil
+    )
   end
 
-  defp build_advice({:dedicated, :ok}) do
-    %{
-      severity: :ok,
+  def key_report(%{store: {:unreadable, location}, tier: :none} = signals) do
+    report(signals, {:disabled_no_key, :store_unreadable}, :fail,
+      summary: "a key store is configured (#{location}) but its secret could not be read",
+      consequence:
+        "NO key resolved at all — integration credentials are being written in PLAINTEXT",
+      action: repair_store_action(),
+      rotation_safe?: false,
+      tier_label: nil
+    )
+  end
+
+  def key_report(%{store: {:unreadable, location}} = signals) do
+    report(signals, {:legacy_secret_key_base, :store_unreadable}, :warn,
+      summary: "a key store is configured (#{location}) but its secret could not be read",
+      consequence: fallback_consequence(),
+      action: repair_store_action(),
+      rotation_safe?: false,
+      tier_label: "FALLBACK key — the configured key store could not be read"
+    )
+  end
+
+  def key_report(%{too_short?: true, tier: :none} = signals) do
+    report(signals, {:disabled_no_key, :key_too_short}, :fail,
+      summary: too_short_summary(),
+      consequence:
+        "NO key resolved at all — integration credentials are being written in PLAINTEXT",
+      action: replace_key_action(),
+      rotation_safe?: true,
+      tier_label: nil
+    )
+  end
+
+  def key_report(%{too_short?: true} = signals) do
+    report(signals, {:legacy_secret_key_base, :key_too_short}, :warn,
+      summary: too_short_summary(),
+      consequence: fallback_consequence(),
+      action: replace_key_action(),
+      rotation_safe?: true,
+      tier_label: "FALLBACK key — the configured key was rejected as too short"
+    )
+  end
+
+  # `{tier: :dedicated, too_short?: true}` is unreachable and has no clause: a
+  # key rejected for being short is precisely one that did not make the
+  # dedicated tier, so resolution would have returned something else.
+  def key_report(%{tier: :dedicated} = signals) do
+    report(signals, {:dedicated, :ok}, :ok,
       summary: "a dedicated encryption key is in use",
       consequence: "",
       action: "",
-      rotation_safe?: true
-    }
+      rotation_safe?: true,
+      tier_label: "dedicated key"
+    )
   end
 
-  defp build_advice({status, :store_unreadable}) do
-    location = KeyStore.describe() || "the configured key store"
-
-    %{
-      severity: plaintext_severity(status),
-      summary: "a key store is configured (#{location}) but its secret could not be read",
-      consequence: weaker_tier_consequence(),
-      action:
-        "Do NOT run `mix phoenix_kit.integrations.rotate_key` to fix this — the stored key " <>
-          "may still be the one your data is encrypted under. Repair the store first; " <>
-          "repairing it later will NOT make anything written in the meantime readable",
-      rotation_safe?: false
-    }
-  end
-
-  defp build_advice({status, :key_too_short}) do
-    %{
-      severity: plaintext_severity(status),
-      summary:
-        "a dedicated key IS configured but was rejected as shorter than " <>
-          "#{@min_dedicated_key_length} characters, which is not the same as none being " <>
-          "configured",
-      consequence: weaker_tier_consequence(),
-      action:
-        "Replace it with a real secret — `mix phoenix_kit.integrations.rotate_key` generates " <>
-          "one, and stores it for you if a key store is configured",
-      rotation_safe?: true
-    }
-  end
-
-  defp build_advice({:legacy_secret_key_base, :no_dedicated_key}) do
-    %{
-      severity: :warn,
+  def key_report(%{tier: :legacy} = signals) do
+    report(signals, {:legacy_secret_key_base, :no_dedicated_key}, :warn,
       summary: "integration credentials are encrypted with a key DERIVED from secret_key_base",
       consequence:
         "secret_key_base is shared with session signing and CSRF tokens, so anyone who can " <>
@@ -400,38 +453,100 @@ defmodule PhoenixKit.Integrations.Encryption do
       action:
         "Run `mix phoenix_kit.integrations.rotate_key` for a key of this site's own, then " <>
           "restart",
-      rotation_safe?: true
-    }
+      rotation_safe?: true,
+      tier_label: "derived from secret_key_base"
+    )
   end
 
-  defp build_advice({:disabled_no_key, :no_key_material}) do
-    %{
-      severity: :fail,
+  def key_report(%{tier: :none} = signals) do
+    report(signals, {:disabled_no_key, :no_key_material}, :fail,
       summary: "no encryption key resolves at all",
       consequence:
         "integration credentials (API keys, OAuth tokens, bot tokens) are being written in " <>
           "PLAINTEXT, readable by anyone with read access to the database",
-      action: "Configure integrations_encryption_key, or a key store, and restart",
-      rotation_safe?: false
-    }
+      action: no_key_action(signals.store),
+      rotation_safe?: false,
+      tier_label: nil
+    )
   end
 
-  defp build_advice({:disabled_explicit, :turned_off}) do
+  # Assembles the report so that no clause can forget a field or pair a
+  # fingerprint with a label from a different state: the label arrives with the
+  # verdict, and the value with the signals, and they are joined here once.
+  defp report(signals, diagnosis, severity, fields) do
     %{
-      severity: :warn,
-      summary: "encryption is switched off (integration_encryption_enabled: false)",
-      consequence:
-        "integration credentials are being written in PLAINTEXT, readable by anyone with " <>
-          "read access to the database",
-      action: "If that is unintentional, set integration_encryption_enabled: true",
-      rotation_safe?: false
+      diagnosis: diagnosis,
+      severity: severity,
+      summary: Keyword.fetch!(fields, :summary),
+      consequence: Keyword.fetch!(fields, :consequence),
+      action: Keyword.fetch!(fields, :action),
+      rotation_safe?: Keyword.fetch!(fields, :rotation_safe?),
+      fingerprint: label_fingerprint(signals.fingerprint, Keyword.fetch!(fields, :tier_label)),
+      key_store: store_location(signals.store)
     }
   end
 
-  # Plaintext the operator did not ask for is a deploy-gate failure; the same
-  # underlying fault with a weaker key still available is a warning.
-  defp plaintext_severity(:disabled_no_key), do: :fail
-  defp plaintext_severity(_status), do: :warn
+  defp label_fingerprint(:none, _label), do: :none
+  defp label_fingerprint({:ok, _value}, nil), do: :none
+  defp label_fingerprint({:ok, value}, label), do: {:ok, value, label}
+
+  defp store_location(:absent), do: nil
+  defp store_location({_state, location}), do: location
+
+  defp fallback_consequence,
+    do:
+      "encryption fell back to the secret_key_base-derived key, so values written under " <>
+        "the stored key will not decrypt, and anything written now is encrypted under the " <>
+        "fallback instead"
+
+  defp repair_store_action,
+    do:
+      "Do NOT run `mix phoenix_kit.integrations.rotate_key` to fix this — the stored key " <>
+        "may still be the one your data is encrypted under. Repair the store first; " <>
+        "repairing it later will NOT make anything written in the meantime readable"
+
+  defp too_short_summary,
+    do:
+      "a dedicated key IS configured but was rejected as shorter than " <>
+        "#{@min_dedicated_key_length} characters, which is not the same as none being " <>
+        "configured"
+
+  defp replace_key_action,
+    do:
+      "Replace it with a real secret — `mix phoenix_kit.integrations.rotate_key` generates " <>
+        "one, and stores it for you if a key store is configured"
+
+  # The two absences the reviewer asked to keep apart: nothing configured at all
+  # versus a store that is configured and empty. Set one up, versus put a secret
+  # into the one you have.
+  defp no_key_action(:absent),
+    do: "Configure integrations_encryption_key, or a key store, and restart"
+
+  # NOT "run rotate_key": rotation refuses outright while no key is active
+  # (`KeyRotation.rotate/2` returns `{:error, {:encryption_disabled, _}}`), so
+  # that advice would send an operator to a command that cannot help them. The
+  # store being configured and empty is still worth saying — it is the
+  # difference between "set one up" and "you have one, it is just empty".
+  defp no_key_action({:empty, location}),
+    do:
+      "A key store is configured at #{location} but holds no secret yet. Set " <>
+        "integrations_encryption_key and restart; rotation cannot help while no key is active"
+
+  defp no_key_action({_state, location}),
+    do: "Check the key store at #{location}, then restart"
+
+  @doc """
+  The report rendered as one sentence, for a log line.
+
+  Never includes the fingerprint: a log's readership is wider than the admin
+  page's, and the fingerprint is a verifier against candidate secrets.
+  """
+  @spec key_report_message(key_report()) :: String.t()
+  def key_report_message(report) do
+    [report.summary, report.consequence, report.action]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(". ")
+  end
 
   @doc """
   A short, non-reversible fingerprint of the key currently in use, or `:none`.
@@ -522,18 +637,12 @@ defmodule PhoenixKit.Integrations.Encryption do
   """
   @spec warn_if_insecure() :: :ok
   def warn_if_insecure do
-    # Renders `key_advice/0` — the same value `mix phoenix_kit.doctor` renders.
-    # Every time a surface composed its own sentence here, it eventually claimed
-    # a fallback key in a state that has none.
-    case key_advice() do
-      %{severity: :ok} ->
-        :ok
+    report = key_report()
 
-      %{severity: :fail} ->
-        Logger.error("[PhoenixKit.Integrations] " <> key_advice_message())
-
-      %{severity: :warn} ->
-        Logger.warning("[PhoenixKit.Integrations] " <> key_advice_message())
+    case report.severity do
+      :ok -> :ok
+      :fail -> Logger.error("[PhoenixKit.Integrations] " <> key_report_message(report))
+      :warn -> Logger.warning("[PhoenixKit.Integrations] " <> key_report_message(report))
     end
 
     :ok
@@ -773,7 +882,7 @@ defmodule PhoenixKit.Integrations.Encryption do
 
       Logger.error(
         "[PhoenixKit.Integrations] A key store IS configured but its secret could not be " <>
-          "read (#{KeyStore.describe_error(reason)}): #{weaker_tier_consequence()}. " <>
+          "read (#{KeyStore.describe_error(reason)}): #{weaker_tier_consequence_from_env()}. " <>
           "Repairing the store later will not make anything written in the meantime readable. " <>
           "Fix the store before writing anything else."
       )
@@ -820,13 +929,6 @@ defmodule PhoenixKit.Integrations.Encryption do
     :crypto.hash(:sha256, "phoenix_kit_integrations:" <> secret)
   end
 
-  # True when a store is configured and reading it fails — distinct from "no
-  # store" and from "store holds nothing yet".
-  defp store_unreadable? do
-    KeyStore.configured?() and
-      match?({:error, _}, KeyStore.cached_read())
-  end
-
   # ONE source for what falling off the dedicated tier actually costs, shared by
   # every surface that reports it. They used to phrase it separately, and the
   # per-read one stayed tier-blind after the boot one was fixed — so a single
@@ -836,15 +938,32 @@ defmodule PhoenixKit.Integrations.Encryption do
   #
   # Reads `secret_key_base/0` rather than `status/0`: status resolves the tier,
   # which consults the store, which is what called this — that would recurse.
-  defp weaker_tier_consequence do
+  # Derived from the status being described, NOT from a fresh look at the
+  # environment. Reading the environment again is what produced the third
+  # instance of this defect: a report built for the legacy tier asked the
+  # environment, got a different answer, and announced "NO key resolved at all"
+  # directly above a fingerprint of the key that had in fact resolved. A value
+  # rendered from a state must not consult anything outside that state.
+  defp weaker_tier_consequence(:disabled_no_key),
+    do: "NO key resolved at all — integration credentials are being written in PLAINTEXT"
+
+  defp weaker_tier_consequence(_status),
+    do:
+      "encryption fell back to the secret_key_base-derived key, so values written under " <>
+        "the stored key will not decrypt, and anything written now is encrypted under the " <>
+        "fallback instead"
+
+  # The one caller that genuinely cannot be handed a status: it runs DURING tier
+  # resolution, so asking for one would recurse. It infers the same two cases
+  # from the secret it can read without touching the store, and routes through
+  # the same wording above.
+  defp weaker_tier_consequence_from_env do
     case secret_key_base() do
       secret when is_binary(secret) and secret != "" ->
-        "encryption fell back to the secret_key_base-derived key, so values written under " <>
-          "the stored key will not decrypt, and anything written now is encrypted under the " <>
-          "fallback instead"
+        weaker_tier_consequence(:legacy_secret_key_base)
 
       _ ->
-        "NO key resolved at all — integration credentials are being written in PLAINTEXT"
+        weaker_tier_consequence(:disabled_no_key)
     end
   end
 end

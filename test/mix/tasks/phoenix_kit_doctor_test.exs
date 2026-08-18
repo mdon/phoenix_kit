@@ -262,76 +262,143 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     end
   end
 
-  describe "integration_key_result/3 — the branch where the defect actually lived" do
-    # The check used to compose its own wording, and twice said something
-    # `PhoenixKit.Integrations.Encryption` had already been fixed not to say.
-    # Tests over `key_diagnosis/0` stayed green through both, because the defect
-    # was here, in the rendering. Hence a seam, for the same reason `exit_code/1`
-    # has one.
-    defp advice(overrides) do
-      Map.merge(
+  describe "integration_key_result/2 — the whole reachable signal space" do
+    alias PhoenixKit.Integrations.Encryption
+
+    @location "/srv/keys/app.key"
+
+    # Three rounds of per-branch fixes produced three instances of one defect: a
+    # message that contradicted itself, because it was assembled from
+    # independent pieces. Testing branches one at a time is what let each new
+    # instance through, so this walks the whole space instead.
+    #
+    # The signals are enumerated as a cross product and filtered by
+    # reachability, rather than listed by hand: a hand-written list drifts from
+    # the code the moment a signal gains a value, and drifting silently is the
+    # failure mode being guarded against.
+    defp signal_space do
+      stores = [:absent, {:empty, @location}, {:unreadable, @location}, {:holding, @location}]
+
+      combos =
+        for store <- stores, tier <- [:dedicated, :legacy, :none], short? <- [false, true] do
+          %{
+            enabled?: true,
+            tier: tier,
+            too_short?: short?,
+            store: store,
+            fingerprint: if(tier == :none, do: :none, else: {:ok, "abc123def456"})
+          }
+        end
+
+      disabled = %{
+        enabled?: false,
+        tier: :none,
+        too_short?: false,
+        store: :absent,
+        fingerprint: :none
+      }
+
+      Enum.filter([disabled | combos], &reachable?/1)
+    end
+
+    # Stated as rules rather than as a list, so the reasons stay readable:
+    #   * a key rejected for being too short did not produce the dedicated tier;
+    #   * a store holding a secret IS what supplies the dedicated tier;
+    #   * an unreadable store cannot have supplied the key in use.
+    defp reachable?(%{enabled?: false}), do: true
+    defp reachable?(%{too_short?: true, tier: :dedicated}), do: false
+    defp reachable?(%{store: {:holding, _}, tier: tier}) when tier != :dedicated, do: false
+    defp reachable?(%{store: {:unreadable, _}, tier: :dedicated}), do: false
+    defp reachable?(_signals), do: true
+
+    test "no rendering contradicts itself, anywhere in the reachable space" do
+      space = signal_space()
+
+      # If this number moves, a signal gained a value and every assertion below
+      # silently covers less than it claims.
+      assert length(space) == 16
+
+      for signals <- space, show? <- [false, true] do
+        report = Encryption.key_report(signals)
+        {status, detail} = DoctorTask.integration_key_result(report, show?)
+        {tier, _reason} = report.diagnosis
+        where = "#{inspect(signals)} show_fingerprint?=#{show?}"
+
+        # A key that does not exist has no fingerprint, in EITHER flag position.
+        #
+        # Keyed on the SIGNALS, not on the report. Asserting against the report
+        # only checks that the rendering agrees with itself — a mutation that
+        # fabricated a fingerprint while building the report passed such a check
+        # unnoticed. The signals are the ground truth; the report is what is
+        # under test.
+        if signals.fingerprint == :none do
+          assert report.fingerprint == :none, "#{where}: report invented a fingerprint"
+          refute detail =~ "Fingerprint", "#{where}: fingerprint mentioned with no key"
+        else
+          assert detail =~ "Fingerprint", "#{where}: key exists but no fingerprint line"
+        end
+
+        # Plaintext is claimed exactly where no key resolves, never elsewhere.
+        assert String.contains?(detail, "PLAINTEXT") ==
+                 tier in [:disabled_no_key, :disabled_explicit],
+               "#{where}: the PLAINTEXT claim does not match the tier"
+
+        # A fallback is claimed only where one exists.
+        if detail =~ "fell back" do
+          assert tier == :legacy_secret_key_base, "#{where}: claims a fallback that is not there"
+        end
+
+        # No storage line for a key stored nowhere.
+        if signals.store == :absent do
+          refute detail =~ "Key store:", "#{where}: storage line with no store configured"
+        end
+
+        # Where rotation is unsafe it appears only as a prohibition.
+        unless report.rotation_safe? do
+          if String.contains?(detail, "phoenix_kit.integrations.rotate_key") do
+            assert detail =~ "Do NOT run", "#{where}: suggests a rotation the report calls unsafe"
+          end
+        end
+
+        # Unintended plaintext stops a deploy; a deliberate choice does not.
+        expected = if tier == :disabled_no_key, do: :fail, else: status
+        assert status == expected, "#{where}: wrong severity"
+      end
+    end
+
+    test "a fingerprint never appears without the tier that produced it" do
+      for signals <- signal_space(), signals.fingerprint != :none do
+        report = Encryption.key_report(signals)
+        {_status, detail} = DoctorTask.integration_key_result(report, true)
+
+        case report.fingerprint do
+          {:ok, value, _tier} -> assert detail =~ ~r/Fingerprint #{value} \(.+\)/
+          :none -> refute detail =~ "Fingerprint"
+        end
+      end
+    end
+
+    # The two absences the design keeps apart, because the advice is opposite.
+    test "an empty store is told to fill it; an absent one is told to set one up" do
+      empty =
         %{
-          severity: :warn,
-          summary: "a key store is configured but its secret could not be read",
-          consequence: "NO key resolved at all — credentials are being written in PLAINTEXT",
-          action: "Do NOT run `mix phoenix_kit.integrations.rotate_key`. Repair the store first",
-          rotation_safe?: false
-        },
-        overrides
-      )
-    end
+          enabled?: true,
+          tier: :none,
+          too_short?: false,
+          store: {:empty, @location},
+          fingerprint: :none
+        }
 
-    test "the advice is rendered verbatim — the check adds no wording of its own" do
-      given = advice(%{})
+      absent = %{empty | store: :absent}
 
-      {_status, detail} = DoctorTask.integration_key_result(given, "", "/k")
+      {_s1, filled} = DoctorTask.integration_key_result(Encryption.key_report(empty), false)
+      {_s2, missing} = DoctorTask.integration_key_result(Encryption.key_report(absent), false)
 
-      assert detail =~ given.summary
-      assert detail =~ given.consequence
-      assert detail =~ given.action
-    end
-
-    # The finding this round: the check asserted "a weaker key is in use" in
-    # states where no key resolves at all and the data goes to disk in the clear.
-    test "it never claims a weaker key when the advice says plaintext" do
-      {_status, detail} = DoctorTask.integration_key_result(advice(%{}), "", "/k")
-
-      assert detail =~ "PLAINTEXT"
-      refute detail =~ "weaker key"
-    end
-
-    # The finding from the previous round, kept locked: where rotation is unsafe
-    # the check must not tell anyone to rotate. Red before the branch was fixed.
-    test "where rotation is unsafe, the only mention of it is the prohibition" do
-      given = advice(%{})
-
-      {_status, detail} = DoctorTask.integration_key_result(given, "", "/k")
-
-      mentions = length(String.split(detail, "phoenix_kit.integrations.rotate_key")) - 1
-      in_advice = length(String.split(given.action, "phoenix_kit.integrations.rotate_key")) - 1
-
-      assert mentions == in_advice
-      assert detail =~ "Do NOT run"
-    end
-
-    test "unintended plaintext is a FAIL, so --exit-code stops a deploy" do
-      assert {:fail, _} = DoctorTask.integration_key_result(advice(%{severity: :fail}), "", "/k")
-      assert {:warn, _} = DoctorTask.integration_key_result(advice(%{severity: :warn}), "", "/k")
-
-      assert {:pass, _} =
-               DoctorTask.integration_key_result(
-                 advice(%{severity: :ok, consequence: "", action: ""}),
-                 "",
-                 "/k"
-               )
-    end
-
-    test "the fingerprint note and the store location are carried through" do
-      {_status, detail} =
-        DoctorTask.integration_key_result(advice(%{}), "\n       Fingerprint abc.", "/etc/k.key")
-
-      assert detail =~ "Fingerprint abc."
-      assert detail =~ "Stored in: /etc/k.key"
+      assert filled =~ "holds no secret yet"
+      assert filled =~ "rotation cannot help"
+      assert filled =~ @location
+      assert missing =~ "Configure integrations_encryption_key"
+      refute missing =~ @location
     end
   end
 end

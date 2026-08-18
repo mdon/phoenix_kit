@@ -219,6 +219,247 @@ an operator who configured a short key is not told none is configured) rather
 than how it is phrased, which is what should survive the wording living in one
 place.
 
+## Round 4 — the assembly itself, not another branch
+
+Three rounds of per-branch fixes produced three instances of one defect. The
+verdict on that was not "be more careful": the message was assembled by
+concatenating independent pieces, each aware only of its own condition, so the
+next edit was always going to add a fourth. This round changes the assembly.
+
+### The shape
+
+Adopted from `git_hooks_verdict/1`, written for I035 and shipped in PR #736 —
+one place gathers raw signals, one ordered set of clauses answers everything at
+once. Worth stating plainly, since it reached me as "an example already in this
+file, written by someone else": it lives on the `feature/tracked-git-hooks`
+branch, not in this file on this branch, and I wrote it. The form stands on its
+merits and on having passed an independent review, not on being somebody
+else's.
+
+    Encryption.key_signals/0  ->  %{enabled?, tier, too_short?, store, fingerprint}
+    Encryption.key_report/1   ->  one clause per reachable state, whole report out
+
+The verdict consults **nothing** outside the map it is given. That is the
+property that matters: the third instance happened because a later step went
+back to the environment for one more fact and got a different answer than the
+step before it — a report built for the legacy tier asked the environment, was
+told there was no secret, and announced "NO key resolved at all" directly above
+a fingerprint of the key that had in fact resolved.
+
+Two things can no longer be paired wrongly because they are no longer separate:
+
+* the fingerprint and the tier that produced it are one term, `{:ok, value,
+  label}`, absent together;
+* `:key_store` is `nil` unless a store is configured, so no location can be
+  printed for a key stored nowhere.
+
+### The store distinction the reviewer asked for
+
+`:absent`, `{:empty, loc}`, `{:unreadable, loc}` and `{:holding, loc}` are four
+signals, not one absence, because the advice differs: set one up / put a secret
+in the one you have / repair it and write nothing meanwhile / it is working.
+
+### The enumeration
+
+25 combinations of the signal space; **16 reachable, 9 not**. The unreachable
+ones have no clause deliberately, and the reasons are mechanical:
+
+```
+- store=:absent tier=:dedicated too_short?=true — a key rejected as too short cannot have produced the dedicated tier
+- store={:empty, "/srv/keys/app.key"} tier=:dedicated too_short?=true — a key rejected as too short cannot have produced the dedicated tier
+- store={:unreadable, "/srv/keys/app.key"} tier=:dedicated too_short?=false — an unreadable store cannot have supplied the key
+- store={:unreadable, "/srv/keys/app.key"} tier=:dedicated too_short?=true — a key rejected as too short cannot have produced the dedicated tier
+- store={:holding, "/srv/keys/app.key"} tier=:dedicated too_short?=true — a key rejected as too short cannot have produced the dedicated tier
+- store={:holding, "/srv/keys/app.key"} tier=:legacy too_short?=false — a store holding a secret supplies the dedicated tier
+- store={:holding, "/srv/keys/app.key"} tier=:legacy too_short?=true — a store holding a secret supplies the dedicated tier
+- store={:holding, "/srv/keys/app.key"} tier=:none too_short?=false — a store holding a secret supplies the dedicated tier
+- store={:holding, "/srv/keys/app.key"} tier=:none too_short?=true — a store holding a secret supplies the dedicated tier
+```
+
+Every reachable state, rendered whole, at `--fingerprint=true` (the `false`
+variant differs by exactly one line — the fingerprint — and by nothing at all
+where there is no key):
+
+### store=:absent tier=:none short?=false enabled?=false | warn | {:disabled_explicit, :turned_off}
+
+```
+encryption is switched off (integration_encryption_enabled: false).
+integration credentials are being written in PLAINTEXT, readable by anyone with read access to the database.
+If that is unintentional, set integration_encryption_enabled: true
+```
+
+### store=:absent tier=:dedicated short?=false enabled?=true | pass | {:dedicated, :ok}
+
+```
+a dedicated encryption key is in use.
+Fingerprint abc123def456 (dedicated key)
+```
+
+### store=:absent tier=:legacy short?=false enabled?=true | warn | {:legacy_secret_key_base, :no_dedicated_key}
+
+```
+integration credentials are encrypted with a key DERIVED from secret_key_base.
+secret_key_base is shared with session signing and CSRF tokens, so anyone who can read it (environment, a config file, git history) can decrypt every stored credential — and any other site sharing that secret_key_base holds the same key.
+Run `mix phoenix_kit.integrations.rotate_key` for a key of this site's own, then restart.
+Fingerprint abc123def456 (derived from secret_key_base)
+```
+
+### store=:absent tier=:legacy short?=true enabled?=true | warn | {:legacy_secret_key_base, :key_too_short}
+
+```
+a dedicated key IS configured but was rejected as shorter than 20 characters, which is not the same as none being configured.
+encryption fell back to the secret_key_base-derived key, so values written under the stored key will not decrypt, and anything written now is encrypted under the fallback instead.
+Replace it with a real secret — `mix phoenix_kit.integrations.rotate_key` generates one, and stores it for you if a key store is configured.
+Fingerprint abc123def456 (FALLBACK key — the configured key was rejected as too short)
+```
+
+### store=:absent tier=:none short?=false enabled?=true | fail | {:disabled_no_key, :no_key_material}
+
+```
+no encryption key resolves at all.
+integration credentials (API keys, OAuth tokens, bot tokens) are being written in PLAINTEXT, readable by anyone with read access to the database.
+Configure integrations_encryption_key, or a key store, and restart
+```
+
+### store=:absent tier=:none short?=true enabled?=true | fail | {:disabled_no_key, :key_too_short}
+
+```
+a dedicated key IS configured but was rejected as shorter than 20 characters, which is not the same as none being configured.
+NO key resolved at all — integration credentials are being written in PLAINTEXT.
+Replace it with a real secret — `mix phoenix_kit.integrations.rotate_key` generates one, and stores it for you if a key store is configured
+```
+
+### store={:empty, "/srv/keys/app.key"} tier=:dedicated short?=false enabled?=true | pass | {:dedicated, :ok}
+
+```
+a dedicated encryption key is in use.
+Fingerprint abc123def456 (dedicated key).
+Key store: /srv/keys/app.key
+```
+
+### store={:empty, "/srv/keys/app.key"} tier=:legacy short?=false enabled?=true | warn | {:legacy_secret_key_base, :no_dedicated_key}
+
+```
+integration credentials are encrypted with a key DERIVED from secret_key_base.
+secret_key_base is shared with session signing and CSRF tokens, so anyone who can read it (environment, a config file, git history) can decrypt every stored credential — and any other site sharing that secret_key_base holds the same key.
+Run `mix phoenix_kit.integrations.rotate_key` for a key of this site's own, then restart.
+Fingerprint abc123def456 (derived from secret_key_base).
+Key store: /srv/keys/app.key
+```
+
+### store={:empty, "/srv/keys/app.key"} tier=:legacy short?=true enabled?=true | warn | {:legacy_secret_key_base, :key_too_short}
+
+```
+a dedicated key IS configured but was rejected as shorter than 20 characters, which is not the same as none being configured.
+encryption fell back to the secret_key_base-derived key, so values written under the stored key will not decrypt, and anything written now is encrypted under the fallback instead.
+Replace it with a real secret — `mix phoenix_kit.integrations.rotate_key` generates one, and stores it for you if a key store is configured.
+Fingerprint abc123def456 (FALLBACK key — the configured key was rejected as too short).
+Key store: /srv/keys/app.key
+```
+
+### store={:empty, "/srv/keys/app.key"} tier=:none short?=false enabled?=true | fail | {:disabled_no_key, :no_key_material}
+
+```
+no encryption key resolves at all.
+integration credentials (API keys, OAuth tokens, bot tokens) are being written in PLAINTEXT, readable by anyone with read access to the database.
+A key store is configured at /srv/keys/app.key but holds no secret yet. Set integrations_encryption_key and restart; rotation cannot help while no key is active.
+Key store: /srv/keys/app.key
+```
+
+### store={:empty, "/srv/keys/app.key"} tier=:none short?=true enabled?=true | fail | {:disabled_no_key, :key_too_short}
+
+```
+a dedicated key IS configured but was rejected as shorter than 20 characters, which is not the same as none being configured.
+NO key resolved at all — integration credentials are being written in PLAINTEXT.
+Replace it with a real secret — `mix phoenix_kit.integrations.rotate_key` generates one, and stores it for you if a key store is configured.
+Key store: /srv/keys/app.key
+```
+
+### store={:unreadable, "/srv/keys/app.key"} tier=:legacy short?=false enabled?=true | warn | {:legacy_secret_key_base, :store_unreadable}
+
+```
+a key store is configured (/srv/keys/app.key) but its secret could not be read.
+encryption fell back to the secret_key_base-derived key, so values written under the stored key will not decrypt, and anything written now is encrypted under the fallback instead.
+Do NOT run `mix phoenix_kit.integrations.rotate_key` to fix this — the stored key may still be the one your data is encrypted under. Repair the store first; repairing it later will NOT make anything written in the meantime readable.
+Fingerprint abc123def456 (FALLBACK key — the configured key store could not be read).
+Key store: /srv/keys/app.key
+```
+
+### store={:unreadable, "/srv/keys/app.key"} tier=:legacy short?=true enabled?=true | warn | {:legacy_secret_key_base, :store_unreadable}
+
+```
+a key store is configured (/srv/keys/app.key) but its secret could not be read.
+encryption fell back to the secret_key_base-derived key, so values written under the stored key will not decrypt, and anything written now is encrypted under the fallback instead.
+Do NOT run `mix phoenix_kit.integrations.rotate_key` to fix this — the stored key may still be the one your data is encrypted under. Repair the store first; repairing it later will NOT make anything written in the meantime readable.
+Fingerprint abc123def456 (FALLBACK key — the configured key store could not be read).
+Key store: /srv/keys/app.key
+```
+
+### store={:unreadable, "/srv/keys/app.key"} tier=:none short?=false enabled?=true | fail | {:disabled_no_key, :store_unreadable}
+
+```
+a key store is configured (/srv/keys/app.key) but its secret could not be read.
+NO key resolved at all — integration credentials are being written in PLAINTEXT.
+Do NOT run `mix phoenix_kit.integrations.rotate_key` to fix this — the stored key may still be the one your data is encrypted under. Repair the store first; repairing it later will NOT make anything written in the meantime readable.
+Key store: /srv/keys/app.key
+```
+
+### store={:unreadable, "/srv/keys/app.key"} tier=:none short?=true enabled?=true | fail | {:disabled_no_key, :store_unreadable}
+
+```
+a key store is configured (/srv/keys/app.key) but its secret could not be read.
+NO key resolved at all — integration credentials are being written in PLAINTEXT.
+Do NOT run `mix phoenix_kit.integrations.rotate_key` to fix this — the stored key may still be the one your data is encrypted under. Repair the store first; repairing it later will NOT make anything written in the meantime readable.
+Key store: /srv/keys/app.key
+```
+
+### store={:holding, "/srv/keys/app.key"} tier=:dedicated short?=false enabled?=true | pass | {:dedicated, :ok}
+
+```
+a dedicated encryption key is in use.
+Fingerprint abc123def456 (dedicated key).
+Key store: /srv/keys/app.key
+=== ТЕСТЫ ===
+Finished in 1.3 seconds (0.5s async, 0.7s sync)
+70 tests, 0 failures
+1) test encryption_key/0 fallback to host endpoint secret_key_base falls back to the host endpoint's secret_key_base when the flat key is unset (PhoenixKit.Integrations.EncryptionTest)
+55 tests, 1 failure
+```
+
+### Checked mechanically, then by mutation
+
+All 32 renderings (16 states x 2 flag positions) were scanned for
+self-contradiction — a fingerprint beside "no key", a fallback claimed off the
+legacy tier, a storage line with no store, a rotation suggested where the report
+calls it unsafe. **0 contradictions.**
+
+The test walks the same space rather than listing branches, asserts the count
+(16) so a new signal value cannot silently shrink coverage, and derives
+reachability from stated rules.
+
+Both mutations are caught:
+
+    consequence read from the environment again
+      -> "{:unreadable, ...} tier: :legacy ... the PLAINTEXT claim does not match the tier"
+
+    a fingerprint fabricated while building the report
+      -> "enabled?: false ... report invented a fingerprint"
+
+The second is worth recording: it passed the first time. The invariant was keyed
+on the *report*, which only checks that the rendering agrees with itself — and a
+report that invents a fingerprint agrees with itself perfectly. Keyed on the
+**signals**, which are the ground truth, it fails immediately. A guard written
+against the thing under test is not a guard.
+
+### A wrong recommendation the enumeration found
+
+With a configured-but-empty store and no key at all, the report marked rotation
+unsafe and its own action advised running it. Beyond the contradiction the
+advice was useless: `KeyRotation.rotate/2` refuses outright while no key is
+active, so it would have sent an operator to a command that cannot help. It now
+says to set a key and restart, and says the store is configured but empty —
+which is the part they could not have known.
+
 ## Found while writing the tests
 
 The test asserting that a dedicated key and a legacy secret *of the same text*

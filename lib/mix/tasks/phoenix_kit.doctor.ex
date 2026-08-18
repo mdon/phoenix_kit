@@ -65,7 +65,6 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   alias PhoenixKit.Install.ChildOrder
   alias PhoenixKit.Install.PrefixConfig
   alias PhoenixKit.Integrations.Encryption
-  alias PhoenixKit.Integrations.KeyStore
   alias PhoenixKit.Migrations.ExpectedSchema.Resolver
   alias PhoenixKit.Migrations.Modules, as: MigrationModules
   alias PhoenixKit.Migrations.Postgres
@@ -185,85 +184,62 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # ── Check implementations (return {:pass|:warn|:fail, detail}) ──────
 
   defp check_integration_key(show_fingerprint?) do
-    integration_key_result(
-      Encryption.key_advice(),
-      fingerprint_note(show_fingerprint?),
-      key_location()
-    )
+    integration_key_result(Encryption.key_report(), show_fingerprint?)
   end
 
   @doc """
-  The "Integration Key" verdict, as a pure function of the advice it is given.
+  The "Integration Key" verdict, rendered from one complete report.
 
-  Public for the same reason `exit_code/1` is: `run/1` is not a unit-test seam,
-  and the defect this check had — advising a rotation in a state where the
-  module itself forbids one — lived exactly here, in the branch, where nothing
-  could reach it. Tests that only covered `Encryption.key_diagnosis/0` stayed
-  green through it.
+  Takes the report and a display choice, and **nothing else**. That is the whole
+  point of the signature: this check previously received the advice, a
+  fingerprint note and a storage location as separate arguments, each computed
+  without reference to the others, and three consecutive rounds of fixes each
+  produced a message that contradicted itself — a fingerprint note beside "no
+  key resolved at all", a storage location for a key stored nowhere, a claim of
+  a weaker key where none existed.
 
-  It renders `Encryption.key_advice/0` rather than composing its own wording:
-  the earlier version wrote its own and silently dropped the part telling the
-  operator that repairing a key store later does not recover what was written
-  in the meantime — which is the one thing a person reading a task's output at
-  deploy time most needs.
+  There is no longer an argument through which those pieces could disagree: the
+  fingerprint and the tier that produced it are one term inside the report, and
+  they are absent together when there is no key.
+
+  Public as a test seam, for the same reason `exit_code/1` is: the defects lived
+  in this rendering, where tests over the diagnosis could not reach them.
   """
-  @spec integration_key_result(Encryption.key_advice(), String.t(), String.t()) ::
+  @spec integration_key_result(Encryption.key_report(), boolean()) ::
           {:pass | :warn | :fail, String.t()}
-  def integration_key_result(advice, fingerprint_note, location) do
+  def integration_key_result(report, show_fingerprint?) do
     detail =
-      [advice.summary, advice.consequence, advice.action]
+      [report.summary, report.consequence, report.action]
       |> Enum.reject(&(&1 == ""))
+      |> Enum.concat(fingerprint_lines(report, show_fingerprint?))
+      |> Enum.concat(key_store_lines(report))
       |> Enum.join(".\n       ")
 
-    {severity_status(advice.severity),
-     detail <> fingerprint_note <> "\n       Stored in: #{location}"}
+    {severity_status(report.severity), detail}
   end
 
   # An unintended plaintext store is a FAIL, not a warning: `--exit-code` exists
-  # to stop a deploy, and credentials being written in the clear without anyone
+  # to stop a deploy, and credentials written in the clear without anyone
   # choosing that is what it should stop for. Encryption switched off on purpose
   # stays a warning — the operator already knows.
   defp severity_status(:ok), do: :pass
   defp severity_status(:warn), do: :warn
   defp severity_status(:fail), do: :fail
 
-  # Hidden unless asked for. This task's output lands in CI logs, whose
-  # readership is wider than the admin page the fingerprint is otherwise shown
-  # on, and the fingerprint is a verifier against candidate secrets.
-  #
-  # Always carries the tier it came from: a site whose store is unreadable
-  # fingerprints its FALLBACK key, and a bare number would make an operator
-  # comparing two sites believe their keys differ when the comparison is simply
-  # not like-for-like.
-  defp fingerprint_note(false), do: "\n       Fingerprint hidden — pass --fingerprint to show."
+  # No key means no line at all, in EITHER flag state. The flag chooses between
+  # two ways of describing a fingerprint that exists; it cannot conjure one.
+  defp fingerprint_lines(%{fingerprint: :none}, _show), do: []
 
-  defp fingerprint_note(true) do
-    case Encryption.key_fingerprint() do
-      {:ok, fp} -> "\n       Fingerprint #{fp} (#{fingerprint_tier()})."
-      :none -> "\n       No key, so no fingerprint."
-    end
-  end
+  defp fingerprint_lines(%{fingerprint: {:ok, _value, _tier}}, false),
+    do: ["Fingerprint hidden — pass --fingerprint to show"]
 
-  defp fingerprint_tier do
-    case Encryption.key_diagnosis() do
-      {:dedicated, :ok} -> "dedicated key"
-      {_status, :store_unreadable} -> "FALLBACK key — the key store could not be read"
-      {_status, :key_too_short} -> "FALLBACK key — the configured key was rejected as too short"
-      {:legacy_secret_key_base, _} -> "derived from secret_key_base"
-      _other -> "unrecognised key state"
-    end
-  end
+  defp fingerprint_lines(%{fingerprint: {:ok, value, tier}}, true),
+    do: ["Fingerprint #{value} (#{tier})"]
 
-  # Where the secret lives, for the operator who has to find it again. "nowhere"
-  # is the honest answer when no store is configured: the key exists only in
-  # whatever config or environment supplied it, and nothing here is holding a
-  # copy.
-  defp key_location do
-    case KeyStore.describe() do
-      nil -> "no key store configured — nothing here holds a copy of this key"
-      location -> location
-    end
-  end
+  # Absent when nothing is configured, rather than printed as "no key store
+  # configured" underneath a message about a key that is stored nowhere.
+  defp key_store_lines(%{key_store: nil}), do: []
+  defp key_store_lines(%{key_store: location}), do: ["Key store: #{location}"]
 
   defp check_repo_detection do
     app = Mix.Project.config()[:app]
