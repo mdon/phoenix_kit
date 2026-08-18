@@ -55,6 +55,8 @@ defmodule PhoenixKit.Integrations.Encryption do
 
   require Logger
 
+  alias PhoenixKit.Integrations.KeyStore
+
   # A dedicated key this short provides essentially no assurance over the
   # legacy fallback it's meant to replace — without a floor, a 1-character
   # `:integrations_encryption_key` reports as the healthy `:dedicated` tier
@@ -163,8 +165,11 @@ defmodule PhoenixKit.Integrations.Encryption do
   @doc """
   Reports which secret currently backs the encryption key. See `t:key_status/0`.
 
-  Never raises, never touches the database — pure config/endpoint
-  introspection, safe to call from a boot hook or a LiveView `mount/3`.
+  Never touches the database, and safe to call from a boot hook or a LiveView
+  `mount/3`. It is no longer pure config introspection: when a key store is
+  configured it may read from it (memoised after the first success). A
+  host-supplied store cannot crash this call — `PhoenixKit.Integrations.KeyStore`
+  turns a raising store into an error tuple.
   """
   @spec status() :: key_status()
   def status do
@@ -178,6 +183,17 @@ defmodule PhoenixKit.Integrations.Encryption do
       :disabled_explicit
     end
   end
+
+  @doc """
+  Shortest secret accepted as a dedicated key.
+
+  Public so `mix phoenix_kit.integrations.rotate_key` can refuse a `--new-key`
+  this module would later reject: without the check the rotation "succeeds",
+  the data is re-encrypted, and the app silently drops to a weaker tier on the
+  next restart.
+  """
+  @spec min_dedicated_key_length() :: pos_integer()
+  def min_dedicated_key_length, do: @min_dedicated_key_length
 
   @doc """
   Logs a one-time warning when integration credentials are not protected by
@@ -204,7 +220,11 @@ defmodule PhoenixKit.Integrations.Encryption do
         :ok
 
       :legacy_secret_key_base ->
-        unless dedicated_key_too_short?(), do: Logger.warning(legacy_key_warning())
+        cond do
+          store_unreadable?() -> Logger.warning(store_unreadable_warning())
+          dedicated_key_too_short?() -> :ok
+          true -> Logger.warning(legacy_key_warning())
+        end
 
       :disabled_no_key ->
         unless dedicated_key_too_short?(),
@@ -401,13 +421,67 @@ defmodule PhoenixKit.Integrations.Encryption do
   defp configured_dedicated_key do
     case PhoenixKit.Config.get(:integrations_encryption_key) do
       {:ok, secret} when is_binary(secret) and secret != "" ->
-        if String.length(secret) >= @min_dedicated_key_length,
-          do: {:ok, secret},
-          else: :too_short
+        check_dedicated_length(secret)
 
       _ ->
+        stored_dedicated_key()
+    end
+  end
+
+  # A secret persisted by `PhoenixKit.Integrations.KeyStore` counts as the same
+  # `:dedicated` tier — it is a dedicated key, just one the operator did not
+  # have to paste into config by hand after rotating. Explicit configuration
+  # still wins: someone who set `:integrations_encryption_key` deliberately
+  # must not have it quietly overridden by a file.
+  #
+  # Read through the memoised path: this runs once per encrypted field, and an
+  # unmemoised read would open a file every time.
+  defp stored_dedicated_key do
+    case KeyStore.cached_read() do
+      {:ok, secret} when is_binary(secret) and secret != "" ->
+        check_dedicated_length(secret)
+
+      :not_configured ->
+        :unset
+
+      # A configured store that cannot be READ is not the same as no store, and
+      # collapsing the two here is how a fleet quietly splits in half: the app
+      # falls through to the weaker `:legacy` tier, old values stop decrypting,
+      # and NEW values get written under the legacy key. Fixing the file later
+      # then leaves those new rows unreadable forever. The fallback is kept —
+      # refusing outright would resolve to no key at all, and a nil key makes
+      # writes store plaintext, which is worse — but it is never silent.
+      {:error, reason} ->
+        log_store_failure_once(reason)
         :unset
     end
+  end
+
+  # Encryption runs once per credential field and read failures are deliberately
+  # not cached, so this would otherwise repeat per field, per request. One line
+  # per VM is enough to be found.
+  defp log_store_failure_once(reason) do
+    key = {__MODULE__, :store_failure_logged}
+
+    if :persistent_term.get(key, false) == false do
+      :persistent_term.put(key, true)
+
+      Logger.error(
+        "[PhoenixKit.Integrations] A key store IS configured but its secret could not be " <>
+          "read (#{inspect(reason)}). Falling back to a weaker key tier: values encrypted " <>
+          "under the stored key will NOT decrypt, and anything written now will be encrypted " <>
+          "under the fallback instead — repairing the store later will not make those rows " <>
+          "readable. Fix the store before writing anything else."
+      )
+    end
+
+    :ok
+  end
+
+  defp check_dedicated_length(secret) do
+    if String.length(secret) >= @min_dedicated_key_length,
+      do: {:ok, secret},
+      else: :too_short
   end
 
   # Flat `config :phoenix_kit, secret_key_base: ...` keeps precedence — it's
@@ -459,12 +533,29 @@ defmodule PhoenixKit.Integrations.Encryption do
       "integration_encryption_enabled: true and configure integrations_encryption_key."
   end
 
+  # True when a store is configured and reading it fails — distinct from "no
+  # store" and from "store holds nothing yet".
+  defp store_unreadable? do
+    KeyStore.configured?() and
+      match?({:error, _}, KeyStore.cached_read())
+  end
+
+  defp store_unreadable_warning do
+    location = KeyStore.describe() || "the configured key store"
+
+    "[PhoenixKit.Integrations] A key store is configured (#{location}) but its secret could " <>
+      "not be read, so encryption fell back to the secret_key_base-derived key. Do NOT run " <>
+      "`mix phoenix_kit.integrations.rotate_key` to fix this — the stored key may still be " <>
+      "the one your data is encrypted under. Repair the store first."
+  end
+
   defp dedicated_key_too_short_warning do
-    "[PhoenixKit.Integrations] The configured integrations_encryption_key is shorter than " <>
+    "[PhoenixKit.Integrations] The dedicated encryption key (from integrations_encryption_key, " <>
+      "or from a configured key store) is shorter than " <>
       "#{@min_dedicated_key_length} characters and is being IGNORED as too weak to provide " <>
       "real assurance — this is not the same as no dedicated key being configured, it was " <>
       "rejected. Falling back to whatever weaker tier would otherwise apply. Generate a real " <>
-      "secret with `mix phoenix_kit.integrations.rotate_key` and configure " <>
-      "integrations_encryption_key with it."
+      "secret with `mix phoenix_kit.integrations.rotate_key`, which will store it for you if " <>
+      "a key store is configured."
   end
 end
