@@ -460,6 +460,80 @@ active, so it would have sent an operator to a command that cannot help. It now
 says to set a key and restart, and says the store is configured but empty —
 which is the part they could not have known.
 
+## Round 5 — the ordering carried its own version of the same error
+
+The rebuild removed the concatenation, and ordered clauses brought the fault
+back in a new place: **clause priority**. The store-unreadable clause sat above
+the dedicated-key clause, and that state is reachable — a valid key set in
+CONFIG while a key store is configured and broken. Config is read first and the
+store is never consulted when it answers, so the key works; the store being
+unreadable says nothing about it.
+
+Reproduced against the real resolution before touching anything:
+
+    диагноз: {:legacy_secret_key_base, :store_unreadable}
+
+So the message said encryption had fallen back to secret_key_base, labelled the
+real dedicated key's fingerprint as a FALLBACK, warned instead of passing, and
+the admin banner — keyed on the same diagnosis — announced a weaker key while
+encryption was working perfectly.
+
+After the reorder and a clause of its own:
+
+    диагноз: {:dedicated, :store_unreadable}
+
+    a dedicated encryption key is in use, but the configured key store could not be read.
+    encryption itself is fine — the key in use comes from configuration. What is broken
+    is the spare copy: nothing is backing that key up, and the next rotation will refuse
+    at its pre-flight.
+    Repair the store at /srv/keys/app.key; until it reads back, assume the key is saved nowhere.
+
+### The enumeration had inherited the blindness
+
+This is the part worth keeping. The test excluded that state by a rule I wrote:
+*an unreadable store cannot have supplied the key in use*. True, and irrelevant
+— the key came from config. The enumeration was supposed to be the guard
+against exactly this kind of miss, and it could not be, because its list of
+states was reasoned out by the same person who reasoned out the code.
+
+The reachability rules are now derived from what the functions actually read:
+
+* `configured_dedicated_key/0` takes the explicit config key first and never
+  consults the store when it finds one — so a broken store does not prevent the
+  dedicated tier;
+* a key rejected as too short is by definition not the one in use;
+* a readable store holding a usable secret IS a dedicated key source, so it
+  cannot coexist with a weaker tier unless that secret was itself rejected.
+
+25 combinations, **19 reachable, 6 not** (was 16/9 — the three states the old
+rules wrongly excluded are all `{:unreadable}` paired with a working tier):
+
+```
+- store=:absent tier=:dedicated too_short?=true — a key rejected as too short is not the one in use, so it cannot be the dedicated tier
+- store={:no_secret_yet, "/srv/keys/app.key"} tier=:dedicated too_short?=true — a key rejected as too short is not the one in use, so it cannot be the dedicated tier
+- store={:unreadable, "/srv/keys/app.key"} tier=:dedicated too_short?=true — a key rejected as too short is not the one in use, so it cannot be the dedicated tier
+- store={:holding, "/srv/keys/app.key"} tier=:dedicated too_short?=true — a key rejected as too short is not the one in use, so it cannot be the dedicated tier
+- store={:holding, "/srv/keys/app.key"} tier=:legacy too_short?=false — a readable store holding a usable secret IS a dedicated key source
+- store={:holding, "/srv/keys/app.key"} tier=:none too_short?=false — a readable store holding a usable secret IS a dedicated key source
+```
+
+All 38 renderings scanned for self-contradiction: **0**. Reverting the clause
+order turns the new test red with the exact wrong diagnosis:
+
+    left:  {:legacy_secret_key_base, :store_unreadable}
+    right: {:dedicated, :store_unreadable}
+
+### A signal that was named for something it never is
+
+`{:empty, loc}` suggested "the key file is empty". It never means that: an empty
+file reads as an ERROR and lands in `:unreadable`. The signal is produced when
+the store has no secret **yet** — no file at all — so it is now
+`{:no_secret_yet, loc}`. Verified by reproduction rather than by reading:
+
+    файла нет:        :not_configured
+    файл пустой:      {:error, {:empty, "…/k.key"}}
+    файл с секретом:  {:ok, "kkkk…"}
+
 ## Found while writing the tests
 
 The test asserting that a dedicated key and a legacy secret *of the same text*

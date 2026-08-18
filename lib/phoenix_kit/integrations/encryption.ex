@@ -270,7 +270,7 @@ defmodule PhoenixKit.Integrations.Encryption do
   Both callers branch on this one value, so they cannot drift apart.
   """
   @type key_diagnosis ::
-          {:dedicated, :ok}
+          {:dedicated, :ok | :store_unreadable}
           | {:legacy_secret_key_base, :store_unreadable | :key_too_short | :no_dedicated_key}
           | {:disabled_no_key, :store_unreadable | :key_too_short | :no_key_material}
           | {:disabled_explicit, :turned_off}
@@ -385,6 +385,29 @@ defmodule PhoenixKit.Integrations.Encryption do
       action: "If that is unintentional, set integration_encryption_enabled: true",
       rotation_safe?: false,
       tier_label: nil
+    )
+  end
+
+  # A key configured explicitly wins over the store (`configured_dedicated_key/0`
+  # reads config first and never consults the store when it finds one), so a
+  # broken store does NOT mean a broken tier. Ordered above the store clauses
+  # because it was ordered below them, and that produced "encryption fell back
+  # to secret_key_base" — plus a warning banner and a FALLBACK label on the
+  # fingerprint — while a perfectly good dedicated key was doing the work.
+  # Reproduced before fixing: a valid key in config with an unreadable store
+  # reported `{:legacy_secret_key_base, :store_unreadable}`.
+  def key_report(%{tier: :dedicated, store: {:unreadable, location}} = signals) do
+    report(signals, {:dedicated, :store_unreadable}, :warn,
+      summary:
+        "a dedicated encryption key is in use, but the configured key store could not be read",
+      consequence:
+        "encryption itself is fine — the key in use comes from configuration. What is broken " <>
+          "is the spare copy: nothing is backing that key up, and the next rotation will " <>
+          "refuse at its pre-flight",
+      action:
+        "Repair the store at #{location}; until it reads back, assume the key is saved nowhere",
+      rotation_safe?: false,
+      tier_label: "dedicated key"
     )
   end
 
@@ -527,7 +550,7 @@ defmodule PhoenixKit.Integrations.Encryption do
   # that advice would send an operator to a command that cannot help them. The
   # store being configured and empty is still worth saying — it is the
   # difference between "set one up" and "you have one, it is just empty".
-  defp no_key_action({:empty, location}),
+  defp no_key_action({:no_secret_yet, location}),
     do:
       "A key store is configured at #{location} but holds no secret yet. Set " <>
         "integrations_encryption_key and restart; rotation cannot help while no key is active"

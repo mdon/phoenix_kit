@@ -277,7 +277,12 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     # the code the moment a signal gains a value, and drifting silently is the
     # failure mode being guarded against.
     defp signal_space do
-      stores = [:absent, {:empty, @location}, {:unreadable, @location}, {:holding, @location}]
+      stores = [
+        :absent,
+        {:no_secret_yet, @location},
+        {:unreadable, @location},
+        {:holding, @location}
+      ]
 
       combos =
         for store <- stores, tier <- [:dedicated, :legacy, :none], short? <- [false, true] do
@@ -301,22 +306,36 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
       Enum.filter([disabled | combos], &reachable?/1)
     end
 
-    # Stated as rules rather than as a list, so the reasons stay readable:
-    #   * a key rejected for being too short did not produce the dedicated tier;
-    #   * a store holding a secret IS what supplies the dedicated tier;
-    #   * an unreadable store cannot have supplied the key in use.
+    # Derived from what the resolution actually reads, not from a list of states
+    # that looks complete. The previous version carried a rule saying an
+    # unreadable store could not have supplied the key in use — true, and
+    # irrelevant: the key can come from CONFIG, which the store is never
+    # consulted for. That rule excluded a reachable state, and the enumeration
+    # inherited exactly the blindness it existed to catch.
+    #
+    # What the code does read:
+    #   * `configured_dedicated_key/0` takes the explicit config key first and
+    #     never looks at the store when it finds one — so a broken store does
+    #     not prevent the dedicated tier;
+    #   * a key rejected as too short is by definition not the one in use, so it
+    #     cannot have produced the dedicated tier;
+    #   * a readable store holding a usable secret IS a dedicated key source, so
+    #     it cannot coexist with a weaker tier unless that secret was rejected.
     defp reachable?(%{enabled?: false}), do: true
     defp reachable?(%{too_short?: true, tier: :dedicated}), do: false
-    defp reachable?(%{store: {:holding, _}, tier: tier}) when tier != :dedicated, do: false
-    defp reachable?(%{store: {:unreadable, _}, tier: :dedicated}), do: false
+
+    defp reachable?(%{store: {:holding, _}, too_short?: false, tier: tier})
+         when tier != :dedicated,
+         do: false
+
     defp reachable?(_signals), do: true
 
     test "no rendering contradicts itself, anywhere in the reachable space" do
       space = signal_space()
 
-      # If this number moves, a signal gained a value and every assertion below
-      # silently covers less than it claims.
-      assert length(space) == 16
+      # If this number moves, a signal gained a value or a reachability rule
+      # changed, and every assertion below silently covers less than it claims.
+      assert length(space) == 19
 
       for signals <- space, show? <- [false, true] do
         report = Encryption.key_report(signals)
@@ -385,7 +404,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
           enabled?: true,
           tier: :none,
           too_short?: false,
-          store: {:empty, @location},
+          store: {:no_secret_yet, @location},
           fingerprint: :none
         }
 
@@ -399,6 +418,31 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
       assert filled =~ @location
       assert missing =~ "Configure integrations_encryption_key"
       refute missing =~ @location
+    end
+
+    # The state the clause ORDER got wrong: a valid key in config while the
+    # store is broken. Encryption is working; only the spare copy is not.
+    # Reproduced against the real resolution before it was fixed, where it
+    # reported the legacy tier.
+    test "a configured key with a broken store is not reported as a fallback" do
+      signals = %{
+        enabled?: true,
+        tier: :dedicated,
+        too_short?: false,
+        store: {:unreadable, @location},
+        fingerprint: {:ok, "abc123def456"}
+      }
+
+      report = Encryption.key_report(signals)
+      {status, detail} = DoctorTask.integration_key_result(report, true)
+
+      assert report.diagnosis == {:dedicated, :store_unreadable}
+      assert status == :warn
+      refute detail =~ "fell back"
+      refute detail =~ "FALLBACK"
+      assert detail =~ "dedicated encryption key is in use"
+      assert detail =~ "(dedicated key)"
+      assert detail =~ @location
     end
   end
 end
