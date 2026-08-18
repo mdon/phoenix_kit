@@ -203,5 +203,41 @@ defmodule PhoenixKit.Migrations.Postgres.V175Test do
 
       assert convalidated?()
     end
+
+    test "RED without this round's fix: an already-valid twin under a different name must not count as the target validating (minor finding 2)" do
+      # @conname is left exactly as this file's own setup leaves it: real,
+      # and VALID. fk_shape_present/6 matches by shape (referencing column ->
+      # referenced column), not by name -- on purpose, so a twin V164 itself
+      # adopted under a different name is still found. That is correct for
+      # V164's own use. Here it means a shape probe taken AFTER a failed
+      # VALIDATE of some other name finds @conname anyway and reports it
+      # valid -- true, but not proof that the name actually asked for
+      # (`bogus_conname`, which was never created) validated.
+      bogus_conname = "fk_users_tokens_user_uuid_does_not_exist"
+
+      # Probe.orphan_count/6 genuinely reads 0 (real state, @conname is
+      # untouched and clean), so attempt_validate proceeds to
+      # `VALIDATE CONSTRAINT #{bogus_conname}` -- a name Postgres refuses
+      # (undefined_object, 42704), caught by the DO block's EXCEPTION
+      # handler and never raised into Elixir.
+      label =
+        V175.attempt_validate(
+          Repo,
+          @table,
+          @fk_col,
+          @ref_table,
+          @ref_col,
+          bogus_conname,
+          "public",
+          "public"
+        )
+
+      refute is_nil(label)
+      assert label =~ "could not be validated"
+
+      # The real constraint was never asked to validate and stays exactly as
+      # it started -- untouched by any of this.
+      assert convalidated?()
+    end
   end
 end

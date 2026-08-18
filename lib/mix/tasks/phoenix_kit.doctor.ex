@@ -779,18 +779,23 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # a pure decision function, directly testable without touching a real repo.
   @doc false
   def classify_fk_check(table, fk_col, ref, {:probe_failed, reason}, _validation, {orph, nv, pf}) do
-    {orph, nv, [{table, fk_col, ref, :orphan_count, reason} | pf]}
+    {orph, nv, [{table, fk_col, ref, :orphan_count, reason, nil} | pf]}
   end
 
+  # The orphan-count probe already succeeded by the time this clause can
+  # match (a failed one is caught by the clause above regardless of
+  # `validation`) — `count` is a real measurement, not a placeholder, and is
+  # carried into the probe_failed tuple so report_orphaned_fk_refs/3 can
+  # print it instead of losing it behind "could not check".
   def classify_fk_check(
         table,
         fk_col,
         ref,
-        _count_result,
+        {:ok, count},
         {:probe_failed, reason},
         {orph, nv, pf}
       ) do
-    {orph, nv, [{table, fk_col, ref, :validation_state, reason} | pf]}
+    {orph, nv, [{table, fk_col, ref, :validation_state, reason, count} | pf]}
   end
 
   # Existing NOT VALID constraint blocking VALIDATE, not creation.
@@ -848,9 +853,15 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       end)
 
     probe_lines =
-      Enum.map(probe_failed, fn {table, fk_col, ref, kind, reason} ->
-        "#{table}.#{fk_col} → #{ref}: could not check (#{kind} probe failed: #{inspect(reason)}) " <>
-          "— a failed probe is not a pass, treat as unverified"
+      Enum.map(probe_failed, fn
+        {table, fk_col, ref, :validation_state, reason, count} ->
+          "#{table}.#{fk_col} → #{ref}: #{count} orphaned row(s) measured, but could not check " <>
+            "whether the constraint is validated (validation_state probe failed: " <>
+            "#{inspect(reason)}) — a failed probe is not a pass, treat as unverified"
+
+        {table, fk_col, ref, kind, reason, nil} ->
+          "#{table}.#{fk_col} → #{ref}: could not check (#{kind} probe failed: #{inspect(reason)}) " <>
+            "— a failed probe is not a pass, treat as unverified"
       end)
 
     detail = Enum.join(orphan_lines ++ probe_lines, "\n       ")

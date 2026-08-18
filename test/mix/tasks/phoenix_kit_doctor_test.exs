@@ -266,7 +266,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     test "a failed orphan-count probe lands in the probe_failed bucket, not the clean path" do
       acc = {[], [], []}
 
-      assert {[], [], [{"t", "c", "r", :orphan_count, "boom"}]} =
+      assert {[], [], [{"t", "c", "r", :orphan_count, "boom", nil}]} =
                DoctorTask.classify_fk_check(
                  "t",
                  "c",
@@ -280,12 +280,31 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     test "a failed validation-state probe lands in the probe_failed bucket too" do
       acc = {[], [], []}
 
-      assert {[], [], [{"t", "c", "r", :validation_state, "no access"}]} =
+      assert {[], [], [{"t", "c", "r", :validation_state, "no access", 0}]} =
                DoctorTask.classify_fk_check(
                  "t",
                  "c",
                  "r",
                  {:ok, 0},
+                 {:probe_failed, "no access"},
+                 acc
+               )
+    end
+
+    test "a failed validation-state probe preserves the measured orphan count (round 2 gate, minor finding 1)" do
+      # The orphan-count probe already succeeded here — 5 real orphaned rows
+      # were measured — and it is only the SEPARATE validation-state probe
+      # that failed. Before this fix, the measured count was discarded and
+      # the caller could only ever print "could not check", losing the exact
+      # number the whole section exists to report.
+      acc = {[], [], []}
+
+      assert {[], [], [{"t", "c", "r", :validation_state, "no access", 5}]} =
+               DoctorTask.classify_fk_check(
+                 "t",
+                 "c",
+                 "r",
+                 {:ok, 5},
                  {:probe_failed, "no access"},
                  acc
                )
@@ -337,13 +356,24 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
   describe "report_orphaned_fk_refs/3 — RED without this round's fix: a probe failure must not be PASS" do
     test "probe_failed alone (no orphans, no known-unvalidated) is :fail, never :pass" do
       probe_failed = [
-        {"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", :orphan_count, "boom"}
+        {"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", :orphan_count, "boom", nil}
       ]
 
       assert {:fail, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed)
       assert message =~ "could not check"
       assert message =~ "not a pass"
       assert message =~ "boom"
+    end
+
+    test "a validation-state probe failure reports the measured orphan count, not just 'could not check' (round 2 gate, minor finding 1)" do
+      probe_failed = [
+        {"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", :validation_state,
+         "no access", 5}
+      ]
+
+      assert {:fail, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed)
+      assert message =~ "5 orphaned row"
+      assert message =~ "no access"
     end
 
     test "no findings at all is still :pass — the fix does not make doctor permanently red" do

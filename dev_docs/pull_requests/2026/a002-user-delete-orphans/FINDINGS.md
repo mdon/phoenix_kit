@@ -255,6 +255,82 @@ RAISE WARNING` глушит SQLSTATE в PG-лог, а Elixir-сторона на
 `test/phoenix_kit/migrations/` + `test/mix/tasks/` целиком — 561 тест + 16 doctest'ов, 0
 провалов. Полный прогон ядра (`pk-test`) — см. итоговую сводку ниже.
 
+## Раунд 2, гейт (Pi: SHIP, Opus: FIX — две МЕЛКИЕ находки)
+
+Обе — точечные, координаты дал чекер, fail-open не возникает ни в одной (вердикт
+и там, и там уже был FAIL/провал) — теряется только детализация.
+
+**Находка 1 (doctor.ex, `classify_fk_check/5`, второй клоз — ветка
+`probe_failed` на стороне `validation_state`).** Когда проваливался
+каталожный probe (`fk_validation_state/5`), а probe подсчёта сирот к этому
+моменту уже отработал и вернул реальное число — это число просто
+отбрасывалось (`_count_result`), и `report_orphaned_fk_refs/3` печатал
+голое «could not check» вместо, например, «5 orphaned row(s) measured».
+Раздел существует именно ради этого числа.
+
+Фикс: второй клоз теперь явно матчит `{:ok, count}` (единственная форма,
+до которой он вообще может дойти — провалившийся count перехватывает
+первый клоз независимо от `validation`) и кладёт `count` в кортеж
+`probe_failed` (стал 6-элементным: `{table, fk_col, ref, kind, reason,
+count}`, `count = nil` для клоза `:orphan_count`, где измерить нечего).
+`report_orphaned_fk_refs/3` печатает число, когда оно есть.
+
+**Находка 2 (v175.ex, `attempt_validate/8`).** `VALIDATE` адресуется по
+имени (`conname`), а проверка успеха — по форме без сверки имени:
+`{:present, _name, true}`. Если по той же форме (тот же referencing/
+referenced столбец) существуют два constraint'а и валиден **другой**
+(близнец под чужим именем — ровно тот случай, который `fk_shape_present/6`
+документирует как причину матчить по форме, а не по имени — V164 сам мог
+принять такого близнеца), фикс отчитался бы успехом при невалидированном
+целевом ключе. Практически едва достижимо, проверка дешёвая.
+
+Фикс: `{:present, ^conname, true}` — успехом считается только валидность
+constraint'а с ТЕМ ЖЕ именем, которое запрашивал `VALIDATE`.
+
+### Тесты, красные без правки
+
+- `test/mix/tasks/phoenix_kit_doctor_test.exs`: новый тест на
+  `classify_fk_check/5` — `{:ok, 5}` + `{:probe_failed, ...}` должен
+  вернуть кортеж с `count = 5`, а не отбросить его; плюс тест на
+  `report_orphaned_fk_refs/3`, что итоговое сообщение содержит «5 orphaned
+  row» рядом с «could not check»/«no access». До фикса оба падали —
+  6-й элемент кортежа отсутствовал.
+- `test/phoenix_kit/migrations/v175_test.exs`: новый тест оставляет
+  реальный `@conname` нетронутым и валидным (как он и есть по умолчанию в
+  файле), затем вызывает `attempt_validate/8` с заведомо несуществующим
+  именем. `Probe.orphan_count/6` реально читает 0 → код доходит до
+  `VALIDATE CONSTRAINT <несуществующее имя>` → Postgres отказывает
+  (`undefined_object`, 42704) внутри EXCEPTION-обработчика → до фикса
+  `fk_shape_present/6` находил `@conname` (тот же формат, валиден) и
+  клоз `{:present, _name, true}` докладывал успех. После фикса —
+  непустая метка, `@conname` остаётся валидным как и был (правка его не
+  трогала — сам факт, что assert проходит и до, и после фикса, ожидаем;
+  проверяется именно возврат `attempt_validate`, не состояние ключа).
+
+Эмпирически: оба новых/изменённых теста красные без правки (6 провалов из
+40 в затронутых файлах — `pk-test test/mix/tasks/phoenix_kit_doctor_test.exs
+test/phoenix_kit/migrations/v175_test.exs`), зелёные после.
+
+### Прогон
+
+`mix compile --warnings-as-errors` — чисто. `chain_hash` снова сдвинулся
+(v175.ex снова изменился — комментарий и `^conname`, форма схемы не
+меняется) — пересчитан через `restamp_chain_hash.exs --restamp`
+(идентичное значение подтверждено `ReleaseCheck.compute_chain_hash/0`
+внутри самого скрипта), офлайн-гейт `generate_baseline.exs --check` прошёл
+повторно. `verify.exs --scenario s7,s8` не гонялся — требует отдельную
+scratch-БД (`PGHOST=172.18.0.13` и `PK_SQUASH_FLOOR`), вне контура
+`pk-test`/`migration_test_db"; тот же выбор был сделан в раундах 1 и 2 —
+офлайн-гейта достаточно, когда правка не меняет форму схемы (restamp-скрипт
+сам это разрешает: «a comment, a warning message, repair logic that acts on
+an already-declared object» — ровно этот случай).
+
+Точечно (`test/phoenix_kit/migrations/` + `test/mix/tasks/` целиком) — 548
+тестов + 16 doctest'ов, 0 провалов. Полный прогон ядра (`pk-test`, без
+аргументов) — 3765 тестов + 43 doctest'а, 4 провала: те же самые
+`PhoenixKit.Install.CommonTest` (Igniter/Rewrite резолвит `mix.exs`
+из-под git worktree), что и в раундах 1–2, не про эту правку.
+
 ## Границы
 
 Приложение `/www/app` не трогала. К боевой базе Andi ничего не применяла: проба

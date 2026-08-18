@@ -189,8 +189,14 @@ defmodule PhoenixKit.Migrations.Postgres.V175 do
         END $$;
         """)
 
+        # Matched by name (`^conname`), not just shape: `fk_shape_present/6`
+        # matches by shape on purpose (a twin V164 itself adopted under a
+        # different name must still be found by IT), but that means a
+        # differently-named twin of the same shape that is ALREADY valid
+        # would otherwise read as "this VALIDATE succeeded" even when the
+        # actual target (`conname`) never did.
         case fk_shape_present(repo, table_str, uuid_fk, ref_table, ref_col, escaped_prefix) do
-          {:present, _name, true} ->
+          {:present, ^conname, true} ->
             nil
 
           _still_not_valid_or_gone ->
