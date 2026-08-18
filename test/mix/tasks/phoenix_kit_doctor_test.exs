@@ -334,4 +334,136 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
       assert detail =~ "could not check for a stale copy"
     end
   end
+
+  describe "classify_fk_check/5 — a probe failure must never read as clean (gate round 2, finding 1)" do
+    test "a failed orphan-count probe lands in the probe_failed bucket, not the clean path" do
+      acc = {[], [], []}
+
+      assert {[], [], [{"t", "c", "r", :orphan_count, "boom", nil}]} =
+               DoctorTask.classify_fk_check(
+                 "t",
+                 "c",
+                 "r",
+                 {:probe_failed, "boom"},
+                 :validated,
+                 acc
+               )
+    end
+
+    test "a failed validation-state probe lands in the probe_failed bucket too" do
+      acc = {[], [], []}
+
+      assert {[], [], [{"t", "c", "r", :validation_state, "no access", 0}]} =
+               DoctorTask.classify_fk_check(
+                 "t",
+                 "c",
+                 "r",
+                 {:ok, 0},
+                 {:probe_failed, "no access"},
+                 acc
+               )
+    end
+
+    test "a failed validation-state probe preserves the measured orphan count (round 2 gate, minor finding 1)" do
+      # The orphan-count probe already succeeded here — 5 real orphaned rows
+      # were measured — and it is only the SEPARATE validation-state probe
+      # that failed. Before this fix, the measured count was discarded and
+      # the caller could only ever print "could not check", losing the exact
+      # number the whole section exists to report.
+      acc = {[], [], []}
+
+      assert {[], [], [{"t", "c", "r", :validation_state, "no access", 5}]} =
+               DoctorTask.classify_fk_check(
+                 "t",
+                 "c",
+                 "r",
+                 {:ok, 5},
+                 {:probe_failed, "no access"},
+                 acc
+               )
+    end
+
+    test "a probe failure wins even when the orphan count would otherwise be clean" do
+      # Both reads must succeed for the old empty-accumulator ("nothing to
+      # report") path to apply — one failing is enough to route to
+      # probe_failed regardless of what the other read said.
+      acc = {[], [], []}
+
+      assert {[], [], [_]} =
+               DoctorTask.classify_fk_check(
+                 "t",
+                 "c",
+                 "r",
+                 {:probe_failed, "timeout"},
+                 :absent,
+                 acc
+               )
+    end
+
+    test "known-good inputs still classify the same as before this round's fix" do
+      assert {[{"t", "c", "r", 3, :validate}], [], []} =
+               DoctorTask.classify_fk_check(
+                 "t",
+                 "c",
+                 "r",
+                 {:ok, 3},
+                 {:not_valid, "fk_x"},
+                 {[], [], []}
+               )
+
+      assert {[], [{"t", "c", "r"}], []} =
+               DoctorTask.classify_fk_check(
+                 "t",
+                 "c",
+                 "r",
+                 {:ok, 0},
+                 {:not_valid, "fk_x"},
+                 {[], [], []}
+               )
+
+      assert {[], [], []} =
+               DoctorTask.classify_fk_check("t", "c", "r", {:ok, 0}, :validated, {[], [], []})
+    end
+  end
+
+  describe "report_orphaned_fk_refs/3 — RED without this round's fix: a probe failure must not be PASS" do
+    test "probe_failed alone (no orphans, no known-unvalidated) is :fail, never :pass" do
+      probe_failed = [
+        {"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", :orphan_count, "boom", nil}
+      ]
+
+      assert {:fail, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed)
+      assert message =~ "could not check"
+      assert message =~ "not a pass"
+      assert message =~ "boom"
+    end
+
+    test "a validation-state probe failure reports the measured orphan count, not just 'could not check' (round 2 gate, minor finding 1)" do
+      probe_failed = [
+        {"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", :validation_state,
+         "no access", 5}
+      ]
+
+      assert {:fail, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed)
+      assert message =~ "5 orphaned row"
+      assert message =~ "no access"
+    end
+
+    test "no findings at all is still :pass — the fix does not make doctor permanently red" do
+      assert {:pass, _} = DoctorTask.report_orphaned_fk_refs([], [], [])
+    end
+
+    test "orphans alone still :fail, unchanged from before this round" do
+      orphaned = [{"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", 2, :validate}]
+
+      assert {:fail, message} = DoctorTask.report_orphaned_fk_refs(orphaned, [], [])
+      assert message =~ "2 orphaned row"
+    end
+
+    test "not_validated alone (nothing blocking) is still :warn, unchanged from before this round" do
+      not_validated = [{"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users"}]
+
+      assert {:warn, _} = DoctorTask.report_orphaned_fk_refs([], not_validated, [])
+    end
+  end
 end

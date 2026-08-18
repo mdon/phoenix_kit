@@ -82,6 +82,36 @@ defmodule PhoenixKit.Integrations.ProvidersTest do
     end
   end
 
+  describe "object_storage provider" do
+    test "is registered and produces usable credentials" do
+      p = Providers.get("object_storage")
+      assert p.auth_type == :key_secret
+      keys = Enum.map(p.setup_fields, & &1.key)
+      assert "access_key" in keys and "secret_key" in keys
+      assert "region" in keys and "endpoint" in keys
+      assert "secret_key" in Encryption.sensitive_fields()
+
+      required = p.setup_fields |> Enum.filter(& &1.required) |> Enum.map(& &1.key)
+      assert "access_key" in required and "secret_key" in required
+      refute "region" in required
+      refute "endpoint" in required
+
+      # end-to-end: headless save must yield retrievable credentials
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("object_storage", "test")
+
+      {:ok, _} =
+        Integrations.save_setup(uuid, %{
+          "access_key" => "AKIA_T",
+          "secret_key" => "S",
+          "region" => "eu-central-1",
+          "endpoint" => "s3.eu-central-003.backblazeb2.com"
+        })
+
+      assert {:ok, %{"access_key" => "AKIA_T", "endpoint" => "s3.eu-central-003.backblazeb2.com"}} =
+               Integrations.get_credentials(uuid)
+    end
+  end
+
   describe "smtp provider (universal)" do
     test "is registered and produces usable credentials, with multiple named connections" do
       p = Providers.get("smtp")

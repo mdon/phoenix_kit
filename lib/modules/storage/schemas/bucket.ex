@@ -20,8 +20,18 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   - `region` - AWS region or equivalent (nullable)
   - `endpoint` - Custom S3-compatible endpoint (nullable)
   - `bucket_name` - S3 bucket name (nullable)
-  - `access_key_id` - Encrypted credentials (nullable)
-  - `secret_access_key` - Encrypted credentials (nullable)
+  - `access_key_id` - Credentials identifier (nullable, stored as-is — not a secret)
+  - `secret_access_key` - Encrypted at rest via `PhoenixKit.Integrations.Encryption`
+    (nullable); decrypted only at the point of use (e.g. `Providers.S3`'s AWS
+    config builder), never by a general accessor like `Storage.get_bucket/1`.
+    A value already in this column when encryption was added is migrated
+    opportunistically, not by a bulk backfill: the changeset re-derives and
+    re-encrypts it on the next save of the bucket for ANY reason (see
+    `encrypt_secret_access_key/1`), so it stays plaintext only until then
+  - `integration_uuid` - Alternative credential source: a `PhoenixKit.Integrations`
+    connection uuid (nullable, no FK). Mutually exclusive with
+    `access_key_id`/`secret_access_key` — a changeset may set one source or the
+    other, never both
   - `cdn_url` - CDN endpoint for file serving (nullable)
   - `access_type` - How files are served: "public", "private", "signed" (default: "public")
   - `enabled` - Whether bucket is active
@@ -74,6 +84,8 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
+  alias PhoenixKit.Integrations.Encryption
+
   @primary_key {:uuid, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
@@ -86,6 +98,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
           bucket_name: String.t() | nil,
           access_key_id: String.t() | nil,
           secret_access_key: String.t() | nil,
+          integration_uuid: UUIDv7.t() | nil,
           cdn_url: String.t() | nil,
           access_type: String.t(),
           enabled: boolean(),
@@ -104,7 +117,8 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
     field :endpoint, :string
     field :bucket_name, :string
     field :access_key_id, :string
-    field :secret_access_key, :string
+    field :secret_access_key, :string, redact: true
+    field :integration_uuid, UUIDv7
     field :cdn_url, :string
     field :access_type, :string, default: "public"
     field :enabled, :boolean, default: true
@@ -129,7 +143,17 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   - Provider must be valid
   - Priority must be >= 0
   - Quality must be between 1-100 (if provided)
-  - S3/B2/R2 buckets require credentials
+  - S3/B2/R2 buckets require credentials — either `access_key_id`/
+    `secret_access_key` directly, or an `integration_uuid`
+  - `integration_uuid` and `access_key_id`/`secret_access_key` are mutually
+    exclusive: setting both in the same change is a validation error, not a
+    silent overwrite of one by the other
+
+  `secret_access_key` is encrypted at rest (see
+  `PhoenixKit.Integrations.Encryption`) as part of this changeset —
+  already-encrypted values pass through unchanged. A row written before
+  encryption existed stays plaintext until the next save of any kind (no
+  bulk backfill — see the `secret_access_key` field doc above).
   """
   def changeset(bucket, attrs) do
     bucket
@@ -141,6 +165,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
       :bucket_name,
       :access_key_id,
       :secret_access_key,
+      :integration_uuid,
       :cdn_url,
       :access_type,
       :enabled,
@@ -152,7 +177,34 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
     |> validate_inclusion(:access_type, ["public", "private", "signed"])
     |> validate_number(:priority, greater_than_or_equal_to: 0)
     |> validate_number(:max_size_mb, greater_than: 0)
+    |> validate_credentials_exclusive()
     |> validate_cloud_credentials()
+    |> encrypt_secret_access_key()
+  end
+
+  # A bucket may resolve its cloud credentials from ITS OWN
+  # access_key_id/secret_access_key OR from an Integrations connection —
+  # never both. Two independently-writable sources for the same secret is
+  # exactly the silent-drift shape this fix exists to close, so a change
+  # that sets both is rejected outright rather than letting one field win.
+  defp validate_credentials_exclusive(changeset) do
+    has_integration = present?(get_field(changeset, :integration_uuid))
+
+    has_direct_keys =
+      present?(get_field(changeset, :access_key_id)) or
+        present?(get_field(changeset, :secret_access_key))
+
+    if has_integration and has_direct_keys do
+      add_error(
+        changeset,
+        :integration_uuid,
+        "clear access_key_id and secret_access_key before setting integration_uuid " <>
+          "(or clear integration_uuid to use direct credentials instead) — only one " <>
+          "credential source at a time"
+      )
+    else
+      changeset
+    end
   end
 
   defp validate_cloud_credentials(changeset) do
@@ -160,11 +212,32 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
 
     if provider in ["s3", "b2", "r2"] do
       changeset
-      |> validate_required([:bucket_name, :access_key_id, :secret_access_key])
+      |> validate_required([:bucket_name])
+      |> validate_credentials_present()
     else
       changeset
     end
   end
+
+  defp validate_credentials_present(changeset) do
+    if present?(get_field(changeset, :integration_uuid)) do
+      changeset
+    else
+      validate_required(changeset, [:access_key_id, :secret_access_key])
+    end
+  end
+
+  defp encrypt_secret_access_key(changeset) do
+    case get_field(changeset, :secret_access_key) do
+      nil -> changeset
+      "" -> changeset
+      value -> put_change(changeset, :secret_access_key, Encryption.encrypt_value(value))
+    end
+  end
+
+  defp present?(nil), do: false
+  defp present?(""), do: false
+  defp present?(_value), do: true
 
   @doc """
   Returns whether this bucket is a local storage bucket.

@@ -84,6 +84,35 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # session); the manifest BODY is otherwise unchanged from the V173 restamp
   # two entries up.
   #
+  # V175 (2026-08-17) is carried the same way, but spans TWO classes: a new
+  # column + partial index on `phoenix_kit_buckets` (`integration_uuid`, the
+  # Storage/Integrations credential-encryption fix) — same class as the
+  # V165/V166/V170/V171 hand declarations above — AND a reshape of an
+  # EXISTING object, `column:phoenix_kit_buckets.secret_access_key`
+  # (`character varying(255)` -> `text`, since encrypting it can overflow
+  # 255 chars), which is the V167 class: a `{175, ...}` revision APPENDED to
+  # that column's existing `{20, ...}`, never rewritten in place, `create:`
+  # carrying the newest shape. All three objects hand-declared at the end of
+  # objects/1 from `V175.up/1`'s SQL rather than introspected (not V173's
+  # introspected ones).
+  #
+  # @chain_hash below was restamped over the 41 shipped v175 files in its own
+  # commit (nothing else in it), after the object declarations above landed
+  # and confirmed the restamp target was unaffected by that content-only
+  # change. `verify.exs --scenario s7,s8` against a real database has not run
+  # against this exact chain either way.
+  #
+  # V176 (2026-08-18, this branch's own A002) landed independently on a fork
+  # of the pre-V175(buckets) chain, also filed as V175 — merging with
+  # upstream's V175 hit a real add/add conflict, resolved by renumbering
+  # A002's migration to V176 (upstream's V175/buckets kept exactly as
+  # shipped). A002 declares no object here: it only VALIDATEs foreign keys
+  # V164 already created NOT VALID, never adds/drops/reshapes anything the
+  # catalog can see — same reasoning V164 itself gives for why `convalidated`
+  # is not tracked as a manifest field. `@chain_hash` restamped again over
+  # the 42 shipped v*.ex files (restamp_chain_hash.exs --restamp; the move
+  # only touches file content/names, not manifest BODY).
+  #
   # Chain at generation: object/revision/legacy_optional DATA was captured from a
   # per-version replay of the TRUE pre-squash chain (initial=1 current=163 files=163
   # — the only run that can see pre-floor-only bimodal drift, e.g. V28/V30's
@@ -126,7 +155,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "475a4a6217362d753c03a7356e901cd1184b3d145aac175661de631d51ab0da4"
+  @chain_hash "079c5f9e1ee247610255664b6ee9b1c1cbb6ee7f11dc8bdee1fc206d8c3ef63e"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -5137,11 +5166,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         check:
           {:catalog, %{table: "phoenix_kit_buckets", column: "secret_access_key", kind: :column}},
         create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_buckets ADD COLUMN IF NOT EXISTS \"secret_access_key\" character varying(255)",
+          "ALTER TABLE __SCHEMA__.phoenix_kit_buckets ADD COLUMN IF NOT EXISTS \"secret_access_key\" text",
         since: 20,
         class: :column,
         revisions: [
-          {20, %{default: nil, type: "character varying(255)", pos: 8, not_null: false}}
+          {20, %{default: nil, type: "character varying(255)", pos: 8, not_null: false}},
+          # Appended, never edited in place. `Object.shape_at/2` takes the last
+          # revision <= the database's own version, so rewriting {20, ...}
+          # would tell every pre-V175 install that its varchar(255) column is
+          # drift. V175 widens it to text (encrypted secret_access_key can
+          # overflow 255 chars — see V175's moduledoc); `create:` above
+          # carries this newest shape, same as V167's `phoenix_kit_posts_slug_index`.
+          {175, %{default: nil, type: "text", pos: 8, not_null: false}}
         ],
         presence: :required,
         backfill: nil
@@ -69679,6 +69715,65 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              definition:
                "CREATE UNIQUE INDEX phoenix_kit_cat_item_attr_groups_item_index ON __SCHEMA__.phoenix_kit_cat_item_attribute_groups USING btree (item_uuid)",
              predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+
+      # ── DECLARED POST-GENERATION (2026-08-17): V175 buckets.integration_uuid ──
+      # One column + one partial index on `phoenix_kit_buckets`, hand-declared
+      # the way V165/V166/V170/V171/V173's objects are (see module header) —
+      # a full pre-squash regenerate is not available in this session. Shape
+      # transcribed from `V175.up/1`: no FK (same loose-uuid pattern V145/V152's
+      # send-profile `integration_uuid` and V165/V166's `attributed_project_uuid`
+      # use), partial index mirrors V166's `attributed_project_uuid` index
+      # exactly (most buckets are `local` and carry no integration). V175's
+      # OTHER object — the `secret_access_key` varchar(255)->text reshape — is
+      # an appended revision on that column's EXISTING entry above
+      # (`column:phoenix_kit_buckets.secret_access_key`), not a new object
+      # here; see the V167 precedent cited there. chain_hash was restamped in
+      # its own later commit, not as part of this declaration.
+
+      %{
+        id: "column:phoenix_kit_buckets.integration_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_buckets", column: "integration_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_buckets ADD COLUMN IF NOT EXISTS \"integration_uuid\" uuid",
+        since: 175,
+        class: :column,
+        revisions: [{175, %{default: nil, type: "uuid", pos: 17, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_buckets_integration_uuid_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_buckets_integration_uuid_idx",
+             table: "phoenix_kit_buckets",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_buckets_integration_uuid_idx ON __SCHEMA__.phoenix_kit_buckets USING btree (integration_uuid) WHERE (integration_uuid IS NOT NULL)",
+        since: 175,
+        class: :index,
+        revisions: [
+          {175,
+           %{
+             table: "phoenix_kit_buckets",
+             keys: ["integration_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_buckets_integration_uuid_idx ON __SCHEMA__.phoenix_kit_buckets USING btree (integration_uuid) WHERE (integration_uuid IS NOT NULL)",
+             predicate: "(integration_uuid IS NOT NULL)",
              opclasses: ["uuid_ops"],
              name_template: nil
            }}

@@ -7,7 +7,34 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V174 - Repair misclassified media rows ⚡ LATEST
+  ### V176 - Validate existing NOT VALID foreign keys ⚡ LATEST
+
+  The FK repair V164 added (`UUIDFKColumns.fk_constraints/0`) creates every
+  constraint `NOT VALID` and validates it on the spot, but a validation that
+  fails because of pre-existing orphaned rows stays `NOT VALID` forever —
+  nothing in core ever revisits it (V164's own moduledoc says a re-run does
+  not retry, "VALIDATE each by hand"). This version does exactly that, on
+  every later run: for each declared FK still `NOT VALID`, if the orphan
+  count is now zero it validates it; if orphans remain, it leaves the
+  constraint untouched and warns with the real count. Never deletes a row or
+  nulls a reference — same policy V164 states for itself, for the same
+  reason (this runs against other people's already-deployed data).
+
+  Filed as V175 originally, renumbered to V176 when this branch merged
+  upstream/main and found V175 already taken by the Buckets change below.
+
+  ### V175 - Buckets: integration_uuid credential source
+
+  Adds `phoenix_kit_buckets.integration_uuid` (bare UUID, no FK, partial
+  index) so a cloud bucket can point at a `PhoenixKit.Integrations`
+  connection instead of storing `access_key_id`/`secret_access_key`
+  directly. `Bucket.changeset/2` rejects setting both a `secret_access_key`
+  and an `integration_uuid` on the same bucket record. Also widens
+  `secret_access_key` from `varchar(255)` to `text` — encrypted at rest as
+  of this same change, and the encrypted encoding overflows 255 chars past
+  a ~158-char plaintext secret.
+
+  ### V174 - Repair misclassified media rows
 
   Two since-fixed writer defects left media rows whose classification
   contradicts the file itself: the storage writer trusted whatever
@@ -561,7 +588,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 174
+  @current_version 176
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

@@ -39,7 +39,11 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     9. **UUID Column Types** — Detects varchar uuid columns that crash Ecto on startup
    10. **UUID Primary Keys** — Detects primary keys that are not the expected uuid type
    11. **NULL UUIDs in FK Sources** — Detects NULL uuids that cause infinite backfill loops
-   12. **Orphaned FK References** — Detects orphaned rows that block FK constraint creation
+   12. **Orphaned FK References** — Detects orphaned rows (blocks VALIDATE on an
+       existing NOT VALID constraint, or creation if the constraint is absent
+       entirely) and existing constraints still sitting NOT VALID with
+       nothing currently blocking them — V176 validates those in place; this
+       just tells you before it does
    13. **Lock Conflicts** — Any blocked or long-running queries?
    14. **Orphaned Connections** — Idle-in-transaction or stuck connections
    15. **Oban Configuration** — Queues and plugins that consume pool connections
@@ -817,8 +821,12 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     end
   end
 
-  # Pre-migration: check for orphaned FK references (rows pointing to deleted parents).
-  # Orphaned refs cause V56's add_constraints to fail when adding FK constraints.
+  # Pre-migration: check for orphaned FK references (rows pointing to deleted
+  # parents), AND for a constraint that already exists but was never
+  # validated — "blocks constraint creation" is only true when the
+  # constraint is absent; on a schema at V164+ it is usually already there,
+  # NOT VALID, and what orphaned rows actually block is VALIDATE (V176
+  # handles that automatically once the rows are gone).
   defp check_orphaned_fk_refs(prefix) do
     repo = get_repo!()
     escaped_prefix = String.replace(prefix, "'", "\\'")
@@ -831,9 +839,9 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       {"phoenix_kit_email_events", "email_log_uuid", "phoenix_kit_email_logs", "uuid"}
     ]
 
-    problems =
-      Enum.reduce(fk_checks, [], fn {table, fk_col, ref_table, ref_col}, acc ->
-        # Check both tables and columns exist
+    {orphaned, not_validated, probe_failed} =
+      Enum.reduce(fk_checks, {[], [], []}, fn {table, fk_col, ref_table, ref_col},
+                                              {orph, nv, pf} ->
         table_name = prefix_table_name(table, prefix)
         ref_name = prefix_table_name(ref_table, prefix)
 
@@ -855,30 +863,189 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
             AND NOT EXISTS (SELECT 1 FROM #{ref_name} r WHERE r.#{ref_col} = t.#{fk_col})
             """
 
-            case repo.query(orphan_query, [], log: false) do
-              {:ok, %{rows: [[count]]}} when count > 0 ->
-                [{table, fk_col, ref_table, count} | acc]
+            # A failed count query used to default to 0 ("no orphans") —
+            # exactly the same fail-open shape as fk_validation_state's old
+            # `_ -> :absent`. Distinguished the same way: a query error is
+            # "could not check", never silently "clean".
+            count_result =
+              case repo.query(orphan_query, [], log: false) do
+                {:ok, %{rows: [[c]]}} -> {:ok, c}
+                {:error, reason} -> {:probe_failed, reason}
+                other -> {:probe_failed, other}
+              end
 
-              _ ->
-                acc
-            end
+            validation = fk_validation_state(repo, table, fk_col, ref_table, escaped_prefix)
+
+            classify_fk_check(table, fk_col, ref_table, count_result, validation, {orph, nv, pf})
 
           _ ->
-            acc
+            {orph, nv, pf}
         end
       end)
 
-    if problems == [] do
-      {:pass, "No orphaned FK references found"}
-    else
-      detail =
-        Enum.map_join(Enum.reverse(problems), "\n       ", fn {table, fk_col, ref, count} ->
-          "#{table}.#{fk_col} → #{ref}: #{count} orphaned rows"
-        end)
+    report_orphaned_fk_refs(
+      Enum.reverse(orphaned),
+      Enum.reverse(not_validated),
+      Enum.reverse(probe_failed)
+    )
+  end
 
-      {:fail,
-       "Orphaned FK refs found (will block FK constraint creation):\n       #{detail}\n       " <>
-         "Fix: DELETE FROM <table> t WHERE NOT EXISTS (SELECT 1 FROM <ref> r WHERE r.uuid = t.<fk_col>)"}
+  # Either probe failing must never read as "clean" — a failed probe is a
+  # missing answer, not a passing one. Checked before either success shape,
+  # so a probe failure on ANY of orphan-count or validation-state routes
+  # straight to `probe_failed`, never falls through to the branches below
+  # that assume both reads succeeded.
+  #
+  # Exposed (not `defp`) and `@doc false`, same reason as `V176.validate_one/7`:
+  # a pure decision function, directly testable without touching a real repo.
+  @doc false
+  def classify_fk_check(table, fk_col, ref, {:probe_failed, reason}, _validation, {orph, nv, pf}) do
+    {orph, nv, [{table, fk_col, ref, :orphan_count, reason, nil} | pf]}
+  end
+
+  # The orphan-count probe already succeeded by the time this clause can
+  # match (a failed one is caught by the clause above regardless of
+  # `validation`) — `count` is a real measurement, not a placeholder, and is
+  # carried into the probe_failed tuple so report_orphaned_fk_refs/3 can
+  # print it instead of losing it behind "could not check".
+  def classify_fk_check(
+        table,
+        fk_col,
+        ref,
+        {:ok, count},
+        {:probe_failed, reason},
+        {orph, nv, pf}
+      ) do
+    {orph, nv, [{table, fk_col, ref, :validation_state, reason, count} | pf]}
+  end
+
+  # Existing NOT VALID constraint blocking VALIDATE, not creation.
+  def classify_fk_check(table, fk_col, ref, {:ok, count}, {:not_valid, _conname}, {orph, nv, pf})
+      when count > 0 do
+    {[{table, fk_col, ref, count, :validate} | orph], nv, pf}
+  end
+
+  # No constraint at all — the original "blocks creation" case.
+  def classify_fk_check(table, fk_col, ref, {:ok, count}, :absent, {orph, nv, pf})
+      when count > 0 do
+    {[{table, fk_col, ref, count, :create} | orph], nv, pf}
+  end
+
+  # Constraint present, NOT VALID, but nothing currently blocking it — a
+  # nudge, not a failure: V176 validates this on its own.
+  def classify_fk_check(table, fk_col, ref, {:ok, _count}, {:not_valid, _conname}, {orph, nv, pf}) do
+    {orph, [{table, fk_col, ref} | nv], pf}
+  end
+
+  def classify_fk_check(_table, _fk_col, _ref, {:ok, _count}, _validated_or_absent_and_clean, acc) do
+    acc
+  end
+
+  @doc false
+  def report_orphaned_fk_refs([], [], []) do
+    {:pass, "No orphaned FK references found"}
+  end
+
+  def report_orphaned_fk_refs([], not_validated, []) do
+    detail =
+      Enum.map_join(not_validated, "\n       ", fn {table, fk_col, ref} ->
+        "#{table}.#{fk_col} → #{ref}"
+      end)
+
+    {:warn,
+     "Foreign key(s) exist but were never validated (no orphaned rows blocking it right " <>
+       "now):\n       #{detail}\n       V176 validates these automatically on the next " <>
+       "migration run; or ALTER TABLE <table> VALIDATE CONSTRAINT <name> by hand."}
+  end
+
+  # Also matches when `orphaned == []` and `probe_failed != []` — a probe
+  # failure must never fall through to the :pass/:warn clauses above, which
+  # is exactly why this clause has no guard narrowing it further.
+  def report_orphaned_fk_refs(orphaned, not_validated, probe_failed) do
+    orphan_lines =
+      Enum.map(orphaned, fn
+        {table, fk_col, ref, count, :validate} ->
+          "#{table}.#{fk_col} → #{ref}: #{count} orphaned row(s) — constraint already exists " <>
+            "NOT VALID, this blocks VALIDATE"
+
+        {table, fk_col, ref, count, :create} ->
+          "#{table}.#{fk_col} → #{ref}: #{count} orphaned row(s) — no constraint yet, this " <>
+            "blocks its creation"
+      end)
+
+    probe_lines =
+      Enum.map(probe_failed, fn
+        {table, fk_col, ref, :validation_state, reason, count} ->
+          "#{table}.#{fk_col} → #{ref}: #{count} orphaned row(s) measured, but could not check " <>
+            "whether the constraint is validated (validation_state probe failed: " <>
+            "#{inspect(reason)}) — a failed probe is not a pass, treat as unverified"
+
+        {table, fk_col, ref, kind, reason, nil} ->
+          "#{table}.#{fk_col} → #{ref}: could not check (#{kind} probe failed: #{inspect(reason)}) " <>
+            "— a failed probe is not a pass, treat as unverified"
+      end)
+
+    detail = Enum.join(orphan_lines ++ probe_lines, "\n       ")
+
+    nv_note =
+      case not_validated do
+        [] ->
+          ""
+
+        list ->
+          "\n       Also unvalidated with nothing currently blocking it: " <>
+            Enum.map_join(list, ", ", fn {t, c, r} -> "#{t}.#{c} → #{r}" end)
+      end
+
+    {:fail,
+     "Orphaned FK refs / unverifiable FK state found:\n       #{detail}#{nv_note}\n       " <>
+       "V164/V176 never delete rows to force a constraint through — clean orphaned rows up " <>
+       "by hand and re-run the migration chain; for a probe failure, fix DB connectivity or " <>
+       "permissions on pg_constraint and re-run doctor."}
+  end
+
+  # `convalidated` for the constraint enforcing this exact (column ->
+  # ref_table.uuid) shape, matched by shape via conkey/confkey — not by
+  # name, so a constraint adopted under a differently-named twin (V164's own
+  # documented case) is still found. Returns `:absent` if no such FK exists
+  # at all.
+  #
+  # Exposed (not `defp`) and `@doc false` so the test suite can force a real
+  # probe failure (a malformed identifier producing a genuine Postgres
+  # syntax error) and assert it does NOT collapse into `:absent` — that
+  # collapse is exactly what let `mix phoenix_kit.doctor` print PASS for a
+  # check it never actually ran.
+  @doc false
+  def fk_validation_state(repo, table, fk_col, ref_table, escaped_prefix) do
+    query = """
+    SELECT c.conname, c.convalidated
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    JOIN pg_class ft ON ft.oid = c.confrelid
+    JOIN pg_namespace fn ON fn.oid = ft.relnamespace
+    WHERE c.contype = 'f'
+      AND n.nspname = '#{escaped_prefix}'
+      AND t.relname = '#{table}'
+      AND ft.relname = '#{ref_table}'
+      AND fn.nspname = '#{escaped_prefix}'
+      AND array_length(c.conkey, 1) = 1
+      AND (SELECT a.attname FROM pg_attribute a
+           WHERE a.attrelid = c.conrelid AND a.attnum = c.conkey[1]) = '#{fk_col}'
+    LIMIT 1
+    """
+
+    case repo.query(query, [], log: false) do
+      {:ok, %{rows: [[_conname, true]]}} -> :validated
+      {:ok, %{rows: [[conname, false]]}} -> {:not_valid, conname}
+      {:ok, %{rows: []}} -> :absent
+      # A query error (timeout, missing pg_constraint privilege, connection
+      # drop) is NOT the same fact as "no such constraint" — collapsing both
+      # into :absent is how a diagnostic ends up printing PASS for a state it
+      # never actually looked at. Distinguished so the caller can fail (or at
+      # least warn) instead of silently reading this as clean.
+      {:error, reason} -> {:probe_failed, reason}
+      other -> {:probe_failed, other}
     end
   end
 
