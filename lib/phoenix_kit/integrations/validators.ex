@@ -558,6 +558,187 @@ defmodule PhoenixKit.Integrations.Validators do
     end
   end
 
+  # --- Object Storage (S3-compatible) ----------------------------------------
+
+  @doc """
+  Validates S3-compatible object storage credentials against the storage API
+  itself (AWS S3, Cloudflare R2, Backblaze B2, Tigris, or a self-hosted
+  endpoint).
+
+  Calls `ListBuckets` — an account-level operation that needs no bucket name,
+  so it works before the operator has picked one. Built via `ExAws.S3`
+  (already a dependency); the `region`/`endpoint` config shape mirrors
+  `PhoenixKit.Modules.Storage.Providers.S3`'s `aws_config/1`, which builds the
+  same request for the same four providers.
+
+  Without a custom endpoint, the standard regional AWS host is used —
+  including the `.amazonaws.com.cn` host for the China partition. A GovCloud
+  environment that requires the FIPS endpoint (`s3-fips.<region>.amazonaws.com`)
+  rather than the standard one should set it explicitly via `endpoint`.
+  """
+  @spec object_storage(map()) :: :ok | {:error, String.t()}
+  def object_storage(data) do
+    if blank?(data["access_key"]) or blank?(data["secret_key"]) do
+      {:error, gettext("Incomplete credentials")}
+    else
+      Probe.run(fn -> request_list_buckets(data) end)
+    end
+  end
+
+  @doc false
+  # `requester` is injectable so the confirm-retry can be tested without
+  # talking to a real endpoint — same shape as `request_send_quota/3`.
+  def request_list_buckets(data, requester \\ &list_buckets_request/1) do
+    case requester.(data) do
+      # Never call credentials invalid on a single signature/key rejection.
+      # AWS answers a *correct* request with SignatureDoesNotMatch right
+      # after rejecting a bad signature from the same key, and a freshly
+      # created IAM access key answers InvalidAccessKeyId until it
+      # propagates — exactly the create-key/paste/Test flow a first-run
+      # operator produces. ExAws's own retry logic does not cover this: a
+      # 4xx is only retried for throttling-shaped codes (see
+      # `ExAws.Request.request_and_retry/7`), never for these two.
+      {:invalid, _code} ->
+        # A full second, same as the SES confirm-retry: enough for a
+        # transient signature rejection or IAM propagation delay to clear
+        # without turning "Test Connection" into a multi-second wait.
+        Process.sleep(1_000)
+
+        case requester.(data) do
+          {:invalid, _code} -> {:error, gettext("Invalid credentials")}
+          confirmed -> confirmed
+        end
+
+      result ->
+        result
+    end
+  end
+
+  defp list_buckets_request(data) do
+    ExAws.S3.list_buckets()
+    |> ExAws.request(object_storage_config(data))
+    |> case do
+      {:ok, _result} -> :ok
+      {:error, reason} -> interpret_object_storage_error(reason)
+    end
+  rescue
+    error ->
+      Logger.warning("Object storage connection check failed: #{inspect(error)}")
+      {:error, gettext("Could not reach the storage endpoint")}
+  catch
+    # hackney reaches its connection pool through GenServer.call, which exits
+    # rather than raising — `rescue` alone does not see it (see the SES
+    # request above).
+    :exit, reason ->
+      Logger.warning("Object storage connection check exited: #{inspect(reason)}")
+      {:error, gettext("Could not reach the storage endpoint")}
+  end
+
+  @doc false
+  # Pure: the data map in, the ExAws config out — public so host resolution
+  # can be tested without a network round trip.
+  def object_storage_config(data) do
+    region = object_storage_region(data)
+
+    base = [
+      access_key_id: data["access_key"],
+      secret_access_key: data["secret_key"],
+      region: region,
+      # ExAws otherwise retries transport errors ten times with backoff,
+      # which would keep an unreachable endpoint hanging well past any
+      # reasonable check — same override `request_send_quota/2` uses.
+      retries: [max_attempts: 2, base_backoff_in_ms: 10, max_backoff_in_ms: 1_000],
+      http_opts: [recv_timeout: 5_000, connect_timeout: 5_000]
+    ]
+
+    # `host` is ALWAYS passed explicitly, custom endpoint or not — never left
+    # to ExAws to resolve. `ExAws.Config.Defaults.host/2` matches the region
+    # against a hardcoded partition-prefix regex
+    # (`~r/^(us|eu|af|ap|sa|ca|me)-.../`) that has no entry for newer regions
+    # (confirmed: `il-central-1` and `mx-central-1` both resolve to `nil`),
+    # which builds a bare "https:/" request URL and fails as :nxdomain —
+    # correct credentials in those regions would read as "could not reach
+    # the storage endpoint". Same trap `aws_ses`'s `send_quota_request/2`
+    # dodges above by building the SES host itself instead of trusting ExAws.
+    # ExAws's resolver DOES get the China partition right, though (`.cn`
+    # suffix) — `object_storage_default_host/1` below keeps that one case.
+    host =
+      case object_storage_endpoint(data) do
+        nil -> object_storage_default_host(region)
+        endpoint -> endpoint
+      end
+
+    base ++ [host: host, scheme: "https://"]
+  end
+
+  # The China partition answers on .amazonaws.com.cn — the global host does
+  # not resolve there at all. Same split `bedrock_host/1` above uses for the
+  # same reason.
+  defp object_storage_default_host("cn-" <> _ = region), do: "s3.#{region}.amazonaws.com.cn"
+  defp object_storage_default_host(region), do: "s3.#{region}.amazonaws.com"
+
+  defp object_storage_region(data) do
+    if blank?(data["region"]), do: "us-east-1", else: String.trim(data["region"])
+  end
+
+  # Operators paste this straight from a provider's dashboard — Cloudflare R2
+  # hands out `https://<account_id>.r2.cloudflarestorage.com`, scheme
+  # included, and sometimes with a trailing slash — but ExAws's `host:`
+  # config wants a bare hostname. A scheme prefix makes `URI` read the host
+  # as an IPv6 literal and ExAws RAISES a `MatchError` building the request
+  # (confirmed), which the rescue above would otherwise silently relabel as
+  # "could not reach" instead of naming the actual mistake.
+  defp object_storage_endpoint(data) do
+    if blank?(data["endpoint"]) do
+      nil
+    else
+      data["endpoint"]
+      |> String.trim()
+      |> String.replace(~r{\Ahttps?://}i, "")
+      |> String.trim_trailing("/")
+    end
+  end
+
+  @doc false
+  # Pure: an ExAws error reason in, an operator-facing verdict out. Public so
+  # the mapping can be tested without a network round trip. Same shape as
+  # `interpret_ses_error/1` — `{:invalid, code}` for the codes worth
+  # confirming before the final verdict, `{:error, message}` everywhere else.
+  # Mapped against AWS's own S3 error codes; R2/B2/Tigris mirror these for
+  # S3-API compatibility, but a provider-specific code not in this list still
+  # surfaces verbatim rather than being misclassified.
+  def interpret_object_storage_error({:http_error, _status, response}) do
+    case aws_error_code(response) do
+      code when code in ~w(InvalidAccessKeyId SignatureDoesNotMatch) ->
+        {:invalid, code}
+
+      # The signature is valid — the identity is real — it just lacks
+      # ListBuckets/ListAllMyBuckets. Realistic for a scoped token limited to
+      # a single bucket (common with R2 API tokens and B2 application keys),
+      # so this must not read as "wrong keys": that sends the operator off to
+      # reissue credentials that were never the problem.
+      "AccessDenied" <> _ ->
+        {:error, gettext("Credentials are valid, but not authorized to list buckets")}
+
+      # Rate-limited or a transient service-side hiccup, not a bad
+      # credential — telling the operator to reissue keys over this would be
+      # wrong advice. `RequestTimeTooSkewed` is deliberately NOT here: it's a
+      # clock problem, and retrying won't fix it, so it falls through to the
+      # verbatim case below instead of a misleading "try again".
+      code when code in ~w(SlowDown InternalError ServiceUnavailable) ->
+        {:error, gettext("Storage service is busy — try again in a moment")}
+
+      nil ->
+        {:error, gettext("Could not reach the storage endpoint")}
+
+      code ->
+        {:error, gettext("Storage error: %{code}", code: code)}
+    end
+  end
+
+  def interpret_object_storage_error(_reason),
+    do: {:error, gettext("Could not reach the storage endpoint")}
+
   # --- Brevo ------------------------------------------------------------
 
   @doc """
