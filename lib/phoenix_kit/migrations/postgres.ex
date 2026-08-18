@@ -7,7 +7,18 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V174 - Repair misclassified media rows ⚡ LATEST
+  ### V175 - Buckets: integration_uuid credential source ⚡ LATEST
+
+  Adds `phoenix_kit_buckets.integration_uuid` (bare UUID, no FK, partial
+  index) so a cloud bucket can point at a `PhoenixKit.Integrations`
+  connection instead of storing `access_key_id`/`secret_access_key`
+  directly. `Bucket.changeset/2` rejects setting both a `secret_access_key`
+  and an `integration_uuid` on the same bucket record. Also widens
+  `secret_access_key` from `varchar(255)` to `text` — encrypted at rest as
+  of this same change, and the encrypted encoding overflows 255 chars past
+  a ~158-char plaintext secret.
+
+  ### V174 - Repair misclassified media rows
 
   Two since-fixed writer defects left media rows whose classification
   contradicts the file itself: the storage writer trusted whatever
@@ -561,7 +572,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 174
+  @current_version 175
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

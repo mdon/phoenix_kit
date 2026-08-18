@@ -161,6 +161,70 @@ defmodule PhoenixKit.Integrations.Encryption do
   end
 
   @doc """
+  Encrypt a single value, for callers with a bare field to protect rather
+  than a full `encrypt_fields/1`-shaped map (e.g. an Ecto schema field like
+  `PhoenixKit.Modules.Storage.Bucket.secret_access_key`).
+
+  Same cipher, key derivation and `enc:v1:` prefix as `encrypt_fields/1`.
+  Nil/empty and already-encrypted values (see `encrypted?/1`) pass through
+  unchanged. When encryption is unavailable (no `secret_key_base`), the
+  value is stored as plaintext — same as `encrypt_fields/1` — but this
+  path logs a warning, since a caller that reaches for single-value
+  encryption is usually protecting something as sensitive as the fields
+  `encrypt_fields/1` already covers, and a schema field silently staying
+  plaintext is exactly the gap this API exists to close.
+  """
+  @spec encrypt_value(String.t() | nil) :: String.t() | nil
+  def encrypt_value(nil), do: nil
+  def encrypt_value(""), do: ""
+
+  def encrypt_value(value) when is_binary(value) do
+    if encrypted?(value) do
+      value
+    else
+      case encryption_key() do
+        nil ->
+          Logger.warning(
+            "PhoenixKit.Integrations.Encryption.encrypt_value/1: no encryption key available " <>
+              "(secret_key_base not configured) — storing value as plaintext"
+          )
+
+          value
+
+        key ->
+          encrypt_value(value, key)
+      end
+    end
+  end
+
+  @doc """
+  Decrypt a value produced by `encrypt_value/1`.
+
+  Returns `{:ok, plaintext}`. A value without the `enc:v1:` prefix is
+  returned as `{:ok, value}` unchanged — backwards compatibility with
+  data written before encryption was applied. `{:error, :encryption_unavailable}`
+  when the value IS prefixed but no encryption key is available (no
+  `secret_key_base`) — unlike the nil-key path in `encrypt_value/1`, there
+  is no plaintext to fall back to here, only ciphertext nobody can read
+  right now. `{:error, reason}` for any other decrypt failure (wrong/rotated
+  key, corrupted ciphertext).
+  """
+  @spec decrypt_value(String.t() | nil) :: {:ok, String.t() | nil} | {:error, term()}
+  def decrypt_value(nil), do: {:ok, nil}
+  def decrypt_value(""), do: {:ok, ""}
+
+  def decrypt_value(value) when is_binary(value) do
+    if encrypted?(value) do
+      case encryption_key() do
+        nil -> {:error, :encryption_unavailable}
+        key -> decrypt_value(value, key)
+      end
+    else
+      {:ok, value}
+    end
+  end
+
+  @doc """
   Reports which secret currently backs the encryption key. See `t:key_status/0`.
 
   Never raises, never touches the database — pure config/endpoint
@@ -238,10 +302,13 @@ defmodule PhoenixKit.Integrations.Encryption do
   Whether `value` looks like an already-encrypted field value (carries the
   current `enc:v1:` prefix).
 
-  Public so callers outside this module — `PhoenixKit.Integrations.KeyRotation`
-  detecting which fields were encrypted before a rotation — don't hardcode
-  the prefix literal themselves. A future `enc:v2:` format only needs to
-  update this one place.
+  Used to keep `encrypt_value/1` idempotent (never double-encrypt) and to
+  let callers tell an already-migrated field apart from legacy plaintext.
+  Also public so callers outside this module —
+  `PhoenixKit.Integrations.KeyRotation` detecting which fields were
+  encrypted before a rotation — don't hardcode the prefix literal
+  themselves. A future `enc:v2:` format only needs to update this one
+  place.
   """
   @spec encrypted?(term()) :: boolean()
   def encrypted?(value) when is_binary(value), do: String.starts_with?(value, @encrypted_prefix)
