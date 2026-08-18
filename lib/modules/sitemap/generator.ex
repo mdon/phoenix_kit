@@ -142,6 +142,42 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
     :exit, _ -> false
   end
 
+  # Static pages (home page, and whatever else a host lists in
+  # `sitemap_static_routes` / `sitemap_custom_urls`) are collected for the site
+  # default language only: in a prefix install a "/fr/..." static page has no
+  # localized route. A language with a domain of its own does serve them — from
+  # its own host, prefix-free — so its copies are collected HERE, for the domain
+  # files alone.
+  #
+  # Deliberately not folded into the shared collection: these entries carry a
+  # locale prefix that only means something to `DomainMode.rebuild_for_domains/2`,
+  # which strips it while re-hosting. In the legacy set (served verbatim to
+  # unmapped hosts) nothing would rewrite them, and `https://<primary>/fr/` is
+  # usually not a page at all.
+  defp domain_static_entries(opts, base_url) do
+    static = PhoenixKit.Modules.Sitemap.Sources.Static
+
+    if static in get_sources() do
+      mapped = MapSet.new(DomainMode.domains(), & &1.language)
+
+      get_languages()
+      |> Enum.reject(& &1.is_default)
+      |> Enum.filter(&MapSet.member?(mapped, &1.code))
+      |> Enum.flat_map(fn %{code: code} ->
+        static.collect(
+          Keyword.merge(opts,
+            base_url: base_url,
+            language: code,
+            is_default_language: false,
+            domain_pass: true
+          )
+        )
+      end)
+    else
+      []
+    end
+  end
+
   # Multi-domain post-processing (DomainMode): one flat urlset per mapped
   # host (its language's entries, re-hosted prefix-free, cross-domain
   # alternates), with the 50k splitter per host. `entries` may be passed in
@@ -164,7 +200,8 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
       # disabled-module URLs into index mode, which never leaked before.
       entries = entries || collect_all_entries(opts, get_sources())
 
-      per_host = DomainMode.rebuild_for_domains(entries, base_url)
+      per_host =
+        DomainMode.rebuild_for_domains(entries ++ domain_static_entries(opts, base_url), base_url)
 
       for {host, host_entries} <- per_host do
         write_domain_files(host, host_entries, xsl_style, xsl_enabled)
