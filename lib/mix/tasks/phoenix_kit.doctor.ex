@@ -138,7 +138,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("Sitemap Discoverability", fn -> check_sitemap_serving() end),
       run_check("Crawler Visibility", fn -> check_crawler_visibility(prefix) end),
       run_check("Demo Auth Pages", fn -> check_demo_routes() end),
-      run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end)
+      run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end),
+      run_check("Git Hooks", fn -> check_git_hooks() end)
     ]
 
     IO.puts("")
@@ -165,6 +166,74 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     if Enum.any?(results, fn {_name, {status, _detail}} -> status == :fail end), do: 1, else: 0
   end
 
+  @doc """
+  The "Git Hooks" verdict, as a pure function of what could actually be observed.
+
+  Public for the same reason `exit_code/1` is: `run/1` is not a unit-test seam,
+  so the decision is tested on its own.
+
+  The point of the three-way inputs is that this check must be able to say *"I
+  could not tell"* instead of guessing. A check that reports "hook not
+  installed" when it merely failed to look is worse than no check: it is
+  confidently wrong, and it sends the reader to fix something that is not
+  broken.
+
+  That distinction is not free, and the obvious implementation gets it wrong:
+  `git config --get core.hooksPath` exits **1 both when the key is unset and
+  when the current directory is not a git repository at all** (verified, not
+  assumed). So repository-ness is probed separately, and only inside a
+  repository is exit 1 read as the fact "not configured".
+
+    * `:repo` — `{:ok, common_dir}` when git answered, `:unknown` otherwise
+      (not a repository, git missing, anything else).
+    * `:hooks_path` — `{:ok, value}` | `:unset` (a fact) | `:unknown` (a gap).
+    * `:tracked?` — whether `.githooks/pre-commit` exists in this checkout.
+    * `:shadow` — `{:ok, path}` for a leftover hook in the **common** hooks dir
+      (worktrees do not have their own), `:none`, or `:unknown`.
+  """
+  @spec git_hooks_verdict(map()) :: {:pass | :warn, String.t()}
+  def git_hooks_verdict(%{repo: :unknown}) do
+    {:warn,
+     "Could not check — this is not a git repository, or git is unavailable.\n" <>
+       "       This is NOT the same as \"the hook is not installed\": nothing was verified."}
+  end
+
+  def git_hooks_verdict(%{tracked?: false}) do
+    {:warn,
+     ".githooks/pre-commit is missing from this checkout, so there is nothing to enable.\n" <>
+       "       Expected the tracked hook at .githooks/pre-commit."}
+  end
+
+  def git_hooks_verdict(%{hooks_path: :unknown}) do
+    {:warn,
+     "Could not read core.hooksPath, so it is unknown whether the hook runs.\n" <>
+       "       This is NOT the same as \"the hook is not installed\": nothing was verified."}
+  end
+
+  def git_hooks_verdict(%{hooks_path: :unset}) do
+    {:warn,
+     "The tracked hook is NOT running: core.hooksPath is not set.\n" <>
+       "       Fix: git config core.hooksPath .githooks"}
+  end
+
+  def git_hooks_verdict(%{hooks_path: {:ok, path}}) when path != ".githooks" do
+    {:warn,
+     "The tracked hook is NOT running: core.hooksPath points at #{inspect(path)}.\n" <>
+       "       Fix: git config core.hooksPath .githooks"}
+  end
+
+  def git_hooks_verdict(%{shadow: {:ok, path}}) do
+    {:warn,
+     "Enabled, but #{path} still exists. core.hooksPath wins, so that copy is\n" <>
+       "       dead code that will mislead the next reader. Delete it."}
+  end
+
+  def git_hooks_verdict(%{shadow: :unknown}) do
+    {:warn, "Enabled via core.hooksPath, but could not check for a stale copy in the hooks dir."}
+  end
+
+  def git_hooks_verdict(%{}), do: {:pass, "tracked hook enabled via core.hooksPath"}
+
   # Printing "N failures" and exiting 0 makes this task unusable as a deploy
   # gate — and it now owns a check (Module Schema Versions) whose whole point is
   # to catch an install nothing else reports on. Opt-in for the same reason
@@ -184,6 +253,58 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   end
 
   # ── Check implementations (return {:pass|:warn|:fail, detail}) ──────
+
+  defp check_git_hooks do
+    git_hooks_verdict(gather_git_hooks_state())
+  end
+
+  defp gather_git_hooks_state do
+    tracked? = File.exists?(".githooks/pre-commit")
+
+    case git_cmd(["rev-parse", "--git-common-dir"]) do
+      {:ok, common} ->
+        %{
+          repo: {:ok, common},
+          hooks_path: hooks_path_config(),
+          tracked?: tracked?,
+          shadow: shadow_hook(common)
+        }
+
+      :error ->
+        %{repo: :unknown, hooks_path: :unknown, tracked?: tracked?, shadow: :unknown}
+    end
+  end
+
+  defp hooks_path_config do
+    case System.cmd("git", ["config", "--get", "core.hooksPath"], stderr_to_stdout: true) do
+      {out, 0} -> {:ok, String.trim(out)}
+      # Only meaningful because the caller already established we are inside a
+      # repository — outside one, git answers 1 to this as well.
+      {_, 1} -> :unset
+      _ -> :unknown
+    end
+  rescue
+    _ -> :unknown
+  end
+
+  # Worktrees share the common git dir, so the stale copy lives there, not in a
+  # per-worktree ".git/hooks" — hardcoding that path reports a clean tree in
+  # every worktree of a repo that still has one.
+  defp shadow_hook(common_dir) do
+    path = Path.join(common_dir, "hooks/pre-commit")
+    if File.exists?(path), do: {:ok, path}, else: :none
+  end
+
+  defp git_cmd(args) do
+    case System.cmd("git", args, stderr_to_stdout: true) do
+      {out, 0} -> {:ok, String.trim(out)}
+      _ -> :error
+    end
+  rescue
+    # git absent from PATH raises ErlangError :enoent. That is a gap in our
+    # knowledge, never evidence about the hook.
+    _ -> :error
+  end
 
   defp check_repo_detection do
     app = Mix.Project.config()[:app]

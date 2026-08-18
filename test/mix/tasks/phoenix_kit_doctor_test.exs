@@ -262,6 +262,79 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     end
   end
 
+  describe "git_hooks_verdict/1 — 'not installed' and 'could not check' are different answers" do
+    @ok %{
+      repo: {:ok, "/repo/.git"},
+      hooks_path: {:ok, ".githooks"},
+      tracked?: true,
+      shadow: :none
+    }
+
+    test "enabled, tracked, no leftover → pass" do
+      assert {:pass, _} = DoctorTask.git_hooks_verdict(@ok)
+    end
+
+    test "core.hooksPath unset → warns, and says exactly how to fix it" do
+      {status, detail} = DoctorTask.git_hooks_verdict(%{@ok | hooks_path: :unset})
+      assert status == :warn
+      assert detail =~ "NOT running"
+      assert detail =~ "git config core.hooksPath .githooks"
+    end
+
+    test "pointing somewhere else → warns and names where" do
+      {status, detail} = DoctorTask.git_hooks_verdict(%{@ok | hooks_path: {:ok, "hooks"}})
+      assert status == :warn
+      assert detail =~ ~s("hooks")
+      assert detail =~ "git config core.hooksPath .githooks"
+    end
+
+    test "tracked hook missing from the checkout → warns about that, not about config" do
+      {status, detail} = DoctorTask.git_hooks_verdict(%{@ok | tracked?: false})
+      assert status == :warn
+      assert detail =~ ".githooks/pre-commit is missing"
+    end
+
+    test "leftover hook in the common dir → warns it is dead code" do
+      {status, detail} =
+        DoctorTask.git_hooks_verdict(%{@ok | shadow: {:ok, "/repo/.git/hooks/pre-commit"}})
+
+      assert status == :warn
+      assert detail =~ "/repo/.git/hooks/pre-commit"
+      assert detail =~ "Delete it"
+    end
+
+    # The whole reason this check exists in this shape. A check that answers
+    # "not installed" when it merely failed to look is confidently wrong, and
+    # sends the reader to fix something that is not broken.
+    test "not a git repo → says it could not check, and refuses to call it 'not installed'" do
+      {status, detail} = DoctorTask.git_hooks_verdict(%{@ok | repo: :unknown})
+      assert status == :warn
+      assert detail =~ "Could not check"
+      assert detail =~ "NOT the same"
+      refute detail =~ "git config core.hooksPath .githooks"
+    end
+
+    test "core.hooksPath unreadable → same refusal to guess" do
+      {status, detail} = DoctorTask.git_hooks_verdict(%{@ok | hooks_path: :unknown})
+      assert status == :warn
+      assert detail =~ "unknown whether the hook runs"
+      refute detail =~ "Fix:"
+    end
+
+    test "an unreadable config and an unset one do not produce the same message" do
+      {_, could_not_check} = DoctorTask.git_hooks_verdict(%{@ok | hooks_path: :unknown})
+      {_, definitely_off} = DoctorTask.git_hooks_verdict(%{@ok | hooks_path: :unset})
+
+      refute could_not_check == definitely_off
+    end
+
+    test "enabled but the leftover check itself failed → says so rather than passing" do
+      {status, detail} = DoctorTask.git_hooks_verdict(%{@ok | shadow: :unknown})
+      assert status == :warn
+      assert detail =~ "could not check for a stale copy"
+    end
+  end
+
   describe "classify_fk_check/5 — a probe failure must never read as clean (gate round 2, finding 1)" do
     test "a failed orphan-count probe lands in the probe_failed bucket, not the clean path" do
       acc = {[], [], []}
