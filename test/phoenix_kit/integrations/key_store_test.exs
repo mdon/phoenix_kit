@@ -443,4 +443,177 @@ defmodule PhoenixKit.Integrations.KeyStoreTest do
       refute KeyStore.describe_error(%{secret: @secret}) =~ @secret
     end
   end
+
+  describe "Chain keeps the secret in more than one place" do
+    alias PhoenixKit.Integrations.KeyStore.Chain
+
+    setup do
+      on_exit(fn ->
+        for id <- [:primary, :spare], do: :persistent_term.erase({__MODULE__.MemoryStore, id})
+      end)
+
+      :ok
+    end
+
+    defp chain(stores), do: [stores: stores]
+    defp memory(id), do: {__MODULE__.MemoryStore, [id: id]}
+
+    test "the first store that has it answers, and nothing is logged" do
+      import ExUnit.CaptureLog
+
+      __MODULE__.MemoryStore.put(:primary, @secret)
+      __MODULE__.MemoryStore.put(:spare, "a-different-older-secret-value-here")
+
+      log =
+        capture_log(fn ->
+          assert {:ok, @secret} = Chain.read(chain([memory(:primary), memory(:spare)]))
+        end)
+
+      refute log =~ "spare copy"
+    end
+
+    # The case the chain exists for: the local copy is gone and the remote one
+    # saves the site. It must not pass silently — a site can otherwise run for
+    # months on its last remaining copy.
+    test "a spare answering when the primary is EMPTY is reported" do
+      import ExUnit.CaptureLog
+
+      __MODULE__.MemoryStore.put(:spare, @secret)
+
+      log =
+        capture_log(fn ->
+          assert {:ok, @secret} = Chain.read(chain([memory(:primary), memory(:spare)]))
+        end)
+
+      assert log =~ "not by the first store"
+      assert log =~ "had nothing"
+    end
+
+    test "a spare answering after the primary FAILED is reported too" do
+      import ExUnit.CaptureLog
+
+      __MODULE__.MemoryStore.put(:spare, @secret)
+
+      log =
+        capture_log(fn ->
+          assert {:ok, @secret} =
+                   Chain.read(chain([{__MODULE__.FailingStore, []}, memory(:spare)]))
+        end)
+
+      assert log =~ "not by the first store"
+      assert log =~ "failed"
+    end
+
+    test "nothing anywhere → :not_configured, which invites a first write" do
+      assert :not_configured = Chain.read(chain([memory(:primary), memory(:spare)]))
+    end
+
+    # An error anywhere must not be reported as "nothing stored yet": one invites
+    # writing a new secret over the old one, the other must never.
+    test "a failure with nothing found is an error, not :not_configured" do
+      assert {:error, {:chain_read_failed, _module, _reason}} =
+               Chain.read(chain([{__MODULE__.FailingStore, []}, memory(:spare)]))
+    end
+
+    test "a write goes to every store" do
+      assert :ok = Chain.write(@secret, chain([memory(:primary), memory(:spare)]))
+
+      assert {:ok, @secret} = __MODULE__.MemoryStore.read(id: :primary)
+      assert {:ok, @secret} = __MODULE__.MemoryStore.read(id: :spare)
+    end
+
+    # A backup that quietly stopped being written is not a backup.
+    test "one store failing fails the write and names which" do
+      assert {:error, {:chain_write_failed, failures}} =
+               Chain.write(@secret, chain([memory(:primary), {__MODULE__.FailingStore, []}]))
+
+      assert [{__MODULE__.FailingStore, {:error, _}}] = failures
+    end
+
+    test "pre-flight fails if any member cannot be written" do
+      assert :ok = Chain.preflight(chain([memory(:primary)]))
+
+      assert {:error, {:chain_preflight_failed, _}} =
+               Chain.preflight(chain([memory(:primary), {__MODULE__.FailingStore, []}]))
+    end
+
+    test "describe names every member in order" do
+      described = Chain.describe(chain([memory(:primary), memory(:spare)]))
+      assert described =~ "memory:primary"
+      assert described =~ "then"
+      assert described =~ "memory:spare"
+    end
+
+    test "a bare module in the list is accepted alongside {module, opts}" do
+      assert [{__MODULE__.FailingStore, []}, {__MODULE__.MemoryStore, [id: :spare]}] =
+               Chain.stores(stores: [__MODULE__.FailingStore, memory(:spare)])
+    end
+  end
+
+  describe "the S3 store refuses to act without a bucket" do
+    alias PhoenixKit.Integrations.KeyStore.S3
+
+    # Every callback must fail before any network call: a store that reaches out
+    # to decide it was misconfigured is slower and noisier for no gain.
+    test "read, write and preflight all report the missing bucket" do
+      assert {:error, {:bucket_not_configured, S3}} = S3.read([])
+      assert {:error, {:bucket_not_configured, S3}} = S3.write(@secret, [])
+      assert {:error, {:bucket_not_configured, S3}} = S3.preflight([])
+    end
+
+    test "describe says so rather than inventing a location" do
+      assert S3.describe([]) =~ "bucket not configured"
+    end
+
+    test "describe names bucket and object when configured" do
+      assert S3.describe(bucket: "ops", key: "k/secret") == "s3://ops/k/secret"
+      assert S3.describe(bucket: "ops") =~ "s3://ops/phoenix_kit/"
+    end
+
+    test "no failure path carries the secret" do
+      for error <- [S3.write(@secret, []), S3.read([]), S3.preflight([])] do
+        refute inspect(error) =~ @secret
+      end
+    end
+  end
+
+  defmodule MemoryStore do
+    @moduledoc false
+    @behaviour PhoenixKit.Integrations.KeyStore
+
+    def put(id, secret), do: :persistent_term.put({__MODULE__, id}, secret)
+
+    @impl true
+    def read(opts) do
+      case :persistent_term.get({__MODULE__, opts[:id]}, nil) do
+        nil -> :not_configured
+        secret -> {:ok, secret}
+      end
+    end
+
+    @impl true
+    def write(secret, opts) do
+      put(opts[:id], secret)
+      :ok
+    end
+
+    @impl true
+    def preflight(_opts), do: :ok
+    @impl true
+    def describe(opts), do: "memory:#{opts[:id]}"
+  end
+
+  defmodule FailingStore do
+    @moduledoc false
+    @behaviour PhoenixKit.Integrations.KeyStore
+
+    @impl true
+    def read(_opts), do: {:error, :boom}
+    @impl true
+    def write(_secret, _opts), do: {:error, :boom}
+    @impl true
+    def preflight(_opts), do: {:error, :boom}
+    @impl true
+    def describe(_opts), do: "failing"
+  end
 end

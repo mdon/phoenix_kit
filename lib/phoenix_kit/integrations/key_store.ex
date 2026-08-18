@@ -105,6 +105,17 @@ defmodule PhoenixKit.Integrations.KeyStore do
   # — which for `write/2` is the secret itself, printed into the crash log.
   # Verified, not assumed. Only the exception's struct name is kept; its message
   # may quote arguments.
+  @doc """
+  Calls a store callback without letting a secret escape into an exception.
+
+  Public because `PhoenixKit.Integrations.KeyStore.Chain` calls member stores
+  and must not bypass this: `apply/3` on a mistyped or unloaded module raises,
+  and Erlang formats such reports with their arguments — which for `write/2` is
+  the secret.
+  """
+  @spec invoke_store(module(), atom(), [term()]) :: term()
+  def invoke_store(module, fun, args), do: invoke(module, fun, args)
+
   defp invoke(module, fun, args) do
     cond do
       not Code.ensure_loaded?(module) ->

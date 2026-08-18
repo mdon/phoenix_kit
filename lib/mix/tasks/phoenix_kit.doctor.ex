@@ -65,6 +65,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   alias PhoenixKit.Install.ChildOrder
   alias PhoenixKit.Install.PrefixConfig
   alias PhoenixKit.Integrations.Encryption
+  alias PhoenixKit.Integrations.KeyStore
   alias PhoenixKit.Migrations.ExpectedSchema.Resolver
   alias PhoenixKit.Migrations.Modules, as: MigrationModules
   alias PhoenixKit.Migrations.Postgres
@@ -193,7 +194,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       {:dedicated, {:ok, fp}} ->
         {:pass,
          "dedicated key, fingerprint #{fp} — compare it against your other sites; the same " <>
-           "fingerprint means the same key"}
+           "fingerprint means the same key.\n       Stored in: #{key_location()}"}
 
       {:legacy_secret_key_base, {:ok, fp}} ->
         {:warn,
@@ -209,6 +210,17 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
       {status, {:ok, fp}} ->
         {:warn, "unrecognised encryption status #{inspect(status)}, fingerprint #{fp}"}
+    end
+  end
+
+  # Where the secret lives, for the operator who has to find it again. "nowhere"
+  # is the honest answer when no store is configured: the key exists only in
+  # whatever config or environment supplied it, and nothing here is holding a
+  # copy.
+  defp key_location do
+    case KeyStore.describe() do
+      nil -> "no key store configured — nothing here holds a copy of this key"
+      location -> location
     end
   end
 
