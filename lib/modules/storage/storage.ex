@@ -123,7 +123,10 @@ defmodule PhoenixKit.Modules.Storage do
   @doc """
   Gets a single bucket by ID.
 
-  Returns `nil` if bucket does not exist.
+  Returns `nil` if bucket does not exist. `secret_access_key` is returned
+  as stored (encrypted, see `PhoenixKit.Integrations.Encryption`) — this
+  accessor does not decrypt it. Decrypt only where the plaintext is
+  actually needed (e.g. `Providers.S3.resolve_credentials/1`).
   """
   def get_bucket(id), do: repo().get(Bucket, id)
 
@@ -212,23 +215,37 @@ defmodule PhoenixKit.Modules.Storage do
   Returns `:ok` or `{:error, reason}`.
   """
   def test_connection(bucket_params) when is_map(bucket_params) do
-    provider = bucket_params["provider"]
+    bucket = build_probe_bucket(bucket_params)
 
-    bucket = %Bucket{
-      provider: provider,
-      region: bucket_params["region"],
-      endpoint: bucket_params["endpoint"],
-      bucket_name: bucket_params["bucket_name"],
-      access_key_id: bucket_params["access_key_id"],
-      secret_access_key: bucket_params["secret_access_key"]
-    }
-
-    case ProviderRegistry.get_provider(provider) do
+    case ProviderRegistry.get_provider(bucket.provider) do
       {:ok, provider_module} -> provider_module.test_connection(bucket)
       {:error, reason} -> {:error, reason}
     end
   rescue
     error -> {:error, "Connection test failed: #{Exception.message(error)}"}
+  end
+
+  # Builds the throwaway %Bucket{} test_connection/1 probes with, before any
+  # of it is saved. Threads every field `Providers.S3.resolve_credentials/1`
+  # reads — including `integration_uuid`, so a bucket bound to an
+  # Integrations connection is testable too, not just one with direct keys.
+  #
+  # Public and `@doc false` purely so this mapping is unit-testable without
+  # the network call `test_connection/1` makes right after — same rationale
+  # as `Providers.S3.resolve_credentials/1`.
+  @doc false
+  @spec build_probe_bucket(map()) :: Bucket.t()
+  def build_probe_bucket(bucket_params) do
+    %Bucket{
+      name: bucket_params["name"] || "(unsaved bucket)",
+      provider: bucket_params["provider"],
+      region: bucket_params["region"],
+      endpoint: bucket_params["endpoint"],
+      bucket_name: bucket_params["bucket_name"],
+      access_key_id: bucket_params["access_key_id"],
+      secret_access_key: bucket_params["secret_access_key"],
+      integration_uuid: bucket_params["integration_uuid"]
+    }
   end
 
   @doc """

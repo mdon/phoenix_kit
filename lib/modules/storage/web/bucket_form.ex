@@ -93,12 +93,14 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
     changeset = socket.assigns.changeset
 
     bucket_params = %{
+      "name" => Ecto.Changeset.get_field(changeset, :name),
       "provider" => Ecto.Changeset.get_field(changeset, :provider),
       "region" => Ecto.Changeset.get_field(changeset, :region),
       "endpoint" => Ecto.Changeset.get_field(changeset, :endpoint),
       "bucket_name" => Ecto.Changeset.get_field(changeset, :bucket_name),
       "access_key_id" => Ecto.Changeset.get_field(changeset, :access_key_id),
-      "secret_access_key" => Ecto.Changeset.get_field(changeset, :secret_access_key)
+      "secret_access_key" => Ecto.Changeset.get_field(changeset, :secret_access_key),
+      "integration_uuid" => Ecto.Changeset.get_field(changeset, :integration_uuid)
     }
 
     socket = assign(socket, :testing_connection, true)

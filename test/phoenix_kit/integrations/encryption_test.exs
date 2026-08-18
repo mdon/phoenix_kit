@@ -581,6 +581,103 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
     end
   end
 
+  describe "encrypt_value/1, decrypt_value/1 and encrypted?/1" do
+    setup do
+      # Same rationale as the "smtp password field" test above: stamp a flat
+      # secret_key_base directly so encryption is deterministically enabled,
+      # regardless of what core's own test config carries.
+      original = Application.get_env(:phoenix_kit, :secret_key_base)
+      Application.put_env(:phoenix_kit, :secret_key_base, "test-secret-for-value-encryption")
+
+      on_exit(fn ->
+        if original,
+          do: Application.put_env(:phoenix_kit, :secret_key_base, original),
+          else: Application.delete_env(:phoenix_kit, :secret_key_base)
+      end)
+
+      :ok
+    end
+
+    test "round-trips a single value" do
+      encrypted = Encryption.encrypt_value("s3-secret-key")
+
+      assert encrypted != "s3-secret-key"
+      assert String.starts_with?(encrypted, "enc:v1:")
+      assert Encryption.encrypted?(encrypted)
+      assert Encryption.decrypt_value(encrypted) == {:ok, "s3-secret-key"}
+    end
+
+    test "is idempotent — does not double-encrypt an already-encrypted value" do
+      once = Encryption.encrypt_value("plaintext")
+      twice = Encryption.encrypt_value(once)
+
+      assert once == twice
+      assert Encryption.decrypt_value(twice) == {:ok, "plaintext"}
+    end
+
+    test "nil and empty values pass through unchanged" do
+      assert Encryption.encrypt_value(nil) == nil
+      assert Encryption.encrypt_value("") == ""
+      assert Encryption.decrypt_value(nil) == {:ok, nil}
+      assert Encryption.decrypt_value("") == {:ok, ""}
+    end
+
+    test "decrypt_value passes through legacy plaintext (no enc:v1: prefix) unchanged" do
+      assert Encryption.decrypt_value("legacy-plaintext-secret") ==
+               {:ok, "legacy-plaintext-secret"}
+    end
+
+    test "encrypted?/1 detects the enc:v1: prefix" do
+      refute Encryption.encrypted?("plaintext")
+      refute Encryption.encrypted?(nil)
+      assert Encryption.encrypted?(Encryption.encrypt_value("x"))
+    end
+  end
+
+  describe "encrypt_value/1 and decrypt_value/1 when encryption is unavailable" do
+    import ExUnit.CaptureLog
+
+    setup do
+      original_flat = Application.get_env(:phoenix_kit, :secret_key_base)
+      original_parent = Application.get_env(:phoenix_kit, :parent_module)
+      Application.delete_env(:phoenix_kit, :secret_key_base)
+      Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
+
+      on_exit(fn ->
+        restore_env(:secret_key_base, original_flat)
+        restore_env(:parent_module, original_parent)
+      end)
+
+      refute Encryption.enabled?()
+      :ok
+    end
+
+    test "encrypt_value/1 returns the value unchanged and logs a warning naming the function, not the value" do
+      log =
+        capture_log(fn ->
+          assert Encryption.encrypt_value("s3-secret-should-not-be-logged") ==
+                   "s3-secret-should-not-be-logged"
+        end)
+
+      assert log =~ "encrypt_value/1"
+      assert log =~ "no encryption key available"
+      refute log =~ "s3-secret-should-not-be-logged"
+    end
+
+    test "decrypt_value/1 returns {:error, :encryption_unavailable} for an already-encrypted value — never the ciphertext or a fabricated plaintext" do
+      # Shape of a real enc:v1: value — this test only needs the prefix to
+      # be recognized as "encrypted", not a value that decrypts cleanly.
+      still_prefixed = "enc:v1:" <> Base.encode64(:crypto.strong_rand_bytes(40))
+
+      assert Encryption.decrypt_value(still_prefixed) == {:error, :encryption_unavailable}
+    end
+
+    test "decrypt_value/1 still passes through legacy plaintext (no prefix) even with no key" do
+      assert Encryption.decrypt_value("legacy-plaintext-secret") ==
+               {:ok, "legacy-plaintext-secret"}
+    end
+  end
+
   defp restore_env(key, nil), do: Application.delete_env(:phoenix_kit, key)
   defp restore_env(key, value), do: Application.put_env(:phoenix_kit, key, value)
 
