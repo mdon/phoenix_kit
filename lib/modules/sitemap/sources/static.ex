@@ -52,6 +52,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
   @behaviour PhoenixKit.Modules.Sitemap.Sources.Source
 
   alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Modules.Sitemap.DomainMode
   alias PhoenixKit.Modules.Sitemap.LocalePath
   alias PhoenixKit.Modules.Sitemap.RouteResolver
   alias PhoenixKit.Modules.Sitemap.UrlEntry
@@ -106,14 +107,31 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
   @impl true
   def collect(opts \\ []) do
     is_default = Keyword.get(opts, :is_default_language, true)
+    language = Keyword.get(opts, :language)
+    # Only the domain pass asks for these: the URL built for a domain-hosted
+    # language is a locale-prefixed INTERMEDIATE that `DomainMode` re-hosts
+    # prefix-free onto that language's domain. It must never reach the legacy
+    # set (which unmapped hosts are served verbatim), where nothing would
+    # rewrite it and `https://<primary>/fr/` is usually not a real page.
+    #
+    # The default language never needs the lookup either: it is emitted either
+    # way and keeps `skip_language_prefix` regardless.
+    domain_hosted? =
+      Keyword.get(opts, :domain_pass, false) and not is_default and
+        domain_hosted_language?(language)
 
-    # Static pages only generate URLs for the default language
-    # Non-default language URLs would lead to 404 errors
-    if is_default do
+    # Static pages only generate URLs for the default language: in a
+    # prefix-based install a "/de/..." static page would 404.
+    #
+    # A language with a domain of its own is the exception — it serves these
+    # pages from that host, prefix-free, so they are real 200s. Without this
+    # every non-primary domain's sitemap loses its own home page while still
+    # listing its products. The prefixed URL built here is what DomainMode
+    # re-hosts onto the language's domain.
+    if is_default or domain_hosted? do
       base_url = Keyword.get(opts, :base_url)
-      language = Keyword.get(opts, :language)
 
-      static_entries = collect_static_routes(base_url, language, is_default)
+      static_entries = collect_static_routes(base_url, language, is_default, domain_hosted?)
       custom_entries = collect_custom_urls(base_url, language, is_default)
 
       (static_entries ++ custom_entries)
@@ -128,9 +146,21 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
       []
   end
 
-  defp collect_static_routes(base_url, language, is_default) do
+  defp collect_static_routes(base_url, language, is_default, domain_hosted?) do
     get_static_routes_config()
-    |> Enum.map(&build_static_entry(&1, base_url, language, is_default))
+    |> Enum.map(&build_static_entry(&1, base_url, language, is_default, domain_hosted?))
+  end
+
+  # True when `language` has a domain of its own under domain mode. Resolved
+  # once per collect/1 — DomainMode reads (and validates) the host app's
+  # provider on every call.
+  defp domain_hosted_language?(nil), do: false
+
+  defp domain_hosted_language?(language) do
+    base = Languages.DialectMapper.extract_base(language)
+    Enum.any?(DomainMode.domains(), &(&1.language == base))
+  rescue
+    _ -> false
   end
 
   defp collect_custom_urls(base_url, language, is_default) do
@@ -190,12 +220,18 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Static do
     end
   end
 
-  defp build_static_entry(config, base_url, language, is_default) do
+  defp build_static_entry(config, base_url, language, is_default, domain_hosted?) do
     path = resolve_path(config)
 
     if path do
       prefixed = Map.get(config, "prefixed", false)
-      skip_language = Map.get(config, "skip_language_prefix", false)
+
+      # `skip_language_prefix` exists because the home page usually has no
+      # localized route. A language with its own domain does have one, and the
+      # prefix is what tells DomainMode which host to re-file the entry under —
+      # without it every language's home page collapses onto one URL.
+      skip_language =
+        Map.get(config, "skip_language_prefix", false) and (is_default or not domain_hosted?)
 
       # Canonical path without language prefix (for hreflang grouping)
       canonical_path = if prefixed, do: Routes.path(path), else: path

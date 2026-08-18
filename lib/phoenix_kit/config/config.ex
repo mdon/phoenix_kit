@@ -146,6 +146,7 @@ defmodule PhoenixKit.Config do
     session_fingerprint_enabled: true,
     session_fingerprint_strict: false,
     secret_key_base: nil,
+    integrations_encryption_key: nil,
     oauth_base_url: nil,
     sync_site_url_to_endpoint: false,
     # Module-specific settings

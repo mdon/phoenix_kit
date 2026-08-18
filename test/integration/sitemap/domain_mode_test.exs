@@ -7,6 +7,10 @@ defmodule PhoenixKit.Integration.Sitemap.DomainModeProviderStub do
     ]
   end
 
+  # Every enabled language (en, fr, de) has a domain of its own — the shape a
+  # site reaches once it stops leaving languages domainless.
+  def all_mapped, do: ok() ++ [%{host: "site.example.de", language: "de", primary: false}]
+
   def no_primary, do: Enum.map(ok(), &%{&1 | primary: false})
   def two_primaries, do: Enum.map(ok(), &%{&1 | primary: true})
 
@@ -99,7 +103,11 @@ defmodule PhoenixKit.Integration.Sitemap.DomainModeTest do
 
       result = DomainMode.rebuild_for_domains(entries, @base)
 
-      [en_entry] = result["site.example.com"]
+      # de has no domain of its own, so it rides the primary domain, prefixed
+      primary_locs = Enum.map(result["site.example.com"], & &1.loc)
+      assert "https://site.example.com/de/decor/der-post" in primary_locs
+
+      en_entry = Enum.find(result["site.example.com"], &(&1.loc =~ "/decor/post"))
       [fr_entry] = result["site.example.fr"]
 
       assert en_entry.loc == "https://site.example.com/decor/post"
@@ -115,6 +123,57 @@ defmodule PhoenixKit.Integration.Sitemap.DomainModeTest do
       # unmapped language stays prefixed on the primary domain
       assert hrefs["de"] == "https://site.example.com/de/decor/der-post"
       assert hrefs["x-default"] == "https://site.example.com/decor/post"
+    end
+
+    test "a language with no domain is published, prefixed, from the primary domain" do
+      entries = [
+        entry("/decor/post", "/decor/post"),
+        entry("/de/decor/der-post", "/decor/post"),
+        entry("/de/only-german", "/only-german")
+      ]
+
+      result = DomainMode.rebuild_for_domains(entries, @base)
+
+      locs = result["site.example.com"] |> Enum.map(& &1.loc) |> Enum.sort()
+
+      assert locs == [
+               "https://site.example.com/de/decor/der-post",
+               "https://site.example.com/de/only-german",
+               "https://site.example.com/decor/post"
+             ]
+
+      # a domainless language rides the primary host only — never a mapped
+      # sibling's file, which must stay single-language
+      assert result["site.example.fr"] == []
+
+      # and it carries the same group alternates as its translated sibling
+      de = Enum.find(result["site.example.com"], &(&1.loc =~ "/de/decor/"))
+
+      en =
+        Enum.find(result["site.example.com"], &(&1.loc == "https://site.example.com/decor/post"))
+
+      assert de.alternates == en.alternates
+    end
+
+    test "every enabled language mapped ⇒ no domainless entries are added" do
+      put_provider(:all_mapped)
+
+      entries = [
+        entry("/decor/post", "/decor/post"),
+        entry("/fr/decor/le-post", "/decor/post"),
+        entry("/de/decor/der-post", "/decor/post")
+      ]
+
+      result = DomainMode.rebuild_for_domains(entries, @base)
+
+      assert Enum.map(result["site.example.com"], & &1.loc) ==
+               ["https://site.example.com/decor/post"]
+
+      assert Enum.map(result["site.example.fr"], & &1.loc) ==
+               ["https://site.example.fr/decor/le-post"]
+
+      assert Enum.map(result["site.example.de"], & &1.loc) ==
+               ["https://site.example.de/decor/der-post"]
     end
 
     test "untranslated group appears only on its language's domain" do

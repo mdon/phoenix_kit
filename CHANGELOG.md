@@ -1,3 +1,97 @@
+## 2.12.1 - 2026-08-17
+
+Two defects in the sitemap domain-mode code that landed with 2.12.0, found by
+reviewing that release's own follow-up commits after it shipped (#731).
+
+### Fixed
+
+- **Duplicate `<loc>` on the primary sitemap domain.** When the primary
+  domain hosts a language that is NOT the site default, and the site default
+  has no domain of its own, the default language's unprefixed home page
+  re-hosted onto exactly the URL the primary's own language already
+  occupied — the same URL twice in one file. The host's own language now
+  wins its URL and the colliding domainless entry is dropped (#731).
+- **One junk element in `sitemap_non_page_pipelines` emptied the whole
+  router-discovery source, silently.** A hand-edited settings value like
+  `["phoenix_kit_api", 1]` raised inside `safe_to_atom/1`, which `collect/1`'s
+  rescue swallowed — removing every discovered route from the sitemap with
+  nothing in the log. Junk elements are now ignored while the good ones still
+  apply; this also hardens `sitemap_protected_pipelines`, which shares the
+  same helper (#731).
+
+## 2.12.0 - 2026-08-17
+
+Every mapped sitemap domain gets its own static pages, with the review
+follow-ups needed to ship it safely (#730).
+
+### Added
+
+- **A mapped sitemap domain now gets its own static pages** (home page and
+  any other `sitemap_static_routes` / `sitemap_custom_urls` entry) — a
+  language with a domain of its own serves these prefix-free from that host,
+  but `Sources.Static` previously emitted them for the default language
+  only, so every non-primary domain's sitemap was missing its own home page
+  while still listing its products. The prefixed URL this collects is an
+  intermediate for `DomainMode` to re-host, not a published one — it never
+  reaches the legacy/index set served to unmapped hosts (#730).
+- **`sitemap_non_page_pipelines` setting** — an escape hatch for the
+  JSON-pipeline route exclusion added in 2.11.0: unlike
+  `sitemap_protected_pipelines`, this one *replaces* the default pipeline
+  list rather than extending it, so a host that serves real pages through a
+  pipeline literally named `:api` can take it off the list. Saving `[]`
+  turns pipeline-based exclusion off entirely (#730).
+
+### Fixed
+
+- **`Sitemap.regenerate/1` accepted an unconfigured `site_url`** and would
+  have written host-less `<loc>` entries instead of failing — it now returns
+  `{:error, :base_url_not_configured}`, matching the guard
+  `SchedulerWorker` already had for scheduled regeneration (#730).
+
+## 2.11.0 - 2026-08-17
+
+Sitemap round-out (domainless-language URLs, a real `regenerate/1`, JSON-pipeline
+route exclusion), independent integrations encryption keys with rotation, and a
+media-annotation comment fix, with etcher bumped to 0.13.1 (#725, #726, #727,
+#728, #729).
+
+### Added
+
+- **Integrations encryption key rotation.** `mix phoenix_kit.integrations.rotate_key`
+  re-encrypts (or, for a still-plaintext row from before this release, encrypts for
+  the first time) every stored integration credential under the currently
+  configured key, and the encryption key can now be decoupled from
+  `secret_key_base` via a dedicated config, with an admin-UI warning when a host is
+  still relying on the legacy shared-key fallback (#728).
+- **`sitemap_router_discovery` now excludes JSON-pipeline routes**, not just
+  `^/api`-path routes — a route piped through `:api` or `:phoenix_kit_api` is
+  recognized as non-page regardless of where it's mounted (a module's own API
+  prefix, or a host's infrastructure endpoint like Caddy's on-demand-TLS ask
+  hook) (#727).
+
+### Fixed
+
+- **Domain-mode sitemap dropped every URL for a language with no domain of its
+  own.** Domainless languages now fall back into the primary domain's file with
+  their locale-prefixed path intact, computed the same way as a mapped
+  language's alternates (#725).
+- **`Sitemap.regenerate/1` returned a "not implemented" placeholder** instead of
+  actually regenerating the sitemap; wired to the same `Generator` call the
+  sitemap controller already uses (#726).
+- **Master comment on a labelled annotation shape repeated the shape's label**
+  as the comment body, even though the sidebar already renders the label as the
+  thread's heading — post-merge review found the described fallback for older
+  `phoenix_kit_comments` releases didn't actually work (the new
+  `allow_empty_content` flag doesn't exist in any released version, so the
+  bodiless-content attempt always failed and **Reply silently did nothing** for
+  every labelled shape); fixed by retrying with the label as content on that
+  specific failure, so the flow works today and upgrades transparently once
+  `phoenix_kit_comments` ships real support for the flag (#729).
+- **etcher bumped to 0.13.1** — the annotation tooltip anchored above the shape
+  element, which for a labelled shape is exactly where the label floats,
+  covering it; the anchor box is now the shape unioned with its label and badge
+  (#729).
+
 ## 2.10.0 - 2026-08-17
 
 Locale resolution gets smarter about dialect/bare-code mismatches, hosts
