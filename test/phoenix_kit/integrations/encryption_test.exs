@@ -1123,6 +1123,8 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
   end
 
   describe "the states the real resolution actually produces" do
+    alias Mix.Tasks.PhoenixKit.Doctor, as: DoctorTask
+
     setup do
       previous = %{
         skb: Application.get_env(:phoenix_kit, :secret_key_base),
@@ -1216,12 +1218,48 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       # saved here" about a file that does not exist. `KeyStore.read/0`'s own
       # doc forbids collapsing those two, and the tests enumerated a
       # `:no_secret_yet` signal production could never emit.
+      # P012: a config key beside a store holding something else. Both values are
+      # read in the same pass, and the verdict used to print the store's location
+      # under a healthy `{:dedicated, :ok}` without ever comparing them.
+      assert {:dedicated, false, :shadowed} in produced,
+             "a store holding a different secret never showed up: #{inspect(produced)}"
+
       assert {:legacy, false, :no_secret_yet} in produced,
              "the real resolution never produced :no_secret_yet: #{inspect(produced)}"
 
       assert {:dedicated, false, :holding} in produced
       assert {:legacy, false, :unreadable} in produced
       assert {:none, false, :absent} in produced
+    end
+
+    # The whole P012 chain as an operator meets it: the verdict, the severity
+    # that decides whether the admin page says anything at all, and the line
+    # that used to read as "your key is saved here".
+    test "a store holding a different secret is named, warned about, and not called a backup",
+         %{dir: dir} do
+      path = Path.join(dir, "other.key")
+      File.write!(path, "STORE-secret-well-over-the-minimum")
+      File.chmod!(path, 0o600)
+
+      put(:integrations_key_store, {KeyStore.File, path: path})
+      put(:integrations_encryption_key, "CONFIG-secret-well-over-the-minimum")
+      put(:secret_key_base, String.duplicate("s", 64))
+      KeyStore.invalidate_cache()
+
+      report = Encryption.key_report()
+      {status, detail} = DoctorTask.integration_key_result(report, true)
+
+      assert report.diagnosis == {:dedicated, :store_shadowed}
+
+      # :ok would mean the admin page renders no banner — which is how this went
+      # unmentioned on every surface until now.
+      assert status == :warn
+      refute report.rotation_safe?
+
+      assert detail =~ "holds a different secret"
+      assert detail =~ "DIFFERENT secret"
+      assert detail =~ "Do NOT run"
+      assert detail =~ path
     end
 
     defp store_tag(:absent), do: :absent

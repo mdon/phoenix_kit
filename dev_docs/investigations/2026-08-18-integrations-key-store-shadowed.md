@@ -82,3 +82,76 @@ That places it inside the class this contract is about — an assertion resting 
 something never checked — rather than beside it. My deferral was wrong, and the
 argument I used to defer it ("comparing is cheap, and cheap is how five rounds
 happened") was answering a question nobody asked: the cost was never the issue.
+
+## What changed
+
+A fifth store state, `{:shadowed, location}` — the store holds a secret, and it
+is **not** the key in use. It costs no new read: `key_signals/0` already holds
+the stored secret and the resolved key in the same pass, so the comparison is
+made where both are in hand and the verdict stays a pure function of one map.
+
+That yields a diagnosis of its own, `{:dedicated, :store_shadowed}`, at
+**`:warn`** rather than `:ok`. The severity is the load-bearing part: the admin
+banner is guarded on `severity != :ok`, so at `:ok` this state says nothing on
+the page at all — which is how it stayed invisible on every surface.
+
+Rendered, for a valid key in config and a different valid secret in the file:
+
+```
+a dedicated encryption key is in use, but the configured key store holds a different secret.
+the key in use comes from configuration, and /…/app.key holds something else — so the store
+  is NOT a copy of the key in use, and restoring from it would produce a key that decrypts
+  nothing written under the current one.
+Do NOT run `mix phoenix_kit.integrations.rotate_key` before you know what the stored secret
+  is for: it is refused only while this database still holds rows under that secret, and
+  otherwise the rotation replaces it in every configured store with no copy kept. Save it
+  elsewhere first, or make the store hold the key in use.
+Fingerprint c20beb99bcaa (dedicated key).
+Key store: /…/app.key (configured, holds a DIFFERENT secret — not a copy of the key in use)
+```
+
+Every sentence there is something the run established. The rotation clause in
+particular says *when* it is refused, because "rotation will refuse" as an
+unconditional promise is the exact defect round 6 removed from the neighbouring
+clause.
+
+The admin page learned the state in the same commit — its title, its banner text
+and its fingerprint label — because the round 5 failure was precisely a new
+diagnosis reaching three surfaces out of four.
+
+## Mutation
+
+Remove the comparison, so the store is "holding" whatever it holds:
+
+```
+left:  {:dedicated, :ok}
+right: {:dedicated, :store_shadowed}
+a store holding a different secret never showed up: [...]
+```
+
+Two named tests, one on the rendered verdict and one on the states the real
+resolution produces. Both are the P012 symptom, not a side effect.
+
+## Scope held
+
+The signal space grew by one value on an existing axis (4 store states → 5), and
+the enumerations grew with it: 48 → 60 renderings in the doctor's walk, the same
+in the admin page's. No reachability rule was added; the verdict remains total,
+so the new value is checked in every combination including the ones that cannot
+occur.
+
+What was NOT done, deliberately: nothing compares the stored secret against
+anything for the weaker tiers beyond marking it shadowed. Where the tier is
+`:legacy` or `:none` and the store holds a secret, that secret was rejected as
+too short, and the `:key_too_short` clause already names the store as a possible
+source of it (round 6). Adding a second voice there would be the mistake this
+contract exists to stop.
+
+## Suite
+
+```
+before P012: 43 doctests, 3939 tests, 0 failures, 1554 excluded
+after  P012: 43 doctests, 3940 tests, 0 failures, 1554 excluded
+```
+
+Excluded unchanged; the added test is the end-to-end one for this state.

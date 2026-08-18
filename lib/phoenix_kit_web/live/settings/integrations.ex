@@ -214,6 +214,9 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   def encryption_status_title({:dedicated, :store_unreadable}),
     do: gettext("The encryption key is fine, but its key store cannot be read")
 
+  def encryption_status_title({:dedicated, :store_shadowed}),
+    do: gettext("The key store holds a different secret from the key in use")
+
   def encryption_status_title({_status, :store_unreadable}),
     do: gettext("The configured encryption key store cannot be read")
 
@@ -249,6 +252,16 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
         "key store cannot be read, so nothing confirms that key is saved anywhere. Do not " <>
         "rotate until the store reads back: the rotation pre-flight only checks that the " <>
         "store can be written, so it will not stop for this."
+    )
+  end
+
+  def encryption_status_detail({:dedicated, :store_shadowed}) do
+    gettext(
+      "Encryption is working — the key in use comes from configuration. The configured key " <>
+        "store holds a different secret, so it is not a copy of that key: restoring from it " <>
+        "would produce a key that decrypts nothing stored here. Do not rotate before you " <>
+        "know what the stored secret is for — a rotation replaces it in every configured " <>
+        "store and keeps no copy."
     )
   end
 
@@ -344,6 +357,9 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # label a working dedicated key "FALLBACK".
   def fingerprint_tier({:dedicated, :store_unreadable}),
     do: gettext("dedicated key — its key store could not be read")
+
+  def fingerprint_tier({:dedicated, :store_shadowed}),
+    do: gettext("dedicated key — the key store holds a different secret")
 
   def fingerprint_tier({_status, :store_unreadable}),
     do: gettext("FALLBACK key — the configured key store could not be read")

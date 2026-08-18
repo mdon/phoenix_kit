@@ -270,7 +270,7 @@ defmodule PhoenixKit.Integrations.Encryption do
   Both callers branch on this one value, so they cannot drift apart.
   """
   @type key_diagnosis ::
-          {:dedicated, :ok | :store_unreadable}
+          {:dedicated, :ok | :store_unreadable | :store_shadowed}
           | {:legacy_secret_key_base, :store_unreadable | :key_too_short | :no_dedicated_key}
           | {:disabled_no_key, :store_unreadable | :key_too_short | :no_key_material}
           | {:disabled_explicit, :turned_off}
@@ -302,6 +302,7 @@ defmodule PhoenixKit.Integrations.Encryption do
             :absent
             | {:no_secret_yet, String.t()}
             | {:unreadable, String.t()}
+            | {:shadowed, String.t()}
             | {:holding, String.t()},
           fingerprint: :none | {:ok, String.t()}
         }
@@ -322,7 +323,7 @@ defmodule PhoenixKit.Integrations.Encryption do
           action: String.t(),
           rotation_safe?: boolean(),
           fingerprint: :none | {:ok, String.t(), String.t()},
-          key_store: nil | {:no_secret_yet | :unreadable | :holding, String.t()}
+          key_store: nil | {:no_secret_yet | :unreadable | :shadowed | :holding, String.t()}
         }
 
   # ONE read of each input, and every signal derived from those three values.
@@ -352,7 +353,7 @@ defmodule PhoenixKit.Integrations.Encryption do
       enabled?: enabled?,
       tier: tier,
       too_short?: too_short?,
-      store: store_state(store_read),
+      store: store_state(store_read, secret),
       fingerprint: fingerprint_for(enabled?, secret)
     }
   end
@@ -367,14 +368,15 @@ defmodule PhoenixKit.Integrations.Encryption do
   # a path that does not exist produced `{:holding, "…/not-created-yet.key"}`,
   # so `{:no_secret_yet, _}` was a signal value production could never emit
   # while the tests enumerated it as one of four.
-  defp store_state(store_read) do
+  defp store_state(store_read, key_in_use) do
     if KeyStore.configured?() do
       location = KeyStore.describe() || "the configured key store"
 
       case store_read do
         {:error, _reason} -> {:unreadable, location}
         :not_configured -> {:no_secret_yet, location}
-        _held -> {:holding, location}
+        {:ok, ^key_in_use} -> {:holding, location}
+        _other -> {:shadowed, location}
       end
     else
       :absent
@@ -463,6 +465,44 @@ defmodule PhoenixKit.Integrations.Encryption do
       action:
         "Do NOT run `mix phoenix_kit.integrations.rotate_key` until the store reads back — " <>
           "repair it at #{location} first, and until it does, assume the key is saved nowhere",
+      rotation_safe?: false,
+      tier_label: "dedicated key"
+    )
+  end
+
+  # The store holds a secret, and it is NOT the one doing the work. Both values
+  # were already in hand — `key_signals/0` reads the stored secret and resolves
+  # the key in use in the same pass — and the verdict used to print the store's
+  # location under a healthy `{:dedicated, :ok}` without ever comparing them.
+  # The line says "a store is configured at /path"; underneath "a dedicated
+  # encryption key is in use" it reads as "your key is saved there", and that
+  # reading was never checked.
+  #
+  # Two ways it costs, both verified by running:
+  #
+  #   * restoring the key from the store yields a secret that decrypts nothing
+  #     written under the current one;
+  #   * `mix phoenix_kit.integrations.rotate_key` replaces what the store holds
+  #     and keeps no copy — `KeyStore.Chain` writes every member, so the local
+  #     file and any off-host copy go together. Rotation refuses only while THIS
+  #     database still has rows under the stored secret; where it has none it
+  #     proceeds, and it stores the new secret even after rotating zero rows.
+  #     The destructive path is the quiet one.
+  def key_report(%{tier: :dedicated, store: {:shadowed, location}} = signals) do
+    report(signals, {:dedicated, :store_shadowed}, :warn,
+      summary:
+        "a dedicated encryption key is in use, but the configured key store holds a " <>
+          "different secret",
+      consequence:
+        "the key in use comes from configuration, and #{location} holds something else — so " <>
+          "the store is NOT a copy of the key in use, and restoring from it would produce a " <>
+          "key that decrypts nothing written under the current one",
+      action:
+        "Do NOT run `mix phoenix_kit.integrations.rotate_key` before you know what the " <>
+          "stored secret is for: it is refused only while this database still holds rows " <>
+          "under that secret, and otherwise the rotation replaces it in every configured " <>
+          "store with no copy kept. Save it elsewhere first, or make the store hold the key " <>
+          "in use",
       rotation_safe?: false,
       tier_label: "dedicated key"
     )

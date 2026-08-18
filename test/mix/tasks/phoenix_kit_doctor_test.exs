@@ -286,6 +286,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
         :absent,
         {:no_secret_yet, @location},
         {:unreadable, @location},
+        {:shadowed, @location},
         {:holding, @location}
       ]
 
@@ -312,7 +313,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
 
       # If this number moves, a signal gained a value and every assertion below
       # silently covers less than it claims.
-      assert length(space) == 48
+      assert length(space) == 60
 
       for signals <- space, show? <- [false, true] do
         report = Encryption.key_report(signals)
@@ -407,6 +408,10 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
             assert detail =~ "could not be read",
                    "#{where}: an unreadable store printed as if it held the key"
 
+          {:shadowed, _loc} ->
+            assert detail =~ "DIFFERENT secret",
+                   "#{where}: a store holding another secret printed as if it held the key"
+
           {:holding, _loc} ->
             assert detail =~ "Key store:", "#{where}: store configured but not mentioned"
         end
@@ -444,6 +449,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
             not signals.enabled? -> :warn
             signals.tier == :none -> :fail
             signals.tier == :dedicated and match?({:unreadable, _}, signals.store) -> :warn
+            signals.tier == :dedicated and match?({:shadowed, _}, signals.store) -> :warn
             signals.tier == :dedicated -> :pass
             true -> :warn
           end

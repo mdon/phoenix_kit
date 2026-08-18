@@ -252,6 +252,11 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   defp key_store_lines(%{key_store: {:unreadable, location}}),
     do: ["Key store: #{location} (configured, could not be read)"]
 
+  defp key_store_lines(%{key_store: {:shadowed, location}}),
+    do: [
+      "Key store: #{location} (configured, holds a DIFFERENT secret — not a copy of the key in use)"
+    ]
+
   defp check_repo_detection do
     app = Mix.Project.config()[:app]
     repos = Application.get_env(app, :ecto_repos, [])

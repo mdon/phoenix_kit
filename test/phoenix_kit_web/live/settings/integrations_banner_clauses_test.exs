@@ -30,6 +30,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsBannerClausesTest do
       :absent,
       {:no_secret_yet, @location},
       {:unreadable, @location},
+      {:shadowed, @location},
       {:holding, @location}
     ]
 
