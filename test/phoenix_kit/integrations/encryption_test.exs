@@ -425,9 +425,12 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       log = capture_log(fn -> Encryption.warn_if_insecure() end)
 
       # ...but the operator who configured a key, just too short, must not
-      # be told "no dedicated key is configured" — they configured one.
-      assert log =~ "is shorter than"
-      assert log =~ "IGNORED"
+      # be told "no dedicated key is configured" — they configured one. Asserts
+      # the invariant rather than a phrase: the wording now comes from one
+      # source (`Encryption.key_advice/0`) and is expected to be edited there.
+      assert log =~ "shorter than"
+      assert log =~ "rejected"
+      assert log =~ "not the same as none being configured"
       refute log =~ "no dedicated key is"
     end
   end
@@ -476,7 +479,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       assert Encryption.status() == :disabled_no_key
 
       log = capture_log(fn -> Encryption.warn_if_insecure() end)
-      assert log =~ "is shorter than"
+      assert log =~ "shorter than"
       refute log =~ "no encryption key could be resolved"
     end
 
@@ -744,8 +747,12 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
 
       log = both_messages()
 
+      # Two surfaces, one run: the per-read error and the boot warning. Both
+      # must describe the same reality — the assertion is about agreement, not
+      # about a sentence, so unifying the wording cannot silently break it.
       assert log =~ "IS configured but its secret could not be read"
-      assert log =~ "A key store is configured"
+      assert log =~ "a key store is configured"
+      assert log =~ "fell back to the secret_key_base-derived key"
       refute log =~ "PLAINTEXT"
     end
 
@@ -756,7 +763,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       log = both_messages()
 
       assert log =~ "IS configured but its secret could not be read"
-      assert log =~ "A key store is configured"
+      assert log =~ "a key store is configured"
       assert log =~ "PLAINTEXT"
       refute log =~ "fell back to the secret_key_base-derived key"
     end

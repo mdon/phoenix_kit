@@ -261,4 +261,77 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
       assert message =~ "DefaultQueueWorker"
     end
   end
+
+  describe "integration_key_result/3 — the branch where the defect actually lived" do
+    # The check used to compose its own wording, and twice said something
+    # `PhoenixKit.Integrations.Encryption` had already been fixed not to say.
+    # Tests over `key_diagnosis/0` stayed green through both, because the defect
+    # was here, in the rendering. Hence a seam, for the same reason `exit_code/1`
+    # has one.
+    defp advice(overrides) do
+      Map.merge(
+        %{
+          severity: :warn,
+          summary: "a key store is configured but its secret could not be read",
+          consequence: "NO key resolved at all — credentials are being written in PLAINTEXT",
+          action: "Do NOT run `mix phoenix_kit.integrations.rotate_key`. Repair the store first",
+          rotation_safe?: false
+        },
+        overrides
+      )
+    end
+
+    test "the advice is rendered verbatim — the check adds no wording of its own" do
+      given = advice(%{})
+
+      {_status, detail} = DoctorTask.integration_key_result(given, "", "/k")
+
+      assert detail =~ given.summary
+      assert detail =~ given.consequence
+      assert detail =~ given.action
+    end
+
+    # The finding this round: the check asserted "a weaker key is in use" in
+    # states where no key resolves at all and the data goes to disk in the clear.
+    test "it never claims a weaker key when the advice says plaintext" do
+      {_status, detail} = DoctorTask.integration_key_result(advice(%{}), "", "/k")
+
+      assert detail =~ "PLAINTEXT"
+      refute detail =~ "weaker key"
+    end
+
+    # The finding from the previous round, kept locked: where rotation is unsafe
+    # the check must not tell anyone to rotate. Red before the branch was fixed.
+    test "where rotation is unsafe, the only mention of it is the prohibition" do
+      given = advice(%{})
+
+      {_status, detail} = DoctorTask.integration_key_result(given, "", "/k")
+
+      mentions = length(String.split(detail, "phoenix_kit.integrations.rotate_key")) - 1
+      in_advice = length(String.split(given.action, "phoenix_kit.integrations.rotate_key")) - 1
+
+      assert mentions == in_advice
+      assert detail =~ "Do NOT run"
+    end
+
+    test "unintended plaintext is a FAIL, so --exit-code stops a deploy" do
+      assert {:fail, _} = DoctorTask.integration_key_result(advice(%{severity: :fail}), "", "/k")
+      assert {:warn, _} = DoctorTask.integration_key_result(advice(%{severity: :warn}), "", "/k")
+
+      assert {:pass, _} =
+               DoctorTask.integration_key_result(
+                 advice(%{severity: :ok, consequence: "", action: ""}),
+                 "",
+                 "/k"
+               )
+    end
+
+    test "the fingerprint note and the store location are carried through" do
+      {_status, detail} =
+        DoctorTask.integration_key_result(advice(%{}), "\n       Fingerprint abc.", "/etc/k.key")
+
+      assert detail =~ "Fingerprint abc."
+      assert detail =~ "Stored in: /etc/k.key"
+    end
+  end
 end

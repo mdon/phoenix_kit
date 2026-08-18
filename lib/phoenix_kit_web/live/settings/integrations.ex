@@ -129,6 +129,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     socket =
       socket
       |> assign(:encryption_status, Encryption.status())
+      |> assign(:encryption_diagnosis, Encryption.key_diagnosis())
       |> assign(:encryption_fingerprint, encryption_fingerprint())
 
     # System page: only providers usable system-wide, and only SYSTEM-owned
@@ -190,13 +191,25 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # Deliberately no clause for `:dedicated` — the template guards rendering
   # on `@encryption_status != :dedicated`, so the healthy case never reaches
   # these.
-  defp encryption_status_title(:legacy_secret_key_base),
+  # Keyed on `Encryption.key_diagnosis/0`, not on the status alone. Keyed on the
+  # status, this page told an operator whose key store is merely UNREADABLE that
+  # "no dedicated encryption key is configured" — false, they configured one —
+  # and then advised the rotation that would abandon the key their data may be
+  # encrypted under. The same wrong sentence has now been removed from the boot
+  # log, the mix task and here.
+  defp encryption_status_title({_status, :store_unreadable}),
+    do: gettext("The configured encryption key store cannot be read")
+
+  defp encryption_status_title({_status, :key_too_short}),
+    do: gettext("The configured encryption key was rejected as too short")
+
+  defp encryption_status_title({:legacy_secret_key_base, _reason}),
     do: gettext("Credentials are protected only by a shared application secret")
 
-  defp encryption_status_title(:disabled_no_key),
+  defp encryption_status_title({:disabled_no_key, _reason}),
     do: gettext("Credentials are stored in plain text")
 
-  defp encryption_status_title(:disabled_explicit),
+  defp encryption_status_title({:disabled_explicit, _reason}),
     do: gettext("Encryption is turned off for integration credentials")
 
   # Catch-all: the template renders this banner for ANY status other than
@@ -206,7 +219,47 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   defp encryption_status_title(_other),
     do: gettext("Integration credential encryption needs attention")
 
-  defp encryption_status_detail(:legacy_secret_key_base) do
+  # Two clauses per fault, because the consequence genuinely differs: with a
+  # legacy secret still available the data is merely on a weaker key, with none
+  # it is in plain text. Saying "fell back" in the second case is the exact
+  # falsehood this module already removed from two other surfaces.
+  defp encryption_status_detail({:disabled_no_key, :store_unreadable}) do
+    gettext(
+      "A key store is configured but its secret could not be read, and no other key resolves " <>
+        "either — credentials below are being written in plain text. Do NOT run " <>
+        "mix phoenix_kit.integrations.rotate_key: the stored key may be the one existing " <>
+        "credentials are encrypted under. Repair the store first; repairing it later will not " <>
+        "make anything written in the meantime readable."
+    )
+  end
+
+  defp encryption_status_detail({_status, :store_unreadable}) do
+    gettext(
+      "A key store is configured but its secret could not be read, so encryption fell back to " <>
+        "a weaker key. Values written under the stored key will not decrypt. Do NOT run " <>
+        "mix phoenix_kit.integrations.rotate_key: the stored key may be the one they are " <>
+        "encrypted under. Repair the store first; repairing it later will not make anything " <>
+        "written in the meantime readable."
+    )
+  end
+
+  defp encryption_status_detail({:disabled_no_key, :key_too_short}) do
+    gettext(
+      "A dedicated encryption key is configured but was rejected as too short, and no other " <>
+        "key resolves — credentials below are being written in plain text. Replace it with a " <>
+        "longer secret; mix phoenix_kit.integrations.rotate_key generates one."
+    )
+  end
+
+  defp encryption_status_detail({_status, :key_too_short}) do
+    gettext(
+      "A dedicated encryption key is configured but was rejected as too short, so a weaker " <>
+        "key is in use. This is not the same as having none configured. Replace it with a " <>
+        "longer secret; mix phoenix_kit.integrations.rotate_key generates one."
+    )
+  end
+
+  defp encryption_status_detail({:legacy_secret_key_base, _reason}) do
     gettext(
       "No dedicated encryption key is configured, so credentials below fall back to a key " <>
         "derived from secret_key_base — a secret shared with session signing and CSRF tokens. " <>
@@ -215,14 +268,14 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     )
   end
 
-  defp encryption_status_detail(:disabled_no_key) do
+  defp encryption_status_detail({:disabled_no_key, _reason}) do
     gettext(
       "No encryption key could be resolved. New and existing credentials below are stored as " <>
         "plain text in the database."
     )
   end
 
-  defp encryption_status_detail(:disabled_explicit) do
+  defp encryption_status_detail({:disabled_explicit, _reason}) do
     gettext(
       "integration_encryption_enabled is set to false. Credentials below are stored as plain " <>
         "text in the database."

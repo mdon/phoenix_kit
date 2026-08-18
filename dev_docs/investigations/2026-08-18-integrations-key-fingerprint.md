@@ -138,6 +138,87 @@ The checker's own closing point: this feature does not *answer* whether our
 sites share a key — it only makes the answer obtainable. Getting it needs a run
 on each site, which is the head's step, not a code change.
 
+## Second FIX round — the same lie on a third and fourth surface
+
+The branching was unified last round; the **wording** was not, and that is where
+the defect reappeared.
+
+### The doctor claimed a weaker key where none exists
+
+Both the "store unreadable" and "key too short" branches said *a weaker key is in
+use*. Those states are reachable **paired with** "no key at all", and then there
+is no weaker key — credentials go to disk in plain text. This module had already
+grown a function specifically against that sentence, with a live regression test
+saying both messages must say PLAINTEXT and neither may claim a fallback. The
+doctor was a third surface breaking that invariant. Both branches also reported
+at warning level, so unintended plaintext did not surface as a fact at all.
+
+Then a fourth was found while fixing it: `dedicated_key_too_short_warning`
+carried "Falling back to whatever weaker tier would otherwise apply" — same
+blindness, same module.
+
+**Fixed at the source.** `Encryption.key_advice/0` now returns the facts —
+severity, summary, consequence, action, and whether rotation is safe — and the
+four prose builders are gone. The boot log and the mix task render that one
+value; they no longer have wording of their own to drift. Unintended plaintext
+is `:fail`, not `:warn`, so `--exit-code` stops a deploy for it; encryption
+switched off deliberately stays a warning, because the operator already knows.
+
+Verified on the exact pair that used to lie:
+
+    store unreadable, legacy present  → WARN, "encryption fell back to the
+                                        secret_key_base-derived key …"
+    store unreadable, no key at all   → FAIL, "NO key resolved at all —
+                                        integration credentials are being
+                                        written in PLAINTEXT"
+
+### The task had silently dropped the part that matters most
+
+Rewriting its own text, the check lost the clause saying that repairing the store
+**later** does not recover anything written in the meantime. The reader of a mix
+task's output is exactly the operator who needs to know that every write right
+now is becoming unrecoverable. It is back, because the task no longer writes its
+own sentences.
+
+### And the admin page was a fourth voice
+
+Keyed on the status alone, it told an operator whose store is merely unreadable
+that "no dedicated encryption key is configured" — false, they configured one —
+and then advised the rotation that would abandon the key their data may be under.
+It now branches on the diagnosis, with separate clauses for "a weaker key is in
+use" and "there is no key at all", and its strings stay `gettext`-wrapped
+because they are translated UI. So: **one source for the facts everywhere, one
+source for the words in the log and the task, and the page renders the same
+facts in its own translated voice** — not a claim of one string for all three,
+which `gettext` cannot honour.
+
+### The tests were guarding the wrong layer
+
+The previous round's tests covered `key_diagnosis/0` and would have stayed green
+had the doctor branch kept advising rotation — the defect lived in the
+rendering, where nothing reached it. `Mix.Tasks.PhoenixKit.Doctor.integration_key_result/3`
+is now a pure, public seam, for the same reason `exit_code/1` is one.
+
+**Proven by mutation, not by assertion.** With the pre-fix rendering pasted back
+in — its own wording, "a weaker key is in use", the unconditional rotation
+advice — exactly the three guarding tests go red:
+
+    1) where rotation is unsafe, the only mention of it is the prohibition
+    2) it never claims a weaker key when the advice says plaintext
+    3) the advice is rendered verbatim — the check adds no wording of its own
+    25 tests, 3 failures
+
+Restored: 25 tests, 0 failures. That is the check that the guard sits where the
+break happened.
+
+### Tests that pinned phrases, not invariants
+
+Four of my own assertions broke when the wording moved to one source — they were
+matching sentences. Rewritten to assert what must be true (both messages agree;
+an operator who configured a short key is not told none is configured) rather
+than how it is phrased, which is what should survive the wording living in one
+place.
+
 ## Found while writing the tests
 
 The test asserting that a dedicated key and a legacy secret *of the same text*

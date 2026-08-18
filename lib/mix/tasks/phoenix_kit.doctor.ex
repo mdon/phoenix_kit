@@ -184,53 +184,48 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   # ── Check implementations (return {:pass|:warn|:fail, detail}) ──────
 
-  # Branches on `Encryption.key_diagnosis/0` — the SAME value
-  # `Encryption.warn_if_insecure/0` branches on. Advice that is right for one
-  # reason is harmful for another: telling an operator whose key store is
-  # unreadable to rotate would move the data off a key the store may still hold,
-  # and telling someone who configured a key that none is configured is false.
-  # An earlier version of this check gave the rotation advice unconditionally.
   defp check_integration_key(show_fingerprint?) do
-    case Encryption.key_diagnosis() do
-      {:dedicated, :ok} ->
-        {:pass,
-         "dedicated key#{fingerprint_note(show_fingerprint?, "dedicated key")}.\n" <>
-           "       Stored in: #{key_location()}"}
-
-      # Ranked first on purpose: repairing the store may restore the very key the
-      # data is encrypted under.
-      {_status, :store_unreadable} ->
-        {:warn,
-         "a key store IS configured but its secret could not be read, so a weaker key is in " <>
-           "use.\n       Do NOT run `mix phoenix_kit.integrations.rotate_key` — the stored key " <>
-           "may be the one\n       your data is encrypted under. Repair the store first: " <>
-           "#{key_location()}"}
-
-      {_status, :key_too_short} ->
-        {:warn,
-         "a dedicated key IS configured but was REJECTED as shorter than " <>
-           "#{Encryption.min_dedicated_key_length()} characters,\n       so a weaker key is in " <>
-           "use. This is not the same as having none configured.\n       Replace it with a " <>
-           "longer secret (`mix phoenix_kit.integrations.rotate_key` generates one)."}
-
-      {:legacy_secret_key_base, :no_dedicated_key} ->
-        {:warn,
-         "key is DERIVED from secret_key_base" <>
-           "#{fingerprint_note(show_fingerprint?, "derived from secret_key_base")}.\n" <>
-           "       Any other site sharing that secret_key_base has the same key — one " <>
-           "compromise\n       exposes all of them. Run " <>
-           "`mix phoenix_kit.integrations.rotate_key` for a key of this site's own."}
-
-      {:disabled_no_key, :no_key_material} ->
-        {:warn,
-         "no encryption key resolves at all — integration credentials are stored in PLAINTEXT"}
-
-      {:disabled_explicit, :turned_off} ->
-        {:warn,
-         "integration_encryption_enabled is false — integration credentials are stored in " <>
-           "PLAINTEXT"}
-    end
+    integration_key_result(
+      Encryption.key_advice(),
+      fingerprint_note(show_fingerprint?),
+      key_location()
+    )
   end
+
+  @doc """
+  The "Integration Key" verdict, as a pure function of the advice it is given.
+
+  Public for the same reason `exit_code/1` is: `run/1` is not a unit-test seam,
+  and the defect this check had — advising a rotation in a state where the
+  module itself forbids one — lived exactly here, in the branch, where nothing
+  could reach it. Tests that only covered `Encryption.key_diagnosis/0` stayed
+  green through it.
+
+  It renders `Encryption.key_advice/0` rather than composing its own wording:
+  the earlier version wrote its own and silently dropped the part telling the
+  operator that repairing a key store later does not recover what was written
+  in the meantime — which is the one thing a person reading a task's output at
+  deploy time most needs.
+  """
+  @spec integration_key_result(Encryption.key_advice(), String.t(), String.t()) ::
+          {:pass | :warn | :fail, String.t()}
+  def integration_key_result(advice, fingerprint_note, location) do
+    detail =
+      [advice.summary, advice.consequence, advice.action]
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join(".\n       ")
+
+    {severity_status(advice.severity),
+     detail <> fingerprint_note <> "\n       Stored in: #{location}"}
+  end
+
+  # An unintended plaintext store is a FAIL, not a warning: `--exit-code` exists
+  # to stop a deploy, and credentials being written in the clear without anyone
+  # choosing that is what it should stop for. Encryption switched off on purpose
+  # stays a warning — the operator already knows.
+  defp severity_status(:ok), do: :pass
+  defp severity_status(:warn), do: :warn
+  defp severity_status(:fail), do: :fail
 
   # Hidden unless asked for. This task's output lands in CI logs, whose
   # readership is wider than the admin page the fingerprint is otherwise shown
@@ -240,12 +235,22 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # fingerprints its FALLBACK key, and a bare number would make an operator
   # comparing two sites believe their keys differ when the comparison is simply
   # not like-for-like.
-  defp fingerprint_note(false, _tier), do: " (fingerprint hidden — pass --fingerprint to show)"
+  defp fingerprint_note(false), do: "\n       Fingerprint hidden — pass --fingerprint to show."
 
-  defp fingerprint_note(true, tier) do
+  defp fingerprint_note(true) do
     case Encryption.key_fingerprint() do
-      {:ok, fp} -> ", fingerprint #{fp} (#{tier})"
-      :none -> " (no key, so no fingerprint)"
+      {:ok, fp} -> "\n       Fingerprint #{fp} (#{fingerprint_tier()})."
+      :none -> "\n       No key, so no fingerprint."
+    end
+  end
+
+  defp fingerprint_tier do
+    case Encryption.key_diagnosis() do
+      {:dedicated, :ok} -> "dedicated key"
+      {_status, :store_unreadable} -> "FALLBACK key — the key store could not be read"
+      {_status, :key_too_short} -> "FALLBACK key — the configured key was rejected as too short"
+      {:legacy_secret_key_base, _} -> "derived from secret_key_base"
+      _other -> "unrecognised key state"
     end
   end
 

@@ -299,6 +299,140 @@ defmodule PhoenixKit.Integrations.Encryption do
     {status, reason}
   end
 
+  @typedoc """
+  What to tell an operator about the current key state, as facts rather than
+  prose.
+
+  Three surfaces speak about this — the boot warning, `mix phoenix_kit.doctor`
+  and the admin page — and every time one of them composed its own sentence it
+  eventually said something the others contradicted. Twice that sentence claimed
+  a fallback key in a state where none exists and credentials go to disk in the
+  clear. So the wording lives here, once, and the surfaces render it.
+
+    * `:severity` — `:ok`, `:warn`, or `:fail`. `:fail` is reserved for
+      credentials being stored in plaintext **without** the operator having
+      asked for it: a deploy gate should stop for that.
+    * `:rotation_safe?` — whether `mix phoenix_kit.integrations.rotate_key` is
+      the right advice. It is NOT, when a configured key store is merely
+      unreadable: the stored key may be the one the data is encrypted under, and
+      rotating abandons it.
+  """
+  @type key_advice :: %{
+          severity: :ok | :warn | :fail,
+          summary: String.t(),
+          consequence: String.t(),
+          action: String.t(),
+          rotation_safe?: boolean()
+        }
+
+  @doc """
+  Operator-facing advice for the current key state. See `t:key_advice/0`.
+  """
+  @spec key_advice() :: key_advice()
+  def key_advice do
+    build_advice(key_diagnosis())
+  end
+
+  @doc """
+  `key_advice/0` flattened into one sentence, for a log line or a task.
+
+  Public so `mix phoenix_kit.doctor` prints the same words this module logs —
+  the previous split let the task drop the part saying that repairing a store
+  later does not recover anything written in the meantime.
+  """
+  @spec key_advice_message() :: String.t()
+  def key_advice_message do
+    advice = key_advice()
+
+    [advice.summary, advice.consequence, advice.action]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(". ")
+  end
+
+  defp build_advice({:dedicated, :ok}) do
+    %{
+      severity: :ok,
+      summary: "a dedicated encryption key is in use",
+      consequence: "",
+      action: "",
+      rotation_safe?: true
+    }
+  end
+
+  defp build_advice({status, :store_unreadable}) do
+    location = KeyStore.describe() || "the configured key store"
+
+    %{
+      severity: plaintext_severity(status),
+      summary: "a key store is configured (#{location}) but its secret could not be read",
+      consequence: weaker_tier_consequence(),
+      action:
+        "Do NOT run `mix phoenix_kit.integrations.rotate_key` to fix this — the stored key " <>
+          "may still be the one your data is encrypted under. Repair the store first; " <>
+          "repairing it later will NOT make anything written in the meantime readable",
+      rotation_safe?: false
+    }
+  end
+
+  defp build_advice({status, :key_too_short}) do
+    %{
+      severity: plaintext_severity(status),
+      summary:
+        "a dedicated key IS configured but was rejected as shorter than " <>
+          "#{@min_dedicated_key_length} characters, which is not the same as none being " <>
+          "configured",
+      consequence: weaker_tier_consequence(),
+      action:
+        "Replace it with a real secret — `mix phoenix_kit.integrations.rotate_key` generates " <>
+          "one, and stores it for you if a key store is configured",
+      rotation_safe?: true
+    }
+  end
+
+  defp build_advice({:legacy_secret_key_base, :no_dedicated_key}) do
+    %{
+      severity: :warn,
+      summary: "integration credentials are encrypted with a key DERIVED from secret_key_base",
+      consequence:
+        "secret_key_base is shared with session signing and CSRF tokens, so anyone who can " <>
+          "read it (environment, a config file, git history) can decrypt every stored " <>
+          "credential — and any other site sharing that secret_key_base holds the same key",
+      action:
+        "Run `mix phoenix_kit.integrations.rotate_key` for a key of this site's own, then " <>
+          "restart",
+      rotation_safe?: true
+    }
+  end
+
+  defp build_advice({:disabled_no_key, :no_key_material}) do
+    %{
+      severity: :fail,
+      summary: "no encryption key resolves at all",
+      consequence:
+        "integration credentials (API keys, OAuth tokens, bot tokens) are being written in " <>
+          "PLAINTEXT, readable by anyone with read access to the database",
+      action: "Configure integrations_encryption_key, or a key store, and restart",
+      rotation_safe?: false
+    }
+  end
+
+  defp build_advice({:disabled_explicit, :turned_off}) do
+    %{
+      severity: :warn,
+      summary: "encryption is switched off (integration_encryption_enabled: false)",
+      consequence:
+        "integration credentials are being written in PLAINTEXT, readable by anyone with " <>
+          "read access to the database",
+      action: "If that is unintentional, set integration_encryption_enabled: true",
+      rotation_safe?: false
+    }
+  end
+
+  # Plaintext the operator did not ask for is a deploy-gate failure; the same
+  # underlying fault with a weaker key still available is a warning.
+  defp plaintext_severity(:disabled_no_key), do: :fail
+  defp plaintext_severity(_status), do: :warn
+
   @doc """
   A short, non-reversible fingerprint of the key currently in use, or `:none`.
 
@@ -388,31 +522,18 @@ defmodule PhoenixKit.Integrations.Encryption do
   """
   @spec warn_if_insecure() :: :ok
   def warn_if_insecure do
-    # Branches on the SAME value `mix phoenix_kit.doctor` branches on. Two places
-    # giving advice about one situation is how they end up contradicting each
-    # other — which happened here once already, and once in the store-failure
-    # log before that.
-    case key_diagnosis() do
-      {:dedicated, :ok} ->
+    # Renders `key_advice/0` — the same value `mix phoenix_kit.doctor` renders.
+    # Every time a surface composed its own sentence here, it eventually claimed
+    # a fallback key in a state that has none.
+    case key_advice() do
+      %{severity: :ok} ->
         :ok
 
-      # Outranks everything below: repairing the store may restore the very key
-      # the data is encrypted under, and the advice attached to the other
-      # branches would send the operator away from it.
-      {_status, :store_unreadable} ->
-        Logger.warning(store_unreadable_warning())
+      %{severity: :fail} ->
+        Logger.error("[PhoenixKit.Integrations] " <> key_advice_message())
 
-      {_status, :key_too_short} ->
-        Logger.warning(dedicated_key_too_short_warning())
-
-      {:legacy_secret_key_base, :no_dedicated_key} ->
-        Logger.warning(legacy_key_warning())
-
-      {:disabled_no_key, :no_key_material} ->
-        Logger.warning(plaintext_warning("no encryption key could be resolved"))
-
-      {:disabled_explicit, :turned_off} ->
-        Logger.warning(plaintext_warning("integration_encryption_enabled is set to false"))
+      %{severity: :warn} ->
+        Logger.warning("[PhoenixKit.Integrations] " <> key_advice_message())
     end
 
     :ok
@@ -652,7 +773,7 @@ defmodule PhoenixKit.Integrations.Encryption do
 
       Logger.error(
         "[PhoenixKit.Integrations] A key store IS configured but its secret could not be " <>
-          "read (#{KeyStore.describe_error(reason)}): #{store_unreadable_consequence()}. " <>
+          "read (#{KeyStore.describe_error(reason)}): #{weaker_tier_consequence()}. " <>
           "Repairing the store later will not make anything written in the meantime readable. " <>
           "Fix the store before writing anything else."
       )
@@ -699,23 +820,6 @@ defmodule PhoenixKit.Integrations.Encryption do
     :crypto.hash(:sha256, "phoenix_kit_integrations:" <> secret)
   end
 
-  defp legacy_key_warning do
-    "[PhoenixKit.Integrations] Integration credentials (API keys, OAuth tokens, bot tokens, " <>
-      "etc.) are encrypted with a key derived from secret_key_base — no dedicated key is " <>
-      "configured. secret_key_base is shared with session signing and CSRF tokens, and " <>
-      "anyone who can read it (environment, a config file, git history) can decrypt every " <>
-      "stored integration credential. Run `mix phoenix_kit.integrations.rotate_key` to " <>
-      "generate a dedicated key and migrate existing connections to it, then configure " <>
-      "integrations_encryption_key and restart."
-  end
-
-  defp plaintext_warning(why) do
-    "[PhoenixKit.Integrations] Integration credentials (API keys, OAuth tokens, bot tokens, " <>
-      "etc.) are being stored in PLAINTEXT (#{why}). Anyone with read access to the database " <>
-      "can read every stored integration credential directly. If this is unintentional, set " <>
-      "integration_encryption_enabled: true and configure integrations_encryption_key."
-  end
-
   # True when a store is configured and reading it fails — distinct from "no
   # store" and from "store holds nothing yet".
   defp store_unreadable? do
@@ -723,22 +827,8 @@ defmodule PhoenixKit.Integrations.Encryption do
       match?({:error, _}, KeyStore.cached_read())
   end
 
-  # The consequence differs by tier and must be stated as it actually is. Saying
-  # "fell back to the secret_key_base-derived key" when no key resolved at all
-  # would be the same kind of confidently-wrong diagnosis this whole area is
-  # about: there is no fallback in that case, credentials go to disk in the
-  # clear.
-  defp store_unreadable_warning do
-    location = KeyStore.describe() || "the configured key store"
-
-    "[PhoenixKit.Integrations] A key store is configured (#{location}) but its secret could " <>
-      "not be read: #{store_unreadable_consequence()}. Do NOT run " <>
-      "`mix phoenix_kit.integrations.rotate_key` to fix this — the stored key may still be " <>
-      "the one your data is encrypted under. Repair the store first."
-  end
-
-  # ONE source for what an unreadable store actually costs, shared by the boot
-  # warning and the per-read error. They used to phrase it separately, and the
+  # ONE source for what falling off the dedicated tier actually costs, shared by
+  # every surface that reports it. They used to phrase it separately, and the
   # per-read one stayed tier-blind after the boot one was fixed — so a single
   # run could emit two messages that contradicted each other about whether a
   # fallback key even existed. Deriving it in one place is what stops that
@@ -746,7 +836,7 @@ defmodule PhoenixKit.Integrations.Encryption do
   #
   # Reads `secret_key_base/0` rather than `status/0`: status resolves the tier,
   # which consults the store, which is what called this — that would recurse.
-  defp store_unreadable_consequence do
+  defp weaker_tier_consequence do
     case secret_key_base() do
       secret when is_binary(secret) and secret != "" ->
         "encryption fell back to the secret_key_base-derived key, so values written under " <>
@@ -756,15 +846,5 @@ defmodule PhoenixKit.Integrations.Encryption do
       _ ->
         "NO key resolved at all — integration credentials are being written in PLAINTEXT"
     end
-  end
-
-  defp dedicated_key_too_short_warning do
-    "[PhoenixKit.Integrations] The dedicated encryption key (from integrations_encryption_key, " <>
-      "or from a configured key store) is shorter than " <>
-      "#{@min_dedicated_key_length} characters and is being IGNORED as too weak to provide " <>
-      "real assurance — this is not the same as no dedicated key being configured, it was " <>
-      "rejected. Falling back to whatever weaker tier would otherwise apply. Generate a real " <>
-      "secret with `mix phoenix_kit.integrations.rotate_key`, which will store it for you if " <>
-      "a key store is configured."
   end
 end
