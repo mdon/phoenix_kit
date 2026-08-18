@@ -90,3 +90,102 @@ gather; nothing was watching there because the gather was assumed to be atomic.
   boot phrase this branch replaced. Baseline full run: **3932 tests, 1 failure**.
 * **F10** (recorded, lower severity) a short config key silently shadows a
   working stored key, and nothing says so.
+
+## What changed, and how each change was proven
+
+Order of work: the premises first (above), then the code, then a mutation for
+every fix. Nothing below was edited before the premise under it had been run.
+
+### The root: `key_signals/0` is one pass now
+
+One read of the config key, one of the store, one of `secret_key_base`, and a
+pure `resolve/3` over those three. Both the hot path (`encryption_key/0`) and
+the diagnostics go through it, so they cannot reach different conclusions from
+the same inputs.
+
+Verified by re-running the P20 store: **2 reads → 1**, and the map that used to
+contradict itself now reads `tier: :legacy`, `store: {:unreadable, _}`,
+fingerprint `826f21f672e5` — the secret_key_base key, which is the one the label
+names.
+
+Mutation: restore the four-resolution gather → two tests red, one of them
+reporting the original defect verbatim (`the fingerprint is not the key the tier
+names`).
+
+### The clause set is ordered by tier, not by fault
+
+Three rounds ordered by fault and each found a fault clause firing over a
+working tier; the fix each time moved one clause and the next round found the
+next one. The tier is the ground truth — which key is protecting the data — and
+a fault is a modifier on it, so the tier is matched first.
+
+Two consequences: no combination of signals can render a fallback claim while
+the signals say a dedicated key is in use, because no clause can say it; and the
+verdict is **total**, so the test walks the whole space and reachability is
+never argued.
+
+Within the weaker tiers, a rejected key now outranks an unreadable store —
+because P4 showed the store is not consulted at all while a rejected key sits in
+config, so "repair the store" cannot help until it is gone. That is the first
+clause ordering in six rounds derived from a fact that was run rather than read.
+
+Mutation: restore the fault-first order → `claims a fallback the signals deny`.
+
+### The promise that started this round
+
+`{:dedicated, :store_unreadable}` no longer says rotation will refuse. It says
+what P1 and P2 established: the pre-flight checks that the store can be
+**written**, not that it can be read, so a rotation will not be stopped by this
+— and therefore, do not run one until the store reads back.
+
+### `{:no_secret_yet, _}` exists in production now
+
+`store_state/1` distinguishes the three cases the advice actually differs on.
+The storage line carries the state with it, because a bare path reads as "your
+key is saved here" and for two of the three states it is not — that line sat
+under a healthy verdict looking like confirmation of a backup that did not
+exist.
+
+Mutation: restore the collapse → `a store holding a usable secret beside a
+weaker tier`, naming the file that does not exist.
+
+### Reachability is observed, never argued
+
+The doctor's enumeration lost its `reachable?/1` entirely: 48 combinations, all
+rendered, all checked against the **signals** rather than against the report.
+Separately, `encryption_test.exs` walks 24 real configurations through the real
+resolution and asserts on what actually comes out — including that
+`{:legacy, false, :no_secret_yet}` is among them, which is the state the old rule
+called impossible.
+
+### The rotation invariant was itself keyed on a claim
+
+Worth recording, because it went wrong in the same shape as everything else.
+The first version of the guard read "where `rotation_safe?` is false, the text
+must not recommend the rotation". Mutation B — restore the old advice AND its
+`rotation_safe?: true` — walked straight through it: the flag being asserted by
+the code under test meant the mutation disabled the assertion meant to catch it.
+Re-keyed on the signals ("where no key is active, rotation cannot be safe,
+because `KeyRotation.rotate/2` refuses — verified"), it fails immediately.
+
+### Found while fixing: an eighth surface
+
+The boot log built its consequence from `secret_key_base/0` alone, under a
+comment explaining that this caller "genuinely cannot be handed a status" because
+it runs during tier resolution. So an install with a working dedicated key and a
+broken store was told at boot that *encryption fell back to the
+secret_key_base-derived key* — the same false fallback claim, in the one place
+exempted from four rounds of fixing it. The exemption ended with the one-pass
+resolution: the tier is known at that call site now, without a second look at
+anything.
+
+## Not done, and why
+
+* **A config key that shadows a DIFFERENT stored secret** (P12) is still
+  reported as `{:dedicated, :ok}` with a storage line and no mention that the
+  store holds something else. Both secrets are in hand during one resolution, so
+  comparing them is cheap — but it adds a signal, and adding signals is what
+  produced five of the six rounds before this one. It deserves its own premise
+  check, not a ride on this one.
+* **Gettext extraction** for the changed admin-page strings: still a
+  maintainer-run step, unchanged from round 5.

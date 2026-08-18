@@ -1,6 +1,7 @@
 defmodule PhoenixKitTest do
   use ExUnit.Case
 
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Migrations.Postgres, as: Migrations
 
   @moduledoc """
@@ -133,7 +134,18 @@ defmodule PhoenixKitTest do
 
       log = capture_log(fn -> PhoenixKit.boot({:ok, self()}) end)
 
-      assert log =~ "no dedicated key is configured"
+      # Asserts the invariant, not the phrase. This line used to pin "no
+      # dedicated key is configured", and stayed red for a whole round after
+      # the wording moved into one source — the boot log renders
+      # `Encryption.key_report/0` verbatim precisely so it has no wording of its
+      # own to drift, and a test that pins a sentence re-creates the drift it
+      # was meant to prevent. What must stay true is that the legacy tier is
+      # named as the legacy tier.
+      report = Encryption.key_report()
+
+      assert report.diagnosis == {:legacy_secret_key_base, :no_dedicated_key}
+      assert log =~ Encryption.key_report_message(report)
+      refute log =~ "dedicated encryption key is in use"
     end
 
     test "PhoenixKit.Supervisor no longer runs this check itself" do

@@ -1,3 +1,32 @@
+# A store that fails its FIRST read and answers every one after it. Not
+# contrived: `KeyStore.cached_read/0` deliberately memoises only successes, so a
+# store on a mount that blips, or one being rewritten, behaves exactly like this
+# — and every caller that re-reads gets a different answer than the one before.
+defmodule PhoenixKit.Integrations.EncryptionTest.FlakyStore do
+  @behaviour PhoenixKit.Integrations.KeyStore
+
+  @secret "a-stored-secret-well-over-the-minimum"
+
+  def secret, do: @secret
+
+  @impl true
+  def read(opts) do
+    n = :counters.get(opts[:counter], 1)
+    :counters.add(opts[:counter], 1, 1)
+
+    if n == 0, do: {:error, {:flaky, "first read fails"}}, else: {:ok, @secret}
+  end
+
+  @impl true
+  def write(_secret, _opts), do: :ok
+
+  @impl true
+  def preflight(_opts), do: :ok
+
+  @impl true
+  def describe(_opts), do: "/flaky/store.key"
+end
+
 defmodule PhoenixKit.Integrations.EncryptionTest do
   # async: false — the encryption_key/0 fallback tests mutate the global
   # `:phoenix_kit` app env (`:secret_key_base`, `:parent_module`), which
@@ -927,5 +956,219 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       Application.put_env(:phoenix_kit, :parent_module, nil)
       assert {:disabled_no_key, :no_key_material} = Encryption.key_diagnosis()
     end
+  end
+
+  describe "key_signals/0 is one pass over the environment" do
+    alias PhoenixKit.Integrations.EncryptionTest.FlakyStore
+
+    setup do
+      previous = %{
+        skb: Application.get_env(:phoenix_kit, :secret_key_base),
+        key: Application.get_env(:phoenix_kit, :integrations_encryption_key),
+        store: Application.get_env(:phoenix_kit, :integrations_key_store),
+        parent: Application.get_env(:phoenix_kit, :parent_module),
+        enabled: Application.get_env(:phoenix_kit, :integration_encryption_enabled)
+      }
+
+      on_exit(fn ->
+        for {k, v} <- [
+              secret_key_base: previous.skb,
+              integrations_encryption_key: previous.key,
+              integrations_key_store: previous.store,
+              parent_module: previous.parent,
+              integration_encryption_enabled: previous.enabled
+            ] do
+          if is_nil(v),
+            do: Application.delete_env(:phoenix_kit, k),
+            else: Application.put_env(:phoenix_kit, k, v)
+        end
+
+        KeyStore.invalidate_cache()
+        :persistent_term.erase({Encryption, :store_failure_logged})
+      end)
+
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, true)
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("s", 64))
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      KeyStore.invalidate_cache()
+      :persistent_term.erase({Encryption, :store_failure_logged})
+      :ok
+    end
+
+    # The defect this exists against, reproduced before the gather was made one
+    # pass: the tier came from a failed read, the store state and the
+    # fingerprint from a successful one, and the report printed the fingerprint
+    # of the STORED key under the label "derived from secret_key_base". Two
+    # operators comparing sites would have compared unlike keys while both pages
+    # claimed the same tier — the exact failure the fingerprint exists to make
+    # impossible.
+    test "a store that answers one read and fails another cannot split the verdict" do
+      counter = :counters.new(1, [])
+      Application.put_env(:phoenix_kit, :integrations_key_store, {FlakyStore, counter: counter})
+      KeyStore.invalidate_cache()
+
+      signals = Encryption.key_signals()
+
+      assert :counters.get(counter, 1) == 1,
+             "key_signals/0 read the store #{:counters.get(counter, 1)} times; one gather, one read"
+
+      # Whatever it decided, the parts of it agree.
+      assert signals.fingerprint == expected_fingerprint(signals)
+    end
+
+    test "every signal in the map comes from the same reads, for either answer" do
+      for first_read_fails? <- [true, false] do
+        counter = :counters.new(1, [])
+        # Burning the failing read first flips which answer the gather sees.
+        unless first_read_fails?, do: :counters.add(counter, 1, 1)
+
+        Application.put_env(:phoenix_kit, :integrations_key_store, {FlakyStore, counter: counter})
+        KeyStore.invalidate_cache()
+        :persistent_term.erase({Encryption, :store_failure_logged})
+
+        signals = Encryption.key_signals()
+
+        assert signals.fingerprint == expected_fingerprint(signals),
+               "#{inspect(signals)}: the fingerprint is not the key the tier names"
+
+        # A store answering with a usable secret IS a dedicated key source, so
+        # the two cannot be seen apart within one gather.
+        if match?({:holding, _}, signals.store) and not signals.too_short? do
+          assert signals.tier == :dedicated,
+                 "#{inspect(signals)}: a holding store beside a weaker tier"
+        end
+      end
+    end
+
+    # The fingerprint of the key the tier says is in use, derived independently
+    # of the code under test.
+    defp expected_fingerprint(%{enabled?: false}), do: :none
+    defp expected_fingerprint(%{tier: :none}), do: :none
+
+    defp expected_fingerprint(%{tier: tier}) do
+      secret =
+        case tier do
+          :dedicated -> FlakyStore.secret()
+          :legacy -> String.duplicate("s", 64)
+        end
+
+      key = :crypto.hash(:sha256, "phoenix_kit_integrations:" <> secret)
+
+      digest =
+        :sha256
+        |> :crypto.pbkdf2_hmac(key, "phoenix_kit_integrations_fingerprint:v2", 100_000, 6)
+        |> Base.encode16(case: :lower)
+
+      {:ok, digest}
+    end
+  end
+
+  describe "the states the real resolution actually produces" do
+    setup do
+      previous = %{
+        skb: Application.get_env(:phoenix_kit, :secret_key_base),
+        key: Application.get_env(:phoenix_kit, :integrations_encryption_key),
+        store: Application.get_env(:phoenix_kit, :integrations_key_store),
+        parent: Application.get_env(:phoenix_kit, :parent_module),
+        enabled: Application.get_env(:phoenix_kit, :integration_encryption_enabled)
+      }
+
+      dir = Path.join(System.tmp_dir!(), "pk_states_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+
+      on_exit(fn ->
+        for {k, v} <- [
+              secret_key_base: previous.skb,
+              integrations_encryption_key: previous.key,
+              integrations_key_store: previous.store,
+              parent_module: previous.parent,
+              integration_encryption_enabled: previous.enabled
+            ] do
+          if is_nil(v),
+            do: Application.delete_env(:phoenix_kit, k),
+            else: Application.put_env(:phoenix_kit, k, v)
+        end
+
+        KeyStore.invalidate_cache()
+        :persistent_term.erase({Encryption, :store_failure_logged})
+        File.rm_rf(dir)
+      end)
+
+      {:ok, dir: dir}
+    end
+
+    # Reachability is OBSERVED here, never argued. Two rounds running, a
+    # hand-written rule about what the resolution can produce excluded a state
+    # it produced daily — the rule and the code came from the same reasoning, so
+    # the enumeration inherited the blind spot it existed to catch. This walks
+    # real configurations through the real resolution and reports what comes
+    # out; nothing here is entitled to an opinion about what should.
+    test "walking real configurations, every state produced is consistent", %{dir: dir} do
+      holding = Path.join(dir, "holding.key")
+      File.write!(holding, String.duplicate("t", 40))
+      File.chmod!(holding, 0o600)
+
+      empty = Path.join(dir, "empty.key")
+      File.write!(empty, "")
+      File.chmod!(empty, 0o600)
+
+      missing = Path.join(dir, "never-written.key")
+
+      stores = [
+        {"none", nil},
+        {"holding", {KeyStore.File, path: holding}},
+        {"unreadable", {KeyStore.File, path: empty}},
+        {"no secret yet", {KeyStore.File, path: missing}}
+      ]
+
+      keys = [{"absent", nil}, {"short", "short"}, {"valid", String.duplicate("k", 40)}]
+      bases = [{"present", String.duplicate("s", 64)}, {"absent", nil}]
+
+      produced =
+        for {_sn, store} <- stores, {_kn, key} <- keys, {_bn, base} <- bases do
+          put(:integrations_key_store, store)
+          put(:integrations_encryption_key, key)
+          put(:secret_key_base, base)
+          Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
+          KeyStore.invalidate_cache()
+
+          signals = Encryption.key_signals()
+
+          # Every produced state renders, and the report agrees with it.
+          report = Encryption.key_report(signals)
+          assert is_binary(report.summary) and report.summary != ""
+
+          if signals.tier == :none do
+            assert signals.fingerprint == :none
+            refute report.rotation_safe?
+          end
+
+          if match?({:holding, _}, signals.store) and not signals.too_short? do
+            assert signals.tier == :dedicated,
+                   "#{inspect(signals)}: a store holding a usable secret beside a weaker tier"
+          end
+
+          {signals.tier, signals.too_short?, store_tag(signals.store)}
+        end
+        |> Enum.uniq()
+
+      # The collapse this catches: a configured store with nothing in it read as
+      # `:not_configured` and was reported as `{:holding, _}` — "your key is
+      # saved here" about a file that does not exist. `KeyStore.read/0`'s own
+      # doc forbids collapsing those two, and the tests enumerated a
+      # `:no_secret_yet` signal production could never emit.
+      assert {:legacy, false, :no_secret_yet} in produced,
+             "the real resolution never produced :no_secret_yet: #{inspect(produced)}"
+
+      assert {:dedicated, false, :holding} in produced
+      assert {:legacy, false, :unreadable} in produced
+      assert {:none, false, :absent} in produced
+    end
+
+    defp store_tag(:absent), do: :absent
+    defp store_tag({tag, _location}), do: tag
+
+    defp put(key, nil), do: Application.delete_env(:phoenix_kit, key)
+    defp put(key, value), do: Application.put_env(:phoenix_kit, key, value)
   end
 end

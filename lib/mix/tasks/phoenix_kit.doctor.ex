@@ -238,8 +238,19 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   # Absent when nothing is configured, rather than printed as "no key store
   # configured" underneath a message about a key that is stored nowhere.
+  #
+  # The state is printed with it. A bare path reads as "your key is saved here",
+  # and for two of the three states it is not: the store may hold nothing yet,
+  # or hold something nobody can read. That line sat under a `{:dedicated, :ok}`
+  # verdict looking like confirmation of a backup that did not exist.
   defp key_store_lines(%{key_store: nil}), do: []
-  defp key_store_lines(%{key_store: location}), do: ["Key store: #{location}"]
+  defp key_store_lines(%{key_store: {:holding, location}}), do: ["Key store: #{location}"]
+
+  defp key_store_lines(%{key_store: {:no_secret_yet, location}}),
+    do: ["Key store: #{location} (configured, holds no secret yet)"]
+
+  defp key_store_lines(%{key_store: {:unreadable, location}}),
+    do: ["Key store: #{location} (configured, could not be read)"]
 
   defp check_repo_detection do
     app = Mix.Project.config()[:app]

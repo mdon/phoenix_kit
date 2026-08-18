@@ -126,11 +126,16 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     # the page is open should see the banner update on the next connection
     # event rather than only after a fresh page load. `status/0` is a pure
     # config read (see its own doc), so recomputing it here is free.
+    # ONE report per render. This used to be three separate calls —
+    # `status/0`, `key_diagnosis/0`, `key_fingerprint/0` — each re-resolving the
+    # key independently, and a key store that answers one read and fails the
+    # next could hand the three of them different answers for the same page.
+    report = Encryption.key_report()
+
     socket =
       socket
-      |> assign(:encryption_status, Encryption.status())
-      |> assign(:encryption_diagnosis, Encryption.key_diagnosis())
-      |> assign(:encryption_fingerprint, encryption_fingerprint())
+      |> assign(:encryption_report, report)
+      |> assign(:encryption_fingerprint, encryption_fingerprint(report))
 
     # System page: only providers usable system-wide, and only SYSTEM-owned
     # connections (owner: :system) — a user's personal connection never leaks here.
@@ -188,42 +193,66 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   defp integration_status_badge("error"), do: {"badge-error", gettext("Error")}
   defp integration_status_badge(_), do: {"badge-ghost", gettext("Not configured")}
 
-  # Deliberately no clause for `:dedicated` — the template guards rendering
-  # on `@encryption_status != :dedicated`, so the healthy case never reaches
-  # these.
-  # Keyed on `Encryption.key_diagnosis/0`, not on the status alone. Keyed on the
-  # status, this page told an operator whose key store is merely UNREADABLE that
-  # "no dedicated encryption key is configured" — false, they configured one —
-  # and then advised the rotation that would abandon the key their data may be
-  # encrypted under. The same wrong sentence has now been removed from the boot
-  # log, the mix task and here.
-  defp encryption_status_title({_status, :store_unreadable}),
+  # Public seams, `@doc false`: the defect these exist against lives in the
+  # rendering, and a test that cannot reach the rendering cannot guard it — the
+  # same reasoning that made `Mix.Tasks.PhoenixKit.Doctor.integration_key_result/2`
+  # public. The template guards the banner on the report's severity, so the
+  # healthy `{:dedicated, :ok}` case never reaches these.
+  #
+  # Keyed on `report.diagnosis`, not on the status alone. Keyed on the status,
+  # this page told an operator whose key store is merely UNREADABLE that "no
+  # dedicated encryption key is configured" — false, they configured one — and
+  # then advised the rotation that would abandon the key their data may be
+  # encrypted under.
+  #
+  # `{:dedicated, :store_unreadable}` gets its own clause ahead of the generic
+  # one for the same reason it got its own clause in `Encryption.key_report/1`:
+  # without it this page called a working dedicated key a FALLBACK, and — since
+  # the banner used to be guarded on `status != :dedicated` — printed that label
+  # under no banner at all, so the broken store was never mentioned.
+  @doc false
+  def encryption_status_title({:dedicated, :store_unreadable}),
+    do: gettext("The encryption key is fine, but its key store cannot be read")
+
+  def encryption_status_title({_status, :store_unreadable}),
     do: gettext("The configured encryption key store cannot be read")
 
-  defp encryption_status_title({_status, :key_too_short}),
+  def encryption_status_title({_status, :key_too_short}),
     do: gettext("The configured encryption key was rejected as too short")
 
-  defp encryption_status_title({:legacy_secret_key_base, _reason}),
+  def encryption_status_title({:legacy_secret_key_base, _reason}),
     do: gettext("Credentials are protected only by a shared application secret")
 
-  defp encryption_status_title({:disabled_no_key, _reason}),
+  def encryption_status_title({:disabled_no_key, _reason}),
     do: gettext("Credentials are stored in plain text")
 
-  defp encryption_status_title({:disabled_explicit, _reason}),
+  def encryption_status_title({:disabled_explicit, _reason}),
     do: gettext("Encryption is turned off for integration credentials")
 
   # Catch-all: the template renders this banner for ANY status other than
   # `:dedicated` (see the guard note above), so a future `key_status/0`
   # value this page hasn't been taught about must degrade to a generic
   # warning instead of a `FunctionClauseError` crashing the settings page.
-  defp encryption_status_title(_other),
+  def encryption_status_title(_other),
     do: gettext("Integration credential encryption needs attention")
 
   # Two clauses per fault, because the consequence genuinely differs: with a
   # legacy secret still available the data is merely on a weaker key, with none
   # it is in plain text. Saying "fell back" in the second case is the exact
-  # falsehood this module already removed from two other surfaces.
-  defp encryption_status_detail({:disabled_no_key, :store_unreadable}) do
+  # falsehood this module already removed from two other surfaces — and saying
+  # it for `{:dedicated, _}` is the same falsehood a third time, since nothing
+  # fell back at all there.
+  @doc false
+  def encryption_status_detail({:dedicated, :store_unreadable}) do
+    gettext(
+      "Encryption itself is working — the key in use comes from configuration. The configured " <>
+        "key store cannot be read, so nothing confirms that key is saved anywhere. Do not " <>
+        "rotate until the store reads back: the rotation pre-flight only checks that the " <>
+        "store can be written, so it will not stop for this."
+    )
+  end
+
+  def encryption_status_detail({:disabled_no_key, :store_unreadable}) do
     gettext(
       "A key store is configured but its secret could not be read, and no other key resolves " <>
         "either — credentials below are being written in plain text. Do NOT run " <>
@@ -233,7 +262,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     )
   end
 
-  defp encryption_status_detail({_status, :store_unreadable}) do
+  def encryption_status_detail({_status, :store_unreadable}) do
     gettext(
       "A key store is configured but its secret could not be read, so encryption fell back to " <>
         "a weaker key. Values written under the stored key will not decrypt. Do NOT run " <>
@@ -243,23 +272,24 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     )
   end
 
-  defp encryption_status_detail({:disabled_no_key, :key_too_short}) do
+  def encryption_status_detail({:disabled_no_key, :key_too_short}) do
     gettext(
       "A dedicated encryption key is configured but was rejected as too short, and no other " <>
         "key resolves — credentials below are being written in plain text. Replace it with a " <>
-        "longer secret; mix phoenix_kit.integrations.rotate_key generates one."
+        "longer secret and restart; rotation cannot help while no key is active."
     )
   end
 
-  defp encryption_status_detail({_status, :key_too_short}) do
+  def encryption_status_detail({_status, :key_too_short}) do
     gettext(
       "A dedicated encryption key is configured but was rejected as too short, so a weaker " <>
         "key is in use. This is not the same as having none configured. Replace it with a " <>
-        "longer secret; mix phoenix_kit.integrations.rotate_key generates one."
+        "longer secret — while a rejected key is set, the key store is not consulted at all, " <>
+        "so repairing or filling the store changes nothing."
     )
   end
 
-  defp encryption_status_detail({:legacy_secret_key_base, _reason}) do
+  def encryption_status_detail({:legacy_secret_key_base, _reason}) do
     gettext(
       "No dedicated encryption key is configured, so credentials below fall back to a key " <>
         "derived from secret_key_base — a secret shared with session signing and CSRF tokens. " <>
@@ -268,14 +298,14 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     )
   end
 
-  defp encryption_status_detail({:disabled_no_key, _reason}) do
+  def encryption_status_detail({:disabled_no_key, _reason}) do
     gettext(
       "No encryption key could be resolved. New and existing credentials below are stored as " <>
         "plain text in the database."
     )
   end
 
-  defp encryption_status_detail({:disabled_explicit, _reason}) do
+  def encryption_status_detail({:disabled_explicit, _reason}) do
     gettext(
       "integration_encryption_enabled is set to false. Credentials below are stored as plain " <>
         "text in the database."
@@ -283,7 +313,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   end
 
   # See `encryption_status_title/1`'s catch-all note.
-  defp encryption_status_detail(_other) do
+  def encryption_status_detail(_other) do
     gettext(
       "The current encryption status could not be described by this admin page — it may be " <>
         "newer than what this page recognizes. Check PhoenixKit.Integrations.Encryption.status/0 " <>
@@ -300,23 +330,29 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # `:none` renders nothing rather than a placeholder: with no key there is
   # nothing to compare, and the banner above already says the credentials are
   # unencrypted.
-  defp encryption_fingerprint do
-    case Encryption.key_fingerprint() do
-      {:ok, fingerprint} -> {fingerprint, fingerprint_tier(Encryption.key_diagnosis())}
+  defp encryption_fingerprint(report) do
+    case report.fingerprint do
+      {:ok, fingerprint, _label} -> {fingerprint, fingerprint_tier(report.diagnosis)}
       :none -> nil
     end
   end
 
-  defp fingerprint_tier({:dedicated, :ok}), do: gettext("dedicated key")
+  @doc false
+  def fingerprint_tier({:dedicated, :ok}), do: gettext("dedicated key")
 
-  defp fingerprint_tier({_status, :store_unreadable}),
+  # Ahead of the generic `:store_unreadable` clause below, which would otherwise
+  # label a working dedicated key "FALLBACK".
+  def fingerprint_tier({:dedicated, :store_unreadable}),
+    do: gettext("dedicated key — its key store could not be read")
+
+  def fingerprint_tier({_status, :store_unreadable}),
     do: gettext("FALLBACK key — the configured key store could not be read")
 
-  defp fingerprint_tier({_status, :key_too_short}),
+  def fingerprint_tier({_status, :key_too_short}),
     do: gettext("FALLBACK key — the configured key was rejected as too short")
 
-  defp fingerprint_tier({:legacy_secret_key_base, _}),
+  def fingerprint_tier({:legacy_secret_key_base, _}),
     do: gettext("derived from secret_key_base")
 
-  defp fingerprint_tier(_other), do: gettext("unrecognised key state")
+  def fingerprint_tier(_other), do: gettext("unrecognised key state")
 end

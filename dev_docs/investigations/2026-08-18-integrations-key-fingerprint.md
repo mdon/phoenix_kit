@@ -488,6 +488,18 @@ After the reorder and a clause of its own:
     at its pre-flight.
     Repair the store at /srv/keys/app.key; until it reads back, assume the key is saved nowhere.
 
+> **Superseded — the last sentence of that consequence was false, and this
+> report repeated it as fact.** "The next rotation will refuse at its pre-flight"
+> was checked in round 6 by running it, and fails twice over:
+> `KeyStore.preflight/0` writes a probe file next to the secret and never reads
+> it, so an unreadable secret in a writable directory answers `:ok`; and
+> `KeyRotation.rotate/2` does not call a pre-flight at all — with `preflight/0`
+> returning an error it walked straight past into the row scan. The clause was
+> rewritten in round 6; see `2026-08-18-integrations-key-premise-audit.md`.
+> Read the rest of this section knowing that a round which fixed a false
+> promise shipped another one in the fix, and the report carried it forward
+> because nobody ran the thing being promised.
+
 ### The enumeration had inherited the blindness
 
 This is the part worth keeping. The test excluded that state by a rule I wrote:
@@ -587,3 +599,51 @@ and two different secrets producing two different fingerprints
 `2026-08-18-secret-key-base-change-fork.md` — for the owner: what happens to
 encrypted credentials if `secret_key_base` changes, the four options with their
 prices, and the trap that rotating *afterwards* recovers nothing.
+
+## Round 6 — the premises, checked by running
+
+The full working log is `2026-08-18-integrations-key-premise-audit.md`. In
+summary: five rounds produced five instances of one defect, so round 6 did not
+start from the states at all. Every claim the diagnostics make was written down
+as *a premise about another function's behaviour*, and each was checked by
+running it. Twelve premises; six false.
+
+What the false ones cost, and what changed:
+
+* **The gather was not one pass.** `key_signals/0` resolved the environment up
+  to four times, and `KeyStore.cached_read/0` deliberately does not memoise
+  failures — so a store that failed one read and answered the next produced a
+  map contradicting itself: `tier: :legacy` beside `store: {:holding, _}` and
+  the fingerprint of the STORED key, printed under the label "derived from
+  secret_key_base". Round 4 moved the contradiction out of the verdict and into
+  the gather, where nothing was watching. One read of each input now, and the
+  five signals are derived from those.
+* **`{:dedicated, :store_unreadable}` promised a pre-flight refusal** that
+  neither the pre-flight nor `rotate/2` performs (above).
+* **The clause set is ordered by TIER first, then fault.** Three rounds ordered
+  by fault and each found a fault clause firing over a working tier. The tier is
+  which key is protecting the data; a fault is a modifier on it. The verdict is
+  now total over the signal space, so no reachability argument is needed
+  anywhere.
+* **`store_state/0` collapsed "no secret yet" into "holding"** — the collapse
+  `KeyStore.read/0`'s own doc forbids, in the opposite direction from the one it
+  warns about. `{:no_secret_yet, _}` was a signal production could never emit
+  while the tests enumerated it as one of four.
+* **The enumeration's reachability rule** excluded `{:holding} ∧ ¬dedicated`,
+  which both of the above produced. Third false reachability rule in three
+  rounds; the rules are gone rather than corrected.
+* **The admin page never received round 5's fix**: with a working dedicated key
+  and a broken store it showed no banner at all (guarded on `status !=
+  :dedicated`) and labelled that key "FALLBACK". It now renders from one report,
+  and its clause heads are public seams a test can walk.
+* **The boot log claimed a fallback on the dedicated tier** — the one caller
+  documented as unable to know the tier. That exemption ended when the
+  resolution became a pure function of three reads.
+* **The advice for "a short key and no key at all"** recommended a rotation that
+  refuses (`{:error, {:encryption_disabled, :disabled_no_key}}`, verified), and
+  marked it safe.
+
+Every fix was mutation-checked: reverting each one turns a named test red, and
+the rotation invariant was rewritten after the first mutation walked through it
+— it had been keyed on `rotation_safe?`, a claim by the code under test, so
+flipping that flag disabled the assertion meant to catch the flip.
