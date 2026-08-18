@@ -333,6 +333,19 @@ so the module exists and is loadable; only `mix test` fails to see it. Whatever
 this is, it is not in this change's diff, and the regression status of the
 existing rotation and encryption tests remains **unknown, not green**.
 
+**Resolved as environmental, 2026-08-18 (contract I054).** Another line ran the
+same file on a clean clone of core merged to upstream 2.13.1: 49 tests, 0
+failures — including the endpoint-fallback test that fails here — and a full
+suite run of 3949 tests, whose 12 failures were each shown to pre-exist on clean
+`upstream/main`. That a 3949-test run happened at all also answers the open
+question about `DataCase`: those tests compile there and do not here, which is
+the same root seen from the second angle.
+
+So the blocker is `/app`'s environment, not this code and not upstream. What it
+does **not** establish is that this branch regresses nothing: the clean clone
+ran upstream, not this work. The branch's own regression status stays unmeasured
+until `/app` can run a suite — which is what I054 is for.
+
 ## Review round 2 (Pi) — SHIP, one new defect in the fixes themselves
 
 The follow-up round found something the first did not: **the fix for one message
@@ -440,4 +453,7 @@ investigated further — it belongs to whoever owns the test environment.
   and a real restart, but it is not that stand.
 * **The DataCase-based integration suite did not run** — see finding 3. The
   affected files include the existing rotation and encryption-write-safety
-  tests, so their regression status is unknown, not green.
+  tests, so their regression status is unknown, not green. (Since established as
+  an environment fault in `/app` rather than a code fault — see the resolution
+  note above and contract I054. The status of *this branch* under a working
+  suite is still unmeasured.)
