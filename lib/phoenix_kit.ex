@@ -4,6 +4,7 @@ defmodule PhoenixKit do
   """
 
   alias PhoenixKit.Config
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Users.Permissions
 
   @doc """
@@ -85,6 +86,7 @@ defmodule PhoenixKit do
     PhoenixKit.ModuleRegistry.rescan()
     PhoenixKit.ModuleRegistry.run_all_legacy_migrations()
     register_custom_permission_keys()
+    warn_if_integrations_encryption_insecure()
     result
   end
 
@@ -140,5 +142,30 @@ defmodule PhoenixKit do
             ]
         """
     end)
+  end
+
+  # One-time boot check: warns (never raises) when integration credentials
+  # are not protected by a dedicated encryption key. Deliberately here, not
+  # as a child `Task` of `PhoenixKit.Supervisor` — that supervisor commonly
+  # starts BEFORE the host app's own Endpoint (a generated
+  # `Application.start/2` lists `PhoenixKit.Supervisor` ahead of
+  # `MyAppWeb.Endpoint`, matching Phoenix's own convention of starting the
+  # Endpoint last), so `Encryption.status/0`'s Endpoint-config lookup would
+  # rescue a startup `ArgumentError` (the Endpoint's config ETS table
+  # doesn't exist yet) into `nil` and misreport the common,
+  # correctly-configured `secret_key_base`-fallback install as
+  # `:disabled_no_key` instead of `:legacy_secret_key_base`. `boot/1` runs
+  # only after `Supervisor.start_link/2` returns — i.e. after every child in
+  # the HOST's own tree has started, Endpoint included, regardless of where
+  # it's listed.
+  defp warn_if_integrations_encryption_insecure do
+    Encryption.warn_if_insecure()
+  rescue
+    error ->
+      require Logger
+
+      Logger.error(
+        "[PhoenixKit] Failed to check integrations encryption status at startup: #{inspect(error)}"
+      )
   end
 end

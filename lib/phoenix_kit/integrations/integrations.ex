@@ -375,7 +375,14 @@ defmodule PhoenixKit.Integrations do
     # overwrite/null it (would silently reassign or promote personal→system).
     attrs = Map.drop(attrs, ["owner_type", "owner_uuid"])
 
-    with {:ok, %{provider: base_provider, name: name, setting: setting, data: existing}} <-
+    with {:ok,
+          %{
+            provider: base_provider,
+            name: name,
+            setting: setting,
+            data: existing,
+            undecryptable_fields: undecryptable_fields
+          }} <-
            resolve_uuid(uuid, owner) do
       provider = Providers.get(base_provider)
 
@@ -388,7 +395,7 @@ defmodule PhoenixKit.Integrations do
         |> maybe_set_status(provider)
         |> maybe_set_connected_at()
 
-      case save_integration(setting, data) do
+      case save_integration(setting, data, undecryptable_fields) do
         {:ok, saved} = result ->
           Events.broadcast_setup_saved(base_provider, saved)
 
@@ -439,7 +446,14 @@ defmodule PhoenixKit.Integrations do
   @spec exchange_code(String.t(), String.t(), String.t(), String.t() | nil) ::
           {:ok, map()} | {:error, term()}
   def exchange_code(uuid, code, redirect_uri, actor_uuid \\ nil) when is_binary(uuid) do
-    with {:ok, %{provider: base_provider, name: name, setting: setting, data: data}} <-
+    with {:ok,
+          %{
+            provider: base_provider,
+            name: name,
+            setting: setting,
+            data: data,
+            undecryptable_fields: undecryptable_fields
+          }} <-
            resolve_uuid(uuid),
          {:ok, provider} <- fetch_provider(base_provider),
          {:ok, token_data} <- OAuth.exchange_code(provider.oauth_config, data, code, redirect_uri) do
@@ -456,7 +470,7 @@ defmodule PhoenixKit.Integrations do
         )
         |> maybe_set_userinfo(userinfo)
 
-      case save_integration(setting, updated) do
+      case save_integration(setting, updated, undecryptable_fields) do
         {:ok, saved} = result ->
           Events.broadcast_connected(base_provider, saved)
 
@@ -490,13 +504,20 @@ defmodule PhoenixKit.Integrations do
   @spec refresh_access_token(String.t()) :: {:ok, String.t()} | {:error, term()}
   def refresh_access_token(uuid) when is_binary(uuid) do
     result =
-      with {:ok, %{provider: base_provider, name: name, setting: setting, data: data}} <-
+      with {:ok,
+            %{
+              provider: base_provider,
+              name: name,
+              setting: setting,
+              data: data,
+              undecryptable_fields: undecryptable_fields
+            }} <-
              resolve_uuid(uuid),
            {:ok, provider} <- fetch_provider(base_provider),
            {:ok, new_token, updated_fields} <-
              OAuth.refresh_access_token(provider.oauth_config, data) do
         updated = Map.merge(data, updated_fields)
-        save_integration(setting, updated)
+        save_integration(setting, updated, undecryptable_fields)
 
         log_activity("integration.token_refreshed", base_provider, name, %{}, "auto", nil, uuid)
 
@@ -880,7 +901,14 @@ defmodule PhoenixKit.Integrations do
       when is_binary(uuid) and is_binary(new_name) do
     trimmed = String.trim(new_name)
 
-    with {:ok, %{provider: provider, name: old_name, setting: setting, data: data}} <-
+    with {:ok,
+          %{
+            provider: provider,
+            name: old_name,
+            setting: setting,
+            data: data,
+            undecryptable_fields: undecryptable_fields
+          }} <-
            resolve_uuid(uuid, Keyword.get(opts, :owner, :system)) do
       cond do
         trimmed == old_name ->
@@ -892,7 +920,7 @@ defmodule PhoenixKit.Integrations do
         true ->
           updated = Map.put(data, "name", trimmed)
 
-          case save_integration(setting, updated) do
+          case save_integration(setting, updated, undecryptable_fields) do
             {:ok, saved} ->
               Events.broadcast_connection_renamed(provider, old_name, trimmed, owner_of(data))
 
@@ -1128,7 +1156,13 @@ defmodule PhoenixKit.Integrations do
     {new_status, validation_text} = validation_fields(result)
 
     case resolve_uuid(uuid, Keyword.get(opts, :owner, :system)) do
-      {:ok, %{provider: base_provider, setting: setting, data: data}} ->
+      {:ok,
+       %{
+         provider: base_provider,
+         setting: setting,
+         data: data,
+         undecryptable_fields: undecryptable_fields
+       }} ->
         status_changed =
           data["status"] != new_status or data["validation_status"] != validation_text
 
@@ -1160,7 +1194,7 @@ defmodule PhoenixKit.Integrations do
 
         updated = Map.merge(data, update)
 
-        case save_integration(setting, updated) do
+        case save_integration(setting, updated, undecryptable_fields) do
           {:ok, _} ->
             if status_changed,
               do: Events.broadcast_validated(base_provider, result, owner_of(data))
@@ -1253,7 +1287,8 @@ defmodule PhoenixKit.Integrations do
   defp resolve_uuid(uuid, owner) when is_binary(uuid) and uuid != "" do
     case Queries.get_setting_by_uuid(uuid) do
       %Setting{module: "integrations"} = setting ->
-        decrypted = Encryption.decrypt_fields(setting.value_json || %{})
+        {decrypted, undecryptable_fields} =
+          Encryption.decrypt_fields_with_failures(setting.value_json || %{})
 
         if owner_match?(decrypted, owner) do
           {:ok,
@@ -1262,7 +1297,8 @@ defmodule PhoenixKit.Integrations do
              provider: Map.get(decrypted, "provider", ""),
              name: Map.get(decrypted, "name", ""),
              setting: setting,
-             data: decrypted
+             data: decrypted,
+             undecryptable_fields: undecryptable_fields
            }}
         else
           {:error, :not_configured}
@@ -1365,8 +1401,53 @@ defmodule PhoenixKit.Integrations do
     end
   end
 
-  defp save_integration(%Setting{} = setting, data) do
-    encrypted_data = Encryption.encrypt_fields(data)
+  # A field in `undecryptable_fields` (from the `resolve_uuid/2` call that
+  # produced `data`) is absent from `data` only because it currently can't
+  # be decrypted — not because anyone meant to remove it. `save_integration/3`
+  # writes `value_json` wholesale, so leaving it absent here would
+  # permanently erase it the moment a write lands (e.g. `record_validation/3`
+  # running on every automatic token-refresh attempt, unrelated to the
+  # stuck field). Restores each such field's untouched ciphertext from
+  # `setting.value_json` into what gets WRITTEN — never decrypted, never
+  # returned to the caller — UNLESS the caller's own merge already put a
+  # fresh value under that same key, which always wins.
+  #
+  # Callers that deliberately rebuild a smaller shape from scratch
+  # (`disconnect/3`'s allowlist) pass no `undecryptable_fields` (the
+  # default `[]`): those fields are meant to be gone, decryptable or not,
+  # and skipping this keeps that intent unambiguous instead of trying to
+  # infer it here.
+  defp carry_forward_undecryptable(data, %Setting{value_json: raw}, undecryptable_fields)
+       when is_map(raw) and is_list(undecryptable_fields) do
+    Enum.reduce(undecryptable_fields, data, fn field, acc ->
+      if Map.has_key?(acc, field) do
+        acc
+      else
+        case Map.get(raw, field) do
+          value when is_binary(value) -> Map.put(acc, field, value)
+          _ -> acc
+        end
+      end
+    end)
+  end
+
+  defp carry_forward_undecryptable(data, _setting, _undecryptable_fields), do: data
+
+  # `undecryptable_fields` (from the `resolve_uuid/2` call the caller
+  # resolved `data`/`setting` from) is applied ONLY to what gets WRITTEN,
+  # never to what's returned — a field carried forward this way is raw,
+  # still-unreadable ciphertext, and `{:ok, data}` must keep matching
+  # `Encryption.decrypt_fields/1`'s contract that a caller never sees that
+  # ciphertext as if it were a usable value, even transiently in a
+  # LiveView's socket assigns. Defaults to `[]` (no carry-forward) for
+  # `disconnect/3`, which deliberately reconstructs a smaller shape from
+  # scratch via an explicit allowlist — those fields are meant to be gone,
+  # decryptable or not, so no field ever needs restoring there.
+  defp save_integration(%Setting{} = setting, data, undecryptable_fields \\ []) do
+    encrypted_data =
+      data
+      |> carry_forward_undecryptable(setting, undecryptable_fields)
+      |> Encryption.encrypt_fields()
 
     setting
     |> Setting.update_changeset(%{value_json: encrypted_data, module: @settings_module})

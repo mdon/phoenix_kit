@@ -42,7 +42,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
    12. **Orphaned FK References** — Detects orphaned rows (blocks VALIDATE on an
        existing NOT VALID constraint, or creation if the constraint is absent
        entirely) and existing constraints still sitting NOT VALID with
-       nothing currently blocking them — V175 validates those in place; this
+       nothing currently blocking them — V176 validates those in place; this
        just tells you before it does
    13. **Lock Conflicts** — Any blocked or long-running queries?
    14. **Orphaned Connections** — Idle-in-transaction or stuck connections
@@ -704,7 +704,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # parents), AND for a constraint that already exists but was never
   # validated — "blocks constraint creation" is only true when the
   # constraint is absent; on a schema at V164+ it is usually already there,
-  # NOT VALID, and what orphaned rows actually block is VALIDATE (V175
+  # NOT VALID, and what orphaned rows actually block is VALIDATE (V176
   # handles that automatically once the rows are gone).
   defp check_orphaned_fk_refs(prefix) do
     repo = get_repo!()
@@ -775,7 +775,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # straight to `probe_failed`, never falls through to the branches below
   # that assume both reads succeeded.
   #
-  # Exposed (not `defp`) and `@doc false`, same reason as `V175.validate_one/7`:
+  # Exposed (not `defp`) and `@doc false`, same reason as `V176.validate_one/7`:
   # a pure decision function, directly testable without touching a real repo.
   @doc false
   def classify_fk_check(table, fk_col, ref, {:probe_failed, reason}, _validation, {orph, nv, pf}) do
@@ -811,7 +811,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   end
 
   # Constraint present, NOT VALID, but nothing currently blocking it — a
-  # nudge, not a failure: V175 validates this on its own.
+  # nudge, not a failure: V176 validates this on its own.
   def classify_fk_check(table, fk_col, ref, {:ok, _count}, {:not_valid, _conname}, {orph, nv, pf}) do
     {orph, [{table, fk_col, ref} | nv], pf}
   end
@@ -833,7 +833,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
     {:warn,
      "Foreign key(s) exist but were never validated (no orphaned rows blocking it right " <>
-       "now):\n       #{detail}\n       V175 validates these automatically on the next " <>
+       "now):\n       #{detail}\n       V176 validates these automatically on the next " <>
        "migration run; or ALTER TABLE <table> VALIDATE CONSTRAINT <name> by hand."}
   end
 
@@ -878,7 +878,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
     {:fail,
      "Orphaned FK refs / unverifiable FK state found:\n       #{detail}#{nv_note}\n       " <>
-       "V164/V175 never delete rows to force a constraint through — clean orphaned rows up " <>
+       "V164/V176 never delete rows to force a constraint through — clean orphaned rows up " <>
        "by hand and re-run the migration chain; for a probe failure, fix DB connectivity or " <>
        "permissions on pg_constraint and re-run doctor."}
   end

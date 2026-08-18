@@ -1,11 +1,14 @@
-defmodule PhoenixKit.Migrations.Postgres.V175Test do
+defmodule PhoenixKit.Migrations.Postgres.V176Test do
   @moduledoc """
-  V175's FK-validation repair, run against a real NOT VALID constraint with
+  V176's FK-validation repair, run against a real NOT VALID constraint with
   real orphaned rows behind it — the exact state A002's findings describe:
   `fk_users_tokens_user_uuid` sitting NOT VALID on a live install, nothing in
   core ever revisiting it.
 
-  V175.up/1 can't be invoked outside an `Ecto.Migrator` runner (same
+  Filed as V175 originally; renumbered to V176 when upstream took V175 for
+  an unrelated Buckets change while this branch was still in review.
+
+  V176.up/1 can't be invoked outside an `Ecto.Migrator` runner (same
   constraint as V164Test/V174Test), and by the time any test runs the chain
   has already validated the declared FKs cleanly — empty test tables have no
   orphans to find, so testing "through the migrator" would prove nothing.
@@ -28,7 +31,7 @@ defmodule PhoenixKit.Migrations.Postgres.V175Test do
   """
   use PhoenixKit.DataCase, async: false
 
-  alias PhoenixKit.Migrations.Postgres.V175
+  alias PhoenixKit.Migrations.Postgres.V176
   alias PhoenixKit.Migrations.UUIDFKColumns
   alias PhoenixKit.Test.Repo
 
@@ -100,7 +103,7 @@ defmodule PhoenixKit.Migrations.Postgres.V175Test do
   end
 
   defp run_validate do
-    V175.validate_one(Repo, @table_atom, @fk_col, @ref_table, @ref_col, "public", "public")
+    V176.validate_one(Repo, @table_atom, @fk_col, @ref_table, @ref_col, "public", "public")
   end
 
   describe "validate_one/7 — orphaned rows present" do
@@ -169,7 +172,7 @@ defmodule PhoenixKit.Migrations.Postgres.V175Test do
       # success. The real constraint (@conname) is untouched by any of this
       # and must stay exactly as NOT VALID as it started.
       label =
-        V175.attempt_validate(
+        V176.attempt_validate(
           Repo,
           @table,
           @fk_col,
@@ -190,7 +193,7 @@ defmodule PhoenixKit.Migrations.Postgres.V175Test do
       drop_constraint!()
       readd_not_valid!()
 
-      assert V175.attempt_validate(
+      assert V176.attempt_validate(
                Repo,
                @table,
                @fk_col,
@@ -221,7 +224,7 @@ defmodule PhoenixKit.Migrations.Postgres.V175Test do
       # (undefined_object, 42704), caught by the DO block's EXCEPTION
       # handler and never raised into Elixir.
       label =
-        V175.attempt_validate(
+        V176.attempt_validate(
           Repo,
           @table,
           @fk_col,

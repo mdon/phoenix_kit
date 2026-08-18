@@ -103,6 +103,56 @@ defmodule PhoenixKitTest do
     end
   end
 
+  describe "boot/1 — integrations encryption boot check" do
+    import ExUnit.CaptureLog
+
+    setup do
+      original_dedicated = Application.get_env(:phoenix_kit, :integrations_encryption_key)
+      original_flat = Application.get_env(:phoenix_kit, :secret_key_base)
+
+      on_exit(fn ->
+        restore_env(:integrations_encryption_key, original_dedicated)
+        restore_env(:secret_key_base, original_flat)
+      end)
+
+      :ok
+    end
+
+    # This check used to run as a `Task` child of `PhoenixKit.Supervisor`,
+    # which commonly starts BEFORE the host app's own Endpoint — at that
+    # point `Encryption.status/0`'s Endpoint lookup can't resolve yet, so
+    # an install relying on the (supported, common) secret_key_base
+    # fallback would misreport as `:disabled_no_key` instead of
+    # `:legacy_secret_key_base`. `boot/1` runs only after
+    # `Supervisor.start_link/2` returns, i.e. after the host's Endpoint has
+    # definitely started — this proves the check is wired in here and
+    # produces the correct warning for the legacy tier.
+    test "warns about the legacy key tier when boot/1 runs" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, "legacy-secret-for-boot-test")
+
+      log = capture_log(fn -> PhoenixKit.boot({:ok, self()}) end)
+
+      assert log =~ "no dedicated key is configured"
+    end
+
+    test "PhoenixKit.Supervisor no longer runs this check itself" do
+      {:ok, {_flags, children}} = PhoenixKit.Supervisor.init(nil)
+
+      ids =
+        Enum.map(children, fn
+          %{id: id} -> id
+          {mod, _arg} -> mod
+          mod when is_atom(mod) -> mod
+        end)
+
+      refute :warn_integrations_encryption in ids
+    end
+
+    defp restore_env(key, nil), do: Application.delete_env(:phoenix_kit, key)
+    defp restore_env(key, value), do: Application.put_env(:phoenix_kit, key, value)
+  end
+
   describe "ScheduledJobs modules" do
     test "ScheduledJobs context is defined" do
       assert Code.ensure_loaded?(PhoenixKit.ScheduledJobs)

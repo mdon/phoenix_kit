@@ -15,6 +15,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   import PhoenixKitWeb.Components.Core.RowLink, only: [row_link: 1]
 
   alias PhoenixKit.Integrations
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.Events
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Settings
@@ -119,6 +120,14 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # ---------------------------------------------------------------------------
 
   defp load_connections(socket) do
+    # Recomputed on every reload (mount AND every PubSub-triggered refresh
+    # below), not just once at mount — this is a long-lived LiveView, and an
+    # admin who rotates the key / flips integration_encryption_enabled while
+    # the page is open should see the banner update on the next connection
+    # event rather than only after a fresh page load. `status/0` is a pure
+    # config read (see its own doc), so recomputing it here is free.
+    socket = assign(socket, :encryption_status, Encryption.status())
+
     # System page: only providers usable system-wide, and only SYSTEM-owned
     # connections (owner: :system) — a user's personal connection never leaks here.
     providers = Providers.for_scope(:system)
@@ -174,4 +183,55 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   defp integration_status_badge("disconnected"), do: {"badge-ghost", gettext("Not connected")}
   defp integration_status_badge("error"), do: {"badge-error", gettext("Error")}
   defp integration_status_badge(_), do: {"badge-ghost", gettext("Not configured")}
+
+  # Deliberately no clause for `:dedicated` — the template guards rendering
+  # on `@encryption_status != :dedicated`, so the healthy case never reaches
+  # these.
+  defp encryption_status_title(:legacy_secret_key_base),
+    do: gettext("Credentials are protected only by a shared application secret")
+
+  defp encryption_status_title(:disabled_no_key),
+    do: gettext("Credentials are stored in plain text")
+
+  defp encryption_status_title(:disabled_explicit),
+    do: gettext("Encryption is turned off for integration credentials")
+
+  # Catch-all: the template renders this banner for ANY status other than
+  # `:dedicated` (see the guard note above), so a future `key_status/0`
+  # value this page hasn't been taught about must degrade to a generic
+  # warning instead of a `FunctionClauseError` crashing the settings page.
+  defp encryption_status_title(_other),
+    do: gettext("Integration credential encryption needs attention")
+
+  defp encryption_status_detail(:legacy_secret_key_base) do
+    gettext(
+      "No dedicated encryption key is configured, so credentials below fall back to a key " <>
+        "derived from secret_key_base — a secret shared with session signing and CSRF tokens. " <>
+        "Anyone who can read secret_key_base can decrypt every credential here. Run " <>
+        "mix phoenix_kit.integrations.rotate_key to fix this."
+    )
+  end
+
+  defp encryption_status_detail(:disabled_no_key) do
+    gettext(
+      "No encryption key could be resolved. New and existing credentials below are stored as " <>
+        "plain text in the database."
+    )
+  end
+
+  defp encryption_status_detail(:disabled_explicit) do
+    gettext(
+      "integration_encryption_enabled is set to false. Credentials below are stored as plain " <>
+        "text in the database."
+    )
+  end
+
+  # See `encryption_status_title/1`'s catch-all note.
+  defp encryption_status_detail(_other) do
+    gettext(
+      "The current encryption status could not be described by this admin page — it may be " <>
+        "newer than what this page recognizes. Check PhoenixKit.Integrations.Encryption.status/0 " <>
+        "directly."
+    )
+  end
 end

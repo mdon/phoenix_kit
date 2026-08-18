@@ -48,6 +48,22 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
 
   Custom pipelines can be added via `sitemap_protected_pipelines` setting.
 
+  Routes served by a JSON pipeline are excluded too, wherever they are
+  mounted — `:api` and `:phoenix_kit_api`. The path patterns above only catch
+  API endpoints that sit under `/api`; a module mounting its own API
+  (`/sync/api/status`) or a host's infrastructure hook outside `/api`
+  (Caddy's on-demand-TLS `/caddy/ask`) escapes them, and the pipeline is the
+  route's own declaration that it does not serve a page.
+
+  `sitemap_non_page_pipelines` **replaces** that list (unlike
+  `sitemap_protected_pipelines`, which adds to its defaults): `:api` is a
+  generic name, so a host that serves real pages through a pipeline called
+  `:api` must be able to take it off the list. Saving `[]` turns
+  pipeline-based exclusion off entirely.
+
+      Settings.update_setting("sitemap_non_page_pipelines",
+        JSON.encode!(["phoenix_kit_api"]))
+
   LiveView routes using authentication `on_mount` hooks are also excluded:
   - `{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope}` - Ensures user is authenticated
   - `{PhoenixKitWeb.Users.Auth, :phoenix_kit_redirect_if_authenticated_scope}` - Redirects if already authenticated
@@ -155,6 +171,18 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
     :admin_only
   ]
 
+  # Pipelines that answer with JSON rather than pages. A route piped through
+  # one of them is an API endpoint wherever it is mounted, which the path
+  # patterns above only catch when it happens to sit under "/api" — a module
+  # mounting its API under its own prefix ("/sync/api/status", declared
+  # `pipe_through [:phoenix_kit_api]`) or a host's infrastructure endpoint
+  # outside "/api" entirely (Caddy's on-demand-TLS "/caddy/ask" hook,
+  # declared `pipe_through :api`) both slip past them.
+  @default_non_page_pipelines [
+    :api,
+    :phoenix_kit_api
+  ]
+
   # Default on_mount hooks that require authentication (for LiveView routes)
   # Format: {Module, hook_name} - matches against on_mount id tuples
   @default_protected_on_mount_hooks [
@@ -250,6 +278,14 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
   @spec default_protected_pipelines() :: [atom()]
   def default_protected_pipelines, do: @default_protected_pipelines
 
+  @doc """
+  Returns the pipelines whose routes serve JSON rather than pages.
+
+  Routes piped through any of these are skipped regardless of their path.
+  """
+  @spec default_non_page_pipelines() :: [atom()]
+  def default_non_page_pipelines, do: @default_non_page_pipelines
+
   defp do_collect(opts) do
     base_url = Keyword.get(opts, :base_url)
     exclude_patterns = compile_patterns(effective_exclude_patterns(), "exclude")
@@ -265,18 +301,52 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
     get_route?(route) and
       not excluded?(route.path, exclude_patterns) and
       included?(route.path, include_only) and
-      not protected_by_route_info?(route) and
+      not excluded_by_route_info?(route) and
       not disabled_module_route?(route.path)
   end
 
-  # Single route_info call checks both pipelines and on_mount hooks
-  defp protected_by_route_info?(route) do
+  # Single route_info call checks pipelines (both auth-protected and
+  # JSON-serving) and on_mount hooks
+  defp excluded_by_route_info?(route) do
     case get_route_info(route.path) do
       nil ->
         false
 
       info ->
-        has_protected_pipeline?(info) or has_protected_on_mount?(info)
+        has_protected_pipeline?(info) or has_non_page_pipeline?(info) or
+          has_protected_on_mount?(info)
+    end
+  end
+
+  # A JSON pipeline is the route's own declaration that it does not serve a
+  # page — a fact about the route, not a guess from its path.
+  defp has_non_page_pipeline?(%{pipe_through: pipelines}) when is_list(pipelines) do
+    Enum.any?(non_page_pipelines(), &(&1 in pipelines))
+  end
+
+  defp has_non_page_pipeline?(_), do: false
+
+  # `sitemap_non_page_pipelines` REPLACES the defaults rather than adding to
+  # them (the opposite of `sitemap_protected_pipelines`): `:api` is a generic
+  # name, and a host that serves real pages through a pipeline of that name
+  # needs a way to take it OFF the list. Saving `[]` disables pipeline-based
+  # exclusion entirely.
+  defp non_page_pipelines do
+    case Settings.get_setting("sitemap_non_page_pipelines") do
+      nil ->
+        @default_non_page_pipelines
+
+      json_string when is_binary(json_string) ->
+        case JSON.decode(json_string) do
+          {:ok, pipelines} when is_list(pipelines) -> to_atoms(pipelines)
+          _ -> @default_non_page_pipelines
+        end
+
+      pipelines when is_list(pipelines) ->
+        to_atoms(pipelines)
+
+      _ ->
+        @default_non_page_pipelines
     end
   end
 
@@ -322,22 +392,30 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
       json_string when is_binary(json_string) ->
         case JSON.decode(json_string) do
           {:ok, pipelines} when is_list(pipelines) ->
-            Enum.map(pipelines, &safe_to_atom/1)
+            to_atoms(pipelines)
 
           _ ->
             []
         end
 
       pipelines when is_list(pipelines) ->
-        Enum.map(pipelines, &safe_to_atom/1)
+        to_atoms(pipelines)
 
       _ ->
         []
     end
   end
 
+  defp to_atoms(values), do: values |> Enum.map(&safe_to_atom/1) |> Enum.reject(&is_nil/1)
+
   defp safe_to_atom(value) when is_atom(value), do: value
   defp safe_to_atom(value) when is_binary(value), do: String.to_atom(value)
+
+  # A settings list is hand-edited JSON; one bad element must not take the
+  # source down with it. Without this clause the FunctionClauseError is caught
+  # by `collect/1`'s rescue and every discovered route disappears from the
+  # sitemap silently — a typo in a settings field emptying a whole source.
+  defp safe_to_atom(_other), do: nil
 
   defp disabled_module_route?(path) do
     Enum.any?(@module_route_prefixes, fn {prefix, {mod, fun}} ->
