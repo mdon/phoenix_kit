@@ -4,6 +4,12 @@
 
 ## Workflow
 
+0. **First clone only:** `git config core.hooksPath .githooks` — enables the
+   tracked pre-commit hook (`.githooks/pre-commit`). Git deliberately will not
+   do this for you: a clone must not be able to run code on checkout, so one
+   manual command is the floor. `mix phoenix_kit.doctor` reports it under
+   "Git Hooks" when it is missing, and distinguishes "not enabled" from
+   "could not check".
 1. Make changes
 2. `mix precommit` — compile (warnings as errors) + `deps.unlock --check-unused` + `quality.ci` (format-check, credo --strict, dialyzer) + JS tests. **It does not run `mix test`** — run that separately, see "CI/CD" below.
 3. Fix problems
