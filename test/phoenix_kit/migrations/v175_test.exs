@@ -153,4 +153,55 @@ defmodule PhoenixKit.Migrations.Postgres.V175Test do
       assert convalidated?() == true
     end
   end
+
+  describe "attempt_validate/8 — VALIDATE fails for a reason OTHER than orphans (gate round 2, finding 2)" do
+    test "RED without this round's fix: a swallowed VALIDATE failure must not report success" do
+      drop_constraint!()
+      readd_not_valid!()
+      refute convalidated?()
+
+      # Zero real orphans, so Probe.orphan_count/6 reads clean and this
+      # proceeds to VALIDATE. A conname that does not exist makes Postgres
+      # refuse (undefined_object, 42704) inside the DO block's EXCEPTION
+      # handler -- caught there, logged to the Postgres log only, and
+      # (before this round's fix) reported to Elixir as `nil`, i.e.
+      # "validated", because "the query didn't raise" was trusted as
+      # success. The real constraint (@conname) is untouched by any of this
+      # and must stay exactly as NOT VALID as it started.
+      label =
+        V175.attempt_validate(
+          Repo,
+          @table,
+          @fk_col,
+          @ref_table,
+          @ref_col,
+          "fk_this_constraint_does_not_exist",
+          "public",
+          "public"
+        )
+
+      refute is_nil(label)
+      assert label =~ "could not be validated"
+
+      refute convalidated?()
+    end
+
+    test "a real VALIDATE success is still reported as success (nil), unchanged by this round" do
+      drop_constraint!()
+      readd_not_valid!()
+
+      assert V175.attempt_validate(
+               Repo,
+               @table,
+               @fk_col,
+               @ref_table,
+               @ref_col,
+               @conname,
+               "public",
+               "public"
+             ) == nil
+
+      assert convalidated?()
+    end
+  end
 end

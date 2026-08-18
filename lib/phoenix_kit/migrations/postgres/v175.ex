@@ -125,7 +125,16 @@ defmodule PhoenixKit.Migrations.Postgres.V175 do
          column_exists?(repo, ref_table, ref_col, escaped_prefix) do
       case fk_shape_present(repo, table_str, uuid_fk, ref_table, ref_col, escaped_prefix) do
         {:present, conname, false} ->
-          attempt_validate(repo, table_str, uuid_fk, ref_table, ref_col, conname, prefix)
+          attempt_validate(
+            repo,
+            table_str,
+            uuid_fk,
+            ref_table,
+            ref_col,
+            conname,
+            prefix,
+            escaped_prefix
+          )
 
         # Already validated, or no FK of this shape exists at all (nothing
         # for V175 to do — the latter is V164's job, not this one's).
@@ -135,7 +144,26 @@ defmodule PhoenixKit.Migrations.Postgres.V175 do
     end
   end
 
-  defp attempt_validate(repo, table_str, uuid_fk, ref_table, ref_col, conname, prefix) do
+  # Exposed (not `defp`) and `@doc false` so the test suite can call this
+  # directly with a `conname` that does not match the real constraint —
+  # `Probe.orphan_count/6` still reads 0 (real state, unaffected), so this
+  # proceeds to VALIDATE a name that does not exist, which Postgres refuses
+  # (undefined_object, 42704) inside the EXCEPTION handler below. That is
+  # the exact "VALIDATE fails for a reason other than orphans" case
+  # `validate_one/7` cannot reach through its normal path (it always looks
+  # up the real name), and the one this function must not silently report
+  # as success on.
+  @doc false
+  def attempt_validate(
+        repo,
+        table_str,
+        uuid_fk,
+        ref_table,
+        ref_col,
+        conname,
+        prefix,
+        escaped_prefix
+      ) do
     table_name = prefix_table_name(table_str, prefix)
 
     case Probe.orphan_count(repo, prefix, table_str, uuid_fk, ref_table, ref_col) do
@@ -144,9 +172,12 @@ defmodule PhoenixKit.Migrations.Postgres.V175 do
         # immediate VALIDATE would otherwise abort the surrounding
         # transaction (25P02), same reasoning as V164's `validate_fk/7`. The
         # zero-orphan check above means this is only reached when VALIDATE
-        # is expected to succeed; a failure here is something else entirely
-        # (lock contention, a concurrent write landing between the count and
-        # the VALIDATE) and the SQLSTATE is surfaced, not swallowed.
+        # is EXPECTED to succeed; a failure here is something else entirely
+        # (lock contention, a permission error, a row written between the
+        # count above and this VALIDATE) — the EXCEPTION handler routes the
+        # SQLSTATE to the Postgres log, not to Elixir, so "the query didn't
+        # raise" is not proof the constraint validated. Re-read
+        # `convalidated` below rather than trust that.
         repo.query!("""
         DO $$
         BEGIN
@@ -158,7 +189,15 @@ defmodule PhoenixKit.Migrations.Postgres.V175 do
         END $$;
         """)
 
-        nil
+        case fk_shape_present(repo, table_str, uuid_fk, ref_table, ref_col, escaped_prefix) do
+          {:present, _name, true} ->
+            nil
+
+          _still_not_valid_or_gone ->
+            "#{conname} on #{table_str}.#{uuid_fk} could not be validated — 0 orphaned row(s) " <>
+              "at count time, but VALIDATE still failed (see the RAISE WARNING above in the " <>
+              "Postgres log for the SQLSTATE). Left NOT VALID."
+        end
 
       count ->
         "#{conname} on #{table_str}.#{uuid_fk} (#{orphan_message(count)} — VALIDATE would fail, " <>
