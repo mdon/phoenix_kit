@@ -64,6 +64,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   alias PhoenixKit.Install.ChildOrder
   alias PhoenixKit.Install.PrefixConfig
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Migrations.ExpectedSchema.Resolver
   alias PhoenixKit.Migrations.Modules, as: MigrationModules
   alias PhoenixKit.Migrations.Postgres
@@ -134,7 +135,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("Sitemap Discoverability", fn -> check_sitemap_serving() end),
       run_check("Crawler Visibility", fn -> check_crawler_visibility(prefix) end),
       run_check("Demo Auth Pages", fn -> check_demo_routes() end),
-      run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end)
+      run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end),
+      run_check("Integration Key", fn -> check_integration_key() end)
     ]
 
     IO.puts("")
@@ -180,6 +182,35 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   end
 
   # ── Check implementations (return {:pass|:warn|:fail, detail}) ──────
+
+  # Makes key REUSE between sites visible. `Encryption.derive_key/1` is a plain
+  # hash of the secret, so two installs sharing a secret_key_base derive a
+  # byte-identical integration key and nothing tells either of them. The
+  # fingerprint is comparable across installs; the key is not recoverable from
+  # it.
+  defp check_integration_key do
+    case {Encryption.status(), Encryption.key_fingerprint()} do
+      {:dedicated, {:ok, fp}} ->
+        {:pass,
+         "dedicated key, fingerprint #{fp} — compare it against your other sites; the same " <>
+           "fingerprint means the same key"}
+
+      {:legacy_secret_key_base, {:ok, fp}} ->
+        {:warn,
+         "key is DERIVED from secret_key_base, fingerprint #{fp}.\n" <>
+           "       Any other site sharing that secret_key_base has this same fingerprint and\n" <>
+           "       therefore the same key — one compromise exposes all of them. Run\n" <>
+           "       `mix phoenix_kit.integrations.rotate_key` to give this site a key of its own."}
+
+      {status, :none} ->
+        {:warn,
+         "no key is in use (#{inspect(status)}) — stored integration credentials are not " <>
+           "encrypted"}
+
+      {status, {:ok, fp}} ->
+        {:warn, "unrecognised encryption status #{inspect(status)}, fingerprint #{fp}"}
+    end
+  end
 
   defp check_repo_detection do
     app = Mix.Project.config()[:app]

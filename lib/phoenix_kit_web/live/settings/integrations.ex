@@ -126,7 +126,10 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     # the page is open should see the banner update on the next connection
     # event rather than only after a fresh page load. `status/0` is a pure
     # config read (see its own doc), so recomputing it here is free.
-    socket = assign(socket, :encryption_status, Encryption.status())
+    socket =
+      socket
+      |> assign(:encryption_status, Encryption.status())
+      |> assign(:encryption_fingerprint, encryption_fingerprint())
 
     # System page: only providers usable system-wide, and only SYSTEM-owned
     # connections (owner: :system) — a user's personal connection never leaks here.
@@ -233,5 +236,15 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
         "newer than what this page recognizes. Check PhoenixKit.Integrations.Encryption.status/0 " <>
         "directly."
     )
+  end
+
+  # `:none` renders nothing rather than a placeholder: with no key there is
+  # nothing to compare between sites, and the banner above already says the
+  # credentials are unencrypted.
+  defp encryption_fingerprint do
+    case Encryption.key_fingerprint() do
+      {:ok, fingerprint} -> fingerprint
+      :none -> nil
+    end
   end
 end

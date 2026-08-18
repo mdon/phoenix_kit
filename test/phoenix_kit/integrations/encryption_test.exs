@@ -761,4 +761,87 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       refute log =~ "fell back to the secret_key_base-derived key"
     end
   end
+
+  describe "key_fingerprint/0 makes key reuse between sites visible" do
+    setup do
+      previous_skb = Application.get_env(:phoenix_kit, :secret_key_base)
+      previous_key = Application.get_env(:phoenix_kit, :integrations_encryption_key)
+
+      on_exit(fn ->
+        restore = fn key, value ->
+          if is_nil(value),
+            do: Application.delete_env(:phoenix_kit, key),
+            else: Application.put_env(:phoenix_kit, key, value)
+        end
+
+        restore.(:secret_key_base, previous_skb)
+        restore.(:integrations_encryption_key, previous_key)
+      end)
+
+      :ok
+    end
+
+    # The whole point of part 2. derive_key/1 is a plain hash of the secret, so
+    # two installs that share a secret_key_base — copied from a template, cloned
+    # from a sibling environment — hold a byte-identical integration key. This
+    # is what lets an operator SEE that.
+    test "two installs with the same secret produce the same fingerprint" do
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("s", 64))
+      assert {:ok, first} = Encryption.key_fingerprint()
+
+      # Simulate the second site: same secret, resolved from scratch.
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("s", 64))
+      assert {:ok, ^first} = Encryption.key_fingerprint()
+    end
+
+    test "a different secret produces a different fingerprint" do
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("s", 64))
+      assert {:ok, first} = Encryption.key_fingerprint()
+
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("t", 64))
+      assert {:ok, second} = Encryption.key_fingerprint()
+
+      refute first == second
+    end
+
+    # Discovered by writing this test with the opposite expectation. The key is
+    # derived the same way whichever tier the secret came from, so copying your
+    # secret_key_base into integrations_encryption_key does NOT change the key —
+    # it only changes which config line it is read from. An operator doing that
+    # believes they have migrated to a dedicated key; they have not, and every
+    # site still sharing that secret_key_base still holds their key.
+    #
+    # The fingerprint says so out loud, which is the point of it.
+    test "moving the SAME secret to the dedicated setting does not change the key" do
+      secret = String.duplicate("u", 64)
+
+      Application.put_env(:phoenix_kit, :secret_key_base, secret)
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      assert {:ok, legacy} = Encryption.key_fingerprint()
+
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, secret)
+      assert {:ok, dedicated} = Encryption.key_fingerprint()
+
+      assert legacy == dedicated
+    end
+
+    test "the fingerprint is short, hex, and is not the key" do
+      secret = String.duplicate("v", 64)
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, secret)
+
+      assert {:ok, fingerprint} = Encryption.key_fingerprint()
+      assert String.length(fingerprint) == 12
+      assert fingerprint =~ ~r/\A[0-9a-f]{12}\z/
+      refute fingerprint =~ secret
+      refute secret =~ fingerprint
+    end
+
+    test "no key at all → :none, so nothing is displayed to compare" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, nil)
+      Application.put_env(:phoenix_kit, :parent_module, nil)
+
+      assert Encryption.key_fingerprint() == :none
+    end
+  end
 end

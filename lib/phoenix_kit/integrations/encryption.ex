@@ -249,6 +249,44 @@ defmodule PhoenixKit.Integrations.Encryption do
   end
 
   @doc """
+  A short, non-reversible fingerprint of the key currently in use, or `:none`.
+
+  Exists so that **key reuse between sites is visible**. `derive_key/1` is a
+  plain SHA-256 over the secret, so two installs that share a `secret_key_base`
+  — copied from a template, cloned from a sibling environment, inherited with a
+  `config/dev.exs` — derive a byte-identical integration key and neither has any
+  way to notice. One compromise then exposes every site that shares it.
+
+  Two installs showing the same fingerprint are using the same key. That is the
+  whole point: an operator can compare two admin pages, or two `mix
+  phoenix_kit.doctor` runs, and see it.
+
+  ## What it does and does not give away
+
+  Domain-separated from `derive_key/1` (a different prefix) and truncated, so it
+  is not the key and cannot be turned back into one. It IS a verifier: anyone
+  holding it can test candidate secrets offline. That matters when the secret is
+  weak — a `secret_key_base` from a tutorial, for instance — which is exactly
+  the situation this is meant to expose. It is therefore shown on the
+  admin-only system page and in operator tooling, never on a page a regular
+  user can reach and never in a public response.
+  """
+  @spec key_fingerprint() :: {:ok, String.t()} | :none
+  def key_fingerprint do
+    case encryption_key() do
+      key when is_binary(key) ->
+        {:ok,
+         :sha256
+         |> :crypto.hash("phoenix_kit_integrations_fingerprint:v1:" <> key)
+         |> Base.encode16(case: :lower)
+         |> binary_part(0, 12)}
+
+      _ ->
+        :none
+    end
+  end
+
+  @doc """
   Shortest secret accepted as a dedicated key.
 
   Public so `mix phoenix_kit.integrations.rotate_key` can refuse a `--new-key`
