@@ -5,6 +5,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
   use ExUnit.Case, async: false
 
   alias PhoenixKit.Integrations.Encryption
+  alias PhoenixKit.Integrations.KeyStore
 
   describe "encrypt_fields/1 and decrypt_fields/1" do
     test "round-trips sensitive fields" do
@@ -582,4 +583,85 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
 
   defp restore_env(key, nil), do: Application.delete_env(:phoenix_kit, key)
   defp restore_env(key, value), do: Application.put_env(:phoenix_kit, key, value)
+
+  describe "an unreadable key store is reported consistently" do
+    # The per-read error and the boot warning are emitted by different functions
+    # at different moments. They went out of step once already: the boot warning
+    # was made tier-aware and the per-read error stayed blind, so a single run
+    # could claim both "fell back to the secret_key_base key" and "no key at
+    # all". They now share one source; these tests pin that they cannot diverge
+    # again.
+    setup do
+      dir =
+        Path.join(System.tmp_dir!(), "pk_store_consistency_#{System.unique_integer([:positive])}")
+
+      File.mkdir_p!(dir)
+      path = Path.join(dir, "broken.key")
+      File.write!(path, "")
+
+      previous_store = Application.get_env(:phoenix_kit, :integrations_key_store)
+      previous_skb = Application.get_env(:phoenix_kit, :secret_key_base)
+      previous_parent = Application.get_env(:phoenix_kit, :parent_module)
+
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_key_store,
+        {KeyStore.File, path: path}
+      )
+
+      on_exit(fn ->
+        File.rm_rf(dir)
+
+        restore = fn key, value ->
+          if is_nil(value),
+            do: Application.delete_env(:phoenix_kit, key),
+            else: Application.put_env(:phoenix_kit, key, value)
+        end
+
+        restore.(:integrations_key_store, previous_store)
+        restore.(:secret_key_base, previous_skb)
+        restore.(:parent_module, previous_parent)
+        KeyStore.invalidate_cache()
+      end)
+
+      # The per-read error is deliberately once-per-VM; clear the latch so each
+      # test observes it. White-box on purpose — the alternative is a test that
+      # silently passes because the message was already emitted.
+      :persistent_term.erase({Encryption, :store_failure_logged})
+      KeyStore.invalidate_cache()
+
+      {:ok, path: path}
+    end
+
+    defp both_messages do
+      import ExUnit.CaptureLog
+
+      capture_log(fn ->
+        Encryption.decrypt_fields(%{"api_key" => "enc:v1:not-real"})
+        Encryption.warn_if_insecure()
+      end)
+    end
+
+    test "with a legacy secret, both messages say a fallback happened" do
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("z", 64))
+
+      log = both_messages()
+
+      assert log =~ "IS configured but its secret could not be read"
+      assert log =~ "A key store is configured"
+      refute log =~ "PLAINTEXT"
+    end
+
+    test "with no key at all, both messages say PLAINTEXT and neither claims a fallback" do
+      Application.put_env(:phoenix_kit, :secret_key_base, nil)
+      Application.put_env(:phoenix_kit, :parent_module, nil)
+
+      log = both_messages()
+
+      assert log =~ "IS configured but its secret could not be read"
+      assert log =~ "A key store is configured"
+      assert log =~ "PLAINTEXT"
+      refute log =~ "fell back to the secret_key_base-derived key"
+    end
+  end
 end

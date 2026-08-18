@@ -102,7 +102,7 @@ failure path contains the secret.
 
 ## Verification
 
-### Unit — 44 tests, 0 failures
+### Unit — 46 tests, 0 failures (2 added this round)
 
 Round-trip; `0600`/`0700`; trailing newline tolerated; no `.tmp` left behind;
 missing file vs empty file vs whitespace-only file; refusal inside a clone and
@@ -332,6 +332,61 @@ loading the module directly. The last is the informative one —
 so the module exists and is loadable; only `mix test` fails to see it. Whatever
 this is, it is not in this change's diff, and the regression status of the
 existing rotation and encryption tests remains **unknown, not green**.
+
+## Review round 2 (Pi) — SHIP, one new defect in the fixes themselves
+
+The follow-up round found something the first did not: **the fix for one message
+left its sibling behind.** `store_unreadable_warning/1` was made tier-aware;
+`log_store_failure_once/1` was not. In a single run an operator could get two
+messages contradicting each other about whether a fallback key even existed —
+one saying encryption fell back to the `secret_key_base`-derived key, the other
+that no key resolved at all.
+
+This is worth recording as a pattern, not just a bug: a verdict-driven fix is
+exactly where one thing gets repaired and the thing next to it is disturbed.
+
+Both messages now derive their wording from **one** function,
+`store_unreadable_consequence/0`, so they cannot diverge again. It reads
+`secret_key_base/0` rather than `status/0` — status resolves the tier, which
+consults the store, which is what called it; asking for status there would
+recurse. Verified in both directions, in one run each:
+
+    tier: :legacy_secret_key_base
+      [error]   ... could not be read (... exists but is empty): encryption fell back ...
+      [warning] ... could not be read: encryption fell back ...
+
+    tier: :disabled_no_key
+      [error]   ... could not be read (... exists but is empty): NO key resolved at all ...
+      [warning] ... could not be read: NO key resolved at all ...
+
+Two tests in `encryption_test.exs` pin it: with a legacy secret neither message
+may say PLAINTEXT; with no key at all both must, and neither may claim a
+fallback. They clear the once-per-VM latch in setup — deliberately white-box,
+because the alternative is a test that passes silently because the message had
+already been emitted.
+
+Not changed: `describe_error/1` handles a three-element
+`{:verification_failed, path, reason}` through its generic clause. No code here
+produces that shape, and the generic clause already withholds an unknown
+payload, so the behaviour is correct — it was raised as a nitpick, not a defect.
+
+### A second symptom of the same environment breakage
+
+While adding those tests, one **pre-existing** test in `encryption_test.exs`
+turned out to fail here: "falls back to the host endpoint's secret_key_base when
+the flat key is unset". Established as not caused by this work:
+
+* the committed version of the file, without the new tests, fails identically;
+* it fails in isolation too, so it is not test-order pollution;
+* with no store configured — the case in that test — the new tier is a no-op:
+  `KeyStore.configured()` returns `nil` and `stored_dedicated_key/0` returns
+  `:unset`, exactly as before this change existed.
+
+The likely root is the one already recorded: `test_helper.exs` does not complete
+in this container (`PhoenixKit.Test.Repo is not available`), and it is what
+starts `PhoenixKitWeb.Endpoint` — the endpoint this test reads its
+`secret_key_base` from. Same cause as the DataCase compile failure, now visible
+from a second angle.
 
 ## Three things found on the way
 
