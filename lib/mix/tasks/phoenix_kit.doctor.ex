@@ -39,7 +39,11 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     9. **UUID Column Types** — Detects varchar uuid columns that crash Ecto on startup
    10. **UUID Primary Keys** — Detects primary keys that are not the expected uuid type
    11. **NULL UUIDs in FK Sources** — Detects NULL uuids that cause infinite backfill loops
-   12. **Orphaned FK References** — Detects orphaned rows that block FK constraint creation
+   12. **Orphaned FK References** — Detects orphaned rows (blocks VALIDATE on an
+       existing NOT VALID constraint, or creation if the constraint is absent
+       entirely) and existing constraints still sitting NOT VALID with
+       nothing currently blocking them — V175 validates those in place; this
+       just tells you before it does
    13. **Lock Conflicts** — Any blocked or long-running queries?
    14. **Orphaned Connections** — Idle-in-transaction or stuck connections
    15. **Oban Configuration** — Queues and plugins that consume pool connections
@@ -696,8 +700,12 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     end
   end
 
-  # Pre-migration: check for orphaned FK references (rows pointing to deleted parents).
-  # Orphaned refs cause V56's add_constraints to fail when adding FK constraints.
+  # Pre-migration: check for orphaned FK references (rows pointing to deleted
+  # parents), AND for a constraint that already exists but was never
+  # validated — "blocks constraint creation" is only true when the
+  # constraint is absent; on a schema at V164+ it is usually already there,
+  # NOT VALID, and what orphaned rows actually block is VALIDATE (V175
+  # handles that automatically once the rows are gone).
   defp check_orphaned_fk_refs(prefix) do
     repo = get_repo!()
     escaped_prefix = String.replace(prefix, "'", "\\'")
@@ -710,9 +718,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       {"phoenix_kit_email_events", "email_log_uuid", "phoenix_kit_email_logs", "uuid"}
     ]
 
-    problems =
-      Enum.reduce(fk_checks, [], fn {table, fk_col, ref_table, ref_col}, acc ->
-        # Check both tables and columns exist
+    {orphaned, not_validated} =
+      Enum.reduce(fk_checks, {[], []}, fn {table, fk_col, ref_table, ref_col}, {orph, nv} ->
         table_name = prefix_table_name(table, prefix)
         ref_name = prefix_table_name(ref_table, prefix)
 
@@ -734,30 +741,110 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
             AND NOT EXISTS (SELECT 1 FROM #{ref_name} r WHERE r.#{ref_col} = t.#{fk_col})
             """
 
-            case repo.query(orphan_query, [], log: false) do
-              {:ok, %{rows: [[count]]}} when count > 0 ->
-                [{table, fk_col, ref_table, count} | acc]
+            count =
+              case repo.query(orphan_query, [], log: false) do
+                {:ok, %{rows: [[c]]}} -> c
+                _ -> 0
+              end
 
-              _ ->
-                acc
+            case fk_validation_state(repo, table, fk_col, ref_table, escaped_prefix) do
+              # Existing NOT VALID constraint blocking VALIDATE, not creation.
+              {:not_valid, _conname} when count > 0 ->
+                {[{table, fk_col, ref_table, count, :validate} | orph], nv}
+
+              # No constraint at all — the original "blocks creation" case.
+              :absent when count > 0 ->
+                {[{table, fk_col, ref_table, count, :create} | orph], nv}
+
+              # Constraint present, NOT VALID, but nothing currently blocking
+              # it — a nudge, not a failure: V175 validates this on its own.
+              {:not_valid, _conname} ->
+                {orph, [{table, fk_col, ref_table} | nv]}
+
+              _validated_or_absent_and_clean ->
+                {orph, nv}
             end
 
           _ ->
-            acc
+            {orph, nv}
         end
       end)
 
-    if problems == [] do
-      {:pass, "No orphaned FK references found"}
-    else
-      detail =
-        Enum.map_join(Enum.reverse(problems), "\n       ", fn {table, fk_col, ref, count} ->
-          "#{table}.#{fk_col} → #{ref}: #{count} orphaned rows"
-        end)
+    report_orphaned_fk_refs(Enum.reverse(orphaned), Enum.reverse(not_validated))
+  end
 
-      {:fail,
-       "Orphaned FK refs found (will block FK constraint creation):\n       #{detail}\n       " <>
-         "Fix: DELETE FROM <table> t WHERE NOT EXISTS (SELECT 1 FROM <ref> r WHERE r.uuid = t.<fk_col>)"}
+  defp report_orphaned_fk_refs([], []) do
+    {:pass, "No orphaned FK references found"}
+  end
+
+  defp report_orphaned_fk_refs([], not_validated) do
+    detail =
+      Enum.map_join(not_validated, "\n       ", fn {table, fk_col, ref} ->
+        "#{table}.#{fk_col} → #{ref}"
+      end)
+
+    {:warn,
+     "Foreign key(s) exist but were never validated (no orphaned rows blocking it right " <>
+       "now):\n       #{detail}\n       V175 validates these automatically on the next " <>
+       "migration run; or ALTER TABLE <table> VALIDATE CONSTRAINT <name> by hand."}
+  end
+
+  defp report_orphaned_fk_refs(orphaned, not_validated) do
+    detail =
+      Enum.map_join(orphaned, "\n       ", fn
+        {table, fk_col, ref, count, :validate} ->
+          "#{table}.#{fk_col} → #{ref}: #{count} orphaned row(s) — constraint already exists " <>
+            "NOT VALID, this blocks VALIDATE"
+
+        {table, fk_col, ref, count, :create} ->
+          "#{table}.#{fk_col} → #{ref}: #{count} orphaned row(s) — no constraint yet, this " <>
+            "blocks its creation"
+      end)
+
+    nv_note =
+      case not_validated do
+        [] ->
+          ""
+
+        list ->
+          "\n       Also unvalidated with nothing currently blocking it: " <>
+            Enum.map_join(list, ", ", fn {t, c, r} -> "#{t}.#{c} → #{r}" end)
+      end
+
+    {:fail,
+     "Orphaned FK refs found:\n       #{detail}#{nv_note}\n       " <>
+       "V164/V175 never delete rows to force a constraint through — clean these up by hand, " <>
+       "then re-run the migration chain."}
+  end
+
+  # `convalidated` for the constraint enforcing this exact (column ->
+  # ref_table.uuid) shape, matched by shape via conkey/confkey — not by
+  # name, so a constraint adopted under a differently-named twin (V164's own
+  # documented case) is still found. Returns `:absent` if no such FK exists
+  # at all.
+  defp fk_validation_state(repo, table, fk_col, ref_table, escaped_prefix) do
+    query = """
+    SELECT c.conname, c.convalidated
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    JOIN pg_class ft ON ft.oid = c.confrelid
+    JOIN pg_namespace fn ON fn.oid = ft.relnamespace
+    WHERE c.contype = 'f'
+      AND n.nspname = '#{escaped_prefix}'
+      AND t.relname = '#{table}'
+      AND ft.relname = '#{ref_table}'
+      AND fn.nspname = '#{escaped_prefix}'
+      AND array_length(c.conkey, 1) = 1
+      AND (SELECT a.attname FROM pg_attribute a
+           WHERE a.attrelid = c.conrelid AND a.attnum = c.conkey[1]) = '#{fk_col}'
+    LIMIT 1
+    """
+
+    case repo.query(query, [], log: false) do
+      {:ok, %{rows: [[_conname, true]]}} -> :validated
+      {:ok, %{rows: [[conname, false]]}} -> {:not_valid, conname}
+      _ -> :absent
     end
   end
 

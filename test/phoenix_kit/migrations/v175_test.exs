@@ -1,0 +1,156 @@
+defmodule PhoenixKit.Migrations.Postgres.V175Test do
+  @moduledoc """
+  V175's FK-validation repair, run against a real NOT VALID constraint with
+  real orphaned rows behind it — the exact state A002's findings describe:
+  `fk_users_tokens_user_uuid` sitting NOT VALID on a live install, nothing in
+  core ever revisiting it.
+
+  V175.up/1 can't be invoked outside an `Ecto.Migrator` runner (same
+  constraint as V164Test/V174Test), and by the time any test runs the chain
+  has already validated the declared FKs cleanly — empty test tables have no
+  orphans to find, so testing "through the migrator" would prove nothing.
+  This suite drives `validate_one/7` directly instead — the exact function
+  `up/1` calls once per declared FK — against `phoenix_kit_users_tokens`
+  after deliberately reproducing the real-world shape: a VALID constraint
+  enforces every new write regardless of its own validation flag, so the
+  only way a NOT VALID foreign key ever has orphaned rows behind it is that
+  the rows predate the constraint. Reproduced here by dropping the
+  (already-valid, chain-created) constraint, inserting a row that would
+  violate it, then re-adding it NOT VALID — there is no other way to get an
+  orphan behind a live FK.
+
+  `async: false`: DROP/ADD CONSTRAINT takes a lock on
+  `phoenix_kit_users_tokens`, a table virtually every other test in this
+  repo touches (session tokens on login). Safe to hold for the length of
+  this test's own sandboxed transaction (rolled back after, same as every
+  other `DataCase` test), not worth the contention risk against
+  concurrently running async tests.
+  """
+  use PhoenixKit.DataCase, async: false
+
+  alias PhoenixKit.Migrations.Postgres.V175
+  alias PhoenixKit.Migrations.UUIDFKColumns
+  alias PhoenixKit.Test.Repo
+
+  @table "phoenix_kit_users_tokens"
+  # `validate_one/7` takes `table` as an atom — the exact shape
+  # `UUIDFKColumns.fk_constraints/0` entries carry, and what `up/1` passes it
+  # in production. `@table` stays a string for SQL interpolation everywhere
+  # else in this file.
+  @table_atom :phoenix_kit_users_tokens
+  @fk_col "user_uuid"
+  @ref_table "phoenix_kit_users"
+  @ref_col "uuid"
+  @conname UUIDFKColumns.fk_constraint_name(@table, @fk_col)
+
+  defp drop_constraint! do
+    Repo.query!("ALTER TABLE #{@table} DROP CONSTRAINT #{@conname}")
+  end
+
+  # ON DELETE CASCADE matches UUIDFKColumns.fk_constraints/0's own
+  # declaration for this pair — the same shape V164 creates it with.
+  defp readd_not_valid! do
+    Repo.query!("""
+    ALTER TABLE #{@table}
+    ADD CONSTRAINT #{@conname}
+    FOREIGN KEY (#{@fk_col}) REFERENCES #{@ref_table}(#{@ref_col})
+    ON DELETE CASCADE
+    NOT VALID
+    """)
+  end
+
+  defp convalidated? do
+    %{rows: [[value]]} =
+      Repo.query!(
+        "SELECT c.convalidated FROM pg_constraint c JOIN pg_namespace n " <>
+          "ON n.oid = c.connamespace WHERE c.conname = $1 AND n.nspname = 'public'",
+        [@conname]
+      )
+
+    value
+  end
+
+  # No registered user needed: the whole point of this row is that it
+  # points at a uuid nothing owns.
+  defp insert_orphan_token! do
+    now = DateTime.utc_now()
+
+    {1, [%{uuid: uuid}]} =
+      Repo.insert_all(
+        @table,
+        [
+          %{
+            token: :crypto.strong_rand_bytes(32),
+            context: "session",
+            user_uuid: Ecto.UUID.dump!(Ecto.UUID.generate()),
+            inserted_at: now
+          }
+        ],
+        returning: [:uuid]
+      )
+
+    uuid
+  end
+
+  defp token_exists?(uuid) do
+    %{rows: [[count]]} =
+      Repo.query!("SELECT count(*) FROM #{@table} WHERE uuid = $1", [uuid])
+
+    count == 1
+  end
+
+  defp run_validate do
+    V175.validate_one(Repo, @table_atom, @fk_col, @ref_table, @ref_col, "public", "public")
+  end
+
+  describe "validate_one/7 — orphaned rows present" do
+    test "the constraint stays NOT VALID, the row survives, and the count is exact" do
+      assert convalidated?() == true
+
+      drop_constraint!()
+      orphan_uuid = insert_orphan_token!()
+      readd_not_valid!()
+      refute convalidated?()
+
+      label = run_validate()
+
+      assert label =~ @conname
+      assert label =~ "1 orphaned row"
+      assert label =~ "left NOT VALID"
+
+      # The one promise this version exists to keep: never delete a row or
+      # null a reference to force the constraint through.
+      refute convalidated?()
+      assert token_exists?(orphan_uuid)
+    end
+
+    test "a second orphan changes only the count, not the outcome" do
+      drop_constraint!()
+      insert_orphan_token!()
+      insert_orphan_token!()
+      readd_not_valid!()
+
+      assert run_validate() =~ "2 orphaned row"
+      refute convalidated?()
+    end
+  end
+
+  describe "validate_one/7 — no orphaned rows (RED without this version: nothing else in core ever calls VALIDATE CONSTRAINT on an already-existing key)" do
+    test "the constraint becomes valid" do
+      assert convalidated?() == true
+
+      drop_constraint!()
+      readd_not_valid!()
+      refute convalidated?()
+
+      assert run_validate() == nil
+      assert convalidated?() == true
+    end
+
+    test "an already-valid constraint is left alone (no-op, idempotent)" do
+      assert convalidated?() == true
+      assert run_validate() == nil
+      assert convalidated?() == true
+    end
+  end
+end

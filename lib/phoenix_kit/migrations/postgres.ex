@@ -7,7 +7,20 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V174 - Repair misclassified media rows ⚡ LATEST
+  ### V175 - Validate existing NOT VALID foreign keys ⚡ LATEST
+
+  The FK repair V164 added (`UUIDFKColumns.fk_constraints/0`) creates every
+  constraint `NOT VALID` and validates it on the spot, but a validation that
+  fails because of pre-existing orphaned rows stays `NOT VALID` forever —
+  nothing in core ever revisits it (V164's own moduledoc says a re-run does
+  not retry, "VALIDATE each by hand"). This version does exactly that, on
+  every later run: for each declared FK still `NOT VALID`, if the orphan
+  count is now zero it validates it; if orphans remain, it leaves the
+  constraint untouched and warns with the real count. Never deletes a row or
+  nulls a reference — same policy V164 states for itself, for the same
+  reason (this runs against other people's already-deployed data).
+
+  ### V174 - Repair misclassified media rows
 
   Two since-fixed writer defects left media rows whose classification
   contradicts the file itself: the storage writer trusted whatever
@@ -561,7 +574,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 174
+  @current_version 175
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
