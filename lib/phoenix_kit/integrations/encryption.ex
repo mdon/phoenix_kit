@@ -65,6 +65,15 @@ defmodule PhoenixKit.Integrations.Encryption do
   # against the comically weak end.
   @min_dedicated_key_length 20
 
+  # Fixed, ecosystem-wide: a per-install salt would give two installs holding the
+  # same key different fingerprints, which is the one thing this must never do.
+  @fingerprint_domain "phoenix_kit_integrations_fingerprint:v2"
+
+  # Only raises the price of each guess; it cannot make a weak secret strong.
+  # Costs roughly a tenth of a second, paid on an admin page mount and in a mix
+  # task, neither of which is a hot path.
+  @fingerprint_iterations 100_000
+
   @sensitive_fields ~w(
     access_token refresh_token client_secret
     api_key bot_token secret_key password
@@ -248,6 +257,48 @@ defmodule PhoenixKit.Integrations.Encryption do
     end
   end
 
+  @typedoc """
+  The active tier plus **why** it is that tier.
+
+  Exists because two places give advice about the same situation —
+  `warn_if_insecure/0` and `mix phoenix_kit.doctor` — and advice that is correct
+  for one reason is actively harmful for another. Telling an operator whose key
+  store is unreadable to run `mix phoenix_kit.integrations.rotate_key` would
+  rotate away from a key their data may still be encrypted under. Telling
+  someone who *did* configure a key that none is configured is simply false.
+
+  Both callers branch on this one value, so they cannot drift apart.
+  """
+  @type key_diagnosis ::
+          {:dedicated, :ok}
+          | {:legacy_secret_key_base, :store_unreadable | :key_too_short | :no_dedicated_key}
+          | {:disabled_no_key, :store_unreadable | :key_too_short | :no_key_material}
+          | {:disabled_explicit, :turned_off}
+
+  @doc """
+  The active tier and the reason for it. See `t:key_diagnosis/0`.
+
+  The reasons are ordered by what must be acted on first: an unreadable key
+  store outranks "no dedicated key", because repairing the store may restore the
+  very key the data is encrypted under, while rotating would abandon it.
+  """
+  @spec key_diagnosis() :: key_diagnosis()
+  def key_diagnosis do
+    status = status()
+
+    reason =
+      cond do
+        status == :disabled_explicit -> :turned_off
+        status == :dedicated -> :ok
+        store_unreadable?() -> :store_unreadable
+        dedicated_key_too_short?() -> :key_too_short
+        status == :legacy_secret_key_base -> :no_dedicated_key
+        true -> :no_key_material
+      end
+
+    {status, reason}
+  end
+
   @doc """
   A short, non-reversible fingerprint of the key currently in use, or `:none`.
 
@@ -257,19 +308,44 @@ defmodule PhoenixKit.Integrations.Encryption do
   `config/dev.exs` — derive a byte-identical integration key and neither has any
   way to notice. One compromise then exposes every site that shares it.
 
-  Two installs showing the same fingerprint are using the same key. That is the
-  whole point: an operator can compare two admin pages, or two `mix
-  phoenix_kit.doctor` runs, and see it.
+  Two installs showing the same fingerprint are using the same key.
 
-  ## What it does and does not give away
+  ## Comparing two numbers only means something like-for-like
 
-  Domain-separated from `derive_key/1` (a different prefix) and truncated, so it
-  is not the key and cannot be turned back into one. It IS a verifier: anyone
-  holding it can test candidate secrets offline. That matters when the secret is
-  weak — a `secret_key_base` from a tutorial, for instance — which is exactly
-  the situation this is meant to expose. It is therefore shown on the
-  admin-only system page and in operator tooling, never on a page a regular
-  user can reach and never in a public response.
+  Three things make one site show a fingerprint that is not "its" key, and none
+  of them are visible in the number itself, so **always read the tier printed
+  next to it**:
+
+    * an unreadable key store, so the fallback key is being fingerprinted;
+    * a dedicated key rejected as too short, same effect;
+    * encryption disabled, in which case there is no fingerprint at all.
+
+  There is also an environment trap. `mix phoenix_kit.doctor` resolves the key
+  in the **task's** environment; a key delivered by an env var read in
+  `runtime.exs` may differ from what the running server holds. A task and an
+  admin page on the same site can therefore disagree. Compare admin page with
+  admin page, or task with task.
+
+  ## What it gives away
+
+  Domain-separated from `derive_key/1` and truncated, so it is not the key and
+  cannot be turned back into one. It IS a verifier: anyone holding it can test
+  candidate secrets offline.
+
+  There is no salt, and there cannot be one — a per-install salt would make two
+  installs with the same key show different numbers, destroying the only thing
+  this is for. What can be raised is the cost per guess, so the digest is
+  iterated (PBKDF2-HMAC-SHA256, #{@fingerprint_iterations} iterations) instead
+  of the two plain hashes it used to be. The prefix is global to PhoenixKit, so
+  a table over common `secret_key_base` values works against every install at
+  once; iteration makes building that table that many times more expensive, and
+  nothing more. **The fingerprint is no stronger than the secret behind it** —
+  against a weak, guessable secret it is a verification oracle, which is exactly
+  the situation this feature exists to surface.
+
+  Accordingly it is shown on the admin-only system page, and by
+  `mix phoenix_kit.doctor` only when explicitly asked for: a task's output ends
+  up in CI logs, whose readership is wider than the page's.
   """
   @spec key_fingerprint() :: {:ok, String.t()} | :none
   def key_fingerprint do
@@ -277,9 +353,8 @@ defmodule PhoenixKit.Integrations.Encryption do
       key when is_binary(key) ->
         {:ok,
          :sha256
-         |> :crypto.hash("phoenix_kit_integrations_fingerprint:v1:" <> key)
-         |> Base.encode16(case: :lower)
-         |> binary_part(0, 12)}
+         |> :crypto.pbkdf2_hmac(key, @fingerprint_domain, @fingerprint_iterations, 6)
+         |> Base.encode16(case: :lower)}
 
       _ ->
         :none
@@ -313,34 +388,30 @@ defmodule PhoenixKit.Integrations.Encryption do
   """
   @spec warn_if_insecure() :: :ok
   def warn_if_insecure do
-    if dedicated_key_too_short?() do
-      Logger.warning(dedicated_key_too_short_warning())
-    end
-
-    case status() do
-      :dedicated ->
+    # Branches on the SAME value `mix phoenix_kit.doctor` branches on. Two places
+    # giving advice about one situation is how they end up contradicting each
+    # other — which happened here once already, and once in the store-failure
+    # log before that.
+    case key_diagnosis() do
+      {:dedicated, :ok} ->
         :ok
 
-      :legacy_secret_key_base ->
-        cond do
-          store_unreadable?() -> Logger.warning(store_unreadable_warning())
-          dedicated_key_too_short?() -> :ok
-          true -> Logger.warning(legacy_key_warning())
-        end
+      # Outranks everything below: repairing the store may restore the very key
+      # the data is encrypted under, and the advice attached to the other
+      # branches would send the operator away from it.
+      {_status, :store_unreadable} ->
+        Logger.warning(store_unreadable_warning())
 
-      :disabled_no_key ->
-        cond do
-          # Reached when the store is broken AND no legacy secret resolves
-          # either. Saying "no encryption key could be resolved" here is true
-          # but useless, and the advice that follows it — configure
-          # integrations_encryption_key — would permanently SHADOW the store the
-          # operator already has. Name the real cause instead.
-          store_unreadable?() -> Logger.warning(store_unreadable_warning())
-          dedicated_key_too_short?() -> :ok
-          true -> Logger.warning(plaintext_warning("no encryption key could be resolved"))
-        end
+      {_status, :key_too_short} ->
+        Logger.warning(dedicated_key_too_short_warning())
 
-      :disabled_explicit ->
+      {:legacy_secret_key_base, :no_dedicated_key} ->
+        Logger.warning(legacy_key_warning())
+
+      {:disabled_no_key, :no_key_material} ->
+        Logger.warning(plaintext_warning("no encryption key could be resolved"))
+
+      {:disabled_explicit, :turned_off} ->
         Logger.warning(plaintext_warning("integration_encryption_enabled is set to false"))
     end
 

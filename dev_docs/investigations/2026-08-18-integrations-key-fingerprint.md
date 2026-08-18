@@ -49,6 +49,95 @@ never on the personal integrations page a regular user can reach, and never in a
 public response. The trade-off is stated in the function's own docs rather than
 left for someone to discover.
 
+## Review verdict FIX — what was wrong and what changed
+
+### The one that mattered: the doctor check gave advice its own module forbids
+
+The new check told anyone on the legacy tier to run
+`mix phoenix_kit.integrations.rotate_key`. **Unconditionally.** Two functions in
+the same module say that is wrong in specific states:
+
+* `store_unreadable_warning/0` says *do NOT rotate — the stored key may be the
+  one your data is encrypted under; repair the store first*;
+* the too-short warning exists precisely because "no dedicated key is
+  configured" is a falsehood told to someone who configured one.
+
+The existing protection branched on those states. The new check did not, and did
+not call `warn_if_insecure/0` either. Weight is not theoretical: **all four of
+our sites run the legacy tier**, so this is the line every one of our operators
+would have read. Rotation aborts if rows fail to decrypt, but that does not
+cover the case where every row is already written under the fallback key — then
+it runs, and overwrites the store.
+
+This is the same defect closed twice already today, one layer out: a diagnostic
+that is confident and wrong.
+
+**Fix, and not a patch on the string.** `Encryption.key_diagnosis/0` now returns
+the tier *and the reason for it*, and **both** `warn_if_insecure/0` and the
+doctor check branch on that one value. They cannot give contradictory advice
+because there is no longer a second place to derive it from. Reasons are ranked:
+an unreadable store outranks "no dedicated key", because repairing the store may
+restore the key the data is under, while rotating abandons it.
+
+Verified by running the real task in each state:
+
+    legacy, nothing configured   → "Run mix phoenix_kit.integrations.rotate_key ..."  (correct here)
+    store configured, unreadable → "Do NOT run mix phoenix_kit.integrations.rotate_key —
+                                    the stored key may be the one your data is encrypted
+                                    under. Repair the store first: /path/to.key"
+    dedicated key too short      → "a dedicated key IS configured but was REJECTED as
+                                    shorter than 20 characters ... This is not the same as
+                                    having none configured."
+
+### The fingerprint reached CI logs
+
+The task printed it on every run, including `:pass`. `mix phoenix_kit.doctor` is
+meant as a deploy gate, so its output settles in build logs — a wider readership
+than a page gated on `integrations_system`. The docstring promised "never on a
+page a regular user can reach" and said nothing about that.
+
+Now hidden unless `--fingerprint` is passed; otherwise the check prints
+"(fingerprint hidden — pass --fingerprint to show)". The docstring says where it
+can appear and why the flag exists.
+
+### A bare number invites a false comparison
+
+Three states make one site fingerprint a key that is not "its own": an
+unreadable store, a dedicated key rejected as too short, and encryption
+disabled. None were marked, so an operator comparing two sites could conclude
+their keys differ when the comparison was never like-for-like.
+
+The number now always carries its tier — `fingerprint abc… (dedicated key)`,
+`(FALLBACK key — the configured key store could not be read)` — on both the
+admin page and in the task.
+
+The related environment trap is now written down rather than left to be
+discovered: `mix phoenix_kit.doctor` resolves the key in the **task's**
+environment, so a key delivered by an env var read in `runtime.exs` can make a
+task and an admin page on the *same site* disagree. Compare page with page, or
+task with task.
+
+### No KDF: a guess cost two hashes
+
+There is no salt and there cannot be one — a per-install salt gives two installs
+holding the same key different numbers, destroying the only thing this is for.
+What could be raised is the price per guess. The digest is now
+PBKDF2-HMAC-SHA256 at 100 000 iterations instead of two plain SHA-256s, measured
+at 109 ms, paid on an admin mount and in a mix task — neither a hot path.
+
+The prefix stays global, so a table over common `secret_key_base` values still
+works against every install at once; it now costs 100 000 times more to build,
+and nothing more. The docstring states the limit plainly: **the fingerprint is
+no stronger than the secret behind it.** Domain version bumped `v1` → `v2`, so
+fingerprints from before this change do not match ones after it; nothing
+persisted them.
+
+### Acknowledged, not fixed
+
+The checker's own closing point: this feature does not *answer* whether our
+sites share a key — it only makes the answer obtainable. Getting it needs a run
+on each site, which is the head's step, not a code change.
+
 ## Found while writing the tests
 
 The test asserting that a dedicated key and a legacy secret *of the same text*

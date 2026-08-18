@@ -78,7 +78,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   @shortdoc "Diagnoses PhoenixKit installation, migration, and runtime issues"
 
-  @switches [prefix: :string, exit_code: :boolean]
+  @switches [prefix: :string, exit_code: :boolean, fingerprint: :boolean]
   @aliases [p: :prefix]
 
   # The longest timeout/1 any worker PhoenixKit ships declares
@@ -137,7 +137,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       run_check("Crawler Visibility", fn -> check_crawler_visibility(prefix) end),
       run_check("Demo Auth Pages", fn -> check_demo_routes() end),
       run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end),
-      run_check("Integration Key", fn -> check_integration_key() end)
+      run_check("Integration Key", fn -> check_integration_key(opts[:fingerprint] || false) end)
     ]
 
     IO.puts("")
@@ -184,32 +184,68 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   # ── Check implementations (return {:pass|:warn|:fail, detail}) ──────
 
-  # Makes key REUSE between sites visible. `Encryption.derive_key/1` is a plain
-  # hash of the secret, so two installs sharing a secret_key_base derive a
-  # byte-identical integration key and nothing tells either of them. The
-  # fingerprint is comparable across installs; the key is not recoverable from
-  # it.
-  defp check_integration_key do
-    case {Encryption.status(), Encryption.key_fingerprint()} do
-      {:dedicated, {:ok, fp}} ->
+  # Branches on `Encryption.key_diagnosis/0` — the SAME value
+  # `Encryption.warn_if_insecure/0` branches on. Advice that is right for one
+  # reason is harmful for another: telling an operator whose key store is
+  # unreadable to rotate would move the data off a key the store may still hold,
+  # and telling someone who configured a key that none is configured is false.
+  # An earlier version of this check gave the rotation advice unconditionally.
+  defp check_integration_key(show_fingerprint?) do
+    case Encryption.key_diagnosis() do
+      {:dedicated, :ok} ->
         {:pass,
-         "dedicated key, fingerprint #{fp} — compare it against your other sites; the same " <>
-           "fingerprint means the same key.\n       Stored in: #{key_location()}"}
+         "dedicated key#{fingerprint_note(show_fingerprint?, "dedicated key")}.\n" <>
+           "       Stored in: #{key_location()}"}
 
-      {:legacy_secret_key_base, {:ok, fp}} ->
+      # Ranked first on purpose: repairing the store may restore the very key the
+      # data is encrypted under.
+      {_status, :store_unreadable} ->
         {:warn,
-         "key is DERIVED from secret_key_base, fingerprint #{fp}.\n" <>
-           "       Any other site sharing that secret_key_base has this same fingerprint and\n" <>
-           "       therefore the same key — one compromise exposes all of them. Run\n" <>
-           "       `mix phoenix_kit.integrations.rotate_key` to give this site a key of its own."}
+         "a key store IS configured but its secret could not be read, so a weaker key is in " <>
+           "use.\n       Do NOT run `mix phoenix_kit.integrations.rotate_key` — the stored key " <>
+           "may be the one\n       your data is encrypted under. Repair the store first: " <>
+           "#{key_location()}"}
 
-      {status, :none} ->
+      {_status, :key_too_short} ->
         {:warn,
-         "no key is in use (#{inspect(status)}) — stored integration credentials are not " <>
-           "encrypted"}
+         "a dedicated key IS configured but was REJECTED as shorter than " <>
+           "#{Encryption.min_dedicated_key_length()} characters,\n       so a weaker key is in " <>
+           "use. This is not the same as having none configured.\n       Replace it with a " <>
+           "longer secret (`mix phoenix_kit.integrations.rotate_key` generates one)."}
 
-      {status, {:ok, fp}} ->
-        {:warn, "unrecognised encryption status #{inspect(status)}, fingerprint #{fp}"}
+      {:legacy_secret_key_base, :no_dedicated_key} ->
+        {:warn,
+         "key is DERIVED from secret_key_base" <>
+           "#{fingerprint_note(show_fingerprint?, "derived from secret_key_base")}.\n" <>
+           "       Any other site sharing that secret_key_base has the same key — one " <>
+           "compromise\n       exposes all of them. Run " <>
+           "`mix phoenix_kit.integrations.rotate_key` for a key of this site's own."}
+
+      {:disabled_no_key, :no_key_material} ->
+        {:warn,
+         "no encryption key resolves at all — integration credentials are stored in PLAINTEXT"}
+
+      {:disabled_explicit, :turned_off} ->
+        {:warn,
+         "integration_encryption_enabled is false — integration credentials are stored in " <>
+           "PLAINTEXT"}
+    end
+  end
+
+  # Hidden unless asked for. This task's output lands in CI logs, whose
+  # readership is wider than the admin page the fingerprint is otherwise shown
+  # on, and the fingerprint is a verifier against candidate secrets.
+  #
+  # Always carries the tier it came from: a site whose store is unreadable
+  # fingerprints its FALLBACK key, and a bare number would make an operator
+  # comparing two sites believe their keys differ when the comparison is simply
+  # not like-for-like.
+  defp fingerprint_note(false, _tier), do: " (fingerprint hidden — pass --fingerprint to show)"
+
+  defp fingerprint_note(true, tier) do
+    case Encryption.key_fingerprint() do
+      {:ok, fp} -> ", fingerprint #{fp} (#{tier})"
+      :none -> " (no key, so no fingerprint)"
     end
   end
 

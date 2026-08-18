@@ -844,4 +844,81 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       assert Encryption.key_fingerprint() == :none
     end
   end
+
+  describe "key_diagnosis/0 is the one source both the warning and the doctor use" do
+    setup do
+      previous = %{
+        skb: Application.get_env(:phoenix_kit, :secret_key_base),
+        key: Application.get_env(:phoenix_kit, :integrations_encryption_key),
+        store: Application.get_env(:phoenix_kit, :integrations_key_store),
+        parent: Application.get_env(:phoenix_kit, :parent_module),
+        enabled: Application.get_env(:phoenix_kit, :integration_encryption_enabled)
+      }
+
+      on_exit(fn ->
+        for {k, v} <- [
+              secret_key_base: previous.skb,
+              integrations_encryption_key: previous.key,
+              integrations_key_store: previous.store,
+              parent_module: previous.parent,
+              integration_encryption_enabled: previous.enabled
+            ] do
+          if is_nil(v),
+            do: Application.delete_env(:phoenix_kit, k),
+            else: Application.put_env(:phoenix_kit, k, v)
+        end
+
+        KeyStore.invalidate_cache()
+      end)
+
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("z", 64))
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.delete_env(:phoenix_kit, :integrations_key_store)
+      KeyStore.invalidate_cache()
+      :ok
+    end
+
+    test "a real dedicated key is :ok" do
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, String.duplicate("k", 40))
+      assert {:dedicated, :ok} = Encryption.key_diagnosis()
+    end
+
+    # What every one of our sites is in today.
+    test "no dedicated key at all is :no_dedicated_key" do
+      assert {:legacy_secret_key_base, :no_dedicated_key} = Encryption.key_diagnosis()
+    end
+
+    # Must outrank :no_dedicated_key: the advice attached to that one sends the
+    # operator to rotate, which would move the data off a key the store may
+    # still be holding.
+    test "an unreadable store outranks 'no dedicated key'" do
+      dir = Path.join(System.tmp_dir!(), "pk_diag_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      path = Path.join(dir, "broken.key")
+      File.write!(path, "")
+      on_exit(fn -> File.rm_rf(dir) end)
+
+      Application.put_env(:phoenix_kit, :integrations_key_store, {KeyStore.File, path: path})
+      KeyStore.invalidate_cache()
+
+      assert {_status, :store_unreadable} = Encryption.key_diagnosis()
+    end
+
+    # "No dedicated key is configured" is a lie to someone who configured one.
+    test "a configured-but-too-short key is :key_too_short, not 'none configured'" do
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, "short")
+      assert {_status, :key_too_short} = Encryption.key_diagnosis()
+    end
+
+    test "encryption switched off explicitly is :turned_off" do
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, false)
+      assert {:disabled_explicit, :turned_off} = Encryption.key_diagnosis()
+    end
+
+    test "no key material at all is :no_key_material" do
+      Application.put_env(:phoenix_kit, :secret_key_base, nil)
+      Application.put_env(:phoenix_kit, :parent_module, nil)
+      assert {:disabled_no_key, :no_key_material} = Encryption.key_diagnosis()
+    end
+  end
 end

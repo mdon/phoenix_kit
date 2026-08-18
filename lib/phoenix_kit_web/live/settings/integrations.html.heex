@@ -28,8 +28,11 @@
          Encryption.key_fingerprint/0 on why this is not for general users. --%>
     <div :if={@encryption_fingerprint} class="text-xs opacity-70 mb-4">
       {gettext("Encryption key fingerprint:")}
-      <code class="font-mono">{@encryption_fingerprint}</code>
-      — {gettext("another site showing this same fingerprint is using the same key")}
+      <code class="font-mono">{elem(@encryption_fingerprint, 0)}</code>
+      <span class="italic">({elem(@encryption_fingerprint, 1)})</span>
+      — {gettext(
+        "another site showing this same fingerprint and the same key state is using the same key"
+      )}
     </div>
     <%!-- Connections table --%>
     <div :if={@connections != []}>

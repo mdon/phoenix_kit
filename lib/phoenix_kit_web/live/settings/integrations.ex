@@ -238,13 +238,32 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     )
   end
 
+  # Returns `{fingerprint, tier}` or nil. The tier is not decoration: a site
+  # whose key store is unreadable, or whose dedicated key was rejected as too
+  # short, fingerprints its FALLBACK key. A bare number would let an operator
+  # comparing two sites conclude their keys differ when the comparison was never
+  # like-for-like.
+  #
   # `:none` renders nothing rather than a placeholder: with no key there is
-  # nothing to compare between sites, and the banner above already says the
-  # credentials are unencrypted.
+  # nothing to compare, and the banner above already says the credentials are
+  # unencrypted.
   defp encryption_fingerprint do
     case Encryption.key_fingerprint() do
-      {:ok, fingerprint} -> fingerprint
+      {:ok, fingerprint} -> {fingerprint, fingerprint_tier(Encryption.key_diagnosis())}
       :none -> nil
     end
   end
+
+  defp fingerprint_tier({:dedicated, :ok}), do: gettext("dedicated key")
+
+  defp fingerprint_tier({_status, :store_unreadable}),
+    do: gettext("FALLBACK key — the configured key store could not be read")
+
+  defp fingerprint_tier({_status, :key_too_short}),
+    do: gettext("FALLBACK key — the configured key was rejected as too short")
+
+  defp fingerprint_tier({:legacy_secret_key_base, _}),
+    do: gettext("derived from secret_key_base")
+
+  defp fingerprint_tier(_other), do: gettext("unrecognised key state")
 end
