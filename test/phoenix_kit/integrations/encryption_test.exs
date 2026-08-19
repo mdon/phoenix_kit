@@ -1063,7 +1063,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
 
       # The admin page labels the same number from the same report, in its own
       # translated words, and must name the same key.
-      page_label = Page.fingerprint_tier(report.diagnosis)
+      page_label = Page.fingerprint_tier(report)
 
       assert printed == fingerprint_of(secret_named_by(page_label)),
              "the admin page labelled #{printed} as #{inspect(page_label)}"

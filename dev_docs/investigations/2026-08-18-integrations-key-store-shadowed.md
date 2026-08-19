@@ -363,3 +363,75 @@ after:  43 doctests, 3942 tests, 0 failures, 1554 excluded
 ```
 
 Excluded unchanged; the added test is the one that watches the warning go out.
+
+---
+
+## Round 2 verdict — the seventh instance, and it was created by the fix
+
+`encryption_status_detail({_status, :key_too_short})` matched any status and told
+an operator whose short secret sits in the key store that *"while a rejected key
+is set, the key store is not consulted at all, so repairing or filling the store
+changes nothing"*. False three times over — the secret is in the store file, the
+store is precisely what was consulted, and repairing it is the only thing that
+helps — and the sentence argues against the one repair that works.
+
+The shape is worth stating exactly, because it is not carelessness: **the state
+did not exist when the clause was written.** In round 6 a rejected key could only
+be `:config`, so "rejected ⇒ it is in config" was a true premise. Round 2 of
+P012 made `:store` producible, corrected the doctor, and left the page on the old
+premise. The premise rested on `dedicated_candidate/2`, and that is what changed.
+
+Expanding a state space is therefore not a local edit. Whoever adds a value owes
+a walk of everyone who consumes it.
+
+### Structural cause: the page asserted a fact it was never given
+
+The page's clause heads took `report.diagnosis` — `{status, reason}` — and
+`:key_too_short` carries no source. So the page had no way to know where the
+rejected key was, and said anyway. That is this contract's class in its purest
+form, and no amount of new clauses keyed on the diagnosis would fix it.
+
+Two changes, one structural and one local:
+
+* the report carries `rejected_key`, for the same reason it already carries
+  `key_store`: a surface that renders facts in its own translated words must be
+  **given** the facts it puts in them;
+* the page's three clause heads take the whole report instead of the diagnosis,
+  and `:key_too_short` gained `rejected_key: :store` clauses for the title, the
+  detail and the fingerprint label.
+
+Rendered, in the state the verdict named:
+
+```
+signals.rejected_key : :store
+title  : The secret in the key store was rejected as too short
+detail : The secret in the key store (/…/k.key) was rejected as shorter than the
+         minimum, so a weaker key is in use. No integrations_encryption_key is
+         set, so the store is where the key is read from: put a longer secret
+         there and restart.
+label  : FALLBACK key — the secret in the key store was rejected as too short
+```
+
+### Mutation, aimed at the clause this time
+
+The lesson from the previous round was that a mutation can guard the neighbour of
+the thing that broke. So the mutation is the deletion of the new `:store` detail
+clause, letting the generic one answer again:
+
+    page argues against repairing the store that holds the rejected secret
+      — from the synthetic space, and
+      — from "no config key, store holding a SHORT secret, secret_key_base set,
+        encryption on"
+
+The second line is the real configuration, which is the whole point of the
+enumeration built last round: the invariant fires on the operator's actual state,
+not only on a map someone wrote down.
+
+### Suite
+
+```
+43 doctests, 3942 tests, 0 failures, 1554 excluded — unchanged
+```
+
+No test added: the invariant lives in the shared module and fires from both
+enumerations, so the count stays put while the coverage does not.

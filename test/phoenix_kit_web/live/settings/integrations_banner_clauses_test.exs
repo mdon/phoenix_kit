@@ -47,10 +47,10 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsBannerClausesTest do
       report = Encryption.key_report(signals)
 
       assert report.severity == :warn, "the banner is guarded on severity != :ok"
-      assert Page.encryption_status_title(report.diagnosis) =~ "key store"
-      refute Page.fingerprint_tier(report.diagnosis) =~ "FALLBACK"
-      assert Page.fingerprint_tier(report.diagnosis) =~ "dedicated"
-      refute Page.encryption_status_detail(report.diagnosis) =~ "weaker"
+      assert Page.encryption_status_title(report) =~ "key store"
+      refute Page.fingerprint_tier(report) =~ "FALLBACK"
+      assert Page.fingerprint_tier(report) =~ "dedicated"
+      refute Page.encryption_status_detail(report) =~ "weaker"
     end
 
     # P012's state, on the surface where `:ok` meant silence: a working key with
@@ -67,10 +67,10 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsBannerClausesTest do
       report = Encryption.key_report(signals)
 
       assert report.severity == :warn, "at :ok the page renders no banner at all"
-      assert Page.encryption_status_title(report.diagnosis) =~ "different secret"
-      assert Page.encryption_status_detail(report.diagnosis) =~ "not a copy"
-      assert Page.fingerprint_tier(report.diagnosis) =~ "dedicated"
-      refute Page.fingerprint_tier(report.diagnosis) =~ "FALLBACK"
+      assert Page.encryption_status_title(report) =~ "different secret"
+      assert Page.encryption_status_detail(report) =~ "not a copy"
+      assert Page.fingerprint_tier(report) =~ "dedicated"
+      refute Page.fingerprint_tier(report) =~ "FALLBACK"
     end
   end
 end

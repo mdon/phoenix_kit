@@ -211,32 +211,39 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # the banner used to be guarded on `status != :dedicated` — printed that label
   # under no banner at all, so the broken store was never mentioned.
   @doc false
-  def encryption_status_title({:dedicated, :store_unreadable}),
+  def encryption_status_title(%{diagnosis: {:dedicated, :store_unreadable}}),
     do: gettext("The encryption key is fine, but its key store cannot be read")
 
-  def encryption_status_title({:dedicated, :store_shadowed}),
+  def encryption_status_title(%{diagnosis: {:dedicated, :store_shadowed}}),
     do: gettext("The key store holds a different secret from the key in use")
 
-  def encryption_status_title({_status, :store_unreadable}),
+  def encryption_status_title(%{diagnosis: {_status, :store_unreadable}}),
     do: gettext("The configured encryption key store cannot be read")
 
-  def encryption_status_title({_status, :key_too_short}),
+  # A rejected key does not have to be `integrations_encryption_key`. Until the
+  # store could supply one, it always was, and these clauses said so; the moment
+  # it could, they went on saying it. The source is now carried on the report
+  # rather than assumed from the diagnosis.
+  def encryption_status_title(%{diagnosis: {_status, :key_too_short}, rejected_key: :store}),
+    do: gettext("The secret in the key store was rejected as too short")
+
+  def encryption_status_title(%{diagnosis: {_status, :key_too_short}}),
     do: gettext("The configured encryption key was rejected as too short")
 
-  def encryption_status_title({:legacy_secret_key_base, _reason}),
+  def encryption_status_title(%{diagnosis: {:legacy_secret_key_base, _reason}}),
     do: gettext("Credentials are protected only by a shared application secret")
 
-  def encryption_status_title({:disabled_no_key, _reason}),
+  def encryption_status_title(%{diagnosis: {:disabled_no_key, _reason}}),
     do: gettext("Credentials are stored in plain text")
 
-  def encryption_status_title({:disabled_explicit, _reason}),
+  def encryption_status_title(%{diagnosis: {:disabled_explicit, _reason}}),
     do: gettext("Encryption is turned off for integration credentials")
 
   # Catch-all: the template renders this banner for ANY status other than
   # `:dedicated` (see the guard note above), so a future `key_status/0`
   # value this page hasn't been taught about must degrade to a generic
   # warning instead of a `FunctionClauseError` crashing the settings page.
-  def encryption_status_title(_other),
+  def encryption_status_title(_report),
     do: gettext("Integration credential encryption needs attention")
 
   # Two clauses per fault, because the consequence genuinely differs: with a
@@ -246,7 +253,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # it for `{:dedicated, _}` is the same falsehood a third time, since nothing
   # fell back at all there.
   @doc false
-  def encryption_status_detail({:dedicated, :store_unreadable}) do
+  def encryption_status_detail(%{diagnosis: {:dedicated, :store_unreadable}}) do
     gettext(
       "Encryption itself is working — the key in use comes from configuration. The configured " <>
         "key store cannot be read, so nothing confirms that key is saved anywhere. Do not " <>
@@ -255,7 +262,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     )
   end
 
-  def encryption_status_detail({:dedicated, :store_shadowed}) do
+  def encryption_status_detail(%{diagnosis: {:dedicated, :store_shadowed}}) do
     gettext(
       "Encryption is working — the key in use comes from configuration. The configured key " <>
         "store holds a different secret, so it is not a copy of that key: restoring from it " <>
@@ -265,7 +272,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     )
   end
 
-  def encryption_status_detail({:disabled_no_key, :store_unreadable}) do
+  def encryption_status_detail(%{diagnosis: {:disabled_no_key, :store_unreadable}}) do
     gettext(
       "A key store is configured but its secret could not be read, and no other key resolves " <>
         "either — credentials below are being written in plain text. Do NOT run " <>
@@ -275,7 +282,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     )
   end
 
-  def encryption_status_detail({_status, :store_unreadable}) do
+  def encryption_status_detail(%{diagnosis: {_status, :store_unreadable}}) do
     gettext(
       "A key store is configured but its secret could not be read, so encryption fell back to " <>
         "a weaker key. Values written under the stored key will not decrypt. Do NOT run " <>
@@ -285,7 +292,35 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     )
   end
 
-  def encryption_status_detail({:disabled_no_key, :key_too_short}) do
+  # The clause the checker found. Keyed on the diagnosis alone it matched ANY
+  # status with a rejected key and told an operator whose short secret sits in
+  # the key store that "the key store is not consulted at all, so repairing or
+  # filling the store changes nothing" — false three times over, and it argues
+  # against the one repair that would work.
+  def encryption_status_detail(
+        %{diagnosis: {:disabled_no_key, :key_too_short}, rejected_key: :store} = report
+      ) do
+    gettext(
+      "The secret in the key store (%{location}) was rejected as shorter than the minimum, " <>
+        "and no other key resolves — credentials below are being written in plain text. No " <>
+        "integrations_encryption_key is set, so the store is where the key is read from: put " <>
+        "a longer secret there and restart.",
+      location: store_location(report)
+    )
+  end
+
+  def encryption_status_detail(
+        %{diagnosis: {_status, :key_too_short}, rejected_key: :store} = report
+      ) do
+    gettext(
+      "The secret in the key store (%{location}) was rejected as shorter than the minimum, " <>
+        "so a weaker key is in use. No integrations_encryption_key is set, so the store is " <>
+        "where the key is read from: put a longer secret there and restart.",
+      location: store_location(report)
+    )
+  end
+
+  def encryption_status_detail(%{diagnosis: {:disabled_no_key, :key_too_short}}) do
     gettext(
       "A dedicated encryption key is configured but was rejected as too short, and no other " <>
         "key resolves — credentials below are being written in plain text. Replace it with a " <>
@@ -293,7 +328,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     )
   end
 
-  def encryption_status_detail({_status, :key_too_short}) do
+  def encryption_status_detail(%{diagnosis: {_status, :key_too_short}}) do
     gettext(
       "A dedicated encryption key is configured but was rejected as too short, so a weaker " <>
         "key is in use. This is not the same as having none configured. Replace it with a " <>
@@ -302,7 +337,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     )
   end
 
-  def encryption_status_detail({:legacy_secret_key_base, _reason}) do
+  def encryption_status_detail(%{diagnosis: {:legacy_secret_key_base, _reason}}) do
     gettext(
       "No dedicated encryption key is configured, so credentials below fall back to a key " <>
         "derived from secret_key_base — a secret shared with session signing and CSRF tokens. " <>
@@ -311,14 +346,14 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     )
   end
 
-  def encryption_status_detail({:disabled_no_key, _reason}) do
+  def encryption_status_detail(%{diagnosis: {:disabled_no_key, _reason}}) do
     gettext(
       "No encryption key could be resolved. New and existing credentials below are stored as " <>
         "plain text in the database."
     )
   end
 
-  def encryption_status_detail({:disabled_explicit, _reason}) do
+  def encryption_status_detail(%{diagnosis: {:disabled_explicit, _reason}}) do
     gettext(
       "integration_encryption_enabled is set to false. Credentials below are stored as plain " <>
         "text in the database."
@@ -326,7 +361,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   end
 
   # See `encryption_status_title/1`'s catch-all note.
-  def encryption_status_detail(_other) do
+  def encryption_status_detail(_report) do
     gettext(
       "The current encryption status could not be described by this admin page — it may be " <>
         "newer than what this page recognizes. Check PhoenixKit.Integrations.Encryption.status/0 " <>
@@ -345,30 +380,39 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # unencrypted.
   defp encryption_fingerprint(report) do
     case report.fingerprint do
-      {:ok, fingerprint, _label} -> {fingerprint, fingerprint_tier(report.diagnosis)}
+      {:ok, fingerprint, _label} -> {fingerprint, fingerprint_tier(report)}
       :none -> nil
     end
   end
 
+  # `:key_store` is `{state, location}` or nil; a clause that names a location
+  # only runs where the store supplied the secret, so nil cannot reach it — but
+  # the verdict is total and so is this.
+  defp store_location(%{key_store: {_state, location}}), do: location
+  defp store_location(_report), do: "the configured key store"
+
   @doc false
-  def fingerprint_tier({:dedicated, :ok}), do: gettext("dedicated key")
+  def fingerprint_tier(%{diagnosis: {:dedicated, :ok}}), do: gettext("dedicated key")
 
   # Ahead of the generic `:store_unreadable` clause below, which would otherwise
   # label a working dedicated key "FALLBACK".
-  def fingerprint_tier({:dedicated, :store_unreadable}),
+  def fingerprint_tier(%{diagnosis: {:dedicated, :store_unreadable}}),
     do: gettext("dedicated key — its key store could not be read")
 
-  def fingerprint_tier({:dedicated, :store_shadowed}),
+  def fingerprint_tier(%{diagnosis: {:dedicated, :store_shadowed}}),
     do: gettext("dedicated key — the key store holds a different secret")
 
-  def fingerprint_tier({_status, :store_unreadable}),
+  def fingerprint_tier(%{diagnosis: {_status, :store_unreadable}}),
     do: gettext("FALLBACK key — the configured key store could not be read")
 
-  def fingerprint_tier({_status, :key_too_short}),
+  def fingerprint_tier(%{diagnosis: {_status, :key_too_short}, rejected_key: :store}),
+    do: gettext("FALLBACK key — the secret in the key store was rejected as too short")
+
+  def fingerprint_tier(%{diagnosis: {_status, :key_too_short}}),
     do: gettext("FALLBACK key — the configured key was rejected as too short")
 
-  def fingerprint_tier({:legacy_secret_key_base, _}),
+  def fingerprint_tier(%{diagnosis: {:legacy_secret_key_base, _}}),
     do: gettext("derived from secret_key_base")
 
-  def fingerprint_tier(_other), do: gettext("unrecognised key state")
+  def fingerprint_tier(_report), do: gettext("unrecognised key state")
 end

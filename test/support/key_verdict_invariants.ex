@@ -296,34 +296,42 @@ defmodule PhoenixKit.Test.KeyVerdictInvariants do
 
   defp assert_page_consistent(signals, where) do
     report = Encryption.key_report(signals)
-    title = Page.encryption_status_title(report.diagnosis)
-    detail = Page.encryption_status_detail(report.diagnosis)
-    label = Page.fingerprint_tier(report.diagnosis)
+    title = Page.encryption_status_title(report)
+    detail = Page.encryption_status_detail(report)
+    label = Page.fingerprint_tier(report)
 
     assert is_binary(title) and title != "", "#{where}: page has no title"
     assert is_binary(detail) and detail != "", "#{where}: page has no detail"
 
-    # The page must have a clause for this diagnosis, not fall through to the
-    # catch-all it keeps for a status it has not been taught about.
-    #
-    # Checking "non-empty, and free of forbidden phrases" does not hold a clause
-    # at all: deleting one leaves the catch-all, which is non-empty and says
-    # nothing forbidden, and every assertion still passes. Verified by
-    # destruction — both new clauses removed, the page tests stayed green.
-    #
-    # The catch-all's own words are not written down here; they are obtained by
-    # asking the page about a diagnosis that cannot exist, so this cannot drift
-    # when they are reworded.
-    # Only where the banner actually renders: it is guarded on `severity != :ok`,
-    # so the healthy verdict deliberately has no clause and must not grow one.
-    if report.severity != :ok do
-      assert title != catch_all_title(),
-             "#{where}: no page title clause for #{inspect(report.diagnosis)} — catch-all answered"
+    assert_page_has_a_clause(report, title, detail, where)
+    assert_page_claims(signals, detail, label, where)
+    assert_page_names_the_source(signals, detail, where)
+  end
 
-      assert detail != catch_all_detail(),
-             "#{where}: no page detail clause for #{inspect(report.diagnosis)} — catch-all answered"
-    end
+  # The page must have a clause for this diagnosis, not fall through to the
+  # catch-all it keeps for a status it has not been taught about.
+  #
+  # Checking "non-empty, and free of forbidden phrases" does not hold a clause at
+  # all: deleting one leaves the catch-all, which is non-empty and says nothing
+  # forbidden, and every assertion still passes. Verified by destruction — both
+  # new clauses removed, the page tests stayed green.
+  #
+  # The catch-all's own words are not written down here; they are obtained by
+  # asking the page about a diagnosis that cannot exist, so this cannot drift
+  # when they are reworded. Only where the banner actually renders: it is guarded
+  # on `severity != :ok`, so the healthy verdict deliberately has no clause and
+  # must not grow one.
+  defp assert_page_has_a_clause(%{severity: :ok}, _title, _detail, _where), do: :ok
 
+  defp assert_page_has_a_clause(report, title, detail, where) do
+    assert title != catch_all_title(),
+           "#{where}: no page title clause for #{inspect(report.diagnosis)} — catch-all answered"
+
+    assert detail != catch_all_detail(),
+           "#{where}: no page detail clause for #{inspect(report.diagnosis)} — catch-all answered"
+  end
+
+  defp assert_page_claims(signals, detail, label, where) do
     if detail =~ "fell back" or detail =~ "weaker key" do
       assert signals.tier == :legacy, "#{where}: page claims a fallback the signals deny"
     end
@@ -338,4 +346,34 @@ defmodule PhoenixKit.Test.KeyVerdictInvariants do
              "#{where}: page labelled the fingerprint #{inspect(label)}"
     end
   end
+
+  # Where the rejected secret lives, on the page as on every other surface. The
+  # page was given only the diagnosis and still described the source, so a clause
+  # written when a rejected key could only come from config went on claiming that
+  # after the store could supply one — telling an operator whose short secret is
+  # in the key store that repairing the store "changes nothing", which argues
+  # against the only repair that works.
+  defp assert_page_names_the_source(
+         %{enabled?: true, rejected_key: :store, tier: tier, store: store},
+         detail,
+         where
+       )
+       when tier != :dedicated do
+    refute detail =~ "changes nothing",
+           "#{where}: page argues against repairing the store that holds the rejected secret"
+
+    refute detail =~ "not consulted at all",
+           "#{where}: page says the store was not consulted, and it is the source"
+
+    case store do
+      {_state, location} ->
+        assert detail =~ location,
+               "#{where}: the rejected secret is in the store, which the page does not name"
+
+      :absent ->
+        :ok
+    end
+  end
+
+  defp assert_page_names_the_source(_signals, _detail, _where), do: :ok
 end

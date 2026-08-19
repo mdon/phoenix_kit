@@ -322,6 +322,7 @@ defmodule PhoenixKit.Integrations.Encryption do
           consequence: String.t(),
           action: String.t(),
           rotation_safe?: boolean(),
+          rejected_key: false | :config | :store,
           fingerprint: :none | {:ok, String.t(), String.t()},
           key_store: nil | {:no_secret_yet | :unreadable | :shadowed | :holding, String.t()}
         }
@@ -632,6 +633,15 @@ defmodule PhoenixKit.Integrations.Encryption do
       consequence: Keyword.fetch!(fields, :consequence),
       action: Keyword.fetch!(fields, :action),
       rotation_safe?: Keyword.fetch!(fields, :rotation_safe?),
+      # Carried for the same reason `:key_store` is: a surface that renders the
+      # facts in its own words must be GIVEN the facts it puts in them. The
+      # admin page was handed only the diagnosis and still described where the
+      # rejected key lives — a claim about `dedicated_candidate/2`'s behaviour
+      # that nothing had told it. That held while a rejected key could only come
+      # from config; the moment the store could supply one, the page went on
+      # saying "the key store is not consulted at all" about the very file the
+      # secret was read from.
+      rejected_key: signals.rejected_key,
       fingerprint: label_fingerprint(signals.fingerprint, Keyword.fetch!(fields, :tier_label)),
       key_store: store_location(signals.store)
     }
