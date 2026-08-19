@@ -103,9 +103,10 @@ the key in use comes from configuration, and /…/app.key holds something else �
   is NOT a copy of the key in use, and restoring from it would produce a key that decrypts
   nothing written under the current one.
 Do NOT run `mix phoenix_kit.integrations.rotate_key` before you know what the stored secret
-  is for: it is refused only while this database still holds rows under that secret, and
-  otherwise the rotation replaces it in every configured store with no copy kept. Save it
-  elsewhere first, or make the store hold the key in use.
+  is for. It stops for two things — a key store it cannot WRITE to, and any row it cannot
+  decrypt under the active key, whatever the cause — and neither is a check on the stored
+  secret. Where neither happens the rotation replaces it in every configured store with no
+  copy kept. Save it elsewhere first, or make the store hold the key in use.
 Fingerprint c20beb99bcaa (dedicated key).
 Key store: /…/app.key (configured, holds a DIFFERENT secret — not a copy of the key in use)
 ```
@@ -270,3 +271,95 @@ after  round 2: 43 doctests, 3941 tests, 0 failures, 1554 excluded
 
 Excluded unchanged. The hand-built walk was replaced rather than added to, so the
 net is one test: the two new enumeration tests minus the one they replace.
+
+---
+
+## Second opinion — three more, and one of them is about the mutation
+
+### 4. The page clauses were held by nothing
+
+Established by destruction, not by argument: delete both new clauses and the
+page tests stay green. The catch-all answers, its strings are non-empty, and it
+contains no forbidden phrase — every assertion passes.
+
+The mutation I ran on this work was real, but it mutated `store_state/2`. That
+guards the classification; it does not guard *the page knowing the diagnosis*.
+So the page edit I made and reported was, in fact, held by nothing. Worth naming
+precisely: not "there was no mutation" but "the mutation was aimed at the wrong
+place". Mutation is the tool against fictional tests, and it can miss for the
+same reason a test can — by checking the neighbour of the thing that broke.
+
+The invariant now asks the page about a diagnosis that cannot exist, and requires
+every real diagnosis to answer differently:
+
+```elixir
+assert title != catch_all_title()
+```
+
+The catch-all's own words are never written down, so rewording it cannot silently
+disable the check. Scoped to `severity != :ok`, because the banner is guarded on
+exactly that and the healthy verdict deliberately has no clause.
+
+Destruction re-run with the check in place — both clauses removed:
+
+    no page title clause for {:dedicated, :store_shadowed} — catch-all answered
+    (synthetic space, and again from a real configuration)
+
+### 5. The diagnosis did not go out after the remedy
+
+`KeyStore.cached_read/0` memoises success, and the store's *contents* were being
+described from it. An operator told "make the store hold the key in use" could do
+precisely that and watch the warning persist until a restart — while
+`mix phoenix_kit.doctor`, whose VM is new, showed it cleared. That makes the page
+look wrong rather than stale, and a diagnosis that survives its own remedy
+teaches people to ignore diagnoses.
+
+Split by question, which is what it should have been from the start:
+
+* the KEY comes from the memoised read — it is the key the running app is
+  actually encrypting with, and reading it fresh would let a page mount hand the
+  app a different key;
+* the store's CONTENTS are read fresh on every gather, because a claim about
+  what a file holds must not be served from a value cached at boot.
+
+The one-pass property is untouched: it says everything deciding *which key is in
+use* comes from a single resolution, and it still does. The fresh read decides
+nothing about the key; it describes the file.
+
+The clause also stopped asserting where the key came from. "The key in use comes
+from configuration" was true only while the store's contents and the key came
+from the same read — the moment they did not, an operator who had just replaced
+a store-sourced key would have been told the opposite of their situation. It now
+says what is checked, and names the restart.
+
+Verified by running the operator's own sequence, with no restart and no cache
+invalidation:
+
+```
+before the fix: {:dedicated, :store_shadowed}
+after  the fix: {:dedicated, :ok}
+store signal  : {:holding, "/…/k.key"}
+```
+
+Mutation — serve the store's contents from the cache again:
+
+    the warning goes out when the operator does what it says, without a restart
+    left:  {:dedicated, :store_shadowed}
+    right: {:dedicated, :ok}
+
+### 6. "Only" promised more than the mechanism gives
+
+The advice said rotation "is refused only while this database still holds rows
+under that secret". Two refusals exist, and neither is a check on the stored
+secret: a key store that cannot be **written**, and any row that fails to decrypt
+under the active key — corruption or a third key will do it, not just that
+secret. Both are now named, and "only" is gone.
+
+### Suite
+
+```
+before: 43 doctests, 3941 tests, 0 failures, 1554 excluded
+after:  43 doctests, 3942 tests, 0 failures, 1554 excluded
+```
+
+Excluded unchanged; the added test is the one that watches the warning go out.

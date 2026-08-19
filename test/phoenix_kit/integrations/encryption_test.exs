@@ -1019,8 +1019,15 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
 
       signals = Encryption.key_signals()
 
-      assert :counters.get(counter, 1) == 1,
-             "key_signals/0 read the store #{:counters.get(counter, 1)} times; one gather, one read"
+      # Two reads, and exactly two: one resolution, and one look at what the
+      # store holds right now. They answer different questions and only one of
+      # them decides the key — the resolution's read is the memoised one the
+      # running app encrypts with, and the second is deliberately fresh so the
+      # verdict cannot describe a file from a value cached at boot. Three would
+      # mean the gather went back to re-resolve, which is the defect this test
+      # was written for.
+      assert :counters.get(counter, 1) == 2,
+             "key_signals/0 read the store #{:counters.get(counter, 1)} times; expected two"
 
       # Whatever it decided, the parts of it agree.
       assert signals.fingerprint == expected_fingerprint(signals)
@@ -1228,6 +1235,35 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       assert {:dedicated, false, :holding} in shapes
       assert {:legacy, false, :absent} in shapes
       assert {:none, false, :absent} in shapes
+    end
+
+    # A diagnosis that survives its own remedy teaches people to ignore
+    # diagnoses. The store's contents used to be read from the boot-time cache,
+    # so an operator who did exactly what the advice said watched the warning
+    # stay until a restart — and saw it clear in `mix phoenix_kit.doctor`, whose
+    # VM is new, which makes it look like the page is wrong rather than stale.
+    test "the warning goes out when the operator does what it says, without a restart",
+         %{dir: dir} do
+      path = Path.join(dir, "shadowed.key")
+      config_key = String.duplicate("k", 40)
+
+      File.write!(path, "SOMETHING-ELSE-well-over-the-minimum")
+      File.chmod!(path, 0o600)
+
+      put(:integrations_key_store, {KeyStore.File, path: path})
+      put(:integrations_encryption_key, config_key)
+      put(:secret_key_base, String.duplicate("s", 64))
+      KeyStore.invalidate_cache()
+
+      assert Encryption.key_diagnosis() == {:dedicated, :store_shadowed}
+
+      # Exactly the remedy the advice gives, and nothing else: no restart, no
+      # cache invalidation.
+      File.write!(path, config_key)
+      File.chmod!(path, 0o600)
+
+      assert Encryption.key_diagnosis() == {:dedicated, :ok}
+      assert match?({:holding, ^path}, Encryption.key_signals().store)
     end
 
     # The whole P012 chain as an operator meets it: the verdict, the severity

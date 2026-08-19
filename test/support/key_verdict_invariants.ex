@@ -291,6 +291,9 @@ defmodule PhoenixKit.Test.KeyVerdictInvariants do
   # The admin page renders the same report in its own translated voice, and is
   # the surface where a wrong severity means silence rather than a wrong word:
   # its banner is guarded on `severity != :ok`.
+  defp catch_all_title, do: Page.encryption_status_title({:no_such_status, :no_such_reason})
+  defp catch_all_detail, do: Page.encryption_status_detail({:no_such_status, :no_such_reason})
+
   defp assert_page_consistent(signals, where) do
     report = Encryption.key_report(signals)
     title = Page.encryption_status_title(report.diagnosis)
@@ -299,6 +302,27 @@ defmodule PhoenixKit.Test.KeyVerdictInvariants do
 
     assert is_binary(title) and title != "", "#{where}: page has no title"
     assert is_binary(detail) and detail != "", "#{where}: page has no detail"
+
+    # The page must have a clause for this diagnosis, not fall through to the
+    # catch-all it keeps for a status it has not been taught about.
+    #
+    # Checking "non-empty, and free of forbidden phrases" does not hold a clause
+    # at all: deleting one leaves the catch-all, which is non-empty and says
+    # nothing forbidden, and every assertion still passes. Verified by
+    # destruction — both new clauses removed, the page tests stayed green.
+    #
+    # The catch-all's own words are not written down here; they are obtained by
+    # asking the page about a diagnosis that cannot exist, so this cannot drift
+    # when they are reworded.
+    # Only where the banner actually renders: it is guarded on `severity != :ok`,
+    # so the healthy verdict deliberately has no clause and must not grow one.
+    if report.severity != :ok do
+      assert title != catch_all_title(),
+             "#{where}: no page title clause for #{inspect(report.diagnosis)} — catch-all answered"
+
+      assert detail != catch_all_detail(),
+             "#{where}: no page detail clause for #{inspect(report.diagnosis)} — catch-all answered"
+    end
 
     if detail =~ "fell back" or detail =~ "weaker key" do
       assert signals.tier == :legacy, "#{where}: page claims a fallback the signals deny"

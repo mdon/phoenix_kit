@@ -347,13 +347,13 @@ defmodule PhoenixKit.Integrations.Encryption do
   @spec key_signals() :: key_signals()
   def key_signals do
     enabled? = encryption_enabled_flag?()
-    {{tier, secret, rejected_key}, store_read} = resolve_once()
+    {{tier, secret, rejected_key}, _cached_read} = resolve_once()
 
     %{
       enabled?: enabled?,
       tier: tier,
       rejected_key: rejected_key,
-      store: store_state(store_read, secret),
+      store: store_state(KeyStore.read(), secret),
       fingerprint: fingerprint_for(enabled?, secret)
     }
   end
@@ -368,6 +368,22 @@ defmodule PhoenixKit.Integrations.Encryption do
   # a path that does not exist produced `{:holding, "…/not-created-yet.key"}`,
   # so `{:no_secret_yet, _}` was a signal value production could never emit
   # while the tests enumerated it as one of four.
+  # The KEY comes from the memoised read, because that is the key the running
+  # app is actually encrypting with. The store's CONTENTS are read fresh, every
+  # time, because a report about what a file holds must not be served from a
+  # value cached at boot.
+  #
+  # The two are different questions and were being answered from one read. That
+  # made the diagnosis unable to go out: an operator told "make the store hold
+  # the key in use" could do exactly that and watch the warning persist until a
+  # restart — visible in `mix phoenix_kit.doctor`, whose VM is new, and not on
+  # the admin page, which is where they were told. A diagnosis that survives its
+  # own remedy teaches people to ignore diagnoses, which is the opposite of what
+  # this whole feature is for.
+  #
+  # This does not undo the one-pass property. The property is that everything
+  # deciding WHICH KEY IS IN USE comes from a single resolution — it still does.
+  # The fresh read decides nothing about the key; it only describes the file.
   defp store_state(store_read, key_in_use) do
     if KeyStore.configured?() do
       location = KeyStore.describe() || "the configured key store"
@@ -494,15 +510,17 @@ defmodule PhoenixKit.Integrations.Encryption do
         "a dedicated encryption key is in use, but the configured key store holds a " <>
           "different secret",
       consequence:
-        "the key in use comes from configuration, and #{location} holds something else — so " <>
-          "the store is NOT a copy of the key in use, and restoring from it would produce a " <>
-          "key that decrypts nothing written under the current one",
+        "#{location} holds something other than the key in use, so it is NOT a copy of that " <>
+          "key: restoring from it would produce a key that decrypts nothing written under " <>
+          "the current one. If you have just changed what the store holds, this app is still " <>
+          "on the key it resolved at boot — restart to pick the new one up",
       action:
         "Do NOT run `mix phoenix_kit.integrations.rotate_key` before you know what the " <>
-          "stored secret is for: it is refused only while this database still holds rows " <>
-          "under that secret, and otherwise the rotation replaces it in every configured " <>
-          "store with no copy kept. Save it elsewhere first, or make the store hold the key " <>
-          "in use",
+          "stored secret is for. It stops for two things — a key store it cannot WRITE to, " <>
+          "and any row it cannot decrypt under the active key, whatever the cause — and " <>
+          "neither is a check on the stored secret. Where neither happens the rotation " <>
+          "replaces it in every configured store with no copy kept. Save it elsewhere " <>
+          "first, or make the store hold the key in use",
       rotation_safe?: false,
       tier_label: "dedicated key"
     )
