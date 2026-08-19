@@ -155,3 +155,118 @@ after  P012: 43 doctests, 3940 tests, 0 failures, 1554 excluded
 ```
 
 Excluded unchanged; the added test is the end-to-end one for this state.
+
+---
+
+## Round 2 — verdict FIX, and the blocker was mine
+
+`store_state/2` gained a comparison, and a state moved under a clause that was
+reading it for a different question.
+
+Before P012, `{:holding, _}` meant "the store has a secret". Round 6 used that
+to answer "where does the rejected secret live?", because a store with a secret
+is a store that could have supplied one. P012 redefined `{:holding, _}` as "the
+store has THE KEY IN USE" — and *a short secret in the store with no config key*
+became `{:shadowed, _}`, fell through to the other branch, and started rendering:
+
+    Replace the rejected secret — integrations_encryption_key. Config wins when
+    it is set, and while it holds a rejected value the key store is not
+    consulted at all…
+
+False three times over: there is no config key; the secret is in the store file;
+and the store was not merely consulted, it is the only reason `too_short?` was
+true at all. An operator is sent to edit a variable that does not exist.
+
+This is the contract's own class, committed by the fix for it: **a claim resting
+on a neighbour's classification, and the neighbour moved.** Round 6 avoided
+carrying the source explicitly, on the grounds that the store signal already
+settled it. It did settle it — until something else needed that signal to mean
+something else.
+
+### The fix: carry the fact, do not re-derive it
+
+`too_short?: boolean()` is now `rejected_key: false | :config | :store`. The
+source is a property of the RESOLUTION — `dedicated_candidate/2` takes config
+first and only length-checks the store's secret when config does not answer — so
+it is carried out of the resolution instead of being reconstructed downstream
+from a signal that answers a different question.
+
+Verified by running, all three states:
+
+```
+no config key, short secret in store  -> rejected_key: :store
+  "…it is the secret in /…/k.key; no integrations_encryption_key is set, so the
+   store is what the key is read from"
+
+short config key, good secret in store -> rejected_key: :config
+  "…it is integrations_encryption_key. Config wins while it is set, so the key
+   store is not consulted at all and repairing or filling it changes nothing"
+
+short config key, no store             -> rejected_key: :config
+  (same, and correct — there is no store to mention)
+```
+
+Point 2 of the verdict resolves itself: the "either … or the secret in
+`<location>`" phrase is gone, along with its comment. It existed to hedge a
+source that could not be determined; the source is determined now.
+
+## Round 2's real subject: the enumeration was synthetic
+
+The verdict's third point, and the expensive one. The cross product was green
+across 60 combinations while a real configuration rendered a falsehood. It could
+not have failed: the space was **hand-built**. It contained a `{:holding, _}`
+store because someone wrote one down, and no short stored secret because nobody
+thought to. It enumerated our idea of the states, so a defect in the idea was
+invisible to it — which is the same shape as a fixture that reproduces the model
+of a bug rather than the bug, scaled up to the whole sweep.
+
+Now there are two spaces and one set of invariants, in
+`test/support/key_verdict_invariants.ex`:
+
+* **synthetic** — 90 combinations of signal values, reachable or not. It proves
+  the verdict is *total*: it renders anything without contradicting itself.
+  That is all it can prove.
+* **real** — 72 configurations driven through the real `key_signals/0`: a config
+  key absent / short / valid; a store missing, empty, holding a short secret,
+  holding another valid one, or holding the config key itself; with and without
+  `secret_key_base`; encryption on and off. Whatever comes out is what gets
+  checked.
+
+`real ⊆ synthetic` is asserted, so the two cannot drift; and the states the six
+rounds were each about are named individually, so a fixture change cannot
+quietly drop one.
+
+### Mutations
+
+    remove the short-secret store from the fixture matrix
+      -> "assert {:legacy, :store, :shadowed} in shapes"  and the count assertion
+
+    forget that the store can be the source of a rejected key
+      -> "no config key, store holding a SHORT secret, secret_key_base set,
+          encryption on: the rejected secret is in the store, and the advice
+          does not say so"
+
+The second names the real configuration rather than a synthesized map, which is
+the point of the round.
+
+### The invariant that failed its own mutation first
+
+Worth recording, because it is the class inside the checker again. The first
+version of the advice invariant asserted `detail =~ location` — and the mutation
+walked straight through it, because the storage line prints that same path a few
+lines below the advice. "The advice names the location" was being satisfied by a
+sentence that is not the advice.
+
+Re-keyed on `report.action`, the field that IS the advice, it fails immediately.
+An assertion resting on a coincidence elsewhere in the same string is exactly
+what this contract is about, one level further in.
+
+### Suite
+
+```
+before round 2: 43 doctests, 3940 tests, 0 failures, 1554 excluded
+after  round 2: 43 doctests, 3941 tests, 0 failures, 1554 excluded
+```
+
+Excluded unchanged. The hand-built walk was replaced rather than added to, so the
+net is one test: the two new enumeration tests minus the one they replace.

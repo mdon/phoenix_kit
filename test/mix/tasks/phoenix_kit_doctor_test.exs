@@ -262,204 +262,34 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     end
   end
 
-  describe "integration_key_result/2 — the whole reachable signal space" do
+  describe "integration_key_result/2 — the verdict is total over the signal space" do
     alias PhoenixKit.Integrations.Encryption
+    alias PhoenixKit.Test.KeyVerdictInvariants, as: Invariants
 
     @location "/srv/keys/app.key"
 
-    # The full cross product, with NO reachability filter at all.
+    # The SYNTHETIC space: every combination of signal values, reachable or not.
+    # What it proves is totality — the verdict renders anything it is handed
+    # without contradicting itself — and that is all it can prove. It enumerates
+    # our idea of the states, so a defect in the idea is invisible to it, which
+    # is exactly what happened: 60 green combinations while a real configuration
+    # rendered advice naming a variable the operator does not have.
     #
-    # Twice now a hand-written reachability rule excluded a state the code could
-    # actually reach, and both times the enumeration that existed to catch such
-    # a miss was the thing that hid it: the rules were reasoned out by whoever
-    # reasoned out the code, so they carried the same blind spot. The second
-    # time, the rule was even correct as stated ("an unreadable store cannot
-    # have supplied the key in use") and still wrong to apply, because the key
-    # came from config.
-    #
-    # There is nothing left to reason about. `Encryption.key_report/1` is total
-    # over this space, and every point in it must render without contradicting
-    # itself. Checking a combination that cannot occur costs one rendering and
-    # removes an argument that has been wrong twice.
-    defp signal_space do
-      stores = [
-        :absent,
-        {:no_secret_yet, @location},
-        {:unreadable, @location},
-        {:shadowed, @location},
-        {:holding, @location}
-      ]
-
-      for store <- stores,
-          tier <- [:dedicated, :legacy, :none],
-          short? <- [false, true],
-          enabled? <- [true, false] do
-        %{
-          enabled?: enabled?,
-          tier: tier,
-          too_short?: short?,
-          store: store,
-          fingerprint: if(enabled? and tier != :none, do: {:ok, "abc123def456"}, else: :none)
-        }
-      end
-    end
-
-    # Every invariant below is keyed on the SIGNALS, never on the report.
-    # Asserting against the report only checks that a rendering agrees with
-    # itself, and a report that invents a fact agrees with itself perfectly —
-    # a mutation that fabricated a fingerprint passed such a check unnoticed.
+    # The invariants themselves live in `PhoenixKit.Test.KeyVerdictInvariants`
+    # because the REAL space in `PhoenixKit.Integrations.EncryptionTest` has to
+    # check the same ones, and two copies drift.
     test "no rendering contradicts the signals it was built from, anywhere in the space" do
-      space = signal_space()
+      space = Invariants.synthetic_space()
 
       # If this number moves, a signal gained a value and every assertion below
       # silently covers less than it claims.
-      assert length(space) == 60
+      assert length(space) == 90
 
-      for signals <- space, show? <- [false, true] do
-        report = Encryption.key_report(signals)
-        {status, detail} = DoctorTask.integration_key_result(report, show?)
-        where = "#{inspect(signals)} show_fingerprint?=#{show?}"
-
-        # A key that does not exist has no fingerprint, in EITHER flag position.
-        if signals.fingerprint == :none do
-          assert report.fingerprint == :none, "#{where}: report invented a fingerprint"
-          refute detail =~ "Fingerprint", "#{where}: fingerprint mentioned with no key"
-        else
-          assert detail =~ "Fingerprint", "#{where}: key exists but no fingerprint line"
-        end
-
-        # Plaintext is claimed exactly where nothing is encrypting.
-        plaintext_expected? = not signals.enabled? or signals.tier == :none
-
-        assert String.contains?(detail, "PLAINTEXT") == plaintext_expected?,
-               "#{where}: the PLAINTEXT claim does not match the signals"
-
-        # A fallback is claimed only where the signals say one is in use. This
-        # is the sentence that reappeared on five surfaces in five rounds.
-        if detail =~ "fell back" or detail =~ "FALLBACK" do
-          assert signals.tier == :legacy, "#{where}: claims a fallback the signals deny"
-        end
-
-        # The label on the fingerprint is the tier that produced it.
-        case report.fingerprint do
-          {:ok, _value, label} ->
-            assert label =~ "dedicated" == (signals.tier == :dedicated),
-                   "#{where}: fingerprint labelled #{inspect(label)}"
-
-          :none ->
-            :ok
-        end
-
-        # Clause priority WITHIN the weaker tiers, which nothing guarded until a
-        # checker mutated it and 85 tests stayed green. The dedicated tier had
-        # this covered — "claims a fallback the signals deny" fires the moment a
-        # fault clause outranks a working tier — but inside :legacy and :none
-        # both orderings render a self-consistent fallback story, so no
-        # invariant above could tell them apart.
-        #
-        # What decides it is a fact about other code, verified by running: while
-        # `integrations_encryption_key` holds a rejected value,
-        # `dedicated_candidate/2` never consults the store, so the store cannot
-        # be the thing to fix. And the pairing is provable — a store that cannot
-        # be read cannot have supplied a secret to reject, so `too_short?` beside
-        # an unreadable store means the rejected key is in config (checked: a
-        # short config key beside an unreadable store gives `too_short?: true`;
-        # the same store with no config key gives `too_short?: false`).
-        #
-        # So a rejected key outranks every other fault in its tier, and must be
-        # reported as such.
-        if signals.enabled? and signals.too_short? and signals.tier != :dedicated do
-          assert elem(report.diagnosis, 1) == :key_too_short,
-                 "#{where}: a rejected key outranked by #{inspect(elem(report.diagnosis, 1))}"
-
-          assert detail =~ "rejected as shorter than",
-                 "#{where}: the rejected key is not reported at all"
-        end
-
-        # And the advice may not assert WHERE the rejected secret lives when the
-        # signals do not settle it. With a store holding a secret, either that
-        # secret or a config key could be the rejected one — verified by
-        # running: no config key plus an eight-character key file gives
-        # `too_short?: true` with `store: {:holding, _}`, and naming
-        # integrations_encryption_key there is false twice over.
-        if signals.enabled? and signals.too_short? and signals.tier != :dedicated do
-          case signals.store do
-            {:holding, _loc} ->
-              assert detail =~ "either integrations_encryption_key or the secret in",
-                     "#{where}: names one source where the signals allow two"
-
-            _other ->
-              assert detail =~ "integrations_encryption_key",
-                     "#{where}: the rejected key's only possible home is not named"
-          end
-        end
-
-        # No storage line for a key stored nowhere, and no bare location that
-        # reads as "saved here" when it is not.
-        case signals.store do
-          :absent ->
-            refute detail =~ "Key store:", "#{where}: storage line with no store configured"
-
-          {:no_secret_yet, _loc} ->
-            assert detail =~ "holds no secret yet",
-                   "#{where}: an empty store printed as if it held the key"
-
-          {:unreadable, _loc} ->
-            assert detail =~ "could not be read",
-                   "#{where}: an unreadable store printed as if it held the key"
-
-          {:shadowed, _loc} ->
-            assert detail =~ "DIFFERENT secret",
-                   "#{where}: a store holding another secret printed as if it held the key"
-
-          {:holding, _loc} ->
-            assert detail =~ "Key store:", "#{where}: store configured but not mentioned"
-        end
-
-        # Where rotation is unsafe it appears only as a prohibition.
-        unless report.rotation_safe? do
-          if String.contains?(detail, "phoenix_kit.integrations.rotate_key") do
-            assert detail =~ "Do NOT run", "#{where}: suggests a rotation the report calls unsafe"
-          end
-        end
-
-        # And `rotation_safe?` itself is checked against the signals, not
-        # trusted. Keyed on the report alone, the assertion above is disabled by
-        # exactly the mutation it exists to catch: flip the flag to true and the
-        # bad advice sails through. `KeyRotation.rotate/2` refuses for any status
-        # but :dedicated / :legacy_secret_key_base — verified by running, it
-        # returns {:error, {:encryption_disabled, :disabled_no_key}} — so where
-        # the signals say no key is active, no rendering may call rotation safe
-        # or recommend it.
-        if not signals.enabled? or signals.tier == :none do
-          refute report.rotation_safe?,
-                 "#{where}: rotation marked safe where the command refuses to run"
-
-          if String.contains?(detail, "phoenix_kit.integrations.rotate_key") do
-            assert detail =~ "Do NOT run",
-                   "#{where}: sends an operator to a rotation that refuses while no key is active"
-          end
-        end
-
-        # Severity, restated from the signals rather than read back from the
-        # report — the previous version compared `status` with itself for every
-        # tier but one, and asserted nothing at all for the rest.
-        expected =
-          cond do
-            not signals.enabled? -> :warn
-            signals.tier == :none -> :fail
-            signals.tier == :dedicated and match?({:unreadable, _}, signals.store) -> :warn
-            signals.tier == :dedicated and match?({:shadowed, _}, signals.store) -> :warn
-            signals.tier == :dedicated -> :pass
-            true -> :warn
-          end
-
-        assert status == expected, "#{where}: wrong severity"
-      end
+      for signals <- space, do: Invariants.assert_consistent(signals, inspect(signals))
     end
 
     test "a fingerprint never appears without the tier that produced it" do
-      for signals <- signal_space(), signals.fingerprint != :none do
+      for signals <- Invariants.synthetic_space(), signals.fingerprint != :none do
         report = Encryption.key_report(signals)
         {_status, detail} = DoctorTask.integration_key_result(report, true)
 
@@ -476,7 +306,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
         %{
           enabled?: true,
           tier: :none,
-          too_short?: false,
+          rejected_key: false,
           store: {:no_secret_yet, @location},
           fingerprint: :none
         }
@@ -501,7 +331,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
       signals = %{
         enabled?: true,
         tier: :dedicated,
-        too_short?: false,
+        rejected_key: false,
         store: {:unreadable, @location},
         fingerprint: {:ok, "abc123def456"}
       }

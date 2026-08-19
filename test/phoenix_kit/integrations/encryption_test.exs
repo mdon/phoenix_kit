@@ -1099,7 +1099,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
 
         # A store answering with a usable secret IS a dedicated key source, so
         # the two cannot be seen apart within one gather.
-        if match?({:holding, _}, signals.store) and not signals.too_short? do
+        if match?({:holding, _}, signals.store) and signals.rejected_key == false do
           assert signals.tier == :dedicated,
                  "#{inspect(signals)}: a holding store beside a weaker tier"
         end
@@ -1124,6 +1124,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
 
   describe "the states the real resolution actually produces" do
     alias Mix.Tasks.PhoenixKit.Doctor, as: DoctorTask
+    alias PhoenixKit.Test.KeyVerdictInvariants, as: Invariants
 
     setup do
       previous = %{
@@ -1158,78 +1159,75 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       {:ok, dir: dir}
     end
 
-    # Reachability is OBSERVED here, never argued. Two rounds running, a
-    # hand-written rule about what the resolution can produce excluded a state
-    # it produced daily — the rule and the code came from the same reasoning, so
-    # the enumeration inherited the blind spot it existed to catch. This walks
-    # real configurations through the real resolution and reports what comes
-    # out; nothing here is entitled to an opinion about what should.
-    test "walking real configurations, every state produced is consistent", %{dir: dir} do
-      holding = Path.join(dir, "holding.key")
-      File.write!(holding, String.duplicate("t", 40))
-      File.chmod!(holding, 0o600)
+    # Reachability is OBSERVED here, never argued — and, since round 6's
+    # enumeration was found to be synthetic, the states are no longer written
+    # down at all. `KeyVerdictInvariants.real_space/1` drives real
+    # configurations — a config key that is absent, short or valid; a store that
+    # is missing, empty, holds a short secret, holds another valid one, or holds
+    # the config key itself; with and without secret_key_base; encryption on and
+    # off — through the real `key_signals/0`, and this asserts on whatever comes
+    # out.
+    #
+    # The difference is not academic. The hand-built space was green across 60
+    # combinations while a real configuration — a short secret in the key store
+    # with no `integrations_encryption_key` set — rendered advice naming a
+    # variable the operator does not have. It contained a `{:holding, _}` store
+    # because someone wrote one down, and no short stored secret because nobody
+    # thought to. A cross product of our idea of the states cannot fail on an
+    # idea that is wrong.
+    test "every state the real resolution produces survives every invariant", %{dir: dir} do
+      produced = Invariants.real_space(dir)
 
-      empty = Path.join(dir, "empty.key")
-      File.write!(empty, "")
-      File.chmod!(empty, 0o600)
+      assert length(produced) == 72
 
-      missing = Path.join(dir, "never-written.key")
+      for {label, signals} <- produced do
+        Invariants.assert_consistent(signals, label)
+      end
+    end
 
-      stores = [
-        {"none", nil},
-        {"holding", {KeyStore.File, path: holding}},
-        {"unreadable", {KeyStore.File, path: empty}},
-        {"no secret yet", {KeyStore.File, path: missing}}
-      ]
+    # The synthetic space is still worth having — it proves the verdict is total
+    # — but only while it contains everything the system can actually do. Asserted
+    # rather than assumed, so a real state with no synthetic twin fails here
+    # instead of quietly narrowing what the other enumeration covers.
+    test "nothing the real resolution produces is missing from the synthetic space",
+         %{dir: dir} do
+      synthetic = MapSet.new(Invariants.synthetic_space(), &Invariants.shape/1)
 
-      keys = [{"absent", nil}, {"short", "short"}, {"valid", String.duplicate("k", 40)}]
-      bases = [{"present", String.duplicate("s", 64)}, {"absent", nil}]
+      for {label, signals} <- Invariants.real_space(dir) do
+        assert MapSet.member?(synthetic, Invariants.shape(signals)),
+               "#{label}: real signals #{inspect(signals)} are outside the synthetic space"
+      end
+    end
 
-      produced =
-        for {_sn, store} <- stores, {_kn, key} <- keys, {_bn, base} <- bases do
-          put(:integrations_key_store, store)
-          put(:integrations_encryption_key, key)
-          put(:secret_key_base, base)
-          Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
-          KeyStore.invalidate_cache()
-
-          signals = Encryption.key_signals()
-
-          # Every produced state renders, and the report agrees with it.
-          report = Encryption.key_report(signals)
-          assert is_binary(report.summary) and report.summary != ""
-
-          if signals.tier == :none do
-            assert signals.fingerprint == :none
-            refute report.rotation_safe?
-          end
-
-          if match?({:holding, _}, signals.store) and not signals.too_short? do
-            assert signals.tier == :dedicated,
-                   "#{inspect(signals)}: a store holding a usable secret beside a weaker tier"
-          end
-
-          {signals.tier, signals.too_short?, store_tag(signals.store)}
-        end
+    # The states this feature exists for, named so that a fixture change cannot
+    # quietly drop one. Each was a defect before it was a test.
+    test "the real configurations reach the states the rounds were about", %{dir: dir} do
+      shapes =
+        dir
+        |> Invariants.real_space()
+        |> Enum.map(fn {_label, signals} ->
+          {signals.tier, signals.rejected_key, Invariants.store_tag(signals.store)}
+        end)
         |> Enum.uniq()
 
-      # The collapse this catches: a configured store with nothing in it read as
-      # `:not_configured` and was reported as `{:holding, _}` — "your key is
-      # saved here" about a file that does not exist. `KeyStore.read/0`'s own
-      # doc forbids collapsing those two, and the tests enumerated a
-      # `:no_secret_yet` signal production could never emit.
-      # P012: a config key beside a store holding something else. Both values are
-      # read in the same pass, and the verdict used to print the store's location
-      # under a healthy `{:dedicated, :ok}` without ever comparing them.
-      assert {:dedicated, false, :shadowed} in produced,
-             "a store holding a different secret never showed up: #{inspect(produced)}"
+      # P012 round 2: a short secret in the store and no config key. The advice
+      # named `integrations_encryption_key` here, which does not exist.
+      assert {:legacy, :store, :shadowed} in shapes
 
-      assert {:legacy, false, :no_secret_yet} in produced,
-             "the real resolution never produced :no_secret_yet: #{inspect(produced)}"
+      # P012: the store holds a secret that is not the key in use.
+      assert {:dedicated, false, :shadowed} in shapes
 
-      assert {:dedicated, false, :holding} in produced
-      assert {:legacy, false, :unreadable} in produced
-      assert {:none, false, :absent} in produced
+      # Round 6: a configured store with nothing in it yet, which used to be
+      # reported as holding the key.
+      assert {:legacy, false, :no_secret_yet} in shapes
+
+      # Round 5: a working dedicated key beside a store that cannot be read.
+      assert {:dedicated, false, :unreadable} in shapes
+
+      # The store as the key source, and the healthy baseline.
+      assert {:dedicated, false, :holding} in shapes
+      assert {:legacy, false, :absent} in shapes
+      assert {:none, false, :absent} in shapes
     end
 
     # The whole P012 chain as an operator meets it: the verdict, the severity

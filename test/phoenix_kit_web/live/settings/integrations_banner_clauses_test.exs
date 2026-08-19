@@ -23,79 +23,15 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsBannerClausesTest do
 
   @location "/srv/keys/app.key"
 
-  # Same space the doctor's enumeration walks, and for the same reason: no
-  # reachability filter, because a reachability rule was the defect twice.
-  defp signal_space do
-    stores = [
-      :absent,
-      {:no_secret_yet, @location},
-      {:unreadable, @location},
-      {:shadowed, @location},
-      {:holding, @location}
-    ]
-
-    for store <- stores,
-        tier <- [:dedicated, :legacy, :none],
-        short? <- [false, true],
-        enabled? <- [true, false] do
-      %{
-        enabled?: enabled?,
-        tier: tier,
-        too_short?: short?,
-        store: store,
-        fingerprint: if(enabled? and tier != :none, do: {:ok, "abc123def456"}, else: :none)
-      }
-    end
-  end
-
-  describe "the page's own words never contradict the signals" do
-    test "no diagnosis renders a banner that disagrees with the key in use" do
-      for signals <- signal_space() do
-        report = Encryption.key_report(signals)
-        title = Page.encryption_status_title(report.diagnosis)
-        detail = Page.encryption_status_detail(report.diagnosis)
-        where = inspect(signals)
-
-        assert is_binary(title) and title != "", "#{where}: no title"
-        assert is_binary(detail) and detail != "", "#{where}: no detail"
-
-        # The sentence that has now been wrong on five surfaces.
-        if detail =~ "fell back" or detail =~ "weaker key" do
-          assert signals.tier == :legacy, "#{where}: claims a fallback the signals deny"
-        end
-
-        # Plain text is claimed exactly where nothing is encrypting.
-        if detail =~ "plain text" do
-          assert not signals.enabled? or signals.tier == :none,
-                 "#{where}: claims plain text while a key is in use"
-        end
-
-        # Rotation refuses while no key is active — verified against
-        # `KeyRotation.rotate/2` by running it in that state.
-        if (not signals.enabled? or signals.tier == :none) and detail =~ "rotate_key" do
-          assert detail =~ "Do not run" or detail =~ "Do NOT run" or
-                   detail =~ "cannot help",
-                 "#{where}: sends an operator to a rotation that refuses"
-        end
-      end
-    end
-
-    test "the fingerprint label is the tier that produced the key" do
-      for signals <- signal_space(), signals.fingerprint != :none do
-        report = Encryption.key_report(signals)
-        label = Page.fingerprint_tier(report.diagnosis)
-        where = inspect(signals)
-
-        if label =~ "FALLBACK" do
-          refute signals.tier == :dedicated,
-                 "#{where}: a dedicated key labelled #{inspect(label)}"
-        end
-
-        assert label =~ "dedicated" == (signals.tier == :dedicated),
-               "#{where}: labelled #{inspect(label)}"
-      end
-    end
-
+  # The page's clause heads are walked over the whole signal space by
+  # `PhoenixKit.Test.KeyVerdictInvariants.assert_consistent/2`, which both the
+  # synthetic and the real enumerations call — the page is a surface of the same
+  # verdict, and checking it separately is how it fell a round behind twice.
+  #
+  # What stays here is the pair of states that reached three surfaces out of
+  # four before anyone noticed, asserted directly rather than as one point in a
+  # sweep.
+  describe "the states the page kept being told about last" do
     # The banner is guarded on the report's severity. Guarded on the tier, the
     # one state where encryption works but its key store does not showed nothing
     # at all — and the fingerprint line beside it called that key a FALLBACK.
@@ -103,7 +39,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsBannerClausesTest do
       signals = %{
         enabled?: true,
         tier: :dedicated,
-        too_short?: false,
+        rejected_key: false,
         store: {:unreadable, @location},
         fingerprint: {:ok, "abc123def456"}
       }
@@ -115,6 +51,26 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsBannerClausesTest do
       refute Page.fingerprint_tier(report.diagnosis) =~ "FALLBACK"
       assert Page.fingerprint_tier(report.diagnosis) =~ "dedicated"
       refute Page.encryption_status_detail(report.diagnosis) =~ "weaker"
+    end
+
+    # P012's state, on the surface where `:ok` meant silence: a working key with
+    # a key store that holds something else.
+    test "a store holding a different secret is warned about, and not called a backup" do
+      signals = %{
+        enabled?: true,
+        tier: :dedicated,
+        rejected_key: false,
+        store: {:shadowed, @location},
+        fingerprint: {:ok, "abc123def456"}
+      }
+
+      report = Encryption.key_report(signals)
+
+      assert report.severity == :warn, "at :ok the page renders no banner at all"
+      assert Page.encryption_status_title(report.diagnosis) =~ "different secret"
+      assert Page.encryption_status_detail(report.diagnosis) =~ "not a copy"
+      assert Page.fingerprint_tier(report.diagnosis) =~ "dedicated"
+      refute Page.fingerprint_tier(report.diagnosis) =~ "FALLBACK"
     end
   end
 end

@@ -297,7 +297,7 @@ defmodule PhoenixKit.Integrations.Encryption do
   @type key_signals :: %{
           enabled?: boolean(),
           tier: :dedicated | :legacy | :none,
-          too_short?: boolean(),
+          rejected_key: false | :config | :store,
           store:
             :absent
             | {:no_secret_yet, String.t()}
@@ -347,12 +347,12 @@ defmodule PhoenixKit.Integrations.Encryption do
   @spec key_signals() :: key_signals()
   def key_signals do
     enabled? = encryption_enabled_flag?()
-    {{tier, secret, too_short?}, store_read} = resolve_once()
+    {{tier, secret, rejected_key}, store_read} = resolve_once()
 
     %{
       enabled?: enabled?,
       tier: tier,
-      too_short?: too_short?,
+      rejected_key: rejected_key,
       store: store_state(store_read, secret),
       fingerprint: fingerprint_for(enabled?, secret)
     }
@@ -524,11 +524,11 @@ defmodule PhoenixKit.Integrations.Encryption do
   # rejected key is set in config the store is never consulted (verified by
   # running), so "repair the store" is advice that cannot help until this is
   # cleared — and it is the only clause that says so.
-  def key_report(%{tier: :legacy, too_short?: true} = signals) do
+  def key_report(%{tier: :legacy, rejected_key: source} = signals) when source != false do
     report(signals, {:legacy_secret_key_base, :key_too_short}, :warn,
       summary: too_short_summary(),
       consequence: fallback_consequence(),
-      action: replace_key_action(signals.store),
+      action: replace_key_action(signals),
       rotation_safe?: true,
       tier_label: "FALLBACK key — the configured key was rejected as too short"
     )
@@ -566,15 +566,15 @@ defmodule PhoenixKit.Integrations.Encryption do
   # running — `{:error, {:encryption_disabled, :disabled_no_key}}`. This clause
   # used to advise the rotation anyway and mark it safe, which is the same
   # wrong recommendation an earlier round removed from the clause next to it.
-  def key_report(%{tier: :none, too_short?: true} = signals) do
+  def key_report(%{tier: :none, rejected_key: source} = signals) when source != false do
     report(signals, {:disabled_no_key, :key_too_short}, :fail,
       summary: too_short_summary(),
       consequence:
         "NO key resolved at all — integration credentials are being written in PLAINTEXT",
       action:
         "Do NOT run `mix phoenix_kit.integrations.rotate_key` — it refuses while no key is " <>
-          "active. Replace the rejected secret — #{rejected_secret_location(signals.store)} " <>
-          "— with one of at least #{@min_dedicated_key_length} characters and restart",
+          "active. Replace the rejected secret — #{rejected_secret_location(signals)} — with " <>
+          "one of at least #{@min_dedicated_key_length} characters and restart",
       rotation_safe?: false,
       tier_label: nil
     )
@@ -661,36 +661,42 @@ defmodule PhoenixKit.Integrations.Encryption do
         "#{@min_dedicated_key_length} characters, which is not the same as none being " <>
         "configured"
 
-  # WHERE the rejected secret lives is not always knowable, and the advice used
-  # to assert it anyway — it named `integrations_encryption_key` unconditionally,
-  # including in the state where there is no such key and the short secret is
-  # the one in the STORE. Verified by running: with no config key and an
-  # eight-character secret in the key file, the signals are
-  # `%{tier: :legacy, too_short?: true, store: {:holding, _}}`, and every word of
-  # "while a rejected key sits there the key store is not consulted at all" is
-  # false — the store IS what was consulted, and it is what must be fixed.
+  # WHERE the rejected secret lives decides the whole advice, and it is a
+  # property of the RESOLUTION, not of the store's state — which is what the
+  # previous attempt got wrong. That version derived the source from the store
+  # signal, and the derivation held only while `{:holding, _}` meant "the store
+  # has a secret". When P012 made `{:holding, _}` mean "the store has THE KEY IN
+  # USE", the state this clause exists for — a short secret in the store and no
+  # config key at all — silently became `{:shadowed, _}` and started rendering
+  # "Replace integrations_encryption_key", a variable the operator does not
+  # have. A claim resting on a neighbour's classification, and the neighbour
+  # moved.
   #
-  # The signals already settle it in three of the four store states, so no new
-  # signal is needed to stop claiming what is not known. An unreadable store or
-  # one holding nothing cannot have supplied a secret to reject, so there the
-  # source is provably config (verified: a short key in config beside an
-  # unreadable store gives `too_short?: true`; the same store with no config key
-  # gives `too_short?: false`). Only `{:holding, _}` is ambiguous, and there the
-  # advice names both and says which one wins.
-  defp replace_key_action(store),
+  # `dedicated_candidate/2` already knows: config answers first, and only when
+  # it does not does the store's secret get length-checked. So the source is
+  # carried out of the resolution rather than guessed back from a signal that
+  # answers a different question.
+  defp replace_key_action(signals),
     do:
-      "Replace the rejected secret — #{rejected_secret_location(store)}. Config wins when " <>
-        "it is set, and while it holds a rejected value the key store is not consulted at " <>
-        "all. `mix phoenix_kit.integrations.rotate_key` generates a replacement, and stores " <>
-        "it for you if a key store is configured"
+      "Replace the rejected secret — #{rejected_secret_location(signals)}. " <>
+        "`mix phoenix_kit.integrations.rotate_key` generates a replacement, and stores it " <>
+        "for you if a key store is configured"
 
-  # ONE phrase for where the rejected secret lives, shared by both clauses that
-  # tell an operator to replace it, so neither can drift into asserting a
-  # location the signals do not establish.
-  defp rejected_secret_location({:holding, location}),
-    do: "it is either integrations_encryption_key or the secret in #{location}"
+  defp rejected_secret_location(%{rejected_key: :store, store: {_state, location}}),
+    do:
+      "it is the secret in #{location}; no integrations_encryption_key is set, so the store " <>
+        "is what the key is read from"
 
-  defp rejected_secret_location(_store), do: "integrations_encryption_key"
+  defp rejected_secret_location(%{rejected_key: :config}),
+    do:
+      "it is integrations_encryption_key. Config wins while it is set, so the key store is " <>
+        "not consulted at all and repairing or filling it changes nothing"
+
+  # A rejected key with no home the signals can name is not a state the
+  # resolution produces — `:store` always comes with a store, `:config` always
+  # with the config key. Rendered anyway, because the verdict is total, and
+  # deliberately without naming a location it cannot justify.
+  defp rejected_secret_location(_signals), do: "it is the configured encryption key"
 
   # The two absences the reviewer asked to keep apart: nothing configured at all
   # versus a store that is configured and empty. Set one up, versus put a secret
@@ -1005,12 +1011,16 @@ defmodule PhoenixKit.Integrations.Encryption do
       {:ok, secret} ->
         {:dedicated, secret, false}
 
-      rejected ->
-        too_short? = rejected == :too_short
+      candidate ->
+        rejected_key =
+          case candidate do
+            {:too_short, source} -> source
+            :unset -> false
+          end
 
         case secret_key_base do
-          secret when is_binary(secret) and secret != "" -> {:legacy, secret, too_short?}
-          _ -> {:none, nil, too_short?}
+          secret when is_binary(secret) and secret != "" -> {:legacy, secret, rejected_key}
+          _ -> {:none, nil, rejected_key}
         end
     end
   end
@@ -1028,10 +1038,10 @@ defmodule PhoenixKit.Integrations.Encryption do
   # `:dedicated` tier — a dedicated key the operator did not have to paste into
   # config by hand after rotating.
   defp dedicated_candidate({:ok, secret}, _store_read) when is_binary(secret) and secret != "",
-    do: check_dedicated_length(secret)
+    do: check_dedicated_length(secret, :config)
 
   defp dedicated_candidate(_config, {:ok, secret}) when is_binary(secret) and secret != "",
-    do: check_dedicated_length(secret)
+    do: check_dedicated_length(secret, :store)
 
   defp dedicated_candidate(_config, _store_read), do: :unset
 
@@ -1073,10 +1083,10 @@ defmodule PhoenixKit.Integrations.Encryption do
     :ok
   end
 
-  defp check_dedicated_length(secret) do
+  defp check_dedicated_length(secret, source) do
     if String.length(secret) >= @min_dedicated_key_length,
       do: {:ok, secret},
-      else: :too_short
+      else: {:too_short, source}
   end
 
   # Flat `config :phoenix_kit, secret_key_base: ...` keeps precedence — it's
