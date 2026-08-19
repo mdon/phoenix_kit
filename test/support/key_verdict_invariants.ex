@@ -234,6 +234,28 @@ defmodule PhoenixKit.Test.KeyVerdictInvariants do
       # "the advice names the location" was satisfied by a sentence that is not
       # the advice. An assertion resting on a coincidence elsewhere in the same
       # string is the defect this whole contract is about, in the checker.
+      # Keyed on the FIELDS, one claim at a time. `detail` is every line joined,
+      # and the storage line already contains the words "Key store" and the
+      # path — asserting on the joined string lets a sentence that is not the
+      # one under test satisfy the check, which is how an earlier version of
+      # this invariant passed its own mutation.
+      if signals.rejected_key == :store do
+        refute report.summary =~ "IS configured",
+               "#{where}: describes a store-held secret as configured in config"
+
+        assert report.summary =~ "key store",
+               "#{where}: the summary does not say where the rejected secret is"
+
+        case report.fingerprint do
+          {:ok, _value, label} ->
+            assert label =~ "key store",
+                   "#{where}: fingerprint labelled #{inspect(label)} for a store-held secret"
+
+          :none ->
+            :ok
+        end
+      end
+
       case {signals.rejected_key, signals.store} do
         {:store, {_state, location}} ->
           assert report.action =~ location,
@@ -354,16 +376,28 @@ defmodule PhoenixKit.Test.KeyVerdictInvariants do
   # in the key store that repairing the store "changes nothing", which argues
   # against the only repair that works.
   defp assert_page_names_the_source(
-         %{enabled?: true, rejected_key: :store, tier: tier, store: store},
+         %{enabled?: true, rejected_key: :store, tier: tier, store: store} = signals,
          detail,
          where
        )
        when tier != :dedicated do
+    report = Encryption.key_report(signals)
+
     refute detail =~ "changes nothing",
            "#{where}: page argues against repairing the store that holds the rejected secret"
 
     refute detail =~ "not consulted at all",
            "#{where}: page says the store was not consulted, and it is the source"
+
+    # The detail clause was held; the title and the fingerprint label were not,
+    # so deleting either of those was caught by nothing. Each is a single string
+    # from a single call, so there is no neighbouring sentence to satisfy the
+    # assertion by accident.
+    assert Page.encryption_status_title(report) =~ "key store",
+           "#{where}: page title does not say the rejected secret is in the store"
+
+    assert Page.fingerprint_tier(report) =~ "key store",
+           "#{where}: page labelled the fingerprint #{inspect(Page.fingerprint_tier(report))}"
 
     case store do
       {_state, location} ->

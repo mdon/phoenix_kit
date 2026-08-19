@@ -545,11 +545,11 @@ defmodule PhoenixKit.Integrations.Encryption do
   # cleared — and it is the only clause that says so.
   def key_report(%{tier: :legacy, rejected_key: source} = signals) when source != false do
     report(signals, {:legacy_secret_key_base, :key_too_short}, :warn,
-      summary: too_short_summary(),
+      summary: too_short_summary(signals.rejected_key),
       consequence: fallback_consequence(),
       action: replace_key_action(signals),
       rotation_safe?: true,
-      tier_label: "FALLBACK key — the configured key was rejected as too short"
+      tier_label: too_short_label(signals.rejected_key)
     )
   end
 
@@ -587,7 +587,7 @@ defmodule PhoenixKit.Integrations.Encryption do
   # wrong recommendation an earlier round removed from the clause next to it.
   def key_report(%{tier: :none, rejected_key: source} = signals) when source != false do
     report(signals, {:disabled_no_key, :key_too_short}, :fail,
-      summary: too_short_summary(),
+      summary: too_short_summary(signals.rejected_key),
       consequence:
         "NO key resolved at all — integration credentials are being written in PLAINTEXT",
       action:
@@ -683,11 +683,30 @@ defmodule PhoenixKit.Integrations.Encryption do
         "the clear and STAYS readable after the repair, so re-save those connections once a " <>
         "key is active"
 
-  defp too_short_summary,
+  # The eighth instance of the same premise, in the last two places that still
+  # carried it: both said "a dedicated key IS configured" whatever the source, so
+  # an operator whose short secret is in the key store read that sentence in the
+  # same paragraph as "no integrations_encryption_key is set". The advice was
+  # already right by then; what was left was a description contradicting it.
+  #
+  # The config wording is unchanged, byte for byte — it is correct where it now
+  # applies, and rewording it would churn a translated string for nothing.
+  defp too_short_summary(:store),
+    do:
+      "the secret in the key store was rejected as shorter than " <>
+        "#{@min_dedicated_key_length} characters, which is not the same as having no key " <>
+        "at all"
+
+  defp too_short_summary(_source),
     do:
       "a dedicated key IS configured but was rejected as shorter than " <>
         "#{@min_dedicated_key_length} characters, which is not the same as none being " <>
         "configured"
+
+  defp too_short_label(:store),
+    do: "FALLBACK key — the secret in the key store was rejected as too short"
+
+  defp too_short_label(_source), do: "FALLBACK key — the configured key was rejected as too short"
 
   # WHERE the rejected secret lives decides the whole advice, and it is a
   # property of the RESOLUTION, not of the store's state — which is what the

@@ -435,3 +435,79 @@ not only on a map someone wrote down.
 
 No test added: the invariant lives in the shared module and fires from both
 enumerations, so the count stays put while the coverage does not.
+
+---
+
+## The two debts, taken after SHIP
+
+Both were recorded as non-blocking when P012 was accepted. Taken together
+because they are the same premise and the same guard.
+
+### The eighth instance: a description contradicting its own advice
+
+`too_short_summary/0` and the `tier_label` beside it still said *"a dedicated key
+IS configured but was rejected"* whatever the source, so an operator whose short
+secret is in the key store read that in the same paragraph as *"no
+integrations_encryption_key is set"*. The advice was already correct by then —
+this was the description arguing with it.
+
+Both take the source now. The config wording is unchanged byte for byte: it is
+correct where it still applies, and rewording a translated string for nothing is
+churn.
+
+```
+rejected_key: :store
+  the secret in the key store was rejected as shorter than 20 characters, which is not
+  the same as having no key at all.
+  …
+  Replace the rejected secret — it is the secret in /…/k.key; no integrations_encryption_key
+  is set, so the store is what the key is read from.
+  Fingerprint 826f21f672e5 (FALLBACK key — the secret in the key store was rejected as too short).
+  Key store: /…/k.key (configured, holds a DIFFERENT secret — not a copy of the key in use)
+
+rejected_key: :config
+  a dedicated key IS configured but was rejected as shorter than 20 characters, which is
+  not the same as none being configured.
+```
+
+Five lines, one story, in both directions.
+
+### The holding gap: three of four clauses rested on attentiveness
+
+Deleting the `:store` **detail** clause failed a named test. Deleting the
+`:store` **title** or **fingerprint label** clause failed nothing — the same
+shape as the round-1 finding, one level in: a mutation had been aimed at one
+clause of a set and the rest were assumed to be covered by it.
+
+Each is now asserted on its own field, never on the joined rendering. That
+distinction is load-bearing and was learned the hard way here: `detail` is every
+line concatenated, and the storage line already contains both the words "key
+store" and the path, so an assertion against the joined string can be satisfied
+by a sentence that is not the one under test — which is exactly how an earlier
+version of this invariant survived its own mutation.
+
+All four clauses mutated separately, each failing by name, and each from **both**
+enumerations:
+
+    too_short_summary(:store) removed
+      -> describes a store-held secret as configured in config
+    too_short_label(:store) removed
+      -> fingerprint labelled "FALLBACK key — the configured key was rejected as too short"
+         for a store-held secret
+    page title :store clause removed
+      -> page title does not say the rejected secret is in the store
+    page fingerprint_tier :store clause removed
+      -> page labelled the fingerprint "FALLBACK key — the configured key …"
+
+Second line of each failure is the real configuration — "no config key, store
+holding a SHORT secret, secret_key_base set, encryption on" — not a map someone
+wrote down.
+
+### Suite
+
+```
+43 doctests, 3942 tests, 0 failures, 1554 excluded — unchanged
+```
+
+No test added again: the four assertions live in the shared invariants and fire
+from both enumerations, so the count stays where it was while the coverage does not.
