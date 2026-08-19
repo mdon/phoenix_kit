@@ -7,7 +7,21 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V176 - Validate existing NOT VALID foreign keys ⚡ LATEST
+  ### V177 - Catalogue: item ↔ attribute-set attachments ⚡ LATEST
+
+  Adds `phoenix_kit_cat_item_attribute_sets` — the join behind the
+  catalogue's attribute-sets rework: items attach any number of ordered
+  sets (managed entities blueprints), with a reserved per-attachment
+  `data` JSONB. `set_uuid` deliberately carries no FK (cross-module
+  reference into `phoenix_kit_entities`; integrity is owned by the
+  modules — entities consults the catalogue's registered delete guard,
+  the catalogue prunes orphans off entities PubSub events). Filed as
+  V176 originally, renumbered to V177 when this branch merged
+  upstream/main and found V176 already taken by the FK-validation pass
+  below; every statement is IF-NOT-EXISTS idempotent, so installs that
+  ran the DDL under the old number re-run it as a no-op.
+
+  ### V176 - Validate existing NOT VALID foreign keys
 
   The FK repair V164 added (`UUIDFKColumns.fk_constraints/0`) creates every
   constraint `NOT VALID` and validates it on the spot, but a validation that
@@ -588,7 +602,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 176
+  @current_version 177
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
