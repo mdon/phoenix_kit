@@ -86,7 +86,8 @@ defmodule PhoenixKit.Migrations.Postgres.V176 do
 
     still_not_valid =
       for {table, uuid_fk, ref_table, ref_col, _on_delete} <- UUIDFKColumns.fk_constraints(),
-          label = validate_one(repo(), table, uuid_fk, ref_table, ref_col, prefix, escaped_prefix),
+          label =
+            validate_one(repo(), table, uuid_fk, ref_table, ref_col, prefix, escaped_prefix),
           not is_nil(label) do
         label
       end
