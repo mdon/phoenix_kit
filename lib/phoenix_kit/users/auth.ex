@@ -554,10 +554,7 @@ defmodule PhoenixKit.Users.Auth do
   end
 
   defp stringify_keys(attrs) do
-    Map.new(attrs, fn
-      {key, value} when is_atom(key) -> {Atom.to_string(key), value}
-      {key, value} -> {key, value}
-    end)
+    Map.new(attrs, fn {key, value} -> {to_string(key), value} end)
   end
 
   @doc """
