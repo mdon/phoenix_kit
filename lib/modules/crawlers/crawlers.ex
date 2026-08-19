@@ -33,6 +33,7 @@ defmodule PhoenixKit.Modules.Crawlers do
 
   @module_enabled_key "crawlers_module_enabled"
   @no_index_key "crawlers_no_index"
+  @sitemap_exempt_from_no_index_key "crawlers_sitemap_exempt_from_no_index"
   @block_at_app_key "crawlers_block_at_app"
   @google_verification_key "crawlers_google_verification"
   @bing_verification_key "crawlers_bing_verification"
@@ -98,6 +99,38 @@ defmodule PhoenixKit.Modules.Crawlers do
     # The directive flips what the sitemap must advertise. Drop the cached
     # sitemap and regenerate so `/sitemap.xml` reflects the new state instead of
     # serving a stale file. Best-effort — never let it break the toggle.
+    refresh_sitemap()
+
+    result
+  end
+
+  @doc """
+  Whether the sitemap's *content* is exempt from `no_index_enabled?/0`.
+
+  `no_index_enabled?/0` still drives the robots meta directive unconditionally
+  — this flag only lets the sitemap keep publishing its real URLs while that
+  directive is active, e.g. to verify the feed independently of the indexing
+  block. Default `false`: an install that never sets this keeps today's
+  behavior, where the sitemap blanks in lockstep with `no_index_enabled?/0`.
+  """
+  def sitemap_exempt_from_no_index? do
+    Settings.get_boolean_setting(@sitemap_exempt_from_no_index_key, false)
+  end
+
+  @doc """
+  Sets whether the sitemap is exempt from `no_index_enabled?/0` (see
+  `sitemap_exempt_from_no_index?/0`).
+  """
+  def update_sitemap_exempt_from_no_index(exempt?) when is_boolean(exempt?) do
+    result =
+      Settings.update_boolean_setting_with_module(
+        @sitemap_exempt_from_no_index_key,
+        exempt?,
+        @module_name
+      )
+
+    # Same reasoning as update_no_index/1: this flips what the sitemap must
+    # advertise, so the cached/stale file must not outlive the new state.
     refresh_sitemap()
 
     result

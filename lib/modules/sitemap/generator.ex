@@ -90,7 +90,7 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
     xsl_enabled = Keyword.get(opts, :xsl_enabled, true)
 
     cond do
-      crawlers_no_index?() ->
+      crawlers_no_index?() and not sitemap_exempt_from_no_index?() ->
         do_generate_no_index(xsl_style, xsl_enabled)
 
       Sitemap.flat_mode?() ->
@@ -111,7 +111,11 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
   # Keyed on `no_index_enabled?/0` alone (not `module_enabled?/0`) to stay in
   # lockstep with the `<meta name="robots" content="noindex">` directive host
   # layouts emit for the same setting — an empty sitemap always pairs with a
-  # noindex meta.
+  # noindex meta, UNLESS the operator has explicitly opted the sitemap out via
+  # `Crawlers.sitemap_exempt_from_no_index?/0` (see the caller in
+  # `do_generate_all/2`). That second flag only ever narrows this branch —
+  # it cannot fire on its own, and the meta directive itself is untouched by
+  # it — so the lockstep still holds for every install that hasn't set it.
   defp do_generate_no_index(xsl_style, xsl_enabled) do
     Logger.debug("Sitemap: crawlers_no_index active — publishing empty sitemap")
 
@@ -139,6 +143,17 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
   catch
     # An unreachable database RAISES on an unowned checkout but EXITS on a
     # dead pool; rescue alone leaves the exit path unguarded.
+    :exit, _ -> false
+  end
+
+  # Defensive, same as crawlers_no_index?/0 above. Errs toward `false` (not
+  # exempt) on lookup failure, i.e. toward the pre-existing blank-on-noindex
+  # behavior rather than toward silently publishing a full sitemap.
+  defp sitemap_exempt_from_no_index? do
+    Crawlers.sitemap_exempt_from_no_index?()
+  rescue
+    _ -> false
+  catch
     :exit, _ -> false
   end
 
