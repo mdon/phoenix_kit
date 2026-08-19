@@ -91,6 +91,18 @@ defmodule PhoenixKitWeb.Live.Settings.Crawlers do
     end
   end
 
+  def handle_event("toggle_sitemap_exempt_from_no_index", _params, socket) do
+    new_value = !socket.assigns.sitemap_exempt_from_no_index
+
+    case Crawlers.update_sitemap_exempt_from_no_index(new_value) do
+      {:ok, _setting} ->
+        {:noreply, assign(socket, :sitemap_exempt_from_no_index, new_value)}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update crawler settings"))}
+    end
+  end
+
   def handle_event("toggle_group", %{"group" => group_key}, socket) do
     # Whitelist against the registry — never build an atom or a settings key
     # from raw params.
@@ -157,6 +169,7 @@ defmodule PhoenixKitWeb.Live.Settings.Crawlers do
 
     socket
     |> assign(:no_index_enabled, Crawlers.no_index_enabled?())
+    |> assign(:sitemap_exempt_from_no_index, Crawlers.sitemap_exempt_from_no_index?())
     |> assign(:group_allowed, allowed)
     |> assign(:block_at_app, Crawlers.block_at_app_enabled?())
     |> assign(:google_verification, Crawlers.google_verification())
