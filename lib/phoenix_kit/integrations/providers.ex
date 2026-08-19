@@ -187,6 +187,7 @@ defmodule PhoenixKit.Integrations.Providers do
       elevenlabs(),
       amazon_bedrock(),
       aws_ses(),
+      object_storage(),
       smtp(),
       brevo_api(),
       telegram(),
@@ -894,6 +895,77 @@ defmodule PhoenixKit.Integrations.Providers do
             )
         }
       ]
+    }
+  end
+
+  # Deliberately separate from `aws_ses` even though both are `:key_secret`
+  # AWS-shaped credentials: one pair of keys sends mail, the other reads/writes
+  # a bucket, and an operator must be able to rotate or revoke either without
+  # touching the other. `object_storage` (not `aws_s3`) because the same shape
+  # of credential — access key + secret + optional region/endpoint — also
+  # covers Cloudflare R2, Backblaze B2, and Tigris, mirroring the same
+  # provider-per-protocol generalization `PhoenixKit.Modules.Storage.Bucket`
+  # already makes for those four (`lib/modules/storage/schemas/bucket.ex`).
+  defp object_storage do
+    %{
+      key: "object_storage",
+      scopes: [:system, :personal],
+      name: gettext("Object Storage (S3-compatible)"),
+      description:
+        gettext(
+          "S3-compatible object storage — AWS S3, Cloudflare R2, Backblaze B2, Tigris, or a self-hosted endpoint"
+        ),
+      icon: "hero-circle-stack",
+      auth_type: :key_secret,
+      oauth_config: nil,
+      # Checked against the storage API itself (ListBuckets) — see
+      # PhoenixKit.Integrations.Validators.
+      validation: %{strategy: :object_storage},
+      setup_fields: [
+        %{
+          key: "access_key",
+          label: gettext("Access Key ID"),
+          type: :text,
+          required: true,
+          placeholder: "AKIA…",
+          help: nil,
+          options: nil
+        },
+        %{
+          key: "secret_key",
+          label: gettext("Secret Access Key"),
+          type: :password,
+          required: true,
+          placeholder: "...",
+          help: nil,
+          options: nil
+        },
+        %{
+          key: "region",
+          label: gettext("Region"),
+          type: :text,
+          required: false,
+          placeholder: "eu-central-1",
+          help:
+            gettext(
+              "Not every S3-compatible provider needs one — leave blank if the endpoint doesn't require it."
+            ),
+          options: nil
+        },
+        %{
+          key: "endpoint",
+          label: gettext("Endpoint"),
+          type: :text,
+          required: false,
+          placeholder: "s3.us-west-002.backblazeb2.com",
+          help:
+            gettext(
+              "Required for Cloudflare R2, Backblaze B2, Tigris, and self-hosted S3-compatible storage. Leave blank for AWS S3."
+            ),
+          options: nil
+        }
+      ],
+      capabilities: [:object_storage]
     }
   end
 

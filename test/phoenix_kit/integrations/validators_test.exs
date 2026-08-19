@@ -403,6 +403,221 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
     end
   end
 
+  describe "object_storage/1 refuses to guess" do
+    test "missing keys are reported without a network round trip" do
+      assert {:error, _} = Validators.object_storage(%{})
+      assert {:error, _} = Validators.object_storage(%{"access_key" => "AKIA_T"})
+      assert {:error, _} = Validators.object_storage(%{"secret_key" => "S"})
+    end
+
+    test "region and endpoint stay optional -- only credentials gate the network call" do
+      # No region: still attempts a real request (the default region is filled
+      # in behind the scenes) rather than being rejected up front.
+      creds = %{"access_key" => "AKIA_T", "secret_key" => "S", "endpoint" => "127.0.0.1"}
+      assert {:error, message} = Validators.object_storage(creds)
+      assert message =~ "reach"
+    end
+  end
+
+  describe "object_storage/1 really connects" do
+    test "an unreachable endpoint is rejected, distinctly from bad credentials" do
+      # Nothing listens on 127.0.0.1:443 in the test environment -- fails
+      # immediately, no outside network needed (mirrors the SMTP relay test).
+      creds = %{"access_key" => "AKIA_T", "secret_key" => "S", "endpoint" => "127.0.0.1"}
+
+      assert {:error, message} = Validators.object_storage(creds)
+      assert message =~ "reach"
+      refute message =~ "credentials"
+      refute message =~ "Incomplete"
+    end
+
+    test "an endpoint pasted with its scheme still reaches the network instead of crashing" do
+      # Before the endpoint normalization fix, a scheme-prefixed endpoint (the
+      # form R2's dashboard hands out) made ExAws raise a MatchError building
+      # the request -- silently swallowed into the same "could not reach"
+      # message. object_storage_config/1's own tests below confirm the host
+      # is actually parsed correctly; this is the end-to-end smoke test that
+      # nothing raises uncaught along the way.
+      creds = %{"access_key" => "AKIA_T", "secret_key" => "S", "endpoint" => "https://127.0.0.1/"}
+
+      assert {:error, message} = Validators.object_storage(creds)
+      assert message =~ "reach"
+    end
+  end
+
+  describe "object_storage_config/1 always resolves a real host" do
+    test "a region ExAws's own resolver silently fails on still gets a usable host" do
+      # ExAws.Config.Defaults.host(:s3, "il-central-1") returns nil -- its
+      # partition-prefix regex has no entry for newer regions. Confirmed live
+      # against this dependency version; see the inline comment in
+      # object_storage_config/1 for the full trap.
+      config =
+        Validators.object_storage_config(%{
+          "access_key" => "AKIA_T",
+          "secret_key" => "S",
+          "region" => "il-central-1"
+        })
+
+      assert Keyword.get(config, :host) == "s3.il-central-1.amazonaws.com"
+    end
+
+    test "the China partition still gets its .cn suffix" do
+      # Unlike il-central-1/mx-central-1, ExAws's own resolver gets THIS
+      # partition right (confirmed:
+      # ExAws.Config.Defaults.host(:s3, "cn-north-1") ==
+      # "s3.cn-north-1.amazonaws.com.cn") -- a naive always-hardcode-.com
+      # fix would regress a case ExAws already handled correctly.
+      config =
+        Validators.object_storage_config(%{
+          "access_key" => "AKIA_T",
+          "secret_key" => "S",
+          "region" => "cn-north-1"
+        })
+
+      assert Keyword.get(config, :host) == "s3.cn-north-1.amazonaws.com.cn"
+    end
+
+    test "no region falls back to us-east-1, both as the signing region and the host" do
+      config = Validators.object_storage_config(%{"access_key" => "AKIA_T", "secret_key" => "S"})
+
+      assert Keyword.get(config, :region) == "us-east-1"
+      assert Keyword.get(config, :host) == "s3.us-east-1.amazonaws.com"
+    end
+
+    test "a scheme-prefixed endpoint, trailing slash included, is normalized to a bare host" do
+      config =
+        Validators.object_storage_config(%{
+          "access_key" => "AKIA_T",
+          "secret_key" => "S",
+          "endpoint" => "https://abc123.r2.cloudflarestorage.com/"
+        })
+
+      assert Keyword.get(config, :host) == "abc123.r2.cloudflarestorage.com"
+    end
+
+    test "a bare endpoint is used as-is" do
+      config =
+        Validators.object_storage_config(%{
+          "access_key" => "AKIA_T",
+          "secret_key" => "S",
+          "endpoint" => "s3.us-west-002.backblazeb2.com"
+        })
+
+      assert Keyword.get(config, :host) == "s3.us-west-002.backblazeb2.com"
+    end
+  end
+
+  describe "request_list_buckets/2 confirms the invalid-credentials verdict before delivering it" do
+    # AWS briefly answers a *correct* request with SignatureDoesNotMatch right
+    # after rejecting a bad signature from the same key, and a freshly created
+    # access key answers InvalidAccessKeyId until it propagates -- both are the
+    # create-key/paste/Test flow a first-run operator produces. A verdict of
+    # "invalid" is confirmed before it is delivered, mirroring
+    # request_send_quota/3's SES confirm-retry.
+    test "a key that fails once and then succeeds is NOT called invalid" do
+      requester = stub1([{:invalid, "SignatureDoesNotMatch"}, :ok])
+
+      assert :ok == Validators.request_list_buckets(%{}, requester)
+    end
+
+    test "a key that fails twice is called invalid" do
+      requester =
+        stub1([{:invalid, "SignatureDoesNotMatch"}, {:invalid, "SignatureDoesNotMatch"}])
+
+      assert {:error, message} = Validators.request_list_buckets(%{}, requester)
+      assert message =~ "Invalid credentials"
+    end
+
+    test "a key that works is not retried" do
+      requester = stub1([:ok, {:invalid, "should never be asked for"}])
+
+      assert :ok == Validators.request_list_buckets(%{}, requester)
+    end
+
+    test "a non-credential error is returned as-is, without a retry" do
+      requester = stub1([{:error, "Storage service is busy"}, :ok])
+
+      assert {:error, "Storage service is busy"} =
+               Validators.request_list_buckets(%{}, requester)
+    end
+  end
+
+  describe "interpret_object_storage_error/1" do
+    test "InvalidAccessKeyId and SignatureDoesNotMatch are confirmed before being called invalid" do
+      for code <- ~w(InvalidAccessKeyId SignatureDoesNotMatch) do
+        assert {:invalid, ^code} = Validators.interpret_object_storage_error(s3_error(code))
+      end
+    end
+
+    test "AccessDenied means the key is real but lacks ListBuckets -- distinct from invalid credentials" do
+      # Realistic for a scoped token limited to a single bucket (common with R2
+      # API tokens and B2 application keys), so this must not read as "wrong
+      # keys" -- that would send the operator off to reissue credentials that
+      # were never the problem.
+      assert {:error, message} =
+               Validators.interpret_object_storage_error(s3_error("AccessDenied"))
+
+      assert message =~ "not authorized"
+      refute message =~ "Invalid credentials"
+    end
+
+    test "SlowDown, InternalError and ServiceUnavailable say to retry, not that credentials are wrong" do
+      for code <- ~w(SlowDown InternalError ServiceUnavailable) do
+        assert {:error, message} = Validators.interpret_object_storage_error(s3_error(code))
+        assert message =~ "busy"
+        refute message =~ "Invalid credentials"
+      end
+    end
+
+    test "RequestTimeTooSkewed is a clock problem, not something retrying fixes -- surfaced verbatim" do
+      assert {:error, message} =
+               Validators.interpret_object_storage_error(s3_error("RequestTimeTooSkewed"))
+
+      assert message =~ "RequestTimeTooSkewed"
+      refute message =~ "busy"
+    end
+
+    test "an unrecognised code is surfaced verbatim rather than guessed at" do
+      assert {:error, message} =
+               Validators.interpret_object_storage_error(s3_error("MalformedXML"))
+
+      assert message =~ "MalformedXML"
+    end
+
+    test "a body with no code, and anything that is not an HTTP error, are transport failures" do
+      assert {:error, message} =
+               Validators.interpret_object_storage_error(
+                 {:http_error, 500, %{body: "<html>502</html>"}}
+               )
+
+      assert message =~ "reach"
+      assert {:error, message} = Validators.interpret_object_storage_error(:timeout)
+      assert message =~ "reach"
+    end
+  end
+
+  defp s3_error(code) do
+    {:http_error, 403,
+     %{
+       body: "<?xml version=\"1.0\"?><Error><Code>#{code}</Code><Message>x</Message></Error>"
+     }}
+  end
+
+  # Same idea as `stub/1` below, but for the 1-arity `data -> result` shape
+  # `request_list_buckets/2`'s requester uses (SES's confirm-retry threads a
+  # region through too, hence the separate helper).
+  defp stub1(results) do
+    {:ok, agent} = Agent.start_link(fn -> results end)
+    on_exit(fn -> if Process.alive?(agent), do: Agent.stop(agent) end)
+
+    fn _data ->
+      Agent.get_and_update(agent, fn
+        [result | rest] -> {result, rest}
+        [] -> raise "the requester was called more times than the test allows"
+      end)
+    end
+  end
+
   defp stub(results) do
     {:ok, agent} = Agent.start_link(fn -> results end)
     on_exit(fn -> if Process.alive?(agent), do: Agent.stop(agent) end)

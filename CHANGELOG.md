@@ -1,3 +1,68 @@
+## 2.13.1 - 2026-08-18
+
+FK validation, auth-page SEO, an S3-compatible object-storage integration
+provider, and a tracked pre-commit hook (#733, #734, #735, #736).
+
+### Added
+
+- **V176 validates existing `NOT VALID` user foreign keys in place** and
+  never deletes or nulls a row — a name-matched re-probe after `VALIDATE`
+  guards against shape-only false positives. `mix phoenix_kit.doctor`'s
+  orphaned-FK probe now fails closed on a probe error instead of reporting a
+  pass (#733).
+- **Canonical/hreflang tags on the stable auth pages** (login, registration,
+  magic-link registration request) via a new `PhoenixKitWeb.Users.AuthSeo`
+  helper (#734).
+- **`object_storage` integration provider (S3-compatible)** — registers with
+  `PhoenixKit.Integrations`, with URL/bucket/region validators covering
+  AWS/Backblaze/Cloudflare/China-partition endpoint shapes. This is the
+  provider-side half of the bucket `integration_uuid` credential source added
+  in 2.13.0 — no admin-UI picker yet (#735).
+- **`.githooks/pre-commit`** is now tracked in the repo (`git config
+  core.hooksPath .githooks` to enable) and `mix phoenix_kit.doctor` reports
+  its status under "Git Hooks" — scoped to a checkout of phoenix_kit itself,
+  since the hook is a contributor convention, not something installed into a
+  consuming host app (#736).
+
+### Fixed
+
+- **`.githooks/pre-commit` now runs the same steps as `mix precommit`**, in
+  the same order (`compile --warnings-as-errors --all-warnings`,
+  `deps.unlock --check-unused`, `quality.ci`, `test.js`), instead of a
+  weaker, format-mutating `mix quality` that could leave the working tree
+  dirty immediately after a hook-approved commit (post-#736 review fix).
+
+## 2.13.0 - 2026-08-18
+
+Storage bucket credentials are now encrypted at rest, with an alternative
+credential source for cloud buckets (#732).
+
+### Added
+
+- **`phoenix_kit_buckets.integration_uuid`** — a cloud bucket (S3/B2/R2) may
+  now point at a `PhoenixKit.Integrations` connection instead of storing
+  `access_key_id`/`secret_access_key` directly. Mutually exclusive with the
+  bucket's own credentials — `Bucket.changeset/2` rejects setting both in the
+  same change rather than letting one silently win. Not yet wired up to any
+  admin UI or a registered `object_storage` integration provider — usable via
+  the context API today, a follow-up PR is expected to add the picker (#732).
+- **`PhoenixKit.Integrations.Encryption.encrypt_value/1` and `decrypt_value/1`**
+  — single-value encrypt/decrypt for callers with one bare field to protect
+  (e.g. an Ecto schema field) rather than a full `encrypt_fields/1`-shaped map.
+  Same cipher, key derivation, and `enc:v1:` prefix (#732).
+
+### Changed
+
+- **`secret_access_key` on storage buckets is now encrypted at rest**, decrypted
+  only at the point of use (`Providers.S3.resolve_credentials/1`) — general
+  accessors like `Storage.get_bucket/1` return it as stored. A row written
+  before encryption existed stays plaintext until the next save of the bucket
+  for any reason (no bulk backfill). `access_key_id` is left as-is — it is a
+  credentials identifier, not a secret (#732).
+- **`phoenix_kit_buckets.secret_access_key` widened from `varchar(255)` to
+  `text`** (migration V175) — the encrypted encoding runs ~1.6x the plaintext
+  length, which overflowed the old column past a ~158-char secret (#732).
+
 ## 2.12.1 - 2026-08-17
 
 Two defects in the sitemap domain-mode code that landed with 2.12.0, found by
