@@ -126,11 +126,16 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # PBKDF2-HMAC-SHA256 with 100_000 iterations (~0.1 CPU-sec) to fingerprint
   # the key. `load_connections/1` runs on every PubSub event this LiveView
   # gets, including ones about connections that have nothing to do with the
-  # key, so paying that cost there on each one would be wasted work. The
-  # dedicated key itself can only change by restarting the app — rotation is
-  # a Mix task, and there is no running-app event for "the key changed" — and
-  # a restart remounts this LiveView anyway, so mount is the only point where
-  # the report can actually be stale.
+  # key, so paying that cost there on each one would be wasted work.
+  #
+  # The trade-off this accepts: the report CAN go stale before the operator
+  # reloads the page. The dedicated key itself only changes on a restart
+  # (rotation is a Mix task, and there is no running-app event for "the key
+  # changed"), which would remount this LiveView anyway — but the STORE
+  # around that key is read fresh on every `key_report/0` call precisely so
+  # `store_unreadable`/`store_shadowed`/`no_secret_yet` can flip on a live VM
+  # without a restart (see `Encryption.key_signals/0` and `store_state/2`),
+  # and this page will not notice such a flip until it is reloaded.
   defp load_encryption_report(socket) do
     # ONE report per mount. This used to be three separate calls —
     # `status/0`, `key_diagnosis/0`, `key_fingerprint/0` — each re-resolving the
