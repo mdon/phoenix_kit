@@ -67,6 +67,32 @@
             <% end %>
           </div>
         </div>
+
+        <div class="divider my-0"></div>
+
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 class="font-semibold">{gettext("Sitemap Exemption")}</h3>
+            <p class="text-sm text-base-content/70">
+              {gettext(
+                "Keep publishing the sitemap's real URLs even while noindex is on, so the feed can be verified without exposing the site to indexing. The noindex meta tag above is unaffected either way."
+              )}
+            </p>
+          </div>
+          <label class="flex items-center gap-2 cursor-pointer shrink-0">
+            <span class="text-sm font-semibold text-base-content/70">
+              {if @sitemap_exempt_from_no_index,
+                do: gettext("Exempt"),
+                else: gettext("Follows noindex")}
+            </span>
+            <input
+              type="checkbox"
+              class="toggle toggle-primary"
+              checked={@sitemap_exempt_from_no_index}
+              phx-click="toggle_sitemap_exempt_from_no_index"
+            />
+          </label>
+        </div>
       </div>
     </div>
 

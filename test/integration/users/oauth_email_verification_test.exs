@@ -246,6 +246,27 @@ defmodule PhoenixKit.Integration.Users.OAuthEmailVerificationTest do
       assert created.confirmed_at
       assert confirm_tokens_for(created) == 0
     end
+
+    test "is created when geolocation tracking is enabled, even though the OAuth attrs arrive atom-keyed" do
+      # `register_oauth_user/3` builds `attrs` with ATOM keys (:email,
+      # :password, ...). `Auth.register_user_with_geolocation/2` used to
+      # `Map.put(attrs, "registration_ip", ip)` — a STRING key — producing a
+      # mixed atom/string-keyed map that `Ecto.Changeset.cast/3` refuses
+      # outright with `Ecto.CastError`. This is the real production path:
+      # `handle_oauth_callback/2` runs with `track_geolocation: true` and a
+      # real IP whenever the host app turns geolocation tracking on.
+      #
+      # "127.0.0.1" hits `Geolocation.lookup_location/1`'s early-return
+      # branch, so this stays network-free while still exercising the exact
+      # mixed-key merge that crashed in production.
+      email = unique_email()
+
+      assert {:ok, created, :created} =
+               OAuth.find_or_create_user(oauth_data(email), true, "127.0.0.1")
+
+      assert created.email == email
+      assert created.registration_ip == "127.0.0.1"
+    end
   end
 
   defp confirm_tokens_for(user) do

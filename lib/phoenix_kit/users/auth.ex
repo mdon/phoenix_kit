@@ -515,6 +515,12 @@ defmodule PhoenixKit.Users.Auth do
       {:error, %Ecto.Changeset{}}
   """
   def register_user_with_geolocation(attrs, ip_address) when is_binary(ip_address) do
+    # `attrs` may arrive atom-keyed (e.g. the OAuth registration path) or
+    # string-keyed (e.g. form params). Normalize to string keys before
+    # merging in any of our own string-keyed fields below — Ecto.Changeset.cast/3
+    # raises Ecto.CastError on a map with mixed atom/string keys.
+    attrs = stringify_keys(attrs)
+
     # Start with the IP address
     enhanced_attrs = Map.put(attrs, "registration_ip", ip_address)
 
@@ -545,6 +551,10 @@ defmodule PhoenixKit.Users.Auth do
   def register_user_with_geolocation(attrs, _invalid_ip) do
     # Invalid IP provided, register without geolocation data
     register_user(attrs, nil)
+  end
+
+  defp stringify_keys(attrs) do
+    Map.new(attrs, fn {key, value} -> {to_string(key), value} end)
   end
 
   @doc """

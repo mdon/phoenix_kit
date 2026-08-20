@@ -1,3 +1,26 @@
+## 2.13.2 - 2026-08-19
+
+A catalogue attribute-sets table, an OAuth registration crash fix, and a
+sitemap/noindex decoupling flag (#737, #739, #740).
+
+### Added
+
+- **V177: `phoenix_kit_cat_item_attribute_sets`** — the catalogue's item ↔
+  attribute-set join backing the attribute-sets rework, with a reserved
+  per-attachment `data` JSONB for upcoming per-item value selection (#737).
+- **`crawlers_sitemap_exempt_from_no_index`** setting — lets an operator keep
+  the sitemap publishing its real URLs while `crawlers_no_index` is active,
+  without touching the `noindex` robots meta directive. Off by default, so
+  existing installs keep today's lockstep behavior (#740).
+
+### Fixed
+
+- **`Ecto.CastError` on OAuth registration with geolocation tracking
+  enabled** — `register_user_with_geolocation/2` merged a string key onto
+  atom-keyed `attrs` from the OAuth path, producing a mixed-key map that
+  `Ecto.Changeset.cast/3` rejects outright. `attrs` is now normalized to
+  string keys before the merge (#739).
+
 ## 2.13.1 - 2026-08-18
 
 FK validation, auth-page SEO, an S3-compatible object-storage integration
