@@ -7,7 +7,19 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V178 - Catalogue ↔ CRM: soft party cross-references ⚡ LATEST
+  ### V179 - Catalogue: item → manufacturer becomes a federated reference ⚡ LATEST
+
+  Adds `phoenix_kit_cat_items.manufacturer_source` (`local` | `crm_company`,
+  CHECK-backed) and `manufacturer_name_snapshot` (a tombstone read only when
+  the reference resolves to nothing), and DROPS the foreign key
+  `phoenix_kit_cat_items_manufacturer_uuid_fkey`. That FK made an item's
+  manufacturer necessarily a local catalogue row, which is incompatible with
+  CRM owning party identity; the item↔supplier junction has used soft uuid +
+  source tag + snapshot since V149/V151 and this brings manufacturers into
+  line. Integrity moves to the application, as it already had to for every
+  other cross-module reference.
+
+  ### V178 - Catalogue ↔ CRM: soft party cross-references
 
   Adds `phoenix_kit_cat_manufacturers.crm_company_uuid` (nullable, no FK —
   optional-module boundary) and the partial unique indexes that keep both
@@ -614,7 +626,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 178
+  @current_version 179
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
