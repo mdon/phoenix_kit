@@ -7,7 +7,19 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V177 - Catalogue: item ↔ attribute-set attachments ⚡ LATEST
+  ### V178 - Catalogue ↔ CRM: soft party cross-references ⚡ LATEST
+
+  Adds `phoenix_kit_cat_manufacturers.crm_company_uuid` (nullable, no FK —
+  optional-module boundary) and the partial unique indexes that keep both
+  catalogue directories one-to-one against a CRM party: manufacturers here,
+  suppliers retro-fitted onto the column V149 added without one. CRM owns
+  party identity; the local `cat_suppliers`/`cat_manufacturers` rows are
+  demoted to a projection of it and stay, because catalogue-standalone
+  installs have no CRM and `cat_items.manufacturer_uuid` is still a hard FK
+  onto the local row. Additive only — nothing the ExpectedSchema manifest
+  already declares is reshaped.
+
+  ### V177 - Catalogue: item ↔ attribute-set attachments
 
   Adds `phoenix_kit_cat_item_attribute_sets` — the join behind the
   catalogue's attribute-sets rework: items attach any number of ordered
@@ -602,7 +614,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 177
+  @current_version 178
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

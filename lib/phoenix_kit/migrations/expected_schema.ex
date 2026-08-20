@@ -155,7 +155,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "4a813f06ec7229f847b28a47487afe755e6c30a76e2b7b191ae92812b3f29227"
+  @chain_hash "b26339008a8bd4eeeb6a9a3192ea37e3153c642eea8b83edd8229aefbda218d7"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -69981,6 +69981,95 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              definition:
                "CREATE INDEX phoenix_kit_cat_item_attribute_sets_set_uuid_index ON __SCHEMA__.phoenix_kit_cat_item_attribute_sets USING btree (set_uuid)",
              predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+
+      # ── DECLARED POST-GENERATION (2026-08-20): V178 catalogue ↔ CRM xrefs ──
+      # One column + two partial unique indexes, hand-declared like the V177
+      # block above (no pre-squash regenerate available in this session).
+      # Shapes are CATALOG-EXACT — introspected from a phoenix_kit_test DB
+      # freshly migrated through V178 (format_type / pg_get_expr / pg_indexes),
+      # not transcribed from the migration source. The supplier index is
+      # `since: 178` even though its COLUMN is V149's: the index is what V178
+      # adds, and `since` gates on the object, not on the column it covers.
+      # Deliberately absent: any FK on either `crm_company_uuid` — they point
+      # at `phoenix_kit_crm_companies` across an optional-module boundary and
+      # the CRM tables need not exist; see the V178 migration moduledoc.
+
+      %{
+        id: "column:phoenix_kit_cat_manufacturers.crm_company_uuid",
+        owner: :catalogue,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_cat_manufacturers", column: "crm_company_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_cat_manufacturers ADD COLUMN IF NOT EXISTS \"crm_company_uuid\" uuid",
+        since: 178,
+        class: :column,
+        revisions: [{178, %{default: nil, type: "uuid", pos: 12, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_cat_manufacturers_crm_company_uuid_index",
+        owner: :catalogue,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_cat_manufacturers_crm_company_uuid_index",
+             table: "phoenix_kit_cat_manufacturers",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_cat_manufacturers_crm_company_uuid_index ON __SCHEMA__.phoenix_kit_cat_manufacturers USING btree (crm_company_uuid) WHERE (crm_company_uuid IS NOT NULL)",
+        since: 178,
+        class: :index,
+        revisions: [
+          {178,
+           %{
+             table: "phoenix_kit_cat_manufacturers",
+             keys: ["crm_company_uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_cat_manufacturers_crm_company_uuid_index ON __SCHEMA__.phoenix_kit_cat_manufacturers USING btree (crm_company_uuid) WHERE (crm_company_uuid IS NOT NULL)",
+             predicate: "(crm_company_uuid IS NOT NULL)",
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_cat_suppliers_crm_company_uuid_index",
+        owner: :catalogue,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_cat_suppliers_crm_company_uuid_index",
+             table: "phoenix_kit_cat_suppliers",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_cat_suppliers_crm_company_uuid_index ON __SCHEMA__.phoenix_kit_cat_suppliers USING btree (crm_company_uuid) WHERE (crm_company_uuid IS NOT NULL)",
+        since: 178,
+        class: :index,
+        revisions: [
+          {178,
+           %{
+             table: "phoenix_kit_cat_suppliers",
+             keys: ["crm_company_uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_cat_suppliers_crm_company_uuid_index ON __SCHEMA__.phoenix_kit_cat_suppliers USING btree (crm_company_uuid) WHERE (crm_company_uuid IS NOT NULL)",
+             predicate: "(crm_company_uuid IS NOT NULL)",
              opclasses: ["uuid_ops"],
              name_template: nil
            }}

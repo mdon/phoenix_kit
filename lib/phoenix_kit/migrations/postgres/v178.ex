@@ -1,0 +1,92 @@
+defmodule PhoenixKit.Migrations.Postgres.V178 do
+  @moduledoc """
+  V178: soft CRM cross-references on the catalogue's party-like directories —
+  `phoenix_kit_cat_manufacturers.crm_company_uuid`, plus the partial unique
+  indexes that keep BOTH directories one-to-one against a CRM party.
+
+  ## Why
+
+  CRM is the party master (see the CRM v2 parties design doc): "supplier" and
+  "manufacturer" are roles on a CRM company/contact. The catalogue's local
+  `phoenix_kit_cat_suppliers` / `phoenix_kit_cat_manufacturers` rows are
+  demoted to a *projection* of that party — kept, not deleted, because
+  catalogue-standalone installs have no CRM and because
+  `phoenix_kit_cat_items.manufacturer_uuid` is still a hard FK onto the local
+  manufacturer row. `crm_company_uuid` is the transition cross-reference (the
+  SAP CVI pattern): nullable, no FK (optional-module boundary — the CRM tables
+  may not exist), stamped when a human links the two.
+
+  Suppliers got their column in V149. Manufacturers get theirs here, and the
+  uniqueness both have always needed lands for both at once.
+
+  ## The unique indexes are the point, not decoration
+
+  Without them nothing stops two local rows claiming the same CRM party, which
+  is the split-brain this projection design invites: the picker would list one
+  party twice and "which projection is authoritative" would have no answer.
+  Partial (`WHERE ... IS NOT NULL`) so the unlinked majority stays unconstrained
+  — many rows may have no CRM party, but a party has at most one projection per
+  directory.
+
+  **Precondition:** an install that already stamped duplicate `crm_company_uuid`
+  values onto `phoenix_kit_cat_suppliers` would fail index creation here. That
+  column has been unmapped in the Ecto schema since V149 — only the opt-in
+  backfill task could write it — so resolve duplicates before upgrading if a
+  run of that task ever produced them.
+
+  Additive only: no drops, no reshapes of anything core's ExpectedSchema
+  manifest already declares.
+  """
+
+  use Ecto.Migration
+
+  def up(opts) do
+    prefix = Map.get(opts, :prefix, "public")
+    p = prefix_str(prefix)
+
+    execute("""
+    ALTER TABLE #{p}phoenix_kit_cat_manufacturers
+    ADD COLUMN IF NOT EXISTS crm_company_uuid UUID
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_cat_manufacturers_crm_company_uuid_index
+      ON #{p}phoenix_kit_cat_manufacturers (crm_company_uuid)
+      WHERE crm_company_uuid IS NOT NULL
+    """)
+
+    execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_cat_suppliers_crm_company_uuid_index
+      ON #{p}phoenix_kit_cat_suppliers (crm_company_uuid)
+      WHERE crm_company_uuid IS NOT NULL
+    """)
+
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '178'")
+  end
+
+  @doc """
+  Rolls V178 back: drops both partial unique indexes and the manufacturer
+  cross-reference column.
+
+  **Lossy:** manufacturer→CRM links are lost (the supplier column is V149's and
+  survives). Nothing else is touched — the CRM party rows and their roles live
+  in CRM's own tables and are not this migration's to remove.
+  """
+  def down(opts) do
+    prefix = Map.get(opts, :prefix, "public")
+    p = prefix_str(prefix)
+
+    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_cat_suppliers_crm_company_uuid_index")
+    execute("DROP INDEX IF EXISTS #{p}phoenix_kit_cat_manufacturers_crm_company_uuid_index")
+
+    execute("""
+    ALTER TABLE #{p}phoenix_kit_cat_manufacturers
+    DROP COLUMN IF EXISTS crm_company_uuid
+    """)
+
+    execute("COMMENT ON TABLE #{p}phoenix_kit IS '177'")
+  end
+
+  defp prefix_str("public"), do: "public."
+  defp prefix_str(prefix), do: "#{prefix}."
+end
