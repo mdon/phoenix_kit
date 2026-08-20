@@ -598,6 +598,33 @@ defmodule PhoenixKit.Integrations.KeyStoreTest do
       assert [{__MODULE__.FailingStore, []}, {__MODULE__.MemoryStore, [id: :spare]}] =
                Chain.stores(stores: [__MODULE__.FailingStore, memory(:spare)])
     end
+
+    # An empty `:stores` list is a configuration mistake (see the moduledoc's
+    # "What this deliberately does not do"), not a working "store nothing"
+    # state — a bare `preflight`/`write` success here is what let a rotation
+    # start against a chain that would silently save nothing.
+    test "an empty chain fails preflight, not :ok" do
+      assert {:error, {:empty_chain, Chain}} = Chain.preflight(chain([]))
+    end
+
+    test "an empty chain fails write, not :ok" do
+      assert {:error, {:empty_chain, Chain}} = Chain.write(@secret, chain([]))
+    end
+
+    test "an empty chain fails read, not :not_configured" do
+      assert {:error, {:empty_chain, Chain}} = Chain.read(chain([]))
+    end
+
+    test "an empty chain's describe names it, never an empty string" do
+      described = Chain.describe(chain([]))
+      assert is_binary(described)
+      assert described != ""
+      assert described =~ "empty"
+    end
+
+    test "an absent :stores option is empty too" do
+      assert {:error, {:empty_chain, Chain}} = Chain.preflight([])
+    end
   end
 
   describe "the S3 store refuses to act without a bucket" do

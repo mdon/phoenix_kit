@@ -51,9 +51,9 @@ defmodule PhoenixKit.Integrations.KeyStore.Chain do
 
   @impl true
   def read(opts) do
-    opts
-    |> stores()
-    |> read_in_order([])
+    with {:ok, members} <- stores_or_error(opts) do
+      read_in_order(members, [])
+    end
   end
 
   # `skipped` carries every store passed over, whether it was empty or failed.
@@ -110,41 +110,49 @@ defmodule PhoenixKit.Integrations.KeyStore.Chain do
 
   @impl true
   def write(secret, opts) do
-    results =
-      for {module, store_opts} <- stores(opts) do
-        {module, KeyStore.invoke_store(module, :write, [secret, store_opts])}
-      end
+    with {:ok, members} <- stores_or_error(opts) do
+      results =
+        for {module, store_opts} <- members do
+          {module, KeyStore.invoke_store(module, :write, [secret, store_opts])}
+        end
 
-    case Enum.reject(results, fn {_module, result} -> result == :ok end) do
-      [] -> :ok
-      failures -> {:error, {:chain_write_failed, failures}}
+      case Enum.reject(results, fn {_module, result} -> result == :ok end) do
+        [] -> :ok
+        failures -> {:error, {:chain_write_failed, failures}}
+      end
     end
   end
 
   @impl true
   def preflight(opts) do
-    results =
-      for {module, store_opts} <- stores(opts) do
-        {module, KeyStore.invoke_store(module, :preflight, [store_opts])}
-      end
+    with {:ok, members} <- stores_or_error(opts) do
+      results =
+        for {module, store_opts} <- members do
+          {module, KeyStore.invoke_store(module, :preflight, [store_opts])}
+        end
 
-    case Enum.reject(results, fn {_module, result} -> result == :ok end) do
-      [] -> :ok
-      failures -> {:error, {:chain_preflight_failed, failures}}
+      case Enum.reject(results, fn {_module, result} -> result == :ok end) do
+        [] -> :ok
+        failures -> {:error, {:chain_preflight_failed, failures}}
+      end
     end
   end
 
   @impl true
   def describe(opts) do
-    opts
-    |> stores()
-    |> Enum.map_join(", then ", fn {module, store_opts} ->
-      KeyStore.invoke_store(module, :describe, [store_opts])
-      |> case do
-        location when is_binary(location) -> location
-        _ -> inspect(module)
-      end
-    end)
+    case stores(opts) do
+      [] ->
+        "an empty key store chain (no stores configured)"
+
+      members ->
+        Enum.map_join(members, ", then ", fn {module, store_opts} ->
+          KeyStore.invoke_store(module, :describe, [store_opts])
+          |> case do
+            location when is_binary(location) -> location
+            _ -> inspect(module)
+          end
+        end)
+    end
   end
 
   @doc """
@@ -162,5 +170,16 @@ defmodule PhoenixKit.Integrations.KeyStore.Chain do
       {module, store_opts} when is_atom(module) and is_list(store_opts) -> {module, store_opts}
       module when is_atom(module) -> {module, []}
     end)
+  end
+
+  # `read/1`, `write/2` and `preflight/1` all start here so a chain configured
+  # with an empty `:stores` list fails loudly instead of vacuously succeeding
+  # — see the moduledoc's "What this deliberately does not do".
+  @spec stores_or_error(keyword()) :: {:ok, [{module(), keyword()}]} | {:error, term()}
+  defp stores_or_error(opts) do
+    case stores(opts) do
+      [] -> {:error, {:empty_chain, __MODULE__}}
+      members -> {:ok, members}
+    end
   end
 end
