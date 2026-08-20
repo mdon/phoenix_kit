@@ -16,13 +16,20 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   def mount(_params, _session, socket) do
     # Set locale for LiveView process
 
-    # Load current settings
-    current_settings = Settings.list_all_settings()
+    # Load current settings. S007: this page never renders the OAuth login
+    # secrets or AWS keys, so it has no reason to hold their real values in
+    # socket state — list_public_settings/0 (an explicit allow list) leaves
+    # them out entirely rather than loading and merely not rendering them.
+    current_settings = Settings.list_public_settings()
     defaults = Settings.get_defaults()
     setting_options = Settings.get_setting_options()
 
-    # Merge defaults with current settings
-    merged_settings = Map.merge(defaults, current_settings)
+    # Merge defaults with current settings, then take only the public keys
+    # again — defaults still lists the restricted ones (harmless placeholder
+    # values), and the merge must not reintroduce them.
+    merged_settings =
+      Map.merge(defaults, current_settings)
+      |> Map.take(Settings.public_setting_keys())
 
     # Load custom fields
     field_definitions = CustomFields.list_field_definitions()
