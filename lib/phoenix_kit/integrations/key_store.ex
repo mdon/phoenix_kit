@@ -275,6 +275,22 @@ defmodule PhoenixKit.Integrations.KeyStore do
   def describe_error({:store_raised, module, fun, kind}),
     do: "#{inspect(module)}.#{fun} raised #{inspect(kind)}"
 
+  def describe_error({:empty_chain, _module}),
+    do: "the chain has no stores configured"
+
+  # `Chain.read/1` failing is Chain's OWN failure, not a third-party store's —
+  # naming it here, rather than letting it fall to the generic tuple catch-all
+  # below, is what keeps the failing chain member and its reason on the
+  # operator-facing message instead of behind "details withheld".
+  def describe_error({:chain_read_failed, module, reason}),
+    do: "chain member #{inspect(module)} failed: #{describe_error(reason)}"
+
+  def describe_error({:chain_write_failed, failures}) when is_list(failures),
+    do: "chain write failed for " <> describe_chain_failures(failures)
+
+  def describe_error({:chain_preflight_failed, failures}) when is_list(failures),
+    do: "chain pre-flight failed for " <> describe_chain_failures(failures)
+
   def describe_error({kind, path, reason}) when is_atom(kind) and is_binary(path),
     do: "#{kind} at #{path}: #{inspect(reason)}"
 
@@ -284,6 +300,17 @@ defmodule PhoenixKit.Integrations.KeyStore do
 
   def describe_error(reason) when is_atom(reason), do: inspect(reason)
   def describe_error(_reason), do: "an unrecognised error (details withheld)"
+
+  # Each entry is `{module, result}` for a chain member that did not return
+  # `:ok`. Describing every one, not just the first, is why `Chain.write/2`
+  # collects the whole list rather than stopping at the first failure.
+  @spec describe_chain_failures([{module(), term()}]) :: String.t()
+  defp describe_chain_failures(failures) do
+    Enum.map_join(failures, "; ", fn
+      {module, {:error, reason}} -> "#{inspect(module)} (#{describe_error(reason)})"
+      {module, other} -> "#{inspect(module)} (#{inspect(other)})"
+    end)
+  end
 
   @doc "Drops the memoised secret. Safe to call when nothing is cached."
   @spec invalidate_cache() :: :ok

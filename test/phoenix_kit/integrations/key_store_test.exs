@@ -444,6 +444,56 @@ defmodule PhoenixKit.Integrations.KeyStoreTest do
     end
   end
 
+  # `PhoenixKit.Integrations.KeyStore.Chain` is first-party, not a
+  # "third-party store" — its own failure terms must be named and their
+  # nested member reasons described, not swallowed by the generic
+  # "details withheld" catch-all above.
+  describe "describe_error/1 names Chain's own failures instead of hiding them" do
+    test "an empty chain is described, not withheld" do
+      described = KeyStore.describe_error({:empty_chain, PhoenixKit.Integrations.KeyStore.Chain})
+
+      refute described =~ "third-party"
+      refute described =~ "withheld"
+    end
+
+    test "chain_read_failed names the failing member and its reason" do
+      described =
+        KeyStore.describe_error({:chain_read_failed, PhoenixKit.Integrations.KeyStore.S3, :boom})
+
+      refute described =~ "third-party"
+      refute described =~ "withheld"
+      assert described =~ "PhoenixKit.Integrations.KeyStore.S3"
+    end
+
+    test "chain_write_failed names every failing member and its reason" do
+      failures = [
+        {PhoenixKit.Integrations.KeyStore.File, {:error, {:empty, "/k"}}},
+        {PhoenixKit.Integrations.KeyStore.S3, {:error, :boom}}
+      ]
+
+      described = KeyStore.describe_error({:chain_write_failed, failures})
+
+      refute described =~ "third-party"
+      refute described =~ "withheld"
+      assert described =~ "PhoenixKit.Integrations.KeyStore.File"
+      assert described =~ "exists but is empty"
+      assert described =~ "PhoenixKit.Integrations.KeyStore.S3"
+    end
+
+    test "chain_preflight_failed names the failing member and its reason" do
+      failures = [
+        {PhoenixKit.Integrations.KeyStore.S3, {:error, {:store_unavailable, MissingModule}}}
+      ]
+
+      described = KeyStore.describe_error({:chain_preflight_failed, failures})
+
+      refute described =~ "third-party"
+      refute described =~ "withheld"
+      assert described =~ "PhoenixKit.Integrations.KeyStore.S3"
+      assert described =~ "not loaded"
+    end
+  end
+
   describe "Chain keeps the secret in more than one place" do
     alias PhoenixKit.Integrations.KeyStore.Chain
 
