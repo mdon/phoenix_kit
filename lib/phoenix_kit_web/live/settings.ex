@@ -23,13 +23,22 @@ defmodule PhoenixKitWeb.Live.Settings do
       SettingsEvents.subscribe_to_settings()
     end
 
-    # Load current settings from database
-    current_settings = Settings.list_all_settings()
+    # Load current settings from database. S007: this page never renders the
+    # OAuth login secrets or AWS keys (that's the Authorization page's job),
+    # so it has no reason to hold their real values in socket state at all —
+    # list_public_settings/0 (an explicit allow list, not a redaction of
+    # list_all_settings/0) leaves them out entirely.
+    current_settings = Settings.list_public_settings()
     defaults = Settings.get_defaults()
     setting_options = Settings.get_setting_options()
 
-    # Merge defaults with current settings to ensure all keys exist
-    merged_settings = Map.merge(defaults, current_settings)
+    # Merge defaults with current settings to ensure all keys exist, then
+    # take only the public keys again — defaults still lists the restricted
+    # ones (with their harmless placeholder values), and the merge must not
+    # reintroduce them.
+    merged_settings =
+      Map.merge(defaults, current_settings)
+      |> Map.take(Settings.public_setting_keys())
 
     # Create form changeset
     changeset = Settings.change_settings(merged_settings)

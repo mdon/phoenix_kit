@@ -83,6 +83,93 @@ defmodule PhoenixKit.Settings do
   # is how the halves of a read/write pair drift apart.
   @not_found_sentinel :__setting_does_not_exist__
 
+  # S007: keys that hold live credential material, not just data an admin
+  # would rather keep quiet. `oauth_*_client_id`/`oauth_*_app_id` are NOT
+  # here on purpose — they are public by OAuth's own design (visible in the
+  # authorization redirect URL) and carry no exposure to guard.
+  @restricted_setting_keys ~w(
+    oauth_google_client_secret
+    oauth_github_client_secret
+    oauth_facebook_app_secret
+    aws_access_key_id
+    aws_secret_access_key
+  )
+
+  # The explicit ALLOW list `list_public_settings/0` reads from. Deliberately
+  # NOT "get_defaults() keys minus @restricted_setting_keys" — that would
+  # make every future setting public by default until someone remembers to
+  # blacklist it, which is exactly the failure mode this replaces (the core
+  # only recognized a setting as sensitive by `module == "integrations"`,
+  # which OAuth login credentials never belonged to). A key missing from
+  # BOTH this list and @restricted_setting_keys fails the partition
+  # invariant in settings_test.exs instead of silently defaulting to shown.
+  @public_setting_keys ~w(
+    project_title
+    site_url
+    main_page_path
+    allow_registration
+    require_email_confirmation
+    remember_me_enabled
+    remember_me_default
+    dev_mailbox_enabled
+    after_login_path
+    after_registration_path
+    oauth_enabled
+    oauth_google_enabled
+    oauth_github_enabled
+    oauth_facebook_enabled
+    oauth_require_verified_email
+    magic_link_login_enabled
+    magic_link_registration_enabled
+    qr_login_enabled
+    new_login_alert_enabled
+    mentions_enabled
+    mentions_redact_titles
+    new_user_default_role
+    new_user_default_status
+    week_start_day
+    time_zone
+    date_format
+    time_format
+    editor_default_mode
+    track_registration_geolocation
+    registration_show_username
+    site_icon_file_uuid
+    default_tab_title
+    auth_logo_file_uuid
+    auth_background_image_file_uuid
+    auth_background_image_mobile_file_uuid
+    auth_background_color
+    email_enabled
+    email_save_body
+    email_ses_events
+    email_retention_days
+    email_sampling_rate
+    email_compress_body
+    email_archive_to_s3
+    aws_region
+    aws_sns_topic_arn
+    aws_sqs_queue_url
+    aws_sqs_queue_arn
+    aws_sqs_dlq_url
+    aws_ses_configuration_set
+    sqs_polling_enabled
+    sqs_polling_interval_ms
+    sqs_max_messages_per_poll
+    sqs_visibility_timeout
+    crawlers_module_enabled
+    crawlers_no_index
+    enable_organization_accounts
+    webhook_verify_sns_signature
+    webhook_check_aws_ip
+    webhook_rate_limit_enabled
+    oauth_google_client_id
+    oauth_github_client_id
+    oauth_facebook_app_id
+    notifications_enabled
+    multi_session_enabled
+  )
+
   @doc """
   Gets default values for all settings.
 
@@ -1089,6 +1176,31 @@ defmodule PhoenixKit.Settings do
   def list_settings do
     Queries.list_settings()
   end
+
+  @doc """
+  Lists settings safe to load on admin pages that do not manage OAuth login
+  credentials or AWS keys (General, Users) — same shape as
+  `list_all_settings/0`, filtered down to `@public_setting_keys`.
+
+  The Authorization page manages the OAuth credentials themselves and keeps
+  calling `list_all_settings/0` directly; it has a legitimate reason to hold
+  those values that General and Users do not.
+
+  ## Examples
+
+      iex> PhoenixKit.Settings.list_public_settings()
+      %{"time_zone" => "0", "date_format" => "Y-m-d"}
+  """
+  def list_public_settings do
+    list_all_settings()
+    |> Map.take(@public_setting_keys)
+  end
+
+  @doc false
+  def public_setting_keys, do: @public_setting_keys
+
+  @doc false
+  def restricted_setting_keys, do: @restricted_setting_keys
 
   @doc """
   Gets the available role options for the new user default role setting.
