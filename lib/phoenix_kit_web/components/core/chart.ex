@@ -80,6 +80,16 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   attr :x_domain, :any, default: nil, doc: "{min, max} for x, or nil to fit data"
   attr :y_domain, :any, default: nil, doc: "{min, max} for y, or nil to fit data (10% padded)"
   attr :marker_x, :any, default: nil, doc: "x position for a dashed vertical marker, or nil"
+
+  attr :y_invert, :boolean,
+    default: false,
+    doc:
+      "Flip the y axis so SMALLER values plot higher. For rank-like data " <>
+        "(search position, race place, leaderboard) where 1 is the best " <>
+        "result and belongs at the top. Without it callers had to negate " <>
+        "their own values, which flips the sign of every domain and marker " <>
+        "they pass too."
+
   attr :width, :integer, default: 960, doc: "viewBox width (the SVG scales to its container)"
   attr :height, :integer, default: 240, doc: "viewBox height"
   attr :gridlines, :integer, default: 3, doc: "Number of horizontal gridlines (0 disables)"
@@ -181,6 +191,11 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   attr :values, :list, required: true, doc: "Numbers, in order. Non-numeric values are dropped."
   attr :width, :integer, default: 200, doc: "viewBox width"
   attr :height, :integer, default: 48, doc: "viewBox height"
+
+  attr :y_invert, :boolean,
+    default: false,
+    doc: "Flip the y axis so SMALLER values plot higher — rank-like data."
+
   attr :class, :any, default: nil, doc: "Classes for the wrapper (set text-* for colour)"
 
   attr :aria_label, :string,
@@ -382,7 +397,11 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         to_y = axis_scale(y_min, y_max, height)
 
         px = fn x -> round1(to_x.(x)) end
-        py = fn y -> round1(height - to_y.(y)) end
+
+        py =
+          if assigns.y_invert,
+            do: fn y -> round1(to_y.(y)) end,
+            else: fn y -> round1(height - to_y.(y)) end
 
         points = plot_points(data, assigns.step, px, py, x_max)
         line_path = to_path(points)
@@ -521,7 +540,9 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
     max(max(abs(y_max), abs(y_min)) * 1.0e-6, 1.0e-9)
   end
 
-  defp sparkline_points(%{values: values, width: width, height: height}) do
+  defp sparkline_points(%{values: values, width: width, height: height} = assigns) do
+    invert = Map.get(assigns, :y_invert, false)
+
     raw = List.wrap(values)
     n = length(raw)
 
@@ -554,7 +575,8 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
 
         Enum.map_join(kept, " ", fn {v, i} ->
           x = round1(i / last * width)
-          y = round1(height - 4 - (v - lo) / span * (height - 8))
+          offset = (v - lo) / span * (height - 8)
+          y = if invert, do: round1(4 + offset), else: round1(height - 4 - offset)
           "#{x},#{y}"
         end)
     end
