@@ -1,3 +1,29 @@
+## 2.13.3 - 2026-08-20
+
+Closes an OAuth/AWS secret-value leak on the General and Users settings
+pages (#741), plus a post-merge fix for a reset-to-defaults gap the same PR
+left open.
+
+### Fixed
+
+- **OAuth login secrets and AWS credentials no longer load into the
+  General/Users settings LiveViews** — both mounted with
+  `Settings.list_all_settings/0`, holding the real `oauth_*_client_secret`
+  and `aws_access_key_id`/`aws_secret_access_key` values in socket state
+  even though only the Authorization page renders them. Replaced with
+  `Settings.list_public_settings/0`, an explicit allow list
+  (`@public_setting_keys`) rather than a blacklist of `list_all_settings/0`
+  — a new setting that isn't classified on either list now fails a test
+  instead of silently defaulting to exposed (#741).
+- **General settings' "Reset to Defaults" no longer overwrites those same
+  restricted keys** — the reset handler still called `update_settings/1`
+  with the full, unfiltered defaults map (including the 5 restricted keys),
+  so clicking Reset silently wiped live OAuth client secrets and AWS
+  credentials — `aws_access_key_id`/`aws_secret_access_key` can default to
+  the host's real configured credentials, not a placeholder. The confirm
+  dialog never mentioned this. Reset now filters through the same allow
+  list used at mount (post-merge fix for #741).
+
 ## 2.13.2 - 2026-08-19
 
 A catalogue attribute-sets table, an OAuth registration crash fix, and a
