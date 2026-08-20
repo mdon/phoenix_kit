@@ -31,6 +31,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
       |> assign(:page_title, gettext("Integrations"))
       |> assign(:project_title, project_title)
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
+      |> load_encryption_report()
       |> load_connections()
       |> assign(:validating, nil)
 
@@ -119,24 +120,30 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # Private
   # ---------------------------------------------------------------------------
 
-  defp load_connections(socket) do
-    # Recomputed on every reload (mount AND every PubSub-triggered refresh
-    # below), not just once at mount — this is a long-lived LiveView, and an
-    # admin who rotates the key / flips integration_encryption_enabled while
-    # the page is open should see the banner update on the next connection
-    # event rather than only after a fresh page load. `status/0` is a pure
-    # config read (see its own doc), so recomputing it here is free.
-    # ONE report per render. This used to be three separate calls —
+  # Computed once at mount, not on every `load_connections/1` reload below.
+  # `Encryption.key_report/0` is store-backed, not a pure config read: with a
+  # Chain/S3 store it does a network round trip, and it always runs a
+  # PBKDF2-HMAC-SHA256 with 100_000 iterations (~0.1 CPU-sec) to fingerprint
+  # the key. `load_connections/1` runs on every PubSub event this LiveView
+  # gets, including ones about connections that have nothing to do with the
+  # key, so paying that cost there on each one would be wasted work. The
+  # dedicated key itself can only change by restarting the app — rotation is
+  # a Mix task, and there is no running-app event for "the key changed" — and
+  # a restart remounts this LiveView anyway, so mount is the only point where
+  # the report can actually be stale.
+  defp load_encryption_report(socket) do
+    # ONE report per mount. This used to be three separate calls —
     # `status/0`, `key_diagnosis/0`, `key_fingerprint/0` — each re-resolving the
     # key independently, and a key store that answers one read and fails the
     # next could hand the three of them different answers for the same page.
     report = Encryption.key_report()
 
-    socket =
-      socket
-      |> assign(:encryption_report, report)
-      |> assign(:encryption_fingerprint, encryption_fingerprint(report))
+    socket
+    |> assign(:encryption_report, report)
+    |> assign(:encryption_fingerprint, encryption_fingerprint(report))
+  end
 
+  defp load_connections(socket) do
     # System page: only providers usable system-wide, and only SYSTEM-owned
     # connections (owner: :system) — a user's personal connection never leaks here.
     providers = Providers.for_scope(:system)
