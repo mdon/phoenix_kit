@@ -300,9 +300,8 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
 
     Rotated #{count} connection(s).
 
-    The new secret was written to #{location} (mode 0600) and read back to confirm
-    it landed. On this host there is nothing else to copy: PhoenixKit reads the key
-    from there.
+    The new secret was written to #{location} and read back to confirm it landed.
+    On this host there is nothing else to copy: PhoenixKit reads the key from there.
 
     If you run more than one host, note that the default file store is per-host:
     every node needs this same secret at that path (or a shared one) before it is
