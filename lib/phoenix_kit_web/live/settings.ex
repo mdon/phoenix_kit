@@ -92,10 +92,16 @@ defmodule PhoenixKitWeb.Live.Settings do
   end
 
   def handle_event("reset_to_defaults", _params, socket) do
-    # Get default settings
-    defaults = Settings.get_defaults()
+    # S007: this page never manages the OAuth login secrets or AWS keys, so
+    # reset must not touch them either — Settings.get_defaults/0 includes
+    # them (aws_access_key_id/aws_secret_access_key can even default to the
+    # host's real configured credentials via PhoenixKit.Config.AWS), and
+    # update_settings/1 writes every key it's handed. Without this filter,
+    # clicking "Reset" here would silently overwrite live OAuth/AWS
+    # credentials the confirm dialog never mentions.
+    defaults = Settings.get_defaults() |> Map.take(Settings.public_setting_keys())
 
-    # Update all settings to defaults in database
+    # Update public settings to defaults in database
     case Settings.update_settings(defaults) do
       {:ok, updated_settings} ->
         # Sync site_url to Endpoint after reset
