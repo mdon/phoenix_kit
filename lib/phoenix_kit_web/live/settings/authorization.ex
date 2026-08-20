@@ -15,6 +15,16 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
 
   require Logger
 
+  # S009: the only OAuth setting keys this page renders as `type="password"`
+  # inputs. The template never echoes the real value into `value=` (see
+  # authorization.html.heex), so an untouched field submits blank on every
+  # `validate_settings`/`save_settings` event — `preserve_unset_secrets/2`
+  # is what keeps that blank from overwriting the real stored secret.
+  # Deliberately NOT `Settings.restricted_setting_keys()`: that list also
+  # covers `aws_access_key_id`/`aws_secret_access_key`, which this page
+  # never renders.
+  @oauth_secret_keys ~w(oauth_google_client_secret oauth_github_client_secret oauth_facebook_app_secret)
+
   def mount(_params, _session, socket) do
     current_settings = Settings.list_all_settings()
     defaults = Settings.get_defaults()
@@ -44,6 +54,7 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   end
 
   def handle_event("validate_settings", %{"settings" => settings_params}, socket) do
+    settings_params = preserve_unset_secrets(settings_params, socket.assigns.settings)
     changeset = Settings.validate_settings(settings_params)
 
     socket =
@@ -151,7 +162,25 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
 
   defp validate_background_color(_settings_params), do: :ok
 
+  # S009: the template never renders a real OAuth secret into `value=`
+  # (view-source can't leak it), so an untouched password field arrives here
+  # blank. Blindly assigning that would blank out `@settings` for the key on
+  # the next `validate_settings` event and wipe the stored secret on the
+  # next `save_settings` — this restores the currently-held value for any of
+  # `@oauth_secret_keys` that comes in blank, while a non-blank incoming
+  # value (the admin actively typing a new secret) always wins.
+  defp preserve_unset_secrets(new_params, current_settings) do
+    Enum.reduce(@oauth_secret_keys, new_params, fn key, params ->
+      case Map.get(params, key) do
+        value when value in [nil, ""] -> Map.put(params, key, Map.get(current_settings, key, ""))
+        _value -> params
+      end
+    end)
+  end
+
   defp do_save_settings(socket, settings_params) do
+    settings_params = preserve_unset_secrets(settings_params, socket.assigns.settings)
+
     case Settings.update_settings(settings_params) do
       {:ok, updated_settings} ->
         OAuthConfig.configure_providers()
@@ -205,6 +234,18 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
     base_prefix = if url_prefix == "/", do: "", else: url_prefix
 
     "#{site_url}#{base_prefix}/users/auth/#{provider}/callback"
+  end
+
+  # S009: the three OAuth secret inputs render `value=""` unconditionally
+  # (see authorization.html.heex), so this placeholder is the only signal an
+  # admin gets that a secret is already stored, without ever putting the
+  # real value in the DOM.
+  def oauth_secret_placeholder(current_value, unset_placeholder) do
+    if current_value in [nil, ""] do
+      unset_placeholder
+    else
+      gettext("A secret is already configured — leave blank to keep the current value")
+    end
   end
 
   # Builds the credentials map OAuthConfig.test_connection/2 expects, from

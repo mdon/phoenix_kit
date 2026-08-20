@@ -384,9 +384,14 @@
                       <.input
                         type="password"
                         name="settings[oauth_google_client_secret]"
-                        value={@settings["oauth_google_client_secret"] || ""}
+                        value=""
                         label={gettext("Client Secret")}
-                        placeholder={gettext("Your Google OAuth Client Secret")}
+                        placeholder={
+                          oauth_secret_placeholder(
+                            @settings["oauth_google_client_secret"],
+                            gettext("Your Google OAuth Client Secret")
+                          )
+                        }
                       />
                     </div>
                   </div>
@@ -464,9 +469,14 @@
                     <.input
                       type="password"
                       name="settings[oauth_github_client_secret]"
-                      value={@settings["oauth_github_client_secret"] || ""}
+                      value=""
                       label={gettext("Client Secret")}
-                      placeholder={gettext("Your GitHub OAuth Client Secret")}
+                      placeholder={
+                        oauth_secret_placeholder(
+                          @settings["oauth_github_client_secret"],
+                          gettext("Your GitHub OAuth Client Secret")
+                        )
+                      }
                     />
                   </div>
                 </div>
@@ -547,9 +557,14 @@
                     <.input
                       type="password"
                       name="settings[oauth_facebook_app_secret]"
-                      value={@settings["oauth_facebook_app_secret"] || ""}
+                      value=""
                       label={gettext("App Secret")}
-                      placeholder={gettext("Your Facebook App Secret")}
+                      placeholder={
+                        oauth_secret_placeholder(
+                          @settings["oauth_facebook_app_secret"],
+                          gettext("Your Facebook App Secret")
+                        )
+                      }
                     />
                   </div>
                 </div>
