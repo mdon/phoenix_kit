@@ -304,11 +304,17 @@ defmodule PhoenixKit.Integrations.KeyStore do
   # Each entry is `{module, result}` for a chain member that did not return
   # `:ok`. Describing every one, not just the first, is why `Chain.write/2`
   # collects the whole list rather than stopping at the first failure.
+  #
+  # The `other` clause deliberately does NOT `inspect/1` its argument. A
+  # member is only in `failures` because its result wasn't `:ok`, but a
+  # host-supplied store that breaks the `{:error, reason}` contract can put
+  # anything there — including, for `write/2`, the secret itself. Same
+  # withholding as the generic catch-all above, applied here too.
   @spec describe_chain_failures([{module(), term()}]) :: String.t()
   defp describe_chain_failures(failures) do
     Enum.map_join(failures, "; ", fn
       {module, {:error, reason}} -> "#{inspect(module)} (#{describe_error(reason)})"
-      {module, other} -> "#{inspect(module)} (#{inspect(other)})"
+      {module, _other} -> "#{inspect(module)} (an unrecognised result, details withheld)"
     end)
   end
 

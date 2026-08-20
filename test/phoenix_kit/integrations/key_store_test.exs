@@ -492,6 +492,22 @@ defmodule PhoenixKit.Integrations.KeyStoreTest do
       assert described =~ "PhoenixKit.Integrations.KeyStore.S3"
       assert described =~ "not loaded"
     end
+
+    # A chain member's result is only in `failures` because it wasn't `:ok` —
+    # it is NOT guaranteed to be `{:error, reason}`. A host-supplied store
+    # that breaks the behaviour contract can put anything there, including,
+    # for `write/2`, the secret itself. This must never be `inspect/1`ed
+    # straight into an operator-facing message (the same reasoning as the
+    # generic catch-all's "details withheld").
+    test "a member result that is not {:error, _} never leaks its payload" do
+      failures = [{PhoenixKit.Integrations.KeyStore.S3, @secret}]
+
+      described = KeyStore.describe_error({:chain_write_failed, failures})
+
+      refute described =~ @secret
+      assert described =~ "PhoenixKit.Integrations.KeyStore.S3"
+      assert described =~ "withheld"
+    end
   end
 
   describe "Chain keeps the secret in more than one place" do
