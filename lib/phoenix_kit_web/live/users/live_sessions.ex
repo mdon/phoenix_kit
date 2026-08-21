@@ -100,7 +100,11 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
     {:noreply, push_url_state(socket, [search_query: search_query], replace: true)}
   end
 
-  def handle_event("filter_by", %{"type" => filter_type}, socket) do
+  # `tab` rather than `type`: nav_tabs standardises the payload key, because
+  # LiveView's extractMeta overwrites meta.value with a button's own (empty)
+  # .value DOM property — so `value` is a trap and a per-caller key is just
+  # that trap made selectable.
+  def handle_event("filter_by", %{"tab" => filter_type}, socket) do
     {:noreply, push_url_state(socket, filter_type: filter_type)}
   end
 
