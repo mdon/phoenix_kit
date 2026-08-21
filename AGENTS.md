@@ -339,3 +339,44 @@ In `lib/modules/storage/services/url_signer.ex` + `file_controller.ex`:
 - **Fails open on a nil `secret_key_base`** — the token degrades to a predictable no-secret hash. Fail closed.
 
 Read half is low urgency (current use is public post images); the upload half is a live unauthenticated write. Don't rely on the "capability URL" framing for sensitive files.
+
+### Ride-along: one current supplier row per item
+
+`phoenix_kit_cat_item_supplier_info` (created V149) has **no constraint stopping
+two OPEN rows for the same `(item_uuid, supplier_uuid)` pair** — i.e. the same
+supplier listed twice on one item, with two live prices and no rule about which
+one anything downstream should believe. Warehouse reads these rows
+(`cost_proposals.ex` compares a goods receipt against `unit_cost`;
+`supplier_orders.ex` resolves the primary supplier), so it is not cosmetic.
+
+Guarded in application code today —
+`PhoenixKitCatalogue.Catalogue.ItemSupplierInfos.create/2` returns
+`{:error, :already_linked}` — which covers every caller but not direct SQL,
+imports that bypass the context, or a race between two concurrent inserts.
+
+**When the next core migration is written for any reason, add this to it**
+rather than spending a version number on it alone:
+
+```sql
+CREATE UNIQUE INDEX phoenix_kit_cat_item_supplier_info_current_pair_uniq
+  ON phoenix_kit_cat_item_supplier_info (item_uuid, supplier_uuid)
+  WHERE valid_to IS NULL;
+```
+
+Two things it must get right:
+
+1. **Partial on `valid_to IS NULL`, never the bare pair.** Several rows per pair
+   are legitimate and expected — that is exactly what `revise_unit_cost/3`
+   produces, closing the old row and appending a successor. Only one may be
+   open. A unique index on the bare pair would break price history outright.
+2. **Dedupe first, in the same migration.** Installs already carry duplicates
+   (max-dev does), so `CREATE UNIQUE INDEX` fails on them. Close the losers
+   (`valid_to = CURRENT_DATE`) rather than deleting — they are real price
+   records — keeping the primary row, or the oldest when none is primary, and
+   clear `is_primary` on the ones being closed so the existing
+   `..._primary_uniq` partial index still holds.
+
+Follows the normal chain protocol: `@current_version` in `postgres.ex`, the
+`COMMENT ON TABLE` marker, an `ExpectedSchema` manifest entry with the
+catalog-exact index shape, and `restamp_chain_hash.exs --restamp` after
+`mix format`.
