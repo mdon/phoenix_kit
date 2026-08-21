@@ -70166,7 +70166,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :constraint
            }},
         create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_cat_manufacturer_suppliers_mfr_source_check'\n      AND t.relname = 'phoenix_kit_cat_manufacturer_suppliers'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_cat_manufacturer_suppliers ADD CONSTRAINT phoenix_kit_cat_manufacturer_suppliers_mfr_source_check CHECK (((manufacturer_source)::text = ANY ((ARRAY['local'::character varying, 'crm_company'::character varying])::text[])));\n  END IF;\nEND\n$$",
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_cat_manufacturer_suppliers_mfr_source_check'\n      AND t.relname = 'phoenix_kit_cat_manufacturer_suppliers'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_cat_manufacturer_suppliers ADD CONSTRAINT phoenix_kit_cat_manufacturer_suppliers_mfr_source_check CHECK (((manufacturer_source)::text = ANY ((ARRAY['local'::character varying, 'crm_company'::character varying, 'crm_contact'::character varying])::text[])));\n  END IF;\nEND\n$$",
         since: 180,
         class: :constraint,
         revisions: [
@@ -70175,7 +70175,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              type: "c",
              columns: ["manufacturer_source"],
              definition:
-               "CHECK (((manufacturer_source)::text = ANY ((ARRAY['local'::character varying, 'crm_company'::character varying])::text[])))",
+               "CHECK (((manufacturer_source)::text = ANY ((ARRAY['local'::character varying, 'crm_company'::character varying, 'crm_contact'::character varying])::text[])))",
              name_template: nil,
              foreign_table: nil,
              foreign_columns: nil,
@@ -70198,7 +70198,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :constraint
            }},
         create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_cat_manufacturer_suppliers_sup_source_check'\n      AND t.relname = 'phoenix_kit_cat_manufacturer_suppliers'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_cat_manufacturer_suppliers ADD CONSTRAINT phoenix_kit_cat_manufacturer_suppliers_sup_source_check CHECK (((supplier_source)::text = ANY ((ARRAY['local'::character varying, 'crm_company'::character varying])::text[])));\n  END IF;\nEND\n$$",
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_cat_manufacturer_suppliers_sup_source_check'\n      AND t.relname = 'phoenix_kit_cat_manufacturer_suppliers'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_cat_manufacturer_suppliers ADD CONSTRAINT phoenix_kit_cat_manufacturer_suppliers_sup_source_check CHECK (((supplier_source)::text = ANY ((ARRAY['local'::character varying, 'crm_company'::character varying, 'crm_contact'::character varying])::text[])));\n  END IF;\nEND\n$$",
         since: 180,
         class: :constraint,
         revisions: [
@@ -70207,7 +70207,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              type: "c",
              columns: ["supplier_source"],
              definition:
-               "CHECK (((supplier_source)::text = ANY ((ARRAY['local'::character varying, 'crm_company'::character varying])::text[])))",
+               "CHECK (((supplier_source)::text = ANY ((ARRAY['local'::character varying, 'crm_company'::character varying, 'crm_contact'::character varying])::text[])))",
              name_template: nil,
              foreign_table: nil,
              foreign_columns: nil,

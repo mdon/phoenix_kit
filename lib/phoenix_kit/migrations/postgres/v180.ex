@@ -14,8 +14,11 @@ defmodule PhoenixKit.Migrations.Postgres.V180 do
   resolution (`supplier_orders.ex`) had nothing to read.
 
   Same shape as V179 and V149 before it: a uuid plus a `*_source`
-  discriminator, `'local'` or `'crm_company'`. Existing rows are all `'local'`,
-  which is what the default backfills.
+  discriminator. The accepted values match
+  `phoenix_kit_cat_item_supplier_info.supplier_source` — `'local'`,
+  `'crm_company'`, `'crm_contact'` — because a supplier CAN be a contact there
+  and a narrower CHECK here would make such a supplier unlinkable. Existing
+  rows are all `'local'`, which is what the default backfills.
 
   ## What replaces the two FKs
 
@@ -42,7 +45,10 @@ defmodule PhoenixKit.Migrations.Postgres.V180 do
   Existing duplicates are **closed, not deleted** — they are real price records
   — keeping the primary row, or the oldest when neither is primary, and
   clearing `is_primary` on the ones being closed so the V151
-  `..._primary_uniq` index still holds. Without this the `CREATE UNIQUE INDEX`
+  `..._primary_uniq` index still holds. A loser is closed at
+  `GREATEST(valid_from, CURRENT_DATE)` so a future-dated row cannot end before
+  it begins, which would leave it failing its own changeset validation
+  forever. Without this the `CREATE UNIQUE INDEX`
   would fail outright on any install carrying a duplicate.
 
   ## Rollback
@@ -113,13 +119,22 @@ defmodule PhoenixKit.Migrations.Postgres.V180 do
       ) THEN
         ALTER TABLE #{p}phoenix_kit_cat_manufacturer_suppliers
           ADD CONSTRAINT #{constraint}
-          CHECK (#{column} IN ('local', 'crm_company'));
+          CHECK (#{column} IN ('local', 'crm_company', 'crm_contact'));
       END IF;
     END $$;
     """)
   end
 
   defp enforce_one_current_supplier_per_pair(p) do
+    # Hold the table for the dedupe AND the index build. The UPDATE alone
+    # takes only row locks, so a concurrent writer could open a fresh
+    # duplicate in the gap before CREATE UNIQUE INDEX acquires its own lock —
+    # the build would then fail and roll back the whole migration. SHARE ROW
+    # EXCLUSIVE blocks writers while still allowing reads.
+    execute("""
+    LOCK TABLE #{p}phoenix_kit_cat_item_supplier_info IN SHARE ROW EXCLUSIVE MODE
+    """)
+
     # Close the losers first, or CREATE UNIQUE INDEX fails on any install
     # that already carries a duplicate. Primary wins; failing that the
     # oldest, with uuid as the final tiebreak so the choice is TOTAL and
@@ -135,7 +150,11 @@ defmodule PhoenixKit.Migrations.Postgres.V180 do
       WHERE valid_to IS NULL
     )
     UPDATE #{p}phoenix_kit_cat_item_supplier_info AS i
-    SET valid_to = CURRENT_DATE,
+    -- GREATEST, not a bare CURRENT_DATE: a future-dated row would otherwise
+    -- close BEFORE it opens, and `validate_date_range/1` then refuses every
+    -- later edit of a row the user cannot repair. GREATEST ignores a NULL
+    -- valid_from, which is the common case.
+    SET valid_to = GREATEST(valid_from, CURRENT_DATE),
         is_primary = FALSE,
         updated_at = NOW() AT TIME ZONE 'utc'
     FROM ranked AS r
