@@ -339,3 +339,4 @@ In `lib/modules/storage/services/url_signer.ex` + `file_controller.ex`:
 - **Fails open on a nil `secret_key_base`** — the token degrades to a predictable no-secret hash. Fail closed.
 
 Read half is low urgency (current use is public post images); the upload half is a live unauthenticated write. Don't rely on the "capability URL" framing for sensitive files.
+

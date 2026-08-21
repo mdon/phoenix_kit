@@ -12254,32 +12254,32 @@ msgstr "У вас нет прав для управления учётными �
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "AI Discovery"
-msgstr ""
+msgstr "Обнаружение ИИ"
 
 #: lib/phoenix_kit/integrations/providers.ex:698
 #, elixir-autogen, elixir-format
 msgid "AWS Bedrock LLMs via a Bedrock API key (OpenAI-compatible endpoint: gpt-oss models; the rest via native Converse)"
-msgstr ""
+msgstr "LLM-модели AWS Bedrock через API-ключ Bedrock (эндпоинт, совместимый с OpenAI: модели gpt-oss; остальные через нативный Converse)"
 
 #: lib/phoenix_kit/integrations/providers.ex:715
 #, elixir-autogen, elixir-format
 msgid "AWS console → Amazon Bedrock → API keys (long-term key)"
-msgstr ""
+msgstr "Консоль AWS → Amazon Bedrock → API-ключи (долгосрочный ключ)"
 
 #: lib/phoenix_kit/mentions/live.ex:87
 #, elixir-autogen, elixir-format
 msgid "Access requested."
-msgstr ""
+msgstr "Запрос на доступ отправлен."
 
 #: lib/phoenix_kit/integrations/validators.ex:99
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Account %{id}"
-msgstr "Аккаунт"
+msgstr "Аккаунт %{id}"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:303
 #, elixir-autogen, elixir-format
 msgid "Advisory-grade: anything can send any User-Agent, so a scraper that lies passes through. Real enforcement belongs at your CDN or reverse proxy — this catches the honest-but-ignorant. Bots identified only by robots.txt tokens (Google-Extended, Applebot-Extended) crawl under their main user agent and are never matched here, so blocking AI training cannot 403 Googlebot."
-msgstr ""
+msgstr "Рекомендательный уровень: любой может отправить произвольный User-Agent, поэтому лгущий парсер пройдёт. Реальное принуждение — на вашем CDN или обратном прокси; здесь ловятся честные, но неосведомлённые. Боты, определяемые только по токенам robots.txt (Google-Extended, Applebot-Extended), обходят сайт под своим основным user agent и здесь никогда не совпадают, поэтому блокировка обучения ИИ не может вернуть 403 для Googlebot."
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:98
 #, elixir-autogen, elixir-format, fuzzy
@@ -12289,22 +12289,22 @@ msgstr "Все"
 #: lib/phoenix_kit/integrations/providers.ex:696
 #, elixir-autogen, elixir-format
 msgid "Amazon Bedrock"
-msgstr ""
+msgstr "Amazon Bedrock"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Answer 403 to requests whose User-Agent matches a blocked group, for bots that ignore robots.txt."
-msgstr ""
+msgstr "Отвечать 403 на запросы, чей User-Agent совпадает с заблокированной группой — для ботов, игнорирующих robots.txt."
 
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Auth mail carries single-use tokens, and /dev/mailbox has no authentication — anyone who can reach this server can read them. Only for closed environments."
-msgstr ""
+msgstr "Письма аутентификации содержат одноразовые токены, а /dev/mailbox не требует аутентификации — любой, кто имеет доступ к этому серверу, сможет их прочитать. Только для закрытых окружений."
 
 #: lib/phoenix_kit/integrations/providers.ex:711
 #, elixir-autogen, elixir-format
 msgid "Bedrock API key"
-msgstr ""
+msgstr "API-ключ Bedrock"
 
 #: lib/phoenix_kit/integrations/validators.ex:222
 #, elixir-autogen, elixir-format, fuzzy
@@ -12314,7 +12314,7 @@ msgstr "Ошибка Brevo %{status}"
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:280
 #, elixir-autogen, elixir-format
 msgid "Block at the application"
-msgstr ""
+msgstr "Блокировать на уровне приложения"
 
 #: lib/phoenix_kit_web/live/modules.html.heex:451
 #, elixir-autogen, elixir-format, fuzzy
@@ -12324,17 +12324,17 @@ msgstr "Заблокирован"
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "Bot Access"
-msgstr ""
+msgstr "Доступ ботов"
 
 #: lib/phoenix_kit_web/live/settings.html.heex:451
 #, elixir-autogen, elixir-format
 msgid "By default a mention shows what it names even to someone without access, with a lock icon and no link. Turn this on where the name itself is sensitive; they then see the name as it was when it was written, not its current one."
-msgstr ""
+msgstr "По умолчанию упоминание показывает то, что называет, даже пользователю без доступа — со значком замка и без ссылки. Включите, если само название конфиденциально; тогда будет видно название таким, каким оно было на момент написания, а не текущее."
 
 #: lib/phoenix_kit_web/live/modules.html.heex:408
 #, elixir-autogen, elixir-format
 msgid "Control how search engines and AI bots crawl and index this site"
-msgstr ""
+msgstr "Управление тем, как поисковые системы и ИИ-боты сканируют и индексируют этот сайт"
 
 #: lib/phoenix_kit/integrations/providers.ex:739
 #, elixir-autogen, elixir-format, fuzzy
@@ -12349,12 +12349,12 @@ msgstr "Скопируйте ключ и вставьте его в форму �
 #: lib/phoenix_kit/integrations/validators.ex:226
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Could not reach Bedrock in %{region}"
-msgstr "Не удалось связаться с Brevo"
+msgstr "Не удалось связаться с Bedrock в регионе %{region}"
 
 #: lib/phoenix_kit/mentions/live.ex:90
 #, elixir-autogen, elixir-format
 msgid "Could not send that request."
-msgstr ""
+msgstr "Не удалось отправить запрос."
 
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:136
 #, elixir-autogen, elixir-format, fuzzy
@@ -12375,7 +12375,7 @@ msgstr "Инструкции для поисковых роботов"
 #: lib/phoenix_kit_web/live/modules.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "Crawlers"
-msgstr ""
+msgstr "Сканеры"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:55
 #, elixir-autogen, elixir-format, fuzzy
@@ -12395,22 +12395,22 @@ msgstr "Создать роль"
 #: lib/phoenix_kit/integrations/providers.ex:871
 #, elixir-autogen, elixir-format
 msgid "Create an IAM user with SES access"
-msgstr ""
+msgstr "Создайте пользователя IAM с доступом к SES"
 
 #: lib/phoenix_kit/integrations/providers.ex:876
 #, elixir-autogen, elixir-format
 msgid "Create an access key for that user (Security credentials → Create access key) and paste the ID and secret above"
-msgstr ""
+msgstr "Создайте ключ доступа для этого пользователя (Security credentials → Create access key) и вставьте ID и секрет выше"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Decide who may read this site — indexing directives, per-bot access, and what crawlers and AI assistants are told."
-msgstr ""
+msgstr "Решите, кто может читать этот сайт — директивы индексирования, доступ по ботам и то, что сообщается сканерам и ИИ-ассистентам."
 
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Deliver development mail to /dev/mailbox"
-msgstr ""
+msgstr "Доставлять письма разработки в /dev/mailbox"
 
 #: lib/phoenix_kit/integrations/providers.ex:747
 #, elixir-autogen, elixir-format, fuzzy
@@ -12420,7 +12420,7 @@ msgstr "Включите модуль для доступа к настройк�
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:278
 #, elixir-autogen, elixir-format
 msgid "Enforcement"
-msgstr ""
+msgstr "Принуждение"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:90
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:109
@@ -12439,97 +12439,97 @@ msgstr "Вход через GitHub"
 #: lib/phoenix_kit/integrations/providers.ex:782
 #, elixir-autogen, elixir-format
 msgid "GitHub API token — org statistics, repositories (read-only is enough)"
-msgstr ""
+msgstr "API-токен GitHub — статистика организации, репозитории (достаточно только чтения)"
 
 #: lib/phoenix_kit/integrations/providers.ex:809
 #, elixir-autogen, elixir-format
 msgid "Go to [Fine-grained tokens](https://github.com/settings/personal-access-tokens) and click **Generate new token**"
-msgstr ""
+msgstr "Перейдите на [Fine-grained tokens](https://github.com/settings/personal-access-tokens) и нажмите **Generate new token**"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Grouped by why they visit. Blocking a group writes it into the generated robots.txt below; everything defaults to allowed."
-msgstr ""
+msgstr "Сгруппированы по причине посещения. Блокировка группы записывается в генерируемый ниже robots.txt; по умолчанию разрешено всё."
 
 #: lib/phoenix_kit_web/live/settings.html.heex:446
 #, elixir-autogen, elixir-format
 msgid "Hide titles of records the reader can't open"
-msgstr ""
+msgstr "Скрывать заголовки записей, которые читатель не может открыть"
 
 #: lib/phoenix_kit/integrations/providers.ex:749
 #, elixir-autogen, elixir-format
 msgid "In [Bedrock → Model access](https://console.aws.amazon.com/bedrock/home#/modelaccess) enable the models you plan to call — a key with no enabled models validates but cannot complete"
-msgstr ""
+msgstr "В [Bedrock → Model access](https://console.aws.amazon.com/bedrock/home#/modelaccess) включите модели, которые планируете вызывать — ключ без включённых моделей проходит проверку, но не работает"
 
 #: lib/phoenix_kit/integrations/providers.ex:763
 #, elixir-autogen, elixir-format
 msgid "In the AI module, create an endpoint pointing at this connection with a `gpt-oss` model and a base URL in the SAME region as this key"
-msgstr ""
+msgstr "В модуле AI создайте эндпоинт, указывающий на это подключение, с моделью `gpt-oss` и базовым URL в ТОМ ЖЕ регионе, что и ключ"
 
 #: lib/phoenix_kit/integrations/providers.ex:873
 #, elixir-autogen, elixir-format
 msgid "In the [IAM console](https://console.aws.amazon.com/iam/home#/users) create a user for programmatic access and attach an SES policy (least privilege: `ses:SendEmail`/`ses:SendRawEmail`; docs: [SES setup](https://docs.aws.amazon.com/ses/latest/dg/setting-up.html))"
-msgstr ""
+msgstr "В [консоли IAM](https://console.aws.amazon.com/iam/home#/users) создайте пользователя для программного доступа и приложите политику SES (минимальные права: `ses:SendEmail`/`ses:SendRawEmail`; документация: [настройка SES](https://docs.aws.amazon.com/ses/latest/dg/setting-up.html))"
 
 #: lib/phoenix_kit/integrations/providers.ex:884
 #, elixir-autogen, elixir-format
 msgid "In the [SES console](https://console.aws.amazon.com/ses/home#/identities) verify your domain or sender address — SES refuses to send from unverified identities"
-msgstr ""
+msgstr "В [консоли SES](https://console.aws.amazon.com/ses/home#/identities) подтвердите домен или адрес отправителя — SES не отправляет с неподтверждённых идентификаторов"
 
 #: lib/phoenix_kit/integrations/validators.ex:177
 #, elixir-autogen, elixir-format
 msgid "Invalid region format (expected e.g. eu-central-1)"
-msgstr ""
+msgstr "Неверный формат региона (ожидается, например, eu-central-1)"
 
 #: lib/phoenix_kit/integrations/validators.ex:216
 #, elixir-autogen, elixir-format
 msgid "Key authenticated but not authorised in %{region} — allow bedrock:CallWithBearerToken (and ListFoundationModels) on its IAM identity, or check the key was issued for this region"
-msgstr ""
+msgstr "Ключ аутентифицирован, но не авторизован в регионе %{region} — разрешите bedrock:CallWithBearerToken (и ListFoundationModels) для его IAM-идентификатора либо проверьте, что ключ выпущен для этого региона"
 
 #: lib/phoenix_kit_web/live/settings.html.heex:438
 #, elixir-autogen, elixir-format
 msgid "Lets people type @ to mention someone and # to link a record, anywhere they can write free text. Turning it off stops the suggestions; mentions already written stay readable as plain text."
-msgstr ""
+msgstr "Позволяет вводить @ для упоминания человека и # для ссылки на запись везде, где можно писать свободный текст. Выключение останавливает подсказки; уже написанные упоминания остаются читаемыми как обычный текст."
 
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Local dev mailbox"
-msgstr ""
+msgstr "Локальный почтовый ящик разработки"
 
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:127
 #, elixir-autogen, elixir-format
 msgid "Local mailbox disabled — outgoing dev mail goes to the server log"
-msgstr ""
+msgstr "Локальный почтовый ящик выключен — исходящие письма разработки идут в лог сервера"
 
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:123
 #, elixir-autogen, elixir-format
 msgid "Local mailbox enabled — tokens in auth mail are now readable at /dev/mailbox"
-msgstr ""
+msgstr "Локальный почтовый ящик включён — токены в письмах аутентификации теперь читаемы по адресу /dev/mailbox"
 
 #: lib/phoenix_kit_web/live/settings.html.heex:433
 #, elixir-autogen, elixir-format
 msgid "Mentions and record links"
-msgstr ""
+msgstr "Упоминания и ссылки на записи"
 
 #: lib/phoenix_kit/integrations/validators.ex:240
 #, elixir-autogen, elixir-format
 msgid "Model catalog in %{region}: %{count} (grants are configured separately)"
-msgstr ""
+msgstr "Каталог моделей в регионе %{region}: %{count} (права настраиваются отдельно)"
 
 #: lib/phoenix_kit/integrations/providers.ex:887
 #, elixir-autogen, elixir-format
 msgid "New accounts start in the SES sandbox (verified recipients only) — [request production access](https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html) before real sending"
-msgstr ""
+msgstr "Новые аккаунты начинают в песочнице SES (только подтверждённые получатели) — [запросите производственный доступ](https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html) перед реальной отправкой"
 
 #: lib/phoenix_kit_web/users/qr_login_confirm.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "No device details could be determined for this request."
-msgstr ""
+msgstr "Не удалось определить данные устройства для этого запроса."
 
 #: lib/phoenix_kit_web/components/core/mention_text.ex:140
 #, elixir-autogen, elixir-format
 msgid "No longer available"
-msgstr ""
+msgstr "Больше недоступно"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:165
 #, elixir-autogen, elixir-format, fuzzy
@@ -12539,57 +12539,57 @@ msgstr "Файл priv/static/robots.txt не найден. Без него по�
 #: lib/phoenix_kit_web/components/core/mention_text.ex:152
 #, elixir-autogen, elixir-format
 msgid "Not shown on this page"
-msgstr ""
+msgstr "Не показано на этой странице"
 
 #: lib/phoenix_kit/mentions/live.ex:237
 #, elixir-autogen, elixir-format
 msgid "Note (optional)"
-msgstr ""
+msgstr "Примечание (необязательно)"
 
 #: lib/phoenix_kit/integrations/providers.ex:733
 #, elixir-autogen, elixir-format
 msgid "Open the [Bedrock console → API keys](https://console.aws.amazon.com/bedrock/home#/api-keys) and generate a **long-term** key (docs: [Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html))"
-msgstr ""
+msgstr "Откройте [консоль Bedrock → API keys](https://console.aws.amazon.com/bedrock/home#/api-keys) и создайте **долгосрочный** ключ (документация: [API-ключи Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html))"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:212
 #, elixir-autogen, elixir-format
 msgid "Optional markdown: a summary paragraph, key links, docs pointers…"
-msgstr ""
+msgstr "Необязательный markdown: краткий абзац, ключевые ссылки, указатели на документацию…"
 
 #: lib/phoenix_kit/integrations/providers.ex:736
 #, elixir-autogen, elixir-format
 msgid "Or attach one to an existing IAM user: [IAM console](https://console.aws.amazon.com/iam/home#/users) → user → Security credentials → Bedrock API keys"
-msgstr ""
+msgstr "Либо привяжите его к существующему пользователю IAM: [консоль IAM](https://console.aws.amazon.com/iam/home#/users) → пользователь → Security credentials → Bedrock API keys"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "Paste the verification content Google Search Console or Bing Webmaster Tools gives you — the meta tags are added to every layout head. Pasting the whole <meta> tag also works; the content value is extracted."
-msgstr ""
+msgstr "Вставьте содержимое подтверждения, которое выдаёт Google Search Console или Bing Webmaster Tools — meta-теги добавляются в head каждого макета. Можно вставить и весь тег <meta>; значение content будет извлечено."
 
 #: lib/phoenix_kit/integrations/providers.ex:796
 #, elixir-autogen, elixir-format
 msgid "Personal access token"
-msgstr ""
+msgstr "Персональный токен доступа"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "PhoenixKit does not serve this file — it is yours, served from priv/static before any route is consulted. This is the complete file your toggles above describe: paste it into priv/static/robots.txt."
-msgstr ""
+msgstr "PhoenixKit не отдаёт этот файл — он ваш и отдаётся из priv/static до обработки маршрутов. Это полный файл, который описывают переключатели выше: вставьте его в priv/static/robots.txt."
 
 #: lib/phoenix_kit/integrations/providers.ex:752
 #, elixir-autogen, elixir-format
 msgid "Pick the region where access was granted; the AI endpoint's base URL must use the same region"
-msgstr ""
+msgstr "Выберите регион, в котором выдан доступ; базовый URL эндпоинта AI должен использовать тот же регион"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Preview of the served file:"
-msgstr ""
+msgstr "Предпросмотр отдаваемого файла:"
 
 #: lib/phoenix_kit/integrations/providers.ex:812
 #, elixir-autogen, elixir-format
 msgid "Repository access: **Public repositories (read-only)** — no extra permissions needed for public-org statistics"
-msgstr ""
+msgstr "Доступ к репозиториям: **Public repositories (read-only)** — для статистики публичной организации дополнительные права не нужны"
 
 #: lib/phoenix_kit/mentions/live.ex:227
 #, elixir-autogen, elixir-format, fuzzy
@@ -12599,12 +12599,12 @@ msgstr "Запрошено"
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "Search engine verification"
-msgstr ""
+msgstr "Подтверждение в поисковых системах"
 
 #: lib/phoenix_kit/mentions/live.ex:256
 #, elixir-autogen, elixir-format
 msgid "Send request"
-msgstr ""
+msgstr "Отправить запрос"
 
 #: lib/phoenix_kit/mentions/live.ex:254
 #, elixir-autogen, elixir-format, fuzzy
@@ -12619,17 +12619,17 @@ msgstr "Войти под пользователем"
 #: lib/phoenix_kit/integrations/providers.ex:760
 #, elixir-autogen, elixir-format
 msgid "The OpenAI-compatible endpoint (`…/openai/v1`) currently serves only the `openai.gpt-oss-*` models — Anthropic and the other Bedrock models answer on the native Converse API with the same key"
-msgstr ""
+msgstr "Совместимый с OpenAI эндпоинт (`…/openai/v1`) сейчас обслуживает только модели `openai.gpt-oss-*` — Anthropic и остальные модели Bedrock отвечают тем же ключом через нативный Converse API"
 
 #: lib/phoenix_kit/integrations/providers.ex:742
 #, elixir-autogen, elixir-format
 msgid "The key's IAM identity must allow the `bedrock:CallWithBearerToken` action — without it every Bearer call answers 403 even when invoke permissions are in place."
-msgstr ""
+msgstr "IAM-идентификатор ключа должен разрешать действие `bedrock:CallWithBearerToken` — без него каждый вызов с Bearer отвечает 403, даже если права на вызов есть."
 
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:168
 #, elixir-autogen, elixir-format
 msgid "The mailbox is off: outgoing mail is written to the server log instead."
-msgstr ""
+msgstr "Почтовый ящик выключен: исходящие письма вместо этого пишутся в лог сервера."
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:179
 #, elixir-autogen, elixir-format, fuzzy
@@ -12639,29 +12639,29 @@ msgstr "Переключатель noindex выше и robots.txt — разны
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "The other half of bot policy: a markdown summary telling AI assistants what this site is about, served at"
-msgstr ""
+msgstr "Вторая половина политики ботов: markdown-описание, сообщающее ИИ-ассистентам, о чём этот сайт; отдаётся по адресу"
 
 #: lib/phoenix_kit/integrations/providers.ex:892
 #, elixir-autogen, elixir-format
 msgid "This connection stores the credential. The full sending pipeline — configuration set, SNS topic, SQS event queue, delivery tracking — is configured in Admin → Settings → Emails, which can select this connection as its credential source."
-msgstr ""
+msgstr "Это подключение хранит учётные данные. Весь конвейер отправки — configuration set, тема SNS, очередь событий SQS, отслеживание доставки — настраивается в Админ → Настройки → Письма, где это подключение можно выбрать источником учётных данных."
 
 #: lib/phoenix_kit/mentions/live.ex:206
 #: lib/phoenix_kit_web/components/core/textarea.ex:78
 #: lib/phoenix_kit_web/components/multilang_form.ex:1001
 #, elixir-autogen, elixir-format
 msgid "Type @ to mention someone, # to link a record."
-msgstr ""
+msgstr "Введите @, чтобы упомянуть человека, и #, чтобы сослаться на запись."
 
 #: lib/phoenix_kit_web/live/notifications/inbox.ex:193
 #, elixir-autogen, elixir-format
 msgid "Unread · %{day}"
-msgstr ""
+msgstr "Непрочитано · %{day}"
 
 #: lib/phoenix_kit/integrations/providers.ex:758
 #, elixir-autogen, elixir-format
 msgid "Use it from the AI module"
-msgstr ""
+msgstr "Используйте его из модуля AI"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:231
 #, elixir-autogen, elixir-format, fuzzy
@@ -12671,57 +12671,57 @@ msgstr "Уведомления"
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:133
 #, elixir-autogen, elixir-format
 msgid "Verification tags saved."
-msgstr ""
+msgstr "Теги подтверждения сохранены."
 
 #: lib/phoenix_kit/integrations/providers.ex:882
 #, elixir-autogen, elixir-format
 msgid "Verify a sender in SES"
-msgstr ""
+msgstr "Подтвердите отправителя в SES"
 
 #: lib/phoenix_kit/mentions/live.ex:243
 #, elixir-autogen, elixir-format
 msgid "What do you need it for?"
-msgstr ""
+msgstr "Для чего это вам нужно?"
 
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Where development mail goes while the resolved transport is the local adapter."
-msgstr ""
+msgstr "Куда попадают письма разработки, пока используется локальный адаптер."
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Who may crawl this site"
-msgstr ""
+msgstr "Кто может сканировать этот сайт"
 
 #: lib/phoenix_kit_web/components/core/mention_text.ex:182
 #, elixir-autogen, elixir-format
 msgid "You don't have access to this"
-msgstr ""
+msgstr "У вас нет доступа к этому"
 
 #: lib/phoenix_kit/mentions/live.ex:229
 #, elixir-autogen, elixir-format
 msgid "You don't have access to this %{kind}. Ask the people who own it, and say why if it helps."
-msgstr ""
+msgstr "У вас нет доступа к этому объекту: %{kind}. Обратитесь к владельцам и объясните причину, если это поможет."
 
 #: lib/phoenix_kit_web/components/core/mention_text.ex:175
 #, elixir-autogen, elixir-format
 msgid "You don't have access — click to request it"
-msgstr ""
+msgstr "У вас нет доступа — нажмите, чтобы запросить"
 
 #: lib/phoenix_kit/integrations/providers.ex:800
 #, elixir-autogen, elixir-format
 msgid "github.com/settings/personal-access-tokens — fine-grained, read-only"
-msgstr ""
+msgstr "github.com/settings/personal-access-tokens — детализированный, только чтение"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:146
 #, elixir-autogen, elixir-format
 msgid "llms.txt content saved."
-msgstr ""
+msgstr "Содержимое llms.txt сохранено."
 
 #: lib/phoenix_kit/integrations/validators.ex:141
 #, elixir-autogen, elixir-format
 msgid "management API: %{services}"
-msgstr ""
+msgstr "API управления: %{services}"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:169
 #, elixir-autogen, elixir-format, fuzzy
@@ -12731,12 +12731,12 @@ msgstr "Файл priv/static/robots.txt существует, но в нём н�
 #: lib/phoenix_kit_web/components/core/mention_text.ex:154
 #, elixir-autogen, elixir-format
 msgid "private item"
-msgstr ""
+msgstr "приватная запись"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "while this module is enabled. The heading comes from your project title; everything below it is yours."
-msgstr ""
+msgstr "пока этот модуль включён. Заголовок берётся из названия проекта; всё под ним — ваше."
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:235
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:286
