@@ -155,7 +155,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "e64800a6c0228cd6b817a29544b07fabd8d6c3e7b67073d8804637930b6f904b"
+  @chain_hash "c346045dc78877377d1168c0921fcb84aef79712178bc4054711bd213083b9bf"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -42454,8 +42454,13 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              table: "phoenix_kit_cat_manufacturer_suppliers",
              kind: :constraint
            }},
-        create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_cat_manufacturer_suppliers_manufacturer_uuid_fkey'\n      AND t.relname = 'phoenix_kit_cat_manufacturer_suppliers'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_cat_manufacturer_suppliers ADD CONSTRAINT phoenix_kit_cat_manufacturer_suppliers_manufacturer_uuid_fkey FOREIGN KEY (manufacturer_uuid) REFERENCES __SCHEMA__.phoenix_kit_cat_manufacturers(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+        # DECLARED POST-GENERATION (2026-08-21): V180 DROPS this foreign key, so
+        # it is now bimodal — present on installs that stopped before V180,
+        # absent after it. `:legacy_optional` + `create: nil` is that contract:
+        # verify reports it info-level either way and repair NEVER recreates
+        # it, so the migration and `mix phoenix_kit.repair` do not fight over
+        # the same constraint.
+        create: nil,
         since: 87,
         class: :constraint,
         revisions: [
@@ -42472,7 +42477,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              on_update: "a"
            }}
         ],
-        presence: :required,
+        presence: :legacy_optional,
         backfill: nil
       },
       %{
@@ -42486,8 +42491,13 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              table: "phoenix_kit_cat_manufacturer_suppliers",
              kind: :constraint
            }},
-        create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_cat_manufacturer_suppliers_supplier_uuid_fkey'\n      AND t.relname = 'phoenix_kit_cat_manufacturer_suppliers'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_cat_manufacturer_suppliers ADD CONSTRAINT phoenix_kit_cat_manufacturer_suppliers_supplier_uuid_fkey FOREIGN KEY (supplier_uuid) REFERENCES __SCHEMA__.phoenix_kit_cat_suppliers(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+        # DECLARED POST-GENERATION (2026-08-21): V180 DROPS this foreign key, so
+        # it is now bimodal — present on installs that stopped before V180,
+        # absent after it. `:legacy_optional` + `create: nil` is that contract:
+        # verify reports it info-level either way and repair NEVER recreates
+        # it, so the migration and `mix phoenix_kit.repair` do not fight over
+        # the same constraint.
+        create: nil,
         since: 87,
         class: :constraint,
         revisions: [
@@ -42504,7 +42514,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              on_update: "a"
            }}
         ],
-        presence: :required,
+        presence: :legacy_optional,
         backfill: nil
       },
       %{
@@ -70084,6 +70094,161 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         backfill: nil
       },
 
+      # ── DECLARED POST-GENERATION (2026-08-21): V180 ────────────────────────
+      # Catalog-exact from a phoenix_kit_test DB migrated through V180. The two
+      # link-table FKs V180 drops are flipped to :legacy_optional above rather
+      # than declared here. NOTE the CHECK names: the conventional
+      # `<table>_<column>_check` for manufacturer_source is 64 bytes and Postgres
+      # truncates at 63, so V180 names them `..._mfr_source_check` /
+      # `..._sup_source_check` explicitly and these must match.
+
+      %{
+        id: "column:phoenix_kit_cat_manufacturer_suppliers.manufacturer_source",
+        owner: :catalogue,
+        check:
+          {:catalog,
+           %{
+             table: "phoenix_kit_cat_manufacturer_suppliers",
+             column: "manufacturer_source",
+             kind: :column
+           }},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_cat_manufacturer_suppliers ADD COLUMN IF NOT EXISTS \"manufacturer_source\" character varying(20) NOT NULL DEFAULT 'local'",
+        since: 180,
+        class: :column,
+        revisions: [
+          {180,
+           %{
+             default: "'local'::character varying",
+             type: "character varying(20)",
+             pos: 6,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_cat_manufacturer_suppliers.supplier_source",
+        owner: :catalogue,
+        check:
+          {:catalog,
+           %{
+             table: "phoenix_kit_cat_manufacturer_suppliers",
+             column: "supplier_source",
+             kind: :column
+           }},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_cat_manufacturer_suppliers ADD COLUMN IF NOT EXISTS \"supplier_source\" character varying(20) NOT NULL DEFAULT 'local'",
+        since: 180,
+        class: :column,
+        revisions: [
+          {180,
+           %{
+             default: "'local'::character varying",
+             type: "character varying(20)",
+             pos: 7,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_cat_manufacturer_suppliers.phoenix_kit_cat_manufacturer_suppliers_mfr_source_check",
+        owner: :catalogue,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_cat_manufacturer_suppliers_mfr_source_check",
+             table: "phoenix_kit_cat_manufacturer_suppliers",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_cat_manufacturer_suppliers_mfr_source_check'\n      AND t.relname = 'phoenix_kit_cat_manufacturer_suppliers'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_cat_manufacturer_suppliers ADD CONSTRAINT phoenix_kit_cat_manufacturer_suppliers_mfr_source_check CHECK (((manufacturer_source)::text = ANY ((ARRAY['local'::character varying, 'crm_company'::character varying])::text[])));\n  END IF;\nEND\n$$",
+        since: 180,
+        class: :constraint,
+        revisions: [
+          {180,
+           %{
+             type: "c",
+             columns: ["manufacturer_source"],
+             definition:
+               "CHECK (((manufacturer_source)::text = ANY ((ARRAY['local'::character varying, 'crm_company'::character varying])::text[])))",
+             name_template: nil,
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_cat_manufacturer_suppliers.phoenix_kit_cat_manufacturer_suppliers_sup_source_check",
+        owner: :catalogue,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_cat_manufacturer_suppliers_sup_source_check",
+             table: "phoenix_kit_cat_manufacturer_suppliers",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_cat_manufacturer_suppliers_sup_source_check'\n      AND t.relname = 'phoenix_kit_cat_manufacturer_suppliers'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_cat_manufacturer_suppliers ADD CONSTRAINT phoenix_kit_cat_manufacturer_suppliers_sup_source_check CHECK (((supplier_source)::text = ANY ((ARRAY['local'::character varying, 'crm_company'::character varying])::text[])));\n  END IF;\nEND\n$$",
+        since: 180,
+        class: :constraint,
+        revisions: [
+          {180,
+           %{
+             type: "c",
+             columns: ["supplier_source"],
+             definition:
+               "CHECK (((supplier_source)::text = ANY ((ARRAY['local'::character varying, 'crm_company'::character varying])::text[])))",
+             name_template: nil,
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_cat_item_supplier_info_current_pair_uniq",
+        owner: :catalogue,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_cat_item_supplier_info_current_pair_uniq",
+             table: "phoenix_kit_cat_item_supplier_info",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_cat_item_supplier_info_current_pair_uniq ON __SCHEMA__.phoenix_kit_cat_item_supplier_info USING btree (item_uuid, supplier_uuid) WHERE (valid_to IS NULL)",
+        since: 180,
+        class: :index,
+        revisions: [
+          {180,
+           %{
+             table: "phoenix_kit_cat_item_supplier_info",
+             keys: ["item_uuid", "supplier_uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_cat_item_supplier_info_current_pair_uniq ON __SCHEMA__.phoenix_kit_cat_item_supplier_info USING btree (item_uuid, supplier_uuid) WHERE (valid_to IS NULL)",
+             predicate: "(valid_to IS NULL)",
+             opclasses: ["uuid_ops", "uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
       # ── DECLARED POST-GENERATION (2026-08-20): V179 federated manufacturer ──
       # Two columns + one CHECK, catalog-exact from a phoenix_kit_test DB
       # migrated through V179. The FK this replaces is flipped to

@@ -7,7 +7,23 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V179 - Catalogue: item → manufacturer becomes a federated reference ⚡ LATEST
+  ### V180 - Catalogue: federated manufacturer↔supplier links + one current supplier per pair ⚡ LATEST
+
+  Adds `manufacturer_source` / `supplier_source` (`local` | `crm_company`,
+  CHECK-backed) to `phoenix_kit_cat_manufacturer_suppliers` and DROPS both of
+  its foreign keys, so the M:N graph can hold CRM parties — the last place
+  still forced to point at the catalogue's own directory. The dropped
+  constraints carried `ON DELETE CASCADE`; `Catalogue.delete_supplier/2` and
+  `delete_manufacturer/2` now clear links explicitly.
+
+  Also adds the partial unique index
+  `phoenix_kit_cat_item_supplier_info_current_pair_uniq` on
+  `(item_uuid, supplier_uuid) WHERE valid_to IS NULL`, so one item cannot list
+  the same supplier twice with two live prices. Partial on purpose: several
+  rows per pair are what a price revision produces. Existing duplicates are
+  CLOSED rather than deleted, or the index creation would fail.
+
+  ### V179 - Catalogue: item → manufacturer becomes a federated reference
 
   Adds `phoenix_kit_cat_items.manufacturer_source` (`local` | `crm_company`,
   CHECK-backed) and `manufacturer_name_snapshot` (a tombstone read only when
@@ -626,7 +642,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 179
+  @current_version 180
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
