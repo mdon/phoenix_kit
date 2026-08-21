@@ -51,7 +51,7 @@ defmodule PhoenixKitWeb.Components.Core.NavTabs do
 
   def nav_tabs(assigns) do
     ~H"""
-    <div role="tablist" class={["tabs tabs-boxed bg-base-200 p-1", @class]}>
+    <div role="tablist" class={["tabs tabs-box bg-base-200 p-1", @class]}>
       <%= for tab <- @tabs do %>
         <%= if Map.has_key?(tab, :path) do %>
           <.link

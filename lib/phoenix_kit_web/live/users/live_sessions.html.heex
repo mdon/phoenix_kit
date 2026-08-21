@@ -128,7 +128,7 @@
                but this page's handler reads phx-value-type — converting would
                desync the param key from handle_event("filter_by", %{"type" => ...}),
                and live_sessions.ex is outside this batch's file scope) --%>
-          <div class="tabs tabs-boxed tabs-sm">
+          <div class="tabs tabs-box tabs-sm">
             <button
               phx-click="filter_by"
               phx-value-type="all"
