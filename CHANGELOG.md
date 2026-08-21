@@ -1,3 +1,52 @@
+## 2.13.4 - 2026-08-21
+
+Catalogue manufacturer/supplier links become CRM-federated (V178–V180), and
+the Authorization settings page no longer leaks OAuth secrets via the DOM or
+application logs (#742, #743).
+
+### Added
+
+- **V178: `phoenix_kit_cat_manufacturers.crm_company_uuid`** — a soft,
+  nullable cross-reference onto a CRM party (no FK — optional-module
+  boundary), plus partial unique indexes on both `cat_manufacturers` and
+  `cat_suppliers`' `crm_company_uuid` so each stays one-to-one against a CRM
+  party (#743).
+- **V179: `phoenix_kit_cat_items.manufacturer_uuid` becomes a federated
+  reference** — a manufacturer can now be a CRM party, not only a local
+  `phoenix_kit_cat_manufacturers` row. Adds `manufacturer_source`
+  (`local`/`crm_company`) and `manufacturer_name_snapshot` (a tombstone shown
+  only when the reference resolves to nothing), and drops
+  `phoenix_kit_cat_items_manufacturer_uuid_fkey` — integrity moves to the
+  application, as it already had for the item↔supplier junction since V149
+  (#743).
+- **V180: `phoenix_kit_cat_manufacturer_suppliers` becomes federated on both
+  sides** — adds `manufacturer_source`/`supplier_source` and drops both of
+  the join table's foreign keys (which carried `ON DELETE CASCADE`). Also
+  adds a partial unique index so one item can no longer carry two *open*
+  price rows for the same supplier at once; pre-existing duplicates are
+  closed (not deleted) during the upgrade (#743).
+
+### Fixed
+
+- **The Authorization settings page (`/admin/settings/authorization`) no
+  longer renders real OAuth client secrets into the DOM.** The three secret
+  inputs previously round-tripped the real Google/GitHub/Facebook secret
+  through `value=`, which meant editing *any other field* re-submitted it as
+  part of the full-form `validate_settings` event and Phoenix's own LiveView
+  telemetry logger wrote it to the application log. Inputs now always render
+  blank with a "secret already configured" placeholder; a blank submission no
+  longer wipes the stored secret (#742).
+
+### ⚠️ Upgrade note
+
+If you use `phoenix_kit_catalogue`: upgrade it to a version that includes its
+own explicit cleanup of `phoenix_kit_cat_manufacturer_suppliers` links
+(`phoenix_kit_catalogue` PR #75) before or alongside this release. V180 drops
+the `ON DELETE CASCADE` that used to clear those links automatically when a
+local supplier/manufacturer was deleted; an older `phoenix_kit_catalogue`
+will silently leave orphaned (but harmless and recoverable) join rows behind
+until it's upgraded.
+
 ## 2.13.3 - 2026-08-20
 
 Closes an OAuth/AWS secret-value leak on the General and Users settings

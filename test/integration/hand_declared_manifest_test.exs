@@ -46,8 +46,9 @@ defmodule PhoenixKit.Migrations.HandDeclaredManifestTest do
     offenders =
       report
       |> Report.findings()
-      |> Enum.filter(&(&1.severity in [:error, :repairable]))
-      |> Enum.filter(&((&1.since || 0) >= @hand_declared_from))
+      |> Enum.filter(
+        &(&1.severity in [:error, :repairable] and (&1.since || 0) >= @hand_declared_from)
+      )
 
     assert offenders == [],
            "the manifest disagrees with a chain-built schema for V#{@hand_declared_from}+:\n" <>
