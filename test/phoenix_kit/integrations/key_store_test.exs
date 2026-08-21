@@ -426,6 +426,7 @@ defmodule PhoenixKit.Integrations.KeyStoreTest do
       assert KeyStore.describe_error({:empty, "/k"}) =~ "exists but is empty"
       assert KeyStore.describe_error({:verification_failed, :mismatch}) =~ "did not match"
       assert KeyStore.describe_error({:store_unavailable, Foo}) =~ "not loaded"
+      assert KeyStore.describe_error({:unreadable, "/k", :eacces}) =~ "unreadable at /k"
     end
 
     # A host-supplied store returns whatever it likes. An inspect/1 fallback
@@ -441,6 +442,21 @@ defmodule PhoenixKit.Integrations.KeyStoreTest do
 
     test "an unknown non-tuple term is withheld entirely" do
       refute KeyStore.describe_error(%{secret: @secret}) =~ @secret
+    end
+
+    # `{atom, binary, reason}` is the shape File and S3 use for their OWN
+    # known-safe reasons (`{:unreadable, path, reason}` etc). A third-party
+    # store that copies the convention — a plausible thing to do, not a
+    # hostile one — can put anything in the third slot, including the secret
+    # it failed to store. The clause that formats this shape must be guarded
+    # to PhoenixKit's own tags, not to "any atom", or a lookalike tuple from
+    # an unrelated store gets formatted verbatim instead of falling through
+    # to the tag-only catch-all.
+    test "a lookalike {atom, path, reason} tuple from an unrecognised tag is withheld too" do
+      described = KeyStore.describe_error({:some_custom_store_failure, "/some/path", @secret})
+
+      refute described =~ @secret
+      assert described =~ "details withheld"
     end
   end
 
@@ -568,6 +584,27 @@ defmodule PhoenixKit.Integrations.KeyStoreTest do
 
       assert log =~ "not by the first store"
       assert log =~ "failed"
+    end
+
+    # `warn_if_recovered/2` used to `inspect/1` a skipped store's raw
+    # `{:error, reason}` straight into `Logger.warning`, bypassing
+    # `KeyStore.describe_error/1` entirely — the one sanitiser every other
+    # operator-facing message on this surface goes through. A failing store
+    # whose reason quotes the secret must not leak it here either.
+    test "a skipped store's failure reason is sanitised before it reaches the log" do
+      import ExUnit.CaptureLog
+
+      __MODULE__.MemoryStore.put(:spare, @secret)
+
+      log =
+        capture_log(fn ->
+          assert {:ok, @secret} =
+                   Chain.read(
+                     chain([{__MODULE__.LeakyReasonStore, [secret: @secret]}, memory(:spare)])
+                   )
+        end)
+
+      refute log =~ @secret
     end
 
     test "nothing anywhere → :not_configured, which invites a first write" do
@@ -708,5 +745,19 @@ defmodule PhoenixKit.Integrations.KeyStoreTest do
     def preflight(_opts), do: {:error, :boom}
     @impl true
     def describe(_opts), do: "failing"
+  end
+
+  defmodule LeakyReasonStore do
+    @moduledoc false
+    @behaviour PhoenixKit.Integrations.KeyStore
+
+    @impl true
+    def read(opts), do: {:error, {:leaky_custom_reason, opts[:secret]}}
+    @impl true
+    def write(_secret, opts), do: {:error, {:leaky_custom_reason, opts[:secret]}}
+    @impl true
+    def preflight(opts), do: {:error, {:leaky_custom_reason, opts[:secret]}}
+    @impl true
+    def describe(_opts), do: "leaky"
   end
 end

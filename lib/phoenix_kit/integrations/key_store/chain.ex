@@ -96,7 +96,7 @@ defmodule PhoenixKit.Integrations.KeyStore.Chain do
     detail =
       Enum.map_join(skipped, ", ", fn
         {m, :not_configured} -> "#{inspect(m)} had nothing"
-        {m, {:error, reason}} -> "#{inspect(m)} failed (#{inspect(reason)})"
+        {m, {:error, reason}} -> "#{inspect(m)} failed (#{KeyStore.describe_error(reason)})"
       end)
 
     Logger.warning(

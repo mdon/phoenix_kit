@@ -291,8 +291,27 @@ defmodule PhoenixKit.Integrations.KeyStore do
   def describe_error({:chain_preflight_failed, failures}) when is_list(failures),
     do: "chain pre-flight failed for " <> describe_chain_failures(failures)
 
-  def describe_error({kind, path, reason}) when is_atom(kind) and is_binary(path),
-    do: "#{kind} at #{path}: #{inspect(reason)}"
+  # Guarded to exactly the tags PhoenixKit's own stores emit in this shape —
+  # NOT `is_atom(kind)`. `{atom, path, reason}` is the convention File and S3
+  # already follow, and a third-party store that copies it (a plausible thing
+  # to do, not a hostile one) can put anything in `reason`, including the
+  # secret it failed to store. Widening this guard back to any atom tag would
+  # format that reason verbatim instead of falling through to the tag-only
+  # catch-all below.
+  @first_party_path_tags [
+    :unreadable,
+    :write_failed,
+    :dir_unwritable,
+    :not_writable,
+    :probe_not_removable,
+    :s3_read_failed,
+    :s3_write_failed,
+    :s3_not_writable
+  ]
+
+  def describe_error({kind, path, reason})
+      when kind in @first_party_path_tags and is_binary(path),
+      do: "#{kind} at #{path}: #{inspect(reason)}"
 
   # Unknown shape from a host-supplied store: keep the tag, drop the payload.
   def describe_error(reason) when is_tuple(reason) and tuple_size(reason) > 0,
