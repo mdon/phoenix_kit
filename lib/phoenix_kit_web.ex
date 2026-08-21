@@ -168,7 +168,23 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.UserDashboardHeader
       import PhoenixKitWeb.Components.Core.DevNotice
       import PhoenixKitWeb.Components.Core.PhoenixKitGlobals
-      import PhoenixKitWeb.Components.Core.NavTabs
+      # Also exports tab_class/{1,2} and tablist_class/{0,1,2} so tab-styled
+      # markup that is not a tab strip can share one daisyUI definition.
+      # Those names now live in every LiveView — a local function of the
+      # same name and arity will fail the consumer's compile (this is how
+      # core 2.0's bar_chart/1 broke phoenix_kit_web_analytics). `only:`
+      # so a later helper on this module does not silently join the global
+      # namespace; same pattern as EmailStatusBadge above.
+      import PhoenixKitWeb.Components.Core.NavTabs,
+        only: [
+          nav_tabs: 1,
+          tab_class: 1,
+          tab_class: 2,
+          tablist_class: 0,
+          tablist_class: 1,
+          tablist_class: 2
+        ]
+
       import PhoenixKitWeb.Components.Core.IntegrationPicker
       import PhoenixKitWeb.Components.Core.EmptyState
       import PhoenixKitWeb.Components.Core.SortSelector

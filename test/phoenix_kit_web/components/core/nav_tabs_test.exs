@@ -16,7 +16,8 @@ defmodule PhoenixKitWeb.Components.Core.NavTabsTest do
   LINK KEYS live in a runtime map, so no `attr` declaration can validate them.
   A module passing `:patch` to an older core would land in the button branch
   with `on_change` nil and render a strip wired to `phx-click={nil}` — right
-  down to the styling. Those cases raise now.
+  down to the styling. Two link keys on one tab raise; a missing link with
+  no `on_change` logs a warning rather than taking the LiveView down.
   """
   use ExUnit.Case, async: true
 

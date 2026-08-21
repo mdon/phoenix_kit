@@ -1,3 +1,44 @@
+## 2.13.5 - 2026-08-21
+
+`nav_tabs` becomes the strip the rest of the ecosystem can actually adopt:
+patch links, an unframed variant, nil-tolerant badges, and the daisyUI 5
+`tabs-box` class (#744). Companion PRs in seven modules migrate onto it.
+
+### Added
+
+- **`nav_tabs` link keys now mirror `Phoenix.Component.link/1`.** `:navigate`
+  for a full LiveView navigation, `:patch` to stay in the current LiveView
+  (query-param tabs need this — a navigate remounts and drops socket state).
+  `:path` is a permanent alias for `:navigate`, so existing callers do not
+  change. Two link keys on one tab raise; a `nil` value counts as absent
+  (#744).
+- **`variant={:plain}`** drops the daisyUI frame (`tabs-box`) so a strip
+  nested in an already-framed container is not double-boxed. `class` can
+  only add, which is why callers had been hand-rolling instead (#744).
+- **`:badge_class`** lets a tab keep its own badge tone (a pending-requests
+  count stays `badge-warning` whether or not it is the active tab) (#744).
+- **`tablist_class/2` and `tab_class/2`** are public so tab-*styled* markup
+  that is not a tab strip can share one daisyUI definition. The next class
+  rename should be a change here, not another sweep (#744).
+
+### Changed
+
+- **`tabs-boxed` → `tabs-box`.** daisyUI 5 renamed the class; the old name
+  styled nothing (#744).
+- **Optional tab keys treat `nil` as absent**, so `badge: if(n > 0, do: n)`
+  renders no badge rather than an empty pill. Zero still renders (#744).
+- **`live_sessions`' filter row** uses `<.nav_tabs>`. Its handler now
+  matches on `%{"tab" => _}` instead of `%{"type" => _}` — the URL query
+  key stays `type` (#744).
+
+### Fixed
+
+- **`import PhoenixKitWeb.Components.Core.NavTabs` is now explicit
+  (`only:`)** so a later helper on that module does not silently join
+  every LiveView's namespace. `tab_class` / `tablist_class` are the
+  intended additions; the same file already documents this failure mode
+  on `EmailStatusBadge` (post-merge follow-up for #744).
+
 ## 2.13.4 - 2026-08-21
 
 Catalogue manufacturer/supplier links become CRM-federated (V178–V180), and
