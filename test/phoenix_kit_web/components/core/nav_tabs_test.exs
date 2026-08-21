@@ -198,6 +198,46 @@ defmodule PhoenixKitWeb.Components.Core.NavTabsTest do
     end
   end
 
+  describe "badges" do
+    test "a nil badge renders nothing, not an empty badge" do
+      # `badge: if(count > 0, do: count)` is the normal way to write a count
+      # that only shows when non-zero; keying on key PRESENCE rendered that
+      # as an empty pill.
+      html = render_tabs(%{tabs: [%{id: "a", label: "Requests", navigate: "/x", badge: nil}]})
+
+      assert html =~ "Requests"
+      refute html =~ "badge"
+    end
+
+    test "a zero badge still renders — only nil is absent" do
+      html = render_tabs(%{tabs: [%{id: "a", label: "Requests", navigate: "/x", badge: 0}]})
+
+      assert html =~ "badge"
+    end
+
+    test "badge_class wins over the active-tab default" do
+      # A pending-requests count stays badge-warning whether or not its tab
+      # is the active one.
+      html =
+        render_tabs(%{
+          active_tab: "a",
+          tabs: [
+            %{id: "a", label: "Requests", navigate: "/x", badge: 3, badge_class: "badge-warning"}
+          ]
+        })
+
+      assert html =~ "badge-warning"
+      refute html =~ "badge-primary"
+    end
+
+    test "without badge_class the active tab still gets the primary tone" do
+      html =
+        render_tabs(%{active_tab: "a", tabs: [%{id: "a", label: "A", navigate: "/x", badge: 3}]})
+
+      assert html =~ "badge-primary"
+    end
+  end
+
   describe "icons and badges" do
     test "both render, in either mode" do
       html =

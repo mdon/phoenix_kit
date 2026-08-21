@@ -29,8 +29,12 @@ defmodule PhoenixKitWeb.Components.Core.NavTabs do
 
   Required: `:id`, `:label`
 
-  Optional: `:icon` (Heroicon name), `:badge` (count/text), and at most one
-  link key — `:navigate`, `:patch`, or `:path`.
+  Optional: `:icon` (Heroicon name), `:badge` (count/text), `:badge_class`
+  (a daisyUI tone such as `"badge-warning"`, which wins over the active-tab
+  default), and at most one link key — `:navigate`, `:patch`, or `:path`.
+
+  Every optional key treats `nil` as absent, so the common
+  `badge: if(count > 0, do: count)` renders no badge rather than an empty one.
 
   The link keys mirror `Phoenix.Component.link/1` rather than inventing a
   parallel vocabulary: `:navigate` for a full LiveView navigation, `:patch`
@@ -149,15 +153,23 @@ defmodule PhoenixKitWeb.Components.Core.NavTabs do
     """
   end
 
+  # `!= nil` rather than `Map.has_key?/2` throughout: a count that is only
+  # shown when non-zero is normally written `badge: if(n > 0, do: n)`, and
+  # keying on presence rendered that as an empty badge.
   defp tab_body(assigns) do
     ~H"""
-    <.icon :if={Map.has_key?(@tab, :icon)} name={@tab.icon} class="w-4 h-4" />
+    <.icon :if={@tab[:icon] != nil} name={@tab.icon} class="w-4 h-4" />
     {@tab.label}
-    <span :if={Map.has_key?(@tab, :badge)} class={["badge badge-sm", @active? && "badge-primary"]}>
+    <span :if={@tab[:badge] != nil} class={["badge badge-sm", badge_tone(@tab, @active?)]}>
       {@tab.badge}
     </span>
     """
   end
+
+  # A tab may state its own badge tone — a pending-requests count stays
+  # `badge-warning` whether or not its tab is the active one — and that has to
+  # win over the active-tab default rather than fight it in the class list.
+  defp badge_tone(tab, active?), do: tab[:badge_class] || (active? && "badge-primary")
 
   # Resolves the link keys ONCE, up front, so the template stays a template.
   #
