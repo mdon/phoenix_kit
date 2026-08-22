@@ -1,3 +1,22 @@
+## 2.13.7 - 2026-08-22
+
+### Fixed
+
+- **`mix igniter.install phoenix_kit` no longer writes `config :phoenix_kit,
+  PhoenixKit.Mailer` above `import Config` in `config/runtime.exs`.** On a
+  stock Phoenix 1.7+ app (simple `dev.exs` plus a `runtime.exs` that calls
+  `System.get_env` — every `mix phx.new` tree) the installer preferred
+  `runtime.exs` and inserted the Local adapter at line 1, before the
+  `import Config` that defines `config/3`. The next boot then died with
+  `undefined function config/3 (there is no such import)`. The Local
+  adapter now lands in `config/dev.exs` on that layout. When the installer
+  does write `runtime.exs` (no simple `dev.exs`), the block is placed after
+  `import Config` and wrapped in `if config_env() == :dev`.
+  `mix phoenix_kit.update` relocates any `config` calls that already sit
+  above `import Config` and wraps the unguarded 2.13.6 Local adapter in
+  `if config_env() == :dev`, so a host that hit this on 2.13.6 boots again
+  after upgrading without overriding production mailer config.
+
 ## 2.13.6 - 2026-08-22
 
 The second `nav_tabs` adoption wave: daisyUI's underline look, and link

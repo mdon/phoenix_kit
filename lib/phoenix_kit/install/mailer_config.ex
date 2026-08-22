@@ -20,6 +20,16 @@ if Code.ensure_loaded?(Igniter) do
     alias PhoenixKit.Install.IgniterHelpers
     alias PhoenixKit.Install.RuntimeDetector
 
+    # :dev-guarded Local adapter, inserted AFTER `import Config`. Never at
+    # line 1 — that is a CompileError (`undefined function config/3`).
+    @runtime_dev_mailer """
+    # PhoenixKit mailer configuration
+    if config_env() == :dev do
+      config :phoenix_kit, PhoenixKit.Mailer,
+        adapter: Swoosh.Adapters.Local
+    end
+    """
+
     @doc """
     Adds PhoenixKit mailer configuration for development and production.
 
@@ -35,10 +45,44 @@ if Code.ensure_loaded?(Igniter) do
     """
     def add_mailer_configuration(igniter) do
       igniter
+      |> repair_runtime_import_order()
       |> add_mailer_delegation_config()
       |> add_prod_mailer_config()
       |> FinchSetup.add_finch_configuration()
       |> add_mailer_production_notice()
+    end
+
+    @doc """
+    Relocates any `config` calls that sit above `import Config` in
+    `config/runtime.exs`.
+
+    The 2.13.6 installer could write the Local mailer adapter at line 1,
+    which is a CompileError (`undefined function config/3`) on the next
+    boot. Safe to run on update as well as install: idempotent, no-op
+    when the file is already well-formed or missing.
+    """
+    def repair_runtime_import_order(igniter) do
+      if File.exists?("config/runtime.exs") do
+        Igniter.update_file(igniter, "config/runtime.exs", fn source ->
+          content = Rewrite.Source.get(source, :content)
+
+          updated =
+            content
+            |> RuntimeDetector.ensure_import_config_first()
+            |> RuntimeDetector.wrap_unguarded_local_mailer()
+
+          if updated == content do
+            source
+          else
+            Rewrite.Source.update(source, :content, updated)
+          end
+        end)
+      else
+        igniter
+      end
+    rescue
+      _ ->
+        igniter
     end
 
     # Add mailer delegation configuration - detects and uses parent app's mailer
@@ -66,34 +110,13 @@ if Code.ensure_loaded?(Igniter) do
     defp add_dev_mailer_config(igniter) do
       case RuntimeDetector.detect_config_pattern() do
         :runtime ->
-          add_runtime_mailer_config(igniter)
+          insert_into_runtime_file(igniter)
 
         :dev_exs ->
           add_simple_dev_mailer_config(igniter)
 
         :config_exs ->
           add_config_exs_mailer_config(igniter)
-      end
-    end
-
-    # Add mailer config to runtime.exs file
-    defp add_runtime_mailer_config(igniter) do
-      # Check if dev.exs is altered/complex - if so, use simple append to runtime.exs
-      if RuntimeDetector.dev_exs_exists?() && !RuntimeDetector.simple_dev_config?() do
-        # Dev.exs is complex, use simple append strategy for runtime.exs
-        append_to_runtime_file_simple(igniter)
-      else
-        # Use standard insertion strategy based on detection
-        case RuntimeDetector.find_insertion_point() do
-          {:runtime, line_number} ->
-            insert_into_runtime_file(igniter, line_number)
-
-          {:dev_exs, line_number} ->
-            add_simple_dev_mailer_config_at_line(igniter, line_number)
-
-          {:config_exs, line_number} ->
-            add_config_exs_mailer_config_at_line(igniter, line_number)
-        end
       end
     end
 
@@ -131,238 +154,32 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
-    # Insert mailer config into runtime.exs file
-    defp insert_into_runtime_file(igniter, line_number) do
-      mailer_config = """
-        # PhoenixKit mailer configuration
-        config :phoenix_kit, PhoenixKit.Mailer,
-          adapter: Swoosh.Adapters.Local
-      """
+    defp insert_into_runtime_file(igniter) do
+      Igniter.update_file(igniter, "config/runtime.exs", fn source ->
+        original = Rewrite.Source.get(source, :content)
 
-      try do
-        Igniter.update_file(igniter, "config/runtime.exs", fn source ->
-          current_content = Rewrite.Source.get(source, :content)
-          lines = String.split(current_content, "\n")
+        repaired =
+          original
+          |> RuntimeDetector.ensure_import_config_first()
+          |> RuntimeDetector.wrap_unguarded_local_mailer()
 
-          # Insert at the specified line
-          {before_lines, after_lines} = Enum.split(lines, line_number - 1)
+        updated =
+          if String.contains?(repaired, "config :phoenix_kit, PhoenixKit.Mailer") do
+            repaired
+          else
+            RuntimeDetector.insert_after_import_config(repaired, @runtime_dev_mailer)
+          end
 
-          updated_content =
-            (before_lines ++
-               [mailer_config] ++
-               after_lines)
-            |> Enum.join("\n")
-
-          Rewrite.Source.update(source, :content, updated_content)
-        end)
-      rescue
-        _ ->
-          # Fallback to simple append if AST parsing fails
-          append_to_runtime_file_simple(igniter)
-      end
-    end
-
-    # Simple append to runtime.exs using Igniter (no AST parsing)
-    defp append_to_runtime_file_simple(igniter) do
-      mailer_config = """
-
-      # PhoenixKit mailer configuration
-      config :phoenix_kit, PhoenixKit.Mailer,
-        adapter: Swoosh.Adapters.Local
-      """
-
-      try do
-        igniter =
-          Igniter.update_file(igniter, "config/runtime.exs", fn source ->
-            content = Rewrite.Source.get(source, :content)
-
-            # Check if already configured
-            if String.contains?(content, "config :phoenix_kit, PhoenixKit.Mailer") do
-              source
-            else
-              # Find insertion point before import_config statements
-              insertion_point = find_import_config_location(content)
-
-              updated_content =
-                case insertion_point do
-                  {:before_import, before_content, after_content} ->
-                    # Insert before import_config
-                    before_content <> mailer_config <> "\n" <> after_content
-
-                  :append_to_end ->
-                    # No import_config found, append to end
-                    content <> mailer_config
-                end
-
-              Rewrite.Source.update(source, :content, updated_content)
-            end
-          end)
-
-        igniter
-      rescue
-        e ->
-          # Last resort: show manual instructions
-          IO.warn("Failed to automatically configure runtime.exs: #{inspect(e)}")
-          add_runtime_config_notice(igniter)
-      end
-    end
-
-    # Find the location to insert config before import_config statements
-    defp find_import_config_location(content) do
-      lines = String.split(content, "\n")
-
-      # Look for import_config pattern (can have variations)
-      import_index =
-        Enum.find_index(lines, fn line ->
-          trimmed = String.trim(line)
-
-          String.starts_with?(trimmed, "import_config") or
-            String.contains?(line, "import_config")
-        end)
-
-      case import_index do
-        nil ->
-          # No import_config found, append to end
-          :append_to_end
-
-        index ->
-          # Find the start of the import_config block (look backwards for comments/blank lines)
-          start_index = find_import_block_start(lines, index)
-
-          # Split content at the start of import block
-          before_lines = Enum.take(lines, start_index)
-          after_lines = Enum.drop(lines, start_index)
-
-          before_content = Enum.join(before_lines, "\n")
-          after_content = Enum.join(after_lines, "\n")
-
-          {:before_import, before_content, after_content}
-      end
-    end
-
-    # Find the start of the import_config block (including preceding comments)
-    defp find_import_block_start(lines, import_index) do
-      # Look backwards from import_config line to find where the block starts
-      lines
-      |> Enum.take(import_index)
-      |> Enum.reverse()
-      |> Enum.reduce_while(import_index, fn line, current_index ->
-        trimmed = String.trim(line)
-
-        cond do
-          # Comment line that mentions "import" or "bottom" or "environment"
-          String.starts_with?(trimmed, "#") and
-              (String.contains?(line, "import") or
-                 String.contains?(line, "bottom") or
-                 String.contains?(line, "environment") or
-                 String.contains?(line, "Import") or
-                 String.contains?(line, "BOTTOM")) ->
-            {:cont, current_index - 1}
-
-          # Blank line
-          trimmed == "" ->
-            {:cont, current_index - 1}
-
-          # env_config assignment or similar
-          String.contains?(line, "config_env()") or
-              String.contains?(line, "env_config") ->
-            {:cont, current_index - 1}
-
-          # Stop at any other code
-          true ->
-            {:halt, current_index}
+        if updated == original do
+          source
+        else
+          Rewrite.Source.update(source, :content, updated)
         end
       end)
-    end
-
-    # Add dev mailer config at specific line number
-    defp add_simple_dev_mailer_config_at_line(igniter, _line_number) do
-      mailer_config = """
-
-      # PhoenixKit mailer configuration
-      config :phoenix_kit, PhoenixKit.Mailer,
-        adapter: Swoosh.Adapters.Local
-      """
-
-      try do
-        # Try using Igniter first for better integration
-        Config.configure_new(
-          igniter,
-          "dev.exs",
-          :phoenix_kit,
-          [PhoenixKit.Mailer],
-          adapter: Swoosh.Adapters.Local
-        )
-      rescue
-        _ ->
-          # Fallback to simple file append using Igniter
-          try do
-            igniter =
-              Igniter.update_file(igniter, "config/dev.exs", fn source ->
-                content = Rewrite.Source.get(source, :content)
-
-                # Check if already configured
-                if String.contains?(content, "config :phoenix_kit, PhoenixKit.Mailer") do
-                  source
-                else
-                  updated_content = content <> mailer_config
-                  Rewrite.Source.update(source, :content, updated_content)
-                end
-              end)
-
-            igniter
-          rescue
-            e ->
-              IO.warn("Failed to configure dev.exs: #{inspect(e)}")
-              add_runtime_config_notice(igniter)
-          end
-      end
-    end
-
-    # Add config_exs mailer config at specific line number
-    defp add_config_exs_mailer_config_at_line(igniter, _line_number) do
-      mailer_config = """
-
-      # PhoenixKit mailer configuration
-      if config_env() == :dev do
-        config :phoenix_kit, PhoenixKit.Mailer,
-          adapter: Swoosh.Adapters.Local
-      end
-      """
-
-      try do
-        igniter =
-          Igniter.update_file(igniter, "config/config.exs", fn source ->
-            content = Rewrite.Source.get(source, :content)
-
-            # Check if already configured
-            if String.contains?(content, "config :phoenix_kit, PhoenixKit.Mailer") do
-              source
-            else
-              # Find insertion point before import_config statements
-              insertion_point = find_import_config_location(content)
-
-              updated_content =
-                case insertion_point do
-                  {:before_import, before_content, after_content} ->
-                    # Insert before import_config
-                    before_content <> mailer_config <> "\n" <> after_content
-
-                  :append_to_end ->
-                    # No import_config found, append to end
-                    content <> mailer_config
-                end
-
-              Rewrite.Source.update(source, :content, updated_content)
-            end
-          end)
-
-        igniter
-      rescue
-        e ->
-          IO.warn("Failed to configure config.exs: #{inspect(e)}")
-          add_runtime_config_notice(igniter)
-      end
+    rescue
+      e ->
+        IO.warn("Failed to automatically configure runtime.exs: #{inspect(e)}")
+        add_runtime_config_notice(igniter)
     end
 
     # Detect parent application's mailer module

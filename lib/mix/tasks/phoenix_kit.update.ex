@@ -96,6 +96,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       EndpointIntegration,
       IgniterHelpers,
       JsIntegration,
+      MailerConfig,
       ObanConfig,
       PrefixConfig,
       RateLimiterConfig
@@ -143,6 +144,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         |> BasicConfiguration.add_basic_config()
         |> ApplicationSupervisor.add_supervisor()
         |> BootHook.add_boot_hook()
+        |> MailerConfig.repair_runtime_import_order()
         |> EndpointIntegration.add_pdfjs_static_mount()
         |> perform_igniter_update(opts)
       end
