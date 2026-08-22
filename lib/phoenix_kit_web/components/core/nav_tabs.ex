@@ -7,8 +7,8 @@ defmodule PhoenixKitWeb.Components.Core.NavTabs do
   **Navigation tabs** — each tab carries a URL, renders as `<.link>`:
 
       <.nav_tabs active_tab="general" tabs={[
-        %{id: "general", label: "General", icon: "hero-cog-6-tooth", navigate: "/admin/settings"},
-        %{id: "advanced", label: "Advanced", navigate: "/admin/settings/advanced"}
+        %{id: "general", label: "General", icon: "hero-cog-6-tooth", navigate: Routes.path("/admin/settings")},
+        %{id: "advanced", label: "Advanced", navigate: Routes.path("/admin/settings/advanced")}
       ]} />
 
   **Event tabs** — no URL, uses `on_change` via `phx-click`:
@@ -21,8 +21,8 @@ defmodule PhoenixKitWeb.Components.Core.NavTabs do
   **With badges** (works in both modes):
 
       <.nav_tabs active_tab={@tab} tabs={[
-        %{id: "followers", label: "Followers", patch: "/connections?tab=followers", badge: @followers_count},
-        %{id: "following", label: "Following", patch: "/connections?tab=following", badge: @following_count}
+        %{id: "followers", label: "Followers", patch: Routes.path("/connections?tab=followers"), badge: @followers_count},
+        %{id: "following", label: "Following", patch: Routes.path("/connections?tab=following"), badge: @following_count}
       ]} />
 
   ## Tab map keys
@@ -39,9 +39,15 @@ defmodule PhoenixKitWeb.Components.Core.NavTabs do
   The link keys mirror `Phoenix.Component.link/1` rather than inventing a
   parallel vocabulary: `:navigate` for a full LiveView navigation, `:patch`
   to stay in the current LiveView (query-param tabs want this — a `:navigate`
-  there remounts and loses socket state). `:path` is the original spelling
-  and is kept as a permanent alias for `:navigate`, so nothing that already
-  uses it has to change. Setting more than one link key raises; a key whose
+  there remounts and loses socket state). Both pass through VERBATIM, again
+  like `link/1` — build them with your module's Paths helpers (or
+  `Routes.path/1` yourself). `:path` is the legacy
+  spelling: the same link KIND as `:navigate`, but with different prefix
+  rules — it is the one key the component still runs through
+  `Routes.path/1`, because its callers predate the link keys and have
+  always passed unprefixed paths. The two are NOT interchangeable: swapping
+  `path:` for `navigate:` while keeping an unprefixed value under-prefixes,
+  and the reverse double-prefixes. Setting more than one link key raises; a key whose
   value is `nil` counts as absent, so a conditional path is safe.
 
   A tab with no link key renders as a button and needs `on_change`; without
@@ -66,6 +72,8 @@ defmodule PhoenixKitWeb.Components.Core.NavTabs do
   `variant={:boxed}` (default) is the filled strip used across admin pages.
   `variant={:plain}` drops the frame for tabs that sit inside an
   already-framed container — a filter row inside a picker, say.
+  `variant={:border}` is daisyUI's underline look, the convention on
+  show-page and settings tab strips.
 
   It exists because `class` can only ADD to the container: with the frame
   baked in, a caller had no way to take it off, and hand-rolling the markup
@@ -92,6 +100,12 @@ defmodule PhoenixKitWeb.Components.Core.NavTabs do
   def tablist_class(variant \\ :boxed, extra \\ nil)
   def tablist_class(:boxed, extra), do: ["tabs tabs-box bg-base-200 p-1", extra]
 
+  # The underline family: daisyUI's third tab look, used by the show-page
+  # and settings strips across the modules. Unlike `tabs-box`, `tabs-border`
+  # draws only the underline — there is no frame to shed, so no bg/padding
+  # overrides ride along.
+  def tablist_class(:border, extra), do: ["tabs tabs-border", extra]
+
   # `tabs-box` IS the daisyUI frame — it sets background-color, padding,
   # border-radius and box-shadow itself, which is why `:boxed`'s own
   # `bg-base-200 p-1` are redundant overrides rather than the frame. Dropping
@@ -115,9 +129,9 @@ defmodule PhoenixKitWeb.Components.Core.NavTabs do
     doc: "phx-click event name for event-based tabs (tabs with no link key)"
 
   attr :variant, :atom,
-    values: [:boxed, :plain],
+    values: [:boxed, :plain, :border],
     default: :boxed,
-    doc: ":boxed fills the strip; :plain drops the background and padding"
+    doc: ":boxed fills the strip; :plain drops the frame; :border is the underline look"
 
   attr :class, :string, default: nil
 
@@ -199,7 +213,16 @@ defmodule PhoenixKitWeb.Components.Core.NavTabs do
   end
 
   defp resolve_link([], _tab), do: nil
-  defp resolve_link([{_key, kind, to}], _tab), do: [{kind, Routes.path(to)}]
+
+  # `:navigate`/`:patch` pass through VERBATIM, exactly like
+  # `Phoenix.Component.link/1` — modules build their URLs with their own
+  # Paths helpers, which already apply the URL prefix and locale, and
+  # applying `Routes.path/1` a second time double-prefixes them (found
+  # migrating the CRM show pages). Only the legacy `:path` key keeps the
+  # helper treatment: it predates the link keys and its callers have always
+  # passed unprefixed paths.
+  defp resolve_link([{:path, kind, to}], _tab), do: [{kind, Routes.path(to)}]
+  defp resolve_link([{_key, kind, to}], _tab), do: [{kind, to}]
 
   # Two link keys is unambiguously a mistake rather than a degraded render:
   # there is no defensible way to pick one, and `:navigate`/`:patch` are new
