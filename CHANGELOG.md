@@ -1,3 +1,26 @@
+## 2.13.6 - 2026-08-22
+
+The second `nav_tabs` adoption wave: daisyUI's underline look, and link
+keys that no longer double-prefix module Paths helpers (#746).
+
+### Added
+
+- **`variant={:border}`** — daisyUI 5's `tabs-border` underline look, the
+  convention on show-page and settings strips. Unlike `:boxed` there is
+  no frame to shed, so no bg/padding overrides ride along (#746).
+
+### Changed
+
+- **`:navigate` and `:patch` now pass through verbatim**, matching
+  `Phoenix.Component.link/1`. They used to run through `Routes.path/1`,
+  which double-prefixed URLs already built by a module's Paths helpers.
+  `:path` is unchanged: it still applies the helper, because its callers
+  have always passed unprefixed paths. The two keys are the same link
+  *kind* with different prefix rules — not interchangeable spellings
+  (#746). Callers that passed unprefixed values to `:navigate` / `:patch`
+  against 2.13.5 need to prefix them at the call site (one consumer:
+  `phoenix_kit_user_connections`).
+
 ## 2.13.5 - 2026-08-21
 
 `nav_tabs` becomes the strip the rest of the ecosystem can actually adopt:

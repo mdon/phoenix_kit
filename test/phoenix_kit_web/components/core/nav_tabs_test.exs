@@ -18,11 +18,19 @@ defmodule PhoenixKitWeb.Components.Core.NavTabsTest do
   with `on_change` nil and render a strip wired to `phx-click={nil}` — right
   down to the styling. Two link keys on one tab raise; a missing link with
   no `on_change` logs a warning rather than taking the LiveView down.
+
+  The second adoption wave pins two more contracts the module migrations
+  depend on: `variant={:border}` is daisyUI's underline look, and
+  `:navigate`/`:patch` pass through verbatim (like `Phoenix.Component.link/1`)
+  while legacy `:path` still goes through `Routes.path/1`. Those two prefix
+  rules are not interchangeable spellings — swapping the keys while keeping
+  the same value either under-prefixes or double-prefixes.
   """
   use ExUnit.Case, async: true
 
   import Phoenix.LiveViewTest
 
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.Core.NavTabs
 
   defp render_tabs(assigns) do
@@ -53,27 +61,64 @@ defmodule PhoenixKitWeb.Components.Core.NavTabsTest do
     end
 
     test ":path still means navigate AND still gets the route-helper treatment" do
-      from_path = render_tabs(%{tabs: [%{id: "a", label: "General", path: "/admin/settings"}]})
+      raw = "/admin/settings"
+      expected = Routes.path(raw)
+      # The pin is "helper ran", not "substring of the raw path survived".
+      # `=~ "/admin/settings"` would pass for an unprefixed href too.
+      assert expected != raw
+
+      from_path = render_tabs(%{tabs: [%{id: "a", label: "General", path: raw}]})
 
       assert from_path =~ ~s(data-phx-link="redirect")
-      # Routes.path applied (locale/prefix injection) — the pre-link-keys
-      # contract every legacy caller relies on.
-      assert from_path =~ "/admin/settings"
+      assert from_path =~ ~s(href="#{expected}")
     end
 
-    test ":navigate and :patch pass through verbatim — no double-prefixing" do
+    test ":navigate and :path are the same link kind with different prefix rules" do
+      raw = "/admin/settings"
+      from_path = render_tabs(%{tabs: [%{id: "a", label: "A", path: raw}]})
+      from_navigate = render_tabs(%{tabs: [%{id: "a", label: "A", navigate: raw}]})
+
+      assert from_path =~ ~s(data-phx-link="redirect")
+      assert from_navigate =~ ~s(data-phx-link="redirect")
+      refute from_path == from_navigate
+      assert from_navigate =~ ~s(href="#{raw}")
+      assert from_path =~ ~s(href="#{Routes.path(raw)}")
+    end
+
+    test ":navigate and :patch pass through verbatim — no helper, no double-prefix" do
       # Modules build tab URLs with their own Paths helpers, which already
       # apply the URL prefix and locale. Running them through Routes.path/1
       # again double-prefixes; only legacy :path gets the helper.
+      unprefixed = "/admin/crm/contacts/x?tab=files"
+      helper = Routes.path(unprefixed)
+      assert helper != unprefixed
+
+      html = render_tabs(%{tabs: [%{id: "a", label: "A", patch: unprefixed}]})
+
+      assert html =~ ~s(href="#{unprefixed}")
+      refute html =~ ~s(href="#{helper}")
+
+      already_prefixed = "/phoenix_kit/en/admin/crm/contacts/x?tab=files"
+
       html =
         render_tabs(%{
-          tabs: [%{id: "a", label: "A", patch: "/phoenix_kit/en/admin/crm/contacts/x?tab=files"}]
+          tabs: [%{id: "a", label: "A", navigate: already_prefixed}]
         })
 
-      assert html =~ ~s(href="/phoenix_kit/en/admin/crm/contacts/x?tab=files")
+      assert html =~ ~s(href="#{already_prefixed}")
     end
 
-    test "a query string survives the route helper intact" do
+    test "a query string on :path survives the route helper intact" do
+      raw = "/profile/connections?tab=followers"
+      html = render_tabs(%{tabs: [%{id: "followers", label: "Followers", path: raw}]})
+
+      # If the helper dropped or re-encoded the query, the tab would render
+      # but the active state would never stick on reload.
+      assert html =~ "?tab=followers"
+      assert html =~ Routes.path(raw)
+    end
+
+    test "a query string on a verbatim :patch survives intact" do
       html =
         render_tabs(%{
           tabs: [
@@ -81,9 +126,7 @@ defmodule PhoenixKitWeb.Components.Core.NavTabsTest do
           ]
         })
 
-      # If the helper dropped or re-encoded the query, the tab would render
-      # but the active state would never stick on reload.
-      assert html =~ "?tab=followers"
+      assert html =~ ~s(href="/profile/connections?tab=followers")
     end
 
     test "a strip may mix link tabs and event tabs" do
@@ -221,6 +264,7 @@ defmodule PhoenixKitWeb.Components.Core.NavTabsTest do
       assert NavTabs.tablist_class(:plain) == ["tabs", nil]
       assert NavTabs.tablist_class(:plain, "inline-flex") == ["tabs", "inline-flex"]
       assert NavTabs.tablist_class(:border) == ["tabs tabs-border", nil]
+      assert NavTabs.tablist_class(:border, "mb-4") == ["tabs tabs-border", "mb-4"]
     end
 
     test "an unknown variant fails loud, not as a silently unstyled strip" do
