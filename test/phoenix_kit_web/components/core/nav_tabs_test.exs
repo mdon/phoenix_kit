@@ -52,13 +52,25 @@ defmodule PhoenixKitWeb.Components.Core.NavTabsTest do
       refute html =~ ~s(data-phx-link="patch")
     end
 
-    test ":path still means navigate — the original spelling never breaks" do
+    test ":path still means navigate AND still gets the route-helper treatment" do
       from_path = render_tabs(%{tabs: [%{id: "a", label: "General", path: "/admin/settings"}]})
 
-      from_navigate =
-        render_tabs(%{tabs: [%{id: "a", label: "General", navigate: "/admin/settings"}]})
+      assert from_path =~ ~s(data-phx-link="redirect")
+      # Routes.path applied (locale/prefix injection) — the pre-link-keys
+      # contract every legacy caller relies on.
+      assert from_path =~ "/admin/settings"
+    end
 
-      assert from_path == from_navigate
+    test ":navigate and :patch pass through verbatim — no double-prefixing" do
+      # Modules build tab URLs with their own Paths helpers, which already
+      # apply the URL prefix and locale. Running them through Routes.path/1
+      # again double-prefixes; only legacy :path gets the helper.
+      html =
+        render_tabs(%{
+          tabs: [%{id: "a", label: "A", patch: "/phoenix_kit/en/admin/crm/contacts/x?tab=files"}]
+        })
+
+      assert html =~ ~s(href="/phoenix_kit/en/admin/crm/contacts/x?tab=files")
     end
 
     test "a query string survives the route helper intact" do
@@ -122,6 +134,23 @@ defmodule PhoenixKitWeb.Components.Core.NavTabsTest do
 
       # Still a tab strip, just unframed.
       assert html =~ "tabs"
+    end
+
+    test ":border is the underline family — no box, no frame overrides" do
+      html = render_tabs(%{variant: :border, on_change: "s", tabs: [%{id: "a", label: "A"}]})
+
+      assert html =~ "tabs-border"
+      refute html =~ "tabs-box"
+      refute html =~ "bg-base-200"
+    end
+
+    test "adding :border changed nothing about :boxed or :plain" do
+      boxed = render_tabs(%{on_change: "s", tabs: [%{id: "a", label: "A"}]})
+      plain = render_tabs(%{variant: :plain, on_change: "s", tabs: [%{id: "a", label: "A"}]})
+
+      assert boxed =~ "tabs tabs-box bg-base-200 p-1"
+      assert plain =~ ~s(class="tabs")
+      refute plain =~ "tabs-border"
     end
 
     test "class ADDS to the container rather than replacing it" do
@@ -191,6 +220,11 @@ defmodule PhoenixKitWeb.Components.Core.NavTabsTest do
       assert NavTabs.tablist_class(:boxed) == ["tabs tabs-box bg-base-200 p-1", nil]
       assert NavTabs.tablist_class(:plain) == ["tabs", nil]
       assert NavTabs.tablist_class(:plain, "inline-flex") == ["tabs", "inline-flex"]
+      assert NavTabs.tablist_class(:border) == ["tabs tabs-border", nil]
+    end
+
+    test "an unknown variant fails loud, not as a silently unstyled strip" do
+      assert_raise FunctionClauseError, fn -> NavTabs.tablist_class(:bogus) end
     end
 
     test "tab_class/2 marks the active tab" do
