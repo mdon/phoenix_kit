@@ -12878,17 +12878,17 @@ msgstr ""
 
 #: lib/phoenix_kit_web/users/oauth.ex:365
 #: lib/phoenix_kit_web/users/session.ex:245
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account added."
 msgstr ""
 
 #: lib/phoenix_kit_web/users/session.ex:27
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account created successfully!"
 msgstr ""
 
 #: lib/phoenix_kit_web/users/session.ex:356
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account removed."
 msgstr ""
 
@@ -12915,12 +12915,12 @@ msgid "Authentication failed. Please try again."
 msgstr ""
 
 #: lib/phoenix_kit_web/users/oauth.ex:299
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Authentication failed: %{errors}"
 msgstr ""
 
 #: lib/phoenix_kit_web/users/oauth.ex:441
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Authentication failed: %{message}"
 msgstr ""
 
@@ -12938,22 +12938,22 @@ msgstr ""
 #: lib/phoenix_kit/integrations/validators.ex:634
 #: lib/phoenix_kit/integrations/validators.ex:732
 #: lib/phoenix_kit/integrations/validators.ex:740
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not reach the storage endpoint"
 msgstr ""
 
 #: lib/phoenix_kit_web/users/session.ex:365
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not remove account."
 msgstr ""
 
 #: lib/phoenix_kit_web/users/session.ex:274
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not switch account."
 msgstr ""
 
 #: lib/phoenix_kit/integrations/validators.ex:721
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Credentials are valid, but not authorized to list buckets"
 msgstr ""
 
@@ -12963,7 +12963,7 @@ msgid "Exempt"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:86
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Follows noindex"
 msgstr ""
 
@@ -12983,7 +12983,7 @@ msgid "If your email is in our system, you will receive instructions to reset yo
 msgstr ""
 
 #: lib/phoenix_kit_web/controllers/context_controller.ex:82
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Invalid context"
 msgstr ""
 
@@ -13018,7 +13018,7 @@ msgid "Keep publishing the sitemap's real URLs even while noindex is on, so the 
 msgstr ""
 
 #: lib/phoenix_kit_web/users/session.ex:104
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Logged out of all accounts."
 msgstr ""
 
@@ -13039,7 +13039,7 @@ msgid "Magic link registration is currently disabled."
 msgstr ""
 
 #: lib/phoenix_kit_web/users/magic_link.ex:110
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Magic link sent! Check your email."
 msgstr ""
 
@@ -13051,7 +13051,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/users/oauth.ex:370
 #: lib/phoenix_kit_web/users/session.ex:249
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Maximum number of accounts reached."
 msgstr ""
 
@@ -13086,12 +13086,12 @@ msgid "Object Storage (S3-compatible)"
 msgstr ""
 
 #: lib/phoenix_kit_web/users/reset_password.ex:41
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Password reset successfully."
 msgstr ""
 
 #: lib/phoenix_kit_web/users/session.ex:34
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Password updated successfully!"
 msgstr ""
 
@@ -13102,7 +13102,7 @@ msgid "Registration is currently disabled."
 msgstr ""
 
 #: lib/phoenix_kit_web/users/magic_link_registration.ex:92
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Registration link is invalid or has expired."
 msgstr ""
 
@@ -13134,7 +13134,7 @@ msgid "S3-compatible object storage — AWS S3, Cloudflare R2, Backblaze B2, Tig
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:75
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sitemap Exemption"
 msgstr ""
 
@@ -13165,12 +13165,12 @@ msgstr ""
 
 #: lib/phoenix_kit_web/users/oauth.ex:375
 #: lib/phoenix_kit_web/users/session.ex:254
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "That account is already in your session."
 msgstr ""
 
 #: lib/phoenix_kit_web/users/oauth.ex:380
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "That account is inactive."
 msgstr ""
 
@@ -13180,7 +13180,7 @@ msgid "That email is already registered. Please log in instead."
 msgstr ""
 
 #: lib/phoenix_kit_web/users/magic_link_registration_request.ex:118
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Too many attempts"
 msgstr ""
 
@@ -13191,7 +13191,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/users/oauth.ex:84
 #: lib/phoenix_kit_web/users/oauth.ex:210
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Unknown OAuth provider: %{provider}"
 msgstr ""
 
@@ -13201,7 +13201,7 @@ msgid "User confirmation link is invalid or it has expired."
 msgstr ""
 
 #: lib/phoenix_kit_web/users/confirmation.ex:50
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "User confirmed successfully."
 msgstr ""
 
@@ -13217,7 +13217,7 @@ msgid "User registration is currently disabled. Please contact an administrator.
 msgstr ""
 
 #: lib/phoenix_kit_web/users/session.ex:40
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Welcome back!"
 msgstr ""
 
@@ -13232,7 +13232,7 @@ msgid "%{label} module is not enabled"
 msgstr ""
 
 #: lib/phoenix_kit_web/users/auth.ex:2366
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Enter your referral code to continue."
 msgstr ""
 
@@ -13249,7 +13249,7 @@ msgstr ""
 #: lib/phoenix_kit_web/users/auth.ex:749
 #: lib/phoenix_kit_web/users/auth.ex:1892
 #: lib/phoenix_kit_web/users/auth.ex:2511
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You do not have permission to access this section."
 msgstr ""
 
@@ -13257,7 +13257,7 @@ msgstr ""
 #: lib/phoenix_kit_web/users/auth.ex:878
 #: lib/phoenix_kit_web/users/auth.ex:2460
 #: lib/phoenix_kit_web/users/auth.ex:2496
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You do not have the required permission to access this page."
 msgstr ""
 

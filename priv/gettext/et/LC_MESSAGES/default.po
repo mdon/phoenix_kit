@@ -12903,19 +12903,19 @@ msgstr ""
 
 #: lib/phoenix_kit_web/users/oauth.ex:365
 #: lib/phoenix_kit_web/users/session.ex:245
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account added."
-msgstr "Konto"
+msgstr "Konto lisatud."
 
 #: lib/phoenix_kit_web/users/session.ex:27
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account created successfully!"
-msgstr "Bucket lubati edukalt"
+msgstr "Konto loodud edukalt!"
 
 #: lib/phoenix_kit_web/users/session.ex:356
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account removed."
-msgstr "Konto"
+msgstr "Konto eemaldatud."
 
 #: lib/phoenix_kit_web/users/oauth.ex:272
 #, elixir-autogen, elixir-format
@@ -12940,14 +12940,14 @@ msgid "Authentication failed. Please try again."
 msgstr "Autentimine ebaõnnestus. Palun proovige uuesti."
 
 #: lib/phoenix_kit_web/users/oauth.ex:299
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Authentication failed: %{errors}"
-msgstr "Autentimine"
+msgstr "Autentimine ebaõnnestus: %{errors}"
 
 #: lib/phoenix_kit_web/users/oauth.ex:441
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Authentication failed: %{message}"
-msgstr "Autentimine"
+msgstr "Autentimine ebaõnnestus: %{message}"
 
 #: lib/phoenix_kit_web/users/session.ex:360
 #, elixir-autogen, elixir-format
@@ -12963,24 +12963,24 @@ msgstr "Konteksti vahetamine ei ole lubatud"
 #: lib/phoenix_kit/integrations/validators.ex:634
 #: lib/phoenix_kit/integrations/validators.ex:732
 #: lib/phoenix_kit/integrations/validators.ex:740
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not reach the storage endpoint"
-msgstr "Teenusele ei saanud juurde pääseda"
+msgstr ""
 
 #: lib/phoenix_kit_web/users/session.ex:365
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not remove account."
-msgstr "Brevoga ei saanud ühendust"
+msgstr "Konto eemaldamine ebaõnnestus."
 
 #: lib/phoenix_kit_web/users/session.ex:274
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not switch account."
-msgstr "Vestlusi ei saanud lahti siduda"
+msgstr "Konto vahetamine ebaõnnestus."
 
 #: lib/phoenix_kit/integrations/validators.ex:721
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Credentials are valid, but not authorized to list buckets"
-msgstr "Mandaadid on kehtivad, kuid puudub õigus GetSendQuota jaoks — saatmist ei kontrollitud"
+msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:85
 #, elixir-autogen, elixir-format
@@ -12988,9 +12988,9 @@ msgid "Exempt"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:86
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Follows noindex"
-msgstr "Jälgimised"
+msgstr ""
 
 #: lib/phoenix_kit_web/users/magic_link.ex:120
 #, elixir-autogen, elixir-format
@@ -13008,9 +13008,9 @@ msgid "If your email is in our system, you will receive instructions to reset yo
 msgstr "Kui teie e-post on meie süsteemis, saate peagi parooli lähtestamise juhised."
 
 #: lib/phoenix_kit_web/controllers/context_controller.ex:82
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Invalid context"
-msgstr "Vigane boti token"
+msgstr "Vigane kontekst"
 
 #: lib/phoenix_kit_web/users/magic_link_registration_request.ex:110
 #, elixir-autogen, elixir-format
@@ -13043,9 +13043,9 @@ msgid "Keep publishing the sitemap's real URLs even while noindex is on, so the 
 msgstr ""
 
 #: lib/phoenix_kit_web/users/session.ex:104
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Logged out of all accounts."
-msgstr "Logi välja kõigilt kontodelt"
+msgstr "Välja logitud kõikidest kontodest."
 
 #: lib/phoenix_kit_web/users/session.ex:122
 #: lib/phoenix_kit_web/users/session.ex:235
@@ -13064,9 +13064,9 @@ msgid "Magic link registration is currently disabled."
 msgstr "Magic Linki registreerimine on hetkel keelatud."
 
 #: lib/phoenix_kit_web/users/magic_link.ex:110
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Magic link sent! Check your email."
-msgstr "Magic Link saadetud!"
+msgstr "Magic Link saadetud! Vaata oma e-posti."
 
 #: lib/phoenix_kit_web/users/magic_link.ex:39
 #: lib/phoenix_kit_web/users/magic_link_verify.ex:33
@@ -13076,9 +13076,9 @@ msgstr "Magic Linkiga sisselogimine on hetkel keelatud."
 
 #: lib/phoenix_kit_web/users/oauth.ex:370
 #: lib/phoenix_kit_web/users/session.ex:249
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Maximum number of accounts reached."
-msgstr "Kontode ülempiir on täis — eemaldage kõigepealt üks."
+msgstr "Kontode ülempiir on täis."
 
 #: lib/phoenix_kit_web/users/session.ex:137
 #, elixir-autogen, elixir-format
@@ -13111,14 +13111,14 @@ msgid "Object Storage (S3-compatible)"
 msgstr ""
 
 #: lib/phoenix_kit_web/users/reset_password.ex:41
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Password reset successfully."
-msgstr "Parool muudetud edukalt."
+msgstr "Parool lähtestatud edukalt."
 
 #: lib/phoenix_kit_web/users/session.ex:34
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Password updated successfully!"
-msgstr "Parool muudetud edukalt."
+msgstr "Parool uuendatud edukalt!"
 
 #: lib/phoenix_kit_web/users/magic_link_registration.ex:35
 #: lib/phoenix_kit_web/users/registration.ex:128
@@ -13127,9 +13127,9 @@ msgid "Registration is currently disabled."
 msgstr "Registreerimine on hetkel keelatud."
 
 #: lib/phoenix_kit_web/users/magic_link_registration.ex:92
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Registration link is invalid or has expired."
-msgstr "E-posti muutmise link on kehtetu või aegunud."
+msgstr "Registreerimislink on kehtetu või aegunud."
 
 #: lib/phoenix_kit_web/users/magic_link_registration.ex:188
 #: lib/phoenix_kit_web/users/magic_link_registration_verify.ex:24
@@ -13159,9 +13159,9 @@ msgid "S3-compatible object storage — AWS S3, Cloudflare R2, Backblaze B2, Tig
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:75
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sitemap Exemption"
-msgstr "Saidikaardi seaded"
+msgstr ""
 
 #: lib/phoenix_kit_web/users/magic_link_registration_request.ex:144
 #, elixir-autogen, elixir-format
@@ -13190,14 +13190,14 @@ msgstr "Sisselogimine teenusepakkujaga '%{provider}' õnnestus!"
 
 #: lib/phoenix_kit_web/users/oauth.ex:375
 #: lib/phoenix_kit_web/users/session.ex:254
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "That account is already in your session."
-msgstr "See konto on juba teie sessioonis — lülituge lihtsalt sellele."
+msgstr "See konto on juba teie sessioonis."
 
 #: lib/phoenix_kit_web/users/oauth.ex:380
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "That account is inactive."
-msgstr "See konto on deaktiveeritud."
+msgstr "See konto on mitteaktiivne."
 
 #: lib/phoenix_kit_web/users/magic_link_registration.ex:185
 #, elixir-autogen, elixir-format
@@ -13205,9 +13205,9 @@ msgid "That email is already registered. Please log in instead."
 msgstr "See e-post on juba registreeritud. Palun logige selle asemel sisse."
 
 #: lib/phoenix_kit_web/users/magic_link_registration_request.ex:118
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Too many attempts"
-msgstr "Liiga palju faile"
+msgstr "Liiga palju katseid"
 
 #: lib/phoenix_kit_web/users/session.ex:84
 #, elixir-autogen, elixir-format
@@ -13216,9 +13216,9 @@ msgstr "Liiga palju sisselogimiskatseid. Palun proovige hiljem uuesti."
 
 #: lib/phoenix_kit_web/users/oauth.ex:84
 #: lib/phoenix_kit_web/users/oauth.ex:210
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Unknown OAuth provider: %{provider}"
-msgstr "Tundmatu teenusepakkuja"
+msgstr "Tundmatu OAuth teenusepakkuja: %{provider}"
 
 #: lib/phoenix_kit_web/users/confirmation.ex:68
 #, elixir-autogen, elixir-format
@@ -13226,9 +13226,9 @@ msgid "User confirmation link is invalid or it has expired."
 msgstr "Kasutaja kinnituslink on kehtetu või aegunud."
 
 #: lib/phoenix_kit_web/users/confirmation.ex:50
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "User confirmed successfully."
-msgstr "Kasutaja edukalt aktiveeritud"
+msgstr "Kasutaja kinnitatud edukalt."
 
 #: lib/phoenix_kit_web/users/magic_link_registration_request.ex:77
 #, elixir-autogen, elixir-format
@@ -13242,9 +13242,9 @@ msgid "User registration is currently disabled. Please contact an administrator.
 msgstr "Kasutajate registreerimine on hetkel keelatud. Palun võtke ühendust administraatoriga."
 
 #: lib/phoenix_kit_web/users/session.ex:40
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Welcome back!"
-msgstr "Tere tulemast tagasi"
+msgstr "Tere tulemast tagasi!"
 
 #: lib/phoenix_kit_web/users/session.ex:66
 #, elixir-autogen, elixir-format
@@ -13257,9 +13257,9 @@ msgid "%{label} module is not enabled"
 msgstr "%{label} moodul ei ole lubatud"
 
 #: lib/phoenix_kit_web/users/auth.ex:2366
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Enter your referral code to continue."
-msgstr "Sisesta oma soovituskood"
+msgstr "Jätkamiseks sisestage oma soovituskood."
 
 #: lib/phoenix_kit_web/users/auth.ex:2362
 #, elixir-autogen, elixir-format
@@ -13274,17 +13274,17 @@ msgstr "See konto ei ole aktiivne. Võtke ühendust administraatoriga."
 #: lib/phoenix_kit_web/users/auth.ex:749
 #: lib/phoenix_kit_web/users/auth.ex:1892
 #: lib/phoenix_kit_web/users/auth.ex:2511
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You do not have permission to access this section."
-msgstr "Teil pole õigust teise kasutajana sisse logida."
+msgstr "Teil ei ole õigust seda jaotist vaadata."
 
 #: lib/phoenix_kit_web/users/auth.ex:724
 #: lib/phoenix_kit_web/users/auth.ex:878
 #: lib/phoenix_kit_web/users/auth.ex:2460
 #: lib/phoenix_kit_web/users/auth.ex:2496
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You do not have the required permission to access this page."
-msgstr "Teil pole õigust teise kasutajana sisse logida."
+msgstr "Teil ei ole selle lehe vaatamiseks vajalikku õigust."
 
 #: lib/phoenix_kit_web/users/auth.ex:1417
 #, elixir-autogen, elixir-format
