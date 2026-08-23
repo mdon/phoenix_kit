@@ -86,7 +86,9 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
     end
 
     info =
-      "If your email is in our system and it has not been confirmed yet, you will receive an email with instructions shortly."
+      gettext(
+        "If your email is in our system and it has not been confirmed yet, you will receive an email with instructions shortly."
+      )
 
     socket = put_flash(socket, :info, info)
 

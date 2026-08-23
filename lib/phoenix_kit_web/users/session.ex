@@ -24,20 +24,20 @@ defmodule PhoenixKitWeb.Users.Session do
   alias PhoenixKitWeb.Users.MultiSession
 
   def create(conn, %{"_action" => "registered"} = params) do
-    create(conn, params, "Account created successfully!", :registered)
+    create(conn, params, gettext("Account created successfully!"), :registered)
   end
 
   def create(conn, %{"_action" => "password_updated"} = params) do
     create(
       conn,
       carry_remember_me(conn, params),
-      "Password updated successfully!",
+      gettext("Password updated successfully!"),
       :password_updated
     )
   end
 
   def create(conn, params) do
-    create(conn, params, "Welcome back!", :login)
+    create(conn, params, gettext("Welcome back!"), :login)
   end
 
   # The destination is stashed only once the credentials check out. Doing it up
@@ -63,7 +63,9 @@ defmodule PhoenixKitWeb.Users.Session do
         conn
         |> put_flash(
           :error,
-          "Your account is currently inactive. Please contact the team if you believe this is an error."
+          gettext(
+            "Your account is currently inactive. Please contact the team if you believe this is an error."
+          )
         )
         |> put_flash(:email_or_username, String.slice(email_or_username, 0, 160))
         |> redirect(to: Routes.path("/users/log-in"))
@@ -79,7 +81,7 @@ defmodule PhoenixKitWeb.Users.Session do
       {:error, :rate_limit_exceeded} ->
         # Rate limit exceeded - show specific error message
         conn
-        |> put_flash(:error, "Too many login attempts. Please try again later.")
+        |> put_flash(:error, gettext("Too many login attempts. Please try again later."))
         |> put_flash(:email_or_username, String.slice(email_or_username, 0, 160))
         |> redirect(to: Routes.path("/users/log-in"))
 
@@ -87,7 +89,7 @@ defmodule PhoenixKitWeb.Users.Session do
         # Invalid credentials (wrong email/username or password)
         # In order to prevent user enumeration attacks, don't disclose whether the email/username is registered.
         conn
-        |> put_flash(:error, "Invalid email/username or password")
+        |> put_flash(:error, gettext("Invalid email/username or password"))
         |> put_flash(:email_or_username, String.slice(email_or_username, 0, 160))
         |> redirect(to: Routes.path("/users/log-in"))
     end
@@ -99,7 +101,7 @@ defmodule PhoenixKitWeb.Users.Session do
     # log_out_user/1 drains the whole multi-session stack, so this is now just a
     # relabelled full logout (kept distinct for the clearer flash message).
     conn
-    |> put_flash(:info, "Logged out of all accounts.")
+    |> put_flash(:info, gettext("Logged out of all accounts."))
     |> UserAuth.log_out_user()
   end
 
@@ -117,7 +119,7 @@ defmodule PhoenixKitWeb.Users.Session do
         # Root account is active → full logout. log_out_user/1 drains the whole
         # stack (after resolving the user for the disconnect broadcast).
         conn
-        |> put_flash(:info, "Logged out successfully.")
+        |> put_flash(:info, gettext("Logged out successfully."))
         |> UserAuth.log_out_user()
     end
   end
@@ -132,7 +134,7 @@ defmodule PhoenixKitWeb.Users.Session do
       # redirect (302) lets the flash render; a 403 would swallow it (the browser
       # never follows the Location header on a non-3xx response).
       conn
-      |> put_flash(:error, "Multi-account switching is not available.")
+      |> put_flash(:error, gettext("Multi-account switching is not available."))
       |> redirect(to: Routes.safe_destination(conn, scope: conn_scope(conn)))
     end
   end
@@ -230,7 +232,7 @@ defmodule PhoenixKitWeb.Users.Session do
   # multi-session stack, so secondary tokens are invalidated here too.
   def get_logout(conn, _params) do
     conn
-    |> put_flash(:info, "Logged out successfully.")
+    |> put_flash(:info, gettext("Logged out successfully."))
     |> UserAuth.log_out_user()
   end
 
@@ -240,21 +242,21 @@ defmodule PhoenixKitWeb.Users.Session do
     with_gate(conn, params, fn conn ->
       case MultiSession.add_account(conn, email_or_username, password) do
         {:ok, conn} ->
-          conn |> put_flash(:info, "Account added.") |> redirect_back(params)
+          conn |> put_flash(:info, gettext("Account added.")) |> redirect_back(params)
 
         {:error, :stack_full} ->
           conn
-          |> put_flash(:error, "Maximum number of accounts reached.")
+          |> put_flash(:error, gettext("Maximum number of accounts reached."))
           |> redirect_back(params)
 
         {:error, :already_in_stack} ->
           conn
-          |> put_flash(:error, "That account is already in your session.")
+          |> put_flash(:error, gettext("That account is already in your session."))
           |> redirect_back(params)
 
         {:error, _reason} ->
           conn
-          |> put_flash(:error, "Invalid email/username or password.")
+          |> put_flash(:error, gettext("Invalid email/username or password."))
           |> redirect_back(params)
       end
     end)
@@ -269,7 +271,7 @@ defmodule PhoenixKitWeb.Users.Session do
           |> redirect_back(params)
 
         {:error, _reason} ->
-          conn |> put_flash(:error, "Could not switch account.") |> redirect_back(params)
+          conn |> put_flash(:error, gettext("Could not switch account.")) |> redirect_back(params)
       end
     end)
   end
@@ -351,15 +353,17 @@ defmodule PhoenixKitWeb.Users.Session do
     with_gate(conn, params, fn conn ->
       case MultiSession.remove_account(conn, ref) do
         {:ok, conn} ->
-          conn |> put_flash(:info, "Account removed.") |> redirect_back(params)
+          conn |> put_flash(:info, gettext("Account removed.")) |> redirect_back(params)
 
         {:error, :cannot_remove_root} ->
           conn
-          |> put_flash(:error, "Cannot remove your primary account.")
+          |> put_flash(:error, gettext("Cannot remove your primary account."))
           |> redirect_back(params)
 
         {:error, _reason} ->
-          conn |> put_flash(:error, "Could not remove account.") |> redirect_back(params)
+          conn
+          |> put_flash(:error, gettext("Could not remove account."))
+          |> redirect_back(params)
       end
     end)
   end

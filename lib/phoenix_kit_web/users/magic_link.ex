@@ -36,7 +36,7 @@ defmodule PhoenixKitWeb.Users.MagicLink do
         else
           {:ok,
            socket
-           |> put_flash(:error, "Magic link sign-in is currently disabled.")
+           |> put_flash(:error, gettext("Magic link sign-in is currently disabled."))
            |> redirect(to: Routes.path("/users/log-in"))}
         end
     end
@@ -107,7 +107,7 @@ defmodule PhoenixKitWeb.Users.MagicLink do
          socket
          |> assign(:sent, true)
          |> assign(:loading, false)
-         |> put_flash(:info, "Magic link sent! Check your email.")}
+         |> put_flash(:info, gettext("Magic link sent! Check your email."))}
 
       {:error, _} ->
         # For security, we don't reveal whether the email exists or not
@@ -115,7 +115,10 @@ defmodule PhoenixKitWeb.Users.MagicLink do
          socket
          |> assign(:sent, true)
          |> assign(:loading, false)
-         |> put_flash(:info, "If that email address exists, a magic link has been sent.")}
+         |> put_flash(
+           :info,
+           gettext("If that email address exists, a magic link has been sent.")
+         )}
     end
   end
 

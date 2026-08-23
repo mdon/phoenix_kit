@@ -46,7 +46,9 @@ defmodule PhoenixKitWeb.Users.ForgotPassword do
     end
 
     info =
-      "If your email is in our system, you will receive instructions to reset your password shortly."
+      gettext(
+        "If your email is in our system, you will receive instructions to reset your password shortly."
+      )
 
     {:noreply,
      socket

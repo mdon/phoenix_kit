@@ -36,6 +36,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   `PhoenixKitWeb.Integration.phoenix_kit_routes/0` macro in your router.
   """
   use PhoenixKitWeb, :verified_routes
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   import Plug.Conn
   import Phoenix.Controller
@@ -107,7 +108,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     conn
     |> Phoenix.Controller.put_flash(
       :error,
-      "This account is not active. Contact an administrator."
+      gettext("This account is not active. Contact an administrator.")
     )
     |> Phoenix.Controller.redirect(to: Routes.path("/users/log-in"))
     |> halt()
@@ -673,7 +674,10 @@ defmodule PhoenixKitWeb.Users.Auth do
           # No `skip_admin`: the rejected visitor may well be an Admin, who
           # legitimately belongs in `/admin` — that area is gated by
           # `:phoenix_kit_ensure_admin`, not by this hook, so there is no loop.
-          |> Phoenix.LiveView.put_flash(:error, "You must be an owner to access this page.")
+          |> Phoenix.LiveView.put_flash(
+            :error,
+            gettext("You must be an owner to access this page.")
+          )
           |> Phoenix.LiveView.redirect(to: Routes.safe_destination(socket, scope: scope))
 
         {:halt, socket}
@@ -717,7 +721,7 @@ defmodule PhoenixKitWeb.Users.Auth do
             socket
             |> Phoenix.LiveView.put_flash(
               :error,
-              "You do not have the required permission to access this page."
+              gettext("You do not have the required permission to access this page.")
             )
             |> Phoenix.LiveView.redirect(
               to: Routes.safe_destination(socket, scope: scope, skip_admin: true)
@@ -742,7 +746,7 @@ defmodule PhoenixKitWeb.Users.Auth do
             socket
             |> Phoenix.LiveView.put_flash(
               :error,
-              "You do not have permission to access this section."
+              gettext("You do not have permission to access this section.")
             )
             |> Phoenix.LiveView.redirect(to: redirect_to)
 
@@ -871,7 +875,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     socket
     |> Phoenix.LiveView.put_flash(
       :error,
-      "You do not have the required permission to access this page."
+      gettext("You do not have the required permission to access this page.")
     )
     # `skip_admin: true` states the invariant at the call site: this is the
     # admin-area rejection, so the destination must never be an admin page the
@@ -896,7 +900,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp redirect_to_login(socket) do
     socket
-    |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
+    |> Phoenix.LiveView.put_flash(:error, gettext("You must log in to access this page."))
     |> Phoenix.LiveView.redirect(to: login_path_with_return_to(socket))
   end
 
@@ -1408,7 +1412,10 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp apply_scope_refresh_decision(socket, :evict_admin_area, new_scope) do
     socket
-    |> LiveView.put_flash(:error, "You must be an admin to access this page.")
+    |> LiveView.put_flash(
+      :error,
+      gettext("You must be an admin to access this page.")
+    )
     |> LiveView.push_navigate(
       to: Routes.safe_destination(socket, scope: new_scope, skip_admin: true)
     )
@@ -1416,7 +1423,10 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp apply_scope_refresh_decision(socket, :evict_module, new_scope) do
     socket
-    |> LiveView.put_flash(:error, "You no longer have permission to access this section.")
+    |> LiveView.put_flash(
+      :error,
+      gettext("You no longer have permission to access this section.")
+    )
     |> LiveView.push_navigate(to: best_available_admin_path(socket, new_scope))
   end
 
@@ -1860,7 +1870,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     # The label is localized, so the sentence around it must be too — an
     # English frame around a translated name reads worse than either alone.
     message =
-      Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "%{label} module is not enabled",
+      gettext("%{label} module is not enabled",
         label: label
       )
 
@@ -1879,7 +1889,7 @@ defmodule PhoenixKitWeb.Users.Auth do
       socket
       |> Phoenix.LiveView.put_flash(
         :error,
-        "You do not have permission to access this section."
+        gettext("You do not have permission to access this section.")
       )
       |> Phoenix.LiveView.redirect(to: redirect_to)
 
@@ -2279,7 +2289,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
     if is_nil(user) do
       conn
-      |> put_flash(:error, "You must log in to access this page.")
+      |> put_flash(:error, gettext("You must log in to access this page."))
       |> maybe_store_return_to()
       |> redirect(to: Routes.path("/users/log-in"))
       |> halt()
@@ -2316,7 +2326,7 @@ defmodule PhoenixKitWeb.Users.Auth do
           end
         else
           conn
-          |> put_flash(:error, "You must log in to access this page.")
+          |> put_flash(:error, gettext("You must log in to access this page."))
           |> maybe_store_return_to()
           |> redirect(to: Routes.path("/users/log-in"))
           |> halt()
@@ -2349,10 +2359,11 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp account_gate(subject) do
     cond do
       not email_confirmed?(subject) and confirmation_required?() ->
-        {:halt, "Please confirm your email before accessing the application.", "/users/confirm"}
+        {:halt, gettext("Please confirm your email before accessing the application."),
+         "/users/confirm"}
 
       not Referrals.access_satisfied?(subject) ->
-        {:halt, "Enter your referral code to continue.", "/users/referral"}
+        {:halt, gettext("Enter your referral code to continue."), "/users/referral"}
 
       true ->
         :ok
@@ -2409,7 +2420,7 @@ defmodule PhoenixKitWeb.Users.Auth do
               conn
             else
               conn
-              |> put_flash(:error, "You must be an owner to access this page.")
+              |> put_flash(:error, gettext("You must be an owner to access this page."))
               |> redirect(to: Routes.safe_destination(conn, scope: scope))
               |> halt()
             end
@@ -2446,14 +2457,14 @@ defmodule PhoenixKitWeb.Users.Auth do
                 conn
                 |> put_flash(
                   :error,
-                  "You do not have the required permission to access this page."
+                  gettext("You do not have the required permission to access this page.")
                 )
                 |> redirect(to: Routes.safe_destination(conn, scope: scope, skip_admin: true))
                 |> halt()
 
               true ->
                 conn
-                |> put_flash(:error, "You must log in to access this page.")
+                |> put_flash(:error, gettext("You must log in to access this page."))
                 |> redirect(to: Routes.path("/users/log-in"))
                 |> halt()
             end
@@ -2482,7 +2493,7 @@ defmodule PhoenixKitWeb.Users.Auth do
                 conn
                 |> put_flash(
                   :error,
-                  "You do not have the required permission to access this page."
+                  gettext("You do not have the required permission to access this page.")
                 )
                 |> redirect(to: Routes.safe_destination(conn, scope: scope, skip_admin: true))
                 |> halt()
@@ -2495,7 +2506,10 @@ defmodule PhoenixKitWeb.Users.Auth do
 
               true ->
                 conn
-                |> put_flash(:error, "You do not have permission to access this section.")
+                |> put_flash(
+                  :error,
+                  gettext("You do not have permission to access this section.")
+                )
                 |> redirect(to: best_available_admin_path(conn, scope))
                 |> halt()
             end
@@ -2520,7 +2534,12 @@ defmodule PhoenixKitWeb.Users.Auth do
               conn
             else
               conn
-              |> put_flash(:error, "You must have the #{role_name} role to access this page.")
+              |> put_flash(
+                :error,
+                gettext("You must have the %{role_name} role to access this page.",
+                  role_name: role_name
+                )
+              )
               |> redirect(to: Routes.safe_destination(conn, scope: scope))
               |> halt()
             end

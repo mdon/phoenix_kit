@@ -32,13 +32,13 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistration do
             # Registration is closed outright, so /users/register is no help.
             {:ok,
              socket
-             |> put_flash(:error, "Registration is currently disabled.")
+             |> put_flash(:error, gettext("Registration is currently disabled."))
              |> redirect(to: Routes.path("/users/log-in"))}
 
           not WebAuth.magic_link_registration_enabled?() ->
             {:ok,
              socket
-             |> put_flash(:error, "Magic link registration is currently disabled.")
+             |> put_flash(:error, gettext("Magic link registration is currently disabled."))
              |> redirect(to: Routes.path("/users/register"))}
 
           true ->
@@ -89,7 +89,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistration do
       {:error, _} ->
         {:ok,
          socket
-         |> put_flash(:error, "Registration link is invalid or has expired.")
+         |> put_flash(:error, gettext("Registration link is invalid or has expired."))
          |> redirect(to: Routes.path("/users/register"))}
     end
   end
@@ -182,10 +182,10 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistration do
   end
 
   defp completion_error_message(:email_already_exists),
-    do: "That email is already registered. Please log in instead."
+    do: gettext("That email is already registered. Please log in instead.")
 
   defp completion_error_message(_),
-    do: "Registration link is invalid or has expired. Please request a new one."
+    do: gettext("Registration link is invalid or has expired. Please request a new one.")
 
   # Only what this form legitimately owns. `registration_changeset/3` also casts
   # `custom_fields` and the geo columns — fine for server-side callers, but a

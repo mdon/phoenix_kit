@@ -79,14 +79,20 @@ if Code.ensure_loaded?(Ueberauth) do
             Logger.warning("PhoenixKit OAuth: Unknown provider '#{provider}'")
 
             conn
-            |> put_flash(:error, "Unknown OAuth provider: #{provider}")
+            |> put_flash(
+              :error,
+              gettext("Unknown OAuth provider: %{provider}", provider: provider)
+            )
             |> redirect(to: Routes.path("/users/log-in"))
 
           {:error, :provider_disabled} ->
             Logger.warning("PhoenixKit OAuth: Provider '#{provider}' is disabled in settings")
 
             conn
-            |> put_flash(:error, "OAuth provider '#{provider}' is currently disabled.")
+            |> put_flash(
+              :error,
+              gettext("OAuth provider '%{provider}' is currently disabled.", provider: provider)
+            )
             |> redirect(to: Routes.path("/users/log-in"))
 
           {:error, :no_credentials} ->
@@ -97,7 +103,10 @@ if Code.ensure_loaded?(Ueberauth) do
             conn
             |> put_flash(
               :error,
-              "OAuth provider '#{provider}' is not configured. Please contact your administrator."
+              gettext(
+                "OAuth provider '%{provider}' is not configured. Please contact your administrator.",
+                provider: provider
+              )
             )
             |> redirect(to: Routes.path("/users/log-in"))
         end
@@ -107,7 +116,9 @@ if Code.ensure_loaded?(Ueberauth) do
         conn
         |> put_flash(
           :error,
-          "OAuth authentication is currently disabled. Please contact your administrator to enable it."
+          gettext(
+            "OAuth authentication is currently disabled. Please contact your administrator to enable it."
+          )
         )
         |> redirect(to: Routes.path("/users/log-in"))
       end
@@ -196,7 +207,7 @@ if Code.ensure_loaded?(Ueberauth) do
           Logger.error("PhoenixKit OAuth: Unknown provider in callback: #{provider}")
 
           conn
-          |> put_flash(:error, "Unknown OAuth provider: #{provider}")
+          |> put_flash(:error, gettext("Unknown OAuth provider: %{provider}", provider: provider))
           |> redirect(to: Routes.path("/users/log-in"))
 
         strategy_module ->
@@ -258,12 +269,14 @@ if Code.ensure_loaded?(Ueberauth) do
             # full login — surface it and return home.
             add_account_intent == "add_account" ->
               conn
-              |> put_flash(:error, "Account switching is currently disabled.")
+              |> put_flash(:error, gettext("Account switching is currently disabled."))
               |> redirect(to: Routes.safe_destination(conn, scope: conn_scope(conn)))
 
             true ->
               flash_message =
-                "Successfully signed in with #{format_provider_name(auth.provider)}!"
+                gettext("Successfully signed in with %{provider}!",
+                  provider: format_provider_name(auth.provider)
+                )
 
               # No checkbox in an OAuth round-trip, so persistence follows the
               # site-wide policy setting.
@@ -283,7 +296,7 @@ if Code.ensure_loaded?(Ueberauth) do
           )
 
           conn
-          |> put_flash(:error, "Authentication failed: #{errors}")
+          |> put_flash(:error, gettext("Authentication failed: %{errors}", errors: errors))
           |> redirect(to: Routes.path("/users/log-in"))
 
         {:error, :provider_email_unverified} ->
@@ -300,8 +313,9 @@ if Code.ensure_loaded?(Ueberauth) do
           conn
           |> put_flash(
             :error,
-            "An account already exists for that email address. Sign in with your password " <>
-              "first, then connect this provider from your account settings."
+            gettext(
+              "An account already exists for that email address. Sign in with your password first, then connect this provider from your account settings."
+            )
           )
           |> redirect(to: Routes.path("/users/log-in"))
 
@@ -311,7 +325,7 @@ if Code.ensure_loaded?(Ueberauth) do
           conn
           |> put_flash(
             :error,
-            "Authentication failed. Please try again or use a different sign-in method."
+            gettext("Authentication failed. Please try again or use a different sign-in method.")
           )
           |> redirect(to: Routes.path("/users/log-in"))
       end
@@ -338,7 +352,7 @@ if Code.ensure_loaded?(Ueberauth) do
       # Clear every transient OAuth key so a later normal sign-in can't inherit
       # this abandoned attempt's redirect target or referral attribution.
       |> clear_oauth_session_keys()
-      |> put_flash(:error, "Authentication failed. Please try again.")
+      |> put_flash(:error, gettext("Authentication failed. Please try again."))
       |> redirect(to: Routes.path("/users/log-in"))
     end
 
@@ -348,22 +362,22 @@ if Code.ensure_loaded?(Ueberauth) do
       case MultiSession.add_authenticated_user(conn, user) do
         {:ok, conn} ->
           conn
-          |> put_flash(:info, "Account added.")
+          |> put_flash(:info, gettext("Account added."))
           |> redirect_back(return_to)
 
         {:error, :stack_full} ->
           conn
-          |> put_flash(:error, "Maximum number of accounts reached.")
+          |> put_flash(:error, gettext("Maximum number of accounts reached."))
           |> redirect_back(return_to)
 
         {:error, :already_in_stack} ->
           conn
-          |> put_flash(:error, "That account is already in your session.")
+          |> put_flash(:error, gettext("That account is already in your session."))
           |> redirect_back(return_to)
 
         {:error, :inactive} ->
           conn
-          |> put_flash(:error, "That account is inactive.")
+          |> put_flash(:error, gettext("That account is inactive."))
           |> redirect_back(return_to)
       end
     end
@@ -421,13 +435,13 @@ if Code.ensure_loaded?(Ueberauth) do
     defp format_ueberauth_failure(%Ueberauth.Failure{errors: errors}) do
       case errors do
         [] ->
-          "Authentication failed. Please try again."
+          gettext("Authentication failed. Please try again.")
 
         [%{message: message} | _] when is_binary(message) ->
-          "Authentication failed: #{message}"
+          gettext("Authentication failed: %{message}", message: message)
 
         _ ->
-          "Authentication failed. Please try again."
+          gettext("Authentication failed. Please try again.")
       end
     end
   end
@@ -465,7 +479,10 @@ else
       conn
       |> put_flash(
         :error,
-        "OAuth authentication is not available. Please install the required dependencies (ueberauth, ueberauth_#{provider}) and configure your application. See PhoenixKit documentation for details."
+        gettext(
+          "OAuth authentication is not available. Please install the required dependencies (ueberauth, ueberauth_%{provider}) and configure your application. See PhoenixKit documentation for details.",
+          provider: provider
+        )
       )
       |> redirect(to: Routes.path("/users/log-in"))
     end
@@ -481,7 +498,7 @@ else
       conn
       |> put_flash(
         :error,
-        "OAuth authentication is not configured. Please contact your administrator."
+        gettext("OAuth authentication is not configured. Please contact your administrator.")
       )
       |> redirect(to: Routes.path("/users/log-in"))
     end
