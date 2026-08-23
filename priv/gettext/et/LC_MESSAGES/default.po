@@ -12263,7 +12263,7 @@ msgid "Access requested."
 msgstr "Ligipääsu taotletud."
 
 #: lib/phoenix_kit/integrations/validators.ex:99
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account %{id}"
 msgstr "Konto %{id}"
 
@@ -12273,9 +12273,9 @@ msgid "Advisory-grade: anything can send any User-Agent, so a scraper that lies 
 msgstr "Nõuandev tase: igaüks võib saata suvalise User-Agenti, seega valetav kraapija pääseb läbi. Tegelik jõustamine käib sinu CDN-i või pöördproksi kaudu — siin püütakse kinni ausad, kuid teadmatud. Botid, keda tuvastatakse ainult robots.txt-i märgendite järgi (Google-Extended, Applebot-Extended), roomavad oma peamise kasutajaagendi all ega satu siin kunagi vastavusse, seega AI-treeningu blokeerimine ei saa Googlebotile 403 vastata."
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:124
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Allowed"
-msgstr "Kõik"
+msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:697
 #, elixir-autogen, elixir-format
@@ -12298,9 +12298,9 @@ msgid "Bedrock API key"
 msgstr "Bedrocki API võti"
 
 #: lib/phoenix_kit/integrations/validators.ex:222
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Bedrock error %{status}"
-msgstr "Brevo viga %{status}"
+msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:306
 #, elixir-autogen, elixir-format
@@ -12308,9 +12308,9 @@ msgid "Block at the application"
 msgstr "Blokeeri rakenduse tasemel"
 
 #: lib/phoenix_kit_web/live/modules.html.heex:451
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Blocked groups"
-msgstr "Blokeeritud"
+msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:103
 #, elixir-autogen, elixir-format
@@ -12328,17 +12328,17 @@ msgid "Control how search engines and AI bots crawl and index this site"
 msgstr "Halda, kuidas otsingumootorid ja AI-botid seda saiti roomavad ja indekseerivad"
 
 #: lib/phoenix_kit/integrations/providers.ex:740
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Copy the key (shown once, `ABSK…`) and paste it into the form above"
-msgstr "Kopeeri võti (kuvatakse ühekordselt) ja kleebi see ülalolevasse vormi"
+msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:816
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Copy the token and paste it into the form above"
-msgstr "Kopeeri võti ja kleebi see ülalolevasse vormi"
+msgstr ""
 
 #: lib/phoenix_kit/integrations/validators.ex:226
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not reach Bedrock in %{region}"
 msgstr "Bedrockiga ei saanud regioonis %{region} ühendust"
 
@@ -12348,20 +12348,20 @@ msgid "Could not send that request."
 msgstr "Päringut ei õnnestunud saata."
 
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:136
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not update the mailbox setting"
-msgstr "Vaikimisi saatmisintegratsiooni ei saanud uuendada"
+msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:35
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:5
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Crawler Settings"
-msgstr "Juriidilised seaded"
+msgstr ""
 
 #: lib/modules/sitemap/web/settings.html.heex:679
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Crawler settings"
-msgstr "Juhised otsingurobotitele"
+msgstr ""
 
 #: lib/phoenix_kit_web/live/modules.html.heex:406
 #, elixir-autogen, elixir-format
@@ -12369,19 +12369,19 @@ msgid "Crawlers"
 msgstr "Roomajad"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:55
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Crawlers module is disabled. Enable it from the Modules page to configure settings."
-msgstr "SEO moodul on keelatud. Luba see Moodulite lehelt seadete konfigureerimiseks."
+msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:732
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Create a Bedrock API key"
-msgstr "Loo API võti"
+msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:808
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Create a token"
-msgstr "Loo roll"
+msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:872
 #, elixir-autogen, elixir-format
@@ -12404,9 +12404,9 @@ msgid "Deliver development mail to /dev/mailbox"
 msgstr "Toimeta arenduskirjad kausta /dev/mailbox"
 
 #: lib/phoenix_kit/integrations/providers.ex:748
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Enable model access"
-msgstr "Luba moodul seadetele juurdepääsemiseks"
+msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:304
 #, elixir-autogen, elixir-format
@@ -12419,14 +12419,14 @@ msgstr "Jõustamine"
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:132
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:148
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:161
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to update crawler settings"
-msgstr "Seade uuendamine ebaõnnestus"
+msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:781
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "GitHub"
-msgstr "GitHub sisselogimine"
+msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:783
 #, elixir-autogen, elixir-format
@@ -12524,9 +12524,9 @@ msgid "No longer available"
 msgstr "Pole enam saadaval"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:191
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "No priv/static/robots.txt found. Without one, crawlers assume everything is allowed — and any groups you blocked above are not being told."
-msgstr "Faili priv/static/robots.txt ei leitud. Ilma selleta eeldavad otsingurobotid, et kõik on lubatud — see on enamasti sobiv, kuid nad ei saa teada, kus su saidikaart asub."
+msgstr ""
 
 #: lib/phoenix_kit_web/components/core/mention_text.ex:152
 #, elixir-autogen, elixir-format
@@ -12584,9 +12584,9 @@ msgid "Repository access: **Public repositories (read-only)** — no extra permi
 msgstr "Repositooriumide ligipääs: **Public repositories (read-only)** — avaliku organisatsiooni statistika jaoks lisaõigusi ei ole vaja"
 
 #: lib/phoenix_kit/mentions/live.ex:227
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Request access"
-msgstr "Taotletud"
+msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:259
 #, elixir-autogen, elixir-format
@@ -12599,14 +12599,14 @@ msgid "Send request"
 msgstr "Saada päring"
 
 #: lib/phoenix_kit/mentions/live.ex:254
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sending…"
-msgstr "Ootel"
+msgstr ""
 
 #: lib/phoenix_kit/mentions/live.ex:76
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sign in to request access."
-msgstr "Logi sisse kasutajana"
+msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:761
 #, elixir-autogen, elixir-format
@@ -12624,7 +12624,7 @@ msgid "The mailbox is off: outgoing mail is written to the server log instead."
 msgstr "Postkast on välja lülitatud: väljuvad kirjad kirjutatakse selle asemel serveri logisse."
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:205
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "The noindex toggle and robots.txt are separate mechanisms: noindex is a per-page meta tag that tells crawlers not to index what they fetched, while robots.txt tells them what not to fetch at all. A staging site usually wants both."
 msgstr "Ülalolev noindex-lüliti ja robots.txt on eraldi mehhanismid: noindex on lehepõhine metasilt, mis ütleb otsingurobotitele, et allalaaditut ei indekseeritaks, robots.txt aga ütleb, mida üldse mitte alla laadida. Testkeskkond vajab tavaliselt mõlemat."
 
@@ -12656,9 +12656,9 @@ msgid "Use it from the AI module"
 msgstr "Kasuta seda AI moodulist"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:257
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Verification"
-msgstr "Teavitused"
+msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:145
 #, elixir-autogen, elixir-format
@@ -12716,7 +12716,7 @@ msgid "management API: %{services}"
 msgstr "haldus-API: %{services}"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:195
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "priv/static/robots.txt exists but has no Sitemap: line. Paste the file above so crawlers are told where to look."
 msgstr "Fail priv/static/robots.txt on olemas, kuid selles puudub rida Sitemap:. Lisa ülalolev rida, et otsingurobotid teaksid, kust otsida."
 
