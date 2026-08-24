@@ -8521,7 +8521,7 @@ msgstr "Доступные поля"
 #: lib/phoenix_kit_web/live/users/users.ex:722
 #, elixir-autogen, elixir-format
 msgid "Cannot deactivate the last system owner"
-msgstr "Невозможно удалить последнего системного владельца"
+msgstr "Невозможно деактивировать последнего системного владельца"
 
 #: lib/phoenix_kit_web/live/users/users.ex:424
 #, elixir-autogen, elixir-format
@@ -8550,7 +8550,7 @@ msgstr "Невозможно изменить свой статус"
 #: lib/phoenix_kit_web/live/users/users.ex:955
 #, elixir-autogen, elixir-format
 msgid "Cannot remove the last system owner"
-msgstr "Невозможно удалить последнего системного владельца"
+msgstr "Невозможно снять роль владельца с последнего системного владельца"
 
 #: lib/phoenix_kit_web/live/users/users.html.heex:359
 #, elixir-autogen, elixir-format
@@ -13350,12 +13350,12 @@ msgstr ""
 #: lib/phoenix_kit_web/users/magic_link.ex:130
 #, elixir-autogen, elixir-format
 msgid "Failed to send magic link. Please try again."
-msgstr "Не удалось отключить провайдер. Попробуйте ещё раз."
+msgstr "Не удалось отправить Magic Link. Попробуйте ещё раз."
 
 #: lib/phoenix_kit_web/users/magic_link_registration_request.ex:143
 #, elixir-autogen, elixir-format
 msgid "Failed to send registration link. Please try again."
-msgstr "Не удалось отклонить приглашение. Попробуйте ещё раз."
+msgstr "Не удалось отправить ссылку для регистрации. Попробуйте ещё раз."
 
 #: lib/phoenix_kit_web/users/magic_link.ex:98
 #, elixir-autogen, elixir-format
