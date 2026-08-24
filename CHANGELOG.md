@@ -1,3 +1,30 @@
+## 2.13.9 - 2026-08-24
+
+Two admin-UI layout fixes: images no longer open distorted in the media
+viewer, and long help captions on the general settings page no longer push
+the page sideways.
+
+### Fixed
+
+- **An image whose row never recorded its dimensions opened stretched in
+  the media viewer.** `width`/`height` are nullable on `phoenix_kit_files`,
+  and `build_viewer_canvas/2` defaulted each to 1000 independently, so such
+  a file was described to Fresco as square. Fresco turns the declared
+  intrinsic size into an explicit `height` on a bare `<img>` that carries no
+  `object-fit`, so the ratio is imposed on the bitmap rather than read from
+  it — every non-square image was squashed along its longer axis. The
+  declared size is now omitted when the row has none, which leaves the
+  `<img>` with an auto height so the browser takes the ratio from the
+  decoded bitmap. Files that do record their dimensions render exactly as
+  before.
+- **Long help captions on `/admin/settings` made the whole page scroll
+  horizontally.** Each caption sat in a `<div class="label">`, and daisyUI
+  gives `.label` `white-space: nowrap`; inside `.fieldset`, whose grid items
+  size to min-content, an unwrappable sentence set the track wider than the
+  viewport. Worst hit were "Default notification link" under Features and
+  the three under Content Editor. All eight captions on the page now use a
+  plain block span, which wraps.
+
 ## 2.13.8 - 2026-08-24
 
 Authentication and session flash messages now go through gettext, so a
