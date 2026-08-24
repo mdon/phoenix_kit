@@ -1048,6 +1048,42 @@ defmodule PhoenixKit.Utils.TimeZone do
   def same_group?(_a, _b), do: false
 
   @doc """
+  Whether `a` and `b` render the same wall-clock time right now.
+
+  `same_group?/2` only ever returns true for two identifiers — a legacy
+  offset is not a group member, so comparing a browser-detected zone against
+  a site's `time_zone` setting (which is the legacy offset `"0"` on every
+  install that has never touched that setting) always failed `same_group?`,
+  even from a browser genuinely on UTC+0. This compares current effective
+  offset instead, which is defined for a legacy offset too.
+  """
+  @spec effectively_same?(String.t() | nil, String.t() | nil) :: boolean()
+  def effectively_same?(a, b) when is_binary(a) and is_binary(b) do
+    case {identifier?(a), identifier?(b)} do
+      {true, true} -> same_group?(a, b)
+      _ -> current_offset(a) != nil and current_offset(a) == current_offset(b)
+    end
+  end
+
+  def effectively_same?(_a, _b), do: false
+
+  defp current_offset(value) do
+    now = DateTime.utc_now()
+
+    cond do
+      identifier?(value) ->
+        offset_seconds(now, value)
+
+      legacy_offset?(value) ->
+        {:ok, hours} = parse_offset(value)
+        round(hours * 3600)
+
+      true ->
+        nil
+    end
+  end
+
+  @doc """
   Human label for a stored value — an IANA id, a legacy offset, or nothing.
 
   ## Examples

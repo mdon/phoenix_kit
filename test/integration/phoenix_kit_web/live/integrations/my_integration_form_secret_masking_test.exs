@@ -67,6 +67,33 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormSecretMaskingTest do
     end
   end
 
+  describe "saving the edit form without touching the masked secret" do
+    setup :setup_admin
+
+    test "submitting with the bot_token field blank keeps the original secret", %{
+      conn: conn,
+      user: user
+    } do
+      secret = "telegram-token-#{System.unique_integer([:positive])}"
+      uuid = seed_telegram(user, secret)
+
+      {:ok, view, _html} = live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+
+      view
+      |> element(~s(form[phx-submit="save"]))
+      |> render_submit(%{
+        # Left blank, as the masked field renders — must NOT overwrite the
+        # saved secret with an empty string.
+        "bot_token" => ""
+      })
+
+      {:ok, %{data: data}} =
+        Integrations.get_integration_by_uuid(uuid, {:user, user.uuid})
+
+      assert data["bot_token"] == secret
+    end
+  end
+
   describe "a failed dry-run test on /new preserves what the operator typed" do
     setup :setup_admin
 

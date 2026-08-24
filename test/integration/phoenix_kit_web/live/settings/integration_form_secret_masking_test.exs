@@ -95,6 +95,30 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationFormSecretMaskingTest do
     end
   end
 
+  describe "saving the edit form without touching the masked secret" do
+    setup :setup_admin
+
+    test "submitting with the secret field blank keeps the original secret", %{conn: conn} do
+      secret = "AwsSecretKey-#{System.unique_integer([:positive])}"
+      uuid = seed_aws_ses(secret)
+
+      {:ok, view, _html} = live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
+
+      view
+      |> element(~s(form[phx-submit="save_form"]))
+      |> render_submit(%{
+        "access_key" => "AKIAEXAMPLE123",
+        # Left blank, as the masked field renders — must NOT overwrite the
+        # saved secret with an empty string.
+        "secret_key" => "",
+        "aws_region" => "eu-central-1"
+      })
+
+      {:ok, %{data: data}} = Integrations.get_integration_by_uuid(uuid, :system)
+      assert data["secret_key"] == secret
+    end
+  end
+
   describe "a failed dry-run test on /new preserves what the operator typed" do
     setup :setup_admin
 

@@ -579,9 +579,12 @@ defmodule PhoenixKit.Utils.Routes do
   user dashboard that hosts can compile out (`user_dashboard_enabled`).
 
   The override is validated as a local path when saved and re-guarded here on
-  read, so a hand-edited DB row cannot turn a menu entry into an off-site
-  link. An override is used verbatim — it is the host's own path, so core
-  neither prefixes it nor inserts a locale segment.
+  read — same `usable_candidate?/1` check as `main_page_path/0` and
+  `after_login_path` — so a hand-edited DB row cannot turn a menu entry into
+  an off-site link, or into `/users/log-out`, silently converting every
+  "Settings" link into a sign-out link. An override is used verbatim — it is
+  the host's own path, so core neither prefixes it nor inserts a locale
+  segment.
 
   ## Options
 
@@ -598,7 +601,7 @@ defmodule PhoenixKit.Utils.Routes do
   def user_settings_path(opts \\ []) do
     case setting_candidate("user_settings_path") do
       nil -> path("/profile/settings", opts)
-      value -> if local_path?(value), do: value, else: path("/profile/settings", opts)
+      value -> if usable_candidate?(value), do: value, else: path("/profile/settings", opts)
     end
   end
 

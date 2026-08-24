@@ -40,6 +40,35 @@ defmodule PhoenixKit.Utils.TimeZoneTest do
       assert TimeZone.same_group?("Europe/Tallinn", "Europe/Helsinki")
       assert TimeZone.same_group?("Europe/Warsaw", "Europe/Berlin")
     end
+  end
+
+  describe "effectively_same?/2" do
+    # A site's `time_zone` setting is the legacy offset "0" on every install
+    # that has never touched it. `same_group?/2` has no entry for a legacy
+    # offset, so it always answered false here — the "you have not set a
+    # timezone" notice fired for literally everyone, including a browser
+    # genuinely on UTC+0. Both zones below are fixed year-round (no DST), so
+    # the assertions hold regardless of when the suite runs.
+    test "a legacy offset matches an identifier at the same current offset" do
+      assert TimeZone.effectively_same?("Africa/Accra", "0")
+      assert TimeZone.effectively_same?("Africa/Johannesburg", "2")
+    end
+
+    test "a legacy offset does not match an identifier at a different offset" do
+      refute TimeZone.effectively_same?("Africa/Johannesburg", "0")
+      refute TimeZone.effectively_same?("Africa/Accra", "2")
+    end
+
+    test "two identifiers defer to same_group?/2" do
+      assert TimeZone.effectively_same?("Europe/Tallinn", "Europe/Helsinki")
+      refute TimeZone.effectively_same?("Africa/Johannesburg", "Europe/Helsinki")
+    end
+
+    test "blank or invalid input never matches" do
+      refute TimeZone.effectively_same?("Africa/Accra", "")
+      refute TimeZone.effectively_same?("Africa/Accra", nil)
+      refute TimeZone.effectively_same?(nil, "0")
+    end
 
     test "labels name cities that really belong to the group" do
       # Guards the one hand-curated part of the table. If a country changes its

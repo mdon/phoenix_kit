@@ -628,7 +628,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       # No preference of their own: times follow the site default, which may
       # well be right. Offered, not scolded.
       saved in [nil, ""] ->
-        unless TimeZone.same_group?(browser_name, Settings.get_setting("time_zone", "0")) do
+        unless TimeZone.effectively_same?(browser_name, Settings.get_setting("time_zone", "0")) do
           gettext(
             "Your browser reports %{zone}. You have not set a timezone, so times are shown using the site default.",
             zone: browser_name

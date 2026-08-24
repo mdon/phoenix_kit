@@ -113,6 +113,22 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # the 42 shipped v*.ex files (restamp_chain_hash.exs --restamp; the move
   # only touches file content/names, not manifest BODY).
   #
+  # V181 (2026-08-24, PR #750) is carried the same way, and is the V167/V175
+  # class: a reshape of an EXISTING object, `column:phoenix_kit_users.
+  # user_timezone` (`character varying(3)` -> `character varying(64)`, so the
+  # column can hold an IANA identifier instead of a bare offset). A `{181,
+  # ...}` revision is APPENDED to the column's existing `{11, ...}`, never
+  # rewritten in place, `create:` updated to carry the newest shape. No other
+  # object changes: V181 is a single `ALTER COLUMN ... TYPE` plus the version
+  # marker COMMENT. `chain_hash` restamped over the 47 shipped files.
+  # `verify.exs --scenario s7,s8` needs a fresh pre-squash `generate_baseline.exs`
+  # regeneration this session doesn't have access to; the real-database
+  # integration suite (`test/integration/repair_test.exs`,
+  # `test/integration/hand_declared_manifest_test.exs`, and the
+  # `expected_schema/*_test.exs` files) re-ran clean against a DB migrated
+  # through V181 after this edit, which is the same "manifest agrees with
+  # what the chain actually builds" property s7/s8 exist to prove.
+  #
   # Chain at generation: object/revision/legacy_optional DATA was captured from a
   # per-version replay of the TRUE pre-squash chain (initial=1 current=163 files=163
   # — the only run that can see pre-floor-only bimodal drift, e.g. V28/V30's
@@ -155,7 +171,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "942531b87ffd2eb6415868c4e63e9d8282bcfee81a768c8e2af0bde6384f9965"
+  @chain_hash "85b9dbe4bc4ef3f068289bbe9854f7ee4ae9d0f29d9a9917304aebf8c5d06b81"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -3089,10 +3105,13 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         owner: :core,
         check: {:catalog, %{table: "phoenix_kit_users", column: "user_timezone", kind: :column}},
         create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_users ADD COLUMN IF NOT EXISTS \"user_timezone\" character varying(3)",
+          "ALTER TABLE __SCHEMA__.phoenix_kit_users ADD COLUMN IF NOT EXISTS \"user_timezone\" character varying(64)",
         since: 11,
         class: :column,
-        revisions: [{11, %{default: nil, type: "character varying(3)", pos: 15, not_null: false}}],
+        revisions: [
+          {11, %{default: nil, type: "character varying(3)", pos: 15, not_null: false}},
+          {181, %{default: nil, type: "character varying(64)", pos: 15, not_null: false}}
+        ],
         presence: :required,
         backfill: nil
       },

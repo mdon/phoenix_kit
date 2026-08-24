@@ -108,5 +108,16 @@ defmodule PhoenixKit.Utils.UserSettingsPathTest do
 
       assert Routes.user_settings_path() == Routes.path("/profile/settings")
     end
+
+    test "/users/log-out is refused and falls back" do
+      # A local path, so `local_path?/1` alone would let it through — but
+      # every "Settings" link in the app resolves through this function, and
+      # a menu entry that signs the user out is exactly the bounce
+      # `usable_candidate?/1` exists to catch (same guard as
+      # `main_page_path/0` and `after_login_path`).
+      put_setting("user_settings_path", "/users/log-out")
+
+      assert Routes.user_settings_path() == Routes.path("/profile/settings")
+    end
   end
 end
