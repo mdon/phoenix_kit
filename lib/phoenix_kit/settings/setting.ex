@@ -276,6 +276,7 @@ defmodule PhoenixKit.Settings.Setting do
     import Ecto.Changeset
 
     alias PhoenixKit.Utils.Routes, as: RouteUtils
+    alias PhoenixKit.Utils.TimeZone
 
     @primary_key false
     embedded_schema do
@@ -532,15 +533,16 @@ defmodule PhoenixKit.Settings.Setting do
       )
     end
 
-    # Validates timezone offset is within acceptable range
+    # Accepts an IANA identifier ("Europe/Warsaw") and, still, the numeric
+    # offsets every installation predating named timezones has stored, so
+    # saving an unrelated setting on the same form does not fail on a value
+    # the admin never touched.
     defp validate_timezone(changeset) do
       validate_change(changeset, :time_zone, fn :time_zone, time_zone ->
-        case Integer.parse(time_zone) do
-          {offset, ""} when offset >= -12 and offset <= 12 ->
-            []
-
-          _ ->
-            [time_zone: "must be a valid timezone offset between -12 and +12"]
+        if TimeZone.valid?(time_zone) do
+          []
+        else
+          [time_zone: "must be a timezone identifier like Europe/Warsaw"]
         end
       end)
     end

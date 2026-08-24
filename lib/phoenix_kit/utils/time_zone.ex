@@ -988,12 +988,28 @@ defmodule PhoenixKit.Utils.TimeZone do
     "(UTC#{format_offset(offset)}) #{group.cities}#{suffix}"
   end
 
-  # A stored zone that is not a group representative still has to be selectable,
-  # or the form would silently rewrite it to whatever row happened to match.
-  defp selected_extra_row(selected, now) when is_binary(selected) do
-    if identifier?(selected) and not representative?(selected) do
-      {"(UTC#{format_offset(offset_seconds(now, selected))}) #{selected} — your location",
-       selected}
+  # Anything stored that is not already a row has to be added as one.
+  #
+  # This is load-bearing, not a nicety: a <select> whose current value matches
+  # no <option> renders with the FIRST option selected, and the next save of
+  # that form writes it. Without this, every account still holding a pre-IANA
+  # offset — and the site's own `time_zone` setting, which holds "0" on every
+  # existing installation — would be silently rewritten the first time anyone
+  # touched an unrelated field on the same page.
+  defp selected_extra_row(selected, now) when is_binary(selected) and selected != "" do
+    cond do
+      identifier?(selected) and not representative?(selected) ->
+        {"(UTC#{format_offset(offset_seconds(now, selected))}) #{selected} — your location",
+         selected}
+
+      legacy_offset?(selected) ->
+        {:ok, hours} = parse_offset(selected)
+
+        {"(UTC#{format_offset(round(hours * 3600))}) fixed offset — set before timezones were named",
+         selected}
+
+      true ->
+        nil
     end
   end
 
@@ -1120,6 +1136,56 @@ defmodule PhoenixKit.Utils.TimeZone do
   end
 
   def shift(datetime, _value), do: datetime
+
+  @doc """
+  Reads a wall-clock `NaiveDateTime` as local time in `value`, returning UTC.
+
+  The inverse of `shift/2`, for a `datetime-local` input: the person typed
+  09:00 meaning 09:00 where they are, and it has to be stored as an instant.
+
+  Daylight saving makes this genuinely ambiguous twice a year. An hour that
+  happens twice resolves to the **first** occurrence, and an hour that never
+  happens resolves to the instant the clocks jump to — both deterministic, and
+  both closer to what someone typing a time expects than an error would be.
+
+  Returns `{:ok, datetime}` or `:error`.
+  """
+  @spec from_wall(NaiveDateTime.t(), String.t() | nil) :: {:ok, DateTime.t()} | :error
+  def from_wall(%NaiveDateTime{} = naive, value) when value in [nil, ""] do
+    DateTime.from_naive(naive, "Etc/UTC")
+  end
+
+  def from_wall(%NaiveDateTime{} = naive, value) do
+    if identifier?(value) do
+      naive
+      |> DateTime.from_naive(value, @database)
+      |> resolve_wall()
+      |> case do
+        {:ok, local} -> DateTime.shift_zone(local, "Etc/UTC", @database)
+        :error -> :error
+      end
+    else
+      case parse_offset(value) do
+        {:ok, hours} ->
+          naive
+          |> NaiveDateTime.add(-round(hours * 3600), :second)
+          |> DateTime.from_naive("Etc/UTC")
+
+        :error ->
+          :error
+      end
+    end
+  end
+
+  def from_wall(_naive, _value), do: :error
+
+  defp resolve_wall({:ok, datetime}), do: {:ok, datetime}
+  # Clocks went back: the wall time happened twice. Take the first.
+  defp resolve_wall({:ambiguous, first, _second}), do: {:ok, first}
+  # Clocks went forward: the wall time never existed. Take the instant the
+  # clocks jumped to, rather than refusing a time someone plausibly meant.
+  defp resolve_wall({:gap, _just_before, just_after}), do: {:ok, just_after}
+  defp resolve_wall(_other), do: :error
 
   # Current offset of `id` in seconds, 0 if the database cannot place it.
   defp offset_seconds(now, id) do

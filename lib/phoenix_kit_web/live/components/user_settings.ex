@@ -616,27 +616,39 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   # Nothing detected yet (hook not mounted, or a browser with no Intl support).
   defp timezone_warning(nil, _saved), do: nil
 
+  # Three distinct situations, and they need different sentences. Collapsing
+  # them once produced "this account stores a fixed UTC offset" for someone
+  # whose account stored nothing at all — that was the SITE default being
+  # described as the person's own setting.
   defp timezone_warning(browser_name, saved) do
-    effective = saved || Settings.get_setting("time_zone", "0")
-
     cond do
       not TimeZone.identifier?(browser_name) ->
         nil
 
-      TimeZone.legacy_offset?(effective) ->
+      # No preference of their own: times follow the site default, which may
+      # well be right. Offered, not scolded.
+      saved in [nil, ""] ->
+        unless TimeZone.same_group?(browser_name, Settings.get_setting("time_zone", "0")) do
+          gettext(
+            "Your browser reports %{zone}. You have not set a timezone, so times are shown using the site default.",
+            zone: browser_name
+          )
+        end
+
+      TimeZone.legacy_offset?(saved) ->
         gettext(
           "Your browser reports %{zone}. This account still stores a fixed UTC offset, which cannot follow daylight saving — it will drift by an hour at the next change.",
           zone: browser_name
         )
 
-      TimeZone.same_group?(browser_name, effective) ->
+      TimeZone.same_group?(browser_name, saved) ->
         nil
 
       true ->
         gettext(
           "Your browser reports %{browser}, but this account is set to %{saved}. Times on this site will be shown in %{saved}.",
           browser: browser_name,
-          saved: effective
+          saved: saved
         )
     end
   end

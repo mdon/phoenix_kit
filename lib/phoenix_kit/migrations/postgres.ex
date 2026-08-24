@@ -7,7 +7,16 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V180 - Catalogue: federated manufacturer↔supplier links + one current supplier per pair ⚡ LATEST
+  ### V181 - Users: `user_timezone` widens to hold an IANA identifier ⚡ LATEST
+
+  `phoenix_kit_users.user_timezone` goes from `varchar(3)` to `varchar(64)`.
+  Three characters fitted the integer offsets it used to hold (`"+14"`, `"0"`),
+  which is exactly why timezones could not follow daylight saving. Widening it
+  lets the column store `Europe/Helsinki`. Metadata-only in PostgreSQL: no
+  table rewrite, and existing offsets are left untouched and still readable —
+  see the migration's moduledoc for why they are not converted.
+
+  ### V180 - Catalogue: federated manufacturer↔supplier links + one current supplier per pair
 
   Adds `manufacturer_source` / `supplier_source` (`local` | `crm_company`,
   CHECK-backed) to `phoenix_kit_cat_manufacturer_suppliers` and DROPS both of
@@ -642,7 +651,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 180
+  @current_version 181
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
