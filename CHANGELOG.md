@@ -1,3 +1,44 @@
+## 2.13.9 - 2026-08-24
+
+Timezones move from a bare offset to full IANA identifiers, so DST is
+tracked instead of frozen at whatever the account's offset was when it was
+set; saved integration secrets stop round-tripping into the setup form;
+Estonian and Russian translations get another pass (#748, #749, #750).
+
+### Added
+
+- **`phoenix_kit_users.user_timezone` now holds IANA identifiers**
+  (`Europe/Helsinki`) instead of a bare offset (`"2"`), so a summer-set
+  timezone no longer reads an hour behind once winter DST kicks in.
+  `PhoenixKit.Utils.TimeZone` still reads existing offset rows as fixed
+  offsets — nothing is migrated in place, only the column widens
+  (V181). New `/profile/settings` page for setting it (#750).
+
+### Fixed
+
+- **The "you haven't set a timezone" banner fired for almost every signed-in
+  user.** It compared the account's blank preference against the site
+  default using identifier-only equality, but a fresh/unmigrated install's
+  site default is the legacy offset `"0"`, which can never match an IANA id.
+  Added `TimeZone.effectively_same?/2`, which compares effective UTC offsets
+  when either side is a legacy offset (#750, post-merge review).
+- **A hand-edited `user_settings_path` override could resolve to
+  `/users/log-out`**, turning a "Settings" link into a silent sign-out.
+  `Routes.user_settings_path/1` now runs the override through the same
+  `usable_candidate?/1` guard as `main_page_path/0` (post-merge review).
+- Media viewer forced a 1:1 aspect ratio regardless of the actual image;
+  settings page content could overflow its container (#750).
+- **Saved integration secrets (API keys, bot tokens) were decrypted and
+  rendered straight into the setup form's `value=` attribute on every edit.**
+  The field now renders empty with an "already configured" placeholder
+  instead of the credential; submitting it blank still keeps the existing
+  secret rather than wiping it (#748).
+
+### i18n
+
+- Estonian translation gaps filled; a batch of Russian strings that were
+  fuzzy-matched onto the wrong English source corrected (#749).
+
 ## 2.13.8 - 2026-08-24
 
 Authentication and session flash messages now go through gettext, so a
