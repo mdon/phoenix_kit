@@ -13360,12 +13360,12 @@ msgstr "Не удалось отклонить приглашение. Попр�
 #: lib/phoenix_kit_web/users/magic_link.ex:98
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid email address"
-msgstr "Введите название"
+msgstr "Введите корректный адрес электронной почты"
 
 #: lib/phoenix_kit_web/users/magic_link_registration_request.ex:109
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid email address."
-msgstr "Введите название"
+msgstr "Введите корректный адрес электронной почты."
 
 #: lib/phoenix_kit_web/users/magic_link_registration_request.ex:117
 #, elixir-autogen, elixir-format
