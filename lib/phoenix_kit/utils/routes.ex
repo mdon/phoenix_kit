@@ -568,6 +568,57 @@ defmodule PhoenixKit.Utils.Routes do
   end
 
   @doc """
+  Where the "Settings" entry in the user menu should point.
+
+  Core's own account page, `/profile/settings`, unless an operator set
+  `user_settings_path` — the escape hatch for a host that wants to own the
+  account UI. Every user-facing link to the settings page resolves through
+  here, so pointing one setting at a host page moves all of them at once.
+
+  Replaces the older `/dashboard/settings`, which tied the account UI to the
+  user dashboard that hosts can compile out (`user_dashboard_enabled`).
+
+  The override is validated as a local path when saved and re-guarded here on
+  read, so a hand-edited DB row cannot turn a menu entry into an off-site
+  link. An override is used verbatim — it is the host's own path, so core
+  neither prefixes it nor inserts a locale segment.
+
+  ## Options
+
+    * `:locale` — locale segment for the built-in path, as `path/2` takes it.
+      Ignored when an override is set.
+
+  ## Examples
+
+      iex> PhoenixKit.Utils.Routes.user_settings_path()
+      "/phoenix_kit/profile/settings"
+
+  """
+  @spec user_settings_path(keyword()) :: String.t()
+  def user_settings_path(opts \\ []) do
+    case setting_candidate("user_settings_path") do
+      nil -> path("/profile/settings", opts)
+      value -> if local_path?(value), do: value, else: path("/profile/settings", opts)
+    end
+  end
+
+  @doc """
+  `user_settings_path/1` with the locale taken from `assigns`.
+
+  Same relationship to `user_settings_path/1` as `locale_aware_path/2` has to
+  `path/2` — for templates that hold the current locale in assigns rather than
+  a keyword list.
+  """
+  @spec locale_aware_user_settings_path(map()) :: String.t()
+  def locale_aware_user_settings_path(assigns) do
+    locale =
+      assigns[:current_locale_base] ||
+        DialectMapper.extract_base(assigns[:current_locale] || @default_locale)
+
+    user_settings_path(locale: locale)
+  end
+
+  @doc """
   Whether `path` actually resolves to a `GET` route in the application's router.
 
   The router is taken from the request: `conn.private[:phoenix_router]`, set by

@@ -76,6 +76,8 @@ defmodule PhoenixKit.Settings.Setting do
     "main_page_path",
     # Post-login redirects (empty = default behavior)
     "after_registration_path",
+    # Empty = core's own /profile/settings (see `Routes.user_settings_path/1`).
+    "user_settings_path",
     # OAuth Provider Credentials
     "oauth_google_client_id",
     "oauth_google_client_secret",
@@ -274,6 +276,7 @@ defmodule PhoenixKit.Settings.Setting do
     import Ecto.Changeset
 
     alias PhoenixKit.Utils.Routes, as: RouteUtils
+    alias PhoenixKit.Utils.TimeZone
 
     @primary_key false
     embedded_schema do
@@ -302,6 +305,7 @@ defmodule PhoenixKit.Settings.Setting do
       field :remember_me_default, :string
       field :after_login_path, :string
       field :after_registration_path, :string
+      field :user_settings_path, :string
       # Organization Accounts
       field :enable_organization_accounts, :string
       # Admin Panel Languages
@@ -370,6 +374,7 @@ defmodule PhoenixKit.Settings.Setting do
         :remember_me_default,
         :after_login_path,
         :after_registration_path,
+        :user_settings_path,
         :enable_organization_accounts,
         :admin_languages,
         :oauth_google_client_id,
@@ -422,6 +427,7 @@ defmodule PhoenixKit.Settings.Setting do
       |> validate_local_path(:after_login_path)
       |> validate_local_path(:after_registration_path)
       |> validate_local_path(:main_page_path)
+      |> validate_local_path(:user_settings_path)
     end
 
     # Validates a redirect-target setting is a local path (optional field —
@@ -527,15 +533,16 @@ defmodule PhoenixKit.Settings.Setting do
       )
     end
 
-    # Validates timezone offset is within acceptable range
+    # Accepts an IANA identifier ("Europe/Warsaw") and, still, the numeric
+    # offsets every installation predating named timezones has stored, so
+    # saving an unrelated setting on the same form does not fail on a value
+    # the admin never touched.
     defp validate_timezone(changeset) do
       validate_change(changeset, :time_zone, fn :time_zone, time_zone ->
-        case Integer.parse(time_zone) do
-          {offset, ""} when offset >= -12 and offset <= 12 ->
-            []
-
-          _ ->
-            [time_zone: "must be a valid timezone offset between -12 and +12"]
+        if TimeZone.valid?(time_zone) do
+          []
+        else
+          [time_zone: "must be a timezone identifier like Europe/Warsaw"]
         end
       end)
     end

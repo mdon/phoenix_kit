@@ -216,6 +216,33 @@
               } />
             </div>
 
+            <%!-- Escape hatch for a host that would rather own the account UI
+                 than use PhoenixKit's page. Every "Settings" entry in the user
+                 menu resolves through Routes.user_settings_path/1, so this one
+                 field moves all of them at once. --%>
+            <div class="fieldset w-full">
+              <label class="label" for="settings_user_settings_path">
+                <span class="fieldset-legend text-base font-medium">
+                  {gettext("User settings path")}
+                </span>
+              </label>
+              <.input
+                id="settings_user_settings_path"
+                type="text"
+                name="settings[user_settings_path]"
+                value={@settings["user_settings_path"]}
+                placeholder="/phoenix_kit/profile/settings"
+              />
+              <div class="text-xs text-base-content/60 mt-1">
+                {gettext(
+                  "Where the \"Settings\" entry in the user menu goes. Empty = PhoenixKit's own profile settings page. Set it to send users to your own account page instead."
+                )}
+              </div>
+              <.unsaved_hint dirty={
+                @settings["user_settings_path"] != @saved_settings["user_settings_path"]
+              } />
+            </div>
+
             <.section_header icon="hero-user-circle" title={gettext("New User Defaults")} />
 
             <%!-- New User Default Role + Status --%>

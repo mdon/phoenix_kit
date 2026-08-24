@@ -59,9 +59,14 @@ defmodule PhoenixKitWeb.Integration do
   - /users/reset-password, /users/confirm, /users/referral
   - /users/log-out (GET/DELETE)
 
+  Account page (always routed):
+  - /profile/settings
+  - /profile/settings/confirm-email/:token
+
   User dashboard routes (if enabled, default: true):
-  - /dashboard, /dashboard/settings
-  - /dashboard/settings/confirm-email/:token
+  - /dashboard
+  - /dashboard/settings (redirects to /profile/settings)
+  - /dashboard/settings/confirm-email/:token (redirects, token carried)
 
   Admin routes (Owner/Admin only):
   - /admin, /admin/users, /admin/users/roles
@@ -630,9 +635,23 @@ defmodule PhoenixKitWeb.Integration do
     user_tab_routes = compile_module_user_routes(__CALLER__.module)
 
     quote do
+      # The signed-in user's own account page. UNCONDITIONAL, unlike the
+      # dashboard routes below: the user dashboard is optional (a host can
+      # compile it out with `user_dashboard_enabled`), and hanging the account
+      # UI off it meant changing your own email could disappear with it.
+      live "/profile/settings", Live.Users.ProfileSettings, :edit
+
+      live "/profile/settings/confirm-email/:token",
+           Live.Users.ProfileSettings,
+           :confirm_email
+
       # Core dashboard routes (conditional on config)
       if unquote(PhoenixKit.Config.user_dashboard_enabled?()) do
         live "/dashboard", Live.Dashboard.Index, :index
+
+        # Kept so old bookmarks, host links, and the confirm-email URLs in
+        # already-delivered mail keep working — both redirect to
+        # /profile/settings, carrying the token where there is one.
         live "/dashboard/settings", Live.Dashboard.Settings, :edit
 
         live "/dashboard/settings/confirm-email/:token",

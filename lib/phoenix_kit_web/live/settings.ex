@@ -14,6 +14,7 @@ defmodule PhoenixKitWeb.Live.Settings do
   alias PhoenixKit.Users.OAuthConfig
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.Utils.TimeZone
 
   require Logger
 
@@ -30,7 +31,21 @@ defmodule PhoenixKitWeb.Live.Settings do
     # list_all_settings/0) leaves them out entirely.
     current_settings = Settings.list_public_settings()
     defaults = Settings.get_defaults()
-    setting_options = Settings.get_setting_options()
+
+    # The saved site timezone has to be one of the offered options, or the
+    # <select> renders with its FIRST option selected and the next save of this
+    # form silently rewrites the site's timezone. Every installation that
+    # predates named timezones stores an offset like "0", which is no longer a
+    # row on its own, so it is added as one.
+    saved_time_zone =
+      Map.get(current_settings, "time_zone") || Settings.get_setting("time_zone", "0")
+
+    setting_options =
+      Map.put(
+        Settings.get_setting_options(),
+        "time_zone",
+        TimeZone.options(selected: saved_time_zone)
+      )
 
     # Merge defaults with current settings to ensure all keys exist, then
     # take only the public keys again — defaults still lists the restricted

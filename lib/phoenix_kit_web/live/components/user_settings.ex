@@ -23,8 +23,10 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     * `sections` — list of sections to display: `:identity`, `:custom_fields`, `:email`, `:password`, `:oauth`, `:notifications`, `:sessions`
       (default: all). `:profile` is accepted as a legacy alias that expands to `[:identity, :custom_fields]`
     * `email_confirm_url_fn` — `(token -> url)` for email confirmation links
-      (default: `&Routes.url("/dashboard/settings/confirm-email/\#{&1}")`)
-    * `return_to` — where OAuth redirect returns to (default: `"/dashboard/settings"`)
+      (default: `&Routes.url("/profile/settings/confirm-email/\#{&1}")`)
+    * `return_to` — where OAuth redirect returns to (default:
+      `Routes.user_settings_path/1`, i.e. `/profile/settings` unless the
+      `user_settings_path` setting points elsewhere)
     * `current_session_token` — raw session token of the acting browser, used
       by the `:sessions` section to mark the current device and to keep it
       signed in on "sign out other sessions". Without it, no session is
@@ -49,6 +51,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   alias PhoenixKit.Users.Sessions
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.Utils.TimeZone
 
   @default_sections [
     :identity,
@@ -116,9 +119,10 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
 
     email_confirm_url_fn =
       assigns[:email_confirm_url_fn] || socket.assigns[:email_confirm_url_fn] ||
-        (&Routes.url("/dashboard/settings/confirm-email/#{&1}"))
+        (&Routes.url("/profile/settings/confirm-email/#{&1}"))
 
-    return_to = assigns[:return_to] || socket.assigns[:return_to] || "/dashboard/settings"
+    return_to =
+      assigns[:return_to] || socket.assigns[:return_to] || Routes.user_settings_path()
 
     socket =
       socket
@@ -142,9 +146,13 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> assign_new(:email_form, fn -> to_form(Auth.change_user_email(user)) end)
       |> assign_new(:password_form, fn -> to_form(Auth.change_user_password(user)) end)
       |> assign_new(:profile_form, fn -> to_form(Auth.change_user_profile(user)) end)
-      |> assign_new(:timezone_options, fn ->
-        [{"Use System Default", nil} | Settings.timezone_options()]
-      end)
+      |> assign(
+        :timezone_options,
+        [
+          {"Use System Default", nil}
+          | TimeZone.options(selected: user.user_timezone)
+        ]
+      )
       |> assign_new(:browser_timezone_name, fn -> nil end)
       |> assign_new(:browser_timezone_offset, fn -> nil end)
       |> assign_new(:timezone_mismatch_warning, fn -> nil end)
@@ -162,6 +170,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> assign_new(:show_avatar_selector, fn -> false end)
       |> assign_new(:show_email_form, fn -> false end)
       |> assign_new(:show_password_form, fn -> false end)
+      |> assign_new(:show_notification_prefs, fn -> false end)
       |> assign_new(:notification_types, fn -> NotificationTypes.list() end)
       |> assign_new(:notification_prefs, fn -> NotificationPrefs.get(user) end)
       |> assign_new(:notification_success_message, fn -> nil end)
@@ -286,17 +295,6 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
         _ -> %{}
       end
 
-    socket =
-      case {params["browser_timezone_name"], params["browser_timezone_offset"]} do
-        {name, offset} when is_binary(name) and is_binary(offset) ->
-          socket
-          |> assign(:browser_timezone_name, name)
-          |> assign(:browser_timezone_offset, offset)
-
-        _ ->
-          socket
-      end
-
     merged_params = merge_custom_fields(params, user_params)
 
     profile_form =
@@ -347,29 +345,6 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
           |> assign(:profile_success_message, nil)
 
         {:noreply, socket}
-    end
-  end
-
-  def handle_event("use_browser_timezone", _params, socket) do
-    browser_offset = socket.assigns.browser_timezone_offset
-
-    if browser_offset do
-      user = socket.assigns.user
-      updated_attrs = %{"user_timezone" => browser_offset}
-
-      profile_form =
-        user
-        |> Auth.change_user_profile(updated_attrs)
-        |> to_form()
-
-      socket =
-        socket
-        |> assign(:profile_form, profile_form)
-        |> assign(:timezone_mismatch_warning, nil)
-
-      {:noreply, socket}
-    else
-      {:noreply, socket}
     end
   end
 
@@ -460,6 +435,51 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     {:noreply, assign(socket, :show_password_form, not socket.assigns.show_password_form)}
   end
 
+  # Pushed by the TimezoneDetector hook on mount and on every change of the
+  # select. The browser is the only party that knows where the person actually
+  # is, so this is the input the mismatch check compares against.
+  def handle_event("browser_timezone_detected", %{"name" => name} = params, socket)
+      when is_binary(name) do
+    {:noreply,
+     socket
+     |> assign(:browser_timezone_name, name)
+     |> assign(:browser_timezone_offset, params["offset"])
+     |> check_timezone_mismatch(nil)}
+  end
+
+  def handle_event("browser_timezone_detected", _params, socket), do: {:noreply, socket}
+
+  # Adopt the zone the browser reported. Writes the IANA identifier, never the
+  # offset: the identifier is the whole point, and it is what keeps the account
+  # right across the next DST change.
+  def handle_event("use_browser_timezone", _params, socket) do
+    case socket.assigns[:browser_timezone_name] do
+      name when is_binary(name) ->
+        case Auth.update_user_profile(socket.assigns.user, %{"user_timezone" => name}) do
+          {:ok, updated_user} ->
+            send(self(), {:phoenix_kit_user_updated, updated_user})
+
+            {:noreply,
+             socket
+             |> assign(:user, updated_user)
+             |> assign(:profile_form, to_form(Auth.change_user_profile(updated_user)))
+             |> assign(:timezone_mismatch_warning, nil)
+             |> assign(:profile_success_message, gettext("Timezone set to %{zone}.", zone: name))}
+
+          {:error, changeset} ->
+            {:noreply, assign(socket, :profile_form, to_form(changeset))}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_notification_prefs", _params, socket) do
+    {:noreply,
+     assign(socket, :show_notification_prefs, not socket.assigns.show_notification_prefs)}
+  end
+
   def handle_event("update_notification_prefs", params, socket) do
     user = socket.assigns.user
 
@@ -526,6 +546,18 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
 
   # Private helpers
 
+  # Effective on/off for one notification type: the user's saved choice where
+  # they made one, the type's own default where they never touched it. Shared
+  # by the checkbox state and the "N of M enabled" summary so the collapsed
+  # line can never disagree with what opening the section shows.
+  defp notification_enabled?(prefs, type) do
+    case Map.get(prefs, type.key) do
+      true -> true
+      false -> false
+      _ -> type.default
+    end
+  end
+
   defp load_sessions(user, current_token) do
     Sessions.list_user_device_sessions(user, current_token)
   end
@@ -562,72 +594,62 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     end
   end
 
+  # Compare what the browser reports against what the account has saved, and
+  # warn only when the two would actually render different clock times.
+  #
+  # Comparing identifiers alone would nag people who are legitimately not in
+  # their home zone for the afternoon; comparing the *effective offset right
+  # now* flags only the case that makes timestamps wrong on screen. A saved
+  # legacy offset is always worth replacing, though — it cannot follow the next
+  # DST change even when it happens to be right today.
   defp check_timezone_mismatch(socket, selected_timezone) do
-    browser_offset = socket.assigns[:browser_timezone_offset]
     browser_name = socket.assigns[:browser_timezone_name]
 
-    user_timezone =
+    saved =
       selected_timezone ||
         get_in(socket.assigns.profile_form.params, ["user_timezone"]) ||
         socket.assigns.user.user_timezone
 
-    case {browser_offset, user_timezone} do
-      {nil, _} ->
-        assign(socket, :timezone_mismatch_warning, nil)
-
-      {browser_tz, nil} when browser_tz != "0" ->
-        system_tz = Settings.get_setting("time_zone", "0")
-
-        if browser_tz != system_tz do
-          warning_msg =
-            "Your browser timezone appears to be #{browser_name} (#{format_timezone_offset(browser_tz)}) " <>
-              "but you selected 'Use System Default' which is #{format_timezone_offset(system_tz)}."
-
-          assign(socket, :timezone_mismatch_warning, warning_msg)
-        else
-          assign(socket, :timezone_mismatch_warning, nil)
-        end
-
-      {browser_tz, user_tz} when browser_tz != user_tz ->
-        normalized_user_tz = String.replace(user_tz, "+", "")
-        normalized_browser_tz = String.replace(browser_tz, "+", "")
-
-        if normalized_browser_tz != normalized_user_tz do
-          warning_msg =
-            "Your browser timezone appears to be #{browser_name} (#{format_timezone_offset(browser_tz)}) " <>
-              "but you selected #{format_timezone_offset(user_tz)}. Please verify this is correct."
-
-          assign(socket, :timezone_mismatch_warning, warning_msg)
-        else
-          assign(socket, :timezone_mismatch_warning, nil)
-        end
-
-      _ ->
-        assign(socket, :timezone_mismatch_warning, nil)
-    end
+    assign(socket, :timezone_mismatch_warning, timezone_warning(browser_name, saved))
   end
 
-  defp format_timezone_offset(offset) do
-    case offset do
-      "0" ->
-        "UTC+0"
+  # Nothing detected yet (hook not mounted, or a browser with no Intl support).
+  defp timezone_warning(nil, _saved), do: nil
 
-      "+" <> _ ->
-        "UTC" <> offset
+  # Three distinct situations, and they need different sentences. Collapsing
+  # them once produced "this account stores a fixed UTC offset" for someone
+  # whose account stored nothing at all — that was the SITE default being
+  # described as the person's own setting.
+  defp timezone_warning(browser_name, saved) do
+    cond do
+      not TimeZone.identifier?(browser_name) ->
+        nil
 
-      "-" <> _ ->
-        "UTC" <> offset
-
-      _ when is_binary(offset) ->
-        case Integer.parse(offset) do
-          {num, ""} when num > 0 -> "UTC+" <> offset
-          {num, ""} when num < 0 -> "UTC" <> offset
-          {0, ""} -> "UTC+0"
-          _ -> "UTC" <> offset
+      # No preference of their own: times follow the site default, which may
+      # well be right. Offered, not scolded.
+      saved in [nil, ""] ->
+        unless TimeZone.same_group?(browser_name, Settings.get_setting("time_zone", "0")) do
+          gettext(
+            "Your browser reports %{zone}. You have not set a timezone, so times are shown using the site default.",
+            zone: browser_name
+          )
         end
 
-      _ ->
-        "Unknown"
+      TimeZone.legacy_offset?(saved) ->
+        gettext(
+          "Your browser reports %{zone}. This account still stores a fixed UTC offset, which cannot follow daylight saving — it will drift by an hour at the next change.",
+          zone: browser_name
+        )
+
+      TimeZone.same_group?(browser_name, saved) ->
+        nil
+
+      true ->
+        gettext(
+          "Your browser reports %{browser}, but this account is set to %{saved}. Times on this site will be shown in %{saved}.",
+          browser: browser_name,
+          saved: saved
+        )
     end
   end
 
@@ -778,8 +800,19 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                 </div>
               </div>
 
-              <%!-- Timezone Section --%>
-              <div id={"#{@id}-timezone-detector"}>
+              <%!-- Timezone Section.                                          --%>
+              <%!--                                                             --%>
+              <%!-- phx-hook is load-bearing and was silently lost once before   --%>
+              <%!-- (c2a52872, swapping <.input type="select"> for <.select>),   --%>
+              <%!-- which left the id, the server-side mismatch check and this   --%>
+              <%!-- whole block intact but never fed. If the "Browser detected"  --%>
+              <%!-- line stops appearing, look here first.                       --%>
+              <div
+                id={"#{@id}-timezone-detector"}
+                phx-hook="TimezoneDetector"
+                phx-target={@myself}
+                data-event="browser_timezone_detected"
+              >
                 <.select
                   field={@profile_form[:user_timezone]}
                   label="Personal Timezone"
@@ -792,18 +825,29 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                       name="hero-exclamation-triangle"
                       class="stroke-current shrink-0 h-4 w-4"
                     />
-                    <div>
-                      <div class="font-semibold">Timezone Mismatch Detected</div>
+                    <div class="flex-1">
+                      <div class="font-semibold">{gettext("Check your timezone")}</div>
                       <div class="text-xs">
                         {@timezone_mismatch_warning}
                       </div>
                     </div>
+                    <%!-- The button the original never had: its handler existed --%>
+                    <%!-- from the first commit but nothing ever rendered a       --%>
+                    <%!-- phx-click for it.                                       --%>
+                    <button
+                      type="button"
+                      phx-click="use_browser_timezone"
+                      phx-target={@myself}
+                      class="btn btn-sm btn-warning"
+                    >
+                      {gettext("Use %{zone}", zone: @browser_timezone_name)}
+                    </button>
                   </div>
                 <% end %>
 
                 <%= if assigns[:browser_timezone_name] do %>
                   <div class="text-xs text-base-content/60 mt-1">
-                    Browser detected: {@browser_timezone_name} ({@browser_timezone_offset})
+                    {gettext("Browser detected: %{zone}", zone: @browser_timezone_name)}
                   </div>
                 <% end %>
               </div>
@@ -1194,10 +1238,44 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
             <div class="divider"></div>
           <% end %>
           <div>
-            <h2 class="text-lg font-semibold flex items-center gap-2 mb-4">
-              <.icon name="hero-bell" class="w-5 h-5 text-primary" /> {gettext("Notifications")}
-            </h2>
+            <%!-- Collapsed behind a toggle like Email and Password above: a --%>
+            <%!-- row of checkboxes per registered type is the longest block --%>
+            <%!-- on the page, and it pushed Active Sessions off-screen for  --%>
+            <%!-- everyone, including the majority who never change a        --%>
+            <%!-- preference. The summary line carries the state that used   --%>
+            <%!-- to need scrolling to read.                                 --%>
+            <div class="flex items-center justify-between">
+              <h2 class="text-lg font-semibold flex items-center gap-2">
+                <.icon name="hero-bell" class="w-5 h-5 text-primary" /> {gettext("Notifications")}
+              </h2>
+              <button
+                type="button"
+                phx-click="toggle_notification_prefs"
+                phx-target={@myself}
+                class="btn btn-sm btn-outline"
+              >
+                <.icon
+                  name={if @show_notification_prefs, do: "hero-x-mark", else: "hero-pencil"}
+                  class="w-4 h-4"
+                />
+                {if @show_notification_prefs,
+                  do: gettext("Cancel"),
+                  else: gettext("Manage Notifications")}
+              </button>
+            </div>
 
+            <%!-- Mirrors the current-email line under the Email heading: the --%>
+            <%!-- one fact worth seeing without opening the section.          --%>
+            <div class="text-sm text-base-content/60 mb-4">
+              {gettext("%{enabled} of %{total} notification types enabled",
+                enabled:
+                  Enum.count(@notification_types, &notification_enabled?(@notification_prefs, &1)),
+                total: length(@notification_types)
+              )}
+            </div>
+
+            <%!-- Outside the toggle, so the confirmation is still visible if --%>
+            <%!-- the section is collapsed after a save.                      --%>
             <%= if @notification_success_message do %>
               <div class="alert alert-success text-sm mb-4">
                 <.icon name="hero-check" class="stroke-current shrink-0 h-4 w-4" />
@@ -1205,48 +1283,44 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
               </div>
             <% end %>
 
-            <p class="text-sm text-base-content/60 mb-4">
-              {gettext(
-                "Pick which notification types you want to receive. Unchecked types are muted — activities still record in the audit log but no bell notification is created for you."
-              )}
-            </p>
+            <%= if @show_notification_prefs do %>
+              <p class="text-sm text-base-content/60 mb-4">
+                {gettext(
+                  "Pick which notification types you want to receive. Unchecked types are muted — activities still record in the audit log but no bell notification is created for you."
+                )}
+              </p>
 
-            <form
-              phx-submit="update_notification_prefs"
-              phx-target={@myself}
-              class="space-y-3"
-            >
-              <%= for type <- @notification_types do %>
-                <% current =
-                  case Map.get(@notification_prefs, type.key) do
-                    true -> true
-                    false -> false
-                    _ -> type.default
-                  end %>
-                <label class="flex items-start gap-3 p-3 rounded-lg border border-base-300 hover:bg-base-200/40 cursor-pointer transition-colors">
-                  <input type="hidden" name={"notification_prefs[#{type.key}]"} value="false" />
-                  <input
-                    type="checkbox"
-                    name={"notification_prefs[#{type.key}]"}
-                    value="true"
-                    checked={current}
-                    class="checkbox checkbox-primary checkbox-sm mt-1"
-                  />
-                  <div class="flex-1 min-w-0">
-                    <div class="font-medium text-sm">{type.label}</div>
-                    <%= if type.description && type.description != "" do %>
-                      <div class="text-xs text-base-content/60 mt-0.5">{type.description}</div>
-                    <% end %>
-                  </div>
-                </label>
-              <% end %>
+              <form
+                phx-submit="update_notification_prefs"
+                phx-target={@myself}
+                class="space-y-3"
+              >
+                <%= for type <- @notification_types do %>
+                  <label class="flex items-start gap-3 p-3 rounded-lg border border-base-300 hover:bg-base-200/40 cursor-pointer transition-colors">
+                    <input type="hidden" name={"notification_prefs[#{type.key}]"} value="false" />
+                    <input
+                      type="checkbox"
+                      name={"notification_prefs[#{type.key}]"}
+                      value="true"
+                      checked={notification_enabled?(@notification_prefs, type)}
+                      class="checkbox checkbox-primary checkbox-sm mt-1"
+                    />
+                    <div class="flex-1 min-w-0">
+                      <div class="font-medium text-sm">{type.label}</div>
+                      <%= if type.description && type.description != "" do %>
+                        <div class="text-xs text-base-content/60 mt-0.5">{type.description}</div>
+                      <% end %>
+                    </div>
+                  </label>
+                <% end %>
 
-              <div class="flex justify-end pt-2">
-                <button type="submit" class="btn btn-primary btn-sm">
-                  {gettext("Save preferences")}
-                </button>
-              </div>
-            </form>
+                <div class="flex justify-end pt-2">
+                  <button type="submit" class="btn btn-primary btn-sm">
+                    {gettext("Save preferences")}
+                  </button>
+                </div>
+              </form>
+            <% end %>
           </div>
         <% end %>
 

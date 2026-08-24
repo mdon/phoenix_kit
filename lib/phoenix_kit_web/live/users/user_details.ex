@@ -28,6 +28,7 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.Utils.TimeZone
   alias PhoenixKitWeb.Users.MultiSession
 
   @impl true
@@ -682,15 +683,11 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
 
   defp format_timezone(nil), do: gettext("Not set")
 
-  defp format_timezone(offset) when is_binary(offset) do
-    # Float.parse/1, not Integer.parse/1 — half/45-minute offsets like "5.5"
-    # (India) or "5.75" (Nepal) are valid stored values (auto-detected from
-    # the browser, or picked from Settings' "UTC+5:30" style dropdown
-    # options); Integer.parse/1 silently truncated them to "UTC+5".
-    case Float.parse(offset) do
-      {num, _} -> format_timezone_offset(num)
-      :error -> offset
-    end
+  defp format_timezone(value) when is_binary(value) do
+    # One label source, so an admin looking at a user's timezone reads the same
+    # text the user picked it by — an IANA identifier now, or the fixed offset
+    # an older account still holds.
+    TimeZone.label(value)
   end
 
   defp format_timezone(offset) when is_number(offset), do: format_timezone_offset(offset)
