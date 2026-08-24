@@ -51,6 +51,8 @@ defmodule PhoenixKit.Utils.Date do
   with extensive format support.
   """
 
+  alias PhoenixKit.Utils.TimeZone
+
   alias PhoenixKit.Settings
 
   @doc """
@@ -530,21 +532,15 @@ defmodule PhoenixKit.Utils.Date do
   end
 
   # Private helper to apply timezone offset to datetime
-  defp shift_to_timezone_offset(datetime, nil), do: datetime
-  defp shift_to_timezone_offset(datetime, ""), do: datetime
-
-  defp shift_to_timezone_offset(datetime, timezone_offset) do
-    case Integer.parse(timezone_offset) do
-      {offset_hours, ""} ->
-        # Convert offset hours to seconds and shift
-        offset_seconds = offset_hours * 3600
-        DateTime.add(datetime, offset_seconds, :second)
-
-      _ ->
-        # Invalid timezone offset, return original datetime
-        datetime
-    end
-  end
+  # One choke point for every timestamp the app renders. Handles both an IANA
+  # identifier ("Europe/Warsaw", DST applied for the instant being shown) and a
+  # pre-IANA numeric offset ("2"), which still shifts by a fixed amount so
+  # accounts written before the change keep reading the same.
+  #
+  # This used to parse with `Integer.parse/1` and require an empty remainder,
+  # so `"5.5"` left `".5"`, failed the match, and returned the timestamp
+  # unshifted — every UTC+5:30 and +9:30 account was quietly reading UTC.
+  defp shift_to_timezone_offset(datetime, timezone), do: TimeZone.shift(datetime, timezone)
 
   # Cached variant of format_datetime_with_timezone
   defp format_datetime_with_timezone_cached(datetime, format, user, settings) do

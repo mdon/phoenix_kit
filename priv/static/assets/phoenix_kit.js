@@ -1413,6 +1413,47 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // TimezoneDetector Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Reports the browser's IANA zone (e.g. "Europe/Warsaw") and its current UTC
+  // offset to the LiveView, so the profile can say what it detected and warn
+  // when the saved zone disagrees.
+  //
+  // Sends on mount and whenever the timezone select changes, as a plain
+  // pushEvent rather than by injecting hidden inputs into the form the way the
+  // original did — the form is owned by LiveView, and appending fields to it
+  // from outside is how this stopped working the first time.
+  //
+  // Usage in LiveView template:
+  //   <div id="..." phx-hook="TimezoneDetector" phx-target={@myself}>
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.TimezoneDetector = {
+    mounted() {
+      this.report();
+      this.el.addEventListener("change", () => this.report());
+    },
+
+    report() {
+      var name = null;
+      try {
+        name = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      } catch (_) {
+        // Very old browsers have no Intl timezone support. Nothing to report;
+        // the server simply never shows a detected zone.
+      }
+      if (!name) return;
+
+      var offsetHours = -new Date().getTimezoneOffset() / 60;
+      this.pushEventTo(this.el, "browser_timezone_detected", {
+        name: name,
+        offset: String(offsetHours)
+      });
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // ResetSelect Hook
   // ---------------------------------------------------------------------------
   //

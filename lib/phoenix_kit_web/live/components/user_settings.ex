@@ -51,6 +51,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   alias PhoenixKit.Users.Sessions
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.Utils.TimeZone
 
   @default_sections [
     :identity,
@@ -290,17 +291,6 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
         _ -> %{}
       end
 
-    socket =
-      case {params["browser_timezone_name"], params["browser_timezone_offset"]} do
-        {name, offset} when is_binary(name) and is_binary(offset) ->
-          socket
-          |> assign(:browser_timezone_name, name)
-          |> assign(:browser_timezone_offset, offset)
-
-        _ ->
-          socket
-      end
-
     merged_params = merge_custom_fields(params, user_params)
 
     profile_form =
@@ -351,29 +341,6 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
           |> assign(:profile_success_message, nil)
 
         {:noreply, socket}
-    end
-  end
-
-  def handle_event("use_browser_timezone", _params, socket) do
-    browser_offset = socket.assigns.browser_timezone_offset
-
-    if browser_offset do
-      user = socket.assigns.user
-      updated_attrs = %{"user_timezone" => browser_offset}
-
-      profile_form =
-        user
-        |> Auth.change_user_profile(updated_attrs)
-        |> to_form()
-
-      socket =
-        socket
-        |> assign(:profile_form, profile_form)
-        |> assign(:timezone_mismatch_warning, nil)
-
-      {:noreply, socket}
-    else
-      {:noreply, socket}
     end
   end
 
@@ -462,6 +429,46 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
 
   def handle_event("toggle_password_form", _params, socket) do
     {:noreply, assign(socket, :show_password_form, not socket.assigns.show_password_form)}
+  end
+
+  # Pushed by the TimezoneDetector hook on mount and on every change of the
+  # select. The browser is the only party that knows where the person actually
+  # is, so this is the input the mismatch check compares against.
+  def handle_event("browser_timezone_detected", %{"name" => name} = params, socket)
+      when is_binary(name) do
+    {:noreply,
+     socket
+     |> assign(:browser_timezone_name, name)
+     |> assign(:browser_timezone_offset, params["offset"])
+     |> check_timezone_mismatch(nil)}
+  end
+
+  def handle_event("browser_timezone_detected", _params, socket), do: {:noreply, socket}
+
+  # Adopt the zone the browser reported. Writes the IANA identifier, never the
+  # offset: the identifier is the whole point, and it is what keeps the account
+  # right across the next DST change.
+  def handle_event("use_browser_timezone", _params, socket) do
+    case socket.assigns[:browser_timezone_name] do
+      name when is_binary(name) ->
+        case Auth.update_user_profile(socket.assigns.user, %{"user_timezone" => name}) do
+          {:ok, updated_user} ->
+            send(self(), {:phoenix_kit_user_updated, updated_user})
+
+            {:noreply,
+             socket
+             |> assign(:user, updated_user)
+             |> assign(:profile_form, to_form(Auth.change_user_profile(updated_user)))
+             |> assign(:timezone_mismatch_warning, nil)
+             |> assign(:profile_success_message, gettext("Timezone set to %{zone}.", zone: name))}
+
+          {:error, changeset} ->
+            {:noreply, assign(socket, :profile_form, to_form(changeset))}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("toggle_notification_prefs", _params, socket) do
@@ -583,73 +590,57 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     end
   end
 
+  # Compare what the browser reports against what the account has saved, and
+  # warn only when the two would actually render different clock times.
+  #
+  # Comparing identifiers alone would nag people who are legitimately not in
+  # their home zone for the afternoon; comparing the *effective offset right
+  # now* flags only the case that makes timestamps wrong on screen. A saved
+  # legacy offset is always worth replacing, though — it cannot follow the next
+  # DST change even when it happens to be right today.
   defp check_timezone_mismatch(socket, selected_timezone) do
-    browser_offset = socket.assigns[:browser_timezone_offset]
     browser_name = socket.assigns[:browser_timezone_name]
 
-    user_timezone =
+    saved =
       selected_timezone ||
         get_in(socket.assigns.profile_form.params, ["user_timezone"]) ||
         socket.assigns.user.user_timezone
 
-    case {browser_offset, user_timezone} do
-      {nil, _} ->
-        assign(socket, :timezone_mismatch_warning, nil)
+    assign(socket, :timezone_mismatch_warning, timezone_warning(browser_name, saved))
+  end
 
-      {browser_tz, nil} when browser_tz != "0" ->
-        system_tz = Settings.get_setting("time_zone", "0")
+  # Nothing detected yet (hook not mounted, or a browser with no Intl support).
+  defp timezone_warning(nil, _saved), do: nil
 
-        if browser_tz != system_tz do
-          warning_msg =
-            "Your browser timezone appears to be #{browser_name} (#{format_timezone_offset(browser_tz)}) " <>
-              "but you selected 'Use System Default' which is #{format_timezone_offset(system_tz)}."
+  defp timezone_warning(browser_name, saved) do
+    effective = saved || Settings.get_setting("time_zone", "0")
 
-          assign(socket, :timezone_mismatch_warning, warning_msg)
-        else
-          assign(socket, :timezone_mismatch_warning, nil)
-        end
+    cond do
+      not TimeZone.identifier?(browser_name) ->
+        nil
 
-      {browser_tz, user_tz} when browser_tz != user_tz ->
-        normalized_user_tz = String.replace(user_tz, "+", "")
-        normalized_browser_tz = String.replace(browser_tz, "+", "")
+      TimeZone.legacy_offset?(effective) ->
+        gettext(
+          "Your browser reports %{zone}. This account still stores a fixed UTC offset, which cannot follow daylight saving — it will drift by an hour at the next change.",
+          zone: browser_name
+        )
 
-        if normalized_browser_tz != normalized_user_tz do
-          warning_msg =
-            "Your browser timezone appears to be #{browser_name} (#{format_timezone_offset(browser_tz)}) " <>
-              "but you selected #{format_timezone_offset(user_tz)}. Please verify this is correct."
+      same_clock?(browser_name, effective) ->
+        nil
 
-          assign(socket, :timezone_mismatch_warning, warning_msg)
-        else
-          assign(socket, :timezone_mismatch_warning, nil)
-        end
-
-      _ ->
-        assign(socket, :timezone_mismatch_warning, nil)
+      true ->
+        gettext(
+          "Your browser reports %{browser}, but this account is set to %{saved}. Times on this site will be shown in %{saved}.",
+          browser: browser_name,
+          saved: effective
+        )
     end
   end
 
-  defp format_timezone_offset(offset) do
-    case offset do
-      "0" ->
-        "UTC+0"
-
-      "+" <> _ ->
-        "UTC" <> offset
-
-      "-" <> _ ->
-        "UTC" <> offset
-
-      _ when is_binary(offset) ->
-        case Integer.parse(offset) do
-          {num, ""} when num > 0 -> "UTC+" <> offset
-          {num, ""} when num < 0 -> "UTC" <> offset
-          {0, ""} -> "UTC+0"
-          _ -> "UTC" <> offset
-        end
-
-      _ ->
-        "Unknown"
-    end
+  # Two zones "agree" when they put the same instant at the same wall clock.
+  defp same_clock?(a, b) do
+    now = DateTime.utc_now()
+    TimeZone.shift(now, a) |> DateTime.to_time() == TimeZone.shift(now, b) |> DateTime.to_time()
   end
 
   defp get_available_oauth_providers(oauth_providers) do
@@ -799,8 +790,18 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                 </div>
               </div>
 
-              <%!-- Timezone Section --%>
-              <div id={"#{@id}-timezone-detector"}>
+              <%!-- Timezone Section.                                          --%>
+              <%!--                                                             --%>
+              <%!-- phx-hook is load-bearing and was silently lost once before   --%>
+              <%!-- (c2a52872, swapping <.input type="select"> for <.select>),   --%>
+              <%!-- which left the id, the server-side mismatch check and this   --%>
+              <%!-- whole block intact but never fed. If the "Browser detected"  --%>
+              <%!-- line stops appearing, look here first.                       --%>
+              <div
+                id={"#{@id}-timezone-detector"}
+                phx-hook="TimezoneDetector"
+                phx-target={@myself}
+              >
                 <.select
                   field={@profile_form[:user_timezone]}
                   label="Personal Timezone"
@@ -813,18 +814,29 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                       name="hero-exclamation-triangle"
                       class="stroke-current shrink-0 h-4 w-4"
                     />
-                    <div>
-                      <div class="font-semibold">Timezone Mismatch Detected</div>
+                    <div class="flex-1">
+                      <div class="font-semibold">{gettext("Check your timezone")}</div>
                       <div class="text-xs">
                         {@timezone_mismatch_warning}
                       </div>
                     </div>
+                    <%!-- The button the original never had: its handler existed --%>
+                    <%!-- from the first commit but nothing ever rendered a       --%>
+                    <%!-- phx-click for it.                                       --%>
+                    <button
+                      type="button"
+                      phx-click="use_browser_timezone"
+                      phx-target={@myself}
+                      class="btn btn-sm btn-warning"
+                    >
+                      {gettext("Use %{zone}", zone: @browser_timezone_name)}
+                    </button>
                   </div>
                 <% end %>
 
                 <%= if assigns[:browser_timezone_name] do %>
                   <div class="text-xs text-base-content/60 mt-1">
-                    Browser detected: {@browser_timezone_name} ({@browser_timezone_offset})
+                    {gettext("Browser detected: %{zone}", zone: @browser_timezone_name)}
                   </div>
                 <% end %>
               </div>

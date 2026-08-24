@@ -28,6 +28,7 @@ defmodule PhoenixKit.Users.Auth.User do
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Slug
+  alias PhoenixKit.Utils.TimeZone
 
   # Fields excluded from get_user_field for security/internal reasons
   @excluded_fields ~w(password current_password hashed_password __meta__ __struct__)a
@@ -923,29 +924,25 @@ defmodule PhoenixKit.Users.Auth.User do
         end
 
       _ ->
-        add_error(changeset, :user_timezone, "must be a valid timezone offset")
+        add_error(changeset, :user_timezone, "must be a timezone identifier")
     end
   end
 
-  # Helper function to validate timezone offset format and range.
-  #
-  # Float.parse/1 (not Integer.parse/1) — half-hour/45-minute offsets like
-  # "5.5" (India) or "5.75" (Nepal) are valid picker values (see
-  # Settings.get_setting_options/0's "time_zone" list) but Integer.parse/1
-  # leaves a ".5" remainder and never matches `{offset, ""}`, so selecting
-  # one of those from the admin's own dropdown always failed validation.
-  # Range is -12..14 to match that same list (it goes up to "UTC+14").
+  # Accepts what the picker now offers — an IANA identifier like
+  # "Europe/Warsaw" — and, still, the numeric offsets rows were written with
+  # before the move to identifiers, so an existing account does not fail
+  # validation on a field it never touched. `PhoenixKit.Utils.TimeZone.valid?/1`
+  # owns both shapes; see its moduledoc for why an old offset is kept rather
+  # than upgraded in place.
   defp validate_timezone_offset(changeset, timezone) do
-    case Float.parse(timezone) do
-      {offset, ""} when offset >= -12 and offset <= 14 ->
-        changeset
-
-      _ ->
-        add_error(
-          changeset,
-          :user_timezone,
-          "must be a valid timezone offset between -12 and +14"
-        )
+    if TimeZone.valid?(timezone) do
+      changeset
+    else
+      add_error(
+        changeset,
+        :user_timezone,
+        "must be a timezone identifier like Europe/Warsaw"
+      )
     end
   end
 
