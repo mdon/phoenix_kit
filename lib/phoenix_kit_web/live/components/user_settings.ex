@@ -165,6 +165,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> assign_new(:show_avatar_selector, fn -> false end)
       |> assign_new(:show_email_form, fn -> false end)
       |> assign_new(:show_password_form, fn -> false end)
+      |> assign_new(:show_notification_prefs, fn -> false end)
       |> assign_new(:notification_types, fn -> NotificationTypes.list() end)
       |> assign_new(:notification_prefs, fn -> NotificationPrefs.get(user) end)
       |> assign_new(:notification_success_message, fn -> nil end)
@@ -463,6 +464,11 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     {:noreply, assign(socket, :show_password_form, not socket.assigns.show_password_form)}
   end
 
+  def handle_event("toggle_notification_prefs", _params, socket) do
+    {:noreply,
+     assign(socket, :show_notification_prefs, not socket.assigns.show_notification_prefs)}
+  end
+
   def handle_event("update_notification_prefs", params, socket) do
     user = socket.assigns.user
 
@@ -528,6 +534,18 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   end
 
   # Private helpers
+
+  # Effective on/off for one notification type: the user's saved choice where
+  # they made one, the type's own default where they never touched it. Shared
+  # by the checkbox state and the "N of M enabled" summary so the collapsed
+  # line can never disagree with what opening the section shows.
+  defp notification_enabled?(prefs, type) do
+    case Map.get(prefs, type.key) do
+      true -> true
+      false -> false
+      _ -> type.default
+    end
+  end
 
   defp load_sessions(user, current_token) do
     Sessions.list_user_device_sessions(user, current_token)
@@ -1197,10 +1215,44 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
             <div class="divider"></div>
           <% end %>
           <div>
-            <h2 class="text-lg font-semibold flex items-center gap-2 mb-4">
-              <.icon name="hero-bell" class="w-5 h-5 text-primary" /> {gettext("Notifications")}
-            </h2>
+            <%!-- Collapsed behind a toggle like Email and Password above: a --%>
+            <%!-- row of checkboxes per registered type is the longest block --%>
+            <%!-- on the page, and it pushed Active Sessions off-screen for  --%>
+            <%!-- everyone, including the majority who never change a        --%>
+            <%!-- preference. The summary line carries the state that used   --%>
+            <%!-- to need scrolling to read.                                 --%>
+            <div class="flex items-center justify-between">
+              <h2 class="text-lg font-semibold flex items-center gap-2">
+                <.icon name="hero-bell" class="w-5 h-5 text-primary" /> {gettext("Notifications")}
+              </h2>
+              <button
+                type="button"
+                phx-click="toggle_notification_prefs"
+                phx-target={@myself}
+                class="btn btn-sm btn-outline"
+              >
+                <.icon
+                  name={if @show_notification_prefs, do: "hero-x-mark", else: "hero-pencil"}
+                  class="w-4 h-4"
+                />
+                {if @show_notification_prefs,
+                  do: gettext("Cancel"),
+                  else: gettext("Manage Notifications")}
+              </button>
+            </div>
 
+            <%!-- Mirrors the current-email line under the Email heading: the --%>
+            <%!-- one fact worth seeing without opening the section.          --%>
+            <div class="text-sm text-base-content/60 mb-4">
+              {gettext("%{enabled} of %{total} notification types enabled",
+                enabled:
+                  Enum.count(@notification_types, &notification_enabled?(@notification_prefs, &1)),
+                total: length(@notification_types)
+              )}
+            </div>
+
+            <%!-- Outside the toggle, so the confirmation is still visible if --%>
+            <%!-- the section is collapsed after a save.                      --%>
             <%= if @notification_success_message do %>
               <div class="alert alert-success text-sm mb-4">
                 <.icon name="hero-check" class="stroke-current shrink-0 h-4 w-4" />
@@ -1208,48 +1260,44 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
               </div>
             <% end %>
 
-            <p class="text-sm text-base-content/60 mb-4">
-              {gettext(
-                "Pick which notification types you want to receive. Unchecked types are muted — activities still record in the audit log but no bell notification is created for you."
-              )}
-            </p>
+            <%= if @show_notification_prefs do %>
+              <p class="text-sm text-base-content/60 mb-4">
+                {gettext(
+                  "Pick which notification types you want to receive. Unchecked types are muted — activities still record in the audit log but no bell notification is created for you."
+                )}
+              </p>
 
-            <form
-              phx-submit="update_notification_prefs"
-              phx-target={@myself}
-              class="space-y-3"
-            >
-              <%= for type <- @notification_types do %>
-                <% current =
-                  case Map.get(@notification_prefs, type.key) do
-                    true -> true
-                    false -> false
-                    _ -> type.default
-                  end %>
-                <label class="flex items-start gap-3 p-3 rounded-lg border border-base-300 hover:bg-base-200/40 cursor-pointer transition-colors">
-                  <input type="hidden" name={"notification_prefs[#{type.key}]"} value="false" />
-                  <input
-                    type="checkbox"
-                    name={"notification_prefs[#{type.key}]"}
-                    value="true"
-                    checked={current}
-                    class="checkbox checkbox-primary checkbox-sm mt-1"
-                  />
-                  <div class="flex-1 min-w-0">
-                    <div class="font-medium text-sm">{type.label}</div>
-                    <%= if type.description && type.description != "" do %>
-                      <div class="text-xs text-base-content/60 mt-0.5">{type.description}</div>
-                    <% end %>
-                  </div>
-                </label>
-              <% end %>
+              <form
+                phx-submit="update_notification_prefs"
+                phx-target={@myself}
+                class="space-y-3"
+              >
+                <%= for type <- @notification_types do %>
+                  <label class="flex items-start gap-3 p-3 rounded-lg border border-base-300 hover:bg-base-200/40 cursor-pointer transition-colors">
+                    <input type="hidden" name={"notification_prefs[#{type.key}]"} value="false" />
+                    <input
+                      type="checkbox"
+                      name={"notification_prefs[#{type.key}]"}
+                      value="true"
+                      checked={notification_enabled?(@notification_prefs, type)}
+                      class="checkbox checkbox-primary checkbox-sm mt-1"
+                    />
+                    <div class="flex-1 min-w-0">
+                      <div class="font-medium text-sm">{type.label}</div>
+                      <%= if type.description && type.description != "" do %>
+                        <div class="text-xs text-base-content/60 mt-0.5">{type.description}</div>
+                      <% end %>
+                    </div>
+                  </label>
+                <% end %>
 
-              <div class="flex justify-end pt-2">
-                <button type="submit" class="btn btn-primary btn-sm">
-                  {gettext("Save preferences")}
-                </button>
-              </div>
-            </form>
+                <div class="flex justify-end pt-2">
+                  <button type="submit" class="btn btn-primary btn-sm">
+                    {gettext("Save preferences")}
+                  </button>
+                </div>
+              </form>
+            <% end %>
           </div>
         <% end %>
 
