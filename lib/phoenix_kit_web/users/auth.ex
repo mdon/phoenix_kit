@@ -1173,6 +1173,11 @@ defmodule PhoenixKitWeb.Users.Auth do
   Generic across embeddable feature modules — `phoenix_kit_projects` is
   the reference consumer.
   """
+  # Deliberately does NOT attach the timezone `handle_event` hook. This runs
+  # outside the LiveView lifecycle (that is the point of an embed), so
+  # `attach_hook/4` has no lifecycle to attach to. The layout gates the
+  # detector on the flag the attachment sets, so an embedded page simply does
+  # not render it rather than pushing an event nothing can handle.
   @spec assign_embedded_current_user(LiveView.Socket.t(), map()) :: LiveView.Socket.t()
   def assign_embedded_current_user(socket, session) when is_map(session) do
     if is_nil(socket.assigns[:phoenix_kit_current_scope]) do

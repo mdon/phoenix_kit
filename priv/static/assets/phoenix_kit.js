@@ -1455,10 +1455,18 @@ if (typeof window.Chart === "undefined") {
       // the event goes to the LiveView, where an attached handle_event hook
       // picks it up for every page. On the profile it targets the settings
       // LiveComponent, which owns the picker and the warning.
-      if (this.el.getAttribute("phx-target")) {
-        this.pushEventTo(this.el, event, payload);
-      } else {
-        this.pushEvent(event, payload);
+      // Wrapped: a hook can mount during a reconnect or a back/forward cache
+      // restore, before the channel this pushes over is joined. Reporting a
+      // timezone is a courtesy — it must never surface as an error to someone
+      // who was only navigating.
+      try {
+        if (this.el.getAttribute("phx-target")) {
+          this.pushEventTo(this.el, event, payload);
+        } else {
+          this.pushEvent(event, payload);
+        }
+      } catch (_) {
+        // Next mount reports again.
       }
     }
   };

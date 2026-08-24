@@ -789,7 +789,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     ~H"""
     <main class="min-h-screen bg-base-100 transition-colors">
       <.flash_group flash={@flash} />
-      <.timezone_detector scope={assigns[:phoenix_kit_current_scope]} />
+      <.timezone_detector
+        scope={assigns[:phoenix_kit_current_scope]}
+        handler_attached={assigns[:phoenix_kit_timezone_hook_attached?] == true}
+      />
       <.invitation_banners invitations={@pk_pending_invitations} />
       {render_slot(@inner_block)}
     </main>
@@ -838,7 +841,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         <%!-- Admin pages without parent headers --%>
         <main class="min-h-screen bg-base-100 transition-colors">
           <.flash_group flash={@flash} />
-          <.timezone_detector scope={assigns[:phoenix_kit_current_scope]} />
+          <.timezone_detector
+            scope={assigns[:phoenix_kit_current_scope]}
+            handler_attached={assigns[:phoenix_kit_timezone_hook_attached?] == true}
+          />
           <.invitation_banners invitations={@pk_pending_invitations} />
           {render_slot(@inner_block)}
         </main>
@@ -930,7 +936,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       # freezes at its dead-render value (see `render_with_phoenix_kit_layout/1`).
       ~H"""
       <.flash_group flash={@flash} />
-      <.timezone_detector scope={assigns[:phoenix_kit_current_scope]} />
+      <.timezone_detector
+        scope={assigns[:phoenix_kit_current_scope]}
+        handler_attached={assigns[:phoenix_kit_timezone_hook_attached?] == true}
+      />
       <.invitation_banners invitations={@pk_pending_invitations} />
       <div class="min-h-dvh">{render_slot(@inner_block)}</div>
       """
@@ -948,12 +957,23 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # to open, instead of only when they go looking in settings.
   #
   # Nothing renders for a signed-out visitor: there is no account to contradict.
+  #
+  # `handler_attached` is the important guard. The element only exists where the
+  # LiveView has the matching `handle_event` hook, which
+  # `PhoenixKitWeb.Users.Auth` attaches on the shared authenticated mount path.
+  # A scope can be assigned WITHOUT going through it — `assign_embedded_current_user/2`
+  # does exactly that for a host embedding an admin LiveView, where the on_mount
+  # gate deliberately does not run. Rendering the hook there would push an event
+  # nothing handles and take the host's LiveView down with a
+  # no-function-clause error. Gating on the flag the attachment itself sets
+  # means the DOM node cannot outlive its handler.
   attr :scope, :any, default: nil
+  attr :handler_attached, :boolean, default: false
 
   def timezone_detector(assigns) do
     ~H"""
     <div
-      :if={@scope && PhoenixKit.Users.Auth.Scope.authenticated?(@scope)}
+      :if={@handler_attached && @scope && PhoenixKit.Users.Auth.Scope.authenticated?(@scope)}
       id="phoenix-kit-timezone-detector"
       phx-hook="TimezoneDetector"
       hidden
@@ -972,7 +992,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
     ~H"""
     <.flash_group flash={@flash} />
-    <.timezone_detector scope={assigns[:phoenix_kit_current_scope]} />
+    <.timezone_detector
+      scope={assigns[:phoenix_kit_current_scope]}
+      handler_attached={assigns[:phoenix_kit_timezone_hook_attached?] == true}
+    />
     <.invitation_banners invitations={@pk_pending_invitations} />
     {render_slot(@inner_block)}
     """
