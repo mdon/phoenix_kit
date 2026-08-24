@@ -413,7 +413,8 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
                 <.setup_field
                   :for={field <- @provider.setup_fields}
                   field={field}
-                  value={Map.get(@form_values, field.key) || to_string(@data[field.key] || "")}
+                  typed_value={to_string(Map.get(@form_values, field.key) || "")}
+                  saved_value={to_string(@data[field.key] || "")}
                 />
 
                 <div class="flex flex-wrap gap-2 items-center pt-2">

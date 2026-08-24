@@ -219,18 +219,17 @@
                  which silently dropped every :select / :textarea / :number
                  field a provider declared.
 
-                 Value resolution order:
-                 1. `@form_values` — user-typed values captured
-                    during a dry-run test (`/new` flow). Without
-                    this, a failed test would re-render with empty
-                    inputs and look like the form ate the user's
-                    input.
-                 2. `@data` — the saved credential, edit mode.
-                 3. `""` — fresh /new, untouched. --%>
+                 `typed_value` (from `@form_values`, a dry-run test re-render
+                 on `/new`) and `saved_value` (`@data`, edit mode) go in
+                 separately — `setup_field/1` itself decides whether
+                 `saved_value` is safe to echo, masking it for `:password`
+                 fields instead of round-tripping a decrypted secret into the
+                 markup (D011). --%>
             <.setup_field
               :for={field <- @provider.setup_fields}
               field={field}
-              value={to_string(Map.get(@form_values, field.key) || @data[field.key] || "")}
+              typed_value={to_string(Map.get(@form_values, field.key) || "")}
+              saved_value={to_string(@data[field.key] || "")}
             />
 
             <%!-- Action row at the bottom of the same card body.
