@@ -1,3 +1,37 @@
+## 2.13.8 - 2026-08-24
+
+Authentication and session flash messages now go through gettext, so a
+non-English visitor is no longer greeted in English after signing in
+(#747).
+
+### Changed
+
+- **Auth, session, OAuth, magic-link, registration, confirmation, and
+  password-reset flashes resolve through gettext.** Named `%{}` bindings
+  replace `#{}` interpolation so the strings extract. `Users.Auth` now
+  `use`s Gettext itself (`:verified_routes` does not pull the macros in).
+  One pre-existing `Gettext.dgettext/3` runtime call is a macro, so
+  extract can see it. Estonian translations are filled in; other locales
+  stay on the English msgid until they are translated (#747).
+
+### Fixed
+
+- **Inline magic-link errors were still English on an otherwise-translated
+  page.** The flash half of `error_state/3` was wrapped; the alert rendered
+  next to it was not. `MagicLink`'s `:error` assign (never a flash) was
+  the same gap. Both now go through gettext (#747).
+- **The two Ueberauth-missing OAuth flashes survived only in `et.po`.**
+  `mix gettext.extract --merge` treated them as orphans and deleted them.
+  They now live in `default.pot` as well, which is the path the catalog
+  header names for a string that cannot be compiled-extracted (#747).
+
+### i18n
+
+- Estonian translations for the auth/session flashes this release
+  introduces, including the five leftover inline errors. Fuzzy matches
+  from extract (e.g. "Please enter a valid email address" ← "Please
+  enter a name") were replaced, not kept (#747).
+
 ## 2.13.7 - 2026-08-22
 
 ### Fixed

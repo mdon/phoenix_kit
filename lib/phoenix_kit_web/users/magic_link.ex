@@ -95,7 +95,7 @@ defmodule PhoenixKitWeb.Users.MagicLink do
       {:noreply,
        socket
        |> assign(:form, form)
-       |> assign(:error, "Please enter a valid email address")}
+       |> assign(:error, gettext("Please enter a valid email address"))}
     end
   end
 
@@ -127,7 +127,7 @@ defmodule PhoenixKitWeb.Users.MagicLink do
     {:noreply,
      socket
      |> assign(:loading, false)
-     |> assign(:error, "Failed to send magic link. Please try again.")}
+     |> assign(:error, gettext("Failed to send magic link. Please try again."))}
   end
 
   # Send magic link email to user and handle response

@@ -13314,3 +13314,28 @@ msgstr "Selle lehe vaatamiseks peate sisse logima."
 #, elixir-autogen, elixir-format
 msgid "You no longer have permission to access this section."
 msgstr "Teil ei ole enam õigust seda jaotist vaadata."
+
+#: lib/phoenix_kit_web/users/magic_link.ex:130
+#, elixir-autogen, elixir-format
+msgid "Failed to send magic link. Please try again."
+msgstr "Magic Linki saatmine ebaõnnestus. Palun proovige uuesti."
+
+#: lib/phoenix_kit_web/users/magic_link_registration_request.ex:143
+#, elixir-autogen, elixir-format
+msgid "Failed to send registration link. Please try again."
+msgstr "Registreerimislingi saatmine ebaõnnestus. Palun proovige uuesti."
+
+#: lib/phoenix_kit_web/users/magic_link.ex:98
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid email address"
+msgstr "Palun sisestage kehtiv e-posti aadress"
+
+#: lib/phoenix_kit_web/users/magic_link_registration_request.ex:109
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid email address."
+msgstr "Palun sisestage kehtiv e-posti aadress."
+
+#: lib/phoenix_kit_web/users/magic_link_registration_request.ex:117
+#, elixir-autogen, elixir-format
+msgid "Too many registration attempts. Please try again later."
+msgstr "Liiga palju registreerimiskatseid. Palun proovige hiljem uuesti."

@@ -106,7 +106,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequest do
         {:noreply,
          error_state(
            socket,
-           "Please enter a valid email address.",
+           gettext("Please enter a valid email address."),
            gettext("Invalid email format")
          )}
 
@@ -114,7 +114,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequest do
         {:noreply,
          error_state(
            socket,
-           "Too many registration attempts. Please try again later.",
+           gettext("Too many registration attempts. Please try again later."),
            gettext("Too many attempts")
          )}
 
@@ -140,7 +140,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequest do
   defp generic_failure(socket) do
     error_state(
       socket,
-      "Failed to send registration link. Please try again.",
+      gettext("Failed to send registration link. Please try again."),
       gettext("Something went wrong")
     )
   end

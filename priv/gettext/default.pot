@@ -6,6 +6,23 @@
 ## Run `mix gettext.extract` to bring this file up to
 ## date. Leave `msgstr`s empty as changing them here has no
 ## effect: edit them in PO (`.po`) files instead.
+##
+## Manually added (A030): the fallback OAuth controller only compiles when
+## `Code.ensure_loaded?(Ueberauth)` is false, so `mix gettext.extract` can
+## never see these two calls in an environment where ueberauth is an
+## installed dependency (it always is here). Keeping them in the POT is
+## what stops `gettext.merge` from deleting the translations out of the
+## locale catalogs.
+#: lib/phoenix_kit_web/users/oauth.ex:483
+#, elixir-format
+msgid "OAuth authentication is not available. Please install the required dependencies (ueberauth, ueberauth_%{provider}) and configure your application. See PhoenixKit documentation for details."
+msgstr ""
+
+#: lib/phoenix_kit_web/users/oauth.ex:501
+#, elixir-format
+msgid "OAuth authentication is not configured. Please contact your administrator."
+msgstr ""
+
 ## Dashboard page translations
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:64
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:135
@@ -13287,4 +13304,29 @@ msgstr ""
 #: lib/phoenix_kit_web/users/auth.ex:1428
 #, elixir-autogen, elixir-format
 msgid "You no longer have permission to access this section."
+msgstr ""
+
+#: lib/phoenix_kit_web/users/magic_link.ex:130
+#, elixir-autogen, elixir-format
+msgid "Failed to send magic link. Please try again."
+msgstr ""
+
+#: lib/phoenix_kit_web/users/magic_link_registration_request.ex:143
+#, elixir-autogen, elixir-format
+msgid "Failed to send registration link. Please try again."
+msgstr ""
+
+#: lib/phoenix_kit_web/users/magic_link.ex:98
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid email address"
+msgstr ""
+
+#: lib/phoenix_kit_web/users/magic_link_registration_request.ex:109
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid email address."
+msgstr ""
+
+#: lib/phoenix_kit_web/users/magic_link_registration_request.ex:117
+#, elixir-autogen, elixir-format
+msgid "Too many registration attempts. Please try again later."
 msgstr ""

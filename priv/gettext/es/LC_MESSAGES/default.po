@@ -19,6 +19,23 @@ msgstr ""
 msgid "Dashboard"
 msgstr "Panel de Control"
 
+## Manually added (A030): the fallback OAuth controller only compiles when
+## `Code.ensure_loaded?(Ueberauth)` is false, so `mix gettext.extract` can
+## never see these two calls in an environment where ueberauth is an
+## installed dependency (it always is here). Per the top-of-file note in
+## this domain's .pot, this is the sanctioned case for adding entries by
+## hand — a translation that can't be statically extracted.
+#: lib/phoenix_kit_web/users/oauth.ex:483
+#, elixir-format
+msgid "OAuth authentication is not available. Please install the required dependencies (ueberauth, ueberauth_%{provider}) and configure your application. See PhoenixKit documentation for details."
+msgstr ""
+
+#: lib/phoenix_kit_web/users/oauth.ex:501
+#, elixir-format
+msgid "OAuth authentication is not configured. Please contact your administrator."
+msgstr ""
+
+
 #: lib/phoenix_kit_web/live/dashboard.html.heex:8
 #, elixir-autogen
 msgid "Welcome to the %{project_title} administration panel"
@@ -13296,4 +13313,29 @@ msgstr ""
 #: lib/phoenix_kit_web/users/auth.ex:1428
 #, elixir-autogen, elixir-format
 msgid "You no longer have permission to access this section."
+msgstr ""
+
+#: lib/phoenix_kit_web/users/magic_link.ex:130
+#, elixir-autogen, elixir-format
+msgid "Failed to send magic link. Please try again."
+msgstr "No se pudo desconectar el proveedor. Inténtelo de nuevo."
+
+#: lib/phoenix_kit_web/users/magic_link_registration_request.ex:143
+#, elixir-autogen, elixir-format
+msgid "Failed to send registration link. Please try again."
+msgstr "No se pudo rechazar la invitación. Inténtelo de nuevo."
+
+#: lib/phoenix_kit_web/users/magic_link.ex:98
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid email address"
+msgstr "Introduzca un nombre"
+
+#: lib/phoenix_kit_web/users/magic_link_registration_request.ex:109
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid email address."
+msgstr "Introduzca un nombre"
+
+#: lib/phoenix_kit_web/users/magic_link_registration_request.ex:117
+#, elixir-autogen, elixir-format
+msgid "Too many registration attempts. Please try again later."
 msgstr ""
