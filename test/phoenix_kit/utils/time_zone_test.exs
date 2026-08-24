@@ -17,6 +17,78 @@ defmodule PhoenixKit.Utils.TimeZoneTest do
     (shifted.utc_offset + shifted.std_offset) / 3600
   end
 
+  describe "the grouped picker" do
+    test "is short enough to browse, and every row is a real zone" do
+      options = TimeZone.options()
+
+      # The whole point of grouping: 59-ish rows, not 447.
+      assert length(options) < 80
+
+      for {_label, id} <- options do
+        assert TimeZone.identifier?(id)
+        assert TimeZone.representative?(id)
+      end
+    end
+
+    test "Johannesburg and Helsinki cannot share a row" do
+      # The original bug. They are only equal in winter, so grouping by
+      # behaviour puts them in different groups by construction.
+      refute TimeZone.same_group?("Africa/Johannesburg", "Europe/Helsinki")
+    end
+
+    test "cities that behave identically all year do share a row" do
+      assert TimeZone.same_group?("Europe/Tallinn", "Europe/Helsinki")
+      assert TimeZone.same_group?("Europe/Warsaw", "Europe/Berlin")
+    end
+
+    test "labels name cities that really belong to the group" do
+      # Guards the one hand-curated part of the table. If a country changes its
+      # rules and moves group, the label must not keep advertising it.
+      for {label, rep} <- TimeZone.options() do
+        "(UTC" <> rest = label
+
+        cities =
+          rest
+          |> String.split(") ", parts: 2)
+          |> List.last()
+          |> String.replace(" — summer time", "")
+          |> String.split(", ")
+
+        for city <- cities do
+          assert Enum.any?(TimeZone.identifiers(), fn id ->
+                   TimeZone.same_group?(id, rep) and
+                     String.ends_with?(id, String.replace(city, " ", "_"))
+                 end),
+                 "#{label} names #{city}, which is not in the group #{rep} represents"
+        end
+      end
+    end
+
+    test "labels carry the offset as of now, not a frozen winter value" do
+      {label, _id} =
+        Enum.find(TimeZone.options(), fn {_l, id} -> id == "Europe/Paris" end)
+
+      assert label =~ ~r/^\(UTC[+-]\d\d:\d\d\)/
+      assert label =~ "summer time"
+    end
+
+    test "a saved zone that is not a representative is added as its own row" do
+      # What auto-detection stores: somewhere precise, not a group stand-in.
+      plain = TimeZone.options()
+      with_tallinn = TimeZone.options(selected: "Europe/Tallinn")
+
+      refute Enum.any?(plain, fn {_l, id} -> id == "Europe/Tallinn" end)
+      assert length(with_tallinn) == length(plain) + 1
+      assert {label, "Europe/Tallinn"} = hd(with_tallinn)
+      assert label =~ "your location"
+    end
+
+    test "a saved representative does not get duplicated" do
+      assert length(TimeZone.options(selected: "Europe/Paris")) ==
+               length(TimeZone.options())
+    end
+  end
+
   describe "the identifier list" do
     test "every identifier resolves against the compiled tz database" do
       unresolvable =
@@ -41,11 +113,10 @@ defmodule PhoenixKit.Utils.TimeZoneTest do
       end
     end
 
-    test "options are ordered by current offset and labelled with it" do
-      options = TimeZone.options()
-
-      assert {"(UTC+02:00) Europe/Warsaw", "Europe/Warsaw"} in options
-      assert length(options) == length(TimeZone.identifiers())
+    test "every identifier belongs to exactly one group" do
+      for id <- TimeZone.identifiers() do
+        assert TimeZone.group_for(id) != nil, "#{id} is in no group"
+      end
     end
   end
 

@@ -1445,11 +1445,21 @@ if (typeof window.Chart === "undefined") {
       }
       if (!name) return;
 
-      var offsetHours = -new Date().getTimezoneOffset() / 60;
-      this.pushEventTo(this.el, "browser_timezone_detected", {
+      var payload = {
         name: name,
-        offset: String(offsetHours)
-      });
+        offset: String(-new Date().getTimezoneOffset() / 60)
+      };
+      var event = this.el.dataset.event || "phoenix_kit:timezone_detected";
+
+      // Two mount points, one hook. In the layout there is no phx-target and
+      // the event goes to the LiveView, where an attached handle_event hook
+      // picks it up for every page. On the profile it targets the settings
+      // LiveComponent, which owns the picker and the warning.
+      if (this.el.getAttribute("phx-target")) {
+        this.pushEventTo(this.el, event, payload);
+      } else {
+        this.pushEvent(event, payload);
+      }
     }
   };
 

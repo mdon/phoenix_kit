@@ -1338,7 +1338,7 @@ defmodule PhoenixKit.Settings do
       true
   """
   @spec timezone_options() :: [{String.t(), String.t()}]
-  defdelegate timezone_options(), to: TimeZone, as: :options
+  def timezone_options, do: TimeZone.options()
 
   @doc """
   Gets the display label for a timezone value — the cheap path.

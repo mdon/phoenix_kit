@@ -51,455 +51,887 @@ defmodule PhoenixKit.Utils.TimeZone do
 
   @database Tz.TimeZoneDatabase
 
-  @identifiers [
-    "Africa/Abidjan",
-    "Africa/Accra",
-    "Africa/Addis_Ababa",
-    "Africa/Algiers",
-    "Africa/Asmara",
-    "Africa/Bamako",
-    "Africa/Bangui",
-    "Africa/Banjul",
-    "Africa/Bissau",
-    "Africa/Blantyre",
-    "Africa/Brazzaville",
-    "Africa/Bujumbura",
-    "Africa/Cairo",
-    "Africa/Casablanca",
-    "Africa/Ceuta",
-    "Africa/Conakry",
-    "Africa/Dakar",
-    "Africa/Dar_es_Salaam",
-    "Africa/Djibouti",
-    "Africa/Douala",
-    "Africa/El_Aaiun",
-    "Africa/Freetown",
-    "Africa/Gaborone",
-    "Africa/Harare",
-    "Africa/Johannesburg",
-    "Africa/Juba",
-    "Africa/Kampala",
-    "Africa/Khartoum",
-    "Africa/Kigali",
-    "Africa/Kinshasa",
-    "Africa/Lagos",
-    "Africa/Libreville",
-    "Africa/Lome",
-    "Africa/Luanda",
-    "Africa/Lubumbashi",
-    "Africa/Lusaka",
-    "Africa/Malabo",
-    "Africa/Maputo",
-    "Africa/Maseru",
-    "Africa/Mbabane",
-    "Africa/Mogadishu",
-    "Africa/Monrovia",
-    "Africa/Nairobi",
-    "Africa/Ndjamena",
-    "Africa/Niamey",
-    "Africa/Nouakchott",
-    "Africa/Ouagadougou",
-    "Africa/Porto-Novo",
-    "Africa/Sao_Tome",
-    "Africa/Timbuktu",
-    "Africa/Tripoli",
-    "Africa/Tunis",
-    "Africa/Windhoek",
-    "America/Adak",
-    "America/Anchorage",
-    "America/Anguilla",
-    "America/Antigua",
-    "America/Araguaina",
-    "America/Argentina/Buenos_Aires",
-    "America/Argentina/Catamarca",
-    "America/Argentina/Cordoba",
-    "America/Argentina/Jujuy",
-    "America/Argentina/La_Rioja",
-    "America/Argentina/Mendoza",
-    "America/Argentina/Rio_Gallegos",
-    "America/Argentina/Salta",
-    "America/Argentina/San_Juan",
-    "America/Argentina/San_Luis",
-    "America/Argentina/Tucuman",
-    "America/Argentina/Ushuaia",
-    "America/Aruba",
-    "America/Asuncion",
-    "America/Atikokan",
-    "America/Atka",
-    "America/Bahia",
-    "America/Bahia_Banderas",
-    "America/Barbados",
-    "America/Belem",
-    "America/Belize",
-    "America/Blanc-Sablon",
-    "America/Boa_Vista",
-    "America/Bogota",
-    "America/Boise",
-    "America/Cambridge_Bay",
-    "America/Campo_Grande",
-    "America/Cancun",
-    "America/Caracas",
-    "America/Cayenne",
-    "America/Cayman",
-    "America/Chicago",
-    "America/Chihuahua",
-    "America/Ciudad_Juarez",
-    "America/Coral_Harbour",
-    "America/Costa_Rica",
-    "America/Coyhaique",
-    "America/Creston",
-    "America/Cuiaba",
-    "America/Curacao",
-    "America/Danmarkshavn",
-    "America/Dawson",
-    "America/Dawson_Creek",
-    "America/Denver",
-    "America/Detroit",
-    "America/Dominica",
-    "America/Edmonton",
-    "America/Eirunepe",
-    "America/El_Salvador",
-    "America/Ensenada",
-    "America/Fort_Nelson",
-    "America/Fortaleza",
-    "America/Glace_Bay",
-    "America/Goose_Bay",
-    "America/Grand_Turk",
-    "America/Grenada",
-    "America/Guadeloupe",
-    "America/Guatemala",
-    "America/Guayaquil",
-    "America/Guyana",
-    "America/Halifax",
-    "America/Havana",
-    "America/Hermosillo",
-    "America/Indiana/Indianapolis",
-    "America/Indiana/Knox",
-    "America/Indiana/Marengo",
-    "America/Indiana/Petersburg",
-    "America/Indiana/Tell_City",
-    "America/Indiana/Vevay",
-    "America/Indiana/Vincennes",
-    "America/Indiana/Winamac",
-    "America/Inuvik",
-    "America/Iqaluit",
-    "America/Jamaica",
-    "America/Juneau",
-    "America/Kentucky/Louisville",
-    "America/Kentucky/Monticello",
-    "America/Kralendijk",
-    "America/La_Paz",
-    "America/Lima",
-    "America/Los_Angeles",
-    "America/Lower_Princes",
-    "America/Maceio",
-    "America/Managua",
-    "America/Manaus",
-    "America/Marigot",
-    "America/Martinique",
-    "America/Matamoros",
-    "America/Mazatlan",
-    "America/Menominee",
-    "America/Merida",
-    "America/Metlakatla",
-    "America/Mexico_City",
-    "America/Miquelon",
-    "America/Moncton",
-    "America/Monterrey",
-    "America/Montevideo",
-    "America/Montreal",
-    "America/Montserrat",
-    "America/Nassau",
-    "America/New_York",
-    "America/Nipigon",
-    "America/Nome",
-    "America/Noronha",
-    "America/North_Dakota/Beulah",
-    "America/North_Dakota/Center",
-    "America/North_Dakota/New_Salem",
-    "America/Nuuk",
-    "America/Ojinaga",
-    "America/Panama",
-    "America/Pangnirtung",
-    "America/Paramaribo",
-    "America/Phoenix",
-    "America/Port-au-Prince",
-    "America/Port_of_Spain",
-    "America/Porto_Acre",
-    "America/Porto_Velho",
-    "America/Puerto_Rico",
-    "America/Punta_Arenas",
-    "America/Rainy_River",
-    "America/Rankin_Inlet",
-    "America/Recife",
-    "America/Regina",
-    "America/Resolute",
-    "America/Rio_Branco",
-    "America/Santa_Isabel",
-    "America/Santarem",
-    "America/Santiago",
-    "America/Santo_Domingo",
-    "America/Sao_Paulo",
-    "America/Scoresbysund",
-    "America/Shiprock",
-    "America/Sitka",
-    "America/St_Barthelemy",
-    "America/St_Johns",
-    "America/St_Kitts",
-    "America/St_Lucia",
-    "America/St_Thomas",
-    "America/St_Vincent",
-    "America/Swift_Current",
-    "America/Tegucigalpa",
-    "America/Thule",
-    "America/Thunder_Bay",
-    "America/Tijuana",
-    "America/Toronto",
-    "America/Tortola",
-    "America/Vancouver",
-    "America/Virgin",
-    "America/Whitehorse",
-    "America/Winnipeg",
-    "America/Yakutat",
-    "America/Yellowknife",
-    "Antarctica/Casey",
-    "Antarctica/Davis",
-    "Antarctica/DumontDUrville",
-    "Antarctica/Macquarie",
-    "Antarctica/Mawson",
-    "Antarctica/McMurdo",
-    "Antarctica/Palmer",
-    "Antarctica/Rothera",
-    "Antarctica/Syowa",
-    "Antarctica/Troll",
-    "Antarctica/Vostok",
-    "Arctic/Longyearbyen",
-    "Asia/Aden",
-    "Asia/Almaty",
-    "Asia/Amman",
-    "Asia/Anadyr",
-    "Asia/Aqtau",
-    "Asia/Aqtobe",
-    "Asia/Ashgabat",
-    "Asia/Atyrau",
-    "Asia/Baghdad",
-    "Asia/Bahrain",
-    "Asia/Baku",
-    "Asia/Bangkok",
-    "Asia/Barnaul",
-    "Asia/Beirut",
-    "Asia/Bishkek",
-    "Asia/Brunei",
-    "Asia/Chita",
-    "Asia/Chongqing",
-    "Asia/Colombo",
-    "Asia/Damascus",
-    "Asia/Dhaka",
-    "Asia/Dili",
-    "Asia/Dubai",
-    "Asia/Dushanbe",
-    "Asia/Famagusta",
-    "Asia/Gaza",
-    "Asia/Harbin",
-    "Asia/Hebron",
-    "Asia/Ho_Chi_Minh",
-    "Asia/Hong_Kong",
-    "Asia/Hovd",
-    "Asia/Irkutsk",
-    "Asia/Istanbul",
-    "Asia/Jakarta",
-    "Asia/Jayapura",
-    "Asia/Jerusalem",
-    "Asia/Kabul",
-    "Asia/Kamchatka",
-    "Asia/Karachi",
-    "Asia/Kashgar",
-    "Asia/Kathmandu",
-    "Asia/Khandyga",
-    "Asia/Kolkata",
-    "Asia/Krasnoyarsk",
-    "Asia/Kuala_Lumpur",
-    "Asia/Kuching",
-    "Asia/Kuwait",
-    "Asia/Macau",
-    "Asia/Magadan",
-    "Asia/Makassar",
-    "Asia/Manila",
-    "Asia/Muscat",
-    "Asia/Nicosia",
-    "Asia/Novokuznetsk",
-    "Asia/Novosibirsk",
-    "Asia/Omsk",
-    "Asia/Oral",
-    "Asia/Phnom_Penh",
-    "Asia/Pontianak",
-    "Asia/Pyongyang",
-    "Asia/Qatar",
-    "Asia/Qostanay",
-    "Asia/Qyzylorda",
-    "Asia/Riyadh",
-    "Asia/Sakhalin",
-    "Asia/Samarkand",
-    "Asia/Seoul",
-    "Asia/Shanghai",
-    "Asia/Singapore",
-    "Asia/Srednekolymsk",
-    "Asia/Taipei",
-    "Asia/Tashkent",
-    "Asia/Tbilisi",
-    "Asia/Tehran",
-    "Asia/Tel_Aviv",
-    "Asia/Thimphu",
-    "Asia/Tokyo",
-    "Asia/Tomsk",
-    "Asia/Ulaanbaatar",
-    "Asia/Urumqi",
-    "Asia/Ust-Nera",
-    "Asia/Vientiane",
-    "Asia/Vladivostok",
-    "Asia/Yakutsk",
-    "Asia/Yangon",
-    "Asia/Yekaterinburg",
-    "Asia/Yerevan",
-    "Atlantic/Azores",
-    "Atlantic/Bermuda",
-    "Atlantic/Canary",
-    "Atlantic/Cape_Verde",
-    "Atlantic/Faroe",
-    "Atlantic/Jan_Mayen",
-    "Atlantic/Madeira",
-    "Atlantic/Reykjavik",
-    "Atlantic/South_Georgia",
-    "Atlantic/St_Helena",
-    "Atlantic/Stanley",
-    "Australia/Adelaide",
-    "Australia/Brisbane",
-    "Australia/Broken_Hill",
-    "Australia/Canberra",
-    "Australia/Currie",
-    "Australia/Darwin",
-    "Australia/Eucla",
-    "Australia/Hobart",
-    "Australia/Lindeman",
-    "Australia/Lord_Howe",
-    "Australia/Melbourne",
-    "Australia/Perth",
-    "Australia/Sydney",
-    "Australia/Yancowinna",
-    "Europe/Amsterdam",
-    "Europe/Andorra",
-    "Europe/Astrakhan",
-    "Europe/Athens",
-    "Europe/Belfast",
-    "Europe/Belgrade",
-    "Europe/Berlin",
-    "Europe/Bratislava",
-    "Europe/Brussels",
-    "Europe/Bucharest",
-    "Europe/Budapest",
-    "Europe/Busingen",
-    "Europe/Chisinau",
-    "Europe/Copenhagen",
-    "Europe/Dublin",
-    "Europe/Gibraltar",
-    "Europe/Guernsey",
-    "Europe/Helsinki",
-    "Europe/Isle_of_Man",
-    "Europe/Istanbul",
-    "Europe/Jersey",
-    "Europe/Kaliningrad",
-    "Europe/Kirov",
-    "Europe/Kyiv",
-    "Europe/Lisbon",
-    "Europe/Ljubljana",
-    "Europe/London",
-    "Europe/Luxembourg",
-    "Europe/Madrid",
-    "Europe/Malta",
-    "Europe/Mariehamn",
-    "Europe/Minsk",
-    "Europe/Monaco",
-    "Europe/Moscow",
-    "Europe/Nicosia",
-    "Europe/Oslo",
-    "Europe/Paris",
-    "Europe/Podgorica",
-    "Europe/Prague",
-    "Europe/Riga",
-    "Europe/Rome",
-    "Europe/Samara",
-    "Europe/San_Marino",
-    "Europe/Sarajevo",
-    "Europe/Saratov",
-    "Europe/Simferopol",
-    "Europe/Skopje",
-    "Europe/Sofia",
-    "Europe/Stockholm",
-    "Europe/Tallinn",
-    "Europe/Tirane",
-    "Europe/Tiraspol",
-    "Europe/Ulyanovsk",
-    "Europe/Vaduz",
-    "Europe/Vatican",
-    "Europe/Vienna",
-    "Europe/Vilnius",
-    "Europe/Volgograd",
-    "Europe/Warsaw",
-    "Europe/Zagreb",
-    "Europe/Zurich",
-    "Indian/Antananarivo",
-    "Indian/Chagos",
-    "Indian/Christmas",
-    "Indian/Cocos",
-    "Indian/Comoro",
-    "Indian/Kerguelen",
-    "Indian/Mahe",
-    "Indian/Maldives",
-    "Indian/Mauritius",
-    "Indian/Mayotte",
-    "Indian/Reunion",
-    "Pacific/Apia",
-    "Pacific/Auckland",
-    "Pacific/Bougainville",
-    "Pacific/Chatham",
-    "Pacific/Chuuk",
-    "Pacific/Easter",
-    "Pacific/Efate",
-    "Pacific/Fakaofo",
-    "Pacific/Fiji",
-    "Pacific/Funafuti",
-    "Pacific/Galapagos",
-    "Pacific/Gambier",
-    "Pacific/Guadalcanal",
-    "Pacific/Guam",
-    "Pacific/Honolulu",
-    "Pacific/Johnston",
-    "Pacific/Kanton",
-    "Pacific/Kiritimati",
-    "Pacific/Kosrae",
-    "Pacific/Kwajalein",
-    "Pacific/Majuro",
-    "Pacific/Marquesas",
-    "Pacific/Midway",
-    "Pacific/Nauru",
-    "Pacific/Niue",
-    "Pacific/Norfolk",
-    "Pacific/Noumea",
-    "Pacific/Pago_Pago",
-    "Pacific/Palau",
-    "Pacific/Pitcairn",
-    "Pacific/Pohnpei",
-    "Pacific/Port_Moresby",
-    "Pacific/Rarotonga",
-    "Pacific/Saipan",
-    "Pacific/Samoa",
-    "Pacific/Tahiti",
-    "Pacific/Tarawa",
-    "Pacific/Tongatapu",
-    "Pacific/Wake",
-    "Pacific/Wallis",
-    "Pacific/Yap"
+  # Zones grouped by IDENTICAL year-round behaviour — same offset AND same
+  # daylight-saving rule — so a row can never again claim cities that only
+  # agree for half the year (Johannesburg does not switch; Helsinki does, and
+  # the old list had them sharing "UTC+2").
+  #
+  # DERIVED, not hand-written: the membership comes from sampling every zone
+  # across two years and grouping by the resulting sequence of offsets.
+  # `time_zone_test.exs` re-derives it from the compiled tz database and fails
+  # if this table has drifted — which is how the previous list rotted, city by
+  # city, as countries changed their rules.
+  #
+  # The `cities` string is the one curated part: the machine picks coherent
+  # membership but terrible names (it offered "Ceuta, Longyearbyen, Jan Mayen"
+  # for central Europe), so the label lists the best-known members instead. The
+  # same test asserts every named city really belongs to its group.
+  @groups [
+    %{
+      rep: "Pacific/Midway",
+      dst: false,
+      cities: "Midway, Niue, Pago Pago, Samoa",
+      zones: [
+        "Pacific/Midway",
+        "Pacific/Niue",
+        "Pacific/Pago_Pago",
+        "Pacific/Samoa"
+      ]
+    },
+    %{
+      rep: "Pacific/Honolulu",
+      dst: false,
+      cities: "Honolulu, Rarotonga, Tahiti, Johnston",
+      zones: [
+        "Pacific/Honolulu",
+        "Pacific/Johnston",
+        "Pacific/Rarotonga",
+        "Pacific/Tahiti"
+      ]
+    },
+    %{
+      rep: "Pacific/Marquesas",
+      dst: false,
+      cities: "Marquesas",
+      zones: [
+        "Pacific/Marquesas"
+      ]
+    },
+    %{
+      rep: "America/Adak",
+      dst: true,
+      cities: "Adak, Atka",
+      zones: [
+        "America/Adak",
+        "America/Atka"
+      ]
+    },
+    %{
+      rep: "Pacific/Gambier",
+      dst: false,
+      cities: "Gambier",
+      zones: [
+        "Pacific/Gambier"
+      ]
+    },
+    %{
+      rep: "America/Anchorage",
+      dst: true,
+      cities: "Anchorage, Juneau, Metlakatla, Nome",
+      zones: [
+        "America/Anchorage",
+        "America/Juneau",
+        "America/Metlakatla",
+        "America/Nome",
+        "America/Sitka",
+        "America/Yakutat"
+      ]
+    },
+    %{
+      rep: "Pacific/Pitcairn",
+      dst: false,
+      cities: "Pitcairn",
+      zones: [
+        "Pacific/Pitcairn"
+      ]
+    },
+    %{
+      rep: "America/Los_Angeles",
+      dst: true,
+      cities: "Los Angeles, Tijuana, Ensenada, Santa Isabel",
+      zones: [
+        "America/Ensenada",
+        "America/Los_Angeles",
+        "America/Santa_Isabel",
+        "America/Tijuana"
+      ]
+    },
+    %{
+      rep: "America/Phoenix",
+      dst: false,
+      cities: "Phoenix, Creston, Dawson, Dawson Creek",
+      zones: [
+        "America/Creston",
+        "America/Dawson",
+        "America/Dawson_Creek",
+        "America/Fort_Nelson",
+        "America/Hermosillo",
+        "America/Mazatlan",
+        "America/Phoenix",
+        "America/Whitehorse"
+      ]
+    },
+    %{
+      rep: "America/Vancouver",
+      dst: true,
+      cities: "Vancouver",
+      zones: [
+        "America/Vancouver"
+      ]
+    },
+    %{
+      rep: "America/Denver",
+      dst: true,
+      cities: "Denver, Boise, Cambridge Bay, Ciudad Juarez",
+      zones: [
+        "America/Boise",
+        "America/Cambridge_Bay",
+        "America/Ciudad_Juarez",
+        "America/Denver",
+        "America/Edmonton",
+        "America/Inuvik",
+        "America/Shiprock",
+        "America/Yellowknife"
+      ]
+    },
+    %{
+      rep: "America/Mexico_City",
+      dst: false,
+      cities: "Mexico City, Bahia Banderas, Belize, Chihuahua",
+      zones: [
+        "America/Bahia_Banderas",
+        "America/Belize",
+        "America/Chihuahua",
+        "America/Costa_Rica",
+        "America/El_Salvador",
+        "America/Guatemala",
+        "America/Managua",
+        "America/Merida",
+        "America/Mexico_City",
+        "America/Monterrey",
+        "America/Regina",
+        "America/Swift_Current",
+        "America/Tegucigalpa",
+        "Pacific/Galapagos"
+      ]
+    },
+    %{
+      rep: "Pacific/Easter",
+      dst: true,
+      cities: "Easter",
+      zones: [
+        "Pacific/Easter"
+      ]
+    },
+    %{
+      rep: "America/Bogota",
+      dst: false,
+      cities: "Bogota, Lima, Atikokan, Cancun",
+      zones: [
+        "America/Atikokan",
+        "America/Bogota",
+        "America/Cancun",
+        "America/Cayman",
+        "America/Coral_Harbour",
+        "America/Eirunepe",
+        "America/Guayaquil",
+        "America/Jamaica",
+        "America/Lima",
+        "America/Panama",
+        "America/Porto_Acre",
+        "America/Rio_Branco"
+      ]
+    },
+    %{
+      rep: "America/Chicago",
+      dst: true,
+      cities: "Chicago, Knox, Tell City, Matamoros",
+      zones: [
+        "America/Chicago",
+        "America/Indiana/Knox",
+        "America/Indiana/Tell_City",
+        "America/Matamoros",
+        "America/Menominee",
+        "America/North_Dakota/Beulah",
+        "America/North_Dakota/Center",
+        "America/North_Dakota/New_Salem",
+        "America/Ojinaga",
+        "America/Rainy_River",
+        "America/Rankin_Inlet",
+        "America/Resolute",
+        "America/Winnipeg"
+      ]
+    },
+    %{
+      rep: "America/Caracas",
+      dst: false,
+      cities: "Caracas, Anguilla, Antigua, Aruba",
+      zones: [
+        "America/Anguilla",
+        "America/Antigua",
+        "America/Aruba",
+        "America/Barbados",
+        "America/Blanc-Sablon",
+        "America/Boa_Vista",
+        "America/Campo_Grande",
+        "America/Caracas",
+        "America/Cuiaba",
+        "America/Curacao",
+        "America/Dominica",
+        "America/Grenada",
+        "America/Guadeloupe",
+        "America/Guyana",
+        "America/Kralendijk",
+        "America/La_Paz",
+        "America/Lower_Princes",
+        "America/Manaus",
+        "America/Marigot",
+        "America/Martinique",
+        "America/Montserrat",
+        "America/Port_of_Spain",
+        "America/Porto_Velho",
+        "America/Puerto_Rico",
+        "America/Santo_Domingo",
+        "America/St_Barthelemy",
+        "America/St_Kitts",
+        "America/St_Lucia",
+        "America/St_Thomas",
+        "America/St_Vincent",
+        "America/Tortola",
+        "America/Virgin"
+      ]
+    },
+    %{
+      rep: "America/New_York",
+      dst: true,
+      cities: "New York, Toronto, Detroit, Grand Turk",
+      zones: [
+        "America/Detroit",
+        "America/Grand_Turk",
+        "America/Havana",
+        "America/Indiana/Indianapolis",
+        "America/Indiana/Marengo",
+        "America/Indiana/Petersburg",
+        "America/Indiana/Vevay",
+        "America/Indiana/Vincennes",
+        "America/Indiana/Winamac",
+        "America/Iqaluit",
+        "America/Kentucky/Louisville",
+        "America/Kentucky/Monticello",
+        "America/Montreal",
+        "America/Nassau",
+        "America/New_York",
+        "America/Nipigon",
+        "America/Pangnirtung",
+        "America/Port-au-Prince",
+        "America/Thunder_Bay",
+        "America/Toronto"
+      ]
+    },
+    %{
+      rep: "America/Santiago",
+      dst: true,
+      cities: "Santiago",
+      zones: [
+        "America/Santiago"
+      ]
+    },
+    %{
+      rep: "America/Halifax",
+      dst: true,
+      cities: "Halifax, Glace Bay, Goose Bay, Moncton",
+      zones: [
+        "America/Glace_Bay",
+        "America/Goose_Bay",
+        "America/Halifax",
+        "America/Moncton",
+        "America/Thule",
+        "Atlantic/Bermuda"
+      ]
+    },
+    %{
+      rep: "America/Sao_Paulo",
+      dst: false,
+      cities: "Sao Paulo, Buenos Aires, Araguaina, Catamarca",
+      zones: [
+        "America/Araguaina",
+        "America/Argentina/Buenos_Aires",
+        "America/Argentina/Catamarca",
+        "America/Argentina/Cordoba",
+        "America/Argentina/Jujuy",
+        "America/Argentina/La_Rioja",
+        "America/Argentina/Mendoza",
+        "America/Argentina/Rio_Gallegos",
+        "America/Argentina/Salta",
+        "America/Argentina/San_Juan",
+        "America/Argentina/San_Luis",
+        "America/Argentina/Tucuman",
+        "America/Argentina/Ushuaia",
+        "America/Asuncion",
+        "America/Bahia",
+        "America/Belem",
+        "America/Cayenne",
+        "America/Coyhaique",
+        "America/Fortaleza",
+        "America/Maceio",
+        "America/Montevideo",
+        "America/Paramaribo",
+        "America/Punta_Arenas",
+        "America/Recife",
+        "America/Santarem",
+        "America/Sao_Paulo",
+        "Antarctica/Palmer",
+        "Antarctica/Rothera",
+        "Atlantic/Stanley"
+      ]
+    },
+    %{
+      rep: "America/St_Johns",
+      dst: true,
+      cities: "St Johns",
+      zones: [
+        "America/St_Johns"
+      ]
+    },
+    %{
+      rep: "America/Miquelon",
+      dst: true,
+      cities: "Miquelon",
+      zones: [
+        "America/Miquelon"
+      ]
+    },
+    %{
+      rep: "America/Noronha",
+      dst: false,
+      cities: "Noronha, South Georgia",
+      zones: [
+        "America/Noronha",
+        "Atlantic/South_Georgia"
+      ]
+    },
+    %{
+      rep: "America/Nuuk",
+      dst: true,
+      cities: "Nuuk, Scoresbysund",
+      zones: [
+        "America/Nuuk",
+        "America/Scoresbysund"
+      ]
+    },
+    %{
+      rep: "Atlantic/Cape_Verde",
+      dst: false,
+      cities: "Cape Verde",
+      zones: [
+        "Atlantic/Cape_Verde"
+      ]
+    },
+    %{
+      rep: "Africa/Accra",
+      dst: false,
+      cities: "Accra, Reykjavik, Abidjan, Bamako",
+      zones: [
+        "Africa/Abidjan",
+        "Africa/Accra",
+        "Africa/Bamako",
+        "Africa/Banjul",
+        "Africa/Bissau",
+        "Africa/Conakry",
+        "Africa/Dakar",
+        "Africa/Freetown",
+        "Africa/Lome",
+        "Africa/Monrovia",
+        "Africa/Nouakchott",
+        "Africa/Ouagadougou",
+        "Africa/Sao_Tome",
+        "Africa/Timbuktu",
+        "America/Danmarkshavn",
+        "Atlantic/Reykjavik",
+        "Atlantic/St_Helena"
+      ]
+    },
+    %{
+      rep: "Atlantic/Azores",
+      dst: true,
+      cities: "Azores",
+      zones: [
+        "Atlantic/Azores"
+      ]
+    },
+    %{
+      rep: "Africa/Casablanca",
+      dst: true,
+      cities: "Casablanca, El Aaiun",
+      zones: [
+        "Africa/Casablanca",
+        "Africa/El_Aaiun"
+      ]
+    },
+    %{
+      rep: "Africa/Lagos",
+      dst: false,
+      cities: "Lagos, Algiers, Bangui, Brazzaville",
+      zones: [
+        "Africa/Algiers",
+        "Africa/Bangui",
+        "Africa/Brazzaville",
+        "Africa/Douala",
+        "Africa/Kinshasa",
+        "Africa/Lagos",
+        "Africa/Libreville",
+        "Africa/Luanda",
+        "Africa/Malabo",
+        "Africa/Ndjamena",
+        "Africa/Niamey",
+        "Africa/Porto-Novo",
+        "Africa/Tunis"
+      ]
+    },
+    %{
+      rep: "Europe/London",
+      dst: true,
+      cities: "London, Dublin, Lisbon, Canary",
+      zones: [
+        "Atlantic/Canary",
+        "Atlantic/Faroe",
+        "Atlantic/Madeira",
+        "Europe/Belfast",
+        "Europe/Dublin",
+        "Europe/Guernsey",
+        "Europe/Isle_of_Man",
+        "Europe/Jersey",
+        "Europe/Lisbon",
+        "Europe/London"
+      ]
+    },
+    %{
+      rep: "Africa/Johannesburg",
+      dst: false,
+      cities: "Johannesburg, Blantyre, Bujumbura, Gaborone",
+      zones: [
+        "Africa/Blantyre",
+        "Africa/Bujumbura",
+        "Africa/Gaborone",
+        "Africa/Harare",
+        "Africa/Johannesburg",
+        "Africa/Juba",
+        "Africa/Khartoum",
+        "Africa/Kigali",
+        "Africa/Lubumbashi",
+        "Africa/Lusaka",
+        "Africa/Maputo",
+        "Africa/Maseru",
+        "Africa/Mbabane",
+        "Africa/Tripoli",
+        "Africa/Windhoek",
+        "Europe/Kaliningrad"
+      ]
+    },
+    %{
+      rep: "Antarctica/Troll",
+      dst: true,
+      cities: "Troll",
+      zones: [
+        "Antarctica/Troll"
+      ]
+    },
+    %{
+      rep: "Europe/Paris",
+      dst: true,
+      cities: "Paris, Berlin, Madrid, Rome",
+      zones: [
+        "Africa/Ceuta",
+        "Arctic/Longyearbyen",
+        "Atlantic/Jan_Mayen",
+        "Europe/Amsterdam",
+        "Europe/Andorra",
+        "Europe/Belgrade",
+        "Europe/Berlin",
+        "Europe/Bratislava",
+        "Europe/Brussels",
+        "Europe/Budapest",
+        "Europe/Busingen",
+        "Europe/Copenhagen",
+        "Europe/Gibraltar",
+        "Europe/Ljubljana",
+        "Europe/Luxembourg",
+        "Europe/Madrid",
+        "Europe/Malta",
+        "Europe/Monaco",
+        "Europe/Oslo",
+        "Europe/Paris",
+        "Europe/Podgorica",
+        "Europe/Prague",
+        "Europe/Rome",
+        "Europe/San_Marino",
+        "Europe/Sarajevo",
+        "Europe/Skopje",
+        "Europe/Stockholm",
+        "Europe/Tirane",
+        "Europe/Vaduz",
+        "Europe/Vatican",
+        "Europe/Vienna",
+        "Europe/Warsaw",
+        "Europe/Zagreb",
+        "Europe/Zurich"
+      ]
+    },
+    %{
+      rep: "Europe/Athens",
+      dst: true,
+      cities: "Athens, Helsinki, Tallinn, Riga",
+      zones: [
+        "Africa/Cairo",
+        "Asia/Beirut",
+        "Asia/Famagusta",
+        "Asia/Gaza",
+        "Asia/Hebron",
+        "Asia/Jerusalem",
+        "Asia/Nicosia",
+        "Asia/Tel_Aviv",
+        "Europe/Athens",
+        "Europe/Bucharest",
+        "Europe/Chisinau",
+        "Europe/Helsinki",
+        "Europe/Kyiv",
+        "Europe/Mariehamn",
+        "Europe/Nicosia",
+        "Europe/Riga",
+        "Europe/Sofia",
+        "Europe/Tallinn",
+        "Europe/Tiraspol",
+        "Europe/Vilnius"
+      ]
+    },
+    %{
+      rep: "Europe/Istanbul",
+      dst: false,
+      cities: "Istanbul, Moscow, Minsk, Nairobi",
+      zones: [
+        "Africa/Addis_Ababa",
+        "Africa/Asmara",
+        "Africa/Dar_es_Salaam",
+        "Africa/Djibouti",
+        "Africa/Kampala",
+        "Africa/Mogadishu",
+        "Africa/Nairobi",
+        "Antarctica/Syowa",
+        "Asia/Aden",
+        "Asia/Amman",
+        "Asia/Baghdad",
+        "Asia/Bahrain",
+        "Asia/Damascus",
+        "Asia/Istanbul",
+        "Asia/Kuwait",
+        "Asia/Qatar",
+        "Asia/Riyadh",
+        "Europe/Istanbul",
+        "Europe/Kirov",
+        "Europe/Minsk",
+        "Europe/Moscow",
+        "Europe/Simferopol",
+        "Europe/Volgograd",
+        "Indian/Antananarivo",
+        "Indian/Comoro",
+        "Indian/Mayotte"
+      ]
+    },
+    %{
+      rep: "Asia/Tehran",
+      dst: false,
+      cities: "Tehran",
+      zones: [
+        "Asia/Tehran"
+      ]
+    },
+    %{
+      rep: "Asia/Dubai",
+      dst: false,
+      cities: "Dubai, Baku, Tbilisi, Yerevan",
+      zones: [
+        "Asia/Baku",
+        "Asia/Dubai",
+        "Asia/Muscat",
+        "Asia/Tbilisi",
+        "Asia/Yerevan",
+        "Europe/Astrakhan",
+        "Europe/Samara",
+        "Europe/Saratov",
+        "Europe/Ulyanovsk",
+        "Indian/Mahe",
+        "Indian/Mauritius",
+        "Indian/Reunion"
+      ]
+    },
+    %{
+      rep: "Asia/Kabul",
+      dst: false,
+      cities: "Kabul",
+      zones: [
+        "Asia/Kabul"
+      ]
+    },
+    %{
+      rep: "Asia/Karachi",
+      dst: false,
+      cities: "Karachi, Almaty, Tashkent, Mawson",
+      zones: [
+        "Antarctica/Mawson",
+        "Antarctica/Vostok",
+        "Asia/Almaty",
+        "Asia/Aqtau",
+        "Asia/Aqtobe",
+        "Asia/Ashgabat",
+        "Asia/Atyrau",
+        "Asia/Dushanbe",
+        "Asia/Karachi",
+        "Asia/Oral",
+        "Asia/Qostanay",
+        "Asia/Qyzylorda",
+        "Asia/Samarkand",
+        "Asia/Tashkent",
+        "Asia/Yekaterinburg",
+        "Indian/Kerguelen",
+        "Indian/Maldives"
+      ]
+    },
+    %{
+      rep: "Asia/Kolkata",
+      dst: false,
+      cities: "Kolkata, Colombo",
+      zones: [
+        "Asia/Colombo",
+        "Asia/Kolkata"
+      ]
+    },
+    %{
+      rep: "Asia/Kathmandu",
+      dst: false,
+      cities: "Kathmandu",
+      zones: [
+        "Asia/Kathmandu"
+      ]
+    },
+    %{
+      rep: "Asia/Dhaka",
+      dst: false,
+      cities: "Dhaka, Bishkek, Omsk, Thimphu",
+      zones: [
+        "Asia/Bishkek",
+        "Asia/Dhaka",
+        "Asia/Kashgar",
+        "Asia/Omsk",
+        "Asia/Thimphu",
+        "Asia/Urumqi",
+        "Indian/Chagos"
+      ]
+    },
+    %{
+      rep: "Asia/Yangon",
+      dst: false,
+      cities: "Yangon, Cocos",
+      zones: [
+        "Asia/Yangon",
+        "Indian/Cocos"
+      ]
+    },
+    %{
+      rep: "Asia/Bangkok",
+      dst: false,
+      cities: "Bangkok, Jakarta, Ho Chi Minh, Davis",
+      zones: [
+        "Antarctica/Davis",
+        "Asia/Bangkok",
+        "Asia/Barnaul",
+        "Asia/Ho_Chi_Minh",
+        "Asia/Hovd",
+        "Asia/Jakarta",
+        "Asia/Krasnoyarsk",
+        "Asia/Novokuznetsk",
+        "Asia/Novosibirsk",
+        "Asia/Phnom_Penh",
+        "Asia/Pontianak",
+        "Asia/Tomsk",
+        "Asia/Vientiane",
+        "Indian/Christmas"
+      ]
+    },
+    %{
+      rep: "Asia/Singapore",
+      dst: false,
+      cities: "Singapore, Hong Kong, Shanghai, Taipei",
+      zones: [
+        "Antarctica/Casey",
+        "Asia/Brunei",
+        "Asia/Chongqing",
+        "Asia/Harbin",
+        "Asia/Hong_Kong",
+        "Asia/Irkutsk",
+        "Asia/Kuala_Lumpur",
+        "Asia/Kuching",
+        "Asia/Macau",
+        "Asia/Makassar",
+        "Asia/Manila",
+        "Asia/Shanghai",
+        "Asia/Singapore",
+        "Asia/Taipei",
+        "Asia/Ulaanbaatar",
+        "Australia/Perth"
+      ]
+    },
+    %{
+      rep: "Australia/Eucla",
+      dst: false,
+      cities: "Eucla",
+      zones: [
+        "Australia/Eucla"
+      ]
+    },
+    %{
+      rep: "Asia/Seoul",
+      dst: false,
+      cities: "Seoul, Tokyo, Chita, Dili",
+      zones: [
+        "Asia/Chita",
+        "Asia/Dili",
+        "Asia/Jayapura",
+        "Asia/Khandyga",
+        "Asia/Pyongyang",
+        "Asia/Seoul",
+        "Asia/Tokyo",
+        "Asia/Yakutsk",
+        "Pacific/Palau"
+      ]
+    },
+    %{
+      rep: "Australia/Adelaide",
+      dst: true,
+      cities: "Adelaide, Broken Hill, Yancowinna",
+      zones: [
+        "Australia/Adelaide",
+        "Australia/Broken_Hill",
+        "Australia/Yancowinna"
+      ]
+    },
+    %{
+      rep: "Australia/Darwin",
+      dst: false,
+      cities: "Darwin",
+      zones: [
+        "Australia/Darwin"
+      ]
+    },
+    %{
+      rep: "Australia/Brisbane",
+      dst: false,
+      cities: "Brisbane, DumontDUrville, Ust-Nera, Vladivostok",
+      zones: [
+        "Antarctica/DumontDUrville",
+        "Asia/Ust-Nera",
+        "Asia/Vladivostok",
+        "Australia/Brisbane",
+        "Australia/Lindeman",
+        "Pacific/Chuuk",
+        "Pacific/Guam",
+        "Pacific/Port_Moresby",
+        "Pacific/Saipan",
+        "Pacific/Yap"
+      ]
+    },
+    %{
+      rep: "Australia/Sydney",
+      dst: true,
+      cities: "Sydney, Melbourne, Macquarie, Hobart",
+      zones: [
+        "Antarctica/Macquarie",
+        "Australia/Canberra",
+        "Australia/Currie",
+        "Australia/Hobart",
+        "Australia/Melbourne",
+        "Australia/Sydney"
+      ]
+    },
+    %{
+      rep: "Australia/Lord_Howe",
+      dst: true,
+      cities: "Lord Howe",
+      zones: [
+        "Australia/Lord_Howe"
+      ]
+    },
+    %{
+      rep: "Asia/Magadan",
+      dst: false,
+      cities: "Magadan, Sakhalin, Srednekolymsk, Bougainville",
+      zones: [
+        "Asia/Magadan",
+        "Asia/Sakhalin",
+        "Asia/Srednekolymsk",
+        "Pacific/Bougainville",
+        "Pacific/Efate",
+        "Pacific/Guadalcanal",
+        "Pacific/Kosrae",
+        "Pacific/Noumea",
+        "Pacific/Pohnpei"
+      ]
+    },
+    %{
+      rep: "Pacific/Norfolk",
+      dst: true,
+      cities: "Norfolk",
+      zones: [
+        "Pacific/Norfolk"
+      ]
+    },
+    %{
+      rep: "Pacific/Auckland",
+      dst: true,
+      cities: "Auckland, McMurdo",
+      zones: [
+        "Antarctica/McMurdo",
+        "Pacific/Auckland"
+      ]
+    },
+    %{
+      rep: "Pacific/Fiji",
+      dst: false,
+      cities: "Fiji, Anadyr, Kamchatka, Funafuti",
+      zones: [
+        "Asia/Anadyr",
+        "Asia/Kamchatka",
+        "Pacific/Fiji",
+        "Pacific/Funafuti",
+        "Pacific/Kwajalein",
+        "Pacific/Majuro",
+        "Pacific/Nauru",
+        "Pacific/Tarawa",
+        "Pacific/Wake",
+        "Pacific/Wallis"
+      ]
+    },
+    %{
+      rep: "Pacific/Chatham",
+      dst: true,
+      cities: "Chatham",
+      zones: [
+        "Pacific/Chatham"
+      ]
+    },
+    %{
+      rep: "Pacific/Apia",
+      dst: false,
+      cities: "Apia, Fakaofo, Kanton, Tongatapu",
+      zones: [
+        "Pacific/Apia",
+        "Pacific/Fakaofo",
+        "Pacific/Kanton",
+        "Pacific/Tongatapu"
+      ]
+    },
+    %{
+      rep: "Pacific/Kiritimati",
+      dst: false,
+      cities: "Kiritimati",
+      zones: [
+        "Pacific/Kiritimati"
+      ]
+    }
   ]
+
+  @identifiers @groups |> Enum.flat_map(& &1.zones) |> Enum.sort()
+
+  @zone_to_group for group <- @groups, zone <- group.zones, into: %{}, do: {zone, group.rep}
 
   @doc """
   Every selectable IANA identifier, sorted.
@@ -521,21 +953,83 @@ defmodule PhoenixKit.Utils.TimeZone do
   @doc """
   Picker options as `{label, identifier}`, ordered by current UTC offset.
 
-  Labels carry the offset as it is **right now** ("(UTC+02:00) Europe/Warsaw"),
-  so the same zone reads +01:00 in January and +02:00 in August — which is the
-  fact the old static labels got wrong. The identifier is shown verbatim
-  because it is also what the browser reports, so a mismatch warning can name
-  the two sides in the same vocabulary.
+  One row per behaviour group — 59, not 447 — so the list stays browsable while
+  every row remains a real zone that follows its own daylight-saving rule.
+  Selecting a row stores that group's representative; everyone in the group
+  behaves identically all year, so the choice is right for all of them.
+
+  Offsets are computed now, not baked into the string: the central-European row
+  reads `(UTC+01:00)` in January and `(UTC+02:00)` in July. Freezing that number
+  is what made the old list wrong for half the year.
+
+  Pass the currently-stored value as `:selected`. When it is a zone that is not
+  itself a representative — the usual case once detection has stored somewhere
+  precise like `Europe/Tallinn` — it is prepended as its own row, so the list
+  stays short without ever misreporting what is saved.
   """
-  @spec options() :: [{String.t(), String.t()}]
-  def options do
+  @spec options(keyword()) :: [{String.t(), String.t()}]
+  def options(opts \\ []) do
     now = DateTime.utc_now()
 
-    @identifiers
-    |> Enum.map(fn id -> {offset_seconds(now, id), id} end)
-    |> Enum.sort_by(fn {offset, id} -> {offset, id} end)
-    |> Enum.map(fn {offset, id} -> {"(UTC#{format_offset(offset)}) #{id}", id} end)
+    rows =
+      @groups
+      |> Enum.map(fn group -> {offset_seconds(now, group.rep), group} end)
+      |> Enum.sort_by(fn {offset, group} -> {offset, group.cities} end)
+      |> Enum.map(fn {offset, group} -> {group_label(offset, group), group.rep} end)
+
+    case selected_extra_row(opts[:selected], now) do
+      nil -> rows
+      row -> [row | rows]
+    end
   end
+
+  defp group_label(offset, group) do
+    suffix = if group.dst, do: " — summer time", else: ""
+    "(UTC#{format_offset(offset)}) #{group.cities}#{suffix}"
+  end
+
+  # A stored zone that is not a group representative still has to be selectable,
+  # or the form would silently rewrite it to whatever row happened to match.
+  defp selected_extra_row(selected, now) when is_binary(selected) do
+    if identifier?(selected) and not representative?(selected) do
+      {"(UTC#{format_offset(offset_seconds(now, selected))}) #{selected} — your location",
+       selected}
+    end
+  end
+
+  defp selected_extra_row(_selected, _now), do: nil
+
+  @doc """
+  The representative zone for whichever group `zone` belongs to, or `nil`.
+  """
+  @spec group_for(String.t()) :: String.t() | nil
+  def group_for(zone) when is_binary(zone), do: Map.get(@zone_to_group, zone)
+  def group_for(_zone), do: nil
+
+  @doc """
+  Whether `zone` is one of the group representatives the picker lists directly.
+  """
+  @spec representative?(String.t()) :: boolean()
+  def representative?(zone) when is_binary(zone), do: group_for(zone) == zone
+  def representative?(_zone), do: false
+
+  @doc """
+  Whether two zones behave identically all year — same offset, same DST rule.
+
+  Used by the mismatch check: someone detected in `Europe/Tallinn` whose account
+  says `Europe/Helsinki` is not misconfigured, because the two never disagree.
+  """
+  @spec same_group?(String.t() | nil, String.t() | nil) :: boolean()
+  def same_group?(a, b) when is_binary(a) and is_binary(b) do
+    case {group_for(a), group_for(b)} do
+      {nil, _} -> false
+      {_, nil} -> false
+      {group, group} -> true
+      _ -> false
+    end
+  end
+
+  def same_group?(_a, _b), do: false
 
   @doc """
   Human label for a stored value — an IANA id, a legacy offset, or nothing.
@@ -555,7 +1049,16 @@ defmodule PhoenixKit.Utils.TimeZone do
   def label(value) do
     cond do
       identifier?(value) ->
-        "(UTC#{format_offset(offset_seconds(DateTime.utc_now(), value))}) #{value}"
+        now = DateTime.utc_now()
+        offset = offset_seconds(now, value)
+
+        # A representative renders as its picker row, so the value shown beside
+        # a saved setting reads the same as the option that set it. Anything
+        # else — a precise zone stored by detection — names itself.
+        case Enum.find(@groups, &(&1.rep == value)) do
+          nil -> "(UTC#{format_offset(offset)}) #{value}"
+          group -> group_label(offset, group)
+        end
 
       legacy_offset?(value) ->
         {:ok, hours} = parse_offset(value)

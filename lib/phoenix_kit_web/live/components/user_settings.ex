@@ -146,9 +146,13 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> assign_new(:email_form, fn -> to_form(Auth.change_user_email(user)) end)
       |> assign_new(:password_form, fn -> to_form(Auth.change_user_password(user)) end)
       |> assign_new(:profile_form, fn -> to_form(Auth.change_user_profile(user)) end)
-      |> assign_new(:timezone_options, fn ->
-        [{"Use System Default", nil} | Settings.timezone_options()]
-      end)
+      |> assign(
+        :timezone_options,
+        [
+          {"Use System Default", nil}
+          | TimeZone.options(selected: user.user_timezone)
+        ]
+      )
       |> assign_new(:browser_timezone_name, fn -> nil end)
       |> assign_new(:browser_timezone_offset, fn -> nil end)
       |> assign_new(:timezone_mismatch_warning, fn -> nil end)
@@ -625,7 +629,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
           zone: browser_name
         )
 
-      same_clock?(browser_name, effective) ->
+      TimeZone.same_group?(browser_name, effective) ->
         nil
 
       true ->
@@ -635,12 +639,6 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
           saved: effective
         )
     end
-  end
-
-  # Two zones "agree" when they put the same instant at the same wall clock.
-  defp same_clock?(a, b) do
-    now = DateTime.utc_now()
-    TimeZone.shift(now, a) |> DateTime.to_time() == TimeZone.shift(now, b) |> DateTime.to_time()
   end
 
   defp get_available_oauth_providers(oauth_providers) do
@@ -801,6 +799,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                 id={"#{@id}-timezone-detector"}
                 phx-hook="TimezoneDetector"
                 phx-target={@myself}
+                data-event="browser_timezone_detected"
               >
                 <.select
                   field={@profile_form[:user_timezone]}

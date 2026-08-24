@@ -2,6 +2,7 @@ defmodule PhoenixKit.Settings.TimezoneLabelTest do
   use PhoenixKit.DataCase, async: true
 
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.TimeZone
 
   describe "timezone_options/0" do
     test "is a non-empty list of {label, value} tuples covering the known offsets" do
@@ -19,9 +20,12 @@ defmodule PhoenixKit.Settings.TimezoneLabelTest do
       # is the entire point of the change.
       ids = Enum.map(options, fn {_label, id} -> id end)
 
-      assert "Europe/Warsaw" in ids
-      assert "America/New_York" in ids
-      assert "Asia/Kolkata" in ids
+      # Values are group representatives, not every zone — the list is 59 rows,
+      # not 447. Warsaw is reachable through the row it belongs to.
+      assert Enum.all?(ids, &TimeZone.representative?/1)
+      assert TimeZone.group_for("Europe/Warsaw") in ids
+      assert TimeZone.group_for("America/New_York") in ids
+      assert TimeZone.group_for("Asia/Kolkata") in ids
     end
 
     test "is the same list get_setting_options/0 uses for \"time_zone\"" do
