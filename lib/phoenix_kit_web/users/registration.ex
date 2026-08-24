@@ -107,7 +107,7 @@ defmodule PhoenixKitWeb.Users.Registration do
         socket
         |> put_flash(
           :error,
-          "User registration is currently disabled. Please contact an administrator."
+          gettext("User registration is currently disabled. Please contact an administrator.")
         )
         |> redirect(to: Routes.path("/users/log-in"))
 
@@ -125,7 +125,7 @@ defmodule PhoenixKitWeb.Users.Registration do
       # closing registration has to close the submit, not only the entrance.
       {:noreply,
        socket
-       |> put_flash(:error, "Registration is currently disabled.")
+       |> put_flash(:error, gettext("Registration is currently disabled."))
        |> redirect(to: Routes.path("/users/log-in"))}
     end
   end

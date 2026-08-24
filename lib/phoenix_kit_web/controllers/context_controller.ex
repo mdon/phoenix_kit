@@ -79,7 +79,7 @@ defmodule PhoenixKitWeb.ContextController do
 
   def set(conn, _params) do
     conn
-    |> put_flash(:error, "Invalid context")
+    |> put_flash(:error, gettext("Invalid context"))
     |> redirect(to: get_redirect_path(conn))
   end
 
@@ -98,7 +98,7 @@ defmodule PhoenixKitWeb.ContextController do
       |> redirect(to: redirect_path)
     else
       conn
-      |> put_flash(:error, "Context switching is not enabled")
+      |> put_flash(:error, gettext("Context switching is not enabled"))
       |> redirect(to: default_redirect())
     end
   end

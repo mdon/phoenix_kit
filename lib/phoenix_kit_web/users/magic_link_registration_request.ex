@@ -48,7 +48,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequest do
             socket
             |> put_flash(
               :error,
-              "User registration is currently disabled. Please contact an administrator."
+              gettext("User registration is currently disabled. Please contact an administrator.")
             )
             |> redirect(to: Routes.path("/users/log-in"))
 
@@ -74,7 +74,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequest do
     else
       {:noreply,
        socket
-       |> put_flash(:error, "User registration is currently disabled.")
+       |> put_flash(:error, gettext("User registration is currently disabled."))
        |> redirect(to: Routes.path("/users/log-in"))}
     end
   end
@@ -89,7 +89,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequest do
          |> assign(:email, sent_email)
          |> assign(:loading, false)
          |> assign(:error_message, nil)
-         |> put_flash(:info, "Registration link sent! Check your email.")}
+         |> put_flash(:info, gettext("Registration link sent! Check your email."))}
 
       # Deliberately indistinguishable from success: saying "already
       # registered" here turned this public form into an account-existence
@@ -100,18 +100,22 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequest do
          |> assign(:email_sent, true)
          |> assign(:loading, false)
          |> assign(:error_message, nil)
-         |> put_flash(:info, "Registration link sent! Check your email.")}
+         |> put_flash(:info, gettext("Registration link sent! Check your email."))}
 
       {:error, :invalid_email} ->
         {:noreply,
-         error_state(socket, "Please enter a valid email address.", "Invalid email format")}
+         error_state(
+           socket,
+           "Please enter a valid email address.",
+           gettext("Invalid email format")
+         )}
 
       {:error, :rate_limit_exceeded} ->
         {:noreply,
          error_state(
            socket,
            "Too many registration attempts. Please try again later.",
-           "Too many attempts"
+           gettext("Too many attempts")
          )}
 
       {:error, _reason} ->
@@ -137,7 +141,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationRequest do
     error_state(
       socket,
       "Failed to send registration link. Please try again.",
-      "Something went wrong"
+      gettext("Something went wrong")
     )
   end
 

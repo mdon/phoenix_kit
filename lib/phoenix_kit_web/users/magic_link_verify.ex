@@ -30,14 +30,14 @@ defmodule PhoenixKitWeb.Users.MagicLinkVerify do
       # token already sitting in an inbox is a way around the setting. They are
       # short-lived, so the window this affects is small.
       conn
-      |> put_flash(:error, "Magic link sign-in is currently disabled.")
+      |> put_flash(:error, gettext("Magic link sign-in is currently disabled."))
       |> redirect(to: Routes.path("/users/log-in"))
     end
   end
 
   def verify(conn, _params) do
     conn
-    |> put_flash(:error, "Invalid magic link. Please request a new one.")
+    |> put_flash(:error, gettext("Invalid magic link. Please request a new one."))
     |> redirect(to: Routes.path("/users/log-in"))
   end
 
@@ -53,12 +53,15 @@ defmodule PhoenixKitWeb.Users.MagicLinkVerify do
         # (re-sanitized) destination the emailed link carried before signing in.
         conn
         |> maybe_store_return_to(params["return_to"])
-        |> put_flash(:info, "Successfully logged in with magic link!")
+        |> put_flash(:info, gettext("Successfully logged in with magic link!"))
         |> UserAuth.log_in_user(user, UserAuth.remember_me_params())
 
       {:error, :invalid_token} ->
         conn
-        |> put_flash(:error, "Magic link is invalid or has expired. Please request a new one.")
+        |> put_flash(
+          :error,
+          gettext("Magic link is invalid or has expired. Please request a new one.")
+        )
         |> redirect(to: Routes.path("/users/log-in"))
     end
   end

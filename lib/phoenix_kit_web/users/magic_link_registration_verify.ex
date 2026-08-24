@@ -21,7 +21,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationVerify do
         conn
         |> put_flash(
           :error,
-          "Registration link is invalid or has expired. Please request a new one."
+          gettext("Registration link is invalid or has expired. Please request a new one.")
         )
         |> redirect(to: Routes.path("/users/register"))
     end
@@ -29,7 +29,7 @@ defmodule PhoenixKitWeb.Users.MagicLinkRegistrationVerify do
 
   def verify(conn, _params) do
     conn
-    |> put_flash(:error, "Invalid registration link. Please request a new one.")
+    |> put_flash(:error, gettext("Invalid registration link. Please request a new one."))
     |> redirect(to: Routes.path("/users/register"))
   end
 end
