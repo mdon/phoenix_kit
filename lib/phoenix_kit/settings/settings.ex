@@ -114,6 +114,7 @@ defmodule PhoenixKit.Settings do
     dev_mailbox_enabled
     after_login_path
     after_registration_path
+    user_settings_path
     oauth_enabled
     oauth_google_enabled
     oauth_github_enabled
@@ -217,6 +218,9 @@ defmodule PhoenixKit.Settings do
       # after_registration_path empty = fall back to after_login_path.
       "after_login_path" => "/",
       "after_registration_path" => "",
+      # Where "Settings" in the user menu points. Empty = core's own
+      # /profile/settings; set it to hand the account UI to a host page.
+      "user_settings_path" => "",
       "oauth_enabled" => "false",
       "oauth_google_enabled" => "false",
       "oauth_github_enabled" => "false",

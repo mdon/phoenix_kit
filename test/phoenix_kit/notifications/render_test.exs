@@ -25,7 +25,7 @@ defmodule PhoenixKit.Notifications.RenderTest do
     test "each account action links to the prefix/locale-correct settings path" do
       for action <- @account_actions do
         assert Render.render(notif(action), "en").link ==
-                 Routes.path("/dashboard/settings", locale: "en"),
+                 Routes.user_settings_path(locale: "en"),
                "expected #{action} to link to the settings page"
       end
     end
@@ -34,13 +34,13 @@ defmodule PhoenixKit.Notifications.RenderTest do
       en = Render.render(notif("user.note_created"), "en").link
       ru = Render.render(notif("user.note_created"), "ru").link
 
-      assert en == Routes.path("/dashboard/settings", locale: "en")
-      assert ru == Routes.path("/dashboard/settings", locale: "ru")
+      assert en == Routes.user_settings_path(locale: "en")
+      assert ru == Routes.user_settings_path(locale: "ru")
     end
 
     test "render/1 (no locale) falls back to Routes.path's default-locale resolution" do
       assert Render.render(notif("user.note_created")).link ==
-               Routes.path("/dashboard/settings")
+               Routes.user_settings_path()
     end
 
     test "user.email_unconfirmed renders a dedicated icon/text, not the generic fallback" do
@@ -89,7 +89,7 @@ defmodule PhoenixKit.Notifications.RenderTest do
 
     test "user.followed no longer mis-routes to settings" do
       refute Render.render(notif("user.followed"), "en").link ==
-               Routes.path("/dashboard/settings", locale: "en")
+               Routes.user_settings_path(locale: "en")
     end
   end
 
@@ -108,7 +108,7 @@ defmodule PhoenixKit.Notifications.RenderTest do
 
     test "blank override is ignored (falls through to the action link)" do
       link = Render.render(notif("user.note_created", %{"notification_link" => ""}), "en").link
-      assert link == Routes.path("/dashboard/settings", locale: "en")
+      assert link == Routes.user_settings_path(locale: "en")
     end
   end
 

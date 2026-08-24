@@ -76,6 +76,8 @@ defmodule PhoenixKit.Settings.Setting do
     "main_page_path",
     # Post-login redirects (empty = default behavior)
     "after_registration_path",
+    # Empty = core's own /profile/settings (see `Routes.user_settings_path/1`).
+    "user_settings_path",
     # OAuth Provider Credentials
     "oauth_google_client_id",
     "oauth_google_client_secret",
@@ -302,6 +304,7 @@ defmodule PhoenixKit.Settings.Setting do
       field :remember_me_default, :string
       field :after_login_path, :string
       field :after_registration_path, :string
+      field :user_settings_path, :string
       # Organization Accounts
       field :enable_organization_accounts, :string
       # Admin Panel Languages
@@ -370,6 +373,7 @@ defmodule PhoenixKit.Settings.Setting do
         :remember_me_default,
         :after_login_path,
         :after_registration_path,
+        :user_settings_path,
         :enable_organization_accounts,
         :admin_languages,
         :oauth_google_client_id,
@@ -422,6 +426,7 @@ defmodule PhoenixKit.Settings.Setting do
       |> validate_local_path(:after_login_path)
       |> validate_local_path(:after_registration_path)
       |> validate_local_path(:main_page_path)
+      |> validate_local_path(:user_settings_path)
     end
 
     # Validates a redirect-target setting is a local path (optional field —

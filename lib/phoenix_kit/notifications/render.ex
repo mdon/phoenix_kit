@@ -167,7 +167,7 @@ defmodule PhoenixKit.Notifications.Render do
   )
 
   defp link_for(%_{action: action}, locale) when action in @account_actions do
-    Routes.path("/dashboard/settings", locale: locale)
+    Routes.user_settings_path(locale: locale)
   end
 
   # No default deep-link target for module-owned actions (user.followed, post.*,

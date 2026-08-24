@@ -23,8 +23,10 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     * `sections` — list of sections to display: `:identity`, `:custom_fields`, `:email`, `:password`, `:oauth`, `:notifications`, `:sessions`
       (default: all). `:profile` is accepted as a legacy alias that expands to `[:identity, :custom_fields]`
     * `email_confirm_url_fn` — `(token -> url)` for email confirmation links
-      (default: `&Routes.url("/dashboard/settings/confirm-email/\#{&1}")`)
-    * `return_to` — where OAuth redirect returns to (default: `"/dashboard/settings"`)
+      (default: `&Routes.url("/profile/settings/confirm-email/\#{&1}")`)
+    * `return_to` — where OAuth redirect returns to (default:
+      `Routes.user_settings_path/1`, i.e. `/profile/settings` unless the
+      `user_settings_path` setting points elsewhere)
     * `current_session_token` — raw session token of the acting browser, used
       by the `:sessions` section to mark the current device and to keep it
       signed in on "sign out other sessions". Without it, no session is
@@ -116,9 +118,10 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
 
     email_confirm_url_fn =
       assigns[:email_confirm_url_fn] || socket.assigns[:email_confirm_url_fn] ||
-        (&Routes.url("/dashboard/settings/confirm-email/#{&1}"))
+        (&Routes.url("/profile/settings/confirm-email/#{&1}"))
 
-    return_to = assigns[:return_to] || socket.assigns[:return_to] || "/dashboard/settings"
+    return_to =
+      assigns[:return_to] || socket.assigns[:return_to] || Routes.user_settings_path()
 
     socket =
       socket

@@ -47,7 +47,7 @@ defmodule PhoenixKitWeb.Users.Session do
   defp stash_destination(conn, :registered), do: maybe_store_after_registration_path(conn)
 
   defp stash_destination(conn, :password_updated),
-    do: put_session(conn, :user_return_to, Routes.path("/dashboard/settings"))
+    do: put_session(conn, :user_return_to, Routes.user_settings_path())
 
   defp stash_destination(conn, _), do: conn
 

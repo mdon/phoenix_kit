@@ -1,73 +1,35 @@
 defmodule PhoenixKitWeb.Live.Dashboard.Settings do
   @moduledoc """
-  Settings LiveView for PhoenixKit Dashboard.
+  Compatibility redirect for the retired `/dashboard/settings` page.
 
-  Delegates all settings functionality to the `PhoenixKitWeb.Live.Components.UserSettings`
-  LiveComponent, which can also be used standalone in parent apps.
+  The account UI now lives at `/profile/settings`
+  (`PhoenixKitWeb.Live.Users.ProfileSettings`) — see that module for why it
+  moved off the dashboard. This route stays registered because the old path
+  is still out in the world: host-app links, bookmarks, and the
+  confirm-email URLs inside change-email messages that were delivered before
+  the move.
+
+  Both clauses `push_navigate` rather than render. The token clause carries
+  its token to the new confirm-email route instead of spending it here, so
+  there is exactly one place that consumes a change-email token.
+
+  Nothing is rendered: `push_navigate/2` from `mount/3` redirects before the
+  first paint, so `render/1` is never reached.
   """
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Routes
 
   @impl true
   def mount(%{"token" => token}, _session, socket) do
-    socket =
-      case Auth.update_user_email(socket.assigns.phoenix_kit_current_user, token) do
-        :ok ->
-          socket
-          |> assign(:email_success_message, gettext("Email changed successfully."))
-
-        :error ->
-          socket
-          |> assign(
-            :email_error_message,
-            gettext("Email change link is invalid or it has expired.")
-          )
-      end
-
-    {:ok, push_navigate(socket, to: Routes.path("/dashboard/settings"))}
+    {:ok, push_navigate(socket, to: Routes.path("/profile/settings/confirm-email/#{token}"))}
   end
 
   @impl true
-  def mount(_params, session, socket) do
-    socket =
-      socket
-      |> assign(:page_title, gettext("Settings"))
-      # Raw session token of this browser — lets the Active Sessions section
-      # mark the current device and keep it signed in on "sign out others".
-      |> assign(:current_session_token, session["user_token"])
-      |> assign_new(:email_success_message, fn -> nil end)
-      |> assign_new(:email_error_message, fn -> nil end)
-
-    {:ok, socket}
-  end
-
-  @impl true
-  def handle_info({:phoenix_kit_user_updated, updated_user}, socket) do
-    {:noreply, assign(socket, :phoenix_kit_current_user, updated_user)}
+  def mount(_params, _session, socket) do
+    {:ok, push_navigate(socket, to: Routes.user_settings_path())}
   end
 
   @impl Phoenix.LiveView
-  def render(assigns) do
-    ~H"""
-    <PhoenixKitWeb.Layouts.dashboard {dashboard_assigns(assigns)}>
-      <div class="max-w-7xl px-4 sm:px-6 lg:px-8">
-        <.user_dashboard_header
-          title={@page_title}
-          subtitle={gettext("Manage your account settings and preferences")}
-        />
-
-        <.live_component
-          module={PhoenixKitWeb.Live.Components.UserSettings}
-          id="dashboard-user-settings"
-          user={@phoenix_kit_current_user}
-          current_session_token={@current_session_token}
-          email_success_message={@email_success_message}
-          email_error_message={@email_error_message}
-        />
-      </div>
-    </PhoenixKitWeb.Layouts.dashboard>
-    """
-  end
+  def render(assigns), do: ~H""
 end

@@ -1,3 +1,49 @@
+## 2.14.0 - 2026-08-24
+
+The account page moves off the user dashboard to `/profile/settings`, so
+changing your own email no longer depends on a dashboard a host can compile
+out.
+
+### Added
+
+- **`/profile/settings` — the signed-in user's own account page.** Email,
+  password, connected accounts and active sessions, delegating to the same
+  `UserSettings` LiveComponent the old page used. Routed unconditionally, in
+  both the locale-prefixed and prefixless shapes
+  (`/phoenix_kit/:locale/profile/settings` and
+  `/phoenix_kit/profile/settings`), and wearing `LayoutWrapper.app_layout` so
+  it renders the same reached from the admin header or from the host's front
+  end.
+- **`user_settings_path` setting** (Admin → Settings → Users) — points the
+  "Settings" entry in the user menu at a host-owned page instead. Every link
+  resolves through `Routes.user_settings_path/1`, so the one field moves all
+  of them. Validated as a local path on save and re-guarded on read, like
+  `after_login_path`.
+
+### Changed
+
+- **Every user-facing link to the account page now resolves through
+  `Routes.user_settings_path/1`** rather than naming `/dashboard/settings`:
+  the admin header dropdown and its compact variant, the front-end layout
+  menu (desktop and mobile), the user dashboard nav, the admin user-detail
+  and user-list shortcuts, the post-login "update your details" return, the
+  new-login alert email, and notification deep links.
+- **The admin header's "Settings" entry is no longer gated on
+  `user_dashboard_enabled?`.** It pointed at a dashboard route, so a host
+  that compiled the dashboard out left admins with no way in to their own
+  email and password.
+- **`UserSettings` defaults now point at `/profile/settings`** for both the
+  change-email confirmation URL and the OAuth `return_to`. Callers passing
+  `email_confirm_url_fn` or `return_to` explicitly are unaffected.
+
+### Deprecated
+
+- **`/dashboard/settings` redirects to `/profile/settings`.** The route stays
+  registered — the old path is still in host links, bookmarks, and the
+  confirm-email URLs of already-delivered mail. The token variant carries its
+  token to the new confirm-email route rather than spending it, so exactly
+  one place consumes a change-email token.
+
 ## 2.13.9 - 2026-08-24
 
 Two admin-UI layout fixes: images no longer open distorted in the media

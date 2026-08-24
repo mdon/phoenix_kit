@@ -254,18 +254,20 @@ defmodule PhoenixKitWeb.Components.AdminNav do
             </div>
           </li>
 
-          <%!-- Settings Link --%>
-          <%= if PhoenixKit.Config.user_dashboard_enabled?() do %>
-            <li>
-              <.link
-                href={Routes.locale_aware_path(assigns, "/dashboard/settings")}
-                class="flex items-center gap-3"
-              >
-                <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4" />
-                <span>Settings</span>
-              </.link>
-            </li>
-          <% end %>
+          <%!-- Settings Link. Not gated on `user_dashboard_enabled?` any --%>
+          <%!-- more: the account page it points at is routed              --%>
+          <%!-- unconditionally, and the old guard meant a host that       --%>
+          <%!-- compiled the dashboard out left admins with no way in to   --%>
+          <%!-- their own email and password.                              --%>
+          <li>
+            <.link
+              href={Routes.locale_aware_user_settings_path(assigns)}
+              class="flex items-center gap-3"
+            >
+              <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4" />
+              <span>Settings</span>
+            </.link>
+          </li>
 
           <%!-- Language Switcher (Admin Languages) --%>
           <%= if @show_language_divider do %>
@@ -501,7 +503,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
         <div class="flex gap-1">
           <.link
-            href={Routes.locale_aware_path(assigns, "/dashboard/settings")}
+            href={Routes.locale_aware_user_settings_path(assigns)}
             class="btn btn-ghost btn-xs flex-1"
           >
             <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-3 h-3" />
