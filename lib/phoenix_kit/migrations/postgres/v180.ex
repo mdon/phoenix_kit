@@ -188,9 +188,17 @@ defmodule PhoenixKit.Migrations.Postgres.V180 do
         -- otherwise close BEFORE it opens, and `validate_date_range/1` then
         -- refuses every later edit of a row the user cannot repair. GREATEST
         -- ignores a NULL valid_from, which is the common case.
+        --
+        -- Bare now(), NOT `now() AT TIME ZONE 'utc'`: this column is
+        -- TIMESTAMPTZ (V149), so the core convention for the `timestamp
+        -- without time zone` columns is wrong here — it yields a UTC wall
+        -- clock that the assignment re-reads in the SESSION time zone,
+        -- writing a value off by that offset (verified: +4h under
+        -- America/New_York). V170's dedupe uses bare now() for the same
+        -- reason.
         SET valid_to = GREATEST(valid_from, CURRENT_DATE),
             is_primary = FALSE,
-            updated_at = NOW() AT TIME ZONE 'utc'
+            updated_at = now()
         FROM ranked AS r
         WHERE i.uuid = r.uuid AND r.rn > 1;
 

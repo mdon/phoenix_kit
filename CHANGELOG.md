@@ -1,12 +1,15 @@
 ## 2.13.11 - 2026-08-25
 
-Every install migrating through V180 (any app carrying the catalogue
-module) crashed outright — a bare `LOCK TABLE` statement outside a
-transaction block, `25P01 no_active_sql_transaction`.
+Every install migrating through V180 crashed outright — a bare
+`LOCK TABLE` statement outside a transaction block, `25P01
+no_active_sql_transaction`. Not only apps using the catalogue module: the
+table V180 locks is created unconditionally by the chain (V149, and the
+V135 floor), so **every** release from 2.13.4 through 2.13.10 is affected.
+Upgrade straight to this one.
 
 ### Fixed
 
-- **V180 (`enforce_one_current_supplier_per_pair/1`) crashed every
+- **V180 (`enforce_one_current_supplier_per_pair/2`) crashed every
   install with `Postgrex.Error: LOCK TABLE can only be used in
   transaction blocks`.** Migration wrappers carry `@disable_ddl_transaction
   true` (core convention — every generated wrapper does this so a long DDL
@@ -23,6 +26,26 @@ transaction block, `25P01 no_active_sql_transaction`.
   reads `'179'`, so a plain re-run (`mix ecto.migrate` /
   `mix phoenix_kit.update`) completes it — every block-1 statement is
   `IF NOT EXISTS`-guarded.
+- **V180's dedupe wrote `updated_at` off by the session's UTC offset.**
+  `now() AT TIME ZONE 'utc'` is the right idiom for core's `timestamp
+  without time zone` columns, but `phoenix_kit_cat_item_supplier_info`
+  declares `TIMESTAMPTZ` (V149): the expression yields a UTC wall clock
+  that the assignment then re-reads in the session time zone, so a host on
+  `America/New_York` stamped the closed rows four hours in the future. Bare
+  `now()` now, as V170's dedupe already used. Only rows this migration
+  closes were affected.
+
+### Added
+
+- **Static chain check: no `LOCK TABLE` outside a `DO $$` block.**
+  `lock_table_guard_test.exs` already asserted that every `LOCK TABLE` sits
+  behind a table-existence guard, but it only ever looked *inside* `DO $$`
+  bodies — a bare top-level one was invisible to it, which is how V180
+  shipped. Nothing else in the suite can catch this class either:
+  `PhoenixKit.Migration.Runner` carries no `@disable_ddl_transaction`, so
+  `ensure_current/2` (and therefore `test_helper.exs`, and the full-chain
+  prefix test) runs migrations inside a transaction — the one condition
+  under which a bare `LOCK TABLE` succeeds.
 
 ## 2.13.10 - 2026-08-25
 
