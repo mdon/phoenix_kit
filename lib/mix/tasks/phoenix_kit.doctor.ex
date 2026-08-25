@@ -44,9 +44,13 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
        bulk load, direct catalog surgery) or still NOT VALID (would block its
        own VALIDATE), and existing constraints still sitting NOT VALID with
        nothing currently blocking them — V176 validates those in place; this
-       just tells you before it does. Discovery reads `pg_constraint`, so a
-       relationship with no FK constraint declared at all is outside this
-       check's scope and is not examined
+       just tells you before it does. Two boundaries on what "checked" means
+       here: discovery reads `pg_constraint`, so a relationship with no FK
+       constraint declared at all is outside this check's scope and is not
+       examined; and discovery matches both the owning table and the
+       referenced table to the schema being checked (`--prefix`), so a FK
+       whose referenced table lives in a different schema is outside scope
+       too, even though the owning table itself was checked
    13. **Lock Conflicts** — Any blocked or long-running queries?
    14. **Orphaned Connections** — Idle-in-transaction or stuck connections
    15. **Oban Configuration** — Queues and plugins that consume pool connections
@@ -911,6 +915,19 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # "not checked", so the coverage count in the result line still accounts
   # for every constraint that exists, not just the ones this query knows
   # how to probe.
+  #
+  # Both `n.nspname` (owning table) and `fn.nspname` (referenced table) are
+  # constrained to `escaped_prefix` — a FK from this schema INTO a table
+  # living in a different one is excluded entirely, not counted, not folded
+  # into "not checked". Deliberate, not an oversight: the probe query below
+  # qualifies the referenced table with this same `escaped_prefix` via
+  # `prefix_table_name/2`, so a referenced table actually living elsewhere
+  # would be probed under the wrong schema-qualified name. Supporting a
+  # cross-schema referenced table for real means carrying its own schema
+  # through this function's return shape (not just its bare `relname`) and
+  # threading it into every place that currently assumes `escaped_prefix`
+  # covers both sides — `probe_fk/4` and `fk_probe_cost_context/4` included.
+  # Out of scope here; the moduledoc's check 12 entry names this boundary.
   @doc false
   def discover_fk_constraints(repo, escaped_prefix) do
     query = """
@@ -1278,7 +1295,9 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # name, so a constraint adopted under a differently-named twin (V164's own
   # documented case) is still found. Returns `:absent` if no such FK exists
   # at all — a state discover_fk_constraints/2 has no way to report, since
-  # bulk discovery only ever enumerates constraints that exist.
+  # bulk discovery only ever enumerates constraints that exist. Carries the
+  # identical same-schema restriction as discover_fk_constraints/2 (see its
+  # comment): `ref_table` is assumed to live in `escaped_prefix` too.
   #
   # Not called from the doctor's own run: probe_fk/4 reads `convalidated`
   # straight off each constraint discover_fk_constraints/2 already found, one
