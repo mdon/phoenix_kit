@@ -6,7 +6,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
   This one function is different: it already takes `repo` as an explicit
   argument, so it is a real unit-test seam without starting anything.
 
-  RED without this round's fix: a genuinely
+  RED without this fix: a genuinely
   failing probe — forced here with a deliberately malformed identifier,
   which the un-parameterized SQL this function builds turns into a real
   Postgres syntax error — used to collapse into `:absent` (the same shape as
@@ -34,7 +34,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
                )
     end
 
-    test "a real, validated constraint still reads :validated (unchanged by this round)" do
+    test "a real, validated constraint still reads :validated" do
       assert :validated =
                DoctorTask.fk_validation_state(
                  Repo,

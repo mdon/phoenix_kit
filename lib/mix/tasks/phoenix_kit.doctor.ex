@@ -1144,19 +1144,19 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   # Narrowed to `{:ok, 0}` deliberately: this is the ONLY combination that
   # means "clean". Widening it back to `{:ok, _count}` is exactly the bug
-  # this round fixed for `:validated` — a future `validation` shape reaching
+  # already fixed for `:validated` — a future `validation` shape reaching
   # here with `count > 0` must raise `FunctionClauseError`, not silently
   # discard real orphans the way the old wildcard catch-all did.
   def classify_fk_check(_table, _fk_col, _ref, {:ok, 0}, _validated_or_absent_and_clean, acc) do
     acc
   end
 
-  # A third urgency tier, alongside `:warn` and `:fail`. Before this round, a probe failure with zero
-  # actual orphans still returned :fail — the same red as real broken data,
-  # which is exactly the "slow and broken-data can't be one color" defect
-  # the contract names. Real orphans (last clause below) still win :fail
-  # outright, checked or not; a probe failure on its own is "investigate
-  # coverage", not "fix broken data", and gets its own color for it.
+  # A third urgency tier, alongside `:warn` and `:fail`. Before this fix, a
+  # probe failure with zero actual orphans still returned :fail — the same
+  # red as real broken data, even though nothing is actually broken. Real
+  # orphans (last clause below) still win :fail outright, checked or not; a
+  # probe failure on its own is "investigate coverage", not "fix broken
+  # data", and gets its own color for it.
   @doc false
   def report_orphaned_fk_refs([], [], [], total) do
     {:pass,

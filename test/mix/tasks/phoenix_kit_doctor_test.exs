@@ -400,7 +400,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
                )
     end
 
-    test "known-good inputs still classify the same as before this round's fix" do
+    test "known-good inputs still classify the same as before this fix" do
       assert {[{"t", "c", "r", 3, :validate}], [], []} =
                DoctorTask.classify_fk_check(
                  "t",
@@ -453,10 +453,10 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
 
   describe "report_orphaned_fk_refs/4 — a probe failure is its own tier, not the same red as real orphans" do
     test "probe_failed alone (no orphans, no known-unvalidated) is :warn, not :fail — a third tier" do
-      # Before this round this was :fail — the exact "slow and broken-data can't be
-      # one color" defect the contract names. Coverage being incomplete is
-      # "investigate why", not "fix corrupted data"; only real orphans (below)
-      # still earn the red.
+      # Before this fix this was :fail — the same red as confirmed broken
+      # data, even though nothing is actually broken. Coverage being
+      # incomplete is "investigate why", not "fix corrupted data"; only real
+      # orphans (below) still earn the red.
       probe_failed = [
         {"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", :orphan_count, "boom", nil}
       ]
@@ -562,7 +562,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
       # `%Postgrex.Error{postgres: %{code: :query_canceled}}}`. Depending on
       # whether Postgres acknowledges the cancel before DBConnection's own
       # grace period expires, the SAME timeout can instead surface as
-      # DBConnection tearing down the connection itself. Before this round,
+      # DBConnection tearing down the connection itself. Before this fix,
       # this shape fell through to the generic `reason` clause and printed a
       # raw "tcp recv: closed" pool message instead of "time limit exceeded".
       reason = %DBConnection.ConnectionError{reason: :closed, message: "tcp recv: closed"}
