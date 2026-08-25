@@ -445,8 +445,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
          [{"t3", "c3", "r3", :orphan_count, "x", nil}]}
 
       assert {[{"t", "c", "r", 5, :existing_orphan}, {"other", "col", "ref2", 1, :create}],
-              [{"t2", "c2", "r2"}],
-              [{"t3", "c3", "r3", :orphan_count, "x", nil}]} =
+              [{"t2", "c2", "r2"}], [{"t3", "c3", "r3", :orphan_count, "x", nil}]} =
                DoctorTask.classify_fk_check("t", "c", "r", {:ok, 5}, :validated, acc)
     end
   end

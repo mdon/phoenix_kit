@@ -2,7 +2,9 @@
 
 A live install's default (dev-parity) logging wrote OAuth/AWS setting
 secrets straight into `/var/log/elixir.log` in cleartext, on two independent
-paths — closes the second half of the DOM leak fixed in 2.13.9.
+paths — closes the second half of the DOM leak fixed in 2.13.9. Doctor's
+orphaned-FK check also grows from 4 hardcoded relationships to every foreign
+key constraint on the schema (#751).
 
 ### Fixed
 
@@ -29,6 +31,21 @@ paths — closes the second half of the DOM leak fixed in 2.13.9.
   generic columns, secret or not, and Ecto's SQL logger has no notion of the
   schema (no `redact:` field option reaches it). `Queries.insert_setting/1`
   and `update_setting/1` now pass `log: false`.
+- **`mix phoenix_kit.doctor`'s orphaned-FK check covered 4 of 70+ foreign key
+  relationships** — a hardcoded 4-pair list, checked and printed `PASS`, which
+  read as "everything is fine" but only ever meant "the four pairs we
+  happened to list are fine". Two real orphans on a live site sat outside
+  those four and were invisible the whole time. Now discovers every
+  single-column FK constraint straight from `pg_constraint` (self-maintaining
+  — a future migration's constraint is covered without touching this file),
+  reports coverage explicitly in every result line ("checked N of M foreign
+  key constraints" — zero coverage can never read as `PASS` again, whatever
+  caused it), classifies orphans behind an already-`VALID` constraint
+  (previously silently discarded), gives a per-constraint probe a 5s time
+  budget so one huge table can't hang the whole run, and gives a
+  probe-failure-only result its own `:warn` tier instead of the same `:fail`
+  red as confirmed data damage. Multi-column FKs are enumerated but not
+  probed (reported as "not supported by this check, verify manually").
 
 ## 2.13.9 - 2026-08-24
 
