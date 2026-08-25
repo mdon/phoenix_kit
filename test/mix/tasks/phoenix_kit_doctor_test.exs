@@ -503,6 +503,23 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
       assert message =~ "checked 4 of 5"
     end
 
+    test "orphans found AND a composite-only probe exclusion — no re-run suggestion for it" do
+      # A composite FK can never be resolved by re-running the check — only a
+      # manual VALIDATE CONSTRAINT does. Telling the operator to "re-run" here
+      # (the old unconditional text) contradicted the composite FK's own line,
+      # which already says "verify manually".
+      orphaned = [{"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", 2, :validate}]
+
+      probe_failed = [
+        {"phoenix_kit_order_items", "fk_items_composite", "phoenix_kit_orders", :multi_column, 2,
+         nil}
+      ]
+
+      assert {:fail, message} = DoctorTask.report_orphaned_fk_refs(orphaned, [], probe_failed, 5)
+      assert message =~ "2 orphaned row"
+      refute message =~ "re-run doctor"
+    end
+
     test "not_validated alone (nothing blocking) is still :warn, and names the coverage" do
       not_validated = [{"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users"}]
 
@@ -525,6 +542,28 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
       assert message =~ "composite FK fk_items_composite (2 columns)"
       assert message =~ "VALIDATE CONSTRAINT fk_items_composite"
       refute message =~ "probe failed"
+    end
+
+    test "a composite-only probe exclusion never suggests a re-run — nothing would pass it" do
+      probe_failed = [
+        {"phoenix_kit_order_items", "fk_items_composite", "phoenix_kit_orders", :multi_column, 2,
+         nil}
+      ]
+
+      assert {:warn, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed, 1)
+      refute message =~ "re-run"
+      refute message =~ "Fix DB"
+    end
+
+    test "a real probe failure alongside a composite exclusion still suggests a re-run" do
+      probe_failed = [
+        {"other_table", "other_col", "other_ref", :orphan_count, "boom", nil},
+        {"phoenix_kit_order_items", "fk_items_composite", "phoenix_kit_orders", :multi_column, 2,
+         nil}
+      ]
+
+      assert {:warn, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed, 2)
+      assert message =~ "re-run for full coverage"
     end
   end
 

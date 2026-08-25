@@ -1211,9 +1211,12 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
        "coverage is incomplete, which is not the same as clean:\n       " <>
        Enum.join(fk_probe_lines(probe_failed), "\n       ") <>
        nv_note <>
-       "\n       No orphaned rows among the #{covered} successfully checked. Fix DB " <>
-       "connectivity/permissions (or the time limit, for a slow table) and re-run for " <>
-       "full coverage."}
+       "\n       No orphaned rows among the #{covered} successfully checked." <>
+       retry_suggestion(
+         probe_failed,
+         " Fix DB connectivity/permissions (or the time limit, " <>
+           "for a slow table) and re-run for full coverage."
+       )}
   end
 
   # Falls through here whenever `orphaned != []` — real broken data, so this
@@ -1244,8 +1247,27 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     {:fail,
      "Orphaned FK refs / unverifiable FK state found#{coverage_note}:\n       " <>
        "#{detail}#{nv_note}\n       V164/V176 never delete rows to force a constraint " <>
-       "through — clean orphaned rows up by hand and re-run the migration chain; for a " <>
-       "probe failure, fix DB connectivity or permissions on pg_constraint and re-run doctor."}
+       "through — clean orphaned rows up by hand and re-run the migration chain." <>
+       retry_suggestion(
+         probe_failed,
+         " For a probe failure, fix DB connectivity or " <>
+           "permissions on pg_constraint and re-run doctor."
+       )}
+  end
+
+  # A composite FK in `probe_failed` (see `discover_fk_constraints/2`) was never
+  # probed at all — no re-run ever turns that into a pass, only a manual
+  # `ALTER TABLE ... VALIDATE CONSTRAINT` does, which `fk_probe_lines/1` already
+  # says per entry. Suggesting a re-run regardless — the old unconditional text
+  # — told the operator to retry something that can never succeed. Only worth
+  # it when at least one entry is a genuine probe failure a re-run could
+  # actually resolve.
+  defp retry_suggestion(probe_failed, text) do
+    if Enum.any?(probe_failed, fn entry -> elem(entry, 3) != :multi_column end) do
+      text
+    else
+      ""
+    end
   end
 
   defp fk_orphan_lines(orphaned) do
