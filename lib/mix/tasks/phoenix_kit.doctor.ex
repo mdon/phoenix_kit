@@ -1277,7 +1277,19 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # ref_table.uuid) shape, matched by shape via conkey/confkey — not by
   # name, so a constraint adopted under a differently-named twin (V164's own
   # documented case) is still found. Returns `:absent` if no such FK exists
-  # at all.
+  # at all — a state discover_fk_constraints/2 has no way to report, since
+  # bulk discovery only ever enumerates constraints that exist.
+  #
+  # Not called from the doctor's own run: probe_fk/4 reads `convalidated`
+  # straight off each constraint discover_fk_constraints/2 already found, one
+  # round trip cheaper per check than looking each one up again by shape.
+  # Kept anyway, deliberately: it is the one existing primitive that can
+  # answer "does this specific expected relationship have a declared FK at
+  # all", independent of naming — exactly what closing check 12's current
+  # gap (a relationship with no FK constraint declared at all goes
+  # unexamined, see its moduledoc entry) would need, given a source of
+  # expected (table, fk_col, ref_table) candidates. No such source exists
+  # yet, so this stays unwired until one does.
   #
   # Exposed (not `defp`) and `@doc false` so the test suite can force a real
   # probe failure (a malformed identifier producing a genuine Postgres
