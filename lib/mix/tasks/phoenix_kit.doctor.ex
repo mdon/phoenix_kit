@@ -39,11 +39,14 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     9. **UUID Column Types** — Detects varchar uuid columns that crash Ecto on startup
    10. **UUID Primary Keys** — Detects primary keys that are not the expected uuid type
    11. **NULL UUIDs in FK Sources** — Detects NULL uuids that cause infinite backfill loops
-   12. **Orphaned FK References** — Detects orphaned rows (blocks VALIDATE on an
-       existing NOT VALID constraint, or creation if the constraint is absent
-       entirely) and existing constraints still sitting NOT VALID with
+   12. **Orphaned FK References** — Detects orphaned rows behind an existing FK
+       constraint, whether it is already VALID (a trigger-bypassed write, a
+       bulk load, direct catalog surgery) or still NOT VALID (would block its
+       own VALIDATE), and existing constraints still sitting NOT VALID with
        nothing currently blocking them — V176 validates those in place; this
-       just tells you before it does
+       just tells you before it does. Discovery reads `pg_constraint`, so a
+       relationship with no FK constraint declared at all is outside this
+       check's scope and is not examined
    13. **Lock Conflicts** — Any blocked or long-running queries?
    14. **Orphaned Connections** — Idle-in-transaction or stuck connections
    15. **Oban Configuration** — Queues and plugins that consume pool connections
