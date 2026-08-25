@@ -51,6 +51,19 @@ defmodule PhoenixKit.Migrations.Postgres.V180 do
   forever. Without this the `CREATE UNIQUE INDEX`
   would fail outright on any install carrying a duplicate.
 
+  The lock, the dedupe UPDATE, and the index build all live inside one
+  `DO $$` block (fixed post-publish, same shape as V170's
+  `phoenix_kit_notifications_dedupe_unseen_idx`). A bare top-level
+  `LOCK TABLE`, as this originally shipped, gets `25P01
+  no_active_sql_transaction` — wrappers carry `@disable_ddl_transaction
+  true`, so every top-level `execute/1` auto-commits on its own and `LOCK
+  TABLE` has nothing to hold — and even accepted, the lock would release at
+  its own commit before the statements it exists to protect. Recovery for an
+  install that hit the crash: block 1 already committed and the version
+  comment still reads `'179'`, so a plain re-run of `up/1` (or `mix
+  ecto.migrate`) completes it — every block-1 statement is
+  `IF NOT EXISTS`-guarded.
+
   ## Rollback
 
   `down/1` restores both foreign keys and will FAIL if any link references a
@@ -65,9 +78,10 @@ defmodule PhoenixKit.Migrations.Postgres.V180 do
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
+    schema = schema_name(prefix)
 
     federate_manufacturer_supplier_links(prefix, p)
-    enforce_one_current_supplier_per_pair(p)
+    enforce_one_current_supplier_per_pair(p, schema)
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '180'")
   end
@@ -125,47 +139,68 @@ defmodule PhoenixKit.Migrations.Postgres.V180 do
     """)
   end
 
-  defp enforce_one_current_supplier_per_pair(p) do
-    # Hold the table for the dedupe AND the index build. The UPDATE alone
-    # takes only row locks, so a concurrent writer could open a fresh
-    # duplicate in the gap before CREATE UNIQUE INDEX acquires its own lock —
-    # the build would then fail and roll back the whole migration. SHARE ROW
-    # EXCLUSIVE blocks writers while still allowing reads.
+  defp enforce_one_current_supplier_per_pair(p, schema) do
+    # LOCK TABLE has no IF NOT EXISTS / IF EXISTS form and, unlike every other
+    # statement here, cannot be wrapped for idempotency on its own — it must
+    # be inside a transaction to mean anything at all. Wrappers carry
+    # `@disable_ddl_transaction true` (core convention — see the moduledoc
+    # note in v168.ex/v161.ex/v154.ex), so each top-level execute/1 auto-commits
+    # on its own; a bare `LOCK TABLE` gets 25P01
+    # (`no_active_sql_transaction`) and a bare lock followed by separate
+    # statements would release it at its own commit anyway, before the
+    # UPDATE and CREATE UNIQUE INDEX it exists to protect. A single DO $$
+    # block opens its own implicit transaction, so the lock, the dedupe, and
+    # the index build all happen atomically — same fix as V170's
+    # `phoenix_kit_notifications_dedupe_unseen_idx`. The table guard exists
+    # for the same reason V170's does: skip, don't abort, if it's somehow
+    # absent.
     execute("""
-    LOCK TABLE #{p}phoenix_kit_cat_item_supplier_info IN SHARE ROW EXCLUSIVE MODE
-    """)
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM pg_class t
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        WHERE t.relname = 'phoenix_kit_cat_item_supplier_info' AND n.nspname = '#{schema}'
+      ) THEN
+        -- Hold the table for the dedupe AND the index build. The UPDATE
+        -- alone takes only row locks, so a concurrent writer could open a
+        -- fresh duplicate in the gap before CREATE UNIQUE INDEX acquires its
+        -- own lock — the build would then fail and roll back the whole
+        -- migration. SHARE ROW EXCLUSIVE blocks writers while still allowing
+        -- reads.
+        LOCK TABLE #{p}phoenix_kit_cat_item_supplier_info IN SHARE ROW EXCLUSIVE MODE;
 
-    # Close the losers first, or CREATE UNIQUE INDEX fails on any install
-    # that already carries a duplicate. Primary wins; failing that the
-    # oldest, with uuid as the final tiebreak so the choice is TOTAL and
-    # two runs cannot disagree.
-    execute("""
-    WITH ranked AS (
-      SELECT uuid,
-             row_number() OVER (
-               PARTITION BY item_uuid, supplier_uuid
-               ORDER BY is_primary DESC, inserted_at ASC, uuid ASC
-             ) AS rn
-      FROM #{p}phoenix_kit_cat_item_supplier_info
-      WHERE valid_to IS NULL
-    )
-    UPDATE #{p}phoenix_kit_cat_item_supplier_info AS i
-    -- GREATEST, not a bare CURRENT_DATE: a future-dated row would otherwise
-    -- close BEFORE it opens, and `validate_date_range/1` then refuses every
-    -- later edit of a row the user cannot repair. GREATEST ignores a NULL
-    -- valid_from, which is the common case.
-    SET valid_to = GREATEST(valid_from, CURRENT_DATE),
-        is_primary = FALSE,
-        updated_at = NOW() AT TIME ZONE 'utc'
-    FROM ranked AS r
-    WHERE i.uuid = r.uuid AND r.rn > 1
-    """)
+        -- Close the losers first, or CREATE UNIQUE INDEX fails on any
+        -- install that already carries a duplicate. Primary wins; failing
+        -- that the oldest, with uuid as the final tiebreak so the choice is
+        -- TOTAL and two runs cannot disagree.
+        WITH ranked AS (
+          SELECT uuid,
+                 row_number() OVER (
+                   PARTITION BY item_uuid, supplier_uuid
+                   ORDER BY is_primary DESC, inserted_at ASC, uuid ASC
+                 ) AS rn
+          FROM #{p}phoenix_kit_cat_item_supplier_info
+          WHERE valid_to IS NULL
+        )
+        UPDATE #{p}phoenix_kit_cat_item_supplier_info AS i
+        -- GREATEST, not a bare CURRENT_DATE: a future-dated row would
+        -- otherwise close BEFORE it opens, and `validate_date_range/1` then
+        -- refuses every later edit of a row the user cannot repair. GREATEST
+        -- ignores a NULL valid_from, which is the common case.
+        SET valid_to = GREATEST(valid_from, CURRENT_DATE),
+            is_primary = FALSE,
+            updated_at = NOW() AT TIME ZONE 'utc'
+        FROM ranked AS r
+        WHERE i.uuid = r.uuid AND r.rn > 1;
 
-    # Bare on CREATE — only DROP INDEX takes the schema qualifier.
-    execute("""
-    CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_cat_item_supplier_info_current_pair_uniq
-    ON #{p}phoenix_kit_cat_item_supplier_info (item_uuid, supplier_uuid)
-    WHERE valid_to IS NULL
+        -- Bare on CREATE — only DROP INDEX takes the schema qualifier.
+        CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_cat_item_supplier_info_current_pair_uniq
+        ON #{p}phoenix_kit_cat_item_supplier_info (item_uuid, supplier_uuid)
+        WHERE valid_to IS NULL;
+      END IF;
+    END
+    $$
     """)
   end
 
@@ -244,6 +279,9 @@ defmodule PhoenixKit.Migrations.Postgres.V180 do
     END $$;
     """)
   end
+
+  defp schema_name("public"), do: "public"
+  defp schema_name(prefix), do: prefix
 
   defp prefix_str("public"), do: "public."
   defp prefix_str(prefix), do: "#{prefix}."

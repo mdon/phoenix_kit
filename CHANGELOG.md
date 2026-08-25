@@ -1,3 +1,29 @@
+## 2.13.11 - 2026-08-25
+
+Every install migrating through V180 (any app carrying the catalogue
+module) crashed outright — a bare `LOCK TABLE` statement outside a
+transaction block, `25P01 no_active_sql_transaction`.
+
+### Fixed
+
+- **V180 (`enforce_one_current_supplier_per_pair/1`) crashed every
+  install with `Postgrex.Error: LOCK TABLE can only be used in
+  transaction blocks`.** Migration wrappers carry `@disable_ddl_transaction
+  true` (core convention — every generated wrapper does this so a long DDL
+  statement isn't held inside one giant transaction), so each top-level
+  `execute/1` auto-commits on its own and a bare `LOCK TABLE` has no
+  transaction to hold. Even accepted, the lock would have released at its
+  own commit — before the `UPDATE` and `CREATE UNIQUE INDEX` it existed to
+  protect, leaving the concurrent-writer race it was written to close still
+  open. Lock, dedupe `UPDATE`, and `CREATE UNIQUE INDEX` now run inside one
+  `DO $$` block, same shape V170 already used for
+  `phoenix_kit_notifications_dedupe_unseen_idx`. Recovery for an install
+  that hit the crash: block 1 of V180 (the manufacturer/supplier
+  federation columns) already committed, and the version comment still
+  reads `'179'`, so a plain re-run (`mix ecto.migrate` /
+  `mix phoenix_kit.update`) completes it — every block-1 statement is
+  `IF NOT EXISTS`-guarded.
+
 ## 2.13.10 - 2026-08-25
 
 A live install's default (dev-parity) logging wrote OAuth/AWS setting
