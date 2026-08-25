@@ -39,30 +39,46 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     9. **UUID Column Types** — Detects varchar uuid columns that crash Ecto on startup
    10. **UUID Primary Keys** — Detects primary keys that are not the expected uuid type
    11. **NULL UUIDs in FK Sources** — Detects NULL uuids that cause infinite backfill loops
-   12. **Orphaned FK References** — Detects orphaned rows (blocks VALIDATE on an
-       existing NOT VALID constraint, or creation if the constraint is absent
-       entirely) and existing constraints still sitting NOT VALID with
-       nothing currently blocking them — V176 validates those in place; this
-       just tells you before it does
-   13. **Lock Conflicts** — Any blocked or long-running queries?
-   14. **Orphaned Connections** — Idle-in-transaction or stuck connections
-   15. **Oban Configuration** — Queues and plugins that consume pool connections
-   16. **Oban Cron Queues** — Does every crontab worker have its queue configured?
-   17. **PhoenixKit Supervisor** — What's running (update_mode vs full)?
-   18. **Child Start Order** — Does the Repo start before PhoenixKit/Oban in application.ex?
-   19. **Update Mode** — Is update_mode active?
-   20. **daisyUI Version** — Is the host's vendored daisyUI recent enough?
-   21. **User Dashboard (deprecated)** — Is the host still on the retired dashboard?
-   22. **Sitemap Discoverability** — Is the sitemap actually reachable?
-   23. **Crawler Visibility** — noindex on a production-looking host, or a
+   12. **Orphaned FK References (declared FKs only)** — Detects orphaned rows
+       (blocks VALIDATE on an existing NOT VALID constraint, or creation if
+       the constraint is absent entirely) and existing constraints still
+       sitting NOT VALID with nothing currently blocking them — V176
+       validates those in place; this just tells you before it does.
+       Scoped to a fixed list of relations declared in this check's own
+       code (`fk_checks` in `check_orphaned_fk_refs/1`), NOT the full FK
+       catalog, and NEVER covers a relation with no declared foreign key at
+       all (a federated/soft reference — see the V179/V180 moduledocs). A
+       clean result here means those listed relations are clean; it is not
+       a referential-integrity guarantee for the database as a whole (I082).
+   13. **Schema-Declared Relations Without a DB FK** — Every `belongs_to`
+       PhoenixKit's own Ecto schemas declare, cross-referenced against
+       `pg_constraint` for a matching foreign key. Reports the COUNT found
+       with no DB-level FK — informational, not a failure: some are
+       intentional (V179/V180's federated references cannot carry a FK
+       across an optional module boundary). Derived entirely from what the
+       schema itself declares (`owner_key`/`related_key` on the
+       `belongs_to`), never guessed from a column name — so it also cannot
+       see a soft reference that isn't declared as a `belongs_to` at all
+       (e.g. a plain field, or a polymorphic `*_uuid`/`*_type` pair).
+   14. **Lock Conflicts** — Any blocked or long-running queries?
+   15. **Orphaned Connections** — Idle-in-transaction or stuck connections
+   16. **Oban Configuration** — Queues and plugins that consume pool connections
+   17. **Oban Cron Queues** — Does every crontab worker have its queue configured?
+   18. **PhoenixKit Supervisor** — What's running (update_mode vs full)?
+   19. **Child Start Order** — Does the Repo start before PhoenixKit/Oban in application.ex?
+   20. **Update Mode** — Is update_mode active?
+   21. **daisyUI Version** — Is the host's vendored daisyUI recent enough?
+   22. **User Dashboard (deprecated)** — Is the host still on the retired dashboard?
+   23. **Sitemap Discoverability** — Is the sitemap actually reachable?
+   24. **Crawler Visibility** — noindex on a production-looking host, or a
        staging-looking host left indexable
-   24. **Demo Auth Pages** — Are the demo auth routes still exposed?
-   25. **Manifest Repair (dry-run)** — `PhoenixKit.Migrations.Repair.verify/1`
+   25. **Demo Auth Pages** — Are the demo auth routes still exposed?
+   26. **Manifest Repair (dry-run)** — `PhoenixKit.Migrations.Repair.verify/1`
        runs read-only against the generated
        `PhoenixKit.Migrations.ExpectedSchema` manifest as an additional,
        non-fatal check (never `:fail`). Passes and says so if the manifest
        has been removed or overridden away in this checkout.
-   26. **Git Hooks** — is `.githooks/pre-commit` enabled via
+   27. **Git Hooks** — is `.githooks/pre-commit` enabled via
        `core.hooksPath`? Only runs inside a checkout of phoenix_kit itself
        (`.githooks/pre-commit` is a phoenix_kit-repo convention, not
        something installed into a consuming host app) — silently skipped
@@ -131,7 +147,12 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         run_check("UUID Column Types", fn -> check_uuid_column_types(prefix) end),
         run_check("UUID Primary Keys", fn -> check_uuid_primary_keys(prefix) end),
         run_check("NULL UUIDs in FK Sources", fn -> check_null_uuids(prefix) end),
-        run_check("Orphaned FK References", fn -> check_orphaned_fk_refs(prefix) end),
+        run_check("Orphaned FK References (declared FKs only)", fn ->
+          check_orphaned_fk_refs(prefix)
+        end),
+        run_check("Schema-Declared Relations Without a DB FK", fn ->
+          check_schema_declared_relations_without_fk(prefix)
+        end),
         run_check("Lock Conflicts", fn -> check_lock_conflicts() end),
         run_check("Orphaned Connections", fn -> check_orphaned_connections() end),
         run_check("Oban Configuration", fn -> check_oban_config(oban_config) end),
@@ -845,7 +866,12 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # constraint is absent; on a schema at V164+ it is usually already there,
   # NOT VALID, and what orphaned rows actually block is VALIDATE (V176
   # handles that automatically once the rows are gone).
-  defp check_orphaned_fk_refs(prefix) do
+  #
+  # Exposed (not `defp`) and `@doc false`, same reason as `fk_validation_state/5`:
+  # a real end-to-end seam against a live repo, directly testable without
+  # going through `run/1` (which starts the whole app).
+  @doc false
+  def check_orphaned_fk_refs(prefix) do
     repo = get_repo!()
     escaped_prefix = String.replace(prefix, "'", "\\'")
 
@@ -857,9 +883,13 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       {"phoenix_kit_email_events", "email_log_uuid", "phoenix_kit_email_logs", "uuid"}
     ]
 
-    {orphaned, not_validated, probe_failed} =
-      Enum.reduce(fk_checks, {[], [], []}, fn {table, fk_col, ref_table, ref_col},
-                                              {orph, nv, pf} ->
+    # `checked` counts relations actually probed (both columns present) —
+    # NOT `length(fk_checks)`, so an install missing one of these tables
+    # (a module not installed) reports its real coverage, not a number that
+    # only holds on a fully-installed core.
+    {orphaned, not_validated, probe_failed, checked} =
+      Enum.reduce(fk_checks, {[], [], [], 0}, fn {table, fk_col, ref_table, ref_col},
+                                                 {orph, nv, pf, checked} ->
         table_name = prefix_table_name(table, prefix)
         ref_name = prefix_table_name(ref_table, prefix)
 
@@ -894,18 +924,145 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
             validation = fk_validation_state(repo, table, fk_col, ref_table, escaped_prefix)
 
-            classify_fk_check(table, fk_col, ref_table, count_result, validation, {orph, nv, pf})
+            {new_orph, new_nv, new_pf} =
+              classify_fk_check(
+                table,
+                fk_col,
+                ref_table,
+                count_result,
+                validation,
+                {orph, nv, pf}
+              )
+
+            {new_orph, new_nv, new_pf, checked + 1}
 
           _ ->
-            {orph, nv, pf}
+            {orph, nv, pf, checked}
         end
       end)
 
-    report_orphaned_fk_refs(
-      Enum.reverse(orphaned),
-      Enum.reverse(not_validated),
-      Enum.reverse(probe_failed)
-    )
+    {status, message} =
+      report_orphaned_fk_refs(
+        Enum.reverse(orphaned),
+        Enum.reverse(not_validated),
+        Enum.reverse(probe_failed)
+      )
+
+    {status, orphaned_fk_scope_note(checked, length(fk_checks)) <> message}
+  end
+
+  # I082: a clean (or even a red) result on this check was reading as
+  # "referential integrity is fine" — it only ever meant "the relations on
+  # THIS check's own hardcoded list are fine". Named here, on every branch
+  # (pass, warn, and fail alike), so the boundary travels with the verdict
+  # instead of living only in a code comment nobody running the CLI sees.
+  @doc false
+  def orphaned_fk_scope_note(checked, total) do
+    "Declared-FK scan: #{checked}/#{total} relation(s) on this check's own hardcoded " <>
+      "list (not the full FK catalog — this does not walk pg_constraint). It does NOT " <>
+      "cover relations with no foreign key at all (federated/soft references — see the " <>
+      "'Schema-Declared Relations Without a DB FK' check below, and the V179/V180 " <>
+      "moduledocs). A clean result on this line is not a guarantee of overall " <>
+      "referential integrity.\n       "
+  end
+
+  # I082, second step: only counts relations Ecto's own schemas DECLARE via
+  # `belongs_to` — never a guess from a column name. A `belongs_to` names its
+  # target unambiguously (`owner_key`/`related_key`), unlike inferring a
+  # target from "some other table has a column with this name" — the
+  # naming-heuristic approach explicitly rejected for this check (a doctor
+  # that guesses relations lies in a new way, and a lying green is worse
+  # than a narrow one). This is also why a polymorphic pair (a `*_uuid`
+  # column with a sibling `*_type` discriminator, e.g. `resource_type`/
+  # `resource_uuid`) never appears here: Ecto has no way to declare
+  # `belongs_to` against a type that varies per row, so it is simply never
+  # in this list — no separate polymorphic filter needed, unlike a
+  # name-based scan.
+  #
+  # Exposed (not `defp`) and `@doc false`, same reason as `check_orphaned_fk_refs/1`.
+  @doc false
+  def check_schema_declared_relations_without_fk(prefix) do
+    repo = get_repo!()
+
+    missing = discover_schema_declared_relations_without_fk(repo, prefix)
+
+    case missing do
+      [] ->
+        {:pass, "Every belongs_to PhoenixKit's schemas declare has a matching DB foreign key"}
+
+      list ->
+        detail =
+          Enum.map_join(list, "\n       ", fn {table, column} -> "#{table}.#{column}" end)
+
+        {:warn,
+         "#{length(list)} relation(s) declared via `belongs_to` in PhoenixKit's own Ecto " <>
+           "schemas have no matching database foreign key:\n       #{detail}\n       This is " <>
+           "advisory, not a failure — some are intentional (a federated/soft reference cannot " <>
+           "carry a FK across an optional module boundary, see V179/V180). Derived from " <>
+           "declared `belongs_to` associations only, cross-referenced against pg_constraint — " <>
+           "not exhaustive: a soft reference held as a plain field (no `belongs_to` at all, " <>
+           "e.g. a polymorphic pair) is invisible to this scan too."}
+    end
+  end
+
+  # Returns [{table, column}] for every `belongs_to` owner_key that exists as
+  # a real column in this schema but has no `pg_constraint` FK on it.
+  # Existence is checked against `information_schema.columns`, not just
+  # `pg_constraint` membership, so a schema module for a not-yet-installed
+  # module (table absent entirely) is correctly excluded rather than
+  # miscounted as "declared, no FK".
+  @doc false
+  def discover_schema_declared_relations_without_fk(repo, prefix) do
+    escaped_prefix = String.replace(prefix, "'", "\\'")
+
+    {:ok, %{rows: fk_rows}} =
+      repo.query(
+        """
+        SELECT t.relname, a.attname
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+        WHERE c.contype = 'f' AND n.nspname = '#{escaped_prefix}'
+        """,
+        [],
+        log: false
+      )
+
+    declared_fk_columns = MapSet.new(fk_rows, fn [table, col] -> {table, col} end)
+
+    {:ok, %{rows: col_rows}} =
+      repo.query(
+        "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = '#{escaped_prefix}'",
+        [],
+        log: false
+      )
+
+    existing_columns = MapSet.new(col_rows, fn [table, col] -> {table, col} end)
+
+    {:ok, modules} = :application.get_key(:phoenix_kit, :modules)
+
+    modules
+    # `function_exported?/3` checks only what's already loaded in THIS
+    # process — for a schema module nothing has called yet, it reads
+    # false even though `Code.ensure_loaded?/1` would trigger the load
+    # and it would work fine one line later. Without the ensure_loaded?
+    # first, this filtered out nearly every schema.
+    |> Enum.filter(&(Code.ensure_loaded?(&1) and function_exported?(&1, :__schema__, 1)))
+    |> Enum.flat_map(&belongs_to_owner_columns/1)
+    |> Enum.uniq()
+    |> Enum.filter(&MapSet.member?(existing_columns, &1))
+    |> Enum.reject(&MapSet.member?(declared_fk_columns, &1))
+    |> Enum.sort()
+  end
+
+  defp belongs_to_owner_columns(schema) do
+    table = schema.__schema__(:source)
+
+    schema.__schema__(:associations)
+    |> Enum.map(&schema.__schema__(:association, &1))
+    |> Enum.filter(&match?(%Ecto.Association.BelongsTo{}, &1))
+    |> Enum.map(fn assoc -> {table, Atom.to_string(assoc.owner_key)} end)
   end
 
   # Either probe failing must never read as "clean" — a failed probe is a

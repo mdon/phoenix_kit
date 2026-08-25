@@ -466,4 +466,28 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
       assert {:warn, _} = DoctorTask.report_orphaned_fk_refs([], not_validated, [])
     end
   end
+
+  describe "orphaned_fk_scope_note/2 — I082: a clean result must not read as full coverage" do
+    test "names how many of the check's own list were actually checked" do
+      note = DoctorTask.orphaned_fk_scope_note(4, 4)
+      assert note =~ "4/4"
+    end
+
+    test "the count reflects a table that could not be checked, not just the list length" do
+      note = DoctorTask.orphaned_fk_scope_note(3, 4)
+      assert note =~ "3/4"
+    end
+
+    test "states plainly that no-FK relations are not covered by this check" do
+      note = DoctorTask.orphaned_fk_scope_note(4, 4)
+      assert note =~ "does NOT"
+      assert note =~ "no foreign key at all"
+    end
+
+    test "states plainly that a clean result here is not an integrity guarantee" do
+      note = DoctorTask.orphaned_fk_scope_note(4, 4)
+      assert note =~ "not a guarantee of overall"
+      assert note =~ "referential integrity"
+    end
+  end
 end
