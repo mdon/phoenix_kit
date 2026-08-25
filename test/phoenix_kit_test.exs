@@ -153,6 +153,96 @@ defmodule PhoenixKitTest do
     defp restore_env(key, value), do: Application.put_env(:phoenix_kit, key, value)
   end
 
+  describe "boot/1 — :phoenix, :filter_parameters hardening" do
+    setup do
+      original = Application.get_env(:phoenix, :filter_parameters)
+      on_exit(fn -> restore_phoenix_filter_parameters(original) end)
+      :ok
+    end
+
+    test "sets password/token/secret/api_key when nothing was configured" do
+      Application.delete_env(:phoenix, :filter_parameters)
+
+      PhoenixKit.boot({:ok, self()})
+
+      filter = Application.get_env(:phoenix, :filter_parameters)
+      assert "password" in filter
+      assert "secret" in filter
+      assert "token" in filter
+      assert "api_key" in filter
+    end
+
+    # `aws_access_key_id` names neither half a keypair by convention — it
+    # contains none of the generic words above — so it only gets caught by
+    # being on `PhoenixKit.Settings.restricted_setting_keys/0`, the same
+    # list the settings-display allow list is built from. Pins that this
+    # function reads from there rather than carrying its own hand-kept
+    # copy that could drift from it.
+    test "also covers every PhoenixKit.Settings.restricted_setting_keys/0 entry" do
+      Application.delete_env(:phoenix, :filter_parameters)
+
+      PhoenixKit.boot({:ok, self()})
+
+      filter = Application.get_env(:phoenix, :filter_parameters)
+
+      for key <- PhoenixKit.Settings.restricted_setting_keys() do
+        assert key in filter, "#{key} is restricted but not in :phoenix, :filter_parameters"
+      end
+    end
+
+    test "is idempotent — running boot/1 twice gives the same stable list" do
+      Application.delete_env(:phoenix, :filter_parameters)
+
+      PhoenixKit.boot({:ok, self()})
+      first = Application.get_env(:phoenix, :filter_parameters)
+      PhoenixKit.boot({:ok, self()})
+      second = Application.get_env(:phoenix, :filter_parameters)
+
+      assert first == second
+      assert Enum.count(first, &(&1 == "secret")) == 1
+    end
+
+    test "leaves {:keep, [...]} mode untouched — unlisted keys are already filtered by default" do
+      Application.put_env(:phoenix, :filter_parameters, {:keep, ["id", "order"]})
+
+      PhoenixKit.boot({:ok, self()})
+
+      assert Application.get_env(:phoenix, :filter_parameters) == {:keep, ["id", "order"]}
+    end
+
+    # Regression, found by a destructive test (a real LiveView save going
+    # through the real code path — see
+    # `PhoenixKitWeb.Live.Settings.AuthorizationSecretLeakTest`), not by
+    # reasoning about the code: `Phoenix.start/2` — `:phoenix`'s own OTP app
+    # boot, which always finishes before `boot/1` runs — pre-compiles
+    # `:phoenix, :filter_parameters` into this opaque shape on EVERY boot,
+    # not only when a host configured something themselves. Phoenix ships
+    # its own package-level default env (`["password", "token"]`,
+    # `deps/phoenix/mix.exs`), so this shape is not a rare case; it is what
+    # `boot/1` ALWAYS sees in practice. A first version of this function
+    # treated an already-compiled filter as "a host already configured
+    # this, leave it alone" — which, given the above, meant "leave every
+    # real host alone," protecting nobody. It must be replaced, not
+    # skipped.
+    test "replaces an already-compiled filter instead of leaving it alone (Phoenix.start/2 ran first)" do
+      compiled = Phoenix.Logger.compile_filter(["password", "token"])
+      Application.put_env(:phoenix, :filter_parameters, compiled)
+
+      PhoenixKit.boot({:ok, self()})
+
+      filter = Application.get_env(:phoenix, :filter_parameters)
+      refute match?({:compiled, _, _}, filter)
+      assert "secret" in filter
+      assert "api_key" in filter
+    end
+
+    defp restore_phoenix_filter_parameters(nil),
+      do: Application.delete_env(:phoenix, :filter_parameters)
+
+    defp restore_phoenix_filter_parameters(value),
+      do: Application.put_env(:phoenix, :filter_parameters, value)
+  end
+
   describe "ScheduledJobs modules" do
     test "ScheduledJobs context is defined" do
       assert Code.ensure_loaded?(PhoenixKit.ScheduledJobs)

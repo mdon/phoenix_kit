@@ -5,6 +5,7 @@ defmodule PhoenixKit do
 
   alias PhoenixKit.Config
   alias PhoenixKit.Integrations.Encryption
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Permissions
 
   @doc """
@@ -83,6 +84,7 @@ defmodule PhoenixKit do
   """
   @spec boot({:ok, pid()} | {:error, term()}) :: {:ok, pid()} | {:error, term()}
   def boot({:ok, _pid} = result) do
+    harden_filter_parameters()
     PhoenixKit.ModuleRegistry.rescan()
     PhoenixKit.ModuleRegistry.run_all_legacy_migrations()
     register_custom_permission_keys()
@@ -166,6 +168,82 @@ defmodule PhoenixKit do
 
       Logger.error(
         "[PhoenixKit] Failed to check integrations encryption status at startup: #{inspect(error)}"
+      )
+  end
+
+  # `config :phoenix, :filter_parameters` is what both the endpoint's own
+  # request logging AND `Phoenix.LiveView.Logger` consult (via
+  # `Phoenix.Logger.filter_values/1`) before writing a "Parameters: ..."
+  # log line for every LiveView `handle_event` — including the
+  # Settings/Authorization form's `validate_settings`/`save_settings`,
+  # which carry OAuth/AWS credentials stored generically in
+  # `phoenix_kit_settings` (key names like `oauth_google_client_secret`).
+  # Found leaking those values in cleartext into a live install's log file.
+  #
+  # `filter_parameters` is a HOST-app `Application` env key: a dependency's
+  # own `config/config.exs` is never merged into it, so PhoenixKit cannot
+  # ship this as config the usual way — and asking every host to remember
+  # to add the line is the same silent-blacklist failure mode `settings.ex`
+  # already moved away from for the settings *display* side (see
+  # `@public_setting_keys`). Setting it once here, at boot, protects every
+  # host without any action on its part.
+  #
+  # `{:keep, [...]}` mode is left alone: in keep-mode anything NOT
+  # explicitly kept is already filtered by default, so a key we don't know
+  # about here is already safe.
+  #
+  # Every OTHER shape gets REPLACED, not merged into — deliberately, found
+  # by a destructive test (a real LiveView save, run through the real
+  # code path) after an earlier "merge with whatever's there" version
+  # silently protected nobody:
+  #
+  # `Phoenix.start/2` (`:phoenix`'s own OTP app boot — always finishes
+  # before the HOST's supervisor tree, and therefore before `boot/1` runs)
+  # unconditionally pre-compiles `:phoenix, :filter_parameters` into an
+  # opaque `{:compiled, key_match, value_match}` `:binary.compile_pattern/1`
+  # term, on EVERY boot — not only when a host configured something: Phoenix
+  # itself ships a package-level default env of `["password", "token"]`
+  # (`deps/phoenix/mix.exs`, `application/0`), so `Application.get_env/2`
+  # already returns non-nil before any host config is even read. That means
+  # by the time `boot/1` runs, this is ALWAYS already `{:compiled, ...}` —
+  # not a rare shape a sophisticated host opts into. There is no API to
+  # recover a word list from it, so "leave a compiled filter alone" is, in
+  # practice, "leave every host alone" — the opposite of this function's
+  # purpose. A plain (uncompiled) list works exactly the same at the
+  # `filter_values/1` call site (it just re-compiles the pattern on that
+  # one call instead of reusing a cached one — negligible on a settings
+  # save) — so overwrite with Phoenix's own documented default plus ours.
+  # The one real cost: a host that customized this beyond Phoenix's default
+  # loses that customization here.
+  #
+  # The word list is two tiers on purpose, not just the generic one:
+  # `password`/`token`/`secret`/`api_key` catch anything shaped like a
+  # credential by NAMING CONVENTION (covers a setting key nobody has
+  # written down as sensitive yet), while
+  # `PhoenixKit.Settings.restricted_setting_keys/0` — the same list
+  # `list_public_settings/0` uses to keep these OUT of the settings-display
+  # allow list — closes the gap the generic words miss:
+  # `aws_access_key_id` is genuinely a credential half of an AWS keypair,
+  # but its name contains none of `secret`/`token`/`api_key`. Duplicating
+  # that list by hand here instead would drift from it exactly the way the
+  # settings-display side used to drift from `module == "integrations"`.
+  defp harden_filter_parameters do
+    case Application.get_env(:phoenix, :filter_parameters, ["password"]) do
+      {:keep, _} = keep_mode ->
+        keep_mode
+
+      _other ->
+        filter =
+          Enum.uniq(~w(password token secret api_key) ++ Settings.restricted_setting_keys())
+
+        Application.put_env(:phoenix, :filter_parameters, filter)
+    end
+  rescue
+    error ->
+      require Logger
+
+      Logger.error(
+        "[PhoenixKit] Failed to harden :phoenix, :filter_parameters at startup: #{inspect(error)}"
       )
   end
 end

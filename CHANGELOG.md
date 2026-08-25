@@ -1,3 +1,35 @@
+## 2.13.10 - 2026-08-25
+
+A live install's default (dev-parity) logging wrote OAuth/AWS setting
+secrets straight into `/var/log/elixir.log` in cleartext, on two independent
+paths — closes the second half of the DOM leak fixed in 2.13.9.
+
+### Fixed
+
+- **Saving a Settings/Authorization credential (`oauth_google_client_secret`
+  and friends) logged the real value.** `Phoenix.LiveView.Logger` writes a
+  `"HANDLE EVENT ... Parameters: ..."` line for every `handle_event`, filtered
+  only by `config :phoenix, :filter_parameters` (Phoenix's own default:
+  `password`/`token`) — a value the settings form's field names
+  (`oauth_google_client_secret`, `billing_stripe_secret_key`, ...) never
+  matched. `PhoenixKit.boot/1` now installs `secret`/`api_key` into that list
+  itself (merging into `{:keep, [...]}` mode; replacing an already-compiled
+  filter with a fresh one carrying Phoenix's own default plus these — found,
+  by a destructive test, that Phoenix pre-compiles this on every boot
+  regardless of host config, so "leave an already-configured filter alone"
+  meant "leave every real host alone"). Also merges in every
+  `PhoenixKit.Settings.restricted_setting_keys/0` entry by exact name —
+  `aws_access_key_id` names neither half of a keypair by the generic
+  words above, so it only gets caught by being on that list. No host
+  action required — every app already calls `boot/1` via
+  `phoenix_kit.install`/`update`.
+- **Every write to `phoenix_kit_settings` was logged with its raw value at
+  Ecto's default `:debug` SQL log level** (`UPDATE ... SET value = $1 ...
+  [<secret>, ...]`) — the table stores every setting's value in the same
+  generic columns, secret or not, and Ecto's SQL logger has no notion of the
+  schema (no `redact:` field option reaches it). `Queries.insert_setting/1`
+  and `update_setting/1` now pass `log: false`.
+
 ## 2.13.9 - 2026-08-24
 
 Timezones move from a bare offset to full IANA identifiers, so DST is

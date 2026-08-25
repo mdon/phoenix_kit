@@ -1,6 +1,6 @@
 defmodule PhoenixKitWeb.Live.Settings.AuthorizationSecretLeakTest do
   @moduledoc """
-  S009: the Authorization settings page rendered the real OAuth client
+  The Authorization settings page rendered the real OAuth client
   secrets into `value=` on `type="password"` inputs — `type="password"` only
   masks the on-screen rendering, the real value still sits in the HTML
   `value=` attribute in plaintext (view-source/DevTools).
@@ -24,6 +24,25 @@ defmodule PhoenixKitWeb.Live.Settings.AuthorizationSecretLeakTest do
   @google_secret "GOCSPX-super-secret-google-value"
   @github_secret "gh-super-secret-github-value"
   @facebook_secret "fb-super-secret-facebook-value"
+
+  # `Phoenix.LiveView.Logger` logs `handle_event` at `:debug`, and
+  # `config/test.exs` sets the primary Logger level to `:warning`. Passing
+  # `with_log([level: :debug], fun)` alone is NOT enough to see it — verified
+  # by hand: with the process-level primary logger left at `:warning`,
+  # `handle_event`'s "HANDLE EVENT ... Parameters: ..." line never reaches
+  # the capture regardless of what actually leaked, so `refute log =~ secret`
+  # passes vacuously either way. The primary level has to be raised for real
+  # (`Logger.configure/1`) around the capture, then restored.
+  defp capture_debug_log(fun) do
+    original_level = Logger.level()
+    Logger.configure(level: :debug)
+
+    try do
+      with_log([level: :debug], fun)
+    after
+      Logger.configure(level: original_level)
+    end
+  end
 
   setup do
     {:ok, _} = Settings.update_setting("oauth_enabled", "true")
@@ -61,7 +80,7 @@ defmodule PhoenixKitWeb.Live.Settings.AuthorizationSecretLeakTest do
     {:ok, view, _html} = live(conn, Routes.path("/admin/settings/authorization"))
 
     {html, log} =
-      with_log(fn ->
+      capture_debug_log(fn ->
         render_change(view, "validate_settings", %{
           "settings" => %{
             "oauth_enabled" => "true",
@@ -110,5 +129,49 @@ defmodule PhoenixKitWeb.Live.Settings.AuthorizationSecretLeakTest do
     |> render_submit()
 
     assert Settings.get_setting("oauth_google_client_secret") == "brand-new-google-secret"
+  end
+
+  describe "typing and saving a BRAND NEW secret" do
+    # The DOM/round-trip fix above (`value=""` + placeholder) stops an
+    # EXISTING stored secret from re-appearing in event params when the
+    # admin edits some other field. It does nothing for the one event that
+    # necessarily DOES carry a real secret in its params: the admin typing
+    # a new one and hitting save. That event still reaches
+    # `Phoenix.LiveView.Logger` with the real value — only
+    # `config :phoenix, :filter_parameters` (installed by
+    # `PhoenixKit.boot/1`, see `PhoenixKit.harden_filter_parameters/0`)
+    # keeps it out of the log. Simulates what `boot/1` does at real host
+    # startup, since the test app never calls it itself.
+    setup do
+      original = Application.get_env(:phoenix, :filter_parameters)
+      PhoenixKit.boot({:ok, self()})
+      on_exit(fn -> restore_filter_parameters(original) end)
+      :ok
+    end
+
+    defp restore_filter_parameters(nil), do: Application.delete_env(:phoenix, :filter_parameters)
+
+    defp restore_filter_parameters(value),
+      do: Application.put_env(:phoenix, :filter_parameters, value)
+
+    test "the newly typed secret does not appear in the save event's log line", %{conn: conn} do
+      conn = login(conn)
+
+      {:ok, view, _html} = live(conn, Routes.path("/admin/settings/authorization"))
+
+      new_secret = "dom-leak-canary-#{System.unique_integer([:positive])}"
+
+      {_html, log} =
+        capture_debug_log(fn ->
+          view
+          |> form("#authorization_settings_form", %{
+            "settings" => %{"oauth_google_client_secret" => new_secret}
+          })
+          |> render_submit()
+        end)
+
+      assert Settings.get_setting("oauth_google_client_secret") == new_secret
+      refute log =~ new_secret
+    end
   end
 end
