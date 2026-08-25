@@ -1,6 +1,6 @@
 defmodule PhoenixKitWeb.Live.Settings.AuthorizationSecretLeakTest do
   @moduledoc """
-  S009: the Authorization settings page rendered the real OAuth client
+  The Authorization settings page rendered the real OAuth client
   secrets into `value=` on `type="password"` inputs — `type="password"` only
   masks the on-screen rendering, the real value still sits in the HTML
   `value=` attribute in plaintext (view-source/DevTools).
