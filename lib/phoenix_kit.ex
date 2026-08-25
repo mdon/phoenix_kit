@@ -5,6 +5,7 @@ defmodule PhoenixKit do
 
   alias PhoenixKit.Config
   alias PhoenixKit.Integrations.Encryption
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Permissions
 
   @doc """
@@ -170,15 +171,14 @@ defmodule PhoenixKit do
       )
   end
 
-  # S007/S009: `config :phoenix, :filter_parameters` is what both the
-  # endpoint's own request logging AND `Phoenix.LiveView.Logger` consult
-  # (via `Phoenix.Logger.filter_values/1`) before writing a "Parameters:
-  # ..." log line for every LiveView `handle_event` — including the
+  # `config :phoenix, :filter_parameters` is what both the endpoint's own
+  # request logging AND `Phoenix.LiveView.Logger` consult (via
+  # `Phoenix.Logger.filter_values/1`) before writing a "Parameters: ..."
+  # log line for every LiveView `handle_event` — including the
   # Settings/Authorization form's `validate_settings`/`save_settings`,
   # which carry OAuth/AWS credentials stored generically in
   # `phoenix_kit_settings` (key names like `oauth_google_client_secret`).
-  # Found leaking those values in cleartext into a live install's log file
-  # (S007/S009).
+  # Found leaking those values in cleartext into a live install's log file.
   #
   # `filter_parameters` is a HOST-app `Application` env key: a dependency's
   # own `config/config.exs` is never merged into it, so PhoenixKit cannot
@@ -215,13 +215,28 @@ defmodule PhoenixKit do
   # save) — so overwrite with Phoenix's own documented default plus ours.
   # The one real cost: a host that customized this beyond Phoenix's default
   # loses that customization here.
+  #
+  # The word list is two tiers on purpose, not just the generic one:
+  # `password`/`token`/`secret`/`api_key` catch anything shaped like a
+  # credential by NAMING CONVENTION (covers a setting key nobody has
+  # written down as sensitive yet), while
+  # `PhoenixKit.Settings.restricted_setting_keys/0` — the same list
+  # `list_public_settings/0` uses to keep these OUT of the settings-display
+  # allow list — closes the gap the generic words miss:
+  # `aws_access_key_id` is genuinely a credential half of an AWS keypair,
+  # but its name contains none of `secret`/`token`/`api_key`. Duplicating
+  # that list by hand here instead would drift from it exactly the way the
+  # settings-display side used to drift from `module == "integrations"`.
   defp harden_filter_parameters do
     case Application.get_env(:phoenix, :filter_parameters, ["password"]) do
       {:keep, _} = keep_mode ->
         keep_mode
 
       _other ->
-        Application.put_env(:phoenix, :filter_parameters, ~w(password token secret api_key))
+        filter =
+          Enum.uniq(~w(password token secret api_key) ++ Settings.restricted_setting_keys())
+
+        Application.put_env(:phoenix, :filter_parameters, filter)
     end
   rescue
     error ->

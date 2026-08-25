@@ -153,7 +153,7 @@ defmodule PhoenixKitTest do
     defp restore_env(key, value), do: Application.put_env(:phoenix_kit, key, value)
   end
 
-  describe "boot/1 — :phoenix, :filter_parameters hardening (S007/S009)" do
+  describe "boot/1 — :phoenix, :filter_parameters hardening" do
     setup do
       original = Application.get_env(:phoenix, :filter_parameters)
       on_exit(fn -> restore_phoenix_filter_parameters(original) end)
@@ -170,6 +170,24 @@ defmodule PhoenixKitTest do
       assert "secret" in filter
       assert "token" in filter
       assert "api_key" in filter
+    end
+
+    # `aws_access_key_id` names neither half a keypair by convention — it
+    # contains none of the generic words above — so it only gets caught by
+    # being on `PhoenixKit.Settings.restricted_setting_keys/0`, the same
+    # list the settings-display allow list is built from. Pins that this
+    # function reads from there rather than carrying its own hand-kept
+    # copy that could drift from it.
+    test "also covers every PhoenixKit.Settings.restricted_setting_keys/0 entry" do
+      Application.delete_env(:phoenix, :filter_parameters)
+
+      PhoenixKit.boot({:ok, self()})
+
+      filter = Application.get_env(:phoenix, :filter_parameters)
+
+      for key <- PhoenixKit.Settings.restricted_setting_keys() do
+        assert key in filter, "#{key} is restricted but not in :phoenix, :filter_parameters"
+      end
     end
 
     test "is idempotent — running boot/1 twice gives the same stable list" do

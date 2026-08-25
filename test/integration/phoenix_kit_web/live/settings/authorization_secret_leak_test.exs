@@ -131,7 +131,7 @@ defmodule PhoenixKitWeb.Live.Settings.AuthorizationSecretLeakTest do
     assert Settings.get_setting("oauth_google_client_secret") == "brand-new-google-secret"
   end
 
-  describe "typing and saving a BRAND NEW secret (S007/S009 part 2)" do
+  describe "typing and saving a BRAND NEW secret" do
     # The DOM/round-trip fix above (`value=""` + placeholder) stops an
     # EXISTING stored secret from re-appearing in event params when the
     # admin edits some other field. It does nothing for the one event that

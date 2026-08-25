@@ -1,6 +1,6 @@
 defmodule PhoenixKit.Settings.QueriesSecretLoggingTest do
   @moduledoc """
-  S007/S009: `phoenix_kit_settings` stores every setting's value in the same
+  `phoenix_kit_settings` stores every setting's value in the same
   two generic columns — secrets included (`oauth_google_client_secret`,
   `aws_secret_access_key`, ...). Ecto's own SQL debug logger has no notion
   of the schema (no `redact:` field option reaches it) and would otherwise

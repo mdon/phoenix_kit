@@ -187,9 +187,9 @@ defmodule PhoenixKit.Settings.Queries do
     # which only ever sees a flat positional param list), so a debug-level
     # logger would otherwise print the literal secret on every write
     # (`UPDATE ... SET value = $1 ... [<secret>, ...]`) regardless of key.
-    # Found doing exactly that on a live install (S007/S009). Silencing the
-    # query log for this one table is cheaper and safer than trying to
-    # enumerate which keys are sensitive here too.
+    # Found doing exactly that on a live install. Silencing the query log
+    # for this one table is cheaper and safer than trying to enumerate
+    # which keys are sensitive here too.
     repo().insert(changeset, log: false)
   end
 

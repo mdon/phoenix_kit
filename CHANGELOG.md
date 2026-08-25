@@ -17,8 +17,12 @@ paths — closes the second half of the DOM leak fixed in 2.13.9.
   filter with a fresh one carrying Phoenix's own default plus these — found,
   by a destructive test, that Phoenix pre-compiles this on every boot
   regardless of host config, so "leave an already-configured filter alone"
-  meant "leave every real host alone"). No host action required — every app
-  already calls `boot/1` via `phoenix_kit.install`/`update`.
+  meant "leave every real host alone"). Also merges in every
+  `PhoenixKit.Settings.restricted_setting_keys/0` entry by exact name —
+  `aws_access_key_id` names neither half of a keypair by the generic
+  words above, so it only gets caught by being on that list. No host
+  action required — every app already calls `boot/1` via
+  `phoenix_kit.install`/`update`.
 - **Every write to `phoenix_kit_settings` was logged with its raw value at
   Ecto's default `:debug` SQL log level** (`UPDATE ... SET value = $1 ...
   [<secret>, ...]`) — the table stores every setting's value in the same
