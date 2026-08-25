@@ -6,7 +6,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
   This one function is different: it already takes `repo` as an explicit
   argument, so it is a real unit-test seam without starting anything.
 
-  RED without this round's fix (gate round 2, finding 1): a genuinely
+  RED without this round's fix: a genuinely
   failing probe — forced here with a deliberately malformed identifier,
   which the un-parameterized SQL this function builds turns into a real
   Postgres syntax error — used to collapse into `:absent` (the same shape as
@@ -57,14 +57,14 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
     end
   end
 
-  describe "discover_fk_constraints/2 — I055: full catalog coverage, not the old 4-pair list" do
+  describe "discover_fk_constraints/2 — full catalog coverage, not the old 4-pair list" do
     test "finds real FK constraints on the live schema, well beyond the old hardcoded four" do
       assert {:ok, {constraints, _skipped_multi}} =
                DoctorTask.discover_fk_constraints(Repo, "public")
 
       # The old check knew exactly 4 pairs. A real installed schema has far
-      # more single-column FKs than that — this is the whole point of I055:
-      # if this ever regresses back toward "4", the fix regressed with it.
+      # more single-column FKs than that — this is the whole point of this
+      # check: if this ever regresses back toward "4", the fix regressed with it.
       assert length(constraints) > 10
 
       assert Enum.any?(constraints, fn c ->
@@ -86,13 +86,13 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
 
     test "a malformed schema name (real catalog-access fault) returns {:error, _}, never a silent empty list" do
       # The unescaped quote breaks the query's own string literal boundary —
-      # a genuine Postgres syntax error, the same class of fault I055 finding
-      # 2 warns can otherwise collapse into "nothing found" and print PASS.
+      # a genuine Postgres syntax error, the same class of fault that can
+      # otherwise collapse into "nothing found" and print PASS.
       assert {:error, %Postgrex.Error{}} = DoctorTask.discover_fk_constraints(Repo, "x'y")
     end
   end
 
-  describe "fk_probe_cost_context/4 — I055 decision 5: measure, don't guess" do
+  describe "fk_probe_cost_context/4 — measure, don't guess" do
     test "a real, indexed FK column reports an actual row estimate and 'indexed', not a guess" do
       context =
         DoctorTask.fk_probe_cost_context(Repo, "phoenix_kit_users_tokens", "user_uuid", "public")
@@ -116,7 +116,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
   end
 
   describe "check_orphaned_fk_refs/1 — destructive: a genuinely orphaned row outside the old 4 pairs is caught" do
-    # I055's widened check reads every single-column FK straight from
+    # The widened check reads every single-column FK straight from
     # `pg_constraint` (`discover_fk_constraints/2`), not just the four pairs
     # the old check knew by name. This proves that widened coverage actually
     # catches something the old four-pair list could never have seen:
@@ -132,15 +132,15 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
     # Postgres idiom for planting a row that could otherwise only arise from
     # the same kind of bypass in production — a bulk load with constraints
     # off, a restore from an inconsistent backup, direct catalog surgery —
-    # which is exactly the class of real corruption I055 exists to catch,
-    # not a contrived test-only shape.
+    # which is exactly the class of real corruption this check exists to
+    # catch, not a contrived test-only shape.
     test "an orphaned phoenix_kit_user_oauth_providers.user_uuid row is reported, not read as clean" do
       Repo.query!("ALTER TABLE phoenix_kit_user_oauth_providers DISABLE TRIGGER ALL")
 
       Repo.query!("""
       INSERT INTO phoenix_kit_user_oauth_providers
         (user_uuid, provider, provider_uid, inserted_at, updated_at)
-      VALUES (gen_random_uuid(), 'google', 'i055-destructive-orphan-test', now(), now())
+      VALUES (gen_random_uuid(), 'google', 'destructive-orphan-test', now(), now())
       """)
 
       Repo.query!("ALTER TABLE phoenix_kit_user_oauth_providers ENABLE TRIGGER ALL")
@@ -150,7 +150,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
     end
   end
 
-  describe "probe timeout shape — I055 round 3: the real error shape, not an assumed one" do
+  describe "probe timeout shape — the real error shape, not an assumed one" do
     test "a real slow query through Repo.query/3 with a short timeout is always classified as a time limit, whichever shape it takes" do
       # `probe_fk/4` calls `repo.query(sql, [], timeout: N)` — through the
       # DBConnection pool/ownership layer, not a raw `Postgrex.query/3`

@@ -335,7 +335,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     end
   end
 
-  describe "classify_fk_check/5 — a probe failure must never read as clean (gate round 2, finding 1)" do
+  describe "classify_fk_check/5 — a probe failure must never read as clean" do
     test "a failed orphan-count probe lands in the probe_failed bucket, not the clean path" do
       acc = {[], [], []}
 
@@ -364,7 +364,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
                )
     end
 
-    test "a failed validation-state probe preserves the measured orphan count (round 2 gate, minor finding 1)" do
+    test "a failed validation-state probe preserves the measured orphan count" do
       # The orphan-count probe already succeeded here — 5 real orphaned rows
       # were measured — and it is only the SEPARATE validation-state probe
       # that failed. Before this fix, the measured count was discarded and
@@ -451,9 +451,9 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     end
   end
 
-  describe "report_orphaned_fk_refs/4 — I055: a probe failure is its own tier, not the same red as real orphans" do
-    test "probe_failed alone (no orphans, no known-unvalidated) is :warn, not :fail — I055's third tier" do
-      # Before I055 this was :fail — the exact "slow and broken-data can't be
+  describe "report_orphaned_fk_refs/4 — a probe failure is its own tier, not the same red as real orphans" do
+    test "probe_failed alone (no orphans, no known-unvalidated) is :warn, not :fail — a third tier" do
+      # Before this round this was :fail — the exact "slow and broken-data can't be
       # one color" defect the contract names. Coverage being incomplete is
       # "investigate why", not "fix corrupted data"; only real orphans (below)
       # still earn the red.
@@ -467,7 +467,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
       assert message =~ "boom"
     end
 
-    test "a validation-state probe failure reports the measured orphan count, not just 'could not check' (round 2 gate, minor finding 1)" do
+    test "a validation-state probe failure reports the measured orphan count, not just 'could not check'" do
       probe_failed = [
         {"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", :validation_state,
          "no access", 5}
@@ -528,7 +528,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     end
   end
 
-  describe "discover_fk_constraints/2 — I055: source of truth is pg_constraint, not a list in code" do
+  describe "discover_fk_constraints/2 — source of truth is pg_constraint, not a list in code" do
     test "a multi-column FK is reported separately from single-column ones, not silently dropped" do
       # Pure shape check on the split logic doctor's discovery query feeds
       # into — the actual pg_constraint query itself is exercised against a
@@ -547,7 +547,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     end
   end
 
-  describe "fk_probe_failure_reason/1 — I055: a timed-out probe says so, not a raw Postgres error" do
+  describe "fk_probe_failure_reason/1 — a timed-out probe says so, not a raw Postgres error" do
     test "a query_canceled Postgrex error becomes a time-limit message" do
       reason = %Postgrex.Error{postgres: %{code: :query_canceled, message: "canceling statement"}}
 

@@ -839,11 +839,11 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     end
   end
 
-  # I055: this used to check 4 hardcoded (table, fk_col, ref_table, ref_col)
+  # This used to check 4 hardcoded (table, fk_col, ref_table, ref_col)
   # pairs out of 70 canonical relationships (231 total FK constraints on a
   # calibration install) and printed PASS — which reads as "everything is
   # fine" but meant only "the four pairs we happened to list are fine".
-  # Two real orphans on a live site (S005) sat outside the four and were
+  # Two real orphans on a live site sat outside the four and were
   # invisible to this check the whole time.
   #
   # Fixed by discovering every FK constraint straight from `pg_constraint`
@@ -852,8 +852,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # by construction rather than by upkeep. Coverage is now part of the
   # result text itself, and zero coverage — empty schema, wrong --prefix,
   # a catalog query that itself failed — can never read as PASS, no matter
-  # which of those reasons caused it (I055 finding 2 and 3: "clean" and
-  # "never looked" used to print byte-identical text).
+  # which of those reasons caused it ("clean" and "never looked" used to
+  # print byte-identical text).
   #
   # Exposed (not `defp`) and `@doc false`, same reason as the other pure
   # decision functions in this module: `get_repo!/0` resolves the same
@@ -973,9 +973,9 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # `{:error, %DBConnection.ConnectionError{reason: :closed}}` with no
   # `Postgrex.Error` involved at all. Both shapes are handled the same way —
   # a timeout is just one more reason a probe can fail, never a silent scope
-  # reduction. I055 explicitly rejects a `--full` flag for this exact reason:
-  # breadth (every constraint) is never negotiable, only depth (how long we
-  # wait per constraint) is.
+  # reduction. A `--full` flag is deliberately not offered, for this exact
+  # reason: breadth (every constraint) is never negotiable, only depth (how
+  # long we wait per constraint) is.
   @fk_probe_timeout_ms 5_000
 
   defp probe_fk(repo, fk, prefix, {orph, nv, pf}) do
@@ -1022,10 +1022,9 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # under it by the pool, and every other Postgrex/DBConnection error all
   # reach this function — it only exists to make the two timeout shapes say
   # "time limit exceeded" instead of a raw Postgres cancellation code or a
-  # "tcp recv: closed" pool message, so the doctor's report matches the
-  # operator-facing language I055 asks for ("не проверено (превышен
-  # предел)") rather than leaking a database/pool error that means the same
-  # thing.
+  # "tcp recv: closed" pool message, so the doctor's report uses
+  # operator-facing language ("не проверено (превышен предел)") rather than
+  # leaking a database/pool error that means the same thing.
   #
   # Exposed (not `defp`) and `@doc false`, same reason as the other pure
   # decision functions in this module: directly testable without a repo.
@@ -1040,7 +1039,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   def fk_probe_failure_reason(reason), do: reason
 
-  # I055 decision 5: cost of an expensive check must be measured and
+  # Cost of an expensive check must be measured and
   # printed, not guessed at ("table likely large") or silently dropped.
   # `n_live_tup` is planner statistics (a `pg_stat_user_tables` read), not a
   # table scan, so this stays cheap even on the table whose real scan just
@@ -1149,7 +1148,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     acc
   end
 
-  # I055's third urgency tier. Before this round, a probe failure with zero
+  # A third urgency tier, alongside `:warn` and `:fail`. Before this round, a probe failure with zero
   # actual orphans still returned :fail — the same red as real broken data,
   # which is exactly the "slow and broken-data can't be one color" defect
   # the contract names. Real orphans (last clause below) still win :fail
