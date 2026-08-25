@@ -159,7 +159,7 @@ defmodule PhoenixKitWeb.Live.Settings.AuthorizationSecretLeakTest do
 
       {:ok, view, _html} = live(conn, Routes.path("/admin/settings/authorization"))
 
-      new_secret = "s009-part2-canary-#{System.unique_integer([:positive])}"
+      new_secret = "dom-leak-canary-#{System.unique_integer([:positive])}"
 
       {_html, log} =
         capture_debug_log(fn ->

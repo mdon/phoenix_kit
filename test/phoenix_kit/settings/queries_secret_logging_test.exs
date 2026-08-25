@@ -19,7 +19,7 @@ defmodule PhoenixKit.Settings.QueriesSecretLoggingTest do
 
   alias PhoenixKit.Settings
 
-  @canary "s007-canary-secret-#{System.unique_integer([:positive])}"
+  @canary "leak-canary-secret-#{System.unique_integer([:positive])}"
 
   test "inserting a brand-new setting never leaks its value into the SQL debug log" do
     log =
