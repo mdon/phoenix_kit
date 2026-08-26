@@ -113,7 +113,9 @@ defmodule PhoenixKitWeb.AdminRouteDedupTest do
     }
   ])
 
-  Application.put_env(:phoenix_kit, :modules, [PhoenixKitWeb.AdminRouteDedupTest.FakeExternalModule])
+  Application.put_env(:phoenix_kit, :modules, [
+    PhoenixKitWeb.AdminRouteDedupTest.FakeExternalModule
+  ])
 
   defmodule DedupProbeRouter do
     @moduledoc false

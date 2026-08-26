@@ -1087,8 +1087,13 @@ defmodule PhoenixKitWeb.Integration do
     {deduped, _seen} =
       Enum.reduce(routes, {[], seen}, fn route, {acc, seen} ->
         case admin_route_path(route) do
-          nil -> {[route | acc], seen}
-          path -> if MapSet.member?(seen, path), do: {acc, seen}, else: {[route | acc], MapSet.put(seen, path)}
+          nil ->
+            {[route | acc], seen}
+
+          path ->
+            if MapSet.member?(seen, path),
+              do: {acc, seen},
+              else: {[route | acc], MapSet.put(seen, path)}
         end
       end)
 
