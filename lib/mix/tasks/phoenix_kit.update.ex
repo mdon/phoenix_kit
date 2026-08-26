@@ -89,6 +89,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       BasicConfiguration,
       BootHook,
       Common,
+      ConfigVerify,
       CssIntegration,
       DaisyUI,
       DbConnectionCheck,
@@ -1579,22 +1580,54 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     end
 
     # Fix Ueberauth providers configuration from [] to %{}
-    defp fix_ueberauth_providers_config(igniter, _content) do
-      igniter
-      |> Igniter.update_file("config/config.exs", fn source ->
-        content = Rewrite.Source.get(source, :content)
+    #
+    # I103: wrapped with the same parse-then-verify safety net as the Oban
+    # config splices — a single-line `Regex.replace/3` is lower risk than a
+    # multi-line block splice, but it is still blind to comments/strings.
+    # The verify+rollback decision happens BEFORE `Igniter.update_file/3` on
+    # purpose, against the `content` already read by the caller
+    # (`validate_and_fix_ueberauth_config/1`) — Igniter buffers writes and
+    # does not flush them to disk mid-pipeline, so re-reading the file
+    # inside (or after) the `update_file` callback would still see the
+    # PRE-change content and could never detect success at all.
+    defp fix_ueberauth_providers_config(igniter, content) do
+      candidate =
+        Regex.replace(
+          ~r/(config\s+:ueberauth,\s+Ueberauth,\s+providers:\s*)\[\s*\]/,
+          content,
+          "\\1%{}"
+        )
 
-        # Replace providers: [] with providers: %{}
-        updated_content =
-          Regex.replace(
-            ~r/(config\s+:ueberauth,\s+Ueberauth,\s+providers:\s*)\[\s*\]/,
-            content,
-            "\\1%{}"
+      case ConfigVerify.verify_or_rollback(content, candidate, &ueberauth_providers_map?/1) do
+        {:ok, updated_content} ->
+          igniter
+          |> Igniter.update_file("config/config.exs", fn source ->
+            Rewrite.Source.update(source, :content, updated_content)
+          end)
+          |> add_ueberauth_fix_notice()
+
+        {:rolled_back, _original, _reason} ->
+          Igniter.add_warning(
+            igniter,
+            "Could not safely fix Ueberauth's providers: [] -> %{} (the replacement would " <>
+              "have produced invalid or misplaced config) - please change it manually in " <>
+              "config/config.exs."
           )
+      end
+    end
 
-        Rewrite.Source.update(source, :content, updated_content)
+    # True if `ast` has `config :ueberauth, Ueberauth, providers: %{}` (or
+    # any non-empty `providers:` map/keyword) — used to confirm the
+    # `[] -> %{}` replacement actually landed on the real Ueberauth config
+    # call, not on a comment or string that happened to match the same text.
+    defp ueberauth_providers_map?(ast) do
+      ConfigVerify.ast_contains?(ast, fn
+        {:config, _, [:ueberauth, {:__aliases__, _, [:Ueberauth]}, opts]} when is_list(opts) ->
+          match?({:ok, {:%{}, _, _}}, ConfigVerify.keyword_get(opts, :providers))
+
+        _ ->
+          false
       end)
-      |> add_ueberauth_fix_notice()
     end
 
     # Add notice about Ueberauth configuration fix
