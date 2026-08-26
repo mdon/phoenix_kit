@@ -51,6 +51,8 @@ defmodule PhoenixKit.Utils.Date do
   with extensive format support.
   """
 
+  alias PhoenixKit.Utils.TimeZone
+
   alias PhoenixKit.Settings
 
   @doc """
@@ -530,21 +532,15 @@ defmodule PhoenixKit.Utils.Date do
   end
 
   # Private helper to apply timezone offset to datetime
-  defp shift_to_timezone_offset(datetime, nil), do: datetime
-  defp shift_to_timezone_offset(datetime, ""), do: datetime
-
-  defp shift_to_timezone_offset(datetime, timezone_offset) do
-    case Integer.parse(timezone_offset) do
-      {offset_hours, ""} ->
-        # Convert offset hours to seconds and shift
-        offset_seconds = offset_hours * 3600
-        DateTime.add(datetime, offset_seconds, :second)
-
-      _ ->
-        # Invalid timezone offset, return original datetime
-        datetime
-    end
-  end
+  # One choke point for every timestamp the app renders. Handles both an IANA
+  # identifier ("Europe/Warsaw", DST applied for the instant being shown) and a
+  # pre-IANA numeric offset ("2"), which still shifts by a fixed amount so
+  # accounts written before the change keep reading the same.
+  #
+  # This used to parse with `Integer.parse/1` and require an empty remainder,
+  # so `"5.5"` left `".5"`, failed the match, and returned the timestamp
+  # unshifted — every UTC+5:30 and +9:30 account was quietly reading UTC.
+  defp shift_to_timezone_offset(datetime, timezone), do: TimeZone.shift(datetime, timezone)
 
   # Cached variant of format_datetime_with_timezone
   defp format_datetime_with_timezone_cached(datetime, format, user, settings) do
@@ -799,7 +795,10 @@ defmodule PhoenixKit.Utils.Date do
   Use only when you need the wall-clock value for display. Never store this.
   """
   def shift_to_offset(%DateTime{} = dt, tz_offset) do
-    DateTime.add(dt, offset_to_seconds(tz_offset), :second)
+    # Routed through TimeZone so an IANA identifier works here too. The old
+    # body added `offset_to_seconds/1`, which cannot parse "Europe/Warsaw" and
+    # returned 0 — silently rendering UTC once a site set a named timezone.
+    TimeZone.shift(dt, tz_offset)
   end
 
   @doc """
@@ -828,8 +827,14 @@ defmodule PhoenixKit.Utils.Date do
   def parse_datetime_local(str, tz_offset) when is_binary(str) do
     case parse_naive_datetime_local(str) do
       {:ok, naive} ->
-        utc = NaiveDateTime.add(naive, -offset_to_seconds(tz_offset), :second)
-        DateTime.from_naive(utc, "Etc/UTC")
+        # TimeZone.from_wall/2 rather than subtracting a fixed offset: with a
+        # named timezone the offset depends on the date being parsed, so a
+        # window scheduled across a daylight-saving boundary lands on the hour
+        # the admin actually typed.
+        case TimeZone.from_wall(naive, tz_offset) do
+          {:ok, utc} -> {:ok, utc}
+          :error -> {:error, :invalid_format}
+        end
 
       {:error, _reason} ->
         {:error, :invalid_format}

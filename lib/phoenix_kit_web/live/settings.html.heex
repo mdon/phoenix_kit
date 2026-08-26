@@ -105,8 +105,8 @@
                 {gettext("Select Image")}
               </button>
             <% end %>
-            <div class="label">
-              <span class="fieldset-label text-xs text-base-content/50">
+            <div>
+              <span class="block text-xs text-base-content/50">
                 {gettext(
                   "Logo displayed across the application. Falls back to the site icon, then the project title text."
                 )}
@@ -270,8 +270,8 @@
               </div>
             </div>
 
-            <div class="label">
-              <span class="fieldset-label text-xs text-base-content/50">
+            <div>
+              <span class="block text-xs text-base-content/50">
                 {gettext(
                   "The icon appears in browser tabs, bookmarks, and on phone home screens."
                 )}
@@ -379,8 +379,8 @@
               placeholder="/dashboard"
               class="input-sm max-w-md"
             />
-            <div class="label">
-              <span class="fieldset-label text-xs text-base-content/50">
+            <div>
+              <span class="block text-xs text-base-content/50">
                 {gettext(
                   "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
                 )}
@@ -407,8 +407,8 @@
                 options={@setting_options["editor_default_mode"]}
                 class="focus-within:select-primary"
               />
-              <div class="label">
-                <span class="fieldset-label text-xs text-base-content/50">
+              <div>
+                <span class="block text-xs text-base-content/50">
                   {gettext(
                     "Applies site-wide wherever the rich-text editor is rendered (posts, comments). Users can still switch modes inside the editor."
                   )}
@@ -433,8 +433,8 @@
                 label={gettext("Mentions and record links")}
                 wrapper_class="mb-3"
               />
-              <div class="label">
-                <span class="fieldset-label text-xs text-base-content/50">
+              <div>
+                <span class="block text-xs text-base-content/50">
                   {gettext(
                     "Lets people type @ to mention someone and # to link a record, anywhere they can write free text. Turning it off stops the suggestions; mentions already written stay readable as plain text."
                   )}
@@ -446,8 +446,8 @@
                 label={gettext("Hide titles of records the reader can't open")}
                 wrapper_class="mb-3"
               />
-              <div class="label">
-                <span class="fieldset-label text-xs text-base-content/50">
+              <div>
+                <span class="block text-xs text-base-content/50">
                   {gettext(
                     "By default a mention shows what it names even to someone without access, with a lock icon and no link. Turn this on where the name itself is sensitive; they then see the name as it was when it was written, not its current one."
                   )}
@@ -531,8 +531,8 @@
                 options={@setting_options["date_format"]}
                 class="focus-within:select-primary"
               />
-              <div class="label">
-                <span class="fieldset-label text-xs text-base-content/50">
+              <div>
+                <span class="block text-xs text-base-content/50">
                   {gettext("Example:")} {get_current_date_example(@settings["date_format"])}
                 </span>
               </div>
@@ -561,8 +561,8 @@
                 options={@setting_options["time_format"]}
                 class="focus-within:select-primary"
               />
-              <div class="label">
-                <span class="fieldset-label text-xs text-base-content/50">
+              <div>
+                <span class="block text-xs text-base-content/50">
                   {gettext("Example:")} {get_current_time_example(@settings["time_format"])}
                 </span>
               </div>

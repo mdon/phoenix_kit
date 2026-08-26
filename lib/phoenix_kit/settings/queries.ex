@@ -179,7 +179,18 @@ defmodule PhoenixKit.Settings.Queries do
       {:ok, %Setting{}}
   """
   def insert_setting(changeset) do
-    repo().insert(changeset)
+    # `log: false` — this table stores EVERY setting's value in the same two
+    # generic columns, secrets included (`oauth_google_client_secret`,
+    # `aws_secret_access_key`, ...). Ecto's own SQL debug logger inspects the
+    # raw bound params with no notion of the schema (no `redact:` field
+    # option reaches it — verified against `Ecto.Adapters.SQL`'s logger,
+    # which only ever sees a flat positional param list), so a debug-level
+    # logger would otherwise print the literal secret on every write
+    # (`UPDATE ... SET value = $1 ... [<secret>, ...]`) regardless of key.
+    # Found doing exactly that on a live install. Silencing the query log
+    # for this one table is cheaper and safer than trying to enumerate
+    # which keys are sensitive here too.
+    repo().insert(changeset, log: false)
   end
 
   @doc """
@@ -192,7 +203,8 @@ defmodule PhoenixKit.Settings.Queries do
       {:ok, %Setting{}}
   """
   def update_setting(changeset) do
-    repo().update(changeset)
+    # See `insert_setting/1` above for why.
+    repo().update(changeset, log: false)
   end
 
   # Transaction

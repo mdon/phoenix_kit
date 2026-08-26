@@ -51,7 +51,13 @@ defmodule PhoenixKit.Migrations.Postgres.V167 do
   renaming the index would silently stop that constraint translating and turn
   a friendly validation error back into a raw `Postgrex.Error`.
 
-  No `CONCURRENTLY`: a fresh install runs this chain inside a transaction, and
+  No `CONCURRENTLY`. It is *available* — the wrappers this chain runs under are
+  generated with `@disable_ddl_transaction true` (see
+  `PhoenixKit.Migrations.Postgres`, the note above the advisory lock), so there
+  is no enclosing transaction to forbid it — but a failed build leaves an
+  **INVALID** index that the `IF NOT EXISTS` above then matches by name, turning
+  the next run into a silent no-op over an unenforced constraint. V168's
+  "Why not CONCURRENTLY" carries the full reasoning;
   `v163_uuid_integrity_test.exs` asserts the chain never emits it.
 
   `phoenix_kit_post_groups` is deliberately untouched — its schema declares a

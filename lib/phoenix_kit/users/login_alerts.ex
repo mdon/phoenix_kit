@@ -119,7 +119,7 @@ defmodule PhoenixKit.Users.LoginAlerts do
         recipient_uuid: user.uuid,
         type: "security",
         icon: "hero-shield-exclamation",
-        link: Routes.path("/dashboard/settings"),
+        link: Routes.user_settings_path(),
         text: new_login_text(attrs)
       })
     end

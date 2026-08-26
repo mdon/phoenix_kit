@@ -1413,6 +1413,65 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // TimezoneDetector Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Reports the browser's IANA zone (e.g. "Europe/Warsaw") and its current UTC
+  // offset to the LiveView, so the profile can say what it detected and warn
+  // when the saved zone disagrees.
+  //
+  // Sends on mount and whenever the timezone select changes, as a plain
+  // pushEvent rather than by injecting hidden inputs into the form the way the
+  // original did — the form is owned by LiveView, and appending fields to it
+  // from outside is how this stopped working the first time.
+  //
+  // Usage in LiveView template:
+  //   <div id="..." phx-hook="TimezoneDetector" phx-target={@myself}>
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.TimezoneDetector = {
+    mounted() {
+      this.report();
+      this.el.addEventListener("change", () => this.report());
+    },
+
+    report() {
+      var name = null;
+      try {
+        name = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      } catch (_) {
+        // Very old browsers have no Intl timezone support. Nothing to report;
+        // the server simply never shows a detected zone.
+      }
+      if (!name) return;
+
+      var payload = {
+        name: name,
+        offset: String(-new Date().getTimezoneOffset() / 60)
+      };
+      var event = this.el.dataset.event || "phoenix_kit:timezone_detected";
+
+      // Two mount points, one hook. In the layout there is no phx-target and
+      // the event goes to the LiveView, where an attached handle_event hook
+      // picks it up for every page. On the profile it targets the settings
+      // LiveComponent, which owns the picker and the warning.
+      // Wrapped: a hook can mount during a reconnect or a back/forward cache
+      // restore, before the channel this pushes over is joined. Reporting a
+      // timezone is a courtesy — it must never surface as an error to someone
+      // who was only navigating.
+      try {
+        if (this.el.getAttribute("phx-target")) {
+          this.pushEventTo(this.el, event, payload);
+        } else {
+          this.pushEvent(event, payload);
+        }
+      } catch (_) {
+        // Next mount reports again.
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // ResetSelect Hook
   // ---------------------------------------------------------------------------
   //

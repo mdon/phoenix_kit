@@ -1,0 +1,25 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  socket={@socket}
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title={@page_title}
+  current_path={@url_path}
+  project_title={@project_title}
+  current_locale={assigns[:current_locale]}
+>
+  <div class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+    <.user_dashboard_header
+      title={@page_title}
+      subtitle={gettext("Manage your account settings and preferences")}
+    />
+
+    <.live_component
+      module={PhoenixKitWeb.Live.Components.UserSettings}
+      id="profile-user-settings"
+      user={@phoenix_kit_current_user}
+      current_session_token={@current_session_token}
+      email_success_message={@email_success_message}
+      email_error_message={@email_error_message}
+    />
+  </div>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>

@@ -21,6 +21,27 @@ defmodule PhoenixKit.Migrations.LockTableGuardTest do
   The rule is checked per `DO $$ … $$` block, because that is the scope a
   PL/pgSQL `IF EXISTS (…) THEN` guard actually covers — a guard in a *different*
   `execute/1` call in the same file protects nothing.
+
+  ## Second rule: `LOCK TABLE` must be inside a `DO $$` block at all
+
+  The guard test above only ever looked *inside* `DO $$ … $$` bodies, so a
+  `LOCK TABLE` emitted as its own top-level statement was invisible to it —
+  which is exactly how V180 shipped one. The wrappers this chain runs under
+  carry `@disable_ddl_transaction true`, so every top-level `execute/1`
+  auto-commits on its own: a bare `LOCK TABLE` has no transaction to hold and
+  Postgres rejects it outright with `25P01 no_active_sql_transaction`, taking
+  down every install migrating through that version. Even had it been accepted,
+  the lock would have released at its own commit — before the statements it
+  exists to protect.
+
+  Nothing in the suite reproduces that condition: `PhoenixKit.Migration.Runner`
+  (which `ensure_current/2` and therefore `test_helper.exs` run through) has no
+  `@disable_ddl_transaction`, so the chain runs inside a transaction in tests
+  and a bare `LOCK TABLE` passes. This static check is the coverage.
+
+  Known blind spot, shared by both rules: only SQL written literally inside an
+  `execute("…")` / `execute(\"""…\""")` call is scanned. SQL assembled in a
+  variable and then executed is not seen.
   """
 
   use ExUnit.Case, async: true
@@ -67,6 +88,59 @@ defmodule PhoenixKit.Migrations.LockTableGuardTest do
     this repo's AGENTS.md.
     """
   end
+
+  test "no LOCK TABLE is emitted as a bare top-level statement" do
+    offenders =
+      @migrations_dir
+      |> Path.join("v*.ex")
+      |> Path.wildcard()
+      |> Enum.sort()
+      |> Enum.flat_map(&bare_locks/1)
+
+    assert offenders == [], """
+    Found #{length(offenders)} `LOCK TABLE` statement(s) executed outside a \
+    `DO $$ … $$` block:
+
+    #{Enum.map_join(offenders, "\n", fn {file, table} -> "  - #{file}: #{table}" end)}
+
+    Migration wrappers are generated with `@disable_ddl_transaction true`, so \
+    each top-level `execute/1` auto-commits on its own. A bare `LOCK TABLE` \
+    therefore raises `25P01 no_active_sql_transaction` and breaks every install \
+    migrating through that version — and even if it did not, the lock would be \
+    released at its own commit, before the statements it exists to protect.
+
+    Put the lock and everything it guards in ONE `DO $$` block (V170's
+    `phoenix_kit_notifications_dedupe_unseen_idx`, V180's
+    `enforce_one_current_supplier_per_pair/2`): the block runs as a single
+    statement, so it gets its own implicit transaction.
+    """
+  end
+
+  # SQL written literally inside `execute/1`. One captured string == one
+  # statement Ecto sends, so "is this lock inside a DO block" reduces to
+  # "does this statement start with DO $$".
+  @heredoc_execute ~r/execute\(\s*"""\n(.*?)\n\s*"""\s*\)/s
+  @inline_execute ~r/execute\(\s*"([^"\n]*)"\s*\)/
+
+  defp bare_locks(path) do
+    file = Path.basename(path)
+    source = File.read!(path)
+
+    [@heredoc_execute, @inline_execute]
+    |> Enum.flat_map(&Regex.scan(&1, source, capture: :all_but_first))
+    |> Enum.map(fn [sql] -> sql end)
+    |> Enum.reject(&(&1 |> String.trim_leading() |> String.starts_with?("DO $$")))
+    |> Enum.flat_map(fn sql ->
+      sql
+      |> strip_sql_comments()
+      |> then(&Regex.scan(@lock_pattern, &1, capture: :all_but_first))
+      |> Enum.map(fn [table] -> {file, table} end)
+    end)
+    |> Enum.uniq()
+  end
+
+  # A `-- …` line mentioning LOCK TABLE is prose, not a statement.
+  defp strip_sql_comments(sql), do: Regex.replace(~r/--[^\n]*/, sql, "")
 
   defp unguarded_locks(path) do
     file = Path.basename(path)

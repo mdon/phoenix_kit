@@ -6,7 +6,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
   This one function is different: it already takes `repo` as an explicit
   argument, so it is a real unit-test seam without starting anything.
 
-  RED without this round's fix (gate round 2, finding 1): a genuinely
+  RED without this fix: a genuinely
   failing probe — forced here with a deliberately malformed identifier,
   which the un-parameterized SQL this function builds turns into a real
   Postgres syntax error — used to collapse into `:absent` (the same shape as
@@ -34,7 +34,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
                )
     end
 
-    test "a real, validated constraint still reads :validated (unchanged by this round)" do
+    test "a real, validated constraint still reads :validated" do
       assert :validated =
                DoctorTask.fk_validation_state(
                  Repo,
@@ -57,12 +57,121 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
     end
   end
 
-  describe "check_orphaned_fk_refs/1 — I082: the result names its own scope" do
-    test "a clean run still says how many of the hardcoded list were checked, not just PASS" do
-      assert {:pass, message} = DoctorTask.check_orphaned_fk_refs("public")
-      assert message =~ "Declared-FK scan: 4/4"
-      assert message =~ "does NOT"
-      assert message =~ "not a guarantee of overall"
+  describe "discover_fk_constraints/2 — full catalog coverage, not the old 4-pair list" do
+    test "finds real FK constraints on the live schema, well beyond the old hardcoded four" do
+      assert {:ok, {constraints, _skipped_multi}} =
+               DoctorTask.discover_fk_constraints(Repo, "public")
+
+      # The old check knew exactly 4 pairs. A real installed schema has far
+      # more single-column FKs than that — this is the whole point of this
+      # check: if this ever regresses back toward "4", the fix regressed with it.
+      assert length(constraints) > 10
+
+      assert Enum.any?(constraints, fn c ->
+               c.table == "phoenix_kit_users_tokens" and c.fk_col == "user_uuid" and
+                 c.ref_table == "phoenix_kit_users"
+             end)
+
+      # convalidated must be a real boolean read from the catalog, not a
+      # placeholder — a stray `nil` here would silently break the
+      # `if convalidated, do: :validated, else: {:not_valid, ...}` branch in
+      # `probe_fk/4` for every single discovered constraint.
+      assert Enum.all?(constraints, fn c -> is_boolean(c.convalidated) end)
+    end
+
+    test "a genuinely wrong schema name returns zero constraints, not an error — the caller decides that's zero coverage" do
+      assert {:ok, {[], []}} =
+               DoctorTask.discover_fk_constraints(Repo, "definitely_not_a_real_schema_12345")
+    end
+
+    test "a malformed schema name (real catalog-access fault) returns {:error, _}, never a silent empty list" do
+      # The unescaped quote breaks the query's own string literal boundary —
+      # a genuine Postgres syntax error, the same class of fault that can
+      # otherwise collapse into "nothing found" and print PASS.
+      assert {:error, %Postgrex.Error{}} = DoctorTask.discover_fk_constraints(Repo, "x'y")
+    end
+  end
+
+  describe "fk_probe_cost_context/4 — measure, don't guess" do
+    test "a real, indexed FK column reports an actual row estimate and 'indexed', not a guess" do
+      context =
+        DoctorTask.fk_probe_cost_context(Repo, "phoenix_kit_users_tokens", "user_uuid", "public")
+
+      assert context =~ "phoenix_kit_users_tokens.user_uuid:"
+      assert context =~ "indexed"
+      refute context =~ "table likely large"
+    end
+
+    test "a nonexistent table/column pair degrades to 'row count unknown', never raises" do
+      context =
+        DoctorTask.fk_probe_cost_context(
+          Repo,
+          "definitely_not_a_real_table_12345",
+          "col",
+          "public"
+        )
+
+      assert context =~ "row count unknown"
+    end
+  end
+
+  describe "check_orphaned_fk_refs/1 — destructive: a genuinely orphaned row outside the old 4 pairs is caught" do
+    # The widened check reads every single-column FK straight from
+    # `pg_constraint` (`discover_fk_constraints/2`), not just the four pairs
+    # the old check knew by name. This proves that widened coverage actually
+    # catches something the old four-pair list could never have seen:
+    # `phoenix_kit_user_oauth_providers.user_uuid -> phoenix_kit_users.uuid`
+    # (constraint `fk_user_oauth_providers_user_uuid`) was never one of the
+    # old four (`phoenix_kit_users_tokens`, `phoenix_kit_user_role_assignments`,
+    # `phoenix_kit_admin_notes`, `phoenix_kit_email_events`).
+    #
+    # A plain `INSERT` can't produce this row — the constraint rejects a
+    # nonexistent `user_uuid` immediately, and it isn't `DEFERRABLE`, so
+    # `SET CONSTRAINTS ALL DEFERRED` doesn't buy anything either. Disabling
+    # the child table's own triggers for one statement is the standard
+    # Postgres idiom for planting a row that could otherwise only arise from
+    # the same kind of bypass in production — a bulk load with constraints
+    # off, a restore from an inconsistent backup, direct catalog surgery —
+    # which is exactly the class of real corruption this check exists to
+    # catch, not a contrived test-only shape.
+    test "an orphaned phoenix_kit_user_oauth_providers.user_uuid row is reported, not read as clean" do
+      Repo.query!("ALTER TABLE phoenix_kit_user_oauth_providers DISABLE TRIGGER ALL")
+
+      Repo.query!("""
+      INSERT INTO phoenix_kit_user_oauth_providers
+        (user_uuid, provider, provider_uid, inserted_at, updated_at)
+      VALUES (gen_random_uuid(), 'google', 'destructive-orphan-test', now(), now())
+      """)
+
+      Repo.query!("ALTER TABLE phoenix_kit_user_oauth_providers ENABLE TRIGGER ALL")
+
+      assert {:fail, message} = DoctorTask.check_orphaned_fk_refs("public")
+      assert message =~ "phoenix_kit_user_oauth_providers.user_uuid"
+    end
+  end
+
+  describe "probe timeout shape — the real error shape, not an assumed one" do
+    test "a real slow query through Repo.query/3 with a short timeout is always classified as a time limit, whichever shape it takes" do
+      # `probe_fk/4` calls `repo.query(sql, [], timeout: N)` — through the
+      # DBConnection pool/ownership layer, not a raw `Postgrex.query/3`
+      # against a bare connection. Verified live: this does NOT reliably
+      # return `%Postgrex.Error{postgres: %{code: :query_canceled}}}`.
+      # Depending on whether Postgres acknowledges the cancel before
+      # DBConnection's own grace period expires, the identical timeout can
+      # instead surface as `%DBConnection.ConnectionError{reason: :closed}}`
+      # — reproduced on this same suite with both shapes occurring across
+      # different runs. A test pinned to one specific shape would be flaky
+      # by construction, so this asserts the real property `probe_fk/4`
+      # needs: WHICHEVER shape a live timeout takes, `fk_probe_failure_reason/1`
+      # recognizes it as "time limit exceeded", not a raw driver error.
+      assert {:error, reason} = Repo.query("SELECT pg_sleep(3)", [], log: false, timeout: 200)
+
+      assert match?(%Postgrex.Error{postgres: %{code: :query_canceled}}, reason) or
+               match?(%DBConnection.ConnectionError{reason: :closed}, reason),
+             "expected a query_canceled Postgrex.Error or a closed DBConnection.ConnectionError, " <>
+               "got: #{inspect(reason)}"
+
+      assert DoctorTask.fk_probe_failure_reason(reason) =~ "time limit exceeded"
     end
   end
 

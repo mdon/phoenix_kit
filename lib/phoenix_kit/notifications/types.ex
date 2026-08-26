@@ -186,7 +186,7 @@ defmodule PhoenixKit.Notifications.Types do
       %{
         key: "account",
         label: "Account",
-        description: "Password, email, role and profile changes made to your account",
+        description: "Password, email, role, timezone and profile changes made to your account",
         actions: [
           "user.password_changed",
           "user.password_reset",
@@ -196,6 +196,7 @@ defmodule PhoenixKit.Notifications.Types do
           "user.status_changed",
           "user.roles_updated",
           "user.profile_updated",
+          "user.timezone_mismatch",
           "user.avatar_changed",
           "user.note_created",
           "user.note_deleted"

@@ -86,6 +86,11 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # Etcher palette, so it survives prev/next remounts, reopen, and reload.
   @viewer_info_collapsed_key "media_viewer_info_collapsed"
 
+  # Canvas extent used when the file row recorded no dimensions. Sets only
+  # the coordinate space — the image itself keeps its true ratio, see
+  # put_natural_size/2.
+  @placeholder_canvas_edge 1000
+
   # ──────────────────────────────────────────────────────────────
   # Lifecycle
   # ──────────────────────────────────────────────────────────────
@@ -868,22 +873,56 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     src = file.urls["medium"] || file.urls["large"] || file.urls["original"]
 
     if is_binary(src) and src != "" do
-      width = Map.get(file, :width) || 1000
-      height = Map.get(file, :height) || 1000
+      {width, height} = canvas_dimensions(file)
 
       Fresco.Canvas.new(width: width, height: height)
-      |> Fresco.Canvas.add_image(%{
-        src: src,
-        x: 0,
-        y: 0,
-        width: width,
-        natural_width: width,
-        natural_height: height
-      })
+      |> Fresco.Canvas.add_image(put_natural_size(%{src: src, x: 0, y: 0, width: width}, file))
       |> Fresco.Canvas.put_extension("etcher", %{
         "version" => "1",
         "annotations" => Enum.map(annotations, &etcher_annotation_for_wire/1)
       })
+    end
+  end
+
+  # `width`/`height` are nullable on the files row — dimension extraction
+  # can fail, and rows written before it existed never had them. The canvas
+  # needs *some* extent, so an unknown size falls back to a neutral square.
+  defp canvas_dimensions(file) do
+    case pixel_dimensions(file) do
+      {width, height} -> {width, height}
+      nil -> {@placeholder_canvas_edge, @placeholder_canvas_edge}
+    end
+  end
+
+  # Declare the intrinsic size ONLY when the row actually recorded it.
+  #
+  # Fresco turns `natural_width`/`natural_height` into an explicit
+  # `height: Npx` on a bare <img> that carries no object-fit, so whatever
+  # ratio we hand it is imposed on the bitmap. Feeding it a guess therefore
+  # does not degrade gracefully — it visibly distorts the photo. The old
+  # code defaulted both to 1000, so any file missing its dimensions was
+  # forced into a 1:1 box and every non-square image opened squashed along
+  # its longer axis.
+  #
+  # Omitting the pair instead leaves the <img> with a width and an auto
+  # height, so the browser derives the ratio from the decoded bitmap, which
+  # is right by construction. Fresco re-fits on the image's load event, so
+  # the frame that paints before the bitmap arrives resolves itself.
+  # Nothing changes for a file whose dimensions ARE known: Fresco computes
+  # `width * natural_height / natural_width`, which is exactly `height`.
+  defp put_natural_size(image, file) do
+    case pixel_dimensions(file) do
+      {width, height} -> Map.merge(image, %{natural_width: width, natural_height: height})
+      nil -> image
+    end
+  end
+
+  defp pixel_dimensions(file) do
+    width = Map.get(file, :width)
+    height = Map.get(file, :height)
+
+    if is_number(width) and is_number(height) and width > 0 and height > 0 do
+      {width, height}
     end
   end
 

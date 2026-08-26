@@ -2,6 +2,7 @@ defmodule PhoenixKit.Settings.TimezoneLabelTest do
   use PhoenixKit.DataCase, async: true
 
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.TimeZone
 
   describe "timezone_options/0" do
     test "is a non-empty list of {label, value} tuples covering the known offsets" do
@@ -14,9 +15,17 @@ defmodule PhoenixKit.Settings.TimezoneLabelTest do
                &match?({label, value} when is_binary(label) and is_binary(value), &1)
              )
 
-      assert {"UTC+0 (London, Dublin, Lisbon, Accra)", "0"} in options
-      assert {"UTC-5 (New York, Toronto, Bogotá, Lima)", "-5"} in options
-      assert {"UTC+5:30 (Mumbai, Delhi, Kolkata, Colombo)", "5.5"} in options
+      # Identifiers, not offsets. The offset in the label is computed now, so
+      # only the id half is safe to pin — the other half moves with DST, which
+      # is the entire point of the change.
+      ids = Enum.map(options, fn {_label, id} -> id end)
+
+      # Values are group representatives, not every zone — the list is 59 rows,
+      # not 447. Warsaw is reachable through the row it belongs to.
+      assert Enum.all?(ids, &TimeZone.representative?/1)
+      assert TimeZone.group_for("Europe/Warsaw") in ids
+      assert TimeZone.group_for("America/New_York") in ids
+      assert TimeZone.group_for("Asia/Kolkata") in ids
     end
 
     test "is the same list get_setting_options/0 uses for \"time_zone\"" do
@@ -25,26 +34,37 @@ defmodule PhoenixKit.Settings.TimezoneLabelTest do
   end
 
   describe "get_timezone_label/1 (cheap path)" do
-    test "resolves a positive offset" do
-      assert Settings.get_timezone_label("8") == "UTC+8 (Beijing, Singapore, Hong Kong, Perth)"
+    test "resolves an identifier, with its offset as of now" do
+      assert Settings.get_timezone_label("Europe/Warsaw") =~ "Europe/Warsaw"
+      assert Settings.get_timezone_label("Europe/Warsaw") =~ ~r/\(UTC[+-]\d\d:\d\d\)/
+    end
+
+    test "resolves a legacy positive offset" do
+      assert Settings.get_timezone_label("8") == "UTC+08:00"
     end
 
     test "resolves a negative offset" do
-      assert Settings.get_timezone_label("-5") == "UTC-5 (New York, Toronto, Bogotá, Lima)"
+      assert Settings.get_timezone_label("-5") == "UTC-05:00"
     end
 
     test "resolves the zero offset" do
-      assert Settings.get_timezone_label("0") == "UTC+0 (London, Dublin, Lisbon, Accra)"
+      assert Settings.get_timezone_label("0") == "UTC+00:00"
     end
 
-    test "resolves a half-hour offset" do
-      assert Settings.get_timezone_label("5.5") ==
-               "UTC+5:30 (Mumbai, Delhi, Kolkata, Colombo)"
+    test "resolves a legacy half-hour offset" do
+      assert Settings.get_timezone_label("5.5") == "UTC+05:30"
     end
 
-    test "falls back to a bare UTC label for a value not in the list" do
-      assert Settings.get_timezone_label("99") == "UTC99"
-      assert Settings.get_timezone_label("-3.25") == "UTC-3.25"
+    test "returns an unrecognisable value verbatim rather than dressing it up" do
+      # "UTC99" read like a real zone. Echoing the stored value makes a bad
+      # row look like what it is.
+      assert Settings.get_timezone_label("99") == "99"
+      assert Settings.get_timezone_label("nonsense") == "nonsense"
+    end
+
+    test "blank means the system default" do
+      assert Settings.get_timezone_label(nil) == "Use System Default"
+      assert Settings.get_timezone_label("") == "Use System Default"
     end
 
     test "agrees with the existing get_timezone_label/2 for every listed offset" do
@@ -63,7 +83,7 @@ defmodule PhoenixKit.Settings.TimezoneLabelTest do
     # PhoenixKitWeb.Live.Modules.Maintenance.Settings, among others).
     # get_timezone_label/1 must never touch the database at all.
     test "never issues a repo query — proves it doesn't build the full options map" do
-      query_count = count_repo_queries(fn -> Settings.get_timezone_label("3") end)
+      query_count = count_repo_queries(fn -> Settings.get_timezone_label("Europe/Warsaw") end)
 
       assert query_count == 0
     end
@@ -71,16 +91,16 @@ defmodule PhoenixKit.Settings.TimezoneLabelTest do
 
   describe "get_timezone_label/2 (backward-compatible path)" do
     test "still resolves against a real get_setting_options/0 map" do
-      assert Settings.get_timezone_label("0", Settings.get_setting_options()) ==
-               "UTC+0 (London, Dublin, Lisbon, Accra)"
+      assert Settings.get_timezone_label("Europe/Warsaw", Settings.get_setting_options()) =~
+               "Europe/Warsaw"
     end
 
     test "falls back to timezone_options/0 if the given map has no \"time_zone\" key" do
-      assert Settings.get_timezone_label("0", %{}) == "UTC+0 (London, Dublin, Lisbon, Accra)"
+      assert Settings.get_timezone_label("0", %{}) == "UTC+00:00"
     end
 
-    test "falls back to a bare UTC label for an unknown value" do
-      assert Settings.get_timezone_label("42", Settings.get_setting_options()) == "UTC42"
+    test "returns an unknown value verbatim" do
+      assert Settings.get_timezone_label("42", Settings.get_setting_options()) == "42"
     end
   end
 

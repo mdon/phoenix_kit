@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "2.13.8"
+  @version "2.13.11"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -234,6 +234,13 @@ defmodule PhoenixKit.MixProject do
       {:tigris_regions, "~> 0.1.0"},
 
       # Utilities
+      # Timezone database. Elixir ships UTC-only, so DateTime.shift_zone/3 needs
+      # one of these to resolve an IANA id like "Europe/Warsaw". `tz` over
+      # `tzdata` on purpose: tzdata fetches releases over HTTP at runtime by
+      # default, and a library should not hand every host app an outbound call
+      # it did not ask for. `tz` compiles the data in; it refreshes when this
+      # dep is upgraded.
+      {:tz, "~> 0.28"},
       {:jason, "~> 1.4"},
       {:yaml_elixir, "~> 2.9"},
       {:nimble_csv, "~> 1.2"},

@@ -12275,7 +12275,7 @@ msgstr "Nõuandev tase: igaüks võib saata suvalise User-Agenti, seega valetav 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "Allowed"
-msgstr ""
+msgstr "Lubatud"
 
 #: lib/phoenix_kit/integrations/providers.ex:697
 #, elixir-autogen, elixir-format
@@ -12300,7 +12300,7 @@ msgstr "Bedrocki API võti"
 #: lib/phoenix_kit/integrations/validators.ex:222
 #, elixir-autogen, elixir-format
 msgid "Bedrock error %{status}"
-msgstr ""
+msgstr "Bedrock viga %{status}"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:306
 #, elixir-autogen, elixir-format
@@ -12310,7 +12310,7 @@ msgstr "Blokeeri rakenduse tasemel"
 #: lib/phoenix_kit_web/live/modules.html.heex:451
 #, elixir-autogen, elixir-format
 msgid "Blocked groups"
-msgstr ""
+msgstr "Blokeeritud rühmad"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:103
 #, elixir-autogen, elixir-format
@@ -12330,12 +12330,12 @@ msgstr "Halda, kuidas otsingumootorid ja AI-botid seda saiti roomavad ja indekse
 #: lib/phoenix_kit/integrations/providers.ex:740
 #, elixir-autogen, elixir-format
 msgid "Copy the key (shown once, `ABSK…`) and paste it into the form above"
-msgstr ""
+msgstr "Kopeeri võti (kuvatakse ainult üks kord, `ABSK…`) ja kleebi see ülalolevasse vormi"
 
 #: lib/phoenix_kit/integrations/providers.ex:816
 #, elixir-autogen, elixir-format
 msgid "Copy the token and paste it into the form above"
-msgstr ""
+msgstr "Kopeeri token ja kleebi see ülalolevasse vormi"
 
 #: lib/phoenix_kit/integrations/validators.ex:226
 #, elixir-autogen, elixir-format
@@ -12350,18 +12350,18 @@ msgstr "Päringut ei õnnestunud saata."
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:136
 #, elixir-autogen, elixir-format
 msgid "Could not update the mailbox setting"
-msgstr ""
+msgstr "Postkasti seadet ei saanud uuendada"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:35
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Crawler Settings"
-msgstr ""
+msgstr "Roomajate seaded"
 
 #: lib/modules/sitemap/web/settings.html.heex:679
 #, elixir-autogen, elixir-format
 msgid "Crawler settings"
-msgstr ""
+msgstr "Roomajate seaded"
 
 #: lib/phoenix_kit_web/live/modules.html.heex:406
 #, elixir-autogen, elixir-format
@@ -12371,17 +12371,17 @@ msgstr "Roomajad"
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:55
 #, elixir-autogen, elixir-format
 msgid "Crawlers module is disabled. Enable it from the Modules page to configure settings."
-msgstr ""
+msgstr "Roomajate moodul on keelatud. Luba see moodulite lehel, et seadeid seadistada."
 
 #: lib/phoenix_kit/integrations/providers.ex:732
 #, elixir-autogen, elixir-format
 msgid "Create a Bedrock API key"
-msgstr ""
+msgstr "Loo Bedrocki API võti"
 
 #: lib/phoenix_kit/integrations/providers.ex:808
 #, elixir-autogen, elixir-format
 msgid "Create a token"
-msgstr ""
+msgstr "Loo token"
 
 #: lib/phoenix_kit/integrations/providers.ex:872
 #, elixir-autogen, elixir-format
@@ -12406,7 +12406,7 @@ msgstr "Toimeta arenduskirjad kausta /dev/mailbox"
 #: lib/phoenix_kit/integrations/providers.ex:748
 #, elixir-autogen, elixir-format
 msgid "Enable model access"
-msgstr ""
+msgstr "Luba juurdepääs mudelitele"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:304
 #, elixir-autogen, elixir-format
@@ -12421,12 +12421,12 @@ msgstr "Jõustamine"
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:161
 #, elixir-autogen, elixir-format
 msgid "Failed to update crawler settings"
-msgstr ""
+msgstr "Roomajate seadete uuendamine ebaõnnestus"
 
 #: lib/phoenix_kit/integrations/providers.ex:781
 #, elixir-autogen, elixir-format
 msgid "GitHub"
-msgstr ""
+msgstr "GitHub"
 
 #: lib/phoenix_kit/integrations/providers.ex:783
 #, elixir-autogen, elixir-format
@@ -12526,7 +12526,7 @@ msgstr "Pole enam saadaval"
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:191
 #, elixir-autogen, elixir-format
 msgid "No priv/static/robots.txt found. Without one, crawlers assume everything is allowed — and any groups you blocked above are not being told."
-msgstr ""
+msgstr "Faili priv/static/robots.txt ei leitud. Ilma selleta eeldavad otsingurobotid, et kõik on lubatud — ja ülalpool blokeeritud rühmadest neile ei anta teada."
 
 #: lib/phoenix_kit_web/components/core/mention_text.ex:152
 #, elixir-autogen, elixir-format
@@ -12586,7 +12586,7 @@ msgstr "Repositooriumide ligipääs: **Public repositories (read-only)** — ava
 #: lib/phoenix_kit/mentions/live.ex:227
 #, elixir-autogen, elixir-format
 msgid "Request access"
-msgstr ""
+msgstr "Taotle ligipääsu"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:259
 #, elixir-autogen, elixir-format
@@ -12601,12 +12601,12 @@ msgstr "Saada päring"
 #: lib/phoenix_kit/mentions/live.ex:254
 #, elixir-autogen, elixir-format
 msgid "Sending…"
-msgstr ""
+msgstr "Saatmine…"
 
 #: lib/phoenix_kit/mentions/live.ex:76
 #, elixir-autogen, elixir-format
 msgid "Sign in to request access."
-msgstr ""
+msgstr "Logi sisse, et ligipääsu taotleda."
 
 #: lib/phoenix_kit/integrations/providers.ex:761
 #, elixir-autogen, elixir-format
@@ -12658,7 +12658,7 @@ msgstr "Kasuta seda AI moodulist"
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "Verification"
-msgstr ""
+msgstr "Kinnitamine"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:145
 #, elixir-autogen, elixir-format
@@ -12899,7 +12899,7 @@ msgstr "Praegust krüpteerimise olekut ei õnnestunud sellel haldusleheküljel k
 #: lib/phoenix_kit_web/live/settings/authorization.ex:247
 #, elixir-autogen, elixir-format
 msgid "A secret is already configured — leave blank to keep the current value"
-msgstr ""
+msgstr "Saladus on juba seadistatud — jäta tühjaks, et praegust väärtust säilitada."
 
 #: lib/phoenix_kit_web/users/oauth.ex:365
 #: lib/phoenix_kit_web/users/session.ex:245
@@ -12965,7 +12965,7 @@ msgstr "Konteksti vahetamine ei ole lubatud"
 #: lib/phoenix_kit/integrations/validators.ex:740
 #, elixir-autogen, elixir-format
 msgid "Could not reach the storage endpoint"
-msgstr ""
+msgstr "Salvestuse lõpp-punktiga ei saanud ühendust"
 
 #: lib/phoenix_kit_web/users/session.ex:365
 #, elixir-autogen, elixir-format
@@ -12980,17 +12980,17 @@ msgstr "Konto vahetamine ebaõnnestus."
 #: lib/phoenix_kit/integrations/validators.ex:721
 #, elixir-autogen, elixir-format
 msgid "Credentials are valid, but not authorized to list buckets"
-msgstr ""
+msgstr "Mandaadid on kehtivad, kuid puudub õigus bucketite loetlemiseks"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Exempt"
-msgstr ""
+msgstr "Erand"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:86
 #, elixir-autogen, elixir-format
 msgid "Follows noindex"
-msgstr ""
+msgstr "Järgib noindexit"
 
 #: lib/phoenix_kit_web/users/magic_link.ex:120
 #, elixir-autogen, elixir-format
@@ -13040,7 +13040,7 @@ msgstr "Vigane registreerimislink. Palun taotlege uus link."
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "Keep publishing the sitemap's real URLs even while noindex is on, so the feed can be verified without exposing the site to indexing. The noindex meta tag above is unaffected either way."
-msgstr ""
+msgstr "Jätka saidikaardi tegelike URL-ide avaldamist ka siis, kui noindex on sees, nii et voogu saab kontrollida ilma saiti indekseerimisele avamata. Ülalolev noindex-metasilt jääb mõlemal juhul mõjutamata."
 
 #: lib/phoenix_kit_web/users/session.ex:104
 #, elixir-autogen, elixir-format
@@ -13088,7 +13088,7 @@ msgstr "Mitme konto vahel lülitumine ei ole saadaval."
 #: lib/phoenix_kit/integrations/providers.ex:950
 #, elixir-autogen, elixir-format
 msgid "Not every S3-compatible provider needs one — leave blank if the endpoint doesn't require it."
-msgstr ""
+msgstr "Mitte iga S3-ühilduv teenusepakkuja ei vaja seda — jäta tühjaks, kui lõpp-punkt seda ei nõua."
 
 #: lib/phoenix_kit_web/users/oauth.ex:119
 #, elixir-autogen, elixir-format
@@ -13108,7 +13108,7 @@ msgstr "OAuth teenusepakkuja '%{provider}' ei ole seadistatud. Palun võtke ühe
 #: lib/phoenix_kit/integrations/providers.ex:913
 #, elixir-autogen, elixir-format
 msgid "Object Storage (S3-compatible)"
-msgstr ""
+msgstr "Objektisalvestus (S3-ühilduv)"
 
 #: lib/phoenix_kit_web/users/reset_password.ex:41
 #, elixir-autogen, elixir-format
@@ -13146,7 +13146,7 @@ msgstr "Registreerimislink saadetud! Vaata oma e-posti."
 #: lib/phoenix_kit/integrations/providers.ex:962
 #, elixir-autogen, elixir-format
 msgid "Required for Cloudflare R2, Backblaze B2, Tigris, and self-hosted S3-compatible storage. Leave blank for AWS S3."
-msgstr ""
+msgstr "Vajalik Cloudflare R2, Backblaze B2, Tigrise ja oma S3-ühilduva salvestuse jaoks. Jäta AWS S3 puhul tühjaks."
 
 #: lib/phoenix_kit_web/users/reset_password.ex:59
 #, elixir-autogen, elixir-format
@@ -13156,12 +13156,12 @@ msgstr "Parooli lähtestamise link on kehtetu või aegunud."
 #: lib/phoenix_kit/integrations/providers.ex:915
 #, elixir-autogen, elixir-format
 msgid "S3-compatible object storage — AWS S3, Cloudflare R2, Backblaze B2, Tigris, or a self-hosted endpoint"
-msgstr ""
+msgstr "S3-ühilduv objektisalvestus — AWS S3, Cloudflare R2, Backblaze B2, Tigris või oma lõpp-punkt"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Sitemap Exemption"
-msgstr ""
+msgstr "Saidikaardi erand"
 
 #: lib/phoenix_kit_web/users/magic_link_registration_request.ex:144
 #, elixir-autogen, elixir-format
@@ -13171,12 +13171,12 @@ msgstr "Midagi läks valesti"
 #: lib/phoenix_kit/integrations/validators.ex:735
 #, elixir-autogen, elixir-format
 msgid "Storage error: %{code}"
-msgstr ""
+msgstr "Salvestuse viga: %{code}"
 
 #: lib/phoenix_kit/integrations/validators.ex:729
 #, elixir-autogen, elixir-format
 msgid "Storage service is busy — try again in a moment"
-msgstr ""
+msgstr "Salvestusteenus on hõivatud — proovige hetke pärast uuesti"
 
 #: lib/phoenix_kit_web/users/magic_link_verify.ex:56
 #, elixir-autogen, elixir-format

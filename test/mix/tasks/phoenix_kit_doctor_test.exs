@@ -335,7 +335,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     end
   end
 
-  describe "classify_fk_check/5 — a probe failure must never read as clean (gate round 2, finding 1)" do
+  describe "classify_fk_check/5 — a probe failure must never read as clean" do
     test "a failed orphan-count probe lands in the probe_failed bucket, not the clean path" do
       acc = {[], [], []}
 
@@ -364,7 +364,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
                )
     end
 
-    test "a failed validation-state probe preserves the measured orphan count (round 2 gate, minor finding 1)" do
+    test "a failed validation-state probe preserves the measured orphan count" do
       # The orphan-count probe already succeeded here — 5 real orphaned rows
       # were measured — and it is only the SEPARATE validation-state probe
       # that failed. Before this fix, the measured count was discarded and
@@ -400,7 +400,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
                )
     end
 
-    test "known-good inputs still classify the same as before this round's fix" do
+    test "known-good inputs still classify the same as before this fix" do
       assert {[{"t", "c", "r", 3, :validate}], [], []} =
                DoctorTask.classify_fk_check(
                  "t",
@@ -426,68 +426,200 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     end
   end
 
-  describe "report_orphaned_fk_refs/3 — RED without this round's fix: a probe failure must not be PASS" do
-    test "probe_failed alone (no orphans, no known-unvalidated) is :fail, never :pass" do
+  describe "classify_fk_check/5 — a VALID constraint with real orphans must not be discarded" do
+    test "count > 0 with :validated lands in orphaned as :existing_orphan, not the clean catch-all" do
+      # Before this clause, `{:ok, count > 0}` paired with `:validated` fell
+      # through to the generic catch-all (`{orph, nv, pf} -> acc`, no change)
+      # — the exact shape a destructive orphan on an already-VALID constraint
+      # takes, since `probe_fk/4` only ever produces `:validated` or
+      # `{:not_valid, _}`, never `:absent`. Confirmed live against a real
+      # orphan planted via disabled triggers in
+      # `phoenix_kit_doctor_orphaned_fk_test.exs`.
+      assert {[{"t", "c", "r", 3, :existing_orphan}], [], []} =
+               DoctorTask.classify_fk_check("t", "c", "r", {:ok, 3}, :validated, {[], [], []})
+    end
+
+    test "an existing_orphan does not clobber unrelated entries already in the accumulator" do
+      acc =
+        {[{"other", "col", "ref2", 1, :create}], [{"t2", "c2", "r2"}],
+         [{"t3", "c3", "r3", :orphan_count, "x", nil}]}
+
+      assert {[{"t", "c", "r", 5, :existing_orphan}, {"other", "col", "ref2", 1, :create}],
+              [{"t2", "c2", "r2"}], [{"t3", "c3", "r3", :orphan_count, "x", nil}]} =
+               DoctorTask.classify_fk_check("t", "c", "r", {:ok, 5}, :validated, acc)
+    end
+  end
+
+  describe "report_orphaned_fk_refs/4 — a probe failure is its own tier, not the same red as real orphans" do
+    test "probe_failed alone (no orphans, no known-unvalidated) is :warn, not :fail — a third tier" do
+      # Before this fix this was :fail — the same red as confirmed broken
+      # data, even though nothing is actually broken. Coverage being
+      # incomplete is "investigate why", not "fix corrupted data"; only real
+      # orphans (below) still earn the red.
       probe_failed = [
         {"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", :orphan_count, "boom", nil}
       ]
 
-      assert {:fail, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed)
-      assert message =~ "could not check"
-      assert message =~ "not a pass"
+      assert {:warn, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed, 4)
+      assert message =~ "Could not check 1 of 4"
+      assert message =~ "not the same as clean"
       assert message =~ "boom"
     end
 
-    test "a validation-state probe failure reports the measured orphan count, not just 'could not check' (round 2 gate, minor finding 1)" do
+    test "a validation-state probe failure reports the measured orphan count, not just 'could not check'" do
       probe_failed = [
         {"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", :validation_state,
          "no access", 5}
       ]
 
-      assert {:fail, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed)
+      assert {:warn, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed, 1)
       assert message =~ "5 orphaned row"
       assert message =~ "no access"
     end
 
-    test "no findings at all is still :pass — the fix does not make doctor permanently red" do
-      assert {:pass, _} = DoctorTask.report_orphaned_fk_refs([], [], [])
+    test "no findings at all is still :pass, and now names the coverage" do
+      assert {:pass, message} = DoctorTask.report_orphaned_fk_refs([], [], [], 231)
+      assert message =~ "checked 231 of 231"
     end
 
-    test "orphans alone still :fail, unchanged from before this round" do
+    test "orphans alone still :fail — real data damage always wins the color" do
       orphaned = [{"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", 2, :validate}]
 
-      assert {:fail, message} = DoctorTask.report_orphaned_fk_refs(orphaned, [], [])
+      assert {:fail, message} = DoctorTask.report_orphaned_fk_refs(orphaned, [], [], 4)
       assert message =~ "2 orphaned row"
     end
 
-    test "not_validated alone (nothing blocking) is still :warn, unchanged from before this round" do
+    test "orphans found AND a separate probe failure — still :fail, but the coverage gap is still surfaced" do
+      orphaned = [{"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", 2, :validate}]
+
+      probe_failed = [
+        {"other_table", "other_col", "other_ref", :orphan_count, "boom", nil}
+      ]
+
+      assert {:fail, message} = DoctorTask.report_orphaned_fk_refs(orphaned, [], probe_failed, 5)
+      assert message =~ "2 orphaned row"
+      assert message =~ "boom"
+      assert message =~ "checked 4 of 5"
+    end
+
+    test "orphans found AND a composite-only probe exclusion — no re-run suggestion for it" do
+      # A composite FK can never be resolved by re-running the check — only a
+      # manual VALIDATE CONSTRAINT does. Telling the operator to "re-run" here
+      # (the old unconditional text) contradicted the composite FK's own line,
+      # which already says "verify manually".
+      orphaned = [{"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users", 2, :validate}]
+
+      probe_failed = [
+        {"phoenix_kit_order_items", "fk_items_composite", "phoenix_kit_orders", :multi_column, 2,
+         nil}
+      ]
+
+      assert {:fail, message} = DoctorTask.report_orphaned_fk_refs(orphaned, [], probe_failed, 5)
+      assert message =~ "2 orphaned row"
+      refute message =~ "re-run doctor"
+    end
+
+    test "not_validated alone (nothing blocking) is still :warn, and names the coverage" do
       not_validated = [{"phoenix_kit_users_tokens", "user_uuid", "phoenix_kit_users"}]
 
-      assert {:warn, _} = DoctorTask.report_orphaned_fk_refs([], not_validated, [])
+      assert {:warn, message} = DoctorTask.report_orphaned_fk_refs([], not_validated, [], 1)
+      assert message =~ "checked 1 of 1"
+    end
+
+    test "a composite FK renders its constraint name and column count, not a misread 'probe failed'" do
+      # `check_orphaned_fk_refs/1` folds a composite FK into the same
+      # `probe_failed`-shaped list as a real probe failure — this asserts
+      # the render doesn't collapse it into the generic "probe failed"
+      # clause, which would print the constraint name in the fk_col slot
+      # (reads as a column) and claim a probe was attempted when none was.
+      probe_failed = [
+        {"phoenix_kit_order_items", "fk_items_composite", "phoenix_kit_orders", :multi_column, 2,
+         nil}
+      ]
+
+      assert {:warn, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed, 1)
+      assert message =~ "composite FK fk_items_composite (2 columns)"
+      assert message =~ "VALIDATE CONSTRAINT fk_items_composite"
+      refute message =~ "probe failed"
+    end
+
+    test "a composite-only probe exclusion never suggests a re-run — nothing would pass it" do
+      probe_failed = [
+        {"phoenix_kit_order_items", "fk_items_composite", "phoenix_kit_orders", :multi_column, 2,
+         nil}
+      ]
+
+      assert {:warn, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed, 1)
+      refute message =~ "re-run"
+      refute message =~ "Fix DB"
+    end
+
+    test "a real probe failure alongside a composite exclusion still suggests a re-run" do
+      probe_failed = [
+        {"other_table", "other_col", "other_ref", :orphan_count, "boom", nil},
+        {"phoenix_kit_order_items", "fk_items_composite", "phoenix_kit_orders", :multi_column, 2,
+         nil}
+      ]
+
+      assert {:warn, message} = DoctorTask.report_orphaned_fk_refs([], [], probe_failed, 2)
+      assert message =~ "re-run for full coverage"
     end
   end
 
-  describe "orphaned_fk_scope_note/2 — I082: a clean result must not read as full coverage" do
-    test "names how many of the check's own list were actually checked" do
-      note = DoctorTask.orphaned_fk_scope_note(4, 4)
-      assert note =~ "4/4"
+  describe "discover_fk_constraints/2 — source of truth is pg_constraint, not a list in code" do
+    test "a multi-column FK is reported separately from single-column ones, not silently dropped" do
+      # Pure shape check on the split logic doctor's discovery query feeds
+      # into — the actual pg_constraint query itself is exercised against a
+      # real connection in phoenix_kit_doctor_orphaned_fk_test.exs.
+      rows = [
+        ["orders", "users", "fk_orders_user", true, 1, "user_uuid", "uuid"],
+        ["order_items", "orders", "fk_items_composite", false, 2, "order_uuid", "uuid"]
+      ]
+
+      {single, multi} =
+        Enum.split_with(rows, fn [_, _, _, _, col_count, _, _] -> col_count == 1 end)
+
+      assert length(single) == 1
+      assert length(multi) == 1
+      assert [_, _, "fk_items_composite", _, 2, _, _] = hd(multi)
+    end
+  end
+
+  describe "fk_probe_failure_reason/1 — a timed-out probe says so, not a raw Postgres error" do
+    test "a query_canceled Postgrex error becomes a time-limit message" do
+      reason = %Postgrex.Error{postgres: %{code: :query_canceled, message: "canceling statement"}}
+
+      assert DoctorTask.fk_probe_failure_reason(reason) =~ "time limit exceeded"
+      assert DoctorTask.fk_probe_failure_reason(reason) =~ "not checked, not clean"
     end
 
-    test "the count reflects a table that could not be checked, not just the list length" do
-      note = DoctorTask.orphaned_fk_scope_note(3, 4)
-      assert note =~ "3/4"
+    test "a pool-closed DBConnection.ConnectionError becomes a time-limit message too" do
+      # Verified live (not assumed): `repo.query/3` with a `:timeout` — the
+      # exact call `probe_fk/4` makes, through the DBConnection
+      # pool/ownership layer — does not reliably surface as
+      # `%Postgrex.Error{postgres: %{code: :query_canceled}}}`. Depending on
+      # whether Postgres acknowledges the cancel before DBConnection's own
+      # grace period expires, the SAME timeout can instead surface as
+      # DBConnection tearing down the connection itself. Before this fix,
+      # this shape fell through to the generic `reason` clause and printed a
+      # raw "tcp recv: closed" pool message instead of "time limit exceeded".
+      reason = %DBConnection.ConnectionError{reason: :closed, message: "tcp recv: closed"}
+
+      assert DoctorTask.fk_probe_failure_reason(reason) =~ "time limit exceeded"
+      assert DoctorTask.fk_probe_failure_reason(reason) =~ "not checked, not clean"
     end
 
-    test "states plainly that no-FK relations are not covered by this check" do
-      note = DoctorTask.orphaned_fk_scope_note(4, 4)
-      assert note =~ "does NOT"
-      assert note =~ "no foreign key at all"
+    test "a DBConnection.ConnectionError for a different reason passes through unchanged" do
+      # Only `:closed` is treated as a timeout — `:queue_timeout` (the pool
+      # itself has no free connection to hand out) is a different failure and
+      # must not be relabeled as "time limit exceeded".
+      reason = %DBConnection.ConnectionError{reason: :queue_timeout, message: "queue timeout"}
+
+      assert DoctorTask.fk_probe_failure_reason(reason) == reason
     end
 
-    test "states plainly that a clean result here is not an integrity guarantee" do
-      note = DoctorTask.orphaned_fk_scope_note(4, 4)
-      assert note =~ "not a guarantee of overall"
-      assert note =~ "referential integrity"
+    test "any other error reason passes through unchanged" do
+      assert DoctorTask.fk_probe_failure_reason(:some_other_error) == :some_other_error
     end
   end
 end

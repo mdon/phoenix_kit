@@ -223,11 +223,35 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
   should list its default first (that is how the SMTP `security` / `auth` /
   `verify_cert` fields keep their historical behavior on connections created
   before they existed).
+
+  `:password` fields never echo a saved secret back into the markup (D011 —
+  it used to round-trip in plain text on every `Edit` render). Resolution is
+  three-way, in priority order:
+
+    1. `typed_value` present — the operator just typed this (a dry-run Test
+       re-render, `/new` flow) — show it verbatim, unmasked.
+    2. No typed value, `saved_value` present, and the field is `:password` —
+       show an empty input with the same "already configured" placeholder
+       `Authorization` uses for its OAuth secrets (S009, `oauth_secret_placeholder/2`
+       in `authorization.ex`) — same class of leak, same wording, so an
+       operator doesn't see two phrasings of "a secret is already saved" in
+       the same admin. An empty submit for an untouched password field is
+       already read as "keep the existing credential" on the save side
+       (`extract_setup_attrs/2` and its mirror in `MyIntegrationForm`), so
+       this empty render is exactly what that save path expects.
+    3. Otherwise — plain fields, or a `:password` field with nothing saved
+       yet — show `saved_value` as before.
   """
   attr :field, :map, required: true
-  attr :value, :string, default: ""
+  attr :typed_value, :string, default: ""
+  attr :saved_value, :string, default: ""
 
   def setup_field(assigns) do
+    assigns =
+      assigns
+      |> assign(:value, setup_field_value(assigns))
+      |> assign(:placeholder, setup_field_placeholder(assigns))
+
     ~H"""
     <div class="fieldset">
       <label class="label" for={"field-#{@field.key}"}>
@@ -263,7 +287,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
         id={"field-#{@field.key}"}
         class="textarea w-full font-mono text-xs"
         rows="5"
-        placeholder={Map.get(@field, :placeholder) || ""}
+        placeholder={@placeholder}
         required={@field.required}
         autocomplete="off"
       >{@value}</textarea>
@@ -275,7 +299,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
         id={"field-#{@field.key}"}
         value={@value}
         class="input w-full"
-        placeholder={Map.get(@field, :placeholder) || ""}
+        placeholder={@placeholder}
         required={@field.required}
         autocomplete="off"
       />
@@ -288,6 +312,26 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
   end
 
   defp field_type(field), do: Map.get(field, :type) || :text
+
+  defp setup_field_value(%{typed_value: typed, saved_value: saved, field: field}) do
+    cond do
+      typed != "" -> typed
+      field_type(field) == :password and saved != "" -> ""
+      true -> saved
+    end
+  end
+
+  defp setup_field_placeholder(%{typed_value: typed, saved_value: saved, field: field}) do
+    if typed == "" and field_type(field) == :password and saved != "" do
+      # Same string as `Authorization`'s `oauth_secret_placeholder/2` (S009) —
+      # not a call to it, since this core component shouldn't depend on a
+      # LiveView module. The shared string is what matters: one wording for
+      # "a secret is already saved", not two.
+      gettext("A secret is already configured — leave blank to keep the current value")
+    else
+      Map.get(field, :placeholder) || ""
+    end
+  end
 
   @doc """
   Collapsible provider setup instructions (from the provider definition).

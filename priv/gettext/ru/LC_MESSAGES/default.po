@@ -8521,7 +8521,7 @@ msgstr "Доступные поля"
 #: lib/phoenix_kit_web/live/users/users.ex:722
 #, elixir-autogen, elixir-format
 msgid "Cannot deactivate the last system owner"
-msgstr "Невозможно удалить последнего системного владельца"
+msgstr "Невозможно деактивировать последнего системного владельца"
 
 #: lib/phoenix_kit_web/live/users/users.ex:424
 #, elixir-autogen, elixir-format
@@ -8550,7 +8550,7 @@ msgstr "Невозможно изменить свой статус"
 #: lib/phoenix_kit_web/live/users/users.ex:955
 #, elixir-autogen, elixir-format
 msgid "Cannot remove the last system owner"
-msgstr "Невозможно удалить последнего системного владельца"
+msgstr "Невозможно снять роль владельца с последнего системного владельца"
 
 #: lib/phoenix_kit_web/live/users/users.html.heex:359
 #, elixir-autogen, elixir-format
@@ -12295,7 +12295,7 @@ msgid "Access requested."
 msgstr "Запрос на доступ отправлен."
 
 #: lib/phoenix_kit/integrations/validators.ex:99
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account %{id}"
 msgstr "Аккаунт %{id}"
 
@@ -12305,9 +12305,9 @@ msgid "Advisory-grade: anything can send any User-Agent, so a scraper that lies 
 msgstr "Рекомендательный уровень: любой может отправить произвольный User-Agent, поэтому лгущий парсер пройдёт. Реальное принуждение — на вашем CDN или обратном прокси; здесь ловятся честные, но неосведомлённые. Боты, определяемые только по токенам robots.txt (Google-Extended, Applebot-Extended), обходят сайт под своим основным user agent и здесь никогда не совпадают, поэтому блокировка обучения ИИ не может вернуть 403 для Googlebot."
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:124
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Allowed"
-msgstr "Все"
+msgstr "Разрешён"
 
 #: lib/phoenix_kit/integrations/providers.ex:697
 #, elixir-autogen, elixir-format
@@ -12330,9 +12330,9 @@ msgid "Bedrock API key"
 msgstr "API-ключ Bedrock"
 
 #: lib/phoenix_kit/integrations/validators.ex:222
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Bedrock error %{status}"
-msgstr "Ошибка Brevo %{status}"
+msgstr "Ошибка Bedrock %{status}"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:306
 #, elixir-autogen, elixir-format
@@ -12340,9 +12340,9 @@ msgid "Block at the application"
 msgstr "Блокировать на уровне приложения"
 
 #: lib/phoenix_kit_web/live/modules.html.heex:451
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Blocked groups"
-msgstr "Заблокирован"
+msgstr "Заблокированные группы"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:103
 #, elixir-autogen, elixir-format
@@ -12360,17 +12360,17 @@ msgid "Control how search engines and AI bots crawl and index this site"
 msgstr "Управление тем, как поисковые системы и ИИ-боты сканируют и индексируют этот сайт"
 
 #: lib/phoenix_kit/integrations/providers.ex:740
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Copy the key (shown once, `ABSK…`) and paste it into the form above"
 msgstr "Скопируйте ключ (показывается один раз) и вставьте его в форму выше"
 
 #: lib/phoenix_kit/integrations/providers.ex:816
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Copy the token and paste it into the form above"
-msgstr "Скопируйте ключ и вставьте его в форму выше"
+msgstr "Скопируйте токен и вставьте его в форму выше"
 
 #: lib/phoenix_kit/integrations/validators.ex:226
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not reach Bedrock in %{region}"
 msgstr "Не удалось связаться с Bedrock в регионе %{region}"
 
@@ -12380,20 +12380,20 @@ msgid "Could not send that request."
 msgstr "Не удалось отправить запрос."
 
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:136
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not update the mailbox setting"
-msgstr "Не удалось обновить интеграцию отправки по умолчанию"
+msgstr "Не удалось обновить настройку почтового ящика"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:35
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:5
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Crawler Settings"
-msgstr "Настройки юридической информации"
+msgstr "Настройки сканеров"
 
 #: lib/modules/sitemap/web/settings.html.heex:679
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Crawler settings"
-msgstr "Инструкции для поисковых роботов"
+msgstr "Настройки сканеров"
 
 #: lib/phoenix_kit_web/live/modules.html.heex:406
 #, elixir-autogen, elixir-format
@@ -12401,19 +12401,19 @@ msgid "Crawlers"
 msgstr "Сканеры"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:55
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Crawlers module is disabled. Enable it from the Modules page to configure settings."
-msgstr "Модуль SEO отключён. Включите его на странице Модулей для настройки."
+msgstr "Модуль Сканеры отключён. Включите его на странице Модулей для настройки."
 
 #: lib/phoenix_kit/integrations/providers.ex:732
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Create a Bedrock API key"
-msgstr "Создайте API-ключ"
+msgstr "Создайте API-ключ Bedrock"
 
 #: lib/phoenix_kit/integrations/providers.ex:808
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Create a token"
-msgstr "Создать роль"
+msgstr "Создайте токен"
 
 #: lib/phoenix_kit/integrations/providers.ex:872
 #, elixir-autogen, elixir-format
@@ -12436,9 +12436,9 @@ msgid "Deliver development mail to /dev/mailbox"
 msgstr "Доставлять письма разработки в /dev/mailbox"
 
 #: lib/phoenix_kit/integrations/providers.ex:748
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Enable model access"
-msgstr "Включите модуль для доступа к настройкам"
+msgstr "Включите доступ к моделям"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:304
 #, elixir-autogen, elixir-format
@@ -12451,14 +12451,14 @@ msgstr "Принуждение"
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:132
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:148
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:161
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to update crawler settings"
 msgstr "Не удалось обновить настройку"
 
 #: lib/phoenix_kit/integrations/providers.ex:781
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "GitHub"
-msgstr "Вход через GitHub"
+msgstr "GitHub"
 
 #: lib/phoenix_kit/integrations/providers.ex:783
 #, elixir-autogen, elixir-format
@@ -12556,9 +12556,9 @@ msgid "No longer available"
 msgstr "Больше недоступно"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:191
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "No priv/static/robots.txt found. Without one, crawlers assume everything is allowed — and any groups you blocked above are not being told."
-msgstr "Файл priv/static/robots.txt не найден. Без него поисковые роботы считают, что разрешено всё — обычно это не проблема, но они не узнают, где находится карта сайта."
+msgstr "Файл priv/static/robots.txt не найден. Без него поисковые роботы считают, что разрешено всё — и о заблокированных вами выше группах они не узнают."
 
 #: lib/phoenix_kit_web/components/core/mention_text.ex:152
 #, elixir-autogen, elixir-format
@@ -12616,9 +12616,9 @@ msgid "Repository access: **Public repositories (read-only)** — no extra permi
 msgstr "Доступ к репозиториям: **Public repositories (read-only)** — для статистики публичной организации дополнительные права не нужны"
 
 #: lib/phoenix_kit/mentions/live.ex:227
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Request access"
-msgstr "Запрошено"
+msgstr "Запросить доступ"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:259
 #, elixir-autogen, elixir-format
@@ -12631,14 +12631,14 @@ msgid "Send request"
 msgstr "Отправить запрос"
 
 #: lib/phoenix_kit/mentions/live.ex:254
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sending…"
-msgstr "Ожидает"
+msgstr "Отправка…"
 
 #: lib/phoenix_kit/mentions/live.ex:76
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sign in to request access."
-msgstr "Войти под пользователем"
+msgstr "Войдите, чтобы запросить доступ."
 
 #: lib/phoenix_kit/integrations/providers.ex:761
 #, elixir-autogen, elixir-format
@@ -12656,7 +12656,7 @@ msgid "The mailbox is off: outgoing mail is written to the server log instead."
 msgstr "Почтовый ящик выключен: исходящие письма вместо этого пишутся в лог сервера."
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:205
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "The noindex toggle and robots.txt are separate mechanisms: noindex is a per-page meta tag that tells crawlers not to index what they fetched, while robots.txt tells them what not to fetch at all. A staging site usually wants both."
 msgstr "Переключатель noindex выше и robots.txt — разные механизмы: noindex это метатег на странице, который говорит роботам не индексировать загруженное, а robots.txt говорит им, что вообще не нужно загружать. Тестовому сайту обычно нужны оба."
 
@@ -12688,9 +12688,9 @@ msgid "Use it from the AI module"
 msgstr "Используйте его из модуля AI"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:257
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Verification"
-msgstr "Уведомления"
+msgstr "Подтверждение"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:145
 #, elixir-autogen, elixir-format
@@ -12748,7 +12748,7 @@ msgid "management API: %{services}"
 msgstr "API управления: %{services}"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:195
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "priv/static/robots.txt exists but has no Sitemap: line. Paste the file above so crawlers are told where to look."
 msgstr "Файл priv/static/robots.txt существует, но в нём нет строки Sitemap:. Добавьте строку выше, чтобы роботы знали, где искать."
 
@@ -13350,22 +13350,22 @@ msgstr ""
 #: lib/phoenix_kit_web/users/magic_link.ex:130
 #, elixir-autogen, elixir-format
 msgid "Failed to send magic link. Please try again."
-msgstr "Не удалось отключить провайдер. Попробуйте ещё раз."
+msgstr "Не удалось отправить Magic Link. Попробуйте ещё раз."
 
 #: lib/phoenix_kit_web/users/magic_link_registration_request.ex:143
 #, elixir-autogen, elixir-format
 msgid "Failed to send registration link. Please try again."
-msgstr "Не удалось отклонить приглашение. Попробуйте ещё раз."
+msgstr "Не удалось отправить ссылку для регистрации. Попробуйте ещё раз."
 
 #: lib/phoenix_kit_web/users/magic_link.ex:98
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid email address"
-msgstr "Введите название"
+msgstr "Введите корректный адрес электронной почты"
 
 #: lib/phoenix_kit_web/users/magic_link_registration_request.ex:109
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid email address."
-msgstr "Введите название"
+msgstr "Введите корректный адрес электронной почты."
 
 #: lib/phoenix_kit_web/users/magic_link_registration_request.ex:117
 #, elixir-autogen, elixir-format

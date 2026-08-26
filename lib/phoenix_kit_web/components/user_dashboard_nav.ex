@@ -138,8 +138,8 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
 
           <li :if={:settings in @authenticated_links}>
             <.link
-              navigate={PhoenixKit.Utils.Routes.path("/dashboard/settings", locale: @current_locale)}
-              class={"flex items-center gap-3" <> if(active_path?(assigns[:current_path], "/dashboard/settings"), do: " bg-primary text-primary-content", else: "")}
+              navigate={PhoenixKit.Utils.Routes.user_settings_path(locale: @current_locale)}
+              class={"flex items-center gap-3" <> if(active_path?(assigns[:current_path], "/profile/settings"), do: " bg-primary text-primary-content", else: "")}
             >
               <.icon name="hero-cog-6-tooth" class="w-4 h-4" />
               <span>{gettext("Settings")}</span>

@@ -57,6 +57,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.Referrals
   alias PhoenixKit.Users.ScopeNotifier
+  alias PhoenixKit.Users.TimeZoneAlert
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.SessionFingerprint
   alias PhoenixKit.Utils.UserAgent
@@ -1172,6 +1173,11 @@ defmodule PhoenixKitWeb.Users.Auth do
   Generic across embeddable feature modules — `phoenix_kit_projects` is
   the reference consumer.
   """
+  # Deliberately does NOT attach the timezone `handle_event` hook. This runs
+  # outside the LiveView lifecycle (that is the point of an embed), so
+  # `attach_hook/4` has no lifecycle to attach to. The layout gates the
+  # detector on the flag the attachment sets, so an embedded page simply does
+  # not render it rather than pushing an event nothing can handle.
   @spec assign_embedded_current_user(LiveView.Socket.t(), map()) :: LiveView.Socket.t()
   def assign_embedded_current_user(socket, session) when is_map(session) do
     if is_nil(socket.assigns[:phoenix_kit_current_scope]) do
@@ -1215,6 +1221,7 @@ defmodule PhoenixKitWeb.Users.Auth do
       socket
       |> mount_phoenix_kit_current_user(session)
       |> maybe_attach_scope_refresh_hook()
+      |> maybe_attach_timezone_hook()
 
     user = socket.assigns.phoenix_kit_current_user
     {multi_session_allowed?, multi_session_accounts} = MultiSession.scope_fields(session)
@@ -1274,6 +1281,29 @@ defmodule PhoenixKitWeb.Users.Auth do
     |> attach_hook(:phoenix_kit_scope_refresh, :handle_info, &handle_scope_refresh/2)
     |> Phoenix.Component.assign(:phoenix_kit_scope_hook_attached?, true)
   end
+
+  # The TimezoneDetector hook reports the browser's zone from the layout, so it
+  # fires on whatever page the person happens to open. Handling it here — once,
+  # on the shared authenticated mount path — means no individual LiveView needs
+  # to know the event exists.
+  defp maybe_attach_timezone_hook(
+         %{assigns: %{phoenix_kit_timezone_hook_attached?: true}} = socket
+       ),
+       do: socket
+
+  defp maybe_attach_timezone_hook(socket) do
+    socket
+    |> attach_hook(:phoenix_kit_timezone_detected, :handle_event, &handle_timezone_detected/3)
+    |> Phoenix.Component.assign(:phoenix_kit_timezone_hook_attached?, true)
+  end
+
+  defp handle_timezone_detected("phoenix_kit:timezone_detected", %{"name" => name}, socket)
+       when is_binary(name) do
+    TimeZoneAlert.observe(socket.assigns[:phoenix_kit_current_user], name)
+    {:halt, socket}
+  end
+
+  defp handle_timezone_detected(_event, _params, socket), do: {:cont, socket}
 
   defp maybe_manage_scope_subscription(socket, %User{uuid: user_uuid})
        when is_binary(user_uuid) do

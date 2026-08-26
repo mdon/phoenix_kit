@@ -68,7 +68,7 @@ defmodule PhoenixKit.Config.UserDashboardCategories do
           tabs: [
             %{
               title: "Settings",
-              url: "/dashboard/settings",
+              url: "/profile/settings",
               icon: "hero-cog-6-tooth"
             }
           ]

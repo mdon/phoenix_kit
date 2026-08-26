@@ -1,3 +1,142 @@
+## 2.13.11 - 2026-08-25
+
+Every install migrating through V180 crashed outright — a bare
+`LOCK TABLE` statement outside a transaction block, `25P01
+no_active_sql_transaction`. Not only apps using the catalogue module: the
+table V180 locks is created unconditionally by the chain (V149, and the
+V135 floor), so **every** release from 2.13.4 through 2.13.10 is affected.
+Upgrade straight to this one.
+
+### Fixed
+
+- **V180 (`enforce_one_current_supplier_per_pair/2`) crashed every
+  install with `Postgrex.Error: LOCK TABLE can only be used in
+  transaction blocks`.** Migration wrappers carry `@disable_ddl_transaction
+  true` (core convention — every generated wrapper does this so a long DDL
+  statement isn't held inside one giant transaction), so each top-level
+  `execute/1` auto-commits on its own and a bare `LOCK TABLE` has no
+  transaction to hold. Even accepted, the lock would have released at its
+  own commit — before the `UPDATE` and `CREATE UNIQUE INDEX` it existed to
+  protect, leaving the concurrent-writer race it was written to close still
+  open. Lock, dedupe `UPDATE`, and `CREATE UNIQUE INDEX` now run inside one
+  `DO $$` block, same shape V170 already used for
+  `phoenix_kit_notifications_dedupe_unseen_idx`. Recovery for an install
+  that hit the crash: block 1 of V180 (the manufacturer/supplier
+  federation columns) already committed, and the version comment still
+  reads `'179'`, so a plain re-run (`mix ecto.migrate` /
+  `mix phoenix_kit.update`) completes it — every block-1 statement is
+  `IF NOT EXISTS`-guarded.
+- **V180's dedupe wrote `updated_at` off by the session's UTC offset.**
+  `now() AT TIME ZONE 'utc'` is the right idiom for core's `timestamp
+  without time zone` columns, but `phoenix_kit_cat_item_supplier_info`
+  declares `TIMESTAMPTZ` (V149): the expression yields a UTC wall clock
+  that the assignment then re-reads in the session time zone, so a host on
+  `America/New_York` stamped the closed rows four hours in the future. Bare
+  `now()` now, as V170's dedupe already used. Only rows this migration
+  closes were affected.
+
+### Added
+
+- **Static chain check: no `LOCK TABLE` outside a `DO $$` block.**
+  `lock_table_guard_test.exs` already asserted that every `LOCK TABLE` sits
+  behind a table-existence guard, but it only ever looked *inside* `DO $$`
+  bodies — a bare top-level one was invisible to it, which is how V180
+  shipped. Nothing else in the suite can catch this class either:
+  `PhoenixKit.Migration.Runner` carries no `@disable_ddl_transaction`, so
+  `ensure_current/2` (and therefore `test_helper.exs`, and the full-chain
+  prefix test) runs migrations inside a transaction — the one condition
+  under which a bare `LOCK TABLE` succeeds.
+
+## 2.13.10 - 2026-08-25
+
+A live install's default (dev-parity) logging wrote OAuth/AWS setting
+secrets straight into `/var/log/elixir.log` in cleartext, on two independent
+paths — closes the second half of the DOM leak fixed in 2.13.9. Doctor's
+orphaned-FK check also grows from 4 hardcoded relationships to every foreign
+key constraint on the schema (#751).
+
+### Fixed
+
+- **Saving a Settings/Authorization credential (`oauth_google_client_secret`
+  and friends) logged the real value.** `Phoenix.LiveView.Logger` writes a
+  `"HANDLE EVENT ... Parameters: ..."` line for every `handle_event`, filtered
+  only by `config :phoenix, :filter_parameters` (Phoenix's own default:
+  `password`/`token`) — a value the settings form's field names
+  (`oauth_google_client_secret`, `billing_stripe_secret_key`, ...) never
+  matched. `PhoenixKit.boot/1` now installs `secret`/`api_key` into that list
+  itself (merging into `{:keep, [...]}` mode; replacing an already-compiled
+  filter with a fresh one carrying Phoenix's own default plus these — found,
+  by a destructive test, that Phoenix pre-compiles this on every boot
+  regardless of host config, so "leave an already-configured filter alone"
+  meant "leave every real host alone"). Also merges in every
+  `PhoenixKit.Settings.restricted_setting_keys/0` entry by exact name —
+  `aws_access_key_id` names neither half of a keypair by the generic
+  words above, so it only gets caught by being on that list. No host
+  action required — every app already calls `boot/1` via
+  `phoenix_kit.install`/`update`.
+- **Every write to `phoenix_kit_settings` was logged with its raw value at
+  Ecto's default `:debug` SQL log level** (`UPDATE ... SET value = $1 ...
+  [<secret>, ...]`) — the table stores every setting's value in the same
+  generic columns, secret or not, and Ecto's SQL logger has no notion of the
+  schema (no `redact:` field option reaches it). `Queries.insert_setting/1`
+  and `update_setting/1` now pass `log: false`.
+- **`mix phoenix_kit.doctor`'s orphaned-FK check covered 4 of 70+ foreign key
+  relationships** — a hardcoded 4-pair list, checked and printed `PASS`, which
+  read as "everything is fine" but only ever meant "the four pairs we
+  happened to list are fine". Two real orphans on a live site sat outside
+  those four and were invisible the whole time. Now discovers every
+  single-column FK constraint straight from `pg_constraint` (self-maintaining
+  — a future migration's constraint is covered without touching this file),
+  reports coverage explicitly in every result line ("checked N of M foreign
+  key constraints" — zero coverage can never read as `PASS` again, whatever
+  caused it), classifies orphans behind an already-`VALID` constraint
+  (previously silently discarded), gives a per-constraint probe a 5s time
+  budget so one huge table can't hang the whole run, and gives a
+  probe-failure-only result its own `:warn` tier instead of the same `:fail`
+  red as confirmed data damage. Multi-column FKs are enumerated but not
+  probed (reported as "not supported by this check, verify manually").
+
+## 2.13.9 - 2026-08-24
+
+Timezones move from a bare offset to full IANA identifiers, so DST is
+tracked instead of frozen at whatever the account's offset was when it was
+set; saved integration secrets stop round-tripping into the setup form;
+Estonian and Russian translations get another pass (#748, #749, #750).
+
+### Added
+
+- **`phoenix_kit_users.user_timezone` now holds IANA identifiers**
+  (`Europe/Helsinki`) instead of a bare offset (`"2"`), so a summer-set
+  timezone no longer reads an hour behind once winter DST kicks in.
+  `PhoenixKit.Utils.TimeZone` still reads existing offset rows as fixed
+  offsets — nothing is migrated in place, only the column widens
+  (V181). New `/profile/settings` page for setting it (#750).
+
+### Fixed
+
+- **The "you haven't set a timezone" banner fired for almost every signed-in
+  user.** It compared the account's blank preference against the site
+  default using identifier-only equality, but a fresh/unmigrated install's
+  site default is the legacy offset `"0"`, which can never match an IANA id.
+  Added `TimeZone.effectively_same?/2`, which compares effective UTC offsets
+  when either side is a legacy offset (#750, post-merge review).
+- **A hand-edited `user_settings_path` override could resolve to
+  `/users/log-out`**, turning a "Settings" link into a silent sign-out.
+  `Routes.user_settings_path/1` now runs the override through the same
+  `usable_candidate?/1` guard as `main_page_path/0` (post-merge review).
+- Media viewer forced a 1:1 aspect ratio regardless of the actual image;
+  settings page content could overflow its container (#750).
+- **Saved integration secrets (API keys, bot tokens) were decrypted and
+  rendered straight into the setup form's `value=` attribute on every edit.**
+  The field now renders empty with an "already configured" placeholder
+  instead of the credential; submitting it blank still keeps the existing
+  secret rather than wiping it (#748).
+
+### i18n
+
+- Estonian translation gaps filled; a batch of Russian strings that were
+  fuzzy-matched onto the wrong English source corrected (#749).
+
 ## 2.13.8 - 2026-08-24
 
 Authentication and session flash messages now go through gettext, so a
