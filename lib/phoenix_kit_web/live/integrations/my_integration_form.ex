@@ -122,8 +122,9 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
         :ok -> {:info, gettext("Connection works")}
         {:ok, note} -> {:info, note}
         # Neither a pass nor a failure — this provider has no way to check a
-        # connection at all, so nothing ran. :info, not :error — nothing failed.
-        :unverified -> {:info, gettext("Not tested — this provider has no connection check")}
+        # connection at all, so nothing ran. :warning, not :info/:error —
+        # matches the system form's tone (both are wrong in different ways).
+        :unverified -> {:warning, gettext("Not tested — this provider has no connection check")}
         {:error, reason} -> {:error, reason}
       end
 
@@ -249,7 +250,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
       case result do
         :ok -> {:info, gettext("Connection works")}
         {:ok, note} -> {:info, note}
-        :unverified -> {:info, gettext("Not tested — this provider has no connection check")}
+        :unverified -> {:warning, gettext("Not tested — this provider has no connection check")}
         {:error, reason} -> {:error, reason}
       end
 

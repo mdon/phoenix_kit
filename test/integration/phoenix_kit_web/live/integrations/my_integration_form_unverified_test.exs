@@ -92,8 +92,9 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormUnverifiedTest do
 
       assert html =~ "Not tested — this provider has no connection check"
       refute html =~ "Connection works"
-      # "Test failed" would only appear via {:error, _} — assert the flash
-      # kind isn't the error styling this provider must not trigger.
+      # The tone matters as much as the text: :warning, not the green
+      # :info a real success gets or the red :error a real failure gets.
+      assert html =~ "alert-warning"
       refute html =~ "alert-error"
     end
   end
@@ -127,6 +128,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormUnverifiedTest do
 
       assert html =~ "Not tested — this provider has no connection check"
       refute html =~ "Connection works"
+      assert html =~ "alert-warning"
       refute html =~ "alert-error"
 
       {:ok, data} = PhoenixKit.Integrations.get_integration(uuid)

@@ -73,8 +73,11 @@ defmodule PhoenixKit.Integrations.Events do
   end
 
   @doc "Broadcast that an integration's health check completed."
-  @spec broadcast_validated(String.t(), :ok | {:error, term()}, owner()) ::
-          :ok
+  @spec broadcast_validated(
+          String.t(),
+          :ok | {:ok, String.t()} | :unverified | {:error, term()},
+          owner()
+        ) :: :ok
   def broadcast_validated(provider_key, status, owner \\ :system) do
     broadcast(owner, {:integration_validated, provider_key, status})
   end
