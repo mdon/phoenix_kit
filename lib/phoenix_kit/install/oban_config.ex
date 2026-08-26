@@ -31,9 +31,18 @@ if Code.ensure_loaded?(Igniter) do
     @dialyzer {:nowarn_function, ensure_lifeline_plugin: 2}
     @dialyzer {:nowarn_function, maybe_raise_lifeline_rescue_after: 1}
     @dialyzer {:nowarn_function, add_cron_plugin_to_plugins: 2}
+    @dialyzer {:nowarn_function, queue_manual_notice: 3}
+    @dialyzer {:nowarn_function, lifeline_manual_notice: 1}
+    @dialyzer {:nowarn_function, scheduled_posts_job_manual_notice: 0}
+    @dialyzer {:nowarn_function, worker_entries_manual_notice: 2}
+    @dialyzer {:nowarn_function, digest_entries_manual_notice: 2}
+    @dialyzer {:nowarn_function, cron_plugin_manual_notice: 1}
+    @dialyzer {:nowarn_function, pruner_manual_notice: 0}
+    @dialyzer {:nowarn_function, apply_pruner_max_age: 2}
 
     alias Igniter.Libs.Phoenix
     alias Igniter.Project.Application
+    alias PhoenixKit.Install.ConfigVerify
     alias PhoenixKit.Install.IgniterHelpers
 
     # Lifeline rescues purely by elapsed time, with no check that the node
@@ -439,16 +448,54 @@ if Code.ensure_loaded?(Igniter) do
           updated_queues =
             queues_open <> add_queue_entry(queues_content, indent <> "  ", entry) <> queues_close
 
-          String.replace(content, full_match, updated_queues, global: false)
+          candidate = String.replace(content, full_match, updated_queues, global: false)
+          queue_atom = String.to_atom(queue)
+
+          case ConfigVerify.verify_or_rollback(
+                 content,
+                 candidate,
+                 &keyword_list_has_key?(&1, :queues, queue_atom, limit)
+               ) do
+            {:ok, result} ->
+              result
+
+            {:rolled_back, original, _reason} ->
+              queue_manual_notice(app_name, queue, limit)
+              original
+          end
 
         nil ->
-          Mix.shell().error(
-            "  ⚠️  Could not parse queues block for :#{app_name} - skipping #{queue} queue update"
-          )
-
-          Mix.shell().error("     Please manually add: #{queue}: #{limit}")
+          queue_manual_notice(app_name, queue, limit)
           content
       end
+    end
+
+    defp queue_manual_notice(app_name, queue, limit) do
+      Mix.shell().error(
+        "  ⚠️  Could not safely add #{queue} to the queues block for :#{app_name} " <>
+          "(not found, or the insertion would have produced invalid or misplaced config)"
+      )
+
+      Mix.shell().error("     Please manually add: #{queue}: #{limit}")
+    end
+
+    # True if `ast` has a `root_key: [...]` list containing `{key, value}` or
+    # `{key, [limit: value]}` — the two shapes Oban accepts for a queue entry,
+    # and the shared check behind confirming a splice into any flat
+    # `key: value`-style keyword list (queues here) actually landed.
+    defp keyword_list_has_key?(ast, root_key, key, value) do
+      ConfigVerify.keyword_list_satisfies?(ast, root_key, fn list ->
+        Enum.any?(list, fn
+          {^key, ^value} ->
+            true
+
+          {^key, kw} when is_list(kw) ->
+            ConfigVerify.keyword_get(kw, :limit) == {:ok, value}
+
+          _ ->
+            false
+        end)
+      end)
     end
 
     # The entry goes after the last line carrying code, not at the end of the
@@ -489,7 +536,13 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     # Ensure Pruner has max_age configured for 30-day retention
-    defp ensure_pruner_max_age(content, _app_name) do
+    # I103: exposed (not `defp`) and `@doc false`, same reason as
+    # `ensure_lifeline_plugin/2` above — a real unit-test seam for the
+    # verify-and-rollback behavior against plain content strings, without an
+    # Igniter/Rewrite context (this is only otherwise reachable through the
+    # full `update_existing_oban_config/3` pipeline).
+    @doc false
+    def ensure_pruner_max_age(content, _app_name) do
       # Check if max_age is already configured
       if Regex.match?(~r/Oban\.Plugins\.Pruner.*max_age:/s, content) do
         Mix.shell().info("  ℹ️  Pruner max_age already configured")
@@ -500,27 +553,69 @@ if Code.ensure_loaded?(Igniter) do
           Mix.shell().info("  ➕ Adding max_age to Oban.Plugins.Pruner...")
 
           # Replace bare Pruner with tuple form including max_age
-          Regex.replace(
-            ~r/Oban\.Plugins\.Pruner(\s*)(,|\])/,
-            content,
-            "{Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30}\\1\\2  # Keep jobs for 30 days"
-          )
+          candidate =
+            Regex.replace(
+              ~r/Oban\.Plugins\.Pruner(\s*)(,|\])/,
+              content,
+              "{Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30}\\1\\2  # Keep jobs for 30 days"
+            )
+
+          apply_pruner_max_age(content, candidate)
         else
           # Check for tuple form without max_age: {Oban.Plugins.Pruner}
           if Regex.match?(~r/\{Oban\.Plugins\.Pruner\}/, content) do
             Mix.shell().info("  ➕ Adding max_age to {Oban.Plugins.Pruner}...")
 
-            String.replace(
-              content,
-              "{Oban.Plugins.Pruner}",
-              "{Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30}  # Keep jobs for 30 days"
-            )
+            candidate =
+              String.replace(
+                content,
+                "{Oban.Plugins.Pruner}",
+                "{Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30}  # Keep jobs for 30 days"
+              )
+
+            apply_pruner_max_age(content, candidate)
           else
             Mix.shell().info("  ℹ️  Pruner configuration not found or already has options")
             content
           end
         end
       end
+    end
+
+    defp apply_pruner_max_age(content, candidate) do
+      case ConfigVerify.verify_or_rollback(content, candidate, &pruner_has_max_age?/1) do
+        {:ok, result} ->
+          result
+
+        {:rolled_back, original, _reason} ->
+          pruner_manual_notice()
+          original
+      end
+    end
+
+    defp pruner_manual_notice do
+      Mix.shell().error(
+        "  ⚠️  Could not safely add max_age to Oban.Plugins.Pruner " <>
+          "(the insertion would have produced invalid or misplaced config) - please add it manually:"
+      )
+
+      Mix.shell().error("     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 30}")
+    end
+
+    defp pruner_has_max_age?(ast) do
+      ConfigVerify.ast_contains?(ast, fn node ->
+        case ConfigVerify.tuple_elements(node) do
+          nil ->
+            false
+
+          elements ->
+            Enum.any?(elements, &ConfigVerify.alias_matches?(&1, Oban.Plugins.Pruner)) and
+              Enum.any?(elements, fn
+                kw when is_list(kw) -> match?({:ok, _}, ConfigVerify.keyword_get(kw, :max_age))
+                _ -> false
+              end)
+        end
+      end)
     end
 
     @doc """
@@ -589,19 +684,44 @@ if Code.ensure_loaded?(Igniter) do
               end
 
             updated_plugins = plugins_open <> plugins_content <> lifeline_plugin <> plugins_close
+            candidate = String.replace(content, full_match, updated_plugins, global: false)
 
-            String.replace(content, full_match, updated_plugins, global: false)
+            case ConfigVerify.verify_or_rollback(
+                   content,
+                   candidate,
+                   &plugins_contains_module?(&1, Oban.Plugins.Lifeline)
+                 ) do
+              {:ok, result} ->
+                result
+
+              {:rolled_back, original, _reason} ->
+                lifeline_manual_notice(app_name)
+                original
+            end
 
           nil ->
-            Mix.shell().error(
-              "  ⚠️  Could not parse plugins block for :#{app_name} - skipping Lifeline plugin update"
-            )
-
-            Mix.shell().error("     Please manually add: #{lifeline_entry()}")
-
+            lifeline_manual_notice(app_name)
             content
         end
       end
+    end
+
+    defp lifeline_manual_notice(app_name) do
+      Mix.shell().error(
+        "  ⚠️  Could not safely add Lifeline to the plugins block for :#{app_name} " <>
+          "(not found, or the insertion would have produced invalid or misplaced config)"
+      )
+
+      Mix.shell().error("     Please manually add: #{lifeline_entry()}")
+    end
+
+    # True if `ast` has a `plugins: [...]` list somewhere containing a tuple
+    # naming `module` — shared by every splice below that adds a plugin
+    # tuple to an Oban `plugins:` list.
+    defp plugins_contains_module?(ast, module) do
+      ConfigVerify.keyword_list_satisfies?(ast, :plugins, fn list ->
+        Enum.any?(list, &ConfigVerify.tuple_names_module?(&1, module))
+      end)
     end
 
     # Single source for the entry every emit site writes, so the value and the
@@ -633,7 +753,25 @@ if Code.ensure_loaded?(Igniter) do
                 "(at or below PhoenixKit's longest worker timeout, jobs would be rescued mid-flight)"
             )
 
-            String.replace(content, full_match, lifeline_entry(), global: false)
+            candidate = String.replace(content, full_match, lifeline_entry(), global: false)
+
+            case ConfigVerify.verify_or_rollback(
+                   content,
+                   candidate,
+                   &lifeline_rescue_after_raised?/1
+                 ) do
+              {:ok, result} ->
+                result
+
+              {:rolled_back, original, _reason} ->
+                Mix.shell().error(
+                  "  ⚠️  Could not safely raise Lifeline rescue_after " <>
+                    "(the replacement would have produced invalid or misplaced config) - please set it manually:"
+                )
+
+                Mix.shell().error("     #{lifeline_entry()}")
+                original
+            end
           else
             Mix.shell().info("  ℹ️  Lifeline plugin already configured")
             content
@@ -644,6 +782,36 @@ if Code.ensure_loaded?(Igniter) do
           content
       end
     end
+
+    defp lifeline_rescue_after_raised?(ast) do
+      ConfigVerify.ast_contains?(ast, fn node ->
+        case ConfigVerify.tuple_elements(node) do
+          nil -> false
+          elements -> lifeline_tuple_raised?(elements)
+        end
+      end)
+    end
+
+    defp lifeline_tuple_raised?(elements) do
+      Enum.any?(elements, &ConfigVerify.alias_matches?(&1, Oban.Plugins.Lifeline)) and
+        Enum.any?(elements, &rescue_after_raised?/1)
+    end
+
+    # `:timer.minutes(N)` calls the ERLANG `:timer` module — a lowercase
+    # atom, not an Elixir alias — so its AST head is a bare `:timer` atom,
+    # never `{:__aliases__, _, [:timer]}` (that shape is for a capitalized
+    # Elixir module reference).
+    defp rescue_after_raised?(kw) when is_list(kw) do
+      case ConfigVerify.keyword_get(kw, :rescue_after) do
+        {:ok, {{:., _, [:timer, :minutes]}, _, [minutes]}} ->
+          minutes == @lifeline_rescue_after_minutes
+
+        _ ->
+          false
+      end
+    end
+
+    defp rescue_after_raised?(_), do: false
 
     # Any module path ending in the old worker's name. The replacement used to
     # be the literal "PhoenixKit.Posts.Workers.PublishScheduledPostsJob", a
@@ -721,27 +889,98 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     # Add ProcessScheduledJobsWorker to existing crontab
+    #
+    # I103: this is the one crontab-splice function that used a lazy `.*?`
+    # instead of the anchored, same-indentation-close pattern the sibling
+    # functions below use (`add_worker_entries_to_crontab/3`,
+    # `add_digest_entries_to_crontab/3`) — the only one of the six
+    # block-splice helpers in this file with no anchor at all. Reproduced
+    # live: an entirely ordinary comment inside the crontab block containing
+    # a `]` (e.g. "# historically took a priority list, e.g. [1, 2] - removed")
+    # makes the lazy match stop at the comment's own bracket and corrupts the
+    # file into invalid Elixir. A DIFFERENT shape — an existing entry whose
+    # own `args:` value is itself a list (`args: %{tags: ["a", "b"]}`) —
+    # corrupts just as badly but produces something that still PARSES: the
+    # new entry lands nested inside that list instead of as a crontab
+    # sibling. `ConfigVerify.verify_or_rollback/3` catches both: the first
+    # via `Code.string_to_quoted/1` failing outright, the second because the
+    # semantic check below only accepts a result where the new tuple shows
+    # up as a direct member of the `crontab:` list itself, not buried deeper
+    # in some other value that also happened to close with a `]`.
     defp add_scheduled_posts_job_to_crontab(content) do
       # Pattern: crontab: [...] within Cron plugin
       case Regex.run(~r/(crontab:\s*\[)(.*?)(\])/s, content, capture: :all) do
         [full_match, before_crontab, crontab_content, after_crontab] ->
-          # Check if crontab is empty or has entries
+          # `crontab_content` keeps its OWN trailing whitespace/newline up to
+          # (not including) the closing `]` — appending straight onto that
+          # puts a bare `,` alone on its own line, detached by a newline from
+          # the element before it, which Elixir's parser rejects outright
+          # ("syntax error before: ','"). `String.trim_trailing/1` here
+          # matches what the anchored sibling splices below already do
+          # correctly (`add_worker_entries_to_crontab/3`,
+          # `add_digest_entries_to_crontab/3`): drop the trailing whitespace
+          # first, so the new comma lands directly after the last real token.
+          trimmed_entries = String.trim_trailing(crontab_content)
           has_entries = String.trim(crontab_content) != ""
+          has_trailing_comma = String.ends_with?(trimmed_entries, ",")
 
           new_job_entry =
-            if has_entries do
-              ",\n           {\"* * * * *\", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}"
-            else
-              "\n           {\"* * * * *\", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}\n         "
+            cond do
+              not has_entries ->
+                "\n           {\"* * * * *\", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}\n         "
+
+              has_trailing_comma ->
+                "\n           {\"* * * * *\", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}\n"
+
+              true ->
+                ",\n           {\"* * * * *\", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}\n"
             end
 
-          updated_crontab = before_crontab <> crontab_content <> new_job_entry <> after_crontab
+          updated_crontab = before_crontab <> trimmed_entries <> new_job_entry <> after_crontab
+          candidate = String.replace(content, full_match, updated_crontab, global: false)
 
-          String.replace(content, full_match, updated_crontab, global: false)
+          case ConfigVerify.verify_or_rollback(
+                 content,
+                 candidate,
+                 &crontab_contains_module?(
+                   &1,
+                   PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker
+                 )
+               ) do
+            {:ok, result} ->
+              result
+
+            {:rolled_back, original, _reason} ->
+              scheduled_posts_job_manual_notice()
+              original
+          end
 
         _ ->
+          scheduled_posts_job_manual_notice()
           content
       end
+    end
+
+    # True if `ast` has a `crontab: [...]` list somewhere containing a tuple
+    # naming `module` — used both to confirm a splice landed where it was
+    # meant to (a direct list member, not nested inside some other entry's
+    # own value) and, unchanged, to check the SAME thing for the sibling
+    # crontab-splice functions below.
+    defp crontab_contains_module?(ast, module) do
+      ConfigVerify.keyword_list_satisfies?(ast, :crontab, fn list ->
+        Enum.any?(list, &ConfigVerify.tuple_names_module?(&1, module))
+      end)
+    end
+
+    defp scheduled_posts_job_manual_notice do
+      Mix.shell().error(
+        "  ⚠️  Could not safely add ProcessScheduledJobsWorker to the existing crontab " <>
+          "(the insertion would have produced invalid or misplaced config) - please add it manually:"
+      )
+
+      Mix.shell().error(
+        "     {\"* * * * *\", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}"
+      )
     end
 
     # The notification digest sweeps — one cron entry per cadence, matching the
@@ -829,15 +1068,47 @@ if Code.ensure_loaded?(Igniter) do
           updated =
             crontab_open <> String.trim_trailing(crontab_content) <> new_entries <> crontab_close
 
-          String.replace(content, full_match, updated, global: false)
+          candidate = String.replace(content, full_match, updated, global: false)
+
+          case ConfigVerify.verify_or_rollback(
+                 content,
+                 candidate,
+                 &crontab_has_all_modules?(&1, missing)
+               ) do
+            {:ok, result} ->
+              result
+
+            {:rolled_back, original, _reason} ->
+              worker_entries_manual_notice(app_name, missing)
+              original
+          end
 
         nil ->
-          Mix.shell().error(
-            "  ⚠️  Could not parse crontab block for :#{app_name} - skipping worker cron entries"
-          )
-
+          worker_entries_manual_notice(app_name, missing)
           content
       end
+    end
+
+    defp worker_entries_manual_notice(app_name, missing) do
+      Mix.shell().error(
+        "  ⚠️  Could not safely add worker cron entries for :#{app_name} " <>
+          "(crontab block not found, or the insertion would have produced invalid or misplaced config)"
+      )
+
+      Enum.each(missing, fn {cron, mod} ->
+        Mix.shell().error("     Please manually add: {\"#{cron}\", #{mod}}")
+      end)
+    end
+
+    # True if `ast` has a `crontab: [...]` list containing, for EVERY
+    # `{_cron, mod_string}` pair in `missing`, a tuple naming that module.
+    defp crontab_has_all_modules?(ast, missing) do
+      ConfigVerify.keyword_list_satisfies?(ast, :crontab, fn list ->
+        Enum.all?(missing, fn {_cron, mod} ->
+          module = Module.concat(String.split(mod, "."))
+          Enum.any?(list, &ConfigVerify.tuple_names_module?(&1, module))
+        end)
+      end)
     end
 
     # Append the missing entries to the existing crontab list. The closing `]` is
@@ -858,18 +1129,76 @@ if Code.ensure_loaded?(Igniter) do
           updated =
             crontab_open <> String.trim_trailing(crontab_content) <> new_entries <> crontab_close
 
-          String.replace(content, full_match, updated, global: false)
+          candidate = String.replace(content, full_match, updated, global: false)
+
+          case ConfigVerify.verify_or_rollback(
+                 content,
+                 candidate,
+                 &crontab_has_all_digest_cadences?(&1, missing)
+               ) do
+            {:ok, result} ->
+              result
+
+            {:rolled_back, original, _reason} ->
+              digest_entries_manual_notice(app_name, missing)
+              original
+          end
 
         nil ->
-          Mix.shell().error(
-            "  ⚠️  Could not parse crontab block for :#{app_name} - skipping digest cron entries"
-          )
-
-          Mix.shell().error(
-            "     Please manually add the PhoenixKit.Notifications.DigestWorker cron entries"
-          )
-
+          digest_entries_manual_notice(app_name, missing)
           content
+      end
+    end
+
+    defp digest_entries_manual_notice(app_name, missing) do
+      Mix.shell().error(
+        "  ⚠️  Could not safely add digest cron entries for :#{app_name} " <>
+          "(crontab block not found, or the insertion would have produced invalid or misplaced config)"
+      )
+
+      Enum.each(missing, fn {cron, cadence} ->
+        Mix.shell().error(
+          "     Please manually add: {\"#{cron}\", PhoenixKit.Notifications.DigestWorker, " <>
+            "args: %{cadence: \"#{cadence}\"}}"
+        )
+      end)
+    end
+
+    # True if `ast` has a `crontab: [...]` list containing, for EVERY
+    # `{_cron, cadence}` in `missing`, a DigestWorker tuple whose `args:`
+    # map carries that exact cadence — not just "a DigestWorker tuple
+    # exists somewhere", which would pass even if only one of several
+    # missing cadences actually landed.
+    defp crontab_has_all_digest_cadences?(ast, missing) do
+      ConfigVerify.keyword_list_satisfies?(ast, :crontab, fn list ->
+        Enum.all?(missing, fn {_cron, cadence} ->
+          Enum.any?(list, &digest_tuple_has_cadence?(&1, cadence))
+        end)
+      end)
+    end
+
+    defp digest_tuple_has_cadence?(node, cadence) do
+      case ConfigVerify.tuple_elements(node) do
+        nil ->
+          false
+
+        elements ->
+          Enum.any?(
+            elements,
+            &ConfigVerify.alias_matches?(&1, PhoenixKit.Notifications.DigestWorker)
+          ) and
+            Enum.any?(elements, fn
+              kw when is_list(kw) ->
+                with {:ok, {:%{}, _meta, map_kv}} <- ConfigVerify.keyword_get(kw, :args),
+                     {:ok, ^cadence} <- ConfigVerify.keyword_get(map_kv, :cadence) do
+                  true
+                else
+                  _ -> false
+                end
+
+              _ ->
+                false
+            end)
       end
     end
 
@@ -920,17 +1249,37 @@ if Code.ensure_loaded?(Igniter) do
             end
 
           updated_plugins = plugins_open <> plugins_content <> cron_plugin <> plugins_close
+          candidate = String.replace(content, full_match, updated_plugins, global: false)
 
-          String.replace(content, full_match, updated_plugins, global: false)
+          case ConfigVerify.verify_or_rollback(
+                 content,
+                 candidate,
+                 &crontab_contains_module?(
+                   &1,
+                   PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker
+                 )
+               ) do
+            {:ok, result} ->
+              result
+
+            {:rolled_back, original, _reason} ->
+              cron_plugin_manual_notice(app_name)
+              original
+          end
 
         nil ->
-          Mix.shell().error(
-            "  ⚠️  Could not parse plugins block for :#{app_name} - skipping cron plugin update"
-          )
-
-          Mix.shell().error("     Please manually add Oban.Plugins.Cron configuration")
+          cron_plugin_manual_notice(app_name)
           content
       end
+    end
+
+    defp cron_plugin_manual_notice(app_name) do
+      Mix.shell().error(
+        "  ⚠️  Could not safely add Oban.Plugins.Cron to the plugins block for :#{app_name} " <>
+          "(not found, or the insertion would have produced invalid or misplaced config)"
+      )
+
+      Mix.shell().error("     Please manually add Oban.Plugins.Cron configuration")
     end
 
     # Get repo module from PhoenixKit config or detect from app

@@ -15,6 +15,8 @@ defmodule PhoenixKit.Install.RuntimeDetector do
   `undefined function config/3`.
   """
 
+  alias PhoenixKit.Install.ConfigVerify
+
   @doc """
   Detects if the project uses runtime configuration patterns.
 
@@ -279,11 +281,46 @@ defmodule PhoenixKit.Install.RuntimeDetector do
     if already_wrapped? do
       content
     else
-      Regex.replace(@unguarded_216_mailer, content, String.trim(@wrapped_dev_mailer))
+      candidate = Regex.replace(@unguarded_216_mailer, content, String.trim(@wrapped_dev_mailer))
+
+      # I103: this function is a pure String -> String transform with no
+      # Igniter/Mix.shell context to print a notice through, so a rollback
+      # here is silent by necessity — same "no-op" contract this function
+      # already documents for the already-wrapped/absent cases, just
+      # extended to a would-be-corrupting match too. `@unguarded_216_mailer`
+      # anchors on an exact, specific multi-line snippet rather than a
+      # variable-length block, so this is lower risk than the Oban splices;
+      # verified anyway, for the same reason as every other site in I103 —
+      # a regex match on raw text is still blind to what it lands inside.
+      case ConfigVerify.verify_or_rollback(content, candidate, &mailer_wrapped_in_dev_guard?/1) do
+        {:ok, result} -> result
+        {:rolled_back, original, _reason} -> original
+      end
     end
   end
 
   # Private functions
+
+  # True if `ast` has `if config_env() == :dev do ... end` wrapping a real
+  # `config :phoenix_kit, PhoenixKit.Mailer, ...` call — confirms the wrap
+  # landed on the actual mailer config, not on a comment or string that
+  # happened to match the same anchored text.
+  defp mailer_wrapped_in_dev_guard?(ast) do
+    ConfigVerify.ast_contains?(ast, fn
+      {:if, _, [{:==, _, [{:config_env, _, []}, :dev]}, [do: body]]} ->
+        mailer_config_call?(body)
+
+      _ ->
+        false
+    end)
+  end
+
+  defp mailer_config_call?(
+         {:config, _, [:phoenix_kit, {:__aliases__, _, [:PhoenixKit, :Mailer]}, _opts]}
+       ),
+       do: true
+
+  defp mailer_config_call?(_), do: false
 
   defp optional_file(path) do
     case File.read(path) do

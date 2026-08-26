@@ -32,6 +32,7 @@ if Code.ensure_loaded?(Igniter) do
     """
     use PhoenixKit.Install.IgniterCompat
 
+    alias PhoenixKit.Install.ConfigVerify
     alias PhoenixKit.Install.IgniterHelpers
 
     @standard_call ~r/Supervisor\.start_link\(children,\s*opts\)/
@@ -65,25 +66,46 @@ if Code.ensure_loaded?(Igniter) do
       |> String.contains?("PhoenixKit.boot")
     end
 
+    # I103: the verify+rollback decision happens BEFORE `Igniter.update_file/3`,
+    # against `content` already read from disk — same reasoning as
+    # `PhoenixKit.Install.ConfigVerify`'s moduledoc and
+    # `fix_ueberauth_providers_config/2`: Igniter buffers writes, so nothing
+    # read from disk mid-pipeline reflects a change made earlier in the same
+    # pipeline run.
     defp wire_in(igniter, app_file) do
       content = File.read!(app_file)
 
       if Regex.match?(@standard_call, content) do
-        igniter
-        |> Igniter.update_file(app_file, fn source ->
-          rewritten =
-            Regex.replace(
-              @standard_call,
-              Rewrite.Source.get(source, :content),
-              "Supervisor.start_link(children, opts) |> PhoenixKit.boot()",
-              global: false
-            )
+        candidate =
+          Regex.replace(
+            @standard_call,
+            content,
+            "Supervisor.start_link(children, opts) |> PhoenixKit.boot()",
+            global: false
+          )
 
-          Rewrite.Source.update(source, :content, rewritten)
-        end)
+        case ConfigVerify.verify_or_rollback(content, candidate, &boot_hook_wired?/1) do
+          {:ok, updated_content} ->
+            Igniter.update_file(igniter, app_file, fn source ->
+              Rewrite.Source.update(source, :content, updated_content)
+            end)
+
+          {:rolled_back, _original, _reason} ->
+            Igniter.add_warning(igniter, manual_instructions(app_file))
+        end
       else
         Igniter.add_warning(igniter, manual_instructions(app_file))
       end
+    end
+
+    # True if `ast` contains `... |> PhoenixKit.boot()` anywhere — confirms
+    # the rewrite actually landed as a real pipe into `PhoenixKit.boot/1`,
+    # not inside a comment or a string that happened to match the same text.
+    defp boot_hook_wired?(ast) do
+      ConfigVerify.ast_contains?(ast, fn
+        {:|>, _, [_lhs, {{:., _, [{:__aliases__, _, [:PhoenixKit]}, :boot]}, _, []}]} -> true
+        _ -> false
+      end)
     end
 
     defp manual_instructions(app_file) do

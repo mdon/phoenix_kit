@@ -1,6 +1,7 @@
 defmodule PhoenixKit.Install.ObanConfigTest do
   use ExUnit.Case, async: true
 
+  alias PhoenixKit.Install.ConfigVerify
   alias PhoenixKit.Install.ObanConfig
   alias PhoenixKit.Notifications.ChannelConfig
 
@@ -403,6 +404,74 @@ defmodule PhoenixKit.Install.ObanConfigTest do
     end
   end
 
+  describe "ensure_pruner_max_age/2 — I103: exposed for testing, previously untested" do
+    test "adds max_age to a bare Oban.Plugins.Pruner atom" do
+      content = """
+      config :my_app, Oban,
+        plugins: [
+          Oban.Plugins.Pruner
+        ]
+      """
+
+      updated = ObanConfig.ensure_pruner_max_age(content, "my_app")
+
+      assert {:ok, ast} = Code.string_to_quoted(updated)
+      assert pruner_has_max_age?(ast)
+    end
+
+    test "adds max_age to a bare {Oban.Plugins.Pruner} tuple" do
+      content = """
+      config :my_app, Oban,
+        plugins: [
+          {Oban.Plugins.Pruner}
+        ]
+      """
+
+      updated = ObanConfig.ensure_pruner_max_age(content, "my_app")
+
+      assert {:ok, ast} = Code.string_to_quoted(updated)
+      assert pruner_has_max_age?(ast)
+    end
+
+    test "leaves a Pruner that already has max_age alone" do
+      content = """
+      config :my_app, Oban,
+        plugins: [
+          {Oban.Plugins.Pruner, max_age: 60}
+        ]
+      """
+
+      assert ObanConfig.ensure_pruner_max_age(content, "my_app") == content
+    end
+
+    test "leaves content untouched when Pruner is not configured at all" do
+      content = "config :my_app, Oban,\n  plugins: []\n"
+      assert ObanConfig.ensure_pruner_max_age(content, "my_app") == content
+    end
+
+    defp pruner_has_max_age?(ast) do
+      ConfigVerify.ast_contains?(ast, fn node ->
+        case ConfigVerify.tuple_elements(node) do
+          nil ->
+            false
+
+          elements ->
+            Enum.any?(
+              elements,
+              &ConfigVerify.alias_matches?(&1, Oban.Plugins.Pruner)
+            ) and
+              Enum.any?(elements, fn
+                kw when is_list(kw) ->
+                  match?({:ok, _}, ConfigVerify.keyword_get(kw, :max_age))
+
+                _ ->
+                  false
+              end)
+        end
+      end)
+    end
+  end
+
   describe "ensure_cron_plugin/2 — migrating off the old posts worker" do
     defp crontab_with(worker) do
       """
@@ -454,6 +523,117 @@ defmodule PhoenixKit.Install.ObanConfigTest do
       content = crontab_with("PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker")
 
       assert ObanConfig.ensure_cron_plugin(content, "my_app") == content
+    end
+  end
+
+  describe "ensure_cron_plugin/2 Case 3 — I103: add_scheduled_posts_job_to_crontab must never corrupt config.exs" do
+    # `add_scheduled_posts_job_to_crontab/1` was the one crontab-splice
+    # function in this module with NO anchor on its regex (a lazy `.*?`
+    # instead of the `\n<indent>]` backreference the sibling functions use)
+    # — the only one of the six block-splice helpers this file has. Reached
+    # via Case 3 of `ensure_cron_plugin/2`: a Cron plugin already exists but
+    # `ProcessScheduledJobsWorker` is not in it yet — the exact state of
+    # every host installed before that worker existed.
+    test "happy path: single existing entry with no trailing comma still gets the worker added" do
+      # I103, found while adding the safety net: the ORIGINAL insertion
+      # logic appended `,\n<entry>` straight onto the captured interior
+      # text, which itself ends in trailing whitespace before the `]` (not
+      # the last real token) — the comma landed alone on its own line,
+      # which Elixir's parser rejects outright ("syntax error before: ','").
+      # This is the single most common real shape (`mix format`'s own
+      # output for a one-entry list carries no trailing comma), so before
+      # the fix this path corrupted config.exs on the ORDINARY case, not
+      # just an adversarial one.
+      content = crontab_with("MyApp.Workers.Nightly")
+
+      updated = ObanConfig.ensure_cron_plugin(content, "my_app")
+
+      assert {:ok, ast} = Code.string_to_quoted(updated)
+      assert updated =~ "PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker"
+      assert updated =~ "MyApp.Workers.Nightly"
+
+      assert crontab_has_module?(ast, PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker)
+      assert crontab_has_module?(ast, MyApp.Workers.Nightly)
+    end
+
+    test "happy path: an existing entry that already ends with a trailing comma" do
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10],
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"0 3 * * *", MyApp.Workers.Nightly},
+           ]}
+        ]
+      """
+
+      updated = ObanConfig.ensure_cron_plugin(content, "my_app")
+
+      assert {:ok, ast} = Code.string_to_quoted(updated)
+      assert crontab_has_module?(ast, PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker)
+      assert crontab_has_module?(ast, MyApp.Workers.Nightly)
+    end
+
+    test "MUTATION A — a comment containing ']' before the real entries rolls back instead of corrupting" do
+      # Reproduced live before this fix: an entirely ordinary explanatory
+      # comment ("...took a priority list, e.g. [1, 2] - removed") makes the
+      # unanchored `.*?` stop at the comment's own bracket, producing a real
+      # `MismatchedDelimiterError` when the host next compiles config.exs.
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10],
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             # historically this queue took a priority list, e.g. [1, 2] - removed
+             {"0 3 * * *", MyApp.Workers.Nightly}
+           ]}
+        ]
+      """
+
+      updated = ObanConfig.ensure_cron_plugin(content, "my_app")
+
+      assert updated == content, "a rollback must return the ORIGINAL content unchanged"
+      assert {:ok, _} = Code.string_to_quoted(updated)
+      refute updated =~ "ProcessScheduledJobsWorker"
+    end
+
+    test "MUTATION B — a nested-list value that still parses rolls back instead of silently misplacing the entry" do
+      # The other way this can fail: no comment at all, just an ordinary
+      # Oban shape (a tag list in an existing entry's own args). The lazy
+      # regex stops at THAT list's closing ']' — the result still parses
+      # (a green a parse-only check would have accepted), but the new
+      # tuple lands nested inside `tags:` instead of as a crontab sibling.
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10],
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"*/5 * * * *", MyApp.Workers.TagSweeper, args: %{tags: ["a", "b"]}}
+           ]}
+        ]
+      """
+
+      updated = ObanConfig.ensure_cron_plugin(content, "my_app")
+
+      assert updated == content, "a rollback must return the ORIGINAL content unchanged"
+      assert {:ok, ast} = Code.string_to_quoted(updated)
+
+      refute crontab_has_module?(
+               ast,
+               PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker
+             )
+    end
+
+    defp crontab_has_module?(ast, module) do
+      ConfigVerify.keyword_list_satisfies?(ast, :crontab, fn list ->
+        Enum.any?(list, &ConfigVerify.tuple_names_module?(&1, module))
+      end)
     end
   end
 
