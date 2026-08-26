@@ -18,7 +18,7 @@ defmodule PhoenixKit.Integrations.Events do
   - `{:integration_setup_saved, provider_key, data}` — setup credentials saved
   - `{:integration_connected, provider_key, data}` — OAuth flow completed
   - `{:integration_disconnected, provider_key}` — disconnected
-  - `{:integration_validated, provider_key, :ok | {:error, reason}}` — health check
+  - `{:integration_validated, provider_key, :ok | {:ok, note} | :unverified | {:error, reason}}` — health check
   - `{:integration_connection_added | _removed, provider_key, name}`
   - `{:integration_connection_renamed, provider_key, old, new}`
 

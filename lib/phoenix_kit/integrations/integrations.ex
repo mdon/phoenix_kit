@@ -952,10 +952,11 @@ defmodule PhoenixKit.Integrations do
 
   For OAuth: calls the provider's userinfo endpoint.
   For API key / bot token: calls the provider's validation endpoint if defined.
-  Returns `:ok` or `{:error, reason}`.
+  Returns `:ok`, `{:ok, note}`, `:unverified` (the provider has no way to
+  check a connection — see `do_validate/2`), or `{:error, reason}`.
   """
   @spec validate_connection(String.t(), String.t() | nil, keyword()) ::
-          :ok | {:ok, String.t()} | {:error, String.t()}
+          :ok | {:ok, String.t()} | :unverified | {:error, String.t()}
   def validate_connection(uuid, actor_uuid \\ nil, opts \\ []) when is_binary(uuid) do
     {result, log_provider, log_name} =
       case resolve_uuid(uuid, Keyword.get(opts, :owner, :system)) do
@@ -996,6 +997,19 @@ defmodule PhoenixKit.Integrations do
           log_provider,
           log_name,
           %{"result" => "ok", "note" => note},
+          "manual",
+          actor_uuid,
+          uuid
+        )
+
+      # This provider has no way to check a connection at all — nothing ran,
+      # so there's nothing to log as a pass or a failure.
+      :unverified ->
+        log_activity(
+          "integration.validated",
+          log_provider,
+          log_name,
+          %{"result" => "unverified"},
           "manual",
           actor_uuid,
           uuid
@@ -1052,8 +1066,12 @@ defmodule PhoenixKit.Integrations do
   `{:error, "No access token"}` — pre-save validation is most
   useful for api_key / bot_token providers where the secret the
   user just typed IS the credential.
+
+  Returns `:unverified` when the provider has no way to check a
+  connection at all — see `do_validate/2`.
   """
-  @spec validate_credentials(String.t(), map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
+  @spec validate_credentials(String.t(), map()) ::
+          :ok | {:ok, String.t()} | :unverified | {:error, String.t()}
   def validate_credentials(provider_key, attrs)
       when is_binary(provider_key) and is_map(attrs) do
     case Providers.get(provider_key) do
