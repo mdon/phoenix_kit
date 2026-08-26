@@ -115,41 +115,6 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
     end
   end
 
-  describe "check_orphaned_fk_refs/1 — destructive: a genuinely orphaned row outside the old 4 pairs is caught" do
-    # The widened check reads every single-column FK straight from
-    # `pg_constraint` (`discover_fk_constraints/2`), not just the four pairs
-    # the old check knew by name. This proves that widened coverage actually
-    # catches something the old four-pair list could never have seen:
-    # `phoenix_kit_user_oauth_providers.user_uuid -> phoenix_kit_users.uuid`
-    # (constraint `fk_user_oauth_providers_user_uuid`) was never one of the
-    # old four (`phoenix_kit_users_tokens`, `phoenix_kit_user_role_assignments`,
-    # `phoenix_kit_admin_notes`, `phoenix_kit_email_events`).
-    #
-    # A plain `INSERT` can't produce this row — the constraint rejects a
-    # nonexistent `user_uuid` immediately, and it isn't `DEFERRABLE`, so
-    # `SET CONSTRAINTS ALL DEFERRED` doesn't buy anything either. Disabling
-    # the child table's own triggers for one statement is the standard
-    # Postgres idiom for planting a row that could otherwise only arise from
-    # the same kind of bypass in production — a bulk load with constraints
-    # off, a restore from an inconsistent backup, direct catalog surgery —
-    # which is exactly the class of real corruption this check exists to
-    # catch, not a contrived test-only shape.
-    test "an orphaned phoenix_kit_user_oauth_providers.user_uuid row is reported, not read as clean" do
-      Repo.query!("ALTER TABLE phoenix_kit_user_oauth_providers DISABLE TRIGGER ALL")
-
-      Repo.query!("""
-      INSERT INTO phoenix_kit_user_oauth_providers
-        (user_uuid, provider, provider_uid, inserted_at, updated_at)
-      VALUES (gen_random_uuid(), 'google', 'destructive-orphan-test', now(), now())
-      """)
-
-      Repo.query!("ALTER TABLE phoenix_kit_user_oauth_providers ENABLE TRIGGER ALL")
-
-      assert {:fail, message} = DoctorTask.check_orphaned_fk_refs("public")
-      assert message =~ "phoenix_kit_user_oauth_providers.user_uuid"
-    end
-  end
-
   describe "probe timeout shape — the real error shape, not an assumed one" do
     test "a real slow query through Repo.query/3 with a short timeout is always classified as a time limit, whichever shape it takes" do
       # `probe_fk/4` calls `repo.query(sql, [], timeout: N)` — through the
@@ -193,27 +158,13 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
       refute {"phoenix_kit_activities", "resource_uuid"} in found
     end
 
-    # Proof by destruction, the other direction: adding the FK a `belongs_to`
-    # already declares must remove it from this list. Runs inside the
-    # test's own sandbox transaction (async: true → private connection) —
-    # Postgres DDL is transactional, so nothing outside this test ever sees
-    # the added constraint; no manual cleanup needed.
-    test "adding the matching FK constraint drops that relation out of the count" do
-      before_fix = DoctorTask.discover_schema_declared_relations_without_fk(Repo, "public")
-      assert {"phoenix_kit_activities", "actor_uuid"} in before_fix
-
-      Repo.query!("""
-      ALTER TABLE phoenix_kit_activities
-      ADD CONSTRAINT phoenix_kit_activities_actor_uuid_fkey
-      FOREIGN KEY (actor_uuid) REFERENCES phoenix_kit_users(uuid)
-      """)
-
-      after_fix = DoctorTask.discover_schema_declared_relations_without_fk(Repo, "public")
-
-      refute {"phoenix_kit_activities", "actor_uuid"} in after_fix
-      assert {"phoenix_kit_activities", "target_uuid"} in after_fix
-      assert length(after_fix) == length(before_fix) - 1
-    end
+    # The destructive proof-by-mutation direction (adding the FK a
+    # `belongs_to` already declares must remove it from this list) lives in
+    # `DoctorOrphanedFkDestructiveTest`, `async: false` — see that module's
+    # moduledoc for why: the real `ALTER TABLE ... ADD CONSTRAINT` it runs
+    # takes a `ShareRowExclusiveLock` on `phoenix_kit_users`, which deadlocked
+    # against another async test file's write to that same table on a real
+    # full-suite run.
   end
 
   describe "check_schema_declared_relations_without_fk/1 — I082, second step: PASS is not vacuous" do
@@ -223,23 +174,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
       assert message =~ "advisory, not a failure"
     end
 
-    # Symmetric to the destruction check above: close BOTH real gaps and
-    # confirm the check actually reads clean, not just "never fails".
-    test "closing every real gap makes it :pass, not just non-:fail" do
-      Repo.query!("""
-      ALTER TABLE phoenix_kit_activities
-      ADD CONSTRAINT phoenix_kit_activities_actor_uuid_fkey
-      FOREIGN KEY (actor_uuid) REFERENCES phoenix_kit_users(uuid)
-      """)
-
-      Repo.query!("""
-      ALTER TABLE phoenix_kit_activities
-      ADD CONSTRAINT phoenix_kit_activities_target_uuid_fkey
-      FOREIGN KEY (target_uuid) REFERENCES phoenix_kit_users(uuid)
-      """)
-
-      assert {:pass, message} = DoctorTask.check_schema_declared_relations_without_fk("public")
-      assert message =~ "Every belongs_to"
-    end
+    # The "closes every real gap -> :pass" destructive proof lives in
+    # `DoctorOrphanedFkDestructiveTest`, `async: false` — same reason as above.
   end
 end
