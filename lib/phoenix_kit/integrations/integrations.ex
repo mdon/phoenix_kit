@@ -1080,7 +1080,7 @@ defmodule PhoenixKit.Integrations do
 
     cond do
       not (is_binary(token) and token != "") -> {:error, gettext("No access token")}
-      is_nil(userinfo_url) -> :ok
+      is_nil(userinfo_url) -> :unverified
       true -> check_http(userinfo_url, [{"authorization", "Bearer #{token}"}])
     end
   end
@@ -1123,11 +1123,21 @@ defmodule PhoenixKit.Integrations do
         check_http(v.url, headers)
 
       true ->
-        :ok
+        :unverified
     end
   end
 
-  defp do_validate(_, _data), do: :ok
+  defp do_validate(_, _data), do: :unverified
+
+  if Mix.env() == :test do
+    # Exposes the private do_validate/2 clauses for direct unit testing.
+    # No registered provider today reaches the generic/catch-all clauses
+    # (every built-in declares a real check), so the only way to prove
+    # those clauses behave correctly for a *future* provider is to call
+    # them directly with a synthetic provider map.
+    @doc false
+    def __do_validate__(provider, data), do: do_validate(provider, data)
+  end
 
   defp check_http(url, headers) do
     case Req.get(url, headers: headers, receive_timeout: @http_timeout) do
@@ -1153,8 +1163,11 @@ defmodule PhoenixKit.Integrations do
   actual state change so high-frequency automatic paths (e.g. token
   refresh failing on every API call) don't spam listing-LV reloads.
   """
-  @spec record_validation(String.t(), :ok | {:ok, String.t()} | {:error, term()}, keyword()) ::
-          :ok
+  @spec record_validation(
+          String.t(),
+          :ok | {:ok, String.t()} | :unverified | {:error, term()},
+          keyword()
+        ) :: :ok
   def record_validation(uuid, result, opts \\ []) when is_binary(uuid) do
     {new_status, validation_text} = validation_fields(result)
 
@@ -1216,6 +1229,13 @@ defmodule PhoenixKit.Integrations do
   end
 
   defp validation_fields(:ok), do: {"connected", "ok"}
+
+  # No check actually ran (a provider with no way to verify itself — see
+  # the do_validate/2 fallback clauses). Reported as the same "configured"
+  # status save_setup/3 already uses for "credentials saved, nothing tested
+  # yet" — NOT "connected", which the operator reads as verified.
+  defp validation_fields(:unverified),
+    do: {"configured", gettext("Not verified — this provider has no connection check")}
 
   # A check that succeeded but could not verify everything it would have liked to.
   # The connection is usable; the note is what the operator must know about it, and
