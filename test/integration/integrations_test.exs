@@ -999,6 +999,83 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
   end
 
   # ===========================================================================
+  # do_validate/2 — the silent "no check ran" fallbacks must not report :ok
+  #
+  # No built-in provider reaches these clauses today (every one of the 15
+  # declares a real oauth2 userinfo_url, a validation map, or a strategy) —
+  # that's exactly the bug: a FUTURE provider (or today's Shopify, from the
+  # phoenix_kit_ecommerce module, not a dep of this repo) that doesn't match
+  # any specific clause falls through here silently. Called directly via the
+  # test-only __do_validate__/2 shim with synthetic provider maps, since
+  # nothing in the registry can exercise them.
+  # ===========================================================================
+
+  describe "do_validate/2 (structural gap coverage)" do
+    test "provider matching no auth_type clause is :unverified, not :ok" do
+      provider = %{key: "future_provider", auth_type: :credentials}
+      assert Integrations.__do_validate__(provider, %{}) == :unverified
+    end
+
+    test "api_key/bot_token provider with no validation map is :unverified, not :ok" do
+      provider = %{key: "future_key_provider", auth_type: :api_key}
+      assert Integrations.__do_validate__(provider, %{"api_key" => "some-key"}) == :unverified
+    end
+
+    test "api_key/bot_token provider with no credentials still reports that, not :unverified" do
+      # Guards against the fix papering over a *real* error (missing
+      # credentials) with the new "nothing to check" outcome.
+      provider = %{key: "future_key_provider", auth_type: :api_key}
+
+      assert Integrations.__do_validate__(provider, %{}) ==
+               {:error, "No credentials configured"}
+    end
+
+    test "oauth2 provider with no userinfo_url is :unverified, not :ok" do
+      provider = %{key: "future_oauth_provider", auth_type: :oauth2, oauth_config: %{}}
+      assert Integrations.__do_validate__(provider, %{"access_token" => "tok"}) == :unverified
+    end
+
+    test "oauth2 provider with no access token still reports that, not :unverified" do
+      provider = %{key: "future_oauth_provider", auth_type: :oauth2, oauth_config: %{}}
+      assert Integrations.__do_validate__(provider, %{}) == {:error, "No access token"}
+    end
+  end
+
+  # ===========================================================================
+  # record_validation/2 with :unverified — the operator-visible contract:
+  # a connection that was never actually checked must not read "Connected".
+  # ===========================================================================
+
+  describe "record_validation/2 with :unverified (no check ran)" do
+    test "status stays \"configured\", never \"connected\"" do
+      uuid = setup_conn("openrouter", %{"api_key" => "k"})
+      :ok = Integrations.record_validation(uuid, :unverified)
+
+      {:ok, data} = Integrations.get_integration(uuid)
+      assert data["status"] == "configured"
+      refute data["validation_status"] == "ok"
+    end
+
+    test "does not stamp connected_at — no connection was actually proven" do
+      uuid = setup_conn("openrouter", %{"api_key" => "k"})
+      :ok = Integrations.record_validation(uuid, :unverified)
+
+      {:ok, data} = Integrations.get_integration(uuid)
+      assert data["connected_at"] == nil
+    end
+
+    test "a real success afterwards still reports \"connected\" (regression guard)" do
+      uuid = setup_conn("openrouter", %{"api_key" => "k"})
+      :ok = Integrations.record_validation(uuid, :unverified)
+      :ok = Integrations.record_validation(uuid, :ok)
+
+      {:ok, data} = Integrations.get_integration(uuid)
+      assert data["status"] == "connected"
+      assert data["validation_status"] == "ok"
+    end
+  end
+
+  # ===========================================================================
   # Storage-shape invariants (post-V114: key = uuid, module = "integrations")
   # ===========================================================================
 

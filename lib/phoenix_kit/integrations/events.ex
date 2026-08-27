@@ -18,7 +18,7 @@ defmodule PhoenixKit.Integrations.Events do
   - `{:integration_setup_saved, provider_key, data}` — setup credentials saved
   - `{:integration_connected, provider_key, data}` — OAuth flow completed
   - `{:integration_disconnected, provider_key}` — disconnected
-  - `{:integration_validated, provider_key, :ok | {:error, reason}}` — health check
+  - `{:integration_validated, provider_key, :ok | {:ok, note} | :unverified | {:error, reason}}` — health check
   - `{:integration_connection_added | _removed, provider_key, name}`
   - `{:integration_connection_renamed, provider_key, old, new}`
 
@@ -73,8 +73,11 @@ defmodule PhoenixKit.Integrations.Events do
   end
 
   @doc "Broadcast that an integration's health check completed."
-  @spec broadcast_validated(String.t(), :ok | {:error, term()}, owner()) ::
-          :ok
+  @spec broadcast_validated(
+          String.t(),
+          :ok | {:ok, String.t()} | :unverified | {:error, term()},
+          owner()
+        ) :: :ok
   def broadcast_validated(provider_key, status, owner \\ :system) do
     broadcast(owner, {:integration_validated, provider_key, status})
   end

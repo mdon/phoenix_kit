@@ -37,6 +37,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
       |> assign(:data, %{})
       |> assign(:success, nil)
       |> assign(:error, nil)
+      |> assign(:warning, nil)
       |> assign(:new_name, "")
       |> assign(:form_values, %{})
       |> assign(:testing, false)
@@ -243,7 +244,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   end
 
   def handle_event("dismiss", _params, socket) do
-    {:noreply, assign(socket, success: nil, error: nil)}
+    {:noreply, assign(socket, success: nil, error: nil, warning: nil)}
   end
 
   # ---------------------------------------------------------------------------
@@ -351,6 +352,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
           |> assign(:data, data)
           |> assign(:success, gettext("Connection verified"))
           |> assign(:error, nil)
+          |> assign(:warning, nil)
 
         # The check passed but could not verify everything — say so instead of
         # showing a bare "verified" the operator would read as "sending works".
@@ -359,12 +361,25 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
           |> assign(:data, data)
           |> assign(:success, "#{gettext("Connection verified")} — #{note}")
           |> assign(:error, nil)
+          |> assign(:warning, nil)
+
+        # Neither a pass nor a failure — this provider has no way to check a
+        # connection at all, so nothing ran. Saying "verified" would repeat
+        # the bug this exists to fix; saying "failed" would blame the
+        # operator for something that was never attempted.
+        :unverified ->
+          socket
+          |> assign(:data, data)
+          |> assign(:warning, gettext("Not tested — this provider has no connection check"))
+          |> assign(:success, nil)
+          |> assign(:error, nil)
 
         {:error, reason} ->
           socket
           |> assign(:data, data)
           |> assign(:error, "#{gettext("Test failed")}: #{reason}")
           |> assign(:success, nil)
+          |> assign(:warning, nil)
       end
 
     {:noreply, assign(socket, :testing, false)}
@@ -453,19 +468,31 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
         {:noreply,
          socket
          |> assign(:success, gettext("Connection verified"))
-         |> assign(:error, nil)}
+         |> assign(:error, nil)
+         |> assign(:warning, nil)}
 
       {:ok, note} ->
         {:noreply,
          socket
          |> assign(:success, "#{gettext("Connection verified")} — #{note}")
+         |> assign(:error, nil)
+         |> assign(:warning, nil)}
+
+      # See the matching :unverified clause in handle_info(:do_test_connection, _) —
+      # same "neither pass nor fail" case, hit here before the row even exists.
+      :unverified ->
+        {:noreply,
+         socket
+         |> assign(:warning, gettext("Not tested — this provider has no connection check"))
+         |> assign(:success, nil)
          |> assign(:error, nil)}
 
       {:error, reason} ->
         {:noreply,
          socket
          |> assign(:error, "#{gettext("Test failed")}: #{reason}")
-         |> assign(:success, nil)}
+         |> assign(:success, nil)
+         |> assign(:warning, nil)}
     end
   end
 
