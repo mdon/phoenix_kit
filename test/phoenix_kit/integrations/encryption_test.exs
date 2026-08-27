@@ -1,3 +1,32 @@
+# A store that fails its FIRST read and answers every one after it. Not
+# contrived: `KeyStore.cached_read/0` deliberately memoises only successes, so a
+# store on a mount that blips, or one being rewritten, behaves exactly like this
+# — and every caller that re-reads gets a different answer than the one before.
+defmodule PhoenixKit.Integrations.EncryptionTest.FlakyStore do
+  @behaviour PhoenixKit.Integrations.KeyStore
+
+  @secret "a-stored-secret-well-over-the-minimum"
+
+  def secret, do: @secret
+
+  @impl true
+  def read(opts) do
+    n = :counters.get(opts[:counter], 1)
+    :counters.add(opts[:counter], 1, 1)
+
+    if n == 0, do: {:error, {:flaky, "first read fails"}}, else: {:ok, @secret}
+  end
+
+  @impl true
+  def write(_secret, _opts), do: :ok
+
+  @impl true
+  def preflight(_opts), do: :ok
+
+  @impl true
+  def describe(_opts), do: "/flaky/store.key"
+end
+
 defmodule PhoenixKit.Integrations.EncryptionTest do
   # async: false — the encryption_key/0 fallback tests mutate the global
   # `:phoenix_kit` app env (`:secret_key_base`, `:parent_module`), which
@@ -5,6 +34,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
   use ExUnit.Case, async: false
 
   alias PhoenixKit.Integrations.Encryption
+  alias PhoenixKit.Integrations.KeyStore
 
   describe "encrypt_fields/1 and decrypt_fields/1" do
     test "round-trips sensitive fields" do
@@ -424,9 +454,12 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       log = capture_log(fn -> Encryption.warn_if_insecure() end)
 
       # ...but the operator who configured a key, just too short, must not
-      # be told "no dedicated key is configured" — they configured one.
-      assert log =~ "is shorter than"
-      assert log =~ "IGNORED"
+      # be told "no dedicated key is configured" — they configured one. Asserts
+      # the invariant rather than a phrase: the wording now comes from one
+      # source (`Encryption.key_advice/0`) and is expected to be edited there.
+      assert log =~ "shorter than"
+      assert log =~ "rejected"
+      assert log =~ "not the same as none being configured"
       refute log =~ "no dedicated key is"
     end
   end
@@ -475,7 +508,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       assert Encryption.status() == :disabled_no_key
 
       log = capture_log(fn -> Encryption.warn_if_insecure() end)
-      assert log =~ "is shorter than"
+      assert log =~ "shorter than"
       refute log =~ "no encryption key could be resolved"
     end
 
@@ -507,7 +540,13 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       )
 
       log = capture_log(fn -> assert Encryption.warn_if_insecure() == :ok end)
-      assert log == ""
+
+      # "This check says nothing", not "the log is empty". `capture_log/1`
+      # collects everything the VM emits during the call, including a Postgrex
+      # reconnection attempt from an unrelated pool, so the stricter assertion
+      # fails on timing rather than on behaviour — observed doing exactly that
+      # in a full run, and passing in isolation three times over.
+      refute log =~ "[PhoenixKit.Integrations]"
     end
 
     test "warn_if_insecure/0 warns about the legacy fallback" do
@@ -679,4 +718,588 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
 
   defp restore_env(key, nil), do: Application.delete_env(:phoenix_kit, key)
   defp restore_env(key, value), do: Application.put_env(:phoenix_kit, key, value)
+
+  describe "an unreadable key store is reported consistently" do
+    # The per-read error and the boot warning are emitted by different functions
+    # at different moments. They went out of step once already: the boot warning
+    # was made tier-aware and the per-read error stayed blind, so a single run
+    # could claim both "fell back to the secret_key_base key" and "no key at
+    # all". They now share one source; these tests pin that they cannot diverge
+    # again.
+    setup do
+      dir =
+        Path.join(System.tmp_dir!(), "pk_store_consistency_#{System.unique_integer([:positive])}")
+
+      File.mkdir_p!(dir)
+      path = Path.join(dir, "broken.key")
+      File.write!(path, "")
+
+      previous_store = Application.get_env(:phoenix_kit, :integrations_key_store)
+      previous_skb = Application.get_env(:phoenix_kit, :secret_key_base)
+      previous_parent = Application.get_env(:phoenix_kit, :parent_module)
+
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_key_store,
+        {KeyStore.File, path: path}
+      )
+
+      on_exit(fn ->
+        File.rm_rf(dir)
+
+        restore = fn key, value ->
+          if is_nil(value),
+            do: Application.delete_env(:phoenix_kit, key),
+            else: Application.put_env(:phoenix_kit, key, value)
+        end
+
+        restore.(:integrations_key_store, previous_store)
+        restore.(:secret_key_base, previous_skb)
+        restore.(:parent_module, previous_parent)
+        KeyStore.invalidate_cache()
+      end)
+
+      # The per-read error is deliberately once-per-VM; clear the latch so each
+      # test observes it. White-box on purpose — the alternative is a test that
+      # silently passes because the message was already emitted.
+      :persistent_term.erase({Encryption, :store_failure_logged})
+      KeyStore.invalidate_cache()
+
+      {:ok, path: path}
+    end
+
+    defp both_messages do
+      import ExUnit.CaptureLog
+
+      capture_log(fn ->
+        Encryption.decrypt_fields(%{"api_key" => "enc:v1:not-real"})
+        Encryption.warn_if_insecure()
+      end)
+    end
+
+    test "with a legacy secret, both messages say a fallback happened" do
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("z", 64))
+
+      log = both_messages()
+
+      # Two surfaces, one run: the per-read error and the boot warning. Both
+      # must describe the same reality — the assertion is about agreement, not
+      # about a sentence, so unifying the wording cannot silently break it.
+      assert log =~ "IS configured but its secret could not be read"
+      assert log =~ "a key store is configured"
+      assert log =~ "fell back to the secret_key_base-derived key"
+      refute log =~ "PLAINTEXT"
+    end
+
+    test "with no key at all, both messages say PLAINTEXT and neither claims a fallback" do
+      Application.put_env(:phoenix_kit, :secret_key_base, nil)
+      Application.put_env(:phoenix_kit, :parent_module, nil)
+
+      log = both_messages()
+
+      assert log =~ "IS configured but its secret could not be read"
+      assert log =~ "a key store is configured"
+      assert log =~ "PLAINTEXT"
+      refute log =~ "fell back to the secret_key_base-derived key"
+    end
+  end
+
+  describe "key_fingerprint/0 makes key reuse between sites visible" do
+    setup do
+      previous_skb = Application.get_env(:phoenix_kit, :secret_key_base)
+      previous_key = Application.get_env(:phoenix_kit, :integrations_encryption_key)
+
+      on_exit(fn ->
+        restore = fn key, value ->
+          if is_nil(value),
+            do: Application.delete_env(:phoenix_kit, key),
+            else: Application.put_env(:phoenix_kit, key, value)
+        end
+
+        restore.(:secret_key_base, previous_skb)
+        restore.(:integrations_encryption_key, previous_key)
+      end)
+
+      :ok
+    end
+
+    # The whole point of part 2. derive_key/1 is a plain hash of the secret, so
+    # two installs that share a secret_key_base — copied from a template, cloned
+    # from a sibling environment — hold a byte-identical integration key. This
+    # is what lets an operator SEE that.
+    test "two installs with the same secret produce the same fingerprint" do
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("s", 64))
+      assert {:ok, first} = Encryption.key_fingerprint()
+
+      # Simulate the second site: same secret, resolved from scratch.
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("s", 64))
+      assert {:ok, ^first} = Encryption.key_fingerprint()
+    end
+
+    test "a different secret produces a different fingerprint" do
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("s", 64))
+      assert {:ok, first} = Encryption.key_fingerprint()
+
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("t", 64))
+      assert {:ok, second} = Encryption.key_fingerprint()
+
+      refute first == second
+    end
+
+    # Discovered by writing this test with the opposite expectation. The key is
+    # derived the same way whichever tier the secret came from, so copying your
+    # secret_key_base into integrations_encryption_key does NOT change the key —
+    # it only changes which config line it is read from. An operator doing that
+    # believes they have migrated to a dedicated key; they have not, and every
+    # site still sharing that secret_key_base still holds their key.
+    #
+    # The fingerprint says so out loud, which is the point of it.
+    test "moving the SAME secret to the dedicated setting does not change the key" do
+      secret = String.duplicate("u", 64)
+
+      Application.put_env(:phoenix_kit, :secret_key_base, secret)
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      assert {:ok, legacy} = Encryption.key_fingerprint()
+
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, secret)
+      assert {:ok, dedicated} = Encryption.key_fingerprint()
+
+      assert legacy == dedicated
+    end
+
+    test "the fingerprint is short, hex, and is not the key" do
+      secret = String.duplicate("v", 64)
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, secret)
+
+      assert {:ok, fingerprint} = Encryption.key_fingerprint()
+      assert String.length(fingerprint) == 12
+      assert fingerprint =~ ~r/\A[0-9a-f]{12}\z/
+      refute fingerprint =~ secret
+      refute secret =~ fingerprint
+    end
+
+    test "no key at all → :none, so nothing is displayed to compare" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, nil)
+      Application.put_env(:phoenix_kit, :parent_module, nil)
+
+      assert Encryption.key_fingerprint() == :none
+    end
+  end
+
+  describe "key_diagnosis/0 is the one source both the warning and the doctor use" do
+    setup do
+      previous = %{
+        skb: Application.get_env(:phoenix_kit, :secret_key_base),
+        key: Application.get_env(:phoenix_kit, :integrations_encryption_key),
+        store: Application.get_env(:phoenix_kit, :integrations_key_store),
+        parent: Application.get_env(:phoenix_kit, :parent_module),
+        enabled: Application.get_env(:phoenix_kit, :integration_encryption_enabled)
+      }
+
+      on_exit(fn ->
+        for {k, v} <- [
+              secret_key_base: previous.skb,
+              integrations_encryption_key: previous.key,
+              integrations_key_store: previous.store,
+              parent_module: previous.parent,
+              integration_encryption_enabled: previous.enabled
+            ] do
+          if is_nil(v),
+            do: Application.delete_env(:phoenix_kit, k),
+            else: Application.put_env(:phoenix_kit, k, v)
+        end
+
+        KeyStore.invalidate_cache()
+      end)
+
+      Application.put_env(:phoenix_kit, :secret_key_base, String.duplicate("z", 64))
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.delete_env(:phoenix_kit, :integrations_key_store)
+      KeyStore.invalidate_cache()
+      :ok
+    end
+
+    test "a real dedicated key is :ok" do
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, String.duplicate("k", 40))
+      assert {:dedicated, :ok} = Encryption.key_diagnosis()
+    end
+
+    # What every one of our sites is in today.
+    test "no dedicated key at all is :no_dedicated_key" do
+      assert {:legacy_secret_key_base, :no_dedicated_key} = Encryption.key_diagnosis()
+    end
+
+    # Must outrank :no_dedicated_key: the advice attached to that one sends the
+    # operator to rotate, which would move the data off a key the store may
+    # still be holding.
+    test "an unreadable store outranks 'no dedicated key'" do
+      dir = Path.join(System.tmp_dir!(), "pk_diag_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      path = Path.join(dir, "broken.key")
+      File.write!(path, "")
+      on_exit(fn -> File.rm_rf(dir) end)
+
+      Application.put_env(:phoenix_kit, :integrations_key_store, {KeyStore.File, path: path})
+      KeyStore.invalidate_cache()
+
+      assert {_status, :store_unreadable} = Encryption.key_diagnosis()
+    end
+
+    # "No dedicated key is configured" is a lie to someone who configured one.
+    test "a configured-but-too-short key is :key_too_short, not 'none configured'" do
+      Application.put_env(:phoenix_kit, :integrations_encryption_key, "short")
+      assert {_status, :key_too_short} = Encryption.key_diagnosis()
+    end
+
+    test "encryption switched off explicitly is :turned_off" do
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, false)
+      assert {:disabled_explicit, :turned_off} = Encryption.key_diagnosis()
+    end
+
+    test "no key material at all is :no_key_material" do
+      Application.put_env(:phoenix_kit, :secret_key_base, nil)
+      Application.put_env(:phoenix_kit, :parent_module, nil)
+      assert {:disabled_no_key, :no_key_material} = Encryption.key_diagnosis()
+    end
+  end
+
+  describe "key_signals/0 is one pass over the environment" do
+    alias Mix.Tasks.PhoenixKit.Doctor, as: DoctorTask
+    alias PhoenixKit.Integrations.EncryptionTest.FlakyStore
+    alias PhoenixKitWeb.Live.Settings.Integrations, as: Page
+
+    @legacy_secret String.duplicate("s", 64)
+
+    setup do
+      previous = %{
+        skb: Application.get_env(:phoenix_kit, :secret_key_base),
+        key: Application.get_env(:phoenix_kit, :integrations_encryption_key),
+        store: Application.get_env(:phoenix_kit, :integrations_key_store),
+        parent: Application.get_env(:phoenix_kit, :parent_module),
+        enabled: Application.get_env(:phoenix_kit, :integration_encryption_enabled)
+      }
+
+      on_exit(fn ->
+        for {k, v} <- [
+              secret_key_base: previous.skb,
+              integrations_encryption_key: previous.key,
+              integrations_key_store: previous.store,
+              parent_module: previous.parent,
+              integration_encryption_enabled: previous.enabled
+            ] do
+          if is_nil(v),
+            do: Application.delete_env(:phoenix_kit, k),
+            else: Application.put_env(:phoenix_kit, k, v)
+        end
+
+        KeyStore.invalidate_cache()
+        :persistent_term.erase({Encryption, :store_failure_logged})
+      end)
+
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, true)
+      Application.put_env(:phoenix_kit, :secret_key_base, @legacy_secret)
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      KeyStore.invalidate_cache()
+      :persistent_term.erase({Encryption, :store_failure_logged})
+      :ok
+    end
+
+    # The defect this exists against, reproduced before the gather was made one
+    # pass: the tier came from a failed read, the store state and the
+    # fingerprint from a successful one, and the report printed the fingerprint
+    # of the STORED key under the label "derived from secret_key_base". Two
+    # operators comparing sites would have compared unlike keys while both pages
+    # claimed the same tier — the exact failure the fingerprint exists to make
+    # impossible.
+    test "a store that answers one read and fails another cannot split the verdict" do
+      counter = :counters.new(1, [])
+      Application.put_env(:phoenix_kit, :integrations_key_store, {FlakyStore, counter: counter})
+      KeyStore.invalidate_cache()
+
+      signals = Encryption.key_signals()
+
+      # Two reads, and exactly two: one resolution, and one look at what the
+      # store holds right now. They answer different questions and only one of
+      # them decides the key — the resolution's read is the memoised one the
+      # running app encrypts with, and the second is deliberately fresh so the
+      # verdict cannot describe a file from a value cached at boot. Three would
+      # mean the gather went back to re-resolve, which is the defect this test
+      # was written for.
+      assert :counters.get(counter, 1) == 2,
+             "key_signals/0 read the store #{:counters.get(counter, 1)} times; expected two"
+
+      # Whatever it decided, the parts of it agree.
+      assert signals.fingerprint == expected_fingerprint(signals)
+    end
+
+    # The historical bug itself, reproduced end to end rather than caught as a
+    # side effect. Every assertion above works on the SIGNALS; the defect an
+    # operator actually met was in the RENDERED line — a twelve-hex number
+    # printed under a label naming a different key. Nothing rendered it in a
+    # test, so reproducing it took hand assembly, and a suite that cannot
+    # reproduce a bug cannot prove it stays fixed.
+    #
+    # The trigger is the real one: a store that fails a read and answers the
+    # next. Before the gather became one pass this printed the fingerprint of
+    # the STORED key under "derived from secret_key_base" — two sites comparing
+    # those numbers would have compared unlike keys while both pages claimed the
+    # same tier, which is precisely what the fingerprint exists to prevent.
+    test "the printed fingerprint is the key its own label names" do
+      counter = :counters.new(1, [])
+      Application.put_env(:phoenix_kit, :integrations_key_store, {FlakyStore, counter: counter})
+      KeyStore.invalidate_cache()
+
+      report = Encryption.key_report()
+      {_status, detail} = DoctorTask.integration_key_result(report, true)
+
+      assert [_all, printed, label] =
+               Regex.run(~r/Fingerprint ([0-9a-f]{12}) \(([^)]+)\)/, detail),
+             "no fingerprint line to check in:\n#{detail}"
+
+      assert printed == fingerprint_of(secret_named_by(label)),
+             "the doctor printed #{printed} under #{inspect(label)}, which names a key whose " <>
+               "fingerprint is #{fingerprint_of(secret_named_by(label))}"
+
+      # The admin page labels the same number from the same report, in its own
+      # translated words, and must name the same key.
+      page_label = Page.fingerprint_tier(report)
+
+      assert printed == fingerprint_of(secret_named_by(page_label)),
+             "the admin page labelled #{printed} as #{inspect(page_label)}"
+    end
+
+    # Which key a label claims. Deliberately exhaustive with no catch-all: a new
+    # label that this cannot classify must fail the test rather than pass it by
+    # default, because an unclassifiable label is exactly how a number ends up
+    # beside a tier nobody checked.
+    defp secret_named_by(label) do
+      cond do
+        label =~ "secret_key_base" -> @legacy_secret
+        label =~ "FALLBACK" -> @legacy_secret
+        label =~ "dedicated" -> FlakyStore.secret()
+      end
+    end
+
+    defp fingerprint_of(secret) do
+      key = :crypto.hash(:sha256, "phoenix_kit_integrations:" <> secret)
+
+      :sha256
+      |> :crypto.pbkdf2_hmac(key, "phoenix_kit_integrations_fingerprint:v2", 100_000, 6)
+      |> Base.encode16(case: :lower)
+    end
+
+    test "every signal in the map comes from the same reads, for either answer" do
+      for first_read_fails? <- [true, false] do
+        counter = :counters.new(1, [])
+        # Burning the failing read first flips which answer the gather sees.
+        unless first_read_fails?, do: :counters.add(counter, 1, 1)
+
+        Application.put_env(:phoenix_kit, :integrations_key_store, {FlakyStore, counter: counter})
+        KeyStore.invalidate_cache()
+        :persistent_term.erase({Encryption, :store_failure_logged})
+
+        signals = Encryption.key_signals()
+
+        assert signals.fingerprint == expected_fingerprint(signals),
+               "#{inspect(signals)}: the fingerprint is not the key the tier names"
+
+        # A store answering with a usable secret IS a dedicated key source, so
+        # the two cannot be seen apart within one gather.
+        if match?({:holding, _}, signals.store) and signals.rejected_key == false do
+          assert signals.tier == :dedicated,
+                 "#{inspect(signals)}: a holding store beside a weaker tier"
+        end
+      end
+    end
+
+    # The fingerprint of the key the tier says is in use, derived independently
+    # of the code under test.
+    defp expected_fingerprint(%{enabled?: false}), do: :none
+    defp expected_fingerprint(%{tier: :none}), do: :none
+
+    defp expected_fingerprint(%{tier: tier}) do
+      secret =
+        case tier do
+          :dedicated -> FlakyStore.secret()
+          :legacy -> @legacy_secret
+        end
+
+      {:ok, fingerprint_of(secret)}
+    end
+  end
+
+  describe "the states the real resolution actually produces" do
+    alias Mix.Tasks.PhoenixKit.Doctor, as: DoctorTask
+    alias PhoenixKit.Test.KeyVerdictInvariants, as: Invariants
+
+    setup do
+      previous = %{
+        skb: Application.get_env(:phoenix_kit, :secret_key_base),
+        key: Application.get_env(:phoenix_kit, :integrations_encryption_key),
+        store: Application.get_env(:phoenix_kit, :integrations_key_store),
+        parent: Application.get_env(:phoenix_kit, :parent_module),
+        enabled: Application.get_env(:phoenix_kit, :integration_encryption_enabled)
+      }
+
+      dir = Path.join(System.tmp_dir!(), "pk_states_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+
+      on_exit(fn ->
+        for {k, v} <- [
+              secret_key_base: previous.skb,
+              integrations_encryption_key: previous.key,
+              integrations_key_store: previous.store,
+              parent_module: previous.parent,
+              integration_encryption_enabled: previous.enabled
+            ] do
+          if is_nil(v),
+            do: Application.delete_env(:phoenix_kit, k),
+            else: Application.put_env(:phoenix_kit, k, v)
+        end
+
+        KeyStore.invalidate_cache()
+        :persistent_term.erase({Encryption, :store_failure_logged})
+        File.rm_rf(dir)
+      end)
+
+      {:ok, dir: dir}
+    end
+
+    # Reachability is OBSERVED here, never argued — and, since round 6's
+    # enumeration was found to be synthetic, the states are no longer written
+    # down at all. `KeyVerdictInvariants.real_space/1` drives real
+    # configurations — a config key that is absent, short or valid; a store that
+    # is missing, empty, holds a short secret, holds another valid one, or holds
+    # the config key itself; with and without secret_key_base; encryption on and
+    # off — through the real `key_signals/0`, and this asserts on whatever comes
+    # out.
+    #
+    # The difference is not academic. The hand-built space was green across 60
+    # combinations while a real configuration — a short secret in the key store
+    # with no `integrations_encryption_key` set — rendered advice naming a
+    # variable the operator does not have. It contained a `{:holding, _}` store
+    # because someone wrote one down, and no short stored secret because nobody
+    # thought to. A cross product of our idea of the states cannot fail on an
+    # idea that is wrong.
+    test "every state the real resolution produces survives every invariant", %{dir: dir} do
+      produced = Invariants.real_space(dir)
+
+      assert length(produced) == 72
+
+      for {label, signals} <- produced do
+        Invariants.assert_consistent(signals, label)
+      end
+    end
+
+    # The synthetic space is still worth having — it proves the verdict is total
+    # — but only while it contains everything the system can actually do. Asserted
+    # rather than assumed, so a real state with no synthetic twin fails here
+    # instead of quietly narrowing what the other enumeration covers.
+    test "nothing the real resolution produces is missing from the synthetic space",
+         %{dir: dir} do
+      synthetic = MapSet.new(Invariants.synthetic_space(), &Invariants.shape/1)
+
+      for {label, signals} <- Invariants.real_space(dir) do
+        assert MapSet.member?(synthetic, Invariants.shape(signals)),
+               "#{label}: real signals #{inspect(signals)} are outside the synthetic space"
+      end
+    end
+
+    # The states this feature exists for, named so that a fixture change cannot
+    # quietly drop one. Each was a defect before it was a test.
+    test "the real configurations reach the states the rounds were about", %{dir: dir} do
+      shapes =
+        dir
+        |> Invariants.real_space()
+        |> Enum.map(fn {_label, signals} ->
+          {signals.tier, signals.rejected_key, Invariants.store_tag(signals.store)}
+        end)
+        |> Enum.uniq()
+
+      # P012 round 2: a short secret in the store and no config key. The advice
+      # named `integrations_encryption_key` here, which does not exist.
+      assert {:legacy, :store, :shadowed} in shapes
+
+      # P012: the store holds a secret that is not the key in use.
+      assert {:dedicated, false, :shadowed} in shapes
+
+      # Round 6: a configured store with nothing in it yet, which used to be
+      # reported as holding the key.
+      assert {:legacy, false, :no_secret_yet} in shapes
+
+      # Round 5: a working dedicated key beside a store that cannot be read.
+      assert {:dedicated, false, :unreadable} in shapes
+
+      # The store as the key source, and the healthy baseline.
+      assert {:dedicated, false, :holding} in shapes
+      assert {:legacy, false, :absent} in shapes
+      assert {:none, false, :absent} in shapes
+    end
+
+    # A diagnosis that survives its own remedy teaches people to ignore
+    # diagnoses. The store's contents used to be read from the boot-time cache,
+    # so an operator who did exactly what the advice said watched the warning
+    # stay until a restart — and saw it clear in `mix phoenix_kit.doctor`, whose
+    # VM is new, which makes it look like the page is wrong rather than stale.
+    test "the warning goes out when the operator does what it says, without a restart",
+         %{dir: dir} do
+      path = Path.join(dir, "shadowed.key")
+      config_key = String.duplicate("k", 40)
+
+      File.write!(path, "SOMETHING-ELSE-well-over-the-minimum")
+      File.chmod!(path, 0o600)
+
+      put(:integrations_key_store, {KeyStore.File, path: path})
+      put(:integrations_encryption_key, config_key)
+      put(:secret_key_base, String.duplicate("s", 64))
+      KeyStore.invalidate_cache()
+
+      assert Encryption.key_diagnosis() == {:dedicated, :store_shadowed}
+
+      # Exactly the remedy the advice gives, and nothing else: no restart, no
+      # cache invalidation.
+      File.write!(path, config_key)
+      File.chmod!(path, 0o600)
+
+      assert Encryption.key_diagnosis() == {:dedicated, :ok}
+      assert match?({:holding, ^path}, Encryption.key_signals().store)
+    end
+
+    # The whole P012 chain as an operator meets it: the verdict, the severity
+    # that decides whether the admin page says anything at all, and the line
+    # that used to read as "your key is saved here".
+    test "a store holding a different secret is named, warned about, and not called a backup",
+         %{dir: dir} do
+      path = Path.join(dir, "other.key")
+      File.write!(path, "STORE-secret-well-over-the-minimum")
+      File.chmod!(path, 0o600)
+
+      put(:integrations_key_store, {KeyStore.File, path: path})
+      put(:integrations_encryption_key, "CONFIG-secret-well-over-the-minimum")
+      put(:secret_key_base, String.duplicate("s", 64))
+      KeyStore.invalidate_cache()
+
+      report = Encryption.key_report()
+      {status, detail} = DoctorTask.integration_key_result(report, true)
+
+      assert report.diagnosis == {:dedicated, :store_shadowed}
+
+      # :ok would mean the admin page renders no banner — which is how this went
+      # unmentioned on every surface until now.
+      assert status == :warn
+      refute report.rotation_safe?
+
+      assert detail =~ "holds a different secret"
+      assert detail =~ "DIFFERENT secret"
+      assert detail =~ "Do NOT run"
+      assert detail =~ path
+    end
+
+    defp store_tag(:absent), do: :absent
+    defp store_tag({tag, _location}), do: tag
+
+    defp put(key, nil), do: Application.delete_env(:phoenix_kit, key)
+    defp put(key, value), do: Application.put_env(:phoenix_kit, key, value)
+  end
 end

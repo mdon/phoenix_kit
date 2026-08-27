@@ -2,6 +2,7 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKeyTest do
   use ExUnit.Case, async: true
 
   alias Mix.Tasks.PhoenixKit.Integrations.RotateKey, as: RotateKeyTask
+  alias PhoenixKit.Integrations.Encryption
 
   # `run/1` itself isn't a good unit-test seam (starts the app, needs a real
   # DB) — see `Mix.Tasks.PhoenixKit.Repair.exit_code/1` for the established
@@ -17,9 +18,15 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKeyTest do
       assert {:ok, []} = RotateKeyTask.parse_args([])
     end
 
+    # Was `--new-key=abc123`. That six-character value now fails the length
+    # check added alongside the key store: Encryption rejects anything shorter
+    # than its minimum as too weak, so accepting it here meant re-encrypting
+    # every row under a key the app would refuse on the next boot. The parse
+    # itself is what this test is about, so it uses a key of a realistic length.
     test "--new-key=<value> parses through" do
-      assert {:ok, opts} = RotateKeyTask.parse_args(["--new-key=abc123"])
-      assert Keyword.get(opts, :new_key) == "abc123"
+      value = String.duplicate("k", 32)
+      assert {:ok, opts} = RotateKeyTask.parse_args(["--new-key=" <> value])
+      assert Keyword.get(opts, :new_key) == value
     end
 
     test "a misspelled flag is REJECTED, not silently ignored" do
@@ -63,6 +70,27 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKeyTest do
     test "no --new-key generates a fresh, non-empty secret, marked not supplied" do
       assert {secret, false} = RotateKeyTask.resolve_new_secret([])
       assert is_binary(secret) and secret != ""
+    end
+  end
+
+  describe "--new-key is refused when the app would later reject it" do
+    # Without this the rotation "succeeds", the rows are rewritten under a key
+    # Encryption rejects as too weak on the next boot, and everything rotated
+    # becomes unreadable — while the task reported the secret safely stored.
+    test "a key shorter than the accepted minimum is refused before anything runs" do
+      short =
+        String.duplicate("a", Encryption.min_dedicated_key_length() - 1)
+
+      assert {:error, message} = RotateKeyTask.parse_args(["--new-key=" <> short])
+      assert message =~ "minimum accepted"
+      assert message =~ "Nothing was changed"
+    end
+
+    test "a key at exactly the minimum is accepted" do
+      ok = String.duplicate("a", Encryption.min_dedicated_key_length())
+
+      assert {:ok, opts} = RotateKeyTask.parse_args(["--new-key=" <> ok])
+      assert Keyword.get(opts, :new_key) == ok
     end
   end
 end

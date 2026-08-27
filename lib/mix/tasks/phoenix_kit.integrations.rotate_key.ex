@@ -10,20 +10,40 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
 
   ## What it does
 
-  1. Reads every stored integration connection.
-  2. Decrypts each one under whichever key is CURRENTLY active (a
-     dedicated `:integrations_encryption_key` if configured, else the
-     legacy `secret_key_base`-derived key — see
-     `PhoenixKit.Integrations.Encryption`).
-  3. If every row decrypts cleanly, re-encrypts all of them under the new
+  1. If a key store is configured (`:integrations_key_store`), checks it can
+     be written to — BEFORE touching any data. Rotation is the dangerous
+     moment: once rows are re-encrypted, a store that then refuses the write
+     leaves you holding a database no key opens.
+  2. Reads every stored integration connection.
+  3. Decrypts each one under whichever key is CURRENTLY active (a
+     dedicated `:integrations_encryption_key` if configured, then a
+     configured key store, else the legacy `secret_key_base`-derived key —
+     see `PhoenixKit.Integrations.Encryption`).
+  4. If every row decrypts cleanly, re-encrypts all of them under the new
      secret in a single database transaction — either every connection
      rotates, or (on any failure) none do.
-  4. Prints the new secret (unless you supplied one with `--new-key`) and
-     the config to set.
+  5. Stores the new secret and **reads it back to confirm it landed** before
+     reporting success. A write that returns `:ok` and did not land is the
+     failure this exists to prevent.
 
-  This task does NOT write any config file or environment variable — you
-  must configure `integrations_encryption_key` yourself (typically from an
-  env var in `runtime.exs`) and restart the app.
+  ## With and without a key store
+
+  With `:integrations_key_store` configured, the secret is written there and
+  the app picks it up on restart — no config edit, and the secret is not
+  printed because it does not need to be. See
+  `PhoenixKit.Integrations.KeyStore`; the default
+  `PhoenixKit.Integrations.KeyStore.File` writes one file, mode 0600, outside
+  the repository, and is per-host.
+
+  Without one, behaviour is unchanged: the secret is printed exactly once and
+  saved nowhere, with a warning saying so. You must then configure
+  `integrations_encryption_key` yourself and restart.
+
+  Migrating from an explicit key to a store is one rotation: run this with both
+  set (the explicit key is what decrypts the current rows), then remove
+  `integrations_encryption_key` and restart. The task says so explicitly when it
+  sees both, because an explicit key outranks the store and a restart before
+  removing it would read nothing.
 
   ## When to run this
 
@@ -101,7 +121,9 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
 
   use Mix.Task
 
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.KeyRotation
+  alias PhoenixKit.Integrations.KeyStore
 
   @shortdoc "Rotates the encryption key protecting stored integration credentials"
 
@@ -154,6 +176,23 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
         {:error,
          "--new-key was passed but empty. Omit the flag entirely to generate a secret, or pass a real one."}
 
+      # Refused HERE, before anything is re-encrypted. A short key used to be
+      # accepted, the rows rewritten under it, and the secret reported as safely
+      # stored — and then `PhoenixKit.Integrations.Encryption` rejected it as too
+      # weak on the next boot and fell back to a different tier, leaving every
+      # rotated row unreadable. The task must not accept a key the app will not.
+      value when is_binary(value) ->
+        minimum = Encryption.min_dedicated_key_length()
+
+        if String.length(value) < minimum do
+          {:error,
+           "--new-key is #{String.length(value)} characters; the minimum accepted as a " <>
+             "dedicated key is #{minimum}. A shorter one would be rejected on the next boot " <>
+             "and every rotated row would become unreadable. Nothing was changed."}
+        else
+          {:ok, opts}
+        end
+
       _ ->
         {:ok, opts}
     end
@@ -184,15 +223,44 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
   defp run_real(opts) do
     {new_secret, supplied?} = resolve_new_secret(opts)
 
+    # Pre-flight BEFORE anything is re-encrypted. Rotation is the dangerous
+    # moment: once the rows are written under the new secret, a store that then
+    # refuses the write leaves an operator holding a database no key opens.
+    # Checking first turns that disaster into an abort that changed nothing.
+    case KeyStore.preflight() do
+      :ok -> :ok
+      :not_configured -> :ok
+      {:error, reason} -> Mix.raise(preflight_failed_message(reason))
+    end
+
     case KeyRotation.rotate(new_secret) do
       {:ok, %{rotated: n}} ->
-        print_success(n, new_secret, supplied?)
+        store_and_report(n, new_secret, supplied?)
 
       {:error, {:decrypt_failed, uuid, reason}} ->
         Mix.raise(decrypt_failed_message(uuid, reason))
 
       {:error, {:encryption_disabled, status}} ->
         Mix.raise(encryption_disabled_message(status))
+    end
+  end
+
+  # The rows are already re-encrypted by the time this runs. Whether the secret
+  # is now safe is decided here, and it is decided by reading it back — a write
+  # that returned :ok and did not land is precisely the failure being guarded
+  # against.
+  defp store_and_report(count, secret, supplied?) do
+    case KeyStore.write_verified(secret) do
+      :ok ->
+        print_stored_success(count, KeyStore.describe())
+        warn_if_explicit_key_shadows_store()
+
+      :not_configured ->
+        print_unstored_success(count, secret, supplied?)
+
+      {:error, reason} ->
+        print_secret_of_last_resort(secret)
+        Mix.raise(store_failed_message(reason, KeyStore.describe()))
     end
   end
 
@@ -227,14 +295,41 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
 
   defp generate_secret, do: 32 |> :crypto.strong_rand_bytes() |> Base.encode64()
 
-  defp print_success(count, secret, supplied?) do
+  defp print_stored_success(count, location) do
+    Mix.shell().info("""
+
+    Rotated #{count} connection(s).
+
+    The new secret was written to #{location} and read back to confirm it landed.
+    On this host there is nothing else to copy: PhoenixKit reads the key from there.
+
+    If you run more than one host, note that the default file store is per-host:
+    every node needs this same secret at that path (or a shared one) before it is
+    restarted, or it will keep using its old key and write rows nothing else can read.
+
+    Restart the app to pick it up. Stored connections are encrypted under the NEW
+    secret, so reads fail until the restart — don't delay between the two.
+    """)
+  end
+
+  defp print_unstored_success(count, secret, supplied?) do
     Mix.shell().info("\nRotated #{count} connection(s).\n")
 
     unless supplied? do
       Mix.shell().info("""
-      New secret (shown ONCE — copy it now, this task does not save it anywhere):
+      New secret (shown ONCE — copy it now, THIS TASK SAVED IT NOWHERE):
 
           #{secret}
+
+      No key store is configured, so nothing on this machine now holds this
+      secret. Lose this line and every stored integration credential becomes
+      unreadable: the ciphertext stays in the database and no key opens it.
+
+      To have future rotations save the key for you:
+
+          config :phoenix_kit, integrations_key_store: PhoenixKit.Integrations.KeyStore.File
+
+      That writes one file, mode 0600, outside the repository.
       """)
     end
 
@@ -248,4 +343,65 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
     so don't delay between running this and restarting.
     """)
   end
+
+  # Printed only when the store failed AFTER the data was re-encrypted. At that
+  # point the secret on screen is the only copy in existence, so withholding it
+  # to keep secrets off stdout would destroy the credentials it protects.
+  defp print_secret_of_last_resort(secret) do
+    Mix.shell().info("""
+
+    The data IS already re-encrypted under this secret, and storing it FAILED.
+    This line is now the only copy — save it somewhere safe before doing
+    anything else:
+
+        #{secret}
+    """)
+  end
+
+  # An explicit `:integrations_encryption_key` outranks the store
+  # (`PhoenixKit.Integrations.Encryption` resolves it first), so after this
+  # rotation the app would keep using the OLD explicit key and read nothing.
+  #
+  # Deliberately a warning and not a refusal. Refusing was tried and is wrong:
+  # migrating FROM an explicit key TO a store requires the explicit key to be
+  # present during the rotation — it is what decrypts the current rows — and it
+  # can only be removed afterwards. Blocking that leaves no migration path at
+  # all.
+  defp warn_if_explicit_key_shadows_store do
+    case PhoenixKit.Config.get(:integrations_encryption_key) do
+      {:ok, explicit} when is_binary(explicit) and explicit != "" ->
+        Mix.shell().info("""
+        ACTION REQUIRED before you restart.
+
+        integrations_encryption_key is still set in your config, and an explicit key
+        outranks the key store. If you restart now, the app will use that OLD key and
+        will not read anything rotated just now.
+
+        Remove integrations_encryption_key from your config — the store replaces it —
+        and then restart.
+        """)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp preflight_failed_message(reason) do
+    "Refusing to rotate — the configured key store is not writable (#{describe_store_error(reason)}). " <>
+      "NOTHING was re-encrypted; the current key is untouched and the app keeps working. " <>
+      "Fix the store and run this again."
+  end
+
+  defp store_failed_message(reason, location) do
+    "Rotation succeeded but storing the new secret FAILED (#{describe_store_error(reason)}). " <>
+      "The connections are already re-encrypted under the secret printed above, and " <>
+      "#{location || "the store"} does not hold it. Save that secret now, then either fix the " <>
+      "store and write it there, or set it as integrations_encryption_key directly."
+  end
+
+  # Delegates to the store's own describer, which withholds the payload of any
+  # error shape it does not recognise: a host-supplied store may return a term
+  # that quotes the value it failed to store, and an inspect/1 fallback would
+  # copy that straight into an operator-facing message.
+  defp describe_store_error(reason), do: KeyStore.describe_error(reason)
 end
