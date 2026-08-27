@@ -453,6 +453,18 @@ defmodule PhoenixKitWeb.Integration do
     # so plugin LiveViews don't need to wrap with LayoutWrapper themselves
     plugin_admin_routes = compile_plugin_admin_routes(__CALLER__.module)
 
+    # A module tab whose path collides with a host-declared custom admin
+    # page, or with another module's tab, would otherwise compile to TWO
+    # `live` declarations at the same path — Phoenix keeps the first and
+    # the second becomes dead code, discovered (if at all) only via the
+    # compiler's "this clause cannot match" warning. Host pages win: the
+    # application owner declared them, not a module author, and they were
+    # already emitted first. Ties between modules keep whichever was
+    # discovered first — the same precedence `collect_module_tabs/2`
+    # already uses for tabs within a single module.
+    plugin_admin_routes =
+      dedupe_admin_routes_by_path(plugin_admin_routes, custom_admin_routes)
+
     # Shop admin routes.
     #
     # `phoenix_kit_ecommerce` declares `route_module/0`, so auto-discovery
@@ -1061,6 +1073,35 @@ defmodule PhoenixKitWeb.Integration do
       []
     end
   end
+
+  # Drops any quoted route in `routes` whose path already appears in
+  # `accepted_routes` (host pages, checked first) or earlier in `routes`
+  # itself (cross-module collisions) — first occurrence wins either way.
+  # Operates on the quoted `live path, live_view, action, opts` forms built
+  # by `tab_to_route/1` / `tab_struct_to_route/1` / `tab_to_route_from_url/3`,
+  # all of which share that shape, so the literal path is always the first
+  # argument.
+  defp dedupe_admin_routes_by_path(routes, accepted_routes) do
+    seen = accepted_routes |> Enum.map(&admin_route_path/1) |> MapSet.new()
+
+    {deduped, _seen} =
+      Enum.reduce(routes, {[], seen}, fn route, {acc, seen} ->
+        case admin_route_path(route) do
+          nil ->
+            {[route | acc], seen}
+
+          path ->
+            if MapSet.member?(seen, path),
+              do: {acc, seen},
+              else: {[route | acc], MapSet.put(seen, path)}
+        end
+      end)
+
+    Enum.reverse(deduped)
+  end
+
+  defp admin_route_path({:live, _meta, [path | _rest]}) when is_binary(path), do: path
+  defp admin_route_path(_), do: nil
 
   defp tab_callback_context(:admin_tabs), do: :admin
   defp tab_callback_context(:settings_tabs), do: :settings
