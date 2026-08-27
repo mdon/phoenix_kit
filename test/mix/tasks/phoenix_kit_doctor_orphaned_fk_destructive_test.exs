@@ -73,7 +73,9 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkDestructiveTest do
     # transaction itself is real, though, and still takes a real
     # `ShareRowExclusiveLock` for its duration — hence `async: false` here.
     test "adding the matching FK constraint drops that relation out of the count" do
-      before_fix = DoctorTask.discover_schema_declared_relations_without_fk(Repo, "public")
+      assert {:ok, {total_before, before_fix}} =
+               DoctorTask.discover_schema_declared_relations_without_fk(Repo, "public")
+
       assert {"phoenix_kit_activities", "actor_uuid"} in before_fix
 
       Repo.query!("""
@@ -82,11 +84,54 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkDestructiveTest do
       FOREIGN KEY (actor_uuid) REFERENCES phoenix_kit_users(uuid)
       """)
 
-      after_fix = DoctorTask.discover_schema_declared_relations_without_fk(Repo, "public")
+      assert {:ok, {total_after, after_fix}} =
+               DoctorTask.discover_schema_declared_relations_without_fk(Repo, "public")
 
       refute {"phoenix_kit_activities", "actor_uuid"} in after_fix
       assert {"phoenix_kit_activities", "target_uuid"} in after_fix
       assert length(after_fix) == length(before_fix) - 1
+      # Adding a constraint changes which relations are MISSING, never how
+      # many candidates exist to check in the first place.
+      assert total_after == total_before
+    end
+
+    # Review finding (PR #755, HIGH-adjacent MEDIUM): the original SQL
+    # matched a column against pg_constraint by (table, column) alone, with
+    # no join back to the referenced table at all — a FK from
+    # actor_uuid to ANY table, not specifically phoenix_kit_users, was
+    # enough to silence the finding. Proven live before this fix: adding
+    # exactly this (a real, single-column FK, just pointed at the wrong
+    # target) left actor_uuid missing from the report. RED without the
+    # (table, column, ref_table) triple match in the query.
+    test "a FK on the right column pointing at the WRONG table does not silence the missing relation" do
+      assert {:ok, {total_before, before_fix}} =
+               DoctorTask.discover_schema_declared_relations_without_fk(Repo, "public")
+
+      assert {"phoenix_kit_activities", "actor_uuid"} in before_fix
+
+      # phoenix_kit_user_roles is a real table with a real `uuid` PK — a
+      # perfectly valid single-column FK target, just not the one
+      # PhoenixKit.Activity.Entry's `belongs_to :actor` declares
+      # (`phoenix_kit_users`).
+      Repo.query!("""
+      ALTER TABLE phoenix_kit_activities
+      ADD CONSTRAINT phoenix_kit_activities_actor_uuid_wrong_target_fkey
+      FOREIGN KEY (actor_uuid) REFERENCES phoenix_kit_user_roles(uuid)
+      """)
+
+      assert {:ok, {total_after, after_wrong_target}} =
+               DoctorTask.discover_schema_declared_relations_without_fk(Repo, "public")
+
+      assert {"phoenix_kit_activities", "actor_uuid"} in after_wrong_target,
+             "a FK to the wrong table must not count as satisfying the declared relation"
+
+      assert after_wrong_target == before_fix
+      assert total_after == total_before
+
+      Repo.query!("""
+      ALTER TABLE phoenix_kit_activities
+      DROP CONSTRAINT phoenix_kit_activities_actor_uuid_wrong_target_fkey
+      """)
     end
   end
 

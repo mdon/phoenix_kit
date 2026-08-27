@@ -15,6 +15,9 @@
     <div :if={@success} class="alert alert-success mb-4" phx-click="dismiss">
       <span>{@success}</span>
     </div>
+    <div :if={@warning} class="alert alert-warning mb-4" phx-click="dismiss">
+      <span>{@warning}</span>
+    </div>
     <div :if={@error} class="alert alert-error mb-4" phx-click="dismiss">
       <span>{@error}</span>
     </div>
