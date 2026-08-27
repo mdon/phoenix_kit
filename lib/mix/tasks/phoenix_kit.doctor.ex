@@ -51,25 +51,38 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
        referenced table to the schema being checked (`--prefix`), so a FK
        whose referenced table lives in a different schema is outside scope
        too, even though the owning table itself was checked
-   13. **Lock Conflicts** — Any blocked or long-running queries?
-   14. **Orphaned Connections** — Idle-in-transaction or stuck connections
-   15. **Oban Configuration** — Queues and plugins that consume pool connections
-   16. **Oban Cron Queues** — Does every crontab worker have its queue configured?
-   17. **PhoenixKit Supervisor** — What's running (update_mode vs full)?
-   18. **Child Start Order** — Does the Repo start before PhoenixKit/Oban in application.ex?
-   19. **Update Mode** — Is update_mode active?
-   20. **daisyUI Version** — Is the host's vendored daisyUI recent enough?
-   21. **User Dashboard (deprecated)** — Is the host still on the retired dashboard?
-   22. **Sitemap Discoverability** — Is the sitemap actually reachable?
-   23. **Crawler Visibility** — noindex on a production-looking host, or a
+   13. **Schema-Declared Relations Without a DB FK** — Every `belongs_to`
+       PhoenixKit's own Ecto schemas declare, cross-referenced against
+       `pg_constraint` for a matching foreign key. Reports the COUNT found
+       with no DB-level FK — informational, not a failure: some are
+       intentional (a federated/soft reference cannot carry a FK across an
+       optional module boundary, see V179/V180). This is the complement to
+       check 12's own stated gap above: check 12 only ever sees a
+       relationship that already HAS a declared FK constraint; this one
+       finds relationships Ecto declares that never got one. Derived
+       entirely from what the schema itself declares (`owner_key` on the
+       `belongs_to`), never guessed from a column name — so it also cannot
+       see a soft reference that isn't declared as a `belongs_to` at all
+       (e.g. a plain field, or a polymorphic `*_uuid`/`*_type` pair).
+   14. **Lock Conflicts** — Any blocked or long-running queries?
+   15. **Orphaned Connections** — Idle-in-transaction or stuck connections
+   16. **Oban Configuration** — Queues and plugins that consume pool connections
+   17. **Oban Cron Queues** — Does every crontab worker have its queue configured?
+   18. **PhoenixKit Supervisor** — What's running (update_mode vs full)?
+   19. **Child Start Order** — Does the Repo start before PhoenixKit/Oban in application.ex?
+   20. **Update Mode** — Is update_mode active?
+   21. **daisyUI Version** — Is the host's vendored daisyUI recent enough?
+   22. **User Dashboard (deprecated)** — Is the host still on the retired dashboard?
+   23. **Sitemap Discoverability** — Is the sitemap actually reachable?
+   24. **Crawler Visibility** — noindex on a production-looking host, or a
        staging-looking host left indexable
-   24. **Demo Auth Pages** — Are the demo auth routes still exposed?
-   25. **Manifest Repair (dry-run)** — `PhoenixKit.Migrations.Repair.verify/1`
+   25. **Demo Auth Pages** — Are the demo auth routes still exposed?
+   26. **Manifest Repair (dry-run)** — `PhoenixKit.Migrations.Repair.verify/1`
        runs read-only against the generated
        `PhoenixKit.Migrations.ExpectedSchema` manifest as an additional,
        non-fatal check (never `:fail`). Passes and says so if the manifest
        has been removed or overridden away in this checkout.
-   26. **Git Hooks** — is `.githooks/pre-commit` enabled via
+   27. **Git Hooks** — is `.githooks/pre-commit` enabled via
        `core.hooksPath`? Only runs inside a checkout of phoenix_kit itself
        (`.githooks/pre-commit` is a phoenix_kit-repo convention, not
        something installed into a consuming host app) — silently skipped
@@ -139,6 +152,9 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         run_check("UUID Primary Keys", fn -> check_uuid_primary_keys(prefix) end),
         run_check("NULL UUIDs in FK Sources", fn -> check_null_uuids(prefix) end),
         run_check("Orphaned FK References", fn -> check_orphaned_fk_refs(prefix) end),
+        run_check("Schema-Declared Relations Without a DB FK", fn ->
+          check_schema_declared_relations_without_fk(prefix)
+        end),
         run_check("Lock Conflicts", fn -> check_lock_conflicts() end),
         run_check("Orphaned Connections", fn -> check_orphaned_connections() end),
         run_check("Oban Configuration", fn -> check_oban_config(oban_config) end),
@@ -1369,6 +1385,162 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       {:error, reason} -> {:probe_failed, reason}
       other -> {:probe_failed, other}
     end
+  end
+
+  # Check 12 above only ever examines a relationship that already HAS a
+  # declared FK constraint — its own moduledoc entry names this boundary
+  # ("a relationship with no FK constraint declared at all is outside this
+  # check's scope"). `belongs_to` is a source of exactly the (table,
+  # owner_key, ref_table) triple a check like that would need — every one
+  # PhoenixKit's own Ecto schemas declare names its target unambiguously
+  # via `owner_key`/`related`, without guessing from a column name. This
+  # check resolves that triple itself and cross-references it against
+  # `pg_constraint` directly (a bulk, two-query scan — see
+  # `discover_schema_declared_relations_without_fk/2` — not a per-candidate
+  # call to `fk_validation_state/5`, which answers a related but different
+  # question, a constraint's VALIDATE state, that this check does not use).
+  #
+  # It found two real gaps on a live install: phoenix_kit_activities's
+  # actor_uuid and target_uuid, both declared in PhoenixKit.Activity.Entry
+  # with no matching foreign key in the database. Reported as advisory
+  # (warn, not fail) — this can be intentional, a federated reference
+  # (V179/V180) cannot carry a FK across an optional module boundary.
+  #
+  # A polymorphic pair (a *_uuid column with a sibling *_type
+  # discriminator) structurally cannot appear in this check's findings:
+  # Ecto has no way to declare belongs_to against a type that varies per
+  # row, so there is nothing to filter for, unlike a name-based scan.
+  #
+  # Exposed (not `defp`) and `@doc false`, same reason as the other pure
+  # decision functions in this module: a real end-to-end seam against a
+  # live repo, directly testable without going through `run/1`.
+  @doc false
+  def check_schema_declared_relations_without_fk(prefix) do
+    repo = get_repo!()
+
+    case discover_schema_declared_relations_without_fk(repo, prefix) do
+      {:error, reason} ->
+        {:warn,
+         "could not enumerate belongs_to relations or foreign keys in schema " <>
+           "#{inspect(prefix)} (#{inspect(reason)}) — coverage is zero, which is not the " <>
+           "same as clean. Fix catalog access (pg_constraint/information_schema) and re-run."}
+
+      {:ok, {0, _missing}} ->
+        {:warn,
+         "no belongs_to-declared relation found to check in schema #{inspect(prefix)} — " <>
+           "coverage is zero: either PhoenixKit's own schemas' tables aren't installed here " <>
+           "yet, or --prefix names the wrong schema. This is not the same as clean."}
+
+      {:ok, {total, []}} ->
+        {:pass,
+         "Every belongs_to PhoenixKit's schemas declare has a matching DB foreign key " <>
+           "(checked #{total} of #{total})"}
+
+      {:ok, {total, missing}} ->
+        detail =
+          Enum.map_join(missing, "\n       ", fn {table, column} -> "#{table}.#{column}" end)
+
+        {:warn,
+         "#{length(missing)} of #{total} relation(s) declared via `belongs_to` in " <>
+           "PhoenixKit's own Ecto schemas have no matching database foreign key:\n       " <>
+           "#{detail}\n       This is advisory, not a failure — some are intentional (a " <>
+           "federated/soft reference cannot carry a FK across an optional module boundary, " <>
+           "see V179/V180). Derived from declared `belongs_to` associations only, cross-" <>
+           "referenced against pg_constraint — not exhaustive: a soft reference held as a " <>
+           "plain field (no `belongs_to` at all, e.g. a polymorphic pair) is invisible to " <>
+           "this scan too."}
+    end
+  end
+
+  # Returns `{:ok, {total_candidates, missing}}`, `missing` a `[{table,
+  # column}]` for every `belongs_to` owner_key that exists as a real column
+  # in this schema but has no `pg_constraint` FK matching its declared
+  # target table — or `{:error, reason}` if either catalog query itself
+  # fails. `total_candidates` is every belongs_to owner_key that DOES exist
+  # as a real column here (checked against `information_schema.columns`,
+  # not just `pg_constraint` membership, so a schema module for a
+  # not-yet-installed module — table absent entirely — is correctly
+  # excluded rather than miscounted as "declared, no FK"), surfaced so a
+  # caller can tell "checked N, all clean" apart from "checked nothing" —
+  # an empty `existing_columns` (wrong --prefix, nothing installed yet)
+  # would otherwise filter every candidate out and report the same `[]`
+  # `missing` as a genuinely clean install, printing PASS for a schema
+  # this check never actually looked at.
+  #
+  # The FK side is matched on the full (table, column, ref_table) triple,
+  # not just (table, column): a column carrying a single-column FK to the
+  # WRONG table (or a table caught up in a multi-column constraint via
+  # `array_length(c.conkey, 1) = 1` below) must still show up as missing
+  # its DECLARED relation, not be waved through because some other FK
+  # happens to touch the same column.
+  @doc false
+  def discover_schema_declared_relations_without_fk(repo, prefix) do
+    escaped_prefix = String.replace(prefix, "'", "\\'")
+
+    with {:ok, %{rows: fk_rows}} <-
+           repo.query(
+             """
+             SELECT t.relname, a.attname, ft.relname
+             FROM pg_constraint c
+             JOIN pg_class t ON t.oid = c.conrelid
+             JOIN pg_namespace n ON n.oid = t.relnamespace
+             JOIN pg_class ft ON ft.oid = c.confrelid
+             JOIN pg_namespace fn ON fn.oid = ft.relnamespace
+             JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+             WHERE c.contype = 'f'
+               AND n.nspname = '#{escaped_prefix}'
+               AND fn.nspname = '#{escaped_prefix}'
+               AND array_length(c.conkey, 1) = 1
+             """,
+             [],
+             log: false
+           ),
+         {:ok, %{rows: col_rows}} <-
+           repo.query(
+             "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = '#{escaped_prefix}'",
+             [],
+             log: false
+           ) do
+      declared_fk_relations =
+        MapSet.new(fk_rows, fn [table, col, ref_table] -> {table, col, ref_table} end)
+
+      existing_columns = MapSet.new(col_rows, fn [table, col] -> {table, col} end)
+
+      {:ok, modules} = :application.get_key(:phoenix_kit, :modules)
+
+      candidates =
+        modules
+        # `function_exported?/3` checks only what's already loaded in THIS
+        # process — for a schema module nothing has called yet, it reads
+        # false even though `Code.ensure_loaded?/1` would trigger the load
+        # and it would work fine one line later. Without the ensure_loaded?
+        # first, this filtered out nearly every schema.
+        |> Enum.filter(&(Code.ensure_loaded?(&1) and function_exported?(&1, :__schema__, 1)))
+        |> Enum.flat_map(&belongs_to_owner_columns/1)
+        |> Enum.uniq()
+        |> Enum.filter(fn {table, col, _ref_table} ->
+          MapSet.member?(existing_columns, {table, col})
+        end)
+        |> Enum.sort()
+
+      missing =
+        candidates
+        |> Enum.reject(&MapSet.member?(declared_fk_relations, &1))
+        |> Enum.map(fn {table, col, _ref_table} -> {table, col} end)
+
+      {:ok, {length(candidates), missing}}
+    end
+  end
+
+  defp belongs_to_owner_columns(schema) do
+    table = schema.__schema__(:source)
+
+    schema.__schema__(:associations)
+    |> Enum.map(&schema.__schema__(:association, &1))
+    |> Enum.filter(&match?(%Ecto.Association.BelongsTo{}, &1))
+    |> Enum.map(fn assoc ->
+      {table, Atom.to_string(assoc.owner_key), assoc.related.__schema__(:source)}
+    end)
   end
 
   defp check_lock_conflicts do

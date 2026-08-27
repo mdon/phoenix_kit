@@ -115,41 +115,6 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
     end
   end
 
-  describe "check_orphaned_fk_refs/1 — destructive: a genuinely orphaned row outside the old 4 pairs is caught" do
-    # The widened check reads every single-column FK straight from
-    # `pg_constraint` (`discover_fk_constraints/2`), not just the four pairs
-    # the old check knew by name. This proves that widened coverage actually
-    # catches something the old four-pair list could never have seen:
-    # `phoenix_kit_user_oauth_providers.user_uuid -> phoenix_kit_users.uuid`
-    # (constraint `fk_user_oauth_providers_user_uuid`) was never one of the
-    # old four (`phoenix_kit_users_tokens`, `phoenix_kit_user_role_assignments`,
-    # `phoenix_kit_admin_notes`, `phoenix_kit_email_events`).
-    #
-    # A plain `INSERT` can't produce this row — the constraint rejects a
-    # nonexistent `user_uuid` immediately, and it isn't `DEFERRABLE`, so
-    # `SET CONSTRAINTS ALL DEFERRED` doesn't buy anything either. Disabling
-    # the child table's own triggers for one statement is the standard
-    # Postgres idiom for planting a row that could otherwise only arise from
-    # the same kind of bypass in production — a bulk load with constraints
-    # off, a restore from an inconsistent backup, direct catalog surgery —
-    # which is exactly the class of real corruption this check exists to
-    # catch, not a contrived test-only shape.
-    test "an orphaned phoenix_kit_user_oauth_providers.user_uuid row is reported, not read as clean" do
-      Repo.query!("ALTER TABLE phoenix_kit_user_oauth_providers DISABLE TRIGGER ALL")
-
-      Repo.query!("""
-      INSERT INTO phoenix_kit_user_oauth_providers
-        (user_uuid, provider, provider_uid, inserted_at, updated_at)
-      VALUES (gen_random_uuid(), 'google', 'destructive-orphan-test', now(), now())
-      """)
-
-      Repo.query!("ALTER TABLE phoenix_kit_user_oauth_providers ENABLE TRIGGER ALL")
-
-      assert {:fail, message} = DoctorTask.check_orphaned_fk_refs("public")
-      assert message =~ "phoenix_kit_user_oauth_providers.user_uuid"
-    end
-  end
-
   describe "probe timeout shape — the real error shape, not an assumed one" do
     test "a real slow query through Repo.query/3 with a short timeout is always classified as a time limit, whichever shape it takes" do
       # `probe_fk/4` calls `repo.query(sql, [], timeout: N)` — through the
@@ -173,5 +138,87 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkTest do
 
       assert DoctorTask.fk_probe_failure_reason(reason) =~ "time limit exceeded"
     end
+  end
+
+  describe "discover_schema_declared_relations_without_fk/2 — I082, second step" do
+    test "finds EXACTLY the real, known gap: activities.actor_uuid and .target_uuid, nothing else" do
+      # Exact-list, not membership: `in` alone would still pass if a future
+      # belongs_to-without-FK went unnoticed alongside these two — silently
+      # absorbed into "found more than expected" instead of failing loud.
+      # `_total` (every belongs_to-declared column PhoenixKit's schemas have
+      # that also exists in this DB) is deliberately not asserted exactly —
+      # it grows with every module that adds an association, unrelated to
+      # what this test is pinning down.
+      assert {:ok, {_total, missing}} =
+               DoctorTask.discover_schema_declared_relations_without_fk(Repo, "public")
+
+      assert missing == [
+               {"phoenix_kit_activities", "actor_uuid"},
+               {"phoenix_kit_activities", "target_uuid"}
+             ]
+    end
+
+    test "never includes a polymorphic pair — Ecto cannot declare belongs_to against a varying type" do
+      assert {:ok, {_total, missing}} =
+               DoctorTask.discover_schema_declared_relations_without_fk(Repo, "public")
+
+      # phoenix_kit_activities.resource_uuid is paired with resource_type
+      # (polymorphic) — no belongs_to is declared for it in Entry's schema,
+      # so it structurally cannot appear here, unlike a name-based scan
+      # that would need an explicit filter to exclude it.
+      refute {"phoenix_kit_activities", "resource_uuid"} in missing
+    end
+
+    test "a genuinely wrong schema name reports zero candidates, not an error" do
+      assert {:ok, {0, []}} =
+               DoctorTask.discover_schema_declared_relations_without_fk(
+                 Repo,
+                 "definitely_not_a_real_schema_12345"
+               )
+    end
+
+    test "a malformed schema name (real catalog-access fault) returns {:error, _}, never a silent empty result" do
+      # The unescaped quote breaks both catalog queries' own string literal
+      # boundary — a genuine Postgres syntax error, the same class of fault
+      # that can otherwise collapse into "nothing found" and print PASS.
+      assert {:error, %Postgrex.Error{}} =
+               DoctorTask.discover_schema_declared_relations_without_fk(Repo, "x'y")
+    end
+
+    # The destructive proof-by-mutation directions — adding the FK a
+    # `belongs_to` already declares must remove it from this list, and a FK
+    # that exists but points at the WRONG table must NOT — live in
+    # `DoctorOrphanedFkDestructiveTest`, `async: false` — see that module's
+    # moduledoc for why: the real `ALTER TABLE ... ADD CONSTRAINT` it runs
+    # takes a `ShareRowExclusiveLock` on `phoenix_kit_users`, which deadlocked
+    # against another async test file's write to that same table on a real
+    # full-suite run.
+  end
+
+  describe "check_schema_declared_relations_without_fk/1 — I082, second step: PASS is not vacuous" do
+    test "reports the real count as :warn, never :fail — this is advisory, not a defect" do
+      assert {:warn, message} = DoctorTask.check_schema_declared_relations_without_fk("public")
+      assert message =~ "phoenix_kit_activities.actor_uuid"
+      assert message =~ "phoenix_kit_activities.target_uuid"
+      assert message =~ "advisory, not a failure"
+    end
+
+    test "a genuinely wrong schema name is :warn naming zero coverage, never :pass" do
+      assert {:warn, message} =
+               DoctorTask.check_schema_declared_relations_without_fk(
+                 "definitely_not_a_real_schema_12345"
+               )
+
+      assert message =~ "coverage is zero"
+      assert message =~ "not the same as clean"
+    end
+
+    test "a malformed schema name (catalog-access fault) is :warn, never :fail" do
+      assert {:warn, message} = DoctorTask.check_schema_declared_relations_without_fk("x'y")
+      assert message =~ "coverage is zero"
+    end
+
+    # The "closes every real gap -> :pass" destructive proof lives in
+    # `DoctorOrphanedFkDestructiveTest`, `async: false` — same reason as above.
   end
 end
