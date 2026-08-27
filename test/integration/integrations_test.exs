@@ -1047,7 +1047,7 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
   # ===========================================================================
 
   describe "record_validation/2 with :unverified (no check ran)" do
-    test "status stays \"configured\", never \"connected\"" do
+    test ~s(status stays "configured", never "connected") do
       uuid = setup_conn("openrouter", %{"api_key" => "k"})
       :ok = Integrations.record_validation(uuid, :unverified)
 

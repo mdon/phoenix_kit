@@ -644,7 +644,17 @@ defmodule PhoenixKitWeb.Integration do
     # `:user_dashboard` context in `tab_callback_context/1` was dormant
     # until this). Tabs without `live_view` — the hardcoded module blocks
     # above — are untouched.
-    user_tab_routes = compile_module_user_routes(__CALLER__.module)
+    #
+    # `compile_module_user_routes/1` flat_maps `collect_module_tabs/2` across
+    # every discovered module with no dedup between them — the same
+    # same-path-across-modules defect `dedupe_admin_routes_by_path/2` exists
+    # to fix for `admin_tabs`/`settings_tabs` (see the comment on
+    # `phoenix_kit_admin_routes/1`), just never extended here. Self-dedup
+    # (no host `:user_dashboard_tabs` config entry carries a `live_view` —
+    # see `PhoenixKit.Dashboard` moduledoc — so there is no host list to
+    # check against, unlike the admin side): first module discovered wins.
+    user_tab_routes =
+      compile_module_user_routes(__CALLER__.module) |> dedupe_admin_routes_by_path([])
 
     quote do
       # The signed-in user's own account page. UNCONDITIONAL, unlike the

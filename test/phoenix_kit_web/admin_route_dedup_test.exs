@@ -32,6 +32,18 @@ defmodule PhoenixKitWeb.AdminRouteDedupTest do
   `setup/1`. `phoenix_kit_routes()` expands at COMPILE time, which for a
   module nested in a test file happens the moment `Kernel.ParallelCompiler`
   reaches this file, well before any `setup` block would run.
+
+  For the same reason, the `:user_dashboard_tabs` cross-module dedup test
+  below (added post-#753 — the fix landed in this same review pass, see
+  `PhoenixKitWeb.Integration.phoenix_kit_authenticated_routes/1`) lives in
+  THIS file rather than a sibling one: two test files each mutating
+  `Application.put_env(:phoenix_kit, :modules, ...)` as top-level compile-
+  time code race against each other under `Kernel.ParallelCompiler`, which
+  compiles multiple files concurrently — confirmed by extraction, which
+  intermittently starved this file's own `FakeExternalModule` out of
+  `:modules` mid-compile. `async: false` (an ExUnit/runtime concern) cannot
+  fix a compile-time race. One file, one `Application.put_env` sequence,
+  is the only reliable way to keep this fixture isolated.
   """
   use ExUnit.Case, async: false
 
@@ -67,6 +79,38 @@ defmodule PhoenixKitWeb.AdminRouteDedupTest do
     def render(assigns), do: ~H"<div>module-only</div>"
   end
 
+  # Two more probes for the `user_dashboard_tabs` cross-module collision
+  # test below — a collision between TWO external modules, not host-vs-
+  # module (there is no host `:user_dashboard_tabs` route source to collide
+  # with; see the moduledoc).
+  defmodule FirstDashboardCollisionLive do
+    @moduledoc false
+    use Phoenix.LiveView
+    @impl true
+    def render(assigns), do: ~H"<div>first-dashboard-collision</div>"
+  end
+
+  defmodule SecondDashboardCollisionLive do
+    @moduledoc false
+    use Phoenix.LiveView
+    @impl true
+    def render(assigns), do: ~H"<div>second-dashboard-collision</div>"
+  end
+
+  defmodule FirstDashboardOnlyLive do
+    @moduledoc false
+    use Phoenix.LiveView
+    @impl true
+    def render(assigns), do: ~H"<div>first-dashboard-only</div>"
+  end
+
+  defmodule SecondDashboardOnlyLive do
+    @moduledoc false
+    use Phoenix.LiveView
+    @impl true
+    def render(assigns), do: ~H"<div>second-dashboard-only</div>"
+  end
+
   # Stand-in for an external PhoenixKit module discovered via the
   # `Application.get_env(:phoenix_kit, :modules, [])` fallback in
   # `PhoenixKit.ModuleDiscovery.discover_external_modules/0` — no beam
@@ -87,6 +131,53 @@ defmodule PhoenixKitWeb.AdminRouteDedupTest do
           label: "Module-only",
           path: "module-only-probe",
           live_view: {PhoenixKitWeb.AdminRouteDedupTest.ModuleOnlyLive, :index}
+        )
+      ]
+    end
+
+    # `compile_module_user_routes/1` `flat_map`s this across every
+    # discovered module with no dedup between them — the same defect class
+    # #753 fixed for `admin_tabs`/`settings_tabs`, left open here.
+    # `FakeExternalModule` is discovered before `SecondFakeExternalModule`
+    # (declaration order in the `:modules` config below), so this is the
+    # one expected to win the collision.
+    def user_dashboard_tabs do
+      [
+        Tab.new!(
+          id: :dedup_probe_first_dashboard_collision_tab,
+          label: "First (dashboard collision)",
+          path: "/dashboard/dedup-collision-probe",
+          live_view: {PhoenixKitWeb.AdminRouteDedupTest.FirstDashboardCollisionLive, :index}
+        ),
+        Tab.new!(
+          id: :dedup_probe_first_dashboard_only_tab,
+          label: "First-only (dashboard)",
+          path: "first-dashboard-only-probe",
+          live_view: {PhoenixKitWeb.AdminRouteDedupTest.FirstDashboardOnlyLive, :index}
+        )
+      ]
+    end
+  end
+
+  # Second stand-in module — exists only to give the `user_dashboard_tabs`
+  # cross-module collision test a second module to collide with. No
+  # `admin_tabs/0` of its own, so it's inert for the admin-side tests above.
+  defmodule SecondFakeExternalModule do
+    @moduledoc false
+
+    def user_dashboard_tabs do
+      [
+        Tab.new!(
+          id: :dedup_probe_second_dashboard_collision_tab,
+          label: "Second (dashboard collision)",
+          path: "/dashboard/dedup-collision-probe",
+          live_view: {PhoenixKitWeb.AdminRouteDedupTest.SecondDashboardCollisionLive, :index}
+        ),
+        Tab.new!(
+          id: :dedup_probe_second_dashboard_only_tab,
+          label: "Second-only (dashboard)",
+          path: "second-dashboard-only-probe",
+          live_view: {PhoenixKitWeb.AdminRouteDedupTest.SecondDashboardOnlyLive, :index}
         )
       ]
     end
@@ -114,7 +205,8 @@ defmodule PhoenixKitWeb.AdminRouteDedupTest do
   ])
 
   Application.put_env(:phoenix_kit, :modules, [
-    PhoenixKitWeb.AdminRouteDedupTest.FakeExternalModule
+    PhoenixKitWeb.AdminRouteDedupTest.FakeExternalModule,
+    PhoenixKitWeb.AdminRouteDedupTest.SecondFakeExternalModule
   ])
 
   defmodule DedupProbeRouter do
@@ -190,5 +282,28 @@ defmodule PhoenixKitWeb.AdminRouteDedupTest do
   test "distinct paths are left alone — dedup does not swallow real pages" do
     assert length(routes_ending_in("/admin/host-only-probe")) == 2
     assert length(routes_ending_in("/admin/module-only-probe")) == 2
+  end
+
+  test "two modules' user_dashboard_tabs resolving to the same path compile to one declaration per URL shape, not two" do
+    matches = routes_ending_in("/dashboard/dedup-collision-probe")
+
+    assert length(matches) == 2,
+           "expected 2 routes (one per URL shape) at the colliding path, found " <>
+             "#{length(matches)}: #{inspect(Enum.map(matches, & &1.path))}"
+
+    # First-discovered module wins — same precedence collect_module_tabs/2
+    # already uses within a single module's own tab list, and
+    # dedupe_admin_routes_by_path/2 uses for the admin surface above.
+    live_views =
+      matches
+      |> Enum.map(fn route -> elem(route.metadata[:phoenix_live_view], 0) end)
+      |> Enum.uniq()
+
+    assert live_views == [PhoenixKitWeb.AdminRouteDedupTest.FirstDashboardCollisionLive]
+  end
+
+  test "distinct user_dashboard_tabs paths from different modules are left alone" do
+    assert length(routes_ending_in("/dashboard/first-dashboard-only-probe")) == 2
+    assert length(routes_ending_in("/dashboard/second-dashboard-only-probe")) == 2
   end
 end
