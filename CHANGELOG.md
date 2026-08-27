@@ -1,3 +1,33 @@
+## 2.13.12 - 2026-08-27
+
+### Fixed
+
+- **A module tab colliding with a host admin page, or with another
+  module's tab, compiled to two `live` declarations at the same path** —
+  Phoenix kept the first, the second was dead code, discoverable only by
+  chance via the compiler's "this clause cannot match" warning. Host pages
+  now always win; ties between modules keep whichever was discovered
+  first. (#753)
+- The same collision was still possible between two modules'
+  `user_dashboard_tabs` — the sibling route family `compile_module_user_routes/1`
+  builds, which #753 didn't cover. Fixed with the same dedup logic.
+- **"Test Connection" stamped a provider with no way to actually check a
+  connection as `"connected"`**, with a fabricated `connected_at`
+  timestamp — a check that never ran was indistinguishable from one that
+  passed. Such providers now report `:unverified`, threaded through to a
+  distinct "Not tested — this provider has no connection check" warning
+  (not the green "verified" a real pass gets, not the red "failed" a real
+  failure gets) on both the system and personal integration forms. (#754)
+
+### Added
+
+- `mix phoenix_kit.doctor` check 13, **Schema-Declared Relations Without a
+  DB FK** — cross-references every `belongs_to` PhoenixKit's own schemas
+  declare against `pg_constraint`, reporting (advisory, not a failure) any
+  relation with no matching database foreign key. Complements check 12,
+  which only ever examines a relationship that already has a declared FK
+  constraint. (#755)
+
 ## 2.13.11 - 2026-08-25
 
 Every install migrating through V180 crashed outright — a bare
