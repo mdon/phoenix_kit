@@ -93,6 +93,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   alias PhoenixKit.Install.ChildOrder
   alias PhoenixKit.Install.PrefixConfig
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Migrations.ExpectedSchema.Resolver
   alias PhoenixKit.Migrations.Modules, as: MigrationModules
   alias PhoenixKit.Migrations.Postgres
@@ -105,7 +106,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   @shortdoc "Diagnoses PhoenixKit installation, migration, and runtime issues"
 
-  @switches [prefix: :string, exit_code: :boolean]
+  @switches [prefix: :string, exit_code: :boolean, fingerprint: :boolean]
   @aliases [p: :prefix]
 
   # The longest timeout/1 any worker PhoenixKit ships declares
@@ -167,7 +168,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         run_check("Sitemap Discoverability", fn -> check_sitemap_serving() end),
         run_check("Crawler Visibility", fn -> check_crawler_visibility(prefix) end),
         run_check("Demo Auth Pages", fn -> check_demo_routes() end),
-        run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end)
+        run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end),
+        run_check("Integration Key", fn -> check_integration_key(opts[:fingerprint] || false) end)
       ] ++ git_hooks_check()
 
     IO.puts("")
@@ -281,6 +283,80 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   end
 
   # ── Check implementations (return {:pass|:warn|:fail, detail}) ──────
+
+  defp check_integration_key(show_fingerprint?) do
+    integration_key_result(Encryption.key_report(), show_fingerprint?)
+  end
+
+  @doc """
+  The "Integration Key" verdict, rendered from one complete report.
+
+  Takes the report and a display choice, and **nothing else**. That is the whole
+  point of the signature: this check previously received the advice, a
+  fingerprint note and a storage location as separate arguments, each computed
+  without reference to the others, and three consecutive rounds of fixes each
+  produced a message that contradicted itself — a fingerprint note beside "no
+  key resolved at all", a storage location for a key stored nowhere, a claim of
+  a weaker key where none existed.
+
+  There is no longer an argument through which those pieces could disagree: the
+  fingerprint and the tier that produced it are one term inside the report, and
+  they are absent together when there is no key.
+
+  Public as a test seam, for the same reason `exit_code/1` is: the defects lived
+  in this rendering, where tests over the diagnosis could not reach them.
+  """
+  @spec integration_key_result(Encryption.key_report(), boolean()) ::
+          {:pass | :warn | :fail, String.t()}
+  def integration_key_result(report, show_fingerprint?) do
+    detail =
+      [report.summary, report.consequence, report.action]
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.concat(fingerprint_lines(report, show_fingerprint?))
+      |> Enum.concat(key_store_lines(report))
+      |> Enum.join(".\n       ")
+
+    {severity_status(report.severity), detail}
+  end
+
+  # An unintended plaintext store is a FAIL, not a warning: `--exit-code` exists
+  # to stop a deploy, and credentials written in the clear without anyone
+  # choosing that is what it should stop for. Encryption switched off on purpose
+  # stays a warning — the operator already knows.
+  defp severity_status(:ok), do: :pass
+  defp severity_status(:warn), do: :warn
+  defp severity_status(:fail), do: :fail
+
+  # No key means no line at all, in EITHER flag state. The flag chooses between
+  # two ways of describing a fingerprint that exists; it cannot conjure one.
+  defp fingerprint_lines(%{fingerprint: :none}, _show), do: []
+
+  defp fingerprint_lines(%{fingerprint: {:ok, _value, _tier}}, false),
+    do: ["Fingerprint hidden — pass --fingerprint to show"]
+
+  defp fingerprint_lines(%{fingerprint: {:ok, value, tier}}, true),
+    do: ["Fingerprint #{value} (#{tier})"]
+
+  # Absent when nothing is configured, rather than printed as "no key store
+  # configured" underneath a message about a key that is stored nowhere.
+  #
+  # The state is printed with it. A bare path reads as "your key is saved here",
+  # and for two of the three states it is not: the store may hold nothing yet,
+  # or hold something nobody can read. That line sat under a `{:dedicated, :ok}`
+  # verdict looking like confirmation of a backup that did not exist.
+  defp key_store_lines(%{key_store: nil}), do: []
+  defp key_store_lines(%{key_store: {:holding, location}}), do: ["Key store: #{location}"]
+
+  defp key_store_lines(%{key_store: {:no_secret_yet, location}}),
+    do: ["Key store: #{location} (configured, holds no secret yet)"]
+
+  defp key_store_lines(%{key_store: {:unreadable, location}}),
+    do: ["Key store: #{location} (configured, could not be read)"]
+
+  defp key_store_lines(%{key_store: {:shadowed, location}}),
+    do: [
+      "Key store: #{location} (configured, holds a DIFFERENT secret — not a copy of the key in use)"
+    ]
 
   # `.githooks/pre-commit` is a phoenix_kit-core-repo convention (see
   # AGENTS.md) — nothing installs or copies it into a consuming host app, so
