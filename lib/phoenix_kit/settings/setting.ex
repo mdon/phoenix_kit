@@ -174,12 +174,19 @@ defmodule PhoenixKit.Settings.Setting do
   # `PhoenixKit.Settings.restricted_setting_keys/0` (`oauth_*_secret`,
   # `aws_access_key_id`/`aws_secret_access_key` — live credential material,
   # not just data an admin would rather keep quiet) is stored encrypted.
-  # `get_change/2`, not `get_field/2`: only a genuinely NEW value gets
-  # encrypted here — a changeset that leaves `:value` untouched (e.g.
-  # `update_setting_with_module/3` re-saving `module` alone) must not
-  # re-touch whatever is already stored, encrypted or not. Existing plaintext
-  # rows are deliberately left alone by this change — migrating them is a
-  # separate, live-database step, not implied by this changeset.
+  # `get_change/2`, not `get_field/2`: `get_change/2` is `nil` both when
+  # `attrs` never carried `:value` at all AND when it did but the submitted
+  # value equals what `changeset.data` already holds (Ecto's own cast
+  # diffing, not something this function decides) — either way, nothing
+  # here re-touches whatever is already stored, encrypted or not. (Every
+  # current caller happens to always pass `:value` — e.g.
+  # `update_setting_with_module/3` always includes it alongside `module` —
+  # so it is this second case, an unchanged resubmission, not an absent
+  # key, that `get_change/2` actually needs to catch today; a future caller
+  # that omits `:value` entirely is covered by the same check for free.)
+  # Existing plaintext rows are deliberately left alone by this change —
+  # migrating them is a separate, live-database step, not implied by this
+  # changeset.
   #
   # `Encryption.encrypt_value/1` already does the right thing for every edge
   # case this needs: nil/empty pass through unchanged (no ciphertext for
