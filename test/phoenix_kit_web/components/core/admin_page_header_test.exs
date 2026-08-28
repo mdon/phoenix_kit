@@ -65,8 +65,11 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeaderTest do
       assert result =~ "btn-square"
       refute result =~ "max-sm:btn-square"
       refute result =~ "btn-circle"
-      # Full button height, matching the actions across the row from it.
+      # Full button height, matching the actions across the row from it…
       refute result =~ "btn-sm"
+      # …and a glyph big enough to see: the button is transparent (ghost),
+      # so the icon is the whole visible control.
+      assert result =~ ~s(class="hero-arrow-left w-5 h-5")
       assert result =~ "items-start"
       # The tooltip must survive refactors — it's the icon-only mode's only
       # visible hint.

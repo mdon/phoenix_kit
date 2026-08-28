@@ -126,7 +126,11 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
             aria-label={@back_label || gettext("Back")}
             title={@back_label || gettext("Back")}
           >
-            <.icon name="hero-arrow-left" class="w-4 h-4" />
+            <%!-- w-5, not w-4: the button is ghost (transparent), so the
+                  glyph IS the control as far as the eye is concerned — a
+                  16px arrow beside a 30px page title reads as too small to
+                  aim at (Max, 2026-08-28). --%>
+            <.icon name="hero-arrow-left" class="w-5 h-5" />
             <span :if={@back_label} class="hidden sm:inline">{@back_label}</span>
           </.link>
           <div class="min-w-0">
