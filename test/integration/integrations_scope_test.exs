@@ -50,6 +50,23 @@ defmodule PhoenixKit.Integration.IntegrationsScopeTest do
       # system add of the same provider is fine
       assert {:ok, _} = Integrations.add_connection("google", "sysgoogle")
     end
+
+    test "add of an unregistered provider key is rejected, not silently birthed" do
+      # `Providers.get/1` returns nil for an unknown key, and
+      # `Providers.scopes_of/1` then defaults an unknown provider to
+      # `[:system]` (see "provider scopes" below) — without a dedicated
+      # guard, a crafted `provider_key` from the tamperable
+      # "select_provider" event trivially clears the :system scope check
+      # and births a row `list_connections/1` reports as real.
+      bogus = "definitely-not-a-real-provider-#{System.unique_integer([:positive])}"
+
+      assert {:error, :unknown_provider} = Integrations.add_connection(bogus, "bogus-conn")
+
+      assert {:error, :unknown_provider} =
+               Integrations.add_connection(bogus, "bogus-conn", nil, owner: {:user, uid()})
+
+      assert Integrations.list_connections(bogus) == []
+    end
   end
 
   describe "list reads are owner-scoped (default :system)" do
