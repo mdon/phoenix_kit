@@ -1291,11 +1291,17 @@ defmodule PhoenixKit.Settings do
 
   # Same as `decrypt_if_restricted/2`, applied across a whole `{key, value}`
   # list — the shape `Queries.list_settings_key_values_by_keys/1` and
-  # `Queries.list_settings_key_values/0` both return. Shared by every
-  # multi-key read path (`get_settings_direct/1`, the cache miss-fill behind
-  # `get_settings_cached/2`, `list_all_settings/0`) so there is exactly one
-  # place that decides how a batch of raw rows becomes the map a caller
-  # reads — not one call site each, silently drifting apart.
+  # `Queries.list_settings_key_values/0` both return, and the shape
+  # `warm_cache_data/0` builds by hand from `Queries.list_settings/0`
+  # (S015 review finding 1 — that hand-built list originally bypassed this
+  # entirely and fed the boot-time cache warmer raw ciphertext for every
+  # restricted key, on every app start, forever until the next write; a
+  # cache HIT never even reaches the decrypting miss-fill path below it).
+  # Shared by every multi-key read path (`get_settings_direct/1`, the cache
+  # miss-fill behind `get_settings_cached/2`, `list_all_settings/0`,
+  # `warm_cache_data/0`) so there is exactly one place that decides how a
+  # batch of raw rows becomes the map a caller — or the cache itself —
+  # reads, not one call site each, silently drifting apart.
   defp decrypt_and_map_settings(pairs) do
     Map.new(pairs, fn {key, value} -> {key, decrypt_if_restricted(key, value)} end)
   end
@@ -1919,8 +1925,18 @@ defmodule PhoenixKit.Settings do
   @doc """
   Warms the cache by loading all settings from database.
 
-  Called by PhoenixKit.Cache to pre-populate cache with all existing settings.
-  Prioritizes JSON values over string values for cache storage.
+  Called by `PhoenixKit.Cache` (`supervisor.ex`'s `:settings` child,
+  `sync_init: true`) to pre-populate cache with all existing settings —
+  synchronously, on every app boot, before the rest of the supervision tree
+  starts. Prioritizes JSON values over string values for cache storage.
+
+  Runs every restricted key's value (S015) through `decrypt_and_map_settings/1`
+  before returning — the cache itself is a bare ETS passthrough with no
+  notion of encryption (`PhoenixKit.Cache`'s warmer just `:ets.insert`s
+  whatever this returns, verbatim), so this is the only place that stands
+  between a boot-time warm and `get_setting_cached/2`/`get_settings_cached/2`
+  serving `enc:v1:...` as if it were the real secret on every cache HIT
+  until the next write invalidates it.
   """
   def warm_cache_data do
     # In update_mode, skip DB warming — the update task only needs the Repo for migrations.
@@ -1944,7 +1960,7 @@ defmodule PhoenixKit.Settings do
 
           {setting.key, value}
         end)
-        |> Map.new()
+        |> decrypt_and_map_settings()
       else
         # Repo not available (likely during Mix task execution)
         # Return empty map - cache will be warmed later when repo becomes available

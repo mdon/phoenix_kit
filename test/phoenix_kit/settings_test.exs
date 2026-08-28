@@ -202,6 +202,45 @@ defmodule PhoenixKit.SettingsTest do
                "synthetic-round-trip-secret"
     end
 
+    # S015 review finding 1: warm_cache_data/0 originally read `setting.value`
+    # directly, bypassing `decrypt_and_map_settings/1` — the one place every
+    # OTHER multi-key read path funnels through.
+    # `PhoenixKit.Cache` is a bare ETS passthrough with no notion of
+    # encryption — its warmer just `:ets.insert`s whatever this function
+    # returns, verbatim — so every app boot (`supervisor.ex`'s `:settings`
+    # child, `sync_init: true`) filled the cache with raw `enc:v1:...` for
+    # every restricted key, and `get_setting_cached/2`/`get_settings_cached/2`
+    # (their own docstrings: "preferred") served it as if it were the real
+    # secret on every cache HIT — no error, no log — until the next write
+    # invalidated that one key.
+    test "the boot-time cache warmer does not populate the cache with raw ciphertext" do
+      {:ok, _} =
+        Settings.update_setting("oauth_google_client_secret", "synthetic-cache-warm-secret")
+
+      # The exact function supervisor.ex wires as the :settings cache's
+      # warmer. `PhoenixKit.Cache`'s own warm_critical_data/2 is a bare
+      # :ets.insert per {key, value} pair returned here — no transformation
+      # of its own — so asserting on THIS return value is asserting on
+      # exactly what a fresh boot would serve.
+      warmed = Settings.warm_cache_data()
+      assert warmed["oauth_google_client_secret"] == "synthetic-cache-warm-secret"
+
+      # Prove it through the real cache and the public, docstring-preferred
+      # get_setting_cached/2 too. Seeded directly rather than by triggering
+      # the real sync_init warmer: that warmer runs its query inside a
+      # spawned Task (`PhoenixKit.Cache.do_sync_warm/2`), which does not
+      # inherit this test's :manual-mode Sandbox connection — triggering it
+      # for real here would just fail to reach the database and prove
+      # nothing. `test/phoenix_kit/utils/safe_destination_settings_test.exs`
+      # seeds this same cache the same way, for the same reason.
+      start_supervised!({PhoenixKit.Cache.Registry, []})
+      start_supervised!({PhoenixKit.Cache, name: :settings})
+      :ok = PhoenixKit.Cache.put_multiple(:settings, warmed)
+
+      assert Settings.get_setting_cached("oauth_google_client_secret") ==
+               "synthetic-cache-warm-secret"
+    end
+
     test "an existing plaintext value is read back unchanged (legacy, not touched by this change)" do
       # Ecto.Changeset.change/2, not Setting.changeset/2, on purpose — this
       # is what an already-plaintext row from before this change looks
