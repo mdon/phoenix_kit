@@ -124,6 +124,7 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
   alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.KeyRotation
   alias PhoenixKit.Integrations.KeyStore
+  alias PhoenixKit.Integrations.KeyStore.Chain
 
   @shortdoc "Rotates the encryption key protecting stored integration credentials"
 
@@ -249,7 +250,17 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
   # is now safe is decided here, and it is decided by reading it back — a write
   # that returned :ok and did not land is precisely the failure being guarded
   # against.
-  defp store_and_report(count, secret, supplied?) do
+  #
+  # Public for the same testability reason as `parse_args/1` and
+  # `resolve_new_secret/1`: the defect a partial chain failure produces lives
+  # in what gets printed and raised, and a test that cannot reach that cannot
+  # guard it. Unlike those two this isn't pure (it calls `KeyStore` and
+  # `Mix.shell()`), but it needs no database and no running app — only the
+  # configured key store, which a test can set to a real temp-dir file store
+  # beside a synthetic failing one.
+  @doc false
+  @spec store_and_report(non_neg_integer(), String.t(), boolean()) :: :ok
+  def store_and_report(count, secret, supplied?) do
     case KeyStore.write_verified(secret) do
       :ok ->
         print_stored_success(count, KeyStore.describe())
@@ -258,10 +269,50 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
       :not_configured ->
         print_unstored_success(count, secret, supplied?)
 
+      {:error, {:chain_write_failed, failures} = reason} ->
+        case succeeded_chain_stores(failures) do
+          [] ->
+            print_secret_of_last_resort(secret)
+            Mix.raise(store_failed_message(reason, KeyStore.describe()))
+
+          succeeded ->
+            print_secret_partially_stored(secret, succeeded)
+            Mix.raise(chain_partial_failure_message(reason, succeeded))
+        end
+
       {:error, reason} ->
         print_secret_of_last_resort(secret)
         Mix.raise(store_failed_message(reason, KeyStore.describe()))
     end
+  end
+
+  # Which configured chain members are NOT in `failures` — i.e. wrote the
+  # secret successfully. `failures` (from `{:chain_write_failed, failures}`)
+  # only ever lists what went wrong; it says nothing about what went right,
+  # and the messages below must not call a secret "the only copy" when a
+  # member of the very chain that just partially failed is already holding it.
+  @spec succeeded_chain_stores(list()) :: [KeyStore.configured()]
+  defp succeeded_chain_stores(failures) do
+    case KeyStore.configured() do
+      {Chain, opts} ->
+        failed_modules = Enum.map(failures, fn {module, _result} -> module end)
+
+        opts
+        |> Chain.stores()
+        |> Enum.reject(fn {module, _store_opts} -> module in failed_modules end)
+
+      _ ->
+        []
+    end
+  end
+
+  defp describe_stores(stores) do
+    Enum.map_join(stores, ", and ", fn {module, store_opts} ->
+      case KeyStore.invoke_store(module, :describe, [store_opts]) do
+        location when is_binary(location) -> location
+        _ -> inspect(module)
+      end
+    end)
   end
 
   # Resolves the secret a real (non-dry-run) rotation writes under:
@@ -338,11 +389,23 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
 
         config :phoenix_kit, integrations_encryption_key: System.get_env("PHOENIX_KIT_INTEGRATIONS_ENCRYPTION_KEY")
 
-    with the value above wired to that environment variable. Stored connections are now
+    #{wired_secret_reference(supplied?)} Stored connections are now
     encrypted under the NEW secret — reads will fail until you configure it and restart,
     so don't delay between running this and restarting.
     """)
   end
+
+  # `--new-key` skips the "printed above" block entirely (see `supplied?`
+  # above) — the operator already has the secret they passed on the command
+  # line, so this closing paragraph must not point back at output that was
+  # never shown.
+  @doc false
+  @spec wired_secret_reference(boolean()) :: String.t()
+  def wired_secret_reference(false),
+    do: "with the value above wired to that environment variable."
+
+  def wired_secret_reference(true),
+    do: "with the --new-key secret you supplied wired to that environment variable."
 
   # Printed only when the store failed AFTER the data was re-encrypted. At that
   # point the secret on screen is the only copy in existence, so withholding it
@@ -353,6 +416,24 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
     The data IS already re-encrypted under this secret, and storing it FAILED.
     This line is now the only copy — save it somewhere safe before doing
     anything else:
+
+        #{secret}
+    """)
+  end
+
+  # Printed instead of `print_secret_of_last_resort/1` when the failed store
+  # was one member of a chain and at least one OTHER member wrote
+  # successfully. The secret is NOT "the only copy" in that case — it is
+  # already saved wherever `succeeded` names — and saying otherwise both
+  # overstates the danger and buries the fact that a working copy already
+  # exists to fix the failed member FROM.
+  defp print_secret_partially_stored(secret, succeeded) do
+    Mix.shell().info("""
+
+    The data IS already re-encrypted under this secret. It is already saved
+    at #{describe_stores(succeeded)} — this is NOT the only copy — but part
+    of the configured chain failed to write it (see below). Copy it to the
+    failed member too before doing anything else:
 
         #{secret}
     """)
@@ -398,6 +479,23 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
       "#{location || "the store"} does not hold it. Save that secret now, then either fix the " <>
       "store and write it there, or set it as integrations_encryption_key directly."
   end
+
+  # Unlike `store_failed_message/2`, part of the chain already holds the
+  # secret — so this must not claim `location` (which, per `Chain.describe/1`,
+  # names EVERY configured member, not just the failed one) "does not hold
+  # it", and must not suggest shadowing the store with an explicit config key:
+  # that store already has the right value, and shadowing it would just mean
+  # a future restart reads the OLD key from config instead of the new one the
+  # working chain member already holds.
+  defp chain_partial_failure_message(reason, succeeded) do
+    "Rotation succeeded, and #{describe_stores(succeeded)} already #{holds_or_hold(succeeded)} " <>
+      "the new secret — but part of the key store chain FAILED to write it " <>
+      "(#{describe_store_error(reason)}). Copy the secret printed above into the failed " <>
+      "member too, or the chain is not the backup it looks like."
+  end
+
+  defp holds_or_hold([_one]), do: "holds"
+  defp holds_or_hold(_more), do: "hold"
 
   # Delegates to the store's own describer, which withholds the payload of any
   # error shape it does not recognise: a host-supplied store may return a term

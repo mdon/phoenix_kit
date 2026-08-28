@@ -232,6 +232,14 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   def encryption_status_title(%{diagnosis: {_status, :store_unreadable}}),
     do: gettext("The configured encryption key store cannot be read")
 
+  # Mirrors `{_status, :store_unreadable}` immediately above: `:legacy` and
+  # `:none` only had the `:dedicated` clause to fall back to, which is silent
+  # about the store for the exact window — after a rotation, before the
+  # restart it requires — where an operator most needs to hear that the store
+  # already holds a secret waiting to be picked up.
+  def encryption_status_title(%{diagnosis: {_status, :store_shadowed}}),
+    do: gettext("The configured key store holds a different secret")
+
   # A rejected key does not have to be `integrations_encryption_key`. Until the
   # store could supply one, it always was, and these clauses said so; the moment
   # it could, they went on saying it. The source is now carried on the report
@@ -301,6 +309,33 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
         "mix phoenix_kit.integrations.rotate_key: the stored key may be the one they are " <>
         "encrypted under. Repair the store first; repairing it later will not make anything " <>
         "written in the meantime readable."
+    )
+  end
+
+  def encryption_status_detail(%{diagnosis: {:disabled_no_key, :store_shadowed}} = report) do
+    gettext(
+      "A key store is configured and holds a secret at %{location}, but no encryption key " <>
+        "resolves at all — credentials below are being written in plain text. Do NOT run " <>
+        "mix phoenix_kit.integrations.rotate_key: it refuses while no key is active. Check " <>
+        "what the store holds — if it is a real key from an earlier rotation, wire it in as " <>
+        "integrations_encryption_key and restart.",
+      location: store_location(report)
+    )
+  end
+
+  # Mirrors the generic `{_status, :store_unreadable}` clause above, for the
+  # sibling fault: the store holds something, just not the key in use. Most
+  # plausibly the window between a rotation and the restart it requires — see
+  # `Encryption.key_report/1`'s `:legacy, store: {:shadowed, _}` clause.
+  def encryption_status_detail(%{diagnosis: {_status, :store_shadowed}} = report) do
+    gettext(
+      "A key store is configured but holds a secret that is not the key in use, so " <>
+        "encryption fell back to a weaker key. %{location} is most plausibly already " <>
+        "holding a dedicated secret from a rotation this app has not restarted to pick up " <>
+        "yet. Do NOT run mix phoenix_kit.integrations.rotate_key before checking: if that " <>
+        "is the case, restart instead of rotating again, since rotating replaces it with no " <>
+        "copy kept.",
+      location: store_location(report)
     )
   end
 
@@ -416,6 +451,9 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
 
   def fingerprint_tier(%{diagnosis: {_status, :store_unreadable}}),
     do: gettext("FALLBACK key — the configured key store could not be read")
+
+  def fingerprint_tier(%{diagnosis: {_status, :store_shadowed}}),
+    do: gettext("FALLBACK key — the configured key store holds a different secret")
 
   def fingerprint_tier(%{diagnosis: {_status, :key_too_short}, rejected_key: :store}),
     do: gettext("FALLBACK key — the secret in the key store was rejected as too short")

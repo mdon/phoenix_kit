@@ -1,8 +1,13 @@
 defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKeyTest do
-  use ExUnit.Case, async: true
+  # async: false — the chain-partial-failure tests mutate the global
+  # `:phoenix_kit, :integrations_key_store` app env.
+  use ExUnit.Case, async: false
 
   alias Mix.Tasks.PhoenixKit.Integrations.RotateKey, as: RotateKeyTask
   alias PhoenixKit.Integrations.Encryption
+  alias PhoenixKit.Integrations.KeyStore
+  alias PhoenixKit.Integrations.KeyStore.Chain
+  alias PhoenixKit.Integrations.KeyStore.File, as: FileKeyStore
 
   # `run/1` itself isn't a good unit-test seam (starts the app, needs a real
   # DB) — see `Mix.Tasks.PhoenixKit.Repair.exit_code/1` for the established
@@ -91,6 +96,126 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKeyTest do
 
       assert {:ok, opts} = RotateKeyTask.parse_args(["--new-key=" <> ok])
       assert Keyword.get(opts, :new_key) == ok
+    end
+  end
+
+  describe "wired_secret_reference/1 — the closing paragraph must match what was printed" do
+    test "without --new-key, it points back at the value printed above" do
+      assert RotateKeyTask.wired_secret_reference(false) =~ "the value above"
+    end
+
+    # `--new-key` skips the secret-printing block entirely (see
+    # `print_unstored_success/3`'s `unless supplied?`), so this must not claim
+    # a value was printed "above" that never was.
+    test "with --new-key, it does not claim a value was printed above" do
+      refute RotateKeyTask.wired_secret_reference(true) =~ "the value above"
+      assert RotateKeyTask.wired_secret_reference(true) =~ "--new-key"
+    end
+  end
+
+  describe "store_and_report/3 — a chain that partially fails" do
+    defmodule AlwaysFailingStore do
+      @moduledoc false
+      @behaviour KeyStore
+
+      @impl true
+      def read(_opts), do: {:error, :boom}
+
+      @impl true
+      def write(_secret, _opts), do: {:error, :network_down}
+
+      @impl true
+      def preflight(_opts), do: {:error, :boom}
+
+      @impl true
+      def describe(_opts), do: "always-failing-store"
+    end
+
+    setup do
+      previous = Application.get_env(:phoenix_kit, :integrations_key_store)
+
+      dir =
+        Path.join(System.tmp_dir!(), "pk_rotate_key_test_#{System.unique_integer([:positive])}")
+
+      File.mkdir_p!(dir)
+
+      on_exit(fn ->
+        if previous do
+          Application.put_env(:phoenix_kit, :integrations_key_store, previous)
+        else
+          Application.delete_env(:phoenix_kit, :integrations_key_store)
+        end
+
+        KeyStore.invalidate_cache()
+        File.rm_rf(dir)
+      end)
+
+      path = Path.join(dir, "app.key")
+
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_key_store,
+        {Chain, stores: [{FileKeyStore, path: path}, AlwaysFailingStore]}
+      )
+
+      KeyStore.invalidate_cache()
+
+      {:ok, path: path}
+    end
+
+    # The exact reproduction from the reviewer's finding: a File member
+    # succeeds, a second chain member always fails. The file already holds
+    # the secret — it must be named as holding it, and it must NOT be called
+    # "the only copy", which was the bug: the old message said both the file
+    # (which has it) and "does not hold it" in the same breath.
+    test "the surviving member is named as holding the secret, not called the only copy", %{
+      path: path
+    } do
+      secret = String.duplicate("s", 40)
+
+      output =
+        ExUnit.CaptureIO.capture_io(fn ->
+          assert_raise Mix.Error, ~r/FAILED to write it/, fn ->
+            RotateKeyTask.store_and_report(3, secret, false)
+          end
+        end)
+
+      # The chain member that succeeded really did land the secret.
+      assert File.read!(path) == secret
+
+      assert output =~ path, "the surviving store's location is not named: #{output}"
+      assert output =~ secret
+
+      # The exact old phrasing this replaces — "the only copy" alone is not a
+      # safe substring to check, since the fix's own wording ("NOT the only
+      # copy") contains it too.
+      refute output =~ "now the only copy",
+             "still calls the secret the only copy while #{path} holds it: #{output}"
+
+      assert output =~ "NOT the only copy"
+    end
+
+    # A total chain failure (no survivors) must still get the original,
+    # stronger warning — this fix must not weaken that case.
+    test "a chain with no survivors is still told it holds the only copy" do
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_key_store,
+        {Chain, stores: [AlwaysFailingStore]}
+      )
+
+      KeyStore.invalidate_cache()
+      secret = String.duplicate("s", 40)
+
+      output =
+        ExUnit.CaptureIO.capture_io(fn ->
+          assert_raise Mix.Error, ~r/storing the new secret FAILED/, fn ->
+            RotateKeyTask.store_and_report(1, secret, false)
+          end
+        end)
+
+      assert output =~ "now the only copy"
+      assert output =~ secret
     end
   end
 end

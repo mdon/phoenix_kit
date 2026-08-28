@@ -155,6 +155,38 @@ defmodule PhoenixKit.Integrations.KeyStoreTest do
     end
   end
 
+  describe "the directory is only tightened when this write creates it" do
+    test "a directory this write creates is locked down to 0700" do
+      parent = outside_tmp_dir()
+      dir = Path.join(parent, "fresh")
+      opts = [path: Path.join(dir, "app.key")]
+      refute File.exists?(dir)
+
+      assert :ok = FileStore.write(@secret, opts)
+
+      assert {:ok, %File.Stat{mode: mode}} = File.stat(dir)
+      assert Bitwise.band(mode, 0o777) == 0o700
+    end
+
+    # The bug this guards against: `File.mkdir_p/1` returns `:ok` whether it
+    # created the directory or found it already there, and chmod'ing after
+    # every `:ok` narrows a directory this store does not own — e.g. the
+    # moduledoc's own `/etc/phoenix_kit` example, plausibly created wider by
+    # whoever set that path up.
+    test "an already-existing directory keeps its own permissions" do
+      parent = outside_tmp_dir()
+      dir = Path.join(parent, "shared")
+      File.mkdir_p!(dir)
+      File.chmod!(dir, 0o755)
+      opts = [path: Path.join(dir, "app.key")]
+
+      assert :ok = FileStore.write(@secret, opts)
+
+      assert {:ok, %File.Stat{mode: mode}} = File.stat(dir)
+      assert Bitwise.band(mode, 0o777) == 0o755
+    end
+  end
+
   describe "write_verified/1 confirms by reading, not by trusting the write" do
     test "a real store round-trips and reports :ok" do
       tmp_dir = outside_tmp_dir()

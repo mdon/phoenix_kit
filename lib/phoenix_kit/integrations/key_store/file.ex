@@ -177,14 +177,23 @@ defmodule PhoenixKit.Integrations.KeyStore.File do
     end
   end
 
+  # `File.mkdir_p/1` returns `:ok` whether it created the directory or found it
+  # already there, so the permission tightening below must check BEFORE
+  # calling it. A directory this store did not create may be shared with
+  # something else entirely (an existing `/etc/phoenix_kit` an operator set up
+  # with a wider mode on purpose) — narrowing it out from under that owner is
+  # a side effect no caller asked for. Only a directory this write creates is
+  # ours to lock down.
   defp ensure_dir(path) do
     dir = Path.dirname(path)
+    existed_before? = File.exists?(dir)
 
     case File.mkdir_p(dir) do
       :ok ->
-        # Best effort: a pre-existing directory may be owned by someone else,
-        # and failing to tighten it is not a reason to refuse to store the key.
-        _ = File.chmod(dir, @dir_mode)
+        # Best effort: even a freshly created directory's chmod can fail (a
+        # racing process, an unusual filesystem), and that is not a reason to
+        # refuse to store the key.
+        unless existed_before?, do: _ = File.chmod(dir, @dir_mode)
         :ok
 
       {:error, reason} ->

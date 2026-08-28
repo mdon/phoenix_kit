@@ -271,8 +271,10 @@ defmodule PhoenixKit.Integrations.Encryption do
   """
   @type key_diagnosis ::
           {:dedicated, :ok | :store_unreadable | :store_shadowed}
-          | {:legacy_secret_key_base, :store_unreadable | :key_too_short | :no_dedicated_key}
-          | {:disabled_no_key, :store_unreadable | :key_too_short | :no_key_material}
+          | {:legacy_secret_key_base,
+             :store_unreadable | :store_shadowed | :key_too_short | :no_dedicated_key}
+          | {:disabled_no_key,
+             :store_unreadable | :store_shadowed | :key_too_short | :no_key_material}
           | {:disabled_explicit, :turned_off}
 
   @doc """
@@ -563,6 +565,35 @@ defmodule PhoenixKit.Integrations.Encryption do
     )
   end
 
+  # The window between a rotation and the restart it requires: the store
+  # already holds a secret that is NOT the one this process is using (still
+  # the secret_key_base-derived fallback), most plausibly because
+  # `mix phoenix_kit.integrations.rotate_key` already wrote a dedicated
+  # secret there and this process has not restarted onto it yet. Mirrors
+  # `{:dedicated, :store_shadowed}` above: `rotation_safe?: false` for the
+  # same reason — rotating again before checking what is already saved would
+  # replace it in every configured store with no copy kept, possibly
+  # discarding the very secret that just needs a restart to take effect.
+  def key_report(%{tier: :legacy, store: {:shadowed, location}} = signals) do
+    report(signals, {:legacy_secret_key_base, :store_shadowed}, :warn,
+      summary:
+        "credentials are encrypted with a key DERIVED from secret_key_base, and the " <>
+          "configured key store holds a secret that is NOT that key",
+      consequence:
+        fallback_consequence() <>
+          ". #{location} is not a copy of the fallback key in use, so it is not a backup " <>
+          "of it either — it most plausibly already holds a dedicated secret from a " <>
+          "rotation this app has not restarted to pick up yet",
+      action:
+        "Do NOT run `mix phoenix_kit.integrations.rotate_key` before you know what " <>
+          "#{location} holds — it replaces that secret in every configured store with no " <>
+          "copy kept. If a rotation already wrote it, restart the app to start using it " <>
+          "instead of rotating again",
+      rotation_safe?: false,
+      tier_label: "FALLBACK key — the configured key store holds a different secret"
+    )
+  end
+
   def key_report(%{tier: :legacy} = signals) do
     report(signals, {:legacy_secret_key_base, :no_dedicated_key}, :warn,
       summary: "integration credentials are encrypted with a key DERIVED from secret_key_base",
@@ -605,6 +636,28 @@ defmodule PhoenixKit.Integrations.Encryption do
       consequence:
         "NO key resolved at all — integration credentials are being written in PLAINTEXT",
       action: repair_store_action(:no_key),
+      rotation_safe?: false,
+      tier_label: nil
+    )
+  end
+
+  # Same window as the :legacy clause above, one step weaker: no key resolves
+  # AT ALL (not even the secret_key_base fallback), yet the store already
+  # holds something — most plausibly a dedicated secret from a rotation this
+  # app has not been configured or restarted to use yet.
+  def key_report(%{tier: :none, store: {:shadowed, location}} = signals) do
+    report(signals, {:disabled_no_key, :store_shadowed}, :fail,
+      summary: "no encryption key resolves at all, and the configured key store holds a secret",
+      consequence:
+        "NO key resolved at all — integration credentials are being written in PLAINTEXT. " <>
+          "#{location} holds a secret, but nothing here is using it: if it is a dedicated " <>
+          "key from an earlier rotation, this app has not yet been configured or restarted " <>
+          "to use it",
+      action:
+        "Do NOT run `mix phoenix_kit.integrations.rotate_key` — it refuses while no key is " <>
+          "active. Check what #{location} holds first; if it is a real key, wire it in as " <>
+          "integrations_encryption_key (or fix why it is not being read from the store) and " <>
+          "restart",
       rotation_safe?: false,
       tier_label: nil
     )

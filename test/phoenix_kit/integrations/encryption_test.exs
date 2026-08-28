@@ -1129,6 +1129,117 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
     end
   end
 
+  describe "a shadowed store is not silent outside the :dedicated tier" do
+    alias PhoenixKit.Integrations.EncryptionTest.FlakyStore
+    alias PhoenixKitWeb.Live.Settings.Integrations, as: Page
+
+    @legacy_secret String.duplicate("s", 64)
+
+    setup do
+      previous = %{
+        skb: Application.get_env(:phoenix_kit, :secret_key_base),
+        key: Application.get_env(:phoenix_kit, :integrations_encryption_key),
+        store: Application.get_env(:phoenix_kit, :integrations_key_store),
+        parent: Application.get_env(:phoenix_kit, :parent_module),
+        enabled: Application.get_env(:phoenix_kit, :integration_encryption_enabled)
+      }
+
+      on_exit(fn ->
+        for {k, v} <- [
+              secret_key_base: previous.skb,
+              integrations_encryption_key: previous.key,
+              integrations_key_store: previous.store,
+              parent_module: previous.parent,
+              integration_encryption_enabled: previous.enabled
+            ] do
+          if is_nil(v),
+            do: Application.delete_env(:phoenix_kit, k),
+            else: Application.put_env(:phoenix_kit, k, v)
+        end
+
+        KeyStore.invalidate_cache()
+      end)
+
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, true)
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      # A real parent app's Endpoint has its own secret_key_base, which
+      # `secret_key_base/0` falls back to once the flat config key is absent
+      # — without pinning this to a nonexistent app, whether the :none-tier
+      # test below sees `:none` or `:legacy` depends on which parent_module
+      # an unrelated test left behind, not on this test's own setup.
+      Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
+      :ok
+    end
+
+    # The window between a rotation and the restart it requires, reproduced
+    # deterministically rather than raced: `key_signals/0` makes two reads of
+    # the store per call — one memoised (decides the TIER), one deliberately
+    # fresh (decides what the report SAYS the store holds), see its moduledoc.
+    # `FlakyStore` fails its first read and succeeds every one after, so the
+    # first (tier) read sees nothing usable while the second (display) read
+    # — a moment later, same call — sees the secret a separate
+    # `mix phoenix_kit.integrations.rotate_key` run just finished writing.
+    # That is exactly what two independent OS processes (this one, and the
+    # rotation) observe of the same durable store when a write lands between
+    # the two reads — ordered by real events, not by a timing accident.
+    test "tier: :legacy names the shadowing store instead of falling silent" do
+      Application.put_env(:phoenix_kit, :secret_key_base, @legacy_secret)
+      counter = :counters.new(1, [])
+      Application.put_env(:phoenix_kit, :integrations_key_store, {FlakyStore, counter: counter})
+      KeyStore.invalidate_cache()
+
+      signals = Encryption.key_signals()
+      assert signals.tier == :legacy
+      assert signals.rejected_key == false
+      assert match?({:shadowed, _}, signals.store)
+
+      report = Encryption.key_report(signals)
+      assert report.diagnosis == {:legacy_secret_key_base, :store_shadowed}
+      assert report.severity == :warn
+      refute report.rotation_safe?
+
+      message = Encryption.key_report_message(report)
+      assert message =~ "/flaky/store.key"
+
+      title = Page.encryption_status_title(report)
+      detail = Page.encryption_status_detail(report)
+
+      refute title == Page.encryption_status_title({:no_such_status, :no_such_reason})
+      refute detail == Page.encryption_status_detail({:no_such_status, :no_such_reason})
+      assert detail =~ "/flaky/store.key"
+    end
+
+    # Same window, one tier weaker: no key resolves at all (no secret_key_base
+    # either), yet the store already answers on the fresh read.
+    test "tier: :none names the shadowing store instead of falling silent" do
+      Application.delete_env(:phoenix_kit, :secret_key_base)
+      counter = :counters.new(1, [])
+      Application.put_env(:phoenix_kit, :integrations_key_store, {FlakyStore, counter: counter})
+      KeyStore.invalidate_cache()
+
+      signals = Encryption.key_signals()
+      assert signals.tier == :none
+      assert signals.rejected_key == false
+      assert match?({:shadowed, _}, signals.store)
+
+      report = Encryption.key_report(signals)
+      assert report.diagnosis == {:disabled_no_key, :store_shadowed}
+      assert report.severity == :fail
+      refute report.rotation_safe?
+
+      message = Encryption.key_report_message(report)
+      assert message =~ "/flaky/store.key"
+      assert message =~ "PLAINTEXT"
+
+      title = Page.encryption_status_title(report)
+      detail = Page.encryption_status_detail(report)
+
+      refute title == Page.encryption_status_title({:no_such_status, :no_such_reason})
+      refute detail == Page.encryption_status_detail({:no_such_status, :no_such_reason})
+      assert detail =~ "/flaky/store.key"
+    end
+  end
+
   describe "the states the real resolution actually produces" do
     alias Mix.Tasks.PhoenixKit.Doctor, as: DoctorTask
     alias PhoenixKit.Test.KeyVerdictInvariants, as: Invariants

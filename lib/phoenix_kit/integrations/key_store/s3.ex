@@ -97,13 +97,26 @@ defmodule PhoenixKit.Integrations.KeyStore.S3 do
       |> ExAws.S3.put_object(probe, "", server_side_encryption: "AES256")
       |> request(opts)
       |> case do
-        {:ok, _} ->
-          bucket |> ExAws.S3.delete_object(probe) |> request(opts)
-          :ok
-
-        {:error, reason} ->
-          {:error, {:s3_not_writable, location(opts), sanitize(reason)}}
+        {:ok, _} -> remove_probe(bucket, probe, opts)
+        {:error, reason} -> {:error, {:s3_not_writable, location(opts), sanitize(reason)}}
       end
+    end
+  end
+
+  # An ignored delete result here means a preflight that failed to clean up
+  # after itself still reports :ok — worth saying rather than leaving orphan
+  # probe objects behind on every check, same as the file store's own probe
+  # cleanup.
+  defp remove_probe(bucket, probe, opts) do
+    bucket
+    |> ExAws.S3.delete_object(probe)
+    |> request(opts)
+    |> case do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        {:error, {:s3_probe_not_removable, location(bucket, opts), sanitize(reason)}}
     end
   end
 

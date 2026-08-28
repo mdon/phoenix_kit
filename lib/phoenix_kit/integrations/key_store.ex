@@ -306,7 +306,8 @@ defmodule PhoenixKit.Integrations.KeyStore do
     :probe_not_removable,
     :s3_read_failed,
     :s3_write_failed,
-    :s3_not_writable
+    :s3_not_writable,
+    :s3_probe_not_removable
   ]
 
   def describe_error({kind, path, reason})
