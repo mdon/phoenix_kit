@@ -896,6 +896,14 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
   attr :hint, :string, default: nil
   attr :secondary_hint, :string, default: nil
 
+  attr :rest, :global,
+    doc: """
+    Anything else lands on the input itself — `phx-hook`, `data-*`, `aria-*`.
+    Without this the component silently swallowed such attributes: they
+    reached its assigns and were never rendered, so a caller wiring a JS
+    hook to a translated field got no hook and no warning.
+    """
+
   attr :mentions, :boolean,
     default: false,
     doc:
@@ -995,6 +1003,7 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
             phx-hook={@mentions_on && "MentionInput"}
             required={@required}
             disabled={@disabled}
+            {@rest}
           >{@primary_value}</textarea>
         <% else %>
           <textarea
@@ -1006,6 +1015,7 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
             phx-debounce={@debounce}
             phx-hook={@mentions_on && "MentionInput"}
             disabled={@disabled}
+            {@rest}
           >{@lang_value || ""}</textarea>
         <% end %>
         <p :if={@mentions_on} class="mt-1 text-xs opacity-50">
@@ -1025,6 +1035,7 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
             disabled={@disabled}
             pattern={@pattern}
             title={@title}
+            {@rest}
           />
         <% else %>
           <input
@@ -1038,6 +1049,7 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
             disabled={@disabled}
             pattern={@pattern}
             title={@title}
+            {@rest}
           />
         <% end %>
       <% end %>

@@ -122,6 +122,35 @@ defmodule PhoenixKitWeb.Components.MultilangFormTest do
     end
   end
 
+  describe "translatable_field passthrough" do
+    test "phx-hook and data-* reach the input" do
+      # They used to land in assigns and vanish: a caller wiring a JS hook
+      # to a translated field got no hook and no warning.
+      changeset = make_changeset(%{title: "Hello"})
+      assigns = %{changeset: changeset}
+
+      result =
+        html(~H"""
+        <.translatable_field
+          field_name="title"
+          form_prefix="record"
+          changeset={@changeset}
+          schema_field={:title}
+          multilang_enabled={false}
+          current_lang="en"
+          primary_language="en"
+          lang_data={%{}}
+          label="Title"
+          phx-hook="SlugFromTitle"
+          data-slug-target="#record_slug"
+        />
+        """)
+
+      assert result =~ ~s(phx-hook="SlugFromTitle")
+      assert result =~ ~s(data-slug-target="#record_slug")
+    end
+  end
+
   # ── translatable_field primary tab ──────────────────────────
 
   describe "translatable_field primary tab" do
