@@ -501,10 +501,27 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
       `kind: :index` check to fall back onto for those.
     * It does not touch anything outside this runtime read path — the
       standalone generator (`dev_docs/squash/generate_baseline.exs`'s
-      `Catalog` module) that produces `expected_schema.ex` in the first
-      place is unaffected; regenerating the manifest from scratch can still
-      assign the wrong `kind` to a future composite-key PRIMARY KEY the same
-      way it did for these two.
+      `Catalog` module) that produces `expected_schema.ex` is a SEPARATE
+      artifact this fallback has no bearing on either way.
+
+  I127 pt.4/checked claim, corrected: an earlier version of this moduledoc
+  asserted regenerating the manifest "can still assign the wrong `kind` to
+  a future composite-key PRIMARY KEY the same way it did for these two" —
+  checked against a real regeneration run (`--keep-schemas`, `phoenix_kit_test`,
+  full V135..V181 chain) and found FALSE. `Catalog`'s own indexes query
+  already carries the identical `contype IN ('p', 'u')` exclusion this
+  module's `@indexes_sql` does (both fixed in the same commit, `992b09b336`,
+  2026-08-07) — a week before `958da2d2ab` (2026-08-14) added V171 and, with
+  it, these two objects' manifest entries as `kind: :index`. The regenerated
+  manifest emits `id: "constraint:...pkey"`, `kind: :constraint`,
+  `class: :constraint` for both — byte-identical to the class-A fix except
+  one inert field (`create:`, never read for `class: :constraint` —
+  `Executor.create_action/2` always rebuilds from `shape`). The two bad
+  entries were hand-authored alongside V171, after the generator was
+  already correct — not something the generator produced and would
+  reproduce. This fallback's own future-proofing (the bullet above) still
+  stands on its own merits for a hand-authored mistake; it was just never
+  the generator's fault to begin with.
   """
   @spec lookup(snapshot(), Object.check()) :: map() | nil
   def lookup(snapshot, {:catalog, %{kind: :table, name: name}}),
