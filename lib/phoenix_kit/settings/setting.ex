@@ -50,6 +50,7 @@ defmodule PhoenixKit.Settings.Setting do
   use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Users.Role
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -149,6 +150,7 @@ defmodule PhoenixKit.Settings.Setting do
     |> validate_value_exclusivity()
     |> validate_length(:module, max: 255)
     |> unique_constraint(:key, name: :phoenix_kit_settings_key_uidx)
+    |> maybe_encrypt_restricted_value()
     |> maybe_set_timestamps()
   end
 
@@ -164,7 +166,41 @@ defmodule PhoenixKit.Settings.Setting do
     |> validate_setting_value()
     |> validate_value_exclusivity()
     |> validate_length(:module, max: 255)
+    |> maybe_encrypt_restricted_value()
     |> put_change(:date_updated, UtilsDate.utc_now())
+  end
+
+  # S015 pt.3 (write side): a NEW value for a key in
+  # `PhoenixKit.Settings.restricted_setting_keys/0` (`oauth_*_secret`,
+  # `aws_access_key_id`/`aws_secret_access_key` — live credential material,
+  # not just data an admin would rather keep quiet) is stored encrypted.
+  # `get_change/2`, not `get_field/2`: only a genuinely NEW value gets
+  # encrypted here — a changeset that leaves `:value` untouched (e.g.
+  # `update_setting_with_module/3` re-saving `module` alone) must not
+  # re-touch whatever is already stored, encrypted or not. Existing plaintext
+  # rows are deliberately left alone by this change — migrating them is a
+  # separate, live-database step, not implied by this changeset.
+  #
+  # `Encryption.encrypt_value/1` already does the right thing for every edge
+  # case this needs: nil/empty pass through unchanged (no ciphertext for
+  # nothing to protect — matches `@optional_settings` allowing these keys to
+  # be blank), and an already-`enc:v1:`-prefixed value passes through
+  # unchanged too (idempotent, so re-saving an already-encrypted value never
+  # double-wraps it).
+  defp maybe_encrypt_restricted_value(changeset) do
+    key = get_field(changeset, :key)
+
+    case get_change(changeset, :value) do
+      nil ->
+        changeset
+
+      value when is_binary(value) ->
+        if key in PhoenixKit.Settings.restricted_setting_keys() do
+          put_change(changeset, :value, Encryption.encrypt_value(value))
+        else
+          changeset
+        end
+    end
   end
 
   # Private helper to set timestamps on new records

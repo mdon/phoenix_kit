@@ -133,4 +133,135 @@ defmodule PhoenixKit.SettingsTest do
                "GOCSPX-test-secret-value"
     end
   end
+
+  # S015 pt.1-3: oauth_*/aws_* live in this context, not
+  # PhoenixKit.Integrations — `PhoenixKit.Integrations.Encryption`'s
+  # single-value API (`encrypt_value/1`/`decrypt_value/1`) is reused here
+  # poштучно (encrypt_fields/1 assumes an integration-shaped map, which a
+  # flat setting is not). New writes only — an existing plaintext row on a
+  # live install is a separate, live-database migration step, not implied
+  # by this changeset (see `Setting.maybe_encrypt_restricted_value/1`).
+  describe "restricted-key encryption at rest (S015)" do
+    alias PhoenixKit.Integrations.Encryption
+    alias PhoenixKit.Settings.Queries
+
+    setup do
+      assert Encryption.enabled?(),
+             "test config's secret_key_base must resolve a key — see config/test.exs"
+
+      :ok
+    end
+
+    # State 1 of 3: enc:v1:-prefixed, decrypts under the active key.
+    test "decrypt_restricted_value/1: an encrypted value decrypts to the original plaintext" do
+      encrypted = Encryption.encrypt_value("synthetic-oauth-secret")
+      assert String.starts_with?(encrypted, "enc:v1:")
+
+      assert Settings.decrypt_restricted_value(encrypted) ==
+               {:decrypted, "synthetic-oauth-secret"}
+    end
+
+    # State 2 of 3: no prefix at all — legacy, returned as-is, but tagged
+    # distinctly from state 1 (that is what "отличимо" in the card means:
+    # `decrypt_restricted_value/1` itself, not `get_setting/1`, can tell
+    # "already encrypted" apart from "predates encryption").
+    test "decrypt_restricted_value/1: an unprefixed value is legacy, not decrypted" do
+      assert Settings.decrypt_restricted_value("plain-legacy-value") ==
+               {:legacy, "plain-legacy-value"}
+
+      assert Settings.decrypt_restricted_value(nil) == {:legacy, nil}
+    end
+
+    # State 3 of 3: prefixed, but decryption itself fails (corrupted
+    # ciphertext here; a rotated/mismatched key on a live install is the
+    # same code path). Must be an explicit error, never a value.
+    test "decrypt_restricted_value/1: a corrupted enc:v1: value is an explicit error, not a value" do
+      corrupted =
+        "synthetic-value-to-corrupt"
+        |> Encryption.encrypt_value()
+        |> String.slice(0..-6//1)
+
+      assert {:error, _reason} = Settings.decrypt_restricted_value(corrupted)
+    end
+
+    test "write then read: a new restricted-key value is stored encrypted and reads back as plaintext" do
+      {:ok, _} =
+        Settings.update_setting("oauth_google_client_secret", "synthetic-round-trip-secret")
+
+      # The write path (point 3): assert against the RAW row, not another
+      # Settings.* reader — proves encryption happened at rest, not merely
+      # that the read side hides it.
+      raw = Queries.get_setting_by_key("oauth_google_client_secret")
+      assert String.starts_with?(raw.value, "enc:v1:")
+      refute raw.value == "synthetic-round-trip-secret"
+
+      # The read path (point 2, state 1): the same plaintext comes back.
+      assert Settings.get_setting("oauth_google_client_secret") == "synthetic-round-trip-secret"
+
+      assert Settings.list_all_settings()["oauth_google_client_secret"] ==
+               "synthetic-round-trip-secret"
+    end
+
+    test "an existing plaintext value is read back unchanged (legacy, not touched by this change)" do
+      # Ecto.Changeset.change/2, not Setting.changeset/2, on purpose — this
+      # is what an already-plaintext row from before this change looks
+      # like, written directly rather than through the (encrypting) write
+      # path this test is not exercising.
+      {:ok, _} =
+        %PhoenixKit.Settings.Setting{}
+        |> Ecto.Changeset.change(%{
+          key: "oauth_github_client_secret",
+          value: "already-plaintext-legacy-value"
+        })
+        |> Queries.insert_setting()
+
+      raw = Queries.get_setting_by_key("oauth_github_client_secret")
+      refute String.starts_with?(raw.value, "enc:v1:")
+
+      assert Settings.get_setting("oauth_github_client_secret") ==
+               "already-plaintext-legacy-value"
+    end
+
+    # 🔴 The guard the card exists for: a secret that stops decrypting on
+    # the read path must read as a broken login, never as a value — and
+    # never as the raw enc:v1: ciphertext handed to whatever reads it next
+    # (an OAuth strategy, AWS.access_key_id/0). This is the test that must
+    # go red if a future change makes the read path fall back to the raw
+    # stored value on a decrypt failure.
+    test "the read path never returns raw ciphertext when decryption fails" do
+      {:ok, _} =
+        Settings.update_setting("oauth_google_client_secret", "synthetic-will-be-corrupted")
+
+      raw = Queries.get_setting_by_key("oauth_google_client_secret")
+      assert String.starts_with?(raw.value, "enc:v1:")
+
+      # Simulate "the read path stopped decrypting" (mismatched/rotated key,
+      # corrupted ciphertext) by corrupting the stored ciphertext directly —
+      # via a bare Ecto.Changeset.change/2, bypassing Setting.changeset/2 on
+      # purpose, so this writes the corrupted bytes as-is instead of the
+      # write path re-encrypting them as if they were fresh plaintext.
+      corrupted_ciphertext = String.slice(raw.value, 0..-6//1)
+
+      {:ok, _} =
+        raw
+        |> Ecto.Changeset.change(value: corrupted_ciphertext)
+        |> Queries.update_setting()
+
+      PhoenixKit.Cache.invalidate(:settings, "oauth_google_client_secret")
+
+      result = Settings.get_setting("oauth_google_client_secret")
+
+      refute result == corrupted_ciphertext
+      refute is_binary(result) and String.starts_with?(result, "enc:v1:")
+      assert result == nil
+
+      # Same guard through the plural read path OAuth login actually uses.
+      PhoenixKit.Cache.invalidate(:settings, "oauth_google_client_secret")
+      direct = Settings.get_settings_direct(["oauth_google_client_secret"])
+      direct_value = Map.get(direct, "oauth_google_client_secret")
+
+      refute direct_value == corrupted_ciphertext
+      refute is_binary(direct_value) and String.starts_with?(direct_value, "enc:v1:")
+    end
+  end
 end
