@@ -16,7 +16,7 @@ defmodule PhoenixKit.Migrations.HandDeclaredManifestTest do
 
   ## Why it is scoped rather than asserting a clean report
 
-  A full clean assertion fails today on four PRE-EXISTING findings that have
+  A full clean assertion fails today on two PRE-EXISTING findings that have
   nothing to do with the hand-declared block, recorded here so the next person
   does not rediscover them:
 
@@ -24,10 +24,18 @@ defmodule PhoenixKit.Migrations.HandDeclaredManifestTest do
       `..._recipient_unseen_first_idx` (both `since: 170`) declare expression
       keys with doubled parentheses — `"((metadata ->> 'dedupe_key'::text))"` —
       where the catalog reports single. A manifest-text bug, not a schema one.
-    * `index:phoenix_kit_shop_category_slugs_pkey` and
-      `..._shop_product_slugs_pkey` (both `since: 171`) report missing.
 
-  Widen `@hand_declared_from` down to 170 once those are fixed.
+  Widen `@hand_declared_from` down to 170 once those are fixed too.
+
+  (Previously this list also carried `index:phoenix_kit_shop_category_slugs_pkey`
+  and `..._shop_product_slugs_pkey`, since: 171: both are PRIMARY KEY on a
+  composite natural key, so their backing index is excluded from
+  `PhoenixKit.Migrations.Repair.Probe`'s index snapshot — the same join that
+  guards against double-listing an FK-referenced unique index (see that
+  module's `@indexes_sql` comment) also hides a PK/UNIQUE-backing index from
+  `kind: :index` lookups. Declaring the check as `kind: :constraint` instead
+  — what they actually are on the catalog — fixed both; `@hand_declared_from`
+  moved from 178 to 171 to keep this test exercising V171+.)
   """
   use PhoenixKit.DataCase, async: false
 
@@ -37,8 +45,10 @@ defmodule PhoenixKit.Migrations.HandDeclaredManifestTest do
 
   @moduletag :integration
 
-  # V178 is where hand-declaration started (the CRM party bridge).
-  @hand_declared_from 178
+  # V178 is where hand-declaration started (the CRM party bridge); pinned to
+  # 171 rather than 178 so this test also exercises the two composite-key
+  # PRIMARY KEY objects fixed there (see moduledoc).
+  @hand_declared_from 171
 
   test "hand-declared manifest objects match what the chain actually builds" do
     {:ok, report} = Repair.verify(prefix: "public", repo: Repo)

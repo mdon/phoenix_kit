@@ -221,7 +221,23 @@ defmodule PhoenixKit.Integration.V171ShopSlugProjectionTest do
       assert by_id["index:idx_shop_products_slug_primary"].presence == :legacy_optional
       assert by_id["index:idx_shop_categories_slug_primary"].presence == :legacy_optional
       assert by_id["table:phoenix_kit_shop_product_slugs"].since == 171
-      assert by_id["index:phoenix_kit_shop_category_slugs_pkey"].since == 171
+
+      # Both PK objects are declared `kind: :constraint`, not `kind: :index`:
+      # `Probe`'s index snapshot deliberately excludes an index backing a
+      # `p`/`u` constraint on its own table (`probe.ex`'s `@indexes_sql`
+      # comment), so a `kind: :index` check here can never find its own
+      # PRIMARY KEY's backing index and permanently reports it missing — the
+      # exact failure this test would catch on a revert.
+      category_pkey =
+        by_id["constraint:phoenix_kit_shop_category_slugs.phoenix_kit_shop_category_slugs_pkey"]
+
+      product_pkey =
+        by_id["constraint:phoenix_kit_shop_product_slugs.phoenix_kit_shop_product_slugs_pkey"]
+
+      assert category_pkey.since == 171
+      assert product_pkey.since == 171
+      assert {:catalog, %{kind: :constraint}} = category_pkey.check
+      assert {:catalog, %{kind: :constraint}} = product_pkey.check
     end
   end
 end
