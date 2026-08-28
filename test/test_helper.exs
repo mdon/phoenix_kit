@@ -1,10 +1,17 @@
 # Test helper for PhoenixKit test suite
 
+# Refuse before anything else touches the database — see
+# PhoenixKit.Test.LiveDatabaseGuard's moduledoc for why this exists
+# alongside (not instead of) an external wrapper script some hosts
+# already use for the same purpose.
+db_name =
+  Application.get_env(:phoenix_kit, PhoenixKit.Test.Repo)[:database] || "phoenix_kit_test"
+
+PhoenixKit.Test.LiveDatabaseGuard.check!(db_name)
+
 # Check if the test database exists before trying to connect.
 # Uses `psql -lqt` for a fast check that avoids Postgrex connection hangs.
 # Falls back to attempting connection directly if psql is unavailable (e.g., CI).
-db_name =
-  Application.get_env(:phoenix_kit, PhoenixKit.Test.Repo)[:database] || "phoenix_kit_test"
 
 db_check =
   try do
