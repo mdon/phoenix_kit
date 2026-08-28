@@ -11,7 +11,7 @@ defmodule PhoenixKit.Test.LiveDatabaseGuardTest do
 
   describe "check!/1 — built-in suffix pattern (zero configuration)" do
     test "raises for example database names ending in a dangerous suffix" do
-      for db <- ~w(phoenix_kit_dev decor_3d_print_dev phoenixkit_hello_world_dev) do
+      for db <- ~w(phoenix_kit_dev shop_dev blog_dev) do
         assert_raise LiveDatabaseGuard.LiveDatabaseError, ~r/#{db}/, fn ->
           LiveDatabaseGuard.check!(db)
         end

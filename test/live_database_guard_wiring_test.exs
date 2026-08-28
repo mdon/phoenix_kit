@@ -40,7 +40,7 @@ defmodule PhoenixKit.LiveDatabaseGuardWiringTest do
   @unreachable_host "127.0.0.1"
   @unreachable_port "1"
 
-  for live_db <- ~w(phoenix_kit_dev decor_3d_print_dev phoenixkit_hello_world_dev acme_production) do
+  for live_db <- ~w(phoenix_kit_dev shop_dev blog_dev acme_production) do
     test "refuses before any connection attempt when PGDATABASE=#{live_db}" do
       env = [
         {"PGDATABASE", unquote(live_db)},
