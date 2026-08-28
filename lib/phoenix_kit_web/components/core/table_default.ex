@@ -158,13 +158,14 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
       "1-arity function returning the data-id for a card. Defaults to `& &1.uuid`. Required when on_reorder is set."
 
   attr :card_media_class, :string,
-    default: "relative",
+    default: nil,
     doc: """
-    Classes for the `:card_media` frame.
+    Classes for the `:card_media` wrapper.
 
-    The default is `"relative"` and nothing else — a positioning context for
-    corner overlays (a checkbox, a drag handle, a spinner) and no opinion
-    about size, which is what an existing consumer already assumed.
+    Defaults to no class at all, which is exactly what the wrapper was
+    before this attr existed — an existing consumer renders unchanged.
+    Pass `"relative"` for a positioning context if the slot puts a corner
+    overlay (a checkbox, a drag handle, a spinner) over the media.
 
     For a card GRID, pass a fixed band instead —
     `"relative h-24 bg-base-200 overflow-hidden"` is the shape the catalogue
@@ -186,7 +187,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
 
   slot :card_media,
     doc:
-      "Media region (image/thumbnail/video) rendered above the card body, in a framed `<figure>`. Receives item via :let. The frame is what keeps cards looking alike across pages — see `card_media_class` to change it."
+      "Media region (image/thumbnail/video) rendered above the card body. Receives item via :let. The slot owns its own padding/background; pass `card_media_class` to frame the wrapper so cards look alike across pages."
 
   slot :card_actions, doc: "Action buttons in card footer"
 
@@ -406,14 +407,17 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
           }
           data-id={if @on_reorder, do: @item_id_fn.(item)}
         >
-          <%!-- Optional media region rendered ABOVE the card body, in a
-               framed figure: fixed height and a neutral backdrop, so cards
-               with and without a picture keep the same shape and every page
-               that shows cards looks like every other one. The slot fills
-               it (thumbnail, placeholder icon, corner overlays). --%>
-          <figure :if={@card_media != []} class={@card_media_class}>
+          <%!-- Optional media region rendered ABOVE the card body. Pass
+               `card_media_class` to frame it — a fixed height and a neutral
+               backdrop keep cards with and without a picture the same shape,
+               which is what makes every page that shows cards look like every
+               other one. Stays a plain unstyled div by default: this wrapper
+               shipped classless, and giving it a positioning context or
+               daisyUI's `figure` treatment would silently move an existing
+               consumer's absolutely-positioned overlay. --%>
+          <div :if={@card_media != []} class={@card_media_class}>
             {render_slot(@card_media, item)}
-          </figure>
+          </div>
           <%!-- Custom card body slot: REPLACES prescribed header+fields rendering.
                Consumer owns the inside of card-body. card_actions footer still
                applies below if also provided. --%>
