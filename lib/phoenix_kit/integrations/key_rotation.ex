@@ -1,7 +1,12 @@
 defmodule PhoenixKit.Integrations.KeyRotation do
   @moduledoc """
-  Re-encrypts every stored integration connection under a new encryption
-  secret.
+  Re-encrypts every stored integration connection, and every restricted
+  `PhoenixKit.Settings` value (`oauth_*_client_secret`, `aws_*` — see
+  `PhoenixKit.Settings.restricted_setting_keys/0`), under a new encryption
+  secret. Both are encrypted by `PhoenixKit.Integrations.Encryption` under
+  the SAME resolved key, so they must rotate together — a rotation that
+  swept only the integrations rows would silently strand the restricted
+  settings under the old key.
 
   Needed any time the secret backing `PhoenixKit.Integrations.Encryption`
   changes:
@@ -79,16 +84,19 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   rotation feature should carry). Neither is attempted here.
 
   **Practical consequence: nothing should write to `phoenix_kit_settings`
-  rows where `module = "integrations"` from before you start a real
-  rotation until the app has been restarted onto the new key** — not just
-  for the few seconds `rotate/2` itself is running. A write landing
-  anywhere in that whole span, including well after `rotate/2` has already
-  returned `{:ok, _}`, can still land on the old key: silently reverting a
-  row rotation just finished (this section), or getting silently stranded
-  once the restart happens (see "The gap between rotating and restarting"
-  below) — the same failure mode from either end of the same window. Pause
-  anything that could write (most concretely: an OAuth token-refresh
-  worker) before starting, and do not resume it until the restart is done
+  rows where `module = "integrations"`, OR to any restricted setting key
+  (`PhoenixKit.Settings.restricted_setting_keys/0` — the Authorization
+  settings page), from before you start a real rotation until the app has
+  been restarted onto the new key** — not just for the few seconds
+  `rotate/2` itself is running. A write landing anywhere in that whole
+  span, including well after `rotate/2` has already returned `{:ok, _}`,
+  can still land on the old key: silently reverting a row rotation just
+  finished (this section), or getting silently stranded once the restart
+  happens (see "The gap between rotating and restarting" below) — the same
+  failure mode from either end of the same window. Pause anything that
+  could write (most concretely: an OAuth token-refresh worker, or an admin
+  saving the Authorization settings page) before starting, and do not
+  resume it until the restart is done
   — resuming as soon as `rotate/2` returns, before restarting, walks
   straight into this window. Treat the ENTIRE span — start to restart — as
   one maintenance window, not just the rotation command itself. The row
@@ -154,6 +162,7 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   import Ecto.Query, only: [from: 2]
 
   alias PhoenixKit.Integrations.Encryption
+  alias PhoenixKit.Settings
   alias PhoenixKit.Settings.Setting
 
   @settings_module "integrations"
@@ -219,10 +228,24 @@ defmodule PhoenixKit.Integrations.KeyRotation do
     from(s in rotate_rows_query(), lock: "FOR UPDATE")
   end
 
+  # Two independent sources feed the SAME active encryption key and
+  # therefore the SAME rotation: `module = "integrations"` rows (connection
+  # credentials, `value_json`-shaped) and `PhoenixKit.Settings`' restricted
+  # setting keys (`oauth_*_client_secret`, `aws_*` — plain `value` strings,
+  # stored with `module` left nil by `update_setting/2`). Both are encrypted
+  # by `PhoenixKit.Integrations.Encryption` under the same resolved key, so
+  # a rotation that only swept the first would silently strand the second
+  # under the old key the moment the app restarts onto the new one — the
+  # restricted setting stays readable right up until then, then the exact
+  # same "logged and dropped" fate every other un-rotated field gets.
   @doc false
   @spec rotate_rows_query() :: Ecto.Query.t()
   def rotate_rows_query do
-    from(s in Setting, where: s.module == ^@settings_module)
+    restricted_keys = Settings.restricted_setting_keys()
+
+    from(s in Setting,
+      where: s.module == ^@settings_module or s.key in ^restricted_keys
+    )
   end
 
   # ---------------------------------------------------------------------------
@@ -282,19 +305,29 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   # would silently skip exactly the rows a first rotation exists to
   # protect (reported success, wrote nothing, for a scenario that is
   # rotation's whole point per the moduledoc's "First adoption" case).
-  defp has_sensitive_field?({_setting, decrypted}) do
+  defp has_sensitive_field?({:fields, _setting, decrypted}) do
     Enum.any?(Encryption.sensitive_fields(), fn field ->
       present?(Map.get(decrypted, field))
     end)
   end
 
+  defp has_sensitive_field?({:value, _setting, decrypted}), do: present?(decrypted)
+
   defp present?(value), do: is_binary(value) and value != ""
 
-  defp rotate_row({setting, decrypted}, new_secret, repo) do
+  defp rotate_row({:fields, setting, decrypted}, new_secret, repo) do
     new_value = Encryption.encrypt_fields_with_secret(decrypted, new_secret)
 
     setting
     |> Setting.update_changeset(%{value_json: new_value})
+    |> repo.update!()
+  end
+
+  defp rotate_row({:value, setting, decrypted}, new_secret, repo) do
+    new_value = Encryption.encrypt_value_with_secret(decrypted, new_secret)
+
+    setting
+    |> Setting.update_changeset(%{value: new_value})
     |> repo.update!()
   end
 
@@ -310,15 +343,34 @@ defmodule PhoenixKit.Integrations.KeyRotation do
   # is meant to prevent.
   defp decrypt_all(rows) do
     Enum.reduce_while(rows, {:ok, []}, fn setting, {:ok, acc} ->
-      original = setting.value_json || %{}
-      decrypted = Encryption.decrypt_fields(original)
-
-      if decrypt_failed?(original, decrypted) do
-        {:halt, {:error, setting.uuid, :decrypt_failed_under_current_key}}
-      else
-        {:cont, {:ok, [{setting, decrypted} | acc]}}
+      case decrypt_row(setting) do
+        {:ok, plan} -> {:cont, {:ok, [plan | acc]}}
+        {:error, reason} -> {:halt, {:error, setting.uuid, reason}}
       end
     end)
+  end
+
+  defp decrypt_row(%Setting{module: @settings_module} = setting) do
+    original = setting.value_json || %{}
+    decrypted = Encryption.decrypt_fields(original)
+
+    if decrypt_failed?(original, decrypted) do
+      {:error, :decrypt_failed_under_current_key}
+    else
+      {:ok, {:fields, setting, decrypted}}
+    end
+  end
+
+  # A restricted `PhoenixKit.Settings` row — plain `value` string, not
+  # `value_json`. `Encryption.decrypt_value/1` already returns an explicit
+  # `{:error, _}` on a genuine decrypt failure (no silent-drop detection
+  # needed here the way `decrypt_failed?/2` reconstructs it for the
+  # multi-field case above).
+  defp decrypt_row(%Setting{} = setting) do
+    case Encryption.decrypt_value(setting.value) do
+      {:ok, decrypted} -> {:ok, {:value, setting, decrypted}}
+      {:error, _reason} -> {:error, :decrypt_failed_under_current_key}
+    end
   end
 
   defp decrypt_failed?(original, decrypted) do

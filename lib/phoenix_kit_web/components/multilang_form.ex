@@ -902,6 +902,11 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
     Without this the component silently swallowed such attributes: they
     reached its assigns and were never rendered, so a caller wiring a JS
     hook to a translated field got no hook and no warning.
+
+    Don't pass `id` here — the input's id is derived internally from
+    `field_name`/`form_prefix`/`current_lang`, and `id` is a global HTML
+    attribute the compiler won't stop you from spreading; doing so renders
+    two conflicting `id` attributes on the same tag.
     """
 
   attr :mentions, :boolean,

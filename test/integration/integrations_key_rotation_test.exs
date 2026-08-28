@@ -26,6 +26,7 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.KeyRotation
+  alias PhoenixKit.Settings
   alias PhoenixKit.Settings.Queries
   alias PhoenixKit.Settings.Setting
 
@@ -191,6 +192,67 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
       # Nothing was written — not even the row that decrypted fine.
       assert raw_value_json(uuid_good) == before_good
       assert raw_value_json(uuid_bad) == corrupted
+    end
+  end
+
+  describe "rotate/2 — restricted PhoenixKit.Settings values (S015)" do
+    test "a restricted setting shares the same key and rotates alongside integration connections" do
+      [restricted_key | _] = Settings.restricted_setting_keys()
+      {:ok, _} = Settings.update_setting(restricted_key, "top-secret-value")
+
+      before_row = Queries.get_setting_by_key(restricted_key)
+      assert String.starts_with?(before_row.value, "enc:v1:")
+
+      assert {:ok, %{rotated: 1, dry_run: false}} =
+               KeyRotation.rotate("brand-new-secret-well-over-min-length")
+
+      after_row = Queries.get_setting_by_key(restricted_key)
+      refute after_row.value == before_row.value
+      assert String.starts_with?(after_row.value, "enc:v1:")
+
+      # The OLD key can no longer read it.
+      assert {:error, _} = Encryption.decrypt_value(after_row.value)
+
+      # The NEW secret, once active, round-trips.
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "brand-new-secret-well-over-min-length"
+      )
+
+      assert Encryption.decrypt_value(after_row.value) == {:ok, "top-secret-value"}
+    end
+
+    test "an integration connection AND a restricted setting both rotate in the same run" do
+      conn_uuid = seed_connection("openrouter", "one", %{"api_key" => "sk-one"})
+      [restricted_key | _] = Settings.restricted_setting_keys()
+      {:ok, _} = Settings.update_setting(restricted_key, "another-secret")
+
+      assert {:ok, %{rotated: 2, dry_run: false}} =
+               KeyRotation.rotate("brand-new-secret-well-over-min-length")
+
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "brand-new-secret-well-over-min-length"
+      )
+
+      assert Encryption.decrypt_fields(raw_value_json(conn_uuid))["api_key"] == "sk-one"
+
+      restricted_row = Queries.get_setting_by_key(restricted_key)
+      assert Encryption.decrypt_value(restricted_row.value) == {:ok, "another-secret"}
+    end
+
+    test "rotate_rows_query returns a restricted setting row even though its module is nil" do
+      [restricted_key | _] = Settings.restricted_setting_keys()
+      {:ok, _} = Settings.update_setting(restricted_key, "some-value")
+
+      repo = PhoenixKit.RepoHelper.repo()
+      rows = repo.all(KeyRotation.rotate_rows_query())
+
+      matched = Enum.find(rows, &(&1.key == restricted_key))
+      assert matched
+      assert matched.module == nil
     end
   end
 

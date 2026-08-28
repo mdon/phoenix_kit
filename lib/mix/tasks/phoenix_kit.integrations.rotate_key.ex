@@ -1,6 +1,9 @@
 defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
   @moduledoc """
-  Rotates the encryption key protecting stored integration credentials.
+  Rotates the encryption key protecting stored integration credentials AND
+  restricted `PhoenixKit.Settings` values (`oauth_*_client_secret`,
+  `aws_*` — see `PhoenixKit.Settings.restricted_setting_keys/0`). Both are
+  encrypted under the same resolved key, so both must rotate together.
 
   ## Usage
 
@@ -14,7 +17,8 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
      be written to — BEFORE touching any data. Rotation is the dangerous
      moment: once rows are re-encrypted, a store that then refuses the write
      leaves you holding a database no key opens.
-  2. Reads every stored integration connection.
+  2. Reads every stored integration connection and every restricted setting
+     value.
   3. Decrypts each one under whichever key is CURRENTLY active (a
      dedicated `:integrations_encryption_key` if configured, then a
      configured key store, else the legacy `secret_key_base`-derived key —
@@ -68,21 +72,22 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
       a shell variable that resolved empty (`--new-key="$MAYBE_UNSET"`) and
       not something you meant to ask for.
 
-  ## Run this with nothing else writing to integration connections
+  ## Run this with nothing else writing to integration connections or restricted settings
 
   A real rotation's row lock only defends against ONE direction of a race
   with a concurrent writer (an OAuth token auto-refresh, a "Test
-  Connection" click, ...) — see `PhoenixKit.Integrations.KeyRotation`'s
-  moduledoc, "Atomicity and concurrent writers", for the exact mechanism
-  and what it does NOT cover. In short: a writer that already read a row
-  before rotation locked it can still silently overwrite the freshly
-  rotated row with old-key content after rotation commits, and `rotate/2`
-  will have already reported success by then. **Pause anything that could
-  write to integration connections (most concretely: an OAuth token-refresh
-  worker) before running this for real, and do not resume it until you have
-  restarted the app under the new key** — not just until this command
-  returns. Treat the whole span, start to restart, as one maintenance
-  window.
+  Connection" click, an admin saving the Authorization settings page...) —
+  see `PhoenixKit.Integrations.KeyRotation`'s moduledoc, "Atomicity and
+  concurrent writers", for the exact mechanism and what it does NOT cover.
+  In short: a writer that already read a row before rotation locked it can
+  still silently overwrite the freshly rotated row with old-key content
+  after rotation commits, and `rotate/2` will have already reported
+  success by then. **Pause anything that could write to integration
+  connections or restricted settings (most concretely: an OAuth
+  token-refresh worker, or the Authorization settings page) before running
+  this for real, and do not resume it until you have restarted the app
+  under the new key** — not just until this command returns. Treat the
+  whole span, start to restart, as one maintenance window.
 
   ## The gap between rotating and restarting
 
@@ -211,7 +216,7 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
     # never reaches an encrypt call, so a placeholder is fine here.
     case KeyRotation.rotate("dry-run-placeholder-unused", dry_run: true) do
       {:ok, %{rotated: n}} ->
-        Mix.shell().info("OK — #{n} connection(s) would rotate cleanly. Nothing was written.")
+        Mix.shell().info("OK — #{n} row(s) would rotate cleanly. Nothing was written.")
 
       {:error, {:decrypt_failed, uuid, reason}} ->
         Mix.raise(decrypt_failed_message(uuid, reason))
@@ -349,7 +354,7 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
   defp print_stored_success(count, location) do
     Mix.shell().info("""
 
-    Rotated #{count} connection(s).
+    Rotated #{count} row(s) (integration connections and/or restricted settings).
 
     The new secret was written to #{location} and read back to confirm it landed.
     On this host there is nothing else to copy: PhoenixKit reads the key from there.
@@ -364,7 +369,7 @@ defmodule Mix.Tasks.PhoenixKit.Integrations.RotateKey do
   end
 
   defp print_unstored_success(count, secret, supplied?) do
-    Mix.shell().info("\nRotated #{count} connection(s).\n")
+    Mix.shell().info("\nRotated #{count} row(s).\n")
 
     unless supplied? do
       Mix.shell().info("""

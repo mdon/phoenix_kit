@@ -948,6 +948,27 @@ defmodule PhoenixKit.Integrations.Encryption do
   end
 
   @doc """
+  Encrypts a single value using an EXPLICIT secret — the single-value
+  counterpart to `encrypt_fields_with_secret/2`, for the same rotation
+  use case (`PhoenixKit.Integrations.KeyRotation` re-encrypting
+  `PhoenixKit.Settings`' restricted setting values, which are stored as a
+  bare `value` string rather than a `value_json` map of sensitive fields).
+
+  Nil/empty pass through unchanged, same as `encrypt_value/1`. Unlike
+  `encrypt_value/1`, does NOT skip already-encrypted input — rotation
+  always calls this with a value it just decrypted under the OLD key, so
+  by the time it reaches here it is plaintext, never still `enc:v1:`-prefixed.
+  """
+  @spec encrypt_value_with_secret(String.t() | nil, String.t()) :: String.t() | nil
+  def encrypt_value_with_secret(nil, _secret), do: nil
+  def encrypt_value_with_secret("", _secret), do: ""
+
+  def encrypt_value_with_secret(value, secret)
+      when is_binary(value) and is_binary(secret) and secret != "" do
+    encrypt_value(value, derive_key(secret))
+  end
+
+  @doc """
   Whether `value` looks like an already-encrypted field value (carries the
   current `enc:v1:` prefix).
 

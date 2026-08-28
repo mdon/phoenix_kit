@@ -53,6 +53,13 @@ defmodule PhoenixKitWeb.Live.Dashboard do
   # overview (PubSub-driven re-renders) never re-roll it mid-visit. Keys
   # resolve to text through `greeting_text/1` at RENDER time, so gettext
   # still follows a locale switch (see `welcome_block/1`).
+  #
+  # `mount/3` itself runs TWICE per page load (disconnected HTTP render, then
+  # the connected websocket mount) — picking randomly in both would re-roll
+  # the greeting out from under the visitor the instant the socket connects.
+  # Only the connected pass draws; the disconnected pass gets the plain
+  # default, same as every other visitor-specific value this page defers
+  # until it can subscribe (see `Overview.assign_overview/3`).
   @generic_greetings ~w(welcome_back good_to_see_you hello_again hey_there glad_youre_here back_at_it)a
 
   @impl true
@@ -61,7 +68,7 @@ defmodule PhoenixKitWeb.Live.Dashboard do
       socket
       |> assign(:project_title, Settings.get_project_title())
       |> assign(:page_title, "Dashboard")
-      |> assign(:greeting_key, pick_greeting(socket.assigns[:phoenix_kit_current_scope]))
+      |> assign(:greeting_key, greeting_key_for_mount(socket))
       # Every scope-derived assign on this page — `:can_access_admin_area?`
       # included — comes from `Overview.assign_scope_gates/1`, and from nowhere
       # else. That is what lets a mid-session permission change recompute all of
@@ -160,6 +167,14 @@ defmodule PhoenixKitWeb.Live.Dashboard do
   # fixed offsets written before identifiers; `shift_to_offset/2` resolves both,
   # so the hour is the visitor's real local hour with daylight saving applied
   # rather than whatever offset was saved months ago.
+
+  defp greeting_key_for_mount(socket) do
+    if connected?(socket) do
+      pick_greeting(socket.assigns[:phoenix_kit_current_scope])
+    else
+      :welcome_back
+    end
+  end
 
   defp pick_greeting(scope) do
     pool = time_greetings(local_hour(scope))

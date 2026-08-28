@@ -1,3 +1,58 @@
+## 2.13.13 - 2026-08-28
+
+### Added
+
+- **Integrations encryption key store** — a rotated secret from
+  `mix phoenix_kit.integrations.rotate_key` now survives past the terminal
+  it was printed in. `PhoenixKit.Integrations.KeyStore` (file/S3/chain
+  backends) persists it, verified by a write-then-read-back check before
+  rotation touches any data; `mix phoenix_kit.doctor` and the admin
+  Integrations settings page report the same key verdict as the boot-time
+  warning, from one shared `Encryption.key_report/0`. (#756)
+- **Restricted setting values are encrypted at rest** —
+  `oauth_google_client_secret`, `oauth_github_client_secret`,
+  `oauth_facebook_app_secret`, `aws_access_key_id`, and
+  `aws_secret_access_key` are now written through the same encryption used
+  for integration credentials, and decrypted on every read path (including
+  the boot-time settings cache warmer). (#759)
+- **`config.exs`/`application.ex` splices verify before they're adopted** —
+  every regex-based install/update splice (Oban wiring, boot hook, Ueberauth
+  fix, dev-mailer guard) now parses the candidate output and confirms the
+  intended change actually landed in the right place before writing it;
+  otherwise the original content is kept and a manual-fallback message is
+  printed. Along the way, fixed a buffer-vs-disk bug that could silently
+  discard an earlier install/update step's edit to the same file, an
+  unanchored `plugins:`/`crontab:` regex that could match a neighbouring
+  app's config, and an unconditional leading comma that could corrupt a
+  crontab already ending in one. (#758)
+- `<.line_chart>` / `<.sparkline>` gained a `y_invert` attr so rank-like
+  data (search position, leaderboard) plots "1 is best, at the top" without
+  the caller negating its own values; `table_default.ex`'s `card_media_class`
+  attr frames the `:card_media` slot; `<.translatable_field>` forwards
+  `phx-hook`/`data-*`/`aria-*` to its underlying input via a new `debounce`-
+  configurable `:rest` global attr. (#760)
+
+### Fixed
+
+- **Key rotation silently stranded restricted settings.** The key rotation
+  added by #756 only re-encrypted `module: "integrations"` rows; the
+  restricted setting values #759 added (same PR cycle) are stored with
+  `module: nil` and share the same encryption key, so a routine rotation
+  left them under the old key — reads then failed closed (logged, dropped)
+  the moment the app restarted onto the new key, taking OAuth login and AWS
+  config dark with no warning from the rotation task. `KeyRotation` now
+  rotates both row shapes in the same pass.
+- The admin dashboard's rotating greeting re-rolled the instant the
+  websocket connected (LiveView calls `mount/3` twice per page load), so
+  the greeting visibly changed on nearly every visit instead of staying put
+  for the page load. (#761)
+- The language switcher stacked locale prefixes (`/en/fr/...`) instead of
+  replacing one — three drifted copies of the URL builder in `AdminNav`,
+  `LayoutWrapper`, and `UserDashboardNav` are now one
+  `Routes.locale_switch_path/3`. (#761)
+- Bumped the Leaf JS bundle to 0.6.0, with a test holding the CDN pin and
+  the Hex lock together. (#761)
+
 ## 2.13.12 - 2026-08-27
 
 ### Fixed
