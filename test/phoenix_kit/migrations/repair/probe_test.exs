@@ -8,6 +8,7 @@ defmodule PhoenixKit.Migrations.Repair.ProbeTest do
     tables: %{},
     columns: %{},
     indexes: %{},
+    constraint_backed_indexes: %{},
     constraints: %{},
     sequences: %{},
     functions: %{},
@@ -56,6 +57,48 @@ defmodule PhoenixKit.Migrations.Repair.ProbeTest do
 
       assert Probe.lookup(snapshot, {:catalog, %{kind: :index, name: "widgets_owner_idx"}}) ==
                shape
+    end
+
+    test "index: absent from indexes but present in constraint_backed_indexes — found via fallback (I095 pt.3)" do
+      # A kind: :index check whose object is actually a p/u constraint's own
+      # backing index (`widgets_pkey` on a composite natural key) — the row
+      # `@indexes_sql` never puts in `indexes` (see that module attribute's
+      # comment), only in `constraint_backed_indexes`. Same shape a bare
+      # index would have — `Differ.compare(:index, ...)` needs no awareness
+      # of where it came from.
+      shape = %{
+        table: "widgets",
+        unique: true,
+        method: "btree",
+        definition: "CREATE UNIQUE INDEX widgets_pkey ON public.widgets USING btree (a, b)",
+        predicate: nil,
+        keys: ["a", "b"],
+        opclasses: ["text_ops", "text_ops"]
+      }
+
+      snapshot = %{@empty_snapshot | constraint_backed_indexes: %{"widgets_pkey" => shape}}
+
+      assert Probe.lookup(snapshot, {:catalog, %{kind: :index, name: "widgets_pkey"}}) == shape
+    end
+
+    test "index: present in indexes always wins over constraint_backed_indexes for the same name" do
+      # Not a real-world case (a name is unique per schema, so both maps can
+      # never legitimately hold the same key at once) — pins that the direct
+      # bucket is still tried FIRST, so the fallback is strictly additive.
+      direct = %{table: "widgets", unique: false}
+      fallback = %{table: "widgets", unique: true}
+
+      snapshot = %{
+        @empty_snapshot
+        | indexes: %{"ambiguous" => direct},
+          constraint_backed_indexes: %{"ambiguous" => fallback}
+      }
+
+      assert Probe.lookup(snapshot, {:catalog, %{kind: :index, name: "ambiguous"}}) == direct
+    end
+
+    test "index: absent from both — nil, same as before this fallback existed" do
+      assert Probe.lookup(@empty_snapshot, {:catalog, %{kind: :index, name: "ghost"}}) == nil
     end
 
     test "constraint: keyed by {table, name}" do
@@ -132,6 +175,7 @@ defmodule PhoenixKit.Migrations.Repair.ProbeTest do
       tables: %{},
       columns: %{},
       indexes: %{},
+      constraint_backed_indexes: %{},
       constraints: %{},
       sequences: %{},
       functions: %{},

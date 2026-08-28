@@ -36,11 +36,12 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
   @typedoc "`:absent` (table missing), `nil` (table exists, no comment), or the numeric comment."
   @type raw_comment :: :absent | nil | :unparseable | non_neg_integer()
 
-  @typedoc "One schema's structural snapshot — mirrors `PhoenixKit.Squash.Generate.Catalog.snapshot/2`'s shape, minus seeds (see moduledoc \"Seeds\" note on `PhoenixKit.Migrations.Repair.Differ`)."
+  @typedoc "One schema's structural snapshot — mirrors `PhoenixKit.Squash.Generate.Catalog.snapshot/2`'s shape, minus seeds (see moduledoc \"Seeds\" note on `PhoenixKit.Migrations.Repair.Differ`), plus `constraint_backed_indexes` (I095 pt.3 — see `lookup/2`)."
   @type snapshot :: %{
           tables: %{String.t() => map()},
           columns: %{{String.t(), String.t()} => map()},
           indexes: %{String.t() => map()},
+          constraint_backed_indexes: %{String.t() => map()},
           constraints: %{{String.t(), String.t()} => map()},
           sequences: %{String.t() => map()},
           functions: %{{String.t(), String.t()} => map()},
@@ -156,6 +157,31 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
   # 'u')` — the only two constraint kinds where "this index backs a constraint
   # ON ITS OWN TABLE, so don't ALSO list it as a bare index" is the intended
   # rule.
+  #
+  # ## Why a matched row is no longer dropped by the `WHERE`, and what happens
+  # ## to it instead (I095 pt.3)
+  #
+  # A `p`/`u`-backed row used to be excluded outright (`AND con.oid IS NULL`
+  # in the `WHERE`) on the reasoning that such an index is already represented
+  # via `:constraint` — correct for the OBJECT the manifest is SUPPOSED to
+  # declare, but silent about the case where a manifest entry gets the `kind`
+  # wrong (`kind: :index` for an object that is, on the catalog, a `p`/`u`
+  # constraint's own backing index — confirmed live twice: `idx_shop_
+  # category_slugs_pkey`/`idx_shop_product_slugs_pkey`, PRIMARY KEY on a
+  # composite natural key). `lookup/2`'s `kind: :index` clause only ever
+  # consulted `indexes`, so that row read as permanently absent — a healthy
+  # object reported `:missing` forever, no matter how many times repair ran.
+  #
+  # The row is now kept (the `con.oid IS NULL` filter moved from `WHERE` to
+  # the query below deciding which of TWO maps it lands in) rather than
+  # dropped: `indexes/2` partitions on the same `contype` this join already
+  # computes, so `snapshot.indexes` holds exactly the rows it always did (a
+  # `p`/`u`-backed index is still never double-listed there) and the
+  # partitioned-out rows land in the new `constraint_backed_indexes` map
+  # instead of nowhere. `lookup/2` only reaches into that second map as a
+  # fallback for a `kind: :index` check the first map couldn't answer — never
+  # a substitute for declaring `kind: :constraint` on a NEW object (see that
+  # function's doc for what this fallback does and does not cover).
   @indexes_sql """
   SELECT t.relname,
          ic.relname,
@@ -168,7 +194,8 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
          (SELECT array_agg(op.opcname ORDER BY u.ord)
           FROM unnest(string_to_array(i.indclass::text, ' ')::oid[])
                WITH ORDINALITY AS u(opcoid, ord)
-          JOIN pg_opclass op ON op.oid = u.opcoid)
+          JOIN pg_opclass op ON op.oid = u.opcoid),
+         con.contype::text
   FROM pg_index i
   JOIN pg_class ic ON ic.oid = i.indexrelid
   JOIN pg_class t ON t.oid = i.indrelid
@@ -176,7 +203,7 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
   JOIN pg_am am ON am.oid = ic.relam
   LEFT JOIN pg_constraint con
     ON con.conindid = i.indexrelid AND con.contype IN ('p', 'u')
-  WHERE n.nspname = $1 AND con.oid IS NULL
+  WHERE n.nspname = $1
   """
 
   @constraints_sql """
@@ -233,12 +260,15 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
 
   @doc """
   A full structural snapshot of `prefix` on the target server — one round
-  trip per class (7 queries total), mirroring
+  trip per class (7 queries total, `indexes`/`constraint_backed_indexes`
+  sharing the single `@indexes_sql` round trip), mirroring
   `PhoenixKit.Squash.Generate.Catalog.snapshot/2`'s shape exactly (minus
   seeds — see `PhoenixKit.Migrations.Repair.Differ`'s moduledoc for why seed
   rows are checked for presence only, never snapshotted for value
-  comparison). `oban_*` tables/sequences/functions and `schema_migrations`
-  are excluded — Oban is delegated, never manifested (spec §6.1).
+  comparison; plus `constraint_backed_indexes`, which the generator's
+  `Catalog` module has no equivalent of — see `lookup/2`). `oban_*` tables/
+  sequences/functions and `schema_migrations` are excluded — Oban is
+  delegated, never manifested (spec §6.1).
 
   ## Why this forces `search_path = ''` for the duration of the snapshot
 
@@ -293,10 +323,13 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
       repo.query!("SET search_path TO ''", [], log: false)
 
       try do
+        {plain_indexes, constraint_backed_indexes} = indexes(repo, prefix)
+
         %{
           tables: tables(repo, prefix),
           columns: columns(repo, prefix),
-          indexes: indexes(repo, prefix),
+          indexes: plain_indexes,
+          constraint_backed_indexes: constraint_backed_indexes,
           constraints: constraints(repo, prefix),
           sequences: sequences(repo, prefix),
           functions: functions(repo, prefix),
@@ -323,21 +356,36 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
     end
   end
 
+  # Splits on the same `contype` the `@indexes_sql` join already computes —
+  # `nil` (no p/u constraint owns this index) into the first map exactly as
+  # before this split existed; a `p`/`u`-backed row into the second, keyed
+  # the same way (bare index names are unique within a schema regardless of
+  # what — if anything — owns them) rather than dropped. See `@indexes_sql`'s
+  # comment and `lookup/2` for why the second map exists and what reaches it.
   defp indexes(repo, prefix) do
-    for [table, name, unique, method, definition, predicate, keys, opclasses] <-
-          rows!(repo, @indexes_sql, [prefix]),
-        keep_table?(table),
-        into: %{} do
-      {name,
-       %{
-         table: table,
-         unique: unique,
-         method: method,
-         definition: definition,
-         predicate: predicate,
-         keys: keys || [],
-         opclasses: opclasses || []
-       }}
+    rows!(repo, @indexes_sql, [prefix])
+    |> Enum.filter(fn [table | _] -> keep_table?(table) end)
+    |> Enum.reduce({%{}, %{}}, &partition_index_row/2)
+  end
+
+  defp partition_index_row(
+         [table, name, unique, method, definition, predicate, keys, opclasses, backing_contype],
+         {plain, constraint_backed}
+       ) do
+    shape = %{
+      table: table,
+      unique: unique,
+      method: method,
+      definition: definition,
+      predicate: predicate,
+      keys: keys || [],
+      opclasses: opclasses || []
+    }
+
+    if is_nil(backing_contype) do
+      {Map.put(plain, name, shape), constraint_backed}
+    else
+      {plain, Map.put(constraint_backed, name, shape)}
     end
   end
 
@@ -413,11 +461,50 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
   test (`probe_test.exs` builds a snapshot by hand).
 
       iex> snapshot = %{tables: %{"widgets" => %{}}, columns: %{}, indexes: %{},
-      ...>   constraints: %{}, sequences: %{}, functions: %{}, extensions: %{}}
+      ...>   constraint_backed_indexes: %{}, constraints: %{}, sequences: %{},
+      ...>   functions: %{}, extensions: %{}}
       iex> Probe.lookup(snapshot, {:catalog, %{kind: :table, name: "widgets"}})
       %{}
       iex> Probe.lookup(snapshot, {:catalog, %{kind: :table, name: "missing"}})
       nil
+
+  ## The `kind: :index` fallback into `constraint_backed_indexes` (I095 pt.3)
+
+  A `kind: :index` check misses `snapshot.indexes` by construction for an
+  object that is, on the catalog, a `p`/`u` constraint's own backing index —
+  `@indexes_sql`'s comment explains why that index is never listed there.
+  Before this fallback existed, that meant a manifest entry with the wrong
+  `kind` (should have been `:constraint`) read as permanently `:missing` —
+  confirmed live twice (`idx_shop_category_slugs_pkey`/
+  `idx_shop_product_slugs_pkey`, both PRIMARY KEY on a composite natural
+  key). The fallback below checks `constraint_backed_indexes` next — same
+  index-shaped map (`table`/`unique`/`method`/`definition`/`predicate`/
+  `keys`/`opclasses`, read from the SAME `pg_get_indexdef`/`pg_opclass` data
+  a genuinely bare index would have), so `Differ.compare(:index, ...)`
+  keeps comparing every field with full fidelity — nothing here is
+  synthesized or exempted from comparison.
+
+  What this fallback does NOT do:
+
+    * It does not make `kind: :index` an acceptable way to declare a NEW
+      constraint-backed object. `Executor.create_action/2` still dispatches
+      on `object.class`, and `class: :index` still rebuilds a bare
+      `CREATE INDEX IF NOT EXISTS` — wrong DDL for a genuinely MISSING
+      composite-key PRIMARY KEY (no `PRIMARY KEY` semantics, doesn't
+      participate as an FK target). This only rescues PRESENCE detection
+      for an object that already exists; a real gap on some install would
+      still get repaired into the wrong kind of object. New objects must
+      still be declared `kind: :constraint`/`class: :constraint`.
+    * It is restricted to `contype IN ('p', 'u')`, matching `@indexes_sql`'s
+      own restriction — a `CHECK`/exclusion constraint (`c`/`x`) has no
+      guaranteed backing index at all, so there is nothing here for a
+      `kind: :index` check to fall back onto for those.
+    * It does not touch anything outside this runtime read path — the
+      standalone generator (`dev_docs/squash/generate_baseline.exs`'s
+      `Catalog` module) that produces `expected_schema.ex` in the first
+      place is unaffected; regenerating the manifest from scratch can still
+      assign the wrong `kind` to a future composite-key PRIMARY KEY the same
+      way it did for these two.
   """
   @spec lookup(snapshot(), Object.check()) :: map() | nil
   def lookup(snapshot, {:catalog, %{kind: :table, name: name}}),
@@ -429,7 +516,12 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
   def lookup(snapshot, {:catalog, %{kind: :column, table: t, column: c}}),
     do: Map.get(snapshot.columns, {t, c})
 
-  def lookup(snapshot, {:catalog, %{kind: :index, name: n}}), do: Map.get(snapshot.indexes, n)
+  def lookup(snapshot, {:catalog, %{kind: :index, name: n}}) do
+    case Map.get(snapshot.indexes, n) do
+      nil -> Map.get(snapshot, :constraint_backed_indexes, %{}) |> Map.get(n)
+      shape -> shape
+    end
+  end
 
   def lookup(snapshot, {:catalog, %{kind: :constraint, table: t, name: n}}),
     do: Map.get(snapshot.constraints, {t, n})
