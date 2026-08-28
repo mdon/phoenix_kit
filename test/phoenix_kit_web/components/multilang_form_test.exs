@@ -73,6 +73,55 @@ defmodule PhoenixKitWeb.Components.MultilangFormTest do
     end
   end
 
+  describe "translatable_field debounce" do
+    test "defaults to the 300ms every caller used to hardcode" do
+      changeset = make_changeset(%{title: "Hello"})
+      assigns = %{changeset: changeset}
+
+      result =
+        html(~H"""
+        <.translatable_field
+          field_name="title"
+          form_prefix="record"
+          changeset={@changeset}
+          schema_field={:title}
+          multilang_enabled={false}
+          current_lang="en"
+          primary_language="en"
+          lang_data={%{}}
+          label="Title"
+        />
+        """)
+
+      assert result =~ ~s(phx-debounce="300")
+    end
+
+    test "nil omits the attribute, so the server sees every keystroke" do
+      # For fields the server DERIVES from as you type — a slug from a
+      # title — waiting for a typing pause makes the result feel laggy.
+      changeset = make_changeset(%{title: "Hello"})
+      assigns = %{changeset: changeset}
+
+      result =
+        html(~H"""
+        <.translatable_field
+          field_name="title"
+          form_prefix="record"
+          changeset={@changeset}
+          schema_field={:title}
+          multilang_enabled={false}
+          current_lang="en"
+          primary_language="en"
+          lang_data={%{}}
+          label="Title"
+          debounce={nil}
+        />
+        """)
+
+      refute result =~ "phx-debounce"
+    end
+  end
+
   # ── translatable_field primary tab ──────────────────────────
 
   describe "translatable_field primary tab" do

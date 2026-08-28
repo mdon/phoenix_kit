@@ -882,6 +882,17 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
   attr :class, :string, default: nil
   attr :pattern, :string, default: nil
   attr :title, :string, default: nil
+
+  attr :debounce, :string,
+    default: "300",
+    doc: """
+    Value for `phx-debounce` on the field's input. Defaults to `"300"`, the
+    delay every caller had baked in before this was configurable. Pass `nil`
+    to omit the attribute entirely — do that when the server DERIVES
+    something from this field as you type (a slug from a title, say), where
+    waiting for a pause makes the derived value feel laggy.
+    """
+
   attr :hint, :string, default: nil
   attr :secondary_hint, :string, default: nil
 
@@ -980,7 +991,7 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
             id={@input_id}
             class={@input_class}
             rows={@rows}
-            phx-debounce="300"
+            phx-debounce={@debounce}
             phx-hook={@mentions_on && "MentionInput"}
             required={@required}
             disabled={@disabled}
@@ -992,7 +1003,7 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
             class={@input_class}
             rows={@rows}
             placeholder={@primary_value}
-            phx-debounce="300"
+            phx-debounce={@debounce}
             phx-hook={@mentions_on && "MentionInput"}
             disabled={@disabled}
           >{@lang_value || ""}</textarea>
@@ -1009,7 +1020,7 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
             value={@primary_value}
             class={@input_class}
             placeholder={@placeholder}
-            phx-debounce="300"
+            phx-debounce={@debounce}
             required={@required}
             disabled={@disabled}
             pattern={@pattern}
@@ -1023,7 +1034,7 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
             value={@lang_value}
             placeholder={@primary_value}
             class={@input_class}
-            phx-debounce="300"
+            phx-debounce={@debounce}
             disabled={@disabled}
             pattern={@pattern}
             title={@title}
