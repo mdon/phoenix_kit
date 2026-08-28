@@ -776,11 +776,12 @@ defmodule PhoenixKit.Integrations do
   """
   @spec add_connection(String.t(), String.t(), String.t() | nil, keyword()) ::
           {:ok, %{uuid: String.t(), data: map()}}
-          | {:error, :empty_name | :scope_not_allowed | term()}
+          | {:error, :empty_name | :unknown_provider | :scope_not_allowed | term()}
   def add_connection(provider_key, name, actor_uuid \\ nil, opts \\ [])
       when is_binary(provider_key) and is_binary(name) do
     owner = Keyword.get(opts, :owner, :system)
     trimmed = String.trim(name)
+    provider = Providers.get(provider_key)
     # A typed owner (user, dashboard, team, …) births an owned connection, so it
     # requires the provider to allow the `:personal` scope; `:system` requires
     # `:system`. (A provider offered "personally" is fine for any entity owner.)
@@ -790,10 +791,20 @@ defmodule PhoenixKit.Integrations do
       trimmed == "" ->
         {:error, :empty_name}
 
+      # Enforce provider existence at row-birth, NOT just in the picker —
+      # same tamperable "select_provider" event as the scope check below.
+      # Without this, an unregistered key makes `Providers.get/1` return
+      # `nil`, which makes `scopes_of/1` default to `[:system]` and
+      # trivially pass that check — a crafted key would birth a row that
+      # `list_connections/1` then reports as a real connection for a
+      # provider that was never installed.
+      is_nil(provider) ->
+        {:error, :unknown_provider}
+
       # Enforce the provider's declared scope at row-birth, NOT just in the
       # picker — the provider comes from a tamperable event, so a crafted
       # create_connection can't birth (e.g.) a personal Google connection.
-      scope_atom not in Providers.scopes_of(provider_key) ->
+      scope_atom not in Providers.scopes_of(provider) ->
         {:error, :scope_not_allowed}
 
       true ->
