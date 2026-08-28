@@ -19,9 +19,45 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       start_rename_folder, rename_folder_input, rename_folder,
       cancel_rename_folder, toggle_trash_filter
 
+  **From a plain LiveView**, pass `myself={nil}`: HEEx omits a nil attribute,
+  so no `phx-target` is rendered and the events arrive at the LiveView. The
+  event names are not configurable — implement this vocabulary rather than
+  fork the component.
+
   The drag-drop data attributes (`data-drop-folder`, `data-draggable-folder`,
-  `data-drop-trash`) are present unconditionally; consumers that wire up the
-  `MediaDragDrop` JS hook get drag-drop for free, others can ignore them.
+  `data-draggable-file`, `data-drop-trash`) are emitted unless
+  `enable_drag={false}`; consumers that wire up the `MediaDragDrop` JS hook get
+  drag-drop for free, others can ignore them.
+
+  ## Showing what is in the folders
+
+  By default this is a tree of folders and nothing else, which is what a media
+  browser wants — its files live in a grid beside the tree. A consumer whose
+  leaves *are* the point (a vault of notes, a file manager) passes `items` and
+  an `:item` slot, and the leaves render inside their folders the way Obsidian
+  and Finder show them:
+
+      <.folder_explorer
+        folder_tree={@folder_tree}
+        items={%{"root" => @root_notes, folder_uuid => @notes_in_folder}}
+        …
+      >
+        <:item :let={note}>
+          <.link patch={~p"/notes/\#{note.id}"}>{note.label}</.link>
+        </:item>
+      </.folder_explorer>
+
+  Items are keyed by folder uuid, with `"root"` for the top level, and each
+  needs an `:id` — that is what `data-draggable-file` carries, so a leaf is
+  draggable on the same terms as a folder. A folder holding only leaves still
+  gets a chevron.
+
+  ## A consumer's folder is its own
+
+  `folder.color` is read through `folder_color/1` (`Map.get/2`), because a
+  consumer's folder schema is not `PhoenixKit.Media.Folder` and need not have
+  the concept. Reading the field directly raised `KeyError` and took the page
+  down the moment such a consumer had one folder.
 
   ## Usage
 
@@ -61,7 +97,13 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   # ──────────────────────────────────────────────────────────────
 
   attr :id, :string, default: "folder-explorer"
-  attr :myself, :any, required: true
+
+  attr :myself, :any,
+    default: nil,
+    doc:
+      "The consuming LiveComponent's `@myself`. Pass `nil` from a plain " <>
+        "LiveView: HEEx omits a nil attribute, so `phx-target` is not " <>
+        "rendered and the events arrive at the LiveView itself."
 
   attr :folder_tree, :any, required: true
   attr :current_folder, :any, default: nil
@@ -83,12 +125,45 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   attr :show_all_files, :boolean, default: true
   attr :show_trash, :boolean, default: true
 
+  attr :show_rename, :boolean,
+    default: true,
+    doc: "Show the inline rename affordance on each folder."
+
+  attr :items, :any,
+    default: %{},
+    doc: """
+    Leaf rows to show *inside* folders, as `%{folder_uuid => [item]}`. Items at
+    the top level go under the key `"root"`.
+
+    A folder tree that cannot show what is in the folders is half a tree: a
+    vault of markdown files, or any consumer whose leaves are the point, needs
+    the files interleaved with the folders the way a file manager does it.
+    Empty by default, which is the folders-only tree MediaBrowser renders.
+
+    Each item must be a map with an `:id`. That is what
+    `data-draggable-file` carries, so items are draggable on the same terms as
+    folders with no work from the consumer.
+    """
+
+  attr :enable_drag, :boolean,
+    default: true,
+    doc:
+      "Emit the drag-drop data attributes. Off for a consumer with no move " <>
+        "handlers, so folders are not draggable into a void."
+
   attr :class, :any,
     default: "hidden lg:block",
     doc:
       "Visibility/extra classes for the wrapper. The default reproduces the " <>
         "MediaBrowser behavior (desktop-only sidebar); consumers embedding the " <>
         "explorer elsewhere can lower the breakpoint (e.g. \"hidden md:block\")."
+
+  slot :item,
+    doc: """
+    How one leaf row renders, given the item. Without it a row shows
+    `item.label` (or `item.name`) as plain text — enough to see the tree, not
+    enough to click it, so a real consumer passes this.
+    """
 
   def folder_explorer(assigns) do
     # UUIDs on the path from a root folder down to (and including) the
@@ -201,8 +276,21 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
                 filter_trash={@filter_trash}
                 depth={0}
                 myself={@myself}
+                show_rename={@show_rename}
+                enable_drag={@enable_drag}
+                items={@items}
+                item={@item}
               />
             <% end %>
+
+            <%!-- Items at the vault root, after the folders, as a file
+                 manager orders them. --%>
+            <.tree_item
+              :for={entry <- items_for(@items, "root")}
+              entry={entry}
+              enable_drag={@enable_drag}
+              item={@item}
+            />
           </ul>
 
           <%!-- Trash --%>
@@ -233,6 +321,41 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   end
 
   # ──────────────────────────────────────────────────────────────
+  # Leaf row
+  # ──────────────────────────────────────────────────────────────
+
+  attr :entry, :map, required: true
+  attr :enable_drag, :boolean, default: true
+  attr :item, :any, default: []
+
+  @doc false
+  # One leaf inside a folder. The `<li>` carries `data-draggable-file`, so an
+  # item is draggable on the same terms as a folder and the consumer's slot can
+  # stay a plain row — the drag-drop hook finds it either way.
+  def tree_item(assigns) do
+    ~H"""
+    <li
+      data-draggable-file={@enable_drag && Map.get(@entry, :id)}
+      class="pl-5 pr-1 rounded hover:bg-base-200"
+    >
+      <%= if @item == [] do %>
+        <span class="block text-sm truncate py-1 text-base-content/70">
+          {Map.get(@entry, :label) || Map.get(@entry, :name)}
+        </span>
+      <% else %>
+        {render_slot(@item, @entry)}
+      <% end %>
+    </li>
+    """
+  end
+
+  @doc false
+  # Leaves for one folder. Tolerant of a missing key and of a `nil` map, so a
+  # consumer can pass items for the two folders it cares about.
+  def items_for(items, key) when is_map(items), do: Map.get(items, key, [])
+  def items_for(_items, _key), do: []
+
+  # ──────────────────────────────────────────────────────────────
   # Recursive tree node
   # ──────────────────────────────────────────────────────────────
 
@@ -255,7 +378,11 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   attr :renaming_source, :any, default: nil
   attr :filter_trash, :boolean, default: false
   attr :depth, :integer, default: 0
-  attr :myself, :any, required: true
+  attr :myself, :any, default: nil
+  attr :items, :any, default: %{}
+  # The `:item` slot, forwarded down the recursion as a plain assign — a slot
+  # is a list of maps, so it travels as an attr without ceremony.
+  attr :item, :any, default: []
 
   # Behavior config so the same recursive node powers both the sidebar and the
   # move-destination picker. Defaults reproduce the sidebar; the move modal
@@ -295,6 +422,14 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       )
 
     assigns = assign(assigns, :has_children, assigns.node.children != [])
+    assigns = assign(assigns, :node_items, items_for(assigns.items, assigns.node.folder.uuid))
+
+    # `has_children` stays folder-only: the connector geometry is drawn from
+    # it, and changing its meaning would move lines under MediaBrowser, which
+    # passes no items. Expansion is the thing that has to widen — a folder
+    # holding nothing but notes still opens.
+    assigns =
+      assign(assigns, :expandable?, assigns.has_children or assigns.node_items != [])
 
     assigns =
       assign(
@@ -353,11 +488,12 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
         ]}
         style={
           if @is_active,
-            do: "background-color: #{folder_color_hex(@node.folder.color) || "oklch(var(--p))"}25"
+            do:
+              "background-color: #{folder_color_hex(folder_color(@node.folder)) || "oklch(var(--p))"}25"
         }
       >
         <%!-- Chevron (expand/collapse) --%>
-        <%= if @has_children do %>
+        <%= if @expandable? do %>
           <button
             phx-click={@on_toggle}
             phx-target={@myself}
@@ -383,7 +519,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
             class="flex items-center gap-1.5 flex-1 min-w-0"
           >
             <input type="hidden" name="folder_uuid" value={@node.folder.uuid} />
-            <span style={folder_icon_style(@node.folder.color)}>
+            <span style={folder_icon_style(folder_color(@node.folder))}>
               <.icon name="hero-folder" class="w-4 h-4 shrink-0" />
             </span>
             <%!--
@@ -418,7 +554,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
             data-draggable-folder={@enable_drag && @node.folder.uuid}
             class="flex items-center gap-1.5 flex-1 text-sm text-left"
           >
-            <span style={folder_icon_style(@node.folder.color, @is_active)}>
+            <span style={folder_icon_style(folder_color(@node.folder), @is_active)}>
               <.icon
                 name={if @is_expanded, do: "hero-folder-open", else: "hero-folder"}
                 class="w-4 h-4 shrink-0"
@@ -454,7 +590,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       </div>
 
       <%!-- Children (expanded) --%>
-      <%= if @has_children && @is_expanded do %>
+      <%= if @expandable? && @is_expanded do %>
         <%!--
           Tree guide lines are drawn per child <li> (see the connector
           classes on the <li> below), not as a single full-height border on
@@ -466,7 +602,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
         --%>
         <ul
           class="ml-3"
-          style={"--pk-tree-line: #{tree_line_color(@node.folder.color)}; --pk-tree-line-active: #{tree_line_color_active(@node.folder.color)}"}
+          style={"--pk-tree-line: #{tree_line_color(folder_color(@node.folder))}; --pk-tree-line-active: #{tree_line_color_active(folder_color(@node.folder))}"}
         >
           <%= for {child, idx} <- Enum.with_index(@node.children) do %>
             <.folder_tree_node
@@ -486,8 +622,18 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
               show_rename={@show_rename}
               enable_drag={@enable_drag}
               hover_class={@hover_class}
+              items={@items}
+              item={@item}
             />
           <% end %>
+
+          <%!-- This folder's own leaves, after its subfolders. --%>
+          <.tree_item
+            :for={entry <- @node_items}
+            entry={entry}
+            enable_drag={@enable_drag}
+            item={@item}
+          />
         </ul>
       <% end %>
     </li>
@@ -670,6 +816,17 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       hex -> "color: #{hex}"
     end
   end
+
+  @doc """
+  A folder's colour, for a folder that may not have the concept.
+
+  Read with `Map.get/3` rather than `folder.color` on purpose: this component
+  is reusable, and a consumer's folder struct is its own — the knowledge base's
+  has a path and a name and nothing else. A missing key raised `KeyError` and
+  took the page down the moment such a vault had one folder.
+  """
+  @spec folder_color(map()) :: String.t() | nil
+  def folder_color(folder), do: Map.get(folder, :color)
 
   def folder_color_hex("red"), do: "#ef4444"
   def folder_color_hex("orange"), do: "#f97316"

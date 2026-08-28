@@ -1,3 +1,38 @@
+## 2.13.14 - 2026-08-28
+
+### Added
+
+- **`<.folder_explorer>` can show what is in the folders.** It rendered a tree
+  of folders and nothing else, which suits MediaBrowser — its files live in a
+  grid beside the tree — but not a consumer whose leaves *are* the point. A new
+  `items` attr (`%{folder_uuid => [item]}`, with `"root"` for the top level) and
+  an `:item` slot interleave leaves with folders the way Obsidian and Finder do.
+  Each item needs an `:id`, which becomes `data-draggable-file`, so leaves are
+  draggable on the same terms as folders with no work from the consumer. A
+  folder holding only leaves now gets a chevron. Empty by default: the
+  folders-only tree is unchanged.
+- **`show_rename` and `enable_drag` are settable on `<.folder_explorer>`.** Both
+  existed on the recursive node and neither was plumbed through the public
+  component, so a consumer could not turn off an affordance it had no handler
+  for. Defaults are unchanged.
+
+### Fixed
+
+- **`<.folder_explorer>` no longer raises on a folder without a colour.** It
+  read `folder.color` directly, which is fine for `PhoenixKit.Media.Folder` and
+  a `KeyError` for any other consumer's folder struct — taking the page down the
+  moment such a consumer had one folder. Read through `folder_color/1`
+  (`Map.get/2`) everywhere.
+- **`myself` is optional on `<.folder_explorer>`.** It was `required: true`, and
+  every control targets it, which made the component effectively
+  LiveComponent-only. Pass `myself={nil}` from a plain LiveView: HEEx omits a
+  nil attribute, so the events arrive at the LiveView. Documented rather than
+  discovered.
+- **Corrected a stale comment in `MediaDragDrop`** claiming folder drags are
+  refused by trash targets. V119 added recursive folder trash and the comment
+  was left behind; the code accepts files, folders and batches. It cost a
+  consumer an afternoon of believing it.
+
 ## 2.13.13 - 2026-08-28
 
 ### Added

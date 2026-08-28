@@ -4737,13 +4737,17 @@ if (typeof window.Chart === "undefined") {
         target.addEventListener("drop", target._drop);
       });
 
-      // Trash drop target — sidebar Trash button. Mirrors the folder
-      // drop wiring above but pushes `trash_file` and uses error-colored
-      // hover feedback so the destructive action reads as different from
-      // a folder move at a glance. Folder drags are refused at hover
-      // time: folders don't go through the trash flow (no soft-delete
-      // for folders), so the user gets a "no-drop" cursor instead of
-      // a misleading red ring.
+      // Trash drop target — any element carrying `data-drop-trash`, looked
+      // up across the document rather than inside this hook's element, so a
+      // consumer can put the target in a page header. Mirrors the folder drop
+      // wiring above but pushes `trash_file` / `trash_folder`, and uses
+      // error-colored hover feedback so the destructive action reads as
+      // different from a folder move at a glance.
+      //
+      // Files, folders and batches are all accepted. (This comment used to say
+      // folders were refused; V119 added recursive folder trash and the
+      // comment was left behind, which cost a consumer an afternoon of
+      // believing it.)
       var trashTargets = document.querySelectorAll("[data-drop-trash]");
       trashTargets.forEach(function(target) {
         target.removeEventListener("dragover", target._trashDragover);
