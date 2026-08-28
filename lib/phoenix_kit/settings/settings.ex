@@ -67,6 +67,7 @@ defmodule PhoenixKit.Settings do
   import Ecto.Changeset, only: [add_error: 3]
 
   alias PhoenixKit.Config.AWS
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Settings.Queries
   alias PhoenixKit.Settings.Setting
@@ -327,7 +328,7 @@ defmodule PhoenixKit.Settings do
       setting_record = Queries.get_setting_by_key(key)
 
       case setting_record do
-        %Setting{value: value} -> value
+        %Setting{value: value} -> decrypt_if_restricted(key, value)
         nil -> nil
       end
     end
@@ -588,7 +589,7 @@ defmodule PhoenixKit.Settings do
     if Application.get_env(:phoenix_kit, :update_mode, false) or not repo_available?() do
       :error
     else
-      {:ok, keys |> Queries.list_settings_key_values_by_keys() |> Map.new()}
+      {:ok, keys |> Queries.list_settings_key_values_by_keys() |> decrypt_and_map_settings()}
     end
   rescue
     error ->
@@ -1015,7 +1016,7 @@ defmodule PhoenixKit.Settings do
     else
       if repo_available?() do
         Queries.list_settings_key_values_by_keys(keys)
-        |> Map.new()
+        |> decrypt_and_map_settings()
       else
         %{}
       end
@@ -1161,7 +1162,7 @@ defmodule PhoenixKit.Settings do
   """
   def list_all_settings do
     Queries.list_settings_key_values()
-    |> Map.new()
+    |> decrypt_and_map_settings()
   end
 
   @doc """
@@ -1206,6 +1207,104 @@ defmodule PhoenixKit.Settings do
 
   @doc false
   def restricted_setting_keys, do: @restricted_setting_keys
+
+  # Classifies one raw stored value against `PhoenixKit.Integrations.Encryption`'s
+  # `enc:v1:` scheme (S015 pt.2). Exactly three outcomes, deliberately never
+  # collapsed into two:
+  #
+  #   * `{:decrypted, plaintext}` — carried the prefix and decrypted under the
+  #     currently active key. The value that would previously have been
+  #     returned unencrypted.
+  #   * `{:legacy, value}` — no prefix at all. A value written before this
+  #     encryption existed, or a key that was never restricted. Returned
+  #     as-is (`Encryption.decrypt_value/1`'s own backwards-compatibility
+  #     rule) but tagged distinctly from `:decrypted` — this is the
+  #     difference `decrypt_if_restricted/2` and any future migration/audit
+  #     tooling can tell apart; an ordinary caller of `get_setting/1` cannot
+  #     (both are equally usable plaintext to it), and is not meant to.
+  #   * `{:error, reason}` — carried the prefix but did NOT decrypt (wrong or
+  #     rotated key, corrupted ciphertext). Never resolves to a value here —
+  #     see `decrypt_if_restricted/2` for what a caller-facing function does
+  #     with this instead of ever returning the raw `enc:v1:...` string.
+  #
+  # Public (but undocumented) so it has its own direct unit test seam for
+  # each of the three states — the same reason
+  # `Mix.Tasks.PhoenixKit.Repair.exit_code/1` is public: the decision is pure
+  # and worth testing in isolation from the DB-touching callers that use it.
+  @doc false
+  @spec decrypt_restricted_value(String.t() | nil) ::
+          {:decrypted, String.t()} | {:legacy, String.t() | nil} | {:error, term()}
+  def decrypt_restricted_value(nil), do: {:legacy, nil}
+
+  def decrypt_restricted_value(value) when is_binary(value) do
+    if Encryption.encrypted?(value) do
+      case Encryption.decrypt_value(value) do
+        {:ok, plaintext} -> {:decrypted, plaintext}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      {:legacy, value}
+    end
+  end
+
+  # Read side of S015 pt.2: applies `decrypt_restricted_value/1` to a value
+  # ALREADY KNOWN to have come from `key`, and collapses its three states to
+  # the `String.t() | nil` every existing `get_setting*` caller already
+  # expects — `:decrypted`/`:legacy` both resolve to the plaintext (equally
+  # usable to a caller that just wants "the setting's value"; the
+  # distinction is for `decrypt_restricted_value/1`'s own callers, not for
+  # this one), `:error` NEVER resolves to the raw value. Matches
+  # `PhoenixKit.Integrations.Encryption.decrypt_fields/1`'s own precedent
+  # for the identical dilemma: "a caller must never mistake stale
+  # ciphertext for a real value" — log loudly (this must never fail
+  # silently) and report the value as absent, exactly like a row that
+  # never existed. A caller reading `nil` back for a restricted key already
+  # has a documented fallback path (config, `||` defaults) for "not
+  # configured"; falling into that path is the safe outcome here, not a
+  # regression — the alternative is handing a broken key to whatever reads
+  # it next (an OAuth strategy, `AWS.access_key_id/0`).
+  #
+  # A key NOT in `restricted_setting_keys/0` never reaches
+  # `decrypt_restricted_value/1` at all — every ordinary setting's value
+  # passes through unchanged, at the cost of one list membership check.
+  defp decrypt_if_restricted(key, value) do
+    if key in @restricted_setting_keys do
+      case decrypt_restricted_value(value) do
+        {:decrypted, plaintext} ->
+          plaintext
+
+        {:legacy, legacy_value} ->
+          legacy_value
+
+        {:error, reason} ->
+          Logger.error(
+            "PhoenixKit.Settings: #{inspect(key)} carries enc:v1: but failed to decrypt " <>
+              "(#{inspect(reason)}) — treating as missing rather than returning ciphertext"
+          )
+
+          nil
+      end
+    else
+      value
+    end
+  end
+
+  # Same as `decrypt_if_restricted/2`, applied across a whole `{key, value}`
+  # list — the shape `Queries.list_settings_key_values_by_keys/1` and
+  # `Queries.list_settings_key_values/0` both return, and the shape
+  # `warm_cache_data/0` builds by hand from `Queries.list_settings/0`
+  # (S015 review finding 1 — that hand-built list originally bypassed this
+  # entirely and fed the boot-time cache warmer raw ciphertext for every
+  # restricted key, on every app start, forever until the next write; a
+  # cache HIT never even reaches the decrypting miss-fill path below it).
+  # Shared by every multi-key read path (`get_settings_direct/1`, the cache
+  # miss-fill behind `get_settings_cached/2`, `list_all_settings/0`,
+  # `warm_cache_data/0`) so there is exactly one place that decides how a
+  # batch of raw rows becomes the map a caller — or the cache itself —
+  # reads, not one call site each, silently drifting apart.
+  defp decrypt_and_map_settings(pairs) do
+    Map.new(pairs, fn {key, value} -> {key, decrypt_if_restricted(key, value)} end)
+  end
 
   @doc """
   Gets the available role options for the new user default role setting.
@@ -1826,8 +1925,18 @@ defmodule PhoenixKit.Settings do
   @doc """
   Warms the cache by loading all settings from database.
 
-  Called by PhoenixKit.Cache to pre-populate cache with all existing settings.
-  Prioritizes JSON values over string values for cache storage.
+  Called by `PhoenixKit.Cache` (`supervisor.ex`'s `:settings` child,
+  `sync_init: true`) to pre-populate cache with all existing settings —
+  synchronously, on every app boot, before the rest of the supervision tree
+  starts. Prioritizes JSON values over string values for cache storage.
+
+  Runs every restricted key's value (S015) through `decrypt_and_map_settings/1`
+  before returning — the cache itself is a bare ETS passthrough with no
+  notion of encryption (`PhoenixKit.Cache`'s warmer just `:ets.insert`s
+  whatever this returns, verbatim), so this is the only place that stands
+  between a boot-time warm and `get_setting_cached/2`/`get_settings_cached/2`
+  serving `enc:v1:...` as if it were the real secret on every cache HIT
+  until the next write invalidates it.
   """
   def warm_cache_data do
     # In update_mode, skip DB warming — the update task only needs the Repo for migrations.
@@ -1851,7 +1960,7 @@ defmodule PhoenixKit.Settings do
 
           {setting.key, value}
         end)
-        |> Map.new()
+        |> decrypt_and_map_settings()
       else
         # Repo not available (likely during Mix task execution)
         # Return empty map - cache will be warmed later when repo becomes available
@@ -1911,7 +2020,7 @@ defmodule PhoenixKit.Settings do
   # Batch query multiple string settings from database in a single operation
   defp query_settings_batch(keys) do
     Queries.list_settings_key_values_by_keys(keys)
-    |> Map.new()
+    |> decrypt_and_map_settings()
   rescue
     _error ->
       # If query fails, return empty map
@@ -1945,8 +2054,9 @@ defmodule PhoenixKit.Settings do
       if repo_available?() do
         case Queries.get_setting_by_key(key) do
           %Setting{value: value} ->
-            PhoenixKit.Cache.put(@cache_name, key, value)
-            value
+            decrypted = decrypt_if_restricted(key, value)
+            PhoenixKit.Cache.put(@cache_name, key, decrypted)
+            decrypted
 
           nil ->
             # Cache a sentinel value to indicate this setting doesn't exist
