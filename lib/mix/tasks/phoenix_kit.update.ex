@@ -1698,12 +1698,41 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     # Validate and add Oban configuration if missing
     # Fix supervisor ordering in application.ex to prevent startup crashes
     # Ensures correct order: Repo → PhoenixKit.Supervisor → Oban → Endpoint
-    defp fix_supervisor_ordering(igniter) do
+    #
+    # P013: this used to decide `:correct` / `:needs_fix` from a fresh
+    # `File.read!/1` of application.ex — the same class of bug fixed under
+    # I103 for `BootHook.add_boot_hook/1` and
+    # `fix_ueberauth_providers_config/1`. Igniter never flushes a step's
+    # writes to disk before the next step runs; on a real `mix
+    # phoenix_kit.update`, TWO earlier steps in the SAME pipeline stage
+    # `application.ex` edits before this one runs —
+    # `ApplicationSupervisor.add_supervisor/1` (unconditionally, at the top
+    # of `igniter/1`) and `ObanConfig.add_oban_supervisor/1` (right before
+    # this call, inside `perform_igniter_update/2`) — both via
+    # `Igniter.Project.Application.add_new_child/3`, which only ever
+    # touches the Igniter buffer. A disk read here is blind to both: it can
+    # see no `PhoenixKit.Supervisor`/`Oban` line at all, match
+    # `validate_supervisor_positions/4`'s trivial "nothing to check yet"
+    # clauses, and report `:correct` while the buffer — the content that
+    # actually reaches disk when this run finishes — sits misordered.
+    # `Igniter.exists?/2` + loading the file into the Igniter buffer before
+    # reading its content (`Rewrite.Source.get/2`) makes this check see the
+    # SAME up-to-date state the subsequent fix in
+    # `fix_application_supervisor_order/3` already reads from.
+    #
+    # Test seam: made public (`@doc false`) the same way I103 exposed
+    # `fix_ueberauth_providers_config/1` — this defect can only be
+    # exercised end-to-end (a real, non-test-mode Igniter + real temp
+    # disk), not via a pure-content unit test.
+    @doc false
+    @spec fix_supervisor_ordering(Igniter.t()) :: Igniter.t()
+    def fix_supervisor_ordering(igniter) do
       app_name = IgniterHelpers.get_parent_app_name(igniter)
       app_file = "lib/#{app_name}/application.ex"
 
-      if File.exists?(app_file) do
-        content = File.read!(app_file)
+      if Igniter.exists?(igniter, app_file) do
+        igniter = Igniter.include_existing_file(igniter, app_file)
+        content = igniter.rewrite |> Rewrite.source!(app_file) |> Rewrite.Source.get(:content)
 
         # Check current supervisor ordering
         case check_supervisor_order(content, app_name) do
