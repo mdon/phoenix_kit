@@ -24,6 +24,17 @@ defmodule PhoenixKit.Install.ConfigVerify do
   message the safe call sites in this codebase already print. A rollback is
   never worse than what the file had before; a wrong bracket must never win
   silently over "tell the operator to do it by hand".
+
+  ## What this deliberately does NOT cover
+
+  `PhoenixKit.Install.JsIntegration` and `PhoenixKit.Install.CssIntegration`
+  splice regex-built text into a host's `assets/js/app.js`,
+  `root.html.heex`, and `app.css` the same way — but `Code.string_to_quoted/1`
+  only understands Elixir, so there is no equivalent parse-then-verify step
+  for JavaScript, HEEX, or CSS available here. That is a real, permanent gap
+  in coverage, not an oversight: those splices stay regex-only, checked (where
+  they are checked at all) by a plain `if updated != content` before writing.
+  Each site says so in its own comment.
   """
 
   @typedoc "Whether the candidate came back invalid, or valid but the intended change wasn't found."
@@ -144,4 +155,47 @@ defmodule PhoenixKit.Install.ConfigVerify do
       _ -> false
     end)
   end
+
+  @doc """
+  Scopes a `keyword_list_satisfies?/3`-style check to ONE application's
+  config block.
+
+  True if `ast` contains a `config(app_name, module, opts)` call — the
+  `Config.config/3` macro invoked as `config :app_name, Module, key: value` —
+  whose `opts` contain a `{root_key, list}` pair (at any depth, e.g. a
+  `crontab:` nested inside an `Oban.Plugins.Cron` tuple inside `plugins:`)
+  satisfying `list_check`.
+
+  `keyword_list_satisfies?/3` alone answers "does a `root_key: [...]` list
+  like this appear ANYWHERE in the file" — true even when it belongs to a
+  DIFFERENT application's block. Paired with a splice that isn't anchored to
+  the right app either, that isn't a safety net: it is a check that can
+  confirm the WRONG outcome, reporting success while the intended
+  application's config was never touched. See
+  `PhoenixKit.Install.ObanConfig`'s `plugins:`/`crontab:` splices, which
+  anchor both the insertion and this check to `app_name`.
+  """
+  @spec app_config_satisfies?(
+          Macro.t(),
+          atom() | String.t(),
+          module(),
+          atom(),
+          ([Macro.t()] -> boolean())
+        ) :: boolean()
+  def app_config_satisfies?(ast, app_name, module, root_key, list_check)
+      when is_function(list_check, 1) do
+    target = to_app_atom(app_name)
+
+    ast_contains?(ast, fn
+      {:config, _meta, [app, alias_node, opts]} when is_atom(app) and is_list(opts) ->
+        app == target and alias_matches?(alias_node, module) and
+          keyword_list_satisfies?(opts, root_key, list_check)
+
+      _ ->
+        false
+    end)
+  end
+
+  defp to_app_atom(app) when is_atom(app), do: app
+  defp to_app_atom(app) when is_binary(app), do: String.to_atom(app)
 end
