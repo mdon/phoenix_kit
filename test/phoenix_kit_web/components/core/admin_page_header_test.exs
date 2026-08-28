@@ -58,10 +58,18 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeaderTest do
         <.admin_page_header back="/admin/x" title="Send Profiles" />
         """)
 
-      # The chip lives inside the title cluster (items-start) as a circle —
-      # the plain circle, not the labeled variant's phone-only one.
-      assert result =~ "btn-circle"
-      refute result =~ "max-sm:btn-circle"
+      # The chip lives inside the title cluster (items-start) as a SQUARE
+      # icon button — the plain one, not the labeled variant's phone-only
+      # square — and never round: a lone circular ghost arrow reads as a
+      # floating decoration next to the rectangular actions (2026-08-28).
+      assert result =~ "btn-square"
+      refute result =~ "max-sm:btn-square"
+      refute result =~ "btn-circle"
+      # Full button height, matching the actions across the row from it…
+      refute result =~ "btn-sm"
+      # …and a glyph big enough to see: the button is transparent (ghost),
+      # so the icon is the whole visible control.
+      assert result =~ ~s(class="hero-arrow-left w-5 h-5")
       assert result =~ "items-start"
       # The tooltip must survive refactors — it's the icon-only mode's only
       # visible hint.
@@ -79,7 +87,7 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeaderTest do
       assert row_pos < link_pos
     end
 
-    test "back_label switches the chip off circle mode and hides the label on phones" do
+    test "back_label switches the chip off square mode and hides the label on phones" do
       assigns = %{}
 
       result =
@@ -87,14 +95,15 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeaderTest do
         <.admin_page_header back="/admin/x" back_label="Email Sending" title="Send Profiles" />
         """)
 
-      # Labeled: not a circle from `sm` up, but still a circle on phones
-      # (where the label span is hidden and only the icon shows).
-      refute result =~ ~s( btn-circle)
-      assert result =~ "max-sm:btn-circle"
+      # Labeled: a full chip from `sm` up, still a square icon button on
+      # phones (where the label span is hidden and only the icon shows).
+      refute result =~ ~s( btn-square)
+      assert result =~ "max-sm:btn-square"
       assert result =~ "hidden sm:inline"
+      refute result =~ "btn-circle"
     end
 
-    test "a blank back_label behaves as absent (icon-only circle, real aria-label)" do
+    test "a blank back_label behaves as absent (icon-only square, real aria-label)" do
       assigns = %{}
 
       result =
@@ -104,8 +113,8 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeaderTest do
 
       # "" is truthy in Elixir — without normalization this would pick labeled
       # mode with an empty aria-label/tooltip.
-      assert result =~ "btn-circle"
-      refute result =~ "max-sm:btn-circle"
+      assert result =~ "btn-square"
+      refute result =~ "max-sm:btn-square"
       assert result =~ ~s(aria-label="Back")
     end
 
@@ -120,7 +129,7 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeaderTest do
         </.admin_page_header>
         """)
 
-      assert result =~ "btn-circle"
+      assert result =~ "btn-square"
       assert result =~ "Invoice #123"
       assert result =~ "Created 2 days ago"
     end

@@ -847,4 +847,61 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
       assert html =~ "Tue"
     end
   end
+
+  describe "y_invert — rank-like data" do
+    test "smaller values plot HIGHER on the line chart" do
+      # Search position 1 is the best result and belongs at the top. Without
+      # this, callers negated their own data, which flipped the sign of every
+      # domain and marker they passed too.
+      assigns = %{}
+
+      normal =
+        render(~H"""
+        <.line_chart id="n" data={[{0, 1}, {1, 10}]} height={100} />
+        """)
+
+      inverted =
+        render(~H"""
+        <.line_chart id="i" data={[{0, 1}, {1, 10}]} height={100} y_invert />
+        """)
+
+      assert [_, ny0, ny1] = Regex.run(~r/M[\d.]+,([\d.]+) L[\d.]+,([\d.]+)/, normal)
+      assert [_, iy0, iy1] = Regex.run(~r/M[\d.]+,([\d.]+) L[\d.]+,([\d.]+)/, inverted)
+
+      # SVG y grows downward: "higher" is a SMALLER y.
+      assert elem(Float.parse(ny0), 0) > elem(Float.parse(ny1), 0)
+      assert elem(Float.parse(iy0), 0) < elem(Float.parse(iy1), 0)
+    end
+
+    test "the sparkline inverts too" do
+      assigns = %{}
+
+      normal = render(~H|<.sparkline values={[1, 10]} height={48} />|)
+      inverted = render(~H|<.sparkline values={[1, 10]} height={48} y_invert />|)
+
+      assert [_, ny0, ny1] = Regex.run(~r/points="[\d.]+,([\d.]+) [\d.]+,([\d.]+)"/, normal)
+      assert [_, iy0, iy1] = Regex.run(~r/points="[\d.]+,([\d.]+) [\d.]+,([\d.]+)"/, inverted)
+
+      assert elem(Float.parse(ny0), 0) > elem(Float.parse(ny1), 0)
+      assert elem(Float.parse(iy0), 0) < elem(Float.parse(iy1), 0)
+    end
+
+    test "inverted charts stay inside the viewBox" do
+      assigns = %{}
+
+      html =
+        render(~H"""
+        <.line_chart id="b" data={[{0, 1}, {1, 50}, {2, 3}]} height={100} y_invert />
+        """)
+
+      # round1 drops a trailing ".0", so coordinates arrive as "100" as well
+      # as "99.5" — parse both.
+      ys =
+        Regex.scan(~r/[ML][\d.]+,([\d.]+)/, html)
+        |> Enum.map(fn [_, y] -> elem(Float.parse(y), 0) end)
+
+      assert ys != []
+      assert Enum.all?(ys, &(&1 >= 0.0 and &1 <= 100.0))
+    end
+  end
 end
