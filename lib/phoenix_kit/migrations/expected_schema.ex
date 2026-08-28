@@ -27743,30 +27743,29 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         backfill: nil
       },
       %{
-        id: "index:phoenix_kit_shop_product_slugs_pkey",
+        id: "constraint:phoenix_kit_shop_product_slugs.phoenix_kit_shop_product_slugs_pkey",
         owner: :core,
         check:
           {:catalog,
            %{
              name: "phoenix_kit_shop_product_slugs_pkey",
              table: "phoenix_kit_shop_product_slugs",
-             kind: :index
+             kind: :constraint
            }},
         create: nil,
         since: 171,
-        class: :index,
+        class: :constraint,
         revisions: [
           {171,
            %{
-             table: "phoenix_kit_shop_product_slugs",
-             keys: ["lang", "value"],
-             unique: true,
-             method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_shop_product_slugs_pkey ON __SCHEMA__.phoenix_kit_shop_product_slugs USING btree (lang, value)",
-             predicate: nil,
-             opclasses: ["text_ops", "text_ops"],
-             name_template: nil
+             type: "p",
+             columns: ["lang", "value"],
+             definition: "PRIMARY KEY (lang, value)",
+             name_template: nil,
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
            }}
         ],
         presence: :required,
@@ -27785,30 +27784,29 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         backfill: nil
       },
       %{
-        id: "index:phoenix_kit_shop_category_slugs_pkey",
+        id: "constraint:phoenix_kit_shop_category_slugs.phoenix_kit_shop_category_slugs_pkey",
         owner: :core,
         check:
           {:catalog,
            %{
              name: "phoenix_kit_shop_category_slugs_pkey",
              table: "phoenix_kit_shop_category_slugs",
-             kind: :index
+             kind: :constraint
            }},
         create: nil,
         since: 171,
-        class: :index,
+        class: :constraint,
         revisions: [
           {171,
            %{
-             table: "phoenix_kit_shop_category_slugs",
-             keys: ["lang", "value"],
-             unique: true,
-             method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_shop_category_slugs_pkey ON __SCHEMA__.phoenix_kit_shop_category_slugs USING btree (lang, value)",
-             predicate: nil,
-             opclasses: ["text_ops", "text_ops"],
-             name_template: nil
+             type: "p",
+             columns: ["lang", "value"],
+             definition: "PRIMARY KEY (lang, value)",
+             name_template: nil,
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
            }}
         ],
         presence: :required,
