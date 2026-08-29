@@ -91,10 +91,11 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
   defp write_plaintext_setting_value!(key, value) do
     {:ok, _} = Settings.update_setting(key, "placeholder-overwritten-below")
 
-    key
-    |> Queries.get_setting_by_key()
-    |> Ecto.Changeset.change(value: value)
-    |> Queries.update_setting()
+    {:ok, _} =
+      key
+      |> Queries.get_setting_by_key()
+      |> Ecto.Changeset.change(value: value)
+      |> Queries.update_setting()
 
     :ok
   end

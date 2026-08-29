@@ -1,6 +1,7 @@
 defmodule PhoenixKit.ModuleRegistryTest do
   use ExUnit.Case, async: false
 
+  alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.ModuleRegistry
 
   # The registry is started in test_helper.exs with all internal modules loaded.
@@ -537,6 +538,59 @@ defmodule PhoenixKit.ModuleRegistryTest do
         refute MapSet.member?(loaded_otp_apps, pkg.package),
                "#{pkg.package} is an active OTP app but appeared in not_installed_packages"
       end
+    end
+  end
+
+  describe "provider cache invalidation" do
+    defmodule LateProvider do
+      @moduledoc false
+      def integration_providers do
+        [
+          %{
+            key: "late_fixture_provider",
+            name: "Late Fixture",
+            description: "Registered after the provider cache was already warm",
+            icon: "hero-beaker",
+            auth_type: :api_key,
+            oauth_config: nil,
+            setup_fields: [],
+            capabilities: [],
+            scopes: [:system]
+          }
+        ]
+      end
+    end
+
+    @late_key "late_fixture_provider"
+
+    # `Providers.all/0` caches `builtin ++ external_providers()` in
+    # `persistent_term` forever, and `all_modules/0` answers `[]` until the
+    # registry has started — so a module that arrives after the first cache
+    # read (the parent's `rescan/0` from `Application.start/2`, a runtime
+    # `register/1`, a dev hot-reload) used to be invisible to the provider
+    # list for the rest of the VM's life. Since `add_connection/4` started
+    # rejecting unregistered keys outright (PR #765), that invisibility
+    # stopped being cosmetic: the provider could not be connected at all.
+    # Neither test below calls `Providers.clear_cache/0` itself — that the
+    # registry does it is the whole assertion.
+    test "a module registered after the cache was warmed still contributes its providers" do
+      Providers.clear_cache()
+      refute Enum.any?(Providers.all(), &(&1.key == @late_key))
+
+      :ok = ModuleRegistry.register(LateProvider)
+      on_exit(fn -> ModuleRegistry.unregister(LateProvider) end)
+
+      assert Enum.any?(Providers.all(), &(&1.key == @late_key))
+      assert %{key: @late_key} = Providers.get(@late_key)
+    end
+
+    test "unregistering a module drops its providers back out" do
+      :ok = ModuleRegistry.register(LateProvider)
+      assert Providers.get(@late_key)
+
+      :ok = ModuleRegistry.unregister(LateProvider)
+
+      assert Providers.get(@late_key) == nil
     end
   end
 end

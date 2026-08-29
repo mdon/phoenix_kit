@@ -60,7 +60,11 @@ defmodule PhoenixKit.Integrations.Providers do
   Returns all known providers, including those contributed by external modules.
 
   Results are cached in `persistent_term` after the first call.
-  Call `clear_cache/0` if modules are added or removed at runtime.
+  `PhoenixKit.ModuleRegistry` calls `clear_cache/0` for you whenever the
+  registered-module set changes (`register/1`, `unregister/1`, `rescan/0`),
+  so a module discovered after the cache was warmed still contributes its
+  providers. Call it yourself only when something outside the registry
+  changes what `integration_providers/0` would return.
   """
   @spec all() :: [provider()]
   def all do

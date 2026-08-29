@@ -40,6 +40,7 @@ defmodule PhoenixKit.ModuleRegistry do
   use GenServer
 
   alias PhoenixKit.Dashboard.Tab
+  alias PhoenixKit.Integrations.Providers
 
   require Logger
 
@@ -578,6 +579,7 @@ defmodule PhoenixKit.ModuleRegistry do
       validate_module(module, modules)
       updated = modules ++ [module]
       :persistent_term.put(@pterm_key, updated)
+      invalidate_module_derived_caches()
       {:reply, :ok, %{state | modules: updated}}
     end
   end
@@ -585,6 +587,7 @@ defmodule PhoenixKit.ModuleRegistry do
   def handle_call({:unregister, module}, _from, %{modules: modules} = state) do
     updated = List.delete(modules, module)
     :persistent_term.put(@pterm_key, updated)
+    invalidate_module_derived_caches()
     {:reply, :ok, %{state | modules: updated}}
   end
 
@@ -599,6 +602,7 @@ defmodule PhoenixKit.ModuleRegistry do
         Enum.each(new_modules, &validate_module(&1, known))
         updated = known ++ new_modules
         :persistent_term.put(@pterm_key, updated)
+        invalidate_module_derived_caches()
 
         Logger.info(
           "[ModuleRegistry] Late-discovered #{length(new_modules)} module(s): " <>
@@ -612,6 +616,23 @@ defmodule PhoenixKit.ModuleRegistry do
   # ============================================================================
   # Private
   # ============================================================================
+
+  # Anything cached OFF the registered-module set has to be dropped whenever
+  # that set changes, or it keeps answering from the module list that was
+  # current the first time it was asked. `Providers.all/0` caches
+  # `builtin ++ external_providers()` in `persistent_term` with no TTL, and
+  # `all_modules/0` defaults to `[]` before `init/1` runs — so a provider
+  # contributed by a module that arrives later (`rescan/0` from the parent's
+  # `Application.start/2`, a runtime `register/1`, a dev hot-reload) stayed
+  # invisible for the life of the VM. That was survivable while an unknown
+  # key merely fell back to `scopes_of/1`'s `[:system]` default; since
+  # `Integrations.add_connection/4` began rejecting unregistered keys
+  # outright (`{:error, :unknown_provider}`, PR #765) it means a legitimately
+  # installed provider cannot be connected at all until a restart.
+  defp invalidate_module_derived_caches do
+    Providers.clear_cache()
+    :ok
+  end
 
   # Validate all modules at startup — check for duplicate keys, permission mismatches,
   # duplicate tab IDs, and tabs missing permission fields.

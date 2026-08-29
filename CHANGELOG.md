@@ -1,3 +1,67 @@
+## 2.13.15 - 2026-08-29
+
+### Fixed
+
+- **Repair no longer reports two composite-key PRIMARY KEYs as missing.**
+  `phoenix_kit_shop_product_slugs_pkey` and
+  `phoenix_kit_shop_category_slugs_pkey` were hand-declared alongside V171 as
+  `kind: :index`, but on the catalog they are PRIMARY KEY constraints on a
+  composite natural key `(lang, value)` — and the index a `p`/`u` constraint
+  owns is deliberately never listed among bare indexes, so the check could
+  never match anything. Both read `:missing` on every run, on every install,
+  no matter how many times repair ran. They are now declared as constraints.
+  Separately, `Probe` keeps constraint-backed index rows in a new
+  `constraint_backed_indexes` map instead of dropping them, and a
+  `kind: :index` lookup falls back to it — so a manifest entry with the wrong
+  `kind` degrades to a shape comparison rather than a permanent phantom. (#762)
+- **`mix phoenix_kit.update`'s supervisor-ordering check reads the staged
+  edit, not stale disk.** It decided "order is correct" from a fresh
+  `File.read!` of `application.ex`, but two earlier steps in the same run
+  stage their `application.ex` edits in the Igniter buffer, which is not
+  flushed to disk until the run ends. The check could see neither
+  `PhoenixKit.Supervisor` nor `Oban`, conclude there was nothing to verify,
+  and pass an install whose buffer was genuinely misordered. It now reads the
+  same buffer the subsequent fix does. (#763)
+- **`Integrations.add_connection/4` rejects unregistered provider keys.** The
+  provider arrives from a tamperable client event; an unknown key made
+  `Providers.get/1` return `nil`, which made the scope check default to
+  `[:system]` and pass trivially, birthing a connection row for a provider
+  that was never installed. Unknown keys now return
+  `{:error, :unknown_provider}`. (#765)
+- **A module registered after the provider cache was warmed now contributes
+  its providers.** `Providers.all/0` caches built-in plus external providers
+  in `persistent_term` with no expiry, and `ModuleRegistry.all_modules/0`
+  answers `[]` until the registry has started — so a module arriving later
+  (the parent app's `rescan/0`, a runtime `register/1`, a dev hot-reload)
+  stayed invisible to the provider list for the life of the VM.
+  `Providers.clear_cache/0` existed for exactly this and nothing outside the
+  test suite ever called it. The registry now calls it whenever the module set
+  actually changes. This was survivable while an unknown key merely fell back
+  to a `[:system]` default; with the `add_connection/4` guard above it meant a
+  legitimately installed provider could not be connected at all until a
+  restart. (post-merge review of #765)
+
+### Added
+
+- **A repository-level guard against running the test suite on a live
+  database.** `config/test.exs` honors `PGDATABASE` so the suite can target an
+  already-provisioned database on a role without `CREATEDB` — which also means
+  a shell that leaks `myapp_dev` into every process turns a bare `mix test`
+  into a silent migrate-and-seed of the real thing. `test_helper.exs` now
+  refuses, before anything opens a connection, a database name ending in
+  `_dev`, `_development`, `_prod`, `_production` or `_staging`, plus any exact
+  name listed in `PHOENIX_KIT_TEST_DB_DENYLIST`. It deliberately does not
+  require a `_test` suffix: an arbitrary scratch name is the case
+  `PGDATABASE` support exists for and passes through untouched. (#764)
+- **Coverage for rotating a restricted setting that is still plaintext.**
+  Every existing rotation test seeded through the encrypting write path, so
+  none could tell "rotation handles a restricted setting" apart from
+  "rotation handles one that was already encrypted". The real row this
+  protects — an `oauth_google_client_secret` written before encryption
+  shipped — is genuinely plaintext, and the new test asserts both that
+  rotation encrypts it and that the live OAuth credential read path still
+  hands back the original secret. (#766)
+
 ## 2.13.14 - 2026-08-28
 
 ### Added

@@ -142,6 +142,31 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # transaction` condition the suite cannot reproduce) and the full chain
   # re-run into a named schema by `test/integration/prefix_migration_test.exs`.
   #
+  # CORRECTED 2026-08-29 (PR #762), and the only edit in this log that rewrites
+  # a revision IN PLACE rather than appending one. Two V171 objects —
+  # `phoenix_kit_shop_product_slugs_pkey` and
+  # `phoenix_kit_shop_category_slugs_pkey` — were hand-authored alongside V171
+  # as `kind: :index`/`class: :index` with an index-shaped `{171, ...}`
+  # revision. On the catalog they are, and always were, PRIMARY KEY
+  # CONSTRAINTS on a composite natural key `(lang, value)`; the index the
+  # manifest described is the constraint's own backing index, which
+  # `Probe`'s `@indexes_sql` deliberately never lists (a `p`/`u`-backed index
+  # is represented via its constraint). So a `kind: :index` check could never
+  # match anything and repair reported both as `:missing` on every run, on
+  # every install, forever. The entries are now
+  # `id: "constraint:<table>.<name>"`, `kind`/`class: :constraint`, with a
+  # constraint-shaped `{171, ...}` revision (`type: "p"`, `columns`,
+  # `definition: "PRIMARY KEY (lang, value)"`). An APPENDED revision would
+  # have been wrong here: nothing about the database object changed at any
+  # version — the DECLARATION was wrong from the moment it was written, and
+  # the object's identity (`id`, `kind`, `class`) changed with it, so there
+  # is no earlier shape for a reader to select. `create:` is left `nil`
+  # because `Executor.create_action/2` rebuilds every `class: :constraint`
+  # from `shape` and never reads it. No `v*.ex` file is touched, so
+  # `chain_hash` is NOT restamped — the file set it stamps is unchanged.
+  # This is a manifest-BODY correction, which a restamp would assert nothing
+  # about either way.
+  #
   # Chain at generation: object/revision/legacy_optional DATA was captured from a
   # per-version replay of the TRUE pre-squash chain (initial=1 current=163 files=163
   # — the only run that can see pre-floor-only bimodal drift, e.g. V28/V30's
