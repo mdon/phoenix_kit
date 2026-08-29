@@ -144,6 +144,7 @@ defmodule PhoenixKitWeb do
       import PhoenixKitWeb.Components.Core.TableDefault
       import PhoenixKitWeb.Components.Core.TreeTable
       import PhoenixKitWeb.Components.Core.TableRowMenu
+      import PhoenixKitWeb.Components.Core.ContextMenu
       import PhoenixKitWeb.Components.Core.BulkSelect
       import PhoenixKitWeb.Components.Core.Sortable
       import PhoenixKitWeb.Components.Core.ReorderModal

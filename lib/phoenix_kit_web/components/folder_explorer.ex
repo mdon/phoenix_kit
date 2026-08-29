@@ -52,6 +52,28 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   draggable on the same terms as a folder. A folder holding only leaves still
   gets a chevron.
 
+  ## Right-click menus
+
+  Every folder row and leaf row carries the attributes `Core.ContextMenu`
+  reads, so a consumer gets right-click / touch-and-hold menus by declaring
+  the menus — the explorer needs no flag and no slot:
+
+      <.context_menu
+        id="folder-menu"
+        selector="[data-context-kind=folder]"
+        value_name={["folder-uuid", "folder_uuid"]}
+      >
+        <.context_menu_button phx-click="start_rename_folder" phx-value-source="sidebar" … />
+      </.context_menu>
+
+  `data-context-kind` is `"folder"` or `"item"`, `data-context-value` is the
+  uuid, `data-context-label` the name. They sit on the folder row `<div>` and
+  the leaf `<li>` — never on the wrapping `<li>` of a folder — so a right-click
+  on a nested row resolves to that row and not to its ancestor folder.
+
+  Consumers that declare no menu pay two attributes per row and get the
+  browser's own menu, unchanged.
+
   ## A consumer's folder is its own
 
   `folder.color` is read through `folder_color/1` (`Map.get/2`), because a
@@ -336,6 +358,9 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
     ~H"""
     <li
       data-draggable-file={@enable_drag && Map.get(@entry, :id)}
+      data-context-kind="item"
+      data-context-value={Map.get(@entry, :id)}
+      data-context-label={Map.get(@entry, :label) || Map.get(@entry, :name)}
       class="pl-5 pr-1 rounded hover:bg-base-200"
     >
       <%= if @item == [] do %>
@@ -480,6 +505,9 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
         phx-click={!@is_renaming && @on_navigate}
         phx-target={@myself}
         phx-value-folder-uuid={@node.folder.uuid}
+        data-context-kind="folder"
+        data-context-value={@node.folder.uuid}
+        data-context-label={@node.folder.name}
         class={[
           "flex items-center gap-0.5 rounded-lg px-1 py-1 transition-colors group min-w-max",
           @hover_class,

@@ -6718,3 +6718,349 @@ if (typeof window.Chart === "undefined") {
     }
   };
 })();
+
+
+// ============================================================================
+// CONTEXT MENU HOOK
+// ============================================================================
+//
+// Desktop-style context menu: right-click (or touch-and-hold) an element the
+// menu selects, and an action menu opens at the pointer.
+//
+// One menu element serves every row it matches — a tree of five hundred nodes
+// renders one hidden <ul>, not five hundred. On open the hook finds the row
+// under the pointer, copies its identifier onto every item's `phx-value-*`,
+// and positions the menu. Opening costs no round-trip; the event fired
+// afterwards still carries the right target.
+//
+// Config comes from data attributes on the hook element (see the
+// Core.ContextMenu component):
+//   data-context-selector       CSS selector for the rows
+//   data-context-within         optional container selector
+//   data-context-value-attr     row attribute holding the identifier
+//   data-context-value-name     stamped as phx-value-<name>
+//   data-context-label-attr     row attribute holding the menu heading
+//   data-context-long-press     "false" disables the touch gesture
+//   data-context-long-press-ms  hold duration, default 450
+//
+(function() {
+  "use strict";
+
+  window.PhoenixKitHooks = window.PhoenixKitHooks || {};
+
+  // Every mounted menu registers here and one document-level listener serves
+  // them all. That is what lets a right-click matched by two menus (a note row
+  // nested inside a folder row) pick the DEEPEST match instead of letting DOM
+  // order decide it.
+  var menus = [];
+  var listening = false;
+  var openMenu = null;
+
+  // Android fires a native `contextmenu` at the end of a long press, on top of
+  // our own timer. Remember when we opened so the native one is swallowed
+  // rather than reopening (and re-vibrating).
+  var lastLongPressAt = 0;
+  // The release after a long press dispatches a click on the row. Eat it, or
+  // holding a row also activates it.
+  var swallowClick = false;
+
+  var PAD = 8;
+  var MOVE_TOLERANCE = 10;
+  var NATIVE_MENU_GRACE_MS = 800;
+  var SWALLOW_CLICK_MS = 700;
+
+  function depthOf(el) {
+    var d = 0;
+    while ((el = el.parentElement)) d++;
+    return d;
+  }
+
+  // Where a menu of w x h opens for a pointer at (x, y) in a vw x vh viewport.
+  // Down-right of the pointer by default; flips to the other side of it rather
+  // than overflowing, then clamps for a menu too big to fit either way.
+  // Pure — exported for test/js/context_menu.test.cjs.
+  function contextMenuPosition(x, y, w, h, vw, vh) {
+    var left = x;
+    if (left + w > vw - PAD) left = x - w;
+    left = Math.max(PAD, Math.min(left, vw - w - PAD));
+
+    var top = y;
+    if (top + h > vh - PAD) top = y - h;
+    top = Math.max(PAD, Math.min(top, vh - h - PAD));
+
+    return { left: left, top: top };
+  }
+
+  function rowFor(menu, target) {
+    if (!target || !target.closest) return null;
+    var row = target.closest(menu.selector);
+    if (!row) return null;
+    if (menu.within) {
+      var scope = document.querySelector(menu.within);
+      if (!scope || !scope.contains(row)) return null;
+    }
+    return row;
+  }
+
+  function bestMatch(target) {
+    var best = null;
+    for (var i = 0; i < menus.length; i++) {
+      var row = rowFor(menus[i], target);
+      if (!row) continue;
+      var d = depthOf(row);
+      if (!best || d > best.depth) best = { menu: menus[i], row: row, depth: d };
+    }
+    return best;
+  }
+
+  function closeOpen() {
+    if (openMenu) openMenu._close();
+  }
+
+  // ---- long press (touch/pen only — a mouse gets `contextmenu`) ------------
+
+  var lpTimer = null, lpX = 0, lpY = 0;
+
+  function cancelLongPress() {
+    if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+  }
+
+  function onPointerDown(e) {
+    if (e.pointerType === "mouse") return;
+    var m = bestMatch(e.target);
+    if (!m || !m.menu.longPress) return;
+    lpX = e.clientX;
+    lpY = e.clientY;
+    cancelLongPress();
+    lpTimer = setTimeout(function() {
+      lpTimer = null;
+      lastLongPressAt = Date.now();
+      swallowClick = true;
+      // Cleared on the click too; this is the backstop for a release that
+      // dispatches no click at all, which would otherwise eat the user's
+      // next tap (the menu item they came for).
+      setTimeout(function() { swallowClick = false; }, SWALLOW_CLICK_MS);
+      if (navigator.vibrate) { try { navigator.vibrate(30); } catch (_) {} }
+      m.menu._open(m.row, lpX, lpY);
+    }, m.menu.longPressMs);
+  }
+
+  function onPointerMove(e) {
+    if (!lpTimer) return;
+    if (Math.abs(e.clientX - lpX) > MOVE_TOLERANCE ||
+        Math.abs(e.clientY - lpY) > MOVE_TOLERANCE) {
+      cancelLongPress();
+    }
+  }
+
+  // ---- document listeners --------------------------------------------------
+
+  function onContextMenu(e) {
+    cancelLongPress();
+    if (Date.now() - lastLongPressAt < NATIVE_MENU_GRACE_MS) {
+      // Our own menu is already open from the long press.
+      e.preventDefault();
+      return;
+    }
+    var m = bestMatch(e.target);
+    if (!m) return;
+    e.preventDefault();
+    m.menu._open(m.row, e.clientX, e.clientY);
+  }
+
+  // Capture phase, so this runs before an item's own click handler.
+  function onDocClick(e) {
+    if (swallowClick) {
+      swallowClick = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (!openMenu) return;
+    // Tested against the menu element, not the hook element: the menu is
+    // portaled to <body> while open, so it is no longer a descendant of the
+    // hook. Treating an item click as "outside" would close the menu and move
+    // it mid-dispatch — WebKit then drops the in-flight click and the item's
+    // action never runs.
+    if (!openMenu.menuEl.contains(e.target)) openMenu._close();
+  }
+
+  function onKeydown(e) {
+    if (!openMenu) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      openMenu._close();
+      return;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      var items = Array.prototype.slice.call(
+        openMenu.menuEl.querySelectorAll("[role='menuitem']:not([disabled])")
+      );
+      if (items.length === 0) return;
+      var idx = items.indexOf(document.activeElement);
+      var next = e.key === "ArrowDown"
+        ? (idx + 1) % items.length
+        : (idx - 1 + items.length) % items.length;
+      items[next].focus();
+    }
+  }
+
+  function install() {
+    if (listening) return;
+    listening = true;
+    document.addEventListener("contextmenu", onContextMenu);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointermove", onPointerMove, true);
+    document.addEventListener("pointerup", cancelLongPress, true);
+    document.addEventListener("pointercancel", cancelLongPress, true);
+  }
+
+  // ---- the hook ------------------------------------------------------------
+
+  window.PhoenixKitHooks.ContextMenu = {
+    mounted() {
+      this.menuEl = this.el.querySelector("[data-context-menu-content]");
+      if (!this.menuEl) return;
+      this.labelEl = this.menuEl.querySelector("[data-context-menu-label]");
+      this.isOpen = false;
+
+      // Where the menu lives when closed, so it can be put back — LiveView's
+      // diff patching has to find it there on the next update.
+      this._homeParent = this.menuEl.parentNode;
+      this._homeNextSibling = this.menuEl.nextSibling;
+
+      this._readConfig();
+
+      this._onMenuClick = () => { this._close(); };
+      this.menuEl.addEventListener("click", this._onMenuClick);
+
+      menus.push(this);
+      install();
+    },
+
+    updated() {
+      this._readConfig();
+      // While open the menu is portaled to <body>, so morphdom re-creates a
+      // duplicate in the wrapper. Drop it: the portaled node is the one
+      // carrying the current stamps.
+      if (this.isOpen) {
+        var dup = this.el.querySelector("[data-context-menu-content]");
+        if (dup && dup !== this.menuEl) dup.remove();
+      }
+    },
+
+    destroyed() {
+      this._close();
+      if (this.menuEl && this._onMenuClick) {
+        this.menuEl.removeEventListener("click", this._onMenuClick);
+      }
+      var i = menus.indexOf(this);
+      if (i !== -1) menus.splice(i, 1);
+    },
+
+    _readConfig() {
+      var d = this.el.dataset;
+      this.selector = d.contextSelector;
+      this.within = d.contextWithin || null;
+      this.valueAttr = d.contextValueAttr || "data-context-value";
+      // Comma-separated: a menu whose items were written against handlers that
+      // spell the param differently ("folder-uuid" for one, "folder_uuid" for
+      // another) stamps both rather than making the consumer add a shim clause.
+      this.valueNames = (d.contextValueName || "uuid")
+        .split(",")
+        .map(function(n) { return n.trim(); })
+        .filter(Boolean);
+      this.labelAttr = d.contextLabelAttr || null;
+      this.longPress = d.contextLongPress !== "false";
+      this.longPressMs = parseInt(d.contextLongPressMs, 10) || 450;
+    },
+
+    // Copy the row's identifier onto every item, so the event a click fires
+    // names the row that was right-clicked. LiveView reads `phx-value-*` off
+    // the clicked element at click time, which is after this runs.
+    _stamp(row) {
+      var value = row.getAttribute(this.valueAttr);
+      var items = this.menuEl.querySelectorAll("[role='menuitem']");
+      for (var i = 0; i < items.length; i++) {
+        for (var n = 0; n < this.valueNames.length; n++) {
+          var name = "phx-value-" + this.valueNames[n];
+          if (value === null) items[i].removeAttribute(name);
+          else items[i].setAttribute(name, value);
+        }
+      }
+
+      if (this.labelEl) {
+        var label = this.labelAttr ? row.getAttribute(this.labelAttr) : null;
+        if (label) {
+          this.labelEl.textContent = label;
+          this.labelEl.classList.remove("hidden");
+        } else {
+          this.labelEl.classList.add("hidden");
+        }
+      }
+    },
+
+    _open(row, x, y) {
+      if (openMenu && openMenu !== this) openMenu._close();
+
+      this._stamp(row);
+
+      // Portal to <body> before measuring: inside a <dialog> or any ancestor
+      // with transform/contain/filter, `position: fixed` resolves against that
+      // ancestor rather than the viewport, and the menu lands off-screen.
+      if (this.menuEl.parentNode !== document.body) {
+        document.body.appendChild(this.menuEl);
+      }
+      this.menuEl.classList.remove("hidden");
+
+      var pos = contextMenuPosition(
+        x,
+        y,
+        this.menuEl.offsetWidth || 176,
+        this.menuEl.offsetHeight || 200,
+        window.innerWidth,
+        window.innerHeight
+      );
+      this.menuEl.style.left = pos.left + "px";
+      this.menuEl.style.top = pos.top + "px";
+
+      this.isOpen = true;
+      openMenu = this;
+
+      document.addEventListener("click", onDocClick, true);
+      document.addEventListener("keydown", onKeydown);
+      document.addEventListener("scroll", closeOpen, true);
+      window.addEventListener("resize", closeOpen);
+
+      var first = this.menuEl.querySelector("[role='menuitem']");
+      if (first) first.focus();
+    },
+
+    _close() {
+      if (!this.isOpen) return;
+      this.menuEl.classList.add("hidden");
+      this.isOpen = false;
+      if (openMenu === this) openMenu = null;
+
+      document.removeEventListener("click", onDocClick, true);
+      document.removeEventListener("keydown", onKeydown);
+      document.removeEventListener("scroll", closeOpen, true);
+      window.removeEventListener("resize", closeOpen);
+
+      // Put the menu back where the server rendered it, or morphdom sees a
+      // missing element, re-creates it, and the next open finds a stale node.
+      if (this._homeParent && this.menuEl.parentNode !== this._homeParent) {
+        if (this._homeNextSibling && this._homeNextSibling.parentNode === this._homeParent) {
+          this._homeParent.insertBefore(this.menuEl, this._homeNextSibling);
+        } else {
+          this._homeParent.appendChild(this.menuEl);
+        }
+      }
+    }
+  };
+
+  if (typeof module === "object" && module.exports) {
+    module.exports.contextMenuPosition = contextMenuPosition;
+  }
+})();
