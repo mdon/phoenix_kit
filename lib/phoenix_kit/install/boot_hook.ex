@@ -48,54 +48,60 @@ if Code.ensure_loaded?(Igniter) do
       app_name = IgniterHelpers.get_parent_app_name(igniter)
       app_file = "lib/#{app_name}/application.ex"
 
-      cond do
-        not File.exists?(app_file) ->
-          igniter
-
-        already_wired?(app_file) ->
-          igniter
-
-        true ->
-          wire_in(igniter, app_file)
-      end
-    end
-
-    defp already_wired?(app_file) do
-      app_file
-      |> File.read!()
-      |> String.contains?("PhoenixKit.boot")
-    end
-
-    # I103: the verify+rollback decision happens BEFORE `Igniter.update_file/3`,
-    # against `content` already read from disk — same reasoning as
-    # `PhoenixKit.Install.ConfigVerify`'s moduledoc and
-    # `fix_ueberauth_providers_config/2`: Igniter buffers writes, so nothing
-    # read from disk mid-pipeline reflects a change made earlier in the same
-    # pipeline run.
-    defp wire_in(igniter, app_file) do
-      content = File.read!(app_file)
-
-      if Regex.match?(@standard_call, content) do
-        candidate =
-          Regex.replace(
-            @standard_call,
-            content,
-            "Supervisor.start_link(children, opts) |> PhoenixKit.boot()",
-            global: false
-          )
-
-        case ConfigVerify.verify_or_rollback(content, candidate, &boot_hook_wired?/1) do
-          {:ok, updated_content} ->
-            Igniter.update_file(igniter, app_file, fn source ->
-              Rewrite.Source.update(source, :content, updated_content)
-            end)
-
-          {:rolled_back, _original, _reason} ->
-            Igniter.add_warning(igniter, manual_instructions(app_file))
-        end
+      # `Igniter.exists?/2`, not bare `File.exists?/1`: the latter only ever
+      # sees the real filesystem, missing a file that exists only in
+      # Igniter's own buffer (an earlier step in this run created it, or —
+      # the case that matters for testing this function at all — a test
+      # project built with `Igniter.Test.test_project/1`, which never
+      # touches real disk).
+      if Igniter.exists?(igniter, app_file) do
+        wire_in(igniter, app_file)
       else
-        Igniter.add_warning(igniter, manual_instructions(app_file))
+        igniter
       end
+    end
+
+    # I103: the verify+rollback decision happens INSIDE the
+    # `Igniter.update_file/3` callback, against the BUFFERED content
+    # (`Rewrite.Source.get(source, :content)`) rather than a fresh
+    # `File.read!/1` — Igniter never flushes a step's writes to disk before
+    # the next step runs, so reading the file mid-pipeline sees whatever was
+    # on disk BEFORE this run started. The regression this fixes: this used
+    # to read `content` from disk and then unconditionally overwrite the
+    # buffer with a candidate built from it, discarding whatever an EARLIER
+    # step in the same run had already staged for the same file — most
+    # concretely `ApplicationSupervisor.add_supervisor/2` adding
+    # `PhoenixKit.Supervisor` to `children` on a fresh install, silently
+    # producing a boot pipe with no supervisor in it. Same reasoning as
+    # `PhoenixKit.Install.ObanConfig.update_existing_oban_config/3` and
+    # `PhoenixKit.Install.MailerConfig.repair_runtime_import_order/1`, both
+    # of which already decide from the buffer.
+    defp wire_in(igniter, app_file) do
+      Igniter.update_file(igniter, app_file, fn source ->
+        content = Rewrite.Source.get(source, :content)
+
+        cond do
+          String.contains?(content, "PhoenixKit.boot") ->
+            source
+
+          not Regex.match?(@standard_call, content) ->
+            {:warning, manual_instructions(app_file)}
+
+          true ->
+            candidate =
+              Regex.replace(
+                @standard_call,
+                content,
+                "Supervisor.start_link(children, opts) |> PhoenixKit.boot()",
+                global: false
+              )
+
+            case ConfigVerify.verify_or_rollback(content, candidate, &boot_hook_wired?/1) do
+              {:ok, updated_content} -> Rewrite.Source.update(source, :content, updated_content)
+              {:rolled_back, _original, _reason} -> {:warning, manual_instructions(app_file)}
+            end
+        end
+      end)
     end
 
     # True if `ast` contains `... |> PhoenixKit.boot()` anywhere — confirms

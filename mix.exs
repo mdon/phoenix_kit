@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "2.13.12"
+  @version "2.13.14"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -180,7 +180,7 @@ defmodule PhoenixKit.MixProject do
       # back. It also let a resolver reach for leaf 0.5 while phoenix_kit_publishing
       # still excluded it, which silently stranded that package a release behind
       # rather than reporting a conflict.
-      {:leaf, "~> 0.4.1 or ~> 0.5"},
+      {:leaf, "~> 0.4.1 or ~> 0.5 or ~> 0.6"},
 
       # Markdown → HTML (comrak). Declared here in core so every module shares
       # one resolved version instead of each pulling its own and risking

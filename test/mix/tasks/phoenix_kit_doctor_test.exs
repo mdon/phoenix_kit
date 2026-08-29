@@ -262,6 +262,93 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     end
   end
 
+  describe "integration_key_result/2 — the verdict is total over the signal space" do
+    alias PhoenixKit.Integrations.Encryption
+    alias PhoenixKit.Test.KeyVerdictInvariants, as: Invariants
+
+    @location "/srv/keys/app.key"
+
+    # The SYNTHETIC space: every combination of signal values, reachable or not.
+    # What it proves is totality — the verdict renders anything it is handed
+    # without contradicting itself — and that is all it can prove. It enumerates
+    # our idea of the states, so a defect in the idea is invisible to it, which
+    # is exactly what happened: 60 green combinations while a real configuration
+    # rendered advice naming a variable the operator does not have.
+    #
+    # The invariants themselves live in `PhoenixKit.Test.KeyVerdictInvariants`
+    # because the REAL space in `PhoenixKit.Integrations.EncryptionTest` has to
+    # check the same ones, and two copies drift.
+    test "no rendering contradicts the signals it was built from, anywhere in the space" do
+      space = Invariants.synthetic_space()
+
+      # If this number moves, a signal gained a value and every assertion below
+      # silently covers less than it claims.
+      assert length(space) == 90
+
+      for signals <- space, do: Invariants.assert_consistent(signals, inspect(signals))
+    end
+
+    test "a fingerprint never appears without the tier that produced it" do
+      for signals <- Invariants.synthetic_space(), signals.fingerprint != :none do
+        report = Encryption.key_report(signals)
+        {_status, detail} = DoctorTask.integration_key_result(report, true)
+
+        case report.fingerprint do
+          {:ok, value, _tier} -> assert detail =~ ~r/Fingerprint #{value} \(.+\)/
+          :none -> refute detail =~ "Fingerprint"
+        end
+      end
+    end
+
+    # The two absences the design keeps apart, because the advice is opposite.
+    test "an empty store is told to fill it; an absent one is told to set one up" do
+      empty =
+        %{
+          enabled?: true,
+          tier: :none,
+          rejected_key: false,
+          store: {:no_secret_yet, @location},
+          fingerprint: :none
+        }
+
+      absent = %{empty | store: :absent}
+
+      {_s1, filled} = DoctorTask.integration_key_result(Encryption.key_report(empty), false)
+      {_s2, missing} = DoctorTask.integration_key_result(Encryption.key_report(absent), false)
+
+      assert filled =~ "holds no secret yet"
+      assert filled =~ "rotation cannot help"
+      assert filled =~ @location
+      assert missing =~ "Configure integrations_encryption_key"
+      refute missing =~ @location
+    end
+
+    # The state the clause ORDER got wrong: a valid key in config while the
+    # store is broken. Encryption is working; only the spare copy is not.
+    # Reproduced against the real resolution before it was fixed, where it
+    # reported the legacy tier.
+    test "a configured key with a broken store is not reported as a fallback" do
+      signals = %{
+        enabled?: true,
+        tier: :dedicated,
+        rejected_key: false,
+        store: {:unreadable, @location},
+        fingerprint: {:ok, "abc123def456"}
+      }
+
+      report = Encryption.key_report(signals)
+      {status, detail} = DoctorTask.integration_key_result(report, true)
+
+      assert report.diagnosis == {:dedicated, :store_unreadable}
+      assert status == :warn
+      refute detail =~ "fell back"
+      refute detail =~ "FALLBACK"
+      assert detail =~ "dedicated encryption key is in use"
+      assert detail =~ "(dedicated key)"
+      assert detail =~ @location
+    end
+  end
+
   describe "git_hooks_verdict/1 — 'not installed' and 'could not check' are different answers" do
     @ok %{
       repo: {:ok, "/repo/.git"},

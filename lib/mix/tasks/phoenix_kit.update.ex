@@ -1563,7 +1563,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
           # Case 1: Incorrect configuration with providers: []
           String.contains?(content, "config :ueberauth, Ueberauth") &&
               Regex.match?(~r/providers:\s*\[\s*\]/, content) ->
-            fix_ueberauth_providers_config(igniter, content)
+            fix_ueberauth_providers_config(igniter)
 
           # Case 2: Configuration exists and is correct (providers: %{} or with values)
           String.contains?(content, "config :ueberauth, Ueberauth") ->
@@ -1584,36 +1584,55 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     # I103: wrapped with the same parse-then-verify safety net as the Oban
     # config splices — a single-line `Regex.replace/3` is lower risk than a
     # multi-line block splice, but it is still blind to comments/strings.
-    # The verify+rollback decision happens BEFORE `Igniter.update_file/3` on
-    # purpose, against the `content` already read by the caller
-    # (`validate_and_fix_ueberauth_config/1`) — Igniter buffers writes and
-    # does not flush them to disk mid-pipeline, so re-reading the file
-    # inside (or after) the `update_file` callback would still see the
-    # PRE-change content and could never detect success at all.
-    defp fix_ueberauth_providers_config(igniter, content) do
-      candidate =
-        Regex.replace(
-          ~r/(config\s+:ueberauth,\s+Ueberauth,\s+providers:\s*)\[\s*\]/,
-          content,
-          "\\1%{}"
-        )
+    # The verify+rollback decision happens INSIDE the `Igniter.update_file/3`
+    # callback, against the BUFFERED content (`Rewrite.Source.get(source,
+    # :content)`) — NOT a fresh disk read taken before this runs. Igniter
+    # buffers writes and never flushes them to disk mid-pipeline: building
+    # the candidate from a stale disk read and then unconditionally
+    # overwriting the buffer with it discarded whatever earlier steps in the
+    # SAME run had already staged for config/config.exs — concretely,
+    # `BasicConfiguration.add_basic_config/1` and
+    # `PrefixConfig.add_prefix_configuration/2`, both of which write to this
+    # exact file earlier in `mix phoenix_kit.update`'s pipeline. A lost
+    # `prefix:` backfill sends the next `update`/`status` looking for the
+    # installation in `public` (see `PhoenixKit.Install.PrefixConfig`'s
+    # moduledoc).
+    #
+    # Public (not `defp`), `@doc false`: a real unit-test seam, the same
+    # reasoning as `PhoenixKit.Install.ObanConfig`'s exposed splice helpers —
+    # the defect this guards against lives in what actually lands in the
+    # buffer, which only an Igniter-level test (`Igniter.Test.test_project/1`)
+    # can reach.
+    @doc false
+    @spec fix_ueberauth_providers_config(Igniter.t()) :: Igniter.t()
+    def fix_ueberauth_providers_config(igniter) do
+      Igniter.update_file(igniter, "config/config.exs", fn source ->
+        content = Rewrite.Source.get(source, :content)
 
-      case ConfigVerify.verify_or_rollback(content, candidate, &ueberauth_providers_map?/1) do
-        {:ok, updated_content} ->
-          igniter
-          |> Igniter.update_file("config/config.exs", fn source ->
-            Rewrite.Source.update(source, :content, updated_content)
-          end)
-          |> add_ueberauth_fix_notice()
-
-        {:rolled_back, _original, _reason} ->
-          Igniter.add_warning(
-            igniter,
-            "Could not safely fix Ueberauth's providers: [] -> %{} (the replacement would " <>
-              "have produced invalid or misplaced config) - please change it manually in " <>
-              "config/config.exs."
+        candidate =
+          Regex.replace(
+            ~r/(config\s+:ueberauth,\s+Ueberauth,\s+providers:\s*)\[\s*\]/,
+            content,
+            "\\1%{}"
           )
-      end
+
+        case ConfigVerify.verify_or_rollback(content, candidate, &ueberauth_providers_map?/1) do
+          {:ok, updated_content} ->
+            Mix.shell().info("""
+
+            ✅ Fixed Ueberauth configuration: providers: [] → providers: %{}
+               OAuth authentication will now work correctly.
+            """)
+
+            Rewrite.Source.update(source, :content, updated_content)
+
+          {:rolled_back, _original, _reason} ->
+            {:warning,
+             "Could not safely fix Ueberauth's providers: [] -> %{} (the replacement would " <>
+               "have produced invalid or misplaced config) - please change it manually in " <>
+               "config/config.exs."}
+        end
+      end)
     end
 
     # True if `ast` has `config :ueberauth, Ueberauth, providers: %{}` (or
@@ -1628,16 +1647,6 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         _ ->
           false
       end)
-    end
-
-    # Add notice about Ueberauth configuration fix
-    defp add_ueberauth_fix_notice(igniter) do
-      notice = """
-      ✅ Fixed Ueberauth configuration: providers: [] → providers: %{}
-         OAuth authentication will now work correctly.
-      """
-
-      Igniter.add_notice(igniter, String.trim(notice))
     end
 
     # Add missing Ueberauth configuration
@@ -1689,12 +1698,41 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     # Validate and add Oban configuration if missing
     # Fix supervisor ordering in application.ex to prevent startup crashes
     # Ensures correct order: Repo → PhoenixKit.Supervisor → Oban → Endpoint
-    defp fix_supervisor_ordering(igniter) do
+    #
+    # P013: this used to decide `:correct` / `:needs_fix` from a fresh
+    # `File.read!/1` of application.ex — the same class of bug fixed under
+    # I103 for `BootHook.add_boot_hook/1` and
+    # `fix_ueberauth_providers_config/1`. Igniter never flushes a step's
+    # writes to disk before the next step runs; on a real `mix
+    # phoenix_kit.update`, TWO earlier steps in the SAME pipeline stage
+    # `application.ex` edits before this one runs —
+    # `ApplicationSupervisor.add_supervisor/1` (unconditionally, at the top
+    # of `igniter/1`) and `ObanConfig.add_oban_supervisor/1` (right before
+    # this call, inside `perform_igniter_update/2`) — both via
+    # `Igniter.Project.Application.add_new_child/3`, which only ever
+    # touches the Igniter buffer. A disk read here is blind to both: it can
+    # see no `PhoenixKit.Supervisor`/`Oban` line at all, match
+    # `validate_supervisor_positions/4`'s trivial "nothing to check yet"
+    # clauses, and report `:correct` while the buffer — the content that
+    # actually reaches disk when this run finishes — sits misordered.
+    # `Igniter.exists?/2` + loading the file into the Igniter buffer before
+    # reading its content (`Rewrite.Source.get/2`) makes this check see the
+    # SAME up-to-date state the subsequent fix in
+    # `fix_application_supervisor_order/3` already reads from.
+    #
+    # Test seam: made public (`@doc false`) the same way I103 exposed
+    # `fix_ueberauth_providers_config/1` — this defect can only be
+    # exercised end-to-end (a real, non-test-mode Igniter + real temp
+    # disk), not via a pure-content unit test.
+    @doc false
+    @spec fix_supervisor_ordering(Igniter.t()) :: Igniter.t()
+    def fix_supervisor_ordering(igniter) do
       app_name = IgniterHelpers.get_parent_app_name(igniter)
       app_file = "lib/#{app_name}/application.ex"
 
-      if File.exists?(app_file) do
-        content = File.read!(app_file)
+      if Igniter.exists?(igniter, app_file) do
+        igniter = Igniter.include_existing_file(igniter, app_file)
+        content = igniter.rewrite |> Rewrite.source!(app_file) |> Rewrite.Source.get(:content)
 
         # Check current supervisor ordering
         case check_supervisor_order(content, app_name) do

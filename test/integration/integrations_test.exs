@@ -201,7 +201,7 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
   describe "disconnect/2 for key_secret provider" do
     test "removes credentials like other non-OAuth types" do
       uuid =
-        seed_raw("aws", %{
+        seed_raw("aws_ses", %{
           "auth_type" => "key_secret",
           "access_key" => "AKIATEST",
           "secret_key" => "secret123",
@@ -211,8 +211,8 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
 
       :ok = Integrations.disconnect(uuid)
 
-      {:ok, data} = Integrations.get_integration("aws")
-      assert data["provider"] == "aws"
+      {:ok, data} = Integrations.get_integration("aws_ses")
+      assert data["provider"] == "aws_ses"
       assert data["auth_type"] == "key_secret"
       assert data["status"] == "disconnected"
       refute Map.has_key?(data, "access_key")
@@ -296,14 +296,14 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
     end
 
     test "returns credentials for key_secret provider" do
-      seed_raw("aws", %{
+      seed_raw("aws_ses", %{
         "auth_type" => "key_secret",
         "access_key" => "AKIATEST",
         "secret_key" => "secret",
         "status" => "connected"
       })
 
-      assert {:ok, creds} = Integrations.get_credentials("aws")
+      assert {:ok, creds} = Integrations.get_credentials("aws_ses")
       assert creds["access_key"] == "AKIATEST"
     end
 

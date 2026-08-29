@@ -26,6 +26,7 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.KeyRotation
+  alias PhoenixKit.Settings
   alias PhoenixKit.Settings.Queries
   alias PhoenixKit.Settings.Setting
 
@@ -78,6 +79,24 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
     |> Queries.update_setting()
 
     updated
+  end
+
+  # Same idea as `write_plaintext_field!/3`, for a restricted
+  # `PhoenixKit.Settings` row's bare `value` string instead of an
+  # integration's `value_json` map. `Ecto.Changeset.change/2` — NOT
+  # `Setting.update_changeset/2` — is the point: the latter runs
+  # `maybe_encrypt_restricted_value/1` on every `:value` change, which would
+  # immediately re-encrypt whatever this writes and defeat the whole point
+  # of simulating a row saved before the encryption feature existed.
+  defp write_plaintext_setting_value!(key, value) do
+    {:ok, _} = Settings.update_setting(key, "placeholder-overwritten-below")
+
+    key
+    |> Queries.get_setting_by_key()
+    |> Ecto.Changeset.change(value: value)
+    |> Queries.update_setting()
+
+    :ok
   end
 
   describe "rotate/2 — real run" do
@@ -191,6 +210,115 @@ defmodule PhoenixKit.Integration.KeyRotationTest do
       # Nothing was written — not even the row that decrypted fine.
       assert raw_value_json(uuid_good) == before_good
       assert raw_value_json(uuid_bad) == corrupted
+    end
+  end
+
+  describe "rotate/2 — restricted PhoenixKit.Settings values (S015)" do
+    test "a restricted setting shares the same key and rotates alongside integration connections" do
+      [restricted_key | _] = Settings.restricted_setting_keys()
+      {:ok, _} = Settings.update_setting(restricted_key, "top-secret-value")
+
+      before_row = Queries.get_setting_by_key(restricted_key)
+      assert String.starts_with?(before_row.value, "enc:v1:")
+
+      assert {:ok, %{rotated: 1, dry_run: false}} =
+               KeyRotation.rotate("brand-new-secret-well-over-min-length")
+
+      after_row = Queries.get_setting_by_key(restricted_key)
+      refute after_row.value == before_row.value
+      assert String.starts_with?(after_row.value, "enc:v1:")
+
+      # The OLD key can no longer read it.
+      assert {:error, _} = Encryption.decrypt_value(after_row.value)
+
+      # The NEW secret, once active, round-trips.
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "brand-new-secret-well-over-min-length"
+      )
+
+      assert Encryption.decrypt_value(after_row.value) == {:ok, "top-secret-value"}
+    end
+
+    test "an integration connection AND a restricted setting both rotate in the same run" do
+      conn_uuid = seed_connection("openrouter", "one", %{"api_key" => "sk-one"})
+      [restricted_key | _] = Settings.restricted_setting_keys()
+      {:ok, _} = Settings.update_setting(restricted_key, "another-secret")
+
+      assert {:ok, %{rotated: 2, dry_run: false}} =
+               KeyRotation.rotate("brand-new-secret-well-over-min-length")
+
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "brand-new-secret-well-over-min-length"
+      )
+
+      assert Encryption.decrypt_fields(raw_value_json(conn_uuid))["api_key"] == "sk-one"
+
+      restricted_row = Queries.get_setting_by_key(restricted_key)
+      assert Encryption.decrypt_value(restricted_row.value) == {:ok, "another-secret"}
+    end
+
+    test "rotate_rows_query returns a restricted setting row even though its module is nil" do
+      [restricted_key | _] = Settings.restricted_setting_keys()
+      {:ok, _} = Settings.update_setting(restricted_key, "some-value")
+
+      repo = PhoenixKit.RepoHelper.repo()
+      rows = repo.all(KeyRotation.rotate_rows_query())
+
+      matched = Enum.find(rows, &(&1.key == restricted_key))
+      assert matched
+      assert matched.module == nil
+    end
+
+    # Every other test in this describe block seeds via
+    # `Settings.update_setting/2`, which is ITSELF the encrypting write path
+    # (`Setting.maybe_encrypt_restricted_value/1`) — so none of them can
+    # distinguish "rotation handles a restricted setting" from "rotation
+    # handles a restricted setting that happens to already be encrypted".
+    # The real-world row this exists to protect (`oauth_google_client_secret`
+    # written before the encryption feature shipped, e.g. on hosts running a
+    # pre-#759 core) is genuinely plaintext in `value` — never `enc:v1:` at
+    # all. `has_sensitive_field?/1` and `decrypt_row/1` key off the
+    # DECRYPTED view (`Encryption.decrypt_value/1` passes plaintext through
+    # unchanged, tagged `:legacy` by `Settings.decrypt_restricted_value/1`),
+    # not off "does the raw value already look encrypted" — this test is
+    # what actually exercises that, instead of it being a claim in a
+    # comment.
+    test "a restricted setting still PLAINTEXT (predates the feature) gets encrypted, " <>
+           "and the real OAuth-credential read path hands back the original secret" do
+      key = "oauth_google_client_secret"
+      write_plaintext_setting_value!(key, "sk-legacy-plaintext-secret")
+
+      before_row = Queries.get_setting_by_key(key)
+      refute String.starts_with?(before_row.value, "enc:v1:")
+
+      assert {:ok, %{rotated: 1, dry_run: false}} =
+               KeyRotation.rotate("brand-new-secret-well-over-min-length")
+
+      after_row = Queries.get_setting_by_key(key)
+      assert String.starts_with?(after_row.value, "enc:v1:")
+      refute after_row.value == before_row.value
+
+      Application.put_env(
+        :phoenix_kit,
+        :integrations_encryption_key,
+        "brand-new-secret-well-over-min-length"
+      )
+
+      # Not just "decrypt_value returns the right string" — the actual
+      # function `PhoenixKit.Users.OAuthConfig.configure_providers/0` calls
+      # to build the live Ueberauth `client_secret:` for Google. If this
+      # returned the ciphertext, an empty string, or nil, OAuth login would
+      # be broken by the fix, not protected by it.
+      assert Settings.get_oauth_credentials_direct(:google).client_secret ==
+               "sk-legacy-plaintext-secret"
+
+      # Same guarantee through the plain single-key read path every other
+      # caller of a restricted setting uses.
+      assert Settings.get_setting(key) == "sk-legacy-plaintext-secret"
     end
   end
 

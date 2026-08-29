@@ -334,6 +334,13 @@ defmodule PhoenixKit.Install.JsIntegration do
     end
   end
 
+  # I103: regex-only, on purpose — `app.js` is JavaScript, and
+  # `PhoenixKit.Install.ConfigVerify` (the parse-then-verify safety net the
+  # Oban/config.exs splices use) only understands Elixir via
+  # `Code.string_to_quoted/1`. There is no equivalent check available here;
+  # correctness rests entirely on the regex and the `if updated != content`
+  # guard below. See `ConfigVerify`'s moduledoc, "What this deliberately does
+  # NOT cover".
   defp add_hooks_to_app_js(igniter) do
     app_js_path = Path.join([File.cwd!(), "assets", "js", "app.js"])
 
@@ -472,6 +479,11 @@ defmodule PhoenixKit.Install.JsIntegration do
     end
   end
 
+  # I103: regex-only, on purpose — this splices into HEEX, and
+  # `PhoenixKit.Install.ConfigVerify`'s parse-then-verify only understands
+  # Elixir. See `ConfigVerify`'s moduledoc, "What this deliberately does NOT
+  # cover", and `add_hooks_to_app_js/1` above for the same boundary on the JS
+  # side.
   defp inject_modules_script_tag(igniter, layout_path, content) do
     tag = """
         #{@modules_script_marker}

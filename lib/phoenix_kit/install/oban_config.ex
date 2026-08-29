@@ -661,8 +661,17 @@ if Code.ensure_loaded?(Igniter) do
         # inserting there corrupts the file (review finding on this very
         # function). Nested lists are always indented deeper, so anchoring
         # the close to the keyword's indentation skips them.
+        #
+        # I103: the whole pattern is anchored to THIS app's own
+        # `config :app_name, Oban` block first (same prefix `insert_queue/4`
+        # already uses for `queues:`), bounded at the next top-level
+        # `config`/`import_config`. Without it, a host with any OTHER
+        # `plugins: [...]` list earlier in config.exs — a completely
+        # unrelated `config :some_lib, plugins: [...]` — matched first: this
+        # inserted Lifeline into the WRONG application's list and reported
+        # success, while `:app_name`'s own Oban config stayed untouched.
         case Regex.run(
-               ~r/(^([ \t]+)plugins:\s*\[\n)(.*?)(\n\2\])/ms,
+               ~r/(^config\s+:#{app_name},\s+Oban\b(?:(?!\n(?:config\s|import_config\s)).)*?\n([ \t]+)plugins:\s*\[\n)(.*?)(\n\2\])/ms,
                content,
                capture: :all
              ) do
@@ -689,7 +698,7 @@ if Code.ensure_loaded?(Igniter) do
             case ConfigVerify.verify_or_rollback(
                    content,
                    candidate,
-                   &plugins_contains_module?(&1, Oban.Plugins.Lifeline)
+                   &plugins_contains_module?(&1, app_name, Oban.Plugins.Lifeline)
                  ) do
               {:ok, result} ->
                 result
@@ -715,11 +724,16 @@ if Code.ensure_loaded?(Igniter) do
       Mix.shell().error("     Please manually add: #{lifeline_entry()}")
     end
 
-    # True if `ast` has a `plugins: [...]` list somewhere containing a tuple
-    # naming `module` — shared by every splice below that adds a plugin
-    # tuple to an Oban `plugins:` list.
-    defp plugins_contains_module?(ast, module) do
-      ConfigVerify.keyword_list_satisfies?(ast, :plugins, fn list ->
+    # True if `ast` has a `plugins: [...]` list containing a tuple naming
+    # `module`, INSIDE `app_name`'s own `config :app_name, Oban` block —
+    # shared by every splice below that adds a plugin tuple to an Oban
+    # `plugins:` list. Scoped to `app_name` for the same reason the splices
+    # themselves are: an unscoped `keyword_list_satisfies?/3` is satisfied by
+    # ANY `plugins:` list in the file, including a different application's,
+    # and would report success on an insertion that landed in the wrong
+    # place — or never landed at all.
+    defp plugins_contains_module?(ast, app_name, module) do
+      ConfigVerify.app_config_satisfies?(ast, app_name, Oban, :plugins, fn list ->
         Enum.any?(list, &ConfigVerify.tuple_names_module?(&1, module))
       end)
     end
@@ -838,6 +852,15 @@ if Code.ensure_loaded?(Igniter) do
         # Case 1: the old worker is scheduled and the core worker is not.
         # Rename it in place — the core worker's catch-up already calls
         # PhoenixKitPosts.process_scheduled_posts/0, so it subsumes the entry.
+        #
+        # I103: deliberately NOT wrapped in `ConfigVerify.verify_or_rollback/3`,
+        # unlike every other splice in this module — a plain identifier-to-
+        # identifier text substitution cannot land on the wrong bracket or
+        # misplace anything structurally, so there is no failure mode for a
+        # parse-then-verify step to catch. `global: false` is left off (the
+        # default, global replace) on purpose too: if the old module path
+        # somehow appears more than once, renaming every occurrence
+        # consistently is correct, not a hazard to guard against.
         Regex.match?(@old_posts_worker, content) and
             not String.contains?(content, "ProcessScheduledJobsWorker") ->
           Mix.shell().info(
@@ -879,7 +902,7 @@ if Code.ensure_loaded?(Igniter) do
             "  ➕ Adding ProcessScheduledJobsWorker to existing cron configuration..."
           )
 
-          add_scheduled_posts_job_to_crontab(content)
+          add_scheduled_posts_job_to_crontab(content, app_name)
 
         # Case 4: No cron plugin at all - add entire plugin with new worker
         true ->
@@ -907,9 +930,20 @@ if Code.ensure_loaded?(Igniter) do
     # semantic check below only accepts a result where the new tuple shows
     # up as a direct member of the `crontab:` list itself, not buried deeper
     # in some other value that also happened to close with a `]`.
-    defp add_scheduled_posts_job_to_crontab(content) do
-      # Pattern: crontab: [...] within Cron plugin
-      case Regex.run(~r/(crontab:\s*\[)(.*?)(\])/s, content, capture: :all) do
+    #
+    # I103: the pattern is additionally anchored to THIS app's own
+    # `config :app_name, Oban` block, bounded at the next top-level
+    # `config`/`import_config` — same prefix `insert_queue/4` uses for
+    # `queues:`. Without it, the (still lazy) `crontab:` search could match a
+    # different application's `crontab:` list first if one appeared earlier
+    # in config.exs.
+    defp add_scheduled_posts_job_to_crontab(content, app_name) do
+      # Pattern: crontab: [...] within Cron plugin, inside app_name's own block
+      case Regex.run(
+             ~r/(^config\s+:#{app_name},\s+Oban\b(?:(?!\n(?:config\s|import_config\s)).)*?crontab:\s*\[)(.*?)(\])/ms,
+             content,
+             capture: :all
+           ) do
         [full_match, before_crontab, crontab_content, after_crontab] ->
           # `crontab_content` keeps its OWN trailing whitespace/newline up to
           # (not including) the closing `]` — appending straight onto that
@@ -944,6 +978,7 @@ if Code.ensure_loaded?(Igniter) do
                  candidate,
                  &crontab_contains_module?(
                    &1,
+                   app_name,
                    PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker
                  )
                ) do
@@ -961,13 +996,15 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
-    # True if `ast` has a `crontab: [...]` list somewhere containing a tuple
-    # naming `module` — used both to confirm a splice landed where it was
-    # meant to (a direct list member, not nested inside some other entry's
-    # own value) and, unchanged, to check the SAME thing for the sibling
-    # crontab-splice functions below.
-    defp crontab_contains_module?(ast, module) do
-      ConfigVerify.keyword_list_satisfies?(ast, :crontab, fn list ->
+    # True if `ast` has a `crontab: [...]` list containing a tuple naming
+    # `module`, INSIDE `app_name`'s own `config :app_name, Oban` block — used
+    # both to confirm a splice landed where it was meant to (a direct list
+    # member, not nested inside some other entry's own value) and, unchanged,
+    # to check the SAME thing for the sibling crontab-splice functions below.
+    # Scoped to `app_name` for the same reason `plugins_contains_module?/3`
+    # is: an unscoped check is satisfied by ANY `crontab:` list in the file.
+    defp crontab_contains_module?(ast, app_name, module) do
+      ConfigVerify.app_config_satisfies?(ast, app_name, Oban, :crontab, fn list ->
         Enum.any?(list, &ConfigVerify.tuple_names_module?(&1, module))
       end)
     end
@@ -1055,25 +1092,41 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
+    # I103: anchored to THIS app's own `config :app_name, Oban` block (same
+    # prefix `insert_queue/4` uses for `queues:`), and the leading separator
+    # before the new entries now checks `has_trailing_comma` instead of
+    # always prepending `,\n` — the same hardening `add_scheduled_posts_job_to_crontab/2`
+    # already has. A crontab whose last entry legitimately already ends in a
+    # comma (a perfectly ordinary shape, e.g. `mix format`'s own output for a
+    # multi-entry list) got a DOUBLE comma before this fix: `Code.string_to_quoted/1`
+    # then fails, `verify_or_rollback/3` rolls back, and the operator is told
+    # their own config is the problem when the insertion logic was.
     defp add_worker_entries_to_crontab(content, missing, app_name) do
-      case Regex.run(~r/(^([ \t]+)crontab:\s*\[\n)(.*?)(\n\2\])/ms, content, capture: :all) do
+      case Regex.run(
+             ~r/(^config\s+:#{app_name},\s+Oban\b(?:(?!\n(?:config\s|import_config\s)).)*?\n([ \t]+)crontab:\s*\[\n)(.*?)(\n\2\])/ms,
+             content,
+             capture: :all
+           ) do
         [full_match, crontab_open, indent, crontab_content, crontab_close] ->
           entry_indent = indent <> "  "
+          trimmed_content = String.trim_trailing(crontab_content)
+          has_trailing_comma = String.ends_with?(trimmed_content, ",")
 
-          new_entries =
-            Enum.map_join(missing, "", fn {cron, mod} ->
-              ",\n#{entry_indent}{\"#{cron}\", #{mod}}"
+          entries =
+            Enum.map_join(missing, ",\n", fn {cron, mod} ->
+              "#{entry_indent}{\"#{cron}\", #{mod}}"
             end)
 
-          updated =
-            crontab_open <> String.trim_trailing(crontab_content) <> new_entries <> crontab_close
+          new_entries = if has_trailing_comma, do: "\n" <> entries, else: ",\n" <> entries
+
+          updated = crontab_open <> trimmed_content <> new_entries <> crontab_close
 
           candidate = String.replace(content, full_match, updated, global: false)
 
           case ConfigVerify.verify_or_rollback(
                  content,
                  candidate,
-                 &crontab_has_all_modules?(&1, missing)
+                 &crontab_has_all_modules?(&1, app_name, missing)
                ) do
             {:ok, result} ->
               result
@@ -1101,9 +1154,11 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     # True if `ast` has a `crontab: [...]` list containing, for EVERY
-    # `{_cron, mod_string}` pair in `missing`, a tuple naming that module.
-    defp crontab_has_all_modules?(ast, missing) do
-      ConfigVerify.keyword_list_satisfies?(ast, :crontab, fn list ->
+    # `{_cron, mod_string}` pair in `missing`, a tuple naming that module —
+    # scoped to `app_name`'s own Oban block for the same reason
+    # `crontab_contains_module?/3` is.
+    defp crontab_has_all_modules?(ast, app_name, missing) do
+      ConfigVerify.app_config_satisfies?(ast, app_name, Oban, :crontab, fn list ->
         Enum.all?(missing, fn {_cron, mod} ->
           module = Module.concat(String.split(mod, "."))
           Enum.any?(list, &ConfigVerify.tuple_names_module?(&1, module))
@@ -1115,26 +1170,40 @@ if Code.ensure_loaded?(Igniter) do
     # anchored to the `crontab:` keyword's own indentation (backreference `\\2`)
     # for the same reason as `add_cron_plugin_to_plugins/2`: a lazy `.*?` to the
     # first `]` can stop inside an entry's own nested list.
+    #
+    # I103: anchored to THIS app's own `config :app_name, Oban` block (same
+    # prefix as `add_worker_entries_to_crontab/3`), and the leading separator
+    # before the new entries checks `has_trailing_comma` instead of always
+    # prepending `,\n` — see `add_worker_entries_to_crontab/3` for why an
+    # unconditional leading comma corrupts a crontab that legitimately
+    # already ends in one.
     defp add_digest_entries_to_crontab(content, missing, app_name) do
-      case Regex.run(~r/(^([ \t]+)crontab:\s*\[\n)(.*?)(\n\2\])/ms, content, capture: :all) do
+      case Regex.run(
+             ~r/(^config\s+:#{app_name},\s+Oban\b(?:(?!\n(?:config\s|import_config\s)).)*?\n([ \t]+)crontab:\s*\[\n)(.*?)(\n\2\])/ms,
+             content,
+             capture: :all
+           ) do
         [full_match, crontab_open, indent, crontab_content, crontab_close] ->
           entry_indent = indent <> "  "
+          trimmed_content = String.trim_trailing(crontab_content)
+          has_trailing_comma = String.ends_with?(trimmed_content, ",")
 
-          new_entries =
-            Enum.map_join(missing, "", fn {cron, cadence} ->
-              ",\n#{entry_indent}{\"#{cron}\", PhoenixKit.Notifications.DigestWorker, " <>
+          entries =
+            Enum.map_join(missing, ",\n", fn {cron, cadence} ->
+              "#{entry_indent}{\"#{cron}\", PhoenixKit.Notifications.DigestWorker, " <>
                 "args: %{cadence: \"#{cadence}\"}}"
             end)
 
-          updated =
-            crontab_open <> String.trim_trailing(crontab_content) <> new_entries <> crontab_close
+          new_entries = if has_trailing_comma, do: "\n" <> entries, else: ",\n" <> entries
+
+          updated = crontab_open <> trimmed_content <> new_entries <> crontab_close
 
           candidate = String.replace(content, full_match, updated, global: false)
 
           case ConfigVerify.verify_or_rollback(
                  content,
                  candidate,
-                 &crontab_has_all_digest_cadences?(&1, missing)
+                 &crontab_has_all_digest_cadences?(&1, app_name, missing)
                ) do
             {:ok, result} ->
               result
@@ -1169,8 +1238,8 @@ if Code.ensure_loaded?(Igniter) do
     # map carries that exact cadence — not just "a DigestWorker tuple
     # exists somewhere", which would pass even if only one of several
     # missing cadences actually landed.
-    defp crontab_has_all_digest_cadences?(ast, missing) do
-      ConfigVerify.keyword_list_satisfies?(ast, :crontab, fn list ->
+    defp crontab_has_all_digest_cadences?(ast, app_name, missing) do
+      ConfigVerify.app_config_satisfies?(ast, app_name, Oban, :crontab, fn list ->
         Enum.all?(missing, fn {_cron, cadence} ->
           Enum.any?(list, &digest_tuple_has_cadence?(&1, cadence))
         end)
@@ -1215,8 +1284,12 @@ if Code.ensure_loaded?(Igniter) do
       # stats plugin — puts one right there), and inserting there corrupts
       # the file. Nested lists are always indented deeper, so anchoring to
       # the keyword's indentation skips them.
+      #
+      # I103: also anchored to THIS app's own `config :app_name, Oban` block
+      # — see `ensure_lifeline_plugin/2` for why an unanchored `plugins:`
+      # search can match a different application's list first.
       case Regex.run(
-             ~r/(^([ \t]+)plugins:\s*\[\n)(.*?)(\n\2\])/ms,
+             ~r/(^config\s+:#{app_name},\s+Oban\b(?:(?!\n(?:config\s|import_config\s)).)*?\n([ \t]+)plugins:\s*\[\n)(.*?)(\n\2\])/ms,
              content,
              capture: :all
            ) do
@@ -1256,6 +1329,7 @@ if Code.ensure_loaded?(Igniter) do
                  candidate,
                  &crontab_contains_module?(
                    &1,
+                   app_name,
                    PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker
                  )
                ) do

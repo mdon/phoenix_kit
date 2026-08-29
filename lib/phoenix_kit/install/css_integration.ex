@@ -99,6 +99,11 @@ defmodule PhoenixKit.Install.CssIntegration do
   end
 
   # Update daisyUI plugin configuration to enable all themes
+  #
+  # I103: regex-only, on purpose — this splices into `app.css`, and
+  # `PhoenixKit.Install.ConfigVerify`'s parse-then-verify safety net only
+  # understands Elixir via `Code.string_to_quoted/1`. See `ConfigVerify`'s
+  # moduledoc, "What this deliberately does NOT cover".
   defp update_daisyui_themes_config(source) do
     content = source.content
 

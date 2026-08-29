@@ -10,16 +10,33 @@
 >
   <div class="px-4 py-6">
     <%!-- Flash messages --%>
-    <div :if={@encryption_status != :dedicated} class="alert alert-warning mb-4">
+    <%!-- Guarded on the report's severity, not on the tier. Guarded on
+         `status != :dedicated`, a dedicated key whose key store had broken
+         showed no banner at all — while the fingerprint line below it called
+         that same key a FALLBACK. --%>
+    <div :if={@encryption_report.severity != :ok} class="alert alert-warning mb-4">
       <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
       <div>
         <div class="font-semibold">
-          {encryption_status_title(@encryption_status)}
+          {encryption_status_title(@encryption_report)}
         </div>
         <div class="text-sm">
-          {encryption_status_detail(@encryption_status)}
+          {encryption_status_detail(@encryption_report)}
         </div>
       </div>
+    </div>
+    <%!-- Key fingerprint. Shown for every status, not just the unhealthy ones:
+         two sites can BOTH be on a healthy dedicated key and still be sharing
+         it (a copied key file, a cloned environment), and nothing else on this
+         page would reveal that. Admin-only page by design — see
+         Encryption.key_fingerprint/0 on why this is not for general users. --%>
+    <div :if={@encryption_fingerprint} class="text-xs opacity-70 mb-4">
+      {gettext("Encryption key fingerprint:")}
+      <code class="font-mono">{elem(@encryption_fingerprint, 0)}</code>
+      <span class="italic">({elem(@encryption_fingerprint, 1)})</span>
+      — {gettext(
+        "another site showing this same fingerprint and the same key state is using the same key"
+      )}
     </div>
     <%!-- Connections table --%>
     <div :if={@connections != []}>

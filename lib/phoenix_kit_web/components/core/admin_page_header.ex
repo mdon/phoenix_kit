@@ -26,12 +26,15 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
   - `back` - Path to navigate to when the back arrow is clicked. Must already be
     resolved (e.g. via `Routes.path/1` / `PhoenixKit.Utils.Routes.path/1`) — this
     renders a plain `<.link navigate>`, it does NOT re-apply the PhoenixKit URL
-    prefix the way `<.pk_link>` would. When set, renders a compact ghost
-    back-affordance inline beside the title, aligned to its first line (never
-    on its own row — an icon-only circle by default).
+    prefix the way `<.pk_link>` would. When set, renders a ghost back
+    affordance inline beside the title (never on its own row), at the same
+    button height as the `:actions` opposite it — icon-only and square by
+    default.
   - `back_label` - Optional text shown next to the back arrow (from the `sm`
-    breakpoint up; phones stay icon-only). When omitted the button is a
-    circular icon-only chip (still gets an accessible label + title tooltip).
+    breakpoint up; phones stay icon-only). Prefer naming the destination —
+    "Entities" beats an unlabeled arrow the reader has to interpret. When
+    omitted the button is a square icon-only chip (still gets an accessible
+    label + title tooltip).
   - `back_click` - Deprecated, no-op. Retained so existing callers compile.
 
   ## Slots
@@ -108,16 +111,26 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
             navigate={@back}
             class={
               [
-                "btn btn-ghost btn-sm shrink-0 -ml-2 mt-0.5 lg:mt-1",
-                # Icon-only renders as a circle; a labeled chip keeps the circle
-                # on phones too, where the label span is hidden anyway.
-                (@back_label && "max-sm:btn-circle gap-1") || "btn-circle"
+                # Full button height, not btn-sm: the back control sits in the
+                # same row as the page's action buttons, and a half-height
+                # chip opposite them reads as an afterthought. Square, not
+                # circular, for the same reason — a lone round ghost arrow
+                # beside rectangular buttons looks like a floating decoration
+                # rather than part of the toolbar (Max, 2026-08-28).
+                "btn btn-ghost shrink-0 -ml-2",
+                # Icon-only is a square icon button; a labeled chip stays
+                # square on phones too, where the label span is hidden anyway.
+                (@back_label && "gap-2 max-sm:btn-square") || "btn-square"
               ]
             }
             aria-label={@back_label || gettext("Back")}
             title={@back_label || gettext("Back")}
           >
-            <.icon name="hero-arrow-left" class="w-4 h-4" />
+            <%!-- w-5, not w-4: the button is ghost (transparent), so the
+                  glyph IS the control as far as the eye is concerned — a
+                  16px arrow beside a 30px page title reads as too small to
+                  aim at (Max, 2026-08-28). --%>
+            <.icon name="hero-arrow-left" class="w-5 h-5" />
             <span :if={@back_label} class="hidden sm:inline">{@back_label}</span>
           </.link>
           <div class="min-w-0">

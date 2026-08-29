@@ -311,6 +311,168 @@ defmodule PhoenixKit.Install.ObanConfigTest do
     end
   end
 
+  describe "plugins:/crontab: splices never land in a neighbouring application's config" do
+    # I103: `insert_queue/4` already anchors its splice — and the semantic
+    # check it verifies against — to `config :app_name, Oban` specifically.
+    # The plugins:/crontab: splices below did neither: an unanchored
+    # `^([ \t]+)plugins:\s*\[\n...\]` (or `crontab:`) matches the FIRST such
+    # list in the whole file, and the semantic check that "confirms" the
+    # result (`plugins_contains_module?/3`, `crontab_contains_module?/3`, …)
+    # asked the same unscoped question — so an insertion that landed in a
+    # NEIGHBOURING application's block was reported as success while
+    # `:my_app`'s own Oban config went untouched. Reproduced live: exactly
+    # this shape, before the fix, put Lifeline in `:some_lib`'s plugins list
+    # and returned `:ok`.
+    @neighbour_plugins """
+    config :some_lib,
+      plugins: [
+        SomeLib.Plugin
+      ]
+
+    """
+
+    @neighbour_crontab """
+    config :some_lib,
+      crontab: [
+        {"* * * * *", SomeLib.Worker}
+      ]
+
+    """
+
+    test "ensure_lifeline_plugin/2 lands Lifeline in :my_app's own block" do
+      content =
+        @neighbour_plugins <>
+          """
+          config :my_app, Oban,
+            repo: MyApp.Repo,
+            plugins: [
+              {Oban.Plugins.Pruner, max_age: 60}
+            ]
+          """
+
+      updated = ObanConfig.ensure_lifeline_plugin(content, "my_app")
+
+      # The neighbour's own block is untouched, byte for byte.
+      assert String.starts_with?(updated, @neighbour_plugins)
+      refute updated =~ ~r/SomeLib\.Plugin[^\]]*Lifeline/s
+
+      assert {:ok, ast} = Code.string_to_quoted(updated)
+
+      assert ConfigVerify.app_config_satisfies?(ast, "my_app", Oban, :plugins, fn list ->
+               Enum.any?(list, &ConfigVerify.tuple_names_module?(&1, Oban.Plugins.Lifeline))
+             end)
+    end
+
+    test "ensure_cron_plugin/2 Case 4 (no Cron plugin yet) lands it in :my_app's own block" do
+      content =
+        @neighbour_plugins <>
+          """
+          config :my_app, Oban,
+            repo: MyApp.Repo,
+            plugins: [
+              {Oban.Plugins.Pruner, max_age: 60}
+            ]
+          """
+
+      updated = ObanConfig.ensure_cron_plugin(content, "my_app")
+
+      assert String.starts_with?(updated, @neighbour_plugins)
+      assert {:ok, ast} = Code.string_to_quoted(updated)
+
+      assert ConfigVerify.app_config_satisfies?(ast, "my_app", Oban, :crontab, fn list ->
+               Enum.any?(
+                 list,
+                 &ConfigVerify.tuple_names_module?(
+                   &1,
+                   PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker
+                 )
+               )
+             end)
+    end
+
+    test "ensure_cron_plugin/2 Case 3 (posts worker missing) lands it in :my_app's own crontab" do
+      content =
+        @neighbour_crontab <>
+          """
+          config :my_app, Oban,
+            repo: MyApp.Repo,
+            plugins: [
+              {Oban.Plugins.Cron,
+               crontab: [
+                 {"0 3 * * *", MyApp.Workers.Nightly}
+               ]}
+            ]
+          """
+
+      updated = ObanConfig.ensure_cron_plugin(content, "my_app")
+
+      assert String.starts_with?(updated, @neighbour_crontab)
+      assert {:ok, ast} = Code.string_to_quoted(updated)
+
+      assert ConfigVerify.app_config_satisfies?(ast, "my_app", Oban, :crontab, fn list ->
+               Enum.any?(
+                 list,
+                 &ConfigVerify.tuple_names_module?(
+                   &1,
+                   PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker
+                 )
+               )
+             end)
+    end
+
+    test "ensure_worker_cron_entries/2 lands entries in :my_app's own crontab" do
+      content =
+        @neighbour_crontab <>
+          """
+          config :my_app, Oban,
+            repo: MyApp.Repo,
+            plugins: [
+              {Oban.Plugins.Cron,
+               crontab: [
+                 {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}
+               ]}
+            ]
+          """
+
+      updated = ObanConfig.ensure_worker_cron_entries(content, "my_app")
+
+      assert String.starts_with?(updated, @neighbour_crontab)
+      assert {:ok, ast} = Code.string_to_quoted(updated)
+
+      assert ConfigVerify.app_config_satisfies?(ast, "my_app", Oban, :crontab, fn list ->
+               Enum.any?(
+                 list,
+                 &ConfigVerify.tuple_names_module?(&1, PhoenixKit.Users.Referrals.PruneWorker)
+               )
+             end)
+    end
+
+    test "ensure_digest_cron_entries/2 lands entries in :my_app's own crontab" do
+      content =
+        @neighbour_crontab <>
+          """
+          config :my_app, Oban,
+            repo: MyApp.Repo,
+            plugins: [
+              {Oban.Plugins.Cron,
+               crontab: [
+                 {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}
+               ]}
+            ]
+          """
+
+      updated = ObanConfig.ensure_digest_cron_entries(content, "my_app")
+
+      assert String.starts_with?(updated, @neighbour_crontab)
+
+      for cadence <- ~w(hourly 12h daily weekly) do
+        assert updated =~ ~r/DigestWorker[^\n]*cadence: "#{cadence}"/
+      end
+
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+  end
+
   describe "ensure_digest_cron_entries/2" do
     @existing_crontab """
     config :my_app, Oban,
@@ -401,6 +563,139 @@ defmodule PhoenixKit.Install.ObanConfigTest do
       digestable = MapSet.delete(MapSet.new(ChannelConfig.cadences()), "immediate")
 
       assert scheduled == digestable
+    end
+
+    # I103 / finding 4: same bug, same fix as
+    # `add_worker_entries_to_crontab/3` — see
+    # "ensure_worker_cron_entries/2 — I103: previously untested" for the
+    # full explanation.
+    test "a crontab with a legitimate trailing comma gets entries added, not rolled back" do
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},
+           ]}
+        ]
+      """
+
+      updated = ObanConfig.ensure_digest_cron_entries(content, "my_app")
+
+      refute updated == content, "the entries were rolled back instead of added"
+      refute updated =~ ",,"
+
+      for cadence <- ~w(hourly 12h daily weekly) do
+        assert updated =~ ~r/DigestWorker[^\n]*cadence: "#{cadence}"/
+      end
+
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+  end
+
+  describe "ensure_worker_cron_entries/2 — I103: previously untested" do
+    test "adds the PruneWorker entry to an existing crontab" do
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}
+           ]}
+        ]
+      """
+
+      updated = ObanConfig.ensure_worker_cron_entries(content, "my_app")
+
+      assert updated =~ "PhoenixKit.Users.Referrals.PruneWorker"
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+
+    test "is idempotent — an entry already present is not duplicated" do
+      content = """
+      config :my_app, Oban,
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"30 4 * * *", PhoenixKit.Users.Referrals.PruneWorker}
+           ]}
+        ]
+      """
+
+      assert ObanConfig.ensure_worker_cron_entries(content, "my_app") == content
+    end
+
+    test "leaves content unchanged when no crontab block can be found" do
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [default: 10]
+      """
+
+      assert ObanConfig.ensure_worker_cron_entries(content, "my_app") == content
+    end
+
+    # I103 / finding 4: `add_worker_entries_to_crontab/3` used to prepend a
+    # leading `,\n` to the new entries UNCONDITIONALLY. A crontab whose last
+    # entry already ends in a comma (an entirely ordinary shape — `mix
+    # format`'s own output for a multi-entry list) then got a DOUBLE comma,
+    # which fails to parse; `verify_or_rollback/3` correctly rolled back, but
+    # rolling back a well-formed host config over the installer's own bug
+    # blames the wrong side. The fix mirrors
+    # `add_scheduled_posts_job_to_crontab/2`'s existing `has_trailing_comma`
+    # check.
+    test "a crontab with a legitimate trailing comma gets the entry added, not rolled back" do
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker},
+           ]}
+        ]
+      """
+
+      updated = ObanConfig.ensure_worker_cron_entries(content, "my_app")
+
+      refute updated == content, "the entry was rolled back instead of added"
+      refute updated =~ ",,"
+      assert updated =~ "PhoenixKit.Users.Referrals.PruneWorker"
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+
+    test "never lands in a neighbouring application's crontab" do
+      content = """
+      config :some_lib,
+        crontab: [
+          {"* * * * *", SomeLib.Worker}
+        ]
+
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"* * * * *", PhoenixKit.ScheduledJobs.Workers.ProcessScheduledJobsWorker}
+           ]}
+        ]
+      """
+
+      updated = ObanConfig.ensure_worker_cron_entries(content, "my_app")
+
+      assert updated =~
+               ~r/config :some_lib,\s+crontab: \[\s+\{"\* \* \* \* \*", SomeLib\.Worker\}\s+\]\s*\n/
+
+      assert {:ok, ast} = Code.string_to_quoted(updated)
+
+      assert ConfigVerify.app_config_satisfies?(ast, "my_app", Oban, :crontab, fn list ->
+               Enum.any?(
+                 list,
+                 &ConfigVerify.tuple_names_module?(&1, PhoenixKit.Users.Referrals.PruneWorker)
+               )
+             end)
     end
   end
 

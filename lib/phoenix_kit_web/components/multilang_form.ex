@@ -882,8 +882,32 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
   attr :class, :string, default: nil
   attr :pattern, :string, default: nil
   attr :title, :string, default: nil
+
+  attr :debounce, :string,
+    default: "300",
+    doc: """
+    Value for `phx-debounce` on the field's input. Defaults to `"300"`, the
+    delay every caller had baked in before this was configurable. Pass `nil`
+    to omit the attribute entirely — do that when the server DERIVES
+    something from this field as you type (a slug from a title, say), where
+    waiting for a pause makes the derived value feel laggy.
+    """
+
   attr :hint, :string, default: nil
   attr :secondary_hint, :string, default: nil
+
+  attr :rest, :global,
+    doc: """
+    Anything else lands on the input itself — `phx-hook`, `data-*`, `aria-*`.
+    Without this the component silently swallowed such attributes: they
+    reached its assigns and were never rendered, so a caller wiring a JS
+    hook to a translated field got no hook and no warning.
+
+    Don't pass `id` here — the input's id is derived internally from
+    `field_name`/`form_prefix`/`current_lang`, and `id` is a global HTML
+    attribute the compiler won't stop you from spreading; doing so renders
+    two conflicting `id` attributes on the same tag.
+    """
 
   attr :mentions, :boolean,
     default: false,
@@ -980,10 +1004,11 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
             id={@input_id}
             class={@input_class}
             rows={@rows}
-            phx-debounce="300"
+            phx-debounce={@debounce}
             phx-hook={@mentions_on && "MentionInput"}
             required={@required}
             disabled={@disabled}
+            {@rest}
           >{@primary_value}</textarea>
         <% else %>
           <textarea
@@ -992,9 +1017,10 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
             class={@input_class}
             rows={@rows}
             placeholder={@primary_value}
-            phx-debounce="300"
+            phx-debounce={@debounce}
             phx-hook={@mentions_on && "MentionInput"}
             disabled={@disabled}
+            {@rest}
           >{@lang_value || ""}</textarea>
         <% end %>
         <p :if={@mentions_on} class="mt-1 text-xs opacity-50">
@@ -1009,11 +1035,12 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
             value={@primary_value}
             class={@input_class}
             placeholder={@placeholder}
-            phx-debounce="300"
+            phx-debounce={@debounce}
             required={@required}
             disabled={@disabled}
             pattern={@pattern}
             title={@title}
+            {@rest}
           />
         <% else %>
           <input
@@ -1023,10 +1050,11 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
             value={@lang_value}
             placeholder={@primary_value}
             class={@input_class}
-            phx-debounce="300"
+            phx-debounce={@debounce}
             disabled={@disabled}
             pattern={@pattern}
             title={@title}
+            {@rest}
           />
         <% end %>
       <% end %>

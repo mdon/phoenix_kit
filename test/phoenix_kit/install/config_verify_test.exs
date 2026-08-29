@@ -152,4 +152,86 @@ defmodule PhoenixKit.Install.ConfigVerifyTest do
       refute CV.keyword_list_satisfies?(ast, :crontab, fn _ -> true end)
     end
   end
+
+  describe "app_config_satisfies?/5" do
+    @content """
+    config :some_lib, plugins: [SomeLib.Plugin]
+
+    config :my_app, Oban,
+      repo: MyApp.Repo,
+      plugins: [
+        {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}
+      ]
+    """
+
+    test "true when the target app's own block has the matching list" do
+      ast = Code.string_to_quoted!(@content)
+
+      assert CV.app_config_satisfies?(ast, "my_app", Oban, :plugins, fn list ->
+               Enum.any?(list, &CV.tuple_names_module?(&1, Oban.Plugins.Lifeline))
+             end)
+    end
+
+    # I103, finding 3: this is the exact defect an unscoped
+    # `keyword_list_satisfies?/3` had — it is satisfied by ANY `plugins:`
+    # list in the file, including a DIFFERENT application's, so a check
+    # built on it would report success even though `:my_app`'s own config
+    # was never touched.
+    test "false when only a DIFFERENT application's config satisfies the check" do
+      content = """
+      config :other_app, Oban,
+        plugins: [
+          {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}
+        ]
+
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        plugins: [
+          {Oban.Plugins.Pruner, max_age: 60}
+        ]
+      """
+
+      ast = Code.string_to_quoted!(content)
+
+      refute CV.app_config_satisfies?(ast, "my_app", Oban, :plugins, fn list ->
+               Enum.any?(list, &CV.tuple_names_module?(&1, Oban.Plugins.Lifeline))
+             end)
+    end
+
+    test "false when the app matches but the configured module doesn't" do
+      content = """
+      config :my_app, SomeOtherLib,
+        plugins: [
+          {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(60)}
+        ]
+      """
+
+      ast = Code.string_to_quoted!(content)
+
+      refute CV.app_config_satisfies?(ast, "my_app", Oban, :plugins, fn list ->
+               Enum.any?(list, &CV.tuple_names_module?(&1, Oban.Plugins.Lifeline))
+             end)
+    end
+
+    test "accepts app_name as either an atom or a string" do
+      ast = Code.string_to_quoted!(@content)
+
+      for app_name <- [:my_app, "my_app"] do
+        assert CV.app_config_satisfies?(ast, app_name, Oban, :plugins, fn list ->
+                 Enum.any?(list, &CV.tuple_names_module?(&1, Oban.Plugins.Lifeline))
+               end)
+      end
+    end
+
+    test "does not crash on a dynamically-computed (non-atom) app argument" do
+      content = """
+      config Application.get_env(:parent, :app), Oban,
+        plugins: [Oban.Plugins.Lifeline]
+      """
+
+      ast = Code.string_to_quoted!(content)
+
+      refute CV.app_config_satisfies?(ast, "my_app", Oban, :plugins, fn _ -> true end)
+    end
+  end
 end
