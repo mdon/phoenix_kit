@@ -102,12 +102,18 @@ defmodule PhoenixKitWeb.Users.MagicLink do
   @impl true
   def handle_async(:send_magic_link, {:ok, result}, socket) do
     case result do
+      # Same sentence on both branches: a distinct "sent!" message for
+      # registered addresses turned this page into an account-existence
+      # oracle despite the rate limit.
       {:ok, _user} ->
         {:noreply,
          socket
          |> assign(:sent, true)
          |> assign(:loading, false)
-         |> put_flash(:info, gettext("Magic link sent! Check your email."))}
+         |> put_flash(
+           :info,
+           gettext("If that email address exists, a magic link has been sent.")
+         )}
 
       {:error, _} ->
         # For security, we don't reveal whether the email exists or not

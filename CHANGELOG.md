@@ -1,3 +1,165 @@
+## 2.13.16 - 2026-08-29
+
+Repo-wide review sweep (no single PR): six areas audited, the verified
+defects fixed, the larger items recorded below under "Known / deferred".
+
+### Fixed
+
+**Auth & sessions**
+
+- **Organization invitations are email-bound again.** `accept_invitation_by_uuid/2`
+  checked existence, status and expiry but never that the invitation was
+  addressed to the accepting user, and `decline_invitation_by_uuid` took no
+  user at all — the uuid arrives from a client event, so any signed-in user
+  who learned one could join (or cancel) somebody else's invitation. Both now
+  return `{:error, :not_invitee}` on a mismatch (case-insensitive); the decline
+  API is now `decline_invitation_by_uuid/2`. Registration via an invite link
+  only stashes the auto-accept when the registered address IS the invited one.
+- **Confirming an account through a verified OAuth email or a magic link now
+  closes the pre-hijack window.** Both paths called `admin_confirm_user/1`,
+  which only stamps `confirmed_at` — an attacker who pre-registered the
+  victim's address kept a working password and live sessions on the row the
+  victim was just handed. New `Auth.confirm_user_from_external_proof/1`
+  confirms, deletes every token and rotates the stored password hash in one
+  transaction; the rightful owner sets a password via "forgot password".
+- **Logout no longer 500s** when the browser holds no session stack (stale
+  tab / double-click on the unauthenticated `DELETE /users/log-out`) or when a
+  secondary account is active but the root token no longer resolves (revoked,
+  role change, expiry) — both are now a full logout.
+- **Admin user form: editing an email to an already-taken address returns a
+  changeset error instead of crashing the LiveView.** `validate_email: false`
+  skipped `unique_constraint` along with the pre-flight uniqueness query.
+- **Magic-link request page is no longer an account-existence oracle** — the
+  registered and unregistered branches used different flash copy.
+- **A non-last Owner can be deactivated again.** `status_changeset/2` rejected
+  `is_active: false` for every Owner, contradicting the context's
+  last-owner-under-lock guard that deliberately allows revoking a compromised
+  non-last Owner.
+- **`MultiSession.add_account/3` now passes the client IP**, so the per-IP
+  login bucket applies to it as it does on the main login form.
+- **Magic-link consumption is atomic** (`delete_all` by uuid, branch on the
+  row count) — a concurrent replay yields `{:error, :invalid_token}` instead of
+  `Ecto.StaleEntryError`. OAuth accounts with no email (GitHub allows it) now
+  fail with `{:error, :provider_email_missing}` rather than a
+  `FunctionClauseError` inside the transaction.
+
+**Integrations, settings, cache**
+
+- **`Cache.clear_by_prefix/2` no longer crashes a cache started without
+  `ttl:`** — its fold matched only 3-tuples, but TTL-less entries are
+  `{key, value}`; the `FunctionClauseError` killed the GenServer and dropped
+  its `:named_table`.
+- **`Encryption.decrypt_fields/1` never returns `enc:v1:` ciphertext as a live
+  credential.** With no key resolving (encryption disabled, key store
+  unreachable) the map path passed encrypted values through untouched; they
+  are now dropped and logged, matching the existing wrong-key behaviour.
+- **OAuth token refresh treats a failed persist as an error.** The save result
+  was discarded, so a failed UPDATE still returned `{:ok, token}` and — for
+  IdPs that rotate refresh tokens — left the burned old refresh token in the
+  row.
+- **`Settings.get_json_settings_cached/2` fills cache misses from the
+  database** instead of returning `nil` for every absent/expired key (the same
+  bug `get_settings_cached/2` was patched for).
+- **`Integrations.get_integration/1` by uuid only resolves
+  `module: "integrations"` rows** — any JSONB settings row's uuid used to
+  decrypt-as-integration.
+- **Removed the legacy `:cache_settings` ETS table** — it received every
+  decrypted setting on warm and was never read or invalidated.
+- **File key-store preflight opens its probe with `:exclusive`**, so a planted
+  symlink at `<key>.preflight` can no longer truncate the real key.
+
+**Notifications, activity, jobs**
+
+- **External-channel delivery reaches every recipient of a fan-out.** The
+  `DeliveryWorker` unique key was `{source_uuid, channel}`, so when one
+  activity was routed to N recipients only the first job was inserted within
+  the 300 s window. `recipient_uuid` is now part of the key.
+- **`Notifications.prune/1` also ages out standalone rows** (`create/1`,
+  `create_many/2`, digest summaries) — the delete joined on the activity entry,
+  so rows with `activity_uuid: nil` accumulated forever.
+- **`Activity.log/1`, `Notifications.maybe_create_from_activity/1` and the
+  delivery enqueue `catch :exit`** as well as rescuing — a dead pool exits
+  rather than raises, and the business action that logged the activity was
+  crashing on a DB blip.
+- **`DigestWorker` survives one user's exit** — previously an Oban retry
+  re-sent every digest already delivered to earlier users in the sweep.
+- **`ScheduledJobs` marks a job failed on `exit`/`throw`** instead of leaving
+  the row in `processing` until the stale reclaim and skipping the rest of the
+  sweep.
+- **`activity_retention_days` of `0` or negative falls back to 90** instead of
+  crashing both prune workers daily with a `FunctionClauseError`.
+
+**Built-in modules**
+
+- **Sitemap: an anonymous miss can no longer trigger a full regeneration
+  storm.** Any `GET /sitemaps/<unknown>` used to run `Generator.generate_all/1`
+  (every source, every language) and then 404 — N bogus filenames meant N
+  concurrent full regenerations. Misses within 5 minutes of a full generation
+  now 404 directly, and on-demand generation is single-flight
+  (`:global.trans`; concurrent callers get a 503 with `Retry-After`).
+- **Sitemap scheduler goes through `Oban.insert/1` and `Oban.Repo`** instead
+  of the host repo — `Oban.Job` carries no `@schema_prefix`, so on a prefixed
+  install jobs landed in `public.oban_jobs`, a table no Oban instance polls.
+- **Scheduled sitemap chain survives a skipped or failed run.** A scheduled job
+  that returned early (base URL briefly empty) or errored never rescheduled, so
+  regeneration silently stopped until the next boot.
+- **Video processing parses `ffprobe` output by key** (`stream=…:format=
+  duration`) instead of positionally — WebM/MKV carry duration on the format,
+  not the stream, so the old `[w, h, d] =` match crashed and the file never
+  became active.
+- **`SyncFilesJob` is unique** across `available/scheduled/executing`; the
+  LiveView's `persistent_term` guard was node-local and only set once the job
+  started, so two clicks before pickup ran two concurrent syncs.
+- **Bucket form connection test uses `start_async/3`** — the linked
+  `Task.async` took the form down on an HTTP-pool exit.
+
+**Admin UI**
+
+- **`remove_member` on the user-details page only accepts a member of the
+  organization being viewed**; any uuid used to be detached, and a bogus one
+  crashed the LiveView.
+- **Activity index no longer runs the paginated query twice per mount.**
+- **Authorization settings and the markdown editor map event params through
+  literal allowlists** instead of `String.to_existing_atom/1`.
+- **MediaSelector's `return_to` goes through `Routes.local_path?/1`**, the one
+  redirect guard (rejects control characters), instead of a local copy.
+
+**Install & migrations**
+
+- **`mix phoenix_kit.update -y` fails when `ecto.migrate` fails** instead of
+  printing a warning and exiting 0 with the schema still behind.
+- **`mix phoenix_kit.gen.admin.page` refuses to touch a non-literal
+  `admin_dashboard_tabs`** (a variable, `base ++ […]`, a helper call) — it used
+  to replace the whole value, dropping every page the host had registered.
+- **The migrator raises on a version-lookup query error** instead of folding
+  it into "fresh install" and replaying the whole chain onto a current
+  database.
+- **`DbConnectionCheck` rescues/catches** an unstarted repo and reports the
+  friendly "cannot connect" message instead of a stack trace.
+- **Asset rebuild reports `:rebuild_failed`** when every build command fails;
+  `mix phoenix_kit.assets.rebuild` no longer prints "✅ completed" over it.
+  `MigrationStrategy` says when the DB was unreachable rather than reporting
+  "installed (V00)".
+
+### Known / deferred (recorded, not fixed here)
+
+- Storage: `Manager.public_url/2` issues an S3 `HEAD` per bucket on every
+  `<.image>` render (resolve from `FileLocation` rows instead); orphan
+  detection hardcodes `table_schema = 'public'` and runs a `LIKE '%uuid%'`
+  scan per file on every MediaBrowser mount; `Manager.delete_file/2` reports
+  success if any bucket returned `:ok` (Local returns `:ok` for `enoent`).
+- Settings: no cross-node invalidation (`Settings.Events.broadcast_setting_changed/2`
+  has no callers); read-then-put race can cache a stale value for one TTL.
+- Install: supervisor-order rewrite can emit an unparseable `application.ex`
+  (trailing commas); `gen.migration` mis-detects the version after
+  `consolidate_wrappers`; `modernize_layouts` is a stub that reports success;
+  V179/V180 `down/1` can fail on a raw FK violation after a local
+  manufacturer delete.
+- Auth: reset-password submit does not re-verify the token (upstream
+  phx.gen.auth behaviour); `count_remaining_owners/1` in `delete_user` does
+  not take the last-owner advisory lock.
+- Maintenance: an unparseable schedule `end` value is stored as "no end".
+
 ## 2.13.15 - 2026-08-29
 
 ### Fixed

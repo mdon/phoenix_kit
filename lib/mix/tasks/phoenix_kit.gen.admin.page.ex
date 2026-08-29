@@ -306,7 +306,13 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
               end
 
             _ ->
-              {:ok, Common.replace_code(zipper, [parent_tab, child_tab])}
+              # The value isn't a literal list (a variable, `base ++ [...]`, a
+              # helper call): replacing it would silently drop every admin page
+              # the host already registered.
+              {:error,
+               "config :phoenix_kit, admin_dashboard_tabs is not a literal list, so it " <>
+                 "cannot be updated automatically. Add these entries by hand:\n\n" <>
+                 Macro.to_string([parent_tab, child_tab])}
           end
         end
       )

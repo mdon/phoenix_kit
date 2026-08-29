@@ -28,6 +28,9 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Controller do
   alias PhoenixKit.Modules.Sitemap.Generator
 
   @cache_max_age 3600
+  # A miss that arrives this soon after a full generation means the file
+  # genuinely doesn't exist — don't regenerate the whole set again for it.
+  @on_demand_cooldown_seconds 300
   @valid_xsl_styles ["table", "minimal"]
   # Only allow safe characters in filenames
   @filename_pattern ~r/^[a-z0-9-]+$/
@@ -122,7 +125,7 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Controller do
       _ ->
         style = xsl_style || get_xsl_style(Sitemap.get_config())
 
-        case Generator.generate_all(base_url: Sitemap.get_base_url(), xsl_style: style) do
+        case generate_on_demand(base_url: Sitemap.get_base_url(), xsl_style: style) do
           {:ok, _} ->
             with {:ok, path} <- FileStorage.domain_file_path(host, filename),
                  true <- File.exists?(path) do
@@ -130,6 +133,12 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Controller do
             else
               _ -> send_plain_error(conn, 404, "Sitemap not found")
             end
+
+          {:error, :recently_generated} ->
+            send_plain_error(conn, 404, "Sitemap not found")
+
+          {:error, :busy} ->
+            send_plain_error(conn, 503, "Sitemap is being generated, retry shortly")
 
           {:error, _} ->
             send_plain_error(conn, 500, "Sitemap generation failed")
@@ -214,7 +223,7 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Controller do
     else
       opts = [base_url: base_url, xsl_style: xsl_style, xsl_enabled: true]
 
-      case Generator.generate_all(opts) do
+      case single_flight(fn -> Generator.generate_all(opts) end) do
         {:ok, %{index_xml: xml, total_urls: url_count, modules: modules}} ->
           Sitemap.update_generation_stats(%{url_count: url_count})
           Sitemap.update_module_stats(modules)
@@ -226,6 +235,12 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Controller do
           |> put_resp_header("etag", etag)
           |> put_resp_header("x-sitemap-url-count", to_string(url_count))
           |> send_resp(200, xml)
+
+        {:error, :busy} ->
+          conn
+          |> put_resp_content_type("text/plain")
+          |> put_resp_header("retry-after", "5")
+          |> send_resp(503, "Sitemap is being generated, retry shortly")
 
         {:error, reason} ->
           Logger.error("SitemapController: Generation failed: #{inspect(reason)}")
@@ -258,7 +273,7 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Controller do
     else
       opts = [base_url: base_url, xsl_style: "table", xsl_enabled: true]
 
-      case Generator.generate_all(opts) do
+      case generate_on_demand(opts) do
         {:ok, %{total_urls: url_count, modules: modules}} ->
           Sitemap.update_generation_stats(%{url_count: url_count})
           Sitemap.update_module_stats(modules)
@@ -271,9 +286,49 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Controller do
             send_plain_error(conn, 404, "Module sitemap not found")
           end
 
+        {:error, :recently_generated} ->
+          send_plain_error(conn, 404, "Module sitemap not found")
+
+        {:error, :busy} ->
+          send_plain_error(conn, 503, "Sitemap is being generated, retry shortly")
+
         {:error, _} ->
           send_plain_error(conn, 500, "Failed to generate sitemap")
       end
+    end
+  end
+
+  # ── Private: On-demand generation guard ────────────────────────────
+
+  # A miss on an unauthenticated route used to trigger a FULL regeneration —
+  # every source, every language — and then 404. Any anonymous client could
+  # therefore fan out N concurrent full generations with N bogus filenames.
+  # Two guards: a cooldown (a miss right after a full run means the file
+  # simply doesn't exist) and a single-flight lock so concurrent misses
+  # coalesce onto one run.
+  defp generate_on_demand(opts) do
+    if recently_generated?() do
+      {:error, :recently_generated}
+    else
+      single_flight(fn -> Generator.generate_all(opts) end)
+    end
+  end
+
+  defp recently_generated? do
+    with ts when is_binary(ts) <- Sitemap.get_last_generated(),
+         {:ok, generated_at, _} <- DateTime.from_iso8601(ts) do
+      DateTime.diff(DateTime.utc_now(), generated_at, :second) < @on_demand_cooldown_seconds
+    else
+      _ -> false
+    end
+  end
+
+  # `:global.trans/4` with zero retries returns `:aborted` instantly when
+  # another request already holds the lock.
+  defp single_flight(fun) do
+    case :global.trans({__MODULE__, :generate}, fun, [node()], 0) do
+      :aborted -> {:error, :busy}
+      result -> result
     end
   end
 

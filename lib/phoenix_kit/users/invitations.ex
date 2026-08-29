@@ -16,7 +16,7 @@ defmodule PhoenixKit.Users.Invitations do
   1. Admin calls `create_invitation/3` — invitation is created, encoded_token returned
   2. For existing users: banner shown via `list_pending_for_email/1` + InvitationHook
   3. For new users: invitation email with registration link containing encoded_token
-  4. User accepts via `accept_invitation_by_uuid/2` or declines via `decline_invitation_by_uuid/1`
+  4. User accepts via `accept_invitation_by_uuid/2` or declines via `decline_invitation_by_uuid/2`
   """
 
   import Ecto.Query
@@ -153,6 +153,7 @@ defmodule PhoenixKit.Users.Invitations do
 
   - `{:error, :not_found}` — invitation not found
   - `{:error, :not_pending}` — invitation is not in :pending status
+  - `{:error, :not_invitee}` — invitation was addressed to a different email
   - `{:error, :expired}` — invitation has expired
   - `{:error, reason}` — database or validation error
   """
@@ -167,6 +168,12 @@ defmodule PhoenixKit.Users.Invitations do
 
       invitation.status != :pending ->
         {:error, :not_pending}
+
+      # Invitations are email-bound. The uuid arrives from a client event, so
+      # without this any signed-in user who learns one could join (or, below,
+      # decline) somebody else's invitation.
+      not invitee?(invitation, user) ->
+        {:error, :not_invitee}
 
       DateTime.compare(DateTime.utc_now(), invitation.expires_at) == :gt ->
         {:error, :expired}
@@ -219,11 +226,11 @@ defmodule PhoenixKit.Users.Invitations do
   end
 
   @doc """
-  Declines an invitation by UUID.
+  Declines an invitation by UUID on behalf of the invitee.
 
-  Only pending invitations can be declined.
+  Only pending invitations addressed to `user`'s email can be declined.
   """
-  def decline_invitation_by_uuid(invitation_uuid) do
+  def decline_invitation_by_uuid(invitation_uuid, %User{} = user) do
     repo = RepoHelper.repo()
 
     case repo.get(OrganizationInvitation, invitation_uuid) do
@@ -231,14 +238,29 @@ defmodule PhoenixKit.Users.Invitations do
         {:error, :not_found}
 
       %OrganizationInvitation{status: :pending} = invitation ->
-        invitation
-        |> OrganizationInvitation.decline_changeset()
-        |> repo.update()
+        if invitee?(invitation, user) do
+          invitation
+          |> OrganizationInvitation.decline_changeset()
+          |> repo.update()
+        else
+          {:error, :not_invitee}
+        end
 
       %OrganizationInvitation{} ->
         {:error, :not_pending}
     end
   end
+
+  @doc """
+  True when `user`'s email is the one the invitation was sent to
+  (case-insensitive).
+  """
+  def invitee?(%OrganizationInvitation{email: email}, %User{email: user_email})
+      when is_binary(email) and is_binary(user_email) do
+    String.downcase(String.trim(email)) == String.downcase(String.trim(user_email))
+  end
+
+  def invitee?(_, _), do: false
 
   @doc """
   Cancels a pending invitation by UUID (admin action).

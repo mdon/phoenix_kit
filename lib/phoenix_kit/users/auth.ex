@@ -1349,6 +1349,47 @@ defmodule PhoenixKit.Users.Auth do
   end
 
   @doc """
+  Confirms an account whose email ownership was just proven by an external
+  channel (verified OAuth email, magic link) rather than by the confirmation
+  email — and closes the account-pre-hijack window while doing so.
+
+  An unconfirmed row may have been *pre-registered by someone else* with a
+  password they know. Confirming it alone would hand that row to the rightful
+  address holder while leaving the pre-registrant's password and sessions
+  intact. So, atomically with the confirmation, every token (sessions, pending
+  resets, confirmation links) is deleted and the stored password hash is
+  rotated to an unguessable value. The rightful owner sets a password via
+  "forgot password" if they want one; they never knew the old one.
+
+  Already-confirmed users are returned unchanged.
+  """
+  @spec confirm_user_from_external_proof(User.t()) ::
+          {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+  def confirm_user_from_external_proof(%User{confirmed_at: nil} = user) do
+    rotated_hash = Bcrypt.hash_pwd_salt(:crypto.strong_rand_bytes(32) |> Base.encode64())
+
+    changeset =
+      user
+      |> User.confirm_changeset()
+      |> Ecto.Changeset.change(hashed_password: rotated_hash)
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.update(:user, changeset)
+    |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{user: confirmed_user}} ->
+        Events.broadcast_user_confirmed(confirmed_user)
+        {:ok, confirmed_user}
+
+      {:error, :user, changeset, _} ->
+        {:error, changeset}
+    end
+  end
+
+  def confirm_user_from_external_proof(%User{} = user), do: {:ok, user}
+
+  @doc """
   Manually unconfirms a user account (admin function).
 
   ## Examples

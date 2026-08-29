@@ -48,10 +48,26 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
     :ok
   end
 
+  defp unique_ip do
+    n = System.unique_integer([:positive])
+    {127, 1, n |> div(256) |> rem(256), rem(n, 256)}
+  end
+
+  defp with_peer(conn, ip) do
+    {adapter, payload} = conn.adapter
+    peer = %{address: ip, port: 111_317, ssl_cert: nil}
+    %{conn | adapter: {adapter, Map.put(payload, :peer_data, peer)}, remote_ip: ip}
+  end
+
   defp login(conn, user) do
     token = Auth.generate_user_session_token(user)
 
     conn
+    # `add_account/3` now counts against the per-IP login bucket too, and the
+    # test adapter reports one peer for every conn — give each conn its own
+    # peer (see `with_peer/2` in auth_flows_test.exs) so a login-heavy suite
+    # ordering cannot exhaust this file's bucket.
+    |> with_peer(unique_ip())
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Phoenix.Controller.fetch_flash()
     |> Plug.Conn.put_session(:user_token, token)

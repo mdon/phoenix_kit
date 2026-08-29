@@ -59,6 +59,10 @@ defmodule PhoenixKit.Notifications.DigestWorker do
     end)
   rescue
     e -> Logger.warning("[DigestWorker] user #{user.uuid} failed: #{Exception.message(e)}")
+  catch
+    # An exit (dead pool, timeout) must not abort the sweep: an Oban retry
+    # would re-send every digest already delivered to earlier users.
+    :exit, reason -> Logger.warning("[DigestWorker] user #{user.uuid} failed: #{inspect(reason)}")
   end
 
   # In-app is a delivery mode too: post one aggregated inbox row.

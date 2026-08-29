@@ -77,8 +77,16 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
     end
   end
 
-  def handle_event("test_oauth", %{"provider" => provider}, socket) do
-    provider_atom = String.to_existing_atom(provider)
+  @oauth_providers %{"google" => :google, "github" => :github, "facebook" => :facebook}
+  @media_targets %{
+    "logo" => :logo,
+    "background" => :background,
+    "background_mobile" => :background_mobile
+  }
+
+  def handle_event("test_oauth", %{"provider" => provider}, socket)
+      when is_map_key(@oauth_providers, provider) do
+    provider_atom = @oauth_providers[provider]
     credentials = oauth_credentials_from_settings(provider_atom, socket.assigns.settings)
 
     case OAuthConfig.test_connection(provider_atom, credentials) do
@@ -95,11 +103,12 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
     {:noreply, put_flash(socket, :info, "OAuth configuration reloaded from database")}
   end
 
-  def handle_event("open_media_selector", %{"target" => target}, socket) do
+  def handle_event("open_media_selector", %{"target" => target}, socket)
+      when is_map_key(@media_targets, target) do
     {:noreply,
      socket
      |> assign(:show_media_selector, true)
-     |> assign(:media_selection_target, String.to_existing_atom(target))}
+     |> assign(:media_selection_target, @media_targets[target])}
   end
 
   def handle_event("clear_branding_image", %{"target" => target}, socket) do

@@ -1421,6 +1421,11 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         error ->
           Mix.shell().info("\n⚠️  Migration failed: #{Exception.message(error)}")
           show_manual_migration_instructions()
+
+          # Swallowing this returned exit 0 from `phoenix_kit.update -y` with the
+          # schema still behind — the same "deploy went green with silent
+          # drift" failure the declined-migration path already refuses.
+          Mix.raise("PhoenixKit: database migration failed — see the output above.")
       end
     end
 

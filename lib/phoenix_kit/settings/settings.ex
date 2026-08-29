@@ -585,6 +585,24 @@ defmodule PhoenixKit.Settings do
     end
   end
 
+  defp fill_missing_json_settings(keys) do
+    if Application.get_env(:phoenix_kit, :update_mode, false) or not repo_available?() do
+      %{}
+    else
+      found = query_json_settings_batch(keys)
+      to_cache = Map.new(keys, &{&1, Map.get(found, &1) || @not_found_sentinel})
+      PhoenixKit.Cache.put_multiple(@cache_name, to_cache)
+      found
+    end
+  rescue
+    error ->
+      unless sandbox_ownership_error?(error) do
+        Logger.warning("Settings JSON miss-fill query failed: #{inspect(error)}")
+      end
+
+      %{}
+  end
+
   defp query_settings_or_error(keys) do
     if Application.get_env(:phoenix_kit, :update_mode, false) or not repo_available?() do
       :error
@@ -623,13 +641,21 @@ defmodule PhoenixKit.Settings do
   def get_json_settings_cached(keys, defaults \\ %{}) when is_list(keys) do
     cached_results = PhoenixKit.Cache.get_multiple(@cache_name, keys, %{})
 
-    # Process cached results, replacing sentinel values with defaults
-    Enum.reduce(cached_results, %{}, fn {key, value}, acc ->
-      if value == @not_found_sentinel do
-        Map.put(acc, key, Map.get(defaults, key))
-      else
-        Map.put(acc, key, value)
-      end
+    # Miss-fill, same as `get_settings_cached/2`: `get_multiple/3` omits keys
+    # it does not hold, and a reduce over only the cached map returned `nil`
+    # for every absent/expired key without ever asking the database.
+    missing = Enum.reject(keys, &Map.has_key?(cached_results, &1))
+    fetched = if missing == [], do: %{}, else: fill_missing_json_settings(missing)
+
+    Enum.reduce(keys, %{}, fn key, acc ->
+      value =
+        case Map.fetch(cached_results, key) do
+          {:ok, @not_found_sentinel} -> Map.get(defaults, key)
+          {:ok, cached} -> cached
+          :error -> Map.get(fetched, key) || Map.get(defaults, key)
+        end
+
+      Map.put(acc, key, value)
     end)
   rescue
     error ->

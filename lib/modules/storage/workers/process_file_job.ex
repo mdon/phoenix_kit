@@ -210,6 +210,40 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
     end
   end
 
+  # ffprobe omits absent entries and prints `N/A` for unknown ones — WebM /
+  # Matroska carry duration on the format, not the stream — so parse
+  # key=value lines defensively instead of positionally.
+  defp parse_ffprobe_output(output) do
+    kv =
+      output
+      |> String.split("\n", trim: true)
+      |> Enum.reduce(%{}, fn line, acc ->
+        case String.split(line, "=", parts: 2) do
+          [key, value] -> Map.put_new(acc, String.trim(key), String.trim(value))
+          _ -> acc
+        end
+      end)
+
+    %{}
+    |> put_parsed(:width, kv["width"], &Integer.parse/1)
+    |> put_parsed(:height, kv["height"], &Integer.parse/1)
+    |> put_parsed(:duration, kv["duration"], fn v ->
+      case Float.parse(v) do
+        {f, rest} -> {round(f), rest}
+        :error -> :error
+      end
+    end)
+  end
+
+  defp put_parsed(map, _key, nil, _parser), do: map
+
+  defp put_parsed(map, key, value, parser) do
+    case parser.(value) do
+      {parsed, _rest} -> Map.put(map, key, parsed)
+      :error -> map
+    end
+  end
+
   defp extract_video_metadata(file_path) do
     case System.cmd("ffprobe", [
            "-v",
@@ -217,22 +251,13 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
            "-select_streams",
            "v:0",
            "-show_entries",
-           "stream=width,height,duration",
+           "stream=width,height,duration:format=duration",
            "-of",
-           "default=noprint_wrappers=1:nokey=1",
+           "default=noprint_wrappers=1",
            file_path
          ]) do
       {output, 0} ->
-        [width, height, duration] = String.split(String.trim(output), "\n")
-
-        {
-          :ok,
-          %{
-            width: String.to_integer(width),
-            height: String.to_integer(height),
-            duration: String.to_float(duration) |> round()
-          }
-        }
+        {:ok, parse_ffprobe_output(output)}
 
       {error, _} ->
         Logger.warning("Failed to extract video metadata: #{error}")

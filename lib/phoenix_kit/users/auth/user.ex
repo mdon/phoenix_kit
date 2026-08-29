@@ -299,14 +299,19 @@ defmodule PhoenixKit.Users.Auth.User do
     end
   end
 
+  # `validate_email: false` skips only the pre-flight `unsafe_validate_unique`
+  # round trip. The `unique_constraint` stays on: without it a duplicate
+  # address surfaces as a raised `Ecto.ConstraintError` (crashing the admin
+  # user form) instead of a changeset error.
   defp maybe_validate_unique_email(changeset, opts) do
-    if Keyword.get(opts, :validate_email, true) do
-      changeset
-      |> unsafe_validate_unique(:email, PhoenixKit.RepoHelper.repo())
-      |> unique_constraint(:email)
-    else
-      changeset
-    end
+    changeset =
+      if Keyword.get(opts, :validate_email, true) do
+        unsafe_validate_unique(changeset, :email, PhoenixKit.RepoHelper.repo())
+      else
+        changeset
+      end
+
+    unique_constraint(changeset, :email)
   end
 
   @doc """
@@ -467,10 +472,13 @@ defmodule PhoenixKit.Users.Auth.User do
   A user changeset for updating active status.
   """
   def status_changeset(user, attrs) do
+    # Owner protection lives in `Auth.update_user_status/2` (last-owner check
+    # under the advisory lock). A blanket "no Owner can ever be deactivated"
+    # rule here contradicted it: a compromised non-last Owner could pass the
+    # context guard and then fail on this changeset.
     user
     |> cast(attrs, [:is_active])
     |> validate_inclusion(:is_active, [true, false])
-    |> validate_owner_cannot_be_deactivated()
   end
 
   @doc """
@@ -890,18 +898,6 @@ defmodule PhoenixKit.Users.Auth.User do
   # Ensure username meets minimum length requirement
   defp ensure_minimum_username_length(username) when byte_size(username) >= 3, do: username
   defp ensure_minimum_username_length(username), do: username <> "_1"
-
-  # Prevent deactivating Owner users
-  defp validate_owner_cannot_be_deactivated(changeset) do
-    user = changeset.data
-    is_active = get_field(changeset, :is_active)
-
-    if is_active == false && owner?(user) do
-      add_error(changeset, :is_active, "owner cannot be deactivated")
-    else
-      changeset
-    end
-  end
 
   # Validates user timezone offset is within acceptable range or nil
   defp validate_user_timezone(changeset) do

@@ -106,10 +106,14 @@ defmodule PhoenixKit.Install.MigrationStrategy do
                   {:up_to_date, igniter}
               end
             rescue
-              _ ->
-                # If DB not accessible but migration files exist, this is an update case
-                # Migration files exist but haven't been run yet
-                # No DB table = version 0
+              error ->
+                # DB not reachable but migration files exist. The real version is
+                # unknown — say so instead of reporting "installed (V00)".
+                Mix.shell().info(
+                  "⚠️  Could not read the installed PhoenixKit version from the database " <>
+                    "(#{Exception.message(error)}); assuming an upgrade is needed."
+                )
+
                 current_version = 0
                 target_version = Postgres.current_version()
                 {:upgrade_needed, igniter, current_version, target_version}

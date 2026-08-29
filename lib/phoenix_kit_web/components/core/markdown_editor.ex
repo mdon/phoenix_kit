@@ -471,8 +471,9 @@ defmodule PhoenixKitWeb.Components.Core.MarkdownEditor do
         "editor_toolbar_click",
         %{"action" => action, "editor-id" => editor_id},
         socket
-      ) do
-    type = String.to_existing_atom(action)
+      )
+      when action in ["image", "video"] do
+    type = if action == "image", do: :image, else: :video
     send(self(), {:editor_insert_component, %{type: type, editor_id: editor_id}})
     {:noreply, socket}
   end

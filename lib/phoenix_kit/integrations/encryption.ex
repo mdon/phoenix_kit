@@ -125,10 +125,8 @@ defmodule PhoenixKit.Integrations.Encryption do
   """
   @spec decrypt_fields(map()) :: map()
   def decrypt_fields(data) when is_map(data) do
-    case encryption_key() do
-      nil -> data
-      key -> do_decrypt_fields(data, key)
-    end
+    {result, _failed} = decrypt_fields_with_failures(data)
+    result
   end
 
   def decrypt_fields(other), do: other
@@ -154,9 +152,32 @@ defmodule PhoenixKit.Integrations.Encryption do
   @spec decrypt_fields_with_failures(map()) :: {map(), [String.t()]}
   def decrypt_fields_with_failures(data) when is_map(data) do
     case encryption_key() do
-      nil -> {data, []}
+      nil -> strip_undecryptable_without_key(data)
       key -> do_decrypt_fields_tracking(data, key)
     end
+  end
+
+  # No key resolves (encryption disabled, or key store + secret_key_base
+  # unavailable) but the row carries `enc:v1:` values: the map path used to
+  # hand the ciphertext back as the live credential — the same silent
+  # failure the wrong-key path already refuses. Treat those fields as absent
+  # and say so, mirroring `maybe_decrypt_field/4`.
+  defp strip_undecryptable_without_key(data) do
+    Enum.reduce(@sensitive_fields, {data, []}, fn field, {acc, failed} ->
+      case Map.get(acc, field) do
+        @encrypted_prefix <> _ ->
+          Logger.error(
+            "[Integrations.Encryption] Field #{inspect(field)} is encrypted but no " <>
+              "encryption key is available (encryption disabled or key store unreachable). " <>
+              "Treating the credential as missing rather than returning ciphertext."
+          )
+
+          {Map.delete(acc, field), [field | failed]}
+
+        _ ->
+          {acc, failed}
+      end
+    end)
   end
 
   @doc """
@@ -1009,11 +1030,6 @@ defmodule PhoenixKit.Integrations.Encryption do
           acc
       end
     end)
-  end
-
-  defp do_decrypt_fields(data, key) do
-    {result, _failed_fields} = do_decrypt_fields_tracking(data, key)
-    result
   end
 
   defp do_decrypt_fields_tracking(data, key) do

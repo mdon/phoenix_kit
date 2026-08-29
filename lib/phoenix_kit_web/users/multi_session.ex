@@ -18,6 +18,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Role
+  alias PhoenixKit.Utils.IpAddress
 
   @stack_key :pk_session_accounts
   @max_accounts 5
@@ -166,7 +167,13 @@ defmodule PhoenixKitWeb.Users.MultiSession do
     if length(stack) >= @max_accounts do
       {:error, :stack_full}
     else
-      case Auth.get_user_by_email_or_username_and_password(email_or_username, password) do
+      # Pass the IP so the per-IP login bucket applies here as it does on the
+      # main login form — otherwise only the per-email bucket limits a spray.
+      case Auth.get_user_by_email_or_username_and_password(
+             email_or_username,
+             password,
+             IpAddress.extract_from_conn(conn)
+           ) do
         {:ok, %Auth.User{is_active: true} = user} ->
           if already_in_stack?(stack, user) do
             {:error, :already_in_stack}
@@ -525,10 +532,25 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   def log_out_active(conn) do
     session = get_session(conn)
     stack = stack_tokens(session)
-    [root_token | _] = stack
     active = session["user_token"]
 
-    if active == root_token or length(stack) <= 1 do
+    case stack do
+      # No session at all (expired, stale tab, double-click on logout): the
+      # route is on the unauthenticated scope, so this is a full logout, not a
+      # MatchError.
+      [] -> {:full, conn}
+      [root_token | _] when active == root_token -> {:full, conn}
+      [_] -> {:full, conn}
+      [root_token | _] -> log_out_to_root(conn, session, stack, active, root_token)
+    end
+  end
+
+  defp log_out_to_root(conn, session, stack, active, root_token) do
+    root_user = Auth.get_user_by_session_token(root_token)
+
+    if is_nil(root_user) do
+      # The root token no longer resolves (revoked by an admin, role change,
+      # expiry) — nothing to switch back to, so drain everything.
       {:full, conn}
     else
       if live_socket_id = session["live_socket_id"] do
@@ -537,7 +559,6 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
       Auth.delete_user_session_token(active)
       new_stack = List.delete(stack, active)
-      root_user = Auth.get_user_by_session_token(root_token)
 
       conn =
         conn

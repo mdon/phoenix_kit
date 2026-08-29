@@ -67,6 +67,11 @@ defmodule PhoenixKit.Activity do
     e ->
       Logger.warning("Activity logging error: #{inspect(e)}")
       {:error, e}
+  catch
+    # A dead pool / checkout timeout exits rather than raises.
+    :exit, reason ->
+      Logger.warning("Activity logging error: #{inspect(reason)}")
+      {:error, reason}
   end
 
   # Fan out to per-user notifications. Guarded with `Code.ensure_loaded?` so
@@ -313,8 +318,8 @@ defmodule PhoenixKit.Activity do
     case Settings.get_setting("activity_retention_days", "90") do
       val when is_binary(val) ->
         case Integer.parse(val) do
-          {n, _} -> n
-          :error -> 90
+          {n, _} when n > 0 -> n
+          _ -> 90
         end
 
       _ ->

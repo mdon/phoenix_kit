@@ -979,6 +979,13 @@ defmodule PhoenixKit.Migrations.Postgres do
         # Table doesn't exist - no PhoenixKit installed
         0
 
+      {:error, reason} ->
+        # A transient failure here (lock/statement timeout, cancelled query)
+        # used to read as "fresh install" and replay the whole chain onto a
+        # current database. The migrator must not guess.
+        raise "PhoenixKit: could not determine the installed migration version " <>
+                "(#{inspect(reason)}). Refusing to guess — re-run once the database is reachable."
+
       _ ->
         0
     end

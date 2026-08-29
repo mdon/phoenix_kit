@@ -136,16 +136,24 @@ defmodule Mix.Tasks.PhoenixKit.Assets.Rebuild do
     JsIntegration.update_js_file()
 
     # Always rebuild assets - no complex checks needed
-    AssetRebuild.check_and_rebuild(verbose: verbose)
+    case AssetRebuild.check_and_rebuild(verbose: verbose) do
+      :rebuild_completed ->
+        if verbose do
+          IO.puts("""
 
-    if verbose do
-      IO.puts("""
+          ✅ PhoenixKit asset rebuild completed!
 
-      ✅ PhoenixKit asset rebuild completed!
+          Your application should now have the latest CSS integration.
+          If you're running a dev server, you may need to refresh your browser.
+          """)
+        end
 
-      Your application should now have the latest CSS integration.
-      If you're running a dev server, you may need to refresh your browser.
-      """)
+      _ ->
+        IO.puts(:stderr, """
+
+        ❌ PhoenixKit asset rebuild did not complete — every build command failed.
+        Run your asset build by hand (e.g. `mix assets.build`) and check its output.
+        """)
     end
   end
 

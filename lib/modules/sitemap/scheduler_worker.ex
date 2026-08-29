@@ -58,24 +58,35 @@ defmodule PhoenixKit.Modules.Sitemap.SchedulerWorker do
       Logger.info("SitemapSchedulerWorker: Starting scheduled regeneration")
     end
 
-    cond do
-      # Sitemap module must be enabled for any regeneration
-      not Sitemap.enabled?() ->
-        Logger.info("SitemapSchedulerWorker: Sitemap module disabled, skipping regeneration")
-        :ok
+    result =
+      cond do
+        # Sitemap module must be enabled for any regeneration
+        not Sitemap.enabled?() ->
+          Logger.info("SitemapSchedulerWorker: Sitemap module disabled, skipping regeneration")
+          :ok
 
-      # Schedule check only applies to scheduled jobs, not manual ones
-      not is_manual and not schedule_enabled?() ->
-        Logger.info("SitemapSchedulerWorker: Scheduling disabled, skipping regeneration")
-        :ok
+        # Schedule check only applies to scheduled jobs, not manual ones
+        not is_manual and not schedule_enabled?() ->
+          Logger.info("SitemapSchedulerWorker: Scheduling disabled, skipping regeneration")
+          :ok
 
-      not valid_base_url?() ->
-        Logger.warning("SitemapSchedulerWorker: Base URL not configured, skipping regeneration")
-        :ok
+        not valid_base_url?() ->
+          Logger.warning("SitemapSchedulerWorker: Base URL not configured, skipping regeneration")
+          :ok
 
-      true ->
-        do_perform_regeneration(args)
+        true ->
+          do_perform_regeneration(args)
+      end
+
+    # The chain must survive a skipped or failed run: a scheduled job that
+    # returned without rescheduling (base URL briefly empty, one transient
+    # generation error) used to stop regeneration until the next boot's
+    # `ensure_scheduled/0`. Scheduling still enabled → keep the chain alive.
+    if args["scheduled"] and schedule_enabled?() and Sitemap.enabled?() do
+      schedule_next()
     end
+
+    result
   end
 
   defp valid_base_url? do
@@ -101,7 +112,6 @@ defmodule PhoenixKit.Modules.Sitemap.SchedulerWorker do
     case result do
       :ok ->
         Logger.info("SitemapSchedulerWorker: Regeneration completed successfully")
-        if args["scheduled"], do: schedule_next()
         :ok
 
       {:error, reason} ->
@@ -253,7 +263,7 @@ defmodule PhoenixKit.Modules.Sitemap.SchedulerWorker do
       Oban.Job
       |> where([j], j.worker == ^worker_name)
       |> where([j], j.state in ["available", "scheduled"])
-      |> get_repo().delete_all()
+      |> oban_repo_delete_all()
 
     Logger.info("SitemapSchedulerWorker: Cancelled #{count} scheduled jobs")
     {:ok, count}
@@ -272,7 +282,7 @@ defmodule PhoenixKit.Modules.Sitemap.SchedulerWorker do
       |> where([j], j.state in ["available", "scheduled"])
       |> order_by([j], asc: j.scheduled_at)
       |> limit(1)
-      |> get_repo().one()
+      |> oban_repo_one()
 
     %{
       enabled: schedule_enabled?(),
@@ -337,8 +347,12 @@ defmodule PhoenixKit.Modules.Sitemap.SchedulerWorker do
     end
   end
 
+  # Through Oban, not the repo: `Oban.Job` carries no `@schema_prefix`, so a
+  # raw `Repo.insert` lands in `public.oban_jobs` on a prefixed install — a
+  # table no Oban instance polls. Oban.insert also fires the insert
+  # notification so the job is picked up without waiting for the poller.
   defp insert_job(changeset) do
-    case get_repo().insert(changeset) do
+    case Oban.insert(changeset) do
       {:ok, job} ->
         Logger.info("SitemapSchedulerWorker: Job scheduled for #{job.scheduled_at}")
         {:ok, job}
@@ -355,10 +369,12 @@ defmodule PhoenixKit.Modules.Sitemap.SchedulerWorker do
     Oban.Job
     |> where([j], j.worker == ^worker_name)
     |> where([j], j.state in ["available", "scheduled"])
-    |> get_repo().aggregate(:count)
+    |> oban_repo_aggregate(:count)
   end
 
-  defp get_repo do
-    PhoenixKit.RepoHelper.repo()
-  end
+  # Oban.Repo threads the instance's `prefix` into every query, so these hit
+  # the same `oban_jobs` table the running Oban instance polls.
+  defp oban_repo_one(query), do: Oban.Repo.one(Oban.config(), query)
+  defp oban_repo_delete_all(query), do: Oban.Repo.delete_all(Oban.config(), query)
+  defp oban_repo_aggregate(query, agg), do: Oban.Repo.aggregate(Oban.config(), query, agg)
 end

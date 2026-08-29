@@ -34,9 +34,11 @@ defmodule PhoenixKit.Notifications.DeliveryWorker do
   use Oban.Worker,
     queue: :notifications,
     max_attempts: 5,
-    # One job per source+channel — dedupes a double-logged activity or a
-    # re-run of the creation path. (Retries of THIS job reuse the same row.)
-    unique: [keys: [:source_uuid, :channel], period: 300]
+    # One job per source+recipient+channel — dedupes a double-logged activity
+    # or a re-run of the creation path without collapsing a fan-out (one
+    # source routed to N recipients) onto its first recipient. (Retries of
+    # THIS job reuse the same row.)
+    unique: [keys: [:source_uuid, :recipient_uuid, :channel], period: 300]
 
   require Logger
 

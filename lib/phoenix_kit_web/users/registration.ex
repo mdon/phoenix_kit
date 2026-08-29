@@ -199,8 +199,10 @@ defmodule PhoenixKitWeb.Users.Registration do
             # the access gate.
             Referrals.record_signup_use(user, validated_code)
 
-            # Store invitation UUID in custom_fields for auto-accept after email confirmation
-            if socket.assigns[:pending_invitation] do
+            # Store invitation UUID in custom_fields for auto-accept after email
+            # confirmation — only when the address registered IS the invited one;
+            # a forwarded invite link must not enrol an arbitrary address.
+            if invitation_for?(socket.assigns[:pending_invitation], user) do
               Auth.update_user_fields(user, %{
                 "pending_invitation_uuid" => socket.assigns.pending_invitation.uuid
               })
@@ -338,6 +340,9 @@ defmodule PhoenixKitWeb.Users.Registration do
       end
     end
   end
+
+  defp invitation_for?(nil, _user), do: false
+  defp invitation_for?(invitation, user), do: Invitations.invitee?(invitation, user)
 
   defp load_pending_invitation(nil), do: nil
 

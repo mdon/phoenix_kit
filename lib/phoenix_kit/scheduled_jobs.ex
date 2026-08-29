@@ -333,6 +333,18 @@ defmodule PhoenixKit.ScheduledJobs do
       )
 
       {:error, e}
+  catch
+    # A handler that exits or throws would otherwise leave the row stuck in
+    # `processing` until the stale reclaim and skip the rest of the sweep.
+    kind, reason when kind in [:exit, :throw] ->
+      error_message = "#{kind}: #{inspect(reason)}"
+      mark_failed(job, error_message)
+
+      Logger.error(
+        "ScheduledJobs: Job #{job.uuid} (#{job.job_type}) failed with #{error_message}"
+      )
+
+      {:error, reason}
   end
 
   # One winner per row: flips pending -> processing, and only the flipper

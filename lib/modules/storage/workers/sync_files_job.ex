@@ -5,7 +5,13 @@ defmodule PhoenixKit.Modules.Storage.Workers.SyncFilesJob do
   Broadcasts progress via PubSub so the Health LiveView can display real-time
   updates. Stores sync state in persistent_term so the UI survives page refreshes.
   """
-  use Oban.Worker, queue: :file_processing, max_attempts: 1
+  # One sync at a time: the LiveView's persistent_term guard is node-local and
+  # only set once the job STARTS, so two clicks before pickup used to insert
+  # two concurrent syncs replicating the same instances.
+  use Oban.Worker,
+    queue: :file_processing,
+    max_attempts: 1,
+    unique: [period: :infinity, states: [:available, :scheduled, :executing]]
 
   require Logger
 

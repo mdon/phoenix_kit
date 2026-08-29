@@ -87,7 +87,7 @@ defmodule PhoenixKitWeb.Hooks.InvitationHook do
   defp handle_invitation_event("decline_invitation", %{"uuid" => uuid}, socket) do
     user = socket.assigns.phoenix_kit_current_user
 
-    case Invitations.decline_invitation_by_uuid(uuid) do
+    case Invitations.decline_invitation_by_uuid(uuid, user) do
       {:ok, _} ->
         pending = Invitations.list_pending_for_email(user.email)
 

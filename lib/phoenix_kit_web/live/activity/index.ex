@@ -56,8 +56,10 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
         |> assign(:action_types, Activity.list_action_types())
         |> assign(:resource_types, Activity.list_resource_types())
         |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
+        # handle_params/3 always follows mount and loads with the URL's
+        # filters — loading here too ran the query twice per mount, the first
+        # time with defaults that a deep link immediately discards.
         |> assign_filter_defaults()
-        |> load_activities()
 
       {:ok, socket}
     else

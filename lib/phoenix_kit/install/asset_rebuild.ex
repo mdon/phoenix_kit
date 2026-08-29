@@ -55,10 +55,10 @@ defmodule PhoenixKit.Install.AssetRebuild do
   # Try commands in order until one succeeds
   defp execute_first_available_command([], verbose) do
     if verbose do
-      IO.puts("ℹ️  No asset build commands available - skipping asset rebuild")
+      IO.puts("⚠️  No asset build command succeeded — assets were NOT rebuilt")
     end
 
-    :rebuild_completed
+    :rebuild_failed
   end
 
   defp execute_first_available_command([{cmd, args} | rest], verbose) do

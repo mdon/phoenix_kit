@@ -103,6 +103,31 @@ defmodule PhoenixKit.Integration.Users.InvitationsTest do
   # --- accept_invitation_by_uuid/2 ---
 
   describe "accept_invitation_by_uuid/2" do
+    test "a different user cannot accept someone else's invitation" do
+      org = create_org()
+      person = create_person()
+      other = create_person()
+      admin = create_admin()
+      {:ok, invitation, _} = Invitations.create_invitation(org, person.email, admin)
+
+      assert {:error, :not_invitee} =
+               Invitations.accept_invitation_by_uuid(invitation.uuid, other)
+
+      assert is_nil(Auth.get_user(other.uuid).organization_uuid)
+      assert Repo.get!(OrganizationInvitation, invitation.uuid).status == :pending
+    end
+
+    test "email match is case-insensitive" do
+      org = create_org()
+      person = create_person()
+      admin = create_admin()
+
+      {:ok, invitation, _} =
+        Invitations.create_invitation(org, String.upcase(person.email), admin)
+
+      assert {:ok, _} = Invitations.accept_invitation_by_uuid(invitation.uuid, person)
+    end
+
     test "sets organization_uuid on user" do
       org = create_org()
       person = create_person()
@@ -161,16 +186,16 @@ defmodule PhoenixKit.Integration.Users.InvitationsTest do
     end
   end
 
-  # --- decline_invitation_by_uuid/1 ---
+  # --- decline_invitation_by_uuid/2 ---
 
-  describe "decline_invitation_by_uuid/1" do
+  describe "decline_invitation_by_uuid/2" do
     test "marks invitation as declined" do
       org = create_org()
       person = create_person()
       admin = create_admin()
       {:ok, invitation, _} = Invitations.create_invitation(org, person.email, admin)
 
-      assert {:ok, declined} = Invitations.decline_invitation_by_uuid(invitation.uuid)
+      assert {:ok, declined} = Invitations.decline_invitation_by_uuid(invitation.uuid, person)
       assert declined.status == :declined
     end
 
@@ -179,7 +204,7 @@ defmodule PhoenixKit.Integration.Users.InvitationsTest do
       person = create_person()
       admin = create_admin()
       {:ok, invitation, _} = Invitations.create_invitation(org, person.email, admin)
-      {:ok, _} = Invitations.decline_invitation_by_uuid(invitation.uuid)
+      {:ok, _} = Invitations.decline_invitation_by_uuid(invitation.uuid, person)
 
       updated = Auth.get_user(person.uuid)
       assert is_nil(updated.organization_uuid)
@@ -192,11 +217,13 @@ defmodule PhoenixKit.Integration.Users.InvitationsTest do
       {:ok, invitation, _} = Invitations.create_invitation(org, person.email, admin)
       {:ok, _} = Invitations.accept_invitation_by_uuid(invitation.uuid, person)
 
-      assert {:error, :not_pending} = Invitations.decline_invitation_by_uuid(invitation.uuid)
+      assert {:error, :not_pending} =
+               Invitations.decline_invitation_by_uuid(invitation.uuid, person)
     end
 
     test "returns error for non-existent invitation uuid" do
-      assert {:error, :not_found} = Invitations.decline_invitation_by_uuid(UUIDv7.generate())
+      assert {:error, :not_found} =
+               Invitations.decline_invitation_by_uuid(UUIDv7.generate(), create_person())
     end
   end
 
@@ -261,7 +288,7 @@ defmodule PhoenixKit.Integration.Users.InvitationsTest do
       person = create_person()
       admin = create_admin()
       {:ok, invitation, _} = Invitations.create_invitation(org, person.email, admin)
-      {:ok, _} = Invitations.decline_invitation_by_uuid(invitation.uuid)
+      {:ok, _} = Invitations.decline_invitation_by_uuid(invitation.uuid, person)
 
       pending = Invitations.list_pending_for_email(person.email)
       assert pending == []

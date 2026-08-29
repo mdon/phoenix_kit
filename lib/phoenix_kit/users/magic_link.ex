@@ -161,11 +161,17 @@ defmodule PhoenixKit.Users.MagicLink do
 
         case repo().one(query) do
           {user, user_token} ->
-            # Delete the token to make it single-use
-            repo().delete(user_token)
+            # Single-use: delete by uuid and branch on the row count, so a
+            # concurrent replay of the same link loses cleanly instead of
+            # raising StaleEntryError.
+            case repo().delete_all(from(t in UserToken, where: t.uuid == ^user_token.uuid)) do
+              {1, _} ->
+                # Auto-confirm user on magic link authentication
+                confirm_user_if_needed(user)
 
-            # Auto-confirm user on magic link authentication
-            confirm_user_if_needed(user)
+              _ ->
+                {:error, :invalid_token}
+            end
 
           nil ->
             {:error, :invalid_token}
@@ -287,7 +293,7 @@ defmodule PhoenixKit.Users.MagicLink do
   # Auto-confirm user if not yet confirmed
   # If user can click the magic link, they have proven email ownership
   defp confirm_user_if_needed(%User{confirmed_at: nil} = user) do
-    case Auth.admin_confirm_user(user) do
+    case Auth.confirm_user_from_external_proof(user) do
       {:ok, confirmed_user} ->
         PhoenixKit.Activity.log(%{
           action: "user.email_confirmed",

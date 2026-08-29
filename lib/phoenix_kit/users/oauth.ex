@@ -67,6 +67,11 @@ if Code.ensure_loaded?(Ueberauth) do
         linked_user = user_by_provider_identity(oauth_data) ->
           {:ok, linked_user, :found}
 
+        # A provider account with no (public/primary) email — GitHub allows
+        # it — must fail here, not as a FunctionClauseError inside the lookup.
+        not (is_binary(oauth_data.email) and oauth_data.email != "") ->
+          {:error, :provider_email_missing}
+
         existing_user = Auth.get_user_by_email(oauth_data.email) ->
           attach_to_existing_user(existing_user, oauth_data)
 
@@ -207,7 +212,7 @@ if Code.ensure_loaded?(Ueberauth) do
     # confirming on it turned an unverified provider address into a confirmed
     # local account.
     defp maybe_confirm_user(%User{confirmed_at: nil} = user) do
-      case Auth.admin_confirm_user(user) do
+      case Auth.confirm_user_from_external_proof(user) do
         {:ok, confirmed_user} ->
           PhoenixKit.Activity.log(%{
             action: "user.email_confirmed",

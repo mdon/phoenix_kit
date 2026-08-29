@@ -401,8 +401,15 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
 
   @impl true
   def handle_event("remove_member", %{"uuid" => member_uuid}, socket) do
-    member = Auth.get_user!(member_uuid)
+    # Only a member of THIS organization — the uuid comes from a client event
+    # and `remove_from_organization/1` itself has no ownership check.
+    case Enum.find(socket.assigns.organization_members, &(&1.uuid == member_uuid)) do
+      nil -> {:noreply, socket}
+      member -> remove_member(socket, member)
+    end
+  end
 
+  defp remove_member(socket, member) do
     case Auth.remove_from_organization(member) do
       {:ok, _} ->
         members = Auth.list_organization_members(socket.assigns.user.uuid)

@@ -51,5 +51,11 @@ defmodule PhoenixKit.Install.DbConnectionCheck do
     else
       _ -> false
     end
+  rescue
+    # An unstarted repo raises ("could not lookup Ecto repo"); the friendly
+    # "cannot connect" message is the point of this check.
+    _ -> false
+  catch
+    :exit, _ -> false
   end
 end

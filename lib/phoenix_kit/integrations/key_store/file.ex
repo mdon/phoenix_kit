@@ -206,7 +206,10 @@ defmodule PhoenixKit.Integrations.KeyStore.File do
   defp probe(path) do
     probe_path = path <> ".preflight"
 
-    case File.write(probe_path, "") do
+    # `:exclusive` refuses an existing path — including a planted symlink
+    # pointing at the real key, which a plain `File.write` would follow and
+    # truncate.
+    case probe_open(probe_path) do
       :ok ->
         # A probe that cannot be removed means the directory is writable but not
         # cleanable, which is worth saying rather than leaving litter behind.
@@ -217,6 +220,13 @@ defmodule PhoenixKit.Integrations.KeyStore.File do
 
       {:error, reason} ->
         {:error, {:not_writable, path, reason}}
+    end
+  end
+
+  defp probe_open(probe_path) do
+    case :file.open(probe_path, [:write, :binary, :exclusive]) do
+      {:ok, fd} -> :file.close(fd)
+      {:error, reason} -> {:error, reason}
     end
   end
 

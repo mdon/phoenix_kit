@@ -113,8 +113,10 @@ defmodule PhoenixKit.Integrations do
           {:ok, map()} | {:error, :not_configured | :invalid_provider_key}
   def get_integration(provider_key) when is_binary(provider_key) and provider_key != "" do
     if uuid?(provider_key) do
-      case Settings.get_json_setting_by_uuid(provider_key) do
-        %{} = data -> {:ok, Encryption.decrypt_fields(data)}
+      # Through resolve_uuid so only `module: "integrations"` rows qualify —
+      # any JSONB settings row's uuid used to decrypt-as-integration.
+      case resolve_uuid(provider_key, :any) do
+        {:ok, %{data: data}} -> {:ok, data}
         _ -> {:error, :not_configured}
       end
     else
@@ -515,10 +517,12 @@ defmodule PhoenixKit.Integrations do
              resolve_uuid(uuid),
            {:ok, provider} <- fetch_provider(base_provider),
            {:ok, new_token, updated_fields} <-
-             OAuth.refresh_access_token(provider.oauth_config, data) do
-        updated = Map.merge(data, updated_fields)
-        save_integration(setting, updated, undecryptable_fields)
-
+             OAuth.refresh_access_token(provider.oauth_config, data),
+           # A failed persist must be an error: for IdPs that rotate the
+           # refresh token, returning `{:ok, token}` here would leave the
+           # now-burned old refresh token in the row.
+           {:ok, _} <-
+             save_integration(setting, Map.merge(data, updated_fields), undecryptable_fields) do
         log_activity("integration.token_refreshed", base_provider, name, %{}, "auto", nil, uuid)
 
         {:ok, new_token}

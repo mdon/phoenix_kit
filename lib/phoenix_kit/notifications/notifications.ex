@@ -57,6 +57,10 @@ defmodule PhoenixKit.Notifications do
     e ->
       Logger.warning("Notifications.maybe_create_from_activity failed: #{inspect(e)}")
       {:ok, :skipped}
+  catch
+    :exit, reason ->
+      Logger.warning("Notifications.maybe_create_from_activity failed: #{inspect(reason)}")
+      {:ok, :skipped}
   end
 
   @doc """
@@ -169,6 +173,10 @@ defmodule PhoenixKit.Notifications do
   rescue
     e ->
       Logger.warning("Notifications delivery enqueue failed: #{inspect(e)}")
+      :ok
+  catch
+    :exit, reason ->
+      Logger.warning("Notifications delivery enqueue failed: #{inspect(reason)}")
       :ok
   end
 
@@ -845,7 +853,7 @@ defmodule PhoenixKit.Notifications do
   def prune(days) when is_integer(days) and days > 0 do
     cutoff = DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
 
-    {count, _} =
+    {activity_backed, _} =
       from(n in Notification,
         join: e in Entry,
         on: e.uuid == n.activity_uuid,
@@ -853,6 +861,16 @@ defmodule PhoenixKit.Notifications do
       )
       |> repo().delete_all()
 
+    # Standalone rows (`create/1`, `create_many/2`, digest summaries) have no
+    # activity entry to join on — age them by their own timestamp, or they
+    # accumulate forever.
+    {standalone, _} =
+      from(n in Notification,
+        where: is_nil(n.activity_uuid) and n.inserted_at < ^cutoff
+      )
+      |> repo().delete_all()
+
+    count = activity_backed + standalone
     Logger.info("Pruned #{count} notifications older than #{days} days")
     {:ok, count}
   end

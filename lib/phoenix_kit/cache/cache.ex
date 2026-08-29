@@ -359,16 +359,6 @@ defmodule PhoenixKit.Cache do
     table =
       :ets.new(:"cache_#{name}", [:set, :protected, :named_table, {:read_concurrency, true}])
 
-    # Support legacy cache_settings table for backwards compatibility
-    if name == :settings do
-      try do
-        :ets.new(:cache_settings, [:set, :protected, :named_table, {:read_concurrency, true}])
-      rescue
-        # Table already exists
-        ArgumentError -> :ok
-      end
-    end
-
     state = %__MODULE__{
       name: name,
       table: table,
@@ -499,7 +489,12 @@ defmodule PhoenixKit.Cache do
     # Find all keys matching the prefix and delete them
     matching_keys =
       :ets.foldl(
-        fn {key, _value, _expires_at}, acc ->
+        # Entries are `{key, value}` without a TTL and `{key, value, expires_at}`
+        # with one — match on the key position only, or a prefix clear on a
+        # TTL-less cache crashes the server and drops its table.
+        fn entry, acc ->
+          key = elem(entry, 0)
+
           if is_binary(key) and String.starts_with?(key, prefix) do
             [key | acc]
           else
@@ -656,7 +651,7 @@ defmodule PhoenixKit.Cache do
     PhoenixKit.Cache.Registry.via_tuple(name)
   end
 
-  defp warm_critical_data(%{name: name, table: table, ttl: ttl}, data) do
+  defp warm_critical_data(%{table: table, ttl: ttl}, data) do
     Enum.each(data, fn {key, value} ->
       # Use 2-tuple when no TTL (matches handle_call pattern [{^key, value}])
       # Use 3-tuple only when TTL is set (matches [{^key, value, expires_at}] when is_integer)
@@ -668,11 +663,6 @@ defmodule PhoenixKit.Cache do
         end
 
       :ets.insert(table, entry)
-
-      # Also write to legacy cache_settings table if this is settings cache
-      if name == :settings do
-        :ets.insert(:cache_settings, entry)
-      end
     end)
   end
 

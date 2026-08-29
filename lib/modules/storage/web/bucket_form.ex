@@ -103,8 +103,13 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
       "integration_uuid" => Ecto.Changeset.get_field(changeset, :integration_uuid)
     }
 
-    socket = assign(socket, :testing_connection, true)
-    Task.async(fn -> {:test_connection_result, Storage.test_connection(bucket_params)} end)
+    # start_async is unlinked: an HTTP-pool exit inside the probe (an exit,
+    # not a raise — test_connection only rescues) must not take the form down.
+    socket =
+      socket
+      |> assign(:testing_connection, true)
+      |> start_async(:test_connection, fn -> Storage.test_connection(bucket_params) end)
+
     {:noreply, socket}
   end
 
@@ -177,9 +182,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
     {:noreply, socket}
   end
 
-  def handle_info({ref, {:test_connection_result, result}}, socket) when is_reference(ref) do
-    Process.demonitor(ref, [:flush])
-
+  def handle_async(:test_connection, {:ok, result}, socket) do
     {status, error} =
       case result do
         :ok -> {:success, nil}
@@ -195,7 +198,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
     {:noreply, socket}
   end
 
-  def handle_info({:DOWN, _ref, :process, _pid, _reason}, socket) do
+  def handle_async(:test_connection, {:exit, _reason}, socket) do
     socket =
       socket
       |> assign(:connection_status, :failed)

@@ -375,9 +375,9 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
   # `return_to` is user-controlled (query param) and fed to `push_navigate` —
   # accept only local paths so a crafted link can't bounce through the selector
   # to an external site (or crash navigation with a full URL).
-  defp parse_return_to(<<"/", next, _::binary>> = path) when next not in [?/, ?\\], do: path
-  defp parse_return_to("/"), do: "/"
-  defp parse_return_to(_), do: "/"
+  # `Routes.local_path?/1` is the one redirect guard — it also rejects the
+  # control characters browsers strip.
+  defp parse_return_to(path), do: if(Routes.local_path?(path), do: path, else: "/")
 
   defp parse_selected_uuids(nil), do: []
 

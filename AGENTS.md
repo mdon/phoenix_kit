@@ -330,13 +330,12 @@ Partial coverage exists in `test/phoenix_kit_web/components/core/`. Remaining ga
 
 ### Signed file-URL hardening (`modules/storage`)
 
-In `lib/modules/storage/services/url_signer.ex` + `file_controller.ex`:
+In `lib/modules/storage/services/url_signer.ex` (the upload and `/info`
+authorization gaps were closed in `lib/phoenix_kit_web/controllers/{upload,file}_controller.ex`):
 
-- **`POST /api/upload` is unauthenticated and takes the owner from `params["user_uuid"]`** — a live unauthenticated *write*, top of the list. The storage routes sit in the `[:browser, :phoenix_kit_auto_setup]` scope with no auth plug; `UploadController.create/2` falls back to the param verbatim. An anonymous client (CSRF token from the public login page) can attribute a 100 MB upload to any account and trigger variant processing. Fix: drop the params fallback, honor a `user_uuid` override only for an authenticated admin, rate-limit the action.
 - **Token is 16-bit** — first 4 hex chars of an MD5, ~65k space, brute-forceable. Widen it (consider HMAC over MD5).
 - **Tokens never expire**, yet the 401 says *"Invalid or expired token."* Add real expiry or fix the message.
-- **`/api/files/:uuid/info` is unauthenticated** and returns a valid signed URL for any uuid — defeats the signing scheme. Lock it down.
 - **Fails open on a nil `secret_key_base`** — the token degrades to a predictable no-secret hash. Fail closed.
 
-Read half is low urgency (current use is public post images); the upload half is a live unauthenticated write. Don't rely on the "capability URL" framing for sensitive files.
+Low urgency (current use is public post images), but don't rely on the "capability URL" framing for sensitive files.
 
