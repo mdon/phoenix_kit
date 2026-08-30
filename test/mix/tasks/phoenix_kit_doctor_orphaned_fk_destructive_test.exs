@@ -42,15 +42,25 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkDestructiveTest do
     #
     # A plain `INSERT` can't produce this row — the constraint rejects a
     # nonexistent `user_uuid` immediately, and it isn't `DEFERRABLE`, so
-    # `SET CONSTRAINTS ALL DEFERRED` doesn't buy anything either. Disabling
-    # the child table's own triggers for one statement is the standard
-    # Postgres idiom for planting a row that could otherwise only arise from
-    # the same kind of bypass in production — a bulk load with constraints
-    # off, a restore from an inconsistent backup, direct catalog surgery —
-    # which is exactly the class of real corruption this check exists to
-    # catch, not a contrived test-only shape.
+    # `SET CONSTRAINTS ALL DEFERRED` doesn't buy anything either.
+    #
+    # Planting the row via `DISABLE TRIGGER ALL` (the previous approach)
+    # needs superuser: Postgres reserves the internal `RI_ConstraintTrigger`
+    # a FK creates for superusers regardless of who owns the table, so it
+    # fails outright under the unprivileged-role model `config/test.exs`
+    # documents (a role with no `CREATEDB`, pointed at a pre-provisioned
+    # database via `PGDATABASE`/`PGPOOL`, owning the tables it migrated).
+    # `DROP CONSTRAINT` / `ADD CONSTRAINT ... NOT VALID` is the ordinary-DDL
+    # equivalent: both statements are plain table-owner privileges, no
+    # superuser needed. The orphan this plants is exactly as genuine as
+    # before — the row exists with no matching parent when the check runs —
+    # and the constraint is put back before the check runs, so this still
+    # proves the same thing: the widened check catches it via the real
+    # orphan-count probe, not a contrived test-only shape.
     test "an orphaned phoenix_kit_user_oauth_providers.user_uuid row is reported, not read as clean" do
-      Repo.query!("ALTER TABLE phoenix_kit_user_oauth_providers DISABLE TRIGGER ALL")
+      Repo.query!(
+        "ALTER TABLE phoenix_kit_user_oauth_providers DROP CONSTRAINT fk_user_oauth_providers_user_uuid"
+      )
 
       Repo.query!("""
       INSERT INTO phoenix_kit_user_oauth_providers
@@ -58,7 +68,12 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkDestructiveTest do
       VALUES (gen_random_uuid(), 'google', 'destructive-orphan-test', now(), now())
       """)
 
-      Repo.query!("ALTER TABLE phoenix_kit_user_oauth_providers ENABLE TRIGGER ALL")
+      Repo.query!("""
+      ALTER TABLE phoenix_kit_user_oauth_providers
+        ADD CONSTRAINT fk_user_oauth_providers_user_uuid
+        FOREIGN KEY (user_uuid) REFERENCES phoenix_kit_users(uuid) ON DELETE CASCADE
+        NOT VALID
+      """)
 
       assert {:fail, message} = DoctorTask.check_orphaned_fk_refs("public")
       assert message =~ "phoenix_kit_user_oauth_providers.user_uuid"
