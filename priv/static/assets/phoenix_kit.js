@@ -2629,14 +2629,20 @@ if (typeof window.Chart === "undefined") {
         // activation (ours run from LiveView patches), so a single Esc
         // fires 'cancel' on EVERY dialog in the group (2026-08-31: "Esc
         // closes both popups, but only top one needs to go"). Keep THIS
-        // dialog open and close the deepest stacked child explicitly —
-        // preventDefault alone aborts the whole grouped close request,
-        // which would leave the child open too (verified: neither
-        // closed). A closed child's own grouped cancel then no-ops.
+        // dialog open and RELAY the close request to the deepest stacked
+        // child in its own semantics: a synthetic cancelable 'cancel',
+        // then close() unless the child prevented it (a server-driven
+        // child prevents and pushes its own event). preventDefault alone
+        // is not enough — Chromium stops the grouped chain at the first
+        // prevented watcher, so the child's own cancel never fires
+        // (verified: neither popup closed).
         const stacked = self.el.querySelectorAll("dialog[open]");
         if (stacked.length > 0) {
           e.preventDefault();
-          stacked[stacked.length - 1].close();
+          const top = stacked[stacked.length - 1];
+          if (top.dispatchEvent(new Event("cancel", { cancelable: true }))) {
+            top.close();
+          }
         }
       };
       // 'close' fires for every close path: Esc, our own el.close() in
