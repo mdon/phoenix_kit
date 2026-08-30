@@ -43,12 +43,8 @@ defmodule PhoenixKitWeb.Components.Core.Select do
       <%!-- Required marker, kept in sync with `<.input>` — a `required` select
            whose label came from the caller used to lose the red asterisk the
            hand-rolled markup had. --%>
-      <.label :if={@label && @label != ""} for={@id} class="block mb-2">
-        {@label}<span
-          :if={@rest[:required]}
-          class="text-error ml-0.5"
-          aria-hidden="true"
-        >*</span>
+      <.label :if={@label && @label != ""} for={@id} class="block" required={!!@rest[:required]}>
+        {@label}
       </.label>
 
       <label class={[

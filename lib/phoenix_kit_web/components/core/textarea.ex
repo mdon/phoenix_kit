@@ -54,12 +54,8 @@ defmodule PhoenixKitWeb.Components.Core.Textarea do
     ~H"""
     <div phx-feedback-for={@name}>
       <%!-- Required marker, kept in sync with `<.input>`. --%>
-      <.label :if={@label && @label != ""} for={@id} class="label mb-2">
-        {@label}<span
-          :if={@rest[:required]}
-          class="text-error ml-0.5"
-          aria-hidden="true"
-        >*</span>
+      <.label :if={@label && @label != ""} for={@id} required={!!@rest[:required]}>
+        {@label}
       </.label>
 
       <textarea

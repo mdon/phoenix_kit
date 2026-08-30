@@ -6796,8 +6796,10 @@ if (typeof window.Chart === "undefined") {
     var row = target.closest(menu.selector);
     if (!row) return null;
     if (menu.within) {
-      var scope = document.querySelector(menu.within);
-      if (!scope || !scope.contains(row)) return null;
+      // closest(), not querySelector(): a class-based `within` routinely
+      // matches several containers, and taking only the first left rows in
+      // the others with no menu at all.
+      if (!row.closest(menu.within)) return null;
     }
     return row;
   }
@@ -6819,7 +6821,7 @@ if (typeof window.Chart === "undefined") {
 
   // ---- long press (touch/pen only — a mouse gets `contextmenu`) ------------
 
-  var lpTimer = null, lpX = 0, lpY = 0;
+  var lpTimer = null, lpX = 0, lpY = 0, swallowTimer = null;
 
   function cancelLongPress() {
     if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
@@ -6834,12 +6836,22 @@ if (typeof window.Chart === "undefined") {
     cancelLongPress();
     lpTimer = setTimeout(function() {
       lpTimer = null;
+      // The hook may have been destroyed during the press (a patch, a stream
+      // reset). Opening now would append a detached menu to <body> and leave
+      // it there.
+      if (menus.indexOf(m.menu) === -1) return;
       lastLongPressAt = Date.now();
       swallowClick = true;
       // Cleared on the click too; this is the backstop for a release that
       // dispatches no click at all, which would otherwise eat the user's
-      // next tap (the menu item they came for).
-      setTimeout(function() { swallowClick = false; }, SWALLOW_CLICK_MS);
+      // next tap (the menu item they came for). Tracked, so a second long
+      // press inside the window cannot have its flag cleared by the first
+      // press's backstop.
+      if (swallowTimer) clearTimeout(swallowTimer);
+      swallowTimer = setTimeout(function() {
+        swallowTimer = null;
+        swallowClick = false;
+      }, SWALLOW_CLICK_MS);
       if (navigator.vibrate) { try { navigator.vibrate(30); } catch (_) {} }
       m.menu._open(m.row, lpX, lpY);
     }, m.menu.longPressMs);
@@ -6857,13 +6869,21 @@ if (typeof window.Chart === "undefined") {
 
   function onContextMenu(e) {
     cancelLongPress();
-    if (Date.now() - lastLongPressAt < NATIVE_MENU_GRACE_MS) {
-      // Our own menu is already open from the long press.
+    if (openMenu && Date.now() - lastLongPressAt < NATIVE_MENU_GRACE_MS) {
+      // Our own menu is already open from the long press. Gated on openMenu:
+      // if it was dismissed (Escape) the grace window must not go on
+      // suppressing the browser's menu with nothing shown in its place.
       e.preventDefault();
       return;
     }
     var m = bestMatch(e.target);
-    if (!m) return;
+    if (!m) {
+      // No row here. A `contextmenu` produces no click, and the mouse path
+      // arms no long press, so nothing else would take the open menu down —
+      // it would sit under the browser's native one.
+      closeOpen();
+      return;
+    }
     e.preventDefault();
     m.menu._open(m.row, e.clientX, e.clientY);
   }
@@ -6910,6 +6930,11 @@ if (typeof window.Chart === "undefined") {
     if (listening) return;
     listening = true;
     document.addEventListener("contextmenu", onContextMenu);
+    // Permanent, not tied to a menu being open: the post-long-press click has
+    // to be swallowed even when the menu was closed again in between (Escape,
+    // a scroll, an Android resize), or the row underneath activates — the very
+    // thing the swallow exists to prevent. onDocClick no-ops when idle.
+    document.addEventListener("click", onDocClick, true);
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("pointermove", onPointerMove, true);
     document.addEventListener("pointerup", cancelLongPress, true);
@@ -6951,6 +6976,9 @@ if (typeof window.Chart === "undefined") {
     },
 
     destroyed() {
+      // Cancel first: the pending timer captured this menu, so without it a
+      // press in flight would open a detached menu into <body> 450ms later.
+      cancelLongPress();
       this._close();
       if (this.menuEl && this._onMenuClick) {
         this.menuEl.removeEventListener("click", this._onMenuClick);
@@ -7028,7 +7056,6 @@ if (typeof window.Chart === "undefined") {
       this.isOpen = true;
       openMenu = this;
 
-      document.addEventListener("click", onDocClick, true);
       document.addEventListener("keydown", onKeydown);
       document.addEventListener("scroll", closeOpen, true);
       window.addEventListener("resize", closeOpen);
@@ -7043,7 +7070,6 @@ if (typeof window.Chart === "undefined") {
       this.isOpen = false;
       if (openMenu === this) openMenu = null;
 
-      document.removeEventListener("click", onDocClick, true);
       document.removeEventListener("keydown", onKeydown);
       document.removeEventListener("scroll", closeOpen, true);
       window.removeEventListener("resize", closeOpen);

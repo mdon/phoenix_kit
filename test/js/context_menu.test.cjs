@@ -102,12 +102,21 @@ test("flips on both axes for a click in the bottom-right corner", () => {
   assert.deepEqual(pos, { left: 750, top: 480 });
 });
 
-test("clamps to the 8px margin when the flip would go off the other edge", () => {
-  // Pointer near the left edge with a menu wider than the space on either
-  // side: flipping left would land at a negative x, so it clamps to the pad.
+test("clamps a pointer inside the 8px margin out to it", () => {
+  // No flip here — 4 + 200 fits — so what is clamped is the initial
+  // position: a pointer 4px from the edge would put the menu under it.
   const pos = contextMenuPosition(4, 4, W, H, VW, VH);
   assert.equal(pos.left, 8);
   assert.equal(pos.top, 8);
+});
+
+test("a menu wider than the viewport flips, then clamps to the pad", () => {
+  // 100 + 900 overflows, so it flips to 100 - 900 = -800 — off the other
+  // edge — and the clamp pulls it back to the 8px pad. This is the
+  // horizontal flip-then-clamp branch; the vertical twin is covered below.
+  const pos = contextMenuPosition(100, 100, 900, H, VW, VH);
+  assert.equal(pos.left, 8);
+  assert.equal(pos.top, 100);
 });
 
 test("a menu taller than the viewport pins to the top rather than escaping it", () => {

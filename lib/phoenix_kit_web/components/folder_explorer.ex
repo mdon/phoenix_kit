@@ -71,7 +71,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   the leaf `<li>` — never on the wrapping `<li>` of a folder — so a right-click
   on a nested row resolves to that row and not to its ancestor folder.
 
-  Consumers that declare no menu pay two attributes per row and get the
+  Consumers that declare no menu pay three attributes per row and get the
   browser's own menu, unchanged.
 
   ## A consumer's folder is its own

@@ -53,8 +53,22 @@ defmodule PhoenixKitWeb.Components.Core.ContextMenu do
   > `MediaDragDrop` binds its own 450ms long press to
   > `[data-draggable-file]` / `[data-draggable-folder]` and pushes
   > `long_press_select`. On a page running both, one hold fires both gestures.
-  > Either give the context menu a `selector` that does not overlap the
-  > draggable attributes, or turn one of the two off.
+  >
+  > A *disjoint* selector is not enough: rows are matched with
+  > `Element.closest/1`, so the two collide whenever one element merely
+  > **contains** the other — and in `FolderExplorer` they do, both ways
+  > (`data-draggable-folder` sits on a button inside the
+  > `data-context-kind="folder"` row; a leaf `<li>` carries
+  > `data-draggable-file` and `data-context-kind="item"` together). The
+  > MediaBrowser sidebar is exactly this shape.
+  >
+  > There is a second effect worth knowing: this hook swallows the
+  > post-long-press click at `document` capture, which is upstream of the
+  > per-element listener `MediaDragDrop` uses to clear its own `_lpFired`
+  > flag — so that flag stays set and eats one later tap on the same card.
+  >
+  > On a page running both, pass `long_press={false}` (right-click still
+  > works) or don't wire `MediaDragDrop`.
 
   ## What items can do
 

@@ -985,17 +985,18 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
          puts a small breathing room between label and field that
          matches the `<.input>` core component's `mb-2`. --%>
     <div
-      class="fieldset flex flex-col gap-1"
+      class="flex flex-col gap-1"
       phx-feedback-for={if @is_primary, do: "#{@form_prefix}[#{@field_name}]"}
     >
-      <%!-- Plain font-semibold like <.input>'s label (2026-08-31, same
-           sweep as FormFieldLabel) — but with an explicit text-sm: this
-           label sits inside a real `.fieldset` wrapper, whose 0.75rem
-           inheritance `fieldset-legend` used to override. Dropping the
-           class without restoring the size made these labels SMALLER,
-           not matching (caught verifying on the box). --%>
+      <%!-- Plain font-semibold like <.input>'s label. The 0.75rem these
+           labels used to render at came from THIS wrapper's own `fieldset`
+           class, not from `fieldset-legend` (which sets no font-size at
+           all) — so the size is fixed by dropping `fieldset` above, and the
+           span is then byte-identical to Input's. Its grid/gap were already
+           overridden by `flex`/`gap-1`; only 0.25rem of padding-block goes
+           with it. --%>
       <label for={@input_id} class="label">
-        <span class="font-semibold text-sm">
+        <span class="font-semibold">
           {@label}
           <%= if @required && @is_primary do %>
             *

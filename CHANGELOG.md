@@ -24,8 +24,52 @@
   the menus alone — no flag, no slot. They sit on the folder's row `<div>` and
   the leaf `<li>`, never on a folder's wrapping `<li>`, so a right-click on a
   nested row resolves to that row rather than its ancestor folder. Consumers
-  that declare no menu pay two attributes per row and keep the browser's own
+  that declare no menu pay three attributes per row and keep the browser's own
   menu.
+
+Post-merge review of #772 and of `585973ca` (ContextMenu, pushed without a PR)
+— see `dev_docs/pull_requests/2026/772-form-field-label-parity/CLAUDE_REVIEW.md`.
+
+### Fixed (post-merge review)
+
+- **Form labels now match `<.input>` exactly, and the four bare `<.label>`
+  call sites keep their bottom gap.** #772 removed `fieldset-legend` from
+  `FormFieldLabel` on the premise that it shrank and muted those labels. It
+  does neither — daisyUI's `.fieldset-legend` sets no `font-size` at all; what
+  it sets is `color: var(--color-base-content)` (overriding `.label`'s
+  60%-alpha muting) and `padding-block: 0.5rem`. Removing it was still right,
+  because that padding was the *only* bottom gap the callers that pass no
+  class had (`registration`, `magic_link_registration`, `send_profile_form`
+  ×2), and they lost it. `mb-2` now lives in the component, as it does in
+  `<.input>`.
+- **`<.translatable_field>` labels are the same size as the `<.input>` labels
+  beside them.** The 0.75rem came from the component's own `fieldset` wrapper,
+  not from `fieldset-legend`, so #772's compensating `text-sm` was a 12px→14px
+  bump against a 16px neighbour. Dropping `fieldset` from the wrapper makes the
+  span byte-identical to Input's — now pinned by a test that renders both and
+  compares.
+- **`Mentions.mention_input/1` tracks `<.translatable_field>` again.** The two
+  were byte-identical before #772 and render side by side in the same forms.
+- **The required marker on `<.select>`/`<.textarea>` matches `<.input>`'s** —
+  a non-bold sibling span rather than a bold one nested inside the label span.
+- **`ContextMenu`: a long press interrupted by a LiveView patch no longer
+  strands a menu in `<body>`** — `destroyed()` cancels the pending timer.
+- **`ContextMenu`: `within` honours every matching container**, not just the
+  first one `document.querySelector` happened to return.
+- **`ContextMenu`: a right-click on empty space closes the open menu** instead
+  of leaving it under the browser's native one; the native-menu grace window
+  no longer suppresses a right-click when no menu is showing.
+- **`ContextMenu`: the post-long-press click is swallowed even if the menu
+  closed in between** (Escape, a scroll, an Android URL-bar resize) — the
+  swallower was registered and removed with the menu, so the release click
+  used to activate the row underneath. The backstop timer is tracked, so
+  overlapping presses no longer clear each other's flag.
+- **`ContextMenu` docs:** the `MediaDragDrop` collision warning said a
+  non-overlapping `selector` avoids it. Rows resolve via `Element.closest/1`,
+  so containment collides too — and FolderExplorer is exactly that shape. The
+  warning now states the real rule and the workaround that works
+  (`long_press={false}`). Not reachable in core: nothing in `lib/` declares a
+  `<.context_menu>` yet.
 
 Repo-wide review sweep (no single PR): six areas audited, the verified
 defects fixed, the larger items recorded below under "Known / deferred".

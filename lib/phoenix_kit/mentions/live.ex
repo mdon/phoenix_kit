@@ -189,9 +189,13 @@ defmodule PhoenixKit.Mentions.Live do
       end)
 
     ~H"""
-    <div class="fieldset flex flex-col gap-1">
+    <%!-- Label markup tracks `<.translatable_field>` and `<.input>`: a plain
+         font-semibold span, with no `fieldset` wrapper shrinking it to
+         0.75rem. These two components render side by side in the same forms
+         and were identical before the label sweep. --%>
+    <div class="flex flex-col gap-1">
       <label :if={@label} for={@resolved_id} class="label">
-        <span class="fieldset-legend font-semibold">{@label}</span>
+        <span class="font-semibold">{@label}</span>
       </label>
       <textarea
         id={@resolved_id}

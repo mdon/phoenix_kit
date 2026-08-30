@@ -96,12 +96,12 @@ defmodule PhoenixKitWeb.Components.MultilangFormTest do
       assert result =~ ~s(phx-debounce="300")
     end
 
-    # 2026-08-31 label harmonisation: same plain font-semibold span
-    # Input uses — but with an explicit text-sm, because this label sits
-    # inside a real `.fieldset` wrapper whose 0.75rem inheritance
-    # `fieldset-legend` used to override. Dropping the class WITHOUT
-    # text-sm made these labels smaller than their Input neighbours.
-    test "the label span matches Input's typography inside the fieldset wrapper" do
+    # 2026-08-31 label harmonisation: the same plain font-semibold span Input
+    # uses, with no size utility. The 0.75rem these labels used to render at
+    # came from the wrapper's own `fieldset` class — `fieldset-legend` sets no
+    # font-size at all — so the wrapper must not carry `fieldset` either, or
+    # the span inherits 12px again and no amount of class-matching helps.
+    test "the label span matches Input's typography, in a wrapper that can't shrink it" do
       changeset = make_changeset(%{title: "Hello"})
       assigns = %{changeset: changeset}
 
@@ -120,8 +120,13 @@ defmodule PhoenixKitWeb.Components.MultilangFormTest do
         />
         """)
 
-      assert result =~ ~s(<span class="font-semibold text-sm">)
+      assert result =~ ~s(<span class="font-semibold">)
       refute result =~ "fieldset-legend"
+      # The coupling that makes the span above correct: `.fieldset` sets
+      # font-size 0.75rem, so it must not wrap this label.
+      assert result =~ ~s(class="flex flex-col gap-1")
+      refute result =~ ~s(class="fieldset flex flex-col gap-1")
+      refute result =~ ~r/<span class="font-semibold[^"]*\btext-(xs|sm|base|lg|xl)\b/
     end
 
     test "nil omits the attribute, so the server sees every keystroke" do
