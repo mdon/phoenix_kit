@@ -10,8 +10,11 @@
 #  1. Parsed with python3, not jq — jq is not guaranteed to be present
 #     (see block-dangerous-git.sh, a separate issue, for that failure mode).
 #  2. priv/templates is skipped explicitly. An explicit `mix format <path>`
-#     argument bypasses .formatter.exs's :inputs AND :exclude entirely (Mix
-#     never reads :exclude — it is a dead key), so the skip has to live here.
+#     argument goes through Mix.Tasks.Format's `expand_args/5`, which never
+#     consults :inputs OR :excludes — only the no-argument `expand_dot_inputs/4`
+#     path filters on :excludes (a real key since Elixir 1.19; the repo's
+#     .formatter.exs said `exclude:` and was silently ignored until it was
+#     corrected). So the skip has to live here regardless.
 #  3. The target is checked to be inside $CLAUDE_PROJECT_DIR via
 #     os.path.commonpath over os.path.realpath of both sides — not a string
 #     prefix compare, which a sibling directory sharing a name prefix would

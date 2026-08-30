@@ -1,7 +1,7 @@
 defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkDestructiveTest do
   @moduledoc """
   Every test here runs real DDL (`ALTER TABLE ... ADD CONSTRAINT`,
-  `ALTER TABLE ... DISABLE/ENABLE TRIGGER`) against `phoenix_kit_activities`,
+  `ALTER TABLE ... ALTER CONSTRAINT`) against `phoenix_kit_activities`,
   `phoenix_kit_user_oauth_providers`, and `phoenix_kit_users` — split out of
   `DoctorOrphanedFkTest` for exactly that reason.
 
@@ -44,23 +44,35 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkDestructiveTest do
     # nonexistent `user_uuid` immediately, and it isn't `DEFERRABLE`, so
     # `SET CONSTRAINTS ALL DEFERRED` doesn't buy anything either.
     #
-    # Planting the row via `DISABLE TRIGGER ALL` (the previous approach)
+    # Planting the row via `DISABLE TRIGGER ALL` (the original approach)
     # needs superuser: Postgres reserves the internal `RI_ConstraintTrigger`
     # a FK creates for superusers regardless of who owns the table, so it
     # fails outright under the unprivileged-role model `config/test.exs`
     # documents (a role with no `CREATEDB`, pointed at a pre-provisioned
     # database via `PGDATABASE`/`PGPOOL`, owning the tables it migrated).
-    # `DROP CONSTRAINT` / `ADD CONSTRAINT ... NOT VALID` is the ordinary-DDL
-    # equivalent: both statements are plain table-owner privileges, no
-    # superuser needed. The orphan this plants is exactly as genuine as
-    # before — the row exists with no matching parent when the check runs —
-    # and the constraint is put back before the check runs, so this still
-    # proves the same thing: the widened check catches it via the real
-    # orphan-count probe, not a contrived test-only shape.
+    #
+    # `DROP CONSTRAINT` / re-`ADD ... NOT VALID` (PR #774) also clears that
+    # bar, but it plants the orphan behind a constraint that is no longer
+    # validated — and `classify_fk_check/6` branches on exactly that. A
+    # `{:not_valid, _}` constraint with orphans routes to `:validate`, the
+    # clause that predates the widening fix and was never the one at risk.
+    # The assertion below could not tell the two apart, so the guard went
+    # vacuous for the branch it exists to hold.
+    #
+    # `ALTER CONSTRAINT ... DEFERRABLE INITIALLY DEFERRED` is the
+    # ordinary-DDL route that keeps the constraint VALID: altering an
+    # existing FK's deferrability is a plain table-owner operation,
+    # `pg_constraint.convalidated` stays `true`, and the deferred RI check
+    # fires only at COMMIT — which never comes, because `DataCase` rolls
+    # this test's sandbox transaction back. So the orphan is real, and
+    # unmatched, for the entire life of the check, sitting behind a
+    # constraint Postgres still reports as fully validated: the
+    # `:existing_orphan` shape real corruption actually takes.
     test "an orphaned phoenix_kit_user_oauth_providers.user_uuid row is reported, not read as clean" do
-      Repo.query!(
-        "ALTER TABLE phoenix_kit_user_oauth_providers DROP CONSTRAINT fk_user_oauth_providers_user_uuid"
-      )
+      Repo.query!("""
+      ALTER TABLE phoenix_kit_user_oauth_providers
+        ALTER CONSTRAINT fk_user_oauth_providers_user_uuid DEFERRABLE INITIALLY DEFERRED
+      """)
 
       Repo.query!("""
       INSERT INTO phoenix_kit_user_oauth_providers
@@ -68,15 +80,23 @@ defmodule Mix.Tasks.PhoenixKit.DoctorOrphanedFkDestructiveTest do
       VALUES (gen_random_uuid(), 'google', 'destructive-orphan-test', now(), now())
       """)
 
-      Repo.query!("""
-      ALTER TABLE phoenix_kit_user_oauth_providers
-        ADD CONSTRAINT fk_user_oauth_providers_user_uuid
-        FOREIGN KEY (user_uuid) REFERENCES phoenix_kit_users(uuid) ON DELETE CASCADE
-        NOT VALID
-      """)
+      # The constraint has to still read as validated, or the assertion
+      # below is proving the wrong clause.
+      assert %{rows: [[true]]} =
+               Repo.query!("""
+               SELECT convalidated FROM pg_constraint
+               WHERE conname = 'fk_user_oauth_providers_user_uuid'
+               """)
 
       assert {:fail, message} = DoctorTask.check_orphaned_fk_refs("public")
       assert message =~ "phoenix_kit_user_oauth_providers.user_uuid"
+
+      # Pin the branch, not just the table.column. `:validate` (constraint
+      # NOT VALID) and `:create` (no constraint at all) would both put this
+      # same table.column in the message, and both were reachable before the
+      # widening fix. Only `:existing_orphan` exercises the `:validated` +
+      # `count > 0` clause — the one that used to discard real orphans.
+      assert message =~ "constraint IS validated but orphans exist anyway"
     end
   end
 

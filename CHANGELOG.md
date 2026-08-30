@@ -1,3 +1,53 @@
+## 2.13.17 - 2026-08-30
+
+Toolchain and test-fidelity release: PRs #773-#776, plus the post-merge review
+findings for each (`dev_docs/pull_requests/2026/77{3,4,5,6}-*/CLAUDE_REVIEW.md`).
+
+### Fixed
+
+- **`mix format --check-formatted` was failing on Elixir 1.19.** A reformat of
+  `phoenix_kit_doctor_test.exs` pinned one assertion to Elixir 1.18.4's
+  line-breaking, which 1.19 undoes - so `mix quality.ci`, `mix precommit` and
+  the CI format step were all red on `main` for anyone on 1.19, which
+  `elixir: "~> 1.18"` admits. The assertion is now decomposed below the
+  break threshold, so no formatter version has a decision to make: verified
+  idempotent and byte-identical under 1.19.5 and 1.20.0-rc.6.
+- **`.formatter.exs` excluded nothing.** The key was `exclude:`; Mix reads
+  `:excludes` (plural, added in Elixir 1.19). `priv/templates` was skipped only
+  because no `:inputs` pattern happened to reach it. Corrected to `excludes:` -
+  note this filters `:inputs` expansion only, so `.claude/hooks/format-edited-file.sh`
+  still needs its own explicit skip for `mix format <path>`.
+- **The destructive orphaned-FK doctor test no longer needs superuser** (#774),
+  and now proves the branch it was written for. Planting the orphan behind a
+  re-added `NOT VALID` constraint routed it to `classify_fk_check/6`'s
+  `:validate` clause - which predates the widening fix - instead of the
+  `:validated` -> `:existing_orphan` clause that used to discard real orphans;
+  the assertion could not tell them apart. It now defers the FK's referential
+  check (`ALTER CONSTRAINT ... DEFERRABLE INITIALLY DEFERRED`, plain
+  table-owner DDL) so the constraint stays validated, and asserts both
+  `convalidated` and the `:existing_orphan` wording.
+
+### Changed
+
+- **The git-guard hook fails closed, and says why** (#773). A missing `jq`,
+  malformed JSON, or an absent `.tool_input.command` all used to leave the
+  command empty and fall through to `exit 0`. They now block - and, unlike the
+  merged version, write a reason to stderr, where a `PreToolUse` hook's exit 2
+  actually surfaces it; a missing `jq` is named explicitly, since otherwise it
+  silently blocks every Bash call in the session. `git push` with plain
+  `--force` is still blocked; `--force-with-lease` no longer is.
+- **Format-on-save is scoped to the edited file** (#775). The `Write|Edit`
+  hook ran bare `mix format`, rewriting every file in the tree that differed
+  from canonical form and mixing that collateral diff into `git status`.
+  `.claude/hooks/format-edited-file.sh` formats only the file from the hook
+  payload, skips `priv/templates`, and refuses anything outside
+  `$CLAUDE_PROJECT_DIR` (realpath + `commonpath`, not a prefix compare).
+- **Leaf pinned to 0.6.1** (#776) - lock and the `LEAF_CDN` constant together.
+  Conflict reporting on a refused flush (`{:leaf_conflict, ...}` broadcast,
+  `@leaf_collab.conflict`, honest `flush_now/1`), `Room.stop/1` and
+  `idle_after:` for self-tidying rooms, wiki links following on click in hybrid
+  mode, `Leaf.Collab.leave/1`, and the lists-and-checkboxes selection fixes.
+
 ## 2.13.16 - 2026-08-30
 
 ### Added

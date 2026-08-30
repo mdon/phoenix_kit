@@ -531,10 +531,22 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
         {[{"other", "col", "ref2", 1, :create}], [{"t2", "c2", "r2"}],
          [{"t3", "c3", "r3", :orphan_count, "x", nil}]}
 
-      assert {[{"t", "c", "r", 5, :existing_orphan}, {"other", "col", "ref2", 1, :create}],
-              [{"t2", "c2", "r2"}],
-              [{"t3", "c3", "r3", :orphan_count, "x", nil}]} =
+      # Decomposed rather than matched as one inline tuple: that pattern sat
+      # exactly on the formatter's line-break threshold, and Elixir 1.18 and
+      # 1.19 break it differently, so `mix format --check-formatted` failed
+      # on whichever version had not last written the file (mix.exs allows
+      # `~> 1.18`, so both are in scope). These lines are short enough that
+      # no version has a choice to make.
+      assert {orphaned, not_validated, probe_failed} =
                DoctorTask.classify_fk_check("t", "c", "r", {:ok, 5}, :validated, acc)
+
+      assert orphaned == [
+               {"t", "c", "r", 5, :existing_orphan},
+               {"other", "col", "ref2", 1, :create}
+             ]
+
+      assert not_validated == [{"t2", "c2", "r2"}]
+      assert probe_failed == [{"t3", "c3", "r3", :orphan_count, "x", nil}]
     end
   end
 
