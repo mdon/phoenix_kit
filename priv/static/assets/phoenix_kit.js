@@ -2561,7 +2561,16 @@ if (typeof window.Chart === "undefined") {
     },
     _pushClose() {
       const ev = this.el.dataset.closeEvent;
-      if (ev) this.pushEventTo(this.el, ev, {});
+      if (!ev) return;
+      // Route to the LiveComponent that OWNS the dialog: pushEventTo with
+      // the dialog element itself resolves to the LiveView (the element
+      // carries no data-phx-component), so a component-owned modal's
+      // close event landed on the host LV instead of the component
+      // (2026-08-31 — the item selector's stacked details popup never
+      // closed on Esc; the selector itself only "closed" because the
+      // misrouted event hit the host). closest() finds the component
+      // root; LV-owned dialogs have none and keep routing to the LV.
+      this.pushEventTo(this.el.closest("[data-phx-component]") || this.el, ev, {});
     },
     _sync() {
       // `data-show` drives visibility for keep_in_dom modals. Conditional
@@ -3452,12 +3461,16 @@ if (typeof window.Chart === "undefined") {
     maybeLoad() {
       if (this.loading) return;
       this.loading = true;
-      // pushEventTo with the element routes to the LiveComponent that
-      // rendered the sentinel (the item selector's list), and to the
-      // LiveView when there is none — a strict superset of the old
-      // pushEvent, which always hit the LV and made the sentinel
+      // Route to the LiveComponent that OWNS the sentinel (closest
+      // data-phx-component root — the element itself carries none), and
+      // to the LiveView when there is none — a strict superset of the
+      // old pushEvent, which always hit the LV and made the sentinel
       // useless inside components (2026-08-31).
-      this.pushEventTo(this.el, this.loadMoreEvent(), {});
+      this.pushEventTo(
+        this.el.closest("[data-phx-component]") || this.el,
+        this.loadMoreEvent(),
+        {}
+      );
       // Watchdog: release the guard even if the cursor never advances, so a
       // no-op load can't wedge the sentinel. The cursor-change path in
       // updated() clears it sooner on the normal (page-grew) path.
