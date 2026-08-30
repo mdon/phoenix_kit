@@ -237,11 +237,12 @@ defmodule PhoenixKit.Install.MigrationStrategy do
 
         migration_version = Postgres.current_version()
 
-        initial_notice = """
-
-        📦 PhoenixKit V#{phoenix_kit_version} migration ready: #{migration_file}
-        Target version: V#{Common.pad_version(migration_version)}
-        """
+        initial_notice =
+          """
+          📦 PhoenixKit v#{phoenix_kit_version} migration ready: #{migration_file}
+          Target version: V#{Common.pad_version(migration_version)}
+          """
+          |> String.trim()
 
         igniter
         |> Igniter.create_new_file(migration_path, migration_content)

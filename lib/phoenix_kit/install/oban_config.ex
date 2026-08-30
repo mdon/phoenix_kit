@@ -1481,8 +1481,8 @@ if Code.ensure_loaded?(Igniter) do
         Igniter.add_notice(
           igniter,
           """
-          ⚠️  Oban configuration added to config.exs
-             IMPORTANT: Restart your server to apply configuration changes.
+          ⚙️  Oban configuration added to config.exs
+             (restart a running server to apply)
           """
           |> String.trim()
         )

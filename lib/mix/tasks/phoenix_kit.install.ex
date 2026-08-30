@@ -487,15 +487,18 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
             ""
         end
 
-      notice = """
-
-      ✅ PhoenixKit ready! Next:
-        • mix ecto.migrate
-        • mix phx.server
-        • Visit /users/register (or with your configured URL prefix)
-        • mix phoenix_kit.doctor
-      #{prefix_note}
-      """
+      # Igniter renders every notice as a "* " bullet, so a leading blank line
+      # prints a bare "*" and pushes the body to the next line. Trim.
+      notice =
+        """
+        ✅ PhoenixKit ready! Next:
+          • mix ecto.migrate
+          • mix phx.server
+          • Visit /users/register (or with your configured URL prefix)
+          • mix phoenix_kit.doctor
+        #{prefix_note}
+        """
+        |> String.trim()
 
       Igniter.add_notice(igniter, notice)
     end

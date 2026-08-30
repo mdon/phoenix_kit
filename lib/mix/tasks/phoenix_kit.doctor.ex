@@ -2112,10 +2112,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         {:pass, "daisyUI #{DaisyUI.installed_version(DaisyUI.host_path())} (>= #{minimum})"}
 
       {:outdated, version} ->
-        {:warn,
-         "Vendored daisyUI is #{version}; PhoenixKit is designed against #{minimum}+ " <>
-           "(modal scrollbar-gutter handling). Update assets/vendor/daisyui.js + " <>
-           "daisyui-theme.js from https://github.com/saadeghi/daisyui/releases and rebuild assets."}
+        {:warn, daisyui_outdated_message(DaisyUI.severity(version), version, minimum)}
 
       :unversioned ->
         {:warn,
@@ -2127,6 +2124,26 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
          "No assets/vendor/daisyui.js — custom daisyUI setup? PhoenixKit is designed " <>
            "against daisyUI #{minimum}+; make sure your setup matches."}
     end
+  end
+
+  # Below daisyUI 5.1 modals genuinely mishandle the scrollbar gutter; at or
+  # above it the host is merely short of the version core is verified against
+  # (mix phx.new vendors 5.5.19 today, so a clean install lands here). Same
+  # split as PhoenixKit.Install.DaisyUI.outdated_warning/1.
+  defp daisyui_outdated_message(:broken, version, minimum) do
+    alias PhoenixKit.Install.DaisyUI
+
+    "Vendored daisyUI is #{version}; PhoenixKit is designed against #{minimum}+. " <>
+      "Below #{DaisyUI.gutter_fix_version()} modals mishandle the scrollbar gutter. " <>
+      "Update assets/vendor/daisyui.js + daisyui-theme.js from " <>
+      "https://github.com/saadeghi/daisyui/releases and rebuild assets."
+  end
+
+  defp daisyui_outdated_message(:behind, version, minimum) do
+    "Vendored daisyUI is #{version}; PhoenixKit is verified against #{minimum}+. " <>
+      "Modals render correctly on your copy — advisory only. Update " <>
+      "assets/vendor/daisyui.js + daisyui-theme.js from " <>
+      "https://github.com/saadeghi/daisyui/releases when convenient."
   end
 
   # The user dashboard (/dashboard) is deprecated. It still works unchanged, so

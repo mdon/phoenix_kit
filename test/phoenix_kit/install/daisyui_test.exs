@@ -50,6 +50,35 @@ defmodule PhoenixKit.Install.DaisyUITest do
     end
   end
 
+  describe "gutter_fix_version/0" do
+    test "is a valid semver string below the minimum" do
+      assert {:ok, gutter_fix} = Version.parse(DaisyUI.gutter_fix_version())
+      assert {:ok, minimum} = Version.parse(DaisyUI.minimum_version())
+
+      # The two bands only exist if the gutter fix predates the minimum.
+      assert Version.compare(gutter_fix, minimum) == :lt
+    end
+  end
+
+  describe "severity/1" do
+    test "below the gutter fix modals are genuinely broken" do
+      assert DaisyUI.severity("5.0.35") == :broken
+      assert DaisyUI.severity("4.12.0") == :broken
+    end
+
+    test "from the gutter fix up to the minimum is merely behind" do
+      assert DaisyUI.severity(DaisyUI.gutter_fix_version()) == :behind
+      assert DaisyUI.severity("5.1.0") == :behind
+      # What `mix phx.new` vendors today: a freshly scaffolded app must never
+      # be told its modals are broken.
+      assert DaisyUI.severity("5.5.19") == :behind
+    end
+
+    test "unparseable versions get the benign verdict" do
+      assert DaisyUI.severity("not-a-version") == :behind
+    end
+  end
+
   describe "outdated_warning/1" do
     test "names the installed and minimum versions and the upgrade path" do
       warning = DaisyUI.outdated_warning("5.0.35")
@@ -58,6 +87,26 @@ defmodule PhoenixKit.Install.DaisyUITest do
       assert warning =~ DaisyUI.minimum_version()
       assert warning =~ "assets/vendor"
       assert warning =~ "daisyui.js"
+    end
+
+    test "below the gutter fix it reports the rendering bug" do
+      warning = DaisyUI.outdated_warning("5.0.35")
+
+      assert warning =~ "phantom right-edge strip"
+      assert warning =~ DaisyUI.gutter_fix_version()
+    end
+
+    test "above the gutter fix it is advisory, not a bug report" do
+      warning = DaisyUI.outdated_warning("5.5.19")
+
+      assert warning =~ "5.5.19"
+      assert warning =~ DaisyUI.minimum_version()
+      assert warning =~ "nothing is broken"
+      # The <5.1 symptoms must not be pinned on a host that does not have them.
+      refute warning =~ "phantom right-edge strip"
+      refute warning =~ "content shifting"
+      # Upgrade steps still travel with both bands.
+      assert warning =~ "assets/vendor"
     end
   end
 end

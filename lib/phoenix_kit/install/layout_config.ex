@@ -91,10 +91,11 @@ if Code.ensure_loaded?(Igniter) do
     defp recompile_phoenix_kit_dependency(igniter) do
       # Since this is running during installation, we need to recompile the dependency
       # to ensure the layout configuration changes are picked up immediately
-      recompile_notice = """
-
-      🔄 Recompiling PhoenixKit to apply layout configuration...
-      """
+      recompile_notice =
+        """
+        🔄 Recompiling PhoenixKit to apply layout configuration...
+        """
+        |> String.trim()
 
       igniter = Igniter.add_notice(igniter, recompile_notice)
 
