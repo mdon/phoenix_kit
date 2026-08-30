@@ -1,4 +1,31 @@
-## 2.13.16 - 2026-08-29
+## 2.13.16 - 2026-08-30
+
+### Added
+
+- **`<.context_menu>` — right-click and touch-and-hold menus.** New
+  `PhoenixKitWeb.Components.Core.ContextMenu` plus a `ContextMenu` JS hook. One
+  menu element serves every row it matches: a tree of five hundred nodes renders
+  one hidden `<ul>`, not five hundred. On right-click the hook finds the row
+  under the pointer, copies its identifier onto each item's `phx-value-*`, and
+  opens the menu there — so opening costs no server round-trip and the event
+  that fires afterwards still names the right target. Items are
+  `TableRowMenu`'s, so a context menu and a `⋮` row menu look identical.
+  `value_name` takes a list when a menu's items were written against handlers
+  that spell the param differently. Overflow flips the menu to the other side of
+  the pointer rather than sliding it, then clamps; the menu is portaled to
+  `<body>` while open so `position: fixed` escapes `<dialog>` and `transform`ed
+  ancestors. Touch gets a 450ms hold (cancelled by a 10px move) with the
+  following click swallowed, and Android's native `contextmenu` de-duplicated.
+  Several menus on one page resolve by **deepest match**, not DOM order; `within`
+  confines a menu to one region.
+- **`<.folder_explorer>` rows are context-menu ready.** Every folder row and leaf
+  row carries `data-context-kind` (`"folder"` / `"item"`), `data-context-value`
+  and `data-context-label`, so a consumer gets right-click menus by declaring
+  the menus alone — no flag, no slot. They sit on the folder's row `<div>` and
+  the leaf `<li>`, never on a folder's wrapping `<li>`, so a right-click on a
+  nested row resolves to that row rather than its ancestor folder. Consumers
+  that declare no menu pay two attributes per row and keep the browser's own
+  menu.
 
 Repo-wide review sweep (no single PR): six areas audited, the verified
 defects fixed, the larger items recorded below under "Known / deferred".
