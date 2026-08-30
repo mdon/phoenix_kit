@@ -146,8 +146,24 @@ defmodule PhoenixKit.SettingsTest do
     alias PhoenixKit.Settings.Queries
 
     setup do
+      original_flat = Application.get_env(:phoenix_kit, :secret_key_base)
+
+      on_exit(fn ->
+        case original_flat do
+          nil -> Application.delete_env(:phoenix_kit, :secret_key_base)
+          value -> Application.put_env(:phoenix_kit, :secret_key_base, value)
+        end
+      end)
+
+      # The key resolver reads the flat `config :phoenix_kit, :secret_key_base`
+      # or the PARENT app's endpoint — this repository has no parent, so its
+      # own endpoint config in `config/test.exs` never reaches the resolver.
+      # Every encryption test upstream sets the flat key in its own setup for
+      # the same reason; this block now does too instead of assuming config.
+      Application.put_env(:phoenix_kit, :secret_key_base, "s015-restricted-settings-test-secret")
+
       assert Encryption.enabled?(),
-             "test config's secret_key_base must resolve a key — see config/test.exs"
+             "setting the flat :secret_key_base must resolve a key"
 
       :ok
     end

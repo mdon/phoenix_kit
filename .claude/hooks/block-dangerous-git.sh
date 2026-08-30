@@ -1,7 +1,8 @@
 #!/bin/bash
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command')
+COMMAND=$(echo "$INPUT" | jq -er '.tool_input.command') || exit 2
+[ -n "$COMMAND" ] || exit 2
 
 DANGEROUS_PATTERNS=(
   "git reset --hard"
@@ -10,7 +11,7 @@ DANGEROUS_PATTERNS=(
   "git branch -D"
   "git checkout \."
   "git restore \."
-  "push --force"
+  "push --force($|[^-])"
   "reset --hard"
 )
 
