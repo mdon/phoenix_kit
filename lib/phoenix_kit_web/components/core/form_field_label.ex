@@ -13,8 +13,13 @@ defmodule PhoenixKitWeb.Components.Core.FormFieldLabel do
 
   def label(assigns) do
     ~H"""
+    <%!-- Plain font-semibold, matching <.input>'s inline label
+    (2026-08-31): `fieldset-legend` is daisyUI 5's hook for legends
+    inside a real `.fieldset`, and borrowed inside `.label` it shrank
+    and muted Select/Textarea labels next to full-size Input ones —
+    the "Unit looks different from the fields around it" bug. --%>
     <label for={@for} class={["label", @class]}>
-      <span class="fieldset-legend font-semibold">
+      <span class="font-semibold">
         {render_slot(@inner_block)}
       </span>
     </label>
