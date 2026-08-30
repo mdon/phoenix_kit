@@ -2568,9 +2568,16 @@ if (typeof window.Chart === "undefined") {
       // close event landed on the host LV instead of the component
       // (2026-08-31 — the item selector's stacked details popup never
       // closed on Esc; the selector itself only "closed" because the
-      // misrouted event hit the host). closest() finds the component
-      // root; LV-owned dialogs have none and keep routing to the LV.
-      this.pushEventTo(this.el.closest("[data-phx-component]") || this.el, ev, {});
+      // misrouted event hit the host). An ELEMENT target is resolved via
+      // its phx-target attribute (absent here), so pass the numeric CID —
+      // a first-class target in withinTargets. LV-owned dialogs have no
+      // component ancestor and keep routing to the LV.
+      const comp = this.el.closest("[data-phx-component]");
+      if (comp) {
+        this.pushEventTo(parseInt(comp.getAttribute("data-phx-component"), 10), ev, {});
+      } else {
+        this.pushEvent(ev, {});
+      }
     },
     _sync() {
       // `data-show` drives visibility for keep_in_dom modals. Conditional
@@ -3461,16 +3468,21 @@ if (typeof window.Chart === "undefined") {
     maybeLoad() {
       if (this.loading) return;
       this.loading = true;
-      // Route to the LiveComponent that OWNS the sentinel (closest
-      // data-phx-component root — the element itself carries none), and
-      // to the LiveView when there is none — a strict superset of the
-      // old pushEvent, which always hit the LV and made the sentinel
-      // useless inside components (2026-08-31).
-      this.pushEventTo(
-        this.el.closest("[data-phx-component]") || this.el,
-        this.loadMoreEvent(),
-        {}
-      );
+      // Route to the LiveComponent that OWNS the sentinel — by numeric
+      // CID (an element target is resolved via its phx-target attribute,
+      // which the sentinel doesn't carry) — and to the LiveView when
+      // there is no component ancestor. The old pushEvent always hit the
+      // LV and made the sentinel useless inside components (2026-08-31).
+      const comp = this.el.closest("[data-phx-component]");
+      if (comp) {
+        this.pushEventTo(
+          parseInt(comp.getAttribute("data-phx-component"), 10),
+          this.loadMoreEvent(),
+          {}
+        );
+      } else {
+        this.pushEvent(this.loadMoreEvent(), {});
+      }
       // Watchdog: release the guard even if the cursor never advances, so a
       // no-op load can't wedge the sentinel. The cursor-change path in
       // updated() clears it sooner on the normal (page-grew) path.
