@@ -2656,9 +2656,26 @@ if (typeof window.Chart === "undefined") {
         if (stacked.length > 0) {
           e.preventDefault();
           const top = stacked[stacked.length - 1];
-          if (top.dispatchEvent(new Event("cancel", { cancelable: true }))) {
-            top.close();
+          // Drive the child's SERVER close directly (its data-close-event
+          // to its owning component by CID) and close its element for the
+          // instant visual — relying on the child's own 'close' echo
+          // proved fragile (the queued close event was observed not to
+          // fire at all in this stack). A duplicate echo push, if the
+          // event does fire, is idempotent by the close-event contract.
+          const closeEv = top.dataset && top.dataset.closeEvent;
+          if (closeEv) {
+            const comp = top.closest("[data-phx-component]");
+            if (comp) {
+              self.pushEventTo(
+                parseInt(comp.getAttribute("data-phx-component"), 10),
+                closeEv,
+                {}
+              );
+            } else {
+              self.pushEvent(closeEv, {});
+            }
           }
+          top.close();
         }
       };
       // 'close' fires for every close path: Esc, our own el.close() in
