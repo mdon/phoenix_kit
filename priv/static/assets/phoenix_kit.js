@@ -2628,10 +2628,16 @@ if (typeof window.Chart === "undefined") {
         // watchers of dialogs whose showModal() ran without user
         // activation (ours run from LiveView patches), so a single Esc
         // fires 'cancel' on EVERY dialog in the group (2026-08-31: "Esc
-        // closes both popups, but only top one needs to go"). Swallow
-        // this dialog's cancel while a nested one is open; the child's
-        // own cancel handles itself.
-        if (self.el.querySelector("dialog[open]")) e.preventDefault();
+        // closes both popups, but only top one needs to go"). Keep THIS
+        // dialog open and close the deepest stacked child explicitly —
+        // preventDefault alone aborts the whole grouped close request,
+        // which would leave the child open too (verified: neither
+        // closed). A closed child's own grouped cancel then no-ops.
+        const stacked = self.el.querySelectorAll("dialog[open]");
+        if (stacked.length > 0) {
+          e.preventDefault();
+          stacked[stacked.length - 1].close();
+        }
       };
       // 'close' fires for every close path: Esc, our own el.close() in
       // destroyed(), backdrop click (via _onClick → el.close()), and
