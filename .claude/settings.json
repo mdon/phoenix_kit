@@ -33,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mix format"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-edited-file.sh"
           },
           {
             "type": "command",
