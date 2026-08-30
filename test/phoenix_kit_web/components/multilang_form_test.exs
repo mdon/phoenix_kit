@@ -96,6 +96,34 @@ defmodule PhoenixKitWeb.Components.MultilangFormTest do
       assert result =~ ~s(phx-debounce="300")
     end
 
+    # 2026-08-31 label harmonisation: same plain font-semibold span
+    # Input uses — but with an explicit text-sm, because this label sits
+    # inside a real `.fieldset` wrapper whose 0.75rem inheritance
+    # `fieldset-legend` used to override. Dropping the class WITHOUT
+    # text-sm made these labels smaller than their Input neighbours.
+    test "the label span matches Input's typography inside the fieldset wrapper" do
+      changeset = make_changeset(%{title: "Hello"})
+      assigns = %{changeset: changeset}
+
+      result =
+        html(~H"""
+        <.translatable_field
+          field_name="title"
+          form_prefix="record"
+          changeset={@changeset}
+          schema_field={:title}
+          multilang_enabled={false}
+          current_lang="en"
+          primary_language="en"
+          lang_data={%{}}
+          label="Title"
+        />
+        """)
+
+      assert result =~ ~s(<span class="font-semibold text-sm">)
+      refute result =~ "fieldset-legend"
+    end
+
     test "nil omits the attribute, so the server sees every keystroke" do
       # For fields the server DERIVES from as you type — a slug from a
       # title — waiting for a typing pause makes the result feel laggy.
