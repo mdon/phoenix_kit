@@ -2621,7 +2621,17 @@ if (typeof window.Chart === "undefined") {
       this._closeFromLV = false;
 
       self._onCancel = function(e) {
-        if (!self._isCloseable()) e.preventDefault();
+        if (!self._isCloseable()) { e.preventDefault(); return; }
+        // A child dialog is stacked open INSIDE this one (the item
+        // selector's product-details popup is the shipped case). Esc
+        // must close only the TOP popup — but Chromium groups the close
+        // watchers of dialogs whose showModal() ran without user
+        // activation (ours run from LiveView patches), so a single Esc
+        // fires 'cancel' on EVERY dialog in the group (2026-08-31: "Esc
+        // closes both popups, but only top one needs to go"). Swallow
+        // this dialog's cancel while a nested one is open; the child's
+        // own cancel handles itself.
+        if (self.el.querySelector("dialog[open]")) e.preventDefault();
       };
       // 'close' fires for every close path: Esc, our own el.close() in
       // destroyed(), backdrop click (via _onClick → el.close()), and
@@ -3430,7 +3440,12 @@ if (typeof window.Chart === "undefined") {
     maybeLoad() {
       if (this.loading) return;
       this.loading = true;
-      this.pushEvent(this.loadMoreEvent(), {});
+      // pushEventTo with the element routes to the LiveComponent that
+      // rendered the sentinel (the item selector's list), and to the
+      // LiveView when there is none — a strict superset of the old
+      // pushEvent, which always hit the LV and made the sentinel
+      // useless inside components (2026-08-31).
+      this.pushEventTo(this.el, this.loadMoreEvent(), {});
       // Watchdog: release the guard even if the cursor never advances, so a
       // no-op load can't wedge the sentinel. The cursor-change path in
       // updated() clears it sooner on the normal (page-grew) path.
