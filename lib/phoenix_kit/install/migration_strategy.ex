@@ -387,9 +387,13 @@ defmodule PhoenixKit.Install.MigrationStrategy do
     """)
   end
 
+  # Deliberately NOT a "PhoenixKit ready!" banner: Igniter prints the
+  # installer's own closing notice after queued tasks finish, so a second
+  # one here would land just above it. Report the migration result and the
+  # resolved sign-up path (which the notice can only describe generically).
   defp show_success_notice do
     IO.puts("""
-    🎉 PhoenixKit ready! Visit: #{Routes.path("/users/register")}
+    🗄️  PhoenixKit tables created. Sign-up lives at: #{Routes.path("/users/register")}
     """)
   end
 

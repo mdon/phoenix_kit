@@ -68,14 +68,12 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     alias PhoenixKit.Install.{
       ApplicationSupervisor,
-      AssetRebuild,
       BasicConfiguration,
       BootHook,
       BrowserPipelineIntegration,
       Common,
       CssIntegration,
       DaisyUI,
-      DbConnectionCheck,
       Deprecations,
       EndpointIntegration,
       JsIntegration,
@@ -143,6 +141,21 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       |> EndpointIntegration.add_endpoint_integration()
       |> MigrationStrategy.create_phoenix_kit_migration_only(opts)
       |> add_completion_notice(opts)
+      |> queue_post_install(opts)
+    end
+
+    # The migration prompt and asset rebuild have to happen AFTER the file
+    # changes land, so they cannot live in this pipeline directly - but they
+    # cannot live in run/1 either: `mix igniter.install phoenix_kit` (the entry
+    # point this task's own help recommends) composes installers via
+    # Igniter.Mix.Task.configure_and_run/3, which calls igniter/1 and never
+    # run/1. Queue them instead; Igniter runs queued tasks once changes are
+    # committed, on both entry points, and skips them on --dry-run.
+    defp queue_post_install(igniter, opts) do
+      prefix_argv = if prefix = opts[:prefix], do: ["--prefix", prefix], else: []
+      skip_assets_argv = if opts[:skip_assets], do: ["--skip-assets"], else: []
+
+      Igniter.add_task(igniter, "phoenix_kit.post_install", prefix_argv ++ skip_assets_argv)
     end
 
     # Override run/1 to handle post-igniter interactive migration
@@ -152,23 +165,6 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         show_help()
         :ok
       else
-        # Store options in process dictionary for later use
-        opts =
-          OptionParser.parse(argv,
-            switches: [
-              router_path: :string,
-              repo: :string,
-              prefix: :string,
-              create_schema: :boolean,
-              skip_assets: :boolean
-            ],
-            aliases: [
-              r: :router_path,
-              repo: :repo,
-              p: :prefix
-            ]
-          )
-
         # CRITICAL: Check if required configuration exists BEFORE starting app
         # This prevents configuration timing issues where config is added via Igniter
         # but the app has already started with cached (missing) configuration
@@ -206,19 +202,11 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
             # Second pass: Configuration exists, safe to start app and complete installation
             Process.put(:phoenix_kit_config_status, :ok)
 
-            # Run standard igniter process
+            # Run standard igniter process. The migration prompt and asset
+            # rebuild ride along as a queued task (see queue_post_install/2),
+            # so they happen here too - and on the igniter.install path, which
+            # never reaches this function.
             result = super(argv)
-
-            # Verify database is reachable before running migrations
-            DbConnectionCheck.ensure_connected!()
-
-            # After igniter is done, handle interactive migration
-            MigrationStrategy.handle_interactive_migration_after_config(elem(opts, 1))
-
-            # Always rebuild assets unless explicitly skipped
-            unless Keyword.get(elem(opts, 1), :skip_assets, false) do
-              AssetRebuild.check_and_rebuild(verbose: true)
-            end
 
             # Clean up retry flag on successful completion
             Process.delete(:phoenix_kit_retry_pass)
@@ -492,7 +480,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       notice =
         """
         ✅ PhoenixKit ready! Next:
-          • mix ecto.migrate
+          • mix ecto.migrate (only if you skipped the migration prompt above)
           • mix phx.server
           • Visit /users/register (or with your configured URL prefix)
           • mix phoenix_kit.doctor

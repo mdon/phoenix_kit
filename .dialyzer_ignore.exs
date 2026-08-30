@@ -26,6 +26,7 @@
   # Note: Mix.Task behaviour info is not available to Dialyzer (compile-time only)
   # Adding @impl Mix.Task does not fix this warning
   {"lib/mix/tasks/phoenix_kit.doctor.ex", :callback_info_missing, 1},
+  {"lib/mix/tasks/phoenix_kit.post_install.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/phoenix_kit.repair_uuid.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/phoenix_kit.release_check.ex", :callback_info_missing, 1},
   {"lib/mix/tasks/phoenix_kit.gen.migration.ex", :callback_info_missing, 1},

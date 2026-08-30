@@ -2,6 +2,28 @@
 
 ### Fixed
 
+- **The installer's post-install steps never ran on the recommended entry
+  point.** `mix igniter.install phoenix_kit` - the command this task's own
+  help recommends - composes installers through
+  `Igniter.Mix.Task.configure_and_run/3`, which invokes the task's `igniter/1`
+  callback and nothing else. Everything parked in
+  `Mix.Tasks.PhoenixKit.Install.run/1` after `super(argv)` was therefore dead
+  code on that path: the interactive `mix ecto.migrate` prompt, the asset
+  rebuild, and the database connectivity check. Hosts saw
+  `• mix ecto.migrate` in the closing notice and were never offered the
+  migration, and their assets were never rebuilt after the CSS/JS integration
+  wrote to `app.css` and `app.js`. Those steps now ship as a queued
+  `mix phoenix_kit.post_install` task (`Igniter.add_task/3`), which runs after
+  changes are committed on **both** entry points - and is correctly skipped
+  on `--dry-run`, where the old code would have migrated anyway. `run/1` no
+  longer duplicates the work.
+- **Two "PhoenixKit ready!" banners.** Igniter runs queued tasks before
+  printing notices, so a successful migration announced readiness moments
+  before the closing notice did. The migration path now reports what it did
+  (and the resolved sign-up path) and leaves the banner to the notice, whose
+  `mix ecto.migrate` step is marked as applying only if the prompt was
+  skipped.
+
 - **The daisyUI version warning accused healthy installs of a rendering bug.**
   `PhoenixKit.Install.DaisyUI.outdated_warning/1` fired below 5.6.0 but its
   copy described the pre-5.1 failure mode (phantom right-edge strip, ~15px
