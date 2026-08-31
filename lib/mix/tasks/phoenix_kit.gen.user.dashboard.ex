@@ -97,7 +97,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # this module can outlive the dependency it tested (see
       # `PhoenixKit.Install.MissingIgniter`), so ask again before any generated
       # Igniter code runs.
-      MissingIgniter.ensure_available!("phoenix_kit.gen.user.dashboard")
+      MissingIgniter.ensure_available!("phoenix_kit.gen.user.dashboard", argv)
 
       # Handle --help flag manually
       if "--help" in argv or "-h" in argv do

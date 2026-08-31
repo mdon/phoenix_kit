@@ -110,7 +110,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       # this module can outlive the dependency it tested (see
       # `PhoenixKit.Install.MissingIgniter`), so ask again before any generated
       # Igniter code runs.
-      MissingIgniter.ensure_available!("phoenix_kit.gen.admin.page")
+      MissingIgniter.ensure_available!("phoenix_kit.gen.admin.page", argv)
 
       if "--help" in argv or "-h" in argv do
         Mix.shell().info("""

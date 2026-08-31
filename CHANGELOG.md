@@ -61,6 +61,30 @@
   at the top of each task's `run/1`, so the guidance is printed whether the
   compiled branch was right or has since become a lie.
 
+### Added
+
+- **The igniter-backed tasks now offer to add the dependency instead of only
+  naming it.** With igniter genuinely absent,
+  `PhoenixKit.Install.MissingIgniter` prints what is missing and asks to write
+  `{:igniter, "~> 0.7", only: [:dev, :test]}` into the host's `deps/0`
+  (auto-accepted under `--yes`/`-y`), then shells out to `mix deps.get` - a
+  fresh OS process, since the running one evaluated `mix.exs` at boot and
+  cannot see the new dep. It stops there and names the one command to re-run:
+  PhoenixKit itself has to recompile to pick the other side of its
+  `Code.ensure_loaded?(Igniter.Mix.Task)` guard, which cannot happen inside a
+  run that is already executing the wrong side. Declining, a MIX_ENV where
+  `only: [:dev, :test]` would not help, an unrecognised `deps/0` (anything but
+  the list shape the generators emit - it never guesses), or a failed fetch
+  all fall back to the manual instructions, each carrying only the part that
+  is still true - a declined prompt is not re-told what it just declined, and
+  a failed fetch is not told to add a line that is already written.
+- **The opposite staleness is diagnosed too.** A host that installed
+  PhoenixKit *without* igniter and added it afterwards keeps the compiled
+  stand-in task, so following its own advice appeared to change nothing.
+  `stand_in_run/2` now notices that igniter is loadable and asks for
+  `mix deps.compile phoenix_kit --force` rather than repeating the
+  instructions the host already followed.
+
 ### Changed
 
 - **The install warning glyph is reserved for things that need attention.**
