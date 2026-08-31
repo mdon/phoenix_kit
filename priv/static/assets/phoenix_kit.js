@@ -2652,7 +2652,16 @@ if (typeof window.Chart === "undefined") {
         // is not enough — Chromium stops the grouped chain at the first
         // prevented watcher, so the child's own cancel never fires
         // (verified: neither popup closed).
-        const stacked = self.el.querySelectorAll("dialog[open]");
+        // Match by the browser's own notion of "open" (:modal), not the
+        // `open` attribute — morphdom can strip the attribute between a
+        // patch and the next _sync, and `dialog[open]` would miss the
+        // child in that window (2026-08-31 external review). DOM order
+        // stands in for top-layer order; the shipped stacks nest one
+        // child, where the two agree.
+        const stacked = Array.prototype.filter.call(
+          self.el.querySelectorAll("dialog"),
+          isDialogOpenInBrowser
+        );
         if (stacked.length > 0) {
           e.preventDefault();
           const top = stacked[stacked.length - 1];
@@ -2660,11 +2669,14 @@ if (typeof window.Chart === "undefined") {
           // to its owning component by CID) and close its element for the
           // instant visual — relying on the child's own 'close' echo
           // proved fragile (the queued close event was observed not to
-          // fire at all in this stack). A duplicate echo push, if the
-          // event does fire, is idempotent by the close-event contract.
+          // fire at all in this stack). Flag the child so its own
+          // 'close' handler, when the event DOES fire, skips the echo
+          // push — otherwise a non-idempotent close event (a toggle)
+          // would fire twice (2026-08-31 external review).
           const closeEv = top.dataset && top.dataset.closeEvent;
           if (closeEv) {
             const comp = top.closest("[data-phx-component]");
+            top._pkStackClosePushed = true;
             if (comp) {
               self.pushEventTo(
                 parseInt(comp.getAttribute("data-phx-component"), 10),
@@ -2682,11 +2694,15 @@ if (typeof window.Chart === "undefined") {
       // destroyed(), backdrop click (via _onClick → el.close()), and
       // form `method="dialog"` submits.
       self._onClose = function() {
-        if (!self._closeFromLV) self._pushClose();
-        // Reset the LV-initiated flag now that the close event has
-        // been fully processed. The next user-initiated close (Esc,
-        // backdrop) will fall through to the echo push as intended.
+        // `_pkStackClosePushed` is set by a stacked PARENT dialog that
+        // already pushed this dialog's close event during a grouped
+        // cancel — echoing here would double-fire the server handler.
+        if (!self._closeFromLV && !self.el._pkStackClosePushed) self._pushClose();
+        // Reset both flags now that the close event has been fully
+        // processed. The next user-initiated close (Esc, backdrop)
+        // will fall through to the echo push as intended.
         self._closeFromLV = false;
+        self.el._pkStackClosePushed = false;
       };
       // Backdrop click: a click event whose target is the <dialog> itself
       // (rather than a descendant) means the user clicked outside the
