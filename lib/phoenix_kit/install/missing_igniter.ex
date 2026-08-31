@@ -22,6 +22,23 @@ defmodule PhoenixKit.Install.MissingIgniter do
 
   The cost is this case: a host that never declared igniter itself was getting
   it transitively, and an upgrade drops it. That is what the message covers.
+
+  ## Why the compile-time guard is not enough
+
+  `Code.ensure_loaded?/1` runs when PhoenixKit is compiled into the host's
+  `_build`, and PhoenixKit is not recompiled when the host's own dependency
+  list changes. A host that installed PhoenixKit while igniter was on the path
+  keeps a beam that took the igniter branch; drop igniter afterwards and that
+  stale beam is still what Mix loads. The guard's `else` branch was never
+  compiled, so instead of the message below the host gets:
+
+      ** (UndefinedFunctionError) function Igniter.Mix.Task.help_requested?/1
+      is undefined (module Igniter.Mix.Task is not available)
+
+  which is the failure this module exists to prevent. Every igniter-backed
+  task therefore also calls `ensure_available!/1` at the top of its `run/1`,
+  so the same guidance is printed whether the branch was chosen at compile
+  time or the compiled branch turned out to be a lie.
   """
 
   @doc """
@@ -50,6 +67,26 @@ defmodule PhoenixKit.Install.MissingIgniter do
     `mix phoenix_kit.gen.migration`, `mix phoenix_kit.assets.rebuild` — works
     without igniter and is unaffected.
     """
+  end
+
+  @doc """
+  Raises `message/1` unless igniter is actually loadable right now.
+
+  Called at the top of `run/1` in every igniter-backed task. The tasks are
+  wrapped in a compile-time `Code.ensure_loaded?/1` guard, but that decision
+  can outlive the dependency that justified it (see the moduledoc), so the
+  same question is asked again at runtime.
+
+  `igniter_module` exists so the failing branch is testable; callers pass the
+  task name only.
+  """
+  @spec ensure_available!(String.t(), module()) :: :ok
+  def ensure_available!(task, igniter_module \\ Igniter.Mix.Task) do
+    if Code.ensure_loaded?(igniter_module) do
+      :ok
+    else
+      Mix.raise(message(task))
+    end
   end
 
   @doc """

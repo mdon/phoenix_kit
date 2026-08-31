@@ -46,6 +46,20 @@
   means a migration version in this codebase (`V181`), and the package
   version carried one on the line directly above `Target version: V181`.
   Lowercased.
+- **Dropping igniter crashed the igniter tasks instead of explaining
+  itself.** Igniter is an optional dependency, so `mix phoenix_kit.install`,
+  `.update`, `.gen.admin.page` and `.gen.user.dashboard` are wrapped in a
+  compile-time `Code.ensure_loaded?(Igniter.Mix.Task)` guard whose `else`
+  branch prints the "add `{:igniter, "~> 0.7", only: [:dev, :test]}`"
+  guidance. That branch is chosen when PhoenixKit is compiled into the host's
+  `_build`, and PhoenixKit is not recompiled when the host's own dependency
+  list changes - so a project that installed while igniter was on the path
+  and later dropped it kept a beam that had taken the igniter branch, and got
+  `** (UndefinedFunctionError) function Igniter.Mix.Task.help_requested?/1 is
+  undefined` from the generated `run/1`. New
+  `PhoenixKit.Install.MissingIgniter.ensure_available!/1` re-asks the question
+  at the top of each task's `run/1`, so the guidance is printed whether the
+  compiled branch was right or has since become a lie.
 
 ### Changed
 

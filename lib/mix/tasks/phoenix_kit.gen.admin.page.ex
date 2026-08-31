@@ -65,6 +65,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     alias Igniter.Code.Common
     alias Igniter.Project.Config
     alias PhoenixKit.Install.IgniterHelpers
+    alias PhoenixKit.Install.MissingIgniter
     alias Sourceror.Zipper
 
     @impl Igniter.Mix.Task
@@ -105,6 +106,12 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     @impl Mix.Task
     def run(argv) do
+      # The compile-time `Code.ensure_loaded?(Igniter.Mix.Task)` guard around
+      # this module can outlive the dependency it tested (see
+      # `PhoenixKit.Install.MissingIgniter`), so ask again before any generated
+      # Igniter code runs.
+      MissingIgniter.ensure_available!("phoenix_kit.gen.admin.page")
+
       if "--help" in argv or "-h" in argv do
         Mix.shell().info("""
         Generates admin page with automatic route registration.

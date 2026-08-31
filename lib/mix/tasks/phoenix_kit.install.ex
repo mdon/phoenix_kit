@@ -80,6 +80,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       LayoutConfig,
       MailerConfig,
       MigrationStrategy,
+      MissingIgniter,
       OAuthConfig,
       ObanConfig,
       PrefixConfig,
@@ -160,6 +161,12 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     # Override run/1 to handle post-igniter interactive migration
     def run(argv) do
+      # The compile-time `Code.ensure_loaded?(Igniter.Mix.Task)` guard around
+      # this module can outlive the dependency it tested (see
+      # `PhoenixKit.Install.MissingIgniter`), so ask again before any generated
+      # Igniter code runs.
+      MissingIgniter.ensure_available!("phoenix_kit.install")
+
       # Handle --help flag
       if "--help" in argv or "-h" in argv do
         show_help()

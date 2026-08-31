@@ -50,6 +50,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     alias PhoenixKit.Install.IgniterConfig
     alias PhoenixKit.Install.IgniterHelpers
+    alias PhoenixKit.Install.MissingIgniter
 
     @impl Igniter.Mix.Task
     def info(_argv, _composing_task) do
@@ -92,6 +93,12 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     @impl Mix.Task
     def run(argv) do
+      # The compile-time `Code.ensure_loaded?(Igniter.Mix.Task)` guard around
+      # this module can outlive the dependency it tested (see
+      # `PhoenixKit.Install.MissingIgniter`), so ask again before any generated
+      # Igniter code runs.
+      MissingIgniter.ensure_available!("phoenix_kit.gen.user.dashboard")
+
       # Handle --help flag manually
       if "--help" in argv or "-h" in argv do
         Mix.shell().info("""
