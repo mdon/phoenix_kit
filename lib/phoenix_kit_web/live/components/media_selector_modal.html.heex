@@ -312,9 +312,14 @@
                     is_selected && "ring-4 ring-primary"
                   ]}
                 >
-                  <%!-- Thumbnail --%>
+                  <%!-- Card-size slot needs the card-tier variant: the
+                  default :small is the 150px thumbnail, and stretched
+                  across an aspect-square grid tile (~150-300px CSS,
+                  double on retina) it is the blur the boss reported
+                  (2026-08-31) — the same fix the media browser's grid
+                  already carries. --%>
                   <figure class="aspect-square bg-base-300 relative">
-                    <.thumbnail_url :let={url} file={file}>
+                    <.thumbnail_url :let={url} file={file} size={:card}>
                       <%= if url do %>
                         <img
                           src={url}

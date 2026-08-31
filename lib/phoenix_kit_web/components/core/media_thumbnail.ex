@@ -91,11 +91,17 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnail do
   end
 
   def resolve_url(%{urls: urls}, :card) do
-    urls["small"] || urls["thumbnail"] || urls["medium"]
+    # Mirrors the image-typed clause's ordering: for a card-size slot the
+    # 800px medium beats the 150px thumbnail — the old order served the
+    # smallest variant whenever `small` was missing (2026-08-31 sweep,
+    # the boss's low-quality report).
+    urls["small"] || urls["medium"] || urls["thumbnail"]
   end
 
   def resolve_url(%{urls: urls}, :medium) do
-    urls["thumbnail"] || urls["small"] || urls["medium"]
+    # Was inverted — a :medium request preferred the 150px thumbnail
+    # over the actual medium variant (2026-08-31 sweep).
+    urls["medium"] || urls["small"] || urls["thumbnail"]
   end
 
   def resolve_url(_, _), do: nil
