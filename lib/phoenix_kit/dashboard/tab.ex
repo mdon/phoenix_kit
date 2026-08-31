@@ -814,6 +814,12 @@ defmodule PhoenixKit.Dashboard.Tab do
 
   defp normalize_path(path) when is_binary(path) do
     path
+    # Matching is about the PATH: a current_path carrying a query or
+    # fragment (pages that publish their full URL so the language
+    # switcher can preserve state — catalogue detail's ?category=,
+    # 2026-08-31) must not break exact/prefix tab matches.
+    |> String.split(["?", "#"], parts: 2)
+    |> hd()
     |> String.trim_trailing("/")
     |> remove_url_prefix()
     |> remove_locale_prefix()

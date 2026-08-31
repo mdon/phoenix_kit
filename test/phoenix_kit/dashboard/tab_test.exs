@@ -343,4 +343,25 @@ defmodule PhoenixKit.Dashboard.TabTest do
       assert Tab.localized_label(tab) == @known_ru_translation
     end
   end
+
+  describe "matches_path?/2 with query-carrying current paths" do
+    # Pages that publish their full URL into :url_path (so the language
+    # switcher can rebuild locale links without dropping state — the
+    # catalogue's ?category= drill, 2026-08-31) hand tab matching a path
+    # with a query attached. Matching is about the path alone.
+    test "an exact match survives a query string" do
+      tab = Tab.new!(id: :t, label: "T", path: "/admin/modules/catalogue", match: :exact)
+
+      assert Tab.matches_path?(tab, "/admin/modules/catalogue?category=abc")
+      refute Tab.matches_path?(tab, "/admin/modules/catalogues?category=abc")
+    end
+
+    test "a prefix match survives query and fragment" do
+      tab = Tab.new!(id: :t, label: "T", path: "/admin/modules/catalogue", match: :prefix)
+
+      assert Tab.matches_path?(tab, "/admin/modules/catalogue/abc?category=x")
+      assert Tab.matches_path?(tab, "/admin/modules/catalogue#files")
+      refute Tab.matches_path?(tab, "/admin/other?path=/admin/modules/catalogue")
+    end
+  end
 end
