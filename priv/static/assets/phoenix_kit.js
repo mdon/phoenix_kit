@@ -2561,7 +2561,23 @@ if (typeof window.Chart === "undefined") {
     },
     _pushClose() {
       const ev = this.el.dataset.closeEvent;
-      if (ev) this.pushEventTo(this.el, ev, {});
+      if (!ev) return;
+      // Route to the LiveComponent that OWNS the dialog: pushEventTo with
+      // the dialog element itself resolves to the LiveView (the element
+      // carries no data-phx-component), so a component-owned modal's
+      // close event landed on the host LV instead of the component
+      // (2026-08-31 — the item selector's stacked details popup never
+      // closed on Esc; the selector itself only "closed" because the
+      // misrouted event hit the host). An ELEMENT target is resolved via
+      // its phx-target attribute (absent here), so pass the numeric CID —
+      // a first-class target in withinTargets. LV-owned dialogs have no
+      // component ancestor and keep routing to the LV.
+      const comp = this.el.closest("[data-phx-component]");
+      if (comp) {
+        this.pushEventTo(parseInt(comp.getAttribute("data-phx-component"), 10), ev, {});
+      } else {
+        this.pushEvent(ev, {});
+      }
     },
     _sync() {
       // `data-show` drives visibility for keep_in_dom modals. Conditional
@@ -2621,17 +2637,72 @@ if (typeof window.Chart === "undefined") {
       this._closeFromLV = false;
 
       self._onCancel = function(e) {
-        if (!self._isCloseable()) e.preventDefault();
+        if (!self._isCloseable()) { e.preventDefault(); return; }
+        // A child dialog is stacked open INSIDE this one (the item
+        // selector's product-details popup is the shipped case). Esc
+        // must close only the TOP popup — but Chromium groups the close
+        // watchers of dialogs whose showModal() ran without user
+        // activation (ours run from LiveView patches), so a single Esc
+        // fires 'cancel' on EVERY dialog in the group (2026-08-31: "Esc
+        // closes both popups, but only top one needs to go"). Keep THIS
+        // dialog open and RELAY the close request to the deepest stacked
+        // child in its own semantics: a synthetic cancelable 'cancel',
+        // then close() unless the child prevented it (a server-driven
+        // child prevents and pushes its own event). preventDefault alone
+        // is not enough — Chromium stops the grouped chain at the first
+        // prevented watcher, so the child's own cancel never fires
+        // (verified: neither popup closed).
+        // Match by the browser's own notion of "open" (:modal), not the
+        // `open` attribute — morphdom can strip the attribute between a
+        // patch and the next _sync, and `dialog[open]` would miss the
+        // child in that window (2026-08-31 external review). DOM order
+        // stands in for top-layer order; the shipped stacks nest one
+        // child, where the two agree.
+        const stacked = Array.prototype.filter.call(
+          self.el.querySelectorAll("dialog"),
+          isDialogOpenInBrowser
+        );
+        if (stacked.length > 0) {
+          e.preventDefault();
+          const top = stacked[stacked.length - 1];
+          // Drive the child's SERVER close directly (its data-close-event
+          // to its owning component by CID) and close its element for the
+          // instant visual — relying on the child's own 'close' echo
+          // proved fragile (the queued close event was observed not to
+          // fire at all in this stack). Flag the child so its own
+          // 'close' handler, when the event DOES fire, skips the echo
+          // push — otherwise a non-idempotent close event (a toggle)
+          // would fire twice (2026-08-31 external review).
+          const closeEv = top.dataset && top.dataset.closeEvent;
+          if (closeEv) {
+            const comp = top.closest("[data-phx-component]");
+            top._pkStackClosePushed = true;
+            if (comp) {
+              self.pushEventTo(
+                parseInt(comp.getAttribute("data-phx-component"), 10),
+                closeEv,
+                {}
+              );
+            } else {
+              self.pushEvent(closeEv, {});
+            }
+          }
+          top.close();
+        }
       };
       // 'close' fires for every close path: Esc, our own el.close() in
       // destroyed(), backdrop click (via _onClick → el.close()), and
       // form `method="dialog"` submits.
       self._onClose = function() {
-        if (!self._closeFromLV) self._pushClose();
-        // Reset the LV-initiated flag now that the close event has
-        // been fully processed. The next user-initiated close (Esc,
-        // backdrop) will fall through to the echo push as intended.
+        // `_pkStackClosePushed` is set by a stacked PARENT dialog that
+        // already pushed this dialog's close event during a grouped
+        // cancel — echoing here would double-fire the server handler.
+        if (!self._closeFromLV && !self.el._pkStackClosePushed) self._pushClose();
+        // Reset both flags now that the close event has been fully
+        // processed. The next user-initiated close (Esc, backdrop)
+        // will fall through to the echo push as intended.
         self._closeFromLV = false;
+        self.el._pkStackClosePushed = false;
       };
       // Backdrop click: a click event whose target is the <dialog> itself
       // (rather than a descendant) means the user clicked outside the
@@ -3430,7 +3501,21 @@ if (typeof window.Chart === "undefined") {
     maybeLoad() {
       if (this.loading) return;
       this.loading = true;
-      this.pushEvent(this.loadMoreEvent(), {});
+      // Route to the LiveComponent that OWNS the sentinel — by numeric
+      // CID (an element target is resolved via its phx-target attribute,
+      // which the sentinel doesn't carry) — and to the LiveView when
+      // there is no component ancestor. The old pushEvent always hit the
+      // LV and made the sentinel useless inside components (2026-08-31).
+      const comp = this.el.closest("[data-phx-component]");
+      if (comp) {
+        this.pushEventTo(
+          parseInt(comp.getAttribute("data-phx-component"), 10),
+          this.loadMoreEvent(),
+          {}
+        );
+      } else {
+        this.pushEvent(this.loadMoreEvent(), {});
+      }
       // Watchdog: release the guard even if the cursor never advances, so a
       // no-op load can't wedge the sentinel. The cursor-change path in
       // updated() clears it sooner on the normal (page-grew) path.
