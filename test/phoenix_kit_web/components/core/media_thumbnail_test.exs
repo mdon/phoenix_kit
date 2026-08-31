@@ -100,15 +100,37 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnailTest do
       assert MediaThumbnail.resolve_url(%{urls: %{"thumbnail" => "/t.jpg"}}, :small) == "/t.jpg"
     end
 
-    test ":card prefers small, then thumbnail, then medium (never the original)" do
+    test ":card prefers small, then MEDIUM, then thumbnail (never the original)" do
       assert MediaThumbnail.resolve_url(
                %{urls: %{"small" => "/s.jpg", "thumbnail" => "/t.jpg", "medium" => "/m.jpg"}},
                :card
              ) == "/s.jpg"
 
+      # With small missing, the 800px medium beats the 150px thumbnail in
+      # a card slot — the old order served the smallest variant here (the
+      # boss's low-quality report, 2026-08-31).
+      assert MediaThumbnail.resolve_url(
+               %{urls: %{"thumbnail" => "/t.jpg", "medium" => "/m.jpg"}},
+               :card
+             ) == "/m.jpg"
+
       # A document with only an original renders the placeholder, not the raw
       # file as an <img src> — so :card returns nil here.
       assert MediaThumbnail.resolve_url(%{urls: %{"original" => "/o.pdf"}}, :card) == nil
+    end
+
+    test ":medium prefers medium — the request names the tier it wants" do
+      # Was inverted: a :medium request served the 150px thumbnail even
+      # when a real medium existed (2026-08-31 sweep).
+      assert MediaThumbnail.resolve_url(
+               %{urls: %{"thumbnail" => "/t.jpg", "small" => "/s.jpg", "medium" => "/m.jpg"}},
+               :medium
+             ) == "/m.jpg"
+
+      assert MediaThumbnail.resolve_url(
+               %{urls: %{"thumbnail" => "/t.jpg", "small" => "/s.jpg"}},
+               :medium
+             ) == "/s.jpg"
     end
   end
 
