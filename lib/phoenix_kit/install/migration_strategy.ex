@@ -237,11 +237,12 @@ defmodule PhoenixKit.Install.MigrationStrategy do
 
         migration_version = Postgres.current_version()
 
-        initial_notice = """
-
-        📦 PhoenixKit V#{phoenix_kit_version} migration ready: #{migration_file}
-        Target version: V#{Common.pad_version(migration_version)}
-        """
+        initial_notice =
+          """
+          📦 PhoenixKit v#{phoenix_kit_version} migration ready: #{migration_file}
+          Target version: V#{Common.pad_version(migration_version)}
+          """
+          |> String.trim()
 
         igniter
         |> Igniter.create_new_file(migration_path, migration_content)
@@ -386,9 +387,13 @@ defmodule PhoenixKit.Install.MigrationStrategy do
     """)
   end
 
+  # Deliberately NOT a "PhoenixKit ready!" banner: Igniter prints the
+  # installer's own closing notice after queued tasks finish, so a second
+  # one here would land just above it. Report the migration result and the
+  # resolved sign-up path (which the notice can only describe generically).
   defp show_success_notice do
     IO.puts("""
-    🎉 PhoenixKit ready! Visit: #{Routes.path("/users/register")}
+    🗄️  PhoenixKit tables created. Sign-up lives at: #{Routes.path("/users/register")}
     """)
   end
 

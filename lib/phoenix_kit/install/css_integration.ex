@@ -141,13 +141,14 @@ defmodule PhoenixKit.Install.CssIntegration do
 
   # Generic success notice - we'll determine what was actually done
   defp add_integration_success_notice(igniter, css_path) do
-    notice = """
+    notice =
+      """
+      ✅ PhoenixKit CSS Integration Complete!
 
-    ✅ PhoenixKit CSS Integration Complete!
-
-    Updated #{css_path} with PhoenixKit integration.
-    Your app will now automatically generate all PhoenixKit styles!
-    """
+      Updated #{css_path} with PhoenixKit integration.
+      Your app will now automatically generate all PhoenixKit styles!
+      """
+      |> String.trim()
 
     Igniter.add_notice(igniter, notice)
   end

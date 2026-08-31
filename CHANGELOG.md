@@ -1,3 +1,62 @@
+## Unreleased
+
+### Fixed
+
+- **The installer's post-install steps never ran on the recommended entry
+  point.** `mix igniter.install phoenix_kit` - the command this task's own
+  help recommends - composes installers through
+  `Igniter.Mix.Task.configure_and_run/3`, which invokes the task's `igniter/1`
+  callback and nothing else. Everything parked in
+  `Mix.Tasks.PhoenixKit.Install.run/1` after `super(argv)` was therefore dead
+  code on that path: the interactive `mix ecto.migrate` prompt, the asset
+  rebuild, and the database connectivity check. Hosts saw
+  `• mix ecto.migrate` in the closing notice and were never offered the
+  migration, and their assets were never rebuilt after the CSS/JS integration
+  wrote to `app.css` and `app.js`. Those steps now ship as a queued
+  `mix phoenix_kit.post_install` task (`Igniter.add_task/3`), which runs after
+  changes are committed on **both** entry points - and is correctly skipped
+  on `--dry-run`, where the old code would have migrated anyway. `run/1` no
+  longer duplicates the work.
+- **Two "PhoenixKit ready!" banners.** Igniter runs queued tasks before
+  printing notices, so a successful migration announced readiness moments
+  before the closing notice did. The migration path now reports what it did
+  (and the resolved sign-up path) and leaves the banner to the notice, whose
+  `mix ecto.migrate` step is marked as applying only if the prompt was
+  skipped.
+
+- **The daisyUI version warning accused healthy installs of a rendering bug.**
+  `PhoenixKit.Install.DaisyUI.outdated_warning/1` fired below 5.6.0 but its
+  copy described the pre-5.1 failure mode (phantom right-edge strip, ~15px
+  content shift around modals), so every host in the 5.1-5.5 band - including
+  a freshly scaffolded `mix phx.new` app, which vendors 5.5.19 - was told its
+  modals were broken when they were not. New `severity/1` splits the two
+  bands: `:broken` below `gutter_fix_version/0` (5.1.0, where daisyUI made
+  the modal scrollbar gutter conditional) keeps the bug report; `:behind`
+  gets an advisory heads-up that says nothing is broken. Unparseable versions
+  take the benign branch. `mix phoenix_kit.doctor` makes the same split.
+  The floor stays 5.6.0 - it is the release that finished the modal gutter
+  fix (`scrollbar-gutter: auto`), not merely a recent tag.
+- **Installer notices rendered as orphan `*` bullets.** Igniter renders each
+  notice as a `* ` bullet, so the four notices whose heredoc opened with a
+  blank line printed a bare `*` with the body pushed to the next line: the
+  layout recompile notice, the CSS integration notice, the migration-ready
+  notice, and the closing "PhoenixKit ready! Next:" block. All now trim, the
+  way the Oban notice already did.
+- **`PhoenixKit V2.13.17` read as a migration version.** A capital `V` prefix
+  means a migration version in this codebase (`V181`), and the package
+  version carried one on the line directly above `Target version: V181`.
+  Lowercased.
+
+### Changed
+
+- **The install warning glyph is reserved for things that need attention.**
+  The rate-limiter and Oban "configuration added" notices used `⚠️` (and, for
+  Oban, `IMPORTANT: Restart your server`) for what is a routine config write
+  - on a fresh install there is no server running, and the closing steps tell
+  you to start one. They now use their modules' neutral glyphs with the
+  restart advice as a parenthetical, correct on both the install and update
+  paths. `⚠️` is left to the daisyUI and dashboard-deprecation advisories.
+
 ## 2.13.17 - 2026-08-30
 
 Toolchain and test-fidelity release: PRs #773-#776, plus the post-merge review

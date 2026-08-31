@@ -243,7 +243,8 @@ defmodule PhoenixKit.Install.RateLimiterConfig do
     else
       Igniter.add_notice(
         igniter,
-        "⚠️  Rate limiting configuration added - restart your server if running"
+        "🛡️  Rate limiting configuration added to config.exs " <>
+          "(restart a running server to apply)"
       )
     end
   end
