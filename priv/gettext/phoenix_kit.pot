@@ -11,12 +11,12 @@
 msgid ""
 msgstr ""
 
-#: lib/phoenix_kit/users/invitations.ex:289
+#: lib/phoenix_kit/users/invitations.ex:311
 #, elixir-autogen, elixir-format
 msgid "A pending invitation already exists for this email"
 msgstr ""
 
-#: lib/phoenix_kit/users/invitations.ex:275
+#: lib/phoenix_kit/users/invitations.ex:297
 #, elixir-autogen, elixir-format
 msgid "This user already belongs to an organization"
 msgstr ""

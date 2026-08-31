@@ -17,6 +17,7 @@ defmodule PhoenixKit.Notifications.DigestWorker do
   """
 
   use Oban.Worker, queue: :notifications, max_attempts: 3
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   import Ecto.Query
 
@@ -203,10 +204,7 @@ defmodule PhoenixKit.Notifications.DigestWorker do
   end
 
   defp digest_text(count, label, cadence) do
-    Gettext.dgettext(
-      PhoenixKitWeb.Gettext,
-      "default",
-      "You have %{count} new %{label} %{period}.",
+    gettext("You have %{count} new %{label} %{period}.",
       count: count,
       label: label,
       period: period_phrase(cadence)
@@ -214,16 +212,16 @@ defmodule PhoenixKit.Notifications.DigestWorker do
   end
 
   defp period_phrase("hourly"),
-    do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "in the last hour")
+    do: gettext("in the last hour")
 
   defp period_phrase("12h"),
-    do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "in the last 12 hours")
+    do: gettext("in the last 12 hours")
 
   defp period_phrase("daily"),
-    do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "in the last day")
+    do: gettext("in the last day")
 
   defp period_phrase("weekly"),
-    do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "in the last week")
+    do: gettext("in the last week")
 
   defp period_phrase(_), do: ""
 
