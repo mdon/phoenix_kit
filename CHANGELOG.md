@@ -1,6 +1,67 @@
-## Unreleased
+## 2.13.18 - 2026-08-31
+
+Dialog layering, component-scoped pushes and an image-quality sweep (PR #777),
+plus the post-merge review fixes for each
+(`dev_docs/pull_requests/2026/777-pkdialog-esc-layering-component-routing/CLAUDE_REVIEW.md`)
+and the igniter-recovery work on the install/update tasks.
 
 ### Fixed
+
+- **Esc closed both popups when one dialog was stacked inside another.**
+  Chromium groups the close watchers of dialogs whose `showModal()` ran
+  without user activation - which is every dialog LiveView opens from a patch
+  - so a single Esc fired `cancel` on the whole stack. `PkDialog` now keeps
+  the outer dialog open and relays the request to the deepest stacked child in
+  its own semantics; `preventDefault` alone was not enough, since Chromium
+  stops the grouped chain at the first prevented watcher and the child's own
+  cancel then never fired. Openness is matched with `:modal`, not the `open`
+  attribute, which morphdom can strip between a patch and the next sync.
+- **A component-owned modal's close event landed on the host LiveView.**
+  `pushEventTo` with an element resolves the target from that element's
+  `phx-target`, which a `<dialog>` does not carry, so the push fell through to
+  the LiveView: the item selector's stacked details popup never closed on Esc,
+  and the selector itself only "closed" because the misrouted event hit the
+  host. Both `PkDialog` and `InfiniteScroll`'s load-more sentinel (useless
+  inside a LiveComponent for the same reason) now push to the owning
+  component by numeric CID, through one shared helper that stops its search at
+  a nested LiveView root - a component on the far side of one belongs to a
+  different view, and its CID means nothing to the pushing socket.
+- **A stacked close could strand a dialog the server never heard about.** The
+  parent marks the child it closed so the child's own `close` handler does not
+  double-push - but that handler is exactly what was observed not to run in
+  this stack, and the boolean marker then suppressed the child's *next*
+  genuine close for the life of the element (the server kept believing it was
+  open, and re-opened it on the following patch). The marker is now a
+  timestamp with a one-second window, so a stamp whose event never arrives
+  expires instead.
+- **Tab matching broke on a query-carrying `current_path`.** Pages that
+  publish their full URL into `:url_path` (so the language switcher can
+  rebuild locale links without dropping state) handed `Tab.matches_path?/2` a
+  path with `?…` attached, which no exact or prefix rule could match.
+  `normalize_path/1` strips the query and the fragment; matching is about the
+  path. `AdminNav.parse_admin_path/1` - the sidebar's own matcher, and the
+  reason a highlighted tab could sit above an unhighlighted sidebar item -
+  stripped only the query, and its `?tab=` extraction turned `?tab=files#top`
+  into the tab `"files#top"`. Both now cut on `?` and `#`.
+- **Card-size image slots served the smallest variant.** `resolve_url/2`
+  preferred the 150px thumbnail over an 800px medium whenever `small` was
+  missing, and an explicit `:medium` request preferred the thumbnail outright
+  - the untyped clauses had the ordering inverted relative to the
+  `file_type: "image"` clauses they mirror. The media selector's grid also
+  asked for the default `:small` tier and stretched a 150px thumbnail across
+  an aspect-square tile; it now asks for `:card`, as the media browser's own
+  grid already did.
+- **Digest notifications rendered in the server's locale, not the
+  recipient's.** The digest strings were built with
+  `Gettext.dgettext/3` - invisible to `mix gettext.extract`, so they had never
+  been translated - and are now `gettext/2` calls that extract normally. That
+  alone would not have reached anyone: `gettext/2` resolves the locale from
+  the calling process, and an Oban worker starts on the default one, so the
+  new translations would have rendered in English for every recipient. Both
+  digest surfaces (the channel envelope, which already resolved the
+  recipient's locale for the channel, and the persisted in-app inbox row) now
+  build their text inside `Gettext.with_locale/3`. `%{label}` stays English:
+  type labels are runtime registry data that extraction cannot see.
 
 - **The installer's post-install steps never ran on the recommended entry
   point.** `mix igniter.install phoenix_kit` - the command this task's own
@@ -84,6 +145,14 @@
   `stand_in_run/2` now notices that igniter is loadable and asks for
   `mix deps.compile phoenix_kit --force` rather than repeating the
   instructions the host already followed.
+
+### i18n
+
+- Russian and Estonian catalogues are complete again (ru: 82 untranslated →
+  0), including the newly extractable digest strings. The refresh added 57
+  msgids overall; de/es/fr/it/pl carry them untranslated (160 → 212) and fall
+  back to the msgid, so nothing renders empty - those five still want a
+  dedicated sweep.
 
 ### Changed
 

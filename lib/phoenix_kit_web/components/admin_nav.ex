@@ -583,8 +583,11 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
   # Helper function to parse admin path into components
   defp parse_admin_path(path) when is_binary(path) do
-    # Remove query parameters and split path
-    [path_part | _] = String.split(path, "?")
+    # Matching is about the PATH. Strip the query AND the fragment — a
+    # module that publishes its full URL into `:url_path` (so the language
+    # switcher can preserve state) hands this a path with either attached,
+    # and `Tab.normalize_path/1` strips both (2026-08-31).
+    [path_part | _] = String.split(path, ["?", "#"], parts: 2)
 
     # Get dynamic prefix and normalize paths
     prefix = PhoenixKit.Config.get_url_prefix()
@@ -609,7 +612,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
         path
         |> String.split("?tab=")
         |> List.last()
-        |> String.split("&")
+        |> String.split(["&", "#"])
         |> List.first()
       else
         nil

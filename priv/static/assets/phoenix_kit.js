@@ -2355,6 +2355,41 @@ if (typeof window.Chart === "undefined") {
     }
   };
 
+  // Resolves the push target that OWNS `el`: the numeric CID of the nearest
+  // LiveComponent ancestor, or null when nothing but the LiveView is above it.
+  // pushEventTo with an ELEMENT resolves the target from that element's
+  // phx-target attribute — which the elements here (a <dialog>, a load-more
+  // sentinel) don't carry, so the push silently landed on the host LiveView.
+  // The numeric CID is a first-class target in LiveView's `withinTargets`.
+  //
+  // The search stops at a nested LiveView root: a [data-phx-component] on the
+  // far side of one belongs to a DIFFERENT view, and its cid means nothing to
+  // this hook's socket. Whichever boundary is nearer wins.
+  function ownerComponentCid(el) {
+    if (!el || typeof el.closest !== "function") return null;
+    const scope = el.closest("[data-phx-component],[data-phx-session]");
+    if (!scope || !scope.hasAttribute("data-phx-component")) return null;
+    const cid = parseInt(scope.getAttribute("data-phx-component"), 10);
+    return Number.isNaN(cid) ? null : cid;
+  }
+
+  // Pushes `event` to whoever owns `el` — its LiveComponent when there is one,
+  // the LiveView otherwise. `hook` is any object with LiveView's pushEvent /
+  // pushEventTo (a hook, or another hook acting on a stacked child's behalf).
+  function pushToOwner(hook, el, event, payload) {
+    const cid = ownerComponentCid(el);
+    if (cid === null) {
+      hook.pushEvent(event, payload || {});
+    } else {
+      hook.pushEventTo(cid, event, payload || {});
+    }
+  }
+
+  if (typeof module === "object" && module.exports) {
+    module.exports.ownerComponentCid = ownerComponentCid;
+    module.exports.pushToOwner = pushToOwner;
+  }
+
   // Returns true if the given <dialog> is in the browser's top layer
   // (was opened via showModal()). Uses the `:modal` pseudo-class as
   // the truth source, with a graceful fallback to the `open`
@@ -2562,22 +2597,13 @@ if (typeof window.Chart === "undefined") {
     _pushClose() {
       const ev = this.el.dataset.closeEvent;
       if (!ev) return;
-      // Route to the LiveComponent that OWNS the dialog: pushEventTo with
-      // the dialog element itself resolves to the LiveView (the element
-      // carries no data-phx-component), so a component-owned modal's
-      // close event landed on the host LV instead of the component
-      // (2026-08-31 — the item selector's stacked details popup never
-      // closed on Esc; the selector itself only "closed" because the
-      // misrouted event hit the host). An ELEMENT target is resolved via
-      // its phx-target attribute (absent here), so pass the numeric CID —
-      // a first-class target in withinTargets. LV-owned dialogs have no
-      // component ancestor and keep routing to the LV.
-      const comp = this.el.closest("[data-phx-component]");
-      if (comp) {
-        this.pushEventTo(parseInt(comp.getAttribute("data-phx-component"), 10), ev, {});
-      } else {
-        this.pushEvent(ev, {});
-      }
+      // Route to the LiveComponent that OWNS the dialog — a component-owned
+      // modal's close event landed on the host LV instead (2026-08-31 — the
+      // item selector's stacked details popup never closed on Esc; the
+      // selector itself only "closed" because the misrouted event hit the
+      // host). LV-owned dialogs have no component ancestor and keep routing
+      // to the LV. See `pushToOwner`.
+      pushToOwner(this, this.el, ev, {});
     },
     _sync() {
       // `data-show` drives visibility for keep_in_dom modals. Conditional
@@ -2675,17 +2701,14 @@ if (typeof window.Chart === "undefined") {
           // would fire twice (2026-08-31 external review).
           const closeEv = top.dataset && top.dataset.closeEvent;
           if (closeEv) {
-            const comp = top.closest("[data-phx-component]");
-            top._pkStackClosePushed = true;
-            if (comp) {
-              self.pushEventTo(
-                parseInt(comp.getAttribute("data-phx-component"), 10),
-                closeEv,
-                {}
-              );
-            } else {
-              self.pushEvent(closeEv, {});
-            }
+            // Stamped, not flagged: the child's own 'close' handler clears
+            // this, but that handler is exactly what was observed not to
+            // run here — a boolean would then suppress the child's NEXT
+            // genuine close for the life of the element, leaving a dialog
+            // the server never hears about (and re-opens on the next
+            // patch). A stamp self-heals.
+            top._pkStackClosePushedAt = Date.now();
+            pushToOwner(self, top, closeEv, {});
           }
           top.close();
         }
@@ -2694,15 +2717,21 @@ if (typeof window.Chart === "undefined") {
       // destroyed(), backdrop click (via _onClick → el.close()), and
       // form `method="dialog"` submits.
       self._onClose = function() {
-        // `_pkStackClosePushed` is set by a stacked PARENT dialog that
-        // already pushed this dialog's close event during a grouped
-        // cancel — echoing here would double-fire the server handler.
-        if (!self._closeFromLV && !self.el._pkStackClosePushed) self._pushClose();
-        // Reset both flags now that the close event has been fully
-        // processed. The next user-initiated close (Esc, backdrop)
-        // will fall through to the echo push as intended.
+        // `_pkStackClosePushedAt` is stamped by a stacked PARENT dialog that
+        // already pushed this dialog's close event during a grouped cancel —
+        // echoing here would double-fire the server handler. `close()` queues
+        // its event as a task, so a real echo lands immediately; anything
+        // older is a stamp whose close event never arrived and must not
+        // suppress this close.
+        const stackPushed =
+          self.el._pkStackClosePushedAt &&
+          Date.now() - self.el._pkStackClosePushedAt < 1000;
+        if (!self._closeFromLV && !stackPushed) self._pushClose();
+        // Reset both now that the close event has been fully processed. The
+        // next user-initiated close (Esc, backdrop) will fall through to the
+        // echo push as intended.
         self._closeFromLV = false;
-        self.el._pkStackClosePushed = false;
+        self.el._pkStackClosePushedAt = 0;
       };
       // Backdrop click: a click event whose target is the <dialog> itself
       // (rather than a descendant) means the user clicked outside the
@@ -3501,21 +3530,10 @@ if (typeof window.Chart === "undefined") {
     maybeLoad() {
       if (this.loading) return;
       this.loading = true;
-      // Route to the LiveComponent that OWNS the sentinel — by numeric
-      // CID (an element target is resolved via its phx-target attribute,
-      // which the sentinel doesn't carry) — and to the LiveView when
-      // there is no component ancestor. The old pushEvent always hit the
-      // LV and made the sentinel useless inside components (2026-08-31).
-      const comp = this.el.closest("[data-phx-component]");
-      if (comp) {
-        this.pushEventTo(
-          parseInt(comp.getAttribute("data-phx-component"), 10),
-          this.loadMoreEvent(),
-          {}
-        );
-      } else {
-        this.pushEvent(this.loadMoreEvent(), {});
-      }
+      // Route to the LiveComponent that OWNS the sentinel — the old
+      // pushEvent always hit the LV and made the sentinel useless inside
+      // components (2026-08-31). See `pushToOwner`.
+      pushToOwner(this, this.el, this.loadMoreEvent(), {});
       // Watchdog: release the guard even if the cursor never advances, so a
       // no-op load can't wedge the sentinel. The cursor-change path in
       // updated() clears it sooner on the normal (page-grew) path.

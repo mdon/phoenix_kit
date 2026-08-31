@@ -93,8 +93,10 @@ defmodule PhoenixKit.Notifications.DigestWorker do
       count = count_events(user.uuid, type_key, since)
 
       if count > 0 do
+        # The inbox row freezes its text at write time, so it needs the
+        # recipient's locale exactly as the channel envelope does.
         Notifications.create_inapp(user.uuid, %{
-          text: digest_text(count, type_label(type_key), cadence),
+          text: digest_body(user, type_key, count, cadence),
           icon: "hero-bell",
           link: Routes.path("/admin/notifications")
         })
@@ -190,17 +192,41 @@ defmodule PhoenixKit.Notifications.DigestWorker do
     |> Enum.find_value([], fn {key, actions} -> if key == type_key, do: actions end)
   end
 
-  defp digest_envelope(user, type_key, count, cadence) do
+  # Public for testability; @doc false. Pure — no repo access — so the
+  # recipient-locale rendering below can be asserted without a database.
+  @doc false
+  def digest_envelope(user, type_key, count, cadence) do
+    locale = recipient_locale(user)
+
     %{
       recipient_uuid: user.uuid,
       type_key: type_key,
       notification_uuid: nil,
-      locale: recipient_locale(user),
+      locale: locale,
       icon: "hero-bell",
       title: nil,
-      text: digest_text(count, type_label(type_key), cadence),
+      text: digest_body(user, type_key, count, cadence),
       url: Routes.base_url() <> Routes.path("/admin/notifications")
     }
+  end
+
+  # An Oban worker process starts on the default locale, so the digest strings
+  # would render in it no matter who the recipient is — the catalogues carry
+  # translations for them (ru, et) that nobody would ever see. Both digest
+  # surfaces (the channel envelope and the in-app inbox row) freeze their text
+  # at write time, so both build it here, inside the recipient's locale.
+  # (`%{label}` stays English: type labels are runtime registry data, not
+  # extracted strings — see `Types`.)
+  defp digest_body(user, type_key, count, cadence) do
+    in_locale(recipient_locale(user), fn ->
+      digest_text(count, type_label(type_key), cadence)
+    end)
+  end
+
+  defp in_locale(nil, fun), do: fun.()
+
+  defp in_locale(locale, fun) when is_binary(locale) do
+    Gettext.with_locale(PhoenixKitWeb.Gettext, locale, fun)
   end
 
   defp digest_text(count, label, cadence) do
