@@ -82,11 +82,12 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
        `PhoenixKit.Migrations.ExpectedSchema` manifest as an additional,
        non-fatal check (never `:fail`). Passes and says so if the manifest
        has been removed or overridden away in this checkout.
-   27. **Git Hooks** — is `.githooks/pre-commit` enabled via
-       `core.hooksPath`? Only runs inside a checkout of phoenix_kit itself
-       (`.githooks/pre-commit` is a phoenix_kit-repo convention, not
-       something installed into a consuming host app) — silently skipped
-       otherwise.
+   27. **Git Hooks** — does `core.hooksPath` point at a directory that has an
+       executable `pre-commit` in it? Any directory qualifies — `.githooks`
+       is only the convention this checkout happens to track. Only runs
+       inside a checkout of phoenix_kit itself (that convention is a
+       phoenix_kit-repo thing, not something installed into a consuming host
+       app) — silently skipped otherwise.
   """
 
   use Mix.Task
@@ -214,9 +215,23 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   assumed). So repository-ness is probed separately, and only inside a
   repository is exit 1 read as the fact "not configured".
 
+  A second trap, independent of the first: `:hooks_path` holding anything
+  other than the literal string `.githooks` does not mean the hook is broken.
+  `core.hooksPath` names a directory, and a user is free to point it anywhere
+  — any directory with an executable `pre-commit` in it works exactly the way
+  `.githooks` does; `.githooks` is only the name this checkout's own
+  convention happens to use. Treating one specific value as the only correct
+  answer reports a perfectly working setup as broken, and its "fix" tells the
+  reader to point at a location that has nothing to do with why. So this
+  checks the property that actually matters — an executable `pre-commit` at
+  wherever `core.hooksPath` points — never string equality with `.githooks`.
+
     * `:repo` — `{:ok, common_dir}` when git answered, `:unknown` otherwise
       (not a repository, git missing, anything else).
     * `:hooks_path` — `{:ok, value}` | `:unset` (a fact) | `:unknown` (a gap).
+    * `:pre_commit_executable` — whether the directory `:hooks_path` names has
+      an executable `pre-commit` in it: `:yes` | `:no` | `:unknown` (only
+      meaningful when `:hooks_path` is `{:ok, _}`; see `pre_commit_executable?/1`).
     * `:tracked?` — whether `.githooks/pre-commit` exists in this checkout.
     * `:shadow` — `{:ok, path}` for a leftover hook in the **common** hooks dir
       (worktrees do not have their own), `:none`, or `:unknown`.
@@ -246,10 +261,18 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
        "       Fix: git config core.hooksPath .githooks"}
   end
 
-  def git_hooks_verdict(%{hooks_path: {:ok, path}}) when path != ".githooks" do
+  def git_hooks_verdict(%{hooks_path: {:ok, path}, pre_commit_executable: :no}) do
     {:warn,
-     "The tracked hook is NOT running: core.hooksPath points at #{inspect(path)}.\n" <>
-       "       Fix: git config core.hooksPath .githooks"}
+     "The tracked hook is NOT running: core.hooksPath points at #{inspect(path)}, " <>
+       "which has no executable pre-commit in it.\n" <>
+       "       Fix: point core.hooksPath at a directory that has one " <>
+       "(for example .githooks, if this checkout tracks it)."}
+  end
+
+  def git_hooks_verdict(%{hooks_path: {:ok, path}, pre_commit_executable: :unknown}) do
+    {:warn,
+     "Could not check whether #{inspect(path)} has an executable pre-commit.\n" <>
+       "       This is NOT the same as \"the hook is not installed\": nothing was verified."}
   end
 
   def git_hooks_verdict(%{shadow: {:ok, path}}) do
@@ -263,6 +286,45 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   end
 
   def git_hooks_verdict(%{}), do: {:pass, "tracked hook enabled via core.hooksPath"}
+
+  @doc """
+  Whether `dir` has an executable `pre-commit` in it.
+
+  The property `git_hooks_verdict/1` actually cares about, regardless of what
+  the configured directory is named or where it lives — `core.hooksPath`
+  works identically for any directory that has this file, `.githooks` is not
+  special to git itself.
+
+  Public for the same reason `exit_code/1` is: a test seam over a filesystem
+  fact, so `git_hooks_verdict/1` above can stay a pure function of an
+  already-decided map instead of doing its own I/O.
+
+  A relative `dir` is resolved the same way git resolves a relative
+  `core.hooksPath`: against the top of the working tree (see githooks(5)),
+  which is also where this task itself runs.
+  """
+  @spec pre_commit_executable?(String.t()) :: :yes | :no | :unknown
+  def pre_commit_executable?(dir) do
+    file = dir |> Path.expand(File.cwd!()) |> Path.join("pre-commit")
+
+    case File.stat(file) do
+      {:ok, %File.Stat{type: :regular, mode: mode}} ->
+        if Bitwise.band(mode, 0o111) != 0, do: :yes, else: :no
+
+      # A directory (or anything else) named "pre-commit" is not a hook git
+      # can run, whatever its permission bits say.
+      {:ok, _not_a_regular_file} ->
+        :no
+
+      {:error, :enoent} ->
+        :no
+
+      # Anything else (denied, a broken mount, ...) is a gap in what we know,
+      # never evidence that the hook is missing.
+      {:error, _reason} ->
+        :unknown
+    end
+  end
 
   # Printing "N failures" and exiting 0 makes this task unusable as a deploy
   # gate — and it now owns a check (Module Schema Versions) whose whole point is
@@ -380,17 +442,29 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
     case git_cmd(["rev-parse", "--git-common-dir"]) do
       {:ok, common} ->
+        hooks_path = hooks_path_config()
+
         %{
           repo: {:ok, common},
-          hooks_path: hooks_path_config(),
+          hooks_path: hooks_path,
+          pre_commit_executable: hooks_path_executable(hooks_path),
           tracked?: tracked?,
           shadow: shadow_hook(common)
         }
 
       :error ->
-        %{repo: :unknown, hooks_path: :unknown, tracked?: tracked?, shadow: :unknown}
+        %{
+          repo: :unknown,
+          hooks_path: :unknown,
+          pre_commit_executable: :unknown,
+          tracked?: tracked?,
+          shadow: :unknown
+        }
     end
   end
+
+  defp hooks_path_executable({:ok, path}), do: pre_commit_executable?(path)
+  defp hooks_path_executable(_not_ok), do: :unknown
 
   defp hooks_path_config do
     case System.cmd("git", ["config", "--get", "core.hooksPath"], stderr_to_stdout: true) do
