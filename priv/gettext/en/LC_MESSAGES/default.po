@@ -12254,7 +12254,7 @@ msgid "Access requested."
 msgstr ""
 
 #: lib/phoenix_kit/integrations/validators.ex:99
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account %{id}"
 msgstr ""
 
@@ -12264,7 +12264,7 @@ msgid "Advisory-grade: anything can send any User-Agent, so a scraper that lies 
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:124
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Allowed"
 msgstr ""
 
@@ -12289,7 +12289,7 @@ msgid "Bedrock API key"
 msgstr ""
 
 #: lib/phoenix_kit/integrations/validators.ex:222
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Bedrock error %{status}"
 msgstr ""
 
@@ -12299,7 +12299,7 @@ msgid "Block at the application"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/modules.html.heex:451
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Blocked groups"
 msgstr ""
 
@@ -12319,17 +12319,17 @@ msgid "Control how search engines and AI bots crawl and index this site"
 msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:744
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Copy the key (shown once, `ABSK…`) and paste it into the form above"
 msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:820
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Copy the token and paste it into the form above"
 msgstr ""
 
 #: lib/phoenix_kit/integrations/validators.ex:226
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not reach Bedrock in %{region}"
 msgstr ""
 
@@ -12339,18 +12339,18 @@ msgid "Could not send that request."
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:136
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not update the mailbox setting"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:35
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:5
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Crawler Settings"
 msgstr ""
 
 #: lib/modules/sitemap/web/settings.html.heex:679
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Crawler settings"
 msgstr ""
 
@@ -12360,17 +12360,17 @@ msgid "Crawlers"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:55
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Crawlers module is disabled. Enable it from the Modules page to configure settings."
 msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:736
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Create a Bedrock API key"
 msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:812
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Create a token"
 msgstr ""
 
@@ -12395,7 +12395,7 @@ msgid "Deliver development mail to /dev/mailbox"
 msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:752
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Enable model access"
 msgstr ""
 
@@ -12410,12 +12410,12 @@ msgstr ""
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:132
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:148
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:161
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to update crawler settings"
 msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:785
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr ""
 
@@ -12515,7 +12515,7 @@ msgid "No longer available"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:191
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "No priv/static/robots.txt found. Without one, crawlers assume everything is allowed — and any groups you blocked above are not being told."
 msgstr ""
 
@@ -12575,7 +12575,7 @@ msgid "Repository access: **Public repositories (read-only)** — no extra permi
 msgstr ""
 
 #: lib/phoenix_kit/mentions/live.ex:231
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Request access"
 msgstr ""
 
@@ -12590,14 +12590,14 @@ msgid "Send request"
 msgstr ""
 
 #: lib/phoenix_kit/mentions/live.ex:258
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sending…"
 msgstr ""
 
 #: lib/phoenix_kit/mentions/live.ex:76
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sign in to request access."
-msgstr "Sign in as user"
+msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:765
 #, elixir-autogen, elixir-format
@@ -12615,7 +12615,7 @@ msgid "The mailbox is off: outgoing mail is written to the server log instead."
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:205
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "The noindex toggle and robots.txt are separate mechanisms: noindex is a per-page meta tag that tells crawlers not to index what they fetched, while robots.txt tells them what not to fetch at all. A staging site usually wants both."
 msgstr ""
 
@@ -12647,7 +12647,7 @@ msgid "Use it from the AI module"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:257
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Verification"
 msgstr ""
 
@@ -12707,7 +12707,7 @@ msgid "management API: %{services}"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:195
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "priv/static/robots.txt exists but has no Sitemap: line. Paste the file above so crawlers are told where to look."
 msgstr ""
 
@@ -12723,22 +12723,22 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:235
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:286
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Clear search"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:315
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "No audio files yet"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:313
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "No images yet"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:316
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "No media files yet"
 msgstr ""
 
@@ -12748,7 +12748,7 @@ msgid "No results for “%{query}”"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:314
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "No videos yet"
 msgstr ""
 
@@ -12760,13 +12760,13 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:281
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:284
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Select Audio"
 msgstr ""
 
 #: lib/phoenix_kit_web/users/user_form.html.heex:974
 #: lib/phoenix_kit_web/users/user_form.html.heex:986
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Select Avatar"
 msgstr ""
 
@@ -12776,34 +12776,34 @@ msgid "Select Background Image"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2470
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Select Cover Image"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:282
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Select Images"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2469
 #: lib/phoenix_kit_web/live/settings.html.heex:636
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:717
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Select Logo"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings.html.heex:635
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Select Site Icon"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:280
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Select Video"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:283
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Select Videos"
 msgstr ""
 
@@ -13374,7 +13374,7 @@ msgid "Browser detected: %{zone}"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:829
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Check your timezone"
 msgstr ""
 
@@ -13454,12 +13454,12 @@ msgid "Hey there"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1263
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Manage Notifications"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/dashboard.ex:208
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Night owl"
 msgstr ""
 
@@ -13477,7 +13477,7 @@ msgid "Not verified — this provider has no connection check"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/profile_settings.ex:57
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Profile Settings"
 msgstr ""
 
@@ -13537,7 +13537,7 @@ msgid "Use %{zone}"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:226
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "User settings path"
 msgstr ""
 
@@ -13596,27 +13596,27 @@ msgstr ""
 msgid "unrecognised key state"
 msgstr ""
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:207
+#: lib/phoenix_kit/notifications/digest_worker.ex:233
 #, elixir-autogen, elixir-format
 msgid "You have %{count} new %{label} %{period}."
 msgstr ""
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:218
+#: lib/phoenix_kit/notifications/digest_worker.ex:244
 #, elixir-autogen, elixir-format
 msgid "in the last 12 hours"
 msgstr ""
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:221
+#: lib/phoenix_kit/notifications/digest_worker.ex:247
 #, elixir-autogen, elixir-format
 msgid "in the last day"
 msgstr ""
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:215
+#: lib/phoenix_kit/notifications/digest_worker.ex:241
 #, elixir-autogen, elixir-format
 msgid "in the last hour"
 msgstr ""
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:224
+#: lib/phoenix_kit/notifications/digest_worker.ex:250
 #, elixir-autogen, elixir-format
 msgid "in the last week"
 msgstr ""

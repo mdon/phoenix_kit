@@ -13414,9 +13414,9 @@ msgid "Browser detected: %{zone}"
 msgstr "Браузер определил: %{zone}"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:829
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Check your timezone"
-msgstr "Проверьте вашу почту"
+msgstr "Проверьте свой часовой пояс"
 
 #: lib/phoenix_kit_web/live/settings/integrations.ex:286
 #, elixir-autogen, elixir-format
@@ -13494,14 +13494,14 @@ msgid "Hey there"
 msgstr "Привет"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1263
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Manage Notifications"
-msgstr "Просмотреть уведомления"
+msgstr "Управление уведомлениями"
 
 #: lib/phoenix_kit_web/live/dashboard.ex:208
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Night owl"
-msgstr "Ночь"
+msgstr "Полуночник"
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:127
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:253
@@ -13517,9 +13517,9 @@ msgid "Not verified — this provider has no connection check"
 msgstr "Не подтверждено — у этого провайдера нет проверки подключения"
 
 #: lib/phoenix_kit_web/live/users/profile_settings.ex:57
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Profile Settings"
-msgstr "Детали профиля"
+msgstr "Настройки профиля"
 
 #: lib/phoenix_kit_web/live/dashboard.ex:203
 #, elixir-autogen, elixir-format
@@ -13577,9 +13577,9 @@ msgid "Use %{zone}"
 msgstr "Использовать %{zone}"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:226
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "User settings path"
-msgstr "Настройки пользователя успешно обновлены"
+msgstr "Путь к настройкам пользователя"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:237
 #, elixir-autogen, elixir-format
@@ -13636,27 +13636,27 @@ msgstr "выведен из secret_key_base"
 msgid "unrecognised key state"
 msgstr "нераспознанное состояние ключа"
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:207
+#: lib/phoenix_kit/notifications/digest_worker.ex:233
 #, elixir-autogen, elixir-format
 msgid "You have %{count} new %{label} %{period}."
 msgstr "У вас %{count} новых: %{label} %{period}."
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:218
+#: lib/phoenix_kit/notifications/digest_worker.ex:244
 #, elixir-autogen, elixir-format
 msgid "in the last 12 hours"
 msgstr "за последние 12 часов"
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:221
+#: lib/phoenix_kit/notifications/digest_worker.ex:247
 #, elixir-autogen, elixir-format
 msgid "in the last day"
 msgstr "за последний день"
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:215
+#: lib/phoenix_kit/notifications/digest_worker.ex:241
 #, elixir-autogen, elixir-format
 msgid "in the last hour"
 msgstr "за последний час"
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:224
+#: lib/phoenix_kit/notifications/digest_worker.ex:250
 #, elixir-autogen, elixir-format
 msgid "in the last week"
 msgstr "за последнюю неделю"

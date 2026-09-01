@@ -13383,9 +13383,9 @@ msgid "Browser detected: %{zone}"
 msgstr "Brauser tuvastas: %{zone}"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:829
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Check your timezone"
-msgstr "Vaata oma e-posti"
+msgstr "Kontrolli oma ajavööndit"
 
 #: lib/phoenix_kit_web/live/settings/integrations.ex:286
 #, elixir-autogen, elixir-format
@@ -13463,14 +13463,14 @@ msgid "Hey there"
 msgstr "Tere-tere"
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1263
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Manage Notifications"
-msgstr "Vaata teavitusi"
+msgstr "Halda teavitusi"
 
 #: lib/phoenix_kit_web/live/dashboard.ex:208
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Night owl"
-msgstr "Öö"
+msgstr "Öökull"
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:127
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:253
@@ -13486,9 +13486,9 @@ msgid "Not verified — this provider has no connection check"
 msgstr "Kinnitamata — sellel teenusepakkujal pole ühenduse kontrolli"
 
 #: lib/phoenix_kit_web/live/users/profile_settings.ex:57
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Profile Settings"
-msgstr "Profiili üksikasjad"
+msgstr "Profiili seaded"
 
 #: lib/phoenix_kit_web/live/dashboard.ex:203
 #, elixir-autogen, elixir-format
@@ -13546,9 +13546,9 @@ msgid "Use %{zone}"
 msgstr "Kasuta %{zone}"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:226
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "User settings path"
-msgstr "Kasutaja seaded edukalt uuendatud"
+msgstr "Kasutaja seadete tee"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:237
 #, elixir-autogen, elixir-format
@@ -13605,27 +13605,27 @@ msgstr "tuletatud secret_key_base'ist"
 msgid "unrecognised key state"
 msgstr "tundmatu võtmeseis"
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:207
+#: lib/phoenix_kit/notifications/digest_worker.ex:233
 #, elixir-autogen, elixir-format
 msgid "You have %{count} new %{label} %{period}."
 msgstr "Sul on %{count} uut: %{label} %{period}."
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:218
+#: lib/phoenix_kit/notifications/digest_worker.ex:244
 #, elixir-autogen, elixir-format
 msgid "in the last 12 hours"
 msgstr "viimase 12 tunni jooksul"
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:221
+#: lib/phoenix_kit/notifications/digest_worker.ex:247
 #, elixir-autogen, elixir-format
 msgid "in the last day"
 msgstr "viimase päeva jooksul"
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:215
+#: lib/phoenix_kit/notifications/digest_worker.ex:241
 #, elixir-autogen, elixir-format
 msgid "in the last hour"
 msgstr "viimase tunni jooksul"
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:224
+#: lib/phoenix_kit/notifications/digest_worker.ex:250
 #, elixir-autogen, elixir-format
 msgid "in the last week"
 msgstr "viimase nädala jooksul"

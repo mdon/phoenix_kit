@@ -1,3 +1,28 @@
+## Unreleased
+
+### i18n
+
+- **Every catalogue is complete again — and 175 entries were serving the wrong
+  string.** The de/es/fr/it/pl `default` catalogues each carried 212
+  untranslated msgids (the backlog 2.13.18 recorded); all 212 are now
+  translated by hand in all five, so all seven translated locales sit at 0
+  untranslated across `default`, `errors` and `phoenix_kit`.
+- **Cleared every `fuzzy` flag, which was not cosmetic.** Elixir Gettext
+  *compiles and serves* fuzzy entries — the flag is only a translator hint —
+  so 33 entries per Western locale (and 5 in ru/et) were shipping a
+  translation gettext had carried over from a different msgid: "Add a country"
+  rendered as *Add account*, "Search countries…" as *Search files…*, "Bedrock
+  error %{status}" as *Brevo error*, "Crawler Settings" as *Legal settings*,
+  "Verification" as *Notifications*, "Check your timezone" as *Check your
+  inbox*. All 175 rewritten against the msgid they actually belong to.
+  `en` had one too — "Sign in to request access." was served as *Sign in as
+  user*; emptied, so it falls back to the msgid as every other `en` entry
+  does, and its 41 inert flags went with it. `grep -c fuzzy` is now 0 across
+  `priv/gettext`, which makes a non-zero count a real signal again.
+- Line references re-extracted and merged (`mix gettext.extract` +
+  `mix gettext.merge`, reported as *0 new, 0 removed, 0 reworded* for every
+  locale) after 2.13.18's digest changes shifted them.
+
 ## 2.13.18 - 2026-08-31
 
 Dialog layering, component-scoped pushes and an image-quality sweep (PR #777),
