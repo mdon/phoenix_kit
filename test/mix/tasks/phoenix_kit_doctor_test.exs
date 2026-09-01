@@ -353,6 +353,7 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     @ok %{
       repo: {:ok, "/repo/.git"},
       hooks_path: {:ok, ".githooks"},
+      pre_commit_executable: :yes,
       tracked?: true,
       shadow: :none
     }
@@ -368,11 +369,44 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
       assert detail =~ "git config core.hooksPath .githooks"
     end
 
-    test "pointing somewhere else → warns and names where" do
-      {status, detail} = DoctorTask.git_hooks_verdict(%{@ok | hooks_path: {:ok, "hooks"}})
+    # `.githooks` is not privileged: any directory with an executable
+    # `pre-commit` in it passes, exactly like `.githooks` does above.
+    test "pointing somewhere else, with an executable pre-commit there → pass" do
+      verdict =
+        DoctorTask.git_hooks_verdict(%{
+          @ok
+          | hooks_path: {:ok, "/root/.laisk-hooks"},
+            pre_commit_executable: :yes
+        })
+
+      assert {:pass, _} = verdict
+    end
+
+    test "pointing somewhere else, with NO executable pre-commit there → warns and names where" do
+      {status, detail} =
+        DoctorTask.git_hooks_verdict(%{
+          @ok
+          | hooks_path: {:ok, "hooks"},
+            pre_commit_executable: :no
+        })
+
       assert status == :warn
       assert detail =~ ~s("hooks")
-      assert detail =~ "git config core.hooksPath .githooks"
+      assert detail =~ "no executable pre-commit"
+    end
+
+    test "pointing somewhere else, but could not tell if pre-commit is there → warns, refuses to guess" do
+      {status, detail} =
+        DoctorTask.git_hooks_verdict(%{
+          @ok
+          | hooks_path: {:ok, "/some/dir"},
+            pre_commit_executable: :unknown
+        })
+
+      assert status == :warn
+      assert detail =~ ~s("/some/dir")
+      assert detail =~ "NOT the same"
+      refute detail =~ "Fix:"
     end
 
     test "tracked hook missing from the checkout → warns about that, not about config" do
@@ -419,6 +453,53 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
       {status, detail} = DoctorTask.git_hooks_verdict(%{@ok | shadow: :unknown})
       assert status == :warn
       assert detail =~ "could not check for a stale copy"
+    end
+  end
+
+  # The filesystem-facing half of the Git Hooks check: does the directory
+  # `core.hooksPath` names actually have an executable `pre-commit` in it?
+  # Absolute paths only — a relative one is resolved against `File.cwd!()`,
+  # and changing cwd to prove that would not be safe under `async: true`
+  # (cwd is a process-wide OS attribute, not scoped to the test process).
+  describe "pre_commit_executable?/1 — the property git_hooks_verdict/1 relies on" do
+    test "an executable file named pre-commit → :yes" do
+      dir = tmp_dir!()
+      write_executable!(dir, "pre-commit", "#!/bin/sh\nexit 0\n")
+
+      assert DoctorTask.pre_commit_executable?(dir) == :yes
+    end
+
+    test "a pre-commit file that exists but is NOT executable → :no" do
+      dir = tmp_dir!()
+      path = Path.join(dir, "pre-commit")
+      File.write!(path, "#!/bin/sh\nexit 0\n")
+      File.chmod!(path, 0o644)
+
+      assert DoctorTask.pre_commit_executable?(dir) == :no
+    end
+
+    test "no pre-commit file at all → :no, not :unknown" do
+      dir = tmp_dir!()
+      assert DoctorTask.pre_commit_executable?(dir) == :no
+    end
+
+    test "the whole directory does not exist → :no" do
+      dir =
+        Path.join(
+          System.tmp_dir!(),
+          "pk_doctor_hooks_missing_#{System.unique_integer([:positive])}"
+        )
+
+      refute File.exists?(dir)
+
+      assert DoctorTask.pre_commit_executable?(dir) == :no
+    end
+
+    test "pre-commit exists but is a directory, not a file → :no" do
+      dir = tmp_dir!()
+      File.mkdir_p!(Path.join(dir, "pre-commit"))
+
+      assert DoctorTask.pre_commit_executable?(dir) == :no
     end
   end
 
@@ -721,5 +802,25 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     test "any other error reason passes through unchanged" do
       assert DoctorTask.fk_probe_failure_reason(:some_other_error) == :some_other_error
     end
+  end
+
+  # -------------------------------------------------------------------
+  # helpers
+  # -------------------------------------------------------------------
+
+  defp tmp_dir! do
+    dir =
+      Path.join(System.tmp_dir!(), "pk_doctor_hooks_test_#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    on_exit(fn -> File.rm_rf(dir) end)
+    dir
+  end
+
+  defp write_executable!(dir, name, content) do
+    path = Path.join(dir, name)
+    File.write!(path, content)
+    File.chmod!(path, 0o755)
+    path
   end
 end
