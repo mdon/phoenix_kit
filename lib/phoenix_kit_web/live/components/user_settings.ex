@@ -1296,22 +1296,21 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                 class="space-y-3"
               >
                 <%= for type <- @notification_types do %>
-                  <label class="flex items-start gap-3 p-3 rounded-lg border border-base-300 hover:bg-base-200/40 cursor-pointer transition-colors">
-                    <input type="hidden" name={"notification_prefs[#{type.key}]"} value="false" />
-                    <input
-                      type="checkbox"
-                      name={"notification_prefs[#{type.key}]"}
-                      value="true"
-                      checked={notification_enabled?(@notification_prefs, type)}
-                      class="checkbox checkbox-primary checkbox-sm mt-1"
-                    />
-                    <div class="flex-1 min-w-0">
-                      <div class="font-medium text-sm">{type.label}</div>
-                      <%= if type.description && type.description != "" do %>
-                        <div class="text-xs text-base-content/60 mt-0.5">{type.description}</div>
-                      <% end %>
-                    </div>
-                  </label>
+                  <%!-- Use <.checkbox>, not a hand-rolled label+input: it owns the
+                       hidden-false fallback and centers the box against the first
+                       text line. The nudge this used to carry (`mt-1` on a
+                       checkbox-sm) sat the box below the label's centerline. --%>
+                  <.checkbox
+                    name={"notification_prefs[#{type.key}]"}
+                    checked={notification_enabled?(@notification_prefs, type)}
+                    label={type.label}
+                    class="checkbox-sm"
+                    wrapper_class="p-3 rounded-lg border border-base-300 hover:bg-base-200/40 transition-colors"
+                  >
+                    <:description :if={type.description not in [nil, ""]}>
+                      {type.description}
+                    </:description>
+                  </.checkbox>
                 <% end %>
 
                 <div class="flex justify-end pt-2">

@@ -1,4 +1,34 @@
-## Unreleased
+## 2.13.19 - 2026-09-02
+
+Checkbox alignment (PR #779) and a Git Hooks doctor check that tests the
+property it actually cares about (PR #778), plus the post-merge review fixes
+for #779
+(`dev_docs/pull_requests/2026/779-checkbox-first-line-centering/CLAUDE_REVIEW.md`)
+and the catalogue sweep that closes 2.13.18's translation backlog.
+
+### Fixed
+
+- **Described checkboxes sat 2px below their own label.** `<.checkbox>` nudged
+  the box down with a fixed `mt-0.5` whenever a `<:description>` was present.
+  That constant was tuned for `checkbox-sm`; the default box is 24px and the
+  label's line is `leading-6` — also 24px — so the nudge was pure error, and
+  `checkbox-xs` was off by a different amount again. The input now sits in a
+  `h-6` flex wrapper that centers **any** checkbox size against the first text
+  line, and picks up `shrink-0` for every caller instead of only the ones that
+  remembered to pass it. The three storage-settings checkboxes that were
+  hand-compensating with `class="mt-0.5 flex-shrink-0"` drop their nudges.
+- **The notification-preferences form kept a hand-rolled copy of that bug.**
+  `Live.Components.UserSettings` built its own `<label>` + `<input>` + text
+  block with an `mt-1` nudge on a `checkbox-sm` — 4px of the same error, and
+  exactly what `<.checkbox>` exists to prevent. Converted to the component,
+  with the description slot guarded by `:if` so preference types without one
+  still center. Post-merge review of #779.
+- **`mix phoenix_kit.doctor` reported a working Git Hooks setup as broken.**
+  The check compared `core.hooksPath` against the literal string `.githooks`,
+  so pointing it at any other directory produced a warning — with a "fix" that
+  told the reader to point somewhere unrelated to why. It now checks the
+  property git actually uses: whether the configured directory holds an
+  executable `pre-commit`. `.githooks` is only this checkout's convention.
 
 ### i18n
 

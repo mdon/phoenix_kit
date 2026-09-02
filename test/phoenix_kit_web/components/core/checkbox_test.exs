@@ -90,7 +90,10 @@ defmodule PhoenixKitWeb.Components.Core.CheckboxTest do
       </.checkbox>
       """)
 
-    assert with_description =~ "h-6"
+    # Pin the wrapper itself, not just the substring: a later refactor that
+    # moved `h-6` onto the text span would keep a bare `=~ "h-6"` green while
+    # un-fixing the alignment.
+    assert with_description =~ ~s(<span class="flex items-center shrink-0 h-6">)
     refute with_description =~ "mt-0.5"
 
     # Without a description the whole label is items-center — no wrapper height.
@@ -100,6 +103,7 @@ defmodule PhoenixKitWeb.Components.Core.CheckboxTest do
       """)
 
     refute without_description =~ "h-6"
+    assert without_description =~ "items-center cursor-pointer"
   end
 
   test "rich default-slot content renders alongside (not instead of) the label" do
