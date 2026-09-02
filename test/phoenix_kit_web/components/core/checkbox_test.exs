@@ -76,6 +76,32 @@ defmodule PhoenixKitWeb.Components.Core.CheckboxTest do
     assert html =~ "Disabled profiles are never used."
   end
 
+  test "with a description the box centers against the first text line, not a fixed nudge" do
+    # The label goes items-start when a description is present, so the input
+    # needs its own first-line-height (h-6, matching leading-6) centering
+    # wrapper. The old `mt-0.5` nudge was tuned for checkbox-sm and sat the
+    # default 24px box 2px below the text's centerline.
+    assigns = %{}
+
+    with_description =
+      render(~H"""
+      <.checkbox name="opt" checked={false} label="Enabled">
+        <:description>Secondary line.</:description>
+      </.checkbox>
+      """)
+
+    assert with_description =~ "h-6"
+    refute with_description =~ "mt-0.5"
+
+    # Without a description the whole label is items-center — no wrapper height.
+    without_description =
+      render(~H"""
+      <.checkbox name="opt" checked={false} label="Enabled" />
+      """)
+
+    refute without_description =~ "h-6"
+  end
+
   test "rich default-slot content renders alongside (not instead of) the label" do
     assigns = %{}
 

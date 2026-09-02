@@ -104,16 +104,24 @@ defmodule PhoenixKitWeb.Components.Core.Checkbox do
       >
         <input type="hidden" name={@name} value="false" />
 
-        <input
-          type="checkbox"
-          id={@id}
-          name={@name}
-          value="true"
-          checked={@checked}
-          disabled={@disabled}
-          class={["checkbox checkbox-primary", has_description? && "mt-0.5", @class]}
-          {@rest}
-        />
+        <%!-- With a description the label is items-start, so the box must
+             center itself against the FIRST text line. The line box is 24px
+             (text-sm leading-6) — an h-6 flex wrapper centers any checkbox
+             size in it. The old `mt-0.5` nudge was tuned for checkbox-sm and
+             sat the default 24px box 2px low ("the checkbox and the text are
+             kind of not centered"). --%>
+        <span class={["flex items-center shrink-0", has_description? && "h-6"]}>
+          <input
+            type="checkbox"
+            id={@id}
+            name={@name}
+            value="true"
+            checked={@checked}
+            disabled={@disabled}
+            class={["checkbox checkbox-primary", @class]}
+            {@rest}
+          />
+        </span>
 
         <span class="select-none">
           <span class={has_description? && "font-medium"}>
