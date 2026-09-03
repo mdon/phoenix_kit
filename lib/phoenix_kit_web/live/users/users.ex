@@ -27,7 +27,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.User
-  alias PhoenixKit.Users.{Roles, TableColumns}
+  alias PhoenixKit.Users.{CustomFields, Roles, TableColumns}
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKitWeb.Users.MultiSession
 
@@ -1107,6 +1107,15 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     end
   end
 
+  # `custom_fields` is free-form JSONB, so a custom-field column can hold a map
+  # or a list. `to_string/1` raises `Protocol.UndefinedError` on a map — a 500 on
+  # the whole users list for anyone with that column switched on — and silently
+  # concatenates a list into one unreadable run. Same treatment as the edit form
+  # and the user page (issue #780).
+  defp truncate_text(value, max_length) when is_map(value) or is_list(value) do
+    truncate_text(CustomFields.printable(value), max_length)
+  end
+
   defp truncate_text(value, max_length) do
     truncate_text(to_string(value), max_length)
   end
@@ -1323,7 +1332,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   defp format_checkbox_value("false"), do: gettext("No")
 
   defp format_checkbox_value(list) when is_list(list),
-    do: truncate_text(Enum.join(list, ", "), @max_cell_length)
+    do: truncate_text(CustomFields.printable(list), @max_cell_length)
 
   defp format_checkbox_value(value), do: truncate_text(value, @max_cell_length)
 

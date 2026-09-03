@@ -899,68 +899,91 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                   <% field_value =
                     get_in(@user.custom_fields, [field["key"]]) || field["default"] || "" %>
                   <div class="col-span-1 lg:col-span-2">
-                    <%= case field["type"] do %>
-                      <% "select" -> %>
-                        <.select
-                          name={field_name}
-                          label={field["label"]}
-                          options={
-                            Enum.map(field["options"] || [], fn opt ->
-                              if is_binary(opt),
-                                do: {opt, opt},
-                                else: {opt["label"], opt["value"]}
-                            end)
-                          }
-                          value={field_value}
-                          required={field["required"]}
-                        />
-                      <% "textarea" -> %>
-                        <.textarea
-                          name={field_name}
-                          label={field["label"]}
-                          value={field_value}
-                          required={field["required"]}
-                        />
-                      <% "number" -> %>
-                        <.input
-                          name={field_name}
-                          type="number"
-                          label={field["label"]}
-                          value={field_value}
-                          required={field["required"]}
-                        />
-                      <% "email" -> %>
-                        <.input
-                          name={field_name}
-                          type="email"
-                          label={field["label"]}
-                          value={field_value}
-                          required={field["required"]}
-                        />
-                      <% "url" -> %>
-                        <.input
-                          name={field_name}
-                          type="url"
-                          label={field["label"]}
-                          value={field_value}
-                          required={field["required"]}
-                        />
-                      <% "date" -> %>
-                        <.input
-                          name={field_name}
-                          type="date"
-                          label={field["label"]}
-                          value={field_value}
-                          required={field["required"]}
-                        />
-                      <% _ -> %>
-                        <.input
-                          name={field_name}
-                          type="text"
-                          label={field["label"]}
-                          value={field_value}
-                          required={field["required"]}
-                        />
+                    <%!-- Same guard the admin edit form carries: a map or a
+                         list under a definition cannot be edited by any field
+                         type, and handing one to an input raises
+                         `Phoenix.HTML.Safe` on a map and flattens a list into
+                         one run. Read-only and with no `name`, so nothing is
+                         submitted for the key and the save path's merge keeps
+                         the stored value (issue #780). --%>
+                    <%= if CustomFields.structured_value?(field_value) do %>
+                      <.input
+                        name={nil}
+                        type="text"
+                        label={field["label"]}
+                        value={CustomFields.printable(field_value)}
+                        class="font-mono text-sm"
+                        readonly
+                      />
+                      <div class="label">
+                        <span class="fieldset-label text-xs text-base-content/60">
+                          Structured value, stored by a feature rather than typed here — read-only.
+                        </span>
+                      </div>
+                    <% else %>
+                      <%= case field["type"] do %>
+                        <% "select" -> %>
+                          <.select
+                            name={field_name}
+                            label={field["label"]}
+                            options={
+                              Enum.map(field["options"] || [], fn opt ->
+                                if is_binary(opt),
+                                  do: {opt, opt},
+                                  else: {opt["label"], opt["value"]}
+                              end)
+                            }
+                            value={field_value}
+                            required={field["required"]}
+                          />
+                        <% "textarea" -> %>
+                          <.textarea
+                            name={field_name}
+                            label={field["label"]}
+                            value={field_value}
+                            required={field["required"]}
+                          />
+                        <% "number" -> %>
+                          <.input
+                            name={field_name}
+                            type="number"
+                            label={field["label"]}
+                            value={field_value}
+                            required={field["required"]}
+                          />
+                        <% "email" -> %>
+                          <.input
+                            name={field_name}
+                            type="email"
+                            label={field["label"]}
+                            value={field_value}
+                            required={field["required"]}
+                          />
+                        <% "url" -> %>
+                          <.input
+                            name={field_name}
+                            type="url"
+                            label={field["label"]}
+                            value={field_value}
+                            required={field["required"]}
+                          />
+                        <% "date" -> %>
+                          <.input
+                            name={field_name}
+                            type="date"
+                            label={field["label"]}
+                            value={field_value}
+                            required={field["required"]}
+                          />
+                        <% _ -> %>
+                          <.input
+                            name={field_name}
+                            type="text"
+                            label={field["label"]}
+                            value={field_value}
+                            required={field["required"]}
+                          />
+                      <% end %>
                     <% end %>
                   </div>
                 <% end %>
