@@ -296,9 +296,14 @@ Consequences worth remembering:
   relative paths and its links go through `Routes.path/1`.
 - Anything comparing an incoming request path to a path written in code must
   canonicalise first, or it silently matches nothing (dead tab highlighting).
-- `Routes`' private `admin_area_path?/1` — the `skip_admin` redirect-loop guard
-  — reads the **configured** segment, not `"admin"`. It must, or the guard
-  matches nothing on a renamed host.
+- **`Routes.admin_area_path?/1` is the supported way to ask "does this REAL URL
+  land in the admin area?"** — it strips the mount prefix, allows a locale
+  segment, and compares by segment against the configured value. Use it instead
+  of `String.contains?(path, "/admin/")`, which gets `/administrators`, a host
+  page at `/shop/admin`, and every renamed host wrong. Pair it with
+  `local_path?/1` when allowlisting a client-supplied redirect target — that is
+  the one that rejects `//evil.com`. It also backs core's own `skip_admin`
+  redirect-loop guard, which is why it must read the configured segment.
 - The value is validated (one lowercase segment, not one core already owns) and
   raises on a bad value rather than compiling into a router that 404s.
 - Tests that flip it must do so in the **sync** phase (`async: false`, inside

@@ -35,6 +35,20 @@
   the segments core already declares — `users`, `profile`, `dashboard`, `api`,
   …) and raises rather than producing a router that compiles and then 404s.
 
+- **`Routes.admin_area_path?/1` is now public** — "does this REAL URL land in
+  the admin area?", asked of the shape a `?return_to=`, a saved setting or an
+  HTTP referer actually has: mount prefix on, locale segment optional. An audit
+  of the 39 `phoenix_kit_*` packages found the gap it fills. Of 897 `"/admin"`
+  literals across 32 of them, all but one are canonical inputs that the
+  emit/read pair already handles — but `phoenix_kit_entities` allowlists a
+  client-supplied `_live_referer` with `String.contains?(path, "/admin/")`,
+  because core exposed nothing better. That hand-rolled form claims
+  `/administrators`, claims a host's own page at `/shop/admin`, and silently
+  matches nothing once the admin area is renamed. Pair it with `local_path?/1`
+  when the path came from a client — that is the one that rejects `//evil.com`
+  and ASCII control characters. Behaviour is unchanged; only the visibility and
+  the docs are new.
+
 ### Fixed
 
 - **`/admin` prefix tests were not segment-aware.** `Routes`' internal

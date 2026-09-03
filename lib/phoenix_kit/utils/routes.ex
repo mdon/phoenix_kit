@@ -493,22 +493,59 @@ defmodule PhoenixKit.Utils.Routes do
     routable_candidate?(context, candidate)
   end
 
-  # Whether a REAL URL lands in the admin area. Not `admin_path?/1`, which asks
-  # the same thing of the argument to `path/1` — an unprefixed, unlocalized
-  # `"/admin/..."`. Candidates are the other shape: the value an operator typed
-  # into a setting or a `?return_to=` carried, already wearing the host's mount
-  # prefix and, on a multilingual site, a locale segment
-  # (`/phoenix_kit/et/admin/users`). So it is un-built the way `path/1` builds
-  # it — drop the configured `url_prefix`, allow one leading segment for the
-  # locale — and the remainder is compared by SEGMENT, so `/administrators`
-  # is not mistaken for the admin area.
-  #
-  # Over-strict in one direction on purpose, exactly as `auth_page?/1` is: a
-  # host page of its own at `/shop/admin` is refused as a rejection-path
-  # destination, because "one operator loses a redirect target they configured
-  # while being refused an admin page" is a better failure than an unbounded
-  # redirect loop.
-  defp admin_area_path?(candidate) when is_binary(candidate) do
+  @doc """
+  Whether a REAL URL lands in PhoenixKit's admin area.
+
+  Not the same question as the argument to `path/1` answers. `path/1` takes the
+  canonical, unprefixed, unlocalized shape (`"/admin/users"`); this takes the
+  other shape — a value an operator typed into a setting, a `?return_to=`, an
+  HTTP referer — already wearing the host's mount prefix and, on a multilingual
+  site, a locale segment (`/phoenix_kit/et/admin/users`). So the path is
+  un-built the way `path/1` builds it: drop the configured `url_prefix`, allow
+  one leading segment for the locale, and compare the remainder by **segment**
+  against `PhoenixKit.Config.get_admin_path/0`.
+
+  Two properties that matter to callers:
+
+    * It reads the **configured** admin segment, so it keeps working on a host
+      that set `config :phoenix_kit, admin_path:`. Hand-rolling
+      `String.contains?(path, "/admin/")` does not, and it also claims
+      `/administrators` and a host's own page at `/shop/admin`.
+    * It is **over-strict on purpose**, exactly as `auth_page?/1` is: a host
+      page at `/shop/admin` is reported as admin-area. Refusing one legitimate
+      path is a better failure than the alternatives this guards — for core's
+      own resolver, an unbounded redirect loop; for a caller allowlisting a
+      client-supplied return path, an open redirect.
+
+  ## For module packages
+
+  This is the supported way to ask the question. A package that allowlists a
+  redirect target (a `_live_referer`, a `?return_to=`) should pair it with
+  `local_path?/1`, which is what rejects `//evil.com`, `/\\evil.com` and ASCII
+  control characters:
+
+      if Routes.local_path?(path) and Routes.admin_area_path?(path) do
+        path
+      end
+
+  Order matters only for readability — neither implies the other.
+  `admin_area_path?/1` is about WHERE a path points; `local_path?/1` is about
+  whether it points off-site at all.
+
+  ## Examples
+
+      iex> PhoenixKit.Utils.Routes.admin_area_path?("/phoenix_kit/admin/users")
+      true
+
+      iex> PhoenixKit.Utils.Routes.admin_area_path?("/phoenix_kit/et/admin/users")
+      true
+
+      iex> PhoenixKit.Utils.Routes.admin_area_path?("/phoenix_kit/users/log-in")
+      false
+
+  """
+  @spec admin_area_path?(term()) :: boolean()
+  def admin_area_path?(candidate) when is_binary(candidate) do
     # The CONFIGURED segment, not the canonical `"admin"` — this predicate reads
     # real URLs (a `?return_to=`, an `after_login_path` an operator typed), and
     # on a host that renamed the admin area those wear the new name. Comparing
@@ -525,7 +562,7 @@ defmodule PhoenixKit.Utils.Routes do
     match?([^admin | _], segments) or match?([_locale, ^admin | _], segments)
   end
 
-  defp admin_area_path?(_candidate), do: false
+  def admin_area_path?(_candidate), do: false
 
   # Mirrors the `base_path` computation in `path/1`: a `url_prefix` of `"/"`
   # contributes no segment at all, anything else is a literal leading segment.

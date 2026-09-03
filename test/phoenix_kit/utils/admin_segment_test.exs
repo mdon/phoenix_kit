@@ -281,6 +281,18 @@ defmodule PhoenixKit.Utils.AdminSegmentTest do
     end
   end
 
+  describe "admin_area_path?/1" do
+    test "follows the configured segment" do
+      with_segment(@renamed, fn ->
+        assert Routes.admin_area_path?("/phoenix_kit/backoffice/users")
+        assert Routes.admin_area_path?("/phoenix_kit/et/backoffice/users")
+
+        # The old name is just a path like any other once the area has moved.
+        refute Routes.admin_area_path?("/phoenix_kit/admin/users")
+      end)
+    end
+  end
+
   describe "the admin-area redirect guard" do
     # `safe_destination(skip_admin: true)` must never hand an admin URL back to
     # a visitor it just refused — that is the `ERR_TOO_MANY_REDIRECTS` this
