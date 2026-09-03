@@ -727,30 +727,20 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
       "true" -> gettext("Yes")
       false -> gettext("No")
       "false" -> gettext("No")
-      _ -> printable(value)
+      _ -> CustomFields.printable(value)
     end
   end
 
   defp format_custom_field_value(value, type, field_key)
        when type in ["select", "radio", "checkbox"] do
-    CustomFields.get_option_text(field_key, value) || printable(value)
+    CustomFields.get_option_text(field_key, value) || CustomFields.printable(value)
   end
-
-  defp format_custom_field_value(value, _type, _field_key), do: printable(value)
 
   # `custom_fields` is free-form JSONB, so a value can be a map or a list — the
   # media browser stores `media_expanded_folders` as a list and the etcher stores
   # `etcher_line_params` as a map. `to_string/1` raises Protocol.UndefinedError on
   # a map, which took the whole user page down with a 500 for any user who had
-  # ever used those features. Render structured values as JSON instead of
-  # crashing; a list of strings is joined, since `to_string/1` would silently
-  # concatenate it into one unreadable run.
-  defp printable(value) when is_map(value), do: Jason.encode!(value)
-
-  defp printable(value) when is_list(value) do
-    Enum.map_join(value, ", ", &printable/1)
-  end
-
-  defp printable(value) when is_binary(value), do: value
-  defp printable(value), do: to_string(value)
+  # ever used those features. `CustomFields.printable/1` is shared with the admin
+  # edit form, which has to make the same values safe (issue #780).
+  defp format_custom_field_value(value, _type, _field_key), do: CustomFields.printable(value)
 end

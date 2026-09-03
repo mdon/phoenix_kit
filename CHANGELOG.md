@@ -1,3 +1,43 @@
+## 2.13.20 - 2026-09-03
+
+The admin user edit form stops 500ing on a `custom_fields` value it cannot
+represent, and the definitions that made it possible are cleared from installs
+that still carry them (issue #780).
+
+### Fixed
+
+- **Any map stored under a registered custom field 500d
+  `/admin/users/edit/:id`.** `custom_fields` is free-form JSONB and every field
+  `type` describes a scalar, so a definition could point at a map — the media
+  canvas viewer stores `etcher_line_params` as one. The form handed the stored
+  value straight to `<.input>`, where attribute escaping raises
+  `Protocol.UndefinedError: Phoenix.HTML.Safe not implemented for Map`, and the
+  page was unreachable for every affected user. A structured value now renders
+  read-only, as the JSON the read-only user page already showed. The same guard
+  went onto `/profile/settings`, which renders the user-accessible definitions
+  through the same shape — a definition auto-registered before
+  `user_accessible` existed defaults to accessible, so the crash was reachable
+  by the account holder, not only by an admin.
+- **A list under one was the quiet variant: it got flattened and written back.**
+  `Phoenix.HTML.Safe` *is* implemented for `List`, so `etcher_colors` rendered
+  as `#fca5a5#fdba74` — in an input named after the key. Saving any other field
+  on that page posted the flattened string back over the stored list. The
+  read-only rendering carries no `name`, so nothing is submitted for the key and
+  the save path's merge preserves the stored value untouched.
+- **Auto-registration accepted values no field type can hold.**
+  `CustomFields.ensure_definitions_exist/1` registered every unseen key,
+  inferring `"text"` for anything it did not recognise — including maps and
+  lists. It now skips structured values, and skips PhoenixKit's own internal
+  keys (`etcher_*`, `media_*`, `notification_preferences`, `preferred_locale`,
+  …) whether or not a caller remembered `ensure_definitions: false`.
+- **The stale definitions outlived the fix, so upgraded installs stayed
+  broken.** Every internal writer already passed `ensure_definitions: false`,
+  but nothing had ever removed the definitions written before that flag
+  existed. New migration **V182** deletes them from the
+  `custom_user_fields_definitions` setting. Values in `custom_fields` are left
+  exactly as they are — only the claim that they are admin-editable profile
+  fields goes away.
+
 ## 2.13.19 - 2026-09-02
 
 Checkbox alignment (PR #779) and a Git Hooks doctor check that tests the

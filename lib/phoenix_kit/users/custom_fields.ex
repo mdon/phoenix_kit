@@ -51,6 +51,39 @@ defmodule PhoenixKit.Users.CustomFields do
 
   @uuid_regex ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+  # Keys PhoenixKit writes into `custom_fields` as internal per-user state — a
+  # view toggle, the etcher's palette, a notification routing blob. None of
+  # them is an admin-managed profile field, and several hold a map or a list,
+  # which no field `type` can represent: a definition for one produces an
+  # admin form that renders the raw value into a text input, where a map
+  # raises `Phoenix.HTML.Safe` and a list is silently flattened into one run
+  # and written back on the next save (issue #780).
+  #
+  # Every writer passes `ensure_definitions: false` today, so nothing registers
+  # these any more. The list is the second line of defence — a caller that
+  # forgets the option, here or in a host app, still cannot surface them — and
+  # migration V182 deletes the definitions that earlier versions did register.
+  @internal_keys ~w(
+    activity_view_mode
+    etcher_colors
+    etcher_line_params
+    media_expanded_folders
+    media_sidebar_collapsed
+    media_view_mode
+    media_viewer_info_collapsed
+    notification_preferences
+    preferred_locale
+    referral_satisfied_at
+    referral_satisfied_via
+    timezone_alert_zone
+    users_view_mode
+  )
+
+  # `notification_channel:<key>` carries one channel's config map. The colon
+  # already makes `validate_field_key/1` reject it, so no definition was ever
+  # created — matching it here only saves the auto-registration warning.
+  @internal_key_prefixes ["notification_channel:"]
+
   # Field Definition Management
 
   @doc """
@@ -517,6 +550,17 @@ defmodule PhoenixKit.Users.CustomFields do
   with a label derived from the key, type inferred from the value, and
   `user_accessible: false` (admin-only by default).
 
+  Two kinds of key are skipped silently, because a definition for either one
+  produces an admin form that cannot render it (issue #780):
+
+    * **Structured values** — a map or a list. Every supported `type` describes
+      a scalar, so the closest `infer_field_type/1` can offer is `"text"`, and
+      the edit form then hands the raw value to an `<input>`: a map raises
+      `Phoenix.HTML.Safe`, a list is flattened into one concatenated run that
+      the next save writes back over the stored list.
+    * **PhoenixKit's own internal keys** (`internal_key?/1`) — per-user state,
+      not profile data.
+
   Returns `:ok`. Logs warnings for any definitions that fail to create.
   """
   def ensure_definitions_exist(custom_fields) when is_map(custom_fields) do
@@ -525,8 +569,10 @@ defmodule PhoenixKit.Users.CustomFields do
 
     new_keys =
       custom_fields
-      |> Map.keys()
-      |> Enum.reject(&MapSet.member?(existing_keys, &1))
+      |> Enum.reject(fn {key, value} ->
+        MapSet.member?(existing_keys, key) or internal_key?(key) or structured_value?(value)
+      end)
+      |> Enum.map(fn {key, _value} -> key end)
 
     if new_keys != [] do
       next_position =
@@ -584,6 +630,76 @@ defmodule PhoenixKit.Users.CustomFields do
   end
 
   def infer_field_type(_), do: "text"
+
+  @doc """
+  Whether `key` is one of PhoenixKit's internal per-user state keys.
+
+  These live in the same `custom_fields` JSONB column as admin-defined profile
+  fields, but they are written by features (the media browser's view mode, the
+  etcher's palette, notification routing) rather than by an admin, and several
+  of them hold a map or a list. They must never gain a field definition — see
+  `ensure_definitions_exist/1`.
+
+  ## Examples
+
+      iex> PhoenixKit.Users.CustomFields.internal_key?("etcher_line_params")
+      true
+
+      iex> PhoenixKit.Users.CustomFields.internal_key?("notification_channel:telegram")
+      true
+
+      iex> PhoenixKit.Users.CustomFields.internal_key?("phone")
+      false
+  """
+  @spec internal_key?(term()) :: boolean()
+  def internal_key?(key) when is_binary(key) do
+    key in @internal_keys or Enum.any?(@internal_key_prefixes, &String.starts_with?(key, &1))
+  end
+
+  def internal_key?(_key), do: false
+
+  @doc """
+  Whether a stored value is structured (a map or a list) rather than a scalar.
+
+  `custom_fields` is free-form JSONB, so a value of either shape can sit under
+  a key that has a definition. No field `type` can represent one, so callers
+  render them read-only instead of into an editable input.
+
+  ## Examples
+
+      iex> PhoenixKit.Users.CustomFields.structured_value?(%{"width" => 2})
+      true
+
+      iex> PhoenixKit.Users.CustomFields.structured_value?("2")
+      false
+  """
+  @spec structured_value?(term()) :: boolean()
+  def structured_value?(value), do: is_map(value) or is_list(value)
+
+  @doc """
+  Renders a stored `custom_fields` value as a string that is safe to display.
+
+  `to_string/1` raises `Protocol.UndefinedError` on a map, which took the whole
+  user page down with a 500 for any user who had ever used a feature that
+  stores one, and silently concatenates a list into one unreadable run. Maps
+  render as JSON and lists as a comma-separated join instead.
+
+  ## Examples
+
+      iex> PhoenixKit.Users.CustomFields.printable(%{"dash" => "solid"})
+      ~s({"dash":"solid"})
+
+      iex> PhoenixKit.Users.CustomFields.printable(["#fca5a5", "#fdba74"])
+      "#fca5a5, #fdba74"
+
+      iex> PhoenixKit.Users.CustomFields.printable(42)
+      "42"
+  """
+  @spec printable(term()) :: String.t()
+  def printable(value) when is_map(value), do: JSON.encode!(value)
+  def printable(value) when is_list(value), do: Enum.map_join(value, ", ", &printable/1)
+  def printable(value) when is_binary(value), do: value
+  def printable(value), do: to_string(value)
 
   defp validate_type(_field_def, nil), do: :ok
   defp validate_type(_field_def, ""), do: :ok

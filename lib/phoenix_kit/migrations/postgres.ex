@@ -7,7 +7,19 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V181 - Users: `user_timezone` widens to hold an IANA identifier ⚡ LATEST
+  ### V182 - Users: PhoenixKit's internal keys lose their custom-field definitions ⚡ LATEST
+
+  Deletes the `custom_user_fields_definitions` entries whose key is one
+  PhoenixKit itself writes into `custom_fields` (`etcher_line_params`,
+  `media_expanded_folders`, `notification_preferences`, `preferred_locale`, …).
+  Before the internal writers passed `ensure_definitions: false`, the first
+  write of one auto-registered it as an admin-editable **text** field — and a
+  map or a list under a text field 500s the admin user edit form. The writers
+  were fixed; the definitions they left behind were not, so every upgraded
+  install still carried the broken page. Values in `custom_fields` are left
+  exactly as they are.
+
+  ### V181 - Users: `user_timezone` widens to hold an IANA identifier
 
   `phoenix_kit_users.user_timezone` goes from `varchar(3)` to `varchar(64)`.
   Three characters fitted the integer offsets it used to hold (`"+14"`, `"0"`),
@@ -651,7 +663,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 181
+  @current_version 182
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

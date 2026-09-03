@@ -180,7 +180,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
       |> assign(:current_account_type, account_type)
       |> assign(
         :custom_fields_data,
-        Map.get(user_params, "custom_fields", socket.assigns.custom_fields_data)
+        merge_custom_fields_data(socket.assigns.custom_fields_data, user_params["custom_fields"])
       )
 
     {:noreply, socket}
@@ -871,11 +871,27 @@ defmodule PhoenixKitWeb.Users.UserForm do
     socket =
       socket
       |> assign(:custom_fields_errors, errors)
-      |> assign(:custom_fields_data, custom_fields_params)
+      |> assign(
+        :custom_fields_data,
+        merge_custom_fields_data(socket.assigns.custom_fields_data, custom_fields_params)
+      )
       |> put_flash(:error, "Please fix the custom field errors below.")
 
     {:noreply, socket}
   end
+
+  # Submitted params are MERGED over what is already displayed, never swapped
+  # in wholesale. A field definition whose stored value is a map or a list
+  # renders read-only and without a `name` (see the template), so it is absent
+  # from every submission — replacing the assign would blank it out of the page
+  # on the first keystroke. Merging also mirrors what the save path does to the
+  # column itself: `Auth.update_user_fields/2` merges, so an unsubmitted key
+  # keeps its stored value (issue #780).
+  defp merge_custom_fields_data(existing, params) when is_map(params) do
+    Map.merge(existing || %{}, params)
+  end
+
+  defp merge_custom_fields_data(existing, _params), do: existing || %{}
 
   defp handle_custom_fields_save_error(socket) do
     socket =

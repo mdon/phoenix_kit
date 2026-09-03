@@ -547,85 +547,108 @@
                   </span>
                 </label>
 
-                <%!-- Dynamic input based on field type --%>
-                <%= case field_def["type"] do %>
-                  <% "textarea" -> %>
-                    <.textarea
-                      name={"user[custom_fields][#{field_key}]"}
-                      value={field_value}
-                      class={field_error && "textarea-error"}
-                      placeholder={field_def["label"]}
-                      required={field_def["required"]}
-                    />
-                  <% "number" -> %>
-                    <.input
-                      type="number"
-                      name={"user[custom_fields][#{field_key}]"}
-                      value={field_value}
-                      class={field_error && "input-error"}
-                      placeholder={field_def["label"]}
-                      required={field_def["required"]}
-                    />
-                  <% "boolean" -> %>
-                    <.checkbox
-                      name={"user[custom_fields][#{field_key}]"}
-                      checked={field_value == true || field_value == "true"}
-                      label="Enable this option"
-                      wrapper_class="mt-2"
-                    />
-                  <% "date" -> %>
-                    <.input
-                      type="date"
-                      name={"user[custom_fields][#{field_key}]"}
-                      value={field_value}
-                      class={field_error && "input-error"}
-                      required={field_def["required"]}
-                    />
-                  <% "email" -> %>
-                    <.input
-                      type="email"
-                      name={"user[custom_fields][#{field_key}]"}
-                      value={field_value}
-                      class={field_error && "input-error"}
-                      placeholder="user@example.com"
-                      required={field_def["required"]}
-                    />
-                  <% "url" -> %>
-                    <.input
-                      type="url"
-                      name={"user[custom_fields][#{field_key}]"}
-                      value={field_value}
-                      class={field_error && "input-error"}
-                      placeholder="https://example.com"
-                      required={field_def["required"]}
-                    />
-                  <% "uuid" -> %>
-                    <.input
-                      type="text"
-                      name={"user[custom_fields][#{field_key}]"}
-                      value={field_value}
-                      class={["font-mono text-sm", field_error && "input-error"]}
-                      readonly
-                    />
-                  <% "select" -> %>
-                    <.select
-                      name={"user[custom_fields][#{field_key}]"}
-                      value={field_value}
-                      required={field_def["required"]}
-                      class={field_error && "select-error"}
-                      prompt="Select an option"
-                      options={(field_def["options"] || []) |> Enum.with_index()}
-                    />
-                  <% _default -> %>
-                    <%!-- text, radio, checkbox, and other types default to text input --%>
-                    <.input
-                      type="text"
-                      name={"user[custom_fields][#{field_key}]"}
-                      value={field_value}
-                      class={field_error && "input-error"}
-                      placeholder={field_def["label"]}
-                      required={field_def["required"]}
-                    />
+                <%!-- A map or a list under a field definition cannot be edited
+                     here: no field type can represent one, and handing the raw
+                     value to an input raises `Phoenix.HTML.Safe` on a map and
+                     flattens a list into one concatenated run that the next
+                     save writes back over the stored list. Shown read-only and
+                     with NO `name`, so the browser submits nothing for it and
+                     `Auth.update_user_fields/2`'s merge preserves the stored
+                     value untouched (issue #780). --%>
+                <%= if CustomFields.structured_value?(field_value) do %>
+                  <.input
+                    type="text"
+                    name={nil}
+                    value={CustomFields.printable(field_value)}
+                    class="font-mono text-sm"
+                    readonly
+                  />
+                  <div class="label">
+                    <span class="fieldset-label text-xs text-base-content/60">
+                      Structured value, stored by a feature rather than typed here — read-only.
+                    </span>
+                  </div>
+                <% else %>
+                  <%!-- Dynamic input based on field type --%>
+                  <%= case field_def["type"] do %>
+                    <% "textarea" -> %>
+                      <.textarea
+                        name={"user[custom_fields][#{field_key}]"}
+                        value={field_value}
+                        class={field_error && "textarea-error"}
+                        placeholder={field_def["label"]}
+                        required={field_def["required"]}
+                      />
+                    <% "number" -> %>
+                      <.input
+                        type="number"
+                        name={"user[custom_fields][#{field_key}]"}
+                        value={field_value}
+                        class={field_error && "input-error"}
+                        placeholder={field_def["label"]}
+                        required={field_def["required"]}
+                      />
+                    <% "boolean" -> %>
+                      <.checkbox
+                        name={"user[custom_fields][#{field_key}]"}
+                        checked={field_value == true || field_value == "true"}
+                        label="Enable this option"
+                        wrapper_class="mt-2"
+                      />
+                    <% "date" -> %>
+                      <.input
+                        type="date"
+                        name={"user[custom_fields][#{field_key}]"}
+                        value={field_value}
+                        class={field_error && "input-error"}
+                        required={field_def["required"]}
+                      />
+                    <% "email" -> %>
+                      <.input
+                        type="email"
+                        name={"user[custom_fields][#{field_key}]"}
+                        value={field_value}
+                        class={field_error && "input-error"}
+                        placeholder="user@example.com"
+                        required={field_def["required"]}
+                      />
+                    <% "url" -> %>
+                      <.input
+                        type="url"
+                        name={"user[custom_fields][#{field_key}]"}
+                        value={field_value}
+                        class={field_error && "input-error"}
+                        placeholder="https://example.com"
+                        required={field_def["required"]}
+                      />
+                    <% "uuid" -> %>
+                      <.input
+                        type="text"
+                        name={"user[custom_fields][#{field_key}]"}
+                        value={field_value}
+                        class={["font-mono text-sm", field_error && "input-error"]}
+                        readonly
+                      />
+                    <% "select" -> %>
+                      <.select
+                        name={"user[custom_fields][#{field_key}]"}
+                        value={field_value}
+                        required={field_def["required"]}
+                        class={field_error && "select-error"}
+                        prompt="Select an option"
+                        options={(field_def["options"] || []) |> Enum.with_index()}
+                      />
+                    <% _default -> %>
+                      <%!-- text, radio, checkbox, and other types default to text input --%>
+                      <.input
+                        type="text"
+                        name={"user[custom_fields][#{field_key}]"}
+                        value={field_value}
+                        class={field_error && "input-error"}
+                        placeholder={field_def["label"]}
+                        required={field_def["required"]}
+                      />
+                  <% end %>
                 <% end %>
 
                 <%!-- Error message --%>

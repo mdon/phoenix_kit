@@ -129,6 +129,19 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # through V181 after this edit, which is the same "manifest agrees with
   # what the chain actually builds" property s7/s8 exist to prove.
   #
+  # V182 (2026-09-03, issue #780) declares NO object here, and cannot: it is a
+  # pure data migration. Two UPDATEs strip PhoenixKit's own internal keys out of
+  # the `custom_user_fields_definitions` settings row's `value_json` (they were
+  # auto-registered as admin-editable `text` fields by versions that predate
+  # `ensure_definitions: false`, and a map under one 500d the admin user edit
+  # form), plus the version-marker COMMENT. No table, column, index or
+  # constraint is added, dropped or reshaped — row DATA only, the same class as
+  # V174's repair — so `chain_hash` is restamped over the 48 shipped files
+  # rather than the manifest being regenerated. The chain was re-run end to end
+  # into a fresh database (V135→V182) and the migration's real statements are
+  # exercised against a seeded settings row by
+  # `test/phoenix_kit/migrations/v182_test.exs`.
+  #
   # V180 was fixed post-publish (2.13.11): its bare top-level `LOCK TABLE` moved
   # inside the `DO $$` block that already carries the dedupe UPDATE and the
   # `CREATE UNIQUE INDEX`, and that UPDATE's `updated_at` expression changed from
@@ -209,7 +222,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "33a8360ee1dcdad9e27494736b835939654ed5cbe934a1a8f6f5e9632b96de47"
+  @chain_hash "a50880e4b90d551e03be32995ac74c8750cacc6f634faf1181b13c7068352346"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
