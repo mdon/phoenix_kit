@@ -273,6 +273,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         # Strip locale prefix (e.g., /uk/admin → /admin) for localized admin routes
         normalized = strip_locale_prefix(normalized)
 
+        # Canonicalise the configured admin segment back to `/admin` so this
+        # comparison holds on a host that renamed it.
+        normalized = Routes.canonical_admin_path(normalized)
+
         normalized == "/admin" or String.starts_with?(normalized, "/admin/")
 
       _ ->

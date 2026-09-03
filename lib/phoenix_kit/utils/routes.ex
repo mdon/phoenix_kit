@@ -509,13 +509,20 @@ defmodule PhoenixKit.Utils.Routes do
   # while being refused an admin page" is a better failure than an unbounded
   # redirect loop.
   defp admin_area_path?(candidate) when is_binary(candidate) do
+    # The CONFIGURED segment, not the canonical `"admin"` — this predicate reads
+    # real URLs (a `?return_to=`, an `after_login_path` an operator typed), and
+    # on a host that renamed the admin area those wear the new name. Comparing
+    # against `"admin"` there would leave the loop guard matching nothing, which
+    # is the one failure this function exists to prevent.
+    admin = String.trim_leading(Config.get_admin_path(), "/")
+
     segments =
       candidate
       |> path_only()
       |> strip_url_prefix()
       |> String.split("/", trim: true)
 
-    match?(["admin" | _], segments) or match?([_locale, "admin" | _], segments)
+    match?([^admin | _], segments) or match?([_locale, ^admin | _], segments)
   end
 
   defp admin_area_path?(_candidate), do: false
@@ -879,7 +886,7 @@ defmodule PhoenixKit.Utils.Routes do
       # both reachable, so the emitted shape is purely cosmetic.
       admin_path?(url_path) ->
         locale = resolve_locale(opts)
-        build_admin_path(base_path, url_path, locale)
+        build_admin_path(base_path, apply_admin_segment(url_path), locale)
 
       # Reserved paths (API, webhooks, assets) NEVER get a locale prefix.
       reserved_path?(url_path) ->
@@ -930,8 +937,104 @@ defmodule PhoenixKit.Utils.Routes do
   defp locale_prefixed_path(base_path, locale, "/"), do: "#{base_path}/#{locale}"
   defp locale_prefixed_path(base_path, locale, url_path), do: "#{base_path}/#{locale}#{url_path}"
 
-  # Check if a path is an admin path.
-  defp admin_path?(url_path), do: String.starts_with?(url_path, "/admin")
+  # Whether a CANONICAL path names the admin area.
+  #
+  # Segment-aware on purpose: a plain `String.starts_with?(url_path, "/admin")`
+  # also claimed `/administrators`, and once `apply_admin_segment/1` started
+  # rewriting the prefix that stopped being a cosmetic mismatch — it would have
+  # turned `/administrators` into `/backofficeistrators`.
+  defp admin_path?(url_path), do: admin_prefix_length(url_path) != nil
+
+  # Length of the leading `/admin` segment, or nil when the path does not have
+  # one. `?`/`#` count as boundaries so a path carrying a query or fragment
+  # (`/admin?tab=1`) is still recognised.
+  defp admin_prefix_length("/admin"), do: 6
+
+  defp admin_prefix_length("/admin" <> rest) do
+    if String.starts_with?(rest, ["/", "?", "#"]), do: 6, else: nil
+  end
+
+  defp admin_prefix_length(_url_path), do: nil
+
+  @doc """
+  The configured top-level segment of the admin area — `"/admin"` by default.
+
+  See `PhoenixKit.Config.get_admin_path/0` for why `/admin` remains the name
+  used in code regardless of what this returns.
+  """
+  @spec admin_segment() :: String.t()
+  def admin_segment, do: Config.get_admin_path()
+
+  @doc """
+  Rewrites a canonical `/admin...` path onto the configured segment.
+
+  The **emit** half of the rename. Every URL core hands out goes through here,
+  via `path/2` or `admin_path/2`; the router's own route table gets the same
+  substitution at compile time in `PhoenixKitWeb.Integration`.
+
+  A no-op on the default configuration, and on any path that is not an admin
+  path — including one that has already been rewritten, so applying it twice is
+  safe.
+
+  ## Examples
+
+      iex> PhoenixKit.Utils.Routes.apply_admin_segment("/admin/users")
+      "/admin/users"
+
+      iex> PhoenixKit.Utils.Routes.apply_admin_segment("/users/log-in")
+      "/users/log-in"
+
+  """
+  @spec apply_admin_segment(String.t()) :: String.t()
+  def apply_admin_segment(url_path) when is_binary(url_path) do
+    segment = Config.get_admin_path()
+
+    if segment == "/admin" do
+      url_path
+    else
+      case admin_prefix_length(url_path) do
+        nil -> url_path
+        len -> segment <> binary_slice(url_path, len..-1//1)
+      end
+    end
+  end
+
+  @doc """
+  Rewrites a real `/<configured segment>...` path back to canonical `/admin...`.
+
+  The **read** half of the rename, and the exact inverse of
+  `apply_admin_segment/1`. Anything that compares an incoming request path
+  against a path written in code — tab active state, the admin nav's parser,
+  the language switcher — canonicalises first so the comparison is between two
+  values spelled the same way.
+
+  Expects the URL prefix and any locale segment to have been stripped already;
+  it only looks at the leading segment.
+
+  ## Examples
+
+      iex> PhoenixKit.Utils.Routes.canonical_admin_path("/admin/users")
+      "/admin/users"
+
+  """
+  @spec canonical_admin_path(String.t()) :: String.t()
+  def canonical_admin_path(url_path) when is_binary(url_path) do
+    segment = Config.get_admin_path()
+
+    if segment == "/admin" do
+      url_path
+    else
+      rest = String.replace_prefix(url_path, segment, "")
+
+      if rest != url_path and (rest == "" or String.starts_with?(rest, ["/", "?", "#"])) do
+        "/admin" <> rest
+      else
+        url_path
+      end
+    end
+  end
+
+  def canonical_admin_path(url_path), do: url_path
 
   # Admin paths follow the same primary-prefix rule as non-admin paths.
   # Both URL shapes (`/admin/*` and `/:locale/admin/*`) are emitted by the
@@ -1050,6 +1153,7 @@ defmodule PhoenixKit.Utils.Routes do
   def admin_path(url_path, locale) when is_binary(locale) do
     url_prefix = Config.get_url_prefix()
     base_prefix = if url_prefix == "/", do: "", else: url_prefix
+    url_path = apply_admin_segment(url_path)
 
     if default_locale?(locale) and prefixless_primary?() do
       "#{base_prefix}#{url_path}"

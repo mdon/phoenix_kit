@@ -278,6 +278,34 @@ url = Routes.url("/users/confirm/#{token}")
 <.pk_link_button navigate="/admin/users" variant="primary">Manage Users</.pk_link_button>
 ```
 
+#### The admin segment is renameable — keep writing `/admin`
+
+`config :phoenix_kit, admin_path: "/backoffice"` (compile-time, `config.exs`
+only) moves the whole admin area inside the mount prefix. **`/admin` stays the
+canonical name in code** — never write the configured value anywhere. The
+substitution lives in exactly two inverse functions:
+
+| Direction | Function | Reached from |
+|---|---|---|
+| emit (canonical → real) | `Routes.apply_admin_segment/1` | `Routes.path/2`, `Routes.admin_path/2`, and the route table via `Integration.rewrite_admin_segment/1` |
+| read (real → canonical) | `Routes.canonical_admin_path/1` | `Tab.normalize_path/1`, `AdminNav.parse_admin_path/1`, `LayoutWrapper.admin_page?/1`, the language switcher |
+
+Consequences worth remembering:
+
+- A module package needs **zero** changes to honour a rename — its tabs use
+  relative paths and its links go through `Routes.path/1`.
+- Anything comparing an incoming request path to a path written in code must
+  canonicalise first, or it silently matches nothing (dead tab highlighting).
+- `Routes`' private `admin_area_path?/1` — the `skip_admin` redirect-loop guard
+  — reads the **configured** segment, not `"admin"`. It must, or the guard
+  matches nothing on a renamed host.
+- The value is validated (one lowercase segment, not one core already owns) and
+  raises on a bad value rather than compiling into a router that 404s.
+- Tests that flip it must do so in the **sync** phase (`async: false`, inside
+  `setup_all`/a test). It is cached in `:persistent_term`, and `mix test` loads
+  test files in parallel — a flip in a file body leaks into other files' router
+  compilation. See `test/phoenix_kit/utils/admin_segment_test.exs`.
+
 ### LiveView form ids
 
 Every `<form phx-change=…>` needs a unique `id` — without it LiveView form recovery is silently disabled and host test suites warn `missing_form_id`. LiveComponent → derive from `@id`; inside a comprehension → include the row uuid; `<.form for={%{}}>` needs an explicit `id` (only `for={@changeset}` supplies one for free). Detect with a multi-line-aware scanner, not line-oriented grep. Full audit: `dev_docs/investigations/2026-07-27-missing-form-id-audit.md`.

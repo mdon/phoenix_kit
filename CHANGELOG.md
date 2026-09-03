@@ -1,5 +1,50 @@
 ## Unreleased
 
+### Added
+
+- **The admin area's URL segment is configurable.**
+
+      config :phoenix_kit, admin_path: "/backoffice"
+
+  moves the whole admin surface inside the mount prefix — `/phoenix_kit/backoffice/users`
+  — for hosts that would rather not show end users a URL that reads as somebody
+  else's admin panel. Independent of `:url_prefix`, which names the mount
+  itself. Compile-time, so it belongs in `config.exs`; `phoenix_kit_routes()`
+  folds it into `__mix_recompile__?/0`, so changing it re-expands the host
+  router instead of leaving it serving the old segment. Default `"/admin"`
+  produces a byte-identical route table, so an existing install is untouched.
+
+  **`/admin` remains the canonical name in code.** Nothing in core or in a
+  module package is written against the configured value — call sites keep
+  saying `Routes.path("/admin/users")`. The substitution lives in two inverse
+  functions: `Routes.apply_admin_segment/1` when a URL is emitted (reached from
+  `Routes.path/2`, `Routes.admin_path/2`, and the router's own route table),
+  and `Routes.canonical_admin_path/1` when one is read back (tab active state,
+  the admin nav parser, `LayoutWrapper.admin_page?/1`, the language switcher).
+  A module package therefore needs **no changes at all** to honour a rename:
+  its tabs are declared with relative paths and its links go through
+  `Routes.path/1`.
+
+  The route table is rewritten once, on the assembled AST of
+  `phoenix_kit_admin_routes/1` — the single point where core's own table,
+  `:admin_dashboard_tabs` entries, plugin views and a package's `admin_routes/0`
+  all converge. So the rewrite reaches packages compiled long before the option
+  existed, and cannot be forgotten by the next route added to the table.
+
+  The value is validated (exactly one lowercase path segment, and not one of
+  the segments core already declares — `users`, `profile`, `dashboard`, `api`,
+  …) and raises rather than producing a router that compiles and then 404s.
+
+### Fixed
+
+- **`/admin` prefix tests were not segment-aware.** `Routes`' internal
+  `admin_path?/1` and the language switcher's admin branch used
+  `String.starts_with?(path, "/admin")` / `String.contains?(path, "/admin")`,
+  which also claimed `/administrators` and a host page at `/shop/admin`. Both
+  now compare whole segments. Cosmetic before — a link built through the wrong
+  branch still resolved — but not once a rewrite started acting on the match:
+  `/administrators` would have become `/backofficeistrators`.
+
 ### Changed
 
 - **The default notification click-through no longer points at the deprecated
