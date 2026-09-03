@@ -9604,8 +9604,8 @@ msgstr "Visualizza l'utilizzo dello spazio e le statistiche dei media. Prossimam
 
 #: lib/phoenix_kit_web/live/settings.html.heex:384
 #, elixir-autogen, elixir-format
-msgid "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
-msgstr "Dove porta una notifica quando non ha un link proprio. Il valore predefinito è /dashboard (raggiungibile da qualsiasi utente connesso). Svuota il campo per rendere tali notifiche non cliccabili. Il prefisso URL e la lingua vengono aggiunti automaticamente."
+msgid "Where a notification opens when it has no link of its own. Defaults to /admin (every signed-in user can open it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
+msgstr "Dove porta una notifica quando non ha un link proprio. Il valore predefinito è /admin (raggiungibile da qualsiasi utente connesso). Svuota il campo per rendere tali notifiche non cliccabili. Il prefisso URL e la lingua vengono aggiunti automaticamente."
 
 #: lib/phoenix_kit/theme_config.ex:172
 #, elixir-autogen, elixir-format

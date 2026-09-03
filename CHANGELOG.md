@@ -1,3 +1,38 @@
+## Unreleased
+
+### Changed
+
+- **The default notification click-through no longer points at the deprecated
+  user dashboard.** `notification_default_link` — the catch-all destination for
+  a notification carrying no `notification_link` of its own — shipped with
+  `/dashboard` as its built-in default, prefilled in the "Default notification
+  link" field on `/admin/settings` and described there as the page "every
+  signed-in user can reach". That page is deprecated
+  (`PhoenixKit.Install.Deprecations.user_dashboard_warning/0`; `phoenix_kit.install`,
+  `.update` and `.doctor` have been announcing its removal), and a host can
+  compile it out today with `user_dashboard_enabled: false` — so core was
+  steering every new install toward a surface it is asking them to leave, and
+  the field was the one place an operator would read that recommendation as
+  official. The default is now `/admin`, which core declares unconditionally and
+  admits **every** authenticated visitor to: `PhoenixKitWeb.Users.Auth.landing_view?/1`
+  exempts the admin index from the admin-area gate, so a recipient holding no
+  permissions is greeted rather than bounced. That is the same page
+  `PhoenixKit.Utils.Routes.safe_destination/2` already terminates on for exactly
+  this reason. Hosts that saved `/dashboard` into the settings row while it was
+  the prefilled value are unaffected — that value is still honoured, still
+  guarded against `user_dashboard_enabled: false`, and can be cleared or
+  repointed from the same field.
+- **`mix phoenix_kit.gen.user.dashboard` now carries the deprecation notice** it
+  generates into. The task writes a page onto the deprecated user-dashboard
+  surface, and a host that only ever runs generators never saw the heads-up that
+  `install` and `update` print. It is now emitted as an Igniter warning on every
+  run and summarised under `--help`, which points at `mix phoenix_kit.gen.admin.page`
+  for new work. Advisory only — nothing generated changes, and existing pages
+  keep working.
+- Documentation examples for `<.pk_link>` / `<.pk_link_button>` and the URL-prefix
+  section of `CLAUDE.md` used `/dashboard` as their canonical path; they now use
+  `/admin`, so the snippet a developer copies is not the deprecated one.
+
 ## 2.13.19 - 2026-09-02
 
 Checkbox alignment (PR #779) and a Git Hooks doctor check that tests the

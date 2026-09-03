@@ -9612,8 +9612,8 @@ msgstr "Ver el uso del almacenamiento y las estadísticas de medios. Próximamen
 
 #: lib/phoenix_kit_web/live/settings.html.heex:384
 #, elixir-autogen, elixir-format
-msgid "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
-msgstr "A dónde lleva una notificación cuando no tiene enlace propio. Por defecto, /dashboard (accesible para cualquier usuario conectado). Vacíe el campo para que esas notificaciones no sean clicables. El prefijo de URL y la configuración regional se añaden automáticamente."
+msgid "Where a notification opens when it has no link of its own. Defaults to /admin (every signed-in user can open it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
+msgstr "A dónde lleva una notificación cuando no tiene enlace propio. Por defecto, /admin (accesible para cualquier usuario conectado). Vacíe el campo para que esas notificaciones no sean clicables. El prefijo de URL y la configuración regional se añaden automáticamente."
 
 #: lib/phoenix_kit/theme_config.ex:172
 #, elixir-autogen, elixir-format

@@ -9628,8 +9628,8 @@ msgstr "Wyświetl użycie magazynu i statystyki mediów. Wkrótce."
 
 #: lib/phoenix_kit_web/live/settings.html.heex:384
 #, elixir-autogen, elixir-format
-msgid "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
-msgstr "Gdzie prowadzi powiadomienie, gdy nie ma własnego linku. Domyślnie /dashboard (dostępny dla każdego zalogowanego użytkownika). Wyczyść pole, aby takie powiadomienia nie były klikalne. Prefiks adresu URL i język są dodawane automatycznie."
+msgid "Where a notification opens when it has no link of its own. Defaults to /admin (every signed-in user can open it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
+msgstr "Gdzie prowadzi powiadomienie, gdy nie ma własnego linku. Domyślnie /admin (dostępny dla każdego zalogowanego użytkownika). Wyczyść pole, aby takie powiadomienia nie były klikalne. Prefiks adresu URL i język są dodawane automatycznie."
 
 #: lib/phoenix_kit/theme_config.ex:172
 #, elixir-autogen, elixir-format

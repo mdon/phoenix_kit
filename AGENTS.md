@@ -269,12 +269,12 @@ Only `flash` is required. Note: the assign is `@url_path`, the attr is `current_
 
 ```elixir
 alias PhoenixKit.Utils.Routes
-push_navigate(socket, to: Routes.path("/dashboard"))
+push_navigate(socket, to: Routes.path("/admin"))
 url = Routes.url("/users/confirm/#{token}")
 ```
 
 ```heex
-<.pk_link navigate="/dashboard">Dashboard</.pk_link>
+<.pk_link navigate="/admin">Admin</.pk_link>
 <.pk_link_button navigate="/admin/users" variant="primary">Manage Users</.pk_link_button>
 ```
 

@@ -9604,8 +9604,8 @@ msgstr "Speicherverbrauch und Medienstatistiken anzeigen. Demnächst verfügbar.
 
 #: lib/phoenix_kit_web/live/settings.html.heex:384
 #, elixir-autogen, elixir-format
-msgid "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
-msgstr "Wohin eine Benachrichtigung führt, wenn sie keinen eigenen Link hat. Standard ist /dashboard (für jeden angemeldeten Benutzer erreichbar). Leeren Sie das Feld, damit solche Benachrichtigungen stattdessen nicht anklickbar sind. URL-Präfix und Sprache werden automatisch ergänzt."
+msgid "Where a notification opens when it has no link of its own. Defaults to /admin (every signed-in user can open it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
+msgstr "Wohin eine Benachrichtigung führt, wenn sie keinen eigenen Link hat. Standard ist /admin (für jeden angemeldeten Benutzer erreichbar). Leeren Sie das Feld, damit solche Benachrichtigungen stattdessen nicht anklickbar sind. URL-Präfix und Sprache werden automatisch ergänzt."
 
 #: lib/phoenix_kit/theme_config.ex:172
 #, elixir-autogen, elixir-format

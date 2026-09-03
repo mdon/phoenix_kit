@@ -14,14 +14,14 @@ defmodule PhoenixKitWeb.Components.Core.PkLink do
   ## Examples
 
       # Instead of hardcoding:
-      <.link navigate="/phoenix_kit/dashboard">Dashboard</.link>
+      <.link navigate="/phoenix_kit/admin">Admin</.link>
 
       # Use pk_link for automatic prefix handling:
-      <.pk_link navigate="/dashboard">Dashboard</.pk_link>
+      <.pk_link navigate="/admin">Admin</.pk_link>
 
       # Works with all link types:
       <.pk_link navigate="/admin/users">Users</.pk_link>
-      <.pk_link patch="/dashboard?tab=settings">Settings</.pk_link>
+      <.pk_link patch="/admin/settings?tab=general">Settings</.pk_link>
       <.pk_link href="/api/export">Export</.pk_link>
 
   ## Configuration
@@ -54,7 +54,7 @@ defmodule PhoenixKitWeb.Components.Core.PkLink do
 
   ## Examples
 
-      <.pk_link navigate="/dashboard">Dashboard</.pk_link>
+      <.pk_link navigate="/admin">Admin</.pk_link>
 
       <.pk_link navigate="/admin/users" class="btn btn-primary">
         Manage Users
@@ -98,7 +98,7 @@ defmodule PhoenixKitWeb.Components.Core.PkLink do
 
   ## Examples
 
-      <.pk_link_button navigate="/dashboard">Dashboard</.pk_link_button>
+      <.pk_link_button navigate="/admin">Admin</.pk_link_button>
 
       <.pk_link_button navigate="/admin/users" variant="secondary">
         Manage Users

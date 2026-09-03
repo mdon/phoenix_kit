@@ -9611,8 +9611,8 @@ msgstr "Vaata salvestusruumi kasutust ja meedia statistikat. Tulekul varsti."
 
 #: lib/phoenix_kit_web/live/settings.html.heex:384
 #, elixir-autogen, elixir-format
-msgid "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
-msgstr "Kuhu teavitus avaneb, kui sellel pole oma linki. Vaikimisi /dashboard (iga sisse logitud kasutaja pääseb sinna). Tühjenda väli, et muuta sellised teavitused mitteklõpsatavaks. URL-i eesliide ja lokaat lisatakse automaatselt."
+msgid "Where a notification opens when it has no link of its own. Defaults to /admin (every signed-in user can open it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
+msgstr "Kuhu teavitus avaneb, kui sellel pole oma linki. Vaikimisi /admin (iga sisse logitud kasutaja pääseb sinna). Tühjenda väli, et muuta sellised teavitused mitteklõpsatavaks. URL-i eesliide ja lokaat lisatakse automaatselt."
 
 #: lib/phoenix_kit/theme_config.ex:172
 #, elixir-autogen, elixir-format

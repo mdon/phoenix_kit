@@ -375,14 +375,14 @@
             <.input
               type="text"
               name="settings[notification_default_link]"
-              value={@settings["notification_default_link"] || "/dashboard"}
-              placeholder="/dashboard"
+              value={@settings["notification_default_link"] || "/admin"}
+              placeholder="/admin"
               class="input-sm max-w-md"
             />
             <div>
               <span class="block text-xs text-base-content/50">
                 {gettext(
-                  "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
+                  "Where a notification opens when it has no link of its own. Defaults to /admin (every signed-in user can open it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
                 )}
               </span>
             </div>

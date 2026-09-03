@@ -9638,8 +9638,8 @@ msgstr "Просмотр использования хранилища и ста
 
 #: lib/phoenix_kit_web/live/settings.html.heex:384
 #, elixir-autogen, elixir-format
-msgid "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
-msgstr "Куда ведёт уведомление, если у него нет собственной ссылки. По умолчанию /dashboard (доступен каждому вошедшему пользователю). Очистите поле, чтобы такие уведомления нельзя было нажать. Префикс URL и локаль добавляются автоматически."
+msgid "Where a notification opens when it has no link of its own. Defaults to /admin (every signed-in user can open it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
+msgstr "Куда ведёт уведомление, если у него нет собственной ссылки. По умолчанию /admin (доступен каждому вошедшему пользователю). Очистите поле, чтобы такие уведомления нельзя было нажать. Префикс URL и локаль добавляются автоматически."
 
 #: lib/phoenix_kit/theme_config.ex:172
 #, elixir-autogen, elixir-format

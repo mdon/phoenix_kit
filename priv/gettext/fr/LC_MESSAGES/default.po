@@ -9604,8 +9604,8 @@ msgstr "Consultez l'utilisation du stockage et les statistiques des médias. Bie
 
 #: lib/phoenix_kit_web/live/settings.html.heex:384
 #, elixir-autogen, elixir-format
-msgid "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
-msgstr "Où s'ouvre une notification lorsqu'elle n'a pas de lien propre. Par défaut, /dashboard (accessible à tout utilisateur connecté). Videz le champ pour rendre ces notifications non cliquables à la place. Le préfixe d'URL et la locale sont ajoutés automatiquement."
+msgid "Where a notification opens when it has no link of its own. Defaults to /admin (every signed-in user can open it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
+msgstr "Où s'ouvre une notification lorsqu'elle n'a pas de lien propre. Par défaut, /admin (accessible à tout utilisateur connecté). Videz le champ pour rendre ces notifications non cliquables à la place. Le préfixe d'URL et la locale sont ajoutés automatiquement."
 
 #: lib/phoenix_kit/theme_config.ex:172
 #, elixir-autogen, elixir-format
