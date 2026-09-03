@@ -80,6 +80,36 @@ defmodule PhoenixKit.Integration.Users.CustomFieldsDefinitionsTest do
       refute structured_key in definition_keys()
     end
 
+    test "an admin save on a user holding a structured value does not register it" do
+      # The path that made this bug reachable on a FRESH install, not only on an
+      # upgraded one. The etcher writes `etcher_line_params` with
+      # `ensure_definitions: false`, so no definition is created there — but the
+      # admin form saves through `Auth.update_user_fields/2`, whose
+      # `maybe_update_custom_fields/2` merges the submitted keys over the user's
+      # WHOLE stored map and hands the result to `update_user_custom_fields/3`
+      # with default opts. So every key the user already had, including the map
+      # the etcher had quietly stored, went through auto-registration again on
+      # the next unrelated save — and the page 500d from then on.
+      user = create_user()
+      structured_key = "etcher_line_params_#{System.unique_integer([:positive])}"
+      scalar_key = "phone_#{System.unique_integer([:positive])}"
+
+      {:ok, user} =
+        Auth.update_user_custom_fields(user, %{structured_key => %{"width" => 2}},
+          ensure_definitions: false
+        )
+
+      {:ok, saved} = Auth.update_user_fields(user, %{scalar_key => "555-1234"})
+
+      keys = definition_keys()
+
+      refute structured_key in keys
+      # The submitted field still registers, so this is not passing by doing
+      # nothing at all.
+      assert scalar_key in keys
+      assert saved.custom_fields[structured_key] == %{"width" => 2}
+    end
+
     test "PhoenixKit's own internal keys register nothing, even scalar ones" do
       # Every internal writer passes `ensure_definitions: false`; this is what
       # holds when one forgets, here or in a host app.

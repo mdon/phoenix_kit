@@ -646,7 +646,16 @@ defmodule PhoenixKitWeb.Users.UserForm do
   end
 
   defp validate_custom_fields(user, custom_fields_params) do
-    temp_user = %{user | custom_fields: custom_fields_params}
+    # Validate what will actually be STORED, not just what was submitted:
+    # `update_custom_fields/2` merges through `Auth.update_user_fields/2`, so a
+    # key absent from the submission keeps its stored value. Validating the
+    # submission alone made every enabled definition that the form does not
+    # render an input for look empty — which, for a `required` one, blocked
+    # every save on the page with "Field is required" for a field nobody could
+    # fill in. The form stopped submitting exactly such a key when its value is
+    # a map or a list (issue #780).
+    merged = Map.merge(user.custom_fields || %{}, custom_fields_params)
+    temp_user = %{user | custom_fields: merged}
 
     case CustomFields.validate_user_custom_fields(temp_user) do
       :ok -> :ok

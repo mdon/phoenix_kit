@@ -30,6 +30,25 @@ that still carry them (issue #780).
   lists. It now skips structured values, and skips PhoenixKit's own internal
   keys (`etcher_*`, `media_*`, `notification_preferences`, `preferred_locale`,
   …) whether or not a caller remembered `ensure_definitions: false`.
+- **A `required` definition holding a structured value blocked every save on
+  the page.** Found in review of this change. The form deliberately submits
+  nothing for a map or a list, and `validate_custom_fields/2` validated the
+  submitted params rather than what would actually be stored — so an enabled
+  definition the form does not render an input for read as empty, and a
+  `required` one failed with "Field is required" for a field nobody could fill
+  in. It now validates the merged result, which is what
+  `Auth.update_user_fields/2` writes. `validate_user_custom_fields/1` also
+  skips structured values outright: no `type` describes one, and the `number`,
+  `uuid` and `date` clauses call `to_string/1` on it — the same
+  `Protocol.UndefinedError`, moved from the render into the save path.
+- **The crash was reachable on a fresh install, not only an upgraded one.**
+  Also found in review. Every internal writer passes `ensure_definitions:
+  false`, but the admin form saves through `Auth.update_user_fields/2`, whose
+  `maybe_update_custom_fields/2` merges the submitted keys over the user's
+  **whole** stored map before handing it to `update_user_custom_fields/3` with
+  default options. So one unrelated admin save on a user who had ever opened
+  the etcher re-registered the map that the etcher itself had deliberately not
+  registered. The structured-value skip closes that path too; pinned by a test.
 - **The stale definitions outlived the fix, so upgraded installs stayed
   broken.** Every internal writer already passed `ensure_definitions: false`,
   but nothing had ever removed the definitions written before that flag

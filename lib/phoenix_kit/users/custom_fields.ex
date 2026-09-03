@@ -419,9 +419,18 @@ defmodule PhoenixKit.Users.CustomFields do
         key = field_def["key"]
         value = Map.get(custom_fields, key)
 
-        case validate_custom_field_value(field_def, value) do
-          :ok -> acc
-          {:error, message} -> Map.put(acc, key, message)
+        # A structured value is not validated at all. No `type` describes one,
+        # so there is nothing to check — and several `validate_type/2` clauses
+        # (`number`, `uuid`, `date`) call `to_string/1`, which is the exact
+        # `Protocol.UndefinedError` this whole area exists to stop, just moved
+        # from the render into the save path (issue #780).
+        if structured_value?(value) do
+          acc
+        else
+          case validate_custom_field_value(field_def, value) do
+            :ok -> acc
+            {:error, message} -> Map.put(acc, key, message)
+          end
         end
       end)
 

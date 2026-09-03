@@ -142,6 +142,78 @@ defmodule PhoenixKit.Integration.Users.UserFormCustomFieldsTest do
     end
   end
 
+  describe "a REQUIRED definition holding a structured value" do
+    # The form deliberately submits nothing for a structured value. Validation
+    # runs over the params, so an enabled definition that is never submitted
+    # reads as missing — and a `required` one would block every save on the
+    # page, including saves that have nothing to do with it. Worse, several
+    # `validate_type/2` clauses call `to_string/1` on the value, which is the
+    # very crash this PR exists to stop, moved into the save path.
+    defp required_definition!(key, type) do
+      {:ok, _} =
+        CustomFields.add_field_definition(%{
+          "key" => key,
+          "label" => "Required #{type}",
+          "type" => type,
+          "required" => true,
+          "enabled" => true,
+          "user_accessible" => false,
+          "position" => 97
+        })
+
+      key
+    end
+
+    test "does not block a save of an unrelated field", %{conn: conn} do
+      key = required_definition!("etcher_colors_#{System.unique_integer([:positive])}", "text")
+      other_key = text_definition!("phone_#{System.unique_integer([:positive])}")
+      target = user_with_field(key, @palette)
+      conn = log_in_user(conn, admin_user())
+
+      {:ok, view, _html} = live(conn, edit_path(target))
+
+      try do
+        view
+        |> form("#user_form", %{
+          "user" => %{"first_name" => "Renamed", "custom_fields" => %{other_key => "555-1234"}}
+        })
+        |> render_submit()
+      catch
+        :exit, {{:shutdown, {:redirect, _, _}}, _} -> :ok
+      end
+
+      saved = Repo.get!(AuthCtx.User, target.uuid)
+
+      assert saved.first_name == "Renamed"
+      assert saved.custom_fields[key] == @palette
+    end
+
+    test "a numeric definition does not raise on the stored map", %{conn: conn} do
+      # `validate_type(%{"type" => "number"}, value)` does `to_string(value)`.
+      key = required_definition!("line_params_#{System.unique_integer([:positive])}", "number")
+      other_key = text_definition!("phone_#{System.unique_integer([:positive])}")
+      target = user_with_field(key, @line_params)
+      conn = log_in_user(conn, admin_user())
+
+      {:ok, view, _html} = live(conn, edit_path(target))
+
+      try do
+        view
+        |> form("#user_form", %{
+          "user" => %{"first_name" => "Renamed", "custom_fields" => %{other_key => "555-1234"}}
+        })
+        |> render_submit()
+      catch
+        :exit, {{:shutdown, {:redirect, _, _}}, _} -> :ok
+      end
+
+      saved = Repo.get!(AuthCtx.User, target.uuid)
+
+      assert saved.first_name == "Renamed"
+      assert saved.custom_fields[key] == @line_params
+    end
+  end
+
   test "the user's own settings page renders one read-only too", %{conn: conn} do
     # `/profile/settings` renders the user-accessible definitions through the
     # same "value straight into an input" shape. A definition auto-registered
