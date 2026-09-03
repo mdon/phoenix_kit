@@ -17,6 +17,7 @@ defmodule PhoenixKit.Integration.Users.UserFormCustomFieldsTest do
 
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.CustomFields
+  alias PhoenixKit.Users.TableColumns
   alias PhoenixKit.Utils.Routes
 
   @line_params %{"width" => 13, "opacity" => 1, "dash" => "solid"}
@@ -212,6 +213,37 @@ defmodule PhoenixKit.Integration.Users.UserFormCustomFieldsTest do
       assert saved.first_name == "Renamed"
       assert saved.custom_fields[key] == @line_params
     end
+  end
+
+  test "the users list renders a custom-field column holding one", %{conn: conn} do
+    # The fourth page that makes a `custom_fields` value visible. Its cells end
+    # in `truncate_text/2`, whose fallback is `to_string/1` — so a map 500d the
+    # whole list and a list came out as one concatenated run. Custom-field
+    # columns are not in the default set, so this needs the column switched on.
+    map_key = text_definition!("etcher_line_params_#{System.unique_integer([:positive])}")
+    list_key = text_definition!("etcher_colors_#{System.unique_integer([:positive])}")
+
+    target = user_with_field(map_key, @line_params)
+
+    {:ok, _} =
+      Auth.update_user_custom_fields(target, Map.put(target.custom_fields, list_key, @palette),
+        ensure_definitions: false
+      )
+
+    {:ok, _} =
+      TableColumns.update_user_table_columns([
+        "email",
+        "custom_#{map_key}",
+        "custom_#{list_key}"
+      ])
+
+    conn = log_in_user(conn, admin_user())
+
+    {:ok, _view, html} = live(conn, Routes.path("/admin/users"))
+
+    assert html =~ "&quot;dash&quot;:&quot;solid&quot;"
+    assert html =~ "#fca5a5, #fdba74"
+    refute html =~ "#fca5a5#fdba74"
   end
 
   test "the user's own settings page renders one read-only too", %{conn: conn} do

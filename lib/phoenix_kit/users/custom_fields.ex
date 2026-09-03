@@ -59,12 +59,24 @@ defmodule PhoenixKit.Users.CustomFields do
   # raises `Phoenix.HTML.Safe` and a list is silently flattened into one run
   # and written back on the next save (issue #780).
   #
-  # Every writer passes `ensure_definitions: false` today, so nothing registers
-  # these any more. The list is the second line of defence — a caller that
-  # forgets the option, here or in a host app, still cannot surface them — and
-  # migration V182 deletes the definitions that earlier versions did register.
+  # The features that own the crash-causing keys pass `ensure_definitions:
+  # false`, but five of these have no such opt-out and register themselves to
+  # this day: `avatar_file_uuid` (`auth.ex`, `user_settings.ex`),
+  # `pending_invitation_uuid` (`registration.ex`, `confirmation.ex`) and
+  # `source` (`user.ex`) go through `update_user_fields/2`, and
+  # `oauth_avatar_url` through `set_user_custom_field/3` — all of which reach
+  # `update_user_custom_fields/3` with default options. So this list is the
+  # single place that decides, whatever the caller did.
+  #
+  # Migration V182's copy is deliberately NARROWER: it deletes only the keys
+  # that were auto-registered by a version with no opt-out at all. Removing a
+  # definition an operator can see today — `source` reads as a useful column,
+  # `avatar_file_uuid` is shown on the user page — is not something a bug fix
+  # should do behind their back, and `down/1` could not restore it. Existing
+  # definitions for the five stay; only new registrations stop.
   @internal_keys ~w(
     activity_view_mode
+    avatar_file_uuid
     etcher_colors
     etcher_line_params
     media_expanded_folders
@@ -72,9 +84,12 @@ defmodule PhoenixKit.Users.CustomFields do
     media_view_mode
     media_viewer_info_collapsed
     notification_preferences
+    oauth_avatar_url
+    pending_invitation_uuid
     preferred_locale
     referral_satisfied_at
     referral_satisfied_via
+    source
     timezone_alert_zone
     users_view_mode
   )

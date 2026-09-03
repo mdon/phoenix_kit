@@ -140,7 +140,10 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # rather than the manifest being regenerated. The chain was re-run end to end
   # into a fresh database (V135→V182) and the migration's real statements are
   # exercised against a seeded settings row by
-  # `test/phoenix_kit/migrations/v182_test.exs`.
+  # `test/phoenix_kit/migrations/v182_test.exs`. Restamped twice more during
+  # review, for guard-only edits inside those same two UPDATEs (keeping array
+  # elements the migration cannot identify, and escaping the `LIKE` prefix) —
+  # neither touches a database object either.
   #
   # V180 was fixed post-publish (2.13.11): its bare top-level `LOCK TABLE` moved
   # inside the `DO $$` block that already carries the dedupe UPDATE and the
@@ -222,7 +225,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "a50880e4b90d551e03be32995ac74c8750cacc6f634faf1181b13c7068352346"
+  @chain_hash "0a6fa8027613a2505040a35eca6aca54dcd1831f7302966838592be0bb611d83"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)

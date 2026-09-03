@@ -126,6 +126,48 @@ defmodule PhoenixKit.Migrations.Postgres.V182Test do
       assert stored_date_updated() == before
     end
 
+    test "an element with no usable key is kept, not swept away with the internal ones" do
+      # `->> 'key'` answers NULL for an element that is not an object, or an
+      # object with no `key`, and `NOT (NULL)` is NULL — which a WHERE clause
+      # drops. Without the explicit NULL arm the row would be deleted silently,
+      # and `down/1` cannot put it back: the setting held the only copy.
+      {:ok, _} =
+        CustomFields.save_field_definitions([
+          definition("phone", 1),
+          "junk",
+          %{"label" => "no key at all", "type" => "text"},
+          %{"key" => nil, "label" => "null key"},
+          definition("etcher_line_params", 2)
+        ])
+
+      run_cleanup()
+
+      %{"fields" => fields} = stored_value_json()
+
+      assert "junk" in fields
+      assert %{"label" => "no key at all", "type" => "text"} in fields
+      assert %{"key" => nil, "label" => "null key"} in fields
+      assert Enum.any?(fields, &(is_map(&1) and &1["key"] == "phone"))
+      # The internal key it was mixed with is still gone.
+      refute Enum.any?(fields, &(is_map(&1) and &1["key"] == "etcher_line_params"))
+    end
+
+    test "the channel prefix's own underscores are not LIKE wildcards" do
+      # `_` matches any single character in LIKE, so the unescaped pattern
+      # `notification_channel:%` also matched keys nobody meant.
+      # Unescaped, `notification_channel:%` matches this key: each `_` stands in
+      # for the `x`. Seeded through `save_field_definitions/1` because
+      # `validate_field_key/1` would refuse the colon, which is also why no such
+      # definition can exist in the first place — the escape is hygiene, and
+      # this is what proves it is actually applied.
+      seed_definitions!(["notificationxchannel:x", "phone", "etcher_colors"])
+
+      run_cleanup()
+
+      assert "notificationxchannel:x" in stored_keys()
+      refute "etcher_colors" in stored_keys()
+    end
+
     test "is idempotent" do
       seed_definitions!(["phone", "etcher_line_params"])
 

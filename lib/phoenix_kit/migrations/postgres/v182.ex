@@ -134,7 +134,7 @@ defmodule PhoenixKit.Migrations.Postgres.V182 do
                    SELECT jsonb_agg(t.elem ORDER BY t.ord)
                      FROM jsonb_array_elements(s.value_json -> 'fields')
                           WITH ORDINALITY AS t(elem, ord)
-                    WHERE NOT (#{internal_key_match("t.elem")})
+                    WHERE #{keep_predicate("t.elem")}
                  ),
                  '[]'::jsonb
                )
@@ -156,7 +156,7 @@ defmodule PhoenixKit.Migrations.Postgres.V182 do
                  SELECT jsonb_agg(t.elem ORDER BY t.ord)
                    FROM jsonb_array_elements(s.value_json)
                         WITH ORDINALITY AS t(elem, ord)
-                  WHERE NOT (#{internal_key_match("t.elem")})
+                  WHERE #{keep_predicate("t.elem")}
                ),
                '[]'::jsonb
              ),
@@ -172,13 +172,26 @@ defmodule PhoenixKit.Migrations.Postgres.V182 do
     ]
   end
 
+  # What survives the rewrite. `->> 'key'` answers NULL for an element that is
+  # not an object, or an object with no `key` — and `NOT (NULL)` is NULL, which
+  # a WHERE clause drops. Without the explicit NULL arm, one hand-edited or
+  # third-party element would be deleted silently along with the internal keys,
+  # and `down/1` cannot put it back. Anything this migration does not recognise
+  # is kept.
+  defp keep_predicate(column) do
+    "#{column} ->> 'key' IS NULL OR NOT (#{internal_key_match(column)})"
+  end
+
   # Every key is a literal from the module attribute above, so the rendered
-  # array carries nothing an operator or a user could influence.
+  # array carries nothing an operator or a user could influence. The prefix's
+  # own underscores are escaped: in LIKE, a bare `_` is a single-character
+  # wildcard, so the unescaped pattern also matched keys nobody meant.
   defp internal_key_match(column) do
     keys = Enum.map_join(@internal_keys, ", ", &"'#{&1}'")
+    prefix = String.replace(@internal_key_prefix, "_", "\\_")
 
     "#{column} ->> 'key' = ANY (ARRAY[#{keys}]) OR " <>
-      "#{column} ->> 'key' LIKE '#{@internal_key_prefix}%'"
+      "#{column} ->> 'key' LIKE '#{prefix}%'"
   end
 
   defp prefix_str("public"), do: "public."

@@ -915,6 +915,11 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                         class="font-mono text-sm"
                         readonly
                       />
+                      <div class="label">
+                        <span class="fieldset-label text-xs text-base-content/60">
+                          Structured value, stored by a feature rather than typed here — read-only.
+                        </span>
+                      </div>
                     <% else %>
                       <%= case field["type"] do %>
                         <% "select" -> %>

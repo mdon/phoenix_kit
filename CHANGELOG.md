@@ -30,6 +30,12 @@ that still carry them (issue #780).
   lists. It now skips structured values, and skips PhoenixKit's own internal
   keys (`etcher_*`, `media_*`, `notification_preferences`, `preferred_locale`,
   …) whether or not a caller remembered `ensure_definitions: false`.
+- **The users list was a fourth page with the same crash.**
+  `/admin/users` renders custom-field columns through `truncate_text/2`, whose
+  fallback is `to_string/1` — so a map 500d the whole list and a list came out
+  as one concatenated run. It needs the column switched on (custom-field columns
+  are not in the default set), which is why it went unnoticed. Structured values
+  now go through the same `printable/1` as everywhere else.
 - **A `required` definition holding a structured value blocked every save on
   the page.** Found in review of this change. The form deliberately submits
   nothing for a map or a list, and `validate_custom_fields/2` validated the
@@ -56,6 +62,24 @@ that still carry them (issue #780).
   `custom_user_fields_definitions` setting. Values in `custom_fields` are left
   exactly as they are — only the claim that they are admin-editable profile
   fields goes away.
+
+### Changed
+
+- **`ensure_definitions_exist/1` also stops registering the internal keys that
+  never had an opt-out.** `avatar_file_uuid`, `pending_invitation_uuid` and
+  `source` reach it through `update_user_fields/2`, and `oauth_avatar_url`
+  through `set_user_custom_field/3` — none of them passing
+  `ensure_definitions: false`, so all four still registered themselves as
+  admin-editable fields. New registrations stop; definitions that already exist
+  are left alone, and V182's own list stays deliberately narrower — removing a
+  column an operator can see today is not a bug fix's call to make.
+- **V182 keeps what it does not recognise.** `->> 'key'` answers NULL for an
+  array element that is not an object or has no `key`, and `NOT (NULL)` is NULL,
+  which a `WHERE` drops — so a hand-edited or third-party element would have
+  been deleted silently alongside the internal keys, with no way back. It is now
+  kept explicitly. The `notification_channel:` prefix is also escaped for `LIKE`,
+  where a bare `_` is a single-character wildcard.
+
 
 ## 2.13.19 - 2026-09-02
 
