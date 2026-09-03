@@ -116,6 +116,28 @@ end
 | `phoenix_kit_admin_routes/1` | All admin panel routes | ~100 |
 | `phoenix_kit_dashboard_routes/1` | User dashboard | ~3 |
 
+### The admin segment is rewritten on the way out
+
+`phoenix_kit_admin_routes/1` returns its assembled AST through
+`rewrite_admin_segment/1`, which moves every leading `/admin` path literal onto
+`PhoenixKit.Config.get_admin_path/0` (`config :phoenix_kit, admin_path:`).
+A no-op on the default `"/admin"`, so an unconfigured host keeps a
+byte-identical route table.
+
+It is applied to the **assembled** AST rather than at each `live` call, and that
+placement is the point: this one macro is where every admin route in the system
+converges — core's own table, `:admin_dashboard_tabs` entries, plugin views, and
+the `admin_routes/0` / `admin_locale_routes/0` a module package declares via
+`compile_external_admin_routes/1`. One rewrite reaches all of them, including
+packages compiled long before the option existed, and the next route added to
+the table cannot forget it.
+
+The inverse rewrite (`Routes.canonical_admin_path/1`) runs wherever an incoming
+request path is compared against a canonical one — `Tab.normalize_path/1`,
+`AdminNav.parse_admin_path/1`, `LayoutWrapper.admin_page?/1`, the language
+switcher. Route literals in this guide are written canonically for that reason;
+`/admin` is the name in code regardless of what a host serves.
+
 ### Results
 
 - **File size**: 859 → 704 lines (~18% reduction)

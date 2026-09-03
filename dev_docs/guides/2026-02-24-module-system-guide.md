@@ -808,7 +808,15 @@ Set `@page_title` in `mount/3` — it appears in the browser tab.
 
 ## Navigation System (Paths Module)
 
-Every path your module generates — in templates, redirects, or LiveView navigation — **must** go through `PhoenixKit.Utils.Routes.path/1`. This handles the configurable URL prefix and locale prefix.
+Every path your module generates — in templates, redirects, or LiveView navigation — **must** go through `PhoenixKit.Utils.Routes.path/1`. This handles the configurable URL prefix, the locale prefix, **and the configurable admin segment**.
+
+> **Write `/admin` and never anything else.** A host can move the whole admin
+> area with `config :phoenix_kit, admin_path: "/backoffice"`. `/admin` stays the
+> canonical name in code; `Routes.path/1` swaps in whatever the host configured,
+> and the same rewrite is applied to the `admin_routes/0` you declare. A module
+> that follows this rule needs **no changes at all** to support a renamed admin
+> area — which is why the `@base "/admin/my-module"` + `Routes.path/1` pattern
+> below is load-bearing rather than stylistic.
 
 ### Create a Paths module
 
@@ -874,6 +882,35 @@ end
 ### Why relative paths break
 
 The browser resolves relative paths relative to the current URL. When locale segments (e.g., `/ja/`) are in the path, relative paths resolve incorrectly. Always use absolute paths via `Routes.path/1`.
+
+### Reading a real URL back: `Routes.admin_area_path?/1`
+
+The rules above are about **emitting** a URL. The inverse — "does this URL I was
+handed point into the admin area?" — comes up when a module allowlists a
+redirect target: a `_live_referer`, a `?return_to=`, `conn.request_path`. Those
+arrive already wearing the mount prefix and possibly a locale segment.
+
+**Do not hand-roll it.** `String.contains?(path, "/admin/")` is wrong three ways:
+it claims `/administrators`, it claims a host's own page at `/shop/admin`, and
+it silently matches nothing on a host that renamed the admin segment — quietly
+dropping the destination it was supposed to preserve.
+
+```elixir
+alias PhoenixKit.Utils.Routes
+
+# Allowlisting a client-supplied return path
+if Routes.local_path?(path) and Routes.admin_area_path?(path), do: path
+```
+
+`admin_area_path?/1` strips the mount prefix, allows one locale segment, and
+compares by **segment** against the configured admin path. `local_path?/1` is
+the separate check that rejects `//evil.com`, `/\evil.com` and ASCII control
+characters — neither implies the other, so a client-supplied path needs both.
+
+Comparing an incoming path against a *canonical* one written in code is a
+different job again, and `Tab` already does it for you: `Tab.matches_path?/2`
+canonicalises before calling a custom `match:` function, so a tab matcher can
+keep testing `String.starts_with?(path, "/admin/my-module")` unchanged.
 
 ---
 

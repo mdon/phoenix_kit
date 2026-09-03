@@ -350,6 +350,23 @@ config :phoenix_kit, PhoenixKit.Mailer,
   port: 587
 ```
 
+### URLs
+
+```elixir
+config :phoenix_kit,
+  url_prefix: "/phoenix_kit",  # where PhoenixKit is mounted (default)
+  admin_path: "/admin"         # the admin segment inside it (default)
+```
+
+Both are optional and independent. `admin_path: "/backoffice"` serves the admin
+area at `/phoenix_kit/backoffice/...` — useful when a signed-in end user would
+otherwise see a URL that reads as somebody else's admin panel. Compile-time, so
+they belong in `config/config.exs`, not `runtime.exs`.
+
+In your own code always write the canonical `/admin/...` and let
+`PhoenixKit.Utils.Routes.path/1` (or `<.pk_link>`) apply whatever you
+configured. Full details: [Integration Guide](guides/integration.md).
+
 ### Layout Integration
 
 ```elixir

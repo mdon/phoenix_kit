@@ -338,6 +338,12 @@ end
 defmodule MyAppWeb.AdminBlogPostsLive do
   use MyAppWeb, :live_view
 
+  # `<.pk_link>` applies the PhoenixKit URL prefix AND the configurable admin
+  # segment (`config :phoenix_kit, admin_path:`). A plain `<.link navigate="/admin/...">`
+  # hardcodes both and breaks on any install that changed either — write the
+  # canonical `/admin/...` here and let the component resolve it.
+  import PhoenixKitWeb.Components.Core.PkLink
+
   alias MyApp.Blog
 
   def mount(_params, _session, socket) do
@@ -357,9 +363,9 @@ defmodule MyAppWeb.AdminBlogPostsLive do
       <div class="container mx-auto px-4 py-6">
         <div class="flex justify-between items-center mb-6">
           <h1 class="text-2xl font-bold">Blog Posts</h1>
-          <.link navigate="/admin/blog/new" class="btn btn-primary">
+          <.pk_link navigate="/admin/blog/new" class="btn btn-primary">
             New Post
-          </.link>
+          </.pk_link>
         </div>
 
         <table class="table table-zebra">
@@ -377,9 +383,9 @@ defmodule MyAppWeb.AdminBlogPostsLive do
               <td><%= post.status %></td>
               <td><%= post.published_at %></td>
               <td class="flex gap-2">
-                <.link navigate={"/admin/blog/#{post.id}/edit"} class="btn btn-xs">
+                <.pk_link navigate={"/admin/blog/#{post.id}/edit"} class="btn btn-xs">
                   Edit
-                </.link>
+                </.pk_link>
                 <button phx-click="delete" phx-value-id={post.id} class="btn btn-xs btn-error">
                   Delete
                 </button>

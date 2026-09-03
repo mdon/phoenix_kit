@@ -129,8 +129,42 @@ mix ecto.migrate
 | `repo` | module | auto-detected | Your Ecto Repo module |
 | `mailer` | module | nil | Your Swoosh Mailer module |
 | `url_prefix` | string | "/phoenix_kit" | URL prefix for all routes |
+| `admin_path` | string | "/admin" | Top-level segment of the admin area, inside `url_prefix` |
 | `layout` | tuple | PhoenixKit default | `{LayoutModule, :template}` |
 | `root_layout` | tuple | PhoenixKit default | Root layout for pages |
+
+### Renaming the admin area
+
+`url_prefix` names the mount; `admin_path` names the admin segment inside it.
+They are independent:
+
+```elixir
+config :phoenix_kit,
+  url_prefix: "/phoenix_kit",
+  admin_path: "/backoffice"
+
+# admin area now at /phoenix_kit/backoffice/users
+# everything else is untouched: /phoenix_kit/users/log-in, /phoenix_kit/profile/settings
+```
+
+Useful when a signed-in end user would otherwise see a URL that reads as
+somebody else's admin panel. The admin index admits **every** authenticated
+visitor by design — one holding no permissions is greeted and shown nothing
+else — so the URL is the only part that looks administrative.
+
+- **Compile-time.** Put it in `config/config.exs`, never `runtime.exs`. The
+  host router folds it into `__mix_recompile__?/0`, so changing it re-expands
+  your router rather than leaving it serving the old segment.
+- **Validated.** Exactly one lowercase path segment, and not one PhoenixKit
+  already declares (`users`, `profile`, `dashboard`, `api`, …). A bad value
+  raises at compile time instead of producing a router that 404s.
+- **Nothing else changes.** The default (`"/admin"`) produces a byte-identical
+  route table, and every PhoenixKit module package follows the rename with no
+  changes of its own.
+
+In **your own code**, keep writing `/admin` — `Routes.path("/admin/users")`
+and `<.pk_link navigate="/admin/users">` apply the configured segment for you.
+Never hardcode the renamed value.
 
 ### Authentication Settings
 
@@ -340,7 +374,7 @@ When helping a developer with PhoenixKit:
 3. **Entity names are snake_case** - e.g., `"contact_form"`, not `"Contact Form"`
 4. **Field keys are snake_case** - e.g., `"full_name"`, not `"Full Name"`
 5. **First user is Owner** - First registered user gets the Owner role automatically
-6. **Routes are prefixed** - Default is `/phoenix_kit/`, configurable via `url_prefix`
+6. **Routes are prefixed** - Default is `/phoenix_kit/`, configurable via `url_prefix`; the admin segment is separately configurable via `admin_path`. Write `/admin` in code either way and let `Routes.path/1` apply both
 7. **Permissions are cached in Scope** - Use `Scope.has_module_access?/2` not raw DB queries
 8. **Owner bypasses all permission checks** - No DB rows needed for Owner access
 9. **Entities use `created_by_uuid`** - The field is `created_by_uuid`, not `created_by`

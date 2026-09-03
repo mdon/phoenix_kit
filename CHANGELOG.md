@@ -51,6 +51,11 @@
 
 ### Fixed
 
+- **The custom-admin-pages guide taught hosts to hardcode `/admin`.** Its
+  worked example used a plain `<.link navigate="/admin/blog/new">`, which
+  ignores `url_prefix` (so it was already broken on every install that changed
+  the mount) and now `admin_path` too. Switched to `<.pk_link>`, with the
+  import the example was missing.
 - **`/admin` prefix tests were not segment-aware.** `Routes`' internal
   `admin_path?/1` and the language switcher's admin branch used
   `String.starts_with?(path, "/admin")` / `String.contains?(path, "/admin")`,
