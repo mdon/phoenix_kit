@@ -81,6 +81,12 @@
   after its link in the DOM: the top layer changes painting, not the tree, so
   Tab walks straight into it.
 
+  The collapsed rail also **marks the section you are in**. Expanded, the
+  highlight deliberately moves off the parent and onto the active subtab — but
+  collapsed that subtab row is hidden, so nothing was marked at all. The parent
+  now states the fact (`data-pk-branch-active`) and the rail's CSS paints it;
+  expanded is unchanged.
+
   Accessibility: labels are visually hidden (`clip-path`), never
   `display: none`, so every link keeps its accessible name and the collapsed
   menu still reads correctly to a screen reader. The toggle carries

@@ -219,6 +219,50 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
     end
   end
 
+  describe "compact-mode stylesheet" do
+    # These guard a bug that shipped: the flyout's label overrides were written
+    # without the `html[data-pk-sidebar="compact"]` prefix, read (1,2,0) against
+    # the rail's own (1,2,1) hiding rule, and lost — so the flyout rendered as a
+    # column of anonymous icons, which is the one thing it exists to prevent.
+    # The `@media` block the rail rules live in contributes NO specificity, so
+    # the prefix is the only thing separating them.
+
+    defp compact_css do
+      html = admin_shell(owner_scope())
+      [_, rest] = String.split(html, "<style data-phoenix-kit-sidebar>", parts: 2)
+      [css, _] = String.split(rest, "</style>", parts: 2)
+      css
+    end
+
+    test "every flyout override outranks the rail rule it has to beat" do
+      for line <- String.split(compact_css(), "\n"),
+          String.contains?(line, ".pk-sidebar-flyout"),
+          String.contains?(line, "{") do
+        assert String.starts_with?(String.trim(line), ~s(html[data-pk-sidebar="compact"])),
+               """
+               Flyout override without the compact prefix — it will lose on \
+               specificity to the rail rule and the flyout will show icons \
+               with no text:
+
+                 #{String.trim(line)}
+               """
+      end
+    end
+
+    test "the flyout un-hides the labels the rail hides" do
+      css = compact_css()
+
+      assert css =~ ".pk-sidebar-flyout .pk-sidebar-label"
+      assert css =~ "clip-path: none"
+    end
+
+    test "the collapsed rail marks the section you are in" do
+      # Expanded, the highlight sits on the active subtab; collapsed, that row
+      # is hidden, so without this nothing is marked at all.
+      assert compact_css() =~ ~s([data-pk-branch-active="true"])
+    end
+  end
+
   describe "the show_admin_panel_label setting" do
     # An operator switch, deliberately show/hide rather than a title field: the
     # WORDING stays `gettext("Admin Panel")`, which ships translated in every

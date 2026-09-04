@@ -360,15 +360,20 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       }
 
       /* ── Flyouts ──────────────────────────────────────────────────────────
-         Not inside the `min-width: 1024px` block, and not scoped under
-         `#pk-admin-sidebar` for the box itself: a shown popover paints in the
-         TOP LAYER, so it must not inherit the rail's 5rem width — but it is
-         still a DOM descendant, which is what lets the label override below
-         work at all.
+         Outside the `min-width: 1024px` block because the script only ever
+         opens these when the rail is collapsed, which is already lg-only; an
+         unopened popover is `display: none` regardless.
 
-         Only ever opened by the script when the rail is collapsed, so no media
-         query is needed here; an unopened popover is `display: none`. */
-      #pk-admin-sidebar .pk-sidebar-flyout {
+         A shown popover paints in the TOP LAYER, so it does not inherit the
+         rail's 5rem width — but it is still a DOM DESCENDANT of the sidebar,
+         which is both why the label override below is needed and why it works.
+
+         Every rule here carries the `html[data-pk-sidebar="compact"]` prefix.
+         Uniformly, including the two that compete with nothing — it costs
+         nothing (a flyout is only ever shown in compact mode) and it lets the
+         regression guard in the test suite be a total rule rather than a list
+         of exceptions that a future rule could quietly slip past. */
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-flyout {
         position: fixed;
         inset: auto;
         margin: 0;
@@ -384,7 +389,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.25);
       }
 
-      #pk-admin-sidebar .pk-sidebar-flyout-title {
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-flyout-title {
         padding: 0.25rem 0.75rem 0.5rem;
         font-size: 0.75rem;
         font-weight: 600;
@@ -395,8 +400,15 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
       /* The rail hides every `.pk-sidebar-label`, and these are descendants of
          the sidebar — so without this the flyout would be a list of anonymous
-         icons, which is the whole thing it exists to prevent. */
-      #pk-admin-sidebar .pk-sidebar-flyout .pk-sidebar-label {
+         icons, which is the whole thing it exists to prevent.
+
+         ⚠️ The `html[data-pk-sidebar="compact"]` prefix is LOAD-BEARING, not
+         decoration. Without it these read (1,2,0) against the rail rules'
+         (1,2,1) and lose on specificity, which is exactly the bug that shipped:
+         a flyout of anonymous icons. Do not "simplify" the prefix away — the
+         media query the rail rules sit in contributes no specificity, so this
+         is the only thing separating them. */
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-flyout .pk-sidebar-label {
         position: static;
         width: auto;
         height: auto;
@@ -405,8 +417,26 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         clip-path: none;
       }
 
-      #pk-admin-sidebar .pk-sidebar-flyout [data-tab-id] { justify-content: flex-start; }
-      #pk-admin-sidebar .pk-sidebar-flyout [data-tab-id] > div { justify-content: flex-start; gap: 0.75rem; }
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-flyout [data-tab-id] {
+        justify-content: flex-start;
+      }
+
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-flyout [data-tab-id] > div {
+        justify-content: flex-start;
+        gap: 0.75rem;
+      }
+
+      /* The section you are IN, marked on the rail.
+         Expanded, `admin_tab_with_subtabs/1` deliberately moves the highlight
+         off the parent and onto the active subtab — but collapsed, that subtab
+         row is hidden, so nothing was marked at all. The server states the fact
+         (`data-pk-branch-active`) and the rail decides to paint it; expanded
+         still shows the subtab, unchanged. Same colours as `tab_classes/5`'s
+         active top-level branch (`bg-primary text-primary-content`). */
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-branch-active="true"] > a {
+        background-color: var(--color-primary);
+        color: var(--color-primary-content);
+      }
     </style>
     <script>
       (function () {

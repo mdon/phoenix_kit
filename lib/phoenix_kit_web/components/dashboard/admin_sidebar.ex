@@ -242,6 +242,12 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
       # Dividers and group headers render no link, so there is nothing to hover
       # and nothing to name.
       |> assign(:flyout_id, flyout_id(assigns.tab))
+      # Stated for the collapsed rail, which has no other way to show which
+      # section you are in: the highlight normally lives on the active SUBTAB,
+      # and compact mode hides the subtab list. Rendered unconditionally and
+      # acted on by CSS only when collapsed, because whether the rail is
+      # collapsed is client state the server cannot see.
+      |> assign(:branch_active, to_string(descendant_active))
 
     ~H"""
     <div
@@ -249,6 +255,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
       data-tab-id={@tab.id}
       data-has-subtabs={@has_subtabs}
       data-pk-flyout-id={@flyout_id}
+      data-pk-branch-active={@branch_active}
     >
       <TabItem.tab_item
         tab={@display_tab}

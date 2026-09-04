@@ -184,6 +184,47 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebarDynamicChildrenTest do
       assert html =~ "pk-sidebar-flyout-title"
     end
 
+    test "a section holding the active page is marked on the rail" do
+      # Expanded, `admin_tab_with_subtabs/1` moves the highlight off the parent
+      # and onto the active subtab. Collapsed, that subtab row is hidden — so
+      # the parent has to state the fact and let the rail's CSS paint it, or
+      # nothing on screen says which section you are in.
+      parent =
+        Tab.new!(
+          id: :settings,
+          label: "Settings",
+          path: "/admin/settings",
+          icon: "hero-cog",
+          level: :admin
+        )
+
+      child =
+        Tab.new!(
+          id: :users,
+          label: "Users",
+          path: "/admin/settings/users",
+          icon: "hero-user",
+          level: :admin,
+          parent: :settings
+        )
+
+      tabs = TabHelpers.add_active_state([parent, child], "/admin/settings/users")
+      [parent | _] = tabs
+
+      html =
+        render_component(&AdminSidebar.__tab_with_subtabs_for_test__/1,
+          tab: parent,
+          all_tabs: tabs,
+          locale: nil
+        )
+
+      assert html =~ ~s(data-pk-branch-active="true")
+    end
+
+    test "a section holding nothing active is not marked" do
+      assert parent_row() =~ ~s(data-pk-branch-active="false")
+    end
+
     test "the flyout sits immediately after the link, so Tab walks into it" do
       # The top layer changes PAINTING, not the DOM tree — focus order still
       # follows this position.
