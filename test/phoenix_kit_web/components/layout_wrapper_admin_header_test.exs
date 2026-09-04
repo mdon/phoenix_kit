@@ -158,6 +158,67 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
     assert operator =~ "Admin Panel"
   end
 
+  describe "the sidebar compact toggle" do
+    # Compact mode is entirely client-side: `localStorage` + a `data-pk-sidebar`
+    # stamp on <html>, with CSS doing the hiding. So what the server owes is
+    # exactly the handles that machinery reads — and those are what is asserted
+    # here, because a CSS selector that no longer matches anything fails
+    # silently in a way no render test would otherwise catch.
+
+    test "an operator gets the toggle" do
+      html = admin_shell(owner_scope())
+
+      assert html =~ "data-pk-sidebar-toggle"
+      assert html =~ "pk-sidebar-toggle"
+    end
+
+    test "the pre-paint stamp ships above the sidebar markup" do
+      # Order is the whole point: the script must run before the menu is
+      # parsed, or a viewer who chose compact sees a frame of the full-width
+      # sidebar on every load.
+      html = admin_shell(owner_scope())
+
+      stamp = :binary.match(html, "__pkSidebarCompact") |> elem(0)
+      sidebar = :binary.match(html, ~s(id="pk-admin-sidebar")) |> elem(0)
+
+      assert stamp < sidebar
+    end
+
+    test "the shell renders the handles the compact styles select on" do
+      # Only the shell's own handles here — the Dashboard Registry is not
+      # started in this DB-free run, so there are no tabs to carry the
+      # per-item ones. Those live in TabItemTest, against a literal Tab.
+      html = admin_shell(owner_scope())
+
+      assert html =~ "pk-sidebar "
+      assert html =~ "pk-sidebar-label"
+      assert html =~ "pk-sidebar-toggle-icon"
+    end
+
+    test "labels are rendered, not omitted — CSS hides them" do
+      # Compact mode has no server round-trip, so the label has to be in the
+      # DOM for CSS to hide it. It is also what keeps the link's accessible
+      # name intact while collapsed.
+      html = admin_shell(owner_scope())
+
+      assert html =~ "pk-sidebar-label"
+
+      # And the server never stamps the state itself — that is the client's
+      # job, pre-paint. Checked on the <html> OPEN TAG specifically: the
+      # attribute name also appears throughout the stylesheet's selectors, so
+      # a whole-document match would pass for the wrong reason.
+      [open_tag | _] = String.split(html, ">", parts: 2)
+      refute open_tag =~ "data-pk-sidebar"
+    end
+
+    test "a visitor with no admin rights gets neither sidebar nor toggle" do
+      html = admin_shell(plain_user_scope())
+
+      refute html =~ ~s(id="pk-admin-sidebar")
+      refute html =~ "data-pk-sidebar-toggle"
+    end
+  end
+
   describe "the show_admin_panel_label setting" do
     # An operator switch, deliberately show/hide rather than a title field: the
     # WORDING stays `gettext("Admin Panel")`, which ships translated in every

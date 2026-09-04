@@ -188,7 +188,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
     ~H"""
     <div :if={@top_level_tabs != []} class="space-y-1" data-group-id={@group.id}>
       <%= if Group.localized_label(@group) do %>
-        <div class="px-3 py-2 text-xs font-semibold text-base-content/50 uppercase tracking-wider">
+        <div class="pk-sidebar-group px-3 py-2 text-xs font-semibold text-base-content/50 uppercase tracking-wider">
           <span class="flex items-center gap-2">
             <%= if @group.icon do %>
               <.icon name={@group.icon} class="w-3.5 h-3.5" />

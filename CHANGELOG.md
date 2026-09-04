@@ -35,6 +35,37 @@
   the segments core already declares — `users`, `profile`, `dashboard`, `api`,
   …) and raises rather than producing a router that compiles and then 404s.
 
+- **The admin sidebar collapses to icons.** A toggle at the foot of the menu
+  narrows it to a 5rem icon rail; the label of each item moves to a hover
+  tooltip, group headings and subtab lists fold away, and the choice is
+  remembered per browser. Desktop only — below `lg` the sidebar is an overlay
+  drawer that is already absent until summoned, so narrowing it buys nothing
+  and costs the labels.
+
+  **Entirely client-side, and deliberately so.** The sidebar is a *function
+  component*, not a LiveView: there is no `handle_event/3` owner for a
+  `phx-click`, and giving one to every admin page (or bolting a global
+  `attach_hook` onto the admin `on_mount` chain) is a lot of machinery for a
+  display preference. It is also a per-browser density choice, like the theme,
+  so it lives in `localStorage` beside it rather than in a settings row — and a
+  client toggle costs no round trip and gives morphdom nothing to fight over,
+  since the DOM is identical either way and only `<html>` changes.
+
+  That makes the first paint the whole problem, which is why the stamp is a
+  synchronous inline `<script>` rendered immediately above the sidebar rather
+  than a hook in `phoenix_kit.js`: it has to run before the menu is parsed or a
+  viewer who chose compact gets a frame of the full-width sidebar on every
+  load, and it must not depend on the host having re-run
+  `mix phoenix_kit.update` to refresh its vendored bundle. Same shape, and the
+  same one-instance guard, as `PhoenixKitWeb.Components.ThemeBootstrap`.
+
+  Accessibility: labels are visually hidden (`clip-path`), never
+  `display: none`, so every link keeps its accessible name and the collapsed
+  menu still reads correctly to a screen reader. The toggle carries
+  `aria-expanded` and swaps its own `aria-label` with the state. The hover
+  tooltip is pure CSS over a new `data-pk-label` attribute rather than `title`,
+  so the expanded menu gains no native tooltips it never had.
+
 - **The "Admin Panel" label in the admin header can be turned off.** New
   `show_admin_panel_label` setting (Site Identity, `/admin/settings`), on by
   default — the row is absent on every existing install and

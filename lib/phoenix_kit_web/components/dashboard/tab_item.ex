@@ -68,6 +68,10 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
     end
   end
 
+  # `data-pk-label` on the anchor feeds the admin sidebar's compact-mode CSS
+  # tooltip (`content: attr(data-pk-label)`). Deliberately NOT folded into
+  # `title`: a native tooltip on every menu item would fire in expanded mode
+  # too, where the label is already right there.
   defp render_tab(assigns) do
     path = build_path(assigns.tab.path, assigns.locale)
     is_subtab = Tab.subtab?(assigns.tab)
@@ -98,6 +102,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
         aria-current={@active && "page"}
         data-tab-id={@tab.id}
         data-parent-id={@tab.parent}
+        data-pk-label={Tab.localized_label(@tab)}
       >
         <.tab_content
           tab={@tab}
@@ -120,6 +125,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
         aria-current={@active && "page"}
         data-tab-id={@tab.id}
         data-parent-id={@tab.parent}
+        data-pk-label={Tab.localized_label(@tab)}
       >
         <.tab_content
           tab={@tab}
@@ -228,7 +234,14 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
         <% end %>
       <% end %>
       <%= unless @compact do %>
+        <%!-- `pk-sidebar-label` is the handle the admin sidebar's compact mode
+             hides. It is a CLASS rather than a second `@compact` render branch
+             because compact mode is a client-side preference (localStorage,
+             stamped pre-paint on <html>) with no server round-trip — the label
+             has to be in the DOM for CSS to hide it. It is visually hidden, not
+             removed, so the link keeps its accessible name. --%>
         <span class={[
+          "pk-sidebar-label",
           if(@wrap_label, do: "break-words leading-tight", else: "truncate"),
           @is_subtab && (@subtab_style[:text_size] || "text-sm")
         ]}>

@@ -7667,7 +7667,7 @@ msgstr "Только видео"
 msgid "You need to configure at least one storage bucket before you can upload files."
 msgstr "Перед загрузкой файлов необходимо настроить хотя бы одно хранилище."
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:478
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:640
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:113
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
@@ -13670,3 +13670,20 @@ msgstr "Показывать надпись «Админ-панель»"
 #, elixir-autogen, elixir-format
 msgid "Shown next to the project name in the admin header. Turn it off to show just the project name. The browser tab title is unaffected."
 msgstr "Отображается рядом с названием проекта в шапке админ-панели. Выключите, чтобы показывать только название проекта. Заголовок вкладки браузера не изменится."
+
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:856
+#, elixir-autogen, elixir-format
+msgid "Collapse"
+msgstr "Свернуть"
+
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:847
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:848
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:850
+#, elixir-autogen, elixir-format
+msgid "Collapse the menu to icons"
+msgstr "Свернуть меню до значков"
+
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:849
+#, elixir-autogen, elixir-format
+msgid "Expand the menu"
+msgstr "Развернуть меню"

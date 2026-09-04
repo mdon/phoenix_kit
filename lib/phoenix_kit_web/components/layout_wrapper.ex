@@ -290,6 +290,151 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     end
   end
 
+  @doc """
+  Styles + pre-paint stamp for the admin sidebar's compact (icon-only) mode.
+
+  Render once, immediately BEFORE the sidebar markup. Everything about compact
+  mode lives client-side, and deliberately so:
+
+    * the sidebar is a **function component**, not a LiveView — there is no
+      `handle_event/3` owner for a `phx-click`, and giving one to every admin
+      page (or bolting a global `attach_hook` onto the admin `on_mount` chain)
+      would be a lot of machinery for a display preference;
+    * it is a per-browser density choice, exactly like the theme, so it belongs
+      in `localStorage` next to it rather than in a settings row;
+    * a client-side toggle costs no round trip, and nothing for morphdom to
+      fight over — the DOM is identical either way, only `<html>` changes.
+
+  Which makes the first paint the whole problem, and the reason this is a
+  synchronous inline `<script>` rather than a hook in `phoenix_kit.js`:
+
+    * it must run **before the sidebar is parsed**, or a viewer who chose
+      compact gets a frame of the full-width menu on every load. An inline
+      script placed above the markup does exactly that;
+    * it must not depend on the host having re-run `mix phoenix_kit.update` to
+      refresh its vendored `phoenix_kit.js`. Self-contained markup ships with
+      the feature.
+
+  Same reasoning, and the same shape, as
+  `PhoenixKitWeb.Components.ThemeBootstrap` — including the one-instance guard,
+  since a host layout and the kit's own admin shell can both be on the page.
+
+  The CSS hides the label rather than removing it (`clip-path`, not
+  `display: none`), so every link keeps its accessible name and the menu still
+  reads correctly to a screen reader while collapsed.
+  """
+  def admin_sidebar_compact_bootstrap(assigns) do
+    ~H"""
+    <style data-phoenix-kit-sidebar>
+      /* Scoped to lg and up: below it the sidebar is an overlay drawer that is
+         already hidden until summoned, so there is nothing to reclaim. */
+      @media (min-width: 1024px) {
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar { width: 5rem; }
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar > div { padding-left: 0; padding-right: 0; }
+
+        /* Visually hidden, NOT display:none — the link keeps its accessible name. */
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-label {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          white-space: nowrap;
+          clip-path: inset(50%);
+        }
+
+        /* Centre what is left of each row, and drop the trailing badge column
+           so a lone icon is not pushed off-centre by an empty flex sibling. */
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-tab-id] > div { justify-content: center; gap: 0; }
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-tab-id] { justify-content: center; }
+
+        /* Group headings and subtab lists: a column of indistinguishable
+           indented icons is worse than none, so the tree collapses to its
+           top level. Expanding brings it straight back — nothing is lost,
+           because none of this is server state. */
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-group,
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .subtabs { display: none; }
+
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-toggle { justify-content: center; }
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-toggle-icon { transform: rotate(180deg); }
+
+        /* Hover label, since the real one is now off-screen. Pure CSS so the
+           expanded menu gains no native `title` tooltips it never had. */
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-label]:hover::after,
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-label]:focus-visible::after {
+          content: attr(data-pk-label);
+          position: absolute;
+          left: 4.5rem;
+          z-index: 50;
+          white-space: nowrap;
+          border-radius: 0.375rem;
+          padding: 0.25rem 0.5rem;
+          font-size: 0.75rem;
+          background: var(--color-neutral, #262626);
+          color: var(--color-neutral-content, #fff);
+        }
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-label] { position: relative; }
+      }
+    </style>
+    <script>
+      (function () {
+        // One instance per page: a host root layout and the kit's own admin
+        // shell can both render this.
+        if (window.__pkSidebarCompact) return;
+        window.__pkSidebarCompact = true;
+
+        var KEY = "phoenix_kit:admin:sidebar:compact";
+
+        function read() {
+          try { return localStorage.getItem(KEY) === "1"; } catch (_e) { return false; }
+        }
+
+        function stamp(on) {
+          var el = document.documentElement;
+          if (on) { el.setAttribute("data-pk-sidebar", "compact"); }
+          else { el.removeAttribute("data-pk-sidebar"); }
+          syncButton(on);
+        }
+
+        // The button's own label has to follow the state it toggles, and the
+        // button is re-rendered by every live navigation — so this runs on
+        // stamp AND on the LiveView page-load event, not just once.
+        function syncButton(on) {
+          var btn = document.querySelector("[data-pk-sidebar-toggle]");
+          if (!btn) return;
+          var label = on ? btn.dataset.pkLabelExpand : btn.dataset.pkLabelCollapse;
+          if (!label) return;
+          btn.setAttribute("aria-label", label);
+          btn.setAttribute("title", label);
+          btn.setAttribute("aria-expanded", on ? "false" : "true");
+        }
+
+        // Pre-paint: this script sits above the sidebar markup, so the
+        // attribute is on <html> before the menu is parsed. No flash.
+        stamp(read());
+
+        // Delegated: the sidebar DOM is replaced on every live navigation, so
+        // a listener bound to the button itself would need re-binding and
+        // cleanup. A document listener survives every patch.
+        document.addEventListener("click", function (e) {
+          var btn = e.target.closest && e.target.closest("[data-pk-sidebar-toggle]");
+          if (!btn) return;
+          var next = !read();
+          try { localStorage.setItem(KEY, next ? "1" : "0"); } catch (_e) {}
+          stamp(next);
+        });
+
+        // Re-apply after a live navigation swaps the button back in.
+        window.addEventListener("phx:page-loading-stop", function () { syncButton(read()); });
+
+        // Follow the choice into the app's other tabs, as the theme does.
+        window.addEventListener("storage", function (e) {
+          if (e.key === KEY) stamp(read());
+        });
+      })();
+    </script>
+    """
+  end
+
   # Own function rather than an inline `case` in the assigns map: that map is
   # already at credo's complexity ceiling, and one more branch tipped it.
   #
@@ -672,6 +817,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                    a full reload). The hook restores pre-paint; the save
                    side lives in phoenix_kit.js as document-level
                    listeners so no per-element cleanup is needed. --%>
+              <PhoenixKitWeb.Components.LayoutWrapper.admin_sidebar_compact_bootstrap :if={@show_admin_nav} />
               <div
                 :if={@show_admin_nav}
                 id="pk-admin-sidebar"
@@ -679,7 +825,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                 class="drawer-side lg:[scrollbar-gutter:stable]"
               >
                 <label for="admin-mobile-menu" class="drawer-overlay lg:hidden"></label>
-                <aside class="min-h-full w-64 bg-base-100 shadow-lg border-r border-base-300 flex flex-col pt-16">
+                <aside class="pk-sidebar min-h-full w-64 bg-base-100 shadow-lg border-r border-base-300 flex flex-col pt-16">
                   <%!-- Navigation (fills available space) --%>
                   <div class="px-4 py-6 flex-1">
                     <.admin_sidebar
@@ -687,6 +833,28 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       scope={@scope}
                       locale={@current_locale_base}
                     />
+                  </div>
+
+                  <%!-- Compact toggle. Desktop only: the mobile sidebar is an
+                       overlay drawer that is already absent until summoned, so
+                       narrowing it buys nothing and costs the labels. --%>
+                  <div class="hidden lg:block border-t border-base-300 px-4 py-3">
+                    <button
+                      type="button"
+                      data-pk-sidebar-toggle
+                      class="pk-sidebar-toggle btn btn-ghost btn-sm w-full justify-start gap-3"
+                      aria-controls="pk-admin-sidebar"
+                      aria-label={gettext("Collapse the menu to icons")}
+                      title={gettext("Collapse the menu to icons")}
+                      data-pk-label-expand={gettext("Expand the menu")}
+                      data-pk-label-collapse={gettext("Collapse the menu to icons")}
+                    >
+                      <PhoenixKitWeb.Components.Core.Icon.icon
+                        name="hero-chevron-double-left"
+                        class="pk-sidebar-toggle-icon w-5 h-5"
+                      />
+                      <span class="pk-sidebar-label">{gettext("Collapse")}</span>
+                    </button>
                   </div>
                 </aside>
               </div>

@@ -7645,7 +7645,7 @@ msgstr "Solo vídeos"
 msgid "You need to configure at least one storage bucket before you can upload files."
 msgstr "Debe configurar al menos un bucket de almacenamiento antes de poder subir archivos."
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:478
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:640
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:113
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
@@ -13638,3 +13638,20 @@ msgstr "Mostrar la etiqueta «Panel de administración»"
 #, elixir-autogen, elixir-format
 msgid "Shown next to the project name in the admin header. Turn it off to show just the project name. The browser tab title is unaffected."
 msgstr "Se muestra junto al nombre del proyecto en la cabecera de administración. Desactívela para mostrar solo el nombre del proyecto. El título de la pestaña del navegador no cambia."
+
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:856
+#, elixir-autogen, elixir-format
+msgid "Collapse"
+msgstr "Contraer"
+
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:847
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:848
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:850
+#, elixir-autogen, elixir-format
+msgid "Collapse the menu to icons"
+msgstr "Contraer el menú a iconos"
+
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:849
+#, elixir-autogen, elixir-format
+msgid "Expand the menu"
+msgstr "Expandir el menú"
