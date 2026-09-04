@@ -81,11 +81,15 @@
   after its link in the DOM: the top layer changes painting, not the tree, so
   Tab walks straight into it.
 
-  The collapsed rail also **marks the section you are in**. Expanded, the
-  highlight deliberately moves off the parent and onto the active subtab — but
-  collapsed that subtab row is hidden, so nothing was marked at all. The parent
-  now states the fact (`data-pk-branch-active`) and the rail's CSS paints it;
-  expanded is unchanged.
+  The collapsed rail **marks where you are with a right-edge bar**, rather than
+  the filled block the expanded menu uses — at 5rem a solid primary slab is most
+  of the row and reads as a state rather than a marker. Two cases both get it:
+  the entry that IS the current page, and the section that merely contains it.
+  The second needed new information — expanded, that highlight sits on the
+  active subtab, and compact mode hides the subtab list, so the parent now
+  states the fact (`data-pk-branch-active`) and the rail's CSS paints it. The
+  flyout keeps the ordinary filled highlight; it is a wide panel with text,
+  where the block is right.
 
   Accessibility: labels are visually hidden (`clip-path`), never
   `display: none`, so every link keeps its accessible name and the collapsed

@@ -261,6 +261,29 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
       # is hidden, so without this nothing is marked at all.
       assert compact_css() =~ ~s([data-pk-branch-active="true"])
     end
+
+    test "the rail marks with an edge bar, not the expanded menu's filled block" do
+      css = compact_css()
+
+      # A solid primary slab is most of a 5rem row — it reads as a state
+      # rather than a marker.
+      assert css =~ "background-color: transparent"
+      assert css =~ ~s(> a[aria-current="page"]::after)
+      assert css =~ ~s([data-pk-branch-active="true"] > a::after)
+    end
+
+    test "the edge bar never reaches inside the flyout" do
+      # `.tab-with-subtabs > a` is a direct-child combinator on purpose: the
+      # flyout's links are descendants of the same sidebar, and there the
+      # ordinary filled highlight is the right thing.
+      # Selector lines only — `[aria-current` with the bracket, which the
+      # prose in the comment above the rule does not have.
+      for line <- String.split(compact_css(), "\n"),
+          String.contains?(line, "[aria-current"),
+          String.contains?(line, "#pk-admin-sidebar") do
+        assert String.contains?(line, ".tab-with-subtabs > a")
+      end
+    end
   end
 
   describe "the show_admin_panel_label setting" do

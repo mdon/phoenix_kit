@@ -426,16 +426,41 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         gap: 0.75rem;
       }
 
-      /* The section you are IN, marked on the rail.
-         Expanded, `admin_tab_with_subtabs/1` deliberately moves the highlight
-         off the parent and onto the active subtab — but collapsed, that subtab
-         row is hidden, so nothing was marked at all. The server states the fact
-         (`data-pk-branch-active`) and the rail decides to paint it; expanded
-         still shows the subtab, unchanged. Same colours as `tab_classes/5`'s
-         active top-level branch (`bg-primary text-primary-content`). */
+      /* Where you are, marked on the rail — as an edge bar rather than the
+         filled block `tab_classes/5` paints when the menu is expanded. At 5rem
+         a solid primary slab is most of the row, which reads as a state
+         (selected/disabled) rather than as a marker.
+
+         Two cases, and the rail needs both:
+           * `aria-current="page"` — this entry IS the page (a leaf like Users);
+           * `data-pk-branch-active` — a descendant is. Expanded, that highlight
+             sits on the active SUBTAB, and compact mode hides the subtab list,
+             so without this the section you are in shows nothing at all.
+
+         `.tab-with-subtabs > a` is a deliberate direct-child combinator: it
+         matches the rail row and never a link inside the flyout, which is a
+         DOM descendant of the same sidebar. The flyout is a wide panel with
+         text, where the ordinary filled highlight is right. */
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .tab-with-subtabs > a {
+        position: relative;
+      }
+
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .tab-with-subtabs > a[aria-current="page"],
       html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-branch-active="true"] > a {
+        background-color: transparent;
+        color: var(--color-base-content);
+      }
+
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .tab-with-subtabs > a[aria-current="page"]::after,
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-branch-active="true"] > a::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        top: 0.375rem;
+        bottom: 0.375rem;
+        width: 3px;
+        border-radius: 9999px;
         background-color: var(--color-primary);
-        color: var(--color-primary-content);
       }
     </style>
     <script>
