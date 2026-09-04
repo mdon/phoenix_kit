@@ -59,12 +59,32 @@
   `mix phoenix_kit.update` to refresh its vendored bundle. Same shape, and the
   same one-instance guard, as `PhoenixKitWeb.Components.ThemeBootstrap`.
 
+  **Hovering a rail icon opens a flyout** naming that entry and listing its
+  children. It is rendered for every navigable top-level entry, not only the
+  active one: `subtab_display` defaults to `:when_active`, so the inline subtab
+  list exists only for the section you are already in — precisely the browsing
+  an icon rail otherwise loses.
+
+  Built on the `popover` API, which earns its place three times over. The top
+  layer escapes the sidebar's own `overflow-y: auto` clipping — an absolutely
+  positioned panel is cut off at the rail's edge, which is what would have made
+  a plain CSS flyout (and the hover tooltip this replaces) unusable.
+  Light-dismiss and Esc come free. And only one `popover="auto"` can be open,
+  so moving between icons closes the previous flyout with no bookkeeping.
+  Positioned against the viewport on open, clamped so a section near the bottom
+  of a long menu does not open past the fold.
+
+  Touch is handled rather than assumed: with no hover available, a tap on a
+  rail icon opens its flyout instead of navigating, so a touch user on a wide
+  screen (a convertible laptop, a tablet in landscape — the rail is `lg`-only)
+  can still reach a subtab. Keyboard works because the panel sits immediately
+  after its link in the DOM: the top layer changes painting, not the tree, so
+  Tab walks straight into it.
+
   Accessibility: labels are visually hidden (`clip-path`), never
   `display: none`, so every link keeps its accessible name and the collapsed
   menu still reads correctly to a screen reader. The toggle carries
-  `aria-expanded` and swaps its own `aria-label` with the state. The hover
-  tooltip is pure CSS over a new `data-pk-label` attribute rather than `title`,
-  so the expanded menu gains no native tooltips it never had.
+  `aria-expanded` and swaps its own `aria-label` with the state.
 
 - **The "Admin Panel" label in the admin header can be turned off.** New
   `show_admin_panel_label` setting (Site Identity, `/admin/settings`), on by

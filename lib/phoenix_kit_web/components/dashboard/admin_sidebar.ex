@@ -239,14 +239,56 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
       |> assign(:has_subtabs, subtabs != [])
       |> assign(:display_tab, display_tab)
       |> assign(:parent_active, parent_active)
+      # Dividers and group headers render no link, so there is nothing to hover
+      # and nothing to name.
+      |> assign(:flyout_id, flyout_id(assigns.tab))
 
     ~H"""
-    <div class="tab-with-subtabs" data-tab-id={@tab.id} data-has-subtabs={@has_subtabs}>
+    <div
+      class="tab-with-subtabs"
+      data-tab-id={@tab.id}
+      data-has-subtabs={@has_subtabs}
+      data-pk-flyout-id={@flyout_id}
+    >
       <TabItem.tab_item
         tab={@display_tab}
         active={@parent_active}
         locale={@locale}
       />
+
+      <%!-- Compact-mode flyout. Rendered for every navigable top-level entry,
+            NOT only the active one: `subtab_display` defaults to `:when_active`,
+            so the inline list below exists only for the section you are already
+            in — which is precisely the browsing the icon rail otherwise loses.
+
+            Always in the DOM and inert until opened: `popover` is
+            `display: none` until `showPopover()`, so this costs markup rather
+            than behaviour, and only the client knows whether the rail is
+            collapsed.
+
+            `popover="auto"` earns its keep three times over — the top layer
+            escapes the sidebar's own `overflow-y: auto` clipping (an absolutely
+            positioned panel is cut off at the rail's edge, which is what killed
+            the hover tooltip this replaces), light-dismiss and Esc come free,
+            and only one auto popover can be open, so moving between icons
+            closes the previous flyout without any bookkeeping.
+
+            Placed immediately after the link so Tab order walks into it: the
+            top layer changes PAINTING, not the DOM tree, so focus order — and
+            every descendant CSS selector — still follows this position. --%>
+      <div
+        :if={@flyout_id}
+        id={@flyout_id}
+        popover="auto"
+        class="pk-sidebar-flyout"
+        role="group"
+        aria-label={Tab.localized_label(@tab)}
+      >
+        <div class="pk-sidebar-flyout-title">{Tab.localized_label(@tab)}</div>
+        <%= for subtab <- @subtabs do %>
+          <TabItem.tab_item tab={subtab} active={subtab.active} locale={@locale} />
+        <% end %>
+      </div>
 
       <%= if @has_subtabs and @show_subtabs do %>
         <div class="subtabs pl-1 border-l-2 border-base-300 ml-2 mt-1 space-y-0.5">
@@ -262,6 +304,13 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
       <% end %>
     </div>
     """
+  end
+
+  # A leaf entry gets a flyout too — holding just its name. In compact mode the
+  # label is off-screen for every row, so without this the rail is unreadable
+  # for exactly the items that have no children to explain them.
+  defp flyout_id(tab) do
+    if Tab.navigable?(tab), do: "pk-flyout-#{tab.id}"
   end
 
   attr :subtab, :any, required: true
@@ -376,6 +425,13 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
   # not this wrapper.
   def __invoke_dynamic_children_for_test__(fun, scope, locale),
     do: invoke_dynamic_children(fun, scope, locale)
+
+  # Test-only public delegate, same reasoning as above. `admin_sidebar/1` needs
+  # a started Dashboard Registry to have any tabs at all, which the DB-free
+  # component suite does not run; this renders one row from literal tabs so the
+  # compact-mode flyout markup can be pinned without that machinery.
+  @doc false
+  def __tab_with_subtabs_for_test__(assigns), do: admin_tab_with_subtabs(assigns)
 
   # Recursively checks if any descendant (children, grandchildren, etc.) is active.
   # Includes depth limit and cycle detection for safety with parent-app-registered tabs.

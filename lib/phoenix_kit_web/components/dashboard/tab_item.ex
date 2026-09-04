@@ -68,10 +68,6 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
     end
   end
 
-  # `data-pk-label` on the anchor feeds the admin sidebar's compact-mode CSS
-  # tooltip (`content: attr(data-pk-label)`). Deliberately NOT folded into
-  # `title`: a native tooltip on every menu item would fire in expanded mode
-  # too, where the label is already right there.
   defp render_tab(assigns) do
     path = build_path(assigns.tab.path, assigns.locale)
     is_subtab = Tab.subtab?(assigns.tab)
@@ -102,7 +98,6 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
         aria-current={@active && "page"}
         data-tab-id={@tab.id}
         data-parent-id={@tab.parent}
-        data-pk-label={Tab.localized_label(@tab)}
       >
         <.tab_content
           tab={@tab}
@@ -125,7 +120,6 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
         aria-current={@active && "page"}
         data-tab-id={@tab.id}
         data-parent-id={@tab.parent}
-        data-pk-label={Tab.localized_label(@tab)}
       >
         <.tab_content
           tab={@tab}

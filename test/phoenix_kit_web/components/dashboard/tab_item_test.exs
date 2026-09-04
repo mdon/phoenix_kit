@@ -107,8 +107,8 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItemTest do
 
   describe "tab_item/1 — admin sidebar compact mode handles" do
     # Compact mode is CSS over a client-side `data-pk-sidebar` stamp, so the
-    # server's whole contribution is these two handles. A selector that stops
-    # matching fails silently in the browser, which is exactly why they are
+    # server's whole contribution is this handle. A selector that stops
+    # matching fails silently in the browser, which is exactly why it is
     # pinned here rather than left to the stylesheet.
 
     test "the label span carries pk-sidebar-label" do
@@ -120,33 +120,6 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItemTest do
       # Rendered, not removed: CSS hides it, so the link keeps its
       # accessible name while the sidebar is collapsed.
       assert html =~ "Home"
-    end
-
-    test "the link carries its label in data-pk-label for the hover tooltip" do
-      tab = Tab.new!(id: :home, label: "Home", path: "/home", icon: "hero-home")
-
-      html = render_component(&TabItem.tab_item/1, tab: tab, active: false, locale: nil)
-
-      assert html =~ ~s(data-pk-label="Home")
-    end
-
-    test "data-pk-label follows the translation, not the raw label" do
-      # It replaces the visible label on hover, so it has to be the same
-      # string the visible label would have shown.
-      Gettext.put_locale(@backend, "ru")
-
-      tab =
-        Tab.new!(
-          id: :dash,
-          label: @known_msgid,
-          path: "/dash",
-          icon: "hero-home",
-          gettext_backend: @backend
-        )
-
-      html = render_component(&TabItem.tab_item/1, tab: tab, active: false, locale: "ru")
-
-      assert html =~ ~s(data-pk-label="#{@known_ru_translation}")
     end
 
     test "compact rendering still omits the label entirely" do

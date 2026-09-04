@@ -357,23 +357,56 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-toggle { justify-content: center; }
         html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-toggle-icon { transform: rotate(180deg); }
 
-        /* Hover label, since the real one is now off-screen. Pure CSS so the
-           expanded menu gains no native `title` tooltips it never had. */
-        html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-label]:hover::after,
-        html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-label]:focus-visible::after {
-          content: attr(data-pk-label);
-          position: absolute;
-          left: 4.5rem;
-          z-index: 50;
-          white-space: nowrap;
-          border-radius: 0.375rem;
-          padding: 0.25rem 0.5rem;
-          font-size: 0.75rem;
-          background: var(--color-neutral, #262626);
-          color: var(--color-neutral-content, #fff);
-        }
-        html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-label] { position: relative; }
       }
+
+      /* ── Flyouts ──────────────────────────────────────────────────────────
+         Not inside the `min-width: 1024px` block, and not scoped under
+         `#pk-admin-sidebar` for the box itself: a shown popover paints in the
+         TOP LAYER, so it must not inherit the rail's 5rem width — but it is
+         still a DOM descendant, which is what lets the label override below
+         work at all.
+
+         Only ever opened by the script when the rail is collapsed, so no media
+         query is needed here; an unopened popover is `display: none`. */
+      #pk-admin-sidebar .pk-sidebar-flyout {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        min-width: 13rem;
+        max-width: 20rem;
+        max-height: 80vh;
+        overflow-y: auto;
+        padding: 0.5rem;
+        border: 1px solid var(--color-base-300, #e5e5e5);
+        border-radius: 0.5rem;
+        background: var(--color-base-100, #fff);
+        color: var(--color-base-content, #1f2937);
+        box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.25);
+      }
+
+      #pk-admin-sidebar .pk-sidebar-flyout-title {
+        padding: 0.25rem 0.75rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        opacity: 0.6;
+      }
+
+      /* The rail hides every `.pk-sidebar-label`, and these are descendants of
+         the sidebar — so without this the flyout would be a list of anonymous
+         icons, which is the whole thing it exists to prevent. */
+      #pk-admin-sidebar .pk-sidebar-flyout .pk-sidebar-label {
+        position: static;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        white-space: normal;
+        clip-path: none;
+      }
+
+      #pk-admin-sidebar .pk-sidebar-flyout [data-tab-id] { justify-content: flex-start; }
+      #pk-admin-sidebar .pk-sidebar-flyout [data-tab-id] > div { justify-content: flex-start; gap: 0.75rem; }
     </style>
     <script>
       (function () {
@@ -391,7 +424,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         function stamp(on) {
           var el = document.documentElement;
           if (on) { el.setAttribute("data-pk-sidebar", "compact"); }
-          else { el.removeAttribute("data-pk-sidebar"); }
+          else { el.removeAttribute("data-pk-sidebar"); closeAll(); }
           syncButton(on);
         }
 
@@ -430,6 +463,125 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         window.addEventListener("storage", function (e) {
           if (e.key === KEY) stamp(read());
         });
+
+        // ── Flyouts ─────────────────────────────────────────────────────────
+        //
+        // Collapsed, a row shows an icon and nothing else, so every entry needs
+        // somewhere to say its own name — and a section needs somewhere to
+        // offer its children, which `subtab_display: :when_active` otherwise
+        // renders only for the section you are already in.
+        //
+        // Every listener is delegated from `document`: the sidebar DOM is
+        // replaced on every live navigation, so anything bound per-element
+        // would need re-binding and teardown. `mouseover`/`focusin` bubble, and
+        // a shown popover is still a DOM descendant of the row it belongs to —
+        // the top layer changes painting, not the tree — so one listener covers
+        // the trigger and its flyout together.
+        var HOVER_IN = 120;   // hover intent: don't flash on a passing cursor
+        var HOVER_OUT = 220;  // grace to travel from the icon to the panel
+        var openTimer = null;
+        var closeTimer = null;
+
+        function compact() {
+          return document.documentElement.getAttribute("data-pk-sidebar") === "compact";
+        }
+
+        function flyoutFor(node) {
+          var row = node && node.closest && node.closest("[data-pk-flyout-id]");
+          if (!row) return null;
+          return document.getElementById(row.dataset.pkFlyoutId);
+        }
+
+        // Popovers paint in the top layer, which means they are positioned
+        // against the VIEWPORT — the one thing the old CSS tooltip could not do
+        // from inside the sidebar's own scroll container.
+        function place(panel, row) {
+          var r = row.getBoundingClientRect();
+          panel.style.left = Math.round(r.right + 6) + "px";
+          panel.style.top = Math.round(r.top) + "px";
+          panel.style.bottom = "auto";
+          // Clamp: a section near the bottom of a long menu would otherwise
+          // open past the fold, where its last items are unreachable.
+          var h = panel.offsetHeight;
+          if (r.top + h > window.innerHeight - 8) {
+            panel.style.top = Math.max(8, window.innerHeight - h - 8) + "px";
+          }
+        }
+
+        function open(panel, row) {
+          if (!panel || !panel.showPopover || panel.matches(":popover-open")) return;
+          try {
+            panel.showPopover();
+          } catch (_e) {
+            return;
+          }
+          place(panel, row);
+        }
+
+        function closeAll() {
+          var open = document.querySelector(".pk-sidebar-flyout:popover-open");
+          if (open && open.hidePopover) {
+            try { open.hidePopover(); } catch (_e) {}
+          }
+        }
+
+        document.addEventListener("mouseover", function (e) {
+          if (!compact()) return;
+          var row = e.target.closest && e.target.closest("[data-pk-flyout-id]");
+          if (!row) return;
+          clearTimeout(closeTimer);
+          clearTimeout(openTimer);
+          var panel = flyoutFor(row);
+          if (!panel || panel.matches(":popover-open")) return;
+          openTimer = setTimeout(function () { open(panel, row); }, HOVER_IN);
+        });
+
+        document.addEventListener("mouseout", function (e) {
+          if (!compact()) return;
+          if (!e.target.closest || !e.target.closest("[data-pk-flyout-id]")) return;
+          // Moving deeper inside the same row (or into its panel) is not a
+          // leave — `relatedTarget` is null only when the pointer left the
+          // window entirely.
+          var to = e.relatedTarget;
+          if (to && to.closest && to.closest("[data-pk-flyout-id]") === e.target.closest("[data-pk-flyout-id]")) {
+            return;
+          }
+          clearTimeout(openTimer);
+          clearTimeout(closeTimer);
+          closeTimer = setTimeout(closeAll, HOVER_OUT);
+        });
+
+        // Keyboard: tabbing onto a rail icon names it, and Tab then walks
+        // straight into the panel because it sits next to the link in the DOM.
+        // Esc and click-away are `popover=auto`'s own behaviour.
+        document.addEventListener("focusin", function (e) {
+          if (!compact()) return;
+          var row = e.target.closest && e.target.closest("[data-pk-flyout-id]");
+          if (!row) { closeAll(); return; }
+          open(flyoutFor(row), row);
+        });
+
+        // Touch: there is no hover, so a tap on a rail icon opens its flyout
+        // instead of navigating — otherwise a touch user on a wide screen
+        // (a convertible laptop, a tablet in landscape; the rail is lg-only)
+        // could never reach a subtab at all. The flyout's own links navigate
+        // normally, and a second tap on the icon dismisses it.
+        document.addEventListener("click", function (e) {
+          if (!compact()) return;
+          if (!window.matchMedia || !window.matchMedia("(hover: none)").matches) return;
+          var link = e.target.closest && e.target.closest("[data-pk-flyout-id] > a");
+          if (!link) return;
+          var row = link.closest("[data-pk-flyout-id]");
+          var panel = flyoutFor(row);
+          if (!panel) return;
+          e.preventDefault();
+          if (panel.matches(":popover-open")) { closeAll(); } else { open(panel, row); }
+        });
+
+        // A live navigation replaces the sidebar under an open panel, and
+        // expanding the rail makes flyouts meaningless.
+        window.addEventListener("phx:page-loading-start", closeAll);
+        window.addEventListener("resize", closeAll);
       })();
     </script>
     """
