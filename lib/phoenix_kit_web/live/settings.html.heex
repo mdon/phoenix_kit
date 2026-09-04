@@ -69,6 +69,21 @@
             />
           </div>
 
+          <%!-- "Admin Panel" chip in the admin header --%>
+          <div class="fieldset w-full">
+            <.checkbox
+              name="settings[show_admin_panel_label]"
+              checked={@settings["show_admin_panel_label"] != "false"}
+              label={gettext("Show the \"Admin Panel\" label")}
+            >
+              <:description>
+                {gettext(
+                  "Shown next to the project name in the admin header. Turn it off to show just the project name. The browser tab title is unaffected."
+                )}
+              </:description>
+            </.checkbox>
+          </div>
+
           <%!-- Project Logo --%>
           <div class="fieldset w-full">
             <label class="label">

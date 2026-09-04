@@ -33,8 +33,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
   defp plain_user_scope, do: scope(["User"], [])
   defp owner_scope, do: scope(["Owner"], Permissions.all_module_keys())
 
-  defp admin_shell(scope) do
-    assigns = %{scope: scope}
+  defp admin_shell(scope, opts \\ []) do
+    assigns = %{scope: scope, show_label: Keyword.get(opts, :show_admin_panel_label)}
 
     ~H"""
     <LayoutWrapper.app_layout
@@ -43,6 +43,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
       current_path="/admin"
       page_title="Dashboard"
       project_title="Acme"
+      show_admin_panel_label={@show_label}
       phoenix_kit_current_scope={@scope}
     >
       <span id="pk-test-body">body</span>
@@ -155,5 +156,50 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
 
     assert operator =~ ~s(id="pk-admin-sidebar")
     assert operator =~ "Admin Panel"
+  end
+
+  describe "the show_admin_panel_label setting" do
+    # An operator switch, deliberately show/hide rather than a title field: the
+    # WORDING stays `gettext("Admin Panel")`, which ships translated in every
+    # locale. A stored string would serve one operator's language to everyone.
+
+    test "an operator keeps the label by default" do
+      # `nil` means "read the setting", and with no row (and no database in
+      # this run) `get_boolean_setting/2` answers with its `true` default —
+      # so every existing install is unchanged.
+      assert admin_shell(owner_scope()) =~ "Admin Panel"
+    end
+
+    test "turning it off drops the label" do
+      html = admin_shell(owner_scope(), show_admin_panel_label: false)
+
+      refute html =~ "Admin Panel"
+    end
+
+    test "turning it off leaves the rest of the breadcrumb intact" do
+      # Hiding the chip must not cost the trail around it — the project name
+      # and the page title are what the header is actually for.
+      html = admin_shell(owner_scope(), show_admin_panel_label: false)
+
+      assert html =~ "Acme"
+      assert html =~ "Dashboard"
+    end
+
+    test "it does not touch the sidebar" do
+      # Distinct from `show_admin_nav`, which is a PERMISSION verdict. An
+      # operator who hides the chip is still an operator.
+      html = admin_shell(owner_scope(), show_admin_panel_label: false)
+
+      assert html =~ ~s(id="pk-admin-sidebar")
+    end
+
+    test "turning it on cannot show it to a visitor with no admin rights" do
+      # The permission gate wins over the preference. Telling someone with no
+      # sidebar and no operator content that they are in the "Admin Panel" is
+      # the one claim on the page that would be false, setting or not.
+      html = admin_shell(plain_user_scope(), show_admin_panel_label: true)
+
+      refute html =~ "Admin Panel"
+    end
   end
 end

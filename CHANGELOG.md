@@ -35,6 +35,34 @@
   the segments core already declares — `users`, `profile`, `dashboard`, `api`,
   …) and raises rather than producing a router that compiles and then 404s.
 
+- **The "Admin Panel" label in the admin header can be turned off.** New
+  `show_admin_panel_label` setting (Site Identity, `/admin/settings`), on by
+  default — the row is absent on every existing install and
+  `get_boolean_setting/2` answers `true`, so nothing changes until an operator
+  says so. Off renders just `Project name / Page`.
+
+  **A switch rather than a title field, deliberately.** The obvious version —
+  let the operator type their own label — cannot work here: the wording is
+  `gettext("Admin Panel")`, already translated in all seven shipped locales,
+  and an operator-typed string is one language. A German operator's "Adminbereich"
+  would be served to English and Russian visitors too. `project_title` gets away
+  with being a plain string because a project name is a brand; "Admin Panel" is
+  a common noun phrase. So the setting controls whether the translated string
+  renders, not what it says.
+
+  The label also stays subject to the permission gate it already had: it is
+  hidden for a visitor holding no admin rights whatever the setting says, since
+  `/admin` is the landing every authenticated user can reach and telling
+  someone with no sidebar that they are in the "Admin Panel" is the one claim
+  on the page that would be false. `<LayoutWrapper.app_layout>` gains a
+  matching `show_admin_panel_label` attr — `nil` reads the setting — so the
+  header stays renderable, and testable, without a database.
+
+  Unrelated and unchanged: the browser tab still reads `<project> Admin`
+  (override it with the existing `default_tab_title` setting), and
+  `config :phoenix_kit, project_title_suffix:` still applies only to the user
+  dashboard layout, never to the admin header.
+
 - **`Routes.admin_area_path?/1` is now public** — "does this REAL URL land in
   the admin area?", asked of the shape a `?return_to=`, a saved setting or an
   HTTP referer actually has: mount prefix on, locale segment optional. An audit

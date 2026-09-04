@@ -107,6 +107,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
   attr :project_title, :string, default: nil
+
+  attr :show_admin_panel_label, :boolean,
+    default: nil,
+    doc:
+      "Overrides the `show_admin_panel_label` setting for this render. `nil` (the default) reads the setting. Mirrors how `project_title` overrides `Settings.get_project_title/0`, and keeps the header renderable without a database."
+
   attr :current_locale, :string, default: nil
   attr :from_layout, :boolean, default: false
   attr :pk_pending_invitations, :list, default: []
@@ -284,6 +290,18 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     end
   end
 
+  # Own function rather than an inline `case` in the assigns map: that map is
+  # already at credo's complexity ceiling, and one more branch tipped it.
+  #
+  # Not `assigns[:show_admin_panel_label] || Settings.get...` the way
+  # `project_title` is written — carrying `false` is the entire point of this
+  # assign, and `||` would discard exactly the value that means "hide it".
+  defp resolve_admin_panel_label(nil) do
+    PhoenixKit.Settings.get_boolean_setting("show_admin_panel_label", true)
+  end
+
+  defp resolve_admin_panel_label(value), do: value
+
   defp strip_locale_prefix(path) do
     case Regex.run(~r/^\/[a-z]{2,3}(-[A-Za-z]{2,4})?(\/.*)?$/, path) do
       [_, _locale, rest] when is_binary(rest) -> rest
@@ -317,6 +335,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       action: assigns[:action] || [],
       phoenix_kit_current_scope: assigns[:phoenix_kit_current_scope],
       project_title: assigns[:project_title] || PhoenixKit.Settings.get_project_title(),
+      # Operator switch for the "Admin Panel" chip beside the project name.
+      # A cache-backed read: this renders on every admin page. The WORDING
+      # stays `gettext("Admin Panel")` rather than becoming an operator-typed
+      # string — it is a common noun phrase, already translated in every
+      # shipped locale, and a stored string would serve one language's wording
+      # to all of them. So the setting is show/hide, not a title field.
+      show_admin_panel_label: resolve_admin_panel_label(assigns[:show_admin_panel_label]),
       current_locale: assigns[:current_locale],
       current_locale_base:
         assigns[:current_locale] && DialectMapper.extract_base(assigns[:current_locale]),
@@ -461,7 +486,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                          burger button use, so an operator's header is
                          byte-identical to before. --%>
                     <span
-                      :if={@show_admin_nav}
+                      :if={@show_admin_nav and @show_admin_panel_label}
                       class={[
                         "font-bold text-base-content shrink-0",
                         @page_title && "hidden lg:inline"
