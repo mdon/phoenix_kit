@@ -7667,7 +7667,7 @@ msgstr "Только видео"
 msgid "You need to configure at least one storage bucket before you can upload files."
 msgstr "Перед загрузкой файлов необходимо настроить хотя бы одно хранилище."
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:640
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:863
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:113
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
@@ -13666,24 +13666,24 @@ msgstr "за последнюю неделю"
 msgid "Show the \"Admin Panel\" label"
 msgstr "Показывать надпись «Админ-панель»"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:80
-#, elixir-autogen, elixir-format
-msgid "Shown next to the project name in the admin header. Turn it off to show just the project name. The browser tab title is unaffected."
-msgstr "Отображается рядом с названием проекта в шапке админ-панели. Выключите, чтобы показывать только название проекта. Заголовок вкладки браузера не изменится."
-
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:856
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1079
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Свернуть"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:847
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:848
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:850
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1070
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1071
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1073
 #, elixir-autogen, elixir-format
 msgid "Collapse the menu to icons"
 msgstr "Свернуть меню до значков"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:849
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1072
 #, elixir-autogen, elixir-format
 msgid "Expand the menu"
 msgstr "Развернуть меню"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Shown next to the project name in the admin header. Turn it off to show just the project name. The wording itself follows each visitor's language and has no setting — a label typed here would show one language to everyone. The browser tab title is unaffected."
+msgstr "Отображается рядом с названием проекта в шапке админ-панели. Выключите, чтобы показывать только название проекта. Сама надпись зависит от языка посетителя и не настраивается — введённый здесь текст показывался бы всем на одном языке. Заголовок вкладки браузера не изменится."

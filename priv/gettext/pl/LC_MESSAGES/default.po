@@ -7659,7 +7659,7 @@ msgstr "Tylko wideo"
 msgid "You need to configure at least one storage bucket before you can upload files."
 msgstr "Musisz skonfigurować co najmniej jeden zasobnik magazynu, aby móc przesyłać pliki."
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:640
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:863
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:113
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
@@ -13654,24 +13654,24 @@ msgstr "w ciągu ostatniego tygodnia"
 msgid "Show the \"Admin Panel\" label"
 msgstr "Pokaż etykietę „Panel administracyjny”"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:80
-#, elixir-autogen, elixir-format
-msgid "Shown next to the project name in the admin header. Turn it off to show just the project name. The browser tab title is unaffected."
-msgstr "Wyświetlana obok nazwy projektu w nagłówku panelu administracyjnego. Wyłącz, aby pokazywać tylko nazwę projektu. Tytuł karty przeglądarki pozostaje bez zmian."
-
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:856
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1079
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Zwiń"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:847
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:848
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:850
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1070
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1071
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1073
 #, elixir-autogen, elixir-format
 msgid "Collapse the menu to icons"
 msgstr "Zwiń menu do ikon"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:849
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1072
 #, elixir-autogen, elixir-format
 msgid "Expand the menu"
 msgstr "Rozwiń menu"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Shown next to the project name in the admin header. Turn it off to show just the project name. The wording itself follows each visitor's language and has no setting — a label typed here would show one language to everyone. The browser tab title is unaffected."
+msgstr "Wyświetlana obok nazwy projektu w nagłówku panelu administracyjnego. Wyłącz, aby pokazywać tylko nazwę projektu. Samo brzmienie zależy od języka odwiedzającego i nie ma ustawienia — etykieta wpisana tutaj pokazywałaby wszystkim jeden język. Tytuł karty przeglądarki pozostaje bez zmian."

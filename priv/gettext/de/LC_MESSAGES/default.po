@@ -7638,7 +7638,7 @@ msgstr "Nur Videos"
 msgid "You need to configure at least one storage bucket before you can upload files."
 msgstr "Sie müssen mindestens einen Speicher-Bucket konfigurieren, bevor Sie Dateien hochladen können."
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:640
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:863
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:113
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
@@ -13626,24 +13626,24 @@ msgstr "in der letzten Woche"
 msgid "Show the \"Admin Panel\" label"
 msgstr "Beschriftung „Administrationsbereich“ anzeigen"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:80
-#, elixir-autogen, elixir-format
-msgid "Shown next to the project name in the admin header. Turn it off to show just the project name. The browser tab title is unaffected."
-msgstr "Wird neben dem Projektnamen im Administrationsbereich angezeigt. Schalten Sie sie aus, um nur den Projektnamen zu zeigen. Der Titel des Browser-Tabs bleibt unverändert."
-
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:856
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1079
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Einklappen"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:847
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:848
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:850
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1070
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1071
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1073
 #, elixir-autogen, elixir-format
 msgid "Collapse the menu to icons"
 msgstr "Menü auf Symbole reduzieren"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:849
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1072
 #, elixir-autogen, elixir-format
 msgid "Expand the menu"
 msgstr "Menü ausklappen"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Shown next to the project name in the admin header. Turn it off to show just the project name. The wording itself follows each visitor's language and has no setting — a label typed here would show one language to everyone. The browser tab title is unaffected."
+msgstr "Wird im Administrationsbereich neben dem Projektnamen angezeigt. Schalten Sie sie aus, um nur den Projektnamen zu zeigen. Der Wortlaut selbst richtet sich nach der Sprache der Besucher und ist nicht einstellbar — eine hier eingegebene Bezeichnung würde allen dieselbe Sprache zeigen. Der Titel des Browser-Tabs bleibt unverändert."
