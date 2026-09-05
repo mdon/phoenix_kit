@@ -660,7 +660,7 @@ msgstr "Lista con viñetas"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1357
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2392
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2440
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:316
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:317
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:65
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1285
 #: lib/phoenix_kit_web/live/notifications/settings.ex:434
@@ -733,7 +733,7 @@ msgstr "Haga clic en cualquier icono de marca o cruz para activar o desactivar u
 #: lib/phoenix_kit_web/components/media_browser.html.heex:387
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:36
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:36
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:323
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:324
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:50
 #, elixir-autogen, elixir-format
 msgid "Close"
@@ -1353,7 +1353,7 @@ msgstr "Módulo Legal activado"
 msgid "Line Break"
 msgstr "Salto de línea"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:552
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:553
 #: lib/phoenix_kit_web/users/confirmation.html.heex:33
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:50
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:32
@@ -1570,7 +1570,7 @@ msgid "Page published successfully"
 msgstr "Página publicada correctamente"
 
 #: lib/phoenix_kit/integrations/providers.ex:1032
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:306
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:307
 #: lib/phoenix_kit_web/users/login.html.heex:39
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:42
 #: lib/phoenix_kit_web/users/registration.html.heex:153
@@ -1893,7 +1893,7 @@ msgstr "Seleccione a qué secciones y módulos puede acceder este rol. Solo pued
 #: lib/modules/maintenance/web/maintenance_page_live.ex:124
 #: lib/modules/storage/web/bucket_form.html.heex:295
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:218
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:174
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:175
 #: lib/phoenix_kit_web/live/modules.html.heex:240
 #: lib/phoenix_kit_web/live/modules.html.heex:312
 #: lib/phoenix_kit_web/live/settings.html.heex:5
@@ -9095,7 +9095,7 @@ msgstr "Ver el estado y el historial de las tareas en segundo plano"
 msgid "AI models via OpenAI (GPT, embeddings, images, audio)"
 msgstr "Modelos de IA a través de OpenAI (GPT, embeddings, imágenes, audio)"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:425
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:426
 #, elixir-autogen, elixir-format
 msgid "Account menu"
 msgstr "Menú de la cuenta"
@@ -9325,7 +9325,7 @@ msgstr "Nombre de la carpeta"
 msgid "Folder name can't be blank"
 msgstr "El nombre de la carpeta no puede estar vacío"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:554
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:555
 #, elixir-autogen, elixir-format
 msgid "Forgot password"
 msgstr "Olvidé mi contraseña"
@@ -9394,7 +9394,7 @@ msgstr "Icono"
 msgid "If your account belongs to multiple organizations, keys are scoped to the org selected when the key was created."
 msgstr "Si su cuenta pertenece a varias organizaciones, las claves se limitan a la organización seleccionada al crearlas."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:496
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:497
 #, elixir-autogen, elixir-format
 msgid "Language"
 msgstr "Idioma"
@@ -9418,7 +9418,7 @@ msgstr "Los más grandes primero"
 msgid "List"
 msgstr "Lista"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:555
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:556
 #, elixir-autogen, elixir-format
 msgid "Magic link"
 msgstr "Enlace mágico"
@@ -9474,7 +9474,7 @@ msgstr "Sin imágenes"
 msgid "No media yet."
 msgstr "Aún no hay medios."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:443
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:444
 #, elixir-autogen, elixir-format
 msgid "Not signed in"
 msgstr "Sin iniciar sesión"
@@ -9559,7 +9559,7 @@ msgstr "Mostrar el icono"
 msgid "Show title"
 msgstr "Mostrar el título"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:553
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:554
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr "Registrarse"
@@ -9810,7 +9810,7 @@ msgstr "Wireframe"
 msgid "Your browser does not support the audio tag."
 msgstr "Su navegador no admite el elemento de audio."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:266
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:267
 #, elixir-autogen, elixir-format
 msgid "Log Out"
 msgstr "Cerrar sesión"
@@ -10423,44 +10423,44 @@ msgstr "UUID del usuario"
 msgid "You can close this page."
 msgstr "Puede cerrar esta página."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:188
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:189
 #, elixir-autogen, elixir-format
 msgid "Accounts"
 msgstr "Cuentas"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:399
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:400
 #, elixir-autogen, elixir-format
 msgid "Add Facebook account"
 msgstr "Agregar cuenta de Facebook"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:387
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:388
 #, elixir-autogen, elixir-format
 msgid "Add GitHub account"
 msgstr "Agregar cuenta de GitHub"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:375
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:376
 #, elixir-autogen, elixir-format
 msgid "Add Google account"
 msgstr "Agregar cuenta de Google"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:252
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:288
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:318
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:253
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:289
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:319
 #, elixir-autogen, elixir-format
 msgid "Add account"
 msgstr "Agregar cuenta"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:297
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:298
 #, elixir-autogen, elixir-format
 msgid "Email or username"
 msgstr "Correo o nombre de usuario"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:278
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:279
 #, elixir-autogen, elixir-format
 msgid "Log out from all accounts"
 msgstr "Cerrar sesión en todas las cuentas"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:364
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:365
 #, elixir-autogen, elixir-format
 msgid "Or add via"
 msgstr "O agregar con"
@@ -13629,19 +13629,19 @@ msgstr "en la última hora"
 msgid "in the last week"
 msgstr "en la última semana"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1157
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1158
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Contraer"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1148
 #: lib/phoenix_kit_web/components/layout_wrapper.ex:1149
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1151
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1150
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1152
 #, elixir-autogen, elixir-format
 msgid "Collapse the menu to icons"
 msgstr "Contraer el menú a iconos"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1150
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1151
 #, elixir-autogen, elixir-format
 msgid "Expand the menu"
 msgstr "Expandir el menú"
@@ -13678,7 +13678,7 @@ msgid "Started today"
 msgstr "Iniciadas hoy"
 
 #: lib/phoenix_kit_web/components/core/admin_label.ex:70
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:621
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:622
 #, elixir-autogen, elixir-format
 msgid "My Account"
 msgstr "Mi cuenta"
@@ -13713,11 +13713,6 @@ msgstr "Gestión"
 msgid "Portal"
 msgstr "Portal"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:80
-#, elixir-autogen, elixir-format
-msgid "Shown next to the project name. Turn it off to show just the project name. The wording is not editable here because it is translated — each visitor reads it in their own language. To call your admin area something else and keep that, pick one of the built-in names in config.exs (`admin_panel_label: :workspace` — Admin Panel, Dashboard, Backoffice, Console, Control Panel, Workspace, Portal, My Account, Management, Studio), all translated into every language PhoenixKit ships. Renaming the URL with `admin_path` picks the matching name on its own. The browser tab title is unaffected."
-msgstr "Se muestra junto al nombre del proyecto. Desactívelo para mostrar solo el nombre del proyecto. El texto no se puede editar aquí porque está traducido: cada visitante lo lee en su propio idioma. Para llamar a su área de administración de otra forma sin perder eso, elija uno de los nombres integrados en config.exs (`admin_panel_label: :workspace` — Admin Panel, Dashboard, Backoffice, Console, Control Panel, Workspace, Portal, My Account, Management, Studio), todos traducidos a todos los idiomas que incluye PhoenixKit. Cambiar el nombre de la URL con `admin_path` elige el nombre correspondiente por sí solo. El título de la pestaña del navegador no se ve afectado."
-
 #: lib/phoenix_kit_web/components/core/admin_label.ex:72
 #, elixir-autogen, elixir-format
 msgid "Studio"
@@ -13727,3 +13722,8 @@ msgstr "Estudio"
 #, elixir-autogen, elixir-format
 msgid "Workspace"
 msgstr "Espacio de trabajo"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Shown next to the project name. Turn it off to show just the project name. The wording is not editable here because it is translated — each visitor reads it in their own language. To call your admin area something else and keep that, a developer can set `admin_panel_label` in config.exs, where the available names are listed as comments. The browser tab title is unaffected."
+msgstr "Se muestra junto al nombre del proyecto. Desactívelo para mostrar solo el nombre del proyecto. El texto no se puede editar aquí porque está traducido: cada visitante lo lee en su propio idioma. Para llamar a su área de administración de otra forma sin perder eso, una persona desarrolladora puede definir `admin_panel_label` en config.exs, donde los nombres disponibles aparecen como comentarios. El título de la pestaña del navegador no se ve afectado."

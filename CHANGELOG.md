@@ -34,7 +34,27 @@
   `PhoenixKitWeb.Components.Core.AdminLabel`. Both the header chip and the
   account-menu admin entry go through it, so they cannot disagree. Unlike
   `:admin_path`, an unrecognised value here **falls back rather than raising** —
-  this is cosmetic, and a typo must not take the admin area down in production.
+  this is cosmetic, and a typo must not take the admin area down in production
+  — but it logs once, naming the valid presets, so the fallback is not silent.
+- **`mix phoenix_kit.install` / `.update` write the naming options into the
+  host's `config/config.exs`, commented out.** A closed vocabulary of atoms is
+  not something a developer can guess, and neither of the places it was first
+  written down reaches them: the settings page is read by operators who cannot
+  act on it, and a CHANGELOG is read once. The block puts the whole list — each
+  preset, what it reads as, and the `admin_path` it pairs with — in the file
+  they open to make the change.
+
+  Every line is a comment, so the block is inert: it cannot execute, cannot
+  conflict, and does not care where in the file it lands, which is what makes
+  appending it after `import_config` safe. A test asserts that property
+  directly, and a second walks `admin_label_presets/0` so a preset added
+  without its comment entry fails the suite instead of raising partway through
+  somebody's install. Idempotent on a marker, and skipped entirely once the
+  host has an uncommented `admin_panel_label:` — at that point they have made
+  the choice the block exists to explain.
+
+  With the list living there, the settings-page description shortened to point
+  at it rather than reciting ten names to an audience that cannot use them.
 
 ### Changed
 

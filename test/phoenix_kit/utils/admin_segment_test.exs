@@ -396,6 +396,7 @@ defmodule PhoenixKit.Utils.AdminSegmentTest do
       end)
     end
 
+    @tag :capture_log
     test "junk falls back to the derivation rather than raising" do
       # Cosmetic setting: a typo must not take the admin area down in prod.
       with_segment("/portal", fn ->

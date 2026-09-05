@@ -660,7 +660,7 @@ msgstr "Punktloend"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1357
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2392
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2440
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:316
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:317
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:65
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1285
 #: lib/phoenix_kit_web/live/notifications/settings.ex:434
@@ -733,7 +733,7 @@ msgstr "Klõpsa mis tahes linnukese või risti ikoonil, et lülitada selle rolli
 #: lib/phoenix_kit_web/components/media_browser.html.heex:387
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:36
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:36
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:323
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:324
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:50
 #, elixir-autogen, elixir-format
 msgid "Close"
@@ -1353,7 +1353,7 @@ msgstr "Juriidiline moodul lubatud"
 msgid "Line Break"
 msgstr "Reavahe"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:552
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:553
 #: lib/phoenix_kit_web/users/confirmation.html.heex:33
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:50
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:32
@@ -1570,7 +1570,7 @@ msgid "Page published successfully"
 msgstr "Leht avaldatud edukalt"
 
 #: lib/phoenix_kit/integrations/providers.ex:1032
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:306
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:307
 #: lib/phoenix_kit_web/users/login.html.heex:39
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:42
 #: lib/phoenix_kit_web/users/registration.html.heex:153
@@ -1893,7 +1893,7 @@ msgstr "Vali, millistele lõikudele ja moodulitele see roll pääseb juurde. Sa 
 #: lib/modules/maintenance/web/maintenance_page_live.ex:124
 #: lib/modules/storage/web/bucket_form.html.heex:295
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:218
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:174
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:175
 #: lib/phoenix_kit_web/live/modules.html.heex:240
 #: lib/phoenix_kit_web/live/modules.html.heex:312
 #: lib/phoenix_kit_web/live/settings.html.heex:5
@@ -9093,7 +9093,7 @@ msgstr "Vaata taustatööde olekut ja ajalugu"
 msgid "AI models via OpenAI (GPT, embeddings, images, audio)"
 msgstr "AI mudelid OpenAI kaudu (GPT, vektorid, pildid, heli)"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:425
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:426
 #, elixir-autogen, elixir-format
 msgid "Account menu"
 msgstr "Konto menüü"
@@ -9323,7 +9323,7 @@ msgstr "Kausta nimi"
 msgid "Folder name can't be blank"
 msgstr "Kausta nimi ei tohi olla tühi"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:554
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:555
 #, elixir-autogen, elixir-format
 msgid "Forgot password"
 msgstr "Unustasid parooli"
@@ -9392,7 +9392,7 @@ msgstr "Ikoon"
 msgid "If your account belongs to multiple organizations, keys are scoped to the org selected when the key was created."
 msgstr "Kui sinu konto kuulub mitmesse organisatsiooni, on võtmed seotud organisatsiooniga, mis oli võtme loomise ajal valitud."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:496
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:497
 #, elixir-autogen, elixir-format
 msgid "Language"
 msgstr "Keel"
@@ -9416,7 +9416,7 @@ msgstr "Suurimad enne"
 msgid "List"
 msgstr "Loendivaade"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:555
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:556
 #, elixir-autogen, elixir-format
 msgid "Magic link"
 msgstr "Magic Link"
@@ -9472,7 +9472,7 @@ msgstr "Pilte pole"
 msgid "No media yet."
 msgstr "Meediat veel pole."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:443
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:444
 #, elixir-autogen, elixir-format
 msgid "Not signed in"
 msgstr "Pole sisse logitud"
@@ -9558,7 +9558,7 @@ msgid "Show title"
 msgstr "Näita pealkirja"
 
 ## Login page translations
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:553
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:554
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr "Registreeru"
@@ -9809,7 +9809,7 @@ msgstr "Wireframe"
 msgid "Your browser does not support the audio tag."
 msgstr "Teie brauser ei toeta heli-elementi."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:266
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:267
 #, elixir-autogen, elixir-format
 msgid "Log Out"
 msgstr "Logi välja"
@@ -10423,44 +10423,44 @@ msgstr "Kasutaja UUID"
 msgid "You can close this page."
 msgstr "Võite selle lehe sulgeda."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:188
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:189
 #, elixir-autogen, elixir-format
 msgid "Accounts"
 msgstr "Kontod"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:399
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:400
 #, elixir-autogen, elixir-format
 msgid "Add Facebook account"
 msgstr "Lisa Facebooki konto"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:387
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:388
 #, elixir-autogen, elixir-format
 msgid "Add GitHub account"
 msgstr "Lisa GitHubi konto"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:375
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:376
 #, elixir-autogen, elixir-format
 msgid "Add Google account"
 msgstr "Lisa Google'i konto"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:252
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:288
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:318
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:253
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:289
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:319
 #, elixir-autogen, elixir-format
 msgid "Add account"
 msgstr "Lisa konto"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:297
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:298
 #, elixir-autogen, elixir-format
 msgid "Email or username"
 msgstr "E-post või kasutajanimi"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:278
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:279
 #, elixir-autogen, elixir-format
 msgid "Log out from all accounts"
 msgstr "Logi välja kõigilt kontodelt"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:364
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:365
 #, elixir-autogen, elixir-format
 msgid "Or add via"
 msgstr "Või lisa kaudu"
@@ -13630,19 +13630,19 @@ msgstr "viimase tunni jooksul"
 msgid "in the last week"
 msgstr "viimase nädala jooksul"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1157
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1158
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Ahenda"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1148
 #: lib/phoenix_kit_web/components/layout_wrapper.ex:1149
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1151
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1150
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1152
 #, elixir-autogen, elixir-format
 msgid "Collapse the menu to icons"
 msgstr "Ahenda menüü ikoonideks"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1150
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1151
 #, elixir-autogen, elixir-format
 msgid "Expand the menu"
 msgstr "Laienda menüü"
@@ -13679,7 +13679,7 @@ msgid "Started today"
 msgstr "Alustatud täna"
 
 #: lib/phoenix_kit_web/components/core/admin_label.ex:70
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:621
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:622
 #, elixir-autogen, elixir-format
 msgid "My Account"
 msgstr "Minu konto"
@@ -13714,11 +13714,6 @@ msgstr "Haldus"
 msgid "Portal"
 msgstr "Portaal"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:80
-#, elixir-autogen, elixir-format
-msgid "Shown next to the project name. Turn it off to show just the project name. The wording is not editable here because it is translated — each visitor reads it in their own language. To call your admin area something else and keep that, pick one of the built-in names in config.exs (`admin_panel_label: :workspace` — Admin Panel, Dashboard, Backoffice, Console, Control Panel, Workspace, Portal, My Account, Management, Studio), all translated into every language PhoenixKit ships. Renaming the URL with `admin_path` picks the matching name on its own. The browser tab title is unaffected."
-msgstr "Kuvatakse projekti nime kõrval. Lülita välja, et näidata ainult projekti nime. Teksti ei saa siin muuta, sest see on tõlgitud — iga külastaja loeb seda oma keeles. Kui soovid oma haldusala teisiti nimetada ja tõlke säilitada, vali config.exs failis üks sisseehitatud nimedest (`admin_panel_label: :workspace` — Admin Panel, Dashboard, Backoffice, Console, Control Panel, Workspace, Portal, My Account, Management, Studio), mis kõik on tõlgitud kõigisse PhoenixKiti keeltesse. URL-i ümbernimetamine `admin_path` abil valib sobiva nime ise. Brauseri vahelehe pealkiri jääb muutmata."
-
 #: lib/phoenix_kit_web/components/core/admin_label.ex:72
 #, elixir-autogen, elixir-format
 msgid "Studio"
@@ -13728,3 +13723,8 @@ msgstr "Stuudio"
 #, elixir-autogen, elixir-format
 msgid "Workspace"
 msgstr "Tööruum"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Shown next to the project name. Turn it off to show just the project name. The wording is not editable here because it is translated — each visitor reads it in their own language. To call your admin area something else and keep that, a developer can set `admin_panel_label` in config.exs, where the available names are listed as comments. The browser tab title is unaffected."
+msgstr "Kuvatakse projekti nime kõrval. Lülita välja, et näidata ainult projekti nime. Teksti ei saa siin muuta, sest see on tõlgitud — iga külastaja loeb seda oma keeles. Kui soovid oma haldusala teisiti nimetada ja tõlke säilitada, saab arendaja määrata `admin_panel_label` failis config.exs, kus saadaolevad nimed on kommentaaridena kirjas. Brauseri vahelehe pealkiri jääb muutmata."
