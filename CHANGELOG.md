@@ -15,6 +15,13 @@ collapsed icon rail with hover flyouts.
 
 ### Added
 
+- **`TimeZone.offset_seconds/2` and `TimeZone.day_start/2`.** The first gives
+  the offset for either kind of stored value — a legacy `"2"` or an IANA id
+  resolved at an instant, since `Europe/Warsaw` has no single answer. The
+  second gives the UTC instant at which the current day began somewhere, for
+  "how many X today" where *today* is the operator's day. Both are what the two
+  fixes below needed and neither had.
+
 - **Every number on the admin dashboard is now a link to the report behind it.**
   A statistic you cannot drill into is a dead end: seeing "29 Active Sessions"
   and having no way to ask *which 29* is what sent one operator to the Live
@@ -185,6 +192,29 @@ collapsed icon rail with hover flyouts.
   the docs are new.
 
 ### Fixed
+
+- **"Today's Sessions" counted UTC's day, not the operator's.** `get_session_stats/0`
+  took midnight from `DateTime.utc_now()` and ignored the `time_zone` setting
+  entirely, so on any site east of UTC every sign-in after 21:00 local (UTC+3)
+  fell into "yesterday" — the card read 0 while somebody was signed in. Both it
+  and the new `:today` session scope now start the day in the configured zone.
+
+- **`Utils.Date.offset_to_seconds/1` returned 0 for every named timezone.** It
+  was `Float.parse/1`, which cannot read `"Europe/Warsaw"` — and since the
+  timezone picker moved to IANA ids, that is what the setting holds on any site
+  that has touched it. Every caller was therefore computing in UTC without
+  saying so. It now delegates to the new `TimeZone.offset_seconds/2`.
+
+  ⚠️ **This one reaches outside core.** Three call sites in module packages take
+  that number as gospel and were silently off by the site's whole offset:
+  `phoenix_kit_bookings`' `site_offset_seconds/0` (availability windows),
+  `phoenix_kit_calendar`'s `window_bounds/3` (timed events near midnight fall
+  out of the day the grid puts them in) and its `tz_differs?/2` (two different
+  named zones compared equal, so "show in their timezone" saw no difference).
+  The first two are corrected by this delegation; `tz_differs?/2` should move to
+  `TimeZone.effectively_same?/2`, which answers the question it is actually
+  asking.
+
 
 - **The custom-admin-pages guide taught hosts to hardcode `/admin`.** Its
   worked example used a plain `<.link navigate="/admin/blog/new">`, which
