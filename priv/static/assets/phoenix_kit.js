@@ -2385,9 +2385,27 @@ if (typeof window.Chart === "undefined") {
     }
   }
 
+  // The `phx-value-*` attributes of an element as an event payload — the
+  // same convention LiveView applies to `phx-click`, so a hook-driven
+  // element (PkDialog's close) can carry identifiers exactly like a
+  // clicked button would (`phx-value-frame-ref` → `{"frame-ref": …}`).
+  // Elements without any such attribute yield `{}`, the pre-existing
+  // payload, so every current consumer is unaffected.
+  function phxValuePayload(el) {
+    const payload = {};
+    if (!el || !el.attributes) return payload;
+    for (const attr of Array.from(el.attributes)) {
+      if (attr.name.startsWith("phx-value-")) {
+        payload[attr.name.slice("phx-value-".length)] = attr.value;
+      }
+    }
+    return payload;
+  }
+
   if (typeof module === "object" && module.exports) {
     module.exports.ownerComponentCid = ownerComponentCid;
     module.exports.pushToOwner = pushToOwner;
+    module.exports.phxValuePayload = phxValuePayload;
   }
 
   // Returns true if the given <dialog> is in the browser's top layer
@@ -2602,8 +2620,10 @@ if (typeof window.Chart === "undefined") {
       // item selector's stacked details popup never closed on Esc; the
       // selector itself only "closed" because the misrouted event hit the
       // host). LV-owned dialogs have no component ancestor and keep routing
-      // to the LV. See `pushToOwner`.
-      pushToOwner(this, this.el, ev, {});
+      // to the LV. See `pushToOwner`. The payload is the dialog's own
+      // `phx-value-*` attributes (a stacked popup host stamps its frame
+      // reference there so a close can be matched against the top frame).
+      pushToOwner(this, this.el, ev, phxValuePayload(this.el));
     },
     _sync() {
       // `data-show` drives visibility for keep_in_dom modals. Conditional
@@ -2708,7 +2728,7 @@ if (typeof window.Chart === "undefined") {
             // the server never hears about (and re-opens on the next
             // patch). A stamp self-heals.
             top._pkStackClosePushedAt = Date.now();
-            pushToOwner(self, top, closeEv, {});
+            pushToOwner(self, top, closeEv, phxValuePayload(top));
           }
           top.close();
         }
