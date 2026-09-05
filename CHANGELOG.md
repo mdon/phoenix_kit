@@ -1,3 +1,110 @@
+## Unreleased
+
+### Changed
+
+- **`:user_dashboard_enabled` now defaults to `false` — the user dashboard is
+  retired from core's defaults.** `/dashboard`, `/dashboard/settings` and the
+  confirm-email compat redirects are no longer routed unless a host asks for
+  them. Its job has moved into `/admin`, which shows each visitor the sections
+  their permissions allow and greets a permission-less visitor rather than
+  bouncing them (`PhoenixKitWeb.Users.Auth.landing_view?/1`). Together with the
+  widget change below, nothing in core links to `/dashboard` any more.
+
+  ⚠️ **Breaking for a host that never wrote the key** — it took the old default
+  without choosing it, and `/dashboard` stops routing on the next compile.
+  `mix phoenix_kit.update` now says so, and says the one line that keeps it.
+
+  **Nothing has been deleted.** The LiveViews, the layout, the sidebar, the tab
+  machinery and the route macros are all still there, so this is a switch and
+  not a removal:
+
+      config :phoenix_kit, user_dashboard_enabled: true
+
+  restores the routes unchanged. That is only true because of the next item.
+- **`user_dashboard_enabled` is now tracked by `__mix_recompile__?/0`.** It is
+  read at macro-expansion time by the route macros, exactly like `admin_path`,
+  so the compiler had no idea the host router depended on it — and it was not
+  in the recompile check. A host flipping the flag would have kept serving a
+  router compiled against the old value until something unrelated forced a
+  recompile. The setting only became worth having as a real switch once the
+  default flipped, which is what surfaced this.
+- **`/dashboard` is no longer a reserved `admin_path` segment while the user
+  dashboard is off.** `@admin_path_collisions` refused it unconditionally
+  because core declared a route tree there; with `user_dashboard_enabled: false`
+  nothing occupies it, so `config :phoenix_kit, admin_path: "/dashboard"` is now
+  legal — the rename a host retiring the user dashboard is most likely to want.
+  Turning the dashboard back on puts the segment back in the list and the next
+  compile raises, rather than letting whichever tree the router declared first
+  silently win.
+- **The deprecation notices split by what the host actually configured.**
+  `mix phoenix_kit.install` no longer warns about a dashboard a fresh install
+  does not have. `mix phoenix_kit.update` prints the deprecation heads-up only
+  to a host that switched the dashboard **on**, the new default-changed notice
+  to a host that never wrote the key, and nothing to a host that chose `false`
+  — via the new `PhoenixKit.Config.user_dashboard_configured?/0`, which
+  distinguishes "took the default" from "chose false" (`user_dashboard_enabled?/0`
+  answers `false` to both).
+- **The session widget's user-facing entry now leads to the admin area, not the
+  deprecated user dashboard.** `PhoenixKitWeb.Components.UserDashboardNav.user_dropdown/1`
+  — the avatar dropdown a host embeds in its own header — rendered a "Dashboard"
+  item pointing at `/dashboard` for every signed-in visitor, and was the one
+  place in core that did **not** gate that link on
+  `PhoenixKit.Config.user_dashboard_enabled?/0`. Every other call site does
+  (`auth_router.ex`, both route macros in `integration.ex`,
+  `NotificationsBell.default_link/1`, the `AdminNav` divider), so a host that
+  compiled the dashboard out was left with a menu entry that 404s.
+
+  Every signed-in visitor now gets exactly **one** entry leading to
+  `Routes.path("/admin")`, which is the page core declares unconditionally and
+  admits every authenticated visitor to — `PhoenixKitWeb.Users.Auth.landing_view?/1`
+  exempts the index from the admin-area gate, and it shows a permission-less
+  visitor the welcome block and nothing else. An admin-area holder sees it as
+  "Admin Panel" with a shield; everybody else sees "My Account" with a house.
+  The two are mutually exclusive and take their wording from one private
+  `admin_entry_label/1`, so the pair cannot drift.
+
+  Because the destination is built with `Routes.path("/admin")`, it picks up a
+  renamed admin segment (`config :phoenix_kit, admin_path: "/myaccount"`) for
+  free. Note that `admin_path: "/dashboard"` is still refused — `dashboard` is
+  on `@admin_path_collisions` for as long as core declares the `/dashboard`
+  route family.
+
+  The `:dashboard` key in the `:authenticated_links` attr keeps its name and
+  its place in the default list, so a host passing an explicit list needs no
+  edit; only where it points has changed. Wording stays `gettext/1` on both
+  arms rather than becoming an operator-typed setting, for the reason
+  `LayoutWrapper` already gives for the "Admin Panel" chip: a stored string
+  would serve one language's wording to every locale. `"My Account"` is
+  translated in all seven shipped locales.
+- **The context-switch fallback redirect points at `/admin`.**
+  `PhoenixKitWeb.Controllers.ContextController` string-built
+  `"#{url_prefix}/dashboard"` for requests arriving with no usable referer —
+  the same dead destination, reached by exactly the visitors who got there by
+  accident. It now goes through `Routes.path("/admin")`, so it also honours a
+  renamed admin segment instead of concatenating the URL prefix by hand.
+
+### Fixed
+
+- **Menu links no longer emit a locale segment the router immediately redirects
+  away from.** `user_dropdown/1` passed `@current_locale` straight into
+  `Routes.path/2` and `Routes.user_settings_path/1`. That assign is the
+  **gettext dialect** (`"en-US"`); URLs are served on the **base** code
+  (`"en"`), as `PhoenixKitWeb.Users.Auth.validate_and_set_locale/2` documents.
+  `Routes.path/2` takes `:locale` verbatim, so a visitor on `/en/profile/settings`
+  was offered `/en-US/…` links — which route, then bounce through a redirect to
+  `/en/…`. Worse, `default_locale?/1` compares against the base default, so
+  `"en-US" != "en"` also defeated prefixless-primary and produced a locale
+  segment where there should have been none. Both links now go through the
+  normalising helpers (`Routes.locale_aware_path/2` /
+  `locale_aware_user_settings_path/1`) that the multi-session forms three lines
+  below were already using. Same slip fixed in the modules page's "Configure"
+  link for crawler settings.
+- **The dropdown's active-item highlight survives a renamed admin segment.**
+  `active_path?/2` compared the real request path against the `/admin` written
+  in the markup without canonicalising, so under `admin_path: "/myaccount"`
+  nothing ever highlighted. It now folds the configured segment back through
+  `Routes.canonical_admin_path/1` first.
+
 ## 2.14.2 - 2026-09-05
 
 PR #783 — annotations stop requiring a file to anchor to — plus the two fixes
