@@ -72,14 +72,16 @@ defmodule PhoenixKit.Modules.Storage.EtcherAdapter do
 
   # ---------------------------------------------------------------------------
 
-  @target_type_format ~r/\A[a-z][a-z0-9_]{0,31}\z/
+  # The schema owns the shape; this is the early rejection the Etcher protocol
+  # wants (`{:error, :unsupported_target}` rather than a changeset). Reading it
+  # from `Annotation` keeps the two from drifting.
 
   defp target(%{"target_type" => type, "target_uuid" => uuid}), do: target(type, uuid)
   defp target(%{target_type: type, target_uuid: uuid}), do: target(type, uuid)
   defp target(_attrs), do: {:error, :unsupported_target}
 
   defp target(type, uuid) when is_binary(type) and is_binary(uuid) do
-    if Regex.match?(@target_type_format, type),
+    if Regex.match?(Annotation.target_type_format(), type),
       do: {:ok, type, uuid},
       else: {:error, :unsupported_target}
   end

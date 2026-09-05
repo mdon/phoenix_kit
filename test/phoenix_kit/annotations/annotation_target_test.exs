@@ -82,6 +82,65 @@ defmodule PhoenixKit.Annotations.AnnotationTargetTest do
     end
   end
 
+  describe "target_type shape is enforced on the changeset, not only the adapter" do
+    # The guard used to live only in `EtcherAdapter`, which is not the sole
+    # writer: `Annotations.create/1` is public and is the path a board takes.
+    # Without it on the changeset, an over-long type reached
+    # `character varying(32)` and came back as a raw Postgres error.
+
+    test "a type longer than the column is a changeset error, not a DB error" do
+      attrs = %{
+        target_type: String.duplicate("b", 33),
+        target_uuid: UUIDv7.generate(),
+        kind: "line",
+        geometry: @geometry
+      }
+
+      assert {:error, changeset} = Annotations.create(attrs)
+      assert %{target_type: [_ | _]} = errors_on(changeset)
+    end
+
+    test "a type with characters the column would take but the domain should not" do
+      # `""` is deliberately absent: Ecto's `cast/3` treats an empty string as
+      # nil, so the field falls back to the schema default "file" and the
+      # failure lands on `validate_target/1` instead — a different path, and
+      # one the neighbouring describe block already covers.
+      for bad <- ["Board", "board-1", "board space", "1board", String.duplicate("b", 40)] do
+        attrs = %{
+          target_type: bad,
+          target_uuid: UUIDv7.generate(),
+          kind: "line",
+          geometry: @geometry
+        }
+
+        assert {:error, changeset} = Annotations.create(attrs),
+               "expected #{inspect(bad)} to be refused"
+
+        assert Map.has_key?(errors_on(changeset), :target_type)
+      end
+    end
+
+    test "a well-formed non-file type still saves" do
+      attrs = %{
+        target_type: "projects_board",
+        target_uuid: UUIDv7.generate(),
+        kind: "line",
+        geometry: @geometry
+      }
+
+      assert {:ok, annotation} = Annotations.create(attrs)
+      assert annotation.target_type == "projects_board"
+      assert is_nil(annotation.file_uuid)
+    end
+
+    test "the adapter and the schema share one regex" do
+      # Two copies would drift, and the adapter's early rejection has to agree
+      # with what the changeset would have said.
+      assert Regex.match?(Annotation.target_type_format(), "projects_board")
+      refute Regex.match?(Annotation.target_type_format(), String.duplicate("b", 33))
+    end
+  end
+
   describe "the DB" do
     test "V183 columns and the target CHECK are in place" do
       %{rows: rows} =

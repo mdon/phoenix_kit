@@ -1,3 +1,60 @@
+## 2.14.2 - 2026-09-05
+
+PR #783 — annotations stop requiring a file to anchor to — plus the two fixes
+from its review.
+
+### Added
+
+- **An annotation anchors to a TARGET, not necessarily a file** (#783, V183).
+  Every row pointed at `phoenix_kit_files` through a `NOT NULL file_uuid`,
+  which is right for the media viewer and wrong for a whiteboard with no image
+  — the projects module was minting a solid-white PNG per board just to have
+  something to draw over. `target_type` + `target_uuid` (Etcher's own
+  vocabulary) are now the anchor: a `"file"` target still carries its file in
+  both columns, so every file-side feature keeps its hard FK, and any other
+  target carries no file at all. A CHECK pins the two shapes and the changeset
+  mirrors it, so a bad shape is a changeset error rather than a constraint
+  exception. Existing rows are backfilled and unchanged in meaning.
+
+  ⚠️ `down/1` **deletes non-file annotations** — they have no home in the old
+  shape. Back the table up first if a rollback is not final.
+
+- **Modal drawers and a client-side close guard** (#783). `<.modal placement={:end}>`
+  is a full-height sheet sliding in from the edge for tall forms;
+  `close_guard={:input}` makes Esc and the backdrop no-ops from the first
+  keystroke in a submittable form inside it, before the server has heard of the
+  edit — the round trip plus any `phx-debounce` window would otherwise let a
+  quick Esc discard what was just typed. Never latched: once the server
+  re-renders, `closeable` is the only authority again.
+
+- **`<.nav_tabs>` gains a `:trailing` slot** and the admin header a page
+  toolbar beside the title (#783).
+
+### Fixed
+
+- **`PkUrlMirror` accepted network-path references and fragments** (#783). The
+  root-relative check took `//host` and `/\host` — same-origin-looking,
+  other-origin-going — and any fragment, which the comparison against
+  pathname + search never sees, so `/p#x` re-fired on every update. Same guard
+  shape as `Routes.local_path?/1`; control characters refused too.
+
+- **`target_type` was only validated in the Etcher adapter** (review of #783).
+  The adapter checked the format before building attrs; the changeset did not.
+  The adapter is not the sole writer — `Annotations.create/1` is public and is
+  the path a board takes — so a `target_type` over 32 characters reached
+  `character varying(32)` and came back as a raw Postgres error, the exact
+  failure `validate_target/1` exists to prevent one field over. The regex moved
+  onto the changeset and the adapter now reads it from
+  `Annotation.target_type_format/0`, so the two answers cannot drift.
+
+- **V183 checked constraint existence with `::regclass`** (review of #783),
+  which the prefix rules forbid — the cast raises rather than answering false
+  when the relation is absent, aborting the whole transaction. Replaced with
+  the mandated name-based `pg_class` + `pg_namespace` JOIN, as V180 does. It
+  could not bite (V135 creates the table at the migration floor), but V183 is
+  the newest migration and therefore the template the next one is copied from.
+  Amended in place rather than superseded, since V183 has never shipped.
+
 ## 2.14.1 - 2026-09-05
 
 Fixes found by running 2.14.0 against a real install: a dashboard statistic

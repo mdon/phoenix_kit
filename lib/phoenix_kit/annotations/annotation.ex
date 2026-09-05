@@ -62,6 +62,13 @@ defmodule PhoenixKit.Annotations.Annotation do
     timestamps(type: :utc_datetime)
   end
 
+  # Shape of a `target_type`. Lowercase, ≤ 32 characters, so it fits the
+  # column (`character varying(32)`) and reads as an identifier rather than
+  # free text. Public so the Etcher adapter shares it instead of keeping a
+  # second copy to drift from — the same reason `adapter_writable_fields/0`
+  # exists.
+  @target_type_format ~r/\A[a-z][a-z0-9_]{0,31}\z/
+
   @cast_fields ~w(uuid file_uuid target_type target_uuid creator_uuid kind geometry style metadata position title)a
   @required_fields ~w(target_type target_uuid kind geometry)a
 
@@ -82,6 +89,14 @@ defmodule PhoenixKit.Annotations.Annotation do
     |> validate_required(@required_fields)
     |> validate_inclusion(:kind, @kinds)
     |> validate_length(:title, max: 200)
+    # On the CHANGESET, not only in the adapter. The adapter is not the sole
+    # writer: `Annotations.create/1` is public and is the path a board takes,
+    # so without this a `target_type` over 32 characters reached
+    # `character varying(32)` and came back as a raw Postgres error — the exact
+    # thing `validate_target/1` below exists to prevent one field over.
+    |> validate_format(:target_type, @target_type_format,
+      message: "must be lowercase letters, digits or underscores, at most 32 characters"
+    )
     |> validate_target()
     |> foreign_key_constraint(:file_uuid)
     |> check_constraint(:target_type, name: :phoenix_kit_annotations_target_check)
@@ -125,6 +140,16 @@ defmodule PhoenixKit.Annotations.Annotation do
 
   @doc "List of allowed kind strings."
   def kinds, do: @kinds
+
+  @doc """
+  Shape a `target_type` must have.
+
+  Shared with the Etcher adapter, which rejects a malformed target before
+  building attrs at all (the protocol wants `{:error, :unsupported_target}`,
+  not a changeset). One regex so the two answers cannot disagree.
+  """
+  @spec target_type_format() :: Regex.t()
+  def target_type_format, do: @target_type_format
 
   @doc """
   Fields the Etcher storage adapter is allowed to take from event

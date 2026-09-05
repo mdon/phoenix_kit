@@ -33,6 +33,13 @@ defmodule PhoenixKit.Migrations.Postgres.V183 do
 
   use Ecto.Migration
 
+  # Constraint existence is checked with a name-based `pg_class` +
+  # `pg_namespace` JOIN, never `'schema.table'::regclass`. The cast raises
+  # rather than answering false when the relation is absent, which aborts the
+  # whole transaction — see `dev_docs/guides/2026-07-27-prefix-safe-migrations.md`
+  # and the same check in V180. It cannot bite here (V135 creates the table at
+  # the migration floor), but this file is the template the next migration is
+  # copied from.
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
@@ -60,9 +67,12 @@ defmodule PhoenixKit.Migrations.Postgres.V183 do
     DO $$
     BEGIN
       IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-         WHERE conname = 'phoenix_kit_annotations_target_check'
-           AND conrelid = '#{p}phoenix_kit_annotations'::regclass
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+         WHERE c.conname = 'phoenix_kit_annotations_target_check'
+           AND t.relname = 'phoenix_kit_annotations'
+           AND n.nspname = '#{prefix}'
       ) THEN
         ALTER TABLE #{p}phoenix_kit_annotations
           ADD CONSTRAINT phoenix_kit_annotations_target_check CHECK (

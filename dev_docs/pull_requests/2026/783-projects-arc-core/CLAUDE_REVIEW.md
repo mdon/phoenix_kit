@@ -3,7 +3,13 @@
 **Author:** mdon (`mdon/pr/projects-arc-core`) · **Merged:** 2026-09-05 (`95d4a898`) · **Reviewed:** 2026-09-05
 
 **Verdict: PASS** — one `IMPROVEMENT - MEDIUM` and one `NITPICK`, neither
-blocking. 22 files, +2311/−511, including a V183 migration.
+blocking. **Both were applied after this review** and shipped in 2.14.2: the
+`target_type` regex moved onto the changeset (the adapter now reads it from
+`Annotation.target_type_format/0`), and V183's constraint check became the
+mandated `pg_class` + `pg_namespace` JOIN. The manifest `chain_hash` was
+restamped for the V183 edit — legitimate here because the change is a comment
+plus an existence guard that produces an identical constraint, which is the
+one class `restamp_chain_hash.exs` permits. 22 files, +2311/−511, including a V183 migration.
 
 Reviewed `e2073287..95d4a898`. The merged tree compiles with
 `--warnings-as-errors`, `mix precommit` is green, and the full suite is
