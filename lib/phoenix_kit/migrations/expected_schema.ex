@@ -157,6 +157,24 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # over the 49 shipped files; the real-database integration suite re-ran
   # clean against a DB migrated through V183.
   #
+  # V184 (2026-09-05, per-domain currency Э0) declares NO object here, and
+  # cannot: it is a pure data migration — `DELETE FROM phoenix_kit_settings
+  # WHERE "key" = 'shop_currency'` (a dead setting seeded by V135 that nothing
+  # reads), plus the version-marker COMMENT. No table, column, index or
+  # constraint is added, dropped or reshaped — the V182 class — so `chain_hash`
+  # is restamped over the 50 shipped files rather than the manifest being
+  # regenerated. A full regenerate was attempted first
+  # (`dev_docs/squash/generate_baseline.exs`) and aborts in this environment on
+  # a pre-existing mode-shape mismatch between the stepwise and single-shot
+  # `sync_shop_category_slugs()`/`sync_shop_product_slugs()` function dumps
+  # (identical `definition` text, different `body_md5` — reproduces identically
+  # on unmodified `main`, unrelated to this version); those two functions are
+  # already deliberately excluded from this manifest since V171. The chain was
+  # re-run end to end into a fresh database (V135→V184) and the migration's
+  # real statements are exercised against a seeded settings row by
+  # `test/phoenix_kit/migrations/v184_test.exs`, including down/1 never
+  # clobbering a value an operator re-created by hand.
+  #
   # V180 was fixed post-publish (2.13.11): its bare top-level `LOCK TABLE` moved
   # inside the `DO $$` block that already carries the dedupe UPDATE and the
   # `CREATE UNIQUE INDEX`, and that UPDATE's `updated_at` expression changed from
@@ -237,7 +255,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "1c5a5ee7d68569bfbd1b3c673bf4460f495f973eff9242a986c20541d44da98d"
+  @chain_hash "5145d9639558e4e7063e032d0736b0edbc41633cea0dcd31603c08515468a34a"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
