@@ -7,7 +7,17 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V182 - Users: PhoenixKit's internal keys lose their custom-field definitions ⚡ LATEST
+  ### V183 - Annotations: a shape can anchor to something other than a file ⚡ LATEST
+
+  `phoenix_kit_annotations.file_uuid` becomes nullable behind a generic
+  `target_type` + `target_uuid` pair (backfilled `'file'` / the file uuid for
+  every existing row; a CHECK pins the two shapes). Fresco renders a scene
+  with zero images and Etcher draws over empty canvas, so a whiteboard no
+  longer needs a background file to hold its shapes — the projects module
+  used to mint a white PNG per board for exactly this. Existing rows read
+  unchanged.
+
+  ### V182 - Users: PhoenixKit's internal keys lose their custom-field definitions
 
   Deletes the `custom_user_fields_definitions` entries whose key is one
   PhoenixKit itself writes into `custom_fields` (`etcher_line_params`,
@@ -663,7 +673,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 182
+  @current_version 183
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
