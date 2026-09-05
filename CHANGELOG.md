@@ -15,6 +15,36 @@ collapsed icon rail with hover flyouts.
 
 ### Added
 
+- **Every number on the admin dashboard is now a link to the report behind it.**
+  A statistic you cannot drill into is a dead end: seeing "29 Active Sessions"
+  and having no way to ask *which 29* is what sent one operator to the Live
+  Sessions page to reconcile it by hand. All sixteen cards across Platform
+  Statistics, Active Sessions, Real-Time Activity and the user-status row now
+  navigate to a filtered list.
+
+  Five of them had no report to point at, so the filters came first rather than
+  linking at a list that could not contain the counted rows:
+
+  - `Auth.list_users_paginated/1` gains `:status` (`active` / `inactive`) and
+    `:confirmation` (`confirmed` / `pending`), deep-linkable as `?status=` and
+    `?confirmation=` and surfaced as two dropdowns on `/admin/users` — a filter
+    with no visible control would leave a visitor arriving from a card looking
+    at a filtered list with nothing on screen saying why.
+  - `Sessions.list_active_sessions/1` takes a scope — `:active` (the default,
+    so existing callers are unchanged), `:today` and `:expired` — deep-linkable
+    as `?scope=` with a matching selector on `/admin/users/sessions`.
+
+  The predicates are deliberately identical to the ones
+  `Roles.get_extended_stats/0` and `Sessions.get_session_stats/0` count with,
+  and a test file asserts each card's number against its own link's result
+  rather than either in isolation. Unknown values (`?status=nonsense` from a
+  hand-edited URL) fall back to unfiltered rather than to an empty list, which
+  would read as "you have no users".
+
+  `StatCard` and `HeroStatCard` gain an optional `navigate` attr; without it
+  they render exactly as before.
+
+
 - **The admin area's URL segment is configurable.**
 
       config :phoenix_kit, admin_path: "/backoffice"

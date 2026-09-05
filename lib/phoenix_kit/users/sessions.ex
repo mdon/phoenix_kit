@@ -52,10 +52,10 @@ defmodule PhoenixKit.Users.Sessions do
       ]
 
   """
-  def list_active_sessions do
+  def list_active_sessions(scope \\ :active) do
     from(token in UserToken,
       where: token.context == "session",
-      where: token.inserted_at > ago(@session_validity_in_days, "day"),
+      where: ^scope_condition(scope),
       join: user in User,
       on: token.user_uuid == user.uuid,
       select: %{
@@ -315,6 +315,25 @@ defmodule PhoenixKit.Users.Sessions do
     )
     |> Repo.one()
   end
+
+  # The three scopes the admin dashboard counts, so each card can link to the
+  # list behind its own number. `:active` is the historical behaviour and the
+  # default, and the predicates are the same expressions `get_session_stats/0`
+  # counts with — a report that disagreed with the card above it would be worse
+  # than no link.
+  defp scope_condition(:active),
+    do: dynamic([token], token.inserted_at > ago(@session_validity_in_days, "day"))
+
+  defp scope_condition(:expired),
+    do: dynamic([token], token.inserted_at <= ago(@session_validity_in_days, "day"))
+
+  defp scope_condition(:today) do
+    now = UtilsDate.utc_now()
+    today_start = %{now | hour: 0, minute: 0, second: 0, microsecond: {0, 0}}
+    dynamic([token], token.inserted_at >= ^today_start)
+  end
+
+  defp scope_condition(_other), do: scope_condition(:active)
 
   @doc """
   Gets session statistics including total, unique users, expired sessions etc.
