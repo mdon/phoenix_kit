@@ -1,3 +1,48 @@
+## 2.15.1 - 2026-09-05
+
+### Added
+
+- **A B2B site can stop asking whether an account is personal.** With
+  organization accounts on, the signup page has always shown a Personal /
+  Organization picker — a dead question on a site where every account is a
+  company. A new **Account types on the signup page** setting
+  (`registration_account_type`, on `/admin/settings/users` beside the feature
+  switch) takes three values:
+
+  | Mode | Signup page |
+  |---|---|
+  | `"choice"` | the picker, as before — the default, and what every existing install keeps |
+  | `"person"` | no picker; organizations exist, but only an admin creates them |
+  | `"organization"` | no picker; Organization Name required, and staff join by invitation |
+
+  `Auth.registration_account_type/0` collapses this with the master switch, so
+  one call answers "what may this form create?" — it returns `"person"`
+  whenever organization accounts are off.
+
+  The magic-link completion form honours the same policy: it has no picker, so
+  it grows the Organization Name field (and drops first/last name, which an
+  organization has neither of) exactly in `"organization"` mode.
+
+### Fixed
+
+- **The account type was never enforced server-side.** `registration_changeset/3`
+  casts `account_type` and `organization_name` straight from the payload, and a
+  `phx-submit` payload is whatever the client sends — so a forged
+  `user[account_type]=organization` created an organization account on a site
+  with organization accounts **switched off entirely**, where the picker had
+  never been rendered. Both public forms now pipe their params through
+  `Auth.enforce_registration_account_type/2` inside their field allowlist, the
+  same arrangement that makes `remember_me_enabled` hold at the cookie writer.
+  In `"choice"` mode an unknown string normalises to `"person"` rather than
+  reaching the insert and coming back as a CHECK-constraint 500.
+
+- **An organization invitation no longer offers "Organization".** A visitor
+  registering from an invitation link saw the full picker, and choosing
+  Organization created a *second* organization — which cannot hold an
+  `organization_uuid`, so the invitation could never be redeemed. The
+  invitation now pins the signup to a person account, on the page and in the
+  payload.
+
 ## 2.15.0 - 2026-09-05
 
 The deprecated user dashboard stops being routed by default, and the admin area
