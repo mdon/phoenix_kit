@@ -1,17 +1,9 @@
-## 2.14.0 - 2026-09-05
+## 2.14.1 - 2026-09-05
 
-The admin area stops being nailed to `/admin`, the deprecated user dashboard
-stops being promoted from core's own defaults, and the admin sidebar gains a
-collapsed icon rail with hover flyouts.
-
-### Security
-
-- **`mint` 1.9.3 → 1.10.0**, clearing two advisories the release gate refused
-  to publish over: EEF-CVE-2026-82728 (HIGH — unbounded HTTP/1 status-line and
-  chunk-extension buffering, memory-exhaustion DoS) and EEF-CVE-2026-82729
-  (MEDIUM — quadratic chunk-size parsing in `Mint.HTTP1.Parse`, CPU-exhaustion
-  DoS). Transitive, via `finch`, `swoosh` and `tz`; every constraint on it
-  already allowed 1.10.0, so this is a lockfile move with no API change.
+Fixes found by running 2.14.0 against a real install: a dashboard statistic
+that could only ever report the wrong number, two timezone consumers left
+behind when the picker moved to IANA identifiers, and every statistic on the
+dashboard becoming a link to the list behind it.
 
 ### Added
 
@@ -51,6 +43,61 @@ collapsed icon rail with hover flyouts.
   `StatCard` and `HeroStatCard` gain an optional `navigate` attr; without it
   they render exactly as before.
 
+### Fixed
+
+- **"Unique Users" counted session rows, not people.** `get_session_stats/0`
+  asked for `Repo.aggregate(query, :count, :user_uuid, distinct: true)`, but
+  `aggregate/4`'s last argument is REPO options — `:prefix`, `:timeout` — and
+  `Ecto.Repo.Queryable.query_for_aggregate/3` builds the select from the field
+  alone and never sees them. `distinct: true` was accepted and silently
+  ignored, so the card reported one "unique user" per session row and was equal
+  to "Active Sessions" by construction. Reported from a live install showing 29
+  unique users against 2 registered accounts.
+
+- **"Active Sessions / Currently logged in" invited exactly that confusion.**
+  The number counts session tokens inside the 60-day validity window across
+  every device, so one person who has signed in 29 times over two months is 29
+  — while the Live Sessions page, which reads Presence, correctly showed one.
+  The subtitle now reads "Unexpired sign-ins, not live connections".
+
+- **"Today's Sessions" counted UTC's day, not the operator's.** `get_session_stats/0`
+  took midnight from `DateTime.utc_now()` and ignored the `time_zone` setting
+  entirely, so on any site east of UTC every sign-in after 21:00 local (UTC+3)
+  fell into "yesterday" — the card read 0 while somebody was signed in. Both it
+  and the new `:today` session scope now start the day in the configured zone.
+
+- **`Utils.Date.offset_to_seconds/1` returned 0 for every named timezone.** It
+  was `Float.parse/1`, which cannot read `"Europe/Warsaw"` — and since the
+  timezone picker moved to IANA ids, that is what the setting holds on any site
+  that has touched it. Every caller was therefore computing in UTC without
+  saying so. It now delegates to the new `TimeZone.offset_seconds/2`.
+
+  ⚠️ **This one reaches outside core.** Three call sites in module packages take
+  that number as gospel and were silently off by the site's whole offset:
+  `phoenix_kit_bookings`' `site_offset_seconds/0` (availability windows),
+  `phoenix_kit_calendar`'s `window_bounds/3` (timed events near midnight fall
+  out of the day the grid puts them in) and its `tz_differs?/2` (two different
+  named zones compared equal, so "show in their timezone" saw no difference).
+  The first two are corrected by this delegation; `tz_differs?/2` should move to
+  `TimeZone.effectively_same?/2`, which answers the question it is actually
+  asking.
+
+## 2.14.0 - 2026-09-05
+
+The admin area stops being nailed to `/admin`, the deprecated user dashboard
+stops being promoted from core's own defaults, and the admin sidebar gains a
+collapsed icon rail with hover flyouts.
+
+### Security
+
+- **`mint` 1.9.3 → 1.10.0**, clearing two advisories the release gate refused
+  to publish over: EEF-CVE-2026-82728 (HIGH — unbounded HTTP/1 status-line and
+  chunk-extension buffering, memory-exhaustion DoS) and EEF-CVE-2026-82729
+  (MEDIUM — quadratic chunk-size parsing in `Mint.HTTP1.Parse`, CPU-exhaustion
+  DoS). Transitive, via `finch`, `swoosh` and `tz`; every constraint on it
+  already allowed 1.10.0, so this is a lockfile move with no API change.
+
+### Added
 
 - **The admin area's URL segment is configurable.**
 
@@ -192,29 +239,6 @@ collapsed icon rail with hover flyouts.
   the docs are new.
 
 ### Fixed
-
-- **"Today's Sessions" counted UTC's day, not the operator's.** `get_session_stats/0`
-  took midnight from `DateTime.utc_now()` and ignored the `time_zone` setting
-  entirely, so on any site east of UTC every sign-in after 21:00 local (UTC+3)
-  fell into "yesterday" — the card read 0 while somebody was signed in. Both it
-  and the new `:today` session scope now start the day in the configured zone.
-
-- **`Utils.Date.offset_to_seconds/1` returned 0 for every named timezone.** It
-  was `Float.parse/1`, which cannot read `"Europe/Warsaw"` — and since the
-  timezone picker moved to IANA ids, that is what the setting holds on any site
-  that has touched it. Every caller was therefore computing in UTC without
-  saying so. It now delegates to the new `TimeZone.offset_seconds/2`.
-
-  ⚠️ **This one reaches outside core.** Three call sites in module packages take
-  that number as gospel and were silently off by the site's whole offset:
-  `phoenix_kit_bookings`' `site_offset_seconds/0` (availability windows),
-  `phoenix_kit_calendar`'s `window_bounds/3` (timed events near midnight fall
-  out of the day the grid puts them in) and its `tz_differs?/2` (two different
-  named zones compared equal, so "show in their timezone" saw no difference).
-  The first two are corrected by this delegation; `tz_differs?/2` should move to
-  `TimeZone.effectively_same?/2`, which answers the question it is actually
-  asking.
-
 
 - **The custom-admin-pages guide taught hosts to hardcode `/admin`.** Its
   worked example used a plain `<.link navigate="/admin/blog/new">`, which
