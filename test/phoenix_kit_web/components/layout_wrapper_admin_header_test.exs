@@ -33,8 +33,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
   defp plain_user_scope, do: scope(["User"], [])
   defp owner_scope, do: scope(["Owner"], Permissions.all_module_keys())
 
-  defp admin_shell(scope) do
-    assigns = %{scope: scope}
+  defp admin_shell(scope, opts \\ []) do
+    assigns = %{scope: scope, show_label: Keyword.get(opts, :show_admin_panel_label)}
 
     ~H"""
     <LayoutWrapper.app_layout
@@ -43,6 +43,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
       current_path="/admin"
       page_title="Dashboard"
       project_title="Acme"
+      show_admin_panel_label={@show_label}
       phoenix_kit_current_scope={@scope}
     >
       <span id="pk-test-body">body</span>
@@ -218,5 +219,199 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
 
     assert operator =~ ~s(id="pk-admin-sidebar")
     assert operator =~ "Admin Panel"
+  end
+
+  describe "the sidebar compact toggle" do
+    # Compact mode is entirely client-side: `localStorage` + a `data-pk-sidebar`
+    # stamp on <html>, with CSS doing the hiding. So what the server owes is
+    # exactly the handles that machinery reads — and those are what is asserted
+    # here, because a CSS selector that no longer matches anything fails
+    # silently in a way no render test would otherwise catch.
+
+    test "an operator gets the toggle" do
+      html = admin_shell(owner_scope())
+
+      assert html =~ "data-pk-sidebar-toggle"
+      assert html =~ "pk-sidebar-toggle"
+    end
+
+    test "the pre-paint stamp ships above the sidebar markup" do
+      # Order is the whole point: the script must run before the menu is
+      # parsed, or a viewer who chose compact sees a frame of the full-width
+      # sidebar on every load.
+      html = admin_shell(owner_scope())
+
+      stamp = :binary.match(html, "__pkSidebarCompact") |> elem(0)
+      sidebar = :binary.match(html, ~s(id="pk-admin-sidebar")) |> elem(0)
+
+      assert stamp < sidebar
+    end
+
+    test "the shell renders the handles the compact styles select on" do
+      # Only the shell's own handles here — the Dashboard Registry is not
+      # started in this DB-free run, so there are no tabs to carry the
+      # per-item ones. Those live in TabItemTest, against a literal Tab.
+      html = admin_shell(owner_scope())
+
+      assert html =~ "pk-sidebar "
+      assert html =~ "pk-sidebar-label"
+      assert html =~ "pk-sidebar-toggle-icon"
+    end
+
+    test "labels are rendered, not omitted — CSS hides them" do
+      # Compact mode has no server round-trip, so the label has to be in the
+      # DOM for CSS to hide it. It is also what keeps the link's accessible
+      # name intact while collapsed.
+      html = admin_shell(owner_scope())
+
+      assert html =~ "pk-sidebar-label"
+
+      # And the server never stamps the state itself — that is the client's
+      # job, pre-paint. Checked on the <html> OPEN TAG specifically: the
+      # attribute name also appears throughout the stylesheet's selectors, so
+      # a whole-document match would pass for the wrong reason.
+      [open_tag | _] = String.split(html, ">", parts: 2)
+      refute open_tag =~ "data-pk-sidebar"
+    end
+
+    test "a visitor with no admin rights gets neither sidebar nor toggle" do
+      html = admin_shell(plain_user_scope())
+
+      refute html =~ ~s(id="pk-admin-sidebar")
+      refute html =~ "data-pk-sidebar-toggle"
+    end
+  end
+
+  describe "compact-mode stylesheet" do
+    # These guard a bug that shipped: the flyout's label overrides were written
+    # without the `html[data-pk-sidebar="compact"]` prefix, read (1,2,0) against
+    # the rail's own (1,2,1) hiding rule, and lost — so the flyout rendered as a
+    # column of anonymous icons, which is the one thing it exists to prevent.
+    # The `@media` block the rail rules live in contributes NO specificity, so
+    # the prefix is the only thing separating them.
+
+    defp compact_css do
+      html = admin_shell(owner_scope())
+      [_, rest] = String.split(html, "<style data-phoenix-kit-sidebar>", parts: 2)
+      [css, _] = String.split(rest, "</style>", parts: 2)
+      css
+    end
+
+    test "every flyout override outranks the rail rule it has to beat" do
+      for line <- String.split(compact_css(), "\n"),
+          String.contains?(line, ".pk-sidebar-flyout"),
+          String.contains?(line, "{") do
+        assert String.starts_with?(String.trim(line), ~s(html[data-pk-sidebar="compact"])),
+               """
+               Flyout override without the compact prefix — it will lose on \
+               specificity to the rail rule and the flyout will show icons \
+               with no text:
+
+                 #{String.trim(line)}
+               """
+      end
+    end
+
+    test "the flyout un-hides the labels the rail hides" do
+      css = compact_css()
+
+      assert css =~ ".pk-sidebar-flyout .pk-sidebar-label"
+      assert css =~ "clip-path: none"
+    end
+
+    test "the collapsed rail marks the section you are in" do
+      # Expanded, the highlight sits on the active subtab; collapsed, that row
+      # is hidden, so without this nothing is marked at all.
+      assert compact_css() =~ ~s([data-pk-branch-active="true"])
+    end
+
+    test "the rail marks with an edge bar, not the expanded menu's filled block" do
+      css = compact_css()
+
+      # A solid primary slab is most of a 5rem row — it reads as a state
+      # rather than a marker.
+      assert css =~ ~s(> a[aria-current="page"]::after)
+      assert css =~ ~s([data-pk-branch-active="true"] > a::after)
+    end
+
+    test "the bar is backed by a light tint, with a plain-transparent fallback" do
+      css = compact_css()
+
+      # `transparent` FIRST: it cancels the `bg-primary` utility and is what a
+      # browser without `color-mix` keeps — the bar-only rendering, which is a
+      # correct result rather than a broken one.
+      transparent = :binary.match(css, "background-color: transparent") |> elem(0)
+      tint = :binary.match(css, "color-mix(in oklab, var(--color-primary) 12%") |> elem(0)
+
+      assert transparent < tint
+    end
+
+    test "the tint is primary-based, so it stays distinct from hover" do
+      # daisyUI hovers rows with `base-200`; a neutral tint at this weight
+      # would be indistinguishable, and the row would stop saying which page
+      # you are on the moment the pointer crossed it.
+      css = compact_css()
+
+      refute css =~ "background-color: var(--color-base-200)"
+      assert css =~ ~s(> a[aria-current="page"]:hover)
+    end
+
+    test "the edge bar never reaches inside the flyout" do
+      # `.tab-with-subtabs > a` is a direct-child combinator on purpose: the
+      # flyout's links are descendants of the same sidebar, and there the
+      # ordinary filled highlight is the right thing.
+      # Selector lines only — `[aria-current` with the bracket, which the
+      # prose in the comment above the rule does not have.
+      for line <- String.split(compact_css(), "\n"),
+          String.contains?(line, "[aria-current"),
+          String.contains?(line, "#pk-admin-sidebar") do
+        assert String.contains?(line, ".tab-with-subtabs > a")
+      end
+    end
+  end
+
+  describe "the show_admin_panel_label setting" do
+    # An operator switch, deliberately show/hide rather than a title field: the
+    # WORDING stays `gettext("Admin Panel")`, which ships translated in every
+    # locale. A stored string would serve one operator's language to everyone.
+
+    test "an operator keeps the label by default" do
+      # `nil` means "read the setting", and with no row (and no database in
+      # this run) `get_boolean_setting/2` answers with its `true` default —
+      # so every existing install is unchanged.
+      assert admin_shell(owner_scope()) =~ "Admin Panel"
+    end
+
+    test "turning it off drops the label" do
+      html = admin_shell(owner_scope(), show_admin_panel_label: false)
+
+      refute html =~ "Admin Panel"
+    end
+
+    test "turning it off leaves the rest of the breadcrumb intact" do
+      # Hiding the chip must not cost the trail around it — the project name
+      # and the page title are what the header is actually for.
+      html = admin_shell(owner_scope(), show_admin_panel_label: false)
+
+      assert html =~ "Acme"
+      assert html =~ "Dashboard"
+    end
+
+    test "it does not touch the sidebar" do
+      # Distinct from `show_admin_nav`, which is a PERMISSION verdict. An
+      # operator who hides the chip is still an operator.
+      html = admin_shell(owner_scope(), show_admin_panel_label: false)
+
+      assert html =~ ~s(id="pk-admin-sidebar")
+    end
+
+    test "turning it on cannot show it to a visitor with no admin rights" do
+      # The permission gate wins over the preference. Telling someone with no
+      # sidebar and no operator content that they are in the "Admin Panel" is
+      # the one claim on the page that would be false, setting or not.
+      html = admin_shell(plain_user_scope(), show_admin_panel_label: true)
+
+      refute html =~ "Admin Panel"
+    end
   end
 end

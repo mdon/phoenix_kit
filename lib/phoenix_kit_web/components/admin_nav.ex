@@ -591,12 +591,18 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
     # Get dynamic prefix and normalize paths
     prefix = PhoenixKit.Config.get_url_prefix()
+    # Canonical, because `canonical_admin_path/1` below has already put the
+    # path back into canonical spelling.
     admin_prefix = if prefix == "/", do: "/admin", else: "#{prefix}/admin"
 
     base_path =
       path_part
       |> String.replace_prefix(prefix, "")
       |> strip_locale_segment()
+      # Canonicalise first: on a host that renamed the admin area the incoming
+      # path says `/backoffice/...`, and both strips below are written against
+      # the canonical name.
+      |> Routes.canonical_admin_path()
       |> String.replace_prefix(admin_prefix, "")
       |> String.replace_prefix("/admin", "")
       |> case do

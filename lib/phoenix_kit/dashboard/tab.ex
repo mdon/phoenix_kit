@@ -101,6 +101,7 @@ defmodule PhoenixKit.Dashboard.Tab do
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.Routes
 
   @type match_type :: :exact | :prefix | :regex | (String.t() -> boolean())
 
@@ -823,6 +824,11 @@ defmodule PhoenixKit.Dashboard.Tab do
     |> String.trim_trailing("/")
     |> remove_url_prefix()
     |> remove_locale_prefix()
+    # Tab paths are written canonically (`/admin/users`); the request path
+    # arrives wearing the configured admin segment. Without this the two never
+    # match on a host that renamed the admin area, and every tab renders
+    # inactive. See `PhoenixKit.Config.get_admin_path/0`.
+    |> Routes.canonical_admin_path()
   end
 
   defp normalize_path(_), do: ""

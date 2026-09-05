@@ -138,6 +138,7 @@ defmodule PhoenixKit.Settings do
     track_registration_geolocation
     registration_show_username
     site_icon_file_uuid
+    show_admin_panel_label
     default_tab_title
     auth_logo_file_uuid
     auth_background_image_file_uuid
@@ -191,6 +192,11 @@ defmodule PhoenixKit.Settings do
   def get_defaults do
     %{
       "project_title" => "PhoenixKit",
+      # The "Admin Panel" chip beside the project name in the admin header.
+      # On by default — this is the shipped appearance, and the row is absent
+      # on every existing install, so `get_boolean_setting/2`'s default is what
+      # they keep until an operator says otherwise.
+      "show_admin_panel_label" => "true",
       "site_url" => "",
       # Local path of the site's home page, used as the anonymous "home"
       # destination. Empty = unset; core then falls back to its own

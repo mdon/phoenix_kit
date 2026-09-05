@@ -69,6 +69,21 @@
             />
           </div>
 
+          <%!-- "Admin Panel" chip in the admin header --%>
+          <div class="fieldset w-full">
+            <.checkbox
+              name="settings[show_admin_panel_label]"
+              checked={@settings["show_admin_panel_label"] != "false"}
+              label={gettext("Show the \"Admin Panel\" label")}
+            >
+              <:description>
+                {gettext(
+                  "Shown next to the project name in the admin header. Turn it off to show just the project name. The wording itself follows each visitor's language and has no setting — a label typed here would show one language to everyone. The browser tab title is unaffected."
+                )}
+              </:description>
+            </.checkbox>
+          </div>
+
           <%!-- Project Logo --%>
           <div class="fieldset w-full">
             <label class="label">
@@ -375,14 +390,14 @@
             <.input
               type="text"
               name="settings[notification_default_link]"
-              value={@settings["notification_default_link"] || "/dashboard"}
-              placeholder="/dashboard"
+              value={@settings["notification_default_link"] || "/admin"}
+              placeholder="/admin"
               class="input-sm max-w-md"
             />
             <div>
               <span class="block text-xs text-base-content/50">
                 {gettext(
-                  "Where a notification opens when it has no link of its own. Defaults to /dashboard (every signed-in user can reach it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
+                  "Where a notification opens when it has no link of its own. Defaults to /admin (every signed-in user can open it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
                 )}
               </span>
             </div>

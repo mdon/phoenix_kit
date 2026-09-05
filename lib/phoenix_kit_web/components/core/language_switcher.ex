@@ -1108,9 +1108,18 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     current_base = extract_locale_from_path(normalized)
     clean_path = strip_locale_from_path(normalized, current_base)
 
-    # Admin paths use Routes.admin_path to keep locale in URL
-    if String.contains?(clean_path, "/admin") do
-      Routes.admin_path(clean_path, base_code)
+    # Admin paths use Routes.admin_path to keep locale in URL.
+    #
+    # `clean_path` has had the mount prefix and the locale stripped, so the
+    # admin segment — whatever `config :phoenix_kit, admin_path:` named it — is
+    # at the front. Canonicalise it and ask about the leading segment;
+    # `Routes.admin_path/2` puts the configured spelling back when it rebuilds
+    # the URL. This used to be a `String.contains?`, which also claimed a host
+    # page at `/shop/admin` and rebuilt it as an admin URL.
+    canonical = Routes.canonical_admin_path(clean_path)
+
+    if canonical == "/admin" or String.starts_with?(canonical, ["/admin/", "/admin?"]) do
+      Routes.admin_path(canonical, base_code)
     else
       Routes.path(clean_path, locale: base_code)
     end

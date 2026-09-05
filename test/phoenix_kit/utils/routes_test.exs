@@ -178,4 +178,47 @@ defmodule PhoenixKit.Utils.RoutesTest do
       refute Routes.auth_page?(nil)
     end
   end
+
+  describe "admin_area_path?/1" do
+    # Public since module packages were hand-rolling
+    # `String.contains?(path, "/admin/")` to allowlist a redirect target, which
+    # gets both the lookalikes and a renamed admin segment wrong.
+
+    test "matches a real admin URL, with or without a locale segment" do
+      assert Routes.admin_area_path?("/phoenix_kit/admin")
+      assert Routes.admin_area_path?("/phoenix_kit/admin/users")
+      assert Routes.admin_area_path?("/phoenix_kit/et/admin/users")
+    end
+
+    test "ignores a query string or fragment" do
+      assert Routes.admin_area_path?("/phoenix_kit/admin/users?page=2")
+      assert Routes.admin_area_path?("/phoenix_kit/admin/users#row-3")
+    end
+
+    test "compares by segment, so lookalikes are not admin" do
+      # The exact bug in the hand-rolled version: `/administrators` contains
+      # "/admin" and `String.contains?/2` said yes.
+      refute Routes.admin_area_path?("/phoenix_kit/administrators")
+      refute Routes.admin_area_path?("/phoenix_kit/admin-tools/x")
+    end
+
+    test "leaves non-admin destinations alone" do
+      refute Routes.admin_area_path?("/phoenix_kit/users/log-in")
+      refute Routes.admin_area_path?("/shop")
+      refute Routes.admin_area_path?("/")
+    end
+
+    test "is over-strict on a host page that happens to be named admin" do
+      # Documented and deliberate: refusing `/shop/admin` as a redirect target
+      # is a better failure than the loop (or open redirect) the alternative
+      # invites. Pinned so the trade-off cannot be quietly reversed.
+      assert Routes.admin_area_path?("/shop/admin")
+    end
+
+    test "answers false for anything that is not a binary" do
+      refute Routes.admin_area_path?(nil)
+      refute Routes.admin_area_path?(:admin)
+      refute Routes.admin_area_path?(123)
+    end
+  end
 end

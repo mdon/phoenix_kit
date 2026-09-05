@@ -620,7 +620,41 @@ defmodule PhoenixKitWeb.Integration do
         unquote_splicing(plugin_admin_routes)
       end
     end
+    |> rewrite_admin_segment()
   end
+
+  # Moves this whole route table onto the configured admin segment
+  # (`config :phoenix_kit, admin_path:`), rewriting the leading `/admin` of
+  # every path literal in the expansion.
+  #
+  # Done on the ASSEMBLED ast rather than at each `live` call because this one
+  # macro is where every admin route in the system converges — core's own
+  # table, `:admin_dashboard_tabs` entries, plugin views, and the
+  # `admin_routes/0` a module package declares. A rewrite here reaches all of
+  # them, including packages compiled long before this option existed, and
+  # cannot be forgotten by the next route added below.
+  #
+  # A no-op on the default configuration, so the common install pays one
+  # comparison and keeps a byte-identical route table.
+  defp rewrite_admin_segment(ast) do
+    case PhoenixKit.Config.get_admin_path() do
+      "/admin" ->
+        ast
+
+      segment ->
+        Macro.prewalk(ast, fn
+          path when is_binary(path) -> rewrite_admin_literal(path, segment)
+          node -> node
+        end)
+    end
+  end
+
+  # Segment-aware, like `PhoenixKit.Utils.Routes.apply_admin_segment/1`: only a
+  # whole leading `/admin` segment moves, so a hypothetical `/administrators`
+  # route is left alone.
+  defp rewrite_admin_literal("/admin", segment), do: segment
+  defp rewrite_admin_literal("/admin/" <> rest, segment), do: segment <> "/" <> rest
+  defp rewrite_admin_literal(literal, _segment), do: literal
 
   # Generates the authenticated user route table (dashboard + shop user +
   # tickets user) for one URL shape (`suffix` is `:_locale` or `:""`).
@@ -1742,7 +1776,8 @@ defmodule PhoenixKitWeb.Integration do
       def __mix_recompile__? do
         unquote(current_hash) != PhoenixKit.ModuleDiscovery.module_hash() or
           unquote(Macro.escape(extra_on_mount())) !=
-            Application.get_env(:phoenix_kit, :extra_live_session_on_mount, [])
+            Application.get_env(:phoenix_kit, :extra_live_session_on_mount, []) or
+          unquote(PhoenixKit.Config.get_admin_path()) != PhoenixKit.Config.get_admin_path()
       end
 
       # Compile-time dependency on each route module (see the comment at

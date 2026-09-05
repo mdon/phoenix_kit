@@ -48,6 +48,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     use Igniter.Mix.Task
 
+    alias PhoenixKit.Install.Deprecations
     alias PhoenixKit.Install.IgniterConfig
     alias PhoenixKit.Install.IgniterHelpers
     alias PhoenixKit.Install.MissingIgniter
@@ -78,6 +79,12 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       case parse_args(argv, opts) do
         {:ok, {tab_title, category, url}} ->
           igniter
+          # The surface this task generates INTO is deprecated, so it carries
+          # the same heads-up `phoenix_kit.install` / `.update` print. A host
+          # that only ever runs generators would otherwise never see it — and
+          # this is the one task where the notice is most actionable, since the
+          # page has not been written yet.
+          |> Igniter.add_warning(Deprecations.user_dashboard_warning())
           |> create_live_view(tab_title, url, opts)
           |> maybe_add_dashboard_tab(category, tab_title, url, opts)
 
@@ -140,6 +147,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
         Notes:
 
+          - ⚠️  The user dashboard (/dashboard) is deprecated; its functionality
+            is moving into the unified admin panel (/admin). Pages generated
+            here keep working, but prefer mix phoenix_kit.gen.admin.page for
+            new work.
           - Creates a LiveView file for the dashboard page
           - Adds tab configuration to config/config.exs under :user_dashboard_categories (unless --index)
           - After adding the route, run: mix compile --force

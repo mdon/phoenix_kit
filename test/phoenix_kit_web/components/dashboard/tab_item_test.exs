@@ -105,6 +105,41 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItemTest do
     end
   end
 
+  describe "tab_item/1 — admin sidebar compact mode handles" do
+    # Compact mode is CSS over a client-side `data-pk-sidebar` stamp, so the
+    # server's whole contribution is this handle. A selector that stops
+    # matching fails silently in the browser, which is exactly why it is
+    # pinned here rather than left to the stylesheet.
+
+    test "the label span carries pk-sidebar-label" do
+      tab = Tab.new!(id: :home, label: "Home", path: "/home", icon: "hero-home")
+
+      html = render_component(&TabItem.tab_item/1, tab: tab, active: false, locale: nil)
+
+      assert html =~ "pk-sidebar-label"
+      # Rendered, not removed: CSS hides it, so the link keeps its
+      # accessible name while the sidebar is collapsed.
+      assert html =~ "Home"
+    end
+
+    test "compact rendering still omits the label entirely" do
+      # The `compact` ATTR is a different thing from the sidebar's compact
+      # MODE: it removes the label server-side, for callers that never want
+      # one. Unchanged by this feature.
+      tab = Tab.new!(id: :home, label: "Home", path: "/home", icon: "hero-home")
+
+      html =
+        render_component(&TabItem.tab_item/1,
+          tab: tab,
+          active: false,
+          locale: nil,
+          compact: true
+        )
+
+      refute html =~ "pk-sidebar-label"
+    end
+  end
+
   describe "tab_item/1 — tooltip rendering" do
     test "renders translated title attr when backend is set and locale is ru" do
       Gettext.put_locale(@backend, "ru")

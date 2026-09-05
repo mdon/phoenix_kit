@@ -24,6 +24,12 @@ PhoenixKit is a foundation for building your Elixir Phoenix apps — SaaS, socia
 - System settings in `phoenix_kit_settings` table with key/value storage
 
 ### Admin Backend
+> The `/phoenix_kit` mount is `url_prefix` and the `admin` segment is
+> `admin_path`; both are configurable, so the URLs below are the defaults, not
+> constants. In code always write the canonical `/admin/...` and pass it
+> through `PhoenixKit.Utils.Routes.path/1` (or `<.pk_link>`), which applies
+> whatever the host configured.
+
 - Built-in admin dashboard at `/phoenix_kit/admin`
 - User management interface at `/phoenix_kit/admin/users`
 - Role management at `/phoenix_kit/admin/users/roles`

@@ -1,3 +1,207 @@
+## 2.14.0 - 2026-09-05
+
+The admin area stops being nailed to `/admin`, the deprecated user dashboard
+stops being promoted from core's own defaults, and the admin sidebar gains a
+collapsed icon rail with hover flyouts.
+
+### Security
+
+- **`mint` 1.9.3 → 1.10.0**, clearing two advisories the release gate refused
+  to publish over: EEF-CVE-2026-82728 (HIGH — unbounded HTTP/1 status-line and
+  chunk-extension buffering, memory-exhaustion DoS) and EEF-CVE-2026-82729
+  (MEDIUM — quadratic chunk-size parsing in `Mint.HTTP1.Parse`, CPU-exhaustion
+  DoS). Transitive, via `finch`, `swoosh` and `tz`; every constraint on it
+  already allowed 1.10.0, so this is a lockfile move with no API change.
+
+### Added
+
+- **The admin area's URL segment is configurable.**
+
+      config :phoenix_kit, admin_path: "/backoffice"
+
+  moves the whole admin surface inside the mount prefix — `/phoenix_kit/backoffice/users`
+  — for hosts that would rather not show end users a URL that reads as somebody
+  else's admin panel. Independent of `:url_prefix`, which names the mount
+  itself. Compile-time, so it belongs in `config.exs`; `phoenix_kit_routes()`
+  folds it into `__mix_recompile__?/0`, so changing it re-expands the host
+  router instead of leaving it serving the old segment. Default `"/admin"`
+  produces a byte-identical route table, so an existing install is untouched.
+
+  **`/admin` remains the canonical name in code.** Nothing in core or in a
+  module package is written against the configured value — call sites keep
+  saying `Routes.path("/admin/users")`. The substitution lives in two inverse
+  functions: `Routes.apply_admin_segment/1` when a URL is emitted (reached from
+  `Routes.path/2`, `Routes.admin_path/2`, and the router's own route table),
+  and `Routes.canonical_admin_path/1` when one is read back (tab active state,
+  the admin nav parser, `LayoutWrapper.admin_page?/1`, the language switcher).
+  A module package therefore needs **no changes at all** to honour a rename:
+  its tabs are declared with relative paths and its links go through
+  `Routes.path/1`.
+
+  The route table is rewritten once, on the assembled AST of
+  `phoenix_kit_admin_routes/1` — the single point where core's own table,
+  `:admin_dashboard_tabs` entries, plugin views and a package's `admin_routes/0`
+  all converge. So the rewrite reaches packages compiled long before the option
+  existed, and cannot be forgotten by the next route added to the table.
+
+  The value is validated (exactly one lowercase path segment, and not one of
+  the segments core already declares — `users`, `profile`, `dashboard`, `api`,
+  …) and raises rather than producing a router that compiles and then 404s.
+
+- **The admin sidebar collapses to icons.** A toggle at the foot of the menu
+  narrows it to a 5rem icon rail; the label of each item moves to a hover
+  tooltip, group headings and subtab lists fold away, and the choice is
+  remembered per browser. Desktop only — below `lg` the sidebar is an overlay
+  drawer that is already absent until summoned, so narrowing it buys nothing
+  and costs the labels.
+
+  **Entirely client-side, and deliberately so.** The sidebar is a *function
+  component*, not a LiveView: there is no `handle_event/3` owner for a
+  `phx-click`, and giving one to every admin page (or bolting a global
+  `attach_hook` onto the admin `on_mount` chain) is a lot of machinery for a
+  display preference. It is also a per-browser density choice, like the theme,
+  so it lives in `localStorage` beside it rather than in a settings row — and a
+  client toggle costs no round trip and gives morphdom nothing to fight over,
+  since the DOM is identical either way and only `<html>` changes.
+
+  That makes the first paint the whole problem, which is why the stamp is a
+  synchronous inline `<script>` rendered immediately above the sidebar rather
+  than a hook in `phoenix_kit.js`: it has to run before the menu is parsed or a
+  viewer who chose compact gets a frame of the full-width sidebar on every
+  load, and it must not depend on the host having re-run
+  `mix phoenix_kit.update` to refresh its vendored bundle. Same shape, and the
+  same one-instance guard, as `PhoenixKitWeb.Components.ThemeBootstrap`.
+
+  **Hovering a rail icon opens a flyout** naming that entry and listing its
+  children. It is rendered for every navigable top-level entry, not only the
+  active one: `subtab_display` defaults to `:when_active`, so the inline subtab
+  list exists only for the section you are already in — precisely the browsing
+  an icon rail otherwise loses.
+
+  Built on the `popover` API, which earns its place three times over. The top
+  layer escapes the sidebar's own `overflow-y: auto` clipping — an absolutely
+  positioned panel is cut off at the rail's edge, which is what would have made
+  a plain CSS flyout (and the hover tooltip this replaces) unusable.
+  Light-dismiss and Esc come free. And only one `popover="auto"` can be open,
+  so moving between icons closes the previous flyout with no bookkeeping.
+  Positioned against the viewport on open, clamped so a section near the bottom
+  of a long menu does not open past the fold.
+
+  Touch is handled rather than assumed: with no hover available, a tap on a
+  rail icon opens its flyout instead of navigating, so a touch user on a wide
+  screen (a convertible laptop, a tablet in landscape — the rail is `lg`-only)
+  can still reach a subtab. Keyboard works because the panel sits immediately
+  after its link in the DOM: the top layer changes painting, not the tree, so
+  Tab walks straight into it.
+
+  The collapsed rail **marks where you are with a right-edge bar over a light
+  primary tint**, rather than the filled block the expanded menu uses — at 5rem
+  a solid primary slab is most of the row and reads as a state rather than a
+  marker. The tint is `color-mix`-based and preceded by a plain `transparent`
+  declaration, so a browser without `color-mix` keeps the bar-only rendering
+  rather than the block. Two cases both get it:
+  the entry that IS the current page, and the section that merely contains it.
+  The second needed new information — expanded, that highlight sits on the
+  active subtab, and compact mode hides the subtab list, so the parent now
+  states the fact (`data-pk-branch-active`) and the rail's CSS paints it. The
+  flyout keeps the ordinary filled highlight; it is a wide panel with text,
+  where the block is right.
+
+  Accessibility: labels are visually hidden (`clip-path`), never
+  `display: none`, so every link keeps its accessible name and the collapsed
+  menu still reads correctly to a screen reader. The toggle carries
+  `aria-expanded` and swaps its own `aria-label` with the state.
+
+- **The "Admin Panel" label in the admin header can be turned off.** New
+  `show_admin_panel_label` setting (Site Identity, `/admin/settings`), on by
+  default — the row is absent on every existing install and
+  `get_boolean_setting/2` answers `true`, so nothing changes until an operator
+  says so. Off renders just `Project name / Page`.
+
+  **A switch rather than a title field, deliberately.** The obvious version —
+  let the operator type their own label — cannot work here: the wording is
+  `gettext("Admin Panel")`, already translated in all seven shipped locales,
+  and an operator-typed string is one language. A German operator's "Adminbereich"
+  would be served to English and Russian visitors too. `project_title` gets away
+  with being a plain string because a project name is a brand; "Admin Panel" is
+  a common noun phrase. So the setting controls whether the translated string
+  renders, not what it says.
+
+  The label also stays subject to the permission gate it already had: it is
+  hidden for a visitor holding no admin rights whatever the setting says, since
+  `/admin` is the landing every authenticated user can reach and telling
+  someone with no sidebar that they are in the "Admin Panel" is the one claim
+  on the page that would be false. `<LayoutWrapper.app_layout>` gains a
+  matching `show_admin_panel_label` attr — `nil` reads the setting — so the
+  header stays renderable, and testable, without a database.
+
+  Unrelated and unchanged: the browser tab still reads `<project> Admin`
+  (override it with the existing `default_tab_title` setting), and
+  `config :phoenix_kit, project_title_suffix:` still applies only to the user
+  dashboard layout, never to the admin header.
+
+- **`Routes.admin_area_path?/1` is now public** — "does this REAL URL land in
+  the admin area?", asked of the shape a `?return_to=`, a saved setting or an
+  HTTP referer actually has: mount prefix on, locale segment optional. An audit
+  of the 39 `phoenix_kit_*` packages found the gap it fills. Of 897 `"/admin"`
+  literals across 32 of them, all but one are canonical inputs that the
+  emit/read pair already handles — but `phoenix_kit_entities` allowlists a
+  client-supplied `_live_referer` with `String.contains?(path, "/admin/")`,
+  because core exposed nothing better. That hand-rolled form claims
+  `/administrators`, claims a host's own page at `/shop/admin`, and silently
+  matches nothing once the admin area is renamed. Pair it with `local_path?/1`
+  when the path came from a client — that is the one that rejects `//evil.com`
+  and ASCII control characters. Behaviour is unchanged; only the visibility and
+  the docs are new.
+
+### Fixed
+
+- **The custom-admin-pages guide taught hosts to hardcode `/admin`.** Its
+  worked example used a plain `<.link navigate="/admin/blog/new">`, which
+  ignores `url_prefix` (so it was already broken on every install that changed
+  the mount) and now `admin_path` too. Switched to `<.pk_link>`, with the
+  import the example was missing.
+- **`/admin` prefix tests were not segment-aware.** `Routes`' internal
+  `admin_path?/1` and the language switcher's admin branch used
+  `String.starts_with?(path, "/admin")` / `String.contains?(path, "/admin")`,
+  which also claimed `/administrators` and a host page at `/shop/admin`. Both
+  now compare whole segments. Cosmetic before — a link built through the wrong
+  branch still resolved — but not once a rewrite started acting on the match:
+  `/administrators` would have become `/backofficeistrators`.
+
+### Changed
+
+- **The default notification click-through no longer points at the deprecated
+  user dashboard.** `notification_default_link` — the catch-all destination for
+  a notification carrying no `notification_link` of its own — shipped with
+  `/dashboard` as its built-in default, prefilled in the "Default notification
+  link" field on `/admin/settings` and described there as the page "every
+  signed-in user can reach". That page is deprecated
+  (`PhoenixKit.Install.Deprecations.user_dashboard_warning/0`; `phoenix_kit.install`,
+  `.update` and `.doctor` have been announcing its removal), and a host can
+  compile it out today with `user_dashboard_enabled: false` — so core was
+  steering every new install toward a surface it is asking them to leave, and
+  the field was the one place an operator would read that recommendation as
+  official. The default is now `/admin`, which core declares unconditionally and
+  admits **every** authenticated visitor to: `PhoenixKitWeb.Users.Auth.landing_view?/1`
+  exempts the admin index from the admin-area gate, so a recipient holding no
+  permissions is greeted rather than bounced. That is the same page
+  `PhoenixKit.Utils.Routes.safe_destination/2` already terminates on for exactly
+  this reason. Hosts that saved `/dashboard` into the settings row while it was
+  the prefilled value are unaffected — that value is still honoured, still
+  guarded against `user_dashboard_enabled: false`, and can be cleared or
+  repointed from the same field.
+- **`mix phoenix_kit.gen.user.dashboard` now carries the deprecation notice** it
+  generates into. The task writes a page onto the deprecated user-dashboard
+  surface, and a host that only ever runs generators never saw the heads-up that
+  `install` and `update` print. It is now emitted as an Igniter warning on every
+  run and summarised under `--help`, which points at `mix phoenix_kit.gen.admin.page`
+  for new work. Advisory only — nothing generated changes, and existing pages
+  keep working.
+- Documentation examples for `<.pk_link>` / `<.pk_link_button>` and the URL-prefix
+  section of `CLAUDE.md` used `/dashboard` as their canonical path; they now use
+  `/admin`, so the snippet a developer copies is not the deprecated one.
+
 ## 2.13.19 - 2026-09-02
 
 Checkbox alignment (PR #779) and a Git Hooks doctor check that tests the

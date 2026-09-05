@@ -218,21 +218,30 @@ defmodule PhoenixKitWeb.Live.NotificationsBell do
   end
 
   # Catch-all destination for notifications without a link of their own, from
-  # the `notification_default_link` setting. Defaults to the user dashboard
-  # out of the box — it's authenticated-only (every recipient can reach it),
-  # unlike role-gated /admin. Blank → nil (non-navigating). Built through
-  # Routes.path so it carries the URL prefix + the recipient's locale.
+  # the `notification_default_link` setting. Defaults to `/admin` — the one page
+  # core declares unconditionally AND admits every authenticated visitor to
+  # (`PhoenixKitWeb.Users.Auth.landing_view?/1` exempts the index from the
+  # admin-area gate, so a recipient holding no permissions is greeted rather
+  # than bounced). Blank → nil (non-navigating). Built through Routes.path so it
+  # carries the URL prefix + the recipient's locale.
+  #
+  # It used to default to `/dashboard`. That page is DEPRECATED
+  # (`PhoenixKit.Install.Deprecations.user_dashboard_warning/0`) and hosts can
+  # compile it out with `user_dashboard_enabled: false`, so core must not steer
+  # anyone there by default. Same reasoning as the terminal of
+  # `PhoenixKit.Utils.Routes.safe_destination/2`.
   defp default_link(locale) do
     # Cache-backed read: refresh/1 runs on mount (twice) and on every notification
     # PubSub event, so this is a hot path — the uncached get_setting/2 would hit
     # the DB each time. The cache is invalidated when the setting is saved.
-    case Settings.get_setting_cached("notification_default_link", "/dashboard")
+    case Settings.get_setting_cached("notification_default_link", "/admin")
          |> to_string()
          |> String.trim() do
       "" ->
         nil
 
-      # Guard the built-in default: /dashboard 404s when the user dashboard is
+      # Kept for hosts that saved the OLD default into the settings row while it
+      # was still the prefilled value: /dashboard 404s when the user dashboard is
       # disabled, so fall back to no-op rather than send the user to a dead route.
       "/dashboard" ->
         if PhoenixKit.Config.user_dashboard_enabled?(),

@@ -228,7 +228,14 @@ defmodule PhoenixKitWeb.Components.Dashboard.TabItem do
         <% end %>
       <% end %>
       <%= unless @compact do %>
+        <%!-- `pk-sidebar-label` is the handle the admin sidebar's compact mode
+             hides. It is a CLASS rather than a second `@compact` render branch
+             because compact mode is a client-side preference (localStorage,
+             stamped pre-paint on <html>) with no server round-trip — the label
+             has to be in the DOM for CSS to hide it. It is visually hidden, not
+             removed, so the link keeps its accessible name. --%>
         <span class={[
+          "pk-sidebar-label",
           if(@wrap_label, do: "break-words leading-tight", else: "truncate"),
           @is_subtab && (@subtab_style[:text_size] || "text-sm")
         ]}>

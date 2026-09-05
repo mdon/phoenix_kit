@@ -39,6 +39,8 @@ defmodule PhoenixKit.Config do
   - `:show_title_with_logo` - Show title text alongside logo (default: true)
   - `:dashboard_themes` - Themes available in dashboard theme switcher (default: `:all`)
   - `:dashboard_subtab_style` - Default styling for subtabs (indent, icon_size, text_size, animation)
+  - `:admin_path` - Top-level URL segment for the admin area (default: "/admin").
+    See `get_admin_path/0` — compile-time, `config.exs` only.
   - `:user_dashboard_enabled` - Enable/disable user dashboard (default: true)
   - `:user_dashboard_tabs` - List of custom tabs for the user dashboard sidebar
   - `:user_dashboard_tab_groups` - List of tab groups for organizing dashboard tabs
@@ -124,6 +126,7 @@ defmodule PhoenixKit.Config do
     host: "localhost",
     port: 4000,
     url_prefix: "/phoenix_kit",
+    admin_path: "/admin",
     # Branding settings
     project_title: "PhoenixKit",
     project_title_suffix: "Dashboard",
@@ -491,6 +494,121 @@ defmodule PhoenixKit.Config do
   @spec clear_url_prefix_cache() :: :ok
   def clear_url_prefix_cache do
     :persistent_term.erase(@url_prefix_cache_key)
+    :ok
+  rescue
+    ArgumentError -> :ok
+  end
+
+  # Cache key for the admin segment. Read on every admin link build and on
+  # every tab path match, same hot path as the URL prefix above.
+  @admin_path_cache_key {__MODULE__, :admin_path}
+
+  # Top-level segments core already declares under the mount prefix. The admin
+  # segment may not be any of them: the router would carry two different route
+  # trees under one path and whichever is declared first would silently win,
+  # which surfaces as "half my admin pages 404" rather than as a config error.
+  @admin_path_collisions ~w(users profile dashboard api webhooks assets static
+                            files images fonts js css sitemap)
+
+  @doc """
+  The top-level URL segment for the admin area — `"/admin"` unless configured.
+
+      config :phoenix_kit, admin_path: "/backoffice"
+
+  This renames the segment *inside* the mount prefix, so the example above
+  serves the admin area at `/phoenix_kit/backoffice/...`. It is independent of
+  `:url_prefix`, which names the mount itself.
+
+  ## `/admin` stays the canonical name in code
+
+  Nothing in core (or in a module package) is written against the configured
+  value. Call sites keep saying `Routes.path("/admin/users")`; the substitution
+  happens in exactly two places, and they are inverses:
+
+    * **emitting** a URL — `PhoenixKit.Utils.Routes.apply_admin_segment/1`,
+      reached from `Routes.path/2` and `Routes.admin_path/2`, and from the
+      router's own route table via `PhoenixKitWeb.Integration`
+    * **reading** one back — `PhoenixKit.Utils.Routes.canonical_admin_path/1`,
+      used wherever a real request path is matched against a canonical one
+      (tab active state, the admin nav, the language switcher)
+
+  So a module package needs no changes to honour a renamed admin area, and a
+  grep for `"/admin"` in core stays meaningful.
+
+  ## Compile-time
+
+  Read while the host router is compiled, so it belongs in `config.exs` —
+  **never** `runtime.exs`. `phoenix_kit_routes()` folds it into
+  `__mix_recompile__?/0`, so changing it re-expands the host router rather than
+  leaving it serving the old segment.
+
+  ## Validation
+
+  Exactly one path segment, lowercase `[a-z0-9]` plus `_` and `-`, and not one
+  of the segments core already owns. A bad value raises here rather than
+  producing a router that compiles and then 404s.
+  """
+  @spec get_admin_path() :: String.t()
+  def get_admin_path do
+    case :persistent_term.get(@admin_path_cache_key, :not_cached) do
+      :not_cached ->
+        value = compute_admin_path()
+        :persistent_term.put(@admin_path_cache_key, value)
+        value
+
+      cached ->
+        cached
+    end
+  end
+
+  defp compute_admin_path do
+    case :admin_path |> get_string("/admin") |> String.trim() do
+      "" -> "/admin"
+      value -> "/" <> validated_admin_segment(value)
+    end
+  end
+
+  defp validated_admin_segment(value) do
+    segment = value |> String.trim_leading("/") |> String.trim_trailing("/")
+
+    cond do
+      not Regex.match?(~r/^[a-z0-9][a-z0-9_-]*$/, segment) ->
+        raise ArgumentError, """
+        Invalid `config :phoenix_kit, admin_path: #{inspect(value)}`.
+
+        It must be a single lowercase path segment — letters, digits, `_` and
+        `-`, starting with a letter or digit — optionally written with a
+        leading slash. For example: "/backoffice", "/console", "/my_account".
+
+        Nested paths ("/a/b") are not supported: the redirect-loop guard in
+        `PhoenixKit.Utils.Routes` compares admin URLs one segment at a time.
+        """
+
+      segment in @admin_path_collisions ->
+        raise ArgumentError, """
+        Invalid `config :phoenix_kit, admin_path: #{inspect(value)}`.
+
+        PhoenixKit already declares `/#{segment}` under the mount prefix, so
+        the admin area cannot also live there — the two route trees would
+        overlap and whichever the router declared first would win.
+
+        Reserved: #{Enum.join(@admin_path_collisions, ", ")}
+        """
+
+      true ->
+        segment
+    end
+  end
+
+  @doc """
+  Clears the cached admin segment.
+
+  Call this if you change the `admin_path` config at runtime (rare, and it does
+  NOT move the routes — those were compiled into the host router).
+  """
+  @spec clear_admin_path_cache() :: :ok
+  def clear_admin_path_cache do
+    :persistent_term.erase(@admin_path_cache_key)
     :ok
   rescue
     ArgumentError -> :ok

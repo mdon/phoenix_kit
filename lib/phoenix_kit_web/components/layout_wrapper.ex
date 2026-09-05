@@ -129,6 +129,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
   attr :project_title, :string, default: nil
+
+  attr :show_admin_panel_label, :boolean,
+    default: nil,
+    doc:
+      "Overrides the `show_admin_panel_label` setting for this render. `nil` (the default) reads the setting. Mirrors how `project_title` overrides `Settings.get_project_title/0`, and keeps the header renderable without a database."
+
   attr :current_locale, :string, default: nil
   attr :from_layout, :boolean, default: false
   attr :pk_pending_invitations, :list, default: []
@@ -302,6 +308,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
         # Strip locale prefix (e.g., /uk/admin → /admin) for localized admin routes
         normalized = strip_locale_prefix(normalized)
 
+        # Canonicalise the configured admin segment back to `/admin` so this
+        # comparison holds on a host that renamed it.
+        normalized = Routes.canonical_admin_path(normalized)
+
         normalized == "/admin" or String.starts_with?(normalized, "/admin/")
 
       _ ->
@@ -326,6 +336,386 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   end
 
   def render_page_toolbar(_assigns), do: nil
+
+  @doc """
+  Styles + pre-paint stamp for the admin sidebar's compact (icon-only) mode.
+
+  Render once, immediately BEFORE the sidebar markup. Everything about compact
+  mode lives client-side, and deliberately so:
+
+    * the sidebar is a **function component**, not a LiveView — there is no
+      `handle_event/3` owner for a `phx-click`, and giving one to every admin
+      page (or bolting a global `attach_hook` onto the admin `on_mount` chain)
+      would be a lot of machinery for a display preference;
+    * it is a per-browser density choice, exactly like the theme, so it belongs
+      in `localStorage` next to it rather than in a settings row;
+    * a client-side toggle costs no round trip, and nothing for morphdom to
+      fight over — the DOM is identical either way, only `<html>` changes.
+
+  Which makes the first paint the whole problem, and the reason this is a
+  synchronous inline `<script>` rather than a hook in `phoenix_kit.js`:
+
+    * it must run **before the sidebar is parsed**, or a viewer who chose
+      compact gets a frame of the full-width menu on every load. An inline
+      script placed above the markup does exactly that;
+    * it must not depend on the host having re-run `mix phoenix_kit.update` to
+      refresh its vendored `phoenix_kit.js`. Self-contained markup ships with
+      the feature.
+
+  Same reasoning, and the same shape, as
+  `PhoenixKitWeb.Components.ThemeBootstrap` — including the one-instance guard,
+  since a host layout and the kit's own admin shell can both be on the page.
+
+  The CSS hides the label rather than removing it (`clip-path`, not
+  `display: none`), so every link keeps its accessible name and the menu still
+  reads correctly to a screen reader while collapsed.
+  """
+  def admin_sidebar_compact_bootstrap(assigns) do
+    ~H"""
+    <style data-phoenix-kit-sidebar>
+      /* Scoped to lg and up: below it the sidebar is an overlay drawer that is
+         already hidden until summoned, so there is nothing to reclaim. */
+      @media (min-width: 1024px) {
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar { width: 5rem; }
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar > div { padding-left: 0; padding-right: 0; }
+
+        /* Visually hidden, NOT display:none — the link keeps its accessible name. */
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-label {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          white-space: nowrap;
+          clip-path: inset(50%);
+        }
+
+        /* Centre what is left of each row, and drop the trailing badge column
+           so a lone icon is not pushed off-centre by an empty flex sibling. */
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-tab-id] > div { justify-content: center; gap: 0; }
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-tab-id] { justify-content: center; }
+
+        /* Group headings and subtab lists: a column of indistinguishable
+           indented icons is worse than none, so the tree collapses to its
+           top level. Expanding brings it straight back — nothing is lost,
+           because none of this is server state. */
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-group,
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .subtabs { display: none; }
+
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-toggle { justify-content: center; }
+        html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-toggle-icon { transform: rotate(180deg); }
+
+      }
+
+      /* ── Flyouts ──────────────────────────────────────────────────────────
+         Outside the `min-width: 1024px` block because the script only ever
+         opens these when the rail is collapsed, which is already lg-only; an
+         unopened popover is `display: none` regardless.
+
+         A shown popover paints in the TOP LAYER, so it does not inherit the
+         rail's 5rem width — but it is still a DOM DESCENDANT of the sidebar,
+         which is both why the label override below is needed and why it works.
+
+         Every rule here carries the `html[data-pk-sidebar="compact"]` prefix.
+         Uniformly, including the two that compete with nothing — it costs
+         nothing (a flyout is only ever shown in compact mode) and it lets the
+         regression guard in the test suite be a total rule rather than a list
+         of exceptions that a future rule could quietly slip past. */
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-flyout {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        min-width: 13rem;
+        max-width: 20rem;
+        max-height: 80vh;
+        overflow-y: auto;
+        padding: 0.5rem;
+        border: 1px solid var(--color-base-300, #e5e5e5);
+        border-radius: 0.5rem;
+        background: var(--color-base-100, #fff);
+        color: var(--color-base-content, #1f2937);
+        box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.25);
+      }
+
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-flyout-title {
+        padding: 0.25rem 0.75rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        opacity: 0.6;
+      }
+
+      /* The rail hides every `.pk-sidebar-label`, and these are descendants of
+         the sidebar — so without this the flyout would be a list of anonymous
+         icons, which is the whole thing it exists to prevent.
+
+         ⚠️ The `html[data-pk-sidebar="compact"]` prefix is LOAD-BEARING, not
+         decoration. Without it these read (1,2,0) against the rail rules'
+         (1,2,1) and lose on specificity, which is exactly the bug that shipped:
+         a flyout of anonymous icons. Do not "simplify" the prefix away — the
+         media query the rail rules sit in contributes no specificity, so this
+         is the only thing separating them. */
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-flyout .pk-sidebar-label {
+        position: static;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        white-space: normal;
+        clip-path: none;
+      }
+
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-flyout [data-tab-id] {
+        justify-content: flex-start;
+      }
+
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .pk-sidebar-flyout [data-tab-id] > div {
+        justify-content: flex-start;
+        gap: 0.75rem;
+      }
+
+      /* Where you are, marked on the rail — as an edge bar rather than the
+         filled block `tab_classes/5` paints when the menu is expanded. At 5rem
+         a solid primary slab is most of the row, which reads as a state
+         (selected/disabled) rather than as a marker.
+
+         Two cases, and the rail needs both:
+           * `aria-current="page"` — this entry IS the page (a leaf like Users);
+           * `data-pk-branch-active` — a descendant is. Expanded, that highlight
+             sits on the active SUBTAB, and compact mode hides the subtab list,
+             so without this the section you are in shows nothing at all.
+
+         `.tab-with-subtabs > a` is a deliberate direct-child combinator: it
+         matches the rail row and never a link inside the flyout, which is a
+         DOM descendant of the same sidebar. The flyout is a wide panel with
+         text, where the ordinary filled highlight is right. */
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .tab-with-subtabs > a {
+        position: relative;
+      }
+
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .tab-with-subtabs > a[aria-current="page"],
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-branch-active="true"] > a {
+        /* Two declarations, and the order is the point: the first cancels the
+           `bg-primary` utility (a plain class, easily outranked) and is what a
+           browser without `color-mix` is left holding — which is exactly the
+           bar-only rendering that already worked. The second tints where it is
+           supported. */
+        background-color: transparent;
+        background-color: color-mix(in oklab, var(--color-primary) 12%, transparent);
+        color: var(--color-base-content);
+      }
+
+      /* Deliberately not `--color-base-200`, daisyUI's hover colour: a neutral
+         tint at this weight is indistinguishable from hover, so the row would
+         stop saying which page you are on the moment the pointer crossed it.
+         Tinting with the primary keeps "current" and "hovered" separable, and
+         the row still lifts under the pointer. */
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .tab-with-subtabs > a[aria-current="page"]:hover,
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-branch-active="true"] > a:hover {
+        background-color: color-mix(in oklab, var(--color-primary) 20%, transparent);
+      }
+
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .tab-with-subtabs > a[aria-current="page"]::after,
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-branch-active="true"] > a::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        top: 0.375rem;
+        bottom: 0.375rem;
+        width: 3px;
+        border-radius: 9999px;
+        background-color: var(--color-primary);
+      }
+    </style>
+    <script>
+      (function () {
+        // One instance per page: a host root layout and the kit's own admin
+        // shell can both render this.
+        if (window.__pkSidebarCompact) return;
+        window.__pkSidebarCompact = true;
+
+        var KEY = "phoenix_kit:admin:sidebar:compact";
+
+        function read() {
+          try { return localStorage.getItem(KEY) === "1"; } catch (_e) { return false; }
+        }
+
+        function stamp(on) {
+          var el = document.documentElement;
+          if (on) { el.setAttribute("data-pk-sidebar", "compact"); }
+          else { el.removeAttribute("data-pk-sidebar"); closeAll(); }
+          syncButton(on);
+        }
+
+        // The button's own label has to follow the state it toggles, and the
+        // button is re-rendered by every live navigation — so this runs on
+        // stamp AND on the LiveView page-load event, not just once.
+        function syncButton(on) {
+          var btn = document.querySelector("[data-pk-sidebar-toggle]");
+          if (!btn) return;
+          var label = on ? btn.dataset.pkLabelExpand : btn.dataset.pkLabelCollapse;
+          if (!label) return;
+          btn.setAttribute("aria-label", label);
+          btn.setAttribute("title", label);
+          btn.setAttribute("aria-expanded", on ? "false" : "true");
+        }
+
+        // Pre-paint: this script sits above the sidebar markup, so the
+        // attribute is on <html> before the menu is parsed. No flash.
+        stamp(read());
+
+        // Delegated: the sidebar DOM is replaced on every live navigation, so
+        // a listener bound to the button itself would need re-binding and
+        // cleanup. A document listener survives every patch.
+        document.addEventListener("click", function (e) {
+          var btn = e.target.closest && e.target.closest("[data-pk-sidebar-toggle]");
+          if (!btn) return;
+          var next = !read();
+          try { localStorage.setItem(KEY, next ? "1" : "0"); } catch (_e) {}
+          stamp(next);
+        });
+
+        // Re-apply after a live navigation swaps the button back in.
+        window.addEventListener("phx:page-loading-stop", function () { syncButton(read()); });
+
+        // Follow the choice into the app's other tabs, as the theme does.
+        window.addEventListener("storage", function (e) {
+          if (e.key === KEY) stamp(read());
+        });
+
+        // ── Flyouts ─────────────────────────────────────────────────────────
+        //
+        // Collapsed, a row shows an icon and nothing else, so every entry needs
+        // somewhere to say its own name — and a section needs somewhere to
+        // offer its children, which `subtab_display: :when_active` otherwise
+        // renders only for the section you are already in.
+        //
+        // Every listener is delegated from `document`: the sidebar DOM is
+        // replaced on every live navigation, so anything bound per-element
+        // would need re-binding and teardown. `mouseover`/`focusin` bubble, and
+        // a shown popover is still a DOM descendant of the row it belongs to —
+        // the top layer changes painting, not the tree — so one listener covers
+        // the trigger and its flyout together.
+        var HOVER_IN = 120;   // hover intent: don't flash on a passing cursor
+        var HOVER_OUT = 220;  // grace to travel from the icon to the panel
+        var openTimer = null;
+        var closeTimer = null;
+
+        function compact() {
+          return document.documentElement.getAttribute("data-pk-sidebar") === "compact";
+        }
+
+        function flyoutFor(node) {
+          var row = node && node.closest && node.closest("[data-pk-flyout-id]");
+          if (!row) return null;
+          return document.getElementById(row.dataset.pkFlyoutId);
+        }
+
+        // Popovers paint in the top layer, which means they are positioned
+        // against the VIEWPORT — the one thing the old CSS tooltip could not do
+        // from inside the sidebar's own scroll container.
+        function place(panel, row) {
+          var r = row.getBoundingClientRect();
+          panel.style.left = Math.round(r.right + 6) + "px";
+          panel.style.top = Math.round(r.top) + "px";
+          panel.style.bottom = "auto";
+          // Clamp: a section near the bottom of a long menu would otherwise
+          // open past the fold, where its last items are unreachable.
+          var h = panel.offsetHeight;
+          if (r.top + h > window.innerHeight - 8) {
+            panel.style.top = Math.max(8, window.innerHeight - h - 8) + "px";
+          }
+        }
+
+        function open(panel, row) {
+          if (!panel || !panel.showPopover || panel.matches(":popover-open")) return;
+          try {
+            panel.showPopover();
+          } catch (_e) {
+            return;
+          }
+          place(panel, row);
+        }
+
+        function closeAll() {
+          var open = document.querySelector(".pk-sidebar-flyout:popover-open");
+          if (open && open.hidePopover) {
+            try { open.hidePopover(); } catch (_e) {}
+          }
+        }
+
+        document.addEventListener("mouseover", function (e) {
+          if (!compact()) return;
+          var row = e.target.closest && e.target.closest("[data-pk-flyout-id]");
+          if (!row) return;
+          clearTimeout(closeTimer);
+          clearTimeout(openTimer);
+          var panel = flyoutFor(row);
+          if (!panel || panel.matches(":popover-open")) return;
+          openTimer = setTimeout(function () { open(panel, row); }, HOVER_IN);
+        });
+
+        document.addEventListener("mouseout", function (e) {
+          if (!compact()) return;
+          if (!e.target.closest || !e.target.closest("[data-pk-flyout-id]")) return;
+          // Moving deeper inside the same row (or into its panel) is not a
+          // leave — `relatedTarget` is null only when the pointer left the
+          // window entirely.
+          var to = e.relatedTarget;
+          if (to && to.closest && to.closest("[data-pk-flyout-id]") === e.target.closest("[data-pk-flyout-id]")) {
+            return;
+          }
+          clearTimeout(openTimer);
+          clearTimeout(closeTimer);
+          closeTimer = setTimeout(closeAll, HOVER_OUT);
+        });
+
+        // Keyboard: tabbing onto a rail icon names it, and Tab then walks
+        // straight into the panel because it sits next to the link in the DOM.
+        // Esc and click-away are `popover=auto`'s own behaviour.
+        document.addEventListener("focusin", function (e) {
+          if (!compact()) return;
+          var row = e.target.closest && e.target.closest("[data-pk-flyout-id]");
+          if (!row) { closeAll(); return; }
+          open(flyoutFor(row), row);
+        });
+
+        // Touch: there is no hover, so a tap on a rail icon opens its flyout
+        // instead of navigating — otherwise a touch user on a wide screen
+        // (a convertible laptop, a tablet in landscape; the rail is lg-only)
+        // could never reach a subtab at all. The flyout's own links navigate
+        // normally, and a second tap on the icon dismisses it.
+        document.addEventListener("click", function (e) {
+          if (!compact()) return;
+          if (!window.matchMedia || !window.matchMedia("(hover: none)").matches) return;
+          var link = e.target.closest && e.target.closest("[data-pk-flyout-id] > a");
+          if (!link) return;
+          var row = link.closest("[data-pk-flyout-id]");
+          var panel = flyoutFor(row);
+          if (!panel) return;
+          e.preventDefault();
+          if (panel.matches(":popover-open")) { closeAll(); } else { open(panel, row); }
+        });
+
+        // A live navigation replaces the sidebar under an open panel, and
+        // expanding the rail makes flyouts meaningless.
+        window.addEventListener("phx:page-loading-start", closeAll);
+        window.addEventListener("resize", closeAll);
+      })();
+    </script>
+    """
+  end
+
+  # Own function rather than an inline `case` in the assigns map: that map is
+  # already at credo's complexity ceiling, and one more branch tipped it.
+  #
+  # Not `assigns[:show_admin_panel_label] || Settings.get...` the way
+  # `project_title` is written — carrying `false` is the entire point of this
+  # assign, and `||` would discard exactly the value that means "hide it".
+  defp resolve_admin_panel_label(nil) do
+    PhoenixKit.Settings.get_boolean_setting("show_admin_panel_label", true)
+  end
+
+  defp resolve_admin_panel_label(value), do: value
 
   defp strip_locale_prefix(path) do
     case Regex.run(~r/^\/[a-z]{2,3}(-[A-Za-z]{2,4})?(\/.*)?$/, path) do
@@ -363,6 +753,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       action: assigns[:action] || [],
       phoenix_kit_current_scope: assigns[:phoenix_kit_current_scope],
       project_title: assigns[:project_title] || PhoenixKit.Settings.get_project_title(),
+      # Operator switch for the "Admin Panel" chip beside the project name.
+      # A cache-backed read: this renders on every admin page. The WORDING
+      # stays `gettext("Admin Panel")` rather than becoming an operator-typed
+      # string — it is a common noun phrase, already translated in every
+      # shipped locale, and a stored string would serve one language's wording
+      # to all of them. So the setting is show/hide, not a title field.
+      show_admin_panel_label: resolve_admin_panel_label(assigns[:show_admin_panel_label]),
       current_locale: assigns[:current_locale],
       current_locale_base:
         assigns[:current_locale] && DialectMapper.extract_base(assigns[:current_locale]),
@@ -507,7 +904,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                          burger button use, so an operator's header is
                          byte-identical to before. --%>
                     <span
-                      :if={@show_admin_nav}
+                      :if={@show_admin_nav and @show_admin_panel_label}
                       class={[
                         "font-bold text-base-content shrink-0",
                         @page_title && "hidden lg:inline"
@@ -701,6 +1098,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                    a full reload). The hook restores pre-paint; the save
                    side lives in phoenix_kit.js as document-level
                    listeners so no per-element cleanup is needed. --%>
+              <PhoenixKitWeb.Components.LayoutWrapper.admin_sidebar_compact_bootstrap :if={@show_admin_nav} />
               <div
                 :if={@show_admin_nav}
                 id="pk-admin-sidebar"
@@ -708,7 +1106,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                 class="drawer-side lg:[scrollbar-gutter:stable]"
               >
                 <label for="admin-mobile-menu" class="drawer-overlay lg:hidden"></label>
-                <aside class="min-h-full w-64 bg-base-100 shadow-lg border-r border-base-300 flex flex-col pt-16">
+                <aside class="pk-sidebar min-h-full w-64 bg-base-100 shadow-lg border-r border-base-300 flex flex-col pt-16">
                   <%!-- Navigation (fills available space) --%>
                   <div class="px-4 py-6 flex-1">
                     <.admin_sidebar
@@ -716,6 +1114,28 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       scope={@scope}
                       locale={@current_locale_base}
                     />
+                  </div>
+
+                  <%!-- Compact toggle. Desktop only: the mobile sidebar is an
+                       overlay drawer that is already absent until summoned, so
+                       narrowing it buys nothing and costs the labels. --%>
+                  <div class="hidden lg:block border-t border-base-300 px-4 py-3">
+                    <button
+                      type="button"
+                      data-pk-sidebar-toggle
+                      class="pk-sidebar-toggle btn btn-ghost btn-sm w-full justify-start gap-3"
+                      aria-controls="pk-admin-sidebar"
+                      aria-label={gettext("Collapse the menu to icons")}
+                      title={gettext("Collapse the menu to icons")}
+                      data-pk-label-expand={gettext("Expand the menu")}
+                      data-pk-label-collapse={gettext("Collapse the menu to icons")}
+                    >
+                      <PhoenixKitWeb.Components.Core.Icon.icon
+                        name="hero-chevron-double-left"
+                        class="pk-sidebar-toggle-icon w-5 h-5"
+                      />
+                      <span class="pk-sidebar-label">{gettext("Collapse")}</span>
+                    </button>
                   </div>
                 </aside>
               </div>
