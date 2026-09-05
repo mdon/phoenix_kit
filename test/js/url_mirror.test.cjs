@@ -76,3 +76,12 @@ test("nothing, an empty value or an absolute/foreign url never fires", () => {
   assert.equal(urlMirrorTarget({ url: "https://evil.example/" }, "/x"), null);
   assert.equal(urlMirrorTarget(null, "/x"), null);
 });
+
+test("network-path references, control characters and fragments are refused", () => {
+  assert.equal(urlMirrorTarget({ url: "//evil.example/" }, "/x"), null);
+  assert.equal(urlMirrorTarget({ url: "/\\evil.example/" }, "/x"), null);
+  assert.equal(urlMirrorTarget({ url: "/admin\u0000/p" }, "/x"), null);
+  assert.equal(urlMirrorTarget({ url: "/admin/p#section" }, "/x"), null);
+  // A query string is part of the address and is mirrored.
+  assert.equal(urlMirrorTarget({ url: "/admin/p?tab=board" }, "/admin/p"), "/admin/p?tab=board");
+});

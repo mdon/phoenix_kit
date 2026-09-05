@@ -2167,9 +2167,16 @@ if (typeof window.Chart === "undefined") {
   //
   //   <div id="tabs" phx-hook="PkUrlMirror" data-url="/admin/projects/1/tasks/board">
   // ---------------------------------------------------------------------------
+  // Only a root-relative PATH is honoured: not a network-path reference
+  // ("//host", "/\\host" — same-origin-looking, other-origin-going), not
+  // anything with control characters, not a fragment (the comparison
+  // below never sees the hash, so a fragment would re-fire on every
+  // update). Codex, 2026-09-05.
   function urlMirrorTarget(dataset, current) {
     const url = dataset && dataset.url;
     if (typeof url !== "string" || url === "" || url.charAt(0) !== "/") return null;
+    if (url.charAt(1) === "/" || url.charAt(1) === "\\") return null;
+    if (/[\u0000-\u001f\u007f#]/.test(url)) return null;
     if (url === current) return null;
     return url;
   }
