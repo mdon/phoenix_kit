@@ -757,10 +757,18 @@ defmodule PhoenixKit.Utils.Date do
   # ═══════════════════════════════════════════════════════════════════════════
 
   @doc """
-  Converts a timezone offset string to seconds.
+  Converts a timezone value to its offset from UTC in seconds, right now.
 
-  Accepts strings like `"0"`, `"2"`, `"-5"`, `"5.5"` (hours from UTC).
-  Returns `0` for invalid input (safe default).
+  Deprecated: every caller that added this to another instant was an hour
+  off across a daylight-saving switch (the calendar's day window, the
+  bookings frame), because an IANA zone has no single offset. Use
+  `PhoenixKit.Utils.TimeZone.shift/2` to display an instant, `from_wall/2`
+  to read a typed wall clock, `date_start/2` for a day window and
+  `local_date/2` for "today" — each resolves the instant it is given.
+
+  Accepts a legacy offset like `"0"`, `"2"`, `"-5"`, `"5.5"` (hours from
+  UTC) or an IANA id (resolved for this instant). Returns `0` for invalid
+  input (safe default).
 
   ## Examples
 
@@ -779,6 +787,7 @@ defmodule PhoenixKit.Utils.Date do
       iex> PhoenixKit.Utils.Date.offset_to_seconds("invalid")
       0
   """
+  @deprecated "A snapshot of the offset now; use TimeZone.shift/2, from_wall/2, date_start/2 or local_date/2, which resolve the instant being converted"
   def offset_to_seconds(tz_offset) when is_binary(tz_offset) do
     # Delegated so an IANA identifier resolves instead of falling through to 0.
     # The old body was `Float.parse/1`, which cannot read "Europe/Warsaw" and

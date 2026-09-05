@@ -23,6 +23,22 @@ defmodule PhoenixKit.Utils.TimeZone do
   in August without anything being re-saved, and it stays correct while the
   person travels.
 
+  ## Which function for what
+
+  Every conversion is per instant — a named zone follows daylight saving on
+  the date being converted, never on the day a preference was saved:
+
+    * `for_viewer/1` — the value a page should use for a scope, a user, or
+      nobody (profile → site setting → `"0"`).
+    * `shift/2` — a UTC instant as a wall clock in the zone (display).
+    * `from_wall/2` — a typed wall clock (`NaiveDateTime`) as the UTC instant
+      (a `datetime-local` input, a booking slot).
+    * `date_start/2` — the UTC instant a local date begins (day windows).
+    * `local_date/2` — the local date of an instant ("today").
+    * `day_start/2` — `date_start/2` for the local date of now, or of `at`.
+    * `offset_seconds/2` — the offset at one instant, for the rare place that
+      genuinely needs a scalar (a label). Never add it to another instant.
+
   ## Legacy values
 
   Rows written before this change still hold offsets, and they keep working:
@@ -1296,6 +1312,95 @@ defmodule PhoenixKit.Utils.TimeZone do
       :error -> %{now | hour: 0, minute: 0, second: 0, microsecond: {0, 0}}
     end
   end
+
+  @doc """
+  The timezone value a page should use for `viewer` — their own
+  `user_timezone` when set, else the site's `time_zone` setting, else `"0"`.
+
+  Takes a `%Scope{}`, a user (a `%User{}` or any map, with or without the
+  column — test scopes and degraded embeds carry partial maps), or `nil`.
+  Always a string: an IANA id or a legacy offset, never a number, ready for
+  `shift/2`, `from_wall/2`, `date_start/2` and `local_date/2`.
+
+  This is the rule `PhoenixKit.Utils.Date.get_user_timezone/1` applies to a
+  full `%User{}`, made total. Before it existed, five modules each carried
+  their own copy of the fallback chain — and two of them disagreed with it.
+
+  ## Examples
+
+      iex> PhoenixKit.Utils.TimeZone.for_viewer(%{user_timezone: "Europe/Warsaw"})
+      "Europe/Warsaw"
+
+  """
+  @spec for_viewer(PhoenixKit.Users.Auth.Scope.t() | map() | nil) :: String.t()
+  def for_viewer(%PhoenixKit.Users.Auth.Scope{user: user}), do: for_viewer(user)
+
+  def for_viewer(%{} = user) do
+    case Map.get(user, :user_timezone) do
+      value when is_binary(value) and value != "" -> value
+      _ -> site_zone()
+    end
+  end
+
+  def for_viewer(_viewer), do: site_zone()
+
+  defp site_zone do
+    PhoenixKit.Settings.get_setting("time_zone", "0")
+  rescue
+    # A page of timestamps must not go down with the settings table.
+    _ -> "0"
+  end
+
+  @doc """
+  The UTC instant at which `date` begins in `value` — the lower bound of a
+  viewer-local day, and (with the next date) the exclusive upper bound.
+
+  Resolved for THAT date: `Europe/Tallinn` starts January 15 at 22:00Z the
+  evening before and July 15 at 21:00Z. Subtracting one offset taken today
+  from both bounds of a window — what several modules did — was an hour off
+  for any window on the other side of a daylight-saving switch. A midnight
+  that never happens (spring-forward at 00:00, as in Santiago) is the
+  instant the clocks jump to; one that happens twice (fall-back at 00:00, as
+  in Havana) is its first occurrence — either way the first instant of that
+  date. Falls back to UTC midnight when the value cannot be resolved.
+
+  ## Examples
+
+      iex> PhoenixKit.Utils.TimeZone.date_start(~D[2026-07-15], "2")
+      ~U[2026-07-14 22:00:00Z]
+
+      iex> PhoenixKit.Utils.TimeZone.date_start(~D[2026-07-15], "nonsense")
+      ~U[2026-07-15 00:00:00Z]
+
+  """
+  @spec date_start(Date.t(), String.t() | nil) :: DateTime.t()
+  def date_start(%Date{} = date, value) do
+    case from_wall(NaiveDateTime.new!(date, ~T[00:00:00]), value) do
+      {:ok, utc} -> utc
+      :error -> DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+    end
+  end
+
+  @doc """
+  The calendar date of `instant` in `value` — what "today" means to a viewer
+  in that zone when `instant` is now.
+
+  `Date.utc_today/0` is the wrong answer to that question for most of the
+  world for part of every day: at 01:00 in Tallinn it is still yesterday in
+  UTC, so a grid highlighted the wrong day and a "New event" prefilled the
+  wrong date. Unresolvable values read as UTC.
+
+  ## Examples
+
+      iex> PhoenixKit.Utils.TimeZone.local_date(~U[2026-07-14 22:30:00Z], "2")
+      ~D[2026-07-15]
+
+      iex> PhoenixKit.Utils.TimeZone.local_date(~U[2026-07-14 22:30:00Z], "-5")
+      ~D[2026-07-14]
+
+  """
+  @spec local_date(DateTime.t(), String.t() | nil) :: Date.t()
+  def local_date(%DateTime{} = instant, value), do: instant |> shift(value) |> DateTime.to_date()
 
   defp resolve_wall({:ok, datetime}), do: {:ok, datetime}
   # Clocks went back: the wall time happened twice. Take the first.

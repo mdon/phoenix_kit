@@ -5,40 +5,46 @@ defmodule PhoenixKit.Utils.Date.TimezoneTest do
 
   doctest PhoenixKit.Utils.Date,
     only: [
-      offset_to_seconds: 1,
       parse_datetime_local: 2,
       format_datetime_local: 2
     ]
 
+  # `offset_to_seconds/1` is deprecated (it is a snapshot of the offset now).
+  # Its behaviour is still pinned for the callers that have not moved yet;
+  # a runtime capture keeps the compile-time deprecation warning out of the
+  # suite.
+  defp offset_to_seconds(value),
+    do: Function.capture(DateUtils, :offset_to_seconds, 1).(value)
+
   describe "offset_to_seconds/1" do
     test "handles zero" do
-      assert DateUtils.offset_to_seconds("0") == 0
+      assert offset_to_seconds("0") == 0
     end
 
     test "handles positive hour offsets" do
-      assert DateUtils.offset_to_seconds("1") == 3600
-      assert DateUtils.offset_to_seconds("14") == 50_400
+      assert offset_to_seconds("1") == 3600
+      assert offset_to_seconds("14") == 50_400
     end
 
     test "handles negative hour offsets" do
-      assert DateUtils.offset_to_seconds("-1") == -3600
-      assert DateUtils.offset_to_seconds("-12") == -43_200
+      assert offset_to_seconds("-1") == -3600
+      assert offset_to_seconds("-12") == -43_200
     end
 
     test "handles fractional offsets like UTC+5:30" do
-      assert DateUtils.offset_to_seconds("5.5") == 19_800
-      assert DateUtils.offset_to_seconds("5.75") == 20_700
-      assert DateUtils.offset_to_seconds("-3.5") == -12_600
+      assert offset_to_seconds("5.5") == 19_800
+      assert offset_to_seconds("5.75") == 20_700
+      assert offset_to_seconds("-3.5") == -12_600
     end
 
     test "returns 0 for invalid input" do
-      assert DateUtils.offset_to_seconds("not-a-number") == 0
-      assert DateUtils.offset_to_seconds("") == 0
+      assert offset_to_seconds("not-a-number") == 0
+      assert offset_to_seconds("") == 0
     end
 
     test "returns 0 for non-string input" do
-      assert DateUtils.offset_to_seconds(nil) == 0
-      assert DateUtils.offset_to_seconds(5) == 0
+      assert offset_to_seconds(nil) == 0
+      assert offset_to_seconds(5) == 0
     end
   end
 
