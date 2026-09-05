@@ -118,6 +118,69 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
     assert catalogues_at < plumbing_at and plumbing_at < copper_at
   end
 
+  # A page's own toolbar: `{Module, :fun}` rendered with the LiveView's
+  # assigns — this is what a plugin LiveView (which cannot pass a slot
+  # through `layouts/admin.html.heex`) uses for a status picker or its ⋮.
+  defmodule ToolbarPage do
+    use Phoenix.Component
+
+    def header_toolbar(assigns) do
+      ~H"""
+      <form id="pk-test-status" phx-change="change_status">
+        <select name="status"><option>{@status}</option></select>
+      </form>
+      <button id="pk-test-menu" phx-click="open_menu">⋮</button>
+      """
+    end
+  end
+
+  test "the :toolbar slot renders beside the title, before the action chip" do
+    assigns = %{scope: owner_scope()}
+
+    html =
+      ~H"""
+      <LayoutWrapper.app_layout
+        flash={%{}}
+        socket={nil}
+        current_path="/admin"
+        page_title="Copper"
+        page_action={%{icon: "hero-plus", label: "New", navigate: "/admin/new"}}
+        project_title="Acme"
+        phoenix_kit_current_scope={@scope}
+      >
+        <:toolbar><span id="pk-test-toolbar">tool</span></:toolbar>
+        <span id="pk-test-body">body</span>
+      </LayoutWrapper.app_layout>
+      """
+      |> rendered_to_string()
+
+    {admin_at, _} = :binary.match(html, "Admin Panel")
+    header = binary_part(html, admin_at, byte_size(html) - admin_at)
+    title_at = :binary.match(header, "Copper") |> elem(0)
+    toolbar_at = :binary.match(header, "pk-test-toolbar") |> elem(0)
+    action_at = :binary.match(header, ~s(href="/admin/new")) |> elem(0)
+    assert title_at < toolbar_at and toolbar_at < action_at
+    # The toolbar is rendered as given — the chip shell is the action's only.
+    refute binary_part(header, toolbar_at - 120, 120) =~ "[&>*]:btn"
+  end
+
+  test "render_page_toolbar/1 renders {Module, :fun} with the page's assigns, nil without one" do
+    rendered =
+      LayoutWrapper.render_page_toolbar(%{
+        page_toolbar: {ToolbarPage, :header_toolbar},
+        status: "In progress",
+        __changed__: nil
+      })
+
+    html = rendered_to_string(rendered)
+    assert html =~ ~s(id="pk-test-status")
+    assert html =~ ~s(phx-change="change_status")
+    assert html =~ "In progress"
+    assert html =~ ~s(phx-click="open_menu")
+
+    assert LayoutWrapper.render_page_toolbar(%{page_title: "x"}) == nil
+  end
+
   test "a page_crumb with patch is a same-LiveView link, not a navigate" do
     assigns = %{scope: owner_scope()}
 

@@ -44,6 +44,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   import PhoenixKitWeb.Components.InvitationBanner, only: [invitation_banners: 1]
 
   alias Phoenix.HTML
+  alias Phoenix.LiveView.TagEngine
   alias PhoenixKit.Config
   alias PhoenixKit.Modules.Crawlers
   alias PhoenixKit.Modules.Languages
@@ -104,6 +105,27 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     doc:
       "Optional compact action button rendered right after the breadcrumb title: `%{icon: \"hero-plus\", label: \"New template\", navigate: path}`. Lets a page keep its primary create action without spending an in-content header row. `label` becomes the tooltip/aria-label; `icon` defaults to hero-plus. Navigation only — for a `phx-click` action (or anything needing `phx-target`), use the `:action` slot instead. ⚠️ Plugin LiveViews rendered through the admin layout can only use this map: the layout threads it as an assign, and a slot cannot travel that way."
 
+  attr :page_toolbar, :any,
+    default: nil,
+    doc: """
+    Controls that belong to the page's identity, rendered in the breadcrumb bar
+    right after the title — a status picker, the page's ⋮ menu. `{Module, :fun}`
+    names a function component that receives the **LiveView's own assigns**
+    (change-tracked), so it can render `phx-change` / `phx-click` controls whose
+    events reach the LiveView as usual — the layout renders inside it. This is
+    the plugin-LiveView way: `layouts/admin.html.heex` threads the assign and
+    calls the component; a view calling `app_layout/1` directly can use the
+    `:toolbar` slot instead. Distinct from `page_action` / `:action`, which stay
+    the one compact *create* chip. Embedded mounts have no breadcrumb bar, so a
+    page that is also embeddable renders the same component in its body there.
+
+        assign(socket, page_toolbar: {__MODULE__, :header_toolbar})
+
+        # `def header_toolbar(assigns)` renders, with ~H, e.g. a
+        # `<form id="status" phx-change="change_status">` select and the
+        # page's `<.table_row_menu>`; both events land in handle_event/3.
+    """
+
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
   attr :project_title, :string, default: nil
@@ -135,6 +157,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
             <.icon name="hero-plus" class="w-4 h-4" />
           </button>
         </:action>
+    """
+
+  slot :toolbar,
+    doc: """
+    The same page toolbar as `page_toolbar`, for views calling `app_layout/1`
+    directly. Rendered after the title, before the action chip. Only reaches
+    direct callers — plugin LiveViews use the `page_toolbar` assign.
     """
 
   slot :inner_block, required: false
@@ -280,6 +309,24 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     end
   end
 
+  @doc """
+  Renders a page's `page_toolbar` — `{Module, :fun}` — with the LiveView's own
+  assigns. Called by `layouts/admin.html.heex`, which is the only place that
+  holds those assigns; the result goes into the `:toolbar` slot. Renders
+  nothing when the page set no toolbar.
+  """
+  @spec render_page_toolbar(map()) :: Phoenix.LiveView.Rendered.t() | nil
+  def render_page_toolbar(%{page_toolbar: {mod, fun}} = assigns)
+      when is_atom(mod) and is_atom(fun) do
+    TagEngine.component(
+      Function.capture(mod, fun, 1),
+      assigns,
+      {__ENV__.module, __ENV__.function, __ENV__.file, __ENV__.line}
+    )
+  end
+
+  def render_page_toolbar(_assigns), do: nil
+
   defp strip_locale_prefix(path) do
     case Regex.run(~r/^\/[a-z]{2,3}(-[A-Za-z]{2,4})?(\/.*)?$/, path) do
       [_, _locale, rest] when is_binary(rest) -> rest
@@ -294,6 +341,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # the keys the admin chrome template reads.
   defp admin_template_assigns(assigns, original_inner_block) do
     %{
+      # The page toolbar slot (see `slot :toolbar`); `nil` for callers
+      # that pass none, compared against `[]` in the render.
+      toolbar: List.wrap(assigns[:toolbar]),
       original_inner_block: original_inner_block,
       # Parent LiveView socket — only used to embed the sticky
       # NotificationsBell; nil when the caller didn't thread it
@@ -307,7 +357,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       page_section_path: assigns[:page_section_path],
       page_crumbs: assigns[:page_crumbs] || [],
       page_action: assigns[:page_action],
-      # The slot travels here as an ordinary key; `assigns[:action]` is
+      # The slots travel here as ordinary keys; `assigns[:action]` is
       # `nil` for every caller that does not pass one, and the render
       # compares against `[]`.
       action: assigns[:action] || [],
@@ -538,10 +588,18 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       >
                         {@page_subtitle}
                       </span>
+                      <%!-- The page toolbar: identity controls (a status
+                            picker, the ⋮ menu) that would otherwise float in
+                            the page body under a title the bar already shows.
+                            Rendered as given — the page owns the controls. --%>
+                      <span :if={@toolbar != []} class="flex items-center gap-1.5 shrink-0">
+                        {render_slot(@toolbar)}
+                      </span>
                       <%!-- Slot wins when given; the map is the shorthand for
                             the navigate-only case and the only thing plugin
-                            LiveViews can reach. Same chip shell either way, so
-                            the header bar cannot grow a toolbar. --%>
+                            LiveViews can reach. Same chip shell either way —
+                            this is the one *create* chip; identity controls
+                            go in the toolbar above. --%>
                       <span
                         :if={@action != []}
                         class="[&>*]:btn [&>*]:btn-xs [&>*]:btn-primary [&>*]:btn-circle [&>*]:shrink-0"
