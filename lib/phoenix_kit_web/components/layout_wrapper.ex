@@ -447,8 +447,24 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
       html[data-pk-sidebar="compact"] #pk-admin-sidebar .tab-with-subtabs > a[aria-current="page"],
       html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-branch-active="true"] > a {
+        /* Two declarations, and the order is the point: the first cancels the
+           `bg-primary` utility (a plain class, easily outranked) and is what a
+           browser without `color-mix` is left holding — which is exactly the
+           bar-only rendering that already worked. The second tints where it is
+           supported. */
         background-color: transparent;
+        background-color: color-mix(in oklab, var(--color-primary) 12%, transparent);
         color: var(--color-base-content);
+      }
+
+      /* Deliberately not `--color-base-200`, daisyUI's hover colour: a neutral
+         tint at this weight is indistinguishable from hover, so the row would
+         stop saying which page you are on the moment the pointer crossed it.
+         Tinting with the primary keeps "current" and "hovered" separable, and
+         the row still lifts under the pointer. */
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar .tab-with-subtabs > a[aria-current="page"]:hover,
+      html[data-pk-sidebar="compact"] #pk-admin-sidebar [data-pk-branch-active="true"] > a:hover {
+        background-color: color-mix(in oklab, var(--color-primary) 20%, transparent);
       }
 
       html[data-pk-sidebar="compact"] #pk-admin-sidebar .tab-with-subtabs > a[aria-current="page"]::after,

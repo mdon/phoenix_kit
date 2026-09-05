@@ -81,9 +81,12 @@
   after its link in the DOM: the top layer changes painting, not the tree, so
   Tab walks straight into it.
 
-  The collapsed rail **marks where you are with a right-edge bar**, rather than
-  the filled block the expanded menu uses — at 5rem a solid primary slab is most
-  of the row and reads as a state rather than a marker. Two cases both get it:
+  The collapsed rail **marks where you are with a right-edge bar over a light
+  primary tint**, rather than the filled block the expanded menu uses — at 5rem
+  a solid primary slab is most of the row and reads as a state rather than a
+  marker. The tint is `color-mix`-based and preceded by a plain `transparent`
+  declaration, so a browser without `color-mix` keeps the bar-only rendering
+  rather than the block. Two cases both get it:
   the entry that IS the current page, and the section that merely contains it.
   The second needed new information — expanded, that highlight sits on the
   active subtab, and compact mode hides the subtab list, so the parent now

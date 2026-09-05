@@ -267,9 +267,30 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
 
       # A solid primary slab is most of a 5rem row — it reads as a state
       # rather than a marker.
-      assert css =~ "background-color: transparent"
       assert css =~ ~s(> a[aria-current="page"]::after)
       assert css =~ ~s([data-pk-branch-active="true"] > a::after)
+    end
+
+    test "the bar is backed by a light tint, with a plain-transparent fallback" do
+      css = compact_css()
+
+      # `transparent` FIRST: it cancels the `bg-primary` utility and is what a
+      # browser without `color-mix` keeps — the bar-only rendering, which is a
+      # correct result rather than a broken one.
+      transparent = :binary.match(css, "background-color: transparent") |> elem(0)
+      tint = :binary.match(css, "color-mix(in oklab, var(--color-primary) 12%") |> elem(0)
+
+      assert transparent < tint
+    end
+
+    test "the tint is primary-based, so it stays distinct from hover" do
+      # daisyUI hovers rows with `base-200`; a neutral tint at this weight
+      # would be indistinguishable, and the row would stop saying which page
+      # you are on the moment the pointer crossed it.
+      css = compact_css()
+
+      refute css =~ "background-color: var(--color-base-200)"
+      assert css =~ ~s(> a[aria-current="page"]:hover)
     end
 
     test "the edge bar never reaches inside the flyout" do
