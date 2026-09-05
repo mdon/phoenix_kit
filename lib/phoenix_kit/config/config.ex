@@ -41,6 +41,10 @@ defmodule PhoenixKit.Config do
   - `:dashboard_subtab_style` - Default styling for subtabs (indent, icon_size, text_size, animation)
   - `:admin_path` - Top-level URL segment for the admin area (default: "/admin").
     See `get_admin_path/0` — compile-time, `config.exs` only.
+  - `:admin_panel_label` - What the admin area is called in the admin header and
+    the account menu. A preset atom (translated in every locale) or a string
+    (verbatim). Unset derives it from `:admin_path`. See `admin_panel_label/0`
+    and `admin_label_presets/0`.
   - `:user_dashboard_enabled` - Enable/disable the deprecated user dashboard
     (`/dashboard`). **Default: `false`.** See `user_dashboard_enabled?/0`.
   - `:user_dashboard_tabs` - List of custom tabs for the user dashboard sidebar
@@ -700,6 +704,117 @@ defmodule PhoenixKit.Config do
     case get(:pubsub_server) do
       {:ok, server} when is_atom(server) -> server
       _ -> :phoenix_kit_internal_pubsub
+    end
+  end
+
+  # The curated names an admin area can go by, each paired with the URL segment
+  # it naturally reads as. Order is the documentation order.
+  #
+  # A CLOSED set on purpose: every entry is a `gettext/1` msgid in
+  # `PhoenixKitWeb.Components.Core.AdminLabel`, translated in every shipped
+  # locale, which is the whole point — a host picks a name and every visitor
+  # still reads it in their own language. Adding one means adding the msgid
+  # there and translating it, not just extending this list.
+  @admin_label_presets [
+    admin_panel: "admin",
+    dashboard: "dashboard",
+    backoffice: "backoffice",
+    console: "console",
+    control_panel: "control_panel",
+    workspace: "workspace",
+    portal: "portal",
+    my_account: "my_account",
+    management: "management",
+    studio: "studio"
+  ]
+
+  @doc """
+  The preset names the admin area can be called by, as `{preset, url_segment}`.
+
+  Rendered to text by `PhoenixKitWeb.Components.Core.AdminLabel.preset_text/1`.
+
+      iex> PhoenixKit.Config.admin_label_presets() |> Keyword.keys() |> Enum.take(3)
+      [:admin_panel, :dashboard, :backoffice]
+
+  """
+  @spec admin_label_presets() :: keyword(String.t())
+  def admin_label_presets, do: @admin_label_presets
+
+  @doc """
+  What the admin area is called — a translated preset, or a host's own string.
+
+  Returns `{:preset, atom}` (rendered through `gettext/1`, so every visitor
+  reads it in their own language) or `{:custom, binary}` (shown verbatim to
+  everyone). Never `nil`: the fallback is `{:preset, :admin_panel}`.
+
+  ## Resolution order
+
+  1. `config :phoenix_kit, admin_panel_label: :console` — an explicit preset
+     from `admin_label_presets/0`.
+  2. `config :phoenix_kit, admin_panel_label: "Acme HQ"` — free text. The
+     escape hatch for a brand name no preset covers. ⚠️ **Not translated**:
+     one string, shown to every visitor whatever their language.
+  3. Unset — **derived from `:admin_path`**, so the URL and the wording stay
+     aligned by construction rather than by the host remembering to set two
+     keys:
+
+         config :phoenix_kit, admin_path: "/backoffice"
+         #=> {:preset, :backoffice} — URL /backoffice, header "Backoffice"
+
+     `-` and `_` are equivalent in the segment (`/control-panel` and
+     `/control_panel` both derive `:control_panel`).
+
+  A segment that matches no preset — `/x7q`, or any deliberately obscure
+  rename — derives `{:preset, :admin_panel}` rather than inventing a label
+  from the URL.
+
+  ## Unrecognised values fall back, they do not raise
+
+  Unlike `get_admin_path/0`, a bad value here is cosmetic: a typo must not take
+  the admin area down in production. An unknown atom, a blank string or a
+  non-string, non-atom value falls through to the derivation in step 3.
+
+  ## Examples
+
+      iex> PhoenixKit.Config.admin_panel_label()
+      {:preset, :admin_panel}
+
+      # With `config :phoenix_kit, admin_panel_label: :console`:
+      iex> PhoenixKit.Config.admin_panel_label()
+      {:preset, :console}
+
+  """
+  @spec admin_panel_label() :: {:preset, atom()} | {:custom, String.t()}
+  def admin_panel_label do
+    case Application.get_env(:phoenix_kit, :admin_panel_label) do
+      nil ->
+        derived_admin_panel_label()
+
+      preset when is_atom(preset) ->
+        if Keyword.has_key?(@admin_label_presets, preset),
+          do: {:preset, preset},
+          else: derived_admin_panel_label()
+
+      value when is_binary(value) ->
+        case String.trim(value) do
+          "" -> derived_admin_panel_label()
+          trimmed -> {:custom, trimmed}
+        end
+
+      _ ->
+        derived_admin_panel_label()
+    end
+  end
+
+  defp derived_admin_panel_label do
+    segment =
+      get_admin_path()
+      |> String.trim_leading("/")
+      |> String.replace("-", "_")
+
+    case Enum.find(@admin_label_presets, fn {_preset, seg} -> seg == segment end) do
+      {preset, _segment} -> {:preset, preset}
+      nil -> {:preset, :admin_panel}
     end
   end
 

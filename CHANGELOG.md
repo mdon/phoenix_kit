@@ -1,7 +1,50 @@
 ## Unreleased
 
+### Added
+
+- **The admin area can be called something else, and stay translated.**
+  Ten built-in names — Admin Panel, Dashboard, Backoffice, Console, Control
+  Panel, Workspace, Portal, My Account, Management, Studio — each a real
+  `gettext/1` msgid translated into all seven shipped locales. A host picks
+  one and a German visitor still reads "Arbeitsbereich" where an English one
+  reads "Workspace":
+
+      config :phoenix_kit, admin_panel_label: :workspace
+
+  **Unset, the name is derived from `:admin_path`**, so renaming the URL renames
+  the wording with it and the two cannot drift:
+
+      config :phoenix_kit, admin_path: "/backoffice"
+      # URL /backoffice, header "Backoffice" — one key, both aligned
+
+  `-` and `_` are equivalent in the segment, and a segment matching no preset
+  (`/x7q`, or any deliberately obscure rename) keeps the translated "Admin
+  Panel" rather than inventing a label out of the URL.
+
+  A free-text string still works — `admin_panel_label: "Acme HQ"` — as the
+  escape hatch for a brand name no preset covers. ⚠️ It is **not** translated:
+  one string, shown to every visitor in every language. That is exactly why the
+  presets exist, and why neither form is an operator field on
+  `/admin/settings`: `config.exs` puts the tradeoff at the point of the
+  decision, and keeps the wording next to `:admin_path`, which is compile-time
+  config for the same reason.
+
+  Resolution is `PhoenixKit.Config.admin_panel_label/0` → `{:preset, atom}` or
+  `{:custom, binary}`, rendered by the new
+  `PhoenixKitWeb.Components.Core.AdminLabel`. Both the header chip and the
+  account-menu admin entry go through it, so they cannot disagree. Unlike
+  `:admin_path`, an unrecognised value here **falls back rather than raising** —
+  this is cosmetic, and a typo must not take the admin area down in production.
+
 ### Changed
 
+- **The "Admin Panel" settings field says where the label appears and how to
+  change the wording.** The checkbox now reads *Show the "Admin Panel" label in
+  the admin header* rather than leaving the location to the description, and
+  the description no longer repeats it. It also no longer says the wording
+  "has no setting" — it lists the built-in names and points at `admin_panel_label`,
+  and notes that renaming the URL with `admin_path` picks the matching name on
+  its own. Both strings translated in all seven shipped locales.
 - **`:user_dashboard_enabled` now defaults to `false` — the user dashboard is
   retired from core's defaults.** `/dashboard`, `/dashboard/settings` and the
   confirm-email compat redirects are no longer routed unless a host asks for

@@ -28,6 +28,7 @@ msgid "OAuth authentication is not configured. Please contact your administrator
 msgstr "Die OAuth-Anmeldung ist nicht konfiguriert. Bitte wenden Sie sich an Ihre Administration."
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:64
+#: lib/phoenix_kit_web/components/core/admin_label.ex:64
 #: lib/phoenix_kit_web/live/dashboard.html.heex:5
 #: lib/phoenix_kit_web/live/dashboard/index.ex:11
 #, elixir-autogen
@@ -7638,8 +7639,7 @@ msgstr "Nur Videos"
 msgid "You need to configure at least one storage bucket before you can upload files."
 msgstr "Sie müssen mindestens einen Speicher-Bucket konfigurieren, bevor Sie Dateien hochladen können."
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:919
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:614
+#: lib/phoenix_kit_web/components/core/admin_label.ex:63
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
 msgstr "Administrationsbereich"
@@ -12946,7 +12946,7 @@ msgstr "Anmeldung fehlgeschlagen: %{message}"
 msgid "Cannot remove your primary account."
 msgstr "Ihr Hauptkonto kann nicht entfernt werden."
 
-#: lib/phoenix_kit_web/controllers/context_controller.ex:101
+#: lib/phoenix_kit_web/controllers/context_controller.ex:102
 #, elixir-autogen, elixir-format
 msgid "Context switching is not enabled"
 msgstr "Der Kontextwechsel ist nicht aktiviert"
@@ -13000,7 +13000,7 @@ msgstr "Wenn Ihre E-Mail-Adresse in unserem System vorhanden und noch nicht best
 msgid "If your email is in our system, you will receive instructions to reset your password shortly."
 msgstr "Wenn Ihre E-Mail-Adresse in unserem System vorhanden ist, erhalten Sie in Kürze Anweisungen zum Zurücksetzen Ihres Passworts."
 
-#: lib/phoenix_kit_web/controllers/context_controller.ex:82
+#: lib/phoenix_kit_web/controllers/context_controller.ex:83
 #, elixir-autogen, elixir-format
 msgid "Invalid context"
 msgstr "Ungültiger Kontext"
@@ -13621,32 +13621,22 @@ msgstr "in der letzten Stunde"
 msgid "in the last week"
 msgstr "in der letzten Woche"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:77
-#, elixir-autogen, elixir-format
-msgid "Show the \"Admin Panel\" label"
-msgstr "Beschriftung „Administrationsbereich“ anzeigen"
-
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1143
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1157
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Einklappen"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1134
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1135
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1137
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1148
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1149
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1151
 #, elixir-autogen, elixir-format
 msgid "Collapse the menu to icons"
 msgstr "Menü auf Symbole reduzieren"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1136
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1150
 #, elixir-autogen, elixir-format
 msgid "Expand the menu"
 msgstr "Menü ausklappen"
-
-#: lib/phoenix_kit_web/live/settings.html.heex:80
-#, elixir-autogen, elixir-format
-msgid "Shown next to the project name in the admin header. Turn it off to show just the project name. The wording itself follows each visitor's language and has no setting — a label typed here would show one language to everyone. The browser tab title is unaffected."
-msgstr "Wird im Administrationsbereich neben dem Projektnamen angezeigt. Schalten Sie sie aus, um nur den Projektnamen zu zeigen. Der Wortlaut selbst richtet sich nach der Sprache der Besucher und ist nicht einstellbar — eine hier eingegebene Bezeichnung würde allen dieselbe Sprache zeigen. Der Titel des Browser-Tabs bleibt unverändert."
 
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:265
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:19
@@ -13679,7 +13669,53 @@ msgstr "Anzeigen:"
 msgid "Started today"
 msgstr "Heute begonnen"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:615
+#: lib/phoenix_kit_web/components/core/admin_label.ex:70
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:621
 #, elixir-autogen, elixir-format
 msgid "My Account"
 msgstr "Mein Konto"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:77
+#, elixir-autogen, elixir-format
+msgid "Show the \"Admin Panel\" label in the admin header"
+msgstr "Beschriftung „Administrationsbereich“ im Admin-Header anzeigen"
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:65
+#, elixir-autogen, elixir-format
+msgid "Backoffice"
+msgstr "Backoffice"
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:66
+#, elixir-autogen, elixir-format
+msgid "Console"
+msgstr "Konsole"
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:67
+#, elixir-autogen, elixir-format
+msgid "Control Panel"
+msgstr "Kontrollzentrum"
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:71
+#, elixir-autogen, elixir-format
+msgid "Management"
+msgstr "Verwaltung"
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:69
+#, elixir-autogen, elixir-format
+msgid "Portal"
+msgstr "Portal"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Shown next to the project name. Turn it off to show just the project name. The wording is not editable here because it is translated — each visitor reads it in their own language. To call your admin area something else and keep that, pick one of the built-in names in config.exs (`admin_panel_label: :workspace` — Admin Panel, Dashboard, Backoffice, Console, Control Panel, Workspace, Portal, My Account, Management, Studio), all translated into every language PhoenixKit ships. Renaming the URL with `admin_path` picks the matching name on its own. The browser tab title is unaffected."
+msgstr "Wird neben dem Projektnamen angezeigt. Deaktivieren Sie die Option, um nur den Projektnamen anzuzeigen. Der Text ist hier nicht bearbeitbar, weil er übersetzt wird — jeder Besucher liest ihn in seiner eigenen Sprache. Wenn Ihr Administrationsbereich anders heißen soll und das erhalten bleiben muss, wählen Sie einen der eingebauten Namen in der config.exs (`admin_panel_label: :workspace` — Admin Panel, Dashboard, Backoffice, Console, Control Panel, Workspace, Portal, My Account, Management, Studio), die alle in jede von PhoenixKit mitgelieferte Sprache übersetzt sind. Wird die URL mit `admin_path` umbenannt, wird der passende Name automatisch gewählt. Der Titel des Browser-Tabs bleibt unverändert."
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:72
+#, elixir-autogen, elixir-format
+msgid "Studio"
+msgstr "Studio"
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:68
+#, elixir-autogen, elixir-format
+msgid "Workspace"
+msgstr "Arbeitsbereich"
