@@ -257,7 +257,7 @@ defmodule PhoenixKitWeb.Components.Core.DashboardOverview do
             <PhoenixKitWeb.Components.Core.StatCard.stat_card
               value={@session_stats.total_active}
               title={gettext("Active Sessions")}
-              subtitle={gettext("Currently logged in")}
+              subtitle={gettext("Unexpired sign-ins, not live connections")}
             >
               <:icon>
                 <.icon name="hero-bolt" class="w-6 h-6" />

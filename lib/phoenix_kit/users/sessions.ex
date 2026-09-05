@@ -342,7 +342,18 @@ defmodule PhoenixKit.Users.Sessions do
       )
 
     total_active = Repo.aggregate(active_query, :count, :uuid)
-    unique_users = Repo.aggregate(active_query, :count, :user_uuid, distinct: true)
+
+    # NOT `Repo.aggregate(active_query, :count, :user_uuid, distinct: true)`.
+    # `aggregate/4`'s last argument is REPO options (`:prefix`, `:timeout`, …),
+    # never query modifiers — `Ecto.Repo.Queryable.query_for_aggregate/3` builds
+    # the select from the field alone and never sees them. So `distinct: true`
+    # was accepted and silently ignored, and this counted ROWS: every panel
+    # reported "unique users" exactly equal to "active sessions". Reported from
+    # a live install showing 29 unique users against 2 registered accounts.
+    unique_users =
+      active_query
+      |> select([token], count(token.user_uuid, :distinct))
+      |> Repo.one()
 
     # Sessions created today
     sessions_today =

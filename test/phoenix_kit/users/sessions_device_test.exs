@@ -139,6 +139,40 @@ defmodule PhoenixKit.Users.SessionsDeviceTest do
   end
 
   describe "get_session_stats/0" do
+    test "unique_users counts PEOPLE, not session rows" do
+      # The bug this pins, reported from a live install: 29 "unique users"
+      # against 2 registered accounts, because the count was written as
+      # `Repo.aggregate(query, :count, :user_uuid, distinct: true)`. That last
+      # argument is REPO options, never query modifiers, so `distinct: true`
+      # was accepted and silently ignored — and the panel reported one "unique
+      # user" per session row.
+      user = user_fixture("stats-unique-one@example.com")
+
+      for n <- 1..3 do
+        session_token(user, "203.0.113.#{n}", String.duplicate("#{n}", 64))
+      end
+
+      stats = Sessions.get_session_stats()
+
+      assert stats.total_active >= 3
+      # One person, three sessions. The two numbers must be able to differ —
+      # equality here is what the defect looked like.
+      assert stats.unique_users < stats.total_active
+    end
+
+    test "a second person raises unique_users by exactly one" do
+      before = Sessions.get_session_stats()
+
+      user = user_fixture("stats-unique-two@example.com")
+      session_token(user, "203.0.113.90", String.duplicate("9", 64))
+      session_token(user, "203.0.113.91", String.duplicate("8", 64))
+
+      after_stats = Sessions.get_session_stats()
+
+      assert after_stats.unique_users == before.unique_users + 1
+      assert after_stats.total_active == before.total_active + 2
+    end
+
     test "breaks active sessions down by OS and browser" do
       user = user_fixture("qr-sessions-stats@example.com")
 

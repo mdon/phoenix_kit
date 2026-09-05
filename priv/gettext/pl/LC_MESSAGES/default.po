@@ -191,12 +191,6 @@ msgstr "Zarejestrowane konta"
 msgid "Active Sessions"
 msgstr "Aktywne sesje"
 
-#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:260
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:19
-#, elixir-autogen
-msgid "Currently logged in"
-msgstr "Aktualnie zalogowani"
-
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:270
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:30
 #, elixir-autogen
@@ -13675,3 +13669,9 @@ msgstr "Rozwiń menu"
 #, elixir-autogen, elixir-format
 msgid "Shown next to the project name in the admin header. Turn it off to show just the project name. The wording itself follows each visitor's language and has no setting — a label typed here would show one language to everyone. The browser tab title is unaffected."
 msgstr "Wyświetlana obok nazwy projektu w nagłówku panelu administracyjnego. Wyłącz, aby pokazywać tylko nazwę projektu. Samo brzmienie zależy od języka odwiedzającego i nie ma ustawienia — etykieta wpisana tutaj pokazywałaby wszystkim jeden język. Tytuł karty przeglądarki pozostaje bez zmian."
+
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:260
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:19
+#, elixir-autogen, elixir-format
+msgid "Unexpired sign-ins, not live connections"
+msgstr "Niewygasłe logowania, nie połączenia na żywo"

@@ -193,12 +193,6 @@ msgstr "Registreeritud kontod"
 msgid "Active Sessions"
 msgstr "Aktiivsed sessioonid"
 
-#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:260
-#: lib/phoenix_kit_web/live/users/sessions.html.heex:19
-#, elixir-autogen
-msgid "Currently logged in"
-msgstr "Praegu sisse logitud"
-
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:270
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:30
 #, elixir-autogen
@@ -13656,3 +13650,9 @@ msgstr "Laienda menüü"
 #, elixir-autogen, elixir-format
 msgid "Shown next to the project name in the admin header. Turn it off to show just the project name. The wording itself follows each visitor's language and has no setting — a label typed here would show one language to everyone. The browser tab title is unaffected."
 msgstr "Kuvatakse halduse päises projekti nime kõrval. Lülita välja, et näidata ainult projekti nime. Sõnastus ise järgib iga külastaja keelt ja seda ei saa seadistada — siia sisestatud silt näitaks kõigile üht keelt. Brauseri vahelehe pealkiri ei muutu."
+
+#: lib/phoenix_kit_web/components/core/dashboard_overview.ex:260
+#: lib/phoenix_kit_web/live/users/sessions.html.heex:19
+#, elixir-autogen, elixir-format
+msgid "Unexpired sign-ins, not live connections"
+msgstr "Aegumata sisselogimised, mitte live-ühendused"
