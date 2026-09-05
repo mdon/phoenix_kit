@@ -68,6 +68,7 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
   - `backdrop_class` - Additional CSS classes for the backdrop
   - `closeable` - Whether the modal can be closed via backdrop/escape (default: true)
   - `placement` - `:center` (default) or `:end` — a full-height drawer sliding in from the right edge, for forms opened over the page they belong to
+  - `close_guard` - `:input` makes the dialog non-closeable (Esc/backdrop) on the client from the first keystroke in a submittable form inside it, until the server sets `closeable` back to true
 
   ## Slots
 
@@ -89,6 +90,12 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
     values: [:center, :end],
     doc:
       "`:center` is the classic centered box. `:end` is a **drawer**: a full-height sheet anchored to the end (right) edge that slides in from the side (daisyUI 5's `modal-end`), for tall content such as a create/edit form opened over the page it belongs to — the page stays underneath, the sheet scrolls internally. The box takes the full width below `sm`, `max_width` above it (`\"2xl\"` is a good form width); `max_height` does not apply — the sheet always fills the viewport height."
+
+  attr :close_guard, :atom,
+    default: nil,
+    values: [nil, :input],
+    doc:
+      "`:input` arms the `PkDialog` hook's client-side guard: the first keystroke in a submittable form (`form[phx-submit]`) inside this dialog makes Esc and the backdrop no-ops immediately, before the server has heard of the edit — the round trip (plus any `phx-debounce` window) would otherwise let a quick Esc discard what was just typed. The server's `closeable` stays the source of truth: the guard clears when `closeable` flips back to `true`. Filter/search forms (`phx-change` only) do not arm it."
 
   attr :rest, :global,
     doc:
@@ -124,6 +131,7 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
         data-show={to_string(@show)}
         data-close-event={@on_close}
         data-closeable={to_string(@closeable)}
+        data-close-guard={@close_guard}
         role="dialog"
         aria-modal="true"
         aria-labelledby={"#{@resolved_id}-title"}

@@ -2099,6 +2099,14 @@ if (typeof window.Chart === "undefined") {
   //   data-closeable   "false" → Escape + backdrop click are no-ops (modal still
   //                    closable only via an explicit action button). Default:
   //                    closeable.
+  //   data-close-guard "input" → the first keystroke in a submittable form
+  //                    (`form[phx-submit]`) inside THIS dialog makes it
+  //                    non-closeable on the client, before the server hears
+  //                    of the edit — a debounced change event and an Esc
+  //                    inside the debounce window would otherwise discard
+  //                    the text. Filter/search forms (phx-change only) do
+  //                    not count. Cleared when the server flips
+  //                    data-closeable back to true.
   // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------
@@ -2391,6 +2399,15 @@ if (typeof window.Chart === "undefined") {
   // clicked button would (`phx-value-frame-ref` → `{"frame-ref": …}`).
   // Elements without any such attribute yield `{}`, the pre-existing
   // payload, so every current consumer is unaffected.
+  // True when an `input` event's target belongs to a submittable form of
+  // THIS dialog — not a nested dialog's, not a filter form's. The predicate
+  // behind PkDialog's `data-close-guard="input"`.
+  function guardedInput(dialog, target) {
+    if (!dialog || !target || typeof target.closest !== "function") return false;
+    if (target.closest("dialog") !== dialog) return false;
+    return !!target.closest("form[phx-submit]");
+  }
+
   function phxValuePayload(el) {
     const payload = {};
     if (!el || !el.attributes) return payload;
@@ -2406,6 +2423,7 @@ if (typeof window.Chart === "undefined") {
     module.exports.ownerComponentCid = ownerComponentCid;
     module.exports.pushToOwner = pushToOwner;
     module.exports.phxValuePayload = phxValuePayload;
+    module.exports.guardedInput = guardedInput;
   }
 
   // Returns true if the given <dialog> is in the browser's top layer
@@ -2610,6 +2628,7 @@ if (typeof window.Chart === "undefined") {
   // (see PhoenixKit.Install.DaisyUI), so the override is gone. Don't re-add it.
   window.PhoenixKitHooks.PkDialog = {
     _isCloseable() {
+      if (this._guardTripped) return false;
       return this.el.dataset.closeable !== "false";
     },
     _pushClose() {
@@ -2764,6 +2783,18 @@ if (typeof window.Chart === "undefined") {
       this.el.addEventListener("close", self._onClose);
       this.el.addEventListener("click", self._onClick);
 
+      // data-close-guard="input": see the header comment. Local state only —
+      // the server's data-closeable remains the source of truth once it
+      // arrives; this covers the round trip (and a debounce window) before it.
+      self._guardTripped = false;
+      self._lastCloseable = self.el.dataset.closeable;
+      if (self.el.dataset.closeGuard === "input") {
+        self._onInput = function(e) {
+          if (guardedInput(self.el, e.target)) self._guardTripped = true;
+        };
+        this.el.addEventListener("input", self._onInput);
+      }
+
       // Instant client-side open: a trigger can dispatch this custom
       // event (Phoenix.LiveView.JS.dispatch("pk:dialog-show", to: "#id"))
       // ALONGSIDE its server push, so the dialog appears the same frame
@@ -2797,6 +2828,13 @@ if (typeof window.Chart === "undefined") {
       this._sync();
     },
     updated() {
+      // The server said "clean again" (closeable false → true): drop the
+      // local guard so the dialog closes on Esc like any other.
+      const closeable = this.el.dataset.closeable;
+      if (this._lastCloseable === "false" && closeable !== "false") {
+        this._guardTripped = false;
+      }
+      this._lastCloseable = closeable;
       this._sync();
     },
     destroyed() {
@@ -2816,6 +2854,7 @@ if (typeof window.Chart === "undefined") {
       if (this._onClose) this.el.removeEventListener("close", this._onClose);
       if (this._onClick) this.el.removeEventListener("click", this._onClick);
       if (this._onShowEvent) this.el.removeEventListener("pk:dialog-show", this._onShowEvent);
+      if (this._onInput) this.el.removeEventListener("input", this._onInput);
     }
   };
 

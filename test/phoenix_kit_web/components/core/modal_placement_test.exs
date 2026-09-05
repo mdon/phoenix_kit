@@ -61,4 +61,21 @@ defmodule PhoenixKitWeb.Components.Core.ModalPlacementTest do
     assert html =~ ~s(phx-value-frame-ref="7")
     assert html =~ ~s(data-close-event="close_top_modal")
   end
+
+  test "close_guard arms the hook's client-side input guard; absent by default" do
+    assigns = %{}
+
+    guarded =
+      rendered_to_string(~H"""
+      <.modal show={true} on_close="close" close_guard={:input}>body</.modal>
+      """)
+
+    plain =
+      rendered_to_string(~H"""
+      <.modal show={true} on_close="close">body</.modal>
+      """)
+
+    assert guarded =~ ~s(data-close-guard="input")
+    refute plain =~ "data-close-guard"
+  end
 end
