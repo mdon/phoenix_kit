@@ -2110,6 +2110,49 @@ if (typeof window.Chart === "undefined") {
   // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------
+  // PkShiftEnter — gives an input a second Enter.
+  //
+  // Plain Enter in a text input is the browser's implicit submission: it
+  // presses the form's FIRST submit button. Shift+Enter submits exactly the
+  // same way, so a form cannot tell "add" from "add and start the next"
+  // without help. This hook makes Shift+Enter click the element named by
+  // `data-shift-enter-click` (a selector — typically a second submit button
+  // carrying `name`/`value`, which LiveView then includes as the submitter)
+  // and leaves plain Enter alone. Never fires during IME composition.
+  //
+  //   <input phx-hook="PkShiftEnter" data-shift-enter-click="#add-next" …>
+  //   <button type="submit">Add</button>                       ← Enter
+  //   <button type="submit" id="add-next" name="then" value="next">Add & next</button>
+  // ---------------------------------------------------------------------------
+  function shiftEnter(e) {
+    return !!e && e.key === "Enter" && e.shiftKey === true && !e.isComposing &&
+      !e.metaKey && !e.ctrlKey && !e.altKey;
+  }
+
+  if (typeof module === "object" && module.exports) {
+    module.exports.shiftEnter = shiftEnter;
+  }
+
+  window.PhoenixKitHooks.PkShiftEnter = {
+    mounted() {
+      const self = this;
+      self._onKeydown = function(e) {
+        if (!shiftEnter(e)) return;
+        const selector = self.el.dataset.shiftEnterClick;
+        if (!selector) return;
+        const target = document.querySelector(selector);
+        if (!target) return;
+        e.preventDefault();
+        target.click();
+      };
+      this.el.addEventListener("keydown", self._onKeydown);
+    },
+    destroyed() {
+      if (this._onKeydown) this.el.removeEventListener("keydown", this._onKeydown);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // PkCheckboxIndeterminate — applies the `indeterminate` property to a
   // checkbox based on `data-indeterminate="true"`. HTML has no attribute
   // form of `indeterminate`, so a small hook is needed to read the dataset
