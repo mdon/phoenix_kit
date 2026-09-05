@@ -311,6 +311,40 @@ Consequences worth remembering:
   test files in parallel — a flip in a file body leaks into other files' router
   compilation. See `test/phoenix_kit/utils/admin_segment_test.exs`.
 
+#### Renaming the segment also renames the WORDING
+
+`admin_path` moves the URL; `admin_panel_label` decides what the admin area is
+*called* in the admin header chip and the account-menu entry. Leave the label
+unset and it is **derived from the segment**, so the two cannot drift:
+
+    config :phoenix_kit, admin_path: "/backoffice"
+    # URL /backoffice, header "Backoffice", menu "Backoffice"
+
+- **Ten presets**, each a real `gettext/1` msgid translated in every shipped
+  locale: `:admin_panel` (default), `:dashboard`, `:backoffice`, `:console`,
+  `:control_panel`, `:workspace`, `:portal`, `:my_account`, `:management`,
+  `:studio`. Canonical table: `PhoenixKit.Config.admin_label_presets/0`.
+- **Override** with `admin_panel_label: :workspace`. A plain string
+  (`"Acme HQ"`) also works and is the escape hatch — but is **not translated**:
+  one string for every visitor in every language. That is why the list is
+  closed and why neither form is an operator field on `/admin/settings`, where
+  the settings checkbox stays show/hide.
+- A segment matching no preset (`/x7q`) keeps the translated "Admin Panel"
+  rather than inventing a label from the URL.
+- ⚠️ Unlike `admin_path`, an unrecognised value **does not raise** — this is
+  cosmetic and a typo must not take the admin area down in production. It logs
+  once (naming the valid presets) and falls back to the derivation.
+- Adding a preset means BOTH `@admin_label_presets` in `PhoenixKit.Config` and
+  a `preset_text/1` clause in `PhoenixKitWeb.Components.Core.AdminLabel` — the
+  msgid must be a literal `gettext/1` call or extraction misses it and it
+  ships untranslated. `admin_segment_test.exs` walks the list and fails if a
+  clause is missing. Then translate the new msgid in all seven locales.
+- `mix phoenix_kit.install` / `.update` write the whole list into the host's
+  `config/config.exs` as a **comment block**
+  (`PhoenixKit.Install.AdminLabelConfig`), so the vocabulary is in front of a
+  developer at the moment they go to change it. Idempotent, and skipped once
+  the host has an uncommented `admin_panel_label:`.
+
 ### LiveView form ids
 
 Every `<form phx-change=…>` needs a unique `id` — without it LiveView form recovery is silently disabled and host test suites warn `missing_form_id`. LiveComponent → derive from `@id`; inside a comprehension → include the row uuid; `<.form for={%{}}>` needs an explicit `id` (only `for={@changeset}` supplies one for free). Detect with a multi-line-aware scanner, not line-oriented grep. Full audit: `dev_docs/investigations/2026-07-27-missing-form-id-audit.md`.

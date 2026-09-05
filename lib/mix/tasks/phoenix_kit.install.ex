@@ -67,6 +67,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     use Igniter.Mix.Task
 
     alias PhoenixKit.Install.{
+      AdminLabelConfig,
       ApplicationSupervisor,
       BasicConfiguration,
       BootHook,
@@ -119,6 +120,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
       igniter
       |> BasicConfiguration.add_basic_config()
+      |> AdminLabelConfig.add_admin_label_options()
       |> RepoDetection.add_phoenix_kit_configuration(opts[:repo])
       |> PrefixConfig.add_prefix_configuration(opts[:prefix])
       |> MailerConfig.add_mailer_configuration()
@@ -458,11 +460,18 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       end
     end
 
-    # Advance heads-up that the user dashboard (/dashboard) is deprecated. It
-    # still works unchanged — this is advisory only (see
-    # PhoenixKit.Install.Deprecations).
+    # Advance heads-up that the user dashboard (/dashboard) is deprecated.
+    #
+    # Gated on the flag: it now defaults to `false`, so a fresh install has no
+    # user dashboard and warning about one would be noise about a feature the
+    # host does not have. Only a host that explicitly wrote
+    # `user_dashboard_enabled: true` hears about it.
     defp warn_user_dashboard_deprecated(igniter) do
-      Igniter.add_warning(igniter, Deprecations.user_dashboard_warning())
+      if PhoenixKit.Config.user_dashboard_enabled?() do
+        Igniter.add_warning(igniter, Deprecations.user_dashboard_warning())
+      else
+        igniter
+      end
     end
 
     # Add completion notice with essential next steps (reduced duplication)

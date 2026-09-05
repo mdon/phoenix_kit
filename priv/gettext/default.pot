@@ -25,7 +25,7 @@ msgstr ""
 
 ## Dashboard page translations
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:64
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:135
+#: lib/phoenix_kit_web/components/core/admin_label.ex:64
 #: lib/phoenix_kit_web/live/dashboard.html.heex:5
 #: lib/phoenix_kit_web/live/dashboard/index.ex:11
 #, elixir-autogen
@@ -397,11 +397,11 @@ msgstr ""
 #: lib/phoenix_kit_web/live/modules.html.heex:290
 #: lib/phoenix_kit_web/live/modules.html.heex:362
 #: lib/phoenix_kit_web/live/modules.html.heex:420
-#: lib/phoenix_kit_web/live/modules.html.heex:478
-#: lib/phoenix_kit_web/live/modules.html.heex:554
-#: lib/phoenix_kit_web/live/modules.html.heex:622
-#: lib/phoenix_kit_web/live/modules.html.heex:687
-#: lib/phoenix_kit_web/live/modules.html.heex:743
+#: lib/phoenix_kit_web/live/modules.html.heex:479
+#: lib/phoenix_kit_web/live/modules.html.heex:555
+#: lib/phoenix_kit_web/live/modules.html.heex:623
+#: lib/phoenix_kit_web/live/modules.html.heex:688
+#: lib/phoenix_kit_web/live/modules.html.heex:744
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:59
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:36
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:89
@@ -649,7 +649,7 @@ msgstr ""
 #: lib/phoenix_kit_web/components/annotation_composer.ex:639
 #: lib/phoenix_kit_web/components/core/form_actions.ex:111
 #: lib/phoenix_kit_web/components/core/form_actions.ex:118
-#: lib/phoenix_kit_web/components/core/modal.ex:273
+#: lib/phoenix_kit_web/components/core/modal.ex:299
 #: lib/phoenix_kit_web/components/core/reorder_modal.ex:92
 #: lib/phoenix_kit_web/components/media_browser.html.heex:69
 #: lib/phoenix_kit_web/components/media_browser.html.heex:852
@@ -657,7 +657,7 @@ msgstr ""
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1357
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2392
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2440
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:287
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:317
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:65
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1285
 #: lib/phoenix_kit_web/live/notifications/settings.ex:434
@@ -728,9 +728,9 @@ msgstr ""
 #: lib/phoenix_kit/mentions/live.ex:269
 #: lib/phoenix_kit_web/components/core/column_settings.ex:144
 #: lib/phoenix_kit_web/components/media_browser.html.heex:387
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:23
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:36
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:36
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:294
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:324
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:50
 #, elixir-autogen, elixir-format
 msgid "Close"
@@ -770,20 +770,20 @@ msgstr ""
 #: lib/phoenix_kit_web/live/modules.html.heex:177
 #: lib/phoenix_kit_web/live/modules.html.heex:247
 #: lib/phoenix_kit_web/live/modules.html.heex:319
-#: lib/phoenix_kit_web/live/modules.html.heex:434
-#: lib/phoenix_kit_web/live/modules.html.heex:498
-#: lib/phoenix_kit_web/live/modules.html.heex:575
-#: lib/phoenix_kit_web/live/modules.html.heex:590
-#: lib/phoenix_kit_web/live/modules.html.heex:774
-#: lib/phoenix_kit_web/live/modules.html.heex:798
+#: lib/phoenix_kit_web/live/modules.html.heex:435
+#: lib/phoenix_kit_web/live/modules.html.heex:499
+#: lib/phoenix_kit_web/live/modules.html.heex:576
+#: lib/phoenix_kit_web/live/modules.html.heex:591
+#: lib/phoenix_kit_web/live/modules.html.heex:775
+#: lib/phoenix_kit_web/live/modules.html.heex:799
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:175
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "Configure"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/modal.ex:271
-#: lib/phoenix_kit_web/components/core/modal.ex:272
+#: lib/phoenix_kit_web/components/core/modal.ex:297
+#: lib/phoenix_kit_web/components/core/modal.ex:298
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:74
 #: lib/phoenix_kit_web/live/users/user_details.ex:237
 #: lib/phoenix_kit_web/live/users/users.ex:368
@@ -1007,11 +1007,11 @@ msgstr ""
 #: lib/phoenix_kit_web/live/modules.html.heex:290
 #: lib/phoenix_kit_web/live/modules.html.heex:362
 #: lib/phoenix_kit_web/live/modules.html.heex:420
-#: lib/phoenix_kit_web/live/modules.html.heex:478
-#: lib/phoenix_kit_web/live/modules.html.heex:554
-#: lib/phoenix_kit_web/live/modules.html.heex:622
-#: lib/phoenix_kit_web/live/modules.html.heex:687
-#: lib/phoenix_kit_web/live/modules.html.heex:743
+#: lib/phoenix_kit_web/live/modules.html.heex:479
+#: lib/phoenix_kit_web/live/modules.html.heex:555
+#: lib/phoenix_kit_web/live/modules.html.heex:623
+#: lib/phoenix_kit_web/live/modules.html.heex:688
+#: lib/phoenix_kit_web/live/modules.html.heex:744
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:36
 #: lib/phoenix_kit_web/live/settings/users.html.heex:398
 #: lib/phoenix_kit_web/live/settings/users.html.heex:470
@@ -1019,7 +1019,7 @@ msgstr ""
 msgid "Disabled"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/modal.ex:275
+#: lib/phoenix_kit_web/components/core/modal.ex:301
 #, elixir-autogen, elixir-format
 msgid "Do you want to continue?"
 msgstr ""
@@ -1096,7 +1096,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:28
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:160
-#: lib/phoenix_kit_web/components/core/modal.ex:495
+#: lib/phoenix_kit_web/components/core/modal.ex:524
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:301
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:93
 #: lib/phoenix_kit_web/live/settings/integrations.ex:205
@@ -1269,7 +1269,7 @@ msgstr ""
 msgid "Inactive"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/modal.ex:492
+#: lib/phoenix_kit_web/components/core/modal.ex:521
 #, elixir-autogen, elixir-format
 msgid "Information"
 msgstr ""
@@ -1350,7 +1350,7 @@ msgstr ""
 msgid "Line Break"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:523
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:553
 #: lib/phoenix_kit_web/users/confirmation.html.heex:33
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:50
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:32
@@ -1497,7 +1497,7 @@ msgstr ""
 msgid "OAuth provider connections"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/modal.ex:434
+#: lib/phoenix_kit_web/components/core/modal.ex:460
 #, elixir-autogen, elixir-format
 msgid "OK"
 msgstr ""
@@ -1567,7 +1567,7 @@ msgid "Page published successfully"
 msgstr ""
 
 #: lib/phoenix_kit/integrations/providers.ex:1032
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:277
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:307
 #: lib/phoenix_kit_web/users/login.html.heex:39
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:42
 #: lib/phoenix_kit_web/users/registration.html.heex:153
@@ -1890,7 +1890,7 @@ msgstr ""
 #: lib/modules/maintenance/web/maintenance_page_live.ex:124
 #: lib/modules/storage/web/bucket_form.html.heex:295
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:218
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:145
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:175
 #: lib/phoenix_kit_web/live/modules.html.heex:240
 #: lib/phoenix_kit_web/live/modules.html.heex:312
 #: lib/phoenix_kit_web/live/settings.html.heex:5
@@ -1982,7 +1982,7 @@ msgstr ""
 msgid "Strikethrough"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/modal.ex:493
+#: lib/phoenix_kit_web/components/core/modal.ex:522
 #, elixir-autogen, elixir-format
 msgid "Success"
 msgstr ""
@@ -2045,7 +2045,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/modules.html.heex:256
 #: lib/phoenix_kit_web/live/modules.html.heex:328
-#: lib/phoenix_kit_web/live/modules.html.heex:711
+#: lib/phoenix_kit_web/live/modules.html.heex:712
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Total"
@@ -2175,7 +2175,7 @@ msgstr ""
 msgid "View"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/modal.ex:494
+#: lib/phoenix_kit_web/components/core/modal.ex:523
 #, elixir-autogen, elixir-format
 msgid "Warning"
 msgstr ""
@@ -4678,7 +4678,7 @@ msgid "Main heading shown on maintenance page"
 msgstr ""
 
 #: lib/modules/maintenance/settings.ex:373
-#: lib/phoenix_kit_web/live/modules.html.heex:540
+#: lib/phoenix_kit_web/live/modules.html.heex:541
 #, elixir-autogen, elixir-format
 msgid "Maintenance Mode"
 msgstr ""
@@ -4922,7 +4922,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1272
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:470
-#: lib/phoenix_kit_web/live/modules.html.heex:675
+#: lib/phoenix_kit_web/live/modules.html.heex:676
 #: lib/phoenix_kit_web/live/settings.html.heex:368
 #, elixir-autogen, elixir-format
 msgid "Notifications"
@@ -5807,17 +5807,17 @@ msgstr ""
 msgid "%{count} pending"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:626
+#: lib/phoenix_kit_web/live/modules.html.heex:627
 #, elixir-autogen, elixir-format
 msgid "%{count} running"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:599
+#: lib/phoenix_kit_web/live/modules.html.heex:600
 #, elixir-autogen, elixir-format
 msgid "Activate maintenance mode in settings to block non-admin users"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:878
+#: lib/phoenix_kit_web/live/modules.html.heex:879
 #, elixir-autogen, elixir-format
 msgid "Add to mix.exs"
 msgstr ""
@@ -5827,19 +5827,19 @@ msgstr ""
 msgid "Always Enabled"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:482
+#: lib/phoenix_kit_web/live/modules.html.heex:483
 #, elixir-autogen, elixir-format
 msgid "Auto-regenerate"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/core/column_settings.ex:112
-#: lib/phoenix_kit_web/live/modules.html.heex:651
+#: lib/phoenix_kit_web/live/modules.html.heex:652
 #, elixir-autogen, elixir-format
 msgid "Available"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:828
-#: lib/phoenix_kit_web/live/modules.html.heex:845
+#: lib/phoenix_kit_web/live/modules.html.heex:829
+#: lib/phoenix_kit_web/live/modules.html.heex:846
 #, elixir-autogen, elixir-format
 msgid "Available Packages"
 msgstr ""
@@ -5849,12 +5849,12 @@ msgstr ""
 msgid "Blocks"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:759
+#: lib/phoenix_kit_web/live/modules.html.heex:760
 #, elixir-autogen, elixir-format
 msgid "Body Saved"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:381
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:405
 #: lib/phoenix_kit_web/live/modules.ex:106
 #: lib/phoenix_kit_web/live/modules.html.heex:201
 #: lib/phoenix_kit_web/live/users/media_detail.html.heex:296
@@ -5862,7 +5862,7 @@ msgstr ""
 msgid "Comments"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:655
+#: lib/phoenix_kit_web/live/modules.html.heex:656
 #, elixir-autogen, elixir-format
 msgid "Completed"
 msgstr ""
@@ -5883,7 +5883,7 @@ msgstr ""
 msgid "Customer support ticketing system with internal notes and status tracking"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:663
+#: lib/phoenix_kit_web/live/modules.html.heex:664
 #, elixir-autogen, elixir-format
 msgid "Discarded"
 msgstr ""
@@ -5893,18 +5893,18 @@ msgstr ""
 msgid "Distributed file storage system with multi-location redundancy and automatic failover"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:896
+#: lib/phoenix_kit_web/live/modules.html.heex:897
 #, elixir-autogen, elixir-format
 msgid "Each module can be enabled or disabled using the toggle switches above. Click \"Configure\" to access detailed settings for each module on dedicated pages."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:600
+#: lib/phoenix_kit_web/live/modules.html.heex:601
 #, elixir-autogen, elixir-format
 msgid "Enable module to access maintenance mode settings"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:438
-#: lib/phoenix_kit_web/live/modules.html.heex:511
+#: lib/phoenix_kit_web/live/modules.html.heex:439
+#: lib/phoenix_kit_web/live/modules.html.heex:512
 #, elixir-autogen, elixir-format
 msgid "Enable module to access settings"
 msgstr ""
@@ -5914,12 +5914,12 @@ msgstr ""
 msgid "Enable module to manage connections"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:642
+#: lib/phoenix_kit_web/live/modules.html.heex:643
 #, elixir-autogen, elixir-format
 msgid "Enable module to view background jobs"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:746
+#: lib/phoenix_kit_web/live/modules.html.heex:747
 #, elixir-autogen, elixir-format
 msgid "External"
 msgstr ""
@@ -5929,17 +5929,17 @@ msgstr ""
 msgid "Follows"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:466
+#: lib/phoenix_kit_web/live/modules.html.heex:467
 #, elixir-autogen, elixir-format
 msgid "Generate XML sitemaps for search engines with styled browser display"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:578
+#: lib/phoenix_kit_web/live/modules.html.heex:579
 #, elixir-autogen, elixir-format
 msgid "Header"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:760
+#: lib/phoenix_kit_web/live/modules.html.heex:761
 #, elixir-autogen, elixir-format
 msgid "Headers Only"
 msgstr ""
@@ -5949,7 +5949,7 @@ msgstr ""
 msgid "In Progress"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:610
+#: lib/phoenix_kit_web/live/modules.html.heex:611
 #: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Jobs"
@@ -5961,17 +5961,17 @@ msgstr ""
 msgid "Languages"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:524
+#: lib/phoenix_kit_web/live/modules.html.heex:525
 #, elixir-autogen, elixir-format
 msgid "Last gen"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:562
+#: lib/phoenix_kit_web/live/modules.html.heex:563
 #, elixir-autogen, elixir-format
 msgid "Maintenance Active"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:563
+#: lib/phoenix_kit_web/live/modules.html.heex:564
 #, elixir-autogen, elixir-format
 msgid "Maintenance Off"
 msgstr ""
@@ -6016,12 +6016,12 @@ msgstr ""
 msgid "Max uses"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:582
+#: lib/phoenix_kit_web/live/modules.html.heex:583
 #, elixir-autogen, elixir-format
 msgid "Message"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:894
+#: lib/phoenix_kit_web/live/modules.html.heex:895
 #, elixir-autogen, elixir-format
 msgid "Module Management"
 msgstr ""
@@ -6040,24 +6040,24 @@ msgstr ""
 msgid "No Default"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:445
+#: lib/phoenix_kit_web/live/modules.html.heex:446
 #, elixir-autogen, elixir-format
 msgid "Noindex"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:866
+#: lib/phoenix_kit_web/live/modules.html.heex:867
 #, elixir-autogen, elixir-format
 msgid "Not installed"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:447
+#: lib/phoenix_kit_web/live/modules.html.heex:448
 #: lib/phoenix_kit_web/live/settings.html.heex:480
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:315
 #, elixir-autogen, elixir-format
 msgid "Off"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:447
+#: lib/phoenix_kit_web/live/modules.html.heex:448
 #: lib/phoenix_kit_web/live/settings.html.heex:479
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:315
 #, elixir-autogen, elixir-format
@@ -6079,23 +6079,23 @@ msgstr ""
 msgid "Referral Codes"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:750
+#: lib/phoenix_kit_web/live/modules.html.heex:751
 #, elixir-autogen, elixir-format
 msgid "Requires %{module}"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:659
+#: lib/phoenix_kit_web/live/modules.html.heex:660
 #, elixir-autogen, elixir-format
 msgid "Retryable"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:542
+#: lib/phoenix_kit_web/live/modules.html.heex:543
 #, elixir-autogen, elixir-format
 msgid "Show maintenance page to non-admin users while you work on the site"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:464
-#: lib/phoenix_kit_web/live/modules.html.heex:505
+#: lib/phoenix_kit_web/live/modules.html.heex:465
+#: lib/phoenix_kit_web/live/modules.html.heex:506
 #, elixir-autogen, elixir-format
 msgid "Sitemap"
 msgstr ""
@@ -6120,17 +6120,17 @@ msgstr ""
 msgid "Total languages"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:520
+#: lib/phoenix_kit_web/live/modules.html.heex:521
 #, elixir-autogen, elixir-format
 msgid "URLs"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:638
+#: lib/phoenix_kit_web/live/modules.html.heex:639
 #, elixir-autogen, elixir-format
 msgid "View Jobs"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:611
+#: lib/phoenix_kit_web/live/modules.html.heex:612
 #, elixir-autogen, elixir-format
 msgid "View-only dashboard for background job status and history"
 msgstr ""
@@ -6767,7 +6767,7 @@ msgstr ""
 #: lib/phoenix_kit_web/components/media_browser.html.heex:814
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1603
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2233
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:327
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:351
 #, elixir-autogen, elixir-format
 msgid "Download"
 msgstr ""
@@ -6829,7 +6829,7 @@ msgstr ""
 msgid "Image Missing"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:349
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "MIME:"
 msgstr ""
@@ -6876,7 +6876,7 @@ msgstr ""
 msgid "Next"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:65
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Next (→)"
 msgstr ""
@@ -6926,7 +6926,7 @@ msgstr[1] ""
 msgid "Prev"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:51
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Previous (←)"
 msgstr ""
@@ -6960,7 +6960,7 @@ msgstr ""
 msgid "Show folders"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:353
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Size:"
 msgstr ""
@@ -6986,7 +6986,7 @@ msgstr ""
 msgid "Trash is empty."
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:343
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:367
 #, elixir-autogen, elixir-format
 msgid "Type:"
 msgstr ""
@@ -7019,12 +7019,12 @@ msgid_plural "Upload successful! %{count} new files processed"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:357
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "Uploaded:"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:161
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Your browser does not support the video tag."
 msgstr ""
@@ -7074,8 +7074,8 @@ msgid_plural "%{count} new files added"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:217
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:345
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:239
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "FILE"
 msgstr ""
@@ -7292,8 +7292,8 @@ msgstr ""
 msgid "Are you sure you want to delete this comment?"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1275
-#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1276
+#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1449
+#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1450
 #, elixir-autogen, elixir-format
 msgid "%b %d, %Y"
 msgstr ""
@@ -7639,8 +7639,7 @@ msgstr ""
 msgid "You need to configure at least one storage bucket before you can upload files."
 msgstr ""
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:863
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:113
+#: lib/phoenix_kit_web/components/core/admin_label.ex:63
 #, elixir-autogen, elixir-format
 msgid "Admin Panel"
 msgstr ""
@@ -8069,7 +8068,7 @@ msgstr ""
 msgid "Date & Time"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:337
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:361
 #: lib/phoenix_kit_web/live/activity/index.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "Details"
@@ -9088,7 +9087,7 @@ msgstr ""
 msgid "AI models via OpenAI (GPT, embeddings, images, audio)"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:396
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:426
 #, elixir-autogen, elixir-format
 msgid "Account menu"
 msgstr ""
@@ -9225,7 +9224,7 @@ msgstr ""
 msgid "Description..."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:719
+#: lib/phoenix_kit_web/live/modules.html.heex:720
 #: lib/phoenix_kit_web/live/notifications/inbox.ex:278
 #, elixir-autogen, elixir-format
 msgid "Dismissed"
@@ -9263,7 +9262,7 @@ msgstr ""
 msgid "Enable JavaScript to use the toolbar and media insertion."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:702
+#: lib/phoenix_kit_web/live/modules.html.heex:703
 #, elixir-autogen, elixir-format
 msgid "Enable module to view notifications"
 msgstr ""
@@ -9318,7 +9317,7 @@ msgstr ""
 msgid "Folder name can't be blank"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:525
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:555
 #, elixir-autogen, elixir-format
 msgid "Forgot password"
 msgstr ""
@@ -9387,7 +9386,7 @@ msgstr ""
 msgid "If your account belongs to multiple organizations, keys are scoped to the org selected when the key was created."
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:467
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:497
 #, elixir-autogen, elixir-format
 msgid "Language"
 msgstr ""
@@ -9411,7 +9410,7 @@ msgstr ""
 msgid "List"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:526
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:556
 #, elixir-autogen, elixir-format
 msgid "Magic link"
 msgstr ""
@@ -9467,7 +9466,7 @@ msgstr ""
 msgid "No media yet."
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:414
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:444
 #, elixir-autogen, elixir-format
 msgid "Not signed in"
 msgstr ""
@@ -9497,7 +9496,7 @@ msgstr ""
 msgid "Other"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:676
+#: lib/phoenix_kit_web/live/modules.html.heex:677
 #, elixir-autogen, elixir-format
 msgid "Per-user in-app notifications driven by the activity log"
 msgstr ""
@@ -9552,7 +9551,7 @@ msgstr ""
 msgid "Show title"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:524
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:554
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr ""
@@ -9587,13 +9586,13 @@ msgstr ""
 msgid "The free tier includes a monthly character quota; paid plans raise the quota and unlock commercial use and additional voices."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:715
+#: lib/phoenix_kit_web/live/modules.html.heex:716
 #: lib/phoenix_kit_web/live/notifications/inbox.ex:260
 #, elixir-autogen, elixir-format
 msgid "Unread"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:698
+#: lib/phoenix_kit_web/live/modules.html.heex:699
 #, elixir-autogen, elixir-format
 msgid "View Notifications"
 msgstr ""
@@ -9758,7 +9757,7 @@ msgstr ""
 msgid "Phoenix Light"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:192
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Play / Pause"
 msgstr ""
@@ -9798,12 +9797,12 @@ msgstr ""
 msgid "Wireframe"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:210
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Your browser does not support the audio tag."
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:237
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:267
 #, elixir-autogen, elixir-format
 msgid "Log Out"
 msgstr ""
@@ -10416,44 +10415,44 @@ msgstr ""
 msgid "You can close this page."
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:159
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:189
 #, elixir-autogen, elixir-format
 msgid "Accounts"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:370
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:400
 #, elixir-autogen, elixir-format
 msgid "Add Facebook account"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:358
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:388
 #, elixir-autogen, elixir-format
 msgid "Add GitHub account"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:346
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:376
 #, elixir-autogen, elixir-format
 msgid "Add Google account"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:223
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:259
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:253
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:289
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:319
 #, elixir-autogen, elixir-format
 msgid "Add account"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:268
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:298
 #, elixir-autogen, elixir-format
 msgid "Email or username"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:249
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:279
 #, elixir-autogen, elixir-format
 msgid "Log out from all accounts"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:335
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:365
 #, elixir-autogen, elixir-format
 msgid "Or add via"
 msgstr ""
@@ -10662,24 +10661,24 @@ msgstr ""
 msgid "By operating system"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:270
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:294
 #, elixir-autogen, elixir-format
 msgid "Failed to save rotation"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:239
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:241
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:262
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Hide details"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:269
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Rotation saved"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:239
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:241
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:262
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Show details"
 msgstr ""
@@ -12051,7 +12050,7 @@ msgstr ""
 msgid "Select one or more audio files"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:835
+#: lib/phoenix_kit_web/live/modules.html.heex:836
 #, elixir-autogen, elixir-format
 msgid "Browse PhoenixKit packages on hex.pm"
 msgstr ""
@@ -12071,7 +12070,7 @@ msgstr ""
 msgid "Copied!"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:833
+#: lib/phoenix_kit_web/live/modules.html.heex:834
 #, elixir-autogen, elixir-format
 msgid "Couldn't reach hex.pm, so the package list is unavailable right now."
 msgstr ""
@@ -12299,7 +12298,7 @@ msgstr ""
 msgid "Block at the application"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules.html.heex:451
+#: lib/phoenix_kit_web/live/modules.html.heex:452
 #, elixir-autogen, elixir-format
 msgid "Blocked groups"
 msgstr ""
@@ -12843,7 +12842,7 @@ msgstr ""
 msgid "Shown"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:289
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:313
 #, elixir-autogen, elixir-format
 msgid "Reply to this annotation"
 msgstr ""
@@ -12947,7 +12946,7 @@ msgstr ""
 msgid "Cannot remove your primary account."
 msgstr ""
 
-#: lib/phoenix_kit_web/controllers/context_controller.ex:101
+#: lib/phoenix_kit_web/controllers/context_controller.ex:102
 #, elixir-autogen, elixir-format
 msgid "Context switching is not enabled"
 msgstr ""
@@ -13001,7 +13000,7 @@ msgstr ""
 msgid "If your email is in our system, you will receive instructions to reset your password shortly."
 msgstr ""
 
-#: lib/phoenix_kit_web/controllers/context_controller.ex:82
+#: lib/phoenix_kit_web/controllers/context_controller.ex:83
 #, elixir-autogen, elixir-format
 msgid "Invalid context"
 msgstr ""
@@ -13622,31 +13621,21 @@ msgstr ""
 msgid "in the last week"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings.html.heex:77
-#, elixir-autogen, elixir-format
-msgid "Show the \"Admin Panel\" label"
-msgstr ""
-
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1079
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1158
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1070
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1071
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1073
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1149
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1150
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1152
 #, elixir-autogen, elixir-format
 msgid "Collapse the menu to icons"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1072
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1151
 #, elixir-autogen, elixir-format
 msgid "Expand the menu"
-msgstr ""
-
-#: lib/phoenix_kit_web/live/settings.html.heex:80
-#, elixir-autogen, elixir-format
-msgid "Shown next to the project name in the admin header. Turn it off to show just the project name. The wording itself follows each visitor's language and has no setting — a label typed here would show one language to everyone. The browser tab title is unaffected."
 msgstr ""
 
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:265
@@ -13678,4 +13667,55 @@ msgstr ""
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Started today"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:70
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:622
+#, elixir-autogen, elixir-format
+msgid "My Account"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/settings.html.heex:77
+#, elixir-autogen, elixir-format
+msgid "Show the \"Admin Panel\" label in the admin header"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:65
+#, elixir-autogen, elixir-format
+msgid "Backoffice"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:66
+#, elixir-autogen, elixir-format
+msgid "Console"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:67
+#, elixir-autogen, elixir-format
+msgid "Control Panel"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:71
+#, elixir-autogen, elixir-format
+msgid "Management"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:69
+#, elixir-autogen, elixir-format
+msgid "Portal"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:72
+#, elixir-autogen, elixir-format
+msgid "Studio"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/admin_label.ex:68
+#, elixir-autogen, elixir-format
+msgid "Workspace"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/settings.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Shown next to the project name. Turn it off to show just the project name. The wording is not editable here because it is translated — each visitor reads it in their own language. To call your admin area something else and keep that, a developer can set `admin_panel_label` in config.exs, where the available names are listed as comments. The browser tab title is unaffected."
 msgstr ""
