@@ -2153,6 +2153,47 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // PkUrlMirror — keeps the address bar on the element's `data-url`.
+  //
+  // For a LiveView that switches views in place but cannot export
+  // handle_params/3 (an embeddable LV — LiveView refuses to mount one with
+  // that callback outside a router route). The server renders the canonical
+  // URL of the current view into `data-url`; on every mount/update the hook
+  // `replaceState`s to it when it differs. Replace, never push: a pushed
+  // entry would be a foreign history state that LiveView's popstate handler
+  // treats as live navigation into a callback that does not exist. Back /
+  // forward therefore leave the page, as before; copy / reload / deep links
+  // land on the view that was showing.
+  //
+  //   <div id="tabs" phx-hook="PkUrlMirror" data-url="/admin/projects/1/tasks/board">
+  // ---------------------------------------------------------------------------
+  function urlMirrorTarget(dataset, current) {
+    const url = dataset && dataset.url;
+    if (typeof url !== "string" || url === "" || url.charAt(0) !== "/") return null;
+    if (url === current) return null;
+    return url;
+  }
+
+  if (typeof module === "object" && module.exports) {
+    module.exports.urlMirrorTarget = urlMirrorTarget;
+  }
+
+  window.PhoenixKitHooks.PkUrlMirror = {
+    mounted() { this._sync(); },
+    updated() { this._sync(); },
+    _sync() {
+      const current = window.location.pathname + window.location.search;
+      const target = urlMirrorTarget(this.el.dataset, current);
+      if (target === null) return;
+      try {
+        window.history.replaceState(window.history.state, "", target);
+      } catch (_e) {
+        // A cross-origin or otherwise refused URL: leave the address bar alone.
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // PkCheckboxIndeterminate — applies the `indeterminate` property to a
   // checkbox based on `data-indeterminate="true"`. HTML has no attribute
   // form of `indeterminate`, so a small hook is needed to read the dataset
