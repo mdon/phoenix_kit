@@ -1,4 +1,17 @@
-## Unreleased
+## 2.14.0 - 2026-09-05
+
+The admin area stops being nailed to `/admin`, the deprecated user dashboard
+stops being promoted from core's own defaults, and the admin sidebar gains a
+collapsed icon rail with hover flyouts.
+
+### Security
+
+- **`mint` 1.9.3 → 1.10.0**, clearing two advisories the release gate refused
+  to publish over: EEF-CVE-2026-82728 (HIGH — unbounded HTTP/1 status-line and
+  chunk-extension buffering, memory-exhaustion DoS) and EEF-CVE-2026-82729
+  (MEDIUM — quadratic chunk-size parsing in `Mint.HTTP1.Parse`, CPU-exhaustion
+  DoS). Transitive, via `finch`, `swoosh` and `tz`; every constraint on it
+  already allowed 1.10.0, so this is a lockfile move with no API change.
 
 ### Added
 
