@@ -1,4 +1,14 @@
-## Unreleased
+## 2.15.0 - 2026-09-05
+
+The deprecated user dashboard stops being routed by default, and the admin area
+gets a name of its own — one that a host can change without giving up
+translation.
+
+⚠️ **Two behaviour changes for existing hosts**, both covered below:
+`:user_dashboard_enabled` now defaults to `false`, so `/dashboard` stops routing
+for anyone who never wrote the key; and a host already running a renamed
+`:admin_path` that matches a preset will see its header wording change to match
+the URL. Neither deletes anything — one config line restores either.
 
 ### Added
 
