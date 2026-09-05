@@ -183,4 +183,18 @@ defmodule PhoenixKit.Utils.Date.TimezoneTest do
       assert DateUtils.format_datetime_local(dt, "-8") == "2026-04-14T23:45"
     end
   end
+
+  describe "get_user_timezone/1 and get_user_timezone_cached/2" do
+    test "a blank value is unset, not a zone of its own" do
+      site = PhoenixKit.Settings.get_setting("time_zone", "0")
+      assert DateUtils.get_user_timezone(%{user_timezone: ""}) == site
+      assert DateUtils.get_user_timezone(%{user_timezone: nil}) == site
+      assert DateUtils.get_user_timezone(%{user_timezone: "Europe/Warsaw"}) == "Europe/Warsaw"
+
+      cached = %{"time_zone" => "Europe/Tallinn"}
+      assert DateUtils.get_user_timezone_cached(%{user_timezone: ""}, cached) == "Europe/Tallinn"
+      assert DateUtils.get_user_timezone_cached(%{user_timezone: nil}, cached) == "Europe/Tallinn"
+      assert DateUtils.get_user_timezone_cached(%{user_timezone: "5.5"}, cached) == "5.5"
+    end
+  end
 end

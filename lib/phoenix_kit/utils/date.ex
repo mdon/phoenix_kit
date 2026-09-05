@@ -620,7 +620,9 @@ defmodule PhoenixKit.Utils.Date do
   """
   def get_user_timezone(user) do
     case user.user_timezone do
-      nil -> Settings.get_setting("time_zone", "0")
+      # Blank is "not set" too: the changeset normalises "" to nil, but a row
+      # written around it would otherwise read as UTC instead of the site.
+      value when value in [nil, ""] -> Settings.get_setting("time_zone", "0")
       timezone -> timezone
     end
   end
@@ -745,7 +747,7 @@ defmodule PhoenixKit.Utils.Date do
   """
   def get_user_timezone_cached(user, settings) do
     case user.user_timezone do
-      nil -> Map.get(settings, "time_zone", "0")
+      value when value in [nil, ""] -> Map.get(settings, "time_zone", "0")
       timezone -> timezone
     end
   end

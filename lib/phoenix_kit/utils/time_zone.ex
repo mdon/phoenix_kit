@@ -1344,12 +1344,9 @@ defmodule PhoenixKit.Utils.TimeZone do
 
   def for_viewer(_viewer), do: site_zone()
 
-  defp site_zone do
-    PhoenixKit.Settings.get_setting("time_zone", "0")
-  rescue
-    # A page of timestamps must not go down with the settings table.
-    _ -> "0"
-  end
+  # `Settings.get_setting/2` already answers the default when the database
+  # is unreachable, so nothing here needs rescuing.
+  defp site_zone, do: PhoenixKit.Settings.get_setting("time_zone", "0")
 
   @doc """
   The UTC instant at which `date` begins in `value` — the lower bound of a
