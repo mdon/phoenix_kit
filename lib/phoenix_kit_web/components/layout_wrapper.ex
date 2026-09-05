@@ -105,27 +105,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     doc:
       "Optional compact action button rendered right after the breadcrumb title: `%{icon: \"hero-plus\", label: \"New template\", navigate: path}`. Lets a page keep its primary create action without spending an in-content header row. `label` becomes the tooltip/aria-label; `icon` defaults to hero-plus. Navigation only — for a `phx-click` action (or anything needing `phx-target`), use the `:action` slot instead. ⚠️ Plugin LiveViews rendered through the admin layout can only use this map: the layout threads it as an assign, and a slot cannot travel that way."
 
-  attr :page_toolbar, :any,
-    default: nil,
-    doc: """
-    Controls that belong to the page's identity, rendered in the breadcrumb bar
-    right after the title — a status picker, the page's ⋮ menu. `{Module, :fun}`
-    names a function component that receives the **LiveView's own assigns**
-    (change-tracked), so it can render `phx-change` / `phx-click` controls whose
-    events reach the LiveView as usual — the layout renders inside it. This is
-    the plugin-LiveView way: `layouts/admin.html.heex` threads the assign and
-    calls the component; a view calling `app_layout/1` directly can use the
-    `:toolbar` slot instead. Distinct from `page_action` / `:action`, which stay
-    the one compact *create* chip. Embedded mounts have no breadcrumb bar, so a
-    page that is also embeddable renders the same component in its body there.
-
-        assign(socket, page_toolbar: {__MODULE__, :header_toolbar})
-
-        # `def header_toolbar(assigns)` renders, with ~H, e.g. a
-        # `<form id="status" phx-change="change_status">` select and the
-        # page's `<.table_row_menu>`; both events land in handle_event/3.
-    """
-
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
   attr :project_title, :string, default: nil
@@ -167,9 +146,25 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   slot :toolbar,
     doc: """
-    The same page toolbar as `page_toolbar`, for views calling `app_layout/1`
-    directly. Rendered after the title, before the action chip. Only reaches
-    direct callers — plugin LiveViews use the `page_toolbar` assign.
+    Controls that belong to the page's identity, rendered in the breadcrumb
+    bar right after the title — a status picker, the page's ⋮ menu. Rendered
+    as given (no chip shell); distinct from `page_action` / `:action`, which
+    stay the one compact *create* chip.
+
+    Two ways in. A view calling `app_layout/1` directly passes this slot. A
+    plugin LiveView rendered through `layouts/admin.html.heex` cannot pass a
+    slot, so it assigns `page_toolbar: {Module, :fun}` on its socket: the
+    layout calls `render_page_toolbar/1` with the LiveView's own assigns
+    (change-tracked) and puts the result in this slot — `phx-change` /
+    `phx-click` inside it reach the LiveView as usual, because the layout
+    renders inside it. Embedded mounts have no breadcrumb bar, so a page that
+    is also embeddable renders the same component in its body there.
+
+        # in a plugin LiveView's mount:
+        assign(socket, page_toolbar: {__MODULE__, :header_toolbar})
+        # `def header_toolbar(assigns)` renders, with ~H, e.g. a
+        # `<form id="status" phx-change="change_status">` select and the
+        # page's `<.table_row_menu>`; both events land in handle_event/3.
     """
 
   slot :inner_block, required: false
@@ -323,16 +318,27 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   Renders a page's `page_toolbar` — `{Module, :fun}` — with the LiveView's own
   assigns. Called by `layouts/admin.html.heex`, which is the only place that
   holds those assigns; the result goes into the `:toolbar` slot. Renders
-  nothing when the page set no toolbar.
+  nothing when the page set no toolbar — and nothing, with a logged
+  warning, when the pair names no `fun/1`: a page missing its toolbar beats
+  the whole admin chrome raising on every render (the same policy
+  `nav_tabs` applies to a dead tab).
   """
   @spec render_page_toolbar(map()) :: Phoenix.LiveView.Rendered.t() | nil
   def render_page_toolbar(%{page_toolbar: {mod, fun}} = assigns)
       when is_atom(mod) and is_atom(fun) do
-    TagEngine.component(
-      Function.capture(mod, fun, 1),
-      assigns,
-      {__ENV__.module, __ENV__.function, __ENV__.file, __ENV__.line}
-    )
+    if Code.ensure_loaded?(mod) and function_exported?(mod, fun, 1) do
+      TagEngine.component(
+        Function.capture(mod, fun, 1),
+        assigns,
+        {__ENV__.module, __ENV__.function, __ENV__.file, __ENV__.line}
+      )
+    else
+      Logger.warning(
+        "[LayoutWrapper] page_toolbar #{inspect(mod)}.#{fun}/1 is not a function component — rendering no toolbar"
+      )
+
+      nil
+    end
   end
 
   def render_page_toolbar(_assigns), do: nil

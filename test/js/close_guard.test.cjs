@@ -60,7 +60,7 @@ global.window = {
 global.localStorage = storage;
 global.sessionStorage = storage;
 
-const { guardedInput } = require("../../priv/static/assets/phoenix_kit.js");
+const { guardedInput, guardedDirty } = require("../../priv/static/assets/phoenix_kit.js");
 
 // A target whose `closest` answers from a fixed map: selector → element.
 function target(map) {
@@ -90,4 +90,69 @@ test("missing pieces never throw", () => {
   assert.equal(guardedInput(null, target({})), false);
   assert.equal(guardedInput(dialog, null), false);
   assert.equal(guardedInput(dialog, {}), false);
+});
+
+// ── guardedDirty: the decision, recomputed from the forms' fields ──
+
+// A field with the DOM properties fieldDirty reads.
+function field(attrs) {
+  return Object.assign(
+    { name: "f", disabled: false, type: "text", value: "", defaultValue: "", tagName: "INPUT",
+      closest: () => null },
+    attrs
+  );
+}
+
+function dialogWith(forms) {
+  const d = {
+    id: "outer",
+    querySelectorAll: (sel) => (sel === "form[phx-submit]" ? forms : []),
+  };
+  forms.forEach((f) => { f.closest = (sel) => (sel === "dialog" ? d : null); });
+  return d;
+}
+
+test("a typed value that differs from the rendered one is dirty", () => {
+  const d = dialogWith([{ elements: [field({ value: "draft", defaultValue: "" })] }]);
+  assert.equal(guardedDirty(d), true);
+});
+
+test("a form the server re-rendered with the value — or reset — is clean again", () => {
+  const same = dialogWith([{ elements: [field({ value: "draft", defaultValue: "draft" })] }]);
+  assert.equal(guardedDirty(same), false);
+  const reset = dialogWith([{ elements: [field({ value: "", defaultValue: "" })] }]);
+  assert.equal(guardedDirty(reset), false);
+});
+
+test("checkboxes and selects count by checkedness / selection", () => {
+  const box = field({ type: "checkbox", checked: true, defaultChecked: false });
+  assert.equal(guardedDirty(dialogWith([{ elements: [box] }])), true);
+  const sel = field({
+    tagName: "SELECT", type: "select-one",
+    options: [{ selected: true, defaultSelected: false }, { selected: false, defaultSelected: true }],
+  });
+  assert.equal(guardedDirty(dialogWith([{ elements: [sel] }])), true);
+});
+
+test("search fields, hidden inputs and disabled fields never count", () => {
+  const search = field({ type: "search", value: "q", defaultValue: "" });
+  const hidden = field({ type: "hidden", value: "x", defaultValue: "" });
+  const off = field({ disabled: true, value: "x", defaultValue: "" });
+  assert.equal(guardedDirty(dialogWith([{ elements: [search, hidden, off] }])), false);
+  // A typed search box is not an unsaved edit either way.
+  const t = target({ dialog: dialog, "form[phx-submit]": submitForm });
+  t.type = "search";
+  assert.equal(guardedInput(dialog, t), false);
+});
+
+test("a nested dialog's forms belong to the nested dialog", () => {
+  const inner = { id: "inner" };
+  const form = { elements: [field({ value: "draft", defaultValue: "" })], closest: (sel) => (sel === "dialog" ? inner : null) };
+  const d = { id: "outer", querySelectorAll: () => [form] };
+  assert.equal(guardedDirty(d), false);
+});
+
+test("guardedDirty never throws on missing pieces", () => {
+  assert.equal(guardedDirty(null), false);
+  assert.equal(guardedDirty({}), false);
 });

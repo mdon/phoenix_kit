@@ -145,6 +145,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # elements the migration cannot identify, and escaping the `LIKE` prefix) —
   # neither touches a database object either.
   #
+  # V183 (2026-09-05, the projects module's file-less whiteboards) DECLARES
+  # five objects here by hand, the V180 class: `column:phoenix_kit_annotations.
+  # target_type` (varchar(32) NOT NULL DEFAULT 'file'), `column:…target_uuid`
+  # (uuid), `index:phoenix_kit_annotations_target_index` (target_type,
+  # target_uuid) and `constraint:…phoenix_kit_annotations_target_check`, plus a
+  # `{183, …}` revision APPENDED to `column:…file_uuid` for its NOT NULL drop
+  # (the V181 reshape class). Shapes transcribed from a real database migrated
+  # V135→V183 (`information_schema.columns`, `pg_get_constraintdef`,
+  # `pg_get_indexdef`), not typed from the migration. `chain_hash` restamped
+  # over the 49 shipped files; the real-database integration suite re-ran
+  # clean against a DB migrated through V183.
+  #
   # V180 was fixed post-publish (2.13.11): its bare top-level `LOCK TABLE` moved
   # inside the `DO $$` block that already carries the dedupe UPDATE and the
   # `CREATE UNIQUE INDEX`, and that UPDATE's `updated_at` expression changed from
@@ -225,7 +237,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "0a6fa8027613a2505040a35eca6aca54dcd1831f7302966838592be0bb611d83"
+  @chain_hash "bf7deaf2179dd5a84c6bd1e51ff3704e297d08c29dea74f40d5225ef62b89e3e"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -51588,7 +51600,115 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_annotations ADD COLUMN IF NOT EXISTS \"file_uuid\" uuid",
         since: 115,
         class: :column,
-        revisions: [{115, %{default: nil, type: "uuid", pos: 2, not_null: true}}],
+        # DECLARED POST-GENERATION (2026-09-05): V183 drops NOT NULL — an
+        # annotation may anchor to a non-file target (see the two columns,
+        # the index and the CHECK declared below it).
+        revisions: [
+          {115, %{default: nil, type: "uuid", pos: 2, not_null: true}},
+          {183, %{default: nil, type: "uuid", pos: 2, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        # DECLARED POST-GENERATION (2026-09-05): V183 target anchoring.
+        id: "column:phoenix_kit_annotations.target_type",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_annotations", column: "target_type", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_annotations ADD COLUMN IF NOT EXISTS \"target_type\" character varying(32) DEFAULT 'file'::character varying NOT NULL",
+        since: 183,
+        class: :column,
+        revisions: [
+          {183,
+           %{
+             default: "'file'::character varying",
+             type: "character varying(32)",
+             pos: 12,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        # DECLARED POST-GENERATION (2026-09-05): V183 target anchoring.
+        id: "column:phoenix_kit_annotations.target_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_annotations", column: "target_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_annotations ADD COLUMN IF NOT EXISTS \"target_uuid\" uuid",
+        since: 183,
+        class: :column,
+        revisions: [{183, %{default: nil, type: "uuid", pos: 13, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        # DECLARED POST-GENERATION (2026-09-05): V183 target anchoring.
+        id: "index:phoenix_kit_annotations_target_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_annotations_target_index",
+             table: "phoenix_kit_annotations",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_annotations_target_index ON __SCHEMA__.phoenix_kit_annotations USING btree (target_type, target_uuid)",
+        since: 183,
+        class: :index,
+        revisions: [
+          {183,
+           %{
+             table: "phoenix_kit_annotations",
+             keys: ["target_type", "target_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_annotations_target_index ON __SCHEMA__.phoenix_kit_annotations USING btree (target_type, target_uuid)",
+             predicate: nil,
+             opclasses: ["text_ops", "uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        # DECLARED POST-GENERATION (2026-09-05): V183 target anchoring — a
+        # "file" target carries its file in both columns, any other target
+        # carries none.
+        id: "constraint:phoenix_kit_annotations.phoenix_kit_annotations_target_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_annotations_target_check",
+             table: "phoenix_kit_annotations",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_annotations_target_check'\n      AND t.relname = 'phoenix_kit_annotations'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_annotations ADD CONSTRAINT phoenix_kit_annotations_target_check CHECK (((((target_type)::text = 'file'::text) AND (file_uuid IS NOT NULL) AND (target_uuid = file_uuid)) OR (((target_type)::text <> 'file'::text) AND (file_uuid IS NULL) AND (target_uuid IS NOT NULL))));\n  END IF;\nEND\n$$",
+        since: 183,
+        class: :constraint,
+        revisions: [
+          {183,
+           %{
+             type: "c",
+             columns: ["target_type", "file_uuid", "target_uuid"],
+             definition:
+               "CHECK (((((target_type)::text = 'file'::text) AND (file_uuid IS NOT NULL) AND (target_uuid = file_uuid)) OR (((target_type)::text <> 'file'::text) AND (file_uuid IS NULL) AND (target_uuid IS NOT NULL))))",
+             name_template: nil,
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }}
+        ],
         presence: :required,
         backfill: nil
       },

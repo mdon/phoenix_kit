@@ -46,6 +46,14 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   ## Optional assigns
 
+    * `:can_annotate` (default `true`) — whether THIS viewer may change
+      the drawings. `false` is read-only: every shape arrives locked
+      (Etcher's `readonly`, so it renders and tooltips but cannot be
+      moved, resized, deleted or edited), the drawing toolbar and the
+      pencil are gone, and the server refuses `etcher:annotations-changed`
+      / `etcher:shape-drawn` outright — Etcher's flag is UX, this is the
+      boundary. Hosts pass their own write permission (a project member's
+      `can_write`); the default keeps every existing host as it was.
     * `:viewer_only` (default `false`) — render only the canvas /
       composer column; suppresses the close button and the sidebar
       (filename + Download + metadata + comments). Used by
@@ -117,6 +125,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      |> assign(:etcher_colors, @default_etcher_colors)
      |> assign(:etcher_line_params, @default_etcher_line_params)
      |> assign(:viewer_only, false)
+     |> assign(:can_annotate, true)
      |> assign(:viewer_rotation, 0)
      |> assign(:persist_rotation, false)
      |> assign(:rotation_status, nil)
@@ -190,6 +199,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       |> assign(:has_prev, assigns[:has_prev] || false)
       |> assign(:has_next, assigns[:has_next] || false)
       |> assign(:viewer_only, assigns[:viewer_only] || false)
+      |> assign(:can_annotate, assigns[:can_annotate] != false)
       # Opt-in: hosts that pass `persist_rotation` write a rotation back to the
       # shared file row (see handle_event "fresco:rotate") — the media browser
       # popup and the detail page do, so any user who can open and rotate a file
@@ -210,7 +220,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
           socket
           |> assign(:viewer_annotations, annotations)
-          |> assign(:viewer_canvas, build_viewer_canvas(file, annotations))
+          |> assign(:viewer_canvas, build_viewer_canvas(file, annotations, locked?(socket)))
           # Seed the saved rotation so the image paints already-rotated on open
           # (no flash of unrotated → rotated). Read from the file's metadata row.
           |> assign(:viewer_rotation, load_saved_rotation(file.file_uuid))
@@ -226,7 +236,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
           socket
           |> assign(:viewer_annotations, annotations)
-          |> assign(:viewer_canvas, build_board_canvas(board, annotations))
+          |> assign(:viewer_canvas, build_board_canvas(board, annotations, locked?(socket)))
           |> assign(:viewer_rotation, 0)
           |> assign(:etcher_colors, load_user_colors(assigns[:current_user]))
           |> assign(:etcher_line_params, load_user_line_params(assigns[:current_user]))
@@ -277,9 +287,12 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # detours.
   @impl true
   def handle_event("etcher:annotations-changed", %{"annotations" => new_annotations}, socket) do
-    case {socket.assigns[:file], socket.assigns[:board]} do
-      {%{} = file, _} -> {:noreply, sync_annotations(socket, file, new_annotations)}
-      {nil, %{} = board} -> {:noreply, sync_annotations(socket, board, new_annotations)}
+    case {socket.assigns.can_annotate, socket.assigns[:file], socket.assigns[:board]} do
+      # Read-only viewer: the client should never send this (its shapes
+      # are locked and its tools gone) — a crafted one changes nothing.
+      {false, _, _} -> {:noreply, socket}
+      {true, %{} = file, _} -> {:noreply, sync_annotations(socket, file, new_annotations)}
+      {true, nil, %{} = board} -> {:noreply, sync_annotations(socket, board, new_annotations)}
       _ -> {:noreply, socket}
     end
   end
@@ -347,6 +360,9 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # `annotations-changed`, and the comment system is only entered when
   # someone presses Reply on the shape's tooltip. The event stays
   # handled so an older etcher bundle emitting it doesn't crash the LV.
+  def handle_event("etcher:shape-drawn", _params, %{assigns: %{can_annotate: false}} = socket),
+    do: {:noreply, socket}
+
   def handle_event("etcher:shape-drawn", _params, socket) do
     {:noreply, socket}
   end
@@ -928,6 +944,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   attr :viewer_canvas, :any, required: true
   attr :etcher_colors, :list, required: true
   attr :etcher_line_params, :map, required: true
+  attr :can_annotate, :boolean, required: true
 
   defp board_canvas(assigns) do
     ~H"""
@@ -948,20 +965,26 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
           fresco_id={"media-zoom-" <> @board.target_uuid}
           colors={@etcher_colors}
           line_params={@etcher_line_params}
-          tools={[
-            :grabber,
-            :image,
-            :rectangle,
-            :circle,
-            :polygon,
-            :freehand,
-            :marker,
-            :callout,
-            :text,
-            :dimension,
-            :line,
-            :eraser
-          ]}
+          toolbar={@can_annotate}
+          nav_buttons={if @can_annotate, do: nil, else: [:visibility]}
+          tools={
+            if @can_annotate,
+              do: [
+                :grabber,
+                :image,
+                :rectangle,
+                :circle,
+                :polygon,
+                :freehand,
+                :marker,
+                :callout,
+                :text,
+                :dimension,
+                :line,
+                :eraser
+              ],
+              else: []
+          }
         />
       </div>
     </div>
@@ -972,25 +995,28 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   defp target_of(%{target_type: type, target_uuid: uuid}), do: {type, uuid}
 
   defp build_canvas(%{file_uuid: _} = file, annotations),
-    do: build_viewer_canvas(file, annotations)
+    do: build_viewer_canvas(file, annotations, false)
 
   defp build_canvas(%{target_type: _} = board, annotations),
-    do: build_board_canvas(board, annotations)
+    do: build_board_canvas(board, annotations, false)
+
+  # A read-only viewer's shapes are sent locked (Etcher `readonly`).
+  defp locked?(socket), do: not socket.assigns.can_annotate
 
   # A board: the scene with NO images — Fresco keeps the extent from the
   # canvas itself and Etcher draws over the void. `infinite_canvas` lets
   # the user pan beyond the extent, which is what a whiteboard wants.
-  defp build_board_canvas(board, annotations) do
+  defp build_board_canvas(board, annotations, locked?) do
     Fresco.Canvas.new(width: board.width, height: board.height, background: board.background)
     |> Fresco.Canvas.put_extension("etcher", %{
       "version" => "1",
-      "annotations" => Enum.map(annotations, &etcher_annotation_for_wire/1)
+      "annotations" => Enum.map(annotations, &etcher_annotation_for_wire(&1, locked?))
     })
   end
 
-  defp build_viewer_canvas(nil, _annotations), do: nil
+  defp build_viewer_canvas(nil, _annotations, _locked?), do: nil
 
-  defp build_viewer_canvas(file, annotations) when is_map(file) do
+  defp build_viewer_canvas(file, annotations, locked?) when is_map(file) do
     # Open on the cheap medium variant; Tessera swaps up to large (and DZI
     # tiles for >4K images) as the user zooms. The canvas keeps the full
     # original dimensions so the coordinate space matches the DZI pyramid.
@@ -1003,7 +1029,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       |> Fresco.Canvas.add_image(put_natural_size(%{src: src, x: 0, y: 0, width: width}, file))
       |> Fresco.Canvas.put_extension("etcher", %{
         "version" => "1",
-        "annotations" => Enum.map(annotations, &etcher_annotation_for_wire/1)
+        "annotations" => Enum.map(annotations, &etcher_annotation_for_wire(&1, locked?))
       })
     end
   end
@@ -1053,12 +1079,14 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # Map an in-memory annotation (from `load_annotations_for/1`) to
   # the Etcher 0.3 wire shape (string-keyed map with uuid/kind/
   # geometry plus optional style/metadata).
-  defp etcher_annotation_for_wire(a) do
+  defp etcher_annotation_for_wire(a, locked?) do
     base = %{
       "uuid" => to_string(a.uuid),
       "kind" => a.kind,
       "geometry" => a.geometry
     }
+
+    base = if locked?, do: Map.put(base, "readonly", true), else: base
 
     base =
       case Map.get(a, :style) do
@@ -1284,8 +1312,11 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   defp rebuild_viewer_canvas(socket, annotations) do
     case socket.assigns[:file] do
-      nil -> socket
-      file -> assign(socket, :viewer_canvas, build_viewer_canvas(file, annotations))
+      nil ->
+        socket
+
+      file ->
+        assign(socket, :viewer_canvas, build_viewer_canvas(file, annotations, locked?(socket)))
     end
   end
 

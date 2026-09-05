@@ -95,7 +95,7 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
     default: nil,
     values: [nil, :input],
     doc:
-      "`:input` arms the `PkDialog` hook's client-side guard: the first keystroke in a submittable form (`form[phx-submit]`) inside this dialog makes Esc and the backdrop no-ops immediately, before the server has heard of the edit — the round trip (plus any `phx-debounce` window) would otherwise let a quick Esc discard what was just typed. The server's `closeable` stays the source of truth: the guard clears when `closeable` flips back to `true`. Filter/search forms (`phx-change` only) do not arm it."
+      "`:input` arms the `PkDialog` hook's client-side guard: while a submittable form (`form[phx-submit]`) inside this dialog holds a field that differs from its rendered default, Esc and the backdrop are no-ops immediately, before the server has heard of the edit — the round trip (plus any `phx-debounce` window) would otherwise let a quick Esc discard what was just typed. Recomputed on every keystroke and every server patch, never latched: once the server re-renders the form (with the value, or reset after a save) the guard lets go and `closeable` is the only authority — so a dialog whose LiveView never reports dirtiness still closes. Filter/search forms (`phx-change` only, `role=\"search\"`, `type=\"search\"`) never count."
 
   attr :rest, :global,
     doc:

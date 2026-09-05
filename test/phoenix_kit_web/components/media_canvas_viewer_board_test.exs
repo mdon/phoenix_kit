@@ -94,4 +94,33 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerBoardTest do
     assert html =~ "Island"
     refute html =~ ~s("badge":1)
   end
+
+  test "a read-only viewer (can_annotate: false) gets locked shapes, no tools, no pencil" do
+    {:ok, mine} =
+      Annotations.create(%{
+        target_type: "projects_whiteboard",
+        target_uuid: @board_uuid,
+        kind: "rectangle",
+        geometry: %{"x" => 1, "y" => 2, "w" => 3, "h" => 4}
+      })
+
+    html = render_component(MediaCanvasViewer, board_assigns(%{can_annotate: false}))
+
+    # The shape still renders — locked (Etcher's readonly flag rides the wire map).
+    assert html =~ mine.uuid
+    assert html =~ ~s(readonly)
+    # No drawing toolbar, no pencil in the nav column, no tools at all.
+    assert html =~ ~s(data-toolbar="false")
+    assert html =~ ~s(data-tools="[]")
+    # Only the visibility toggle in the nav column — no pencil.
+    assert html =~ ~s(data-nav-buttons="visibility")
+
+    # The default keeps every existing host as it was: both buttons (nil →
+    # no attribute), the toolbar, the tools, nothing locked.
+    html = render_component(MediaCanvasViewer, board_assigns())
+    refute html =~ ~s(data-toolbar="false")
+    refute html =~ ~s(data-nav-buttons=)
+    refute html =~ ~s(readonly)
+    assert html =~ ~s(rectangle)
+  end
 end

@@ -12,6 +12,8 @@ defmodule PhoenixKit.Annotations.AnnotationTargetTest do
   alias PhoenixKit.Annotations
   alias PhoenixKit.Annotations.Annotation
   alias PhoenixKit.Modules.Storage.EtcherAdapter
+  alias PhoenixKit.Modules.Storage.File, as: StorageFile
+  alias PhoenixKit.Users.Auth
 
   @geometry %{"path" => [[0, 0], [10, 10]]}
 
@@ -129,6 +131,31 @@ defmodule PhoenixKit.Annotations.AnnotationTargetTest do
       assert Annotations.list_for_target("projects_whiteboard", board) == []
     end
 
+    test "a FILE target through the adapter — the pre-V183 production path — sets both columns" do
+      # The sweep (2026-09-05): every drawing on a photo goes this way, and
+      # nothing crossed the rewritten create/1 with a "file" target.
+      file = file_fixture!()
+
+      {:ok, a} =
+        EtcherAdapter.create(%{
+          "target_type" => "file",
+          "target_uuid" => file.uuid,
+          "kind" => "rectangle",
+          "geometry" => @geometry
+        })
+
+      assert a.file_uuid == file.uuid
+      assert a.target_type == "file"
+      assert a.target_uuid == file.uuid
+
+      # Both the old and the new read paths find it.
+      assert [%Annotation{uuid: uuid}] = Annotations.list_for_file(file.uuid)
+      assert uuid == a.uuid
+      assert [%Annotation{uuid: ^uuid}] = EtcherAdapter.list_for("file", file.uuid)
+      assert [%Annotation{uuid: ^uuid}] = Annotations.list_for_target("file", file.uuid)
+      assert Annotations.has_annotations?(file.uuid)
+    end
+
     test "delete_for_target clears a board's shapes and never touches files" do
       board = UUIDv7.generate()
 
@@ -156,5 +183,28 @@ defmodule PhoenixKit.Annotations.AnnotationTargetTest do
                  "geometry" => @geometry
                })
     end
+  end
+
+  defp file_fixture! do
+    n = System.unique_integer([:positive])
+
+    {:ok, user} =
+      Auth.register_user(%{email: "target-#{n}@example.com", password: "ValidPassword123!"})
+
+    {:ok, file} =
+      Repo.insert(%StorageFile{
+        original_file_name: "target_#{n}.jpg",
+        file_name: "target_#{n}.jpg",
+        mime_type: "image/jpeg",
+        file_type: "image",
+        ext: "jpg",
+        file_checksum: "sha256:target-#{n}",
+        user_file_checksum: "user-sha256:target-#{n}",
+        size: 1024,
+        status: "active",
+        user_uuid: user.uuid
+      })
+
+    file
   end
 end

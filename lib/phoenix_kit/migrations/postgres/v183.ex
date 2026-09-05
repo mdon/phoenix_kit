@@ -60,7 +60,9 @@ defmodule PhoenixKit.Migrations.Postgres.V183 do
     DO $$
     BEGIN
       IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'phoenix_kit_annotations_target_check'
+        SELECT 1 FROM pg_constraint
+         WHERE conname = 'phoenix_kit_annotations_target_check'
+           AND conrelid = '#{p}phoenix_kit_annotations'::regclass
       ) THEN
         ALTER TABLE #{p}phoenix_kit_annotations
           ADD CONSTRAINT phoenix_kit_annotations_target_check CHECK (
@@ -80,7 +82,9 @@ defmodule PhoenixKit.Migrations.Postgres.V183 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    # Non-file annotations have no home in the old shape.
+    # Non-file annotations (a whiteboard's shapes, say) have no home in
+    # the old shape: a rollback DROPS them. Back the table up first if
+    # the rollback is not final.
     execute("DELETE FROM #{p}phoenix_kit_annotations WHERE target_type <> 'file'")
 
     execute("""

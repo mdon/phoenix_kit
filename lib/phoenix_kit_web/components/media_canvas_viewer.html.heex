@@ -7,6 +7,7 @@
       viewer_canvas={@viewer_canvas}
       etcher_colors={@etcher_colors}
       etcher_line_params={@etcher_line_params}
+      can_annotate={@can_annotate}
     />
   <% else %>
     <%!--                                                                          --%>
@@ -117,20 +118,26 @@
                   colors={@etcher_colors}
                   line_params={@etcher_line_params}
                   connectors={:off}
-                  tools={[
-                    :grabber,
-                    :image,
-                    :rectangle,
-                    :circle,
-                    :polygon,
-                    :freehand,
-                    :marker,
-                    :callout,
-                    :text,
-                    :dimension,
-                    :line,
-                    :eraser
-                  ]}
+                  toolbar={@can_annotate}
+                  nav_buttons={if @can_annotate, do: nil, else: [:visibility]}
+                  tools={
+                    if @can_annotate,
+                      do: [
+                        :grabber,
+                        :image,
+                        :rectangle,
+                        :circle,
+                        :polygon,
+                        :freehand,
+                        :marker,
+                        :callout,
+                        :text,
+                        :dimension,
+                        :line,
+                        :eraser
+                      ],
+                      else: []
+                  }
                 />
                 <%!-- Zoom ladder: medium → large, then for images over 4K we stream
                  DZI tiles of the original (only the visible area) instead of

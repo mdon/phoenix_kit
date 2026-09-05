@@ -182,6 +182,48 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
     assert LayoutWrapper.render_page_toolbar(%{page_title: "x"}) == nil
   end
 
+  test "the REAL admin layout carries page_toolbar into the header (the plugin path)" do
+    # `layouts/admin.html.heex` is the only thing a plugin LiveView can reach;
+    # the module's fixture layout is a stand-in. Render the real one with a
+    # LiveView-shaped assigns map, as Phoenix does, and find the toolbar in
+    # the header — before the page body. The sweep, 2026-09-05.
+    html =
+      PhoenixKitWeb.Layouts.admin(%{
+        socket: nil,
+        flash: %{},
+        inner_content: {:safe, ~s(<div id="pk-test-body">body</div>)},
+        phoenix_kit_current_scope: owner_scope(),
+        current_path: "/admin/projects/1",
+        page_title: "Copper",
+        project_title: "Acme",
+        page_toolbar: {ToolbarPage, :header_toolbar},
+        status: "In progress",
+        __changed__: nil
+      })
+      |> rendered_to_string()
+
+    toolbar_at = :binary.match(html, "pk-test-status") |> elem(0)
+    body_at = :binary.match(html, "pk-test-body") |> elem(0)
+    assert toolbar_at < body_at
+    assert html =~ ~s(phx-change="change_status")
+    assert html =~ ~s(phx-click="open_menu")
+    assert html =~ "In progress"
+  end
+
+  test "a page_toolbar naming no function renders no toolbar rather than raising" do
+    import ExUnit.CaptureLog
+
+    log =
+      capture_log(fn ->
+        assert LayoutWrapper.render_page_toolbar(%{
+                 page_toolbar: {ToolbarPage, :no_such_fun},
+                 __changed__: nil
+               }) == nil
+      end)
+
+    assert log =~ "no_such_fun/1 is not a function component"
+  end
+
   test "a page_crumb with patch is a same-LiveView link, not a navigate" do
     assigns = %{scope: owner_scope()}
 
