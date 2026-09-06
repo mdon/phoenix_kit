@@ -121,4 +121,51 @@ defmodule PhoenixKit.Notifications.RenderTest do
       assert Render.render(%Notification{activity: nil, metadata: %{}}).link == nil
     end
   end
+
+  describe "render/2 text — the recipient's locale" do
+    test "renders the default text in the recipient's language" do
+      assert Render.render(notif("user.password_reset"), "en").text == "Your password was reset."
+      assert Render.render(notif("user.password_reset"), "ru").text == "Ваш пароль сброшен."
+    end
+
+    test "interpolates metadata into the translated sentence" do
+      notification = notif("user.email_changed", %{"new_email" => "new@example.com"})
+
+      assert Render.render(notification, "de").text ==
+               "Ihre E-Mail-Adresse wurde zu new@example.com geändert."
+    end
+
+    test "picks the shorter sentence when the metadata detail is absent or empty" do
+      # Two complete msgids rather than a translated stem with a concatenated
+      # suffix — a suffix is unorderable, and several languages need the detail
+      # somewhere other than the end.
+      for meta <- [%{}, %{"new_email" => ""}] do
+        assert Render.render(notif("user.email_changed", meta), "de").text ==
+                 "Ihre E-Mail-Adresse wurde geändert."
+      end
+    end
+
+    test "localizes the standalone (activity-less) notification fallback" do
+      # activity: nil mirrors a preloaded standalone notification; a bare
+      # %Notification{} carries NotLoaded, which is a struct and takes the
+      # activity clause.
+      notification = %Notification{activity: nil, metadata: %{}}
+
+      assert Render.render(notification, "ru").text == "У вас новое уведомление."
+    end
+
+    test "does not leak the recipient's locale onto the calling process" do
+      # These render on a background worker that goes on to handle other
+      # recipients; a leaked locale would mistranslate every later message.
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "en")
+      assert Render.render(notif("user.password_reset"), "ru").text == "Ваш пароль сброшен."
+      assert Gettext.get_locale(PhoenixKitWeb.Gettext) == "en"
+    end
+
+    test "a nil locale leaves the caller's own locale in force" do
+      # The admin inbox renders in the viewer's language, not a recipient's.
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "ru")
+      assert Render.render(notif("user.password_reset")).text == "Ваш пароль сброшен."
+    end
+  end
 end

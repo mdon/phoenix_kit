@@ -9,6 +9,8 @@ defmodule PhoenixKit.Notifications.Render do
   new action that hasn't been mapped yet still displays safely.
   """
 
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
   alias PhoenixKit.Notifications.Notification
   alias PhoenixKit.Utils.Routes
 
@@ -33,7 +35,16 @@ defmodule PhoenixKit.Notifications.Render do
   @spec render(Notification.t(), String.t() | nil) :: render_result()
   def render(notification, locale \\ nil)
 
-  def render(%Notification{activity: %_{} = activity}, locale) do
+  def render(%Notification{} = notification, locale) do
+    # Every default string below is a msgid, and these render on a background
+    # worker or on behalf of another user — so the recipient's locale arrives
+    # as an argument and has to be installed on the process for the lookup.
+    # `nil` means "leave the current locale alone" (the admin inbox, which
+    # renders in the viewer's own language).
+    in_locale(locale, fn -> do_render(notification, locale) end)
+  end
+
+  defp do_render(%Notification{activity: %_{} = activity}, locale) do
     meta = activity.metadata || %{}
     {default_icon, default_text} = icon_and_text(activity.action, meta)
 
@@ -47,7 +58,7 @@ defmodule PhoenixKit.Notifications.Render do
     }
   end
 
-  def render(%Notification{} = notification, _locale) do
+  defp do_render(%Notification{} = notification, _locale) do
     # Standalone notification (V126): `activity` is nil, so this clause —
     # not the `%_{}` activity clause above — matches. (An activity-linked
     # row that wasn't preloaded carries `%Ecto.Association.NotLoaded{}`,
@@ -59,7 +70,7 @@ defmodule PhoenixKit.Notifications.Render do
 
     %{
       icon: meta_string(meta, "notification_icon") || "hero-bell",
-      text: meta_string(meta, "notification_text") || "You have a new notification.",
+      text: meta_string(meta, "notification_text") || gettext("You have a new notification."),
       link: meta_string(meta, "notification_link"),
       actor_uuid: nil
     }
@@ -70,76 +81,99 @@ defmodule PhoenixKit.Notifications.Render do
   defp icon_and_text("user.roles_updated", meta) do
     added = Map.get(meta, "roles_added") || Map.get(meta, "added")
 
-    {"hero-identification",
-     "Your roles were updated#{suffix_if(added, " (added: #{inspect(added)})")}."}
+    text =
+      if blank?(added) do
+        gettext("Your roles were updated.")
+      else
+        gettext("Your roles were updated (added: %{roles}).", roles: inspect(added))
+      end
+
+    {"hero-identification", text}
   end
 
   defp icon_and_text("user.status_changed", meta) do
     status = Map.get(meta, "status_to") || Map.get(meta, "status")
-    {"hero-user-circle", "Your account status was updated#{suffix_if(status, " to #{status}")}."}
+
+    text =
+      if blank?(status) do
+        gettext("Your account status was updated.")
+      else
+        gettext("Your account status was updated to %{status}.", status: status)
+      end
+
+    {"hero-user-circle", text}
   end
 
   defp icon_and_text("user.password_changed", _meta) do
-    {"hero-lock-closed", "Your password was changed by an administrator."}
+    {"hero-lock-closed", gettext("Your password was changed by an administrator.")}
   end
 
   defp icon_and_text("user.password_reset", _meta) do
-    {"hero-key", "Your password was reset."}
+    {"hero-key", gettext("Your password was reset.")}
   end
 
   defp icon_and_text("user.email_changed", meta) do
     new_email = Map.get(meta, "new_email")
-    {"hero-envelope", "Your email was changed#{suffix_if(new_email, " to #{new_email}")}."}
+
+    text =
+      if blank?(new_email) do
+        gettext("Your email was changed.")
+      else
+        gettext("Your email was changed to %{email}.", email: new_email)
+      end
+
+    {"hero-envelope", text}
   end
 
   defp icon_and_text("user.email_confirmed", _meta) do
-    {"hero-check-badge", "Your email was confirmed."}
+    {"hero-check-badge", gettext("Your email was confirmed.")}
   end
 
   defp icon_and_text("user.email_unconfirmed", _meta) do
-    {"hero-exclamation-circle", "Your email is no longer confirmed."}
+    {"hero-exclamation-circle", gettext("Your email is no longer confirmed.")}
   end
 
   defp icon_and_text("user.avatar_changed", _meta) do
-    {"hero-user-circle", "Your avatar was updated."}
+    {"hero-user-circle", gettext("Your avatar was updated.")}
   end
 
   defp icon_and_text("user.profile_updated", _meta) do
-    {"hero-pencil-square", "Your profile was updated."}
+    {"hero-pencil-square", gettext("Your profile was updated.")}
   end
 
   defp icon_and_text("user.timezone_mismatch", meta) do
     case meta_string(meta, "detected_timezone") do
       nil ->
-        {"hero-globe-alt", "Your timezone looks wrong for where you are."}
+        {"hero-globe-alt", gettext("Your timezone looks wrong for where you are.")}
 
       zone ->
-        {"hero-globe-alt", "You appear to be in #{zone}, which is not your saved timezone."}
+        {"hero-globe-alt",
+         gettext("You appear to be in %{zone}, which is not your saved timezone.", zone: zone)}
     end
   end
 
   defp icon_and_text("user.note_created", _meta) do
-    {"hero-clipboard-document", "An admin added a note on your account."}
+    {"hero-clipboard-document", gettext("An admin added a note on your account.")}
   end
 
   defp icon_and_text("user.note_deleted", _meta) do
-    {"hero-clipboard-document", "An admin removed a note from your account."}
+    {"hero-clipboard-document", gettext("An admin removed a note from your account.")}
   end
 
   defp icon_and_text("post.liked", _meta) do
-    {"hero-heart", "Someone liked your post."}
+    {"hero-heart", gettext("Someone liked your post.")}
   end
 
   defp icon_and_text("post.commented", _meta) do
-    {"hero-chat-bubble-left-ellipsis", "Someone commented on your post."}
+    {"hero-chat-bubble-left-ellipsis", gettext("Someone commented on your post.")}
   end
 
   defp icon_and_text("comment.liked", _meta) do
-    {"hero-heart", "Someone liked your comment."}
+    {"hero-heart", gettext("Someone liked your comment.")}
   end
 
   defp icon_and_text("user.followed", _meta) do
-    {"hero-user-plus", "Someone started following you."}
+    {"hero-user-plus", gettext("Someone started following you.")}
   end
 
   # Both session actions reach the inbox because `Activity.log/1` fans out on
@@ -148,11 +182,11 @@ defmodule PhoenixKit.Notifications.Render do
   # clauses they render as the humanized action string ("Session impersonated"),
   # which reads like a system log line rather than a notice addressed to them.
   defp icon_and_text("session.impersonated", _meta) do
-    {"hero-identification", "An administrator signed in to your account for support."}
+    {"hero-identification", gettext("An administrator signed in to your account for support.")}
   end
 
   defp icon_and_text("session.account_added", _meta) do
-    {"hero-user-plus", "Your account was added to another sign-in session."}
+    {"hero-user-plus", gettext("Your account was added to another sign-in session.")}
   end
 
   defp icon_and_text(action, _meta) when is_binary(action) do
@@ -160,7 +194,7 @@ defmodule PhoenixKit.Notifications.Render do
   end
 
   defp icon_and_text(_action, _meta) do
-    {"hero-bell", "New notification."}
+    {"hero-bell", gettext("New notification.")}
   end
 
   # ── Action → link ────────────────────────────────────────────────────
@@ -188,9 +222,18 @@ defmodule PhoenixKit.Notifications.Render do
 
   # ── Helpers ──────────────────────────────────────────────────────────
 
-  defp suffix_if(nil, _), do: ""
-  defp suffix_if("", _), do: ""
-  defp suffix_if(_value, suffix), do: suffix
+  defp in_locale(nil, fun), do: fun.()
+
+  defp in_locale(locale, fun) when is_binary(locale) do
+    Gettext.with_locale(PhoenixKitWeb.Gettext, locale, fun)
+  end
+
+  # A metadata detail is "blank" when absent or empty — the caller then picks
+  # the shorter of two complete sentences rather than concatenating a suffix
+  # onto a translated stem, which no translator could reorder.
+  defp blank?(nil), do: true
+  defp blank?(""), do: true
+  defp blank?(_value), do: false
 
   # Returns the metadata string for `key` iff it's a non-empty binary;
   # otherwise nil so the caller can fall through to the default.
