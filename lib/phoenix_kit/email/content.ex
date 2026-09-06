@@ -20,6 +20,25 @@ defmodule PhoenixKit.Email.Content do
   Layers 2 and 3 combine per part, so a host that overrides only the body keeps
   core's translated subject.
 
+  ## What a host override looks like on disk
+
+  The template **name is a directory**; the files inside it are named for the
+  part they supply, optionally carrying a locale. To rewrite the body of the
+  new-login alert, a host adds:
+
+      <host>/priv/phoenix_kit_templates/
+      └── new_login_alert/            <- the template name (a directory)
+          ├── text.txt                <- <part>.<ext>
+          └── text.de.txt             <- <part>.<locale>.<ext>
+
+  `subject` and `text` are `.txt`, `html` is `.html`. That host now has its own
+  body in German and a locale-less fallback for everyone else, while the
+  subject still comes from core's Gettext default in all seven languages —
+  parts resolve independently.
+
+  Roots come from `override_paths/0`. Full rules, including precedence and the
+  path-safety constraints on `name`, live in `PhoenixKit.Templates`.
+
   ## Why the default is a function
 
   `defaults` is a zero-arity function, not a map, because it is evaluated
