@@ -1611,10 +1611,16 @@ defmodule PhoenixKit.Settings do
       |> Queries.transaction()
 
     case result do
-      {:ok, _changes} ->
+      {:ok, changes} ->
         # Invalidate cache for all updated keys in a single call
         PhoenixKit.Cache.invalidate_multiple(@cache_name, keys)
-        result
+
+        # The result is the settings written, as before; the history's own
+        # steps are bookkeeping.
+        {:ok,
+         Map.reject(changes, fn {name, _} ->
+           match?({:before, _}, name) or match?({:history, _}, name)
+         end)}
 
       {:error, _failed_operation, _failed_value, _changes} ->
         result
@@ -1627,22 +1633,28 @@ defmodule PhoenixKit.Settings do
       # Convert nil to empty string
       stored_value = value || ""
 
-      {write_name, changeset, acc} =
+      # The row as it is NOW, locked for the transaction — the "before" the
+      # history records, read inside the transaction rather than from the
+      # pre-read map so a concurrent writer cannot make it stale.
+      acc =
+        Ecto.Multi.run(acc, {:before, key}, fn _repo, _ -> {:ok, History.lock_current(key)} end)
+
+      {write_name, acc} =
         case Map.get(existing_settings, key) do
           %Setting{} = setting ->
             # Update existing setting
             changeset = Setting.update_changeset(setting, %{value: stored_value})
-            {{:update, key}, changeset, Ecto.Multi.update(acc, {:update, key}, changeset)}
+            {{:update, key}, Ecto.Multi.update(acc, {:update, key}, changeset)}
 
           nil ->
             # Create new setting
             changeset = Setting.changeset(%Setting{}, %{key: key, value: stored_value})
-            {{:insert, key}, changeset, Ecto.Multi.insert(acc, {:insert, key}, changeset)}
+            {{:insert, key}, Ecto.Multi.insert(acc, {:insert, key}, changeset)}
         end
 
       # The history row rides in the same transaction as the write.
       Ecto.Multi.run(acc, {:history, key}, fn _repo, changes ->
-        History.record(changeset, Map.fetch!(changes, write_name), opts)
+        History.record(Map.fetch!(changes, {:before, key}), Map.fetch!(changes, write_name), opts)
       end)
     end)
   end

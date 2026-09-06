@@ -163,7 +163,8 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # whole new table), `table:phoenix_kit_settings_
   # history`, its eight columns (uuid v7 PK, key varchar(255), old_value and
   # new_value text, restricted boolean DEFAULT false, actor_uuid uuid, source
-  # varchar(64) DEFAULT 'system', inserted_at timestamp(0)), the PRIMARY KEY,
+  # varchar(64) DEFAULT 'system', inserted_at timestamp — microseconds, `value_at/2`
+  # orders by it), the PRIMARY KEY,
   # the `actor_uuid` FK to `phoenix_kit_users` ON DELETE SET NULL, and
   # `index:phoenix_kit_settings_history_key_inserted_at_index` (key,
   # inserted_at). Shapes transcribed from a real database migrated V135→V184
@@ -252,7 +253,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "241425102ea29803fc146b94bc1a58e43fb1d21feed730ee6c6bf27e0cf15478"
+  @chain_hash "e13aa0ca93cc66aa5e5e27e8541c9a5c773ff0f8c19aa254d9d2a7951e726fbe"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -70665,11 +70666,11 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           {:catalog,
            %{table: "phoenix_kit_settings_history", column: "inserted_at", kind: :column}},
         create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_settings_history ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp(0) without time zone NOT NULL",
+          "ALTER TABLE __SCHEMA__.phoenix_kit_settings_history ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp without time zone NOT NULL",
         since: 184,
         class: :column,
         revisions: [
-          {184, %{default: nil, type: "timestamp(0) without time zone", pos: 8, not_null: true}}
+          {184, %{default: nil, type: "timestamp without time zone", pos: 8, not_null: true}}
         ],
         presence: :required,
         backfill: nil

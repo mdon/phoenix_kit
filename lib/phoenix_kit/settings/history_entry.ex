@@ -36,7 +36,9 @@ defmodule PhoenixKit.Settings.HistoryEntry do
     field :actor_uuid, UUIDv7
     field :source, :string, default: "system"
 
-    timestamps(type: :naive_datetime, updated_at: false)
+    # Microseconds: `value_at/2` orders by this column, and two changes inside
+    # one second must not read as simultaneous.
+    timestamps(type: :naive_datetime_usec, updated_at: false)
   end
 
   @doc false

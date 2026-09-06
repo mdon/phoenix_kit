@@ -54,7 +54,7 @@ defmodule PhoenixKit.Migrations.Postgres.V184 do
       restricted BOOLEAN NOT NULL DEFAULT false,
       actor_uuid UUID,
       source CHARACTER VARYING(64) NOT NULL DEFAULT 'system',
-      inserted_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL
+      inserted_at TIMESTAMP WITHOUT TIME ZONE NOT NULL
     )
     """)
 

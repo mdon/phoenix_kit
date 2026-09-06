@@ -39,28 +39,28 @@ defmodule PhoenixKit.Settings.History do
   Records the change a settings write made, or nothing when it changed no
   value.
 
-  `changeset` is the one the write was made from (its `data` is the row as
-  it was), `written` the row as stored. Options: `:actor_uuid` (nil for a
-  module or a migration), `:source` (`"settings"` for the admin pages;
-  default `"system"`).
+  `before` is the row as it was — read under a row lock inside the write's
+  transaction, so two concurrent writers cannot both record the same old
+  value — or `nil` when the key did not exist; `written` the row as stored.
+  Options: `:actor_uuid` (nil for a module or a migration), `:source`
+  (`"settings"` for the admin pages; default `"system"`).
 
   Returns `{:ok, %HistoryEntry{}}`, `{:ok, :unchanged}` or
   `{:error, changeset}`.
   """
-  @spec record(Ecto.Changeset.t(), Setting.t(), keyword()) ::
+  @spec record(Setting.t() | nil, Setting.t(), keyword()) ::
           {:ok, HistoryEntry.t() | :unchanged} | {:error, Ecto.Changeset.t()}
-  def record(%Ecto.Changeset{} = changeset, %Setting{} = written, opts \\ []) do
-    old = value_of(changeset.data)
+  def record(before, %Setting{} = written, opts \\ []) do
+    old = if before, do: value_of(before), else: nil
     new = value_of(written)
-
-    # `data` is a bare struct on an insert: the key did not exist, so the
-    # old value is "nothing" whatever the struct's field default says.
-    old = if changeset.data.__meta__.state == :built, do: nil, else: old
 
     if old == new do
       {:ok, :unchanged}
     else
-      restricted? = written.key in Settings.restricted_setting_keys()
+      # Either side restricted withholds both values — a key never changes
+      # through these writers, but the history must not depend on that.
+      restricted? =
+        restricted_key?(written.key) or (before != nil and restricted_key?(before.key))
 
       %HistoryEntry{}
       |> HistoryEntry.changeset(%{
@@ -74,6 +74,21 @@ defmodule PhoenixKit.Settings.History do
       |> RepoHelper.repo().insert(log: false)
     end
   end
+
+  @doc """
+  The current row for `key`, locked for the rest of the transaction — the
+  "before" a writer hands to `record/3`. `nil` when the key does not exist.
+  Call inside a transaction.
+  """
+  @spec lock_current(String.t()) :: Setting.t() | nil
+  def lock_current(key) when is_binary(key) do
+    Setting
+    |> where([s], s.key == ^key)
+    |> lock("FOR UPDATE")
+    |> RepoHelper.repo().one(log: false)
+  end
+
+  defp restricted_key?(key), do: key in Settings.restricted_setting_keys()
 
   # A setting's value as history sees it: the JSON encoded when the setting
   # is a JSON one (an empty document is a value too — "{}" — not "nothing"),
@@ -101,37 +116,54 @@ defmodule PhoenixKit.Settings.History do
   The newest change at or before the instant says what the value became;
   with none, the oldest change after it says what the value was before
   anything was recorded; with no history at all, the current value — a
-  setting that was never changed since recording began has always been what
-  it is now. `nil` for a restricted key's withheld value, and for a key with
-  no history that has no current value either.
+  setting that was never changed since recording began is ASSUMED to have
+  always been what it is now. A JSON setting is its encoded document, the
+  same shape the history holds. A `DateTime` in any zone is the instant it
+  names, not its wall clock. A restricted key answers `nil` for every
+  instant: its values are withheld from the history and this must not
+  become the way around that.
   """
   @spec value_at(String.t(), DateTime.t() | NaiveDateTime.t()) :: String.t() | nil
-  def value_at(key, %DateTime{} = instant), do: value_at(key, DateTime.to_naive(instant))
+  def value_at(key, %DateTime{} = instant) do
+    {:ok, utc} = DateTime.shift_zone(instant, "Etc/UTC")
+    value_at(key, DateTime.to_naive(utc))
+  end
 
   def value_at(key, %NaiveDateTime{} = instant) when is_binary(key) do
-    at_or_before =
-      HistoryEntry
-      |> where([h], h.key == ^key and h.inserted_at <= ^instant)
-      |> order_by([h], desc: h.inserted_at, desc: h.uuid)
-      |> limit(1)
-      |> RepoHelper.repo().one()
+    if restricted_key?(key) do
+      nil
+    else
+      at_or_before =
+        HistoryEntry
+        |> where([h], h.key == ^key and h.inserted_at <= ^instant)
+        |> order_by([h], desc: h.inserted_at, desc: h.uuid)
+        |> limit(1)
+        |> RepoHelper.repo().one()
 
-    case at_or_before do
-      %HistoryEntry{new_value: value} ->
-        value
+      case at_or_before do
+        %HistoryEntry{new_value: value} ->
+          value
 
-      nil ->
-        after_it =
-          HistoryEntry
-          |> where([h], h.key == ^key and h.inserted_at > ^instant)
-          |> order_by([h], asc: h.inserted_at, asc: h.uuid)
-          |> limit(1)
-          |> RepoHelper.repo().one()
+        nil ->
+          after_it =
+            HistoryEntry
+            |> where([h], h.key == ^key and h.inserted_at > ^instant)
+            |> order_by([h], asc: h.inserted_at, asc: h.uuid)
+            |> limit(1)
+            |> RepoHelper.repo().one()
 
-        case after_it do
-          %HistoryEntry{old_value: value} -> value
-          nil -> Settings.get_setting(key)
-        end
+          case after_it do
+            %HistoryEntry{old_value: value} -> value
+            nil -> current_value(key)
+          end
+      end
+    end
+  end
+
+  defp current_value(key) do
+    case Setting |> where([s], s.key == ^key) |> RepoHelper.repo().one(log: false) do
+      %Setting{} = setting -> value_of(setting)
+      nil -> nil
     end
   end
 end
