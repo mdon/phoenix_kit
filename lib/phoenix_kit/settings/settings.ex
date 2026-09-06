@@ -1681,7 +1681,16 @@ defmodule PhoenixKit.Settings do
 
   # Helper function to add operations to Multi
   defp add_batch_operations(multi, settings_map, existing_settings, opts) do
-    Enum.reduce(settings_map, multi, fn {key, value}, acc ->
+    # Sorted, because each key is taken FOR UPDATE and the order they are
+    # taken in is the lock order. Erlang map iteration is NOT a stable total
+    # order across maps: a map of 32 keys or fewer is a flatmap iterated in
+    # term order, a larger one is a hashmap iterated in hash order, and the
+    # same two keys come out reversed between them. Two concurrent batches
+    # sharing keys — one small, one large — would take them in opposite
+    # orders and deadlock. Sorting gives every batch the same order.
+    settings_map
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.reduce(multi, fn {key, value}, acc ->
       # Convert nil to empty string
       stored_value = value || ""
 

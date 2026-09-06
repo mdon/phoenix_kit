@@ -285,4 +285,25 @@ defmodule PhoenixKit.Settings.HistoryTest do
       assert Settings.value_at(restricted, ~U[2000-01-01 00:00:00Z]) == nil
     end
   end
+
+  describe "batch lock ordering" do
+    test "a batch larger than a flatmap still records every key" do
+      # Over 32 keys, so `settings_map` is a hashmap rather than a flatmap.
+      # The two iterate the same pair of keys in OPPOSITE orders, and each key
+      # is taken FOR UPDATE — so before `add_batch_operations/4` sorted, two
+      # concurrent batches sharing keys (one small, one large) could take them
+      # in opposite orders and deadlock. Nothing else in the suite exercises
+      # the hashmap branch.
+      keys = for _ <- 1..40, do: key()
+      batch = Map.new(keys, &{&1, "initial"})
+
+      assert {:ok, _} = Settings.update_settings_batch(batch, source: "settings")
+      assert {:ok, _} = Settings.update_settings_batch(Map.new(keys, &{&1, "changed"}))
+
+      for k <- keys do
+        assert changes(k) == [{nil, "initial"}, {"initial", "changed"}],
+               "expected both changes recorded for #{k}"
+      end
+    end
+  end
 end
