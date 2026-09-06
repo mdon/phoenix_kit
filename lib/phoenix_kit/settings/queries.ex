@@ -217,16 +217,27 @@ defmodule PhoenixKit.Settings.Queries do
   # it. A history row that cannot be written rolls the setting back and
   # surfaces on the SETTING's changeset — callers hold that shape.
   defp with_history(changeset, opts, write) do
-    repo().transaction(fn ->
-      before = History.lock_current(Ecto.Changeset.get_field(changeset, :key))
+    result =
+      repo().transaction(fn ->
+        before = History.lock_current(Ecto.Changeset.get_field(changeset, :key))
 
-      with {:ok, setting} <- write.(),
-           {:ok, _entry_or_unchanged} <- record_or_error(before, setting, changeset, opts) do
-        setting
-      else
-        {:error, failed} -> repo().rollback(failed)
-      end
-    end)
+        with {:ok, setting} <- write.(),
+             {:ok, recorded} <- record_or_error(before, setting, changeset, opts) do
+          {setting, recorded}
+        else
+          {:error, failed} -> repo().rollback(failed)
+        end
+      end)
+
+    # The feed hears of the change only once it is committed.
+    case result do
+      {:ok, {setting, recorded}} ->
+        History.publish(recorded)
+        {:ok, setting}
+
+      {:error, _} = error ->
+        error
+    end
   end
 
   defp record_or_error(before, setting, changeset, opts) do

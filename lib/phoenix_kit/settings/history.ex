@@ -14,9 +14,11 @@ defmodule PhoenixKit.Settings.History do
   ## Where it lives
 
   In the activity feed, as `setting.changed` entries that are **permanent**
-  (`PhoenixKit.Activity.log/1` with `permanent: true` — the pruner keeps
-  them whatever their age), so there is one record of who did what, and the
-  admin's Activity page shows settings changes beside everything else.
+  (the pruner keeps them whatever their age), so there is one record of who
+  did what, and the admin's Activity page shows settings changes beside
+  everything else. The entry is inserted inside the settings write's
+  transaction and published to the feed's subscribers only after the commit
+  — nobody hears of a change that rolled back.
 
   Every write through `PhoenixKit.Settings` that changes a value records
   one entry: `metadata` carries the `key`, the value `from` and `to` (a
@@ -79,7 +81,11 @@ defmodule PhoenixKit.Settings.History do
 
       actor_uuid = Keyword.get(opts, :actor_uuid)
 
-      Activity.log(%{
+      # Inserted directly, not through `Activity.log/1`: this runs inside
+      # the settings write's transaction, and the feed's subscribers must
+      # not hear of a change that then rolls back. The writer publishes the
+      # entry (`Activity.broadcast/1`) once the transaction has committed.
+      %{
         action: @action,
         actor_uuid: actor_uuid,
         mode: if(actor_uuid, do: "manual", else: "system"),
@@ -93,9 +99,19 @@ defmodule PhoenixKit.Settings.History do
           "restricted" => restricted?,
           "source" => Keyword.get(opts, :source) || "system"
         }
-      })
+      }
+      |> Activity.entry_changeset()
+      |> RepoHelper.repo().insert()
     end
   end
+
+  @doc """
+  Publishes a recorded entry to the feed's subscribers — call after the
+  transaction that wrote it has committed. `:unchanged` publishes nothing.
+  """
+  @spec publish(Entry.t() | :unchanged) :: :ok
+  def publish(%Entry{} = entry), do: Activity.broadcast(entry)
+  def publish(:unchanged), do: :ok
 
   @doc """
   The current row for `key`, locked for the rest of the transaction — the

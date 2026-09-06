@@ -34,9 +34,10 @@ defmodule PhoenixKit.Migrations.Postgres.V184 do
   carries that zone can be re-resolved on its own. Rows written before this
   hold nil.
 
-  Rolling back drops the flag (permanent entries become prunable), narrows
-  `inserted_at` back to whole seconds (the microseconds are lost) and drops
-  the posts column.
+  Rolling back drops the flag (permanent entries become prunable) and the
+  posts column. It leaves `inserted_at` wide: narrowing it back would
+  rewrite and round every row under an exclusive lock, and the previous
+  code reads a microsecond value fine (Ecto truncates on load).
   """
 
   use Ecto.Migration
@@ -73,11 +74,8 @@ defmodule PhoenixKit.Migrations.Postgres.V184 do
 
     execute("ALTER TABLE #{p}phoenix_kit_posts DROP COLUMN IF EXISTS time_zone")
 
-    execute("""
-    ALTER TABLE #{p}phoenix_kit_activities
-      ALTER COLUMN inserted_at TYPE timestamp(0) without time zone
-    """)
-
+    # `inserted_at` stays at microsecond precision on purpose — see the
+    # moduledoc.
     execute("ALTER TABLE #{p}phoenix_kit_activities DROP COLUMN IF EXISTS permanent")
 
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '183'")

@@ -75,8 +75,7 @@ defmodule PhoenixKit.Activity.Entry do
       :resource_type,
       :resource_uuid,
       :target_uuid,
-      :metadata,
-      :permanent
+      :metadata
     ])
     |> validate_required([:action])
     |> validate_length(:action, min: 1, max: 100)

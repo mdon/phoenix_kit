@@ -8,6 +8,7 @@ defmodule PhoenixKit.Settings.HistoryTest do
 
   alias PhoenixKit.Activity
   alias PhoenixKit.Activity.Entry
+  alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Settings
   alias PhoenixKit.Settings.History
   alias PhoenixKit.Settings.Queries
@@ -154,6 +155,40 @@ defmodule PhoenixKit.Settings.HistoryTest do
       # task lists it as the known gap), so the entry keeps the uuid.
       assert [%Entry{actor_uuid: actor, metadata: %{"to" => "kept"}}] = History.list(key)
       assert actor == user.uuid
+    end
+  end
+
+  describe "publishing" do
+    test "a committed change reaches the feed's subscribers once, after the commit" do
+      key = key()
+      PubSubManager.subscribe(Activity.pubsub_topic())
+      {:ok, _} = Settings.update_setting(key, "v")
+
+      assert_receive {:activity_logged,
+                      %Entry{action: "setting.changed", metadata: %{"key" => ^key}}}
+
+      refute_receive {:activity_logged, %Entry{metadata: %{"key" => ^key}}}
+    end
+
+    test "a batch that rolls back publishes nothing" do
+      key = key()
+      PubSubManager.subscribe(Activity.pubsub_topic())
+      # the second key's value is too long for the settings row, so the whole
+      # Multi rolls back — after the first key's history step already ran
+      assert {:error, _, _, _} =
+               Settings.update_settings_batch(%{key => "v", String.duplicate("k", 300) => "x"})
+
+      refute_receive {:activity_logged, %Entry{metadata: %{"key" => ^key}}}
+      assert History.list(key) == []
+      assert Settings.get_setting(key) == nil
+    end
+
+    test "permanent cannot arrive from a params map, only as the atom key" do
+      {:ok, forged} = Activity.log(%{"action" => "test.forged", "permanent" => "true"})
+      refute Repo.get!(Entry, forged.uuid).permanent
+
+      {:ok, kept} = Activity.log(%{action: "test.kept", permanent: true})
+      assert Repo.get!(Entry, kept.uuid).permanent
     end
   end
 

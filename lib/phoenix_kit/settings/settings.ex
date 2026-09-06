@@ -1616,6 +1616,9 @@ defmodule PhoenixKit.Settings do
         # Invalidate cache for all updated keys in a single call
         PhoenixKit.Cache.invalidate_multiple(@cache_name, keys)
 
+        # Committed: now the feed may hear of each change.
+        for {{:history, _key}, recorded} <- changes, do: History.publish(recorded)
+
         # The result is the settings written, as before; the history's own
         # steps are bookkeeping.
         {:ok,
