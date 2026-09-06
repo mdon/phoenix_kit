@@ -267,7 +267,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "392311c98d0a098057892ecb002e4664181a9e5511bcc3c91cc774ee596feac2"
+  @chain_hash "46e4d896a31c6881e4d3ceae73231957a72c6509740b555a994c02c77e318560"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -27804,6 +27804,98 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
            }}
         ],
         presence: :legacy_optional,
+        backfill: nil
+      },
+      # DECLARED POST-GENERATION (2026-09-06): V185 freezes the base
+      # currency and exchange rate on carts/orders. Hand-declared the way
+      # V171's/V183's objects are — the environment's full regenerate
+      # aborts on a pre-existing mode-shape mismatch in
+      # sync_shop_category_slugs()/sync_shop_product_slugs() (see V184's
+      # moduledoc; reproduces identically on unmodified main), so these six
+      # columns cannot go through `generate_baseline.exs`. All six are
+      # nullable with no default (`ALTER TABLE ... ADD COLUMN`), backfilled
+      # by explicit `UPDATE` statements rather than a column `DEFAULT`,
+      # which is why `backfill: nil` here mirrors V183's `target_uuid`
+      # entry rather than V183's `target_type` (which does carry a real
+      # `DEFAULT` and is declared `backfill: :default`).
+      %{
+        id: "column:phoenix_kit_shop_carts.base_currency",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_shop_carts", column: "base_currency", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_shop_carts ADD COLUMN IF NOT EXISTS \"base_currency\" character varying(3)",
+        since: 185,
+        class: :column,
+        revisions: [
+          {185, %{default: nil, type: "character varying(3)", pos: 23, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_shop_carts.exchange_rate",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_shop_carts", column: "exchange_rate", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_shop_carts ADD COLUMN IF NOT EXISTS \"exchange_rate\" numeric(15,6)",
+        since: 185,
+        class: :column,
+        revisions: [{185, %{default: nil, type: "numeric(15,6)", pos: 24, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_shop_cart_items.base_unit_price",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_shop_cart_items", column: "base_unit_price", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_shop_cart_items ADD COLUMN IF NOT EXISTS \"base_unit_price\" numeric(15,2)",
+        since: 185,
+        class: :column,
+        revisions: [{185, %{default: nil, type: "numeric(15,2)", pos: 21, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_orders.base_currency",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_orders", column: "base_currency", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_orders ADD COLUMN IF NOT EXISTS \"base_currency\" character varying(3)",
+        since: 185,
+        class: :column,
+        revisions: [
+          {185, %{default: nil, type: "character varying(3)", pos: 28, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_orders.exchange_rate",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_orders", column: "exchange_rate", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_orders ADD COLUMN IF NOT EXISTS \"exchange_rate\" numeric(15,6)",
+        since: 185,
+        class: :column,
+        revisions: [{185, %{default: nil, type: "numeric(15,6)", pos: 29, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_orders.base_total",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_orders", column: "base_total", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_orders ADD COLUMN IF NOT EXISTS \"base_total\" numeric(15,2)",
+        since: 185,
+        class: :column,
+        revisions: [{185, %{default: nil, type: "numeric(15,2)", pos: 30, not_null: false}}],
+        presence: :required,
         backfill: nil
       },
       # DECLARED POST-GENERATION (V171): the shop slug projection tables and
