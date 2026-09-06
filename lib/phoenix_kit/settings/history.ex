@@ -151,10 +151,12 @@ defmodule PhoenixKit.Settings.History do
   same shape the history holds. A `DateTime` in any zone is the instant it
   names, not its wall clock. A restricted key answers `nil` for every
   instant: its values are withheld from the history and this must not
-  become the way around that.
+  become the way around that — and a key that WAS restricted when a change
+  was recorded answers `nil` for that period even after it stops being
+  restricted, because the value was never written down.
   """
   @spec value_at(String.t(), DateTime.t() | NaiveDateTime.t()) :: String.t() | nil
-  def value_at(key, %NaiveDateTime{} = instant) do
+  def value_at(key, %NaiveDateTime{} = instant) when is_binary(key) do
     value_at(key, DateTime.from_naive!(instant, "Etc/UTC"))
   end
 
