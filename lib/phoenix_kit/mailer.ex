@@ -28,6 +28,7 @@ defmodule PhoenixKit.Mailer do
   alias PhoenixKit.Integrations
   alias PhoenixKit.Mailer.SmtpTransport
   alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Utils.RecipientLocale
 
   require Logger
 
@@ -649,7 +650,8 @@ defmodule PhoenixKit.Mailer do
           }
 
         template ->
-          rendered = Provider.current().render_template(template, template_variables)
+          locale = RecipientLocale.for_rendering(user)
+          rendered = Provider.current().render_template(template, template_variables, locale)
           {rendered.subject, rendered.html_body, rendered.text_body, template}
       end
 

@@ -28,6 +28,7 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
 
   alias PhoenixKit.Email.Provider
   alias PhoenixKit.Mailer
+  alias PhoenixKit.Utils.RecipientLocale
 
   # Delivers the email using the appropriate mailer.
   # Uses the configured parent application mailer if available,
@@ -120,7 +121,8 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
           {"Confirm your account", nil, fallback_text, nil}
 
         template ->
-          rendered = Provider.current().render_template(template, template_variables)
+          locale = RecipientLocale.for_rendering(user)
+          rendered = Provider.current().render_template(template, template_variables, locale)
           {rendered.subject, rendered.html_body, rendered.text_body, template}
       end
 
@@ -159,7 +161,8 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
           {"Reset your password", nil, fallback_text, nil}
 
         template ->
-          rendered = Provider.current().render_template(template, template_variables)
+          locale = RecipientLocale.for_rendering(user)
+          rendered = Provider.current().render_template(template, template_variables, locale)
           {rendered.subject, rendered.html_body, rendered.text_body, template}
       end
 
@@ -198,7 +201,8 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
           {"Confirm your email change", nil, fallback_text, nil}
 
         template ->
-          rendered = Provider.current().render_template(template, template_variables)
+          locale = RecipientLocale.for_rendering(user)
+          rendered = Provider.current().render_template(template, template_variables, locale)
           {rendered.subject, rendered.html_body, rendered.text_body, template}
       end
 
@@ -270,7 +274,8 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
           {"Complete Your Registration", nil, fallback_text, nil}
 
         template ->
-          rendered = Provider.current().render_template(template, template_variables)
+          locale = RecipientLocale.for_rendering(user_or_email)
+          rendered = Provider.current().render_template(template, template_variables, locale)
           {rendered.subject, rendered.html_body, rendered.text_body, template}
       end
 
@@ -325,7 +330,8 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
           {"New login to your account", nil, fallback_text, nil}
 
         template ->
-          rendered = Provider.current().render_template(template, template_variables)
+          locale = RecipientLocale.for_rendering(user)
+          rendered = Provider.current().render_template(template, template_variables, locale)
           {rendered.subject, rendered.html_body, rendered.text_body, template}
       end
 

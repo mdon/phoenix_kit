@@ -49,6 +49,7 @@ defmodule PhoenixKit.Notifications.DeliveryWorker do
   alias PhoenixKit.Notifications.Notification
   alias PhoenixKit.Notifications.Render
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Utils.RecipientLocale
   alias PhoenixKit.Utils.Routes
 
   @doc """
@@ -177,7 +178,7 @@ defmodule PhoenixKit.Notifications.DeliveryWorker do
   defp load_source(_), do: :error
 
   defp build_envelope(notification, user, recipient, type_key) do
-    locale = recipient_locale(user)
+    locale = RecipientLocale.base(user)
     rendered = Render.render(notification, locale)
 
     %{
@@ -190,16 +191,6 @@ defmodule PhoenixKit.Notifications.DeliveryWorker do
       text: rendered.text,
       url: absolutize(rendered.link)
     }
-  end
-
-  # The recipient's own locale for send-time rendering (in-app renders per
-  # viewer; external must resolve the recipient's). Stored full-dialect
-  # ("en-GB") in custom_fields; Gettext wants the base ("en").
-  defp recipient_locale(user) do
-    case get_in(user.custom_fields || %{}, ["preferred_locale"]) do
-      loc when is_binary(loc) and loc != "" -> loc |> String.split("-") |> hd()
-      _ -> nil
-    end
   end
 
   # A notification `link` is already url-/locale-prefixed (or nil). Prepend the

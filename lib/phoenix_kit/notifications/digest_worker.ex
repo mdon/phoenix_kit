@@ -32,6 +32,7 @@ defmodule PhoenixKit.Notifications.DigestWorker do
   alias PhoenixKit.RepoHelper
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.RecipientLocale
   alias PhoenixKit.Utils.Routes
 
   @windows %{"hourly" => 3600, "12h" => 43_200, "daily" => 86_400, "weekly" => 604_800}
@@ -196,7 +197,7 @@ defmodule PhoenixKit.Notifications.DigestWorker do
   # recipient-locale rendering below can be asserted without a database.
   @doc false
   def digest_envelope(user, type_key, count, cadence) do
-    locale = recipient_locale(user)
+    locale = RecipientLocale.base(user)
 
     %{
       recipient_uuid: user.uuid,
@@ -218,7 +219,7 @@ defmodule PhoenixKit.Notifications.DigestWorker do
   # (`%{label}` stays English: type labels are runtime registry data, not
   # extracted strings — see `Types`.)
   defp digest_body(user, type_key, count, cadence) do
-    in_locale(recipient_locale(user), fn ->
+    in_locale(RecipientLocale.base(user), fn ->
       digest_text(count, type_label(type_key), cadence)
     end)
   end
@@ -259,13 +260,6 @@ defmodule PhoenixKit.Notifications.DigestWorker do
     |> Enum.find_value(type_key, fn {key, label} ->
       if key == type_key, do: String.downcase(label)
     end)
-  end
-
-  defp recipient_locale(user) do
-    case get_in(user.custom_fields || %{}, ["preferred_locale"]) do
-      loc when is_binary(loc) and loc != "" -> loc |> String.split("-") |> hd()
-      _ -> nil
-    end
   end
 
   defp repo, do: RepoHelper.repo()
