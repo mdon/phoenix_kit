@@ -1,3 +1,47 @@
+## 2.17.0 - 2026-09-06
+
+### Changed
+
+- **`Mailer.send_from_template/4` no longer depends on the email templates
+  table.** It is core's generic host-facing send API, and it resolved names
+  from the database alone — answering `{:error, :template_not_found}` when
+  there was no row. That table is being retired, and `phoenix_kit_billing`
+  reaches through this function for its invoice, receipt, credit-note and
+  payment-confirmation emails, so dropping the table with this path untouched
+  would have stopped those emails **silently**, with an error shape the caller
+  already tolerates.
+
+  It now resolves through `PhoenixKit.Email.Content`, in order: an active
+  database template, then a host override file for the recipient's locale, then
+  the caller's own `:defaults`.
+
+  **Nothing changes for an install that has a row** — the database layer still
+  wins, exactly as it does for the auth emails. This ships ahead of the schema
+  move on purpose, so no caller is ever in a window where its emails depend on
+  a path that no longer works.
+
+  Three new options:
+
+  | Option | Effect |
+  |---|---|
+  | `:defaults` | content to fall back to — a `%{subject:, text:, html:}` map, or a zero-arity function returning one. Prefer the function for `gettext/1` content: it is evaluated inside the recipient's locale |
+  | `:locale` | render in this locale instead of the one resolved from the recipient (a bare address carries no preference, so that falls through to the site's content language) |
+  | `:paths` | host override roots to search, overriding the configured ones |
+
+  A host or module that calls this function should add `:defaults` before the
+  table is retired. Until then, adding them changes nothing.
+
+- `PhoenixKit.Email.Content.resolve/5` accepts `:locale`, for callers whose
+  recipient is a bare address rather than a user, and treats an explicit `nil`
+  `:paths` as "use the configured roots".
+
+### Fixed
+
+- `{:error, :template_inactive}` is documented as no longer returned by
+  `send_from_template/4`, and never was:
+  `get_active_template_by_name/1` already filters on `status == "active"`, so
+  the branch that returned it was unreachable.
+
 ## 2.16.0 - 2026-09-06
 
 ### Added
