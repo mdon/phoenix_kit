@@ -7,7 +7,7 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V184 - Activities can be permanent and are ordered to the microsecond; posts remember their zone ⚡ LATEST
+  ### V185 - Activities can be permanent and are ordered to the microsecond; posts remember their zone ⚡ LATEST
 
   `phoenix_kit_activities.permanent` (`boolean`, default false): an entry
   the pruner never deletes, for records rather than news — the settings
@@ -21,6 +21,17 @@ defmodule PhoenixKit.Migrations.Postgres do
   microseconds so two changes inside one second keep their order (no
   rewrite). And `phoenix_kit_posts.time_zone` (nullable) carries the zone a
   post's schedule was typed in.
+
+  ### V184 - Settings: dead `shop_currency` removed
+
+  Deletes the `shop_currency` row `V135` seeds into `phoenix_kit_settings`.
+  Nothing reads it — confirmed by a full grep over `phoenix_kit`,
+  `phoenix_kit_billing`, `phoenix_kit_ecommerce`, and a host application. The
+  currency a shop actually uses is the `is_default = true` row of
+  `phoenix_kit_currencies`; a second, unread "shop currency" setting is a trap
+  for the next reader. `down/1` restores the row with V135's exact seed
+  statement (`ON CONFLICT ("key") DO NOTHING`), so a rollback never overwrites
+  a value an operator re-created by hand.
 
   ### V183 - Annotations: a shape can anchor to something other than a file
 
@@ -688,7 +699,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 184
+  @current_version 185
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

@@ -1,43 +1,35 @@
 defmodule PhoenixKit.Migrations.Postgres.V184 do
   @moduledoc """
-  V184: activities can be permanent, and are ordered to the microsecond;
-  posts remember the zone they were scheduled in.
+  V184: removes the `shop_currency` setting seeded by V135.
 
-  ## Why
+  Nothing reads it — confirmed by a full grep over `phoenix_kit`,
+  `phoenix_kit_billing`, `phoenix_kit_ecommerce`, and a host application: the
+  only occurrences of the key are the V135 seed itself and this package's
+  `ExpectedSchema` manifest that audits V135's shape. The default currency a
+  shop actually uses is the `is_default = true` row of
+  `phoenix_kit_currencies`, resolved through
+  `PhoenixKitBilling.get_default_currency/0` — and nothing else. A second,
+  identically-named "shop currency" that does nothing is exactly the kind of
+  trap the next reader falls into, assuming it is the thing that's read.
 
-  A stored instant does not say which regime wrote it. When the `time_zone`
-  setting moved from an integer offset to an IANA id (2.13.9) and five
-  modules turned out to have added that value to other instants, the rows
-  they had written could not be repaired, because nothing recorded WHEN the
-  setting changed or what it was before: `phoenix_kit_settings.date_updated`
-  holds the last change only, and no settings writer logged to the activity
-  feed — which prunes after `activity_retention_days` anyway. The question
-  "what was this setting at that instant?" had no answer.
+  ## Why V135 itself is not edited
 
-  The activity feed is the right home for that answer — it already holds
-  who did what to which resource, with a before/after convention in its
-  metadata and an admin page — once two things hold:
+  The seed is `INSERT ... ON CONFLICT ("key") DO NOTHING`. Every host that has
+  already migrated already has the row — deleting the line from V135's text
+  changes nothing for them, since a past migration's `execute/1` calls do not
+  re-run. It would only change behavior for a brand-new install, which is
+  exactly the population that has no problem to fix. Worse, `V135` is a
+  released, hashed baseline: editing it changes `ExpectedSchema.chain_hash/0`
+  and fails `mix phoenix_kit.release_check` for every host already on this
+  version, for a change that helps nobody. The correct place for a removal is
+  a new chain version, which is what this migration is.
 
-    * **`permanent`** (`boolean NOT NULL DEFAULT false`): an entry the
-      pruner never deletes. Any module may keep an entry this way; settings
-      changes are the first.
-    * **`inserted_at` to the microsecond** (`timestamp(0)` → `timestamp`):
-      "what was the value at that instant" walks a resource's entries by
-      time, and two changes inside one second must not read as
-      simultaneous. Widening the precision rewrites no rows.
+  ## down/1
 
-  ## And the posts column
-
-  `phoenix_kit_posts.time_zone` (`varchar(64)`, nullable) is the same
-  lesson applied to the one core-owned table that stores a typed wall clock:
-  the posts module reads `scheduled_at` in the editor's zone, and a row that
-  carries that zone can be re-resolved on its own. Rows written before this
-  hold nil.
-
-  Rolling back drops the flag (permanent entries become prunable) and the
-  posts column. It leaves `inserted_at` wide: narrowing it back would
-  rewrite and round every row under an exclusive lock, and the previous
-  code reads a microsecond value fine (Ecto truncates on load).
+  Restores the row with the exact statement V135 seeded it with (copied
+  verbatim, including the `ON CONFLICT ("key") DO NOTHING`), so a rollback
+  never overwrites a value an operator may have re-created by hand after the
+  key was deleted — it only recreates the row if one is not already there.
   """
 
   use Ecto.Migration
@@ -46,39 +38,40 @@ defmodule PhoenixKit.Migrations.Postgres.V184 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    execute("""
-    ALTER TABLE #{p}phoenix_kit_activities
-      ADD COLUMN IF NOT EXISTS permanent boolean NOT NULL DEFAULT false
-    """)
-
-    # Precision 0 → 6. PostgreSQL treats a precision INCREASE on timestamp
-    # as binary-compatible: no table rewrite, no scan.
-    execute("""
-    ALTER TABLE #{p}phoenix_kit_activities
-      ALTER COLUMN inserted_at TYPE timestamp without time zone
-    """)
-
-    execute("""
-    ALTER TABLE #{p}phoenix_kit_posts
-      ADD COLUMN IF NOT EXISTS time_zone character varying(64)
-    """)
-
-    # Single-step runs rely on the migration stamping its own marker — the
-    # runner only writes it for multi-step ranges.
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '184'")
+    Enum.each(up_statements(p), &execute/1)
   end
 
   def down(opts) do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    execute("ALTER TABLE #{p}phoenix_kit_posts DROP COLUMN IF EXISTS time_zone")
+    Enum.each(down_statements(p), &execute/1)
+  end
 
-    # `inserted_at` stays at microsecond precision on purpose — see the
-    # moduledoc.
-    execute("ALTER TABLE #{p}phoenix_kit_activities DROP COLUMN IF EXISTS permanent")
+  # Public (and idempotent) so the suite can run the REAL statements against a
+  # seeded settings row — `up/1` itself can't be invoked outside an
+  # `Ecto.Migrator` runner (same constraint as V182Test and friends), and by
+  # the time any test runs, the chain has already deleted the row from an
+  # install that starts with no problem to prove. `p` is the rendered prefix
+  # including the trailing dot.
+  @doc false
+  def up_statements(p) do
+    [
+      "DELETE FROM #{p}phoenix_kit_settings WHERE \"key\" = 'shop_currency'",
+      "COMMENT ON TABLE #{p}phoenix_kit IS '184'"
+    ]
+  end
 
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '183'")
+  @doc false
+  def down_statements(p) do
+    [
+      """
+      INSERT INTO #{p}phoenix_kit_settings ("key", "module", "value", "value_json")
+      VALUES ('shop_currency', 'shop', 'USD', NULL)
+      ON CONFLICT ("key") DO NOTHING
+      """,
+      "COMMENT ON TABLE #{p}phoenix_kit IS '183'"
+    ]
   end
 
   defp prefix_str("public"), do: "public."

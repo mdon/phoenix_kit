@@ -157,17 +157,35 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # over the 49 shipped files; the real-database integration suite re-ran
   # clean against a DB migrated through V183.
   #
-  # V184 (2026-09-06) DECLARES two objects here by hand and reshapes one:
+  # V185 (2026-09-06) DECLARES two objects here by hand and reshapes one:
   # `column:phoenix_kit_posts.time_zone` (varchar(64), nullable — the zone a
   # post was scheduled in, the V183 class), `column:phoenix_kit_activities.
   # permanent` (boolean NOT NULL DEFAULT false — an entry the pruner keeps,
-  # the settings history's home), and a `{184, …}` revision APPENDED to
+  # the settings history's home), and a `{185, …}` revision APPENDED to
   # `column:phoenix_kit_activities.inserted_at` for its `timestamp(0)` →
   # `timestamp` widening (the V181 reshape class; a precision increase
   # rewrites nothing). Shapes transcribed from a real database migrated
-  # V135→V184 (`information_schema.columns`), not typed from the migration.
-  # `chain_hash` restamped over the 50 shipped files; the real-database
-  # integration suite re-ran clean against a DB migrated through V184.
+  # V135→V185 (`information_schema.columns`), not typed from the migration.
+  # `chain_hash` restamped over the 51 shipped files; the real-database
+  # integration suite re-ran clean against a DB migrated through V185.
+  #
+  # V184 (2026-09-05, per-domain currency Э0) declares NO object here, and
+  # cannot: it is a pure data migration — `DELETE FROM phoenix_kit_settings
+  # WHERE "key" = 'shop_currency'` (a dead setting seeded by V135 that nothing
+  # reads), plus the version-marker COMMENT. No table, column, index or
+  # constraint is added, dropped or reshaped — the V182 class — so `chain_hash`
+  # is restamped over the 50 shipped files rather than the manifest being
+  # regenerated. A full regenerate was attempted first
+  # (`dev_docs/squash/generate_baseline.exs`) and aborts in this environment on
+  # a pre-existing mode-shape mismatch between the stepwise and single-shot
+  # `sync_shop_category_slugs()`/`sync_shop_product_slugs()` function dumps
+  # (identical `definition` text, different `body_md5` — reproduces identically
+  # on unmodified `main`, unrelated to this version); those two functions are
+  # already deliberately excluded from this manifest since V171. The chain was
+  # re-run end to end into a fresh database (V135→V184) and the migration's
+  # real statements are exercised against a seeded settings row by
+  # `test/phoenix_kit/migrations/v184_test.exs`, including down/1 never
+  # clobbering a value an operator re-created by hand.
   #
   # V180 was fixed post-publish (2.13.11): its bare top-level `LOCK TABLE` moved
   # inside the `DO $$` block that already carries the dedupe UPDATE and the
@@ -249,7 +267,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "d8bde1fd88306b09561e80d4480a7e55353336eb3d94c940d57bfe9d41414b32"
+  @chain_hash "392311c98d0a098057892ecb002e4664181a9e5511bcc3c91cc774ee596feac2"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -42884,7 +42902,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         revisions: [
           {90,
            %{default: "now()", type: "timestamp(0) without time zone", pos: 10, not_null: true}},
-          {184, %{default: "now()", type: "timestamp without time zone", pos: 10, not_null: true}}
+          {185, %{default: "now()", type: "timestamp without time zone", pos: 10, not_null: true}}
         ],
         presence: :required,
         backfill: :default
@@ -42895,9 +42913,9 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         check: {:catalog, %{table: "phoenix_kit_activities", column: "permanent", kind: :column}},
         create:
           "ALTER TABLE __SCHEMA__.phoenix_kit_activities ADD COLUMN IF NOT EXISTS \"permanent\" boolean DEFAULT false NOT NULL",
-        since: 184,
+        since: 185,
         class: :column,
-        revisions: [{184, %{default: "false", type: "boolean", pos: 11, not_null: true}}],
+        revisions: [{185, %{default: "false", type: "boolean", pos: 11, not_null: true}}],
         presence: :required,
         backfill: :default
       },
@@ -70545,10 +70563,10 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         check: {:catalog, %{table: "phoenix_kit_posts", column: "time_zone", kind: :column}},
         create:
           "ALTER TABLE __SCHEMA__.phoenix_kit_posts ADD COLUMN IF NOT EXISTS \"time_zone\" character varying(64)",
-        since: 184,
+        since: 185,
         class: :column,
         revisions: [
-          {184, %{default: nil, type: "character varying(64)", pos: 19, not_null: false}}
+          {185, %{default: nil, type: "character varying(64)", pos: 19, not_null: false}}
         ],
         presence: :required,
         backfill: nil
