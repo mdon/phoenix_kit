@@ -85,7 +85,10 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   def handle_event("save_settings", %{"settings" => settings_params}, socket) do
     socket = assign(socket, :saving, true)
 
-    case Settings.update_settings(settings_params) do
+    case Settings.update_settings(settings_params,
+           actor_uuid: get_in(socket.assigns, [:phoenix_kit_current_user, Access.key(:uuid)]),
+           source: "settings"
+         ) do
       {:ok, updated_settings} ->
         changeset = Settings.change_settings(updated_settings)
 

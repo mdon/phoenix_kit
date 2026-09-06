@@ -190,7 +190,10 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   defp do_save_settings(socket, settings_params) do
     settings_params = preserve_unset_secrets(settings_params, socket.assigns.settings)
 
-    case Settings.update_settings(settings_params) do
+    case Settings.update_settings(settings_params,
+           actor_uuid: get_in(socket.assigns, [:phoenix_kit_current_user, Access.key(:uuid)]),
+           source: "settings"
+         ) do
       {:ok, updated_settings} ->
         OAuthConfig.configure_providers()
 

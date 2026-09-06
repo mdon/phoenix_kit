@@ -265,6 +265,67 @@ defmodule PhoenixKit.Utils.TimeZoneTest do
     end
   end
 
+  describe "for_viewer/1" do
+    test "a profile value wins — an id or a legacy offset, on a scope or a user" do
+      user = %{user_timezone: "Europe/Warsaw"}
+      assert TimeZone.for_viewer(user) == "Europe/Warsaw"
+      assert TimeZone.for_viewer(%PhoenixKit.Users.Auth.Scope{user: user}) == "Europe/Warsaw"
+      assert TimeZone.for_viewer(%{user_timezone: "5.5"}) == "5.5"
+    end
+
+    test "no profile value — nil, blank, a map without the column, no user, nil — is the site setting" do
+      site = PhoenixKit.Settings.get_setting("time_zone", "0")
+      assert TimeZone.for_viewer(%{user_timezone: nil}) == site
+      assert TimeZone.for_viewer(%{user_timezone: ""}) == site
+      assert TimeZone.for_viewer(%{uuid: "partial"}) == site
+      assert TimeZone.for_viewer(%PhoenixKit.Users.Auth.Scope{user: nil}) == site
+      assert TimeZone.for_viewer(nil) == site
+    end
+  end
+
+  describe "date_start/2" do
+    test "resolves the zone on that date, not today" do
+      assert TimeZone.date_start(~D[2026-01-15], "Europe/Tallinn") == ~U[2026-01-14 22:00:00Z]
+      assert TimeZone.date_start(~D[2026-07-15], "Europe/Tallinn") == ~U[2026-07-14 21:00:00Z]
+    end
+
+    test "a legacy offset is fixed; blank and nil are UTC; junk degrades to UTC" do
+      assert TimeZone.date_start(~D[2026-07-15], "2") == ~U[2026-07-14 22:00:00Z]
+      assert TimeZone.date_start(~D[2026-07-15], "-5.5") == ~U[2026-07-15 05:30:00Z]
+      assert TimeZone.date_start(~D[2026-07-15], "") == ~U[2026-07-15 00:00:00Z]
+      assert TimeZone.date_start(~D[2026-07-15], nil) == ~U[2026-07-15 00:00:00Z]
+      assert TimeZone.date_start(~D[2026-07-15], "nonsense") == ~U[2026-07-15 00:00:00Z]
+    end
+
+    test "a midnight the clocks skip or repeat is still the first instant of the date" do
+      # Santiago springs forward 2026-09-06 00:00 → 01:00 and falls back
+      # 2026-04-05 00:00 → 23:00 (Apr 4); Havana falls back 2026-11-01
+      # 01:00 → 00:00, so 00:00 Nov 1 happens twice.
+      assert TimeZone.date_start(~D[2026-09-06], "America/Santiago") == ~U[2026-09-06 04:00:00Z]
+      assert TimeZone.date_start(~D[2026-04-05], "America/Santiago") == ~U[2026-04-05 04:00:00Z]
+      assert TimeZone.date_start(~D[2026-11-01], "America/Havana") == ~U[2026-11-01 04:00:00Z]
+    end
+
+    test "agrees with day_start/2 for an instant inside the date" do
+      for tz <- ["Europe/Tallinn", "America/New_York", "2", "0"],
+          at <- [~U[2026-01-15 12:00:00Z], ~U[2026-07-15 12:00:00Z]] do
+        assert TimeZone.date_start(TimeZone.local_date(at, tz), tz) == TimeZone.day_start(tz, at),
+               "#{tz} #{at}"
+      end
+    end
+  end
+
+  describe "local_date/2" do
+    test "is the date of the instant in the zone" do
+      assert TimeZone.local_date(~U[2026-07-14 22:30:00Z], "Europe/Tallinn") == ~D[2026-07-15]
+      assert TimeZone.local_date(~U[2026-01-14 22:30:00Z], "Europe/Tallinn") == ~D[2026-01-15]
+      assert TimeZone.local_date(~U[2026-01-14 21:30:00Z], "Europe/Tallinn") == ~D[2026-01-14]
+      assert TimeZone.local_date(~U[2026-07-15 03:30:00Z], "America/New_York") == ~D[2026-07-14]
+      assert TimeZone.local_date(~U[2026-07-15 03:30:00Z], "-5") == ~D[2026-07-14]
+      assert TimeZone.local_date(~U[2026-07-15 03:30:00Z], "nonsense") == ~D[2026-07-15]
+    end
+  end
+
   describe "day_start/2" do
     # "How many today" has to mean the operator's today. From UTC midnight it
     # is right until evening and then wrong every night east of UTC.

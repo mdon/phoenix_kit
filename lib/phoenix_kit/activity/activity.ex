@@ -49,11 +49,14 @@ defmodule PhoenixKit.Activity do
   - `:resource_uuid` — UUID of the resource
   - `:target_uuid` — who was affected (e.g., follow target)
   - `:metadata` — map of additional context
+  - `:permanent` — never pruned (default false). For an entry that is a
+    record, not news: a settings change is one (`PhoenixKit.Settings.History`),
+    and any module may keep an entry the same way.
 
   Returns `{:ok, entry}` or `{:error, changeset}`. Failures are logged but never crash.
   """
   def log(attrs) when is_map(attrs) do
-    case %Entry{} |> Entry.changeset(attrs) |> repo().insert() do
+    case attrs |> entry_changeset() |> repo().insert() do
       {:ok, entry} ->
         broadcast_activity(entry)
         maybe_notify(entry)
@@ -301,12 +304,15 @@ defmodule PhoenixKit.Activity do
     _ -> []
   end
 
-  @doc "Deletes activities older than the given number of days."
+  @doc """
+  Deletes activities older than the given number of days — except permanent
+  ones (`permanent: true` at `log/1`), which are kept whatever their age.
+  """
   def prune(days) when is_integer(days) and days > 0 do
     cutoff = DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
 
     {count, _} =
-      from(e in Entry, where: e.inserted_at < ^cutoff)
+      from(e in Entry, where: e.inserted_at < ^cutoff and not e.permanent)
       |> repo().delete_all()
 
     Logger.info("Pruned #{count} activities older than #{days} days")
@@ -479,6 +485,33 @@ defmodule PhoenixKit.Activity do
 
   defp maybe_filter_until(query, nil), do: query
   defp maybe_filter_until(query, dt), do: where(query, [e], e.inserted_at <= ^dt)
+
+  @doc """
+  The changeset `log/1` inserts, for a caller that must insert inside its
+  own transaction and publish after commit (`PhoenixKit.Settings.History`).
+  `permanent` is taken ONLY as the atom key with the boolean `true` — never
+  cast from a params map — so forwarded user input cannot keep an entry
+  forever.
+  """
+  @spec entry_changeset(map()) :: Ecto.Changeset.t()
+  def entry_changeset(attrs) when is_map(attrs) do
+    permanent? = Map.get(attrs, :permanent) == true
+
+    %Entry{}
+    |> Entry.changeset(Map.delete(attrs, :permanent))
+    |> Ecto.Changeset.put_change(:permanent, permanent?)
+  end
+
+  @doc """
+  Publishes an already-inserted entry on the activity topic — for a caller
+  that inserted it inside a transaction and waited for the commit.
+  """
+  @spec broadcast(Entry.t()) :: :ok
+  def broadcast(%Entry{} = entry) do
+    broadcast_activity(entry)
+    maybe_notify(entry)
+    :ok
+  end
 
   defp broadcast_activity(entry) do
     PubSubManager.broadcast(@pubsub_topic, {:activity_logged, entry})

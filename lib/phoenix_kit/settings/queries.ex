@@ -9,6 +9,7 @@ defmodule PhoenixKit.Settings.Queries do
   import Ecto.Query
 
   alias PhoenixKit.RepoHelper
+  alias PhoenixKit.Settings.History
   alias PhoenixKit.Settings.Setting
 
   # Single record queries
@@ -178,7 +179,7 @@ defmodule PhoenixKit.Settings.Queries do
       ...> |> PhoenixKit.Settings.Queries.insert_setting()
       {:ok, %Setting{}}
   """
-  def insert_setting(changeset) do
+  def insert_setting(changeset, opts \\ []) do
     # `log: false` — this table stores EVERY setting's value in the same two
     # generic columns, secrets included (`oauth_google_client_secret`,
     # `aws_secret_access_key`, ...). Ecto's own SQL debug logger inspects the
@@ -190,7 +191,7 @@ defmodule PhoenixKit.Settings.Queries do
     # Found doing exactly that on a live install. Silencing the query log
     # for this one table is cheaper and safer than trying to enumerate
     # which keys are sensitive here too.
-    repo().insert(changeset, log: false)
+    with_history(changeset, opts, fn -> repo().insert(changeset, log: false) end)
   end
 
   @doc """
@@ -202,9 +203,56 @@ defmodule PhoenixKit.Settings.Queries do
       ...> |> PhoenixKit.Settings.Queries.update_setting()
       {:ok, %Setting{}}
   """
-  def update_setting(changeset) do
+  def update_setting(changeset, opts \\ []) do
     # See `insert_setting/1` above for why.
-    repo().update(changeset, log: false)
+    with_history(changeset, opts, fn -> repo().update(changeset, log: false) end)
+  end
+
+  # The write and its history row land together or not at all. `opts`
+  # carries `:actor_uuid` and `:source` for the history
+  # (`PhoenixKit.Settings.History.record/3`); a write that changes no value
+  # records nothing. The row as it was is read under a lock INSIDE the
+  # transaction, so two concurrent writers cannot both record the same old
+  # value. Nested inside a caller's transaction (the batch path) this joins
+  # it. A history row that cannot be written rolls the setting back and
+  # surfaces on the SETTING's changeset — callers hold that shape.
+  defp with_history(changeset, opts, write) do
+    result =
+      repo().transaction(fn ->
+        before = History.lock_current(Ecto.Changeset.get_field(changeset, :key))
+
+        with {:ok, setting} <- write.(),
+             {:ok, recorded} <- record_or_error(before, setting, changeset, opts) do
+          {setting, recorded}
+        else
+          {:error, failed} -> repo().rollback(failed)
+        end
+      end)
+
+    # The feed hears of the change only once it is committed.
+    case result do
+      {:ok, {setting, recorded}} ->
+        History.publish(recorded)
+        {:ok, setting}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp record_or_error(before, setting, changeset, opts) do
+    case History.record(before, setting, opts) do
+      {:ok, _} = ok ->
+        ok
+
+      {:error, history_changeset} ->
+        {:error,
+         Ecto.Changeset.add_error(
+           changeset,
+           :base,
+           "the change could not be recorded: #{inspect(history_changeset.errors)}"
+         )}
+    end
   end
 
   # Transaction

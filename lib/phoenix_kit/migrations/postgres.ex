@@ -7,7 +7,22 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V184 - Settings: dead `shop_currency` removed ⚡ LATEST
+  ### V185 - Activities can be permanent and are ordered to the microsecond; posts remember their zone ⚡ LATEST
+
+  `phoenix_kit_activities.permanent` (`boolean`, default false): an entry
+  the pruner never deletes, for records rather than news — the settings
+  history is the first: every settings write that changes a value logs a
+  permanent `setting.changed` entry with the value before and after, and
+  `PhoenixKit.Settings.value_at/2` answers "what was this setting at that
+  instant". It exists because a stored instant does not say which regime
+  wrote it: when `time_zone` moved to IANA ids and several modules turned
+  out to have added that value to other instants, the rows they had written
+  could not be repaired. `inserted_at` widens from whole seconds to
+  microseconds so two changes inside one second keep their order (no
+  rewrite). And `phoenix_kit_posts.time_zone` (nullable) carries the zone a
+  post's schedule was typed in.
+
+  ### V184 - Settings: dead `shop_currency` removed
 
   Deletes the `shop_currency` row `V135` seeds into `phoenix_kit_settings`.
   Nothing reads it — confirmed by a full grep over `phoenix_kit`,
@@ -684,7 +699,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 184
+  @current_version 185
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
