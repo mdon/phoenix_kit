@@ -9,17 +9,24 @@ defmodule PhoenixKit.Settings.History do
   turned out to have added that value to other instants, the rows they had
   written could not be repaired: nothing recorded when the setting changed
   or what it was before. `phoenix_kit_settings.date_updated` holds the last
-  change only, and the activity feed prunes after 90 days. This table holds
-  every change, forever.
+  change only, and no settings writer logged anything.
 
-  ## What is recorded
+  ## Where it lives
 
-  Every write through `PhoenixKit.Settings` that changes a value — the
-  admin pages, a module's own settings, a JSON setting — records one row
-  with the value before and after, the actor when a person did it, and a
-  `source`. A write that leaves the value as it was records nothing, so
-  saving the settings page does not produce a row per field. A restricted
-  (secret) setting records that a change happened and nothing else.
+  In the activity feed, as `setting.changed` entries that are **permanent**
+  (`PhoenixKit.Activity.log/1` with `permanent: true` — the pruner keeps
+  them whatever their age), so there is one record of who did what, and the
+  admin's Activity page shows settings changes beside everything else.
+
+  Every write through `PhoenixKit.Settings` that changes a value records
+  one entry: `metadata` carries the `key`, the value `from` and `to` (a
+  JSON setting as its encoded document), the `source` (`"settings"` for the
+  admin pages, `"system"` otherwise); `actor_uuid` is the person when one
+  made the change; `resource_uuid` is the setting row. The value before is
+  read under a row lock inside the write's transaction, so two racing
+  writers cannot both record the same old value. A write that leaves the
+  value as it was records nothing. A restricted (secret) setting records
+  that a change happened — `restricted: true`, both values withheld.
 
   ## Reading it
 
@@ -30,26 +37,34 @@ defmodule PhoenixKit.Settings.History do
 
   import Ecto.Query, warn: false
 
+  alias PhoenixKit.Activity
+  alias PhoenixKit.Activity.Entry
   alias PhoenixKit.RepoHelper
   alias PhoenixKit.Settings
-  alias PhoenixKit.Settings.HistoryEntry
   alias PhoenixKit.Settings.Setting
+
+  @action "setting.changed"
+  @resource_type "setting"
+
+  @doc "The activity action a settings change is logged under."
+  @spec action() :: String.t()
+  def action, do: @action
 
   @doc """
   Records the change a settings write made, or nothing when it changed no
   value.
 
   `before` is the row as it was — read under a row lock inside the write's
-  transaction, so two concurrent writers cannot both record the same old
-  value — or `nil` when the key did not exist; `written` the row as stored.
-  Options: `:actor_uuid` (nil for a module or a migration), `:source`
-  (`"settings"` for the admin pages; default `"system"`).
+  transaction (`lock_current/1`) — or `nil` when the key did not exist;
+  `written` the row as stored. Options: `:actor_uuid` (nil for a module or
+  a migration), `:source` (`"settings"` for the admin pages; default
+  `"system"`).
 
-  Returns `{:ok, %HistoryEntry{}}`, `{:ok, :unchanged}` or
+  Returns `{:ok, %Activity.Entry{}}`, `{:ok, :unchanged}` or
   `{:error, changeset}`.
   """
   @spec record(Setting.t() | nil, Setting.t(), keyword()) ::
-          {:ok, HistoryEntry.t() | :unchanged} | {:error, Ecto.Changeset.t()}
+          {:ok, Entry.t() | :unchanged} | {:error, Ecto.Changeset.t()}
   def record(before, %Setting{} = written, opts \\ []) do
     old = if before, do: value_of(before), else: nil
     new = value_of(written)
@@ -62,16 +77,23 @@ defmodule PhoenixKit.Settings.History do
       restricted? =
         restricted_key?(written.key) or (before != nil and restricted_key?(before.key))
 
-      %HistoryEntry{}
-      |> HistoryEntry.changeset(%{
-        key: written.key,
-        old_value: if(restricted?, do: nil, else: old),
-        new_value: if(restricted?, do: nil, else: new),
-        restricted: restricted?,
-        actor_uuid: Keyword.get(opts, :actor_uuid),
-        source: Keyword.get(opts, :source) || "system"
+      actor_uuid = Keyword.get(opts, :actor_uuid)
+
+      Activity.log(%{
+        action: @action,
+        actor_uuid: actor_uuid,
+        mode: if(actor_uuid, do: "manual", else: "system"),
+        resource_type: @resource_type,
+        resource_uuid: written.uuid,
+        permanent: true,
+        metadata: %{
+          "key" => written.key,
+          "from" => if(restricted?, do: nil, else: old),
+          "to" => if(restricted?, do: nil, else: new),
+          "restricted" => restricted?,
+          "source" => Keyword.get(opts, :source) || "system"
+        }
       })
-      |> RepoHelper.repo().insert(log: false)
     end
   end
 
@@ -88,24 +110,16 @@ defmodule PhoenixKit.Settings.History do
     |> RepoHelper.repo().one(log: false)
   end
 
-  defp restricted_key?(key), do: key in Settings.restricted_setting_keys()
-
-  # A setting's value as history sees it: the JSON encoded when the setting
-  # is a JSON one (an empty document is a value too — "{}" — not "nothing"),
-  # else the string. `nil` when there is neither.
-  defp value_of(%Setting{value_json: json}) when not is_nil(json), do: Jason.encode!(json)
-  defp value_of(%Setting{value: value}), do: value
-
   @doc """
   The changes to `key`, newest first. `:limit` (default 100).
   """
-  @spec list(String.t(), keyword()) :: [HistoryEntry.t()]
+  @spec list(String.t(), keyword()) :: [Entry.t()]
   def list(key, opts \\ []) when is_binary(key) do
     limit = Keyword.get(opts, :limit, 100)
 
-    HistoryEntry
-    |> where([h], h.key == ^key)
-    |> order_by([h], desc: h.inserted_at, desc: h.uuid)
+    key
+    |> changes()
+    |> order_by([e], desc: e.inserted_at, desc: e.uuid)
     |> limit(^limit)
     |> RepoHelper.repo().all()
   end
@@ -124,40 +138,51 @@ defmodule PhoenixKit.Settings.History do
   become the way around that.
   """
   @spec value_at(String.t(), DateTime.t() | NaiveDateTime.t()) :: String.t() | nil
-  def value_at(key, %DateTime{} = instant) do
-    {:ok, utc} = DateTime.shift_zone(instant, "Etc/UTC")
-    value_at(key, DateTime.to_naive(utc))
+  def value_at(key, %NaiveDateTime{} = instant) do
+    value_at(key, DateTime.from_naive!(instant, "Etc/UTC"))
   end
 
-  def value_at(key, %NaiveDateTime{} = instant) when is_binary(key) do
+  def value_at(key, %DateTime{} = instant) when is_binary(key) do
+    {:ok, utc} = DateTime.shift_zone(instant, "Etc/UTC")
+
     if restricted_key?(key) do
       nil
     else
       at_or_before =
-        HistoryEntry
-        |> where([h], h.key == ^key and h.inserted_at <= ^instant)
-        |> order_by([h], desc: h.inserted_at, desc: h.uuid)
+        key
+        |> changes()
+        |> where([e], e.inserted_at <= ^utc)
+        |> order_by([e], desc: e.inserted_at, desc: e.uuid)
         |> limit(1)
         |> RepoHelper.repo().one()
 
       case at_or_before do
-        %HistoryEntry{new_value: value} ->
+        %Entry{metadata: %{"to" => value}} ->
           value
 
         nil ->
           after_it =
-            HistoryEntry
-            |> where([h], h.key == ^key and h.inserted_at > ^instant)
-            |> order_by([h], asc: h.inserted_at, asc: h.uuid)
+            key
+            |> changes()
+            |> where([e], e.inserted_at > ^utc)
+            |> order_by([e], asc: e.inserted_at, asc: e.uuid)
             |> limit(1)
             |> RepoHelper.repo().one()
 
           case after_it do
-            %HistoryEntry{old_value: value} -> value
+            %Entry{metadata: %{"from" => value}} -> value
             nil -> current_value(key)
           end
       end
     end
+  end
+
+  # The `setting.changed` entries for one key. Settings change rarely, so
+  # the action index carries the walk; the key is matched in the metadata.
+  defp changes(key) do
+    from(e in Entry,
+      where: e.action == @action and fragment("? ->> 'key' = ?", e.metadata, ^key)
+    )
   end
 
   defp current_value(key) do
@@ -166,4 +191,12 @@ defmodule PhoenixKit.Settings.History do
       nil -> nil
     end
   end
+
+  defp restricted_key?(key), do: key in Settings.restricted_setting_keys()
+
+  # A setting's value as history sees it: the JSON encoded when the setting
+  # is a JSON one (an empty document is a value too — "{}" — not "nothing"),
+  # else the string. `nil` when there is neither.
+  defp value_of(%Setting{value_json: json}) when not is_nil(json), do: Jason.encode!(json)
+  defp value_of(%Setting{value: value}), do: value
 end

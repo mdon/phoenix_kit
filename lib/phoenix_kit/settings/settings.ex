@@ -1242,9 +1242,10 @@ defmodule PhoenixKit.Settings do
   def restricted_setting_keys, do: @restricted_setting_keys
 
   @doc """
-  The changes to `key`, newest first — see `PhoenixKit.Settings.History.list/2`.
+  The changes to `key`, newest first — permanent `setting.changed` activity
+  entries; see `PhoenixKit.Settings.History.list/2`.
   """
-  @spec history(String.t(), keyword()) :: [PhoenixKit.Settings.HistoryEntry.t()]
+  @spec history(String.t(), keyword()) :: [PhoenixKit.Activity.Entry.t()]
   def history(key, opts \\ []) when is_binary(key), do: History.list(key, opts)
 
   @doc """
@@ -1541,8 +1542,8 @@ defmodule PhoenixKit.Settings do
 
   ## History
 
-  A write that changes the value records a `PhoenixKit.Settings.HistoryEntry`
-  in the same transaction (see `PhoenixKit.Settings.History`). Pass
+  A write that changes the value records a permanent `setting.changed`
+  activity entry in the same transaction (see `PhoenixKit.Settings.History`). Pass
   `actor_uuid:` when a person made the change and `source:` (the admin pages
   pass `"settings"`; the default is `"system"`). Every other writer in this
   module takes the same options.

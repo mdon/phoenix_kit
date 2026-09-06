@@ -157,21 +157,17 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # over the 49 shipped files; the real-database integration suite re-ran
   # clean against a DB migrated through V183.
   #
-  # V184 (2026-09-06, the settings history) DECLARES thirteen objects here by
-  # hand: `column:phoenix_kit_posts.time_zone` (varchar(64), nullable — the
-  # zone a post was scheduled in, the V183 class), and, the V177 class (a
-  # whole new table), `table:phoenix_kit_settings_
-  # history`, its eight columns (uuid v7 PK, key varchar(255), old_value and
-  # new_value text, restricted boolean DEFAULT false, actor_uuid uuid, source
-  # varchar(64) DEFAULT 'system', inserted_at timestamp — microseconds, `value_at/2`
-  # orders by it), the PRIMARY KEY,
-  # the `actor_uuid` FK to `phoenix_kit_users` ON DELETE SET NULL, and
-  # `index:phoenix_kit_settings_history_key_inserted_at_index` (key,
-  # inserted_at). Shapes transcribed from a real database migrated V135→V184
-  # (`information_schema.columns`, `pg_get_constraintdef`, `pg_get_indexdef`,
-  # `pg_opclass`), not typed from the migration. `chain_hash` restamped over
-  # the 50 shipped files; the real-database integration suite re-ran clean
-  # against a DB migrated through V184.
+  # V184 (2026-09-06) DECLARES two objects here by hand and reshapes one:
+  # `column:phoenix_kit_posts.time_zone` (varchar(64), nullable — the zone a
+  # post was scheduled in, the V183 class), `column:phoenix_kit_activities.
+  # permanent` (boolean NOT NULL DEFAULT false — an entry the pruner keeps,
+  # the settings history's home), and a `{184, …}` revision APPENDED to
+  # `column:phoenix_kit_activities.inserted_at` for its `timestamp(0)` →
+  # `timestamp` widening (the V181 reshape class; a precision increase
+  # rewrites nothing). Shapes transcribed from a real database migrated
+  # V135→V184 (`information_schema.columns`), not typed from the migration.
+  # `chain_hash` restamped over the 50 shipped files; the real-database
+  # integration suite re-ran clean against a DB migrated through V184.
   #
   # V180 was fixed post-publish (2.13.11): its bare top-level `LOCK TABLE` moved
   # inside the `DO $$` block that already carries the dedupe UPDATE and the
@@ -253,7 +249,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "e13aa0ca93cc66aa5e5e27e8541c9a5c773ff0f8c19aa254d9d2a7951e726fbe"
+  @chain_hash "467e2541a18aef29f9075aa39f21f16205b356af23ac5bfb2242d22153506e12"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -42882,13 +42878,26 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         check:
           {:catalog, %{table: "phoenix_kit_activities", column: "inserted_at", kind: :column}},
         create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_activities ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+          "ALTER TABLE __SCHEMA__.phoenix_kit_activities ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp without time zone DEFAULT now() NOT NULL",
         since: 90,
         class: :column,
         revisions: [
           {90,
-           %{default: "now()", type: "timestamp(0) without time zone", pos: 10, not_null: true}}
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 10, not_null: true}},
+          {184, %{default: "now()", type: "timestamp without time zone", pos: 10, not_null: true}}
         ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_activities.permanent",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_activities", column: "permanent", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_activities ADD COLUMN IF NOT EXISTS \"permanent\" boolean DEFAULT false NOT NULL",
+        since: 184,
+        class: :column,
+        revisions: [{184, %{default: "false", type: "boolean", pos: 11, not_null: true}}],
         presence: :required,
         backfill: :default
       },
@@ -70540,230 +70549,6 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         class: :column,
         revisions: [
           {184, %{default: nil, type: "character varying(64)", pos: 19, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "table:phoenix_kit_settings_history",
-        owner: :core,
-        check: {:catalog, %{name: "phoenix_kit_settings_history", kind: :table}},
-        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_settings_history ()",
-        since: 184,
-        class: :table,
-        revisions: [{184, %{}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_settings_history.uuid",
-        owner: :core,
-        check:
-          {:catalog, %{table: "phoenix_kit_settings_history", column: "uuid", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_settings_history ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
-        since: 184,
-        class: :column,
-        revisions: [
-          {184, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
-      },
-      %{
-        id: "column:phoenix_kit_settings_history.key",
-        owner: :core,
-        check: {:catalog, %{table: "phoenix_kit_settings_history", column: "key", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_settings_history ADD COLUMN IF NOT EXISTS \"key\" character varying(255) NOT NULL",
-        since: 184,
-        class: :column,
-        revisions: [
-          {184, %{default: nil, type: "character varying(255)", pos: 2, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_settings_history.old_value",
-        owner: :core,
-        check:
-          {:catalog, %{table: "phoenix_kit_settings_history", column: "old_value", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_settings_history ADD COLUMN IF NOT EXISTS \"old_value\" text",
-        since: 184,
-        class: :column,
-        revisions: [{184, %{default: nil, type: "text", pos: 3, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_settings_history.new_value",
-        owner: :core,
-        check:
-          {:catalog, %{table: "phoenix_kit_settings_history", column: "new_value", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_settings_history ADD COLUMN IF NOT EXISTS \"new_value\" text",
-        since: 184,
-        class: :column,
-        revisions: [{184, %{default: nil, type: "text", pos: 4, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_settings_history.restricted",
-        owner: :core,
-        check:
-          {:catalog,
-           %{table: "phoenix_kit_settings_history", column: "restricted", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_settings_history ADD COLUMN IF NOT EXISTS \"restricted\" boolean DEFAULT false NOT NULL",
-        since: 184,
-        class: :column,
-        revisions: [{184, %{default: "false", type: "boolean", pos: 5, not_null: true}}],
-        presence: :required,
-        backfill: :default
-      },
-      %{
-        id: "column:phoenix_kit_settings_history.actor_uuid",
-        owner: :core,
-        check:
-          {:catalog,
-           %{table: "phoenix_kit_settings_history", column: "actor_uuid", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_settings_history ADD COLUMN IF NOT EXISTS \"actor_uuid\" uuid",
-        since: 184,
-        class: :column,
-        revisions: [{184, %{default: nil, type: "uuid", pos: 6, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_settings_history.source",
-        owner: :core,
-        check:
-          {:catalog, %{table: "phoenix_kit_settings_history", column: "source", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_settings_history ADD COLUMN IF NOT EXISTS \"source\" character varying(64) DEFAULT 'system'::character varying NOT NULL",
-        since: 184,
-        class: :column,
-        revisions: [
-          {184,
-           %{
-             default: "'system'::character varying",
-             type: "character varying(64)",
-             pos: 7,
-             not_null: true
-           }}
-        ],
-        presence: :required,
-        backfill: :default
-      },
-      %{
-        id: "column:phoenix_kit_settings_history.inserted_at",
-        owner: :core,
-        check:
-          {:catalog,
-           %{table: "phoenix_kit_settings_history", column: "inserted_at", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_settings_history ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp without time zone NOT NULL",
-        since: 184,
-        class: :column,
-        revisions: [
-          {184, %{default: nil, type: "timestamp without time zone", pos: 8, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "constraint:phoenix_kit_settings_history.phoenix_kit_settings_history_pkey",
-        owner: :core,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_settings_history_pkey",
-             table: "phoenix_kit_settings_history",
-             kind: :constraint
-           }},
-        create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_settings_history_pkey'\n      AND t.relname = 'phoenix_kit_settings_history'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_settings_history ADD CONSTRAINT phoenix_kit_settings_history_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
-        since: 184,
-        class: :constraint,
-        revisions: [
-          {184,
-           %{
-             type: "p",
-             columns: ["uuid"],
-             definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
-             foreign_table: nil,
-             foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id:
-          "constraint:phoenix_kit_settings_history.phoenix_kit_settings_history_actor_uuid_fkey",
-        owner: :core,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_settings_history_actor_uuid_fkey",
-             table: "phoenix_kit_settings_history",
-             kind: :constraint
-           }},
-        create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_settings_history_actor_uuid_fkey'\n      AND t.relname = 'phoenix_kit_settings_history'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_settings_history ADD CONSTRAINT phoenix_kit_settings_history_actor_uuid_fkey FOREIGN KEY (actor_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL;\n  END IF;\nEND\n$$",
-        since: 184,
-        class: :constraint,
-        revisions: [
-          {184,
-           %{
-             type: "f",
-             columns: ["actor_uuid"],
-             definition:
-               "FOREIGN KEY (actor_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL",
-             name_template: nil,
-             foreign_table: "phoenix_kit_users",
-             foreign_columns: ["uuid"],
-             on_delete: "n",
-             on_update: "a"
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_settings_history_key_inserted_at_index",
-        owner: :core,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_settings_history_key_inserted_at_index",
-             table: "phoenix_kit_settings_history",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_settings_history_key_inserted_at_index ON __SCHEMA__.phoenix_kit_settings_history USING btree (key, inserted_at)",
-        since: 184,
-        class: :index,
-        revisions: [
-          {184,
-           %{
-             table: "phoenix_kit_settings_history",
-             keys: ["key", "inserted_at"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_settings_history_key_inserted_at_index ON __SCHEMA__.phoenix_kit_settings_history USING btree (key, inserted_at)",
-             predicate: nil,
-             opclasses: ["text_ops", "timestamp_ops"],
-             name_template: nil
-           }}
         ],
         presence: :required,
         backfill: nil
