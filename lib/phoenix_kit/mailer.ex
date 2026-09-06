@@ -107,12 +107,14 @@ defmodule PhoenixKit.Mailer do
   Sends an email using a template from the database.
 
   This is the main function for sending emails using PhoenixKit's template system.
-  It automatically:
-  - Loads the template by name
-  - Renders it with provided variables
-  - Tracks template usage
-  - Sends the email with tracking
-  - Logs to EmailSystem
+  Content is resolved through `PhoenixKit.Email.Content`, so a name is answered
+  by the first of: an active database template, a host override file for the
+  recipient's locale, or the caller's own `:defaults`. Usage is tracked when a
+  database template supplied the content; the send is logged either way.
+
+  Supplying `:defaults` is what lets a caller keep working once the templates
+  table is retired — until then the database still wins, so adding them changes
+  nothing for an install that has a row.
 
   ## Parameters
 
@@ -125,13 +127,27 @@ defmodule PhoenixKit.Mailer do
     - `:from` - Override from address (default: configured from_email)
     - `:reply_to` - Reply-to address
     - `:metadata` - Additional metadata map for tracking
+    - `:locale` - Render in this locale instead of the one resolved from the
+      recipient (a bare address carries no preference, so that resolution falls
+      through to the site's content language)
+    - `:paths` - Host override roots to search, overriding the configured ones
+    - `:defaults` - Content to fall back to when neither a database template nor
+      a host override file answers the name: a map of
+      `%{subject:, text:, html:}`, or a zero-arity function returning one.
+      Prefer the function for anything built with `gettext/1` — it is evaluated
+      inside the recipient's locale, where a map has already been evaluated in
+      whatever locale the caller happened to be in
 
   ## Returns
 
   - `{:ok, email}` - Email sent successfully
-  - `{:error, :template_not_found}` - Template doesn't exist
-  - `{:error, :template_inactive}` - Template is not active
+  - `{:error, :template_not_found}` - nothing answered the name: no active
+    database template, no override file, no `:defaults`
   - `{:error, reason}` - Other error
+
+  `{:error, :template_inactive}` is no longer returned, and never was: the
+  provider's `get_active_template_by_name/1` already filters on
+  `status == "active"`, so the branch that returned it was unreachable.
 
   ## Examples
 
@@ -151,6 +167,16 @@ defmodule PhoenixKit.Mailer do
         campaign_id: "password_recovery"
       )
 
+      # With content of its own, so the name resolves with no database row
+      PhoenixKit.Mailer.send_from_template(
+        "billing_invoice",
+        customer.email,
+        %{"invoice_number" => "INV-1"},
+        defaults: fn ->
+          %{subject: gettext("Your invoice"), text: gettext("Invoice {{invoice_number}}")}
+        end
+      )
+
       # With metadata
       PhoenixKit.Mailer.send_from_template(
         "order_confirmation",
@@ -163,57 +189,66 @@ defmodule PhoenixKit.Mailer do
   """
   def send_from_template(template_name, recipient, variables \\ %{}, opts \\ [])
       when is_binary(template_name) do
-    # Get the template from database
-    case Provider.current().get_active_template_by_name(template_name) do
-      nil ->
+    content =
+      Content.resolve(
+        template_name,
+        recipient,
+        variables,
+        defaults_fun(Keyword.get(opts, :defaults, %{})),
+        locale: Keyword.get(opts, :locale),
+        paths: Keyword.get(opts, :paths)
+      )
+
+    case content do
+      %{subject: nil, text: nil, html: nil} ->
         {:error, :template_not_found}
 
-      template ->
-        # Ensure template is active
-        if template.status == "active" do
-          # Render template with variables in the requested locale
-          locale = Keyword.get(opts, :locale, "en")
-          rendered = Provider.current().render_template(template, variables, locale)
+      _resolved ->
+        email =
+          new()
+          |> to(recipient)
+          |> from(Keyword.get(opts, :from, {get_from_name(), get_from_email()}))
+          |> subject(content.subject)
+          |> html_body(content.html)
+          |> text_body(content.text)
+          |> maybe_reply_to(Keyword.get(opts, :reply_to))
 
-          # Build email
-          email =
-            new()
-            |> to(recipient)
-            |> from(Keyword.get(opts, :from, {get_from_name(), get_from_email()}))
-            |> subject(rendered.subject)
-            |> html_body(rendered.html_body)
-            |> text_body(rendered.text_body)
+        if content.db_template, do: Provider.current().track_usage(content.db_template)
 
-          # Add reply-to if provided
-          email =
-            if reply_to = Keyword.get(opts, :reply_to) do
-              reply_to(email, reply_to)
-            else
-              email
-            end
-
-          # Track template usage
-          Provider.current().track_usage(template)
-
-          # Extract source_module from template metadata
-          source_module = Provider.current().get_source_module(template)
-
-          # Prepare delivery options with category and source_module from template
-          delivery_opts =
-            opts
-            |> Keyword.put(:template_name, template_name)
-            |> Keyword.put(:template_uuid, template.uuid)
-            |> Keyword.put_new(:campaign_id, template.category)
-            |> Keyword.put(:category, template.category)
-            |> Keyword.put_new(:source_module, source_module)
-            |> Keyword.put(:provider, detect_provider())
-
-          # Send email with tracking
-          deliver_email(email, delivery_opts)
-        else
-          {:error, :template_inactive}
-        end
+        deliver_email(email, delivery_opts(template_name, content, opts))
     end
+  end
+
+  defp maybe_reply_to(email, nil), do: email
+  defp maybe_reply_to(email, address), do: reply_to(email, address)
+
+  # `:defaults` may be a map or a zero-arity function. A function is preferred
+  # for anything built with `gettext/1`: `Content.resolve/5` evaluates it inside
+  # the recipient's locale, and a map has already been evaluated in whatever
+  # locale the caller happened to be in.
+  defp defaults_fun(fun) when is_function(fun, 0), do: fun
+  defp defaults_fun(map) when is_map(map), do: fn -> map end
+
+  # Only a database template carries a uuid, a category and a source module.
+  # When the content came from a file or the caller's defaults there is nothing
+  # to take them from, so they are left to the caller's own opts rather than
+  # invented.
+  defp delivery_opts(template_name, content, opts) do
+    opts
+    |> Keyword.drop([:defaults, :paths])
+    |> Keyword.put(:template_name, template_name)
+    |> Keyword.put(:provider, detect_provider())
+    |> put_db_template_opts(content.db_template)
+  end
+
+  defp put_db_template_opts(opts, nil), do: opts
+
+  defp put_db_template_opts(opts, template) do
+    opts
+    |> Keyword.put(:template_uuid, template.uuid)
+    |> Keyword.put_new(:campaign_id, template.category)
+    |> Keyword.put(:category, template.category)
+    |> Keyword.put_new(:source_module, Provider.current().get_source_module(template))
   end
 
   @doc """

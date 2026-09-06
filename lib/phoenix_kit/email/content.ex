@@ -72,14 +72,17 @@ defmodule PhoenixKit.Email.Content do
   user struct, or a bare email string where no account exists yet. `variables`
   are substituted into whichever layer wins.
 
-  `:paths` overrides the override roots, which is how a test points at a fixture
-  directory; it defaults to `override_paths/0`.
+  `:locale` overrides the locale resolved from `recipient` — for a caller whose
+  recipient is a bare address that carries no preference, such as
+  `PhoenixKit.Mailer.send_from_template/4`. `:paths` overrides the override
+  roots, which is how a test points at a fixture directory; it defaults to
+  `override_paths/0`.
   """
   @spec resolve(String.t(), term(), map(), (-> Templates.defaults()), keyword()) :: resolved()
   def resolve(name, recipient, variables, defaults, opts \\ [])
       when is_binary(name) and is_function(defaults, 0) do
-    locale = RecipientLocale.for_rendering(recipient)
-    paths = Keyword.get_lazy(opts, :paths, &override_paths/0)
+    locale = Keyword.get(opts, :locale) || RecipientLocale.for_rendering(recipient)
+    paths = Keyword.get(opts, :paths) || override_paths()
 
     case Provider.current().get_active_template_by_name(name) do
       nil ->
