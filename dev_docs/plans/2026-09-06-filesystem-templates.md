@@ -133,8 +133,48 @@ and file/DB overrides answer different questions — gettext is strings the
 owns, per install. Making overrides the baseline is what loses the seven
 locales.
 
-This also means core's no-package fallback path and its normal path are one
-mechanism rather than two.
+### There is no degraded "no templates package" mode
+
+Because the renderer is a hard dependency of core, and template files ship in
+each sending package's own `priv/`, core's templates are always available.
+The five hardcoded fallbacks in `user_notifier.ex` are therefore **deleted,
+not shrunk** — there is nothing to fall back from.
+
+This is only true while the dependency stays hard. Making it optional would
+reintroduce exactly the feature-detection indirection the leaf design removed,
+in exchange for nothing: it is a few hundred lines of pure functions with no
+runtime cost to depend on.
+
+### Core's own emails are text-only
+
+No `html` part for the auth emails — no header, no footer, no chrome.
+
+Confirmation, reset, magic link and login alert are short transactional
+messages, and plain text is better for them on the merits: no image blocking,
+no dark-mode breakage, no client-specific CSS, better deliverability. The HTML
+chrome these carry today was never earning its keep.
+
+Their prose still rides gettext like every other core string. Translating
+"We noticed a new login to your account" costs nothing — the extraction
+pipeline runs whether or not the msgid exists — and shipping English-only
+would make these the sole untranslated user-facing surface in core, on a
+security email, where a reader who cannot understand it is precisely the
+reader who needs to. Keep the prose short and *stable*: churn turns
+translations fuzzy, and fuzzy entries are served (see the 2026-09-01 sweep
+that found 175 wrong strings hiding behind that).
+
+### Chrome is a layer, and it needs an owner
+
+Every HTML template today carries its own copy of the header and footer —
+`phoenix_kit_emails/lib/.../templates.ex:1512`, `:1705`, `:1897`, each with a
+different gradient, each redefining `.footer`. Roughly 2,000 lines of inline
+HTML with no shared layout anywhere.
+
+Per-package template files would make that *worse*, spreading the duplication
+across repos. So chrome becomes an explicit layer: a shared layout in core
+(`priv/phoenix_kit_templates/_layout/`), opt-in per template, fed by the
+branding settings that already exist. Billing invoices opt in. Core's auth
+emails opt out entirely.
 
 ### The renderer is a separate leaf package
 
@@ -193,13 +233,14 @@ Everything else lives in the package design doc.
 1. **Locale resolver** threaded through the five `user_notifier.ex` sites.
    Resolution: `custom_fields["preferred_locale"]` → default language setting
    → `"en"`. No schema change, no dependency on the rest of this.
-2. **gettext the hardcoded fallbacks** in `user_notifier.ex` and the English
-   literals in `Notifications.Render.icon_and_text/2` — this is the
-   translated baseline everything else resolves down to, and it is the whole
-   fix for a host with no emails package installed.
+2. **gettext the English literals** in `Notifications.Render.icon_and_text/2`
+   — the translated baseline the notification channels resolve down to. The
+   `user_notifier.ex` fallbacks are not translated but deleted, in item 3.
 3. **Depend on `phoenix_kit_templates`** and route the five auth emails
-   through it; ship `new_login_alert` and `magic_link_registration` as files,
-   the alert with the account-security link it currently lacks.
+   through it, deleting their hardcoded fallbacks. Ship all seven auth
+   templates as text-only files under core's `priv/` — including the two that
+   never existed, `new_login_alert` and `magic_link_registration`, the alert
+   with the account-security link it currently lacks.
 4. **Drop `fk_newsletters_broadcasts_template`** from V135 and stop creating
    `phoenix_kit_email_templates` — necessarily in the same release as the
    newsletters table lands, since core's chain runs before every module chain.
@@ -211,6 +252,9 @@ Everything else lives in the package design doc.
    delivery concerns.
 6. **Notification channels render through the package**, turning the
    envelope's `:locale` from a documented hint into a guarantee.
+7. **The shared chrome layout** under `priv/phoenix_kit_templates/_layout/`,
+   opt-in per template. Not needed by anything core sends; blocks billing's
+   templates moving off the duplicated per-template HTML.
 
 Items 1 and 2 are worth shipping on their own merits whatever happens to the
 rest; item 4 is the only irreversible one, and it needs the emails package's
