@@ -1,0 +1,163 @@
+defmodule PhoenixKit.Settings.HistoryTest do
+  @moduledoc """
+  Every change to a site setting is recorded, forever, with what it was
+  before — so "what was this setting at that instant?" has an answer.
+  """
+  use PhoenixKit.DataCase, async: false
+
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Settings.History
+  alias PhoenixKit.Settings.HistoryEntry
+  alias PhoenixKit.Test.Repo
+  alias PhoenixKit.Users.Auth
+
+  defp key, do: "history_test_#{System.unique_integer([:positive])}"
+
+  defp entries(key), do: History.list(key) |> Enum.reverse()
+
+  describe "recording" do
+    test "a create records old nil, a change records both, an unchanged write records nothing" do
+      key = key()
+
+      {:ok, _} = Settings.update_setting(key, "2")
+      {:ok, _} = Settings.update_setting(key, "2")
+      {:ok, _} = Settings.update_setting(key, "Europe/Tallinn")
+
+      assert [
+               %HistoryEntry{old_value: nil, new_value: "2", source: "system", actor_uuid: nil},
+               %HistoryEntry{old_value: "2", new_value: "Europe/Tallinn"}
+             ] = entries(key)
+    end
+
+    test "the actor and source come from the writer's options" do
+      key = key()
+
+      {:ok, user} =
+        Auth.register_user(%{
+          email: "history-#{System.unique_integer([:positive])}@example.com",
+          password: "ValidPassword123!"
+        })
+
+      {:ok, _} = Settings.update_setting(key, "a", actor_uuid: user.uuid, source: "settings")
+
+      assert [%HistoryEntry{actor_uuid: actor, source: "settings"}] = entries(key)
+      assert actor == user.uuid
+    end
+
+    test "the batch path and the settings page path record too, once per changed key" do
+      a = key()
+      b = key()
+      {:ok, _} = Settings.update_setting(a, "old")
+
+      {:ok, _} = Settings.update_settings_batch(%{a => "new", b => "first"}, source: "settings")
+
+      assert [_, %HistoryEntry{old_value: "old", new_value: "new", source: "settings"}] =
+               entries(a)
+
+      assert [%HistoryEntry{old_value: nil, new_value: "first"}] = entries(b)
+
+      # the admin page hands every key back on save; the unchanged ones stay silent
+      {:ok, _} = Settings.update_settings_batch(%{a => "new", b => "first"}, source: "settings")
+      assert length(entries(a)) == 2
+      assert length(entries(b)) == 1
+    end
+
+    test "the module and boolean writers record" do
+      key = key()
+      {:ok, _} = Settings.update_boolean_setting_with_module(key, true, "test_module")
+      {:ok, _} = Settings.update_boolean_setting_with_module(key, false, "test_module")
+
+      assert [
+               %HistoryEntry{old_value: nil, new_value: "true"},
+               %HistoryEntry{old_value: "true", new_value: "false"}
+             ] = entries(key)
+    end
+
+    test "a JSON setting records the encoded document" do
+      key = key()
+      {:ok, _} = Settings.update_json_setting(key, %{"a" => 1})
+      {:ok, _} = Settings.update_json_setting(key, %{"a" => 2})
+
+      assert [
+               %HistoryEntry{old_value: nil, new_value: ~s({"a":1})},
+               %HistoryEntry{old_value: ~s({"a":1}), new_value: ~s({"a":2})}
+             ] = entries(key)
+    end
+
+    test "a restricted setting records that it changed, never the secret" do
+      [restricted | _] = Settings.restricted_setting_keys()
+      before = History.list(restricted)
+
+      {:ok, _} =
+        Settings.update_setting(restricted, "s3cret-#{System.unique_integer([:positive])}")
+
+      [newest | _] = History.list(restricted)
+      assert length(History.list(restricted)) == length(before) + 1
+      assert %HistoryEntry{restricted: true, old_value: nil, new_value: nil} = newest
+      refute Repo.all(HistoryEntry) |> Enum.any?(&(&1.new_value && &1.new_value =~ "s3cret"))
+    end
+
+    test "the history row and the write land together" do
+      key = key()
+      # A key longer than the column allows fails the setting's own changeset;
+      # nothing is recorded for it.
+      long = String.duplicate("k", 300)
+      assert {:error, _} = Settings.update_setting(long, "x")
+      assert History.list(long) == []
+      assert History.list(key) == []
+    end
+
+    test "deleting a user leaves the row, with the actor cleared" do
+      key = key()
+
+      {:ok, user} =
+        Auth.register_user(%{
+          email: "gone-#{System.unique_integer([:positive])}@example.com",
+          password: "ValidPassword123!"
+        })
+
+      {:ok, _} = Settings.update_setting(key, "kept", actor_uuid: user.uuid)
+      Repo.delete!(user)
+
+      assert [%HistoryEntry{new_value: "kept", actor_uuid: nil}] = entries(key)
+    end
+  end
+
+  describe "value_at/2" do
+    test "walks the key's history: before any change, between changes, after the last" do
+      key = key()
+      {:ok, _} = Settings.update_setting(key, "0")
+      [first] = History.list(key)
+
+      Repo.update_all(from(h in HistoryEntry, where: h.uuid == ^first.uuid),
+        set: [inserted_at: ~N[2026-08-01 10:00:00]]
+      )
+
+      {:ok, _} = Settings.update_setting(key, "Europe/Tallinn")
+      [second, _] = History.list(key)
+
+      Repo.update_all(from(h in HistoryEntry, where: h.uuid == ^second.uuid),
+        set: [inserted_at: ~N[2026-09-01 10:00:00]]
+      )
+
+      # before the key existed: what the first change replaced (nothing)
+      assert Settings.value_at(key, ~U[2026-07-01 00:00:00Z]) == nil
+      # between the two changes: what the first set
+      assert Settings.value_at(key, ~U[2026-08-15 00:00:00Z]) == "0"
+      # at the exact instant of a change, that change counts
+      assert Settings.value_at(key, ~U[2026-09-01 10:00:00Z]) == "Europe/Tallinn"
+      assert Settings.value_at(key, ~U[2026-09-15 00:00:00Z]) == "Europe/Tallinn"
+    end
+
+    test "a key with no history has always been what it is now" do
+      key = key()
+      assert Settings.value_at(key, ~U[2026-01-01 00:00:00Z]) == nil
+
+      # written around the history (the table is the only writer, so
+      # simulate a pre-history row by clearing what the write recorded)
+      {:ok, _} = Settings.update_setting(key, "5.5")
+      Repo.delete_all(from(h in HistoryEntry, where: h.key == ^key))
+      assert Settings.value_at(key, ~U[2026-01-01 00:00:00Z]) == "5.5"
+    end
+  end
+end

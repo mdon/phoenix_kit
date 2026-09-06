@@ -7,7 +7,19 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V183 - Annotations: a shape can anchor to something other than a file ⚡ LATEST
+  ### V184 - Settings: every change to a site setting is kept, forever; posts remember their zone ⚡ LATEST
+
+  `phoenix_kit_settings_history` records each settings write that changes a
+  value — the value before and after, who made it, where from, when — and is
+  never pruned. It exists because a stored instant does not say which regime
+  wrote it: when `time_zone` moved to IANA ids and several modules turned out
+  to have added that value to other instants, the rows they had written could
+  not be repaired, because nothing recorded when the setting changed or what
+  it was before. `PhoenixKit.Settings.value_at/2` now answers that. And
+  `phoenix_kit_posts.time_zone` (nullable) carries the zone a post's
+  schedule was typed in, so the row can be re-resolved on its own.
+
+  ### V183 - Annotations: a shape can anchor to something other than a file
 
   `phoenix_kit_annotations.file_uuid` becomes nullable behind a generic
   `target_type` + `target_uuid` pair (backfilled `'file'` / the file uuid for
@@ -673,7 +685,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 183
+  @current_version 184
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

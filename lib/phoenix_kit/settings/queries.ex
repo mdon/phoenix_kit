@@ -9,6 +9,7 @@ defmodule PhoenixKit.Settings.Queries do
   import Ecto.Query
 
   alias PhoenixKit.RepoHelper
+  alias PhoenixKit.Settings.History
   alias PhoenixKit.Settings.Setting
 
   # Single record queries
@@ -178,7 +179,7 @@ defmodule PhoenixKit.Settings.Queries do
       ...> |> PhoenixKit.Settings.Queries.insert_setting()
       {:ok, %Setting{}}
   """
-  def insert_setting(changeset) do
+  def insert_setting(changeset, opts \\ []) do
     # `log: false` — this table stores EVERY setting's value in the same two
     # generic columns, secrets included (`oauth_google_client_secret`,
     # `aws_secret_access_key`, ...). Ecto's own SQL debug logger inspects the
@@ -190,7 +191,7 @@ defmodule PhoenixKit.Settings.Queries do
     # Found doing exactly that on a live install. Silencing the query log
     # for this one table is cheaper and safer than trying to enumerate
     # which keys are sensitive here too.
-    repo().insert(changeset, log: false)
+    with_history(changeset, opts, fn -> repo().insert(changeset, log: false) end)
   end
 
   @doc """
@@ -202,9 +203,25 @@ defmodule PhoenixKit.Settings.Queries do
       ...> |> PhoenixKit.Settings.Queries.update_setting()
       {:ok, %Setting{}}
   """
-  def update_setting(changeset) do
+  def update_setting(changeset, opts \\ []) do
     # See `insert_setting/1` above for why.
-    repo().update(changeset, log: false)
+    with_history(changeset, opts, fn -> repo().update(changeset, log: false) end)
+  end
+
+  # The write and its history row land together or not at all. `opts`
+  # carries `:actor_uuid` and `:source` for the history
+  # (`PhoenixKit.Settings.History.record/3`); a write that changes no value
+  # records nothing. Nested inside a caller's transaction (the batch path)
+  # this joins it.
+  defp with_history(changeset, opts, write) do
+    repo().transaction(fn ->
+      with {:ok, setting} <- write.(),
+           {:ok, _entry_or_unchanged} <- History.record(changeset, setting, opts) do
+        setting
+      else
+        {:error, failed} -> repo().rollback(failed)
+      end
+    end)
   end
 
   # Transaction

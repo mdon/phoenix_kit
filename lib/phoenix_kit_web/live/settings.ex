@@ -97,7 +97,7 @@ defmodule PhoenixKitWeb.Live.Settings do
   def handle_event("save_settings", %{"settings" => settings_params}, socket) do
     socket = assign(socket, :saving, true)
 
-    case Settings.update_settings(settings_params) do
+    case Settings.update_settings(settings_params, history_opts(socket)) do
       {:ok, updated_settings} ->
         handle_settings_saved(socket, settings_params, updated_settings)
 
@@ -117,7 +117,7 @@ defmodule PhoenixKitWeb.Live.Settings do
     defaults = Settings.get_defaults() |> Map.take(Settings.public_setting_keys())
 
     # Update public settings to defaults in database
-    case Settings.update_settings(defaults) do
+    case Settings.update_settings(defaults, history_opts(socket)) do
       {:ok, updated_settings} ->
         # Sync site_url to Endpoint after reset
         EndpointUrlSync.sync()
@@ -161,6 +161,14 @@ defmodule PhoenixKitWeb.Live.Settings do
     key = media_target_to_key(target)
     settings = Map.put(socket.assigns.settings, key, "")
     {:noreply, assign(socket, :settings, settings)}
+  end
+
+  # Who is saving, for the settings history (`PhoenixKit.Settings.History`).
+  defp history_opts(socket) do
+    [
+      actor_uuid: get_in(socket.assigns, [:phoenix_kit_current_user, Access.key(:uuid)]),
+      source: "settings"
+    ]
   end
 
   ## Media selector callbacks

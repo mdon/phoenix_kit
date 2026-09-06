@@ -69,6 +69,7 @@ defmodule PhoenixKit.Settings do
   alias PhoenixKit.Config.AWS
   alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Settings.History
   alias PhoenixKit.Settings.Queries
   alias PhoenixKit.Settings.Setting
   alias PhoenixKit.Settings.Setting.SettingsForm
@@ -793,18 +794,18 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.update_json_setting("", %{})
       {:error, %Ecto.Changeset{}}
   """
-  def update_json_setting(key, json_value) when is_binary(key) do
+  def update_json_setting(key, json_value, opts \\ []) when is_binary(key) and is_list(opts) do
     result =
       case Queries.get_setting_by_key(key) do
         %Setting{} = setting ->
           setting
           |> Setting.update_changeset(%{value_json: json_value, value: nil})
-          |> Queries.update_setting()
+          |> Queries.update_setting(opts)
 
         nil ->
           %Setting{}
           |> Setting.changeset(%{key: key, value_json: json_value, value: nil})
-          |> Queries.insert_setting()
+          |> Queries.insert_setting(opts)
       end
 
     # Invalidate cache on successful update
@@ -828,7 +829,7 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.update_json_setting_with_module("notifications", config, "messaging")
       {:ok, %Setting{key: "notifications", value_json: config, module: "messaging"}}
   """
-  def update_json_setting_with_module(key, json_value, module)
+  def update_json_setting_with_module(key, json_value, module, opts \\ [])
       when is_binary(key) and is_binary(module) do
     existing_setting = Queries.get_setting_by_key(key)
 
@@ -837,12 +838,12 @@ defmodule PhoenixKit.Settings do
         %Setting{} = setting ->
           setting
           |> Setting.update_changeset(%{value_json: json_value, value: nil, module: module})
-          |> Queries.update_setting()
+          |> Queries.update_setting(opts)
 
         nil ->
           %Setting{}
           |> Setting.changeset(%{key: key, value_json: json_value, value: nil, module: module})
-          |> Queries.insert_setting()
+          |> Queries.insert_setting(opts)
       end
 
     # Invalidate cache on successful update
@@ -1240,6 +1241,20 @@ defmodule PhoenixKit.Settings do
   @doc false
   def restricted_setting_keys, do: @restricted_setting_keys
 
+  @doc """
+  The changes to `key`, newest first — see `PhoenixKit.Settings.History.list/2`.
+  """
+  @spec history(String.t(), keyword()) :: [PhoenixKit.Settings.HistoryEntry.t()]
+  def history(key, opts \\ []) when is_binary(key), do: History.list(key, opts)
+
+  @doc """
+  The value `key` had at `instant` — the answer to "which timezone was this
+  site on when that row was written?". See
+  `PhoenixKit.Settings.History.value_at/2`.
+  """
+  @spec value_at(String.t(), DateTime.t() | NaiveDateTime.t()) :: String.t() | nil
+  def value_at(key, instant) when is_binary(key), do: History.value_at(key, instant)
+
   # Classifies one raw stored value against `PhoenixKit.Integrations.Encryption`'s
   # `enc:v1:` scheme (S015 pt.2). Exactly three outcomes, deliberately never
   # collapsed into two:
@@ -1523,8 +1538,19 @@ defmodule PhoenixKit.Settings do
 
       iex> PhoenixKit.Settings.update_setting("", "invalid")
       {:error, %Ecto.Changeset{}}
+
+  ## History
+
+  A write that changes the value records a `PhoenixKit.Settings.HistoryEntry`
+  in the same transaction (see `PhoenixKit.Settings.History`). Pass
+  `actor_uuid:` when a person made the change and `source:` (the admin pages
+  pass `"settings"`; the default is `"system"`). Every other writer in this
+  module takes the same options.
   """
-  def update_setting(key, value) when is_binary(key) and (is_binary(value) or is_nil(value)) do
+  def update_setting(key, value, opts \\ [])
+
+  def update_setting(key, value, opts)
+      when is_binary(key) and (is_binary(value) or is_nil(value)) and is_list(opts) do
     # Convert nil to empty string for storage
     stored_value = value || ""
 
@@ -1533,12 +1559,12 @@ defmodule PhoenixKit.Settings do
         %Setting{} = setting ->
           setting
           |> Setting.update_changeset(%{value: stored_value})
-          |> Queries.update_setting()
+          |> Queries.update_setting(opts)
 
         nil ->
           %Setting{}
           |> Setting.changeset(%{key: key, value: stored_value})
-          |> Queries.insert_setting()
+          |> Queries.insert_setting(opts)
       end
 
     # Invalidate cache on successful update
@@ -1569,7 +1595,8 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.update_settings_batch(%{})
       {:ok, []}
   """
-  def update_settings_batch(settings_map) when is_map(settings_map) do
+  def update_settings_batch(settings_map, opts \\ [])
+      when is_map(settings_map) and is_list(opts) do
     keys = Map.keys(settings_map)
 
     # Load all existing settings in a single query
@@ -1580,7 +1607,7 @@ defmodule PhoenixKit.Settings do
     # Perform all updates/inserts in a transaction
     result =
       Ecto.Multi.new()
-      |> add_batch_operations(settings_map, existing_settings)
+      |> add_batch_operations(settings_map, existing_settings, opts)
       |> Queries.transaction()
 
     case result do
@@ -1595,22 +1622,28 @@ defmodule PhoenixKit.Settings do
   end
 
   # Helper function to add operations to Multi
-  defp add_batch_operations(multi, settings_map, existing_settings) do
+  defp add_batch_operations(multi, settings_map, existing_settings, opts) do
     Enum.reduce(settings_map, multi, fn {key, value}, acc ->
       # Convert nil to empty string
       stored_value = value || ""
 
-      case Map.get(existing_settings, key) do
-        %Setting{} = setting ->
-          # Update existing setting
-          changeset = Setting.update_changeset(setting, %{value: stored_value})
-          Ecto.Multi.update(acc, {:update, key}, changeset)
+      {write_name, changeset, acc} =
+        case Map.get(existing_settings, key) do
+          %Setting{} = setting ->
+            # Update existing setting
+            changeset = Setting.update_changeset(setting, %{value: stored_value})
+            {{:update, key}, changeset, Ecto.Multi.update(acc, {:update, key}, changeset)}
 
-        nil ->
-          # Create new setting
-          changeset = Setting.changeset(%Setting{}, %{key: key, value: stored_value})
-          Ecto.Multi.insert(acc, {:insert, key}, changeset)
-      end
+          nil ->
+            # Create new setting
+            changeset = Setting.changeset(%Setting{}, %{key: key, value: stored_value})
+            {{:insert, key}, changeset, Ecto.Multi.insert(acc, {:insert, key}, changeset)}
+        end
+
+      # The history row rides in the same transaction as the write.
+      Ecto.Multi.run(acc, {:history, key}, fn _repo, changes ->
+        History.record(changeset, Map.fetch!(changes, write_name), opts)
+      end)
     end)
   end
 
@@ -1631,10 +1664,10 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.update_boolean_setting("feature_enabled", false)
       {:ok, %Setting{key: "feature_enabled", value: "false"}}
   """
-  def update_boolean_setting(key, boolean_value)
-      when is_binary(key) and is_boolean(boolean_value) do
+  def update_boolean_setting(key, boolean_value, opts \\ [])
+      when is_binary(key) and is_boolean(boolean_value) and is_list(opts) do
     string_value = if boolean_value, do: "true", else: "false"
-    update_setting(key, string_value)
+    update_setting(key, string_value, opts)
   end
 
   @doc """
@@ -1648,7 +1681,8 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.update_setting_with_module("codes_enabled", "true", "referral_codes")
       {:ok, %Setting{key: "codes_enabled", value: "true", module: "referral_codes"}}
   """
-  def update_setting_with_module(key, value, module) when is_binary(key) and is_binary(value) do
+  def update_setting_with_module(key, value, module, opts \\ [])
+      when is_binary(key) and is_binary(value) and is_list(opts) do
     existing_setting = Queries.get_setting_by_key(key)
 
     result =
@@ -1656,12 +1690,12 @@ defmodule PhoenixKit.Settings do
         %Setting{} = setting ->
           setting
           |> Setting.update_changeset(%{value: value, module: module})
-          |> Queries.update_setting()
+          |> Queries.update_setting(opts)
 
         nil ->
           %Setting{}
           |> Setting.changeset(%{key: key, value: value, module: module})
-          |> Queries.insert_setting()
+          |> Queries.insert_setting(opts)
       end
 
     # Invalidate cache on successful update
@@ -1683,10 +1717,10 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.update_boolean_setting_with_module("feature_enabled", true, "referral_codes")
       {:ok, %Setting{key: "feature_enabled", value: "true", module: "referral_codes"}}
   """
-  def update_boolean_setting_with_module(key, boolean_value, module)
-      when is_binary(key) and is_boolean(boolean_value) and is_binary(module) do
+  def update_boolean_setting_with_module(key, boolean_value, module, opts \\ [])
+      when is_binary(key) and is_boolean(boolean_value) and is_binary(module) and is_list(opts) do
     string_value = if boolean_value, do: "true", else: "false"
-    update_setting_with_module(key, string_value, module)
+    update_setting_with_module(key, string_value, module, opts)
   end
 
   ## Content Language Functions
@@ -1829,11 +1863,11 @@ defmodule PhoenixKit.Settings do
       iex> PhoenixKit.Settings.update_settings(%{"time_zone" => "invalid"})
       {:error, %Ecto.Changeset{}}
   """
-  def update_settings(settings_params) do
+  def update_settings(settings_params, opts \\ []) do
     changeset = validate_settings(settings_params)
 
     if changeset.valid? do
-      case update_all_settings_from_changeset(changeset) do
+      case update_all_settings_from_changeset(changeset, opts) do
         {:ok, updated_settings} ->
           # Invalidate cache for all updated settings
           updated_keys = Map.keys(updated_settings)
@@ -1849,7 +1883,7 @@ defmodule PhoenixKit.Settings do
   end
 
   # Private helper to update all settings from a valid changeset
-  defp update_all_settings_from_changeset(changeset) do
+  defp update_all_settings_from_changeset(changeset, opts) do
     defaults = get_defaults()
 
     # Only update settings that were actually submitted in the form
@@ -1870,7 +1904,7 @@ defmodule PhoenixKit.Settings do
     # Update each setting in the database and collect errors
     {updated_settings, failed_settings} =
       Enum.reduce(settings_to_update, {%{}, []}, fn {key, value}, {acc_success, acc_failed} ->
-        case update_setting(key, value) do
+        case update_setting(key, value, opts) do
           {:ok, _setting} ->
             {Map.put(acc_success, key, value), acc_failed}
 
