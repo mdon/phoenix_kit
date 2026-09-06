@@ -75,12 +75,10 @@ defmodule PhoenixKit.Settings.History do
     end
   end
 
-  # A setting's value as history sees it: the string, or the JSON encoded
-  # when the setting is a JSON one. `nil` when there is neither.
-  defp value_of(%Setting{value_json: json}) when is_map(json) and map_size(json) > 0,
-    do: Jason.encode!(json)
-
-  defp value_of(%Setting{value_json: json}) when is_list(json), do: Jason.encode!(json)
+  # A setting's value as history sees it: the JSON encoded when the setting
+  # is a JSON one (an empty document is a value too — "{}" — not "nothing"),
+  # else the string. `nil` when there is neither.
+  defp value_of(%Setting{value_json: json}) when not is_nil(json), do: Jason.encode!(json)
   defp value_of(%Setting{value: value}), do: value
 
   @doc """

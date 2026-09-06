@@ -73,14 +73,16 @@ defmodule PhoenixKit.Settings.HistoryTest do
              ] = entries(key)
     end
 
-    test "a JSON setting records the encoded document" do
+    test "a JSON setting records the encoded document, an empty one included" do
       key = key()
       {:ok, _} = Settings.update_json_setting(key, %{"a" => 1})
       {:ok, _} = Settings.update_json_setting(key, %{"a" => 2})
+      {:ok, _} = Settings.update_json_setting(key, %{})
 
       assert [
                %HistoryEntry{old_value: nil, new_value: ~s({"a":1})},
-               %HistoryEntry{old_value: ~s({"a":1}), new_value: ~s({"a":2})}
+               %HistoryEntry{old_value: ~s({"a":1}), new_value: ~s({"a":2})},
+               %HistoryEntry{old_value: ~s({"a":2}), new_value: "{}"}
              ] = entries(key)
     end
 
