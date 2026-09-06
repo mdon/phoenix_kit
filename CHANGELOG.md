@@ -1,3 +1,116 @@
+## 2.16.0 - 2026-09-06
+
+### Added
+
+- **Outbound messages are rendered in the recipient's language.** Every auth
+  email had been going out in English no matter who received it. Five call
+  sites in `UserNotifier` and one in `Mailer` used the two-arity
+  `render_template/2`, whose locale defaults to `"en"` — so a template
+  translated into all seven locales was only ever read in one of them, and the
+  translations sat in the database unread. Only
+  `Mailer.send_from_template/4` passed a locale.
+
+  `PhoenixKit.Utils.RecipientLocale` is now the single answer to "whose
+  language is this message in": `for_rendering/1` returns the recipient's full
+  dialect and never `nil`, falling back to the site content language and then
+  `"en"`; `base/1` returns the base code or `nil` for Gettext, which reads
+  `nil` as "leave the current locale alone". It keeps the dialect rather than
+  narrowing it, since template resolution tries `"en-GB"` before `"en"` and
+  pre-truncating would discard a dialect-specific translation. The preference
+  comes from `custom_fields["preferred_locale"]`, written by the language
+  switcher.
+
+- **Message templates can be customized by the host, as files.**
+  `PhoenixKit.Email.Content` resolves every auth email across three layers: an
+  active database template (unchanged, and still winning — see below), then a
+  host override file for the recipient's locale, then core's own translated
+  default. Parts resolve independently, so a host that overrides only the body
+  keeps core's translated subject.
+
+  An override is a file in the host's own repo, version-controlled and
+  reviewable. The template's **name is a directory**; the files inside it are
+  named for the part they supply:
+
+      <host>/priv/phoenix_kit_templates/
+      └── new_login_alert/
+          ├── text.txt          # <part>.<ext>
+          └── text.de.txt       # <part>.<locale>.<ext>
+
+  Lookup runs most- to least-specific — `text.de-AT.txt` → `text.de.txt` →
+  `text.txt` → core's default — so a single-language host writes one file and
+  is done. Roots come from `config :phoenix_kit, template_paths:`, defaulting
+  to the host application's `priv/phoenix_kit_templates`.
+
+- **New dependency: `phoenix_kit_templates`.** A leaf package with no runtime
+  dependencies of its own, which is what lets core depend on it rather than
+  feature-detect it through a behaviour. `mix deps.get` after upgrading.
+
+- **The new-login alert finally carries a link.** It had been telling readers
+  to change their password immediately while giving them nothing to click — on
+  the one email that reaches a genuinely compromised account.
+
+- **Three templates that were looked up but never existed.**
+  `new_login_alert` and `magic_link_registration` were both resolved by name
+  and had no seeded template, so they always fell through to a hardcoded
+  English string. Both now exist, as does `organization_invitation`, which had
+  never been templated at all.
+
+### Changed
+
+- ⚠️ **Auth email wording changes for hosts with no database template.** Those
+  installs were receiving the hardcoded English fallbacks; they now receive
+  core's Gettext defaults in the recipient's language. This is the point of
+  the release, but it is visible — someone will notice their confirmation
+  email reads differently. **Hosts with customized database templates see
+  nothing change**: that layer still wins, deliberately, and will keep winning
+  until an export task ships and operators have moved their edits to files.
+  Removing it now would silently revert every customized message.
+
+- **Notification text is translated.** `Notifications.Render` held 21
+  hardcoded English literals — the text of every notification reaching the
+  inbox, Telegram, the email channel and any future push. `Channel`'s own
+  moduledoc had named the hole: the envelope carried `:locale` "but the core's
+  built-in rendering is English today". It no longer is. `render/2` installs
+  the recipient's locale for the lookup; a `nil` locale still means "leave the
+  current locale alone", which is what the admin inbox wants — it renders in
+  the viewer's language, not a recipient's.
+
+  Three strings that concatenated a detail onto a translated stem ("Your email
+  was changed" + " to x") became two complete msgids each. A suffix cannot be
+  reordered, and several languages need the detail somewhere other than the
+  end.
+
+- 38 new msgids, translated into all seven locales. Five of them arrived from
+  `gettext.merge` carrying a translation matched from a *different* msgid —
+  `"New notification."` had inherited the translation of "My notifications" in
+  every locale, and `"Confirm your account"` had inherited "Confirm **my**
+  account". Gettext compiles and serves fuzzy entries, so all five were
+  rewritten by hand.
+
+### Fixed
+
+- **Batch settings writes could deadlock.** The settings history added in this
+  release reads each key `FOR UPDATE` inside the write's transaction, and the
+  batch path took those locks in `Enum.reduce` order over a map. Erlang map iteration is not a stable total
+  order — a map of 32 keys or fewer is a flatmap iterated in term order, a
+  larger one is a hashmap iterated in hash order, and the same two keys come
+  out reversed between them. Two concurrent `update_settings_batch/2` calls
+  sharing keys, one small and one large, would take them in opposite orders
+  and deadlock. Keys are now sorted before the reduce, so every batch acquires
+  in the same order whatever its size.
+
+- **`ModuleRegistry.not_installed_packages/0` advertised an installed
+  package.** It derived "installed" from module discovery alone, which only
+  finds packages implementing the `PhoenixKit.Module` behaviour — so an
+  infrastructure dependency that implements none looked absent, and the admin
+  Modules page would have offered `phoenix_kit_templates` as available to
+  install while it was already a transitive dependency of core. It now also
+  consults loaded applications; neither check subsumes the other.
+
+- The notification delivery and digest workers each carried their own
+  identical private copy of the recipient-locale resolution, and a third was
+  about to be written. All three now share one.
+
 ## 2.15.1 - 2026-09-05
 
 ### Added
