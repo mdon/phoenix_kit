@@ -219,15 +219,9 @@ defmodule PhoenixKit.Notifications.DigestWorker do
   # (`%{label}` stays English: type labels are runtime registry data, not
   # extracted strings — see `Types`.)
   defp digest_body(user, type_key, count, cadence) do
-    in_locale(RecipientLocale.base(user), fn ->
+    RecipientLocale.in_locale(RecipientLocale.base(user), fn ->
       digest_text(count, type_label(type_key), cadence)
     end)
-  end
-
-  defp in_locale(nil, fun), do: fun.()
-
-  defp in_locale(locale, fun) when is_binary(locale) do
-    Gettext.with_locale(PhoenixKitWeb.Gettext, locale, fun)
   end
 
   defp digest_text(count, label, cadence) do

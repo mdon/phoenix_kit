@@ -345,14 +345,30 @@ defmodule PhoenixKit.ModuleRegistry do
   """
   @spec not_installed_packages() :: [map()]
   def not_installed_packages do
-    installed_otp_apps =
+    known_external_packages()
+    |> Enum.reject(&MapSet.member?(installed_otp_apps(), &1.package))
+  end
+
+  # "Installed" is the union of two questions, because a `phoenix_kit_*` package
+  # is not necessarily a feature module. Discovery answers "does it implement
+  # `PhoenixKit.Module`?", which misses infrastructure dependencies core pulls in
+  # for itself — `phoenix_kit_templates` is one, and without the second check it
+  # would be advertised on the Modules page as available to install while
+  # already being a transitive dependency of core with no UI to install.
+  #
+  # Loaded applications answer "is it there at all?", and miss a `runtime: false`
+  # dependency whose beams discovery can still see. Neither check subsumes the
+  # other, so both are consulted.
+  defp installed_otp_apps do
+    discovered =
       PhoenixKit.ModuleDiscovery.discover_external_modules()
       |> Enum.map(&Application.get_application/1)
       |> Enum.reject(&is_nil/1)
       |> MapSet.new(&Atom.to_string/1)
 
-    known_external_packages()
-    |> Enum.reject(&MapSet.member?(installed_otp_apps, &1.package))
+    :application.loaded_applications()
+    |> MapSet.new(fn {name, _description, _version} -> Atom.to_string(name) end)
+    |> MapSet.union(discovered)
   end
 
   @doc "Returns all feature module key strings from registered modules."

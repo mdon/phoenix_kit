@@ -23,6 +23,14 @@ defmodule PhoenixKit.Utils.RecipientLocale do
   - `base/1` — for **Gettext**, which keys on base codes and treats `nil` as
     "leave the current locale alone".
 
+  ## Installing it
+
+  `in_locale/2` runs a function with a locale installed on the process, which is
+  how a Gettext-backed default reaches the right language: these render on a
+  background worker or on behalf of another user, so the locale arrives as a
+  value rather than being ambient. `nil` means "leave the current locale alone"
+  — what a screen rendering for its own viewer wants.
+
   ## Failure
 
   `for_rendering/1` is total. The site default is read through
@@ -87,6 +95,23 @@ defmodule PhoenixKit.Utils.RecipientLocale do
   @spec for_rendering(term()) :: String.t()
   def for_rendering(recipient) do
     preferred(recipient) || site_default()
+  end
+
+  @doc """
+  Runs `fun` with `locale` installed on the process, restoring it afterwards.
+
+  A `nil` locale runs `fun` untouched, so a caller with no recipient preference
+  keeps whatever locale is already in force.
+
+      iex> alias PhoenixKit.Utils.RecipientLocale
+      iex> RecipientLocale.in_locale(nil, fn -> :ran end)
+      :ran
+  """
+  @spec in_locale(String.t() | nil, (-> result)) :: result when result: term()
+  def in_locale(nil, fun), do: fun.()
+
+  def in_locale(locale, fun) when is_binary(locale) do
+    Gettext.with_locale(PhoenixKitWeb.Gettext, locale, fun)
   end
 
   defp site_default do

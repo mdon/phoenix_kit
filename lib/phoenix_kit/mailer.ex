@@ -21,14 +21,15 @@ defmodule PhoenixKit.Mailer do
   """
 
   use Swoosh.Mailer, otp_app: :phoenix_kit
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   import Swoosh.Email
 
+  alias PhoenixKit.Email.Content
   alias PhoenixKit.Email.Provider
   alias PhoenixKit.Integrations
   alias PhoenixKit.Mailer.SmtpTransport
   alias PhoenixKit.Users.Auth.User
-  alias PhoenixKit.Utils.RecipientLocale
 
   require Logger
 
@@ -632,39 +633,33 @@ defmodule PhoenixKit.Mailer do
       {:ok, %Swoosh.Email{}}
   """
   def send_magic_link_email(%User{} = user, magic_link_url) when is_binary(magic_link_url) do
-    # Variables for template substitution
-    template_variables = %{
-      "user_email" => user.email,
-      "magic_link_url" => magic_link_url
-    }
-
-    # Try to get template from database, fallback to text-only
-    {subject, html_body, text_body, db_template} =
-      case Provider.current().get_active_template_by_name("magic_link") do
-        nil ->
-          {
-            "Your secure login link",
-            nil,
-            magic_link_text_body(user, magic_link_url),
-            nil
+    content =
+      Content.resolve(
+        "magic_link",
+        user,
+        %{"user_email" => user.email, "magic_link_url" => magic_link_url},
+        fn ->
+          %{
+            subject: gettext("Your secure login link"),
+            text:
+              gettext("""
+              Your login link: {{magic_link_url}}
+              This link expires in 15 minutes.
+              """)
           }
-
-        template ->
-          locale = RecipientLocale.for_rendering(user)
-          rendered = Provider.current().render_template(template, template_variables, locale)
-          {rendered.subject, rendered.html_body, rendered.text_body, template}
-      end
+        end
+      )
 
     email =
       new()
       |> to({user.email, user.email})
       |> from({get_from_name(), get_from_email()})
-      |> subject(subject)
-      |> html_body(html_body)
-      |> text_body(text_body)
+      |> subject(content.subject)
+      |> html_body(content.html)
+      |> text_body(content.text)
 
-    # Track template usage if using database template
-    if db_template, do: Provider.current().track_usage(db_template)
+    # Track template usage if a database template supplied the content
+    if content.db_template, do: Provider.current().track_usage(content.db_template)
 
     deliver_email(email,
       user_uuid: user.uuid,
@@ -674,14 +669,6 @@ defmodule PhoenixKit.Mailer do
       source_module: "users",
       provider: detect_provider()
     )
-  end
-
-  # Text version of the magic link email
-  defp magic_link_text_body(_user, magic_link_url) do
-    """
-    Your login link: #{magic_link_url}
-    This link expires in 15 minutes.
-    """
   end
 
   # Detect current email provider from configuration

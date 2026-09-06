@@ -2076,6 +2076,8 @@ msgstr "Typ"
 msgid "Unconfirmed"
 msgstr "Unbestätigt"
 
+#: lib/phoenix_kit/users/auth/user_notifier.ex:285
+#: lib/phoenix_kit/users/auth/user_notifier.ex:286
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:64
 #: lib/phoenix_kit_web/components/core/time_display.ex:183
 #: lib/phoenix_kit_web/components/language_switcher.ex:832
@@ -13597,27 +13599,27 @@ msgstr "abgeleitet von secret_key_base"
 msgid "unrecognised key state"
 msgstr "unbekannter Schlüsselzustand"
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:234
+#: lib/phoenix_kit/notifications/digest_worker.ex:228
 #, elixir-autogen, elixir-format
 msgid "You have %{count} new %{label} %{period}."
 msgstr "Sie haben %{count} neue %{label} %{period}."
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:245
+#: lib/phoenix_kit/notifications/digest_worker.ex:239
 #, elixir-autogen, elixir-format
 msgid "in the last 12 hours"
 msgstr "in den letzten 12 Stunden"
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:248
+#: lib/phoenix_kit/notifications/digest_worker.ex:242
 #, elixir-autogen, elixir-format
 msgid "in the last day"
 msgstr "am letzten Tag"
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:242
+#: lib/phoenix_kit/notifications/digest_worker.ex:236
 #, elixir-autogen, elixir-format
 msgid "in the last hour"
 msgstr "in der letzten Stunde"
 
-#: lib/phoenix_kit/notifications/digest_worker.ex:251
+#: lib/phoenix_kit/notifications/digest_worker.ex:245
 #, elixir-autogen, elixir-format
 msgid "in the last week"
 msgstr "in der letzten Woche"
@@ -13756,122 +13758,192 @@ msgstr "Kontotypen auf der Registrierungsseite"
 msgid "What a visitor is allowed to open"
 msgstr "Was ein Besucher eröffnen darf"
 
-#: lib/phoenix_kit/notifications/render.ex:156
+#: lib/phoenix_kit/notifications/render.ex:157
 #, elixir-autogen, elixir-format
 msgid "An admin added a note on your account."
 msgstr "Ein Administrator hat eine Notiz zu Ihrem Konto hinzugefügt."
 
-#: lib/phoenix_kit/notifications/render.ex:160
+#: lib/phoenix_kit/notifications/render.ex:161
 #, elixir-autogen, elixir-format
 msgid "An admin removed a note from your account."
 msgstr "Ein Administrator hat eine Notiz von Ihrem Konto entfernt."
 
-#: lib/phoenix_kit/notifications/render.ex:185
+#: lib/phoenix_kit/notifications/render.ex:186
 #, elixir-autogen, elixir-format
 msgid "An administrator signed in to your account for support."
 msgstr "Ein Administrator hat sich zur Unterstützung in Ihrem Konto angemeldet."
 
-#: lib/phoenix_kit/notifications/render.ex:197
+#: lib/phoenix_kit/notifications/render.ex:198
 #, elixir-autogen, elixir-format
 msgid "New notification."
 msgstr "Neue Benachrichtigung."
 
-#: lib/phoenix_kit/notifications/render.ex:168
+#: lib/phoenix_kit/notifications/render.ex:169
 #, elixir-autogen, elixir-format
 msgid "Someone commented on your post."
 msgstr "Jemand hat Ihren Beitrag kommentiert."
 
-#: lib/phoenix_kit/notifications/render.ex:172
+#: lib/phoenix_kit/notifications/render.ex:173
 #, elixir-autogen, elixir-format
 msgid "Someone liked your comment."
 msgstr "Jemandem gefällt Ihr Kommentar."
 
-#: lib/phoenix_kit/notifications/render.ex:164
+#: lib/phoenix_kit/notifications/render.ex:165
 #, elixir-autogen, elixir-format
 msgid "Someone liked your post."
 msgstr "Jemandem gefällt Ihr Beitrag."
 
-#: lib/phoenix_kit/notifications/render.ex:176
+#: lib/phoenix_kit/notifications/render.ex:177
 #, elixir-autogen, elixir-format
 msgid "Someone started following you."
 msgstr "Jemand folgt Ihnen jetzt."
 
-#: lib/phoenix_kit/notifications/render.ex:151
+#: lib/phoenix_kit/notifications/render.ex:152
 #, elixir-autogen, elixir-format
 msgid "You appear to be in %{zone}, which is not your saved timezone."
 msgstr "Sie scheinen sich in %{zone} zu befinden, was nicht Ihrer gespeicherten Zeitzone entspricht."
 
-#: lib/phoenix_kit/notifications/render.ex:73
+#: lib/phoenix_kit/notifications/render.ex:74
 #, elixir-autogen, elixir-format
 msgid "You have a new notification."
 msgstr "Sie haben eine neue Benachrichtigung."
 
-#: lib/phoenix_kit/notifications/render.ex:101
+#: lib/phoenix_kit/notifications/render.ex:102
 #, elixir-autogen, elixir-format
 msgid "Your account status was updated to %{status}."
 msgstr "Ihr Kontostatus wurde auf %{status} geändert."
 
-#: lib/phoenix_kit/notifications/render.ex:99
+#: lib/phoenix_kit/notifications/render.ex:100
 #, elixir-autogen, elixir-format
 msgid "Your account status was updated."
 msgstr "Ihr Kontostatus wurde aktualisiert."
 
-#: lib/phoenix_kit/notifications/render.ex:189
+#: lib/phoenix_kit/notifications/render.ex:190
 #, elixir-autogen, elixir-format
 msgid "Your account was added to another sign-in session."
 msgstr "Ihr Konto wurde einer anderen Anmeldesitzung hinzugefügt."
 
-#: lib/phoenix_kit/notifications/render.ex:137
+#: lib/phoenix_kit/notifications/render.ex:138
 #, elixir-autogen, elixir-format
 msgid "Your avatar was updated."
 msgstr "Ihr Avatar wurde aktualisiert."
 
-#: lib/phoenix_kit/notifications/render.ex:133
+#: lib/phoenix_kit/notifications/render.ex:134
 #, elixir-autogen, elixir-format
 msgid "Your email is no longer confirmed."
 msgstr "Ihre E-Mail-Adresse ist nicht mehr bestätigt."
 
-#: lib/phoenix_kit/notifications/render.ex:122
+#: lib/phoenix_kit/notifications/render.ex:123
 #, elixir-autogen, elixir-format
 msgid "Your email was changed to %{email}."
 msgstr "Ihre E-Mail-Adresse wurde zu %{email} geändert."
 
-#: lib/phoenix_kit/notifications/render.ex:120
+#: lib/phoenix_kit/notifications/render.ex:121
 #, elixir-autogen, elixir-format
 msgid "Your email was changed."
 msgstr "Ihre E-Mail-Adresse wurde geändert."
 
-#: lib/phoenix_kit/notifications/render.ex:129
+#: lib/phoenix_kit/notifications/render.ex:130
 #, elixir-autogen, elixir-format
 msgid "Your email was confirmed."
 msgstr "Ihre E-Mail-Adresse wurde bestätigt."
 
-#: lib/phoenix_kit/notifications/render.ex:108
+#: lib/phoenix_kit/notifications/render.ex:109
 #, elixir-autogen, elixir-format
 msgid "Your password was changed by an administrator."
 msgstr "Ihr Passwort wurde von einem Administrator geändert."
 
-#: lib/phoenix_kit/notifications/render.ex:112
+#: lib/phoenix_kit/notifications/render.ex:113
 #, elixir-autogen, elixir-format
 msgid "Your password was reset."
 msgstr "Ihr Passwort wurde zurückgesetzt."
 
-#: lib/phoenix_kit/notifications/render.ex:141
+#: lib/phoenix_kit/notifications/render.ex:142
 #, elixir-autogen, elixir-format
 msgid "Your profile was updated."
 msgstr "Ihr Profil wurde aktualisiert."
 
-#: lib/phoenix_kit/notifications/render.ex:88
+#: lib/phoenix_kit/notifications/render.ex:89
 #, elixir-autogen, elixir-format
 msgid "Your roles were updated (added: %{roles})."
 msgstr "Ihre Rollen wurden aktualisiert (hinzugefügt: %{roles})."
 
-#: lib/phoenix_kit/notifications/render.ex:86
+#: lib/phoenix_kit/notifications/render.ex:87
 #, elixir-autogen, elixir-format
 msgid "Your roles were updated."
 msgstr "Ihre Rollen wurden aktualisiert."
 
-#: lib/phoenix_kit/notifications/render.ex:147
+#: lib/phoenix_kit/notifications/render.ex:148
 #, elixir-autogen, elixir-format
 msgid "Your timezone looks wrong for where you are."
 msgstr "Ihre Zeitzone scheint nicht zu Ihrem Aufenthaltsort zu passen."
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:251
+#, elixir-autogen, elixir-format
+msgid "Complete your registration"
+msgstr "Schließen Sie Ihre Registrierung ab"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:123
+#, elixir-autogen, elixir-format
+msgid "Confirm your account"
+msgstr "Bestätigen Sie Ihr Konto"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:177
+#, elixir-autogen, elixir-format
+msgid "Confirm your email change"
+msgstr "Bestätigen Sie die Änderung Ihrer E-Mail-Adresse"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:297
+#, elixir-autogen, elixir-format
+msgid "Hi {{user_email}},\n\nWe noticed a new login to your account:\n\nTime: {{login_time}}\nIP address: {{ip_address}}\nLocation: {{location}}\nDevice: {{browser_os}}\n\nIf this was you, no action is needed.\n\nIf you don't recognize this activity, secure your account here:\n\n{{security_url}}\n"
+msgstr "Hallo {{user_email}},\n\nwir haben eine neue Anmeldung bei Ihrem Konto festgestellt:\n\nZeit: {{login_time}}\nIP-Adresse: {{ip_address}}\nStandort: {{location}}\nGerät: {{browser_os}}\n\nWenn Sie das waren, brauchen Sie nichts zu tun.\n\nWenn Sie diese Aktivität nicht erkennen, sichern Sie hier Ihr Konto:\n\n{{security_url}}\n"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:253
+#, elixir-autogen, elixir-format
+msgid "Hi {{user_email}},\n\nWelcome! To complete your registration, please visit the URL below:\n\n{{registration_url}}\n\nThis link will expire in 30 minutes for your security.\n\nIf you didn't request this registration, please ignore this email.\n"
+msgstr "Hallo {{user_email}},\n\nWillkommen! Um Ihre Registrierung abzuschließen, besuchen Sie bitte die folgende URL:\n\n{{registration_url}}\n\nDieser Link läuft aus Sicherheitsgründen in 30 Minuten ab.\n\nWenn Sie diese Registrierung nicht angefordert haben, ignorieren Sie diese E-Mail bitte.\n"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:179
+#, elixir-autogen, elixir-format
+msgid "Hi {{user_email}},\n\nYou can change your email by visiting the URL below:\n\n{{update_url}}\n\nIf you didn't request this change, please ignore this.\n"
+msgstr "Hallo {{user_email}},\n\nSie können Ihre E-Mail-Adresse über die folgende URL ändern:\n\n{{update_url}}\n\nWenn Sie diese Änderung nicht angefordert haben, ignorieren Sie diese Nachricht bitte.\n"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:125
+#, elixir-autogen, elixir-format
+msgid "Hi {{user_email}},\n\nYou can confirm your account by visiting the URL below:\n\n{{confirmation_url}}\n\nIf you didn't create an account with us, please ignore this.\n"
+msgstr "Hallo {{user_email}},\n\nSie können Ihr Konto über die folgende URL bestätigen:\n\n{{confirmation_url}}\n\nWenn Sie bei uns kein Konto erstellt haben, ignorieren Sie diese Nachricht bitte.\n"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:152
+#, elixir-autogen, elixir-format
+msgid "Hi {{user_email}},\n\nYou can reset your password by visiting the URL below:\n\n{{reset_url}}\n\nIf you didn't request this change, please ignore this.\n"
+msgstr "Hallo {{user_email}},\n\nSie können Ihr Passwort über die folgende URL zurücksetzen:\n\n{{reset_url}}\n\nWenn Sie diese Änderung nicht angefordert haben, ignorieren Sie diese Nachricht bitte.\n"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:213
+#, elixir-autogen, elixir-format
+msgid "Hi {{user_email}},\n\n{{organization_name}} has invited you to join their organization.\n\nTo accept the invitation, register an account by visiting the link below:\n\n{{registration_url}}\n\nThis invitation link will expire in 7 days.\n\nIf you did not expect this invitation, you can safely ignore this email.\n"
+msgstr "Hallo {{user_email}},\n\n{{organization_name}} hat Sie eingeladen, der Organisation beizutreten.\n\nUm die Einladung anzunehmen, registrieren Sie ein Konto über den folgenden Link:\n\n{{registration_url}}\n\nDieser Einladungslink läuft in 7 Tagen ab.\n\nWenn Sie diese Einladung nicht erwartet haben, können Sie diese E-Mail gefahrlos ignorieren.\n"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:295
+#, elixir-autogen, elixir-format
+msgid "New login to your account"
+msgstr "Neue Anmeldung bei Ihrem Konto"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:150
+#, elixir-autogen, elixir-format
+msgid "Reset your password"
+msgstr "Setzen Sie Ihr Passwort zurück"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:211
+#, elixir-autogen, elixir-format
+msgid "You've been invited to join {{organization_name}}"
+msgstr "Sie wurden eingeladen, {{organization_name}} beizutreten"
+
+#: lib/phoenix_kit/mailer.ex:645
+#, elixir-autogen, elixir-format
+msgid "Your login link: {{magic_link_url}}\nThis link expires in 15 minutes.\n"
+msgstr "Ihr Anmeldelink: {{magic_link_url}}\nDieser Link läuft in 15 Minuten ab.\n"
+
+#: lib/phoenix_kit/mailer.ex:643
+#, elixir-autogen, elixir-format
+msgid "Your secure login link"
+msgstr "Ihr sicherer Anmeldelink"

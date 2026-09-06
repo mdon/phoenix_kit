@@ -12,6 +12,7 @@ defmodule PhoenixKit.Notifications.Render do
   use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Notifications.Notification
+  alias PhoenixKit.Utils.RecipientLocale
   alias PhoenixKit.Utils.Routes
 
   @type render_result :: %{
@@ -41,7 +42,7 @@ defmodule PhoenixKit.Notifications.Render do
     # as an argument and has to be installed on the process for the lookup.
     # `nil` means "leave the current locale alone" (the admin inbox, which
     # renders in the viewer's own language).
-    in_locale(locale, fn -> do_render(notification, locale) end)
+    RecipientLocale.in_locale(locale, fn -> do_render(notification, locale) end)
   end
 
   defp do_render(%Notification{activity: %_{} = activity}, locale) do
@@ -221,12 +222,6 @@ defmodule PhoenixKit.Notifications.Render do
   defp link_for(_activity, _locale), do: nil
 
   # ── Helpers ──────────────────────────────────────────────────────────
-
-  defp in_locale(nil, fun), do: fun.()
-
-  defp in_locale(locale, fun) when is_binary(locale) do
-    Gettext.with_locale(PhoenixKitWeb.Gettext, locale, fun)
-  end
 
   # A metadata detail is "blank" when absent or empty — the caller then picks
   # the shorter of two complete sentences rather than concatenating a suffix

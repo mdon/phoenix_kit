@@ -100,6 +100,12 @@ defmodule PhoenixKit.MixProject do
       # Web functionality
       {:gettext, "~> 1.0"},
 
+      # Message template rendering: resolves a named template across the host's
+      # override files and the locale chain, then substitutes {{variables}}.
+      # A leaf by construction — no runtime deps of its own — which is what lets
+      # core depend on it rather than feature-detecting it through a behaviour.
+      local_dep(:phoenix_kit_templates, "~> 0.1.0"),
+
       # Slugs. Locale-aware because ö must expand to "oe" in German and fold to "o"
       # in Estonian, and core's hand-rolled table could not express the difference —
       # it produced "gro-e-fu-ball" for "Größe Fußball" and an EMPTY slug for any
