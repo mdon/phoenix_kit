@@ -53,7 +53,7 @@ Var name = dep app upper-cased + `_PATH`; unset = published Hex pin (`mix hex.pu
 
 ## Pull Requests
 
-- **Branch:** PRs against **`main`** (`gh pr create --base main --head <fork-owner>:<branch>`). The `dev` branch was retired 2026-06-01; do not target it.
+- **Branch:** PRs against **`main`** (`gh pr create --base main --head <fork-owner>:<branch>`). There is no `dev` branch; do not target one.
 - **CI/CD:** `.github/workflows/ci.yml` is **manual-only** (`workflow_dispatch`) — nothing runs on push or PR. When dispatched: `postgres:16` + `mix format --check-formatted`, `mix credo --strict`, `mix dialyzer`, `mix deps.unlock --check-unused`, `mix test.setup` + `mix test`.
 - ⚠️ **Nothing runs the Elixir suite automatically — not CI, not `precommit`.** For anything touching the schema, run `mix test` yourself: with no DB reachable, `test_helper.exs` excludes every `:integration` test but still **exits 0** — a green summary proves nothing about a migration.
 - Point the suite at an existing DB (avoids needing `CREATEDB`; bound concurrency on shared servers):
@@ -240,7 +240,9 @@ PhoenixKit ships hooks (RowMenu, TableCardView, SortableGrid, etc.) in `priv/sta
 hooks: { ...window.PhoenixKitHooks, ...colocatedHooks }
 ```
 
-**Parent setup (by `mix phoenix_kit.install`):** copy `phoenix_kit.js` to `priv/static/assets/vendor/`, add `<script src={~p"/assets/vendor/phoenix_kit.js"}></script>` **before** `app.js` in root layout. `mix phoenix_kit.update` refreshes it. External modules add hooks via inline `<script>` on `window.PhoenixKitHooks` (see hello_world).
+**Parent setup (by `mix phoenix_kit.install`):** copy `phoenix_kit.js` to `priv/static/assets/vendor/`, add `<script src={~p"/assets/vendor/phoenix_kit.js"}></script>` **before** `app.js` in root layout. `mix phoenix_kit.update` refreshes it.
+
+**External modules ship their own hooks as a prebuilt bundle declared by `js_sources/0`** (`%{app:, file:, global:}`). The `:phoenix_kit_js_sources` compiler concatenates every declared bundle into `priv/static/assets/vendor/phoenix_kit_modules.js` and folds each `window.<Global>` into `window.PhoenixKitHooks`, so the host needs one `<script>` tag and no per-module `app.js` edits. Namespace hook names (`PhoenixKitCommentsAudioRecorder`, not `AudioRecorder`): the fold is last-write-wins across every bundle and core's own hooks. **Never register a hook from an inline `<script>` in a template** — a hook must be in the LiveSocket when it is constructed, and morphdom does not execute inserted script tags, so an inline hook works on a hard load and silently vanishes on `live_redirect`. Reference: `phoenix_kit_comments`.
 
 ### Layout Wrapper
 
@@ -366,8 +368,8 @@ Features: versioned migrations, table prefix, idempotent ops, PostgreSQL validat
 Routes auto-discovered at compile time via `ModuleDiscovery` beam scanning. The host router auto-recompiles when module deps change — `phoenix_kit_routes()` injects `__mix_recompile__?/0` with a hash of the discovered set.
 
 **Two patterns:**
-1. **Single page** — set `live_view: {Module.Web.IndexLive, :index}` on a tab in `admin_tabs/0` or `settings_tabs/0`. Route auto-generated. Used by: hello_world, sync, catalogue, document_creator, emails (settings), user_connections, legal.
-2. **Multi-page** — implement `route_module/0` returning a module with `admin_routes/0` and `admin_locale_routes/0`. Required for sub-routes (`/new`, `/edit`, `/:id`). Do NOT also set `live_view:` on the main tab. Used by: ai, entities, publishing, newsletters.
+1. **Single page** — set `live_view: {Module.Web.IndexLive, :index}` on a tab in `admin_tabs/0` or `settings_tabs/0`. Route auto-generated; dynamic segments (`"hello-world/:id/edit"`) are spliced verbatim, and hidden CRUD pages are tabs with `visible: false`. Tab-only modules: calendar, comments, dashboards, db, locations, posts, staff, user_connections.
+2. **Multi-page** — implement `route_module/0` returning a module with `admin_routes/0` and `admin_locale_routes/0` (admin LiveViews, both variants with distinct `:as`), plus `generate/1` / `public_routes/1` for controllers, forwards and public pages. Route-module-only: ai, entities, publishing, newsletters. Most other modules mix the two (tabs for the admin pages, a route module for public/controller routes); never put `live_view:` on a tab AND declare the same path in the route module.
 
 Only one `live_view:` per path (core deduplicates, first wins — avoid). Fallback for failed auto-discovery:
 
@@ -381,7 +383,7 @@ Publishing's `/:language/:group/*path` catch-all matches every 2+ segment URL an
 
 ## daisyUI version (host-owned; advisory warnings only)
 
-The daisyUI plugin lives in the **host** app (`assets/vendor/daisyui.js` + `daisyui-theme.js`). Core only declares a designed-for minimum (`PhoenixKit.Install.DaisyUI.minimum_version/0`, currently 5.6.0) and warns below it from `phoenix_kit.install` / `phoenix_kit.update` / `phoenix_kit.doctor` — advisory, never touching host files. **Do NOT re-add `scrollbar-gutter` overrides** in layouts, PkDialog, or modules (removed 2026-07-12; daisyUI ≥ 5.1 handles the gutter). Rationale for not vendoring daisyUI in core: `dev_docs/investigations/2026-07-12-daisyui-version-management-investigation.md`.
+The daisyUI plugin lives in the **host** app (`assets/vendor/daisyui.js` + `daisyui-theme.js`). Core only declares a designed-for minimum (`PhoenixKit.Install.DaisyUI.minimum_version/0`, currently 5.6.0) and warns below it from `phoenix_kit.install` / `phoenix_kit.update` / `phoenix_kit.doctor` — advisory, never touching host files. **Do NOT re-add `scrollbar-gutter` overrides** in layouts, PkDialog, or modules (every local compensation was deliberately deleted; daisyUI ≥ 5.1 handles the gutter). Rationale for not vendoring daisyUI in core: `dev_docs/investigations/2026-07-12-daisyui-version-management-investigation.md`.
 
 ## TODOs
 
