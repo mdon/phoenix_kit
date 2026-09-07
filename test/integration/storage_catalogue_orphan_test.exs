@@ -9,6 +9,13 @@ defmodule PhoenixKit.Integration.StorageCatalogueOrphanTest do
   JSONB-aware checks added alongside this test, a live catalogue item,
   category, or catalogue-record image would be classified as an orphan and
   queued for deletion by `DeleteOrphanedFileJob`.
+
+  `phoenix_kit_cat_pdfs` references its source file through a plain
+  `file_uuid` FK with `ON DELETE RESTRICT` instead — the same shape as
+  `phoenix_kit_post_media`. Missing that check would let
+  `DeleteOrphanedFileJob` delete the physical file data for a PDF still in
+  use, then crash on the FK-RESTRICT violation while deleting the
+  `phoenix_kit_files` row, leaving a dangling record and a broken PDF.
   """
   use PhoenixKit.DataCase, async: false
 
@@ -76,6 +83,18 @@ defmodule PhoenixKit.Integration.StorageCatalogueOrphanTest do
       )
 
     uuid
+  end
+
+  defp insert_pdf!(file_uuid) do
+    Repo.query!(
+      """
+      INSERT INTO phoenix_kit_cat_pdfs (uuid, file_uuid, original_filename, inserted_at, updated_at)
+      VALUES (gen_random_uuid(), $1, 'test.pdf', now(), now())
+      """,
+      [Ecto.UUID.dump!(file_uuid)]
+    )
+
+    :ok
   end
 
   setup do
@@ -165,6 +184,23 @@ defmodule PhoenixKit.Integration.StorageCatalogueOrphanTest do
     test "a catalogue referencing a different file does not protect this one", %{user: user} do
       file = make_file(user.uuid)
       insert_catalogue!(%{"featured_image_uuid" => Ecto.UUID.generate()})
+
+      assert Storage.file_orphaned?(file.uuid)
+    end
+  end
+
+  describe "phoenix_kit_cat_pdfs" do
+    test "file_uuid keeps a file from being orphaned", %{user: user} do
+      file = make_file(user.uuid)
+      insert_pdf!(file.uuid)
+
+      refute Storage.file_orphaned?(file.uuid)
+    end
+
+    test "a pdf referencing a different file does not protect this one", %{user: user} do
+      file = make_file(user.uuid)
+      other_file = make_file(user.uuid)
+      insert_pdf!(other_file.uuid)
 
       assert Storage.file_orphaned?(file.uuid)
     end
