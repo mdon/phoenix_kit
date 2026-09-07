@@ -1,3 +1,39 @@
+## 2.20.0 - 2026-09-07
+
+### Added
+
+- **Multiple bank accounts** — the Organization settings page's Bank
+  Accounts card now supports more than one account (a EUR operating
+  account and a USD reserve account, say), each with a label, bank name,
+  IBAN, SWIFT/BIC, and a "primary" flag, via a proper add/edit/delete UI.
+  Previously there was room for exactly one. `phoenix_kit_billing`'s
+  integration point is unaffected — it now reads the primary account.
+- **Country-aware Company Information fields** — the State/Province field
+  is a real dropdown for the 224 countries with subdivision data (US: 50
+  states + DC + territories; Canada: 13 provinces/territories; and 222
+  others), falling back to free text only for the 26 without. The tax-ID
+  field is labeled and validated correctly per country instead of always
+  saying "VAT Number": **EIN** for the US, **Business Number (BN)** for
+  Canada, **VAT Number** for EU members, generic **Tax ID** elsewhere. The
+  postal-code field says **ZIP Code** for the US and **Postal Code**
+  everywhere else, both with real format validation.
+- Tabs on the Authorization, Users, Crawlers, Website Access, and
+  Organization settings pages — same treatment as General settings' tabs
+  in 2.19.0, each page's sections behind a strip instead of one long
+  scroll.
+
+### Fixed
+
+- The bank accounts list could not actually be saved: `value_json` is an
+  Ecto `:map` column that silently rejects a bare JSON array, so every
+  save looked successful (the flash fired) while quietly never
+  persisting past a single legacy account on reload. Fixed by wrapping
+  the list the same way Custom User Fields already does
+  (`%{"accounts" => [...]}`).
+- `CountryData.get_subdivision_label("CA")` had a stale doctest claiming
+  "Province"; the real value from `beamlab_countries` is "Provinces and
+  territories".
+
 ## 2.19.0 - 2026-09-07
 
 ### Changed
