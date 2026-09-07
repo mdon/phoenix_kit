@@ -1,0 +1,575 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  socket={@socket}
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title={gettext("Website access")}
+  page_subtitle={
+    gettext(
+      "Who sees this site, and what they see: a list of features you switch on one by one, and presets that switch on a bundle."
+    )
+  }
+  current_path={@current_path}
+  project_title={@project_title}
+  current_locale={@current_locale}
+>
+  <div class="px-4 py-6 space-y-6">
+    <%!-- Environment --%>
+    <div class="alert bg-base-200/70 border border-base-300">
+      <.icon name="hero-server" class="w-6 h-6" />
+      <div class="text-sm leading-relaxed">
+        <p>
+          {gettext("This install runs as %{runtime} (%{env}) on %{host}.",
+            runtime:
+              if(@environment.runtime == :release, do: gettext("a release"), else: gettext("mix")),
+            env: @environment.mix_env || gettext("unknown env"),
+            host: @environment.hostname
+          )}
+          <span :if={@environment.site_url}>
+            {gettext("Site URL: %{url}.", url: @environment.site_url)}
+          </span>
+        </p>
+        <p :if={@environment.looks_like_dev?} class="font-semibold">
+          {gettext("It looks like a development site")} ({Enum.map_join(
+            @environment.reasons,
+            ", ",
+            &reason_text/1
+          )}) — {gettext(
+            "the \"Development site\" preset below would fit. Nothing is switched on by itself."
+          )}
+        </p>
+        <p :if={!@environment.looks_like_dev?}>
+          {gettext(
+            "Nothing here says development — treat it as a live site unless you know better."
+          )}
+        </p>
+      </div>
+    </div>
+
+    <%!-- Presets --%>
+    <.form_section title={gettext("Presets")} icon="hero-squares-2x2" body_class="space-y-4">
+      <:subtitle>
+        {gettext(
+          "A preset only sets the features below — nothing more. Everything stays adjustable afterwards."
+        )}
+      </:subtitle>
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div
+          :for={preset <- @presets}
+          class="rounded-lg border border-base-300 p-4 flex flex-col gap-2"
+        >
+          <h3 class="font-semibold">{preset.label}</h3>
+          <p class="text-sm text-base-content/70 flex-1">{preset.description}</p>
+          <.button
+            type="button"
+            variant="outline"
+            size="sm"
+            phx-click="apply_preset"
+            phx-value-preset={preset.key}
+          >
+            {gettext("Apply")}
+          </.button>
+        </div>
+      </div>
+    </.form_section>
+
+    <%!-- Features --%>
+    <div
+      :for={feature <- @features}
+      class="card bg-base-100 shadow-lg border border-base-200"
+      id={"feature-#{feature.key}"}
+    >
+      <div class="card-body space-y-4">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <.icon name={feature_icon(feature.key)} class="w-6 h-6 mt-1 shrink-0" />
+            <div>
+              <h2 class="card-title text-lg flex items-center gap-2">
+                {feature.label}
+                <span :if={feature.on?} class="badge badge-success badge-sm">{gettext("on")}</span>
+                <span
+                  :if={feature.switched_on? and not feature.on?}
+                  class="badge badge-warning badge-sm"
+                >
+                  {gettext("switched on, needs %{what}", what: feature.needs)}
+                </span>
+              </h2>
+              <p class="text-sm text-base-content/70">{feature.explanation}</p>
+            </div>
+          </div>
+          <.checkbox
+            :if={feature.key != :allowed_addresses}
+            id={"feature-#{feature.key}-switch"}
+            name={"feature-#{feature.key}"}
+            variant="toggle"
+            class="toggle-lg"
+            wrapper_class="shrink-0 flex-row-reverse"
+            label={if feature.switched_on?, do: gettext("Enabled"), else: gettext("Disabled")}
+            checked={feature.switched_on?}
+            phx-click="toggle_feature"
+            phx-value-feature={feature.key}
+          />
+        </div>
+
+        <%!-- Password gate area --%>
+        <div :if={feature.key == :gate} class="space-y-6">
+          <form phx-submit="save_gate" id="pk-gate-form" class="grid gap-4 md:grid-cols-2">
+            <div class="md:col-span-2">
+              <.input
+                id="gate-password"
+                name="gate[password]"
+                type="text"
+                label={gettext("Password")}
+                value=""
+                autocomplete="off"
+                placeholder={
+                  gettext("Type a new password to replace it — blank keeps the current one")
+                }
+              />
+              <p class="text-xs text-base-content/60 mt-1">
+                <%= if @gate.password == "" do %>
+                  {gettext("none set — the gate cannot close without one")}
+                <% else %>
+                  {gettext("current:")}
+                  <code class="font-mono">{if @show_password, do: @gate.password, else: "••••••••"}</code>
+                  <button type="button" class="link ml-1" phx-click="reveal_password">
+                    {if @show_password, do: gettext("hide"), else: gettext("show")}
+                  </button>
+                  · {gettext("Changing it asks everyone for the password again.")}
+                <% end %>
+              </p>
+            </div>
+            <div>
+              <.input
+                id="gate-lockout-attempts"
+                name="gate[lockout_attempts]"
+                type="number"
+                min="0"
+                max="1000"
+                label={gettext("Lock out after (wrong tries)")}
+                value={@gate.lockout_attempts}
+              />
+              <p class="text-xs text-base-content/60 mt-1">
+                {gettext("0 switches the lockout off.")}
+              </p>
+            </div>
+            <div>
+              <.input
+                id="gate-lockout-minutes"
+                name="gate[lockout_minutes]"
+                type="number"
+                min="1"
+                max="1440"
+                label={gettext("for (minutes)")}
+                value={@gate.lockout_minutes}
+              />
+              <p class="text-xs text-base-content/60 mt-1">
+                {gettext("Counted per address; a locked-out try is recorded but never judged.")}
+              </p>
+            </div>
+            <div class="md:col-span-2">
+              <.select
+                id="gate-keep-typed"
+                name="gate[keep_typed]"
+                label={gettext("Keep what was typed")}
+                options={keep_typed_options()}
+                value={@gate.keep_typed}
+              />
+              <p class="text-xs text-base-content/60 mt-1">
+                {gettext(
+                  "So you can tell a client's caps lock from a bot's guesses. Hide the Typed column below if it should not be on screen."
+                )}
+              </p>
+            </div>
+            <div class="md:col-span-2">
+              <.checkbox
+                id="gate-users-pass"
+                name="gate[users_pass]"
+                label={gettext("Logged-in users pass without the password")}
+                checked={@gate.users_pass}
+              >
+                <:description>
+                  {gettext(
+                    "They proved more than a password already. Off, and every login has to type it too — including you, after you change it."
+                  )}
+                </:description>
+              </.checkbox>
+            </div>
+            <div class="md:col-span-2 flex flex-wrap gap-2">
+              <.button type="submit" variant="primary" size="sm">{gettext("Save")}</.button>
+              <.button type="button" variant="outline" size="sm" phx-click="relock">
+                <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> {gettext(
+                  "Ask everyone again"
+                )}
+              </.button>
+            </div>
+          </form>
+
+          <div class="divider my-0"></div>
+
+          <div class="space-y-2">
+            <h3 class="font-semibold">{gettext("Access link")}</h3>
+            <p class="text-sm text-base-content/70">
+              {gettext(
+                "A link to give a client instead of the password. Opening it shows one button; the button lets them in. Making a new one stops the old one."
+              )}
+            </p>
+            <%= if @gate.link_url do %>
+              <div class="flex flex-wrap items-center gap-2">
+                <code
+                  class="font-mono text-sm bg-base-200 rounded px-2 py-1 break-all"
+                  id="pk-access-link"
+                >
+                  {@gate.link_url}
+                </code>
+                <button
+                  type="button"
+                  class="btn btn-xs btn-outline"
+                  phx-hook="CopyToClipboard"
+                  id="pk-access-link-copy"
+                  data-copy-target="#pk-access-link"
+                >
+                  <span data-copy-idle>{gettext("Copy")}</span>
+                  <span data-copy-feedback class="hidden">{gettext("Copied!")}</span>
+                </button>
+                <.button type="button" variant="outline" size="xs" phx-click="generate_link">
+                  {gettext("Make a new one")}
+                </.button>
+                <.button type="button" variant="error" size="xs" phx-click="revoke_link">
+                  {gettext("Revoke")}
+                </.button>
+              </div>
+            <% else %>
+              <.button type="button" variant="outline" size="sm" phx-click="generate_link">
+                <.icon name="hero-link" class="w-4 h-4 mr-1" /> {gettext("Make an access link")}
+              </.button>
+            <% end %>
+            <p class="text-xs text-base-content/60">
+              {gettext("The gate page itself is at %{url}.", url: @gate.gate_url)}
+            </p>
+          </div>
+
+          <div class="divider my-0"></div>
+
+          <div class="space-y-2">
+            <p class="text-sm text-base-content/70">
+              {gettext(
+                "Each row is one try: when, how it went, what was typed, from which address and browser."
+              )}
+            </p>
+            <.table_default
+              id="pk-attempts"
+              variant="zebra"
+              size="sm"
+              items={@attempts}
+              card_title={fn a -> verdict_text(a.verdict) end}
+              card_fields={fn a -> attempt_card_fields(a, @attempt_columns) end}
+            >
+              <:toolbar_title>
+                <span class="font-semibold">{gettext("Tries at the door")}</span>
+                <span class="text-sm text-base-content/60 ml-2">
+                  {gettext("newest first, the last %{count} kept", count: 5000)}
+                </span>
+              </:toolbar_title>
+              <:toolbar_actions>
+                <span
+                  :for={{verdict, count} <- Enum.sort_by(@attempt_counts, fn {_, c} -> -c end)}
+                  class={["badge badge-sm", verdict_class(verdict)]}
+                >
+                  {verdict_text(verdict)}: {count}
+                </span>
+                <.button type="button" variant="ghost" size="xs" phx-click="show_column_modal">
+                  <.icon name="hero-view-columns" class="w-4 h-4 mr-1" /> {gettext("Columns")}
+                </.button>
+                <.button
+                  :if={@attempts != []}
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  phx-click="clear_attempts"
+                >
+                  {gettext("Clear")}
+                </.button>
+              </:toolbar_actions>
+              <.table_default_header>
+                <.table_default_row>
+                  <.table_default_header_cell :for={col <- @attempt_columns}>
+                    {attempt_column_label(col)}
+                  </.table_default_header_cell>
+                </.table_default_row>
+              </.table_default_header>
+              <.table_default_body>
+                <.table_default_row :if={@attempts == []}>
+                  <.table_default_cell colspan={length(@attempt_columns)}>
+                    <.empty_state
+                      icon="hero-shield-check"
+                      title={gettext("Nobody has tried yet.")}
+                      variant="compact"
+                    />
+                  </.table_default_cell>
+                </.table_default_row>
+                <.table_default_row :for={attempt <- @attempts}>
+                  <.table_default_cell :for={col <- @attempt_columns}>
+                    <%= case col do %>
+                      <% "when" -> %>
+                        <.time_ago
+                          datetime={attempt.inserted_at}
+                          class="text-sm whitespace-nowrap"
+                          id={"attempt-#{attempt.uuid}"}
+                        />
+                      <% "result" -> %>
+                        <span class={["badge badge-sm", verdict_class(attempt.verdict)]}>
+                          {verdict_text(attempt.verdict)}
+                        </span>
+                      <% "typed" -> %>
+                        <code :if={attempt.typed} class="font-mono text-xs">{attempt.typed}</code>
+                        <span :if={!attempt.typed} class="text-base-content/40">—</span>
+                      <% "address" -> %>
+                        <span class="font-mono text-xs">{attempt.address || "—"}</span>
+                      <% "browser" -> %>
+                        <span
+                          class="text-xs text-base-content/70 block max-w-xs truncate"
+                          title={attempt.user_agent}
+                        >
+                          {attempt.user_agent || "—"}
+                        </span>
+                    <% end %>
+                  </.table_default_cell>
+                </.table_default_row>
+              </.table_default_body>
+            </.table_default>
+          </div>
+        </div>
+
+        <%!-- Redirect area --%>
+        <form
+          :if={feature.key == :redirect}
+          phx-submit="save_redirect"
+          id="pk-redirect-form"
+          class="grid gap-4 md:grid-cols-2"
+        >
+          <div>
+            <.input
+              id="redirect-url"
+              name="redirect[url]"
+              type="url"
+              label={gettext("Production URL")}
+              value={@redirect.url}
+              placeholder="https://www.example.com"
+            />
+            <p class="text-xs text-base-content/60 mt-1">
+              {gettext("The path and query are kept: /about here becomes /about there.")}
+            </p>
+          </div>
+          <.select
+            id="redirect-scope"
+            name="redirect[scope]"
+            label={gettext("Who is redirected")}
+            options={scope_options()}
+            value={@redirect.scope}
+          />
+          <div class="md:col-span-2">
+            <.button type="submit" variant="primary" size="sm">{gettext("Save")}</.button>
+          </div>
+        </form>
+
+        <%!-- Notice area --%>
+        <div :if={feature.key == :notice} class="space-y-4">
+          <form phx-submit="save_notice" id="pk-notice-form" class="grid gap-4 md:grid-cols-3">
+            <.select
+              id="notice-icon"
+              name="notice[icon]"
+              label={gettext("Icon")}
+              options={icon_options()}
+              value={@notice.icon}
+            />
+            <div class="md:col-span-2">
+              <.input
+                id="notice-text"
+                name="notice[text]"
+                type="text"
+                label={gettext("Text")}
+                value={@notice.text}
+                maxlength="300"
+                placeholder={gettext("This is the development site — the live one is at")}
+              />
+            </div>
+            <div class="md:col-span-3">
+              <.input
+                id="notice-link"
+                name="notice[link]"
+                type="text"
+                label={gettext("Link (optional)")}
+                value={@notice.link}
+                placeholder="https://www.example.com"
+              />
+            </div>
+            <div class="md:col-span-3">
+              <.button type="submit" variant="primary" size="sm">{gettext("Save")}</.button>
+            </div>
+          </form>
+          <div :if={@notice_html} class="rounded-lg overflow-hidden border border-base-300">
+            <p class="text-xs uppercase tracking-wide text-base-content/60 px-3 pt-2">
+              {gettext("Preview")}
+            </p>
+            <div class="p-2" data-preview>{Phoenix.HTML.raw(@notice_html)}</div>
+          </div>
+        </div>
+
+        <%!-- Site closed area --%>
+        <div :if={feature.key == :maintenance} class="space-y-4">
+          <p class="text-sm font-semibold">{@maintenance.status}</p>
+          <form
+            phx-submit="save_maintenance"
+            id="pk-maintenance-form"
+            class="grid gap-4 md:grid-cols-2"
+          >
+            <div class="md:col-span-2">
+              <.input
+                id="maintenance-header"
+                name="maintenance[header]"
+                type="text"
+                label={gettext("Heading")}
+                value={@maintenance.header}
+              />
+            </div>
+            <div class="md:col-span-2">
+              <.textarea
+                id="maintenance-subtext"
+                name="maintenance[subtext]"
+                label={gettext("Message")}
+                value={@maintenance.subtext}
+                rows="2"
+              />
+            </div>
+            <div>
+              <.input
+                id="maintenance-from"
+                name="maintenance[from]"
+                type="datetime-local"
+                label={gettext("Closed from (%{zone})", zone: @maintenance.zone_label)}
+                value={@maintenance.from}
+                min={@maintenance.min}
+              />
+              <p class="text-xs text-base-content/60 mt-1">
+                {gettext(
+                  "Optional: the page closes by itself at this time, without the switch. Switching the feature off clears the window."
+                )}
+              </p>
+            </div>
+            <div>
+              <.input
+                id="maintenance-until"
+                name="maintenance[until]"
+                type="datetime-local"
+                label={gettext("Until (%{zone})", zone: @maintenance.zone_label)}
+                value={@maintenance.until}
+                min={@maintenance.min}
+              />
+              <p class="text-xs text-base-content/60 mt-1">
+                {gettext(
+                  "Optional: visitors see a countdown to it, and the page opens by itself then."
+                )}
+              </p>
+            </div>
+            <div class="md:col-span-2 flex flex-wrap items-center gap-3">
+              <.button type="submit" variant="primary" size="sm">{gettext("Save")}</.button>
+              <.pk_link navigate={Routes.path("/maintenance", locale: :none)} class="link text-sm">
+                {gettext("See the closed page as an admin")}
+              </.pk_link>
+            </div>
+          </form>
+          <div class="rounded-lg overflow-hidden border border-base-300">
+            <p class="text-xs uppercase tracking-wide text-base-content/60 px-3 pt-2">
+              {gettext("Preview")}
+            </p>
+            <div class="p-4 flex justify-center bg-base-200/50">
+              <PhoenixKitWeb.Components.Core.MaintenancePage.maintenance_card
+                header={@maintenance.header}
+                subtext={@maintenance.subtext}
+              />
+            </div>
+          </div>
+        </div>
+
+        <%!-- Hide from search engines area --%>
+        <p :if={feature.key == :no_index} class="text-sm">
+          <.pk_link
+            :if={@crawlers_module_on?}
+            navigate={Routes.path("/admin/settings/crawlers", locale: @current_locale_base)}
+            class="link"
+          >
+            {gettext("Per-bot access and robots.txt on the Crawlers page")}
+          </.pk_link>
+          <span :if={!@crawlers_module_on?} class="text-base-content/60">
+            {gettext(
+              "The Crawlers module is off (Modules page); this switch works without it — the module adds per-bot access and robots.txt."
+            )}
+          </span>
+        </p>
+
+        <%!-- Allowed addresses area --%>
+        <form
+          :if={feature.key == :allowed_addresses}
+          phx-submit="save_allowed"
+          id="pk-allowed-form"
+          class="space-y-3"
+        >
+          <.textarea
+            id="allowed-addresses"
+            name="allowed[addresses]"
+            value={@allowed_addresses}
+            rows="3"
+            class="font-mono text-sm"
+            placeholder="203.0.113.7"
+          />
+          <p class="text-xs text-base-content/60">
+            {gettext(
+              "Exact addresses, one per line. They still see the closed page and the notice."
+            )}
+          </p>
+          <.button type="submit" variant="primary" size="sm">{gettext("Save")}</.button>
+        </form>
+      </div>
+    </div>
+
+    <.column_settings_modal
+      show={@show_column_modal}
+      columns={attempt_column_options()}
+      selected={@attempt_columns}
+    />
+
+    <%!-- Keep the injected bottom bar on this page in step with the settings
+         (push_event lands on window as phx:<event>). The preview is marked so
+         it is never touched. --%>
+    <script>
+      if (!window.__pkWebsiteAccessNotice) {
+        window.__pkWebsiteAccessNotice = true;
+        window.addEventListener("phx:website_access:notice", function (e) {
+          var current = document.querySelector("body > [data-phoenix-kit-notice]");
+          var html = (e.detail && e.detail.html) || "";
+          if (current) current.remove();
+          if (html) document.body.insertAdjacentHTML("beforeend", html);
+        });
+      }
+    </script>
+
+    <%!-- How it fits together --%>
+    <.form_section title={gettext("How the pieces stack")} icon="hero-squares-plus">
+      <div class="text-sm text-base-content/70 space-y-2">
+        <p>
+          {gettext(
+            "On every page request, in this order: an allowed address skips the next two; the redirect sends a public visitor away; the gate stops anyone without the password; the closed page shows to non-admins; the notice is added to whatever page is served."
+          )}
+        </p>
+        <p>
+          {gettext(
+            "The gate stands in the site's browser pipeline. It covers the pages; API routes and files a host serves outside that pipeline are not behind it."
+          )}
+        </p>
+        <p>
+          {gettext("Every switch here is recorded in the settings history with your name.")}
+        </p>
+      </div>
+    </.form_section>
+  </div>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>

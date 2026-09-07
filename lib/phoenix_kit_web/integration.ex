@@ -270,6 +270,13 @@ defmodule PhoenixKitWeb.Integration do
 
         # Note: Email webhook moved to generate_emails_routes/1 (separate scope)
 
+        # Website access: the password gate's pages (exempt from the gate itself)
+        get "/access", WebsiteAccessController, :prompt
+        post "/access", WebsiteAccessController, :verify
+        get "/access/status", WebsiteAccessController, :status
+        get "/access/link/:token", WebsiteAccessController, :link
+        post "/access/link/:token", WebsiteAccessController, :link_unlock
+
         # Storage API routes (file upload and serving)
         post "/api/upload", UploadController, :create
         get "/file/:file_uuid/:variant/:token", FileController, :show
@@ -540,6 +547,7 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/settings", Live.Settings, :index
       live "/admin/settings/users", Live.Settings.Users, :index
       live "/admin/settings/authorization", Live.Settings.Authorization, :index
+      live "/admin/settings/website-access", Live.Settings.WebsiteAccess, :index
       live "/admin/settings/organization", Live.Settings.Organization, :index
       # Website-wide integrations — the "Website Integrations" sub-subtab of the
       # Settings › Integrations section (gated by "integrations_system"). Declared
@@ -572,7 +580,6 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/settings/languages", Live.Modules.Languages, :index
       live "/admin/settings/languages/frontend", Live.Modules.Languages, :frontend
 
-      live "/admin/settings/maintenance", Live.Modules.Maintenance.Settings, :index
       live "/admin/settings/crawlers", Live.Settings.Crawlers, :index
       live "/admin/settings/media", Live.Modules.Storage.Settings, :index
       live "/admin/settings/media/buckets/new", Live.Modules.Storage.BucketForm, :new

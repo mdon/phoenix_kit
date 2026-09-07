@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
   """
 
   import Plug.Conn
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Modules.Maintenance
   alias PhoenixKit.Users.Auth
@@ -105,6 +106,7 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
     config = Maintenance.get_config()
     header = Phoenix.HTML.html_escape(config.header) |> Phoenix.HTML.safe_to_string()
     subtext = Phoenix.HTML.html_escape(config.subtext) |> Phoenix.HTML.safe_to_string()
+    countdown = countdown_html(config.scheduled_end)
 
     # Inline styles so the page works without the parent app's asset pipeline.
     # Controller routes served by this plug may not have access to the digested
@@ -116,7 +118,7 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>#{header}</title>
-        <meta http-equiv="refresh" content="5" />
+        <meta http-equiv="refresh" content="30" />
         <style>
           html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
           body { background: #f2f2f2; color: #1a1a1a; }
@@ -125,6 +127,7 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
           .icon { font-size: 5rem; margin-bottom: 1.5rem; opacity: 0.7; }
           h1 { font-size: 3rem; font-weight: 700; margin: 0 0 1.5rem 0; line-height: 1.1; }
           p { font-size: 1.25rem; line-height: 1.6; opacity: 0.7; margin: 0; }
+          p.until { margin-top: 1.5rem; font-size: 1rem; font-variant-numeric: tabular-nums; }
           @media (prefers-color-scheme: dark) {
             body { background: #1d232a; color: #a6adbb; }
             .card { background: #191e24; border-color: #2a323c; }
@@ -137,6 +140,7 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
             <div class="icon">🚧</div>
             <h1>#{header}</h1>
             <p>#{subtext}</p>
+            #{countdown}
           </div>
         </div>
       </body>
@@ -148,6 +152,45 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
     |> put_resp_content_type("text/html")
     |> send_resp(:service_unavailable, html)
     |> halt()
+  end
+
+  # "Back on <date>" with a ticking "back in 2d 3h 14m 05s" when the window
+  # has an end. Server-rendered text first (no JS needed), the script only
+  # replaces it; the page's 5-second refresh keeps even that honest.
+  defp countdown_html(nil), do: ""
+
+  defp countdown_html(%DateTime{} = end_dt) do
+    iso = DateTime.to_iso8601(end_dt)
+
+    back_on =
+      gettext("Back on %{when}", when: iso)
+      |> Phoenix.HTML.html_escape()
+      |> Phoenix.HTML.safe_to_string()
+
+    back_in = gettext("Back in") |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
+
+    """
+    <p class="until"><span data-maintenance-until="#{iso}">#{back_on}</span></p>
+    <script>
+      (function () {
+        var el = document.querySelector("[data-maintenance-until]");
+        if (!el) return;
+        var end = Date.parse(el.getAttribute("data-maintenance-until"));
+        if (isNaN(end)) return;
+        var prefix = #{Jason.encode!(back_in)};
+        function pad(n) { return (n < 10 ? "0" : "") + n; }
+        function tick() {
+          var left = Math.max(0, Math.floor((end - Date.now()) / 1000));
+          var d = Math.floor(left / 86400), h = Math.floor(left % 86400 / 3600),
+              m = Math.floor(left % 3600 / 60), s = left % 60;
+          el.textContent = prefix + " " + (d > 0 ? d + "d " : "") + (d > 0 || h > 0 ? h + "h " : "") + m + "m " + pad(s) + "s";
+          if (left === 0) { window.location.reload(); return; }
+          setTimeout(tick, 1000);
+        }
+        tick();
+      })();
+    </script>
+    """
   end
 
   defp maybe_add_retry_after(conn) do

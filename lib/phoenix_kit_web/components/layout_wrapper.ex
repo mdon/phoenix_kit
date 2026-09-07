@@ -1040,8 +1040,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   </div>
                 </div>
 
-                <%!-- Right: Theme Switcher, Notifications bell, User Dropdown --%>
+                <%!-- Right: Website-access badges, Theme Switcher, Notifications bell, User Dropdown --%>
                 <div class="flex items-center gap-3">
+                  <PhoenixKitWeb.Components.Core.WebsiteAccessBadges.website_access_badges current_locale={
+                    assigns[:current_locale_base]
+                  } />
                   <.admin_theme_controller mobile={true} />
                   <%!-- Notifications bell — a sticky nested LiveView, shown only
                        when the socket is threaded through, the module is enabled,

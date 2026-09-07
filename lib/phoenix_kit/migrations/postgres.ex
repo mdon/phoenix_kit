@@ -7,7 +7,14 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V186 - Carts/orders: frozen base currency and exchange rate ⚡ LATEST
+  ### V187 - Website access: every try at the password gate is kept ⚡ LATEST
+
+  `phoenix_kit_access_attempts` records each attempt at the website password
+  gate — what was typed on a failed one, where from, with what browser, when
+  — so a bot brute-forcing the door can be told from a client mistyping the
+  password, and the optional lockout can count failures per address.
+
+  ### V186 - Carts/orders: frozen base currency and exchange rate
 
   Adds `base_currency`/`exchange_rate` to `phoenix_kit_shop_carts` and
   `phoenix_kit_orders`, and `base_unit_price` to
@@ -716,7 +723,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 186
+  @current_version 187
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

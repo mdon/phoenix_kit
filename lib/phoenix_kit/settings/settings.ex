@@ -96,6 +96,8 @@ defmodule PhoenixKit.Settings do
     oauth_facebook_app_secret
     aws_access_key_id
     aws_secret_access_key
+    website_access_password
+    website_access_link_token
   )
 
   # The explicit ALLOW list `list_public_settings/0` reads from. Deliberately
@@ -294,6 +296,11 @@ defmodule PhoenixKit.Settings do
       # Crawlers (renamed from SEO in V172)
       "crawlers_module_enabled" => "false",
       "crawlers_no_index" => "false",
+      # Website access — the two secrets (restricted: encrypted at rest,
+      # withheld from the settings history). The page's other keys are read
+      # with explicit defaults by `PhoenixKit.WebsiteAccess`, like maintenance's.
+      "website_access_password" => "",
+      "website_access_link_token" => "",
       # Organization Accounts
       "enable_organization_accounts" => "false",
       # Which account types the PUBLIC signup form may create. Only consulted

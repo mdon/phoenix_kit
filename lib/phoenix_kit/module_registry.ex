@@ -730,7 +730,6 @@ defmodule PhoenixKit.ModuleRegistry do
   defp internal_modules do
     [
       PhoenixKit.Modules.Languages,
-      PhoenixKit.Modules.Maintenance,
       PhoenixKit.Modules.Crawlers,
       PhoenixKit.Modules.Sitemap,
       PhoenixKit.Modules.Storage,

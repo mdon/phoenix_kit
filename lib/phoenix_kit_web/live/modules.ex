@@ -261,7 +261,6 @@ defmodule PhoenixKitWeb.Live.Modules do
   # Special cases with inter-module dependencies
   defp dispatch_toggle(socket, "legal"), do: toggle_legal(socket)
   defp dispatch_toggle(socket, "newsletters"), do: toggle_newsletters(socket)
-  defp dispatch_toggle(socket, "maintenance"), do: toggle_maintenance(socket)
   defp dispatch_toggle(socket, key), do: generic_toggle(socket, key)
 
   # ============================================================================
@@ -383,35 +382,6 @@ defmodule PhoenixKitWeb.Live.Modules do
         {:noreply, put_flash(socket, :error, "Please enable Emails module first")}
       end
     end
-  end
-
-  defp toggle_maintenance(socket) do
-    alias PhoenixKit.Modules.Maintenance
-
-    configs = socket.assigns.module_configs
-    config = configs["maintenance"] || %{}
-    currently_enabled = config[:module_enabled] || false
-
-    if currently_enabled do
-      Maintenance.disable_module()
-      Events.broadcast_module_disabled("maintenance")
-    else
-      Maintenance.enable_module()
-      Events.broadcast_module_enabled("maintenance")
-    end
-
-    config = Maintenance.get_config()
-    configs = Map.put(configs, "maintenance", config)
-
-    socket =
-      socket
-      |> assign(:module_configs, configs)
-      |> put_flash(
-        :info,
-        "Maintenance #{if currently_enabled, do: "disabled", else: "enabled"}"
-      )
-
-    {:noreply, socket}
   end
 
   # ============================================================================

@@ -249,6 +249,10 @@ has_multi_selector = context_selector_configs != [] %> <!DOCTYPE html>
                 />
               <% end %>
             <% end %>
+            <%!-- Website access: lock / wrench / arrow while a feature is on --%>
+            <PhoenixKitWeb.Components.Core.WebsiteAccessBadges.website_access_badges current_locale={
+              assigns[:current_locale_base]
+            } />
             <%!-- Theme Switcher --%>
             <PhoenixKitWeb.Components.Core.ThemeController.theme_controller
               themes={PhoenixKit.Config.get(:dashboard_themes, :all)}

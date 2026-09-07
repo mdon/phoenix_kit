@@ -1,0 +1,357 @@
+defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
+  @moduledoc "The settings page, and the LiveView side of the gate."
+  use PhoenixKitWeb.ConnCase, async: false
+
+  alias PhoenixKit.Modules.Crawlers
+  alias PhoenixKit.Modules.Maintenance
+  alias PhoenixKit.Settings
+  alias PhoenixKit.WebsiteAccess
+  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Notice, Redirect}
+  alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
+
+  @page "/phoenix_kit/admin/settings/website-access"
+  @probe "/__test/crawlers-no-index-probe"
+
+  setup %{conn: conn} do
+    :ok = WebsiteAccess.apply_preset("live", [])
+    Settings.update_setting(Gate.password_key(), "")
+    Settings.update_setting(Gate.link_key(), "")
+    Settings.update_boolean_setting(Gate.users_pass_key(), true)
+    Settings.update_setting(Gate.keep_typed_key(), "all")
+    Settings.update_setting(Redirect.url_key(), "")
+    Settings.update_setting(Notice.text_key(), "")
+    Gate.clear_attempts()
+    {user, _} = create_admin_user()
+    {:ok, conn: log_in_user(conn, user), user: user}
+  end
+
+  describe "the page" do
+    test "lists every feature with a switch and the presets", %{conn: conn} do
+      {:ok, _view, html} = live(conn, @page)
+
+      for key <- ~w(gate redirect notice maintenance no_index allowed_addresses) do
+        assert html =~ ~s(id="feature-#{key}"), key
+      end
+
+      assert html =~ "Under construction"
+      assert html =~ "Development site"
+      assert html =~ "Password gate"
+    end
+
+    test "switching the gate on without a password says what it needs", %{conn: conn} do
+      {:ok, view, _} = live(conn, @page)
+
+      html =
+        view |> element(~s(#feature-gate input[phx-click="toggle_feature"])) |> render_click()
+
+      assert html =~ "needs a password"
+      assert Gate.switched_on?()
+      refute Gate.enabled?()
+    end
+
+    test "saving a password closes the gate and the actor lands in the history", %{
+      conn: conn,
+      user: user
+    } do
+      {:ok, view, _} = live(conn, @page)
+      view |> element(~s(#feature-gate input[phx-click="toggle_feature"])) |> render_click()
+
+      html =
+        view
+        |> form("#pk-gate-form", %{
+          "gate" => %{
+            "password" => "Secret42",
+            "lockout_attempts" => "5",
+            "lockout_minutes" => "10",
+            "users_pass" => "true"
+          }
+        })
+        |> render_submit()
+
+      assert html =~ "Password gate settings saved."
+      assert Gate.enabled?()
+      assert Gate.lockout_attempts() == 5
+      assert Gate.lockout_minutes() == 10
+
+      [entry | _] = Settings.History.list(Gate.enabled_key(), limit: 1)
+      assert entry.actor_uuid == user.uuid
+    end
+
+    test "a blank password keeps the current one", %{conn: conn} do
+      {:ok, _} = Gate.set_password("Secret42")
+      {:ok, view, _} = live(conn, @page)
+
+      view
+      |> form("#pk-gate-form", %{
+        "gate" => %{"password" => "", "lockout_attempts" => "0", "lockout_minutes" => "15"}
+      })
+      |> render_submit()
+
+      assert Gate.password() == "Secret42"
+    end
+
+    test "the password is hidden until revealed", %{conn: conn} do
+      {:ok, _} = Gate.set_password("Secret42")
+      {:ok, view, html} = live(conn, @page)
+      refute html =~ "Secret42"
+
+      assert view |> element(~s(button[phx-click="reveal_password"])) |> render_click() =~
+               "Secret42"
+    end
+
+    test "the tries at the door are listed with what was typed", %{conn: conn} do
+      {:ok, _} = Gate.set_password("Secret42")
+      Gate.attempt("SECRET42", address: "203.0.113.7", user_agent: "Mozilla/5.0 Safari")
+      Gate.attempt("my-other-password", address: "203.0.113.8")
+      {:ok, _view, html} = live(conn, @page)
+      assert html =~ "SECRET42"
+      assert html =~ "203.0.113.7"
+      assert html =~ "right letters, wrong case"
+      assert html =~ "my-other-password"
+    end
+
+    test "the tries table's columns can be hidden, reordered and reset, and the choice is kept",
+         %{conn: conn} do
+      {:ok, _} = Gate.set_password("Secret42")
+      Gate.attempt("SECRET42", address: "203.0.113.7")
+      {:ok, view, html} = live(conn, @page)
+      assert html =~ "SECRET42"
+
+      view |> element(~s(button[phx-click="show_column_modal"])) |> render_click()
+      html = render_click(view, "remove_column", %{"column_id" => "typed"})
+      refute html =~ "SECRET42"
+      assert Settings.get_setting("website_access_attempt_columns") =~ "address"
+      refute Settings.get_setting("website_access_attempt_columns") =~ "typed"
+
+      {:ok, _view2, html2} = live(conn, @page)
+      refute html2 =~ "SECRET42", "the choice survives a reload"
+
+      html =
+        render_click(view, "reorder_columns", %{"ordered_ids" => ["address", "when", "bogus"]})
+
+      assert Settings.get_setting("website_access_attempt_columns") == ~s(["address","when"])
+      assert html =~ "203.0.113.7"
+
+      html = render_click(view, "reset_columns", %{})
+      assert html =~ "SECRET42"
+
+      # the last column cannot be removed; a stored empty or duplicated list loads sane
+      for col <- ~w(when result typed address) do
+        render_click(view, "remove_column", %{"column_id" => col})
+      end
+
+      html = render_click(view, "remove_column", %{"column_id" => "browser"})
+      assert html =~ "Browser"
+      Settings.update_setting("website_access_attempt_columns", ~s(["when","when","bogus"]))
+      {:ok, _view3, html3} = live(conn, @page)
+      assert html3 =~ ~r/attempt-[0-9a-f-]+/
+      Settings.update_setting("website_access_attempt_columns", "[]")
+      {:ok, _view4, html4} = live(conn, @page)
+      assert html4 =~ "SECRET42", "an empty list falls back to every column"
+    end
+
+    test "a forged toggle for the feature without a switch is refused, not a crash", %{conn: conn} do
+      {:ok, view, _} = live(conn, @page)
+      html = render_click(view, "toggle_feature", %{"feature" => "allowed_addresses"})
+      assert html =~ "Website access"
+    end
+
+    test "keep-typed is saved with the gate form", %{conn: conn} do
+      {:ok, view, _} = live(conn, @page)
+
+      view
+      |> form("#pk-gate-form", %{
+        "gate" => %{
+          "password" => "",
+          "lockout_attempts" => "0",
+          "lockout_minutes" => "15",
+          "keep_typed" => "near"
+        }
+      })
+      |> render_submit()
+
+      assert Gate.keep_typed() == "near"
+    end
+
+    test "access link: make, show, revoke", %{conn: conn} do
+      {:ok, view, _} = live(conn, @page)
+      html = view |> element(~s(button[phx-click="generate_link"])) |> render_click()
+      token = Gate.access_link_token()
+      assert html =~ "/phoenix_kit/access/link/" <> token
+      html = view |> element(~s(button[phx-click="revoke_link"])) |> render_click()
+      refute html =~ token
+      assert Gate.access_link_token() == nil
+    end
+
+    test "redirect, notice, maintenance and allowed addresses save", %{conn: conn} do
+      {:ok, view, _} = live(conn, @page)
+
+      view
+      |> form("#pk-redirect-form", %{
+        "redirect" => %{"url" => "https://www.example.com/ ", "scope" => "crawlers"}
+      })
+      |> render_submit()
+
+      assert Redirect.target_url() == "https://www.example.com"
+      assert Redirect.scope() == "crawlers"
+
+      html =
+        view
+        |> form("#pk-notice-form", %{
+          "notice" => %{
+            "icon" => "warning",
+            "text" => "Dev site",
+            "link" => "https://www.example.com"
+          }
+        })
+        |> render_submit()
+
+      assert Notice.text() == "Dev site"
+      assert html =~ "data-phoenix-kit-notice", "the preview"
+
+      view
+      |> form("#pk-maintenance-form", %{
+        "maintenance" => %{
+          "header" => "Back soon",
+          "subtext" => "Painting",
+          "from" => "",
+          "until" => Date.utc_today() |> Date.add(30) |> Date.to_iso8601() |> Kernel.<>("T10:00")
+        }
+      })
+      |> render_submit()
+
+      assert Maintenance.get_header() == "Back soon"
+      assert %DateTime{hour: 10} = Maintenance.get_scheduled_end()
+      assert Maintenance.get_scheduled_start() == nil
+
+      view
+      |> form("#pk-maintenance-form", %{
+        "maintenance" => %{
+          "header" => "Back soon",
+          "subtext" => "Painting",
+          "from" => "",
+          "until" => ""
+        }
+      })
+      |> render_submit()
+
+      assert Maintenance.get_scheduled_end() == nil, "both blank clears the window"
+
+      view
+      |> form("#pk-allowed-form", %{
+        "allowed" => %{"addresses" => "203.0.113.7, 203.0.113.7\n10.0.0.1"}
+      })
+      |> render_submit()
+
+      assert AllowedAddresses.list() == ["203.0.113.7", "10.0.0.1"]
+    end
+
+    test "a window in the past is refused with a sentence", %{conn: conn} do
+      {:ok, view, _} = live(conn, @page)
+
+      html =
+        view
+        |> form("#pk-maintenance-form", %{
+          "maintenance" => %{
+            "header" => "x",
+            "subtext" => "y",
+            "from" => "",
+            "until" => "2001-01-01T10:00"
+          }
+        })
+        |> render_submit()
+
+      assert html =~ "in the past"
+      assert Maintenance.get_scheduled_end() == nil
+    end
+
+    test "the closed page's area shows a status and a preview", %{conn: conn} do
+      {:ok, _view, html} = live(conn, @page)
+      assert html =~ "Open."
+      assert html =~ "Site closed"
+      refute html =~ "settings/maintenance"
+    end
+
+    test "hide from search engines is the crawlers switch", %{conn: conn} do
+      {:ok, view, _} = live(conn, @page)
+      view |> element(~s(#feature-no_index input[phx-click="toggle_feature"])) |> render_click()
+      assert Crawlers.no_index_enabled?()
+    end
+
+    test "a preset switches its bundle", %{conn: conn} do
+      {:ok, view, _} = live(conn, @page)
+      html = view |> element(~s(button[phx-value-preset="under_construction"])) |> render_click()
+      assert html =~ "Preset applied"
+      assert Maintenance.active?()
+      assert Notice.icon() == "construction"
+      assert html =~ "Closed now, by hand"
+    end
+  end
+
+  describe "the gate on LiveViews" do
+    setup do
+      {:ok, _} = Gate.set_password("Secret42")
+      {:ok, _} = Gate.set_enabled(true)
+      :ok
+    end
+
+    test "a locked anonymous session cannot mount a public LiveView", %{conn: conn} do
+      conn = Phoenix.ConnTest.build_conn() |> init_test_session(%{})
+      assert {:error, {:redirect, %{to: "/phoenix_kit/access"}}} = live(conn, @probe)
+    end
+
+    test "an allowed address can (the plug stamps its session)", %{conn: _conn} do
+      Settings.update_setting(AllowedAddresses.key(), "203.0.113.7")
+
+      conn =
+        %{Phoenix.ConnTest.build_conn() | remote_ip: {203, 0, 113, 7}}
+        |> init_test_session(%{})
+        |> AccessPlug.call([])
+
+      refute conn.halted
+      assert {:ok, _view, _html} = live(conn, @probe)
+
+      # taken off the list: the remembered address no longer passes a mount
+      Settings.update_setting(AllowedAddresses.key(), "")
+      assert {:error, {:redirect, %{to: "/phoenix_kit/access"}}} = live(conn, @probe)
+    end
+
+    test "an unlocked session can", %{conn: _conn} do
+      conn = Phoenix.ConnTest.build_conn() |> init_test_session(%{}) |> Gate.unlock()
+      assert {:ok, _view, _html} = live(conn, @probe)
+    end
+
+    test "a logged-in admin is sent to the gate on a relock once logged-in users no longer pass",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, @page)
+      {:ok, _} = Gate.set_users_pass(false)
+
+      assert_redirect(
+        view,
+        "/phoenix_kit/access?to=%2Fphoenix_kit%2Fadmin%2Fsettings%2Fwebsite-access"
+      )
+    end
+
+    test "a page opened while the gate was off is sent to the gate when it comes on", %{conn: _} do
+      {:ok, _} = Gate.set_enabled(false)
+      conn = Phoenix.ConnTest.build_conn() |> init_test_session(%{})
+      {:ok, view, _html} = live(conn, @probe)
+
+      {:ok, _} = Gate.set_enabled(true)
+      assert_redirect(view, "/phoenix_kit/access?to=%2F__test%2Fcrawlers-no-index-probe")
+    end
+
+    test "a logged-in admin's open page survives a relock when logged-in users pass", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, @page)
+      {:ok, _} = Gate.relock_everyone()
+      assert render(view) =~ "Password gate"
+    end
+
+    test "a logged-in user is turned away too when the setting is off", %{conn: conn} do
+      {:ok, _} = Gate.set_users_pass(false)
+      assert {:error, {:redirect, %{to: "/phoenix_kit/access"}}} = live(conn, @page)
+    end
+  end
+end

@@ -157,6 +157,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # over the 49 shipped files; the real-database integration suite re-ran
   # clean against a DB migrated through V183.
   #
+  # V187 (2026-09-06) DECLARES nine objects here by hand, all new:
+  # `table:phoenix_kit_access_attempts` (every try at the website password
+  # gate), its six columns (`uuid` v7 PK, `verdict` varchar(16) NOT NULL,
+  # `typed` text, `address` varchar(64), `user_agent` text, `inserted_at`
+  # timestamp NOT NULL — no default: the schema writes it), its PRIMARY KEY
+  # and `index:phoenix_kit_access_attempts_address_inserted_at_index`
+  # (address, inserted_at) for the lockout count. Shapes transcribed from a
+  # real database migrated through V187 (`information_schema.columns`,
+  # `pg_get_constraintdef`, `pg_get_indexdef`), not typed from the migration.
+  # `chain_hash` restamped over the 53 shipped files; the real-database
+  # integration suite re-ran clean against a DB migrated through V187.
+  #
   # V185 (2026-09-06) DECLARES two objects here by hand and reshapes one:
   # `column:phoenix_kit_posts.time_zone` (varchar(64), nullable — the zone a
   # post was scheduled in, the V183 class), `column:phoenix_kit_activities.
@@ -267,7 +279,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "46e4d896a31c6881e4d3ceae73231957a72c6509740b555a994c02c77e318560"
+  @chain_hash "95a72e523c8c0a332537b8d713756be269a5091660cd0f73d64183ed58475e1c"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -70659,6 +70671,162 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         class: :column,
         revisions: [
           {185, %{default: nil, type: "character varying(64)", pos: 19, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "table:phoenix_kit_access_attempts",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_access_attempts", kind: :table}},
+        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_access_attempts ()",
+        since: 187,
+        class: :table,
+        revisions: [{187, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_access_attempts.uuid",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_access_attempts", column: "uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_access_attempts ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
+        since: 187,
+        class: :column,
+        revisions: [
+          {187, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_access_attempts.verdict",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_access_attempts", column: "verdict", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_access_attempts ADD COLUMN IF NOT EXISTS \"verdict\" character varying(16) NOT NULL",
+        since: 187,
+        class: :column,
+        revisions: [{187, %{default: nil, type: "character varying(16)", pos: 2, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_access_attempts.typed",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_access_attempts", column: "typed", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_access_attempts ADD COLUMN IF NOT EXISTS \"typed\" text",
+        since: 187,
+        class: :column,
+        revisions: [{187, %{default: nil, type: "text", pos: 3, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_access_attempts.address",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_access_attempts", column: "address", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_access_attempts ADD COLUMN IF NOT EXISTS \"address\" character varying(64)",
+        since: 187,
+        class: :column,
+        revisions: [
+          {187, %{default: nil, type: "character varying(64)", pos: 4, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_access_attempts.user_agent",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_access_attempts", column: "user_agent", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_access_attempts ADD COLUMN IF NOT EXISTS \"user_agent\" text",
+        since: 187,
+        class: :column,
+        revisions: [{187, %{default: nil, type: "text", pos: 5, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_access_attempts.inserted_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_access_attempts", column: "inserted_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_access_attempts ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp without time zone NOT NULL",
+        since: 187,
+        class: :column,
+        revisions: [
+          {187, %{default: nil, type: "timestamp without time zone", pos: 6, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_access_attempts.phoenix_kit_access_attempts_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_access_attempts_pkey",
+             table: "phoenix_kit_access_attempts",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_access_attempts_pkey'\n      AND t.relname = 'phoenix_kit_access_attempts'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_access_attempts ADD CONSTRAINT phoenix_kit_access_attempts_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
+        since: 187,
+        class: :constraint,
+        revisions: [
+          {187,
+           %{
+             type: "p",
+             columns: ["uuid"],
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil,
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_access_attempts_address_inserted_at_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_access_attempts_address_inserted_at_index",
+             table: "phoenix_kit_access_attempts",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_access_attempts_address_inserted_at_index ON __SCHEMA__.phoenix_kit_access_attempts USING btree (address, inserted_at)",
+        since: 187,
+        class: :index,
+        revisions: [
+          {187,
+           %{
+             table: "phoenix_kit_access_attempts",
+             keys: ["address", "inserted_at"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_access_attempts_address_inserted_at_index ON __SCHEMA__.phoenix_kit_access_attempts USING btree (address, inserted_at)",
+             predicate: nil,
+             opclasses: ["text_ops", "timestamp_ops"],
+             name_template: nil
+           }}
         ],
         presence: :required,
         backfill: nil

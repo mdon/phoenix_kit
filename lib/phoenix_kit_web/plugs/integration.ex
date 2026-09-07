@@ -8,7 +8,9 @@ defmodule PhoenixKitWeb.Plugs.Integration do
 
   ## Current Features
 
-  - **Maintenance Mode**: Intercepts requests when maintenance mode is enabled
+  - **Website access** (`PhoenixKitWeb.Plugs.WebsiteAccess`): allowed
+    addresses, the redirect to production, the password gate, maintenance
+    mode, the visitor notice — in that order
   - **WebSocket Transport Fix**: Clears cached LongPoll fallback preferences to ensure
     WebSocket is always tried first, providing much better LiveView performance
 
@@ -40,7 +42,8 @@ defmodule PhoenixKitWeb.Plugs.Integration do
   """
 
   import Plug.Conn
-  alias PhoenixKitWeb.Plugs.MaintenanceMode
+
+  alias PhoenixKitWeb.Plugs.WebsiteAccess
 
   # Inline script to clear Phoenix LiveView transport cache.
   # This ensures WebSocket is always tried first instead of using cached LongPoll fallback.
@@ -59,9 +62,12 @@ defmodule PhoenixKitWeb.Plugs.Integration do
   Runs all PhoenixKit integration plugs in sequence.
   """
   def call(conn, _opts) do
-    conn = run_maintenance_mode_check(conn)
+    # Website access — the allowed addresses, the redirect to production, the
+    # password gate, maintenance (which used to be called from here directly),
+    # and the visitor notice.
+    conn = WebsiteAccess.call(conn, [])
 
-    # Skip remaining plugs if maintenance mode already sent a response
+    # Skip remaining plugs if a feature already sent a response
     if conn.halted do
       conn
     else
@@ -72,11 +78,6 @@ defmodule PhoenixKitWeb.Plugs.Integration do
       # |> run_rate_limiter()
       # |> run_security_headers()
     end
-  end
-
-  # Run maintenance mode check
-  defp run_maintenance_mode_check(conn) do
-    MaintenanceMode.call(conn, [])
   end
 
   # Inject WebSocket transport fix script into HTML responses.
