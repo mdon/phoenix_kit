@@ -2158,6 +2158,29 @@ defmodule PhoenixKit.Modules.Storage do
            f.uuid
          )
        )},
+      # The catalogue module (phoenix_kit_catalogue) stores its image
+      # references inside the JSONB `data` column rather than dedicated
+      # columns — a plain join would miss them entirely, and a live
+      # catalogue item/category image would look orphaned and get queued
+      # for deletion by DeleteOrphanedFileJob.
+      {"phoenix_kit_cat_items",
+       dynamic(
+         [f],
+         fragment(
+           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_items ci WHERE ci.data->>'featured_image_uuid' = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_items ci WHERE ci.data->'media_order' @> to_jsonb(ARRAY[?::text])) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_items ci WHERE ci.data->'ecommerce'->>'file_uuid' = ?::text)",
+           f.uuid,
+           f.uuid,
+           f.uuid
+         )
+       )},
+      {"phoenix_kit_cat_categories",
+       dynamic(
+         [f],
+         fragment(
+           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->'ecommerce'->>'image_uuid' = ?::text)",
+           f.uuid
+         )
+       )},
       {"phoenix_kit_publishing_contents",
        dynamic(
          [f],
