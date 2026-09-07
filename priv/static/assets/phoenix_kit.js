@@ -7439,3 +7439,227 @@ if (typeof window.Chart === "undefined") {
     module.exports.contextMenuPosition = contextMenuPosition;
   }
 })();
+
+// ---------------------------------------------------------------------------
+// AvatarCrop — the non-destructive avatar crop editor.
+//
+// The crop is data (focal point x/y, zoom, aspect ratio), applied as CSS by
+// the server-rendered avatar component; this hook is only the editor for
+// those four numbers. Drag pans the focal point, the slider and the wheel
+// zoom toward it, and the end of every gesture pushes the current values to
+// the owning LiveComponent (the element carries phx-target) so "Save"
+// persists exactly what the preview shows.
+//
+// avatarCropLayout mirrors PhoenixKit.Users.AvatarCrop.layout/1 — the
+// preview must use the same math the avatar later renders with, or the
+// saved crop drifts from what the person approved. Change one, change both.
+// ---------------------------------------------------------------------------
+(function () {
+  if (window.PhoenixKitAvatarCrop) return;
+  window.PhoenixKitAvatarCrop = true;
+  window.PhoenixKitHooks = window.PhoenixKitHooks || {};
+
+  function clamp(v, lo, hi) {
+    return Math.min(hi, Math.max(lo, v));
+  }
+
+  // The image's placement inside its square frame, in percent of the frame.
+  // Mirror of PhoenixKit.Users.AvatarCrop.layout/1.
+  function avatarCropLayout(crop) {
+    var zoom = crop.zoom;
+    var ar = crop.ar;
+    var width, height;
+    if (ar >= 1) {
+      width = 100 * zoom * ar;
+      height = 100 * zoom;
+    } else {
+      width = 100 * zoom;
+      height = (100 * zoom) / ar;
+    }
+    return {
+      width: width,
+      height: height,
+      left: clamp(50 - crop.x * width, 100 - width, 0),
+      top: clamp(50 - crop.y * height, 100 - height, 0)
+    };
+  }
+
+  // Focal coordinates that would render clamped are snapped back into the
+  // reachable range, so a drag never has a dead zone at the edges: with the
+  // image W% wide, the frame center can only sit between 50/W and 1 - 50/W
+  // of the image (the whole axis collapses to 0.5 when the image just fits).
+  function clampAvatarCropFocal(crop) {
+    var l = avatarCropLayout(crop);
+    var x = l.width <= 100 ? 0.5 : clamp(crop.x, 50 / l.width, 1 - 50 / l.width);
+    var y = l.height <= 100 ? 0.5 : clamp(crop.y, 50 / l.height, 1 - 50 / l.height);
+    return { x: x, y: y, zoom: crop.zoom, ar: crop.ar };
+  }
+
+  window.PhoenixKitHooks.AvatarCrop = {
+    mounted() {
+      var self = this;
+      var maxZoom = parseFloat(this.el.dataset.maxZoom || "8");
+
+      var stored = {};
+      try {
+        stored = JSON.parse(this.el.dataset.crop || "{}") || {};
+      } catch (_e) {
+        stored = {};
+      }
+
+      this.crop = {
+        x: typeof stored.x === "number" ? stored.x : 0.5,
+        y: typeof stored.y === "number" ? stored.y : 0.5,
+        zoom: typeof stored.zoom === "number" ? stored.zoom : 1,
+        ar: typeof stored.ar === "number" ? stored.ar : 1
+      };
+
+      this.frame = this.el.querySelector("[data-crop-frame]");
+      this.img = this.el.querySelector("[data-crop-img]");
+      this.slider = this.el.querySelector("[data-crop-zoom]");
+
+      // The stored aspect ratio was captured from this same file, but the
+      // image itself is the authority once it arrives — a freshly picked
+      // avatar has no stored crop and starts from ar = 1 until then.
+      var adoptNaturalRatio = function () {
+        if (self.img.naturalWidth > 0 && self.img.naturalHeight > 0) {
+          var ar = self.img.naturalWidth / self.img.naturalHeight;
+          // Only bother the server when the truth differs from the stored
+          // value — on a reopened editor they already match.
+          if (Math.abs(ar - self.crop.ar) > 0.001) {
+            self.crop.ar = ar;
+            self._render();
+            self._push();
+          } else {
+            self._render();
+          }
+        }
+      };
+      if (this.img.complete && this.img.naturalWidth > 0) {
+        adoptNaturalRatio();
+      } else {
+        this.img.addEventListener("load", adoptNaturalRatio);
+      }
+
+      if (this.slider) {
+        this.slider.value = String(this.crop.zoom);
+        this.slider.addEventListener("input", function () {
+          self.crop.zoom = clamp(parseFloat(self.slider.value) || 1, 1, maxZoom);
+          self.crop = clampAvatarCropFocal(self.crop);
+          self._render();
+        });
+        this.slider.addEventListener("change", function () {
+          self._push();
+        });
+      }
+
+      // Drag pans the focal point: moving the image right means the point
+      // being looked at sits further LEFT in the image.
+      var drag = null;
+      this._onPointerDown = function (e) {
+        // The frame cannot resize mid-drag; one layout read per gesture,
+        // not one per pointermove.
+        var rect = self.frame.getBoundingClientRect();
+        drag = { x: e.clientX, y: e.clientY, w: rect.width, h: rect.height };
+        self.frame.setPointerCapture(e.pointerId);
+        self.frame.style.cursor = "grabbing";
+      };
+      this._onPointerMove = function (e) {
+        if (!drag) return;
+        var l = avatarCropLayout(self.crop);
+        var widthPx = (drag.w * l.width) / 100;
+        var heightPx = (drag.h * l.height) / 100;
+        self.crop.x -= (e.clientX - drag.x) / widthPx;
+        self.crop.y -= (e.clientY - drag.y) / heightPx;
+        drag = { x: e.clientX, y: e.clientY };
+        self.crop = clampAvatarCropFocal(self.crop);
+        self._render();
+      };
+      this._onPointerUp = function (e) {
+        if (!drag) return;
+        drag = null;
+        self.frame.style.cursor = "grab";
+        if (self.frame.hasPointerCapture(e.pointerId)) {
+          self.frame.releasePointerCapture(e.pointerId);
+        }
+        self._push();
+      };
+      this._onWheel = function (e) {
+        e.preventDefault();
+        var factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
+        self.crop.zoom = clamp(self.crop.zoom * factor, 1, maxZoom);
+        self.crop = clampAvatarCropFocal(self.crop);
+        if (self.slider) self.slider.value = String(self.crop.zoom);
+        self._render();
+        clearTimeout(self._wheelTimer);
+        self._wheelTimer = setTimeout(function () {
+          self._push();
+        }, 250);
+      };
+
+      this.frame.addEventListener("pointerdown", this._onPointerDown);
+      this.frame.addEventListener("pointermove", this._onPointerMove);
+      this.frame.addEventListener("pointerup", this._onPointerUp);
+      this.frame.addEventListener("pointercancel", this._onPointerUp);
+      this.frame.addEventListener("wheel", this._onWheel, { passive: false });
+
+      // The wheel push is debounced, so a Save clicked inside the window
+      // would persist the pre-wheel crop — and the modal's teardown would
+      // cancel the pending push outright. Flushing on the Save button's
+      // capture phase puts the final crop on the wire before the phx-click
+      // does; same websocket, so order is guaranteed.
+      this._saveBtn =
+        (this.el.closest("dialog") || document).querySelector("[data-crop-save-btn]");
+      this._onSaveClick = function () {
+        if (self._wheelTimer) {
+          clearTimeout(self._wheelTimer);
+          self._wheelTimer = null;
+          self._push();
+        }
+      };
+      if (this._saveBtn) {
+        this._saveBtn.addEventListener("click", this._onSaveClick, true);
+      }
+
+      this._render();
+    },
+
+    _render() {
+      var l = avatarCropLayout(this.crop);
+      this.img.style.width = l.width + "%";
+      this.img.style.height = l.height + "%";
+      this.img.style.left = l.left + "%";
+      this.img.style.top = l.top + "%";
+    },
+
+    _push() {
+      // phx-target on the element routes this to the owning LiveComponent.
+      this.pushEventTo(this.el, "avatar_crop_changed", {
+        x: this.crop.x,
+        y: this.crop.y,
+        zoom: this.crop.zoom,
+        ar: this.crop.ar
+      });
+    },
+
+    destroyed() {
+      clearTimeout(this._wheelTimer);
+      if (this._saveBtn) {
+        this._saveBtn.removeEventListener("click", this._onSaveClick, true);
+      }
+      if (this.frame) {
+        this.frame.removeEventListener("pointerdown", this._onPointerDown);
+        this.frame.removeEventListener("pointermove", this._onPointerMove);
+        this.frame.removeEventListener("pointerup", this._onPointerUp);
+        this.frame.removeEventListener("pointercancel", this._onPointerUp);
+        this.frame.removeEventListener("wheel", this._onWheel);
+      }
+    }
+  };
+
+  // Exported for the Node test harness (test/js); harmless in a browser.
+  if (typeof module === "object" && module.exports) {
+    module.exports.avatarCropLayout = avatarCropLayout;
+    module.exports.clampAvatarCropFocal = clampAvatarCropFocal;
+  }
+})();

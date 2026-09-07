@@ -2103,7 +2103,30 @@ defmodule PhoenixKit.Users.Auth do
     existing_custom_fields = user.custom_fields || %{}
     merged_custom_fields = Map.merge(existing_custom_fields, attrs)
 
-    update_user_custom_fields(user, merged_custom_fields)
+    update_user_custom_fields(
+      user,
+      drop_stale_avatar_crop(merged_custom_fields, existing_custom_fields, attrs)
+    )
+  end
+
+  # A stored crop describes the file it was made against — its aspect ratio
+  # is baked into the map — so a crop must never outlive its file: applied
+  # to a different image it renders stretched and mis-framed everywhere.
+  # Enforced HERE, at the one merge every custom-fields write goes through,
+  # because every other enforcement point proved forgettable: the settings
+  # page cleared the crop on a new pick, while the admin form and
+  # update_user_avatar/4 did not. A caller that sets the crop alongside the
+  # file (the settings crop editor) is explicit and wins.
+  defp drop_stale_avatar_crop(merged, existing, attrs) do
+    changed_file? =
+      Map.has_key?(attrs, "avatar_file_uuid") and
+        Map.get(attrs, "avatar_file_uuid") != Map.get(existing, "avatar_file_uuid")
+
+    if changed_file? and not Map.has_key?(attrs, "avatar_crop") do
+      Map.put(merged, "avatar_crop", nil)
+    else
+      merged
+    end
   end
 
   @doc """

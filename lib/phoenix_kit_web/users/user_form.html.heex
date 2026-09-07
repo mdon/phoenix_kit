@@ -31,10 +31,18 @@
                   <%= if avatar_file_uuid do %>
                     <% avatar_url =
                       PhoenixKit.Modules.Storage.URLSigner.signed_url(avatar_file_uuid, variant) %>
+                    <%!-- The stored crop belongs to the CURRENT avatar; a
+                         pending selection is a different file, previewed
+                         uncropped until saved. --%>
+                    <% crop =
+                      if @pending_avatar_file_uuid,
+                        do: nil,
+                        else: PhoenixKit.Users.AvatarCrop.from_user(@user) %>
                     <img
                       src={avatar_url}
                       alt="Avatar"
-                      class="w-full h-full object-cover"
+                      style={crop && PhoenixKit.Users.AvatarCrop.img_style(crop)}
+                      class={if crop, do: nil, else: "w-full h-full object-cover"}
                       onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                     />
                     <div class="hidden w-full h-full bg-primary flex items-center justify-center text-center">

@@ -76,6 +76,7 @@ defmodule PhoenixKit.Users.CustomFields do
   # definitions for the five stay; only new registrations stop.
   @internal_keys ~w(
     activity_view_mode
+    avatar_crop
     avatar_file_uuid
     etcher_colors
     etcher_line_params
