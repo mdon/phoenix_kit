@@ -1,3 +1,35 @@
+## 2.21.2 - 2026-09-07
+
+### Added
+
+- Non-destructive avatar cropping, Apple Photos style — picking a new avatar
+  opens a drag/wheel/slider crop editor before anything persists; the crop
+  geometry (`x`, `y`, `zoom`, aspect ratio) is stored alongside the original
+  upload rather than baked into re-encoded pixels, so re-cropping never loses
+  quality.
+
+### Fixed
+
+- Multi-domain sitemaps could list the same home URL twice (once bare, once
+  with the full cross-domain hreflang set) when a locale-prefixed clone route
+  had no `canonical_path` of its own, and a single-language canonical group
+  on a non-primary domain could carry a self-only hreflang pair that the
+  page's own `<head>` never backed up.
+- The storage orphan-file check now recognizes catalogue-owned tables:
+  `phoenix_kit_cat_items`, `phoenix_kit_cat_categories`, and
+  `phoenix_kit_cat_catalogues` store image references inside a JSONB `data`
+  column rather than dedicated FK columns, so a plain join was missing them
+  and could queue a live catalogue image for deletion. `phoenix_kit_cat_pdfs`
+  references its file through a real FK with `ON DELETE RESTRICT`; a PDF
+  still in use could have its file data deleted and then crash the cleanup
+  job on the FK violation — that table is now guarded too.
+- A stale avatar crop could outlive the file it was framed for — replacing
+  an avatar without submitting a new crop now clears the old geometry
+  instead of stretching the old aspect ratio onto the new image.
+- Landscape avatars rendered soft: crop-variant selection compared needed
+  pixels against the image's width instead of its short side, which is what
+  actually bounds sharpness under cover-fit.
+
 ## 2.21.1 - 2026-09-07
 
 ### Fixed
