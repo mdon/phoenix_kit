@@ -93,8 +93,9 @@ defmodule PhoenixKit.Modules.Crawlers do
   @doc """
   Updates the directive to the provided boolean value.
   """
-  def update_no_index(enabled?) when is_boolean(enabled?) do
-    result = Settings.update_boolean_setting_with_module(@no_index_key, enabled?, @module_name)
+  def update_no_index(enabled?, opts \\ []) when is_boolean(enabled?) do
+    result =
+      Settings.update_boolean_setting_with_module(@no_index_key, enabled?, @module_name, opts)
 
     # The directive flips what the sitemap must advertise. Drop the cached
     # sitemap and regenerate so `/sitemap.xml` reflects the new state instead of

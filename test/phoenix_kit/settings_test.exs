@@ -257,6 +257,36 @@ defmodule PhoenixKit.SettingsTest do
                "synthetic-cache-warm-secret"
     end
 
+    # A host under the legacy encryption tier has no key until its endpoint
+    # is up, and the warmer runs before that: the warm map must leave such a
+    # key alone (the first read fills it), and a miss that cannot decrypt
+    # must not be remembered as nil until the next write. Found on max-dev:
+    # the website gate's password read as nil after every restart, so the
+    # gate was silently off.
+    test "a restricted value that cannot be decrypted yet is left for the first read, not cached as nil" do
+      {:ok, _} = Settings.update_setting("oauth_google_client_secret", "synthetic-boot-secret")
+
+      start_supervised!({PhoenixKit.Cache.Registry, []})
+      start_supervised!({PhoenixKit.Cache, name: :settings})
+
+      # no key available: what a boot under the legacy tier looks like
+      Application.put_env(:phoenix_kit, :integration_encryption_enabled, false)
+
+      on_exit(fn -> Application.delete_env(:phoenix_kit, :integration_encryption_enabled) end)
+
+      refute Map.has_key?(Settings.warm_cache_data(), "oauth_google_client_secret")
+      assert Settings.get_setting_cached("oauth_google_client_secret") == nil
+
+      # the key arrives (the endpoint is up): the next read decrypts and caches
+      Application.delete_env(:phoenix_kit, :integration_encryption_enabled)
+      assert Settings.get_setting_cached("oauth_google_client_secret") == "synthetic-boot-secret"
+
+      assert PhoenixKit.Cache.get(:settings, "oauth_google_client_secret") ==
+               "synthetic-boot-secret"
+
+      assert Settings.warm_cache_data()["oauth_google_client_secret"] == "synthetic-boot-secret"
+    end
+
     test "an existing plaintext value is read back unchanged (legacy, not touched by this change)" do
       # Ecto.Changeset.change/2, not Setting.changeset/2, on purpose — this
       # is what an already-plaintext row from before this change looks

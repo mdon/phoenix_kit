@@ -494,6 +494,19 @@ defmodule PhoenixKit.Utils.Routes do
   end
 
   @doc """
+  The kit's URL prefix as a path base: `""` when the kit is mounted at the
+  root (`url_prefix` `"/"` or `""`), the prefix without a trailing slash
+  otherwise — so `prefix_base() <> "/access"` is a path in both cases.
+  """
+  @spec prefix_base() :: String.t()
+  def prefix_base do
+    case Config.get_url_prefix() do
+      prefix when prefix in ["", "/"] -> ""
+      prefix -> String.trim_trailing(prefix, "/")
+    end
+  end
+
+  @doc """
   Whether a REAL URL lands in PhoenixKit's admin area.
 
   Not the same question as the argument to `path/1` answers. `path/1` takes the

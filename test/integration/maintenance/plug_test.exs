@@ -41,6 +41,23 @@ defmodule PhoenixKit.Integration.Maintenance.PlugTest do
       assert result.halted
       assert result.status == 503
       assert result.resp_body =~ "Maintenance Mode"
+      refute result.resp_body =~ "data-maintenance-until", "no end, no countdown"
+    end
+
+    test "counts down to a scheduled end" do
+      :ok = Maintenance.update_schedule(nil, future(3600))
+      conn = conn(:get, "/some-path") |> Plug.Test.init_test_session(%{})
+      result = MaintenanceMode.call(conn, [])
+
+      assert result.status == 503
+
+      assert result.resp_body =~
+               ~s(data-maintenance-until="#{DateTime.to_iso8601(Maintenance.get_scheduled_end())}")
+
+      assert result.resp_body =~ "Back on "
+      assert result.resp_body =~ "Back in"
+      assert [retry] = Plug.Conn.get_resp_header(result, "retry-after")
+      assert String.to_integer(retry) in 3500..3600
     end
 
     test "passes through static asset paths" do

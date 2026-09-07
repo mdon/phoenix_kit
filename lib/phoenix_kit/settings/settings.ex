@@ -96,6 +96,8 @@ defmodule PhoenixKit.Settings do
     oauth_facebook_app_secret
     aws_access_key_id
     aws_secret_access_key
+    website_access_password
+    website_access_link_token
   )
 
   # The explicit ALLOW list `list_public_settings/0` reads from. Deliberately
@@ -294,6 +296,11 @@ defmodule PhoenixKit.Settings do
       # Crawlers (renamed from SEO in V172)
       "crawlers_module_enabled" => "false",
       "crawlers_no_index" => "false",
+      # Website access — the two secrets (restricted: encrypted at rest,
+      # withheld from the settings history). The page's other keys are read
+      # with explicit defaults by `PhoenixKit.WebsiteAccess`, like maintenance's.
+      "website_access_password" => "",
+      "website_access_link_token" => "",
       # Organization Accounts
       "enable_organization_accounts" => "false",
       # Which account types the PUBLIC signup form may create. Only consulted
@@ -2099,6 +2106,7 @@ defmodule PhoenixKit.Settings do
 
           {setting.key, value}
         end)
+        |> Enum.reject(&undecryptable_at_boot?/1)
         |> decrypt_and_map_settings()
       else
         # Repo not available (likely during Mix task execution)
@@ -2114,6 +2122,49 @@ defmodule PhoenixKit.Settings do
       end
 
       %{}
+  end
+
+  # The warmer runs before the host's endpoint is up, and under the legacy
+  # encryption tier the endpoint's `secret_key_base` IS the key — so a
+  # restricted value cannot be decrypted at boot on such a host. Caching
+  # the failure would serve nil for that secret (the website gate's
+  # password, an OAuth secret) on every read until its next write, i.e. a
+  # gate that is silently off after every restart. Such a key is left out
+  # of the warm map instead: the first cached read fills it, by which time
+  # the endpoint is running.
+  # A restricted value that failed to decrypt is answered nil but NOT
+  # cached — the key may simply not be available yet (see
+  # `undecryptable_at_boot?/1`), and the next read must try again.
+  defp cache_decrypted(key, raw, decrypted) do
+    unless decrypt_failed?(key, raw, decrypted) do
+      PhoenixKit.Cache.put(@cache_name, key, decrypted)
+    end
+
+    decrypted
+  end
+
+  defp decrypt_failed?(key, raw, decrypted) do
+    is_nil(decrypted) and key in @restricted_setting_keys and is_binary(raw) and
+      Encryption.encrypted?(raw)
+  end
+
+  defp undecryptable_at_boot?({key, value}) do
+    if key in @restricted_setting_keys and is_binary(value) and Encryption.encrypted?(value) do
+      case Encryption.decrypt_value(value) do
+        {:ok, _} ->
+          false
+
+        {:error, reason} ->
+          Logger.debug(
+            "PhoenixKit.Settings: #{inspect(key)} left for the first read — " <>
+              "not decryptable at boot (#{inspect(reason)})"
+          )
+
+          true
+      end
+    else
+      false
+    end
   end
 
   @doc """
@@ -2193,9 +2244,7 @@ defmodule PhoenixKit.Settings do
       if repo_available?() do
         case Queries.get_setting_by_key(key) do
           %Setting{value: value} ->
-            decrypted = decrypt_if_restricted(key, value)
-            PhoenixKit.Cache.put(@cache_name, key, decrypted)
-            decrypted
+            cache_decrypted(key, value, decrypt_if_restricted(key, value))
 
           nil ->
             # Cache a sentinel value to indicate this setting doesn't exist

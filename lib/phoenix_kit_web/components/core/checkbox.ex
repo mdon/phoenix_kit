@@ -43,6 +43,11 @@ defmodule PhoenixKitWeb.Components.Core.Checkbox do
         label="Google Sign-In"
         wrapper_class={!@settings["oauth_enabled"] == "true" && "pointer-events-none"}
       />
+
+      <%!-- An on/off switch: daisyUI's `.toggle` instead of `.checkbox`, the
+           same label/hidden-false structure. `class` still merges (size,
+           colour). --%>
+      <.checkbox variant="toggle" name="feature[gate]" checked={@on?} label="Enabled" />
   """
   attr :field, Phoenix.HTML.FormField
 
@@ -56,6 +61,11 @@ defmodule PhoenixKitWeb.Components.Core.Checkbox do
   # never fire and a field-bound checkbox would ALWAYS render unchecked.
   attr :checked, :boolean, default: nil
   attr :disabled, :boolean, default: false
+
+  attr :variant, :string,
+    default: "checkbox",
+    values: ~w(checkbox toggle),
+    doc: "`toggle` renders daisyUI's switch (`.toggle`) instead of a square box"
 
   attr :title, :string,
     default: nil,
@@ -118,7 +128,10 @@ defmodule PhoenixKitWeb.Components.Core.Checkbox do
             value="true"
             checked={@checked}
             disabled={@disabled}
-            class={["checkbox checkbox-primary", @class]}
+            class={[
+              (@variant == "toggle" && "toggle toggle-primary") || "checkbox checkbox-primary",
+              @class
+            ]}
             {@rest}
           />
         </span>

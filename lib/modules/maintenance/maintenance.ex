@@ -1,10 +1,16 @@
 defmodule PhoenixKit.Modules.Maintenance do
   @moduledoc """
-  Maintenance Mode module for PhoenixKit.
+  The closed page — part of core, the "Site closed" feature on the Website
+  access settings page (`PhoenixKit.WebsiteAccess`), where "Maintenance" and
+  "Under construction" are presets that switch it on with matching texts.
 
-  This module provides a system-wide maintenance mode that shows a
-  maintenance page to all non-admin users while allowing
-  admins and owners to access the site normally.
+  It shows a page (heading, message, countdown to a scheduled end) to all
+  non-admin users while admins and owners see the site. It is not a module:
+  no switch, no card on the Modules page, no permission and no settings page
+  of its own; only the mode itself is on or off, by hand or in a scheduled
+  window. The module names (`PhoenixKit.Modules.Maintenance`,
+  `PhoenixKitWeb.Live.Modules.Maintenance.*`) are kept so hosts that reference
+  them keep compiling.
 
   Maintenance can be activated in two ways:
   - **Manual toggle**: Immediately enables/disables maintenance mode
@@ -16,7 +22,6 @@ defmodule PhoenixKit.Modules.Maintenance do
   ## Settings
 
   The module uses the following settings stored in the database:
-  - `maintenance_module_enabled` - Boolean to enable/disable the module settings page (default: false)
   - `maintenance_enabled` - Boolean to enable/disable maintenance mode manually (default: false)
   - `maintenance_header` - Main heading text (default: "Maintenance Mode")
   - `maintenance_subtext` - Descriptive subtext (default: "We'll be back soon")
@@ -44,9 +49,6 @@ defmodule PhoenixKit.Modules.Maintenance do
       config = PhoenixKit.Modules.Maintenance.get_config()
   """
 
-  use PhoenixKit.Module
-
-  alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Settings
 
@@ -59,58 +61,40 @@ defmodule PhoenixKit.Modules.Maintenance do
   # ============================================================================
 
   @doc """
-  Checks if the Maintenance module is enabled (settings page accessible).
+  Always true — kept for callers from the days maintenance was a module
+  with a switch. The `maintenance_module_enabled` setting is ignored.
   """
-  def module_enabled? do
-    Settings.get_boolean_setting("maintenance_module_enabled", false)
-  end
-
-  @doc """
-  Enables the Maintenance module (makes settings page accessible).
-  """
-  def enable_module do
-    Settings.update_boolean_setting("maintenance_module_enabled", true)
-  end
-
-  @doc """
-  Disables the Maintenance module (hides settings page).
-
-  Also automatically disables maintenance mode and clears any schedule
-  to prevent users from being locked out.
-  """
-  def disable_module do
-    disable_system()
-    clear_schedule()
-    Settings.update_boolean_setting("maintenance_module_enabled", false)
-  end
-
-  @impl PhoenixKit.Module
-  @doc """
-  Checks if the Maintenance module is enabled (PhoenixKit.Module callback).
-  """
-  def enabled? do
-    Settings.get_boolean_setting("maintenance_module_enabled", false)
-  end
+  def enabled?, do: true
 
   # ============================================================================
   # Manual Toggle
   # ============================================================================
 
-  @impl PhoenixKit.Module
   @doc """
   Enables maintenance mode manually.
 
   When enabled, all non-admin users will see the maintenance page.
   Broadcasts a PubSub event so LiveViews can react in real time.
   """
-  def enable_system do
-    # Clear any expired schedule so it doesn't suppress the toggle
-    if past_scheduled_end?() do
-      Settings.update_setting("maintenance_scheduled_start", "")
-      Settings.update_setting("maintenance_scheduled_end", "")
-    end
+  def enable_system, do: set_active(true)
 
-    result = Settings.update_boolean_setting("maintenance_enabled", true)
+  @window_blank %{"maintenance_scheduled_start" => "", "maintenance_scheduled_end" => ""}
+
+  @doc """
+  Turns maintenance mode on or off. `opts` carry the settings history's
+  actor and source (`actor_uuid:`, `source:`).
+  """
+  def set_active(on?, opts \\ [])
+
+  def set_active(true, opts) do
+    # An expired schedule would keep the switch off, so it goes with the
+    # same write.
+    writes =
+      if past_scheduled_end?(),
+        do: Map.merge(@window_blank, %{"maintenance_enabled" => "true"}),
+        else: %{"maintenance_enabled" => "true"}
+
+    result = write_all(writes, opts)
 
     case result do
       {:ok, _} -> broadcast_status_change()
@@ -120,7 +104,19 @@ defmodule PhoenixKit.Modules.Maintenance do
     result
   end
 
-  @impl PhoenixKit.Module
+  def set_active(false, opts) do
+    # The whole schedule goes with the switch, in one write, so it can
+    # neither re-activate nor surprise-deactivate later.
+    result = write_all(Map.merge(@window_blank, %{"maintenance_enabled" => "false"}), opts)
+
+    case result do
+      {:ok, _} -> broadcast_status_change()
+      _ -> :ok
+    end
+
+    result
+  end
+
   @doc """
   Disables maintenance mode manually.
 
@@ -130,20 +126,7 @@ defmodule PhoenixKit.Modules.Maintenance do
   later re-enables.
   Broadcasts a PubSub event so the maintenance layout is removed.
   """
-  def disable_system do
-    # Clear the whole schedule so it doesn't re-activate or surprise-deactivate later
-    Settings.update_setting("maintenance_scheduled_start", "")
-    Settings.update_setting("maintenance_scheduled_end", "")
-
-    result = Settings.update_boolean_setting("maintenance_enabled", false)
-
-    case result do
-      {:ok, _} -> broadcast_status_change()
-      _ -> :ok
-    end
-
-    result
-  end
+  def disable_system, do: set_active(false)
 
   @doc """
   Returns whether the manual maintenance toggle is on.
@@ -249,12 +232,18 @@ defmodule PhoenixKit.Modules.Maintenance do
 
   Returns `:ok` on success or `{:error, atom}` on validation/DB failure.
   """
-  def update_schedule(start_dt, end_dt) do
-    with :ok <- validate_schedule(start_dt, end_dt),
+  def update_schedule(start_dt, end_dt, opts \\ []) do
+    with :ok <- check_schedule(start_dt, end_dt),
          start_val = if(start_dt, do: DateTime.to_iso8601(start_dt), else: ""),
          end_val = if(end_dt, do: DateTime.to_iso8601(end_dt), else: ""),
-         {:ok, _} <- Settings.update_setting("maintenance_scheduled_start", start_val),
-         {:ok, _} <- Settings.update_setting("maintenance_scheduled_end", end_val) do
+         {:ok, _} <-
+           write_all(
+             %{
+               "maintenance_scheduled_start" => start_val,
+               "maintenance_scheduled_end" => end_val
+             },
+             opts
+           ) do
       broadcast_status_change()
       :ok
     else
@@ -266,12 +255,48 @@ defmodule PhoenixKit.Modules.Maintenance do
   Clears the scheduled maintenance window.
   Broadcasts a PubSub event.
   """
-  def clear_schedule do
-    Settings.update_setting("maintenance_scheduled_start", "")
-    Settings.update_setting("maintenance_scheduled_end", "")
-    broadcast_status_change()
-    :ok
+  def clear_schedule(opts \\ []) do
+    with {:ok, _} <- write_all(@window_blank, opts) do
+      broadcast_status_change()
+      :ok
+    end
   end
+
+  # The window is two settings that mean one thing: written together, in
+  # one transaction, so a failure leaves both as they were. The batch's
+  # four-part error is folded to the `{:error, reason}` every caller knows.
+  defp write_all(settings, opts) do
+    case Settings.update_settings_batch(settings, opts) do
+      {:ok, _} = ok -> ok
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  `validate_schedule/2` for a window saved over the stored one: a start that
+  has not changed is not checked against the clock. The window may be open
+  right now — its start has passed — and moving its end, or saving the form
+  it sits in, must not fail because it began.
+  """
+  def check_schedule(start_dt, end_dt) do
+    if same_minute?(start_dt, get_scheduled_start()) do
+      with :ok <- validate_presence(start_dt, end_dt),
+           :ok <- validate_not_past(end_dt, :end_in_past),
+           :ok <- validate_order(start_dt, end_dt) do
+        validate_not_too_far(end_dt)
+      end
+    else
+      validate_schedule(start_dt, end_dt)
+    end
+  end
+
+  @doc "Whether two times fall in the same minute — what a datetime-local field can tell apart."
+  def same_minute?(nil, nil), do: true
+
+  def same_minute?(%DateTime{} = a, %DateTime{} = b), do: minute_of(a) == minute_of(b)
+  def same_minute?(_, _), do: false
+
+  defp minute_of(dt), do: dt |> DateTime.to_unix() |> div(60)
 
   @doc """
   Returns true if the current time is past the scheduled start time.
@@ -433,9 +458,15 @@ defmodule PhoenixKit.Modules.Maintenance do
   @doc """
   Updates the header text for the maintenance page.
   """
-  def update_header(header) when is_binary(header) do
-    Settings.update_setting("maintenance_header", header)
+  def update_header(header, opts \\ []) when is_binary(header) do
+    Settings.update_setting("maintenance_header", header, opts)
   end
+
+  @doc "The stock heading — what `get_header/0` answers when none was set."
+  def default_header, do: @default_header
+
+  @doc "The stock message — what `get_subtext/0` answers when none was set."
+  def default_subtext, do: @default_subtext
 
   @doc """
   Gets the subtext for the maintenance page.
@@ -447,17 +478,17 @@ defmodule PhoenixKit.Modules.Maintenance do
   @doc """
   Updates the subtext for the maintenance page.
   """
-  def update_subtext(subtext) when is_binary(subtext) do
-    Settings.update_setting("maintenance_subtext", subtext)
+  def update_subtext(subtext, opts \\ []) when is_binary(subtext) do
+    Settings.update_setting("maintenance_subtext", subtext, opts)
   end
 
-  @impl PhoenixKit.Module
   @doc """
-  Gets the full configuration for the Maintenance module.
+  Gets the full maintenance configuration. `module_enabled` is always true
+  and stays for callers that read it.
   """
   def get_config do
     %{
-      module_enabled: module_enabled?(),
+      module_enabled: true,
       enabled: manually_enabled?(),
       active: active?(),
       header: get_header(),
@@ -491,43 +522,6 @@ defmodule PhoenixKit.Modules.Maintenance do
   """
   def broadcast_status_change do
     PubSubManager.broadcast(@pubsub_topic, {:maintenance_status_changed, %{active: active?()}})
-  end
-
-  # ============================================================================
-  # Module Behaviour Callbacks
-  # ============================================================================
-
-  @impl PhoenixKit.Module
-  def module_key, do: "maintenance"
-
-  @impl PhoenixKit.Module
-  def module_name, do: "Maintenance"
-
-  @impl PhoenixKit.Module
-  def permission_metadata do
-    %{
-      key: "maintenance",
-      label: "Maintenance",
-      icon: "hero-wrench-screwdriver",
-      description: "Maintenance mode and under-construction pages"
-    }
-  end
-
-  @impl PhoenixKit.Module
-  def settings_tabs do
-    [
-      Tab.new!(
-        id: :admin_settings_maintenance,
-        label: "Maintenance",
-        icon: "hero-wrench-screwdriver",
-        path: "maintenance",
-        priority: 932,
-        level: :admin,
-        parent: :admin_settings,
-        permission: "maintenance",
-        gettext_backend: PhoenixKitWeb.Gettext
-      )
-    ]
   end
 
   # ============================================================================

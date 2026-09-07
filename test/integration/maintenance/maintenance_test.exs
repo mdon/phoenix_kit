@@ -210,7 +210,7 @@ defmodule PhoenixKit.Integration.MaintenanceTest do
     test "returns a map with all expected keys" do
       config = Maintenance.get_config()
 
-      assert Map.has_key?(config, :module_enabled)
+      assert config.module_enabled == true, "maintenance is a permanent part of core"
       assert Map.has_key?(config, :enabled)
       assert Map.has_key?(config, :active)
       assert Map.has_key?(config, :header)

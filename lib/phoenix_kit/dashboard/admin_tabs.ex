@@ -270,6 +270,15 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         "settings"
       ),
       admin_subtab(
+        :admin_settings_website_access,
+        gettext_noop("Website access"),
+        "hero-shield-check",
+        "website-access",
+        915,
+        :admin_settings,
+        "settings"
+      ),
+      admin_subtab(
         :admin_settings_email_sending,
         gettext_noop("Email Sending"),
         "hero-envelope",

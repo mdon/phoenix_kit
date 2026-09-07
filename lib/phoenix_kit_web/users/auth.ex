@@ -58,9 +58,12 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Users.Referrals
   alias PhoenixKit.Users.ScopeNotifier
   alias PhoenixKit.Users.TimeZoneAlert
+  alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.SessionFingerprint
   alias PhoenixKit.Utils.UserAgent
+  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate}
+  alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
   alias PhoenixKitWeb.Users.MultiSession
 
   # Make the remember me cookie valid for 60 days.
@@ -609,17 +612,29 @@ defmodule PhoenixKitWeb.Users.Auth do
         live "/profile", ProfileLive, :index
       end
   """
-  def on_mount(:phoenix_kit_mount_current_user, _params, session, socket) do
+  def on_mount(hook, params, session, socket) do
+    # The password gate comes before every hook: a session that has not
+    # passed it may not mount a LiveView, whatever the LiveView is. The HTTP
+    # request already met the gate in the browser pipeline; this catches a
+    # live navigation after a relock and the connected mount of a session
+    # that was unlocked under an old epoch.
+    case website_access_gate(session, socket) do
+      {:halt, socket} -> {:halt, socket}
+      {:cont, socket} -> mount_hook(hook, params, session, socket)
+    end
+  end
+
+  defp mount_hook(:phoenix_kit_mount_current_user, _params, session, socket) do
     {:cont, mount_phoenix_kit_current_user(socket, session)}
   end
 
-  def on_mount(:phoenix_kit_mount_current_scope, params, session, socket) do
+  defp mount_hook(:phoenix_kit_mount_current_scope, params, session, socket) do
     socket = mount_phoenix_kit_current_scope(socket, session, params)
     socket = attach_locale_hook(socket)
     {:cont, socket}
   end
 
-  def on_mount(:phoenix_kit_ensure_authenticated, _params, session, socket) do
+  defp mount_hook(:phoenix_kit_ensure_authenticated, _params, session, socket) do
     socket = mount_phoenix_kit_current_user(socket, session)
     user = socket.assigns.phoenix_kit_current_user
 
@@ -630,7 +645,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
   end
 
-  def on_mount(:phoenix_kit_ensure_authenticated_scope, params, session, socket) do
+  defp mount_hook(:phoenix_kit_ensure_authenticated_scope, params, session, socket) do
     socket = mount_phoenix_kit_current_scope(socket, session, params)
     socket = attach_locale_hook(socket)
     scope = socket.assigns.phoenix_kit_current_scope
@@ -640,7 +655,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
   end
 
-  def on_mount(:phoenix_kit_redirect_if_user_is_authenticated, _params, session, socket) do
+  defp mount_hook(:phoenix_kit_redirect_if_user_is_authenticated, _params, session, socket) do
     socket = mount_phoenix_kit_current_user(socket, session)
 
     if socket.assigns.phoenix_kit_current_user do
@@ -650,7 +665,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
   end
 
-  def on_mount(:phoenix_kit_redirect_if_authenticated_scope, _params, session, socket) do
+  defp mount_hook(:phoenix_kit_redirect_if_authenticated_scope, _params, session, socket) do
     socket = mount_phoenix_kit_current_scope(socket, session)
 
     if Scope.authenticated?(socket.assigns.phoenix_kit_current_scope) do
@@ -661,7 +676,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
   end
 
-  def on_mount(:phoenix_kit_ensure_owner, _params, session, socket) do
+  defp mount_hook(:phoenix_kit_ensure_owner, _params, session, socket) do
     socket = mount_phoenix_kit_current_scope(socket, session)
     scope = socket.assigns.phoenix_kit_current_scope
 
@@ -686,7 +701,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
   end
 
-  def on_mount(:phoenix_kit_ensure_admin, params, session, socket) do
+  defp mount_hook(:phoenix_kit_ensure_admin, params, session, socket) do
     socket = mount_phoenix_kit_current_scope(socket, session, params)
     scope = socket.assigns.phoenix_kit_current_scope
 
@@ -707,7 +722,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
   end
 
-  def on_mount({:phoenix_kit_ensure_module_access, module_key}, params, session, socket) do
+  defp mount_hook({:phoenix_kit_ensure_module_access, module_key}, params, session, socket) do
     socket = mount_phoenix_kit_current_scope(socket, session, params)
     scope = socket.assigns.phoenix_kit_current_scope
 
@@ -1608,7 +1623,6 @@ defmodule PhoenixKitWeb.Users.Auth do
     {"languages", "/admin/settings/languages"},
     {"crawlers", "/admin/settings/crawlers"},
     {"sitemap", "/admin/settings/sitemap"},
-    {"maintenance", "/admin/settings/maintenance"},
     {"legal", "/admin/settings/legal"},
     {"referrals", "/admin/settings/referral-codes"}
   ]
@@ -1961,6 +1975,8 @@ defmodule PhoenixKitWeb.Users.Auth do
     # the other Settings.* pages it resolves through no inference layer, so an
     # explicit entry is required or it falls through to the unmapped fallback.
     PhoenixKitWeb.Live.Settings.Authorization => "settings",
+    # Website access (password gate, redirect, notice, maintenance switch…).
+    PhoenixKitWeb.Live.Settings.WebsiteAccess => "settings",
     # Integrations + Email Sending settings pages: none of these resolve
     # through the later inference layers (their PhoenixKitWeb namespace has no
     # ModuleRegistry entry), so an explicit mapping is required — unmapped
@@ -1978,7 +1994,6 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Settings.SendProfileForm => "settings",
     PhoenixKitWeb.Live.Settings.Crawlers => "crawlers",
     PhoenixKitWeb.Live.Modules.Languages => "languages",
-    PhoenixKitWeb.Live.Modules.Maintenance.Settings => "maintenance",
     PhoenixKitWeb.Live.Modules.Storage.Settings => "media",
     PhoenixKitWeb.Live.Modules.Storage.BucketForm => "media",
     PhoenixKitWeb.Live.Modules.Storage.Dimensions => "media",
@@ -2063,6 +2078,143 @@ defmodule PhoenixKitWeb.Users.Auth do
   # Called from mount_phoenix_kit_current_scope/3 so every live_session that uses
   # a scope-mounting on_mount hook automatically inherits maintenance mode
   # enforcement. New on_mount hooks don't need to remember to call this.
+  # ── Website access: the password gate ──────────────────────────────
+
+  # The relock hook is attached whether or not the gate is on right now: a
+  # page opened while it was off must still be sent to the gate when an
+  # admin switches it on (panel finding — otherwise an idle tab kept full
+  # access until its next full page load).
+  defp website_access_gate(session, socket) do
+    # What the session held at mount rides on the socket for the relock
+    # handler, whether or not the gate is on now: the unlock token (a relock
+    # that did not change the epoch — the allowed list was edited — must not
+    # throw out a visitor who typed the password) and the address the plug
+    # remembered for an allowed visitor.
+    socket =
+      Phoenix.Component.assign(socket, %{
+        phoenix_kit_website_access_unlock: Map.get(session, Atom.to_string(Gate.session_key())),
+        phoenix_kit_website_access_address: remembered_address(session, socket)
+      })
+
+    cond do
+      not Gate.enabled?() ->
+        {:cont, maybe_attach_website_access_hook(socket)}
+
+      Gate.session_unlocked?(session) or logged_in_session_passes?(session) or
+          allowed_socket?(socket) ->
+        {:cont, maybe_attach_website_access_hook(socket)}
+
+      true ->
+        {:halt, Phoenix.LiveView.redirect(socket, to: gate_path())}
+    end
+  end
+
+  # The address the plug remembered on the HTTP request — kept only when the
+  # live connection agrees. A tab carried to another network reconnects with
+  # the old session and must not keep the office's pass, so a socket that can
+  # tell where it comes from (a public peer, or forwarded headers in the
+  # connect info) has to name the same address; one that cannot (behind a
+  # proxy with `:peer_data` only) leaves the plug's verdict standing.
+  defp remembered_address(session, socket) do
+    with address when is_binary(address) <-
+           Map.get(session, Atom.to_string(AccessPlug.allowed_session_key())),
+         true <-
+           not Phoenix.LiveView.connected?(socket) or
+             IpAddress.client_address_from_socket(socket) in [nil, address] do
+      address
+    else
+      _ -> nil
+    end
+  end
+
+  # An allowed visitor, now: the remembered address is still on the list.
+  # Read again on every relock, so an address taken off the list loses its
+  # open pages too.
+  defp allowed_socket?(socket) do
+    case socket.assigns[:phoenix_kit_website_access_address] do
+      address when is_binary(address) -> AllowedAddresses.allowed?(address)
+      _ -> false
+    end
+  end
+
+  # The plug stamps a logged-in user's session as unlocked on the HTTP
+  # request, so this lookup only runs where the plug did not — a host without
+  # `PhoenixKitWeb.Plugs.Integration` in its browser pipeline, or a test.
+  defp logged_in_session_passes?(session) do
+    Gate.users_pass?() and
+      case Map.get(session, "user_token") do
+        nil -> false
+        token -> token |> Auth.get_user_by_session_token() |> Auth.ensure_active_user() != nil
+      end
+  end
+
+  defp gate_path, do: AccessPlug.gate_path()
+
+  # Subscribed on the connected mount (once per process); the handle_info
+  # hook is attached on the first mount. A relock — the password changed, the
+  # gate switched on, "relock everyone" — sends every open page to the gate.
+  defp maybe_attach_website_access_hook(socket) do
+    socket =
+      if Phoenix.LiveView.connected?(socket) and
+           !socket.assigns[:phoenix_kit_website_access_subscribed?] do
+        Gate.subscribe()
+        Phoenix.Component.assign(socket, :phoenix_kit_website_access_subscribed?, true)
+      else
+        socket
+      end
+
+    if socket.assigns[:phoenix_kit_website_access_hook_attached?] do
+      socket
+    else
+      socket
+      |> attach_hook(:phoenix_kit_website_access, :handle_info, &handle_website_access_relock/2)
+      |> track_website_access_uri()
+      |> Phoenix.Component.assign(:phoenix_kit_website_access_hook_attached?, true)
+    end
+  end
+
+  # Remembers the page's path so a relock can send the visitor back to it
+  # after the gate. Only a router-mounted LiveView has handle_params.
+  defp track_website_access_uri(%{router: nil} = socket), do: socket
+
+  defp track_website_access_uri(socket) do
+    attach_hook(socket, :phoenix_kit_website_access_uri, :handle_params, fn _params,
+                                                                            uri,
+                                                                            socket ->
+      {:cont, Phoenix.Component.assign(socket, :phoenix_kit_website_access_uri, uri)}
+    end)
+  end
+
+  # A relock reaches every connected page. One that may stay — the gate is
+  # off, or this is a logged-in user and logged-in users pass — stays; the
+  # rest go through the gate and back to where they were.
+  defp handle_website_access_relock({:website_access, :relock}, socket) do
+    user = socket.assigns[:phoenix_kit_current_user]
+
+    if not Gate.enabled?() or (Gate.users_pass?() and user != nil) or
+         Gate.token_current?(socket.assigns[:phoenix_kit_website_access_unlock]) or
+         allowed_socket?(socket) do
+      {:halt, socket}
+    else
+      to =
+        case socket.assigns[:phoenix_kit_website_access_uri] do
+          uri when is_binary(uri) ->
+            %URI{path: path, query: query} = URI.parse(uri)
+            if query, do: "#{path}?#{query}", else: path || "/"
+
+          _ ->
+            "/"
+        end
+
+      {:halt,
+       Phoenix.LiveView.redirect(socket,
+         to: gate_path() <> "?" <> URI.encode_query(%{"to" => to})
+       )}
+    end
+  end
+
+  defp handle_website_access_relock(_message, socket), do: {:cont, socket}
+
   defp check_maintenance_mode(socket) do
     # Clean up stale state if the scheduled end time has passed
     Maintenance.cleanup_expired_schedule()

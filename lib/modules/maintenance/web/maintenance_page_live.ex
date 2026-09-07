@@ -120,7 +120,10 @@ defmodule PhoenixKitWeb.Live.Modules.Maintenance.Page do
                 <% end %>
               </p>
             </div>
-            <.link navigate={Routes.path("/admin/settings/maintenance")} class="btn btn-sm btn-ghost">
+            <.link
+              navigate={Routes.path("/admin/settings/website-access")}
+              class="btn btn-sm btn-ghost"
+            >
               <.icon name="hero-cog-6-tooth" class="w-4 h-4" /> {gettext("Settings")}
             </.link>
           </div>

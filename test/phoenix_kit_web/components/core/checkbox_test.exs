@@ -132,4 +132,26 @@ defmodule PhoenixKitWeb.Components.Core.CheckboxTest do
 
     assert html =~ "Rich label"
   end
+
+  describe "variant" do
+    test "the default is a square box" do
+      assigns = %{}
+      html = render(~H|<.checkbox name="x" label="X" checked={true} />|)
+      assert html =~ ~s(class="checkbox checkbox-primary")
+      refute html =~ "toggle"
+    end
+
+    test "variant=toggle is daisyUI's switch, and class still merges" do
+      assigns = %{}
+
+      html =
+        render(
+          ~H|<.checkbox name="x" label="X" checked={false} variant="toggle" class="toggle-lg" />|
+        )
+
+      assert html =~ ~s(class="toggle toggle-primary toggle-lg")
+      refute html =~ "checkbox checkbox-primary"
+      assert html =~ ~s(<input type="hidden" name="x" value="false">)
+    end
+  end
 end
