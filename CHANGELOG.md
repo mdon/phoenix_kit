@@ -1,3 +1,22 @@
+## 2.18.1 - 2026-09-07
+
+### Fixed
+
+- Login page heading hierarchy — the bold heading said "Welcome back" and the
+  subtext said "Sign in to %{project_title}", backwards for a visitor who
+  isn't authenticated yet. Swapped which string gets which styling.
+- Removed duplicate in-body page headings on the General, Users, and
+  Authorization settings pages, and on the profile settings page
+  (`/profile/settings`) — each repeated the page title already shown in the
+  top breadcrumb bar.
+- Removed hardcoded Comments, Referrals, Customer Support, and Connections
+  cards from the admin Modules page — each of those modules was extracted
+  into its own hex package that auto-registers via `PhoenixKit.Module` and
+  already renders through the generic external-module card loop, so
+  installing any of them showed a duplicate card. The generic card now
+  covers everything the hardcoded ones did via each package's
+  `module_stats/0`.
+
 ## 2.18.0 - 2026-09-07
 
 ### Added
