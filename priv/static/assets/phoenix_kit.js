@@ -7523,9 +7523,16 @@ if (typeof window.Chart === "undefined") {
       // avatar has no stored crop and starts from ar = 1 until then.
       var adoptNaturalRatio = function () {
         if (self.img.naturalWidth > 0 && self.img.naturalHeight > 0) {
-          self.crop.ar = self.img.naturalWidth / self.img.naturalHeight;
-          self._render();
-          self._push();
+          var ar = self.img.naturalWidth / self.img.naturalHeight;
+          // Only bother the server when the truth differs from the stored
+          // value — on a reopened editor they already match.
+          if (Math.abs(ar - self.crop.ar) > 0.001) {
+            self.crop.ar = ar;
+            self._render();
+            self._push();
+          } else {
+            self._render();
+          }
         }
       };
       if (this.img.complete && this.img.naturalWidth > 0) {
@@ -7550,16 +7557,18 @@ if (typeof window.Chart === "undefined") {
       // being looked at sits further LEFT in the image.
       var drag = null;
       this._onPointerDown = function (e) {
-        drag = { x: e.clientX, y: e.clientY };
+        // The frame cannot resize mid-drag; one layout read per gesture,
+        // not one per pointermove.
+        var rect = self.frame.getBoundingClientRect();
+        drag = { x: e.clientX, y: e.clientY, w: rect.width, h: rect.height };
         self.frame.setPointerCapture(e.pointerId);
         self.frame.style.cursor = "grabbing";
       };
       this._onPointerMove = function (e) {
         if (!drag) return;
-        var rect = self.frame.getBoundingClientRect();
         var l = avatarCropLayout(self.crop);
-        var widthPx = (rect.width * l.width) / 100;
-        var heightPx = (rect.height * l.height) / 100;
+        var widthPx = (drag.w * l.width) / 100;
+        var heightPx = (drag.h * l.height) / 100;
         self.crop.x -= (e.clientX - drag.x) / widthPx;
         self.crop.y -= (e.clientY - drag.y) / heightPx;
         drag = { x: e.clientX, y: e.clientY };
@@ -7594,6 +7603,24 @@ if (typeof window.Chart === "undefined") {
       this.frame.addEventListener("pointercancel", this._onPointerUp);
       this.frame.addEventListener("wheel", this._onWheel, { passive: false });
 
+      // The wheel push is debounced, so a Save clicked inside the window
+      // would persist the pre-wheel crop — and the modal's teardown would
+      // cancel the pending push outright. Flushing on the Save button's
+      // capture phase puts the final crop on the wire before the phx-click
+      // does; same websocket, so order is guaranteed.
+      this._saveBtn =
+        (this.el.closest("dialog") || document).querySelector("[data-crop-save-btn]");
+      this._onSaveClick = function () {
+        if (self._wheelTimer) {
+          clearTimeout(self._wheelTimer);
+          self._wheelTimer = null;
+          self._push();
+        }
+      };
+      if (this._saveBtn) {
+        this._saveBtn.addEventListener("click", this._onSaveClick, true);
+      }
+
       this._render();
     },
 
@@ -7617,6 +7644,9 @@ if (typeof window.Chart === "undefined") {
 
     destroyed() {
       clearTimeout(this._wheelTimer);
+      if (this._saveBtn) {
+        this._saveBtn.removeEventListener("click", this._onSaveClick, true);
+      }
       if (this.frame) {
         this.frame.removeEventListener("pointerdown", this._onPointerDown);
         this.frame.removeEventListener("pointermove", this._onPointerMove);

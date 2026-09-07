@@ -76,7 +76,7 @@ defmodule PhoenixKitWeb.Components.Core.UserInfo do
           # the sharpness has to come from somewhere.
           variant =
             if crop,
-              do: AvatarCrop.variant_for(box_px(assigns.size), crop["zoom"]),
+              do: AvatarCrop.variant_for(box_px(assigns.size), crop["zoom"], crop["ar"]),
               else: variant
 
           URLSigner.signed_url(file_id, variant)
@@ -124,23 +124,17 @@ defmodule PhoenixKitWeb.Components.Core.UserInfo do
           >
             {@initial}
           </span>
-          <%!-- Image overlay (hides fallback when loaded successfully) --%>
-          <%= if @crop_style do %>
-            <%!-- Non-destructive crop: the stored geometry, as a style. --%>
-            <img
-              src={@avatar_url}
-              alt="Avatar"
-              style={@crop_style}
-              onerror="this.style.display='none';"
-            />
-          <% else %>
-            <img
-              src={@avatar_url}
-              alt="Avatar"
-              class="absolute inset-0 w-full h-full object-cover"
-              onerror="this.style.display='none';"
-            />
-          <% end %>
+          <%!-- Image overlay (hides fallback when loaded successfully).
+               With a stored crop the geometry arrives as an inline style;
+               without one, classic object-cover. One tag either way, so
+               future img attributes cannot drift between branches. --%>
+          <img
+            src={@avatar_url}
+            alt="Avatar"
+            style={@crop_style}
+            class={unless @crop_style, do: "absolute inset-0 w-full h-full object-cover"}
+            onerror="this.style.display='none';"
+          />
         <% else %>
           <span>{@initial}</span>
         <% end %>

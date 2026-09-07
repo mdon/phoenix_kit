@@ -104,7 +104,7 @@ defmodule PhoenixKit.Users.AvatarCropTest do
     end
   end
 
-  describe "variant_for/2" do
+  describe "variant_for/3" do
     test "uncropped sizes match the ladder" do
       # 32px box at 2x needs 64px: small. 160px box needs 320px: medium.
       assert AvatarCrop.variant_for(32) == "small"
@@ -117,8 +117,47 @@ defmodule PhoenixKit.Users.AvatarCropTest do
       assert AvatarCrop.variant_for(160, 3.0) == "large"
     end
 
-    test "past the ladder, the original" do
-      assert AvatarCrop.variant_for(160, 8.0) == "original"
+    test "a landscape image needs its width to cover for its short side" do
+      # Variants scale by width, but the frame is covered by the short
+      # side. A 2:1 landscape at the settings size needs 320·2 = 640px of
+      # WIDTH before its 320px-tall short side suffices — and at zoom 2
+      # that doubles again, past medium.
+      assert AvatarCrop.variant_for(160, 1.0, 2.0) == "medium"
+      assert AvatarCrop.variant_for(160, 2.0, 2.0) == "large"
+      # Portrait width IS the short side; no penalty.
+      assert AvatarCrop.variant_for(160, 1.0, 0.5) == "medium"
+    end
+
+    test "capped at large — never the unbounded original" do
+      assert AvatarCrop.variant_for(160, 8.0) == "large"
+      assert AvatarCrop.variant_for(160, 8.0, 4.0) == "large"
+    end
+  end
+
+  describe "drop_identity/1" do
+    test "centered at cover fit is no crop at all" do
+      assert AvatarCrop.drop_identity(%{"x" => 0.5, "y" => 0.5, "zoom" => 1.0, "ar" => 1.5}) ==
+               nil
+
+      # Float noise from a drag still counts as untouched.
+      assert AvatarCrop.drop_identity(%{
+               "x" => 0.5004,
+               "y" => 0.4997,
+               "zoom" => 1.0009,
+               "ar" => 1.5
+             }) == nil
+    end
+
+    test "any real adjustment survives" do
+      crop = %{"x" => 0.5, "y" => 0.5, "zoom" => 2.0, "ar" => 1.5}
+      assert AvatarCrop.drop_identity(crop) == crop
+
+      panned = %{"x" => 0.3, "y" => 0.5, "zoom" => 1.0, "ar" => 2.0}
+      assert AvatarCrop.drop_identity(panned) == panned
+    end
+
+    test "nil passes through" do
+      assert AvatarCrop.drop_identity(nil) == nil
     end
   end
 

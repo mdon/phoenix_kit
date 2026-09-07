@@ -440,11 +440,18 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   # See PhoenixKit.Users.AvatarCrop.
 
   def handle_event("open_avatar_crop", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_avatar_crop, true)
-     |> assign(:pending_avatar_uuid, nil)
-     |> assign(:pending_avatar_crop, AvatarCrop.from_user(socket.assigns.user))}
+    # A stale DOM click can arrive after the avatar was removed; with no
+    # file there is nothing to crop, and rendering the modal would call
+    # URLSigner.signed_url(nil, ...) and take the LiveView down.
+    if get_in(socket.assigns.user.custom_fields, ["avatar_file_uuid"]) do
+      {:noreply,
+       socket
+       |> assign(:show_avatar_crop, true)
+       |> assign(:pending_avatar_uuid, nil)
+       |> assign(:pending_avatar_crop, AvatarCrop.from_user(socket.assigns.user))}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("close_avatar_crop", _params, socket) do
@@ -467,13 +474,18 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     cond do
       # A freshly picked file: the file and its framing land together. An
       # untouched editor saves no crop at all — the default fit IS the
-      # uncropped avatar, and storing it as numbers would only make every
-      # future render do geometry for nothing.
+      # uncropped avatar (see AvatarCrop.drop_identity/1).
       uuid = socket.assigns.pending_avatar_uuid ->
-        persist_new_avatar(socket, uuid, unless_identity(crop))
+        persist_new_avatar(socket, uuid, AvatarCrop.drop_identity(crop))
 
       crop ->
-        persist_avatar_crop(socket, crop, gettext("Avatar crop updated!"))
+        # Same identity rule on the adjust path: zooming back out to the
+        # default fit and saving IS a reset.
+        persist_avatar_crop(
+          socket,
+          AvatarCrop.drop_identity(crop),
+          gettext("Avatar crop updated!")
+        )
 
       true ->
         {:noreply, assign(socket, :show_avatar_crop, false)}
@@ -781,20 +793,6 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     end
   end
 
-  # A crop that shows exactly what no crop would show. Panning freedom only
-  # exists once the image overflows the frame, so centered-at-cover-fit is
-  # the identity; the tolerances absorb float noise from the drag math.
-  defp unless_identity(nil), do: nil
-
-  defp unless_identity(crop) do
-    identity? =
-      crop["zoom"] <= 1.001 and
-        abs(crop["x"] - 0.5) < 0.005 and
-        abs(crop["y"] - 0.5) < 0.005
-
-    if identity?, do: nil, else: crop
-  end
-
   defp persist_new_avatar(socket, file_uuid, crop) do
     user = socket.assigns.user
 
@@ -937,6 +935,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                   <button
                     :if={get_in(@user.custom_fields, ["avatar_file_uuid"])}
                     type="button"
+                    id={"#{@id}-avatar-crop-open"}
                     phx-click="open_avatar_crop"
                     phx-target={@myself}
                     class="btn btn-ghost btn-sm w-40"
@@ -1055,12 +1054,6 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                 phx-hook="AvatarCrop"
                 phx-target={@myself}
                 phx-update="ignore"
-                data-image-url={
-                  URLSigner.signed_url(
-                    @pending_avatar_uuid || get_in(@user.custom_fields, ["avatar_file_uuid"]),
-                    "large"
-                  )
-                }
                 data-crop={Phoenix.json_library().encode!(@pending_avatar_crop || %{})}
                 data-max-zoom={AvatarCrop.max_zoom()}
                 class="flex flex-col items-center gap-4 py-2"
@@ -1103,6 +1096,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                 <button
                   :if={is_nil(@pending_avatar_uuid)}
                   type="button"
+                  id={"#{@id}-avatar-crop-reset"}
                   phx-click="reset_avatar_crop"
                   phx-target={@myself}
                   class="btn btn-ghost btn-sm mr-auto"
@@ -1111,14 +1105,21 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                 </button>
                 <button
                   type="button"
+                  id={"#{@id}-avatar-crop-cancel"}
                   phx-click="close_avatar_crop"
                   phx-target={@myself}
                   class="btn btn-sm"
                 >
                   {gettext("Cancel")}
                 </button>
+                <%!-- data-crop-save-btn: the AvatarCrop hook flushes its
+                     pending state on this click (capture phase, so the
+                     flush is pushed before the phx-click), closing the
+                     window where a debounced wheel-zoom would be lost. --%>
                 <button
                   type="button"
+                  id={"#{@id}-avatar-crop-save"}
+                  data-crop-save-btn
                   phx-click="save_avatar_crop"
                   phx-target={@myself}
                   class="btn btn-primary btn-sm"

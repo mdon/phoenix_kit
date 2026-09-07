@@ -45,9 +45,14 @@ defmodule PhoenixKit.Users.AvatarCrop do
   @min_ar 0.05
   @max_ar 20.0
 
-  # The storage module's seeded image dimensions, widest edge each, in
+  # The storage module's seeded image dimensions — the WIDTH each variant
+  # is scaled to (`ImageProcessor.resize(input, output, width, nil)`), in
   # ascending order. A missing variant is served as the original while it
-  # generates, so an entry here never 404s.
+  # generates, so an entry here never 404s. These mirror the seeds in
+  # `Storage.reset_dimensions_to_defaults/0`; an operator who edits the
+  # dimension rows changes what the names deliver, and this ladder then
+  # over- or under-promises — deriving it from the dimension config is the
+  # upgrade path if that ever bites.
   @variant_ladder [{"small", 300}, {"medium", 800}, {"large", 1920}]
 
   @doc """
@@ -127,16 +132,41 @@ defmodule PhoenixKit.Users.AvatarCrop do
   shows `1/zoom` of the source, so a box of `box_px` CSS pixels needs
   `box_px · 2 (retina) · zoom` source pixels along the frame edge.
 
-  Without a crop, zoom is 1.0 and this degrades to plain size-based
-  selection. Falls through to `"original"` when even the large variant
-  would be soft.
-  """
-  def variant_for(box_px, zoom \\ 1.0) do
-    needed = box_px * 2 * max(zoom, 1.0)
+  The frame edge is covered by the image's SHORT side, while variants are
+  scaled by width — so a landscape image needs its width to be `ar` times
+  the frame requirement before the short side suffices. Portrait images'
+  width is their short side, so their factor is 1.
 
-    Enum.find_value(@variant_ladder, "original", fn {name, edge} ->
+  Without a crop, zoom is 1.0 and this degrades to plain size-based
+  selection. Capped at `"large"`: past it only the original upload could
+  help, and serving an unbounded file into an avatar circle buys marginal
+  sharpness at arbitrary transfer cost.
+  """
+  def variant_for(box_px, zoom \\ 1.0, ar \\ 1.0) do
+    needed = box_px * 2 * max(zoom, 1.0) * max(ar, 1.0)
+
+    Enum.find_value(@variant_ladder, "large", fn {name, edge} ->
       if edge >= needed, do: name
     end)
+  end
+
+  @doc """
+  Nil for a crop that shows exactly what no crop would show.
+
+  Centered at cover fit is the identity: storing it as numbers would make
+  every future render do geometry for nothing, and (worse) pin the avatar
+  to the aspect ratio recorded at save time. Tolerances absorb the float
+  noise a drag leaves behind.
+  """
+  def drop_identity(nil), do: nil
+
+  def drop_identity(crop) do
+    identity? =
+      crop["zoom"] <= 1.001 and
+        abs(crop["x"] - 0.5) < 0.005 and
+        abs(crop["y"] - 0.5) < 0.005
+
+    if identity?, do: nil, else: crop
   end
 
   @doc "The zoom ceiling, shared with the editor UI."

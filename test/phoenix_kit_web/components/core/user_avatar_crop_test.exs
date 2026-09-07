@@ -99,4 +99,19 @@ defmodule PhoenixKitWeb.Components.Core.UserAvatarCropTest do
     assert html =~ "object-cover"
     refute html =~ "max-width:none"
   end
+
+  test "a landscape crop buys an even sharper variant" do
+    # Width-scaled variants cover the frame with their SHORT side, so a
+    # 2:1 image at xl needs large where a square one was fine on medium.
+    html =
+      avatar(
+        %{
+          "avatar_file_uuid" => @uuid,
+          "avatar_crop" => %{"x" => 0.5, "y" => 0.5, "zoom" => 2, "ar" => 2}
+        },
+        size: "xl"
+      )
+
+    assert html =~ "/#{@uuid}/large/"
+  end
 end
