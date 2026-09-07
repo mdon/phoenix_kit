@@ -3,16 +3,12 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={@page_title}
+  page_subtitle={gettext("Manage your account settings and preferences")}
   current_path={@url_path}
   project_title={@project_title}
   current_locale={assigns[:current_locale]}
 >
   <div class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-    <.user_dashboard_header
-      title={@page_title}
-      subtitle={gettext("Manage your account settings and preferences")}
-    />
-
     <.live_component
       module={PhoenixKitWeb.Live.Components.UserSettings}
       id="profile-user-settings"
