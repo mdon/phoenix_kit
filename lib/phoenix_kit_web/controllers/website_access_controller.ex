@@ -31,6 +31,11 @@ defmodule PhoenixKitWeb.WebsiteAccessController do
 
   @notice_key :website_access_notice
 
+  # None of the gate's pages or redirects is for a search engine.
+  plug :noindex
+
+  defp noindex(conn, _opts), do: put_resp_header(conn, "x-robots-tag", "noindex, nofollow")
+
   # ── Prompt ─────────────────────────────────────────────────────────
 
   def prompt(conn, params) do
@@ -124,8 +129,19 @@ defmodule PhoenixKitWeb.WebsiteAccessController do
   # control characters (a CR/LF in a Location header). Anything else is "/".
   @local_path ~r{\A/(?![/\\])[^\s\\\x00-\x1f]*\z}
 
+  # A path on this site, and not the gate's own page: `to=<gate>` would send
+  # an unlocked visitor round in a circle. No fragment and no `.`/`..`
+  # segment either — the browser would drop or fold them and reach the gate
+  # under another spelling.
   defp return_to(%{"to" => to}) when is_binary(to) do
-    if Regex.match?(@local_path, to), do: to, else: "/"
+    gate = AccessPlug.gate_path()
+    [path | _] = String.split(to, "?", parts: 2)
+
+    if Regex.match?(@local_path, to) and not String.contains?(to, "#") and
+         not Enum.any?(String.split(path, "/"), &(&1 in [".", ".."])) and
+         path != gate and not String.starts_with?(path, gate <> "/"),
+       do: to,
+       else: "/"
   end
 
   defp return_to(_), do: "/"

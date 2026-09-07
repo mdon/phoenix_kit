@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Components.Core.WebsiteAccessBadges do
   @moduledoc """
   The header's reminder of what is standing between the world and this
-  site: a lock while the password gate is on, a wrench while maintenance
-  is active, an arrow while the redirect to production is on. Each links
+  site: a lock while the password gate is on, a wrench while the site is
+  closed, an arrow while the redirect to production is on. Each links
   to the Website access settings page. Nothing renders when everything is
   off, so a live site's header stays as it was.
   """
@@ -44,7 +44,7 @@ defmodule PhoenixKitWeb.Components.Core.WebsiteAccessBadges do
     [
       Gate.enabled?() && {"hero-lock-closed", gettext("Password gate is on"), "text-warning"},
       Maintenance.active?() &&
-        {"hero-wrench-screwdriver", gettext("Maintenance is on"), "text-warning"},
+        {"hero-wrench-screwdriver", gettext("Site is closed to visitors"), "text-warning"},
       Redirect.enabled?() &&
         {"hero-arrow-top-right-on-square", gettext("Redirecting visitors to production"),
          "text-info"}

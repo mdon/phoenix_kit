@@ -95,7 +95,9 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
         {:noreply, socket |> assign_state() |> put_flash(:info, toggled_text(feature, on?))}
 
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, error_text(reason))}
+        # The switch in the browser already flipped on the click; the
+        # refreshed assigns put it back where the server has it.
+        {:noreply, socket |> assign_state() |> put_flash(:error, error_text(reason))}
     end
   end
 
@@ -113,22 +115,18 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
          {:ok, _} <-
            Settings.update_setting(
              Gate.lockout_attempts_key(),
-             Map.get(params, "lockout_attempts", "0"),
+             bounded_int(Map.get(params, "lockout_attempts"), 0, 0..1000),
              opts
            ),
          {:ok, _} <-
            Settings.update_setting(
              Gate.lockout_minutes_key(),
-             Map.get(params, "lockout_minutes", "15"),
+             bounded_int(Map.get(params, "lockout_minutes"), 15, 1..1440),
              opts
            ),
          {:ok, _} <- Gate.set_users_pass(Map.get(params, "users_pass") == "true", opts),
          {:ok, _} <-
-           Settings.update_setting(
-             Gate.keep_typed_key(),
-             Map.get(params, "keep_typed", "all"),
-             opts
-           ) do
+           Settings.update_setting(Gate.keep_typed_key(), keep_typed_choice(params), opts) do
       {:noreply,
        socket |> assign_state() |> put_flash(:info, gettext("Password gate settings saved."))}
     else
@@ -188,7 +186,9 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
     {:noreply, save_attempt_columns(socket, Enum.uniq(socket.assigns.attempt_columns ++ [id]))}
   end
 
-  def handle_event("remove_column", %{"column_id" => id}, socket) do
+  def handle_event("add_column", _params, socket), do: {:noreply, socket}
+
+  def handle_event("remove_column", %{"column_id" => id}, socket) when is_binary(id) do
     # The last column stays: a table with no columns is no table.
     case List.delete(socket.assigns.attempt_columns, id) do
       [] -> {:noreply, socket}
@@ -196,10 +196,18 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
     end
   end
 
+  def handle_event("remove_column", _params, socket), do: {:noreply, socket}
+
   def handle_event("reorder_columns", %{"ordered_ids" => ids}, socket) when is_list(ids) do
-    kept = Enum.filter(ids, &(&1 in @attempt_columns))
-    {:noreply, save_attempt_columns(socket, Enum.uniq(kept))}
+    # Unknown ids are dropped, duplicates folded, and an order that names
+    # no column at all is ignored — same rule as removing the last column.
+    case ids |> Enum.filter(&(&1 in @attempt_columns)) |> Enum.uniq() do
+      [] -> {:noreply, socket}
+      columns -> {:noreply, save_attempt_columns(socket, columns)}
+    end
   end
+
+  def handle_event("reorder_columns", _params, socket), do: {:noreply, socket}
 
   def handle_event("reset_columns", _params, socket),
     do: {:noreply, save_attempt_columns(socket, @attempt_columns)}
@@ -256,14 +264,18 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
     opts = history(socket)
     zone = socket.assigns.site_zone
 
-    with {:ok, _} <- Maintenance.update_header(Map.get(params, "header", ""), opts),
-         {:ok, _} <- Maintenance.update_subtext(Map.get(params, "subtext", ""), opts),
-         {:ok, from} <- parse_optional_local(Map.get(params, "from", ""), zone),
+    # The window is read and checked before anything is written, so a
+    # refused window changes nothing.
+    with {:ok, from} <- parse_optional_local(Map.get(params, "from", ""), zone),
          {:ok, until} <- parse_optional_local(Map.get(params, "until", ""), zone),
+         :ok <- check_window(from, until),
+         {:ok, _} <- Maintenance.update_header(Map.get(params, "header", ""), opts),
+         {:ok, _} <- Maintenance.update_subtext(Map.get(params, "subtext", ""), opts),
          :ok <- save_window(from, until, opts) do
       {:noreply, socket |> assign_state() |> put_flash(:info, gettext("Closed page saved."))}
     else
-      {:error, reason} -> {:noreply, put_flash(socket, :error, error_text(reason))}
+      {:error, reason} ->
+        {:noreply, socket |> assign_state() |> put_flash(:error, error_text(reason))}
     end
   end
 
@@ -279,6 +291,10 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
 
     case Settings.update_setting(AllowedAddresses.key(), addresses, history(socket)) do
       {:ok, _} ->
+        # Open pages re-check who may stay (an address taken off the list
+        # must not keep its tabs).
+        Gate.broadcast_relock()
+
         {:noreply,
          socket |> assign_state() |> put_flash(:info, gettext("Allowed addresses saved."))}
 
@@ -347,7 +363,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
       manual: Maintenance.manually_enabled?(),
       from: DateUtils.format_datetime_local(start, zone),
       until: DateUtils.format_datetime_local(finish, zone),
-      min: DateUtils.format_datetime_local(DateTime.utc_now(), zone),
       zone_label: Settings.get_timezone_label(zone),
       status: closed_status(Maintenance.active?(), Maintenance.manually_enabled?(), start, finish)
     }
@@ -378,14 +393,52 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
 
   # The scheduled window: "from" opens the closed page by itself when it
   # arrives, "until" is what visitors count down to and when it switches
-  # itself off. Both blank clears the window.
-  defp save_window(nil, nil, opts) do
-    if Maintenance.get_scheduled_start() || Maintenance.get_scheduled_end(),
-      do: Maintenance.clear_schedule(opts),
-      else: :ok
+  # itself off. Both blank clears the window. A window the form sends back
+  # unchanged is left alone — its start may already have passed (the page
+  # is closed right now, or was), and editing the heading must not require
+  # throwing the window away or fail because of it.
+  defp check_window(from, until) do
+    cond do
+      from == nil and until == nil -> :ok
+      window_unchanged?(from, until) -> :ok
+      true -> Maintenance.check_schedule(from, until)
+    end
   end
 
-  defp save_window(from, until, opts), do: Maintenance.update_schedule(from, until, opts)
+  defp save_window(from, until, opts) do
+    cond do
+      window_unchanged?(from, until) -> :ok
+      from == nil and until == nil -> Maintenance.clear_schedule(opts)
+      true -> Maintenance.update_schedule(from, until, opts)
+    end
+  end
+
+  defp window_unchanged?(from, until) do
+    Maintenance.same_minute?(from, Maintenance.get_scheduled_start()) and
+      Maintenance.same_minute?(until, Maintenance.get_scheduled_end())
+  end
+
+  # Form numbers are text: a blank, junk or out-of-range value becomes the
+  # default or the nearest bound, so the stored setting is always a number
+  # the gate can use.
+  defp bounded_int(value, default, range) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {n, ""} -> n |> max(range.first) |> min(range.last) |> Integer.to_string()
+      _ -> Integer.to_string(default)
+    end
+  end
+
+  defp bounded_int(_value, default, _range), do: Integer.to_string(default)
+
+  defp keep_typed_choice(params) do
+    case Map.get(params, "keep_typed") do
+      choice when is_binary(choice) ->
+        if choice in Gate.keep_typed_choices(), do: choice, else: "all"
+
+      _ ->
+        "all"
+    end
+  end
 
   defp load_attempt_columns do
     case Settings.get_setting(@attempt_columns_key) do

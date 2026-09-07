@@ -122,6 +122,13 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccessTest do
       elsewhere = run(elsewhere)
       assert elsewhere.halted
       assert get_session(elsewhere, AccessPlug.allowed_session_key()) == nil
+
+      # the gate's own page is exempt from the chain, not from the bookkeeping
+      prompt = %{request(AccessPlug.gate_path()) | remote_ip: {198, 51, 100, 9}}
+      prompt = put_session(prompt, AccessPlug.allowed_session_key(), "203.0.113.7")
+      prompt = run(prompt)
+      refute prompt.halted
+      assert get_session(prompt, AccessPlug.allowed_session_key()) == nil
     end
 
     test "the gate comes before maintenance" do

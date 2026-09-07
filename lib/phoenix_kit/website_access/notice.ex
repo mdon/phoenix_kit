@@ -1,13 +1,15 @@
 defmodule PhoenixKit.WebsiteAccess.Notice do
   @moduledoc """
-  The visitor notice: a banner at the top of every page — an icon, a line of
-  text, an optional link. "This is the development site; the live one is at
-  …". Everyone sees it, admins included, so they see what visitors see.
+  The visitor notice: a bar fixed along the bottom of every page — an icon,
+  a line of text, an optional link. "This is the development site; the live
+  one is at …". Everyone sees it, admins included, so they see what visitors
+  see.
 
-  It is injected into every HTML response by the website-access plug (the
-  same way core injects its websocket fix), so a host's own layouts carry
-  it without any work; `PhoenixKitWeb.Components.Core.WebsiteAccess.notice/1`
-  renders the same banner for a layout that wants to place it itself.
+  It is injected into every HTML 200 by the website-access plug (the same
+  way core injects its websocket fix), so a host's own layouts carry it
+  without any work. `data-phoenix-kit-notice` on the element lets a host
+  hide or restyle it. The settings are read through the settings cache:
+  the plug asks on every page.
   """
 
   alias PhoenixKit.Settings
@@ -31,11 +33,11 @@ defmodule PhoenixKit.WebsiteAccess.Notice do
   def switched_on?, do: Settings.get_boolean_setting(@enabled_key, false)
 
   @spec text() :: String.t()
-  def text, do: Settings.get_setting(@text_key, "") |> String.trim()
+  def text, do: Settings.get_setting_cached(@text_key, "") |> to_string() |> String.trim()
 
   @spec link() :: String.t() | nil
   def link do
-    case Settings.get_setting(@link_key, "") |> String.trim() do
+    case Settings.get_setting_cached(@link_key, "") |> to_string() |> String.trim() do
       "http://" <> _ = url -> url
       "https://" <> _ = url -> url
       "/" <> _ = path -> path
@@ -45,7 +47,7 @@ defmodule PhoenixKit.WebsiteAccess.Notice do
 
   @spec icon() :: String.t()
   def icon do
-    case Settings.get_setting(@icon_key, "info") do
+    case Settings.get_setting_cached(@icon_key, "info") do
       i when i in @icons -> i
       _ -> "info"
     end
@@ -56,7 +58,7 @@ defmodule PhoenixKit.WebsiteAccess.Notice do
   renders it from the saved text whether or not the switch is on (the
   settings page shows what it will look like before switching it on).
   """
-  @spec html() :: String.t() | nil
+  @spec html(keyword()) :: String.t() | nil
   def html(opts \\ []) do
     if enabled?() or (Keyword.get(opts, :preview, false) and text() != "") do
       symbol =

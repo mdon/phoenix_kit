@@ -13,7 +13,8 @@ defmodule PhoenixKit.WebsiteAccess.AllowedAddresses do
 
   @spec list() :: [String.t()]
   def list do
-    Settings.get_setting(@key, "")
+    Settings.get_setting_cached(@key, "")
+    |> to_string()
     |> String.split(~r/[\s,]+/, trim: true)
   end
 

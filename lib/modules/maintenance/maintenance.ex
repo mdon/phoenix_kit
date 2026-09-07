@@ -78,6 +78,8 @@ defmodule PhoenixKit.Modules.Maintenance do
   """
   def enable_system, do: set_active(true)
 
+  @window_blank %{"maintenance_scheduled_start" => "", "maintenance_scheduled_end" => ""}
+
   @doc """
   Turns maintenance mode on or off. `opts` carry the settings history's
   actor and source (`actor_uuid:`, `source:`).
@@ -85,13 +87,14 @@ defmodule PhoenixKit.Modules.Maintenance do
   def set_active(on?, opts \\ [])
 
   def set_active(true, opts) do
-    # Clear any expired schedule so it doesn't suppress the toggle
-    if past_scheduled_end?() do
-      Settings.update_setting("maintenance_scheduled_start", "", opts)
-      Settings.update_setting("maintenance_scheduled_end", "", opts)
-    end
+    # An expired schedule would keep the switch off, so it goes with the
+    # same write.
+    writes =
+      if past_scheduled_end?(),
+        do: Map.merge(@window_blank, %{"maintenance_enabled" => "true"}),
+        else: %{"maintenance_enabled" => "true"}
 
-    result = Settings.update_boolean_setting("maintenance_enabled", true, opts)
+    result = write_all(writes, opts)
 
     case result do
       {:ok, _} -> broadcast_status_change()
@@ -102,11 +105,9 @@ defmodule PhoenixKit.Modules.Maintenance do
   end
 
   def set_active(false, opts) do
-    # Clear the whole schedule so it doesn't re-activate or surprise-deactivate later
-    Settings.update_setting("maintenance_scheduled_start", "", opts)
-    Settings.update_setting("maintenance_scheduled_end", "", opts)
-
-    result = Settings.update_boolean_setting("maintenance_enabled", false, opts)
+    # The whole schedule goes with the switch, in one write, so it can
+    # neither re-activate nor surprise-deactivate later.
+    result = write_all(Map.merge(@window_blank, %{"maintenance_enabled" => "false"}), opts)
 
     case result do
       {:ok, _} -> broadcast_status_change()
@@ -232,11 +233,17 @@ defmodule PhoenixKit.Modules.Maintenance do
   Returns `:ok` on success or `{:error, atom}` on validation/DB failure.
   """
   def update_schedule(start_dt, end_dt, opts \\ []) do
-    with :ok <- validate_schedule(start_dt, end_dt),
+    with :ok <- check_schedule(start_dt, end_dt),
          start_val = if(start_dt, do: DateTime.to_iso8601(start_dt), else: ""),
          end_val = if(end_dt, do: DateTime.to_iso8601(end_dt), else: ""),
-         {:ok, _} <- Settings.update_setting("maintenance_scheduled_start", start_val, opts),
-         {:ok, _} <- Settings.update_setting("maintenance_scheduled_end", end_val, opts) do
+         {:ok, _} <-
+           write_all(
+             %{
+               "maintenance_scheduled_start" => start_val,
+               "maintenance_scheduled_end" => end_val
+             },
+             opts
+           ) do
       broadcast_status_change()
       :ok
     else
@@ -249,11 +256,47 @@ defmodule PhoenixKit.Modules.Maintenance do
   Broadcasts a PubSub event.
   """
   def clear_schedule(opts \\ []) do
-    Settings.update_setting("maintenance_scheduled_start", "", opts)
-    Settings.update_setting("maintenance_scheduled_end", "", opts)
-    broadcast_status_change()
-    :ok
+    with {:ok, _} <- write_all(@window_blank, opts) do
+      broadcast_status_change()
+      :ok
+    end
   end
+
+  # The window is two settings that mean one thing: written together, in
+  # one transaction, so a failure leaves both as they were. The batch's
+  # four-part error is folded to the `{:error, reason}` every caller knows.
+  defp write_all(settings, opts) do
+    case Settings.update_settings_batch(settings, opts) do
+      {:ok, _} = ok -> ok
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  `validate_schedule/2` for a window saved over the stored one: a start that
+  has not changed is not checked against the clock. The window may be open
+  right now — its start has passed — and moving its end, or saving the form
+  it sits in, must not fail because it began.
+  """
+  def check_schedule(start_dt, end_dt) do
+    if same_minute?(start_dt, get_scheduled_start()) do
+      with :ok <- validate_presence(start_dt, end_dt),
+           :ok <- validate_not_past(end_dt, :end_in_past),
+           :ok <- validate_order(start_dt, end_dt) do
+        validate_not_too_far(end_dt)
+      end
+    else
+      validate_schedule(start_dt, end_dt)
+    end
+  end
+
+  @doc "Whether two times fall in the same minute — what a datetime-local field can tell apart."
+  def same_minute?(nil, nil), do: true
+
+  def same_minute?(%DateTime{} = a, %DateTime{} = b), do: minute_of(a) == minute_of(b)
+  def same_minute?(_, _), do: false
+
+  defp minute_of(dt), do: dt |> DateTime.to_unix() |> div(60)
 
   @doc """
   Returns true if the current time is past the scheduled start time.

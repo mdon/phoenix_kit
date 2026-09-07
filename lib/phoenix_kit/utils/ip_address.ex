@@ -106,6 +106,37 @@ defmodule PhoenixKit.Utils.IpAddress do
     end
   end
 
+  @doc """
+  The visitor's address as a LiveView socket knows it — or nil when the
+  socket cannot tell.
+
+  From the connect info the endpoint passes: a public `:peer_data` address
+  is the visitor; a loopback or private one is a proxy, and only the
+  forwarded address in `:x_headers` (`x-forwarded-for`, `x-real-ip`) names
+  the visitor then. An endpoint that passes no `:x_headers` — core's
+  installed endpoint passes `:peer_data` only — leaves a proxied socket
+  with no answer, and nil is that answer: the caller must not treat the
+  proxy as the visitor.
+  """
+  @spec client_address_from_socket(Phoenix.LiveView.Socket.t()) :: String.t() | nil
+  def client_address_from_socket(socket) do
+    case Phoenix.LiveView.get_connect_info(socket, :peer_data) do
+      %{address: ip} when is_tuple(ip) ->
+        headers = Phoenix.LiveView.get_connect_info(socket, :x_headers) || []
+        conn = %Plug.Conn{remote_ip: ip, req_headers: headers}
+
+        if local?(ip), do: forwarded_for(conn) || real_ip(conn), else: format(ip)
+
+      _ ->
+        nil
+    end
+  rescue
+    # Connect info exists on a root socket during mount only; a nested
+    # LiveView, or a call after mount, gets the same answer as a socket
+    # that cannot tell.
+    RuntimeError -> nil
+  end
+
   # Every instance of the header, in order, as one list — a proxy that adds
   # its own header line rather than appending to the visitor's still puts
   # the real address last.

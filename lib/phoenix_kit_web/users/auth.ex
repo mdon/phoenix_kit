@@ -58,6 +58,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Users.Referrals
   alias PhoenixKit.Users.ScopeNotifier
   alias PhoenixKit.Users.TimeZoneAlert
+  alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.SessionFingerprint
   alias PhoenixKit.Utils.UserAgent
@@ -2084,41 +2085,61 @@ defmodule PhoenixKitWeb.Users.Auth do
   # admin switches it on (panel finding — otherwise an idle tab kept full
   # access until its next full page load).
   defp website_access_gate(session, socket) do
+    # What the session held at mount rides on the socket for the relock
+    # handler, whether or not the gate is on now: the unlock token (a relock
+    # that did not change the epoch — the allowed list was edited — must not
+    # throw out a visitor who typed the password) and the address the plug
+    # remembered for an allowed visitor.
+    socket =
+      Phoenix.Component.assign(socket, %{
+        phoenix_kit_website_access_unlock: Map.get(session, Atom.to_string(Gate.session_key())),
+        phoenix_kit_website_access_address: remembered_address(session, socket)
+      })
+
     cond do
       not Gate.enabled?() ->
         {:cont, maybe_attach_website_access_hook(socket)}
 
-      Gate.session_unlocked?(session) or logged_in_session_passes?(session) ->
+      Gate.session_unlocked?(session) or logged_in_session_passes?(session) or
+          allowed_socket?(socket) ->
         {:cont, maybe_attach_website_access_hook(socket)}
-
-      allowed_session?(session) ->
-        socket
-        |> Phoenix.Component.assign(:phoenix_kit_website_access_allowed?, true)
-        |> maybe_attach_website_access_hook()
-        |> then(&{:cont, &1})
 
       true ->
         {:halt, Phoenix.LiveView.redirect(socket, to: gate_path())}
     end
   end
 
-  # The plug stamps a logged-in user's session as unlocked on the HTTP
-  # request, so this lookup only runs where the plug did not — a host without
-  # `PhoenixKitWeb.Plugs.Integration` in its browser pipeline, or a test.
-  # The plug remembers an allowed address in the session on every request
-  # from it and forgets it on the first request from anywhere else; the
-  # list is checked again here so removing an address takes effect on the
-  # next mount.
-  defp allowed_session?(session) do
-    case Map.get(session, Atom.to_string(AccessPlug.allowed_session_key())) do
-      address when is_binary(address) ->
-        AllowedAddresses.allowed?(address)
-
-      _ ->
-        false
+  # The address the plug remembered on the HTTP request — kept only when the
+  # live connection agrees. A tab carried to another network reconnects with
+  # the old session and must not keep the office's pass, so a socket that can
+  # tell where it comes from (a public peer, or forwarded headers in the
+  # connect info) has to name the same address; one that cannot (behind a
+  # proxy with `:peer_data` only) leaves the plug's verdict standing.
+  defp remembered_address(session, socket) do
+    with address when is_binary(address) <-
+           Map.get(session, Atom.to_string(AccessPlug.allowed_session_key())),
+         true <-
+           not Phoenix.LiveView.connected?(socket) or
+             IpAddress.client_address_from_socket(socket) in [nil, address] do
+      address
+    else
+      _ -> nil
     end
   end
 
+  # An allowed visitor, now: the remembered address is still on the list.
+  # Read again on every relock, so an address taken off the list loses its
+  # open pages too.
+  defp allowed_socket?(socket) do
+    case socket.assigns[:phoenix_kit_website_access_address] do
+      address when is_binary(address) -> AllowedAddresses.allowed?(address)
+      _ -> false
+    end
+  end
+
+  # The plug stamps a logged-in user's session as unlocked on the HTTP
+  # request, so this lookup only runs where the plug did not — a host without
+  # `PhoenixKitWeb.Plugs.Integration` in its browser pipeline, or a test.
   defp logged_in_session_passes?(session) do
     Gate.users_pass?() and
       case Map.get(session, "user_token") do
@@ -2171,7 +2192,8 @@ defmodule PhoenixKitWeb.Users.Auth do
     user = socket.assigns[:phoenix_kit_current_user]
 
     if not Gate.enabled?() or (Gate.users_pass?() and user != nil) or
-         socket.assigns[:phoenix_kit_website_access_allowed?] do
+         Gate.token_current?(socket.assigns[:phoenix_kit_website_access_unlock]) or
+         allowed_socket?(socket) do
       {:halt, socket}
     else
       to =

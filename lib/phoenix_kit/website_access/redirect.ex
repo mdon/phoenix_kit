@@ -15,6 +15,7 @@ defmodule PhoenixKit.WebsiteAccess.Redirect do
   """
 
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
 
   @enabled_key "website_access_redirect_enabled"
   @url_key "website_access_redirect_url"
@@ -52,7 +53,7 @@ defmodule PhoenixKit.WebsiteAccess.Redirect do
   """
   @spec target_uri() :: URI.t() | nil
   def target_uri do
-    raw = Settings.get_setting(@url_key, "") |> String.trim()
+    raw = Settings.get_setting_cached(@url_key, "") |> to_string() |> String.trim()
 
     with false <- raw == "" or Regex.match?(~r/[\s\x00-\x1f\x7f]/, raw),
          %URI{scheme: scheme, host: host, userinfo: nil, query: nil, fragment: nil} = uri
@@ -65,7 +66,7 @@ defmodule PhoenixKit.WebsiteAccess.Redirect do
 
   @spec scope() :: String.t()
   def scope do
-    case Settings.get_setting(@scope_key, "everyone") do
+    case Settings.get_setting_cached(@scope_key, "everyone") do
       s when s in @scopes -> s
       _ -> "everyone"
     end
@@ -91,7 +92,7 @@ defmodule PhoenixKit.WebsiteAccess.Redirect do
     cond do
       is_nil(target) -> nil
       logged_in? -> nil
-      admin_path?(conn.request_path) -> nil
+      kit_path?(conn.request_path, Routes.prefix_base()) -> nil
       scope() == "crawlers" and not crawler?(user_agent) -> nil
       true -> destination(target, conn)
     end
@@ -104,8 +105,21 @@ defmodule PhoenixKit.WebsiteAccess.Redirect do
     URI.to_string(%{target | path: target.path <> conn.request_path, query: query})
   end
 
-  defp admin_path?(path) do
-    prefix = PhoenixKit.Config.get_url_prefix()
-    path == prefix or String.starts_with?(path, prefix <> "/")
+  # Nothing of the kit's own is redirected: the login page and the admin must
+  # stay reachable on this site. Under a prefix that is everything below it;
+  # with the kit at the root it is the admin area and the account pages
+  # (`/users/...`, with or without a locale segment in front).
+  @locale_segment ~r/\A[a-z]{2,3}(-[A-Za-z]{2,4})?\z/
+
+  @doc false
+  def kit_path?(path, "") do
+    Routes.admin_area_path?(path) or
+      case String.split(path, "/", trim: true) do
+        ["users" | _] -> true
+        [locale, "users" | _] -> Regex.match?(@locale_segment, locale)
+        _ -> false
+      end
   end
+
+  def kit_path?(path, base), do: path == base or String.starts_with?(path, base <> "/")
 end

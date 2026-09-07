@@ -24,7 +24,9 @@ defmodule PhoenixKitWeb.WebsiteAccessControllerTest do
   end
 
   test "gate off: the page sends the visitor home", %{conn: conn} do
-    assert redirected_to(get(conn, @gate)) == "/"
+    conn = get(conn, @gate)
+    assert redirected_to(conn) == "/"
+    assert get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"]
     assert redirected_to(post(conn, @gate, %{"password" => "x"})) == "/"
   end
 
@@ -65,6 +67,17 @@ defmodule PhoenixKitWeb.WebsiteAccessControllerTest do
 
       assert html_response(get(conn, @gate <> "?to=%2Fabout%3Fx%3D1"), 200) =~
                ~s(name="to" value="/about?x=1")
+    end
+
+    test "a return path naming the gate itself goes home, not round in a circle", %{conn: conn} do
+      conn = conn |> init_test_session(%{}) |> Gate.unlock()
+      assert redirected_to(get(conn, @gate <> "?to=" <> @gate)) == "/"
+      assert redirected_to(get(conn, @gate <> "?to=" <> @gate <> "%3Fto%3D%2Fx")) == "/"
+      assert redirected_to(get(conn, @gate <> "?to=" <> @gate <> "%2Fstatus")) == "/"
+      assert redirected_to(get(conn, @gate <> "?to=" <> @gate <> "%23again")) == "/"
+      assert redirected_to(get(conn, @gate <> "?to=%2Fx%2F..%2Fphoenix_kit%2Faccess")) == "/"
+      assert redirected_to(get(conn, @gate <> "?to=%2Faccessible")) == "/accessible"
+      assert redirected_to(get(conn, @gate <> "?to=%2Fabout%3Fq%3D1")) == "/about?q=1"
     end
 
     test "a crafted return path after the right password goes home, never off-site", %{conn: conn} do
@@ -171,9 +184,10 @@ defmodule PhoenixKitWeb.WebsiteAccessControllerTest do
     end
   end
 
-  test "status answers while locked", %{conn: conn} do
+  test "status answers while locked, and is not for search engines either", %{conn: conn} do
     gate_on()
     conn = get(conn, @gate <> "/status")
     assert json_response(conn, 200) == %{"status" => "ok", "gate" => true}
+    assert get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"]
   end
 end

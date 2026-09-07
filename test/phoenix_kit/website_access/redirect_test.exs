@@ -55,6 +55,19 @@ defmodule PhoenixKit.WebsiteAccess.RedirectTest do
     assert Redirect.target_for(conn(:get, "/phoenix_kitten")) != nil, "prefix needs a boundary"
   end
 
+  test "with the kit at the root, only the admin and account pages stay" do
+    assert Redirect.kit_path?("/admin/settings", "")
+    assert Redirect.kit_path?("/en/admin", "")
+    assert Redirect.kit_path?("/users/log-in", "")
+    assert Redirect.kit_path?("/et/users/register", "")
+    refute Redirect.kit_path?("/", "")
+    refute Redirect.kit_path?("/about", "")
+    refute Redirect.kit_path?("/en/about", "")
+    refute Redirect.kit_path?("/shop/users/profile", ""), "a locale segment has to look like one"
+    assert Redirect.kit_path?("/phoenix_kit/users/log-in", "/phoenix_kit")
+    refute Redirect.kit_path?("/about", "/phoenix_kit")
+  end
+
   test "crawlers-only scope" do
     Settings.update_setting(Redirect.scope_key(), "crawlers")
     assert Redirect.target_for(conn(:get, "/about")) == nil

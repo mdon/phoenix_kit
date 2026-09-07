@@ -31,6 +31,12 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccess do
   def init(opts), do: opts
 
   def call(conn, _opts) do
+    # Whether this address is on the list is remembered or forgotten on
+    # EVERY request, the gate's own pages included, so a LiveView mount
+    # always sees the latest verdict.
+    allowed? = AllowedAddresses.allowed?(IpAddress.client_address(conn))
+    conn = if allowed?, do: remember_allowed(conn), else: forget_allowed(conn)
+
     cond do
       # The gate's own pages (prompt, access link, status): not redirected,
       # not gated, not under maintenance (a locked visitor must reach the
@@ -40,15 +46,14 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccess do
       exempt_path?(conn) ->
         conn
 
-      AllowedAddresses.allowed?(IpAddress.client_address(conn)) ->
-        conn |> remember_allowed() |> notice() |> maintenance()
+      allowed? ->
+        conn |> notice() |> maintenance()
 
       true ->
         # The response callback (robots header, notice) is registered FIRST,
         # so a redirect, a gate bounce or a maintenance page carry the
         # noindex header too; the notice itself only lands on HTML 200s.
         conn
-        |> forget_allowed()
         |> notice()
         |> redirect_to_production()
         |> gate()
@@ -59,7 +64,7 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccess do
   # ── Paths that never see the redirect or the gate ──────────────────
 
   @doc "The gate page's path — the one route the gate itself must let through."
-  def gate_path, do: PhoenixKit.Config.get_url_prefix() <> "/access"
+  def gate_path, do: Routes.prefix_base() <> "/access"
 
   defp exempt_path?(%Plug.Conn{request_path: path}) do
     gate = gate_path()

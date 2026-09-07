@@ -5,12 +5,22 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
   alias PhoenixKit.Modules.Crawlers
   alias PhoenixKit.Modules.Maintenance
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Date, as: DateUtils
   alias PhoenixKit.WebsiteAccess
   alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Notice, Redirect}
   alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
 
   @page "/phoenix_kit/admin/settings/website-access"
   @probe "/__test/crawlers-no-index-probe"
+
+  # What the LiveView socket learns about the connection: `:peer_data`, and
+  # `:x_headers` when the endpoint passes them.
+  defp connect_from(conn, ip, x_headers \\ []) do
+    Plug.Conn.put_private(conn, :live_view_connect_info, %{
+      peer_data: %{address: ip, port: 1, ssl_cert: nil},
+      x_headers: x_headers
+    })
+  end
 
   setup %{conn: conn} do
     :ok = WebsiteAccess.apply_preset("live", [])
@@ -75,6 +85,38 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
 
       [entry | _] = Settings.History.list(Gate.enabled_key(), limit: 1)
       assert entry.actor_uuid == user.uuid
+    end
+
+    test "junk numbers in the gate form become the defaults or the nearest bound", %{conn: conn} do
+      {:ok, view, _} = live(conn, @page)
+
+      view
+      |> form("#pk-gate-form", %{
+        "gate" => %{
+          "password" => "",
+          "lockout_attempts" => "abc",
+          "lockout_minutes" => "99999",
+          "keep_typed" => "near"
+        }
+      })
+      |> render_submit()
+
+      assert Gate.lockout_attempts() == 0
+      assert Gate.lockout_minutes() == 1440
+      assert Gate.keep_typed() == "near"
+
+      # a forged choice the select does not offer is not stored
+      render_submit(view, "save_gate", %{
+        "gate" => %{
+          "password" => "",
+          "lockout_attempts" => "2",
+          "lockout_minutes" => "5",
+          "keep_typed" => "everything"
+        }
+      })
+
+      assert Gate.keep_typed() == "all"
+      assert Gate.lockout_attempts() == 2
     end
 
     test "a blank password keeps the current one", %{conn: conn} do
@@ -148,6 +190,22 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
       Settings.update_setting("website_access_attempt_columns", "[]")
       {:ok, _view4, html4} = live(conn, @page)
       assert html4 =~ "SECRET42", "an empty list falls back to every column"
+
+      # a reorder naming no column is ignored, like removing the last one
+      render_click(view, "reset_columns", %{})
+      html = render_click(view, "reorder_columns", %{"ordered_ids" => ["bogus"]})
+      assert html =~ "SECRET42"
+      assert Settings.get_setting("website_access_attempt_columns") =~ "typed"
+
+      # ill-shaped column events are ignored, not a crash
+      for {event, params} <- [
+            {"add_column", %{"column_id" => "bogus"}},
+            {"add_column", %{}},
+            {"remove_column", %{}},
+            {"reorder_columns", %{"ordered_ids" => "when"}}
+          ] do
+        assert render_click(view, event, params) =~ "SECRET42"
+      end
     end
 
     test "a forged toggle for the feature without a switch is refused, not a crash", %{conn: conn} do
@@ -246,6 +304,60 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
       assert AllowedAddresses.list() == ["203.0.113.7", "10.0.0.1"]
     end
 
+    test "a window already open, or over, does not block a text edit", %{conn: conn} do
+      zone = Settings.get_setting("time_zone", "0")
+      # a window that opened an hour ago (time passed since it was saved)
+      started = DateTime.utc_now() |> DateTime.add(-3600, :second)
+      ends = DateTime.utc_now() |> DateTime.add(3600, :second)
+      Settings.update_setting("maintenance_scheduled_start", DateTime.to_iso8601(started))
+      Settings.update_setting("maintenance_scheduled_end", DateTime.to_iso8601(ends))
+      assert Maintenance.active?()
+      {:ok, view, html} = live(conn, @page)
+      refute html =~ ~s(id="maintenance-from" ) <> "min=", "the server judges the window"
+
+      submit = fn from, until, header ->
+        view
+        |> form("#pk-maintenance-form", %{
+          "maintenance" => %{
+            "header" => header,
+            "subtext" => "y",
+            "from" => from,
+            "until" => until
+          }
+        })
+        |> render_submit()
+      end
+
+      from = DateUtils.format_datetime_local(started, zone)
+      until = DateUtils.format_datetime_local(ends, zone)
+
+      # unchanged window, new heading: saved, window untouched
+      html = submit.(from, until, "Back soon")
+      assert html =~ "Closed page saved."
+      assert Maintenance.get_header() == "Back soon"
+      assert Maintenance.same_minute?(Maintenance.get_scheduled_start(), started)
+      assert Maintenance.active?()
+
+      # the open window's end moved: accepted although its start has passed
+      later = DateTime.add(ends, 3600, :second)
+      html = submit.(from, DateUtils.format_datetime_local(later, zone), "Back soon")
+      assert html =~ "Closed page saved."
+      assert Maintenance.same_minute?(Maintenance.get_scheduled_end(), later)
+
+      # a window that is over, sent back unchanged: still only a text edit
+      over = DateTime.utc_now() |> DateTime.add(-600, :second)
+      Settings.update_setting("maintenance_scheduled_end", DateTime.to_iso8601(over))
+      refute Maintenance.active?()
+      html = submit.(from, DateUtils.format_datetime_local(over, zone), "Later")
+      assert html =~ "Closed page saved."
+      assert Maintenance.get_header() == "Later"
+
+      # a NEW start in the past is still refused, and nothing is written
+      html = submit.("2001-01-01T10:00", "", "Not this")
+      assert html =~ "in the past"
+      assert Maintenance.get_header() == "Later"
+    end
+
     test "a window in the past is refused with a sentence", %{conn: conn} do
       {:ok, view, _} = live(conn, @page)
 
@@ -295,7 +407,7 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
       :ok
     end
 
-    test "a locked anonymous session cannot mount a public LiveView", %{conn: conn} do
+    test "a locked anonymous session cannot mount a public LiveView", %{conn: _} do
       conn = Phoenix.ConnTest.build_conn() |> init_test_session(%{})
       assert {:error, {:redirect, %{to: "/phoenix_kit/access"}}} = live(conn, @probe)
     end
@@ -316,9 +428,88 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
       assert {:error, {:redirect, %{to: "/phoenix_kit/access"}}} = live(conn, @probe)
     end
 
+    test "the live connection has to come from the remembered address", %{conn: _conn} do
+      Settings.update_setting(AllowedAddresses.key(), "203.0.113.7")
+
+      conn =
+        %{Phoenix.ConnTest.build_conn() | remote_ip: {203, 0, 113, 7}}
+        |> init_test_session(%{})
+        |> AccessPlug.call([])
+
+      # the same tab, carried to another network: the socket says where it is now
+      elsewhere = connect_from(conn, {198, 51, 100, 9})
+      assert {:error, {:redirect, %{to: "/phoenix_kit/access"}}} = live(elsewhere, @probe)
+
+      here = connect_from(conn, {203, 0, 113, 7})
+      assert {:ok, _view, _html} = live(here, @probe)
+
+      # behind a proxy the forwarded address is the one that counts
+      proxied = connect_from(conn, {127, 0, 0, 1}, [{"x-forwarded-for", "203.0.113.7"}])
+      assert {:ok, _view, _html} = live(proxied, @probe)
+
+      moved = connect_from(conn, {127, 0, 0, 1}, [{"x-forwarded-for", "198.51.100.9"}])
+      assert {:error, {:redirect, %{to: "/phoenix_kit/access"}}} = live(moved, @probe)
+
+      # a proxied socket with no forwarded header cannot tell: the address stands
+      blind = connect_from(conn, {172, 18, 0, 2})
+      assert {:ok, _view, _html} = live(blind, @probe)
+    end
+
+    test "an allowed address's open page is relocked when the list changes", %{conn: admin} do
+      Settings.update_setting(AllowedAddresses.key(), "203.0.113.7")
+
+      conn =
+        %{Phoenix.ConnTest.build_conn() | remote_ip: {203, 0, 113, 7}}
+        |> init_test_session(%{})
+        |> AccessPlug.call([])
+
+      {:ok, visitor, _html} = live(conn, @probe)
+
+      # the admin takes the address off the list on the settings page
+      {:ok, settings, _} = live(admin, @page)
+
+      settings
+      |> form("#pk-allowed-form", %{"allowed" => %{"addresses" => ""}})
+      |> render_submit()
+
+      assert_redirect(visitor, "/phoenix_kit/access?to=%2F__test%2Fcrawlers-no-index-probe")
+    end
+
+    test "an allowed address's page opened while the gate was off survives it coming on",
+         %{conn: _} do
+      {:ok, _} = Gate.set_enabled(false)
+      Settings.update_setting(AllowedAddresses.key(), "203.0.113.7")
+
+      conn =
+        %{Phoenix.ConnTest.build_conn() | remote_ip: {203, 0, 113, 7}}
+        |> init_test_session(%{})
+        |> AccessPlug.call([])
+
+      {:ok, view, _html} = live(conn, @probe)
+      {:ok, _} = Gate.set_enabled(true)
+      assert render(view) =~ "probe"
+    end
+
     test "an unlocked session can", %{conn: _conn} do
       conn = Phoenix.ConnTest.build_conn() |> init_test_session(%{}) |> Gate.unlock()
       assert {:ok, _view, _html} = live(conn, @probe)
+    end
+
+    test "an unlocked visitor's page survives an allowed-list edit, not a password change",
+         %{conn: admin} do
+      conn = Phoenix.ConnTest.build_conn() |> init_test_session(%{}) |> Gate.unlock()
+      {:ok, visitor, _html} = live(conn, @probe)
+
+      {:ok, settings, _} = live(admin, @page)
+
+      settings
+      |> form("#pk-allowed-form", %{"allowed" => %{"addresses" => "203.0.113.7"}})
+      |> render_submit()
+
+      assert render(visitor) =~ "probe", "the epoch did not change"
+
+      {:ok, _} = Gate.set_password("Another42")
+      assert_redirect(visitor, "/phoenix_kit/access?to=%2F__test%2Fcrawlers-no-index-probe")
     end
 
     test "a logged-in admin is sent to the gate on a relock once logged-in users no longer pass",

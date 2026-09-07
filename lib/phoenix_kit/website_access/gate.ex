@@ -168,6 +168,14 @@ defmodule PhoenixKit.WebsiteAccess.Gate do
     same_epoch?(Map.get(session, Atom.to_string(@session_key)))
   end
 
+  @doc """
+  Whether an unlock token taken out of a session earlier (a LiveView keeps
+  the one it mounted with) is still the current epoch — i.e. no relock has
+  happened since.
+  """
+  @spec token_current?(term()) :: boolean()
+  def token_current?(token), do: same_epoch?(token)
+
   defp same_epoch?(stored) do
     case epoch() do
       nil -> false

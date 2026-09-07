@@ -448,7 +448,6 @@
                 type="datetime-local"
                 label={gettext("Closed from (%{zone})", zone: @maintenance.zone_label)}
                 value={@maintenance.from}
-                min={@maintenance.min}
               />
               <p class="text-xs text-base-content/60 mt-1">
                 {gettext(
@@ -463,7 +462,6 @@
                 type="datetime-local"
                 label={gettext("Until (%{zone})", zone: @maintenance.zone_label)}
                 value={@maintenance.until}
-                min={@maintenance.min}
               />
               <p class="text-xs text-base-content/60 mt-1">
                 {gettext(
@@ -538,20 +536,11 @@
       selected={@attempt_columns}
     />
 
-    <%!-- Keep the injected bottom bar on this page in step with the settings
-         (push_event lands on window as phx:<event>). The preview is marked so
-         it is never touched. --%>
-    <script>
-      if (!window.__pkWebsiteAccessNotice) {
-        window.__pkWebsiteAccessNotice = true;
-        window.addEventListener("phx:website_access:notice", function (e) {
-          var current = document.querySelector("body > [data-phoenix-kit-notice]");
-          var html = (e.detail && e.detail.html) || "";
-          if (current) current.remove();
-          if (html) document.body.insertAdjacentHTML("beforeend", html);
-        });
-      }
-    </script>
+    <%!-- Keeps the live notice bar (the one the plug injected into this
+         page) in step with the settings: the WebsiteAccessNotice hook in
+         phoenix_kit.js swaps it for what the server pushes. A hook, not an
+         inline script — a script inserted by live navigation never runs. --%>
+    <div id="pk-website-access-notice-sync" phx-hook="WebsiteAccessNotice" hidden></div>
 
     <%!-- How it fits together --%>
     <.form_section title={gettext("How the pieces stack")} icon="hero-squares-plus">
