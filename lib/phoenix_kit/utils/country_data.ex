@@ -366,7 +366,7 @@ defmodule PhoenixKit.Utils.CountryData do
       "State"
 
       iex> CountryData.get_subdivision_label("CA")
-      "Province"
+      "Provinces and territories"
 
       iex> CountryData.get_subdivision_label("EE")
       "County"
@@ -380,6 +380,219 @@ defmodule PhoenixKit.Utils.CountryData do
       country -> Map.get(country, :subdivision_type) || "State/Province"
     end
   end
+
+  @doc """
+  Subdivisions (states, provinces, counties, …) for a country, as
+  `{display_name, id}` pairs sorted alphabetically by display name — the
+  same tuple shape `countries_for_select/1` returns, ready for a
+  `<.select>`'s `options`. Empty for a country with no subdivision data
+  (26 of 250, mostly small territories — check with `subdivisions?/1`
+  before deciding whether to render a dropdown at all).
+
+  IDs are the short codes `BeamLabCountries.Subdivisions` ships (e.g. US
+  states as their USPS 2-letter code, Canadian provinces/territories as
+  their standard 2-letter code) — stable, storage-worthy values, unlike a
+  free-typed name.
+
+  ## Examples
+
+      iex> {name, "CA"} = CountryData.subdivisions_for_select("US") |> List.keyfind("CA", 1)
+      iex> name
+      "California"
+
+      iex> CountryData.subdivisions_for_select("XX")
+      []
+  """
+  @spec subdivisions_for_select(String.t(), keyword()) :: [{String.t(), String.t()}]
+  def subdivisions_for_select(country_code, opts \\ [])
+      when is_binary(country_code) and is_list(opts) do
+    locale = opts |> fetch_opt(:locale, &active_locale/0) |> normalize_locale()
+
+    country_code
+    |> BeamLabCountries.Subdivisions.all()
+    |> Enum.map(&subdivision_select_entry(&1, locale))
+    |> sort_by_name()
+    |> Enum.map(fn {_name, display_name, id} -> {display_name, id} end)
+  end
+
+  @doc """
+  Whether `country_code` has subdivision data at all — the cheap check
+  before choosing a `<.select>` (subdivisions) over free text.
+
+  ## Examples
+
+      iex> CountryData.subdivisions?("US")
+      true
+
+      iex> CountryData.subdivisions?("XX")
+      false
+  """
+  @spec subdivisions?(String.t()) :: boolean()
+  def subdivisions?(country_code) when is_binary(country_code) do
+    BeamLabCountries.Subdivisions.all(country_code) != []
+  end
+
+  def subdivisions?(_), do: false
+
+  # {sortable_name, display_name, id} — mirrors select_entry/2's shape so
+  # both can share sort_by_name/1. Subdivisions have no flag to prefix.
+  defp subdivision_select_entry(%{id: id, name: name, translations: translations}, locale) do
+    display_name = subdivision_translated_name(name, translations, locale)
+    {display_name, display_name, id}
+  end
+
+  # String-keyed lookup, not `String.to_existing_atom(locale)` on the
+  # struct's atom-keyed `translations` map: `locale` is caller-controlled
+  # (a query param on some future embed, not just Gettext's own bounded
+  # set), and turning arbitrary input into an atom lookup — existing or
+  # not — is the kind of thing that is fine until it isn't.
+  defp subdivision_translated_name(name, translations, locale)
+       when is_map(translations) and is_binary(locale) do
+    translations
+    |> Map.new(fn {k, v} -> {to_string(k), v} end)
+    |> Map.get(locale, name)
+  end
+
+  defp subdivision_translated_name(name, _translations, _locale), do: name
+
+  @doc """
+  Label for the tax-identifier field, by country — "VAT Number" is wrong
+  outside VAT jurisdictions, so this is not just copy, it is the label
+  `validate_tax_id/2`'s format checking actually matches.
+
+  ## Examples
+
+      iex> CountryData.tax_id_label("US")
+      "EIN"
+
+      iex> CountryData.tax_id_label("CA")
+      "Business Number (BN)"
+
+      iex> CountryData.tax_id_label("DE")
+      "VAT Number"
+
+      iex> CountryData.tax_id_label("JP")
+      "Tax ID"
+  """
+  @spec tax_id_label(String.t()) :: String.t()
+  def tax_id_label("US"), do: "EIN"
+  def tax_id_label("CA"), do: "Business Number (BN)"
+
+  def tax_id_label(country_code) when is_binary(country_code) do
+    if eu_member?(country_code), do: "VAT Number", else: "Tax ID"
+  end
+
+  def tax_id_label(_), do: "Tax ID"
+
+  @doc """
+  Label for the postal-code field, by country. Everyone but the US calls
+  it "Postal Code" (Canada's own term, not just a fallback — confirmed,
+  not assumed).
+
+  ## Examples
+
+      iex> CountryData.postal_code_label("US")
+      "ZIP Code"
+
+      iex> CountryData.postal_code_label("CA")
+      "Postal Code"
+  """
+  @spec postal_code_label(String.t()) :: String.t()
+  def postal_code_label("US"), do: "ZIP Code"
+  def postal_code_label(_), do: "Postal Code"
+
+  @doc """
+  Validates a tax identifier's format for the countries whose format is
+  actually known here (US EIN, Canadian BN, EU VAT) — everyone else
+  passes unconditionally, same as an unset value. This checks *shape*,
+  not a real registry — a well-formed EIN that was never issued still
+  passes.
+
+  ## Examples
+
+      iex> CountryData.validate_tax_id("US", "12-3456789")
+      :ok
+
+      iex> CountryData.validate_tax_id("US", "not an ein")
+      {:error, "must look like an EIN, e.g. 12-3456789"}
+
+      iex> CountryData.validate_tax_id("CA", "123456789RT0001")
+      :ok
+
+      iex> CountryData.validate_tax_id("JP", "anything goes here")
+      :ok
+  """
+  @spec validate_tax_id(String.t(), String.t()) :: :ok | {:error, String.t()}
+  def validate_tax_id(_country_code, value) when value in [nil, ""], do: :ok
+
+  def validate_tax_id("US", value) do
+    if Regex.match?(~r/^\d{2}-?\d{7}$/, value) do
+      :ok
+    else
+      {:error, "must look like an EIN, e.g. 12-3456789"}
+    end
+  end
+
+  def validate_tax_id("CA", value) do
+    if Regex.match?(~r/^\d{9}([A-Za-z]{2}\d{4})?$/, value) do
+      :ok
+    else
+      {:error, "must look like a Business Number, e.g. 123456789 or 123456789RT0001"}
+    end
+  end
+
+  def validate_tax_id(country_code, value) when is_binary(country_code) do
+    if eu_member?(country_code) do
+      if Regex.match?(~r/^[A-Z]{2}[0-9A-Z]{2,12}$/, String.upcase(value)) do
+        :ok
+      else
+        {:error, "must look like an EU VAT number, e.g. #{country_code}123456789"}
+      end
+    else
+      :ok
+    end
+  end
+
+  def validate_tax_id(_country_code, _value), do: :ok
+
+  @doc """
+  Validates a postal/ZIP code's format for the countries whose format is
+  known here (US, Canada) — everyone else passes unconditionally.
+
+  ## Examples
+
+      iex> CountryData.validate_postal_code("US", "10001")
+      :ok
+
+      iex> CountryData.validate_postal_code("US", "abcde")
+      {:error, "must look like a ZIP code, e.g. 10001 or 10001-1234"}
+
+      iex> CountryData.validate_postal_code("CA", "K1A 0B1")
+      :ok
+
+      iex> CountryData.validate_postal_code("JP", "whatever")
+      :ok
+  """
+  @spec validate_postal_code(String.t(), String.t()) :: :ok | {:error, String.t()}
+  def validate_postal_code(_country_code, value) when value in [nil, ""], do: :ok
+
+  def validate_postal_code("US", value) do
+    if Regex.match?(~r/^\d{5}(-\d{4})?$/, value) do
+      :ok
+    else
+      {:error, "must look like a ZIP code, e.g. 10001 or 10001-1234"}
+    end
+  end
+
+  def validate_postal_code("CA", value) do
+    if Regex.match?(~r/^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z]\s?\d[ABCEGHJ-NPRSTV-Z]\d$/i, value) do
+      :ok
+    else
+      {:error, "must look like a Canadian postal code, e.g. K1A 0B1"}
+    end
+  end
+
+  def validate_postal_code(_country_code, _value), do: :ok
 
   @doc """
   Get list of EU countries for select dropdown.

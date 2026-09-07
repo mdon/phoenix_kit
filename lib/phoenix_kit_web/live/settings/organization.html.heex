@@ -18,7 +18,7 @@
       tabs={[
         %{id: "company", label: gettext("Company Information"), icon: "hero-building-office-2"},
         %{id: "countries", label: gettext("Main countries"), icon: "hero-map-pin"},
-        %{id: "bank", label: gettext("Bank Details"), icon: "hero-building-library"},
+        %{id: "bank", label: gettext("Bank Accounts"), icon: "hero-building-library"},
         %{id: "tax", label: gettext("Tax Settings"), icon: "hero-receipt-percent"},
         %{id: "site_url", label: gettext("Site URL"), icon: "hero-globe-alt"}
       ]}
@@ -103,13 +103,23 @@
               </div>
 
               <div class="fieldset">
-                <.input
-                  type="text"
-                  name="company_state"
-                  value={@company_state}
-                  label={@subdivision_label}
-                  placeholder={gettext("(optional)")}
-                />
+                <%= if @subdivisions != [] do %>
+                  <.select
+                    name="company_state"
+                    value={@company_state}
+                    label={@subdivision_label}
+                    prompt={gettext("Select...")}
+                    options={@subdivisions}
+                  />
+                <% else %>
+                  <.input
+                    type="text"
+                    name="company_state"
+                    value={@company_state}
+                    label={@subdivision_label}
+                    placeholder={gettext("(optional)")}
+                  />
+                <% end %>
               </div>
 
               <div class="fieldset">
@@ -117,8 +127,8 @@
                   type="text"
                   name="company_postal_code"
                   value={@company_postal_code}
-                  label={gettext("Postal Code")}
-                  placeholder="10115"
+                  label={@postal_code_label}
+                  placeholder={postal_code_placeholder(@company_country)}
                   class="font-mono"
                 />
               </div>
@@ -133,10 +143,8 @@
                   type="text"
                   name="company_vat"
                   value={@company_vat}
-                  label={gettext("VAT Number")}
-                  placeholder={
-                    if @eu_country, do: "#{@company_country}123456789", else: gettext("Tax ID")
-                  }
+                  label={@tax_id_label}
+                  placeholder={tax_id_placeholder(@company_country, @eu_country)}
                   required
                   class="font-mono"
                 />
@@ -145,6 +153,24 @@
                     <span class="fieldset-label text-info">
                       <.icon name="hero-information-circle" class="w-4 h-4 inline" />
                       {gettext("EU format: %{country}123456789", country: @company_country)}
+                    </span>
+                  </label>
+                <% end %>
+                <%= if @company_country == "US" do %>
+                  <label class="label">
+                    <span class="fieldset-label text-info">
+                      <.icon name="hero-information-circle" class="w-4 h-4 inline" />
+                      {gettext("EIN format: 12-3456789")}
+                    </span>
+                  </label>
+                <% end %>
+                <%= if @company_country == "CA" do %>
+                  <label class="label">
+                    <span class="fieldset-label text-info">
+                      <.icon name="hero-information-circle" class="w-4 h-4 inline" />
+                      {gettext(
+                        "Business Number, optionally with a program account, e.g. 123456789RT0001"
+                      )}
                     </span>
                   </label>
                 <% end %>
@@ -287,63 +313,184 @@
     </div>
 
     <div class={if @active_tab != "bank", do: "hidden"}>
-      <%!-- Bank Details --%>
+      <%!-- Bank Accounts --%>
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
-          <h2 class="card-title">
-            <.icon name="hero-building-library" class="w-5 h-5" />
-            {gettext("Bank Details")}
-          </h2>
-          <p class="text-sm text-base-content/60">
-            {gettext("For bank transfer payments on invoices")}
-          </p>
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h2 class="card-title">
+                <.icon name="hero-building-library" class="w-5 h-5" />
+                {gettext("Bank Accounts")}
+              </h2>
+              <p class="text-sm text-base-content/60">
+                {gettext(
+                  "For bank transfer payments on invoices. A company can have more than one."
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm shrink-0"
+              phx-click="show_add_bank_account_form"
+            >
+              <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Bank Account")}
+            </button>
+          </div>
 
-          <form phx-submit="save_bank" class="space-y-4 mt-4">
+          <%= if @bank_accounts == [] do %>
+            <div class="text-center py-8 border border-dashed border-base-300 rounded-lg mt-4">
+              <.icon
+                name="hero-building-library"
+                class="w-10 h-10 mx-auto mb-4 text-base-content/30"
+              />
+              <p class="text-base-content/60">
+                {gettext("No bank accounts added yet")}
+              </p>
+            </div>
+          <% else %>
+            <div class="space-y-2 mt-4">
+              <div
+                :for={account <- @bank_accounts}
+                class="flex items-center justify-between gap-3 p-3 rounded-lg border border-base-300"
+              >
+                <div class="min-w-0">
+                  <div class="font-medium text-sm flex items-center gap-2">
+                    {account["label"]}
+                    <span :if={account["primary"]} class="badge badge-primary badge-sm">
+                      {gettext("Primary")}
+                    </span>
+                  </div>
+                  <div class="text-xs text-base-content/60 truncate">
+                    {account["bank_name"]}
+                    <span :if={account["iban"] != ""}>· {account["iban"]}</span>
+                    <span :if={account["swift"] != ""}>· {account["swift"]}</span>
+                  </div>
+                </div>
+                <div class="flex gap-1 shrink-0">
+                  <button
+                    type="button"
+                    class="btn btn-xs btn-ghost"
+                    phx-click="show_edit_bank_account_form"
+                    phx-value-uuid={account["uuid"]}
+                  >
+                    <.icon name="hero-pencil" class="w-3 h-3" /> {gettext("Edit")}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-xs btn-ghost text-error"
+                    phx-click="delete_bank_account"
+                    phx-value-uuid={account["uuid"]}
+                    data-confirm={gettext("Remove this bank account?")}
+                  >
+                    <.icon name="hero-trash" class="w-3 h-3" /> {gettext("Remove")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <%!-- Bank Account Form Modal (outside the tab panes so it doesn't get
+         hidden if the operator switches tabs while it's open) --%>
+    <%= if @show_bank_account_form do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-lg">
+          <h3 class="font-bold text-lg mb-4">
+            {if @editing_bank_account,
+              do: gettext("Edit Bank Account"),
+              else: gettext("Add Bank Account")}
+          </h3>
+
+          <.form
+            :let={_f}
+            for={%{}}
+            id="bank-account-form"
+            phx-submit="save_bank_account"
+            class="space-y-4"
+          >
             <div class="fieldset">
+              <label class="label">
+                <span class="fieldset-legend">{gettext("Label")}</span>
+              </label>
               <.input
                 type="text"
-                name="bank_name"
-                value={@bank_name}
-                label={gettext("Bank Name")}
-                placeholder={gettext("Bank Name")}
+                name="account_label"
+                value={@editing_bank_account && @editing_bank_account["label"]}
+                placeholder={gettext("e.g. EUR operations, USD reserve")}
               />
             </div>
 
-            <%!-- Row: IBAN + SWIFT --%>
+            <div class="fieldset">
+              <label class="label">
+                <span class="fieldset-legend">{gettext("Bank Name")}</span>
+              </label>
+              <.input
+                type="text"
+                name="bank_name"
+                value={@editing_bank_account && @editing_bank_account["bank_name"]}
+                placeholder={gettext("Bank Name")}
+                required
+              />
+            </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div class="fieldset sm:col-span-2">
+                <label class="label">
+                  <span class="fieldset-legend">{gettext("IBAN")}</span>
+                </label>
                 <.input
                   type="text"
-                  name="bank_iban"
-                  value={@bank_iban}
-                  label={gettext("IBAN")}
+                  name="iban"
+                  value={@editing_bank_account && @editing_bank_account["iban"]}
                   placeholder="EE00 0000 0000 0000 0000"
                   class="font-mono"
                 />
               </div>
 
               <div class="fieldset">
+                <label class="label">
+                  <span class="fieldset-legend">{gettext("SWIFT/BIC")}</span>
+                </label>
                 <.input
                   type="text"
-                  name="bank_swift"
-                  value={@bank_swift}
-                  label={gettext("SWIFT/BIC")}
+                  name="swift"
+                  value={@editing_bank_account && @editing_bank_account["swift"]}
                   placeholder="XXXXEEHH"
                   class="font-mono"
                 />
               </div>
             </div>
 
-            <div class="card-actions justify-end mt-4">
+            <div class="fieldset">
+              <.checkbox
+                name="primary"
+                checked={@editing_bank_account && @editing_bank_account["primary"]}
+                label={gettext("Primary account")}
+              >
+                <:description>
+                  {gettext(
+                    "Shown first on invoices and documents. Making this one primary un-sets any other."
+                  )}
+                </:description>
+              </.checkbox>
+            </div>
+
+            <div class="modal-action">
               <button type="submit" class="btn btn-primary">
-                <.icon name="hero-check" class="w-4 h-4" />
-                {gettext("Save Bank Details")}
+                {if @editing_bank_account,
+                  do: gettext("Save Changes"),
+                  else: gettext("Add Account")}
+              </button>
+              <button type="button" class="btn" phx-click="hide_bank_account_form">
+                {gettext("Cancel")}
               </button>
             </div>
-          </form>
+          </.form>
         </div>
       </div>
-    </div>
+    <% end %>
 
     <div class={if @active_tab != "tax", do: "hidden"}>
       <%!-- Tax Settings --%>
