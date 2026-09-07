@@ -83,43 +83,19 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   @spec default_sections() :: [atom()]
   def default_sections, do: @default_sections
 
+  # Picking a file no longer sets it on the spot: the crop editor opens on
+  # the picked image first, so the person frames it once instead of
+  # set-then-crop-then-set-again. Pressing Save without touching anything
+  # accepts the default fit; Cancel discards the pick and the old avatar
+  # never changed. Nothing persists until the Save in the editor.
   @impl true
   def update(%{action: :set_avatar, file_uuid: file_uuid}, socket) do
-    user = socket.assigns.user
-
-    case Auth.update_user_fields(user, %{"avatar_file_uuid" => file_uuid, "avatar_crop" => nil}) do
-      {:ok, updated_user} ->
-        send(self(), {:phoenix_kit_user_updated, updated_user})
-
-        PhoenixKit.Activity.log(%{
-          action: "user.avatar_changed",
-          module: "users",
-          mode: "manual",
-          actor_uuid: updated_user.uuid,
-          resource_type: "user",
-          resource_uuid: updated_user.uuid,
-          metadata: %{
-            "avatar_from" => get_in(user.custom_fields, ["avatar_file_uuid"]) || "",
-            "avatar_to" => file_uuid,
-            "actor_role" => "user"
-          }
-        })
-
-        {:ok,
-         socket
-         |> assign(:user, updated_user)
-         |> assign(:show_avatar_selector, false)
-         |> assign(:last_uploaded_avatar_uuid, file_uuid)
-         |> assign(:avatar_success_message, gettext("Avatar updated successfully!"))
-         |> assign(:avatar_error_message, nil)}
-
-      {:error, _changeset} ->
-        {:ok,
-         socket
-         |> assign(:show_avatar_selector, false)
-         |> assign(:avatar_error_message, gettext("Failed to update avatar"))
-         |> assign(:avatar_success_message, nil)}
-    end
+    {:ok,
+     socket
+     |> assign(:show_avatar_selector, false)
+     |> assign(:pending_avatar_uuid, file_uuid)
+     |> assign(:pending_avatar_crop, nil)
+     |> assign(:show_avatar_crop, true)}
   end
 
   def update(%{action: :avatar_selector_closed}, socket) do
@@ -190,6 +166,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> assign_new(:show_avatar_selector, fn -> false end)
       |> assign_new(:show_avatar_crop, fn -> false end)
       |> assign_new(:pending_avatar_crop, fn -> nil end)
+      |> assign_new(:pending_avatar_uuid, fn -> nil end)
       |> assign_new(:show_email_form, fn -> false end)
       |> assign_new(:show_password_form, fn -> false end)
       |> assign_new(:show_notification_prefs, fn -> false end)
@@ -466,6 +443,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     {:noreply,
      socket
      |> assign(:show_avatar_crop, true)
+     |> assign(:pending_avatar_uuid, nil)
      |> assign(:pending_avatar_crop, AvatarCrop.from_user(socket.assigns.user))}
   end
 
@@ -473,7 +451,8 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     {:noreply,
      socket
      |> assign(:show_avatar_crop, false)
-     |> assign(:pending_avatar_crop, nil)}
+     |> assign(:pending_avatar_crop, nil)
+     |> assign(:pending_avatar_uuid, nil)}
   end
 
   # Pushed by the AvatarCrop hook at the end of every gesture (drag release,
@@ -483,12 +462,21 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   end
 
   def handle_event("save_avatar_crop", _params, socket) do
-    case socket.assigns.pending_avatar_crop do
-      nil ->
-        {:noreply, assign(socket, :show_avatar_crop, false)}
+    crop = socket.assigns.pending_avatar_crop
+
+    cond do
+      # A freshly picked file: the file and its framing land together. An
+      # untouched editor saves no crop at all — the default fit IS the
+      # uncropped avatar, and storing it as numbers would only make every
+      # future render do geometry for nothing.
+      uuid = socket.assigns.pending_avatar_uuid ->
+        persist_new_avatar(socket, uuid, unless_identity(crop))
 
       crop ->
         persist_avatar_crop(socket, crop, gettext("Avatar crop updated!"))
+
+      true ->
+        {:noreply, assign(socket, :show_avatar_crop, false)}
     end
   end
 
@@ -793,6 +781,62 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     end
   end
 
+  # A crop that shows exactly what no crop would show. Panning freedom only
+  # exists once the image overflows the frame, so centered-at-cover-fit is
+  # the identity; the tolerances absorb float noise from the drag math.
+  defp unless_identity(nil), do: nil
+
+  defp unless_identity(crop) do
+    identity? =
+      crop["zoom"] <= 1.001 and
+        abs(crop["x"] - 0.5) < 0.005 and
+        abs(crop["y"] - 0.5) < 0.005
+
+    if identity?, do: nil, else: crop
+  end
+
+  defp persist_new_avatar(socket, file_uuid, crop) do
+    user = socket.assigns.user
+
+    case Auth.update_user_fields(user, %{"avatar_file_uuid" => file_uuid, "avatar_crop" => crop}) do
+      {:ok, updated_user} ->
+        send(self(), {:phoenix_kit_user_updated, updated_user})
+
+        PhoenixKit.Activity.log(%{
+          action: "user.avatar_changed",
+          module: "users",
+          mode: "manual",
+          actor_uuid: updated_user.uuid,
+          resource_type: "user",
+          resource_uuid: updated_user.uuid,
+          metadata: %{
+            "avatar_from" => get_in(user.custom_fields, ["avatar_file_uuid"]) || "",
+            "avatar_to" => file_uuid,
+            "cropped" => crop != nil,
+            "actor_role" => "user"
+          }
+        })
+
+        {:noreply,
+         socket
+         |> assign(:user, updated_user)
+         |> assign(:show_avatar_crop, false)
+         |> assign(:pending_avatar_crop, nil)
+         |> assign(:pending_avatar_uuid, nil)
+         |> assign(:last_uploaded_avatar_uuid, file_uuid)
+         |> assign(:avatar_success_message, gettext("Avatar updated successfully!"))
+         |> assign(:avatar_error_message, nil)}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> assign(:show_avatar_crop, false)
+         |> assign(:pending_avatar_uuid, nil)
+         |> assign(:avatar_error_message, gettext("Failed to update avatar"))
+         |> assign(:avatar_success_message, nil)}
+    end
+  end
+
   defp persist_avatar_crop(socket, crop, success_message) do
     user = socket.assigns.user
 
@@ -818,6 +862,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
          |> assign(:user, updated_user)
          |> assign(:show_avatar_crop, false)
          |> assign(:pending_avatar_crop, nil)
+         |> assign(:pending_avatar_uuid, nil)
          |> assign(:avatar_success_message, success_message)
          |> assign(:avatar_error_message, nil)}
 
@@ -1012,7 +1057,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                 phx-update="ignore"
                 data-image-url={
                   URLSigner.signed_url(
-                    get_in(@user.custom_fields, ["avatar_file_uuid"]),
+                    @pending_avatar_uuid || get_in(@user.custom_fields, ["avatar_file_uuid"]),
                     "large"
                   )
                 }
@@ -1028,7 +1073,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                     data-crop-img
                     src={
                       URLSigner.signed_url(
-                        get_in(@user.custom_fields, ["avatar_file_uuid"]),
+                        @pending_avatar_uuid || get_in(@user.custom_fields, ["avatar_file_uuid"]),
                         "large"
                       )
                     }
@@ -1053,7 +1098,10 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                 </div>
               </div>
               <:actions>
+                <%!-- Nothing to reset on a fresh pick — the default fit
+                     already is the uncropped image. --%>
                 <button
+                  :if={is_nil(@pending_avatar_uuid)}
                   type="button"
                   phx-click="reset_avatar_crop"
                   phx-target={@myself}
