@@ -1,5 +1,16 @@
 ## Unreleased
 
+### Added
+
+- A quiet "[dev]" tag next to the project title in the admin header,
+  automatic whenever `PhoenixKit.WebsiteAccess.environment().looks_like_dev?`
+  is true (non-`prod` mix env, or a dev/staging/test/local/sandbox/preview
+  word in the hostname or configured site URL) — no setting to remember to
+  flip. Replaces the old workflow of switching on the general-purpose Notice
+  bar (a fixed bar across the bottom of every page) just to signal "this
+  isn't the production site"; that feature is unchanged and still available
+  for actual visitor announcements.
+
 ### Changed
 
 - **Breaking:** the website-wide Integrations settings page moved from
