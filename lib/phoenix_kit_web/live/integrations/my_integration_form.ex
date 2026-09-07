@@ -29,24 +29,34 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
 
   @impl true
   def mount(_params, _session, socket) do
-    user_uuid = Scope.user_uuid(socket.assigns[:phoenix_kit_current_scope])
+    scope = socket.assigns[:phoenix_kit_current_scope]
 
-    {:ok,
-     socket
-     |> assign(:page_title, gettext("Integration"))
-     |> assign(:project_title, Settings.get_project_title())
-     |> assign(:user_uuid, user_uuid)
-     |> assign(:providers, Providers.personal_offered())
-     |> assign(:selected_provider, nil)
-     |> assign(:provider, nil)
-     |> assign(:uuid, nil)
-     |> assign(:name, nil)
-     |> assign(:data, %{})
-     # `new_name` / `form_values` hold what the operator typed on the /new flow
-     # so a pre-save dry-run Test can re-render the form without eating input.
-     |> assign(:new_name, "")
-     |> assign(:form_values, %{})
-     |> assign(:validating, false)}
+    if scope && Scope.has_module_access?(scope, "integrations") do
+      user_uuid = Scope.user_uuid(scope)
+
+      {:ok,
+       socket
+       |> assign(:page_title, gettext("Integration"))
+       |> assign(:project_title, Settings.get_project_title())
+       |> assign(:user_uuid, user_uuid)
+       |> assign(:providers, Providers.personal_offered())
+       |> assign(:selected_provider, nil)
+       |> assign(:provider, nil)
+       |> assign(:uuid, nil)
+       |> assign(:name, nil)
+       |> assign(:data, %{})
+       # `new_name` / `form_values` hold what the operator typed on the /new
+       # flow so a pre-save dry-run Test can re-render the form without
+       # eating input.
+       |> assign(:new_name, "")
+       |> assign(:form_values, %{})
+       |> assign(:validating, false)}
+    else
+      {:ok,
+       socket
+       |> put_flash(:error, gettext("You don't have access to Integrations."))
+       |> redirect(to: Routes.path("/profile/settings"))}
+    end
   end
 
   @impl true
@@ -85,7 +95,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
       {:error, _} ->
         socket
         |> put_flash(:error, gettext("Integration not found"))
-        |> push_navigate(to: Routes.path("/admin/settings/integrations"))
+        |> push_navigate(to: Routes.path("/profile/settings/integrations"))
     end
   end
 
@@ -147,7 +157,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
       {:noreply,
        socket
        |> put_flash(:info, gettext("Integration added"))
-       |> push_navigate(to: Routes.path("/admin/settings/integrations/#{uuid}"))}
+       |> push_navigate(to: Routes.path("/profile/settings/integrations/#{uuid}"))}
     else
       {:error, :empty_name} ->
         {:noreply, put_flash(socket, :error, gettext("Please enter a name"))}
@@ -230,7 +240,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
     {:noreply,
      socket
      |> put_flash(:info, gettext("Integration removed"))
-     |> push_navigate(to: Routes.path("/admin/settings/integrations"))}
+     |> push_navigate(to: Routes.path("/profile/settings/integrations"))}
   end
 
   @impl true
@@ -369,10 +379,10 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
       flash={@flash}
       phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
       page_title={@page_title}
-      page_section={gettext("Settings")}
-      page_section_path={Routes.path("/admin/settings")}
+      page_section={gettext("Profile Settings")}
+      page_section_path={Routes.path("/profile/settings")}
       page_crumbs={[
-        %{label: gettext("My Integrations"), path: Routes.path("/admin/settings/integrations")}
+        %{label: gettext("My Integrations"), path: Routes.path("/profile/settings/integrations")}
       ]}
       page_subtitle={if @provider == nil, do: gettext("Choose a service to connect")}
       current_path={@url_path}

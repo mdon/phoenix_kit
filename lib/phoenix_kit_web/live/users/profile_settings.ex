@@ -26,7 +26,10 @@ defmodule PhoenixKitWeb.Live.Users.ProfileSettings do
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
+
+  alias PhoenixKitWeb.Live.Components.UserSettings
 
   # Landing from the confirmation link in a change-email message. The token is
   # spent here and the result carried into the page as a message, then the URL
@@ -52,11 +55,24 @@ defmodule PhoenixKitWeb.Live.Users.ProfileSettings do
 
   @impl true
   def mount(_params, session, socket) do
+    scope = socket.assigns[:phoenix_kit_current_scope]
+
+    # `integrations` is the independent personal-connections permission — see
+    # UserSettings.default_sections/0 for why it's opt-in rather than always
+    # on. Everyone else gets the component's own default list unchanged.
+    sections =
+      if scope && Scope.has_module_access?(scope, "integrations") do
+        UserSettings.default_sections() ++ [:integrations]
+      else
+        UserSettings.default_sections()
+      end
+
     {:ok,
      socket
      |> assign(:page_title, gettext("Profile Settings"))
      |> assign(:project_title, Settings.get_project_title())
      |> assign(:url_path, Routes.path("/profile/settings"))
+     |> assign(:sections, sections)
      # Raw session token of this browser — lets the Active Sessions section
      # mark the current device and keep it signed in on "sign out others".
      |> assign(:current_session_token, session["user_token"])

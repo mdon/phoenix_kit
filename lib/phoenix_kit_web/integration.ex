@@ -557,12 +557,6 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/settings/integrations/website/new", Live.Settings.IntegrationForm, :new
       live "/admin/settings/integrations/website/:uuid", Live.Settings.IntegrationForm, :edit
 
-      # Personal per-user integrations — the "My Integrations" sub-subtab (gated
-      # by the independent "integrations" permission).
-      live "/admin/settings/integrations", Live.Integrations.MyIntegrations, :index
-      live "/admin/settings/integrations/new", Live.Integrations.MyIntegrationForm, :new
-      live "/admin/settings/integrations/:uuid", Live.Integrations.MyIntegrationForm, :edit
-
       # "email-sending", not "emails" — the optional emails module registers its
       # own routable "Emails" settings tab at /admin/settings/emails (via
       # settings_tabs/0 + the module route generator below). A5 will collapse
@@ -707,6 +701,13 @@ defmodule PhoenixKitWeb.Integration do
       live "/profile/settings/confirm-email/:token",
            Live.Users.ProfileSettings,
            :confirm_email
+
+      # Personal per-user integrations — moved off Settings (gated by the
+      # independent "integrations" permission, checked in each LiveView's
+      # own mount/3 since this session doesn't run the admin gate).
+      live "/profile/settings/integrations", Live.Integrations.MyIntegrations, :index
+      live "/profile/settings/integrations/new", Live.Integrations.MyIntegrationForm, :new
+      live "/profile/settings/integrations/:uuid", Live.Integrations.MyIntegrationForm, :edit
 
       # Core dashboard routes (conditional on config)
       if unquote(PhoenixKit.Config.user_dashboard_enabled?()) do

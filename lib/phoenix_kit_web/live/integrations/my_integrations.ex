@@ -31,22 +31,30 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
 
   @impl true
   def mount(_params, _session, socket) do
-    user_uuid = Scope.user_uuid(socket.assigns[:phoenix_kit_current_scope])
+    scope = socket.assigns[:phoenix_kit_current_scope]
+    user_uuid = Scope.user_uuid(scope)
 
-    if connected?(socket) and is_binary(user_uuid) do
-      Events.subscribe(user_uuid)
+    if scope && Scope.has_module_access?(scope, "integrations") do
+      if connected?(socket) and is_binary(user_uuid) do
+        Events.subscribe(user_uuid)
+      end
+
+      {:ok,
+       socket
+       |> assign(:page_title, gettext("My Integrations"))
+       |> assign(:page_section, gettext("Profile Settings"))
+       |> assign(:page_section_path, Routes.path("/profile/settings"))
+       |> assign(:project_title, Settings.get_project_title())
+       |> assign(:url_path, Routes.path("/profile/settings/integrations"))
+       |> assign(:user_uuid, user_uuid)
+       |> assign(:validating, nil)
+       |> load_connections()}
+    else
+      {:ok,
+       socket
+       |> put_flash(:error, gettext("You don't have access to Integrations."))
+       |> redirect(to: Routes.path("/profile/settings"))}
     end
-
-    {:ok,
-     socket
-     |> assign(:page_title, gettext("My Integrations"))
-     |> assign(:page_section, gettext("Settings"))
-     |> assign(:page_section_path, Routes.path("/admin/settings"))
-     |> assign(:project_title, Settings.get_project_title())
-     |> assign(:url_path, Routes.path("/admin/settings/integrations"))
-     |> assign(:user_uuid, user_uuid)
-     |> assign(:validating, nil)
-     |> load_connections()}
   end
 
   @impl true
@@ -176,7 +184,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
               </span>
             </:toolbar_title>
             <:toolbar_actions>
-              <.pk_link navigate="/admin/settings/integrations/new" class="btn btn-primary btn-sm">
+              <.pk_link navigate="/profile/settings/integrations/new" class="btn btn-primary btn-sm">
                 <.icon name="hero-plus" class="w-4 h-4" />
                 {gettext("Add Integration")}
               </.pk_link>
@@ -206,7 +214,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
               >
                 <.table_default_cell>
                   <.row_link
-                    navigate={Routes.path("/admin/settings/integrations/#{conn.uuid}")}
+                    navigate={Routes.path("/profile/settings/integrations/#{conn.uuid}")}
                     label={conn.provider.name}
                   />
                   <div class="flex items-center gap-2">
@@ -252,7 +260,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
                     label={gettext("Actions")}
                   >
                     <.table_row_menu_link
-                      navigate={Routes.path("/admin/settings/integrations/#{conn.uuid}")}
+                      navigate={Routes.path("/profile/settings/integrations/#{conn.uuid}")}
                       icon="hero-pencil"
                       label={gettext("Configure")}
                     />
@@ -284,7 +292,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
                 label={gettext("Actions")}
               >
                 <.table_row_menu_link
-                  navigate={Routes.path("/admin/settings/integrations/#{conn.uuid}")}
+                  navigate={Routes.path("/profile/settings/integrations/#{conn.uuid}")}
                   icon="hero-pencil"
                   label={gettext("Configure")}
                 />
@@ -316,7 +324,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
           <p class="text-base-content/70 mb-4">
             {gettext("Connect your own API keys and services. Only you can see these.")}
           </p>
-          <.pk_link navigate="/admin/settings/integrations/new" class="btn btn-primary btn-sm">
+          <.pk_link navigate="/profile/settings/integrations/new" class="btn btn-primary btn-sm">
             <.icon name="hero-plus" class="w-4 h-4" />
             {gettext("Add Integration")}
           </.pk_link>

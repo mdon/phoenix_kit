@@ -20,7 +20,7 @@ defmodule PhoenixKitWeb.RouterFlashTest do
 
   test "visiting an admin route unauthenticated redirects with a flash instead of raising",
        %{conn: conn} do
-    {:error, {:redirect, %{to: to}}} = live(conn, Routes.path("/admin/settings/integrations"))
+    {:error, {:redirect, %{to: to}}} = live(conn, Routes.path("/admin/settings"))
 
     assert to =~ "/users/log-in"
   end

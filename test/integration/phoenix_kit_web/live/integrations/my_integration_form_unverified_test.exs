@@ -1,7 +1,7 @@
 defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormUnverifiedTest do
   @moduledoc """
   Same gap as `IntegrationFormUnverifiedTest`, on the PERSONAL integration
-  form (`/admin/settings/integrations/:uuid`) — it has its own duplicate
+  form (`/profile/settings/integrations/:uuid`) — it has its own duplicate
   case sites (`save_new` dry-run, `handle_info(:do_validate, _)`) that
   needed their own proof the fix landed here too, not just on the system
   form. See that module's doc for the full incident.
@@ -22,7 +22,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormUnverifiedTest do
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
 
-  @new_path Routes.path("/admin/settings/integrations/new")
+  @new_path Routes.path("/profile/settings/integrations/new")
   @provider_key "fixture_unverified"
 
   defmodule FixtureProvider do
@@ -116,7 +116,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormUnverifiedTest do
           owner: {:user, user.uuid}
         )
 
-      {:ok, view, _html} = live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+      {:ok, view, _html} = live(conn, Routes.path("/profile/settings/integrations/#{uuid}"))
 
       view |> render_click("validate_connection")
 

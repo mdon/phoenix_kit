@@ -1,7 +1,7 @@
 defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormSecretMaskingTest do
   @moduledoc """
   D011: the PERSONAL integration setup form
-  (`/admin/settings/integrations/:uuid`) shares `setup_field/1` with the
+  (`/profile/settings/integrations/:uuid`) shares `setup_field/1` with the
   system form, but has its own render call site and its own duplicate
   save-side "empty password = keep existing" logic (`setup_attrs/2`) — so it
   needs its own proof the fix landed here too, not just on the system form.
@@ -16,7 +16,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormSecretMaskingTest do
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
 
-  @new_path Routes.path("/admin/settings/integrations/new")
+  @new_path Routes.path("/profile/settings/integrations/new")
 
   defp setup_admin(%{conn: conn}) do
     {user, _token} = create_admin_user()
@@ -50,7 +50,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormSecretMaskingTest do
       secret = "telegram-token-#{System.unique_integer([:positive])}"
       uuid = seed_telegram(user, secret)
 
-      {:ok, _view, html} = live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+      {:ok, _view, html} = live(conn, Routes.path("/profile/settings/integrations/#{uuid}"))
 
       refute html =~ secret
     end
@@ -60,7 +60,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormSecretMaskingTest do
       secret = "telegram-token-#{System.unique_integer([:positive])}"
       uuid = seed_telegram(user, secret)
 
-      {:ok, _view, html} = live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+      {:ok, _view, html} = live(conn, Routes.path("/profile/settings/integrations/#{uuid}"))
 
       assert html =~ "A secret is already configured — leave blank to keep the current value"
       assert html =~ ~s(name="bot_token" id="field-bot_token" value="")
@@ -77,7 +77,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormSecretMaskingTest do
       secret = "telegram-token-#{System.unique_integer([:positive])}"
       uuid = seed_telegram(user, secret)
 
-      {:ok, view, _html} = live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+      {:ok, view, _html} = live(conn, Routes.path("/profile/settings/integrations/#{uuid}"))
 
       view
       |> element(~s(form[phx-submit="save"]))

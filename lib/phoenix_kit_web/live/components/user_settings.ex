@@ -39,8 +39,12 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   """
   use PhoenixKitWeb, :live_component
 
+  import PhoenixKitWeb.Components.Core.IntegrationsUI, only: [integration_status_badge: 1]
+
   require Logger
 
+  alias PhoenixKit.Integrations
+  alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Notifications.Prefs, as: NotificationPrefs
   alias PhoenixKit.Notifications.Types, as: NotificationTypes
   alias PhoenixKit.Settings
@@ -53,6 +57,11 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.TimeZone
 
+  # `:integrations` deliberately NOT in the default list — unlike every
+  # other section it needs the independent `integrations` permission the
+  # component has no way to check itself (no scope assign), so a caller must
+  # opt in explicitly via `sections` once it has verified access. See
+  # `PhoenixKitWeb.Live.Users.ProfileSettings` for the reference caller.
   @default_sections [
     :identity,
     :custom_fields,
@@ -62,6 +71,15 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     :notifications,
     :sessions
   ]
+
+  @doc """
+  The section list rendered when a caller doesn't pass `sections` — does NOT
+  include `:integrations` (see the module attribute comment above). A caller
+  that wants that section appended should build on this list rather than
+  hardcoding a copy, so the two can't drift.
+  """
+  @spec default_sections() :: [atom()]
+  def default_sections, do: @default_sections
 
   @impl true
   def update(%{action: :set_avatar, file_uuid: file_uuid}, socket) do
@@ -180,6 +198,13 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     socket =
       assign_new(socket, :sessions, fn ->
         load_sessions(socket.assigns.user, socket.assigns.current_session_token)
+      end)
+
+    socket =
+      assign_new(socket, :integration_connections, fn ->
+        if :integrations in sections,
+          do: load_integration_connections(socket.assigns.user.uuid),
+          else: []
       end)
 
     {:ok, socket}
@@ -560,6 +585,23 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
 
   defp load_sessions(user, current_token) do
     Sessions.list_user_device_sessions(user, current_token)
+  end
+
+  # Summary only — full add/edit/remove happens on the dedicated page
+  # (`Live.Integrations.MyIntegrations`/`MyIntegrationForm`, linked from the
+  # section below), so this just needs enough to render a compact list.
+  defp load_integration_connections(user_uuid) do
+    providers = Providers.for_scope(:personal)
+    providers_by_key = Map.new(providers, &{&1.key, &1})
+    provider_keys = Enum.map(providers, & &1.key)
+
+    provider_keys
+    |> Integrations.load_all_connections(owner: {:user, user_uuid})
+    |> Enum.flat_map(fn {provider_key, connections} ->
+      Enum.map(connections, fn %{uuid: uuid, name: name, data: data} ->
+        %{provider: providers_by_key[provider_key], uuid: uuid, name: name, data: data}
+      end)
+    end)
   end
 
   defp device_label(%{browser: b, os: o}) when is_binary(b) and is_binary(o), do: "#{b} · #{o}"
@@ -1414,6 +1456,52 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
               >
                 {gettext("Sign out other sessions")}
               </button>
+            </div>
+          </div>
+        <% end %>
+
+        <%!-- Integrations Section — summary + link out to the dedicated
+             list/add/edit pages. Only in @sections when the caller has
+             already checked the "integrations" permission (see moduledoc). --%>
+        <%= if :integrations in @sections do %>
+          <%= if Enum.any?(
+                   [:identity, :custom_fields, :email, :password, :oauth, :notifications, :sessions],
+                   &(&1 in @sections)
+                 ) do %>
+            <div class="divider"></div>
+          <% end %>
+          <div>
+            <div class="flex items-center justify-between gap-3 mb-1">
+              <h2 class="text-lg font-semibold flex items-center gap-2">
+                <.icon name="hero-link" class="w-5 h-5 text-primary" /> {gettext("Integrations")}
+              </h2>
+              <.pk_link navigate="/profile/settings/integrations" class="btn btn-sm btn-outline">
+                {gettext("Manage Integrations")}
+              </.pk_link>
+            </div>
+            <p class="text-sm text-base-content/60 mb-4">
+              {gettext("Your own API keys and bot connections — only you can see or use these.")}
+            </p>
+
+            <div :if={@integration_connections == []} class="text-sm text-base-content/50">
+              {gettext("No personal integrations yet.")}
+            </div>
+
+            <div :if={@integration_connections != []} class="space-y-2">
+              <div
+                :for={conn <- @integration_connections}
+                class="flex items-center justify-between gap-3 p-3 rounded-lg border border-base-300"
+              >
+                <div class="flex items-center gap-3 min-w-0">
+                  <.icon name={conn.provider.icon} class="w-5 h-5 shrink-0 text-base-content/60" />
+                  <div class="min-w-0">
+                    <div class="font-medium text-sm truncate">{conn.provider.name}</div>
+                    <div class="text-xs text-base-content/60 truncate">{conn.name}</div>
+                  </div>
+                </div>
+                <% {badge_class, badge_text} = integration_status_badge(conn.data["status"]) %>
+                <span class={"badge badge-sm #{badge_class} shrink-0"}>{badge_text}</span>
+              </div>
             </div>
           </div>
         <% end %>

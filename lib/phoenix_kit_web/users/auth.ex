@@ -1615,9 +1615,9 @@ defmodule PhoenixKitWeb.Users.Auth do
     # "dashboard" access, so landing them here — not "/" — is their first
     # reachable admin page.
     {"notifications", "/admin/notifications"},
-    # Same for the two independent integration keys — a holder of only one of
-    # these lands on its page rather than bouncing to "/".
-    {"integrations", "/admin/settings/integrations"},
+    # The personal "integrations" key has no /admin page anymore ("My
+    # Integrations" moved to /profile/settings/integrations) — a holder of
+    # only that key falls through to the skip_admin default below instead.
     {"integrations_system", "/admin/settings/integrations/website"},
     # Settings sub-pages (lower priority landing pages)
     {"languages", "/admin/settings/languages"},
@@ -1986,9 +1986,10 @@ defmodule PhoenixKitWeb.Users.Auth do
     # their own independent `integrations_system` key (grantable on its own).
     PhoenixKitWeb.Live.Settings.Integrations => "integrations_system",
     PhoenixKitWeb.Live.Settings.IntegrationForm => "integrations_system",
-    # Personal per-user integrations — the independent `integrations` key.
-    PhoenixKitWeb.Live.Integrations.MyIntegrations => "integrations",
-    PhoenixKitWeb.Live.Integrations.MyIntegrationForm => "integrations",
+    # Personal per-user integrations moved to /profile/settings/integrations
+    # (the :phoenix_kit_authenticated session, not this admin gate) — each
+    # LiveView checks the `integrations` permission itself in mount/3 now,
+    # so no entry belongs in this admin-gate map.
     PhoenixKitWeb.Live.Settings.EmailSending => "settings",
     PhoenixKitWeb.Live.Settings.SendProfiles => "settings",
     PhoenixKitWeb.Live.Settings.SendProfileForm => "settings",
