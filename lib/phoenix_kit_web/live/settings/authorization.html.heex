@@ -77,319 +77,414 @@
             value={@saved_settings["track_registration_geolocation"]}
           />
 
-          <.section_header icon="hero-paint-brush" title={gettext("Login Page Branding")} />
+          <.nav_tabs
+            active_tab={@active_tab}
+            on_change="switch_settings_tab"
+            variant={:border}
+            tabs={[
+              %{id: "branding", label: gettext("Login Page Branding"), icon: "hero-paint-brush"},
+              %{id: "methods", label: gettext("Authentication Methods"), icon: "hero-key"},
+              %{id: "sessions", label: gettext("Sessions"), icon: "hero-user-group"}
+            ]}
+          />
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="fieldset w-full">
-              <label class="label">
-                <span class="fieldset-legend text-base font-medium">
-                  {gettext("Background Image (Desktop)")}
-                </span>
-              </label>
-              <input
-                type="hidden"
-                name="settings[auth_background_image_file_uuid]"
-                value={@settings["auth_background_image_file_uuid"]}
-              />
-              <%= if (@settings["auth_background_image_file_uuid"] || "") != "" do %>
-                <div class="flex items-center gap-4">
-                  <img
-                    src={
-                      signed_preview_url(@settings["auth_background_image_file_uuid"], "medium")
-                    }
-                    alt={gettext("Background preview")}
-                    class="h-16 w-28 object-cover rounded-lg ring-1 ring-base-300 shadow-sm"
-                  />
-                  <div class="flex flex-col gap-2">
-                    <button
-                      type="button"
-                      class="btn btn-outline btn-sm"
-                      phx-click="open_media_selector"
-                      phx-value-target="background"
-                    >
-                      {gettext("Change image")}
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-sm text-error"
-                      phx-click="clear_branding_image"
-                      phx-value-target="background"
-                    >
-                      {gettext("Remove")}
-                    </button>
-                  </div>
-                </div>
-              <% else %>
-                <button
-                  type="button"
-                  class="h-16 w-28 rounded-lg border-2 border-dashed border-base-300 hover:border-primary hover:text-primary text-base-content/40 flex items-center justify-center transition-colors"
-                  title={gettext("Select Image")}
-                  phx-click="open_media_selector"
-                  phx-value-target="background"
-                >
-                  <.icon name="hero-photo" class="w-6 h-6" />
-                </button>
-              <% end %>
-              <div class="label">
-                <span class="fieldset-label text-xs text-base-content/50">
-                  {gettext(
-                    "Background image for auth pages on desktop screens (wider than 768px)."
-                  )}
-                </span>
-              </div>
-              <.unsaved_hint dirty={
-                @settings["auth_background_image_file_uuid"] !=
-                  @saved_settings["auth_background_image_file_uuid"]
-              } />
-            </div>
-
-            <div class="fieldset w-full">
-              <label class="label">
-                <span class="fieldset-legend text-base font-medium">
-                  {gettext("Background Image (Mobile)")}
-                </span>
-              </label>
-              <input
-                type="hidden"
-                name="settings[auth_background_image_mobile_file_uuid]"
-                value={@settings["auth_background_image_mobile_file_uuid"]}
-              />
-              <%= if (@settings["auth_background_image_mobile_file_uuid"] || "") != "" do %>
-                <div class="flex items-center gap-4">
-                  <img
-                    src={
-                      signed_preview_url(
-                        @settings["auth_background_image_mobile_file_uuid"],
-                        "medium"
-                      )
-                    }
-                    alt={gettext("Mobile background preview")}
-                    class="h-16 w-28 object-cover rounded-lg ring-1 ring-base-300 shadow-sm"
-                  />
-                  <div class="flex flex-col gap-2">
-                    <button
-                      type="button"
-                      class="btn btn-outline btn-sm"
-                      phx-click="open_media_selector"
-                      phx-value-target="background_mobile"
-                    >
-                      {gettext("Change image")}
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-sm text-error"
-                      phx-click="clear_branding_image"
-                      phx-value-target="background_mobile"
-                    >
-                      {gettext("Remove")}
-                    </button>
-                  </div>
-                </div>
-              <% else %>
-                <button
-                  type="button"
-                  class="h-16 w-28 rounded-lg border-2 border-dashed border-base-300 hover:border-primary hover:text-primary text-base-content/40 flex items-center justify-center transition-colors"
-                  title={gettext("Select Image")}
-                  phx-click="open_media_selector"
-                  phx-value-target="background_mobile"
-                >
-                  <.icon name="hero-photo" class="w-6 h-6" />
-                </button>
-              <% end %>
-              <div class="label">
-                <span class="fieldset-label text-xs text-base-content/50">
-                  {gettext(
-                    "Background image for auth pages on mobile screens (768px and below). Falls back to desktop image if not set."
-                  )}
-                </span>
-              </div>
-              <.unsaved_hint dirty={
-                @settings["auth_background_image_mobile_file_uuid"] !=
-                  @saved_settings["auth_background_image_mobile_file_uuid"]
-              } />
-            </div>
-          </div>
-
-          <div class="fieldset w-full">
-            <label class="label">
-              <span class="fieldset-legend text-base font-medium">
-                {gettext("Background Color")}
-              </span>
-            </label>
-            <.input
-              name="settings[auth_background_color]"
-              type="text"
-              value={@settings["auth_background_color"]}
-              class="focus:input-primary"
-              placeholder={gettext("#1a1a2e or linear-gradient(135deg, #667eea, #764ba2)")}
-              phx-debounce="500"
-            />
-            <div class="label">
-              <span class="fieldset-label text-xs text-base-content/50">
-                {gettext(
-                  "CSS color or gradient for auth page background. Ignored if a background image is set."
-                )}
-              </span>
-            </div>
-            <.unsaved_hint
-              dirty={
-                @settings["auth_background_color"] != @saved_settings["auth_background_color"]
-              }
-              saved={@saved_settings["auth_background_color"]}
-            />
-          </div>
-
-          <.section_header icon="hero-key" title={gettext("Authentication Methods")} />
-
-          <%!-- Authentication Methods Setting --%>
-          <div class="fieldset w-full">
-            <%!-- Magic Link Methods --%>
-            <div class="mb-3">
-              <div class="text-sm font-semibold text-base-content/70 mb-2">
-                {gettext("Magic Link")}
-              </div>
-              <.checkbox
-                name="settings[magic_link_login_enabled]"
-                checked={@settings["magic_link_login_enabled"] == "true"}
-                label={gettext("Enable Magic Link for login")}
-                wrapper_class="mb-2 ml-4"
-              />
-              <.checkbox
-                name="settings[magic_link_registration_enabled]"
-                checked={
-                  @settings["magic_link_registration_enabled"] == "true" and
-                    @settings["allow_registration"] == "true"
-                }
-                disabled={@settings["allow_registration"] != "true"}
-                wrapper_class="ml-4"
-              >
-                {gettext("Enable Magic Link for registration")}
-                <%= if @settings["allow_registration"] != "true" do %>
-                  <span class="text-xs italic">{gettext("(registration disabled)")}</span>
-                <% end %>
-              </.checkbox>
-            </div>
-
-            <%!-- QR Code Sign-in --%>
-            <div class="mb-3">
-              <div class="text-sm font-semibold text-base-content/70 mb-2">
-                {gettext("QR Code")}
-              </div>
-              <div class="ml-4">
-                <.checkbox
-                  name="settings[qr_login_enabled]"
-                  checked={@settings["qr_login_enabled"] == "true"}
-                  label={gettext("Enable QR code sign-in (scan from a signed-in phone)")}
+          <div class={if @active_tab != "branding", do: "hidden"}>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="fieldset w-full">
+                <label class="label">
+                  <span class="fieldset-legend text-base font-medium">
+                    {gettext("Background Image (Desktop)")}
+                  </span>
+                </label>
+                <input
+                  type="hidden"
+                  name="settings[auth_background_image_file_uuid]"
+                  value={@settings["auth_background_image_file_uuid"]}
                 />
+                <%= if (@settings["auth_background_image_file_uuid"] || "") != "" do %>
+                  <div class="flex items-center gap-4">
+                    <img
+                      src={
+                        signed_preview_url(@settings["auth_background_image_file_uuid"], "medium")
+                      }
+                      alt={gettext("Background preview")}
+                      class="h-16 w-28 object-cover rounded-lg ring-1 ring-base-300 shadow-sm"
+                    />
+                    <div class="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        class="btn btn-outline btn-sm"
+                        phx-click="open_media_selector"
+                        phx-value-target="background"
+                      >
+                        {gettext("Change image")}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-sm text-error"
+                        phx-click="clear_branding_image"
+                        phx-value-target="background"
+                      >
+                        {gettext("Remove")}
+                      </button>
+                    </div>
+                  </div>
+                <% else %>
+                  <button
+                    type="button"
+                    class="h-16 w-28 rounded-lg border-2 border-dashed border-base-300 hover:border-primary hover:text-primary text-base-content/40 flex items-center justify-center transition-colors"
+                    title={gettext("Select Image")}
+                    phx-click="open_media_selector"
+                    phx-value-target="background"
+                  >
+                    <.icon name="hero-photo" class="w-6 h-6" />
+                  </button>
+                <% end %>
+                <div class="label">
+                  <span class="fieldset-label text-xs text-base-content/50">
+                    {gettext(
+                      "Background image for auth pages on desktop screens (wider than 768px)."
+                    )}
+                  </span>
+                </div>
+                <.unsaved_hint dirty={
+                  @settings["auth_background_image_file_uuid"] !=
+                    @saved_settings["auth_background_image_file_uuid"]
+                } />
+              </div>
+
+              <div class="fieldset w-full">
+                <label class="label">
+                  <span class="fieldset-legend text-base font-medium">
+                    {gettext("Background Image (Mobile)")}
+                  </span>
+                </label>
+                <input
+                  type="hidden"
+                  name="settings[auth_background_image_mobile_file_uuid]"
+                  value={@settings["auth_background_image_mobile_file_uuid"]}
+                />
+                <%= if (@settings["auth_background_image_mobile_file_uuid"] || "") != "" do %>
+                  <div class="flex items-center gap-4">
+                    <img
+                      src={
+                        signed_preview_url(
+                          @settings["auth_background_image_mobile_file_uuid"],
+                          "medium"
+                        )
+                      }
+                      alt={gettext("Mobile background preview")}
+                      class="h-16 w-28 object-cover rounded-lg ring-1 ring-base-300 shadow-sm"
+                    />
+                    <div class="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        class="btn btn-outline btn-sm"
+                        phx-click="open_media_selector"
+                        phx-value-target="background_mobile"
+                      >
+                        {gettext("Change image")}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-sm text-error"
+                        phx-click="clear_branding_image"
+                        phx-value-target="background_mobile"
+                      >
+                        {gettext("Remove")}
+                      </button>
+                    </div>
+                  </div>
+                <% else %>
+                  <button
+                    type="button"
+                    class="h-16 w-28 rounded-lg border-2 border-dashed border-base-300 hover:border-primary hover:text-primary text-base-content/40 flex items-center justify-center transition-colors"
+                    title={gettext("Select Image")}
+                    phx-click="open_media_selector"
+                    phx-value-target="background_mobile"
+                  >
+                    <.icon name="hero-photo" class="w-6 h-6" />
+                  </button>
+                <% end %>
+                <div class="label">
+                  <span class="fieldset-label text-xs text-base-content/50">
+                    {gettext(
+                      "Background image for auth pages on mobile screens (768px and below). Falls back to desktop image if not set."
+                    )}
+                  </span>
+                </div>
+                <.unsaved_hint dirty={
+                  @settings["auth_background_image_mobile_file_uuid"] !=
+                    @saved_settings["auth_background_image_mobile_file_uuid"]
+                } />
               </div>
             </div>
 
-            <%!-- New Login Alerts --%>
-            <div class="mb-3">
-              <div class="text-sm font-semibold text-base-content/70 mb-2">
-                {gettext("Login Notifications")}
+            <div class="fieldset w-full">
+              <label class="label">
+                <span class="fieldset-legend text-base font-medium">
+                  {gettext("Background Color")}
+                </span>
+              </label>
+              <.input
+                name="settings[auth_background_color]"
+                type="text"
+                value={@settings["auth_background_color"]}
+                class="focus:input-primary"
+                placeholder={gettext("#1a1a2e or linear-gradient(135deg, #667eea, #764ba2)")}
+                phx-debounce="500"
+              />
+              <div class="label">
+                <span class="fieldset-label text-xs text-base-content/50">
+                  {gettext(
+                    "CSS color or gradient for auth page background. Ignored if a background image is set."
+                  )}
+                </span>
               </div>
-              <.checkbox
-                name="settings[new_login_alert_enabled]"
-                checked={@settings["new_login_alert_enabled"] == "true"}
-                wrapper_class="ml-4"
-              >
-                {gettext("Email users when their account is signed in from a new device")}
-              </.checkbox>
+              <.unsaved_hint
+                dirty={
+                  @settings["auth_background_color"] != @saved_settings["auth_background_color"]
+                }
+                saved={@saved_settings["auth_background_color"]}
+              />
             </div>
+          </div>
 
-            <%!-- OAuth Methods --%>
-            <div>
-              <div class="text-sm font-semibold text-base-content/70 mb-2">
-                {gettext("OAuth Providers")}
+          <div class={if @active_tab != "methods", do: "hidden"}>
+            <%!-- Authentication Methods Setting --%>
+            <div class="fieldset w-full">
+              <%!-- Magic Link Methods --%>
+              <div class="mb-3">
+                <div class="text-sm font-semibold text-base-content/70 mb-2">
+                  {gettext("Magic Link")}
+                </div>
+                <.checkbox
+                  name="settings[magic_link_login_enabled]"
+                  checked={@settings["magic_link_login_enabled"] == "true"}
+                  label={gettext("Enable Magic Link for login")}
+                  wrapper_class="mb-2 ml-4"
+                />
+                <.checkbox
+                  name="settings[magic_link_registration_enabled]"
+                  checked={
+                    @settings["magic_link_registration_enabled"] == "true" and
+                      @settings["allow_registration"] == "true"
+                  }
+                  disabled={@settings["allow_registration"] != "true"}
+                  wrapper_class="ml-4"
+                >
+                  {gettext("Enable Magic Link for registration")}
+                  <%= if @settings["allow_registration"] != "true" do %>
+                    <span class="text-xs italic">{gettext("(registration disabled)")}</span>
+                  <% end %>
+                </.checkbox>
               </div>
-              <.checkbox
-                name="settings[oauth_enabled]"
-                checked={@settings["oauth_enabled"] == "true"}
-                wrapper_class="mb-2 ml-4"
-              >
-                <span class="font-semibold">{gettext("Enable OAuth (Master Switch)")}</span>
-              </.checkbox>
 
-              <%!-- Individual OAuth Providers (locked, not disabled, if master is off —
+              <%!-- QR Code Sign-in --%>
+              <div class="mb-3">
+                <div class="text-sm font-semibold text-base-content/70 mb-2">
+                  {gettext("QR Code")}
+                </div>
+                <div class="ml-4">
+                  <.checkbox
+                    name="settings[qr_login_enabled]"
+                    checked={@settings["qr_login_enabled"] == "true"}
+                    label={gettext("Enable QR code sign-in (scan from a signed-in phone)")}
+                  />
+                </div>
+              </div>
+
+              <%!-- New Login Alerts --%>
+              <div class="mb-3">
+                <div class="text-sm font-semibold text-base-content/70 mb-2">
+                  {gettext("Login Notifications")}
+                </div>
+                <.checkbox
+                  name="settings[new_login_alert_enabled]"
+                  checked={@settings["new_login_alert_enabled"] == "true"}
+                  wrapper_class="ml-4"
+                >
+                  {gettext("Email users when their account is signed in from a new device")}
+                </.checkbox>
+              </div>
+
+              <%!-- OAuth Methods --%>
+              <div>
+                <div class="text-sm font-semibold text-base-content/70 mb-2">
+                  {gettext("OAuth Providers")}
+                </div>
+                <.checkbox
+                  name="settings[oauth_enabled]"
+                  checked={@settings["oauth_enabled"] == "true"}
+                  wrapper_class="mb-2 ml-4"
+                >
+                  <span class="font-semibold">{gettext("Enable OAuth (Master Switch)")}</span>
+                </.checkbox>
+
+                <%!-- Individual OAuth Providers (locked, not disabled, if master is off —
                    their real stored value must keep submitting so it isn't lost while
                    the master switch is toggled off and back on). --%>
-              <div class={[
-                "ml-8 space-y-2",
-                if(@settings["oauth_enabled"] != "true", do: "opacity-50", else: "")
-              ]}>
-                <% oauth_locked? = @settings["oauth_enabled"] != "true" %>
+                <div class={[
+                  "ml-8 space-y-2",
+                  if(@settings["oauth_enabled"] != "true", do: "opacity-50", else: "")
+                ]}>
+                  <% oauth_locked? = @settings["oauth_enabled"] != "true" %>
+                  <.checkbox
+                    name="settings[oauth_google_enabled]"
+                    checked={@settings["oauth_google_enabled"] == "true"}
+                    label={gettext("Google Sign-In")}
+                    wrapper_class={oauth_locked? && "pointer-events-none"}
+                  />
+                  <.checkbox
+                    name="settings[oauth_github_enabled]"
+                    checked={@settings["oauth_github_enabled"] == "true"}
+                    label={gettext("GitHub Sign-In")}
+                    wrapper_class={oauth_locked? && "pointer-events-none"}
+                  />
+                  <.checkbox
+                    name="settings[oauth_facebook_enabled]"
+                    checked={@settings["oauth_facebook_enabled"] == "true"}
+                    label={gettext("Facebook Sign-In")}
+                    wrapper_class={oauth_locked? && "pointer-events-none"}
+                  />
+                </div>
+
+                <%!-- The security decision behind provider sign-in, kept next to the
+                   providers it governs so it is visible to whoever enables them. --%>
                 <.checkbox
-                  name="settings[oauth_google_enabled]"
-                  checked={@settings["oauth_google_enabled"] == "true"}
-                  label={gettext("Google Sign-In")}
-                  wrapper_class={oauth_locked? && "pointer-events-none"}
-                />
-                <.checkbox
-                  name="settings[oauth_github_enabled]"
-                  checked={@settings["oauth_github_enabled"] == "true"}
-                  label={gettext("GitHub Sign-In")}
-                  wrapper_class={oauth_locked? && "pointer-events-none"}
-                />
-                <.checkbox
-                  name="settings[oauth_facebook_enabled]"
-                  checked={@settings["oauth_facebook_enabled"] == "true"}
-                  label={gettext("Facebook Sign-In")}
-                  wrapper_class={oauth_locked? && "pointer-events-none"}
-                />
+                  name="settings[oauth_require_verified_email]"
+                  checked={@settings["oauth_require_verified_email"] != "false"}
+                  wrapper_class="mt-4 ml-4"
+                >
+                  <span class="font-semibold">
+                    {gettext("Require the provider to confirm the email address")}
+                  </span>
+                </.checkbox>
+                <p class="text-sm text-base-content/70 ml-4 mt-1">
+                  {gettext(
+                    "When on, signing in with a provider can only join an existing account if the provider states it verified that address. Turning this off lets anyone who gets an address onto a provider account sign in as its owner — only do so for a provider that does not report verification."
+                  )}
+                </p>
               </div>
 
-              <%!-- The security decision behind provider sign-in, kept next to the
-                   providers it governs so it is visible to whoever enables them. --%>
-              <.checkbox
-                name="settings[oauth_require_verified_email]"
-                checked={@settings["oauth_require_verified_email"] != "false"}
-                wrapper_class="mt-4 ml-4"
-              >
-                <span class="font-semibold">
-                  {gettext("Require the provider to confirm the email address")}
-                </span>
-              </.checkbox>
-              <p class="text-sm text-base-content/70 ml-4 mt-1">
-                {gettext(
-                  "When on, signing in with a provider can only join an existing account if the provider states it verified that address. Turning this off lets anyone who gets an address onto a provider account sign in as its owner — only do so for a provider that does not report verification."
-                )}
-              </p>
-            </div>
+              <%!-- OAuth Provider Credential Forms --%>
+              <%= if @settings["oauth_enabled"] == "true" do %>
+                <%!-- Google OAuth Credentials --%>
+                <div class={[
+                  if(@settings["oauth_google_enabled"] != "true", do: "hidden", else: "")
+                ]}>
+                  <div class="card bg-base-200 p-4 mt-3">
+                    <h3 class="font-semibold mb-3 flex items-center gap-2">
+                      <PhoenixKitWeb.Components.Core.Icons.icon_google class="h-5 w-5" />
+                      {gettext("Google OAuth Credentials")}
+                    </h3>
 
-            <%!-- OAuth Provider Credential Forms --%>
-            <%= if @settings["oauth_enabled"] == "true" do %>
-              <%!-- Google OAuth Credentials --%>
-              <div class={[
-                if(@settings["oauth_google_enabled"] != "true", do: "hidden", else: "")
-              ]}>
-                <div class="card bg-base-200 p-4 mt-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div class="fieldset">
+                        <.input
+                          type="text"
+                          name="settings[oauth_google_client_id]"
+                          value={@settings["oauth_google_client_id"] || ""}
+                          label={gettext("Client ID")}
+                          placeholder={gettext("Your Google OAuth Client ID")}
+                        />
+                      </div>
+
+                      <div class="fieldset">
+                        <.input
+                          type="password"
+                          name="settings[oauth_google_client_secret]"
+                          value=""
+                          label={gettext("Client Secret")}
+                          placeholder={
+                            oauth_secret_placeholder(
+                              @settings["oauth_google_client_secret"],
+                              gettext("Your Google OAuth Client Secret")
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      phx-click="test_oauth"
+                      phx-value-provider="google"
+                      class="btn btn-sm btn-outline mt-3 w-fit"
+                    >
+                      {gettext("Test Credentials")}
+                    </button>
+
+                    <.oauth_setup_instructions
+                      callback_url={get_oauth_callback_url(@settings, "google")}
+                      copy_hint={gettext("Copy this URL to Google Cloud Console")}
+                    >
+                      <:steps>
+                        <li>
+                          {gettext("Visit")}
+                          <a
+                            href="https://console.cloud.google.com/apis/credentials"
+                            target="_blank"
+                            class="link link-primary"
+                          >
+                            Google Cloud Console
+                          </a>
+                        </li>
+                        <li>{gettext("Create project or select existing one")}</li>
+                        <li>
+                          {gettext("Go to")} <strong>Credentials</strong>
+                          → <strong>Create Credentials</strong>
+                          → <strong>OAuth client ID</strong>
+                        </li>
+                        <li>
+                          {gettext("Select")}
+                          <strong>Web application</strong> {gettext("type")}
+                        </li>
+                        <li>
+                          {gettext("Add callback URL above to")}
+                          <strong>Authorized redirect URIs</strong>
+                        </li>
+                        <li>{gettext("Copy Client ID and Secret to fields above")}</li>
+                        <li>
+                          {gettext("Click")}
+                          <strong>Test Credentials</strong> {gettext("to verify setup")}
+                        </li>
+                      </:steps>
+                    </.oauth_setup_instructions>
+                  </div>
+                </div>
+
+                <%!-- GitHub OAuth Credentials --%>
+                <div class={[
+                  "card bg-base-200 p-4 mt-3",
+                  if(@settings["oauth_github_enabled"] != "true", do: "hidden", else: "")
+                ]}>
                   <h3 class="font-semibold mb-3 flex items-center gap-2">
-                    <PhoenixKitWeb.Components.Core.Icons.icon_google class="h-5 w-5" />
-                    {gettext("Google OAuth Credentials")}
+                    <PhoenixKitWeb.Components.Core.Icons.icon_github class="h-5 w-5" />
+                    {gettext("GitHub OAuth Credentials")}
                   </h3>
 
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div class="fieldset">
                       <.input
                         type="text"
-                        name="settings[oauth_google_client_id]"
-                        value={@settings["oauth_google_client_id"] || ""}
+                        name="settings[oauth_github_client_id]"
+                        value={@settings["oauth_github_client_id"] || ""}
                         label={gettext("Client ID")}
-                        placeholder={gettext("Your Google OAuth Client ID")}
+                        placeholder={gettext("Your GitHub OAuth Client ID")}
                       />
                     </div>
 
                     <div class="fieldset">
                       <.input
                         type="password"
-                        name="settings[oauth_google_client_secret]"
+                        name="settings[oauth_github_client_secret]"
                         value=""
                         label={gettext("Client Secret")}
                         placeholder={
                           oauth_secret_placeholder(
-                            @settings["oauth_google_client_secret"],
-                            gettext("Your Google OAuth Client Secret")
+                            @settings["oauth_github_client_secret"],
+                            gettext("Your GitHub OAuth Client Secret")
                           )
                         }
                       />
@@ -399,42 +494,46 @@
                   <button
                     type="button"
                     phx-click="test_oauth"
-                    phx-value-provider="google"
+                    phx-value-provider="github"
                     class="btn btn-sm btn-outline mt-3 w-fit"
                   >
                     {gettext("Test Credentials")}
                   </button>
 
                   <.oauth_setup_instructions
-                    callback_url={get_oauth_callback_url(@settings, "google")}
-                    copy_hint={gettext("Copy this URL to Google Cloud Console")}
+                    callback_url={get_oauth_callback_url(@settings, "github")}
+                    copy_hint={gettext("Copy this URL to GitHub OAuth Apps")}
                   >
                     <:steps>
                       <li>
                         {gettext("Visit")}
                         <a
-                          href="https://console.cloud.google.com/apis/credentials"
+                          href="https://github.com/settings/developers"
                           target="_blank"
                           class="link link-primary"
                         >
-                          Google Cloud Console
+                          GitHub Developer Settings
                         </a>
                       </li>
-                      <li>{gettext("Create project or select existing one")}</li>
                       <li>
-                        {gettext("Go to")} <strong>Credentials</strong>
-                        → <strong>Create Credentials</strong>
-                        → <strong>OAuth client ID</strong>
+                        {gettext("Go to")} <strong>OAuth Apps</strong>
+                        → <strong>New OAuth App</strong>
                       </li>
                       <li>
-                        {gettext("Select")}
-                        <strong>Web application</strong> {gettext("type")}
+                        {gettext("Enter")} <strong>Application name</strong>
+                        {gettext("and")} <strong>Homepage URL</strong>
                       </li>
                       <li>
                         {gettext("Add callback URL above to")}
-                        <strong>Authorized redirect URIs</strong>
+                        <strong>Authorization callback URL</strong>
                       </li>
-                      <li>{gettext("Copy Client ID and Secret to fields above")}</li>
+                      <li>
+                        {gettext("Click")} <strong>Register application</strong>
+                      </li>
+                      <li>
+                        {gettext("Copy")} <strong>Client ID</strong>
+                        {gettext("and generate/copy")} <strong>Client Secret</strong>
+                      </li>
                       <li>
                         {gettext("Click")}
                         <strong>Test Credentials</strong> {gettext("to verify setup")}
@@ -442,246 +541,158 @@
                     </:steps>
                   </.oauth_setup_instructions>
                 </div>
-              </div>
 
-              <%!-- GitHub OAuth Credentials --%>
-              <div class={[
-                "card bg-base-200 p-4 mt-3",
-                if(@settings["oauth_github_enabled"] != "true", do: "hidden", else: "")
-              ]}>
-                <h3 class="font-semibold mb-3 flex items-center gap-2">
-                  <PhoenixKitWeb.Components.Core.Icons.icon_github class="h-5 w-5" />
-                  {gettext("GitHub OAuth Credentials")}
-                </h3>
+                <%!-- Facebook OAuth Credentials --%>
+                <div class={[
+                  "card bg-base-200 p-4 mt-3",
+                  if(@settings["oauth_facebook_enabled"] != "true", do: "hidden", else: "")
+                ]}>
+                  <h3 class="font-semibold mb-3 flex items-center gap-2">
+                    <PhoenixKitWeb.Components.Core.Icons.icon_facebook class="h-5 w-5" />
+                    {gettext("Facebook OAuth Credentials")}
+                  </h3>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div class="fieldset">
-                    <.input
-                      type="text"
-                      name="settings[oauth_github_client_id]"
-                      value={@settings["oauth_github_client_id"] || ""}
-                      label={gettext("Client ID")}
-                      placeholder={gettext("Your GitHub OAuth Client ID")}
-                    />
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="fieldset">
+                      <.input
+                        type="text"
+                        name="settings[oauth_facebook_app_id]"
+                        value={@settings["oauth_facebook_app_id"] || ""}
+                        label={gettext("App ID")}
+                        placeholder={gettext("Your Facebook App ID")}
+                      />
+                    </div>
+
+                    <div class="fieldset">
+                      <.input
+                        type="password"
+                        name="settings[oauth_facebook_app_secret]"
+                        value=""
+                        label={gettext("App Secret")}
+                        placeholder={
+                          oauth_secret_placeholder(
+                            @settings["oauth_facebook_app_secret"],
+                            gettext("Your Facebook App Secret")
+                          )
+                        }
+                      />
+                    </div>
                   </div>
 
-                  <div class="fieldset">
-                    <.input
-                      type="password"
-                      name="settings[oauth_github_client_secret]"
-                      value=""
-                      label={gettext("Client Secret")}
-                      placeholder={
-                        oauth_secret_placeholder(
-                          @settings["oauth_github_client_secret"],
-                          gettext("Your GitHub OAuth Client Secret")
-                        )
-                      }
-                    />
+                  <button
+                    type="button"
+                    phx-click="test_oauth"
+                    phx-value-provider="facebook"
+                    class="btn btn-sm btn-outline mt-3 w-fit"
+                  >
+                    {gettext("Test Credentials")}
+                  </button>
+
+                  <.oauth_setup_instructions
+                    callback_url={get_oauth_callback_url(@settings, "facebook")}
+                    copy_hint={gettext("Copy this URL to Facebook App Settings")}
+                  >
+                    <:steps>
+                      <li>
+                        {gettext("Visit")}
+                        <a
+                          href="https://developers.facebook.com/apps"
+                          target="_blank"
+                          class="link link-primary"
+                        >
+                          Facebook Developers Console
+                        </a>
+                      </li>
+                      <li>
+                        {gettext("Create a new app or select existing one")}
+                      </li>
+                      <li>
+                        {gettext("Add")} <strong>Facebook Login</strong> {gettext("product")}
+                      </li>
+                      <li>
+                        {gettext("Go to")} <strong>Facebook Login</strong>
+                        → <strong>Settings</strong>
+                      </li>
+                      <li>
+                        {gettext("Add callback URL above to")}
+                        <strong>Valid OAuth Redirect URIs</strong>
+                      </li>
+                      <li>
+                        {gettext("Go to")} <strong>Settings</strong> → <strong>Basic</strong>
+                      </li>
+                      <li>
+                        {gettext("Copy")} <strong>App ID</strong>
+                        {gettext("and")} <strong>App Secret</strong>
+                        {gettext("to fields above")}
+                      </li>
+                      <li>
+                        {gettext("Switch app from")} <strong>Development</strong>
+                        {gettext("to")} <strong>Live</strong>
+                        {gettext("mode")}
+                      </li>
+                      <li>
+                        {gettext("Click")}
+                        <strong>Test Credentials</strong> {gettext("to verify setup")}
+                      </li>
+                    </:steps>
+                  </.oauth_setup_instructions>
+                </div>
+
+                <%!-- OAuth Configuration Notice --%>
+                <div class="alert alert-info text-sm mt-3 max-w-prose">
+                  <.icon name="hero-information-circle" class="stroke-current shrink-0 h-5 w-5" />
+                  <div>
+                    <div class="font-semibold">{gettext("OAuth Setup Instructions")}</div>
+                    <div class="text-xs">
+                      <p>{gettext("1. Enable the provider above and save settings")}</p>
+                      <p>{gettext("2. Enter your OAuth credentials in the form that appears")}</p>
+                      <p>{gettext("3. Save settings again to store credentials")}</p>
+                      <p>{gettext("4. Click \"Test Credentials\" to verify configuration")}</p>
+                      <p class="mt-1">
+                        {gettext(
+                          "Note: OAuth providers require ueberauth dependencies to be installed."
+                        )}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
+                <%!-- Reload OAuth Configuration Button --%>
                 <button
                   type="button"
-                  phx-click="test_oauth"
-                  phx-value-provider="github"
-                  class="btn btn-sm btn-outline mt-3 w-fit"
+                  phx-click="reload_oauth_config"
+                  class="btn btn-sm btn-outline btn-secondary mt-3"
                 >
-                  {gettext("Test Credentials")}
+                  <PhoenixKitWeb.Components.Core.Icons.icon_refresh class="h-4 w-4" />
+                  {gettext("Reload OAuth Configuration")}
                 </button>
-
-                <.oauth_setup_instructions
-                  callback_url={get_oauth_callback_url(@settings, "github")}
-                  copy_hint={gettext("Copy this URL to GitHub OAuth Apps")}
-                >
-                  <:steps>
-                    <li>
-                      {gettext("Visit")}
-                      <a
-                        href="https://github.com/settings/developers"
-                        target="_blank"
-                        class="link link-primary"
-                      >
-                        GitHub Developer Settings
-                      </a>
-                    </li>
-                    <li>
-                      {gettext("Go to")} <strong>OAuth Apps</strong>
-                      → <strong>New OAuth App</strong>
-                    </li>
-                    <li>
-                      {gettext("Enter")} <strong>Application name</strong>
-                      {gettext("and")} <strong>Homepage URL</strong>
-                    </li>
-                    <li>
-                      {gettext("Add callback URL above to")}
-                      <strong>Authorization callback URL</strong>
-                    </li>
-                    <li>
-                      {gettext("Click")} <strong>Register application</strong>
-                    </li>
-                    <li>
-                      {gettext("Copy")} <strong>Client ID</strong>
-                      {gettext("and generate/copy")} <strong>Client Secret</strong>
-                    </li>
-                    <li>
-                      {gettext("Click")}
-                      <strong>Test Credentials</strong> {gettext("to verify setup")}
-                    </li>
-                  </:steps>
-                </.oauth_setup_instructions>
-              </div>
-
-              <%!-- Facebook OAuth Credentials --%>
-              <div class={[
-                "card bg-base-200 p-4 mt-3",
-                if(@settings["oauth_facebook_enabled"] != "true", do: "hidden", else: "")
-              ]}>
-                <h3 class="font-semibold mb-3 flex items-center gap-2">
-                  <PhoenixKitWeb.Components.Core.Icons.icon_facebook class="h-5 w-5" />
-                  {gettext("Facebook OAuth Credentials")}
-                </h3>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div class="fieldset">
-                    <.input
-                      type="text"
-                      name="settings[oauth_facebook_app_id]"
-                      value={@settings["oauth_facebook_app_id"] || ""}
-                      label={gettext("App ID")}
-                      placeholder={gettext("Your Facebook App ID")}
-                    />
-                  </div>
-
-                  <div class="fieldset">
-                    <.input
-                      type="password"
-                      name="settings[oauth_facebook_app_secret]"
-                      value=""
-                      label={gettext("App Secret")}
-                      placeholder={
-                        oauth_secret_placeholder(
-                          @settings["oauth_facebook_app_secret"],
-                          gettext("Your Facebook App Secret")
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  phx-click="test_oauth"
-                  phx-value-provider="facebook"
-                  class="btn btn-sm btn-outline mt-3 w-fit"
-                >
-                  {gettext("Test Credentials")}
-                </button>
-
-                <.oauth_setup_instructions
-                  callback_url={get_oauth_callback_url(@settings, "facebook")}
-                  copy_hint={gettext("Copy this URL to Facebook App Settings")}
-                >
-                  <:steps>
-                    <li>
-                      {gettext("Visit")}
-                      <a
-                        href="https://developers.facebook.com/apps"
-                        target="_blank"
-                        class="link link-primary"
-                      >
-                        Facebook Developers Console
-                      </a>
-                    </li>
-                    <li>
-                      {gettext("Create a new app or select existing one")}
-                    </li>
-                    <li>
-                      {gettext("Add")} <strong>Facebook Login</strong> {gettext("product")}
-                    </li>
-                    <li>
-                      {gettext("Go to")} <strong>Facebook Login</strong>
-                      → <strong>Settings</strong>
-                    </li>
-                    <li>
-                      {gettext("Add callback URL above to")}
-                      <strong>Valid OAuth Redirect URIs</strong>
-                    </li>
-                    <li>
-                      {gettext("Go to")} <strong>Settings</strong> → <strong>Basic</strong>
-                    </li>
-                    <li>
-                      {gettext("Copy")} <strong>App ID</strong>
-                      {gettext("and")} <strong>App Secret</strong>
-                      {gettext("to fields above")}
-                    </li>
-                    <li>
-                      {gettext("Switch app from")} <strong>Development</strong>
-                      {gettext("to")} <strong>Live</strong>
-                      {gettext("mode")}
-                    </li>
-                    <li>
-                      {gettext("Click")}
-                      <strong>Test Credentials</strong> {gettext("to verify setup")}
-                    </li>
-                  </:steps>
-                </.oauth_setup_instructions>
-              </div>
-
-              <%!-- OAuth Configuration Notice --%>
-              <div class="alert alert-info text-sm mt-3 max-w-prose">
-                <.icon name="hero-information-circle" class="stroke-current shrink-0 h-5 w-5" />
-                <div>
-                  <div class="font-semibold">{gettext("OAuth Setup Instructions")}</div>
-                  <div class="text-xs">
-                    <p>{gettext("1. Enable the provider above and save settings")}</p>
-                    <p>{gettext("2. Enter your OAuth credentials in the form that appears")}</p>
-                    <p>{gettext("3. Save settings again to store credentials")}</p>
-                    <p>{gettext("4. Click \"Test Credentials\" to verify configuration")}</p>
-                    <p class="mt-1">
-                      {gettext(
-                        "Note: OAuth providers require ueberauth dependencies to be installed."
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <%!-- Reload OAuth Configuration Button --%>
-              <button
-                type="button"
-                phx-click="reload_oauth_config"
-                class="btn btn-sm btn-outline btn-secondary mt-3"
-              >
-                <PhoenixKitWeb.Components.Core.Icons.icon_refresh class="h-4 w-4" />
-                {gettext("Reload OAuth Configuration")}
-              </button>
-            <% end %>
+              <% end %>
+            </div>
           </div>
 
-          <.section_header icon="hero-user-group" title={gettext("Sessions")} />
-
-          <%!-- Multiple Sessions (account switcher) --%>
-          <div class="fieldset w-full">
-            <label class="label">
-              <span class="fieldset-legend text-base font-medium">
-                {gettext("Multiple Sessions")}
-              </span>
-              <span class="fieldset-label text-sm text-base-content/60">
-                {gettext("Account switcher for signing in to several accounts at once")}
-              </span>
-            </label>
-            <.checkbox
-              name="settings[multi_session_enabled]"
-              checked={@settings["multi_session_enabled"] == "true"}
-              label={gettext("Enable the multi-account switcher in the header")}
-            >
-              <:description>
-                {gettext(
-                  "When on, any signed-in user can add other accounts (with their password) and switch between them from the user menu."
-                )}
-              </:description>
-            </.checkbox>
+          <div class={if @active_tab != "sessions", do: "hidden"}>
+            <%!-- Multiple Sessions (account switcher) --%>
+            <div class="fieldset w-full">
+              <label class="label">
+                <span class="fieldset-legend text-base font-medium">
+                  {gettext("Multiple Sessions")}
+                </span>
+                <span class="fieldset-label text-sm text-base-content/60">
+                  {gettext("Account switcher for signing in to several accounts at once")}
+                </span>
+              </label>
+              <.checkbox
+                name="settings[multi_session_enabled]"
+                checked={@settings["multi_session_enabled"] == "true"}
+                label={gettext("Enable the multi-account switcher in the header")}
+              >
+                <:description>
+                  {gettext(
+                    "When on, any signed-in user can add other accounts (with their password) and switch between them from the user menu."
+                  )}
+                </:description>
+              </.checkbox>
+            </div>
           </div>
 
           <%!-- Action Buttons --%>

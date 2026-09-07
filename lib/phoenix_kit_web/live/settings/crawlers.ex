@@ -52,6 +52,7 @@ defmodule PhoenixKitWeb.Live.Settings.Crawlers do
         |> assign(:robots_txt_present?, File.exists?(robots_txt_path()))
         |> assign(:robots_txt_references_sitemap?, robots_txt_references_sitemap?())
         |> assign(:groups, Bots.groups())
+        |> assign(:active_tab, "robots")
         |> assign_policy_state()
 
       {:ok, socket}
@@ -68,6 +69,10 @@ defmodule PhoenixKitWeb.Live.Settings.Crawlers do
 
       {:ok, socket}
     end
+  end
+
+  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, :active_tab, tab)}
   end
 
   def handle_event("toggle_no_index", _params, socket) do

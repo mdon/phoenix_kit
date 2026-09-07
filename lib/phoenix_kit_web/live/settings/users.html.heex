@@ -59,556 +59,579 @@
               value={@saved_settings["time_format"]}
             />
 
-            <.section_header icon="hero-user-plus" title={gettext("Registration")} />
+            <.nav_tabs
+              active_tab={@active_tab}
+              on_change="switch_settings_tab"
+              variant={:border}
+              tabs={[
+                %{id: "registration", label: gettext("Registration"), icon: "hero-user-plus"},
+                %{id: "sessions", label: gettext("Sessions"), icon: "hero-shield-check"},
+                %{
+                  id: "redirects",
+                  label: gettext("Post-Login Redirects"),
+                  icon: "hero-arrow-right-circle"
+                },
+                %{id: "defaults", label: gettext("New User Defaults"), icon: "hero-user-circle"},
+                %{id: "fields", label: gettext("Custom User Fields"), icon: "hero-list-bullet"}
+              ]}
+            />
 
-            <%!-- Registration Control Setting --%>
-            <div class="fieldset w-full">
-              <.checkbox
-                name="settings[allow_registration]"
-                checked={@settings["allow_registration"] == "true"}
-                label={gettext("Anyone can register")}
-                wrapper_class="mb-3"
-              />
-              <.checkbox
-                name="settings[require_email_confirmation]"
-                checked={@settings["require_email_confirmation"] == "true"}
-                label={gettext("Require email confirmation before using the app")}
-                wrapper_class="mb-3"
-              />
-              <.checkbox
-                name="settings[track_registration_geolocation]"
-                checked={@settings["track_registration_geolocation"] == "true"}
-                label={gettext("Track user registration location")}
-                wrapper_class="mb-3"
-              />
-              <.checkbox
-                name="settings[registration_show_username]"
-                checked={@settings["registration_show_username"] == "true"}
-                label={gettext("Show username field on registration")}
-              />
-              <%!-- Organization Accounts --%>
-              <.checkbox
-                name="settings[enable_organization_accounts]"
-                checked={@settings["enable_organization_accounts"] == "true"}
-                label={gettext("Enable organization accounts")}
-                wrapper_class="mt-3"
-              />
+            <div class={if @active_tab != "registration", do: "hidden"}>
+              <%!-- Registration Control Setting --%>
+              <div class="fieldset w-full">
+                <.checkbox
+                  name="settings[allow_registration]"
+                  checked={@settings["allow_registration"] == "true"}
+                  label={gettext("Anyone can register")}
+                  wrapper_class="mb-3"
+                />
+                <.checkbox
+                  name="settings[require_email_confirmation]"
+                  checked={@settings["require_email_confirmation"] == "true"}
+                  label={gettext("Require email confirmation before using the app")}
+                  wrapper_class="mb-3"
+                />
+                <.checkbox
+                  name="settings[track_registration_geolocation]"
+                  checked={@settings["track_registration_geolocation"] == "true"}
+                  label={gettext("Track user registration location")}
+                  wrapper_class="mb-3"
+                />
+                <.checkbox
+                  name="settings[registration_show_username]"
+                  checked={@settings["registration_show_username"] == "true"}
+                  label={gettext("Show username field on registration")}
+                />
+                <%!-- Organization Accounts --%>
+                <.checkbox
+                  name="settings[enable_organization_accounts]"
+                  checked={@settings["enable_organization_accounts"] == "true"}
+                  label={gettext("Enable organization accounts")}
+                  wrapper_class="mt-3"
+                />
 
-              <.unsaved_hint dirty={
-                Enum.any?(
-                  [
-                    "allow_registration",
-                    "require_email_confirmation",
-                    "track_registration_geolocation",
-                    "registration_show_username",
-                    "enable_organization_accounts"
-                  ],
-                  fn key -> @settings[key] != @saved_settings[key] end
-                )
-              } />
+                <.unsaved_hint dirty={
+                  Enum.any?(
+                    [
+                      "allow_registration",
+                      "require_email_confirmation",
+                      "track_registration_geolocation",
+                      "registration_show_username",
+                      "enable_organization_accounts"
+                    ],
+                    fn key -> @settings[key] != @saved_settings[key] end
+                  )
+                } />
 
-              <%!-- Only meaningful while organization accounts exist. Not
+                <%!-- Only meaningful while organization accounts exist. Not
                    rendered means not submitted, and `update_settings/1` only
                    writes the keys a form actually sends — so switching the
                    feature off leaves the stored mode untouched for when it
                    comes back on. --%>
-              <%= if @settings["enable_organization_accounts"] == "true" do %>
-                <div class="mt-3 ml-7 pl-4 border-l-2 border-base-300">
-                  <label class="label" for="settings_registration_account_type">
-                    <span class="fieldset-legend text-base font-medium">
-                      {gettext("Account types on the signup page")}
-                    </span>
-                    <span class="fieldset-label text-sm text-base-content/60">
-                      {gettext("What a visitor is allowed to open")}
-                    </span>
-                  </label>
-                  <.select
-                    id="settings_registration_account_type"
-                    name="settings[registration_account_type]"
-                    value={@settings["registration_account_type"]}
-                    options={@registration_account_type_options}
-                    class="focus-within:select-primary"
-                  />
-                  <.unsaved_hint
-                    dirty={
-                      @settings["registration_account_type"] !=
-                        @saved_settings["registration_account_type"]
-                    }
-                    saved={
-                      get_option_label(
-                        @saved_settings["registration_account_type"],
-                        @registration_account_type_options
-                      )
-                    }
-                  />
+                <%= if @settings["enable_organization_accounts"] == "true" do %>
+                  <div class="mt-3 ml-7 pl-4 border-l-2 border-base-300">
+                    <label class="label" for="settings_registration_account_type">
+                      <span class="fieldset-legend text-base font-medium">
+                        {gettext("Account types on the signup page")}
+                      </span>
+                      <span class="fieldset-label text-sm text-base-content/60">
+                        {gettext("What a visitor is allowed to open")}
+                      </span>
+                    </label>
+                    <.select
+                      id="settings_registration_account_type"
+                      name="settings[registration_account_type]"
+                      value={@settings["registration_account_type"]}
+                      options={@registration_account_type_options}
+                      class="focus-within:select-primary"
+                    />
+                    <.unsaved_hint
+                      dirty={
+                        @settings["registration_account_type"] !=
+                          @saved_settings["registration_account_type"]
+                      }
+                      saved={
+                        get_option_label(
+                          @saved_settings["registration_account_type"],
+                          @registration_account_type_options
+                        )
+                      }
+                    />
 
-                  <%= if @settings["registration_account_type"] == "organization" do %>
-                    <div class="alert alert-info text-sm mt-2 max-w-prose">
-                      <.icon name="hero-information-circle" class="w-5 h-5" />
+                    <%= if @settings["registration_account_type"] == "organization" do %>
+                      <div class="alert alert-info text-sm mt-2 max-w-prose">
+                        <.icon name="hero-information-circle" class="w-5 h-5" />
+                        <div class="text-xs">
+                          {gettext(
+                            "The account type picker disappears from the signup page and every visitor who registers opens an organization."
+                          )}
+                          {gettext(
+                            "People who work for one join it by invitation instead, so no personal account is ever opened from the public form."
+                          )}
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+
+                <%!-- Privacy Notice for Geolocation --%>
+                <%= if @settings["track_registration_geolocation"] == "true" do %>
+                  <div class="alert alert-info text-sm mt-2 max-w-prose">
+                    <.icon name="hero-information-circle" class="w-5 h-5" />
+                    <div>
+                      <div class="font-semibold">
+                        {gettext("Privacy Notice: IP Geolocation Data")}
+                      </div>
                       <div class="text-xs">
                         {gettext(
-                          "The account type picker disappears from the signup page and every visitor who registers opens an organization."
+                          "When enabled, registration IP addresses and approximate location data (country, region, city) will be collected for analytics."
                         )}
                         {gettext(
-                          "People who work for one join it by invitation instead, so no personal account is ever opened from the public form."
+                          "Uses free APIs: IP-API.com (45 requests/minute) with ipapi.co (1000 requests/day) fallback. Defaults to OFF for privacy."
                         )}
                       </div>
                     </div>
-                  <% end %>
-                </div>
-              <% end %>
-
-              <%!-- Privacy Notice for Geolocation --%>
-              <%= if @settings["track_registration_geolocation"] == "true" do %>
-                <div class="alert alert-info text-sm mt-2 max-w-prose">
-                  <.icon name="hero-information-circle" class="w-5 h-5" />
-                  <div>
-                    <div class="font-semibold">
-                      {gettext("Privacy Notice: IP Geolocation Data")}
-                    </div>
-                    <div class="text-xs">
-                      {gettext(
-                        "When enabled, registration IP addresses and approximate location data (country, region, city) will be collected for analytics."
-                      )}
-                      {gettext(
-                        "Uses free APIs: IP-API.com (45 requests/minute) with ipapi.co (1000 requests/day) fallback. Defaults to OFF for privacy."
-                      )}
-                    </div>
                   </div>
-                </div>
-              <% end %>
+                <% end %>
+              </div>
             </div>
 
-            <.section_header icon="hero-shield-check" title={gettext("Sessions")} />
-
-            <%!-- Site-wide session-persistence policy. The master switch also
+            <div class={if @active_tab != "sessions", do: "hidden"}>
+              <%!-- Site-wide session-persistence policy. The master switch also
                  hard-blocks the cookie server-side, not just the checkbox. --%>
-            <div class="fieldset w-full">
-              <.checkbox
-                name="settings[remember_me_enabled]"
-                checked={@settings["remember_me_enabled"] == "true"}
-                label={gettext("Allow \"Keep me logged in\" (persistent sessions)")}
-                wrapper_class="mb-3"
-              />
-              <%!-- Deliberately NOT `disabled` when the master switch is off:
+              <div class="fieldset w-full">
+                <.checkbox
+                  name="settings[remember_me_enabled]"
+                  checked={@settings["remember_me_enabled"] == "true"}
+                  label={gettext("Allow \"Keep me logged in\" (persistent sessions)")}
+                  wrapper_class="mb-3"
+                />
+                <%!-- Deliberately NOT `disabled` when the master switch is off:
                    <.checkbox> renders an un-disabled hidden "false" fallback
                    next to the box, so a disabled checkbox still submits
                    "false" and would silently rewrite the stored value. It
                    simply has no effect while persistence is off. --%>
-              <.checkbox
-                name="settings[remember_me_default]"
-                checked={@settings["remember_me_default"] == "true"}
-                label={gettext("Check it by default (users can still untick it)")}
-              />
-              <div class="text-xs text-base-content/60 mt-1 max-w-prose">
-                {gettext(
-                  "Persistent sessions last 60 days. Magic-link and social logins have no checkbox to tick, so they follow the default above. Turning the first option off hides the checkbox everywhere and keeps every login to the browser session."
-                )}
+                <.checkbox
+                  name="settings[remember_me_default]"
+                  checked={@settings["remember_me_default"] == "true"}
+                  label={gettext("Check it by default (users can still untick it)")}
+                />
+                <div class="text-xs text-base-content/60 mt-1 max-w-prose">
+                  {gettext(
+                    "Persistent sessions last 60 days. Magic-link and social logins have no checkbox to tick, so they follow the default above. Turning the first option off hides the checkbox everywhere and keeps every login to the browser session."
+                  )}
+                </div>
+                <.unsaved_hint dirty={
+                  Enum.any?(
+                    ["remember_me_enabled", "remember_me_default"],
+                    fn key -> @settings[key] != @saved_settings[key] end
+                  )
+                } />
               </div>
-              <.unsaved_hint dirty={
-                Enum.any?(
-                  ["remember_me_enabled", "remember_me_default"],
-                  fn key -> @settings[key] != @saved_settings[key] end
-                )
-              } />
             </div>
 
-            <.section_header
-              icon="hero-arrow-right-circle"
-              title={gettext("Post-Login Redirects")}
-            />
-
-            <%!-- Where users land after signing in / registering. An explicit
+            <div class={if @active_tab != "redirects", do: "hidden"}>
+              <%!-- Where users land after signing in / registering. An explicit
                  return_to (e.g. a protected page that sent them to login)
                  always wins over these defaults. --%>
-            <div class="fieldset w-full">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="fieldset w-full">
-                  <label class="label" for="settings_after_login_path">
-                    <span class="fieldset-legend text-base font-medium">
-                      {gettext("After-login path")}
-                    </span>
-                  </label>
-                  <.input
-                    id="settings_after_login_path"
-                    type="text"
-                    name="settings[after_login_path]"
-                    value={@settings["after_login_path"]}
-                    placeholder="/"
-                  />
-                  <div class="text-xs text-base-content/60 mt-1">
-                    {gettext("Local path users land on after signing in.")}
+              <div class="fieldset w-full">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div class="fieldset w-full">
+                    <label class="label" for="settings_after_login_path">
+                      <span class="fieldset-legend text-base font-medium">
+                        {gettext("After-login path")}
+                      </span>
+                    </label>
+                    <.input
+                      id="settings_after_login_path"
+                      type="text"
+                      name="settings[after_login_path]"
+                      value={@settings["after_login_path"]}
+                      placeholder="/"
+                    />
+                    <div class="text-xs text-base-content/60 mt-1">
+                      {gettext("Local path users land on after signing in.")}
+                    </div>
+                  </div>
+                  <div class="fieldset w-full">
+                    <label class="label" for="settings_after_registration_path">
+                      <span class="fieldset-legend text-base font-medium">
+                        {gettext("After-registration path")}
+                      </span>
+                    </label>
+                    <.input
+                      id="settings_after_registration_path"
+                      type="text"
+                      name="settings[after_registration_path]"
+                      value={@settings["after_registration_path"]}
+                      placeholder={gettext("Same as after login")}
+                    />
+                    <div class="text-xs text-base-content/60 mt-1">
+                      {gettext(
+                        "Where a freshly registered account lands. Empty = after-login path."
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div class="fieldset w-full">
-                  <label class="label" for="settings_after_registration_path">
-                    <span class="fieldset-legend text-base font-medium">
-                      {gettext("After-registration path")}
-                    </span>
-                  </label>
-                  <.input
-                    id="settings_after_registration_path"
-                    type="text"
-                    name="settings[after_registration_path]"
-                    value={@settings["after_registration_path"]}
-                    placeholder={gettext("Same as after login")}
-                  />
-                  <div class="text-xs text-base-content/60 mt-1">
-                    {gettext(
-                      "Where a freshly registered account lands. Empty = after-login path."
-                    )}
-                  </div>
-                </div>
+                <.unsaved_hint dirty={
+                  Enum.any?(
+                    ["after_login_path", "after_registration_path"],
+                    fn key -> @settings[key] != @saved_settings[key] end
+                  )
+                } />
               </div>
-              <.unsaved_hint dirty={
-                Enum.any?(
-                  ["after_login_path", "after_registration_path"],
-                  fn key -> @settings[key] != @saved_settings[key] end
-                )
-              } />
-            </div>
 
-            <%!-- Escape hatch for a host that would rather own the account UI
+              <%!-- Escape hatch for a host that would rather own the account UI
                  than use PhoenixKit's page. Every "Settings" entry in the user
                  menu resolves through Routes.user_settings_path/1, so this one
                  field moves all of them at once. --%>
-            <div class="fieldset w-full">
-              <label class="label" for="settings_user_settings_path">
-                <span class="fieldset-legend text-base font-medium">
-                  {gettext("User settings path")}
-                </span>
-              </label>
-              <.input
-                id="settings_user_settings_path"
-                type="text"
-                name="settings[user_settings_path]"
-                value={@settings["user_settings_path"]}
-                placeholder="/phoenix_kit/profile/settings"
-              />
-              <div class="text-xs text-base-content/60 mt-1">
-                {gettext(
-                  "Where the \"Settings\" entry in the user menu goes. Empty = PhoenixKit's own profile settings page. Set it to send users to your own account page instead."
-                )}
-              </div>
-              <.unsaved_hint dirty={
-                @settings["user_settings_path"] != @saved_settings["user_settings_path"]
-              } />
-            </div>
-
-            <.section_header icon="hero-user-circle" title={gettext("New User Defaults")} />
-
-            <%!-- New User Default Role + Status --%>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="fieldset w-full">
-                <label class="label">
+                <label class="label" for="settings_user_settings_path">
                   <span class="fieldset-legend text-base font-medium">
-                    {gettext("New User Default Role")}
-                  </span>
-                  <span class="fieldset-label text-sm text-base-content/60">
-                    {gettext("Role assigned to new user registrations")}
+                    {gettext("User settings path")}
                   </span>
                 </label>
-                <.select
-                  name="settings[new_user_default_role]"
-                  value={@settings["new_user_default_role"]}
-                  options={@setting_options["new_user_default_role"]}
-                  class="focus-within:select-primary"
+                <.input
+                  id="settings_user_settings_path"
+                  type="text"
+                  name="settings[user_settings_path]"
+                  value={@settings["user_settings_path"]}
+                  placeholder="/phoenix_kit/profile/settings"
                 />
-                <.unsaved_hint
-                  dirty={
-                    @settings["new_user_default_role"] != @saved_settings["new_user_default_role"]
-                  }
-                  saved={
-                    get_option_label(
-                      @saved_settings["new_user_default_role"],
-                      @setting_options["new_user_default_role"]
-                    )
-                  }
-                />
-
-                <%!-- Security Warning for Admin Role --%>
-                <%= if @settings["new_user_default_role"] == "Admin" do %>
-                  <div class="alert alert-warning text-sm mt-2 max-w-prose">
-                    <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
-                    <div>
-                      <div class="font-semibold">
-                        {gettext("Security Notice: Medium Risk")}
-                      </div>
-                      <div class="text-xs">
-                        {gettext(
-                          "All new users will receive administrative privileges and access to the admin panel."
-                        )}
-                        {gettext("Consider \"User\" for most installations to maintain security.")}
-                      </div>
-                    </div>
-                  </div>
-                <% end %>
-              </div>
-
-              <%!-- New User Default Status --%>
-              <div class="fieldset w-full">
-                <label class="label">
-                  <span class="fieldset-legend text-base font-medium">
-                    {gettext("New User Default Status")}
-                  </span>
-                  <span class="fieldset-label text-sm text-base-content/60">
-                    {gettext("Active status for new user registrations")}
-                  </span>
-                </label>
-                <.select
-                  name="settings[new_user_default_status]"
-                  value={@settings["new_user_default_status"]}
-                  options={@setting_options["new_user_default_status"]}
-                  class="focus-within:select-primary"
-                />
-                <.unsaved_hint
-                  dirty={
-                    @settings["new_user_default_status"] !=
-                      @saved_settings["new_user_default_status"]
-                  }
-                  saved={
-                    get_option_label(
-                      @saved_settings["new_user_default_status"],
-                      @setting_options["new_user_default_status"]
-                    )
-                  }
-                />
-
-                <%!-- Security Warning for Inactive Status --%>
-                <%= if @settings["new_user_default_status"] == "false" do %>
-                  <div class="alert alert-warning text-sm mt-2 max-w-prose">
-                    <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
-                    <div>
-                      <div class="font-semibold">
-                        {gettext("Security Notice: Inactive Default")}
-                      </div>
-                      <div class="text-xs">
-                        {gettext(
-                          "New users will be created as inactive and will not be able to log in until an admin activates their account."
-                        )}
-                        {gettext(
-                          "The first user (Owner) will always be active regardless of this setting."
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                <% end %>
-              </div>
-            </div>
-
-            <.section_header icon="hero-list-bullet" title={gettext("Custom User Fields")} />
-
-            <%!-- Custom Fields Section --%>
-            <div class="fieldset w-full">
-              <label class="label">
-                <span class="fieldset-label text-sm text-base-content/60">
-                  {gettext("Define additional profile fields for users")}
-                </span>
-              </label>
-
-              <%= if Enum.empty?(@field_definitions) do %>
-                <%!-- Empty State --%>
-                <div class="text-center py-8 border border-dashed border-base-300 rounded-lg">
-                  <.icon
-                    name="hero-clipboard-document-list"
-                    class="w-10 h-10 mx-auto mb-4 text-base-content/30"
-                  />
-                  <p class="text-base-content/60 mb-4">
-                    {gettext("No custom fields defined yet")}
-                  </p>
-                  <button
-                    type="button"
-                    class="btn btn-primary btn-sm"
-                    phx-click="show_add_field_form"
-                  >
-                    <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add First Field")}
-                  </button>
+                <div class="text-xs text-base-content/60 mt-1">
+                  {gettext(
+                    "Where the \"Settings\" entry in the user menu goes. Empty = PhoenixKit's own profile settings page. Set it to send users to your own account page instead."
+                  )}
                 </div>
-              <% else %>
-                <%!-- Table Display --%>
-                <.table_default
-                  id="user-custom-fields-table"
-                  variant="zebra"
-                  size="sm"
-                  toggleable
-                  items={Enum.sort_by(@field_definitions, & &1["position"])}
-                  card_title={fn field -> field["label"] end}
-                  card_fields={
-                    fn field ->
-                      [
-                        %{label: gettext("Key:"), value: field["key"]},
-                        %{label: gettext("Type"), value: field["type"]},
-                        %{
-                          label: gettext("Required"),
-                          value: if(field["required"], do: gettext("Yes"), else: gettext("No"))
-                        },
-                        %{
-                          label: gettext("Status"),
-                          value:
-                            if(field["enabled"],
-                              do: gettext("Enabled"),
-                              else: gettext("Disabled")
-                            )
-                        },
-                        %{
-                          label: gettext("User Access"),
-                          value:
-                            if(Map.get(field, "user_accessible", true),
-                              do: gettext("User Editable"),
-                              else: gettext("Admin Only")
-                            )
-                        }
-                      ]
-                    end
-                  }
-                >
-                  <:toolbar_title>
-                    <span class="text-sm text-base-content/60">
-                      {length(@field_definitions)} {gettext("Custom Fields")}
+                <.unsaved_hint dirty={
+                  @settings["user_settings_path"] != @saved_settings["user_settings_path"]
+                } />
+              </div>
+            </div>
+
+            <div class={if @active_tab != "defaults", do: "hidden"}>
+              <%!-- New User Default Role + Status --%>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="fieldset w-full">
+                  <label class="label">
+                    <span class="fieldset-legend text-base font-medium">
+                      {gettext("New User Default Role")}
                     </span>
-                  </:toolbar_title>
-                  <:toolbar_actions>
+                    <span class="fieldset-label text-sm text-base-content/60">
+                      {gettext("Role assigned to new user registrations")}
+                    </span>
+                  </label>
+                  <.select
+                    name="settings[new_user_default_role]"
+                    value={@settings["new_user_default_role"]}
+                    options={@setting_options["new_user_default_role"]}
+                    class="focus-within:select-primary"
+                  />
+                  <.unsaved_hint
+                    dirty={
+                      @settings["new_user_default_role"] !=
+                        @saved_settings["new_user_default_role"]
+                    }
+                    saved={
+                      get_option_label(
+                        @saved_settings["new_user_default_role"],
+                        @setting_options["new_user_default_role"]
+                      )
+                    }
+                  />
+
+                  <%!-- Security Warning for Admin Role --%>
+                  <%= if @settings["new_user_default_role"] == "Admin" do %>
+                    <div class="alert alert-warning text-sm mt-2 max-w-prose">
+                      <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+                      <div>
+                        <div class="font-semibold">
+                          {gettext("Security Notice: Medium Risk")}
+                        </div>
+                        <div class="text-xs">
+                          {gettext(
+                            "All new users will receive administrative privileges and access to the admin panel."
+                          )}
+                          {gettext(
+                            "Consider \"User\" for most installations to maintain security."
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+
+                <%!-- New User Default Status --%>
+                <div class="fieldset w-full">
+                  <label class="label">
+                    <span class="fieldset-legend text-base font-medium">
+                      {gettext("New User Default Status")}
+                    </span>
+                    <span class="fieldset-label text-sm text-base-content/60">
+                      {gettext("Active status for new user registrations")}
+                    </span>
+                  </label>
+                  <.select
+                    name="settings[new_user_default_status]"
+                    value={@settings["new_user_default_status"]}
+                    options={@setting_options["new_user_default_status"]}
+                    class="focus-within:select-primary"
+                  />
+                  <.unsaved_hint
+                    dirty={
+                      @settings["new_user_default_status"] !=
+                        @saved_settings["new_user_default_status"]
+                    }
+                    saved={
+                      get_option_label(
+                        @saved_settings["new_user_default_status"],
+                        @setting_options["new_user_default_status"]
+                      )
+                    }
+                  />
+
+                  <%!-- Security Warning for Inactive Status --%>
+                  <%= if @settings["new_user_default_status"] == "false" do %>
+                    <div class="alert alert-warning text-sm mt-2 max-w-prose">
+                      <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+                      <div>
+                        <div class="font-semibold">
+                          {gettext("Security Notice: Inactive Default")}
+                        </div>
+                        <div class="text-xs">
+                          {gettext(
+                            "New users will be created as inactive and will not be able to log in until an admin activates their account."
+                          )}
+                          {gettext(
+                            "The first user (Owner) will always be active regardless of this setting."
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+
+            <div class={if @active_tab != "fields", do: "hidden"}>
+              <%!-- Custom Fields Section --%>
+              <div class="fieldset w-full">
+                <label class="label">
+                  <span class="fieldset-label text-sm text-base-content/60">
+                    {gettext("Define additional profile fields for users")}
+                  </span>
+                </label>
+
+                <%= if Enum.empty?(@field_definitions) do %>
+                  <%!-- Empty State --%>
+                  <div class="text-center py-8 border border-dashed border-base-300 rounded-lg">
+                    <.icon
+                      name="hero-clipboard-document-list"
+                      class="w-10 h-10 mx-auto mb-4 text-base-content/30"
+                    />
+                    <p class="text-base-content/60 mb-4">
+                      {gettext("No custom fields defined yet")}
+                    </p>
                     <button
                       type="button"
                       class="btn btn-primary btn-sm"
                       phx-click="show_add_field_form"
                     >
-                      <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Custom Field")}
+                      <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add First Field")}
                     </button>
-                  </:toolbar_actions>
+                  </div>
+                <% else %>
+                  <%!-- Table Display --%>
+                  <.table_default
+                    id="user-custom-fields-table"
+                    variant="zebra"
+                    size="sm"
+                    toggleable
+                    items={Enum.sort_by(@field_definitions, & &1["position"])}
+                    card_title={fn field -> field["label"] end}
+                    card_fields={
+                      fn field ->
+                        [
+                          %{label: gettext("Key:"), value: field["key"]},
+                          %{label: gettext("Type"), value: field["type"]},
+                          %{
+                            label: gettext("Required"),
+                            value: if(field["required"], do: gettext("Yes"), else: gettext("No"))
+                          },
+                          %{
+                            label: gettext("Status"),
+                            value:
+                              if(field["enabled"],
+                                do: gettext("Enabled"),
+                                else: gettext("Disabled")
+                              )
+                          },
+                          %{
+                            label: gettext("User Access"),
+                            value:
+                              if(Map.get(field, "user_accessible", true),
+                                do: gettext("User Editable"),
+                                else: gettext("Admin Only")
+                              )
+                          }
+                        ]
+                      end
+                    }
+                  >
+                    <:toolbar_title>
+                      <span class="text-sm text-base-content/60">
+                        {length(@field_definitions)} {gettext("Custom Fields")}
+                      </span>
+                    </:toolbar_title>
+                    <:toolbar_actions>
+                      <button
+                        type="button"
+                        class="btn btn-primary btn-sm"
+                        phx-click="show_add_field_form"
+                      >
+                        <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Custom Field")}
+                      </button>
+                    </:toolbar_actions>
 
-                  <.table_default_header>
-                    <.table_default_row>
-                      <.table_default_header_cell>{gettext("Field")}</.table_default_header_cell>
-                      <.table_default_header_cell>{gettext("Type")}</.table_default_header_cell>
-                      <.table_default_header_cell>
-                        {gettext("Required")}
-                      </.table_default_header_cell>
-                      <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
-                      <.table_default_header_cell class="whitespace-nowrap">
-                        {gettext("User Access")}
-                      </.table_default_header_cell>
-                      <.table_default_header_cell>
-                        {gettext("Actions")}
-                      </.table_default_header_cell>
-                    </.table_default_row>
-                  </.table_default_header>
+                    <.table_default_header>
+                      <.table_default_row>
+                        <.table_default_header_cell>
+                          {gettext("Field")}
+                        </.table_default_header_cell>
+                        <.table_default_header_cell>{gettext("Type")}</.table_default_header_cell>
+                        <.table_default_header_cell>
+                          {gettext("Required")}
+                        </.table_default_header_cell>
+                        <.table_default_header_cell>
+                          {gettext("Status")}
+                        </.table_default_header_cell>
+                        <.table_default_header_cell class="whitespace-nowrap">
+                          {gettext("User Access")}
+                        </.table_default_header_cell>
+                        <.table_default_header_cell>
+                          {gettext("Actions")}
+                        </.table_default_header_cell>
+                      </.table_default_row>
+                    </.table_default_header>
 
-                  <.table_default_body>
-                    <.table_default_row :for={
-                      field <- Enum.sort_by(@field_definitions, & &1["position"])
-                    }>
-                      <.table_default_cell>
-                        <div class="font-semibold">{field["label"]}</div>
-                        <div class="text-xs text-base-content/60">
-                          {gettext("Key:")}
-                          <code class="bg-base-300 px-1 rounded">{field["key"]}</code>
-                        </div>
-                      </.table_default_cell>
-                      <.table_default_cell>
-                        <span class="badge badge-sm h-auto">{field["type"]}</span>
-                      </.table_default_cell>
-                      <.table_default_cell>
-                        <%= if field["required"] do %>
-                          <span class="badge badge-sm badge-warning">{gettext("Yes")}</span>
-                        <% else %>
-                          <span class="badge badge-sm badge-ghost">{gettext("No")}</span>
-                        <% end %>
-                      </.table_default_cell>
-                      <.table_default_cell>
+                    <.table_default_body>
+                      <.table_default_row :for={
+                        field <- Enum.sort_by(@field_definitions, & &1["position"])
+                      }>
+                        <.table_default_cell>
+                          <div class="font-semibold">{field["label"]}</div>
+                          <div class="text-xs text-base-content/60">
+                            {gettext("Key:")}
+                            <code class="bg-base-300 px-1 rounded">{field["key"]}</code>
+                          </div>
+                        </.table_default_cell>
+                        <.table_default_cell>
+                          <span class="badge badge-sm h-auto">{field["type"]}</span>
+                        </.table_default_cell>
+                        <.table_default_cell>
+                          <%= if field["required"] do %>
+                            <span class="badge badge-sm badge-warning">{gettext("Yes")}</span>
+                          <% else %>
+                            <span class="badge badge-sm badge-ghost">{gettext("No")}</span>
+                          <% end %>
+                        </.table_default_cell>
+                        <.table_default_cell>
+                          <%= if field["enabled"] do %>
+                            <span class="badge badge-sm badge-success">{gettext("Enabled")}</span>
+                          <% else %>
+                            <span class="badge badge-sm badge-ghost">{gettext("Disabled")}</span>
+                          <% end %>
+                        </.table_default_cell>
+                        <.table_default_cell>
+                          <%= if Map.get(field, "user_accessible", true) do %>
+                            <span class="badge badge-sm badge-success whitespace-nowrap">
+                              {gettext("User Editable")}
+                            </span>
+                          <% else %>
+                            <span class="badge badge-sm badge-warning whitespace-nowrap">
+                              {gettext("Admin Only")}
+                            </span>
+                          <% end %>
+                        </.table_default_cell>
+                        <.table_default_cell>
+                          <div class="flex gap-1">
+                            <button
+                              type="button"
+                              class="btn btn-xs btn-ghost tooltip tooltip-bottom"
+                              data-tip={
+                                if field["enabled"],
+                                  do: gettext("Disable"),
+                                  else: gettext("Enable")
+                              }
+                              phx-click="toggle_field_enabled"
+                              phx-value-key={field["key"]}
+                            >
+                              <%= if field["enabled"] do %>
+                                <.icon name="hero-eye" class="w-3 h-3" />
+                              <% else %>
+                                <.icon name="hero-eye-slash" class="w-3 h-3" />
+                              <% end %>
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-xs btn-ghost tooltip tooltip-bottom"
+                              data-tip={gettext("Edit")}
+                              phx-click="show_edit_field_form"
+                              phx-value-key={field["key"]}
+                            >
+                              <.icon name="hero-pencil" class="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-xs btn-ghost text-error tooltip tooltip-bottom"
+                              data-tip={gettext("Delete")}
+                              phx-click="delete_field"
+                              phx-value-key={field["key"]}
+                              data-confirm={
+                                gettext("Are you sure you want to delete this field?")
+                              }
+                            >
+                              <.icon name="hero-trash" class="w-3 h-3" />
+                            </button>
+                          </div>
+                        </.table_default_cell>
+                      </.table_default_row>
+                    </.table_default_body>
+
+                    <:card_actions :let={field}>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-ghost gap-1"
+                        phx-click="toggle_field_enabled"
+                        phx-value-key={field["key"]}
+                      >
                         <%= if field["enabled"] do %>
-                          <span class="badge badge-sm badge-success">{gettext("Enabled")}</span>
+                          <.icon name="hero-eye" class="w-4 h-4" /> {gettext("Disable")}
                         <% else %>
-                          <span class="badge badge-sm badge-ghost">{gettext("Disabled")}</span>
+                          <.icon name="hero-eye-slash" class="w-4 h-4" /> {gettext("Enable")}
                         <% end %>
-                      </.table_default_cell>
-                      <.table_default_cell>
-                        <%= if Map.get(field, "user_accessible", true) do %>
-                          <span class="badge badge-sm badge-success whitespace-nowrap">
-                            {gettext("User Editable")}
-                          </span>
-                        <% else %>
-                          <span class="badge badge-sm badge-warning whitespace-nowrap">
-                            {gettext("Admin Only")}
-                          </span>
-                        <% end %>
-                      </.table_default_cell>
-                      <.table_default_cell>
-                        <div class="flex gap-1">
-                          <button
-                            type="button"
-                            class="btn btn-xs btn-ghost tooltip tooltip-bottom"
-                            data-tip={
-                              if field["enabled"],
-                                do: gettext("Disable"),
-                                else: gettext("Enable")
-                            }
-                            phx-click="toggle_field_enabled"
-                            phx-value-key={field["key"]}
-                          >
-                            <%= if field["enabled"] do %>
-                              <.icon name="hero-eye" class="w-3 h-3" />
-                            <% else %>
-                              <.icon name="hero-eye-slash" class="w-3 h-3" />
-                            <% end %>
-                          </button>
-                          <button
-                            type="button"
-                            class="btn btn-xs btn-ghost tooltip tooltip-bottom"
-                            data-tip={gettext("Edit")}
-                            phx-click="show_edit_field_form"
-                            phx-value-key={field["key"]}
-                          >
-                            <.icon name="hero-pencil" class="w-3 h-3" />
-                          </button>
-                          <button
-                            type="button"
-                            class="btn btn-xs btn-ghost text-error tooltip tooltip-bottom"
-                            data-tip={gettext("Delete")}
-                            phx-click="delete_field"
-                            phx-value-key={field["key"]}
-                            data-confirm={gettext("Are you sure you want to delete this field?")}
-                          >
-                            <.icon name="hero-trash" class="w-3 h-3" />
-                          </button>
-                        </div>
-                      </.table_default_cell>
-                    </.table_default_row>
-                  </.table_default_body>
-
-                  <:card_actions :let={field}>
-                    <button
-                      type="button"
-                      class="btn btn-sm btn-ghost gap-1"
-                      phx-click="toggle_field_enabled"
-                      phx-value-key={field["key"]}
-                    >
-                      <%= if field["enabled"] do %>
-                        <.icon name="hero-eye" class="w-4 h-4" /> {gettext("Disable")}
-                      <% else %>
-                        <.icon name="hero-eye-slash" class="w-4 h-4" /> {gettext("Enable")}
-                      <% end %>
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-sm btn-ghost gap-1"
-                      phx-click="show_edit_field_form"
-                      phx-value-key={field["key"]}
-                    >
-                      <.icon name="hero-pencil" class="w-4 h-4" /> {gettext("Edit")}
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-sm btn-ghost text-error gap-1"
-                      phx-click="delete_field"
-                      phx-value-key={field["key"]}
-                      data-confirm={gettext("Are you sure you want to delete this field?")}
-                    >
-                      <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Delete")}
-                    </button>
-                  </:card_actions>
-                </.table_default>
-              <% end %>
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-ghost gap-1"
+                        phx-click="show_edit_field_form"
+                        phx-value-key={field["key"]}
+                      >
+                        <.icon name="hero-pencil" class="w-4 h-4" /> {gettext("Edit")}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-ghost text-error gap-1"
+                        phx-click="delete_field"
+                        phx-value-key={field["key"]}
+                        data-confirm={gettext("Are you sure you want to delete this field?")}
+                      >
+                        <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Delete")}
+                      </button>
+                    </:card_actions>
+                  </.table_default>
+                <% end %>
+              </div>
             </div>
 
             <%!-- Action Buttons --%>

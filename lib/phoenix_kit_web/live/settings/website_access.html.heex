@@ -71,9 +71,23 @@
     </.form_section>
 
     <%!-- Features --%>
+    <.nav_tabs
+      active_tab={@active_tab}
+      on_change="switch_settings_tab"
+      variant={:border}
+      tabs={
+        Enum.map(@features, fn feature ->
+          %{id: to_string(feature.key), label: feature.label, icon: feature_icon(feature.key)}
+        end)
+      }
+    />
+
     <div
       :for={feature <- @features}
-      class="card bg-base-100 shadow-lg border border-base-200"
+      class={[
+        "card bg-base-100 shadow-lg border border-base-200",
+        if(@active_tab != to_string(feature.key), do: "hidden")
+      ]}
       id={"feature-#{feature.key}"}
     >
       <div class="card-body space-y-4">

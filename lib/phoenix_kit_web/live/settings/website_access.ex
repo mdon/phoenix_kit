@@ -68,12 +68,17 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
       |> assign(:site_zone, Settings.get_setting_cached("time_zone", "0"))
       |> assign(:environment, WebsiteAccess.environment())
       |> assign(:presets, WebsiteAccess.presets())
+      |> assign(:active_tab, "gate")
       |> assign_state()
 
     {:ok, socket}
   end
 
   def handle_params(_params, _url, socket), do: {:noreply, socket}
+
+  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, :active_tab, tab)}
+  end
 
   # ── Presets ────────────────────────────────────────────────────────
 

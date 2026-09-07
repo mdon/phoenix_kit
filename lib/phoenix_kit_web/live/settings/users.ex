@@ -64,12 +64,17 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
       |> assign(:field_form_type, "text")
       |> assign(:field_form_options, [])
       |> assign(:new_option_value, "")
+      |> assign(:active_tab, "registration")
 
     {:ok, socket}
   end
 
   def handle_params(_params, _url, socket) do
     {:noreply, socket}
+  end
+
+  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, :active_tab, tab)}
   end
 
   def handle_event("validate_settings", %{"settings" => settings_params}, socket) do
