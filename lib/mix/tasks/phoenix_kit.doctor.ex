@@ -944,7 +944,13 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     repo = get_repo!()
     escaped_prefix = String.replace(prefix, "'", "\\'")
 
-    # Key FK source tables whose uuid column must not be NULL
+    # Key FK source tables whose uuid column must not be NULL.
+    #
+    # `phoenix_kit_cat_items`/`phoenix_kit_cat_categories` (catalogue module)
+    # are deliberately absent: their uuid column has carried `DEFAULT
+    # uuid_generate_v7() NOT NULL` since their V135 baseline creation, so
+    # they never went through the V56 backfill this check exists to catch
+    # and cannot hold a NULL uuid.
     source_tables = [
       "phoenix_kit_users",
       "phoenix_kit_user_roles",
