@@ -43,7 +43,7 @@ defmodule PhoenixKit.WebsiteAccessTest do
     :ok = Maintenance.update_schedule(nil, DateTime.add(DateTime.utc_now(), 3600, :second))
     refute feature(:maintenance).on?
 
-    :ok = Maintenance.update_schedule(DateTime.add(DateTime.utc_now(), -60, :second), nil)
+    :ok = Maintenance.update_schedule(DateTime.add(DateTime.utc_now(), -10, :second), nil)
     assert feature(:maintenance).on?
     assert feature(:maintenance).switched_on?, "the switch shows on, not the manual flag"
 

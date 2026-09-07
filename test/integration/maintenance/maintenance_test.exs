@@ -141,6 +141,23 @@ defmodule PhoenixKit.Integration.MaintenanceTest do
       Maintenance.update_schedule(past(3600), nil)
       assert Maintenance.get_scheduled_start() == nil
     end
+
+    test "re-saving the same (now past) start does not fail the clock check" do
+      start_dt = future(30)
+      assert :ok = Maintenance.update_schedule(start_dt, future(3600))
+
+      # Same minute as the stored start, but now in the past by the time this
+      # runs — moving only the end (or a form re-submit) must not be rejected
+      # just because the window already opened.
+      assert :ok = Maintenance.update_schedule(start_dt, future(7200))
+      assert %DateTime{} = Maintenance.get_scheduled_start()
+      assert %DateTime{} = Maintenance.get_scheduled_end()
+    end
+
+    test "a genuinely new past start is still rejected even with a stored schedule" do
+      Maintenance.update_schedule(future(3600), future(7200))
+      assert {:error, :start_in_past} = Maintenance.update_schedule(past(3600), future(7200))
+    end
   end
 
   describe "clear_schedule/0" do

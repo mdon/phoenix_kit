@@ -156,7 +156,7 @@ defmodule PhoenixKitWeb.Plugs.MaintenanceMode do
 
   # "Back on <date>" with a ticking "back in 2d 3h 14m 05s" when the window
   # has an end. Server-rendered text first (no JS needed), the script only
-  # replaces it; the page's 5-second refresh keeps even that honest.
+  # replaces it; the page's 30-second refresh keeps even that honest.
   defp countdown_html(nil), do: ""
 
   defp countdown_html(%DateTime{} = end_dt) do

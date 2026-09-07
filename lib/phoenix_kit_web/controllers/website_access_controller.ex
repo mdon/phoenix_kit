@@ -25,6 +25,7 @@ defmodule PhoenixKitWeb.WebsiteAccessController do
 
   alias Phoenix.HTML.Safe
   alias PhoenixKit.Utils.IpAddress
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.WebsiteAccess.Gate
   alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
   alias Plug.CSRFProtection
@@ -124,20 +125,18 @@ defmodule PhoenixKitWeb.WebsiteAccessController do
 
   # ── Helpers ────────────────────────────────────────────────────────
 
-  # Only a path on this site: starts with "/", not "//host" (scheme-relative)
-  # or "/\\host" (browsers read a backslash as a slash), no whitespace or
-  # control characters (a CR/LF in a Location header). Anything else is "/".
-  @local_path ~r{\A/(?![/\\])[^\s\\\x00-\x1f]*\z}
-
   # A path on this site, and not the gate's own page: `to=<gate>` would send
   # an unlocked visitor round in a circle. No fragment and no `.`/`..`
   # segment either — the browser would drop or fold them and reach the gate
-  # under another spelling.
+  # under another spelling. `Routes.local_path?/1` is the project's one
+  # vetted guard for a client-influenced redirect target — everything else
+  # here is gate-specific on top of it.
   defp return_to(%{"to" => to}) when is_binary(to) do
     gate = AccessPlug.gate_path()
     [path | _] = String.split(to, "?", parts: 2)
 
-    if Regex.match?(@local_path, to) and not String.contains?(to, "#") and
+    if Routes.local_path?(to) and not String.contains?(to, " ") and
+         not String.contains?(to, "#") and
          not Enum.any?(String.split(path, "/"), &(&1 in [".", ".."])) and
          path != gate and not String.starts_with?(path, gate <> "/"),
        do: to,
