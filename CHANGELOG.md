@@ -1,3 +1,58 @@
+## 2.18.0 - 2026-09-07
+
+### Added
+
+- **Website access** — one settings page (`/admin/settings/website-access`) for every
+  way of controlling who sees the site, with independently switchable features and
+  presets (Maintenance, Under construction, Development site, Live) that bundle them:
+  - **Password gate** — a blank page with one field at `<prefix>/access`, before
+    anyone sees anything. Unlock is a session epoch (rotated on password change,
+    switch-on, or "ask everyone again"), never password-derived. Every try is
+    recorded with a verdict (correct, case, close, unrelated, empty, locked, link)
+    and, by default, what was typed — narrowable to near-misses or nothing. Optional
+    per-address lockout under a per-address advisory lock. An access link unlocks
+    only on the button's POST, never on the link's own GET, so a preview fetcher
+    can't burn it. Logged-in users pass by default.
+  - **Redirect to production** — public GET/HEAD to the same path and query on the
+    production URL, never for logged-in users, the kit's own pages, or back to this
+    host; everyone or crawlers only.
+  - **Visitor notice** — an escaped bar injected after `<body>` on HTML 200s
+    (byte-safe), editable live from the settings page.
+  - **Site closed** — maintenance is now part of core: heading, message, a
+    from/until window, a status line, a preview, and a visitor 503 page that counts
+    down to the end. `PhoenixKit.Modules.Maintenance` keeps its name and API.
+  - **Hide from search engines** — the crawlers noindex switch, plus
+    `X-Robots-Tag` on every response in the chain.
+  - **Allowed addresses** — pass the gate and the redirect; editing the list
+    relocks already-open sessions.
+  - **Environment panel** — release/mix, `MIX_ENV`, host, site URL — suggests a
+    preset, never switches anything on. Header badges (lock, wrench, arrow) show
+    while a feature is on and link to its settings.
+
+  `PhoenixKitWeb.Plugs.WebsiteAccess` runs the chain in the host's browser
+  pipeline: allowed-address bookkeeping → notice/robots → redirect → gate →
+  maintenance. Every `on_mount` hook in `Users.Auth` checks the gate first. New
+  migration **V187** adds `phoenix_kit_access_attempts`. Core's `<.checkbox>`
+  gained `variant="toggle"`; `Routes.prefix_base/0` was added for root-mounted
+  kits.
+
+### Fixed
+
+- The settings cache warmer could run before the host's endpoint was up. Under
+  the legacy encryption tier the endpoint's `secret_key_base` **is** the key, so
+  a restricted value failed to decrypt at boot and the failure was cached as
+  `nil` until that key's next write — any host reading an OAuth secret or AWS
+  key through `get_setting_cached/2` right after a restart hit this. The warm
+  map now leaves an undecryptable key out instead of caching `nil` for it, and a
+  cache miss caused by a decrypt failure is answered `nil` without being cached.
+- A password-gate redirect-target test asserted a maintenance schedule starting
+  exactly 60 seconds in the past, which sits on the validator's own tolerance
+  boundary and failed deterministically once clock drift pushed it a hair past
+  `-60`.
+- The gate's `?to=` redirect-target check reimplemented local-path validation
+  with its own regex instead of `Routes.local_path?/1`; it now calls the shared
+  guard, with the gate's own rules layered on top.
+
 ## 2.17.0 - 2026-09-06
 
 ### Changed
