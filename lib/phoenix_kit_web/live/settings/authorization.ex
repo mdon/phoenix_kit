@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.OAuthConfig
   alias PhoenixKit.Utils.CssValue
+  alias PhoenixKit.Utils.Routes
 
   require Logger
 
@@ -34,7 +35,13 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
 
     socket =
       socket
-      |> assign(:page_title, "Authorization Settings")
+      |> assign(:page_title, gettext("Authorization"))
+      |> assign(
+        :page_subtitle,
+        gettext("Manage login page branding and authentication methods")
+      )
+      |> assign(:page_section, gettext("Settings"))
+      |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:settings, merged_settings)
       |> assign(:saved_settings, merged_settings)
       |> assign(:changeset, changeset)

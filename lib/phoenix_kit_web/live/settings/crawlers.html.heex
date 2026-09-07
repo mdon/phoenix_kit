@@ -2,12 +2,10 @@
   socket={@socket}
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title={gettext("Crawler Settings")}
-  page_subtitle={
-    gettext(
-      "Decide who may read this site — indexing directives, per-bot access, and what crawlers and AI assistants are told."
-    )
-  }
+  page_title={@page_title}
+  page_subtitle={@page_subtitle}
+  page_section={@page_section}
+  page_section_path={@page_section_path}
   current_path={@current_path}
   project_title={@project_title}
   current_locale={@current_locale}

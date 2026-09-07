@@ -369,8 +369,11 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
       flash={@flash}
       phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
       page_title={@page_title}
-      page_section={gettext("Integrations")}
-      page_section_path={Routes.path("/admin/settings/integrations")}
+      page_section={gettext("Settings")}
+      page_section_path={Routes.path("/admin/settings")}
+      page_crumbs={[
+        %{label: gettext("My Integrations"), path: Routes.path("/admin/settings/integrations")}
+      ]}
       page_subtitle={if @provider == nil, do: gettext("Choose a service to connect")}
       current_path={@url_path}
       project_title={@project_title}

@@ -47,6 +47,14 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
     socket =
       socket
       |> assign(:page_title, gettext("Website access"))
+      |> assign(
+        :page_subtitle,
+        gettext(
+          "Who sees this site, and what they see: a list of features you switch on one by one, and presets that switch on a bundle."
+        )
+      )
+      |> assign(:page_section, gettext("Settings"))
+      |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:project_title, Settings.get_project_title())
       |> assign(
         :current_path,

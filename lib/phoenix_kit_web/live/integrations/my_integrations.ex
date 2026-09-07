@@ -40,6 +40,8 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
     {:ok,
      socket
      |> assign(:page_title, gettext("My Integrations"))
+     |> assign(:page_section, gettext("Settings"))
+     |> assign(:page_section_path, Routes.path("/admin/settings"))
      |> assign(:project_title, Settings.get_project_title())
      |> assign(:url_path, Routes.path("/admin/settings/integrations"))
      |> assign(:user_uuid, user_uuid)
@@ -129,8 +131,10 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
       socket={@socket}
       flash={@flash}
       phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-      page_title={gettext("My Integrations")}
+      page_title={@page_title}
       page_subtitle={gettext("Your own service connections — only you can see these")}
+      page_section={@page_section}
+      page_section_path={@page_section_path}
       current_path={@url_path}
       project_title={@project_title}
       current_locale={assigns[:current_locale]}

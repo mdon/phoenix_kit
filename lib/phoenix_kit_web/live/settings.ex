@@ -60,7 +60,10 @@ defmodule PhoenixKitWeb.Live.Settings do
 
     socket =
       socket
-      |> assign(:page_title, "Settings")
+      |> assign(:page_title, gettext("General"))
+      |> assign(:page_subtitle, gettext("Configure system preferences and options"))
+      |> assign(:page_section, gettext("Settings"))
+      |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:settings, merged_settings)
       # Track saved values separately
       |> assign(:saved_settings, merged_settings)

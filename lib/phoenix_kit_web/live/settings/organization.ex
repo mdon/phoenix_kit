@@ -42,7 +42,13 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
 
     socket =
       socket
-      |> assign(:page_title, gettext("Organization Settings"))
+      |> assign(:page_title, gettext("Organization"))
+      |> assign(
+        :page_subtitle,
+        gettext("Company information shared across Legal and Billing modules")
+      )
+      |> assign(:page_section, gettext("Settings"))
+      |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:project_title, project_title)
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
       |> load_settings()

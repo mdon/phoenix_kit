@@ -32,7 +32,15 @@ defmodule PhoenixKitWeb.Live.Settings.Crawlers do
     if Crawlers.module_enabled?() do
       socket =
         socket
-        |> assign(:page_title, gettext("Crawler Settings"))
+        |> assign(:page_title, gettext("Crawlers"))
+        |> assign(
+          :page_subtitle,
+          gettext(
+            "Decide who may read this site — indexing directives, per-bot access, and what crawlers and AI assistants are told."
+          )
+        )
+        |> assign(:page_section, gettext("Settings"))
+        |> assign(:page_section_path, Routes.path("/admin/settings"))
         |> assign(:project_title, Settings.get_project_title())
         |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
         # The ROOT urls, deliberately — not `Routes.url/1`, which prefixes

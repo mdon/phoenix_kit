@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Users.CustomFields.Events, as: CustomFieldsEvents
+  alias PhoenixKit.Utils.Routes
 
   def mount(_params, _session, socket) do
     # Set locale for LiveView process
@@ -39,7 +40,13 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
 
     socket =
       socket
-      |> assign(:page_title, gettext("User Settings"))
+      |> assign(:page_title, gettext("Users"))
+      |> assign(
+        :page_subtitle,
+        gettext("Manage user registration, defaults, and custom fields")
+      )
+      |> assign(:page_section, gettext("Settings"))
+      |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:settings, merged_settings)
       |> assign(:saved_settings, merged_settings)
       |> assign(:setting_options, setting_options)

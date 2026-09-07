@@ -28,7 +28,13 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
 
     socket =
       socket
-      |> assign(:page_title, gettext("Integrations"))
+      |> assign(:page_title, gettext("Website Integrations"))
+      |> assign(
+        :page_subtitle,
+        gettext("Connect external services for use across modules")
+      )
+      |> assign(:page_section, gettext("Settings"))
+      |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:project_title, project_title)
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
       |> load_encryption_report()

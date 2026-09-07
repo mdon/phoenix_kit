@@ -51,6 +51,8 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
           "Sender identity, transport, and the default integration used to deliver outbound email"
         )
       )
+      |> assign(:page_section, gettext("Settings"))
+      |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:project_title, Settings.get_project_title())
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
       |> assign_sender_identity()

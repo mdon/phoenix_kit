@@ -19,8 +19,15 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfileForm do
     socket =
       socket
       |> assign(:send_profile, nil)
-      |> assign(:page_section, gettext("Send Profiles"))
-      |> assign(:page_section_path, Routes.path("/admin/settings/email-sending/profiles"))
+      |> assign(:page_section, gettext("Settings"))
+      |> assign(:page_section_path, Routes.path("/admin/settings"))
+      |> assign(:page_crumbs, [
+        %{label: gettext("Email Sending"), path: Routes.path("/admin/settings/email-sending")},
+        %{
+          label: gettext("Send Profiles"),
+          path: Routes.path("/admin/settings/email-sending/profiles")
+        }
+      ])
       |> assign(:project_title, Settings.get_project_title())
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
       |> assign(:connections_by_provider, load_connections())
