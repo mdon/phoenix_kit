@@ -1,3 +1,18 @@
+## 2.21.4 - 2026-09-07
+
+### Fixed
+
+- The "igniter dependency is missing" message that `mix phoenix_kit.update`
+  (and the other Igniter-backed tasks) prints for an unsupported `MIX_ENV`
+  (e.g. `prod`) told the operator to add
+  `{:igniter, "~> 0.7", only: [:dev, :test]}` — the exact fix the message had
+  just explained would not work, since that scoping excludes the very
+  environment the task is running in. It now explains that these tasks
+  generate/apply code and genuinely need igniter loaded wherever they run,
+  and offers the two real options: run the task from dev/CI and ship the
+  generated files, or broaden the host's own igniter dependency's `only:` to
+  include that environment.
+
 ## 2.21.3 - 2026-09-07
 
 ### Added

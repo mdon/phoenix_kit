@@ -47,9 +47,19 @@ defmodule PhoenixKit.Install.MissingIgniterTest do
       # already written.
       refute MissingIgniter.message("phoenix_kit.update", :declined) =~ "OPTIONAL dependency"
       refute MissingIgniter.message("phoenix_kit.update", :fetch_failed) =~ "Add it to your"
+    end
 
-      assert MissingIgniter.message("phoenix_kit.update", :unsupported_env) =~
-               "Re-run with MIX_ENV=dev"
+    test "unsupported_env does not repeat the only: [:dev, :test] fix that can't work here" do
+      message = MissingIgniter.message("phoenix_kit.update", :unsupported_env)
+
+      assert message =~ "MIX_ENV=#{Mix.env()}"
+      assert message =~ "generates and applies code"
+      assert message =~ "Run `mix phoenix_kit.update` from dev or CI instead"
+
+      # This is the exact regression: the generic clause's dep-line advice
+      # (`only: [:dev, :test]`) is precisely the fix that does not help a host
+      # already running in an unsupported MIX_ENV, so it must not appear here.
+      refute message =~ ~s({:igniter, "~> 0.7", only: [:dev, :test]})
     end
   end
 

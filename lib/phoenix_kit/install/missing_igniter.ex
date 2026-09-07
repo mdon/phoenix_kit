@@ -147,6 +147,38 @@ defmodule PhoenixKit.Install.MissingIgniter do
     """
   end
 
+  # `only: [:dev, :test]` — the fix the generic clause below always offers —
+  # is exactly the fix that does NOT work here, since that scoping excludes
+  # this MIX_ENV too. Repeating it anyway told a production host to do a
+  # no-op and left them stuck with no other lead.
+  def message(task, :unsupported_env) do
+    """
+    `mix #{task}` needs the :igniter dependency, which is not available in this
+    project for MIX_ENV=#{Mix.env()}.
+
+    igniter is conventionally scoped `only: [:dev, :test]` (what `mix phx.new`
+    generates, and what this task suggests when the dependency is missing
+    entirely) — that scoping would not help here, since it excludes
+    #{Mix.env()} too.
+
+    `mix #{task}` generates and applies code (migration files, mix.exs/config
+    edits), so it genuinely needs igniter loaded in whatever environment runs
+    it. Pick one:
+
+      * Run `mix #{task}` from dev or CI instead, against this database, and
+        deploy the files it writes normally — the usual setup, where igniter
+        stays dev/test-only and production never needs it.
+      * If this environment genuinely has to run it directly (for example, it
+        runs `mix` against a live checkout rather than a compiled release),
+        your own igniter dependency's `only:` needs #{Mix.env()} added — or
+        `only:` dropped altogether — then `mix deps.get` and re-run.
+
+    Everything that does not generate or patch code — `mix phoenix_kit.status`,
+    `mix phoenix_kit.gen.migration`, `mix phoenix_kit.assets.rebuild` — works
+    without igniter and is unaffected.
+    """
+  end
+
   def message(task, reason) do
     """
     `mix #{task}` needs the :igniter dependency, which is not available in this project.
@@ -341,14 +373,6 @@ defmodule PhoenixKit.Install.MissingIgniter do
     do: """
     mix.exs does not have a `deps do [...]` list in the shape this task can edit,
     so the dependency has to be added by hand.
-
-    """
-
-  defp reason_note(:unsupported_env),
-    do: """
-    igniter is a dev-time dependency and this run is MIX_ENV=#{Mix.env()}, where
-    `only: [:dev, :test]` would not make it available — so nothing was changed.
-    Re-run with MIX_ENV=dev, or add the dependency for this environment yourself.
 
     """
 
