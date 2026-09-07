@@ -64,6 +64,7 @@ defmodule PhoenixKitWeb.Live.Settings do
       |> assign(:page_subtitle, gettext("Configure system preferences and options"))
       |> assign(:page_section, gettext("Settings"))
       |> assign(:page_section_path, Routes.path("/admin/settings"))
+      |> assign(:active_tab, "identity")
       |> assign(:settings, merged_settings)
       # Track saved values separately
       |> assign(:saved_settings, merged_settings)
@@ -82,6 +83,10 @@ defmodule PhoenixKitWeb.Live.Settings do
 
   def handle_params(_params, _url, socket) do
     {:noreply, socket}
+  end
+
+  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, :active_tab, tab)}
   end
 
   def handle_event("validate_settings", %{"settings" => settings_params}, socket) do

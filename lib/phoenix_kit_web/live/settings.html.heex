@@ -45,551 +45,571 @@
             value={@saved_settings["track_registration_geolocation"]}
           />
 
-          <.section_header icon="hero-identification" title={gettext("Site Identity")} />
+          <.nav_tabs
+            active_tab={@active_tab}
+            on_change="switch_settings_tab"
+            variant={:border}
+            tabs={[
+              %{id: "identity", label: gettext("Site Identity"), icon: "hero-identification"},
+              %{id: "address", label: gettext("Site Address"), icon: "hero-globe-alt"},
+              %{id: "features", label: gettext("Features"), icon: "hero-adjustments-horizontal"},
+              %{id: "editor", label: gettext("Content Editor"), icon: "hero-pencil-square"},
+              %{id: "datetime", label: gettext("Date & Time"), icon: "hero-clock"}
+            ]}
+          />
 
-          <%!-- Project Title Setting --%>
-          <div class="fieldset w-full">
-            <label class="label">
-              <span class="fieldset-legend text-base font-medium">{gettext("Project Title")}</span>
-              <span class="fieldset-label text-sm text-base-content/60">
-                {gettext("Application name display")}
-              </span>
-            </label>
-            <.input
-              name="settings[project_title]"
-              type="text"
-              value={@settings["project_title"]}
-              class="focus:input-primary"
-              placeholder={gettext("Enter project title")}
-              phx-debounce="500"
-            />
-            <.unsaved_hint
-              dirty={@settings["project_title"] != @saved_settings["project_title"]}
-              saved={@saved_settings["project_title"]}
-            />
-          </div>
+          <div class={if @active_tab != "identity", do: "hidden"}>
+            <%!-- Project Title Setting --%>
+            <div class="fieldset w-full">
+              <label class="label">
+                <span class="fieldset-legend text-base font-medium">{gettext("Project Title")}</span>
+                <span class="fieldset-label text-sm text-base-content/60">
+                  {gettext("Application name display")}
+                </span>
+              </label>
+              <.input
+                name="settings[project_title]"
+                type="text"
+                value={@settings["project_title"]}
+                class="focus:input-primary"
+                placeholder={gettext("Enter project title")}
+                phx-debounce="500"
+              />
+              <.unsaved_hint
+                dirty={@settings["project_title"] != @saved_settings["project_title"]}
+                saved={@saved_settings["project_title"]}
+              />
+            </div>
 
-          <%!-- "Admin Panel" chip in the admin header --%>
-          <div class="fieldset w-full">
-            <.checkbox
-              name="settings[show_admin_panel_label]"
-              checked={@settings["show_admin_panel_label"] != "false"}
-              label={gettext("Show the \"Admin Panel\" label in the admin header")}
-            >
-              <:description>
-                {gettext(
-                  "Shown next to the project name. Turn it off to show just the project name. The wording is not editable here because it is translated — each visitor reads it in their own language. To call your admin area something else and keep that, a developer can set `admin_panel_label` in config.exs, where the available names are listed as comments. The browser tab title is unaffected."
-                )}
-              </:description>
-            </.checkbox>
-          </div>
+            <%!-- "Admin Panel" chip in the admin header --%>
+            <div class="fieldset w-full">
+              <.checkbox
+                name="settings[show_admin_panel_label]"
+                checked={@settings["show_admin_panel_label"] != "false"}
+                label={gettext("Show the \"Admin Panel\" label in the admin header")}
+              >
+                <:description>
+                  {gettext(
+                    "Shown next to the project name. Turn it off to show just the project name. The wording is not editable here because it is translated — each visitor reads it in their own language. To call your admin area something else and keep that, a developer can set `admin_panel_label` in config.exs, where the available names are listed as comments. The browser tab title is unaffected."
+                  )}
+                </:description>
+              </.checkbox>
+            </div>
 
-          <%!-- Project Logo --%>
-          <div class="fieldset w-full">
-            <label class="label">
-              <span class="fieldset-legend text-base font-medium">{gettext("Project Logo")}</span>
-            </label>
-            <input
-              type="hidden"
-              name="settings[auth_logo_file_uuid]"
-              value={@settings["auth_logo_file_uuid"]}
-            />
-            <%= if (@settings["auth_logo_file_uuid"] || "") != "" do %>
-              <div class="flex items-center gap-3 p-2 bg-base-200 rounded-lg">
-                <img
-                  src={signed_preview_url(@settings["auth_logo_file_uuid"], "medium")}
-                  alt="Logo preview"
-                  class="h-20 object-contain"
-                />
+            <%!-- Project Logo --%>
+            <div class="fieldset w-full">
+              <label class="label">
+                <span class="fieldset-legend text-base font-medium">{gettext("Project Logo")}</span>
+              </label>
+              <input
+                type="hidden"
+                name="settings[auth_logo_file_uuid]"
+                value={@settings["auth_logo_file_uuid"]}
+              />
+              <%= if (@settings["auth_logo_file_uuid"] || "") != "" do %>
+                <div class="flex items-center gap-3 p-2 bg-base-200 rounded-lg">
+                  <img
+                    src={signed_preview_url(@settings["auth_logo_file_uuid"], "medium")}
+                    alt="Logo preview"
+                    class="h-20 object-contain"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm"
+                    phx-click="clear_image"
+                    phx-value-target="logo"
+                  >
+                    {gettext("Remove")}
+                  </button>
+                </div>
+              <% else %>
                 <button
                   type="button"
-                  class="btn btn-ghost btn-sm"
-                  phx-click="clear_image"
+                  class="btn btn-outline btn-sm w-fit"
+                  phx-click="open_media_selector"
                   phx-value-target="logo"
                 >
-                  {gettext("Remove")}
+                  {gettext("Select Image")}
                 </button>
-              </div>
-            <% else %>
-              <button
-                type="button"
-                class="btn btn-outline btn-sm w-fit"
-                phx-click="open_media_selector"
-                phx-value-target="logo"
-              >
-                {gettext("Select Image")}
-              </button>
-            <% end %>
-            <div>
-              <span class="block text-xs text-base-content/50">
-                {gettext(
-                  "Logo displayed across the application. Falls back to the site icon, then the project title text."
-                )}
-                <%= if (@settings["auth_logo_file_uuid"] || "") == "" &&
+              <% end %>
+              <div>
+                <span class="block text-xs text-base-content/50">
+                  {gettext(
+                    "Logo displayed across the application. Falls back to the site icon, then the project title text."
+                  )}
+                  <%= if (@settings["auth_logo_file_uuid"] || "") == "" &&
                       (@settings["site_icon_file_uuid"] || "") != "" do %>
-                  <span class="text-info">{gettext("Currently using the site icon.")}</span>
-                <% end %>
-              </span>
+                    <span class="text-info">{gettext("Currently using the site icon.")}</span>
+                  <% end %>
+                </span>
+              </div>
             </div>
-          </div>
 
-          <%!-- Browser Tab: site icon + default tab title as one identity group,
+            <%!-- Browser Tab: site icon + default tab title as one identity group,
                with a live browser-chrome preview (WordPress site-icon style). --%>
-          <div class="fieldset w-full">
-            <label class="label">
-              <span class="fieldset-legend text-base font-medium">{gettext("Browser Tab")}</span>
-              <span class="fieldset-label text-sm text-base-content/60">
-                {gettext("Site icon and tab title")}
-              </span>
-            </label>
-            <input
-              type="hidden"
-              name="settings[site_icon_file_uuid]"
-              value={@settings["site_icon_file_uuid"]}
-            />
+            <div class="fieldset w-full">
+              <label class="label">
+                <span class="fieldset-legend text-base font-medium">{gettext("Browser Tab")}</span>
+                <span class="fieldset-label text-sm text-base-content/60">
+                  {gettext("Site icon and tab title")}
+                </span>
+              </label>
+              <input
+                type="hidden"
+                name="settings[site_icon_file_uuid]"
+                value={@settings["site_icon_file_uuid"]}
+              />
 
-            <%!-- The favicon defaults to the project logo when unset (and vice
+              <%!-- The favicon defaults to the project logo when unset (and vice
                  versa) — mirror that fallback so the preview shows what the
                  browser will actually render. --%>
-            <% preview_icon_uuid =
-              if (@settings["site_icon_file_uuid"] || "") != "",
-                do: @settings["site_icon_file_uuid"],
-                else: @settings["auth_logo_file_uuid"] %>
+              <% preview_icon_uuid =
+                if (@settings["site_icon_file_uuid"] || "") != "",
+                  do: @settings["site_icon_file_uuid"],
+                  else: @settings["auth_logo_file_uuid"] %>
 
-            <div class="rounded-box border border-base-300 overflow-hidden">
-              <%!-- Live preview: tab strip. The title updates as you type
+              <div class="rounded-box border border-base-300 overflow-hidden">
+                <%!-- Live preview: tab strip. The title updates as you type
                    (the form's phx-change refreshes @settings). --%>
-              <div class="bg-base-200 px-4 pt-3">
-                <div class="flex items-end gap-2">
-                  <div class="hidden sm:flex items-center gap-1.5 mb-2.5 mr-1">
-                    <span class="w-2.5 h-2.5 rounded-full bg-error/60"></span>
-                    <span class="w-2.5 h-2.5 rounded-full bg-warning/60"></span>
-                    <span class="w-2.5 h-2.5 rounded-full bg-success/60"></span>
-                  </div>
-                  <div class="flex items-center gap-2 bg-base-100 rounded-t-lg px-3 py-2 min-w-0 max-w-[260px] shadow-sm">
-                    <%= if (preview_icon_uuid || "") != "" do %>
-                      <img
-                        src={signed_preview_url(preview_icon_uuid, "thumbnail")}
-                        alt=""
-                        class="w-4 h-4 rounded-sm object-cover shrink-0"
+                <div class="bg-base-200 px-4 pt-3">
+                  <div class="flex items-end gap-2">
+                    <div class="hidden sm:flex items-center gap-1.5 mb-2.5 mr-1">
+                      <span class="w-2.5 h-2.5 rounded-full bg-error/60"></span>
+                      <span class="w-2.5 h-2.5 rounded-full bg-warning/60"></span>
+                      <span class="w-2.5 h-2.5 rounded-full bg-success/60"></span>
+                    </div>
+                    <div class="flex items-center gap-2 bg-base-100 rounded-t-lg px-3 py-2 min-w-0 max-w-[260px] shadow-sm">
+                      <%= if (preview_icon_uuid || "") != "" do %>
+                        <img
+                          src={signed_preview_url(preview_icon_uuid, "thumbnail")}
+                          alt=""
+                          class="w-4 h-4 rounded-sm object-cover shrink-0"
+                        />
+                      <% else %>
+                        <.icon
+                          name="hero-globe-alt"
+                          class="w-4 h-4 text-base-content/30 shrink-0"
+                        />
+                      <% end %>
+                      <span class="text-xs font-medium truncate">
+                        {if (@settings["default_tab_title"] || "") != "",
+                          do: @settings["default_tab_title"],
+                          else: @settings["project_title"] || "My Site"}
+                      </span>
+                      <.icon
+                        name="hero-x-mark"
+                        class="w-3 h-3 text-base-content/40 shrink-0 ml-auto"
                       />
+                    </div>
+                    <div class="mb-2.5 ml-1 text-base-content/40">
+                      <.icon name="hero-plus" class="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                </div>
+                <%!-- Address bar --%>
+                <div class="bg-base-100 border-b border-base-300 px-4 py-2 flex items-center gap-3">
+                  <div class="hidden sm:flex items-center gap-2 text-base-content/25">
+                    <.icon name="hero-arrow-left" class="w-3.5 h-3.5" />
+                    <.icon name="hero-arrow-right" class="w-3.5 h-3.5" />
+                    <.icon name="hero-arrow-path" class="w-3.5 h-3.5" />
+                  </div>
+                  <div class="flex items-center gap-1.5 bg-base-200 rounded-full px-3 py-1 flex-1 max-w-xs min-w-0">
+                    <.icon name="hero-lock-closed" class="w-3 h-3 text-base-content/40 shrink-0" />
+                    <span class="text-xs text-base-content/50 truncate">{site_host()}</span>
+                  </div>
+                </div>
+
+                <%!-- Controls --%>
+                <div class="p-4 sm:p-5 bg-base-100 flex flex-col sm:flex-row gap-5">
+                  <div class="flex items-start gap-4">
+                    <%= if (@settings["site_icon_file_uuid"] || "") != "" do %>
+                      <img
+                        src={signed_preview_url(@settings["site_icon_file_uuid"], "thumbnail")}
+                        alt={gettext("Site icon preview")}
+                        class="w-16 h-16 rounded-2xl object-cover ring-1 ring-base-300 shadow-sm shrink-0"
+                      />
+                      <div class="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          class="btn btn-outline btn-sm"
+                          phx-click="open_media_selector"
+                          phx-value-target="site_icon"
+                        >
+                          {gettext("Change icon")}
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-sm text-error"
+                          phx-click="clear_image"
+                          phx-value-target="site_icon"
+                        >
+                          {gettext("Remove")}
+                        </button>
+                      </div>
                     <% else %>
-                      <.icon name="hero-globe-alt" class="w-4 h-4 text-base-content/30 shrink-0" />
+                      <button
+                        type="button"
+                        class="w-16 h-16 rounded-2xl border-2 border-dashed border-base-300 hover:border-primary hover:text-primary text-base-content/40 flex items-center justify-center transition-colors shrink-0"
+                        title={gettext("Select site icon")}
+                        phx-click="open_media_selector"
+                        phx-value-target="site_icon"
+                      >
+                        <.icon name="hero-photo" class="w-6 h-6" />
+                      </button>
+                      <div class="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          class="btn btn-outline btn-sm"
+                          phx-click="open_media_selector"
+                          phx-value-target="site_icon"
+                        >
+                          {gettext("Select site icon")}
+                        </button>
+                        <p class="text-xs text-base-content/50 max-w-[16rem]">
+                          {gettext("Square, at least 512×512 pixels.")}
+                          <%= if (@settings["auth_logo_file_uuid"] || "") != "" do %>
+                            {gettext("Currently using the project logo.")}
+                          <% end %>
+                        </p>
+                      </div>
                     <% end %>
-                    <span class="text-xs font-medium truncate">
-                      {if (@settings["default_tab_title"] || "") != "",
-                        do: @settings["default_tab_title"],
-                        else: @settings["project_title"] || "My Site"}
-                    </span>
-                    <.icon
-                      name="hero-x-mark"
-                      class="w-3 h-3 text-base-content/40 shrink-0 ml-auto"
-                    />
                   </div>
-                  <div class="mb-2.5 ml-1 text-base-content/40">
-                    <.icon name="hero-plus" class="w-3.5 h-3.5" />
+
+                  <div class="divider divider-horizontal m-0 hidden sm:flex"></div>
+
+                  <div class="flex-1 min-w-0">
+                    <label class="label pt-0 pb-1">
+                      <span class="fieldset-legend text-sm font-medium">
+                        {gettext("Default Tab Title")}
+                      </span>
+                    </label>
+                    <.input
+                      name="settings[default_tab_title]"
+                      type="text"
+                      value={@settings["default_tab_title"]}
+                      class="focus:input-primary"
+                      placeholder={
+                        @settings["project_title"] || gettext("e.g. Welcome to My Site")
+                      }
+                      phx-debounce="300"
+                    />
+                    <p class="text-xs text-base-content/50 mt-2">
+                      {gettext(
+                        "Shown when a page doesn't set its own title. Leave empty to use the project title."
+                      )}
+                    </p>
                   </div>
                 </div>
               </div>
-              <%!-- Address bar --%>
-              <div class="bg-base-100 border-b border-base-300 px-4 py-2 flex items-center gap-3">
-                <div class="hidden sm:flex items-center gap-2 text-base-content/25">
-                  <.icon name="hero-arrow-left" class="w-3.5 h-3.5" />
-                  <.icon name="hero-arrow-right" class="w-3.5 h-3.5" />
-                  <.icon name="hero-arrow-path" class="w-3.5 h-3.5" />
-                </div>
-                <div class="flex items-center gap-1.5 bg-base-200 rounded-full px-3 py-1 flex-1 max-w-xs min-w-0">
-                  <.icon name="hero-lock-closed" class="w-3 h-3 text-base-content/40 shrink-0" />
-                  <span class="text-xs text-base-content/50 truncate">{site_host()}</span>
-                </div>
-              </div>
 
-              <%!-- Controls --%>
-              <div class="p-4 sm:p-5 bg-base-100 flex flex-col sm:flex-row gap-5">
-                <div class="flex items-start gap-4">
-                  <%= if (@settings["site_icon_file_uuid"] || "") != "" do %>
-                    <img
-                      src={signed_preview_url(@settings["site_icon_file_uuid"], "thumbnail")}
-                      alt={gettext("Site icon preview")}
-                      class="w-16 h-16 rounded-2xl object-cover ring-1 ring-base-300 shadow-sm shrink-0"
-                    />
-                    <div class="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        class="btn btn-outline btn-sm"
-                        phx-click="open_media_selector"
-                        phx-value-target="site_icon"
-                      >
-                        {gettext("Change icon")}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-ghost btn-sm text-error"
-                        phx-click="clear_image"
-                        phx-value-target="site_icon"
-                      >
-                        {gettext("Remove")}
-                      </button>
-                    </div>
-                  <% else %>
-                    <button
-                      type="button"
-                      class="w-16 h-16 rounded-2xl border-2 border-dashed border-base-300 hover:border-primary hover:text-primary text-base-content/40 flex items-center justify-center transition-colors shrink-0"
-                      title={gettext("Select site icon")}
-                      phx-click="open_media_selector"
-                      phx-value-target="site_icon"
-                    >
-                      <.icon name="hero-photo" class="w-6 h-6" />
-                    </button>
-                    <div class="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        class="btn btn-outline btn-sm"
-                        phx-click="open_media_selector"
-                        phx-value-target="site_icon"
-                      >
-                        {gettext("Select site icon")}
-                      </button>
-                      <p class="text-xs text-base-content/50 max-w-[16rem]">
-                        {gettext("Square, at least 512×512 pixels.")}
-                        <%= if (@settings["auth_logo_file_uuid"] || "") != "" do %>
-                          {gettext("Currently using the project logo.")}
-                        <% end %>
-                      </p>
-                    </div>
-                  <% end %>
-                </div>
-
-                <div class="divider divider-horizontal m-0 hidden sm:flex"></div>
-
-                <div class="flex-1 min-w-0">
-                  <label class="label pt-0 pb-1">
-                    <span class="fieldset-legend text-sm font-medium">
-                      {gettext("Default Tab Title")}
-                    </span>
-                  </label>
-                  <.input
-                    name="settings[default_tab_title]"
-                    type="text"
-                    value={@settings["default_tab_title"]}
-                    class="focus:input-primary"
-                    placeholder={@settings["project_title"] || gettext("e.g. Welcome to My Site")}
-                    phx-debounce="300"
-                  />
-                  <p class="text-xs text-base-content/50 mt-2">
-                    {gettext(
-                      "Shown when a page doesn't set its own title. Leave empty to use the project title."
-                    )}
-                  </p>
-                </div>
+              <div>
+                <span class="block text-xs text-base-content/50">
+                  {gettext(
+                    "The icon appears in browser tabs, bookmarks, and on phone home screens."
+                  )}
+                </span>
               </div>
             </div>
-
-            <div>
-              <span class="block text-xs text-base-content/50">
-                {gettext(
-                  "The icon appears in browser tabs, bookmarks, and on phone home screens."
-                )}
-              </span>
-            </div>
           </div>
 
-          <.section_header icon="hero-globe-alt" title={gettext("Site Address")} />
-
-          <%!-- Site Address URL Setting --%>
-          <div class="fieldset w-full">
-            <label class="label">
-              <span class="fieldset-legend text-base font-medium">
-                {gettext("Site Address (URL)")}
-              </span>
-              <span class="fieldset-label text-sm text-base-content/60">
-                {gettext("Public base URL of this application")}
-              </span>
-            </label>
-            <.input
-              name="settings[site_url]"
-              type="url"
-              value={@settings["site_url"]}
-              class="focus:input-primary"
-              placeholder="https://site.com"
-              phx-debounce="500"
-            />
-            <.unsaved_hint
-              dirty={@settings["site_url"] != @saved_settings["site_url"]}
-              saved={
-                if @saved_settings["site_url"] != "",
-                  do: @saved_settings["site_url"],
-                  else: gettext("(empty)")
-              }
-            />
-          </div>
-
-          <%!-- Main Page: where core sends a visitor who is not signed in.
-                Empty = core's own /users/log-in, which exists in every install
-                and every locale. --%>
-          <div class="fieldset w-full">
-            <label class="label">
-              <span class="fieldset-legend text-base font-medium">
-                {gettext("Main Page")}
-              </span>
-              <span class="fieldset-label text-sm text-base-content/60">
-                {gettext("Local path of the site's home page")}
-              </span>
-            </label>
-            <.input
-              name="settings[main_page_path]"
-              type="text"
-              value={@settings["main_page_path"]}
-              class="focus:input-primary"
-              placeholder="/"
-              phx-debounce="500"
-            />
-            <div class="text-xs text-base-content/60 mt-1">
-              {gettext(
-                "Where PhoenixKit sends visitors who are not signed in. Empty = the sign-in page."
-              )}
-            </div>
-            <.unsaved_hint
-              dirty={@settings["main_page_path"] != @saved_settings["main_page_path"]}
-              saved={
-                if @saved_settings["main_page_path"] != "",
-                  do: @saved_settings["main_page_path"],
-                  else: gettext("(empty)")
-              }
-            />
-          </div>
-
-          <.section_header icon="hero-adjustments-horizontal" title={gettext("Features")} />
-
-          <%!-- Notifications --%>
-          <div class="fieldset w-full">
-            <label class="label">
-              <span class="fieldset-legend text-base font-medium">
-                {gettext("Notifications")}
-              </span>
-              <span class="fieldset-label text-sm text-base-content/60">
-                {gettext("Per-user inbox driven by the activity feed")}
-              </span>
-            </label>
-            <.checkbox
-              name="settings[notifications_enabled]"
-              checked={@settings["notifications_enabled"] == "true"}
-              label={gettext("Enable user notifications")}
-            >
-              <:description>
-                {gettext(
-                  "When on, users receive a bell notification whenever an activity targets them (e.g., their post is liked)."
-                )}
-              </:description>
-            </.checkbox>
-
-            <%!-- Default notification destination (catch-all click target) --%>
-            <label class="label pt-3">
-              <span class="fieldset-legend">{gettext("Default notification link")}</span>
-            </label>
-            <.input
-              type="text"
-              name="settings[notification_default_link]"
-              value={@settings["notification_default_link"] || "/admin"}
-              placeholder="/admin"
-              class="input-sm max-w-md"
-            />
-            <div>
-              <span class="block text-xs text-base-content/50">
-                {gettext(
-                  "Where a notification opens when it has no link of its own. Defaults to /admin (every signed-in user can open it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
-                )}
-              </span>
-            </div>
-          </div>
-
-          <.section_header icon="hero-pencil-square" title={gettext("Content Editor")} />
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-            <%!-- Default Editor Mode Setting --%>
+          <div class={if @active_tab != "address", do: "hidden"}>
+            <%!-- Site Address URL Setting --%>
             <div class="fieldset w-full">
               <label class="label">
                 <span class="fieldset-legend text-base font-medium">
-                  {gettext("Default Editor Mode")}
+                  {gettext("Site Address (URL)")}
                 </span>
                 <span class="fieldset-label text-sm text-base-content/60">
-                  {gettext("Mode every content editor opens in")}
+                  {gettext("Public base URL of this application")}
                 </span>
               </label>
-              <.select
-                name="settings[editor_default_mode]"
-                value={@settings["editor_default_mode"]}
-                options={@setting_options["editor_default_mode"]}
-                class="focus-within:select-primary"
+              <.input
+                name="settings[site_url]"
+                type="url"
+                value={@settings["site_url"]}
+                class="focus:input-primary"
+                placeholder="https://site.com"
+                phx-debounce="500"
               />
-              <div>
-                <span class="block text-xs text-base-content/50">
-                  {gettext(
-                    "Applies site-wide wherever the rich-text editor is rendered (posts, comments). Users can still switch modes inside the editor."
-                  )}
-                </span>
-              </div>
               <.unsaved_hint
-                dirty={@settings["editor_default_mode"] != @saved_settings["editor_default_mode"]}
+                dirty={@settings["site_url"] != @saved_settings["site_url"]}
                 saved={
-                  get_option_label(
-                    @saved_settings["editor_default_mode"],
-                    @setting_options["editor_default_mode"]
-                  )
+                  if @saved_settings["site_url"] != "",
+                    do: @saved_settings["site_url"],
+                    else: gettext("(empty)")
                 }
               />
             </div>
 
-            <%!-- Mentions --%>
+            <%!-- Main Page: where core sends a visitor who is not signed in.
+                Empty = core's own /users/log-in, which exists in every install
+                and every locale. --%>
             <div class="fieldset w-full">
-              <.checkbox
-                name="settings[mentions_enabled]"
-                checked={@settings["mentions_enabled"] == "true"}
-                label={gettext("Mentions and record links")}
-                wrapper_class="mb-3"
-              />
-              <div>
-                <span class="block text-xs text-base-content/50">
-                  {gettext(
-                    "Lets people type @ to mention someone and # to link a record, anywhere they can write free text. Turning it off stops the suggestions; mentions already written stay readable as plain text."
-                  )}
+              <label class="label">
+                <span class="fieldset-legend text-base font-medium">
+                  {gettext("Main Page")}
                 </span>
-              </div>
-              <.checkbox
-                name="settings[mentions_redact_titles]"
-                checked={@settings["mentions_redact_titles"] == "true"}
-                label={gettext("Hide titles of records the reader can't open")}
-                wrapper_class="mb-3"
-              />
-              <div>
-                <span class="block text-xs text-base-content/50">
-                  {gettext(
-                    "By default a mention shows what it names even to someone without access, with a lock icon and no link. Turn this on where the name itself is sensitive; they then see the name as it was when it was written, not its current one."
-                  )}
+                <span class="fieldset-label text-sm text-base-content/60">
+                  {gettext("Local path of the site's home page")}
                 </span>
+              </label>
+              <.input
+                name="settings[main_page_path]"
+                type="text"
+                value={@settings["main_page_path"]}
+                class="focus:input-primary"
+                placeholder="/"
+                phx-debounce="500"
+              />
+              <div class="text-xs text-base-content/60 mt-1">
+                {gettext(
+                  "Where PhoenixKit sends visitors who are not signed in. Empty = the sign-in page."
+                )}
               </div>
               <.unsaved_hint
-                dirty={
-                  @settings["mentions_enabled"] != @saved_settings["mentions_enabled"] or
-                    @settings["mentions_redact_titles"] !=
-                      @saved_settings["mentions_redact_titles"]
-                }
+                dirty={@settings["main_page_path"] != @saved_settings["main_page_path"]}
                 saved={
-                  if(@saved_settings["mentions_enabled"] == "true",
-                    do: gettext("On"),
-                    else: gettext("Off")
-                  )
+                  if @saved_settings["main_page_path"] != "",
+                    do: @saved_settings["main_page_path"],
+                    else: gettext("(empty)")
                 }
               />
             </div>
           </div>
 
-          <.section_header icon="hero-clock" title={gettext("Date & Time")} />
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-            <%!-- Week Start Day Setting --%>
+          <div class={if @active_tab != "features", do: "hidden"}>
+            <%!-- Notifications --%>
             <div class="fieldset w-full">
               <label class="label">
-                <span class="fieldset-legend text-base font-medium">{gettext("Week Start On")}</span>
+                <span class="fieldset-legend text-base font-medium">
+                  {gettext("Notifications")}
+                </span>
                 <span class="fieldset-label text-sm text-base-content/60">
-                  {gettext("First day of the week")}
+                  {gettext("Per-user inbox driven by the activity feed")}
                 </span>
               </label>
-              <.select
-                name="settings[week_start_day]"
-                value={@settings["week_start_day"]}
-                options={@setting_options["week_start_day"]}
-                class="focus-within:select-primary"
-              />
-              <.unsaved_hint
-                dirty={@settings["week_start_day"] != @saved_settings["week_start_day"]}
-                saved={
-                  get_option_label(
-                    @saved_settings["week_start_day"],
-                    @setting_options["week_start_day"]
-                  )
-                }
-              />
-            </div>
+              <.checkbox
+                name="settings[notifications_enabled]"
+                checked={@settings["notifications_enabled"] == "true"}
+                label={gettext("Enable user notifications")}
+              >
+                <:description>
+                  {gettext(
+                    "When on, users receive a bell notification whenever an activity targets them (e.g., their post is liked)."
+                  )}
+                </:description>
+              </.checkbox>
 
-            <%!-- Time Zone Setting --%>
-            <div class="fieldset w-full">
-              <label class="label">
-                <span class="fieldset-legend text-base font-medium">{gettext("Time Zone")}</span>
-                <span class="fieldset-label text-sm text-base-content/60">
-                  {gettext("System default timezone")}
-                </span>
+              <%!-- Default notification destination (catch-all click target) --%>
+              <label class="label pt-3">
+                <span class="fieldset-legend">{gettext("Default notification link")}</span>
               </label>
-              <.select
-                name="settings[time_zone]"
-                value={@settings["time_zone"]}
-                options={@setting_options["time_zone"]}
-                class="focus-within:select-primary"
-              />
-              <.unsaved_hint
-                dirty={@settings["time_zone"] != @saved_settings["time_zone"]}
-                saved={get_timezone_label(@saved_settings["time_zone"], @setting_options)}
-              />
-            </div>
-
-            <%!-- Date Format Setting --%>
-            <div class="fieldset w-full">
-              <label class="label">
-                <span class="fieldset-legend text-base font-medium">{gettext("Date Format")}</span>
-                <span class="fieldset-label text-sm text-base-content/60">
-                  {gettext("How dates are displayed")}
-                </span>
-              </label>
-              <.select
-                name="settings[date_format]"
-                value={@settings["date_format"]}
-                options={@setting_options["date_format"]}
-                class="focus-within:select-primary"
+              <.input
+                type="text"
+                name="settings[notification_default_link]"
+                value={@settings["notification_default_link"] || "/admin"}
+                placeholder="/admin"
+                class="input-sm max-w-md"
               />
               <div>
                 <span class="block text-xs text-base-content/50">
-                  {gettext("Example:")} {get_current_date_example(@settings["date_format"])}
+                  {gettext(
+                    "Where a notification opens when it has no link of its own. Defaults to /admin (every signed-in user can open it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
+                  )}
                 </span>
               </div>
-              <.unsaved_hint
-                dirty={@settings["date_format"] != @saved_settings["date_format"]}
-                saved={
-                  get_option_label(
-                    @saved_settings["date_format"],
-                    @setting_options["date_format"]
-                  )
-                }
-              />
             </div>
+          </div>
 
-            <%!-- Time Format Setting --%>
-            <div class="fieldset w-full">
-              <label class="label">
-                <span class="fieldset-legend text-base font-medium">{gettext("Time Format")}</span>
-                <span class="fieldset-label text-sm text-base-content/60">
-                  {gettext("How times are displayed")}
-                </span>
-              </label>
-              <.select
-                name="settings[time_format]"
-                value={@settings["time_format"]}
-                options={@setting_options["time_format"]}
-                class="focus-within:select-primary"
-              />
-              <div>
-                <span class="block text-xs text-base-content/50">
-                  {gettext("Example:")} {get_current_time_example(@settings["time_format"])}
-                </span>
+          <div class={if @active_tab != "editor", do: "hidden"}>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+              <%!-- Default Editor Mode Setting --%>
+              <div class="fieldset w-full">
+                <label class="label">
+                  <span class="fieldset-legend text-base font-medium">
+                    {gettext("Default Editor Mode")}
+                  </span>
+                  <span class="fieldset-label text-sm text-base-content/60">
+                    {gettext("Mode every content editor opens in")}
+                  </span>
+                </label>
+                <.select
+                  name="settings[editor_default_mode]"
+                  value={@settings["editor_default_mode"]}
+                  options={@setting_options["editor_default_mode"]}
+                  class="focus-within:select-primary"
+                />
+                <div>
+                  <span class="block text-xs text-base-content/50">
+                    {gettext(
+                      "Applies site-wide wherever the rich-text editor is rendered (posts, comments). Users can still switch modes inside the editor."
+                    )}
+                  </span>
+                </div>
+                <.unsaved_hint
+                  dirty={
+                    @settings["editor_default_mode"] != @saved_settings["editor_default_mode"]
+                  }
+                  saved={
+                    get_option_label(
+                      @saved_settings["editor_default_mode"],
+                      @setting_options["editor_default_mode"]
+                    )
+                  }
+                />
               </div>
-              <.unsaved_hint
-                dirty={@settings["time_format"] != @saved_settings["time_format"]}
-                saved={
-                  get_option_label(
-                    @saved_settings["time_format"],
-                    @setting_options["time_format"]
-                  )
-                }
-              />
+
+              <%!-- Mentions --%>
+              <div class="fieldset w-full">
+                <.checkbox
+                  name="settings[mentions_enabled]"
+                  checked={@settings["mentions_enabled"] == "true"}
+                  label={gettext("Mentions and record links")}
+                  wrapper_class="mb-3"
+                />
+                <div>
+                  <span class="block text-xs text-base-content/50">
+                    {gettext(
+                      "Lets people type @ to mention someone and # to link a record, anywhere they can write free text. Turning it off stops the suggestions; mentions already written stay readable as plain text."
+                    )}
+                  </span>
+                </div>
+                <.checkbox
+                  name="settings[mentions_redact_titles]"
+                  checked={@settings["mentions_redact_titles"] == "true"}
+                  label={gettext("Hide titles of records the reader can't open")}
+                  wrapper_class="mb-3"
+                />
+                <div>
+                  <span class="block text-xs text-base-content/50">
+                    {gettext(
+                      "By default a mention shows what it names even to someone without access, with a lock icon and no link. Turn this on where the name itself is sensitive; they then see the name as it was when it was written, not its current one."
+                    )}
+                  </span>
+                </div>
+                <.unsaved_hint
+                  dirty={
+                    @settings["mentions_enabled"] != @saved_settings["mentions_enabled"] or
+                      @settings["mentions_redact_titles"] !=
+                        @saved_settings["mentions_redact_titles"]
+                  }
+                  saved={
+                    if(@saved_settings["mentions_enabled"] == "true",
+                      do: gettext("On"),
+                      else: gettext("Off")
+                    )
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class={if @active_tab != "datetime", do: "hidden"}>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+              <%!-- Week Start Day Setting --%>
+              <div class="fieldset w-full">
+                <label class="label">
+                  <span class="fieldset-legend text-base font-medium">{gettext("Week Start On")}</span>
+                  <span class="fieldset-label text-sm text-base-content/60">
+                    {gettext("First day of the week")}
+                  </span>
+                </label>
+                <.select
+                  name="settings[week_start_day]"
+                  value={@settings["week_start_day"]}
+                  options={@setting_options["week_start_day"]}
+                  class="focus-within:select-primary"
+                />
+                <.unsaved_hint
+                  dirty={@settings["week_start_day"] != @saved_settings["week_start_day"]}
+                  saved={
+                    get_option_label(
+                      @saved_settings["week_start_day"],
+                      @setting_options["week_start_day"]
+                    )
+                  }
+                />
+              </div>
+
+              <%!-- Time Zone Setting --%>
+              <div class="fieldset w-full">
+                <label class="label">
+                  <span class="fieldset-legend text-base font-medium">{gettext("Time Zone")}</span>
+                  <span class="fieldset-label text-sm text-base-content/60">
+                    {gettext("System default timezone")}
+                  </span>
+                </label>
+                <.select
+                  name="settings[time_zone]"
+                  value={@settings["time_zone"]}
+                  options={@setting_options["time_zone"]}
+                  class="focus-within:select-primary"
+                />
+                <.unsaved_hint
+                  dirty={@settings["time_zone"] != @saved_settings["time_zone"]}
+                  saved={get_timezone_label(@saved_settings["time_zone"], @setting_options)}
+                />
+              </div>
+
+              <%!-- Date Format Setting --%>
+              <div class="fieldset w-full">
+                <label class="label">
+                  <span class="fieldset-legend text-base font-medium">{gettext("Date Format")}</span>
+                  <span class="fieldset-label text-sm text-base-content/60">
+                    {gettext("How dates are displayed")}
+                  </span>
+                </label>
+                <.select
+                  name="settings[date_format]"
+                  value={@settings["date_format"]}
+                  options={@setting_options["date_format"]}
+                  class="focus-within:select-primary"
+                />
+                <div>
+                  <span class="block text-xs text-base-content/50">
+                    {gettext("Example:")} {get_current_date_example(@settings["date_format"])}
+                  </span>
+                </div>
+                <.unsaved_hint
+                  dirty={@settings["date_format"] != @saved_settings["date_format"]}
+                  saved={
+                    get_option_label(
+                      @saved_settings["date_format"],
+                      @setting_options["date_format"]
+                    )
+                  }
+                />
+              </div>
+
+              <%!-- Time Format Setting --%>
+              <div class="fieldset w-full">
+                <label class="label">
+                  <span class="fieldset-legend text-base font-medium">{gettext("Time Format")}</span>
+                  <span class="fieldset-label text-sm text-base-content/60">
+                    {gettext("How times are displayed")}
+                  </span>
+                </label>
+                <.select
+                  name="settings[time_format]"
+                  value={@settings["time_format"]}
+                  options={@setting_options["time_format"]}
+                  class="focus-within:select-primary"
+                />
+                <div>
+                  <span class="block text-xs text-base-content/50">
+                    {gettext("Example:")} {get_current_time_example(@settings["time_format"])}
+                  </span>
+                </div>
+                <.unsaved_hint
+                  dirty={@settings["time_format"] != @saved_settings["time_format"]}
+                  saved={
+                    get_option_label(
+                      @saved_settings["time_format"],
+                      @setting_options["time_format"]
+                    )
+                  }
+                />
+              </div>
             </div>
           </div>
 
