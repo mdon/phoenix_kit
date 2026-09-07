@@ -1,3 +1,23 @@
+## 2.21.1 - 2026-09-07
+
+### Fixed
+
+- **Languages settings page's breadcrumb fix from 2.21.0 was incomplete**
+  — the `page_section`/`page_section_path` assigns were added to `mount/3`
+  but never threaded into the template's `app_layout` call, so the
+  breadcrumb still showed bare "Languages" instead of "Settings /
+  Languages".
+- Media settings page's subtitle was a full paragraph that didn't fit in
+  the header on any but the widest screens, truncating to unreadable
+  fragments. Shortened to match the length of every other Settings page's
+  subtitle.
+- **Two mistranslated strings from 2.21.0's gettext round-trip**: the
+  Sitemap tab label "Sources" had been auto-fuzzy-matched to unrelated
+  "Success" translations in Russian, French, German, Spanish, Italian,
+  Polish, and Estonian; the Email Sending tab label "Local Dev Mailbox"
+  was fuzzy-matched correctly but never had its fuzzy flag verified and
+  cleared. Both fixed with real translations.
+
 ## 2.21.0 - 2026-09-07
 
 ### Added

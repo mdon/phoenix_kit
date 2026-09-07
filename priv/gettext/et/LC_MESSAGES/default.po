@@ -391,8 +391,8 @@ msgstr "Aktiivne"
 #: lib/modules/storage/web/dimensions.html.heex:200
 #: lib/modules/storage/web/dimensions.html.heex:334
 #: lib/modules/storage/web/dimensions.html.heex:401
-#: lib/modules/storage/web/settings.html.heex:136
-#: lib/modules/storage/web/settings.html.heex:199
+#: lib/modules/storage/web/settings.html.heex:132
+#: lib/modules/storage/web/settings.html.heex:195
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:467
 #: lib/phoenix_kit_web/live/modules.html.heex:89
 #: lib/phoenix_kit_web/live/modules.html.heex:125
@@ -495,7 +495,7 @@ msgstr "Konto teave"
 #: lib/modules/sitemap/web/settings.html.heex:66
 #: lib/modules/storage/web/dimensions.html.heex:151
 #: lib/modules/storage/web/dimensions.html.heex:352
-#: lib/modules/storage/web/settings.html.heex:149
+#: lib/modules/storage/web/settings.html.heex:145
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:206
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:260
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:292
@@ -715,7 +715,7 @@ msgstr "Linn on kohustuslik"
 msgid "Click any check or cross icon to toggle a permission for that role. The Owner role always has full access and cannot be modified. You cannot edit permissions for your own role or for roles with higher authority. You can only grant or revoke permissions that your own role has."
 msgstr "Klõpsa mis tahes linnukese või risti ikoonil, et lülitada selle rolli õigust. Omaniku rollil on alati täielik juurdepääs ja seda ei saa muuta. Sa ei saa muuta oma rolli ega kõrgema volitusega rollide õigusi. Sa saad anda või tühistada ainult neid õigusi, mis sinu rollil on."
 
-#: lib/modules/sitemap/web/settings.html.heex:825
+#: lib/modules/sitemap/web/settings.html.heex:850
 #: lib/phoenix_kit/mentions/live.ex:269
 #: lib/phoenix_kit_web/components/core/column_settings.ex:144
 #: lib/phoenix_kit_web/components/media_browser.html.heex:387
@@ -924,7 +924,7 @@ msgstr "Andmed, mis kustutatakse jäädavalt:"
 #: lib/modules/storage/web/dimensions.html.heex:274
 #: lib/modules/storage/web/dimensions.html.heex:440
 #: lib/modules/storage/web/dimensions.html.heex:475
-#: lib/modules/storage/web/settings.html.heex:273
+#: lib/modules/storage/web/settings.html.heex:269
 #: lib/phoenix_kit_web/components/core/bulk_select.ex:196
 #: lib/phoenix_kit_web/components/media_browser.html.heex:831
 #: lib/phoenix_kit_web/components/media_browser.html.heex:838
@@ -982,8 +982,8 @@ msgstr "Kirjeldus"
 #: lib/modules/storage/web/dimensions.html.heex:204
 #: lib/modules/storage/web/dimensions.html.heex:334
 #: lib/modules/storage/web/dimensions.html.heex:405
-#: lib/modules/storage/web/settings.html.heex:136
-#: lib/modules/storage/web/settings.html.heex:203
+#: lib/modules/storage/web/settings.html.heex:132
+#: lib/modules/storage/web/settings.html.heex:199
 #: lib/phoenix_kit_web/components/core/badge.ex:191
 #: lib/phoenix_kit_web/live/modules.html.heex:89
 #: lib/phoenix_kit_web/live/modules.html.heex:151
@@ -1013,7 +1013,7 @@ msgstr "Mustand"
 #: lib/modules/storage/web/dimensions.html.heex:257
 #: lib/modules/storage/web/dimensions.html.heex:421
 #: lib/modules/storage/web/dimensions.html.heex:458
-#: lib/modules/storage/web/settings.html.heex:254
+#: lib/modules/storage/web/settings.html.heex:250
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:382
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:114
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:148
@@ -1167,8 +1167,8 @@ msgstr "Seade uuendamine ebaõnnestus"
 msgid "Feature Modules"
 msgstr "Funktsionaalsed moodulid"
 
-#: lib/modules/storage/web/settings.html.heex:131
-#: lib/modules/storage/web/settings.html.heex:147
+#: lib/modules/storage/web/settings.html.heex:127
+#: lib/modules/storage/web/settings.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "Files"
 msgstr "Failid"
@@ -1430,7 +1430,7 @@ msgstr "Autentimata"
 #: lib/phoenix_kit/integrations/integrations.ex:991
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:29
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:309
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:88
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:123
 #: lib/phoenix_kit_web/live/settings/integrations.ex:212
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:607
 #, elixir-autogen, elixir-format
@@ -1612,8 +1612,8 @@ msgid "Primary: %{lang}"
 msgstr "Peamine: %{lang}"
 
 #: lib/modules/storage/web/bucket_form.html.heex:317
-#: lib/modules/storage/web/settings.html.heex:123
-#: lib/modules/storage/web/settings.html.heex:146
+#: lib/modules/storage/web/settings.html.heex:119
+#: lib/modules/storage/web/settings.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "Priority"
 msgstr "Prioriteet"
@@ -1791,7 +1791,7 @@ msgstr "Roll uuendatud edukalt"
 msgid "SWIFT/BIC"
 msgstr "SWIFT/BIC"
 
-#: lib/modules/sitemap/web/settings.html.heex:484
+#: lib/modules/sitemap/web/settings.html.heex:501
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:67
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:356
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:440
@@ -1858,6 +1858,7 @@ msgid "Select which sections and modules this role can access. You can only gran
 msgstr "Vali, millistele lõikudele ja moodulitele see roll pääseb juurde. Sa saad anda ainult neid õigusi, mis sinu rollil on."
 
 #: lib/modules/maintenance/web/maintenance_page_live.ex:127
+#: lib/modules/sitemap/web/settings.html.heex:5
 #: lib/modules/storage/web/bucket_form.html.heex:5
 #: lib/modules/storage/web/bucket_form.html.heex:298
 #: lib/modules/storage/web/dimension_form.html.heex:5
@@ -1907,7 +1908,7 @@ msgstr "Logi sisse"
 msgid "Sign in with Magic Link"
 msgstr "Logi sisse Magic Linkiga"
 
-#: lib/modules/sitemap/web/settings.html.heex:504
+#: lib/modules/sitemap/web/settings.html.heex:523
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:23
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:580
 #, elixir-autogen, elixir-format
@@ -1931,11 +1932,11 @@ msgstr "Maakond/provints"
 #: lib/modules/storage/web/dimensions.html.heex:351
 #: lib/modules/storage/web/health.html.heex:202
 #: lib/modules/storage/web/health.html.heex:221
-#: lib/modules/storage/web/settings.html.heex:135
-#: lib/modules/storage/web/settings.html.heex:148
+#: lib/modules/storage/web/settings.html.heex:131
+#: lib/modules/storage/web/settings.html.heex:144
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:162
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:205
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:120
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:155
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:55
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:109
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:100
@@ -2264,7 +2265,7 @@ msgstr "Rakenda"
 msgid "Deactivate"
 msgstr "Deaktiveeri"
 
-#: lib/modules/storage/web/settings.html.heex:236
+#: lib/modules/storage/web/settings.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Delete bucket"
 msgstr "Kustuta bucket"
@@ -2273,8 +2274,8 @@ msgstr "Kustuta bucket"
 #: lib/modules/storage/web/dimensions.html.heex:265
 #: lib/modules/storage/web/dimensions.html.heex:429
 #: lib/modules/storage/web/dimensions.html.heex:466
-#: lib/modules/storage/web/settings.html.heex:225
-#: lib/modules/storage/web/settings.html.heex:261
+#: lib/modules/storage/web/settings.html.heex:221
+#: lib/modules/storage/web/settings.html.heex:257
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:126
 #: lib/phoenix_kit_web/live/settings/users.html.heex:563
 #: lib/phoenix_kit_web/live/settings/users.html.heex:609
@@ -2282,7 +2283,7 @@ msgstr "Kustuta bucket"
 msgid "Disable"
 msgstr "Keela"
 
-#: lib/modules/storage/web/settings.html.heex:219
+#: lib/modules/storage/web/settings.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Edit bucket"
 msgstr "Muuda bucket"
@@ -2291,8 +2292,8 @@ msgstr "Muuda bucket"
 #: lib/modules/storage/web/dimensions.html.heex:265
 #: lib/modules/storage/web/dimensions.html.heex:429
 #: lib/modules/storage/web/dimensions.html.heex:466
-#: lib/modules/storage/web/settings.html.heex:225
-#: lib/modules/storage/web/settings.html.heex:261
+#: lib/modules/storage/web/settings.html.heex:221
+#: lib/modules/storage/web/settings.html.heex:257
 #: lib/phoenix_kit_web/live/settings/users.html.heex:564
 #: lib/phoenix_kit_web/live/settings/users.html.heex:611
 #, elixir-autogen, elixir-format
@@ -2334,16 +2335,17 @@ msgstr "Keele sisu laadimine"
 msgid "Marketing"
 msgstr "Turundus"
 
-#: lib/modules/storage/web/settings.html.heex:119
-#: lib/modules/storage/web/settings.html.heex:145
+#: lib/modules/storage/web/settings.html.heex:115
+#: lib/modules/storage/web/settings.html.heex:141
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:86
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Provider"
 msgstr "Teenusepakkuja"
 
-#: lib/modules/sitemap/web/settings.html.heex:605
-#: lib/modules/storage/web/settings.html.heex:467
+#: lib/modules/sitemap/web/settings.html.heex:82
+#: lib/modules/sitemap/web/settings.html.heex:626
+#: lib/modules/storage/web/settings.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Quick Actions"
 msgstr "Kiiraktsioonid"
@@ -2468,7 +2470,7 @@ msgstr "Juurdepääsuvõtme ID"
 msgid "Access Type"
 msgstr "Juurdepääsu tüüp"
 
-#: lib/modules/storage/web/settings.html.heex:286
+#: lib/modules/storage/web/settings.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Active Buckets"
 msgstr "Aktiivsed bucketid"
@@ -2478,7 +2480,7 @@ msgstr "Aktiivsed bucketid"
 msgid "Active status for new user registrations"
 msgstr "Aktiivne olek uute kasutajate registreerimisel"
 
-#: lib/modules/storage/web/settings.html.heex:79
+#: lib/modules/storage/web/settings.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Add Bucket"
 msgstr "Lisa bucket"
@@ -2557,19 +2559,19 @@ msgstr "Rakenduse saladus"
 msgid "Application name display"
 msgstr "Rakenduse nime kuvamine"
 
-#: lib/modules/storage/web/settings.html.heex:455
+#: lib/modules/storage/web/settings.html.heex:451
 #: lib/phoenix_kit_web/live/users/users.html.heex:1203
 #, elixir-autogen, elixir-format
 msgid "Apply Changes"
 msgstr "Rakenda muudatused"
 
-#: lib/modules/storage/web/settings.html.heex:452
+#: lib/modules/storage/web/settings.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "Applying..."
 msgstr "Rakendamine..."
 
-#: lib/modules/storage/web/settings.html.heex:231
-#: lib/modules/storage/web/settings.html.heex:267
+#: lib/modules/storage/web/settings.html.heex:227
+#: lib/modules/storage/web/settings.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this bucket? This will remove all location records."
 msgstr "Kas oled kindel, et soovid kustutada selle bucketi? See eemaldab kõik asukoharekordid."
@@ -2605,12 +2607,12 @@ msgstr "%{type} väljade jaoks on vaja vähemalt ühte valikut"
 msgid "Authentication Methods"
 msgstr "Autentimismeetodid"
 
-#: lib/modules/storage/web/settings.html.heex:380
+#: lib/modules/storage/web/settings.html.heex:376
 #, elixir-autogen, elixir-format
 msgid "Auto-Generate Variants"
 msgstr "Automaatselt genereeri variante"
 
-#: lib/modules/storage/web/settings.html.heex:383
+#: lib/modules/storage/web/settings.html.heex:379
 #, elixir-autogen, elixir-format
 msgid "Automatically resize images and videos to configured dimensions"
 msgstr "Automaatselt muuda piltide ja videote suurust konfigureeritud dimensioonidele"
@@ -2646,7 +2648,7 @@ msgstr "Autentimislehtede taustapilt mobiiliekraanidel (768px ja alla). Kasutab 
 msgid "Bucket Name"
 msgstr "Bucketi nimi"
 
-#: lib/modules/storage/web/settings.html.heex:92
+#: lib/modules/storage/web/settings.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Buckets can be local directories or cloud storage providers (AWS S3, Backblaze B2, Cloudflare R2)."
 msgstr "Bucketid võivad olla kohalikud kataloogid või pilvemälupakkujad (AWS S3, Backblaze B2, Cloudflare R2)."
@@ -2661,7 +2663,7 @@ msgstr "CSS värv või gradient autentimislehe taustaks. Ignoreeritakse, kui tau
 msgid "Callback URL"
 msgstr "Tagasihelistamise URL"
 
-#: lib/modules/storage/web/settings.html.heex:461
+#: lib/modules/storage/web/settings.html.heex:457
 #, elixir-autogen, elixir-format
 msgid "Changes will be saved immediately"
 msgstr "Muudatused salvestatakse kohe"
@@ -2763,7 +2765,7 @@ msgstr "Loo tee"
 msgid "Create Storage Path"
 msgstr "Loo salvestustee"
 
-#: lib/modules/storage/web/settings.html.heex:101
+#: lib/modules/storage/web/settings.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Create Your First Bucket"
 msgstr "Loo oma esimene bucket"
@@ -2783,7 +2785,7 @@ msgstr "Loo projekt või vali olemasolev"
 msgid "Create your first dimension preset to start generating file variants."
 msgstr "Loo oma esimene dimensioonipresett failivariantide genereerimiseks."
 
-#: lib/modules/storage/web/settings.html.heex:290
+#: lib/modules/storage/web/settings.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Currently in use"
 msgstr "Praegu kasutusel"
@@ -2798,7 +2800,7 @@ msgstr "Kohandatud kasutajaväljad"
 msgid "Date Format"
 msgstr "Kuupäeva vorming"
 
-#: lib/modules/storage/web/settings.html.heex:294
+#: lib/modules/storage/web/settings.html.heex:290
 #, elixir-autogen, elixir-format
 msgid "Default Bucket"
 msgstr "Vaikimisi bucket"
@@ -2854,7 +2856,7 @@ msgstr "Lõpp-punkt"
 msgid "Enter"
 msgstr "Sisesta"
 
-#: lib/modules/storage/web/settings.html.heex:359
+#: lib/modules/storage/web/settings.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "Enter number of copies"
 msgstr "Sisesta koopiate arv"
@@ -2874,12 +2876,12 @@ msgstr "Sisesta projekti pealkiri"
 msgid "Error!"
 msgstr "Viga!"
 
-#: lib/modules/storage/web/settings.html.heex:48
+#: lib/modules/storage/web/settings.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "FFmpeg Not Installed"
 msgstr "FFmpeg ei ole paigaldatud"
 
-#: lib/modules/storage/web/settings.html.heex:50
+#: lib/modules/storage/web/settings.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "FFmpeg is required for video processing, transcoding, and thumbnail generation."
 msgstr "FFmpeg on vajalik video töötlemiseks, transkodeerimiseks ja pisipiltide genereerimiseks."
@@ -2980,12 +2982,12 @@ msgstr "Kui kasutate nginx/apache'i, veenduge"
 msgid "Image Dimensions"
 msgstr "Pildi dimensioonid"
 
-#: lib/modules/storage/web/settings.html.heex:22
+#: lib/modules/storage/web/settings.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "ImageMagick Not Installed"
 msgstr "ImageMagick ei ole paigaldatud"
 
-#: lib/modules/storage/web/settings.html.heex:24
+#: lib/modules/storage/web/settings.html.heex:20
 #, elixir-autogen, elixir-format
 msgid "ImageMagick is required for image processing and variant generation."
 msgstr "ImageMagick on vajalik piltide töötlemiseks ja variantide genereerimiseks."
@@ -2995,8 +2997,8 @@ msgstr "ImageMagick on vajalik piltide töötlemiseks ja variantide genereerimis
 msgid "Images use 1-100 scale (compression quality)"
 msgstr "Pildid kasutavad 1-100 skaalat (tihenduse kvaliteet)"
 
-#: lib/modules/storage/web/settings.html.heex:28
-#: lib/modules/storage/web/settings.html.heex:56
+#: lib/modules/storage/web/settings.html.heex:24
+#: lib/modules/storage/web/settings.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Installation:"
 msgstr "Paigaldamine:"
@@ -3050,7 +3052,7 @@ msgstr "Magic Link"
 msgid "Maintain Aspect Ratio"
 msgstr "Säilita kuvasuhe"
 
-#: lib/modules/storage/web/settings.html.heex:491
+#: lib/modules/storage/web/settings.html.heex:487
 #, elixir-autogen, elixir-format
 msgid "Manage Dimensions"
 msgstr "Halda dimensioone"
@@ -3070,19 +3072,19 @@ msgstr "Halda sisselogimislehe kujundust ja autentimismeetodeid"
 msgid "Manage user registration, defaults, and custom fields"
 msgstr "Halda kasutajate registreerimist, vaikimisi seadeid ja kohandatud välju"
 
-#: lib/modules/storage/web/settings.html.heex:365
+#: lib/modules/storage/web/settings.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Maximum %{count} copies based on %{buckets} active bucket(s)."
 msgstr "Maksimaalselt %{count} koopiat, arvestades %{buckets} aktiivset bucket(i)."
 
 #: lib/modules/storage/web/dimensions.html.heex:145
 #: lib/modules/storage/web/dimensions.html.heex:342
-#: lib/modules/storage/web/settings.html.heex:144
+#: lib/modules/storage/web/settings.html.heex:140
 #: lib/phoenix_kit_web/components/media_browser.html.heex:413
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1824
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:171
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:203
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:119
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:154
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:66
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:107
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:19
@@ -3107,7 +3109,7 @@ msgstr "Uue kasutaja vaikimisi olek"
 msgid "New users will be created as inactive and will not be able to log in until an admin activates their account."
 msgstr "Uued kasutajad luuakse mitteaktiivsena ja nad ei saa sisse logida, kuni administraator aktiveerib nende konto."
 
-#: lib/modules/storage/web/settings.html.heex:334
+#: lib/modules/storage/web/settings.html.heex:330
 #, elixir-autogen, elixir-format
 msgid "No active buckets available. Enable buckets to configure redundancy."
 msgstr "Aktiivseid buckete pole saadaval. Luba bucketid redundantsuse konfigureerimiseks."
@@ -3117,7 +3119,7 @@ msgstr "Aktiivseid buckete pole saadaval. Luba bucketid redundantsuse konfiguree
 msgid "No active sessions found."
 msgstr "Aktiivseid seansse ei leitud."
 
-#: lib/modules/storage/web/settings.html.heex:459
+#: lib/modules/storage/web/settings.html.heex:455
 #, elixir-autogen, elixir-format
 msgid "No changes to apply"
 msgstr "Pole muudatusi rakendamiseks"
@@ -3142,7 +3144,7 @@ msgstr "Ükski seanss ei vasta teie praegustele filtritele."
 msgid "Noindex · Nofollow"
 msgstr "Noindex · Nofollow"
 
-#: lib/modules/storage/web/settings.html.heex:299
+#: lib/modules/storage/web/settings.html.heex:295
 #: lib/phoenix_kit_web/live/settings/website_access.ex:595
 #, elixir-autogen, elixir-format
 msgid "None"
@@ -3158,7 +3160,7 @@ msgstr "Märkus"
 msgid "Note: OAuth providers require ueberauth dependencies to be installed."
 msgstr "Märkus: OAuth teenusepakkujad vajavad ueberauth sõltuvuste paigaldamist."
 
-#: lib/modules/storage/web/settings.html.heex:327
+#: lib/modules/storage/web/settings.html.heex:323
 #, elixir-autogen, elixir-format
 msgid "Number of copies to store"
 msgstr "Salvestatavate koopiate arv"
@@ -3173,7 +3175,7 @@ msgstr "OAuth teenusepakkujad"
 msgid "OAuth Setup Instructions"
 msgstr "OAuth seadistamisjuhised"
 
-#: lib/modules/storage/web/settings.html.heex:361
+#: lib/modules/storage/web/settings.html.heex:357
 #, elixir-autogen, elixir-format
 msgid "Only 1 active bucket available. Add more buckets to enable redundancy."
 msgstr "Ainult 1 aktiivne bucket saadaval. Lisa rohkem buckete redundantsuse lubamiseks."
@@ -3225,18 +3227,18 @@ msgstr "Kvaliteet (CRF)"
 msgid "Quality Settings:"
 msgstr "Kvaliteedi seaded:"
 
-#: lib/modules/storage/web/settings.html.heex:126
-#: lib/modules/storage/web/settings.html.heex:186
+#: lib/modules/storage/web/settings.html.heex:122
+#: lib/modules/storage/web/settings.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Random"
 msgstr "Juhuslik"
 
-#: lib/modules/storage/web/settings.html.heex:346
+#: lib/modules/storage/web/settings.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Reduce redundancy or enable more buckets."
 msgstr "Vähenda redundantsust või luba rohkem buckete."
 
-#: lib/modules/storage/web/settings.html.heex:325
+#: lib/modules/storage/web/settings.html.heex:321
 #, elixir-autogen, elixir-format
 msgid "Redundancy Copies"
 msgstr "Redundantsuse koopiad"
@@ -3353,7 +3355,7 @@ msgstr "Vali teenusepakkuja..."
 msgid "Session actions"
 msgstr "Seansi tegevused"
 
-#: lib/modules/storage/web/settings.html.heex:297
+#: lib/modules/storage/web/settings.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Set"
 msgstr "Määra"
@@ -3375,7 +3377,7 @@ msgstr "Näita kasutajanime välja registreerimisel"
 msgid "Site Address (URL)"
 msgstr "Saidi aadress (URL)"
 
-#: lib/modules/storage/web/settings.html.heex:503
+#: lib/modules/storage/web/settings.html.heex:499
 #, elixir-autogen, elixir-format
 msgid "Soon"
 msgstr "Varsti"
@@ -3401,7 +3403,7 @@ msgstr "Õnnestus!"
 msgid "Switch app from"
 msgstr "Vaheta rakendus"
 
-#: lib/modules/storage/web/settings.html.heex:521
+#: lib/modules/storage/web/settings.html.heex:517
 #, elixir-autogen, elixir-format
 msgid "Sync Files"
 msgstr "Sünkrooni failid"
@@ -3438,7 +3440,7 @@ msgstr "Migratsioon loob 8 vaikimisi dimensiooni: 4 pildi suurust (pisipilt, vä
 msgid "The storage path"
 msgstr "Salvestustee"
 
-#: lib/modules/storage/web/settings.html.heex:556
+#: lib/modules/storage/web/settings.html.heex:552
 #, elixir-autogen, elixir-format
 msgid "This will reset dimensions and settings to defaults, and create a local bucket if none exist. Your uploaded files will NOT be deleted. Continue?"
 msgstr "See lähtestab dimensioonid ja seaded vaikimisi väärtustele ning loob kohaliku bucketi, kui ühtegi pole. Teie üleslaaditud faile EI kustutata. Jätkata?"
@@ -3459,7 +3461,7 @@ msgstr "Ajavöönd"
 msgid "Token"
 msgstr "Token"
 
-#: lib/modules/storage/web/settings.html.heex:280
+#: lib/modules/storage/web/settings.html.heex:276
 #: lib/phoenix_kit_web/live/modules.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Total Buckets"
@@ -3542,7 +3544,7 @@ msgstr "Külasta"
 msgid "Week Start On"
 msgstr "Nädal algab"
 
-#: lib/modules/storage/web/settings.html.heex:584
+#: lib/modules/storage/web/settings.html.heex:580
 #, elixir-autogen, elixir-format
 msgid "When a file is requested, the system automatically tries each location until it successfully retrieves the file."
 msgstr "Kui failile pääseb juurde, proovib süsteem automaatselt iga asukohta, kuni fail on edukalt kätte saadud."
@@ -3562,12 +3564,12 @@ msgstr "Kui lubatud, kogutakse analüütika jaoks registreerimise IP-aadressid j
 msgid "Width (px)"
 msgstr "Laius (px)"
 
-#: lib/modules/storage/web/settings.html.heex:25
+#: lib/modules/storage/web/settings.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Without it, image resizing, cropping, and format conversion will not work."
 msgstr "Ilma selleta ei tööta piltide suuruse muutmine, kärpimine ega vorminguteisendamine."
 
-#: lib/modules/storage/web/settings.html.heex:53
+#: lib/modules/storage/web/settings.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Without it, video file processing will not work."
 msgstr "Ilma selleta ei tööta videofailide töötlemine."
@@ -3629,7 +3631,7 @@ msgstr "ei eksisteeri."
 msgid "e.g., thumbnail, medium, 720p"
 msgstr "nt pisipilt, keskmine, 720p"
 
-#: lib/modules/storage/web/settings.html.heex:193
+#: lib/modules/storage/web/settings.html.heex:189
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1751
 #, elixir-autogen, elixir-format
 msgid "files"
@@ -3979,7 +3981,7 @@ msgstr "Alla redundantsuse eesmärgi"
 msgid "Both width and height are used for fixed dimensions"
 msgstr "Fikseeritud dimensioonide jaoks kasutatakse nii laiust kui ka kõrgust"
 
-#: lib/modules/storage/web/settings.html.heex:210
+#: lib/modules/storage/web/settings.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Bucket actions"
 msgstr "Bucketi tegevused"
@@ -4067,7 +4069,7 @@ msgstr "Lõpeta esmalt 1. samm konto ühendamise lubamiseks."
 msgid "Configure storage provider settings"
 msgstr "Seadista salvestuspakkuja seaded"
 
-#: lib/modules/storage/web/settings.html.heex:282
+#: lib/modules/storage/web/settings.html.heex:278
 #, elixir-autogen, elixir-format
 msgid "Configured media locations"
 msgstr "Konfigureeritud meedia asukohad"
@@ -4190,7 +4192,7 @@ msgstr "Loo OAuth klient"
 msgid "Create an OpenRouter account"
 msgstr "Loo OpenRouteri konto"
 
-#: lib/modules/storage/web/settings.html.heex:435
+#: lib/modules/storage/web/settings.html.heex:431
 #, elixir-autogen, elixir-format
 msgid "Current limit: %{size} MB"
 msgstr "Praegune limiit: %{size} MB"
@@ -4357,7 +4359,7 @@ msgstr "Avatari uuendamine ebaõnnestus"
 msgid "File"
 msgstr "Fail"
 
-#: lib/modules/storage/web/settings.html.heex:581
+#: lib/modules/storage/web/settings.html.heex:577
 #, elixir-autogen, elixir-format
 msgid "Files are tracked in PostgreSQL with support for multiple media locations (local, S3, remote servers)."
 msgstr "Faile jälgitakse PostgreSQL-is mitme meediumiasukoha toega (kohalik, S3, kaugserverid)."
@@ -4555,32 +4557,32 @@ msgstr "Hooldus pole aktiivne — see on lehe eelvaade."
 msgid "Manage your account settings and preferences"
 msgstr "Halda oma konto seadeid ja eelistusi"
 
-#: lib/modules/storage/web/settings.html.heex:423
+#: lib/modules/storage/web/settings.html.heex:419
 #, elixir-autogen, elixir-format
 msgid "Max Upload Size (MB)"
 msgstr "Maksimaalne üleslaadimise suurus (MB)"
 
-#: lib/modules/storage/web/settings.html.heex:425
+#: lib/modules/storage/web/settings.html.heex:421
 #, elixir-autogen, elixir-format
 msgid "Maximum file size allowed per upload"
 msgstr "Maksimaalne failisuurus üleslaadimise kohta"
 
-#: lib/modules/storage/web/settings.html.heex:73
+#: lib/modules/storage/web/settings.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Media Buckets"
 msgstr "Meedia bucketid"
 
-#: lib/modules/storage/web/settings.html.heex:313
+#: lib/modules/storage/web/settings.html.heex:309
 #, elixir-autogen, elixir-format
 msgid "Media Configuration"
 msgstr "Meedia konfiguratsioon"
 
-#: lib/modules/storage/web/settings.html.heex:502
+#: lib/modules/storage/web/settings.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "Media Stats"
 msgstr "Meedia statistika"
 
-#: lib/modules/storage/web/settings.html.heex:576
+#: lib/modules/storage/web/settings.html.heex:572
 #, elixir-autogen, elixir-format
 msgid "Media System Architecture"
 msgstr "Meediasüsteemi arhitektuur"
@@ -4626,7 +4628,7 @@ msgstr "Mine [Võtmed](https://openrouter.ai/keys) lehele"
 msgid "Navigate to the OAuth section using the search bar or the hamburger menu: search for \"OAuth\", or go to the sidebar: **APIs & Services → OAuth consent screen**. This opens a different section with its own sidebar."
 msgstr "Navigeerige OAuth jaotisesse otsinguribi või hamburgeri menüü abil: otsige \"OAuth\" või minge külgribale: **APIs & Services → OAuth consent screen**. See avab eraldi jaotise oma külgribaga."
 
-#: lib/modules/storage/web/settings.html.heex:87
+#: lib/modules/storage/web/settings.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "No Media Buckets Configured"
 msgstr "Meedia bucketid pole konfigureeritud"
@@ -4796,7 +4798,7 @@ msgstr "Palun sisesta ühenduse nimi."
 msgid "Please save your Client ID first"
 msgstr "Palun salvesta kõigepealt oma Kliendi ID"
 
-#: lib/modules/storage/web/settings.html.heex:302
+#: lib/modules/storage/web/settings.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "Primary media location"
 msgstr "Peamine meedia asukoht"
@@ -4842,7 +4844,7 @@ msgstr "Eemalda organisatsioonist"
 msgid "Remove this member from the organization?"
 msgstr "Eemaldada see liige organisatsioonist?"
 
-#: lib/modules/storage/web/settings.html.heex:562
+#: lib/modules/storage/web/settings.html.heex:558
 #, elixir-autogen, elixir-format
 msgid "Repair Media Module"
 msgstr "Paranda meediamoodul"
@@ -4889,7 +4891,7 @@ msgid "Select a user to add..."
 msgstr "Vali lisatav kasutaja..."
 
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:202
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:118
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:153
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "Service"
@@ -5020,7 +5022,7 @@ msgstr "Test ebaõnnestus"
 msgid "Testing..."
 msgstr "Testimine..."
 
-#: lib/modules/storage/web/settings.html.heex:578
+#: lib/modules/storage/web/settings.html.heex:574
 #, elixir-autogen, elixir-format
 msgid "The media system is designed for distributed file management with automatic redundancy."
 msgstr "Meediasüsteem on loodud hajutatud failihalduseks automaatse redundantsusega."
@@ -5108,7 +5110,7 @@ msgstr "Sa ei saa ennast kutsuda"
 msgid "You joined the organization!"
 msgstr "Liitusite organisatsiooniga!"
 
-#: lib/modules/storage/web/settings.html.heex:89
+#: lib/modules/storage/web/settings.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "You need to create at least one media bucket before files can be uploaded."
 msgstr "Enne failide üleslaadimist peate looma vähemalt ühe meedia bucketi."
@@ -5660,7 +5662,6 @@ msgstr "Sõnum"
 msgid "Module Management"
 msgstr "Moodulite haldamine"
 
-#: lib/modules/sitemap/web/settings.html.heex:5
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:186
 #: lib/phoenix_kit_web/live/modules.html.heex:5
 #, elixir-autogen, elixir-format
@@ -5706,6 +5707,8 @@ msgstr "Nõuab moodulit %{module}"
 msgid "Retryable"
 msgstr "Korduskatseid"
 
+#: lib/modules/sitemap/web/settings.ex:49
+#: lib/modules/sitemap/web/settings.html.heex:4
 #: lib/phoenix_kit_web/live/modules.html.heex:196
 #: lib/phoenix_kit_web/live/modules.html.heex:237
 #, elixir-autogen, elixir-format
@@ -5920,11 +5923,6 @@ msgstr "Vaikimisi"
 msgid "No languages enabled yet."
 msgstr "Ühtegi keelt pole veel lubatud."
 
-#: lib/modules/sitemap/web/settings.html.heex:4
-#, elixir-autogen
-msgid "Sitemap Settings"
-msgstr "Saidikaardi seaded"
-
 #: lib/modules/sitemap/web/settings.html.heex:7
 #, elixir-autogen
 msgid "Configure sitemap generation and scheduling"
@@ -5950,270 +5948,271 @@ msgstr "Viimati genereeritud"
 msgid "Regenerate All"
 msgstr "Genereeri kõik uuesti"
 
-#: lib/modules/sitemap/web/settings.html.heex:81
+#: lib/modules/sitemap/web/settings.html.heex:94
 #, elixir-autogen
 msgid "Router Discovery"
 msgstr "Marsruutide tuvastamine"
 
-#: lib/modules/sitemap/web/settings.html.heex:84
+#: lib/modules/sitemap/web/settings.html.heex:97
 #, elixir-autogen
 msgid "When enabled, scans all routes and builds a single flat sitemap.xml with URLs from all content sources (shop, entities, posts, publishing). When disabled, each source generates its own sitemap file."
 msgstr "Kui lubatud, skannib kõiki marsruute ja loob ühe tasase sitemap.xml faili kõigi sisuallikate URL-idega (pood, üksused, postitused, avaldamine). Kui keelatud, loob iga allikas oma saidikaardi faili."
 
-#: lib/modules/sitemap/web/settings.html.heex:103
+#: lib/modules/sitemap/web/settings.html.heex:116
 #, elixir-autogen
 msgid "Flat mode active — /sitemap.xml contains all URLs in a single <urlset>"
 msgstr "Tasane režiim on aktiivne — /sitemap.xml sisaldab kõiki URL-e ühes <urlset>"
 
-#: lib/modules/sitemap/web/settings.html.heex:107
+#: lib/modules/sitemap/web/settings.html.heex:122
 #, elixir-autogen
 msgid "Routes"
 msgstr "Marsruudid"
 
-#: lib/modules/sitemap/web/settings.html.heex:108
+#: lib/modules/sitemap/web/settings.html.heex:123
 #, elixir-autogen
 msgid "Static"
 msgstr "Staatilised"
 
-#: lib/modules/sitemap/web/settings.html.heex:114
-#: lib/modules/sitemap/web/settings.html.heex:198
+#: lib/modules/sitemap/web/settings.html.heex:129
+#: lib/modules/sitemap/web/settings.html.heex:215
 #: lib/phoenix_kit_web/live/modules.ex:119
 #, elixir-autogen
 msgid "Publishing"
 msgstr "Avaldamine"
 
-#: lib/modules/sitemap/web/settings.html.heex:119
-#: lib/modules/sitemap/web/settings.html.heex:256
+#: lib/modules/sitemap/web/settings.html.heex:136
+#: lib/modules/sitemap/web/settings.html.heex:273
 #: lib/phoenix_kit_web/live/modules.ex:112
 #, elixir-autogen
 msgid "Entities"
 msgstr "Üksused"
 
-#: lib/modules/sitemap/web/settings.html.heex:124
-#: lib/modules/sitemap/web/settings.html.heex:304
+#: lib/modules/sitemap/web/settings.html.heex:141
+#: lib/modules/sitemap/web/settings.html.heex:321
 #: lib/phoenix_kit_web/live/modules.ex:117
 #, elixir-autogen
 msgid "Posts"
 msgstr "Postitused"
 
-#: lib/modules/sitemap/web/settings.html.heex:129
-#: lib/modules/sitemap/web/settings.html.heex:344
+#: lib/modules/sitemap/web/settings.html.heex:146
+#: lib/modules/sitemap/web/settings.html.heex:361
 #, elixir-autogen
 msgid "Shop"
 msgstr "Pood"
 
-#: lib/modules/sitemap/web/settings.html.heex:140
+#: lib/modules/sitemap/web/settings.html.heex:157
 #, elixir-autogen
 msgid "Module Sitemaps"
 msgstr "Moodulite saidikaardid"
 
-#: lib/modules/sitemap/web/settings.html.heex:143
+#: lib/modules/sitemap/web/settings.html.heex:160
 #, elixir-autogen
 msgid "Each source generates its own sitemap file, referenced by the main sitemap index"
 msgstr "Iga allikas loob oma saidikaardi faili, millele viitab põhiindeks"
 
-#: lib/modules/sitemap/web/settings.html.heex:154
+#: lib/modules/sitemap/web/settings.html.heex:171
 #, elixir-autogen
 msgid "Static Pages"
 msgstr "Staatilised lehed"
 
-#: lib/modules/sitemap/web/settings.html.heex:165
+#: lib/modules/sitemap/web/settings.html.heex:182
 #, elixir-autogen
 msgid "Homepage and custom static URLs"
 msgstr "Avaleht ja kohandatud staatilised URL-id"
 
-#: lib/modules/sitemap/web/settings.html.heex:185
-#: lib/modules/sitemap/web/settings.html.heex:233
-#: lib/modules/sitemap/web/settings.html.heex:291
-#: lib/modules/sitemap/web/settings.html.heex:331
-#: lib/modules/sitemap/web/settings.html.heex:379
+#: lib/modules/sitemap/web/settings.html.heex:202
+#: lib/modules/sitemap/web/settings.html.heex:250
+#: lib/modules/sitemap/web/settings.html.heex:308
+#: lib/modules/sitemap/web/settings.html.heex:348
+#: lib/modules/sitemap/web/settings.html.heex:396
 #, elixir-autogen
 msgid "View sitemap"
 msgstr "Vaata saidikaarti"
 
-#: lib/modules/sitemap/web/settings.html.heex:200
-#: lib/modules/sitemap/web/settings.html.heex:258
-#: lib/modules/sitemap/web/settings.html.heex:306
-#: lib/modules/sitemap/web/settings.html.heex:346
+#: lib/modules/sitemap/web/settings.html.heex:217
+#: lib/modules/sitemap/web/settings.html.heex:275
+#: lib/modules/sitemap/web/settings.html.heex:323
+#: lib/modules/sitemap/web/settings.html.heex:363
 #, elixir-autogen
 msgid "module off"
 msgstr "moodul väljas"
 
-#: lib/modules/sitemap/web/settings.html.heex:213
+#: lib/modules/sitemap/web/settings.html.heex:230
 #, elixir-autogen
 msgid "Blog groups and published posts"
 msgstr "Blogigruppe ja avaldatud postitused"
 
-#: lib/modules/sitemap/web/settings.html.heex:241
+#: lib/modules/sitemap/web/settings.html.heex:258
 #, elixir-autogen
 msgid "Split by blog group"
 msgstr "Jaga blogigruppide kaupa"
 
-#: lib/modules/sitemap/web/settings.html.heex:271
+#: lib/modules/sitemap/web/settings.html.heex:288
 #, elixir-autogen
 msgid "Dynamic content types (per-type files)"
 msgstr "Dünaamilised sisutüübid (eraldi failid igale tüübile)"
 
-#: lib/modules/sitemap/web/settings.html.heex:311
+#: lib/modules/sitemap/web/settings.html.heex:328
 #, elixir-autogen
 msgid "Public posts from Posts module"
 msgstr "Avalikud postitused Posts moodulist"
 
-#: lib/modules/sitemap/web/settings.html.heex:359
+#: lib/modules/sitemap/web/settings.html.heex:376
 #, elixir-autogen
 msgid "Products, categories, catalog"
 msgstr "Tooted, kategooriad, kataloog"
 
-#: lib/modules/sitemap/web/settings.html.heex:394
+#: lib/modules/sitemap/web/settings.html.heex:411
 #, elixir-autogen
 msgid "Auth Pages"
 msgstr "Autentimislehed"
 
-#: lib/modules/sitemap/web/settings.html.heex:401
+#: lib/modules/sitemap/web/settings.html.heex:418
 #, elixir-autogen
 msgid "Login"
 msgstr "Sisselogimine"
 
-#: lib/modules/sitemap/web/settings.html.heex:403
-#: lib/modules/sitemap/web/settings.html.heex:414
+#: lib/modules/sitemap/web/settings.html.heex:420
+#: lib/modules/sitemap/web/settings.html.heex:431
 #, elixir-autogen
 msgid "Always excluded from sitemap"
 msgstr "Alati saidikaardist välistatud"
 
-#: lib/modules/sitemap/web/settings.html.heex:406
-#: lib/modules/sitemap/web/settings.html.heex:417
+#: lib/modules/sitemap/web/settings.html.heex:423
+#: lib/modules/sitemap/web/settings.html.heex:434
 #, elixir-autogen
 msgid "Excluded"
 msgstr "Välistatud"
 
-#: lib/modules/sitemap/web/settings.html.heex:412
+#: lib/modules/sitemap/web/settings.html.heex:429
 #, elixir-autogen
 msgid "Logout"
 msgstr "Väljalogimine"
 
-#: lib/modules/sitemap/web/settings.html.heex:423
+#: lib/modules/sitemap/web/settings.html.heex:440
 #: lib/phoenix_kit_web/live/settings/users.html.heex:67
 #, elixir-autogen
 msgid "Registration"
 msgstr "Registreerimine"
 
-#: lib/modules/sitemap/web/settings.html.heex:425
+#: lib/modules/sitemap/web/settings.html.heex:442
 #, elixir-autogen
 msgid "Include in static sitemap"
 msgstr "Lisa staatilisse saidikaardi"
 
-#: lib/modules/sitemap/web/settings.html.heex:497
+#: lib/modules/sitemap/web/settings.html.heex:81
+#: lib/modules/sitemap/web/settings.html.heex:516
 #, elixir-autogen
 msgid "Configuration"
 msgstr "Seadistus"
 
-#: lib/modules/sitemap/web/settings.html.heex:517
+#: lib/modules/sitemap/web/settings.html.heex:536
 #, elixir-autogen
 msgid "Edit in Settings"
 msgstr "Muuda seadetes"
 
-#: lib/modules/sitemap/web/settings.html.heex:527
+#: lib/modules/sitemap/web/settings.html.heex:546
 #, elixir-autogen
 msgid "Browser Display Styling"
 msgstr "Brauseri kuvamise stiil"
 
-#: lib/modules/sitemap/web/settings.html.heex:529
+#: lib/modules/sitemap/web/settings.html.heex:548
 #, elixir-autogen
 msgid "Style XML with XSL for beautiful browser display"
 msgstr "Stiili XML XSL-iga brauseri kauniks kuvamiseks"
 
-#: lib/modules/sitemap/web/settings.html.heex:543
+#: lib/modules/sitemap/web/settings.html.heex:562
 #, elixir-autogen
 msgid "Display Style"
 msgstr "Kuvamisstiil"
 
-#: lib/modules/sitemap/web/settings.html.heex:552
+#: lib/modules/sitemap/web/settings.html.heex:571
 #, elixir-autogen
 msgid "Table (Clean table layout)"
 msgstr "Tabel (puhas tabelivaade)"
 
-#: lib/modules/sitemap/web/settings.html.heex:553
+#: lib/modules/sitemap/web/settings.html.heex:572
 #, elixir-autogen
 msgid "Minimal (Simple list)"
 msgstr "Minimaalne (lihtne loend)"
 
-#: lib/modules/sitemap/web/settings.html.heex:566
+#: lib/modules/sitemap/web/settings.html.heex:585
 #, elixir-autogen
 msgid "Scheduled Generation"
 msgstr "Ajastatud genereerimine"
 
-#: lib/modules/sitemap/web/settings.html.heex:581
+#: lib/modules/sitemap/web/settings.html.heex:600
 #, elixir-autogen
 msgid "Regenerate every"
 msgstr "Genereeri uuesti iga"
 
-#: lib/modules/sitemap/web/settings.html.heex:587
+#: lib/modules/sitemap/web/settings.html.heex:606
 #, elixir-autogen
 msgid "1 hour"
 msgstr "1 tund"
 
-#: lib/modules/sitemap/web/settings.html.heex:588
+#: lib/modules/sitemap/web/settings.html.heex:607
 #, elixir-autogen
 msgid "6 hours"
 msgstr "6 tundi"
 
-#: lib/modules/sitemap/web/settings.html.heex:589
+#: lib/modules/sitemap/web/settings.html.heex:608
 #, elixir-autogen
 msgid "12 hours"
 msgstr "12 tundi"
 
-#: lib/modules/sitemap/web/settings.html.heex:590
+#: lib/modules/sitemap/web/settings.html.heex:609
 #, elixir-autogen
 msgid "24 hours"
 msgstr "24 tundi"
 
-#: lib/modules/sitemap/web/settings.html.heex:591
+#: lib/modules/sitemap/web/settings.html.heex:610
 #, elixir-autogen
 msgid "48 hours"
 msgstr "48 tundi"
 
-#: lib/modules/sitemap/web/settings.html.heex:592
+#: lib/modules/sitemap/web/settings.html.heex:611
 #: lib/phoenix_kit_web/live/notifications/settings.ex:446
 #, elixir-autogen
 msgid "Weekly"
 msgstr "Iga nädal"
 
-#: lib/modules/sitemap/web/settings.html.heex:610
+#: lib/modules/sitemap/web/settings.html.heex:631
 #, elixir-autogen
 msgid "Preview Sitemap Source"
 msgstr "Eelvaade saidikaardi lähtekood"
 
-#: lib/modules/sitemap/web/settings.html.heex:616
+#: lib/modules/sitemap/web/settings.html.heex:637
 #, elixir-autogen
 msgid "Clear All Sitemaps"
 msgstr "Kustuta kõik saidikaardid"
 
-#: lib/modules/sitemap/web/settings.html.heex:626
+#: lib/modules/sitemap/web/settings.html.heex:647
 #, elixir-autogen
 msgid "Generated sitemap files:"
 msgstr "Genereeritud saidikaardi failid:"
 
-#: lib/modules/sitemap/web/settings.html.heex:634
+#: lib/modules/sitemap/web/settings.html.heex:655
 #, elixir-autogen
 msgid "sitemap.xml (index)"
 msgstr "sitemap.xml (indeks)"
 
-#: lib/modules/sitemap/web/settings.html.heex:666
+#: lib/modules/sitemap/web/settings.html.heex:687
 #, elixir-autogen
 msgid "/sitemap.xml contains all URLs in a single <urlset>"
 msgstr "/sitemap.xml sisaldab kõiki URL-e ühes <urlset>"
 
-#: lib/modules/sitemap/web/settings.html.heex:667
+#: lib/modules/sitemap/web/settings.html.heex:689
 #, elixir-autogen
 msgid "/sitemap.xml is a sitemapindex referencing per-module sitemap files"
 msgstr "/sitemap.xml on saidikaardi indeks, mis viitab moodulite saidikaardi failidele"
 
-#: lib/modules/sitemap/web/settings.html.heex:805
+#: lib/modules/sitemap/web/settings.html.heex:830
 #, elixir-autogen
 msgid "Sitemap Source"
 msgstr "Saidikaardi lähtekood"
 
-#: lib/modules/sitemap/web/settings.html.heex:821
+#: lib/modules/sitemap/web/settings.html.heex:846
 #, elixir-autogen
 msgid "Open in Browser"
 msgstr "Ava brauseris"
@@ -6959,7 +6958,7 @@ msgstr "Kausta ei saa teisaldada lubatud ulatusest väljaspool"
 msgid "Could not post comment"
 msgstr "Kommentaari postitamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.html.heex:394
+#: lib/modules/storage/web/settings.html.heex:390
 #, elixir-autogen, elixir-format
 msgid "Deep Zoom Tile Generation"
 msgstr "Sügava suumi plaadigeneratsioon"
@@ -7056,7 +7055,7 @@ msgstr "Kaust jäädavalt kustutatud"
 msgid "Giphy search failed"
 msgstr "Giphy otsing ebaõnnestus"
 
-#: lib/modules/storage/web/settings.html.heex:397
+#: lib/modules/storage/web/settings.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Lazily generate DZI tile pyramids when users zoom deeply into images. With this off the MediaBrowser still swaps between medium/large variants while zooming, but never generates tiles or hits the lazy tile endpoint. ImageMagick is required when enabled."
 msgstr "Genereeri DZI-plaadipüramiide laisklaadimisega suurendamisel. Väljalylitatuna vahetab MediaBrowser variantide vahel, kuid ei genereeri plaate. Vajalik ImageMagick."
@@ -8726,7 +8725,7 @@ msgstr "Lisa kirjeldus"
 msgid "All types"
 msgstr "Kõik tüübid"
 
-#: lib/modules/storage/web/settings.html.heex:410
+#: lib/modules/storage/web/settings.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "Annotated Thumbnails"
 msgstr "Märgistatud pisipildid"
@@ -8754,12 +8753,12 @@ msgstr "Tagasi"
 msgid "Background image"
 msgstr "Taustapilt"
 
-#: lib/modules/storage/web/settings.html.heex:413
+#: lib/modules/storage/web/settings.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Bake Etcher annotation shapes (rectangles, marker strokes, etc.) into a file's grid thumbnail, regenerated in the background when annotations change. With this off the grid shows the plain thumbnail and no annotated variant is generated. ImageMagick is required when enabled."
 msgstr "Küpseta Etcheri märgistuskujundid (ristkülikud, markerijooned jne) faili ruudustiku pisipildile, mis genereeritakse taustal uuesti, kui märgistused muutuvad. Väljalülitatuna kuvab ruudustik tavalist pisipilti ja märgistatud varianti ei genereerita. Sisselülitatuna on vajalik ImageMagick."
 
-#: lib/modules/storage/web/settings.html.heex:530
+#: lib/modules/storage/web/settings.html.heex:526
 #, elixir-autogen, elixir-format
 msgid "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
 msgstr "Sirvi faile, mis pole enam ühegi kirjega seotud (orvuks jäänud meedia), et neid üle vaadata või kustutada."
@@ -8806,7 +8805,7 @@ msgstr "Loo ElevenLabsi konto"
 msgid "Create an OpenAI account"
 msgstr "Loo OpenAI konto"
 
-#: lib/modules/storage/web/settings.html.heex:482
+#: lib/modules/storage/web/settings.html.heex:478
 #, elixir-autogen, elixir-format
 msgid "Create and edit the image/video size presets used to generate variants of uploaded media."
 msgstr "Loo ja muuda pildi/video suuruse eelseadeid, mida kasutatakse üleslaaditud meedia variantide genereerimiseks."
@@ -8915,7 +8914,7 @@ msgstr "Päise uuendamine ebaõnnestus"
 msgid "Filter"
 msgstr "Filter"
 
-#: lib/modules/storage/web/settings.html.heex:539
+#: lib/modules/storage/web/settings.html.heex:535
 #, elixir-autogen, elixir-format
 msgid "Find Orphaned Files"
 msgstr "Leia sidumata failid"
@@ -9029,11 +9028,6 @@ msgstr "Loendivaade"
 msgid "Magic link"
 msgstr "Magic Link"
 
-#: lib/modules/storage/web/settings.html.heex:8
-#, elixir-autogen, elixir-format
-msgid "Media is a core system module that is always enabled and cannot be disabled — it provides essential file management functionality across PhoenixKit. Configure its storage buckets and file processing settings here."
-msgstr "Meedia on põhisüsteemi moodul, mis on alati lubatud ja mida ei saa keelata — see pakub olulist failihalduse funktsionaalsust kogu PhoenixKitis. Seadista siin selle salvestusämbrid ja failitöötluse seaded."
-
 #: lib/phoenix_kit_web/components/media_browser.html.heex:556
 #, elixir-autogen, elixir-format
 msgid "Medium"
@@ -9090,7 +9084,7 @@ msgstr "Pole sisse logitud"
 msgid "Oldest first"
 msgstr "Vanimad enne"
 
-#: lib/modules/storage/web/settings.html.heex:512
+#: lib/modules/storage/web/settings.html.heex:508
 #, elixir-autogen, elixir-format
 msgid "Open the media health dashboard to check file redundancy and re-sync files across storage locations."
 msgstr "Ava meedia seisundi töölaud, et kontrollida failide liiasust ja sünkroonida failid salvestuskohtade vahel uuesti."
@@ -9120,7 +9114,7 @@ msgstr "Kasutajapõhised rakendusesisesed teavitused tegevuslogi põhjal"
 msgid "Pick or upload a small icon image."
 msgstr "Vali või laadi üles väike ikoonipilt."
 
-#: lib/modules/storage/web/settings.html.heex:548
+#: lib/modules/storage/web/settings.html.heex:544
 #, elixir-autogen, elixir-format
 msgid "Reset dimensions and settings to defaults and create a local bucket if none exist. Does not delete uploaded files."
 msgstr "Lähtesta mõõtmed ja seaded vaikeväärtustele ning loo kohalik ämber, kui ühtegi pole. Ei kustuta üleslaaditud faile."
@@ -9212,7 +9206,7 @@ msgstr "Lugemata"
 msgid "View Notifications"
 msgstr "Vaata teavitusi"
 
-#: lib/modules/storage/web/settings.html.heex:499
+#: lib/modules/storage/web/settings.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "View storage usage and media statistics. Coming soon."
 msgstr "Vaata salvestusruumi kasutust ja meedia statistikat. Tulekul varsti."
@@ -9463,7 +9457,8 @@ msgstr "Tere tulemast tagasi"
 msgid "optional"
 msgstr "valikuline"
 
-#: lib/modules/sitemap/web/settings.html.heex:690
+#: lib/modules/sitemap/web/settings.html.heex:83
+#: lib/modules/sitemap/web/settings.html.heex:714
 #, elixir-autogen, elixir-format
 msgid "Advanced"
 msgstr "Täpsemad"
@@ -9504,7 +9499,7 @@ msgstr "Praegu kasutatakse projekti logo."
 msgid "Currently using the site icon."
 msgstr "Praegu kasutatakse saidi ikooni."
 
-#: lib/modules/sitemap/web/settings.html.heex:752
+#: lib/modules/sitemap/web/settings.html.heex:776
 #, elixir-autogen, elixir-format
 msgid "Custom URLs"
 msgstr "Kohandatud URL-id"
@@ -9520,12 +9515,12 @@ msgstr "Näide:"
 msgid "Features"
 msgstr "Funktsioonid"
 
-#: lib/modules/sitemap/web/settings.html.heex:755
+#: lib/modules/sitemap/web/settings.html.heex:779
 #, elixir-autogen, elixir-format
 msgid "JSON array of extra static URL entries (path, priority, changefreq, title, category)."
 msgstr "JSON-massiiv täiendavatest staatilistest URL-kirjetest (path, priority, changefreq, title, category)."
 
-#: lib/modules/sitemap/web/settings.html.heex:779
+#: lib/modules/sitemap/web/settings.html.heex:803
 #, elixir-autogen, elixir-format
 msgid "JSON array of route configurations (plug or path, priority, changefreq, title, category). Replaces the built-in defaults entirely when saved — an empty list removes the homepage entry too."
 msgstr "JSON-massiiv marsruutide seadistustest (plug või path, priority, changefreq, title, category). Salvestamisel asendab sisseehitatud vaikeväärtused täielikult — tühi loend eemaldab ka avalehe kirje."
@@ -9535,7 +9530,7 @@ msgstr "JSON-massiiv marsruutide seadistustest (plug või path, priority, change
 msgid "Logo displayed across the application. Falls back to the site icon, then the project title text."
 msgstr "Logo kuvatakse kogu rakenduses. Kui puudub, kasutatakse saidi ikooni, seejärel projekti pealkirja teksti."
 
-#: lib/modules/sitemap/web/settings.html.heex:693
+#: lib/modules/sitemap/web/settings.html.heex:717
 #, elixir-autogen, elixir-format
 msgid "Low-level Router Discovery and static-page settings. Most sites won't need these — they were previously only reachable by editing the database directly."
 msgstr "Marsruutide avastamise ja staatiliste lehtede madalatasemelised seaded. Enamik saite neid ei vaja — varem sai neid muuta ainult otse andmebaasis."
@@ -9545,12 +9540,12 @@ msgstr "Marsruutide avastamise ja staatiliste lehtede madalatasemelised seaded. 
 msgid "Mobile background preview"
 msgstr "Mobiili tausta eelvaade"
 
-#: lib/modules/sitemap/web/settings.html.heex:732
+#: lib/modules/sitemap/web/settings.html.heex:756
 #, elixir-autogen, elixir-format
 msgid "One pipeline name per line. Added on top of the built-in defaults:"
 msgstr "Üks pipeline'i nimi rea kohta. Lisatakse sisseehitatud vaikeväärtustele:"
 
-#: lib/modules/sitemap/web/settings.html.heex:729
+#: lib/modules/sitemap/web/settings.html.heex:753
 #, elixir-autogen, elixir-format
 msgid "Protected Pipelines"
 msgstr "Kaitstud pipeline'id"
@@ -9560,7 +9555,7 @@ msgstr "Kaitstud pipeline'id"
 msgid "Public base URL of this application"
 msgstr "Selle rakenduse avalik baas-URL"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:214
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Recipient"
 msgstr "Saaja"
@@ -9570,27 +9565,27 @@ msgstr "Saaja"
 msgid "Reset ALL settings to their defaults? Your title, logo, formats and feature toggles will be replaced. This cannot be undone."
 msgstr "Kas lähtestada KÕIK seaded vaikeväärtustele? Sinu pealkiri, logo, vormingud ja funktsioonide lülitid asendatakse. Seda ei saa tagasi võtta."
 
-#: lib/modules/sitemap/web/settings.html.heex:703
+#: lib/modules/sitemap/web/settings.html.heex:727
 #, elixir-autogen, elixir-format
 msgid "Router Discovery: Exclude Patterns"
 msgstr "Marsruutide tuvastamine: väljajätmise mustrid"
 
-#: lib/modules/sitemap/web/settings.html.heex:769
+#: lib/modules/sitemap/web/settings.html.heex:793
 #, elixir-autogen, elixir-format
 msgid "Save Custom URLs"
 msgstr "Salvesta kohandatud URL-id"
 
-#: lib/modules/sitemap/web/settings.html.heex:722
+#: lib/modules/sitemap/web/settings.html.heex:746
 #, elixir-autogen, elixir-format
 msgid "Save Exclude Patterns"
 msgstr "Salvesta väljajätmise mustrid"
 
-#: lib/modules/sitemap/web/settings.html.heex:745
+#: lib/modules/sitemap/web/settings.html.heex:769
 #, elixir-autogen, elixir-format
 msgid "Save Protected Pipelines"
 msgstr "Salvesta kaitstud pipeline'id"
 
-#: lib/modules/sitemap/web/settings.html.heex:793
+#: lib/modules/sitemap/web/settings.html.heex:817
 #, elixir-autogen, elixir-format
 msgid "Save Static Routes"
 msgstr "Salvesta staatilised marsruudid"
@@ -9631,7 +9626,7 @@ msgstr "Saidi ikooni eelvaade"
 msgid "Square, at least 512×512 pixels."
 msgstr "Ruudukujuline, vähemalt 512×512 pikslit."
 
-#: lib/modules/sitemap/web/settings.html.heex:776
+#: lib/modules/sitemap/web/settings.html.heex:800
 #, elixir-autogen, elixir-format
 msgid "Static Routes"
 msgstr "Staatilised marsruudid"
@@ -9692,7 +9687,7 @@ msgstr "Salvestuskohta ei leitud"
 msgid "Cannot set redundancy to %{count} copies. Only %{max} active bucket(s) available."
 msgstr "Liiasust ei saa määrata %{count} koopiale. Saadaval on ainult %{max} aktiivset salvestuskohta."
 
-#: lib/modules/storage/web/settings.html.heex:342
+#: lib/modules/storage/web/settings.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Current setting (%{count} copies) exceeds available buckets (%{max})."
 msgstr "Praegune seade (%{count} koopiat) ületab saadaolevad salvestuskohad (%{max})."
@@ -10481,7 +10476,7 @@ msgstr "AWS SES on hõivatud — proovige hetke pärast uuesti"
 msgid "Acme Newsletter"
 msgstr "Acme Newsletter"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:111
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Add one"
 msgstr "Lisa uus"
@@ -10507,7 +10502,7 @@ msgstr "Koondteated"
 msgid "Aggregation updated."
 msgstr "Koondteadete seaded on uuendatud."
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:186
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "All outbound core mail — authentication, notifications — routes through this integration when set. Leave unset to use the static mailer above. For newsletter broadcasts, see"
 msgstr "Kogu väljuv süsteemipost — autentimine, teavitused — saadetakse selle integratsiooni kaudu, kui see on valitud. Jätke määramata, et kasutada ülalolevat staatilist mailerit. Uudiskirjade kohta vaadake"
@@ -10607,7 +10602,7 @@ msgstr "Komadega eraldatud sildid, mis lisatakse igale kirjale Brevo statistikas
 msgid "Configuration set"
 msgstr "Konfiguratsioonikomplekt"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:88
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "Configured"
 msgstr "Seadistatud"
@@ -10752,7 +10747,7 @@ msgstr "Loo saatmisprofiil"
 msgid "Credentials are valid, but not authorised for GetSendQuota — sending was not verified"
 msgstr "Mandaadid on kehtivad, kuid puudub õigus GetSendQuota jaoks — saatmist ei kontrollitud"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:20
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Currently effective:"
 msgstr "Praegu kehtib:"
@@ -10773,7 +10768,7 @@ msgstr "Redaktori vaikerežiim"
 msgid "Default Newsletter Profile"
 msgstr "Vaikimisi uudiskirja profiil"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:184
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Default Transactional Integration"
 msgstr "Vaikimisi tehinguintegratsioon"
@@ -10836,7 +10831,7 @@ msgstr "E-posti saatmine"
 msgid "Email confirmed. Welcome!"
 msgstr "E-post kinnitatud. Tere tulemast!"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:103
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "Email-capable integrations"
 msgstr "E-posti toega integratsioonid"
@@ -10877,13 +10872,13 @@ msgstr "Saatja"
 msgid "From @BotFather → /newbot (or /token for an existing bot)"
 msgstr "@BotFatherilt → /newbot (või /token olemasoleva boti jaoks)"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:53
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:86
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "From email"
 msgstr "Saatja aadress"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:46
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:79
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "From name"
@@ -10979,7 +10974,7 @@ msgstr "Vigane port: %{port}"
 msgid "Invalid timeout: %{value}"
 msgstr "Vigane ajalimiit: %{value}"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:58
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Leave a field blank to fall back to the application config or built-in default."
 msgstr "Jätke väli tühjaks, et kasutada rakenduse seadistust või sisseehitatud vaikeväärtust."
@@ -11010,7 +11005,7 @@ msgstr "Määra vaikimisi"
 msgid "Manage integrations under Settings → Integrations"
 msgstr "Integratsioone haldate jaotises „Seaded → Integratsioonid“"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:230
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:277
 #, elixir-autogen, elixir-format
 msgid "Manage send profiles"
 msgstr "Halda saatmisprofiile"
@@ -11069,7 +11064,7 @@ msgstr "Minu seaded"
 msgid "New send profile"
 msgstr "Uus saatmisprofiil"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:95
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "No adapter configured for the static mailer. Set one in your application config, or connect an email-capable integration below and pick it as the default transactional integration."
 msgstr "Staatilisele mailerile pole adapterit seadistatud. Määrake see rakenduse seadistuses või ühendage allpool e-posti toega integratsioon ja valige see vaikimisi tehinguintegratsiooniks."
@@ -11089,7 +11084,7 @@ msgstr "Ühtegi vestlust pole veel seotud — kirjutage oma botile ja vajutage �
 msgid "No dismissed notifications"
 msgstr "Eemaldatud teavitusi pole"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:106
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "No email-capable integrations connected yet."
 msgstr "Ühtegi e-posti toega integratsiooni pole veel ühendatud."
@@ -11119,7 +11114,7 @@ msgstr "Lugemata teavitusi pole"
 msgid "None — plaintext"
 msgstr "Puudub — krüpteerimata"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:197
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "None — use the static mailer"
 msgstr "Puudub — kasuta staatilist mailerit"
@@ -11169,7 +11164,7 @@ msgstr "Kleepige token ülalolevale vormile ja vajutage **Testi ühendust**"
 msgid "Pause between sends (seconds)"
 msgstr "Paus saatmiste vahel (sekundites)"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:227
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Per-account sender identity, rate limits, and provider-specific options."
 msgstr "Saatja andmed, saatmispiirangud ja teenusepakkuja seaded iga konto kohta."
@@ -11291,7 +11286,7 @@ msgstr "STARTTLS — kohustuslik"
 msgid "Same as after login"
 msgstr "Sama nagu pärast sisselogimist"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:63
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Save sender identity"
 msgstr "Salvesta saatja andmed"
@@ -11307,8 +11302,9 @@ msgid "Send **/newbot** and follow the prompts to name your bot"
 msgstr "Saatke **/newbot** ja järgige juhiseid, et anda botile nimi"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:292
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:190
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:225
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:36
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:233
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:272
 #: lib/phoenix_kit_web/live/settings/send_profile_form.ex:27
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:25
 #, elixir-autogen, elixir-format
@@ -11335,7 +11331,7 @@ msgstr "Saatmisprofiili ei leitud"
 msgid "Send profile saved successfully"
 msgstr "Saatmisprofiil edukalt salvestatud"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:220
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Send test email"
 msgstr "Saada testkiri"
@@ -11345,7 +11341,8 @@ msgstr "Saada testkiri"
 msgid "Sender ID"
 msgstr "Saatja ID"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:15
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:20
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Sender Identity"
 msgstr "Saatja andmed"
@@ -11385,12 +11382,12 @@ msgstr "Allkiri (HTML)"
 msgid "Signature (plain text)"
 msgstr "Allkiri (lihttekst)"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:78
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Static mailer: built-in PhoenixKit mailer"
 msgstr "Staatiline mailer: sisseehitatud PhoenixKiti mailer"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:80
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Static mailer: parent app mailer (%{module})"
 msgstr "Staatiline mailer: ülemrakenduse mailer (%{module})"
@@ -11416,7 +11413,8 @@ msgstr "Telegram"
 msgid "Telegram error %{status}"
 msgstr "Telegrami viga %{status}"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:204
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:33
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "Test Send"
 msgstr "Testsaatmine"
@@ -11451,7 +11449,7 @@ msgstr "See on juba teie konto."
 msgid "The CA certificate is not a valid PEM bundle (expected a -----BEGIN CERTIFICATE----- block)"
 msgstr "CA sertifikaat pole kehtiv PEM-komplekt (oodati plokki -----BEGIN CERTIFICATE-----)"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:32
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "The email tracking module only records messages sent from a full address (name@domain.tld). With %{email} mail is still delivered, but nothing is written to the email log — silently."
 msgstr "E-posti jälgimise moodul salvestab ainult täisaadressilt (nimi@domeen.tld) saadetud kirjad. Aadressiga %{email} post endiselt edastatakse, kuid e-posti logisse ei kirjutata midagi — ilma hoiatuseta."
@@ -11477,7 +11475,7 @@ msgstr "Seda teenusepakkujat ei saa siin lisada"
 msgid "This send profile will be permanently deleted."
 msgstr "See saatmisprofiil kustutatakse jäädavalt."
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:29
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "This sender address cannot be logged"
 msgstr "Seda saatja aadressi ei saa logisse kirjutada"
@@ -11487,7 +11485,8 @@ msgstr "Seda saatja aadressi ei saa logisse kirjutada"
 msgid "Timeout (seconds)"
 msgstr "Ajalimiit (sekundites)"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:68
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:21
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Transport"
 msgstr "Transport"
@@ -11517,7 +11516,7 @@ msgstr "Lahti seotud. Uuesti sidumiseks kirjutage botile ja vajutage „Testi“
 msgid "Update send profile"
 msgstr "Uuenda saatmisprofiili"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:70
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Used when no default transactional integration is selected below."
 msgstr "Kasutatakse, kui allpool pole valitud vaikimisi tehinguintegratsiooni."
@@ -11582,7 +11581,7 @@ msgstr "Olete siin kõik läbi lugenud."
 msgid "Your own service connections — only you can see these"
 msgstr "Teie enda teenuseühendused — neid näete ainult teie"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:92
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "adapter"
 msgstr "adapter"
@@ -11705,7 +11704,7 @@ msgstr "Sisesta oma soovituskood"
 msgid "Log out"
 msgstr "Logi välja"
 
-#: lib/modules/sitemap/web/settings.html.heex:707
+#: lib/modules/sitemap/web/settings.html.heex:731
 #, elixir-autogen, elixir-format
 msgid "One regular expression per line. Added on top of the built-in defaults, which always apply:"
 msgstr "Üks regulaaravaldis rea kohta. Lisandub sisseehitatud vaikeväärtustele, mis kehtivad alati:"
@@ -11716,7 +11715,7 @@ msgstr "Üks regulaaravaldis rea kohta. Lisandub sisseehitatud vaikeväärtustel
 msgid "Referral code"
 msgstr "Soovituskood"
 
-#: lib/modules/sitemap/web/settings.html.heex:672
+#: lib/modules/sitemap/web/settings.html.heex:694
 #, elixir-autogen, elixir-format
 msgid "Served at the site root as well as under the PhoenixKit prefix, because that is where crawlers look. A priv/static/sitemap.xml file would be served instead of this one."
 msgstr "Serveeritakse nii saidi juurkaustast kui ka PhoenixKiti eesliite alt, sest otsingurobotid vaatavad sealt. Fail priv/static/sitemap.xml serveeritaks selle asemel."
@@ -11738,7 +11737,7 @@ msgstr "See sait on ainult kutsetega. Jätkamiseks sisesta sulle antud kood."
 msgid "Welcome! Your referral code has been accepted."
 msgstr "Tere tulemast! Sinu soovituskood on vastu võetud."
 
-#: lib/modules/sitemap/web/settings.html.heex:681
+#: lib/modules/sitemap/web/settings.html.heex:703
 #, elixir-autogen, elixir-format
 msgid "has the robots.txt line that points crawlers here."
 msgstr "sisaldab robots.txt rida, mis suunab otsingurobotid siia."
@@ -11872,7 +11871,7 @@ msgstr "Amazon Bedrock"
 msgid "Answer 403 to requests whose User-Agent matches a blocked group, for bots that ignore robots.txt."
 msgstr "Vasta 403-ga päringutele, mille User-Agent vastab blokeeritud rühmale — botidele, kes eiravad robots.txt-i."
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:162
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Auth mail carries single-use tokens, and /dev/mailbox has no authentication — anyone who can reach this server can read them. Only for closed environments."
 msgstr "Autentimiskirjad sisaldavad ühekordseid tokeneid ja /dev/mailbox ei nõua autentimist — igaüks, kes selle serverini pääseb, saab neid lugeda. Ainult suletud keskkondadeks."
@@ -11938,7 +11937,7 @@ msgstr "Päringut ei õnnestunud saata."
 msgid "Could not update the mailbox setting"
 msgstr "Postkasti seadet ei saanud uuendada"
 
-#: lib/modules/sitemap/web/settings.html.heex:679
+#: lib/modules/sitemap/web/settings.html.heex:701
 #, elixir-autogen, elixir-format
 msgid "Crawler settings"
 msgstr "Roomajate seaded"
@@ -11979,7 +11978,7 @@ msgstr "Loo sellele kasutajale pääsuvõti (Security credentials → Create acc
 msgid "Decide who may read this site — indexing directives, per-bot access, and what crawlers and AI assistants are told."
 msgstr "Otsusta, kes tohib seda saiti lugeda — indekseerimisjuhised, botipõhine ligipääs ja see, mida roomajatele ja AI-assistentidele öeldakse."
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:179
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Deliver development mail to /dev/mailbox"
 msgstr "Toimeta arenduskirjad kausta /dev/mailbox"
@@ -12065,7 +12064,7 @@ msgstr "Võti autenditi, kuid sellel puuduvad õigused regioonis %{region} — l
 msgid "Lets people type @ to mention someone and # to link a record, anywhere they can write free text. Turning it off stops the suggestions; mentions already written stay readable as plain text."
 msgstr "Lubab inimestel kirjutada @, et kedagi mainida, ja #, et kirjele viidata — kõikjal, kus saab vaba teksti kirjutada. Väljalülitamine peatab soovitused; juba kirjutatud mainimised jäävad tavatekstina loetavaks."
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:151
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "Local dev mailbox"
 msgstr "Kohalik arenduse postkast"
@@ -12200,7 +12199,7 @@ msgstr "OpenAI-ga ühilduv lõpp-punkt (`…/openai/v1`) teenindab praegu ainult
 msgid "The key's IAM identity must allow the `bedrock:CallWithBearerToken` action — without it every Bearer call answers 403 even when invoke permissions are in place."
 msgstr "Võtme IAM identiteet peab lubama tegevuse `bedrock:CallWithBearerToken` — ilma selleta vastab iga Bearer-päring 403-ga isegi siis, kui väljakutsumisõigused on olemas."
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:170
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "The mailbox is off: outgoing mail is written to the server log instead."
 msgstr "Postkast on välja lülitatud: väljuvad kirjad kirjutatakse selle asemel serveri logisse."
@@ -12258,7 +12257,7 @@ msgstr "Kinnita saatja SES-is"
 msgid "What do you need it for?"
 msgstr "Milleks sa seda vajad?"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:156
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Where development mail goes while the resolved transport is the local adapter."
 msgstr "Kuhu lähevad arenduskirjad, kui lahendatud transport on kohalik adapter."
@@ -14410,3 +14409,23 @@ msgstr "Väljalogitud külastaja sihtleht"
 #, elixir-autogen, elixir-format
 msgid "Where a visitor who isn't signed in lands — including right after logging out. Empty = the sign-in page."
 msgstr "Kuhu jõuab sisse logimata külastaja — sh kohe pärast väljalogimist. Tühi = sisselogimisleht."
+
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Default Integration"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Local Dev Mailbox"
+msgstr "Kohalik arenduse postkast"
+
+#: lib/modules/sitemap/web/settings.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Sources"
+msgstr "Allikad"
+
+#: lib/modules/storage/web/settings.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Storage buckets and file processing"
+msgstr ""

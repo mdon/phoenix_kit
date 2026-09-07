@@ -389,8 +389,8 @@ msgstr "Aktiv"
 #: lib/modules/storage/web/dimensions.html.heex:200
 #: lib/modules/storage/web/dimensions.html.heex:334
 #: lib/modules/storage/web/dimensions.html.heex:401
-#: lib/modules/storage/web/settings.html.heex:136
-#: lib/modules/storage/web/settings.html.heex:199
+#: lib/modules/storage/web/settings.html.heex:132
+#: lib/modules/storage/web/settings.html.heex:195
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:467
 #: lib/phoenix_kit_web/live/modules.html.heex:89
 #: lib/phoenix_kit_web/live/modules.html.heex:125
@@ -492,7 +492,7 @@ msgstr "Kontoinformationen"
 #: lib/modules/sitemap/web/settings.html.heex:66
 #: lib/modules/storage/web/dimensions.html.heex:151
 #: lib/modules/storage/web/dimensions.html.heex:352
-#: lib/modules/storage/web/settings.html.heex:149
+#: lib/modules/storage/web/settings.html.heex:145
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:206
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:260
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:292
@@ -712,7 +712,7 @@ msgstr "Stadt ist erforderlich"
 msgid "Click any check or cross icon to toggle a permission for that role. The Owner role always has full access and cannot be modified. You cannot edit permissions for your own role or for roles with higher authority. You can only grant or revoke permissions that your own role has."
 msgstr "Klicken Sie auf ein Häkchen- oder Kreuzsymbol, um eine Berechtigung für diese Rolle umzuschalten. Die Rolle „Inhaber“ hat immer vollen Zugriff und kann nicht geändert werden. Sie können die Berechtigungen Ihrer eigenen Rolle oder von Rollen mit höheren Rechten nicht bearbeiten. Sie können nur Berechtigungen erteilen oder entziehen, die Ihre eigene Rolle besitzt."
 
-#: lib/modules/sitemap/web/settings.html.heex:825
+#: lib/modules/sitemap/web/settings.html.heex:850
 #: lib/phoenix_kit/mentions/live.ex:269
 #: lib/phoenix_kit_web/components/core/column_settings.ex:144
 #: lib/phoenix_kit_web/components/media_browser.html.heex:387
@@ -921,7 +921,7 @@ msgstr "Daten, die endgültig gelöscht werden:"
 #: lib/modules/storage/web/dimensions.html.heex:274
 #: lib/modules/storage/web/dimensions.html.heex:440
 #: lib/modules/storage/web/dimensions.html.heex:475
-#: lib/modules/storage/web/settings.html.heex:273
+#: lib/modules/storage/web/settings.html.heex:269
 #: lib/phoenix_kit_web/components/core/bulk_select.ex:196
 #: lib/phoenix_kit_web/components/media_browser.html.heex:831
 #: lib/phoenix_kit_web/components/media_browser.html.heex:838
@@ -979,8 +979,8 @@ msgstr "Beschreibung"
 #: lib/modules/storage/web/dimensions.html.heex:204
 #: lib/modules/storage/web/dimensions.html.heex:334
 #: lib/modules/storage/web/dimensions.html.heex:405
-#: lib/modules/storage/web/settings.html.heex:136
-#: lib/modules/storage/web/settings.html.heex:203
+#: lib/modules/storage/web/settings.html.heex:132
+#: lib/modules/storage/web/settings.html.heex:199
 #: lib/phoenix_kit_web/components/core/badge.ex:191
 #: lib/phoenix_kit_web/live/modules.html.heex:89
 #: lib/phoenix_kit_web/live/modules.html.heex:151
@@ -1010,7 +1010,7 @@ msgstr "Entwurf"
 #: lib/modules/storage/web/dimensions.html.heex:257
 #: lib/modules/storage/web/dimensions.html.heex:421
 #: lib/modules/storage/web/dimensions.html.heex:458
-#: lib/modules/storage/web/settings.html.heex:254
+#: lib/modules/storage/web/settings.html.heex:250
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:382
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:114
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:148
@@ -1164,8 +1164,8 @@ msgstr "Einstellung konnte nicht aktualisiert werden"
 msgid "Feature Modules"
 msgstr "Funktionsmodule"
 
-#: lib/modules/storage/web/settings.html.heex:131
-#: lib/modules/storage/web/settings.html.heex:147
+#: lib/modules/storage/web/settings.html.heex:127
+#: lib/modules/storage/web/settings.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "Files"
 msgstr "Dateien"
@@ -1427,7 +1427,7 @@ msgstr "Nicht authentifiziert"
 #: lib/phoenix_kit/integrations/integrations.ex:991
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:29
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:309
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:88
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:123
 #: lib/phoenix_kit_web/live/settings/integrations.ex:212
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:607
 #, elixir-autogen, elixir-format
@@ -1609,8 +1609,8 @@ msgid "Primary: %{lang}"
 msgstr "Primär: %{lang}"
 
 #: lib/modules/storage/web/bucket_form.html.heex:317
-#: lib/modules/storage/web/settings.html.heex:123
-#: lib/modules/storage/web/settings.html.heex:146
+#: lib/modules/storage/web/settings.html.heex:119
+#: lib/modules/storage/web/settings.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "Priority"
 msgstr "Priorität"
@@ -1788,7 +1788,7 @@ msgstr "Rolle erfolgreich aktualisiert"
 msgid "SWIFT/BIC"
 msgstr "SWIFT/BIC"
 
-#: lib/modules/sitemap/web/settings.html.heex:484
+#: lib/modules/sitemap/web/settings.html.heex:501
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:67
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:356
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:440
@@ -1855,6 +1855,7 @@ msgid "Select which sections and modules this role can access. You can only gran
 msgstr "Wählen Sie aus, auf welche Bereiche und Module diese Rolle zugreifen darf. Sie können nur Berechtigungen erteilen, die Ihre eigene Rolle besitzt."
 
 #: lib/modules/maintenance/web/maintenance_page_live.ex:127
+#: lib/modules/sitemap/web/settings.html.heex:5
 #: lib/modules/storage/web/bucket_form.html.heex:5
 #: lib/modules/storage/web/bucket_form.html.heex:298
 #: lib/modules/storage/web/dimension_form.html.heex:5
@@ -1903,7 +1904,7 @@ msgstr "Anmelden"
 msgid "Sign in with Magic Link"
 msgstr "Mit Magic Link anmelden"
 
-#: lib/modules/sitemap/web/settings.html.heex:504
+#: lib/modules/sitemap/web/settings.html.heex:523
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:23
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:580
 #, elixir-autogen, elixir-format
@@ -1927,11 +1928,11 @@ msgstr "Bundesland/Provinz"
 #: lib/modules/storage/web/dimensions.html.heex:351
 #: lib/modules/storage/web/health.html.heex:202
 #: lib/modules/storage/web/health.html.heex:221
-#: lib/modules/storage/web/settings.html.heex:135
-#: lib/modules/storage/web/settings.html.heex:148
+#: lib/modules/storage/web/settings.html.heex:131
+#: lib/modules/storage/web/settings.html.heex:144
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:162
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:205
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:120
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:155
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:55
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:109
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:100
@@ -2260,7 +2261,7 @@ msgstr "Anwenden"
 msgid "Deactivate"
 msgstr "Deaktivieren"
 
-#: lib/modules/storage/web/settings.html.heex:236
+#: lib/modules/storage/web/settings.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Delete bucket"
 msgstr "Bucket löschen"
@@ -2269,8 +2270,8 @@ msgstr "Bucket löschen"
 #: lib/modules/storage/web/dimensions.html.heex:265
 #: lib/modules/storage/web/dimensions.html.heex:429
 #: lib/modules/storage/web/dimensions.html.heex:466
-#: lib/modules/storage/web/settings.html.heex:225
-#: lib/modules/storage/web/settings.html.heex:261
+#: lib/modules/storage/web/settings.html.heex:221
+#: lib/modules/storage/web/settings.html.heex:257
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:126
 #: lib/phoenix_kit_web/live/settings/users.html.heex:563
 #: lib/phoenix_kit_web/live/settings/users.html.heex:609
@@ -2278,7 +2279,7 @@ msgstr "Bucket löschen"
 msgid "Disable"
 msgstr "Deaktivieren"
 
-#: lib/modules/storage/web/settings.html.heex:219
+#: lib/modules/storage/web/settings.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Edit bucket"
 msgstr "Bucket bearbeiten"
@@ -2287,8 +2288,8 @@ msgstr "Bucket bearbeiten"
 #: lib/modules/storage/web/dimensions.html.heex:265
 #: lib/modules/storage/web/dimensions.html.heex:429
 #: lib/modules/storage/web/dimensions.html.heex:466
-#: lib/modules/storage/web/settings.html.heex:225
-#: lib/modules/storage/web/settings.html.heex:261
+#: lib/modules/storage/web/settings.html.heex:221
+#: lib/modules/storage/web/settings.html.heex:257
 #: lib/phoenix_kit_web/live/settings/users.html.heex:564
 #: lib/phoenix_kit_web/live/settings/users.html.heex:611
 #, elixir-autogen, elixir-format
@@ -2330,16 +2331,17 @@ msgstr "Sprachinhalt wird geladen"
 msgid "Marketing"
 msgstr "Marketing"
 
-#: lib/modules/storage/web/settings.html.heex:119
-#: lib/modules/storage/web/settings.html.heex:145
+#: lib/modules/storage/web/settings.html.heex:115
+#: lib/modules/storage/web/settings.html.heex:141
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:86
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Provider"
 msgstr "Anbieter"
 
-#: lib/modules/sitemap/web/settings.html.heex:605
-#: lib/modules/storage/web/settings.html.heex:467
+#: lib/modules/sitemap/web/settings.html.heex:82
+#: lib/modules/sitemap/web/settings.html.heex:626
+#: lib/modules/storage/web/settings.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Quick Actions"
 msgstr "Schnellaktionen"
@@ -2464,7 +2466,7 @@ msgstr "Access Key ID"
 msgid "Access Type"
 msgstr "Zugriffstyp"
 
-#: lib/modules/storage/web/settings.html.heex:286
+#: lib/modules/storage/web/settings.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Active Buckets"
 msgstr "Aktive Buckets"
@@ -2474,7 +2476,7 @@ msgstr "Aktive Buckets"
 msgid "Active status for new user registrations"
 msgstr "Aktiv-Status für neue Benutzerregistrierungen"
 
-#: lib/modules/storage/web/settings.html.heex:79
+#: lib/modules/storage/web/settings.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Add Bucket"
 msgstr "Bucket hinzufügen"
@@ -2553,19 +2555,19 @@ msgstr "App-Secret"
 msgid "Application name display"
 msgstr "Anzeige des Anwendungsnamens"
 
-#: lib/modules/storage/web/settings.html.heex:455
+#: lib/modules/storage/web/settings.html.heex:451
 #: lib/phoenix_kit_web/live/users/users.html.heex:1203
 #, elixir-autogen, elixir-format
 msgid "Apply Changes"
 msgstr "Änderungen anwenden"
 
-#: lib/modules/storage/web/settings.html.heex:452
+#: lib/modules/storage/web/settings.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "Applying..."
 msgstr "Wird angewendet …"
 
-#: lib/modules/storage/web/settings.html.heex:231
-#: lib/modules/storage/web/settings.html.heex:267
+#: lib/modules/storage/web/settings.html.heex:227
+#: lib/modules/storage/web/settings.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this bucket? This will remove all location records."
 msgstr "Möchten Sie diesen Bucket wirklich löschen? Dadurch werden alle Speicherorteinträge entfernt."
@@ -2601,12 +2603,12 @@ msgstr "Für Felder des Typs %{type} ist mindestens eine Option erforderlich"
 msgid "Authentication Methods"
 msgstr "Authentifizierungsmethoden"
 
-#: lib/modules/storage/web/settings.html.heex:380
+#: lib/modules/storage/web/settings.html.heex:376
 #, elixir-autogen, elixir-format
 msgid "Auto-Generate Variants"
 msgstr "Varianten automatisch erzeugen"
 
-#: lib/modules/storage/web/settings.html.heex:383
+#: lib/modules/storage/web/settings.html.heex:379
 #, elixir-autogen, elixir-format
 msgid "Automatically resize images and videos to configured dimensions"
 msgstr "Bilder und Videos automatisch auf die konfigurierten Abmessungen skalieren"
@@ -2642,7 +2644,7 @@ msgstr "Hintergrundbild für Anmeldeseiten auf mobilen Bildschirmen (768 px und 
 msgid "Bucket Name"
 msgstr "Bucket-Name"
 
-#: lib/modules/storage/web/settings.html.heex:92
+#: lib/modules/storage/web/settings.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Buckets can be local directories or cloud storage providers (AWS S3, Backblaze B2, Cloudflare R2)."
 msgstr "Buckets können lokale Verzeichnisse oder Cloud-Speicheranbieter sein (AWS S3, Backblaze B2, Cloudflare R2)."
@@ -2657,7 +2659,7 @@ msgstr "CSS-Farbe oder -Gradient für den Hintergrund der Anmeldeseite. Wird ign
 msgid "Callback URL"
 msgstr "Callback-URL"
 
-#: lib/modules/storage/web/settings.html.heex:461
+#: lib/modules/storage/web/settings.html.heex:457
 #, elixir-autogen, elixir-format
 msgid "Changes will be saved immediately"
 msgstr "Änderungen werden sofort gespeichert"
@@ -2759,7 +2761,7 @@ msgstr "Pfad erstellen"
 msgid "Create Storage Path"
 msgstr "Speicherpfad erstellen"
 
-#: lib/modules/storage/web/settings.html.heex:101
+#: lib/modules/storage/web/settings.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Create Your First Bucket"
 msgstr "Erstellen Sie Ihren ersten Bucket"
@@ -2779,7 +2781,7 @@ msgstr "Projekt erstellen oder ein bestehendes auswählen"
 msgid "Create your first dimension preset to start generating file variants."
 msgstr "Erstellen Sie Ihre erste Abmessungsvorlage, um Dateivarianten zu erzeugen."
 
-#: lib/modules/storage/web/settings.html.heex:290
+#: lib/modules/storage/web/settings.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Currently in use"
 msgstr "Derzeit in Verwendung"
@@ -2794,7 +2796,7 @@ msgstr "Benutzerdefinierte Benutzerfelder"
 msgid "Date Format"
 msgstr "Datumsformat"
 
-#: lib/modules/storage/web/settings.html.heex:294
+#: lib/modules/storage/web/settings.html.heex:290
 #, elixir-autogen, elixir-format
 msgid "Default Bucket"
 msgstr "Standard-Bucket"
@@ -2850,7 +2852,7 @@ msgstr "Endpunkt"
 msgid "Enter"
 msgstr "Eingeben"
 
-#: lib/modules/storage/web/settings.html.heex:359
+#: lib/modules/storage/web/settings.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "Enter number of copies"
 msgstr "Anzahl der Kopien eingeben"
@@ -2870,12 +2872,12 @@ msgstr "Projekttitel eingeben"
 msgid "Error!"
 msgstr "Fehler!"
 
-#: lib/modules/storage/web/settings.html.heex:48
+#: lib/modules/storage/web/settings.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "FFmpeg Not Installed"
 msgstr "FFmpeg nicht installiert"
 
-#: lib/modules/storage/web/settings.html.heex:50
+#: lib/modules/storage/web/settings.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "FFmpeg is required for video processing, transcoding, and thumbnail generation."
 msgstr "FFmpeg ist für Videoverarbeitung, Transkodierung und Vorschaubilder erforderlich."
@@ -2976,12 +2978,12 @@ msgstr "Hinter nginx/Apache stellen Sie sicher, dass"
 msgid "Image Dimensions"
 msgstr "Bildabmessungen"
 
-#: lib/modules/storage/web/settings.html.heex:22
+#: lib/modules/storage/web/settings.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "ImageMagick Not Installed"
 msgstr "ImageMagick nicht installiert"
 
-#: lib/modules/storage/web/settings.html.heex:24
+#: lib/modules/storage/web/settings.html.heex:20
 #, elixir-autogen, elixir-format
 msgid "ImageMagick is required for image processing and variant generation."
 msgstr "ImageMagick ist für die Bildverarbeitung und Variantenerzeugung erforderlich."
@@ -2991,8 +2993,8 @@ msgstr "ImageMagick ist für die Bildverarbeitung und Variantenerzeugung erforde
 msgid "Images use 1-100 scale (compression quality)"
 msgstr "Bilder verwenden eine Skala von 1–100 (Kompressionsqualität)"
 
-#: lib/modules/storage/web/settings.html.heex:28
-#: lib/modules/storage/web/settings.html.heex:56
+#: lib/modules/storage/web/settings.html.heex:24
+#: lib/modules/storage/web/settings.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Installation:"
 msgstr "Installation:"
@@ -3046,7 +3048,7 @@ msgstr "Magic Link"
 msgid "Maintain Aspect Ratio"
 msgstr "Seitenverhältnis beibehalten"
 
-#: lib/modules/storage/web/settings.html.heex:491
+#: lib/modules/storage/web/settings.html.heex:487
 #, elixir-autogen, elixir-format
 msgid "Manage Dimensions"
 msgstr "Abmessungen verwalten"
@@ -3066,19 +3068,19 @@ msgstr "Branding der Anmeldeseite und Authentifizierungsmethoden verwalten"
 msgid "Manage user registration, defaults, and custom fields"
 msgstr "Benutzerregistrierung, Standardwerte und benutzerdefinierte Felder verwalten"
 
-#: lib/modules/storage/web/settings.html.heex:365
+#: lib/modules/storage/web/settings.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Maximum %{count} copies based on %{buckets} active bucket(s)."
 msgstr "Maximal %{count} Kopien basierend auf %{buckets} aktiven Bucket(s)."
 
 #: lib/modules/storage/web/dimensions.html.heex:145
 #: lib/modules/storage/web/dimensions.html.heex:342
-#: lib/modules/storage/web/settings.html.heex:144
+#: lib/modules/storage/web/settings.html.heex:140
 #: lib/phoenix_kit_web/components/media_browser.html.heex:413
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1824
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:171
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:203
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:119
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:154
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:66
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:107
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:19
@@ -3103,7 +3105,7 @@ msgstr "Standardstatus für neue Benutzer"
 msgid "New users will be created as inactive and will not be able to log in until an admin activates their account."
 msgstr "Neue Benutzer werden als inaktiv erstellt und können sich erst anmelden, wenn ein Administrator ihr Konto aktiviert."
 
-#: lib/modules/storage/web/settings.html.heex:334
+#: lib/modules/storage/web/settings.html.heex:330
 #, elixir-autogen, elixir-format
 msgid "No active buckets available. Enable buckets to configure redundancy."
 msgstr "Keine aktiven Buckets verfügbar. Aktivieren Sie Buckets, um die Redundanz zu konfigurieren."
@@ -3113,7 +3115,7 @@ msgstr "Keine aktiven Buckets verfügbar. Aktivieren Sie Buckets, um die Redunda
 msgid "No active sessions found."
 msgstr "Keine aktiven Sitzungen gefunden."
 
-#: lib/modules/storage/web/settings.html.heex:459
+#: lib/modules/storage/web/settings.html.heex:455
 #, elixir-autogen, elixir-format
 msgid "No changes to apply"
 msgstr "Keine Änderungen zum Anwenden"
@@ -3138,7 +3140,7 @@ msgstr "Keine Sitzungen entsprechen Ihren aktuellen Filtern."
 msgid "Noindex · Nofollow"
 msgstr "Noindex · Nofollow"
 
-#: lib/modules/storage/web/settings.html.heex:299
+#: lib/modules/storage/web/settings.html.heex:295
 #: lib/phoenix_kit_web/live/settings/website_access.ex:595
 #, elixir-autogen, elixir-format
 msgid "None"
@@ -3154,7 +3156,7 @@ msgstr "Hinweis"
 msgid "Note: OAuth providers require ueberauth dependencies to be installed."
 msgstr "Hinweis: OAuth-Anbieter setzen voraus, dass die ueberauth-Abhängigkeiten installiert sind."
 
-#: lib/modules/storage/web/settings.html.heex:327
+#: lib/modules/storage/web/settings.html.heex:323
 #, elixir-autogen, elixir-format
 msgid "Number of copies to store"
 msgstr "Anzahl der zu speichernden Kopien"
@@ -3169,7 +3171,7 @@ msgstr "OAuth-Anbieter"
 msgid "OAuth Setup Instructions"
 msgstr "OAuth-Einrichtungsanleitung"
 
-#: lib/modules/storage/web/settings.html.heex:361
+#: lib/modules/storage/web/settings.html.heex:357
 #, elixir-autogen, elixir-format
 msgid "Only 1 active bucket available. Add more buckets to enable redundancy."
 msgstr "Nur 1 aktiver Bucket verfügbar. Fügen Sie weitere Buckets hinzu, um Redundanz zu ermöglichen."
@@ -3221,18 +3223,18 @@ msgstr "Qualität (CRF)"
 msgid "Quality Settings:"
 msgstr "Qualitätseinstellungen:"
 
-#: lib/modules/storage/web/settings.html.heex:126
-#: lib/modules/storage/web/settings.html.heex:186
+#: lib/modules/storage/web/settings.html.heex:122
+#: lib/modules/storage/web/settings.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Random"
 msgstr "Zufällig"
 
-#: lib/modules/storage/web/settings.html.heex:346
+#: lib/modules/storage/web/settings.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Reduce redundancy or enable more buckets."
 msgstr "Reduzieren Sie die Redundanz oder aktivieren Sie weitere Buckets."
 
-#: lib/modules/storage/web/settings.html.heex:325
+#: lib/modules/storage/web/settings.html.heex:321
 #, elixir-autogen, elixir-format
 msgid "Redundancy Copies"
 msgstr "Redundanzkopien"
@@ -3349,7 +3351,7 @@ msgstr "Anbieter auswählen …"
 msgid "Session actions"
 msgstr "Sitzungsaktionen"
 
-#: lib/modules/storage/web/settings.html.heex:297
+#: lib/modules/storage/web/settings.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Set"
 msgstr "Festlegen"
@@ -3371,7 +3373,7 @@ msgstr "Feld „Benutzername“ bei der Registrierung anzeigen"
 msgid "Site Address (URL)"
 msgstr "Website-Adresse (URL)"
 
-#: lib/modules/storage/web/settings.html.heex:503
+#: lib/modules/storage/web/settings.html.heex:499
 #, elixir-autogen, elixir-format
 msgid "Soon"
 msgstr "Bald"
@@ -3397,7 +3399,7 @@ msgstr "Erfolg!"
 msgid "Switch app from"
 msgstr "App wechseln von"
 
-#: lib/modules/storage/web/settings.html.heex:521
+#: lib/modules/storage/web/settings.html.heex:517
 #, elixir-autogen, elixir-format
 msgid "Sync Files"
 msgstr "Dateien synchronisieren"
@@ -3434,7 +3436,7 @@ msgstr "Die Migration legt 8 Standardabmessungen an: 4 Bildgrößen (thumbnail, 
 msgid "The storage path"
 msgstr "Der Speicherpfad"
 
-#: lib/modules/storage/web/settings.html.heex:556
+#: lib/modules/storage/web/settings.html.heex:552
 #, elixir-autogen, elixir-format
 msgid "This will reset dimensions and settings to defaults, and create a local bucket if none exist. Your uploaded files will NOT be deleted. Continue?"
 msgstr "Dadurch werden Abmessungen und Einstellungen auf die Standardwerte zurückgesetzt und ein lokaler Bucket erstellt, falls keiner vorhanden ist. Ihre hochgeladenen Dateien werden NICHT gelöscht. Fortfahren?"
@@ -3455,7 +3457,7 @@ msgstr "Zeitzone"
 msgid "Token"
 msgstr "Token"
 
-#: lib/modules/storage/web/settings.html.heex:280
+#: lib/modules/storage/web/settings.html.heex:276
 #: lib/phoenix_kit_web/live/modules.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Total Buckets"
@@ -3537,7 +3539,7 @@ msgstr "Besuchen"
 msgid "Week Start On"
 msgstr "Wochenbeginn"
 
-#: lib/modules/storage/web/settings.html.heex:584
+#: lib/modules/storage/web/settings.html.heex:580
 #, elixir-autogen, elixir-format
 msgid "When a file is requested, the system automatically tries each location until it successfully retrieves the file."
 msgstr "Wird eine Datei angefordert, versucht das System automatisch jeden Speicherort, bis die Datei erfolgreich abgerufen wurde."
@@ -3557,12 +3559,12 @@ msgstr "Wenn aktiviert, werden Registrierungs-IP-Adressen und ungefähre Standor
 msgid "Width (px)"
 msgstr "Breite (px)"
 
-#: lib/modules/storage/web/settings.html.heex:25
+#: lib/modules/storage/web/settings.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Without it, image resizing, cropping, and format conversion will not work."
 msgstr "Ohne es funktionieren Skalieren, Beschneiden und Formatkonvertierung von Bildern nicht."
 
-#: lib/modules/storage/web/settings.html.heex:53
+#: lib/modules/storage/web/settings.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Without it, video file processing will not work."
 msgstr "Ohne es funktioniert die Verarbeitung von Videodateien nicht."
@@ -3624,7 +3626,7 @@ msgstr "existiert nicht."
 msgid "e.g., thumbnail, medium, 720p"
 msgstr "z. B. thumbnail, medium, 720p"
 
-#: lib/modules/storage/web/settings.html.heex:193
+#: lib/modules/storage/web/settings.html.heex:189
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1751
 #, elixir-autogen, elixir-format
 msgid "files"
@@ -3974,7 +3976,7 @@ msgstr "Unter dem Redundanzziel"
 msgid "Both width and height are used for fixed dimensions"
 msgstr "Bei festen Abmessungen werden Breite und Höhe verwendet"
 
-#: lib/modules/storage/web/settings.html.heex:210
+#: lib/modules/storage/web/settings.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Bucket actions"
 msgstr "Bucket-Aktionen"
@@ -4062,7 +4064,7 @@ msgstr "Führen Sie zuerst Schritt 1 aus, um die Kontoverbindung zu ermöglichen
 msgid "Configure storage provider settings"
 msgstr "Einstellungen des Speicheranbieters konfigurieren"
 
-#: lib/modules/storage/web/settings.html.heex:282
+#: lib/modules/storage/web/settings.html.heex:278
 #, elixir-autogen, elixir-format
 msgid "Configured media locations"
 msgstr "Konfigurierte Medienspeicherorte"
@@ -4185,7 +4187,7 @@ msgstr "OAuth-Client erstellen"
 msgid "Create an OpenRouter account"
 msgstr "OpenRouter-Konto erstellen"
 
-#: lib/modules/storage/web/settings.html.heex:435
+#: lib/modules/storage/web/settings.html.heex:431
 #, elixir-autogen, elixir-format
 msgid "Current limit: %{size} MB"
 msgstr "Aktuelles Limit: %{size} MB"
@@ -4352,7 +4354,7 @@ msgstr "Avatar konnte nicht aktualisiert werden"
 msgid "File"
 msgstr "Datei"
 
-#: lib/modules/storage/web/settings.html.heex:581
+#: lib/modules/storage/web/settings.html.heex:577
 #, elixir-autogen, elixir-format
 msgid "Files are tracked in PostgreSQL with support for multiple media locations (local, S3, remote servers)."
 msgstr "Dateien werden in PostgreSQL erfasst, mit Unterstützung für mehrere Medienspeicherorte (lokal, S3, entfernte Server)."
@@ -4550,32 +4552,32 @@ msgstr "Wartung ist nicht aktiv – dies ist eine Vorschau der Seite."
 msgid "Manage your account settings and preferences"
 msgstr "Verwalten Sie Ihre Kontoeinstellungen und Präferenzen"
 
-#: lib/modules/storage/web/settings.html.heex:423
+#: lib/modules/storage/web/settings.html.heex:419
 #, elixir-autogen, elixir-format
 msgid "Max Upload Size (MB)"
 msgstr "Maximale Uploadgröße (MB)"
 
-#: lib/modules/storage/web/settings.html.heex:425
+#: lib/modules/storage/web/settings.html.heex:421
 #, elixir-autogen, elixir-format
 msgid "Maximum file size allowed per upload"
 msgstr "Maximal zulässige Dateigröße pro Upload"
 
-#: lib/modules/storage/web/settings.html.heex:73
+#: lib/modules/storage/web/settings.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Media Buckets"
 msgstr "Medien-Buckets"
 
-#: lib/modules/storage/web/settings.html.heex:313
+#: lib/modules/storage/web/settings.html.heex:309
 #, elixir-autogen, elixir-format
 msgid "Media Configuration"
 msgstr "Medienkonfiguration"
 
-#: lib/modules/storage/web/settings.html.heex:502
+#: lib/modules/storage/web/settings.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "Media Stats"
 msgstr "Medienstatistiken"
 
-#: lib/modules/storage/web/settings.html.heex:576
+#: lib/modules/storage/web/settings.html.heex:572
 #, elixir-autogen, elixir-format
 msgid "Media System Architecture"
 msgstr "Architektur des Mediensystems"
@@ -4621,7 +4623,7 @@ msgstr "Gehen Sie zu [Keys](https://openrouter.ai/keys)"
 msgid "Navigate to the OAuth section using the search bar or the hamburger menu: search for \"OAuth\", or go to the sidebar: **APIs & Services → OAuth consent screen**. This opens a different section with its own sidebar."
 msgstr "Navigieren Sie über die Suchleiste oder das Hamburger-Menü zum OAuth-Bereich: suchen Sie nach „OAuth“, oder gehen Sie in der Seitenleiste zu **APIs und Dienste → OAuth-Zustimmungsbildschirm**. Dadurch öffnet sich ein anderer Bereich mit eigener Seitenleiste."
 
-#: lib/modules/storage/web/settings.html.heex:87
+#: lib/modules/storage/web/settings.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "No Media Buckets Configured"
 msgstr "Keine Medien-Buckets konfiguriert"
@@ -4791,7 +4793,7 @@ msgstr "Bitte geben Sie einen Verbindungsnamen ein."
 msgid "Please save your Client ID first"
 msgstr "Bitte speichern Sie zuerst Ihre Client-ID"
 
-#: lib/modules/storage/web/settings.html.heex:302
+#: lib/modules/storage/web/settings.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "Primary media location"
 msgstr "Primärer Medienspeicherort"
@@ -4837,7 +4839,7 @@ msgstr "Aus der Organisation entfernen"
 msgid "Remove this member from the organization?"
 msgstr "Dieses Mitglied aus der Organisation entfernen?"
 
-#: lib/modules/storage/web/settings.html.heex:562
+#: lib/modules/storage/web/settings.html.heex:558
 #, elixir-autogen, elixir-format
 msgid "Repair Media Module"
 msgstr "Medienmodul reparieren"
@@ -4884,7 +4886,7 @@ msgid "Select a user to add..."
 msgstr "Benutzer zum Hinzufügen auswählen …"
 
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:202
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:118
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:153
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "Service"
@@ -5015,7 +5017,7 @@ msgstr "Test fehlgeschlagen"
 msgid "Testing..."
 msgstr "Test läuft …"
 
-#: lib/modules/storage/web/settings.html.heex:578
+#: lib/modules/storage/web/settings.html.heex:574
 #, elixir-autogen, elixir-format
 msgid "The media system is designed for distributed file management with automatic redundancy."
 msgstr "Das Mediensystem ist für die verteilte Dateiverwaltung mit automatischer Redundanz ausgelegt."
@@ -5103,7 +5105,7 @@ msgstr "Sie können sich nicht selbst einladen"
 msgid "You joined the organization!"
 msgstr "Sie sind der Organisation beigetreten!"
 
-#: lib/modules/storage/web/settings.html.heex:89
+#: lib/modules/storage/web/settings.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "You need to create at least one media bucket before files can be uploaded."
 msgstr "Sie müssen mindestens einen Medien-Bucket erstellen, bevor Dateien hochgeladen werden können."
@@ -5655,7 +5657,6 @@ msgstr "Nachricht"
 msgid "Module Management"
 msgstr "Modulverwaltung"
 
-#: lib/modules/sitemap/web/settings.html.heex:5
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:186
 #: lib/phoenix_kit_web/live/modules.html.heex:5
 #, elixir-autogen, elixir-format
@@ -5701,6 +5702,8 @@ msgstr "Erfordert %{module}"
 msgid "Retryable"
 msgstr "Wiederholbar"
 
+#: lib/modules/sitemap/web/settings.ex:49
+#: lib/modules/sitemap/web/settings.html.heex:4
 #: lib/phoenix_kit_web/live/modules.html.heex:196
 #: lib/phoenix_kit_web/live/modules.html.heex:237
 #, elixir-autogen, elixir-format
@@ -5915,11 +5918,6 @@ msgstr "Standard"
 msgid "No languages enabled yet."
 msgstr "Noch keine Sprachen aktiviert."
 
-#: lib/modules/sitemap/web/settings.html.heex:4
-#, elixir-autogen
-msgid "Sitemap Settings"
-msgstr "Sitemap-Einstellungen"
-
 #: lib/modules/sitemap/web/settings.html.heex:7
 #, elixir-autogen
 msgid "Configure sitemap generation and scheduling"
@@ -5945,270 +5943,271 @@ msgstr "Zuletzt erzeugt"
 msgid "Regenerate All"
 msgstr "Alle neu erzeugen"
 
-#: lib/modules/sitemap/web/settings.html.heex:81
+#: lib/modules/sitemap/web/settings.html.heex:94
 #, elixir-autogen
 msgid "Router Discovery"
 msgstr "Router-Erkennung"
 
-#: lib/modules/sitemap/web/settings.html.heex:84
+#: lib/modules/sitemap/web/settings.html.heex:97
 #, elixir-autogen
 msgid "When enabled, scans all routes and builds a single flat sitemap.xml with URLs from all content sources (shop, entities, posts, publishing). When disabled, each source generates its own sitemap file."
 msgstr "Wenn aktiviert, werden alle Routen durchsucht und eine einzige flache sitemap.xml mit URLs aus allen Inhaltsquellen (Shop, Entitäten, Beiträge, Publishing) erstellt. Wenn deaktiviert, erzeugt jede Quelle ihre eigene Sitemap-Datei."
 
-#: lib/modules/sitemap/web/settings.html.heex:103
+#: lib/modules/sitemap/web/settings.html.heex:116
 #, elixir-autogen
 msgid "Flat mode active — /sitemap.xml contains all URLs in a single <urlset>"
 msgstr "Flacher Modus aktiv – /sitemap.xml enthält alle URLs in einem einzigen <urlset>"
 
-#: lib/modules/sitemap/web/settings.html.heex:107
+#: lib/modules/sitemap/web/settings.html.heex:122
 #, elixir-autogen
 msgid "Routes"
 msgstr "Routen"
 
-#: lib/modules/sitemap/web/settings.html.heex:108
+#: lib/modules/sitemap/web/settings.html.heex:123
 #, elixir-autogen
 msgid "Static"
 msgstr "Statisch"
 
-#: lib/modules/sitemap/web/settings.html.heex:114
-#: lib/modules/sitemap/web/settings.html.heex:198
+#: lib/modules/sitemap/web/settings.html.heex:129
+#: lib/modules/sitemap/web/settings.html.heex:215
 #: lib/phoenix_kit_web/live/modules.ex:119
 #, elixir-autogen
 msgid "Publishing"
 msgstr "Publishing"
 
-#: lib/modules/sitemap/web/settings.html.heex:119
-#: lib/modules/sitemap/web/settings.html.heex:256
+#: lib/modules/sitemap/web/settings.html.heex:136
+#: lib/modules/sitemap/web/settings.html.heex:273
 #: lib/phoenix_kit_web/live/modules.ex:112
 #, elixir-autogen
 msgid "Entities"
 msgstr "Entitäten"
 
-#: lib/modules/sitemap/web/settings.html.heex:124
-#: lib/modules/sitemap/web/settings.html.heex:304
+#: lib/modules/sitemap/web/settings.html.heex:141
+#: lib/modules/sitemap/web/settings.html.heex:321
 #: lib/phoenix_kit_web/live/modules.ex:117
 #, elixir-autogen
 msgid "Posts"
 msgstr "Beiträge"
 
-#: lib/modules/sitemap/web/settings.html.heex:129
-#: lib/modules/sitemap/web/settings.html.heex:344
+#: lib/modules/sitemap/web/settings.html.heex:146
+#: lib/modules/sitemap/web/settings.html.heex:361
 #, elixir-autogen
 msgid "Shop"
 msgstr "Shop"
 
-#: lib/modules/sitemap/web/settings.html.heex:140
+#: lib/modules/sitemap/web/settings.html.heex:157
 #, elixir-autogen
 msgid "Module Sitemaps"
 msgstr "Modul-Sitemaps"
 
-#: lib/modules/sitemap/web/settings.html.heex:143
+#: lib/modules/sitemap/web/settings.html.heex:160
 #, elixir-autogen
 msgid "Each source generates its own sitemap file, referenced by the main sitemap index"
 msgstr "Jede Quelle erzeugt ihre eigene Sitemap-Datei, auf die der Haupt-Sitemap-Index verweist"
 
-#: lib/modules/sitemap/web/settings.html.heex:154
+#: lib/modules/sitemap/web/settings.html.heex:171
 #, elixir-autogen
 msgid "Static Pages"
 msgstr "Statische Seiten"
 
-#: lib/modules/sitemap/web/settings.html.heex:165
+#: lib/modules/sitemap/web/settings.html.heex:182
 #, elixir-autogen
 msgid "Homepage and custom static URLs"
 msgstr "Startseite und eigene statische URLs"
 
-#: lib/modules/sitemap/web/settings.html.heex:185
-#: lib/modules/sitemap/web/settings.html.heex:233
-#: lib/modules/sitemap/web/settings.html.heex:291
-#: lib/modules/sitemap/web/settings.html.heex:331
-#: lib/modules/sitemap/web/settings.html.heex:379
+#: lib/modules/sitemap/web/settings.html.heex:202
+#: lib/modules/sitemap/web/settings.html.heex:250
+#: lib/modules/sitemap/web/settings.html.heex:308
+#: lib/modules/sitemap/web/settings.html.heex:348
+#: lib/modules/sitemap/web/settings.html.heex:396
 #, elixir-autogen
 msgid "View sitemap"
 msgstr "Sitemap anzeigen"
 
-#: lib/modules/sitemap/web/settings.html.heex:200
-#: lib/modules/sitemap/web/settings.html.heex:258
-#: lib/modules/sitemap/web/settings.html.heex:306
-#: lib/modules/sitemap/web/settings.html.heex:346
+#: lib/modules/sitemap/web/settings.html.heex:217
+#: lib/modules/sitemap/web/settings.html.heex:275
+#: lib/modules/sitemap/web/settings.html.heex:323
+#: lib/modules/sitemap/web/settings.html.heex:363
 #, elixir-autogen
 msgid "module off"
 msgstr "Modul aus"
 
-#: lib/modules/sitemap/web/settings.html.heex:213
+#: lib/modules/sitemap/web/settings.html.heex:230
 #, elixir-autogen
 msgid "Blog groups and published posts"
 msgstr "Blog-Gruppen und veröffentlichte Beiträge"
 
-#: lib/modules/sitemap/web/settings.html.heex:241
+#: lib/modules/sitemap/web/settings.html.heex:258
 #, elixir-autogen
 msgid "Split by blog group"
 msgstr "Nach Blog-Gruppe aufgeteilt"
 
-#: lib/modules/sitemap/web/settings.html.heex:271
+#: lib/modules/sitemap/web/settings.html.heex:288
 #, elixir-autogen
 msgid "Dynamic content types (per-type files)"
 msgstr "Dynamische Inhaltstypen (Dateien pro Typ)"
 
-#: lib/modules/sitemap/web/settings.html.heex:311
+#: lib/modules/sitemap/web/settings.html.heex:328
 #, elixir-autogen
 msgid "Public posts from Posts module"
 msgstr "Öffentliche Beiträge aus dem Modul „Beiträge“"
 
-#: lib/modules/sitemap/web/settings.html.heex:359
+#: lib/modules/sitemap/web/settings.html.heex:376
 #, elixir-autogen
 msgid "Products, categories, catalog"
 msgstr "Produkte, Kategorien, Katalog"
 
-#: lib/modules/sitemap/web/settings.html.heex:394
+#: lib/modules/sitemap/web/settings.html.heex:411
 #, elixir-autogen
 msgid "Auth Pages"
 msgstr "Anmeldeseiten"
 
-#: lib/modules/sitemap/web/settings.html.heex:401
+#: lib/modules/sitemap/web/settings.html.heex:418
 #, elixir-autogen
 msgid "Login"
 msgstr "Anmeldung"
 
-#: lib/modules/sitemap/web/settings.html.heex:403
-#: lib/modules/sitemap/web/settings.html.heex:414
+#: lib/modules/sitemap/web/settings.html.heex:420
+#: lib/modules/sitemap/web/settings.html.heex:431
 #, elixir-autogen
 msgid "Always excluded from sitemap"
 msgstr "Immer aus der Sitemap ausgeschlossen"
 
-#: lib/modules/sitemap/web/settings.html.heex:406
-#: lib/modules/sitemap/web/settings.html.heex:417
+#: lib/modules/sitemap/web/settings.html.heex:423
+#: lib/modules/sitemap/web/settings.html.heex:434
 #, elixir-autogen
 msgid "Excluded"
 msgstr "Ausgeschlossen"
 
-#: lib/modules/sitemap/web/settings.html.heex:412
+#: lib/modules/sitemap/web/settings.html.heex:429
 #, elixir-autogen
 msgid "Logout"
 msgstr "Abmeldung"
 
-#: lib/modules/sitemap/web/settings.html.heex:423
+#: lib/modules/sitemap/web/settings.html.heex:440
 #: lib/phoenix_kit_web/live/settings/users.html.heex:67
 #, elixir-autogen
 msgid "Registration"
 msgstr "Registrierung"
 
-#: lib/modules/sitemap/web/settings.html.heex:425
+#: lib/modules/sitemap/web/settings.html.heex:442
 #, elixir-autogen
 msgid "Include in static sitemap"
 msgstr "In statische Sitemap aufnehmen"
 
-#: lib/modules/sitemap/web/settings.html.heex:497
+#: lib/modules/sitemap/web/settings.html.heex:81
+#: lib/modules/sitemap/web/settings.html.heex:516
 #, elixir-autogen
 msgid "Configuration"
 msgstr "Konfiguration"
 
-#: lib/modules/sitemap/web/settings.html.heex:517
+#: lib/modules/sitemap/web/settings.html.heex:536
 #, elixir-autogen
 msgid "Edit in Settings"
 msgstr "In den Einstellungen bearbeiten"
 
-#: lib/modules/sitemap/web/settings.html.heex:527
+#: lib/modules/sitemap/web/settings.html.heex:546
 #, elixir-autogen
 msgid "Browser Display Styling"
 msgstr "Formatierung der Browseranzeige"
 
-#: lib/modules/sitemap/web/settings.html.heex:529
+#: lib/modules/sitemap/web/settings.html.heex:548
 #, elixir-autogen
 msgid "Style XML with XSL for beautiful browser display"
 msgstr "XML mit XSL formatieren für eine ansprechende Browseranzeige"
 
-#: lib/modules/sitemap/web/settings.html.heex:543
+#: lib/modules/sitemap/web/settings.html.heex:562
 #, elixir-autogen
 msgid "Display Style"
 msgstr "Anzeigestil"
 
-#: lib/modules/sitemap/web/settings.html.heex:552
+#: lib/modules/sitemap/web/settings.html.heex:571
 #, elixir-autogen
 msgid "Table (Clean table layout)"
 msgstr "Tabelle (klares Tabellenlayout)"
 
-#: lib/modules/sitemap/web/settings.html.heex:553
+#: lib/modules/sitemap/web/settings.html.heex:572
 #, elixir-autogen
 msgid "Minimal (Simple list)"
 msgstr "Minimal (einfache Liste)"
 
-#: lib/modules/sitemap/web/settings.html.heex:566
+#: lib/modules/sitemap/web/settings.html.heex:585
 #, elixir-autogen
 msgid "Scheduled Generation"
 msgstr "Geplante Erzeugung"
 
-#: lib/modules/sitemap/web/settings.html.heex:581
+#: lib/modules/sitemap/web/settings.html.heex:600
 #, elixir-autogen
 msgid "Regenerate every"
 msgstr "Neu erzeugen alle"
 
-#: lib/modules/sitemap/web/settings.html.heex:587
+#: lib/modules/sitemap/web/settings.html.heex:606
 #, elixir-autogen
 msgid "1 hour"
 msgstr "1 Stunde"
 
-#: lib/modules/sitemap/web/settings.html.heex:588
+#: lib/modules/sitemap/web/settings.html.heex:607
 #, elixir-autogen
 msgid "6 hours"
 msgstr "6 Stunden"
 
-#: lib/modules/sitemap/web/settings.html.heex:589
+#: lib/modules/sitemap/web/settings.html.heex:608
 #, elixir-autogen
 msgid "12 hours"
 msgstr "12 Stunden"
 
-#: lib/modules/sitemap/web/settings.html.heex:590
+#: lib/modules/sitemap/web/settings.html.heex:609
 #, elixir-autogen
 msgid "24 hours"
 msgstr "24 Stunden"
 
-#: lib/modules/sitemap/web/settings.html.heex:591
+#: lib/modules/sitemap/web/settings.html.heex:610
 #, elixir-autogen
 msgid "48 hours"
 msgstr "48 Stunden"
 
-#: lib/modules/sitemap/web/settings.html.heex:592
+#: lib/modules/sitemap/web/settings.html.heex:611
 #: lib/phoenix_kit_web/live/notifications/settings.ex:446
 #, elixir-autogen
 msgid "Weekly"
 msgstr "Wöchentlich"
 
-#: lib/modules/sitemap/web/settings.html.heex:610
+#: lib/modules/sitemap/web/settings.html.heex:631
 #, elixir-autogen
 msgid "Preview Sitemap Source"
 msgstr "Sitemap-Quelle ansehen"
 
-#: lib/modules/sitemap/web/settings.html.heex:616
+#: lib/modules/sitemap/web/settings.html.heex:637
 #, elixir-autogen
 msgid "Clear All Sitemaps"
 msgstr "Alle Sitemaps löschen"
 
-#: lib/modules/sitemap/web/settings.html.heex:626
+#: lib/modules/sitemap/web/settings.html.heex:647
 #, elixir-autogen
 msgid "Generated sitemap files:"
 msgstr "Erzeugte Sitemap-Dateien:"
 
-#: lib/modules/sitemap/web/settings.html.heex:634
+#: lib/modules/sitemap/web/settings.html.heex:655
 #, elixir-autogen
 msgid "sitemap.xml (index)"
 msgstr "sitemap.xml (Index)"
 
-#: lib/modules/sitemap/web/settings.html.heex:666
+#: lib/modules/sitemap/web/settings.html.heex:687
 #, elixir-autogen
 msgid "/sitemap.xml contains all URLs in a single <urlset>"
 msgstr "/sitemap.xml enthält alle URLs in einem einzigen <urlset>"
 
-#: lib/modules/sitemap/web/settings.html.heex:667
+#: lib/modules/sitemap/web/settings.html.heex:689
 #, elixir-autogen
 msgid "/sitemap.xml is a sitemapindex referencing per-module sitemap files"
 msgstr "/sitemap.xml ist ein sitemapindex, der auf die Sitemap-Dateien der einzelnen Module verweist"
 
-#: lib/modules/sitemap/web/settings.html.heex:805
+#: lib/modules/sitemap/web/settings.html.heex:830
 #, elixir-autogen
 msgid "Sitemap Source"
 msgstr "Sitemap-Quelle"
 
-#: lib/modules/sitemap/web/settings.html.heex:821
+#: lib/modules/sitemap/web/settings.html.heex:846
 #, elixir-autogen
 msgid "Open in Browser"
 msgstr "Im Browser öffnen"
@@ -6954,7 +6953,7 @@ msgstr "Der Ordner kann nicht außerhalb des zulässigen Bereichs verschoben wer
 msgid "Could not post comment"
 msgstr "Kommentar konnte nicht veröffentlicht werden"
 
-#: lib/modules/storage/web/settings.html.heex:394
+#: lib/modules/storage/web/settings.html.heex:390
 #, elixir-autogen, elixir-format
 msgid "Deep Zoom Tile Generation"
 msgstr "Erzeugung von Deep-Zoom-Kacheln"
@@ -7051,7 +7050,7 @@ msgstr "Ordner endgültig gelöscht"
 msgid "Giphy search failed"
 msgstr "Giphy-Suche fehlgeschlagen"
 
-#: lib/modules/storage/web/settings.html.heex:397
+#: lib/modules/storage/web/settings.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Lazily generate DZI tile pyramids when users zoom deeply into images. With this off the MediaBrowser still swaps between medium/large variants while zooming, but never generates tiles or hits the lazy tile endpoint. ImageMagick is required when enabled."
 msgstr "Erzeugt DZI-Kachelpyramiden bei Bedarf, wenn Benutzer stark in Bilder hineinzoomen. Ist dies deaktiviert, wechselt der MediaBrowser beim Zoomen weiterhin zwischen den Varianten „medium“ und „large“, erzeugt jedoch keine Kacheln und ruft den Lazy-Tile-Endpunkt nicht auf. Bei Aktivierung ist ImageMagick erforderlich."
@@ -8720,7 +8719,7 @@ msgstr "Beschreibung hinzufügen"
 msgid "All types"
 msgstr "Alle Typen"
 
-#: lib/modules/storage/web/settings.html.heex:410
+#: lib/modules/storage/web/settings.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "Annotated Thumbnails"
 msgstr "Vorschaubilder mit Anmerkungen"
@@ -8748,12 +8747,12 @@ msgstr "Zurück"
 msgid "Background image"
 msgstr "Hintergrundbild"
 
-#: lib/modules/storage/web/settings.html.heex:413
+#: lib/modules/storage/web/settings.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Bake Etcher annotation shapes (rectangles, marker strokes, etc.) into a file's grid thumbnail, regenerated in the background when annotations change. With this off the grid shows the plain thumbnail and no annotated variant is generated. ImageMagick is required when enabled."
 msgstr "Brennt Etcher-Anmerkungsformen (Rechtecke, Markierungsstriche usw.) in das Rastervorschaubild einer Datei ein und erzeugt es im Hintergrund neu, wenn sich die Anmerkungen ändern. Ist dies deaktiviert, zeigt das Raster das einfache Vorschaubild und es wird keine annotierte Variante erzeugt. Bei Aktivierung ist ImageMagick erforderlich."
 
-#: lib/modules/storage/web/settings.html.heex:530
+#: lib/modules/storage/web/settings.html.heex:526
 #, elixir-autogen, elixir-format
 msgid "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
 msgstr "Durchsuchen Sie Dateien, die keinem Datensatz mehr zugeordnet sind (verwaiste Medien), um sie zu prüfen oder zu löschen."
@@ -8800,7 +8799,7 @@ msgstr "ElevenLabs-Konto erstellen"
 msgid "Create an OpenAI account"
 msgstr "OpenAI-Konto erstellen"
 
-#: lib/modules/storage/web/settings.html.heex:482
+#: lib/modules/storage/web/settings.html.heex:478
 #, elixir-autogen, elixir-format
 msgid "Create and edit the image/video size presets used to generate variants of uploaded media."
 msgstr "Erstellen und bearbeiten Sie die Bild-/Videogrößenvorlagen, mit denen Varianten hochgeladener Medien erzeugt werden."
@@ -8909,7 +8908,7 @@ msgstr "Kopfzeile konnte nicht aktualisiert werden"
 msgid "Filter"
 msgstr "Filter"
 
-#: lib/modules/storage/web/settings.html.heex:539
+#: lib/modules/storage/web/settings.html.heex:535
 #, elixir-autogen, elixir-format
 msgid "Find Orphaned Files"
 msgstr "Verwaiste Dateien finden"
@@ -9023,11 +9022,6 @@ msgstr "Liste"
 msgid "Magic link"
 msgstr "Magic Link"
 
-#: lib/modules/storage/web/settings.html.heex:8
-#, elixir-autogen, elixir-format
-msgid "Media is a core system module that is always enabled and cannot be disabled — it provides essential file management functionality across PhoenixKit. Configure its storage buckets and file processing settings here."
-msgstr "Medien ist ein Kernmodul des Systems, das immer aktiviert ist und nicht deaktiviert werden kann – es stellt grundlegende Dateiverwaltungsfunktionen in ganz PhoenixKit bereit. Konfigurieren Sie hier seine Speicher-Buckets und Einstellungen zur Dateiverarbeitung."
-
 #: lib/phoenix_kit_web/components/media_browser.html.heex:556
 #, elixir-autogen, elixir-format
 msgid "Medium"
@@ -9084,7 +9078,7 @@ msgstr "Nicht angemeldet"
 msgid "Oldest first"
 msgstr "Älteste zuerst"
 
-#: lib/modules/storage/web/settings.html.heex:512
+#: lib/modules/storage/web/settings.html.heex:508
 #, elixir-autogen, elixir-format
 msgid "Open the media health dashboard to check file redundancy and re-sync files across storage locations."
 msgstr "Öffnen Sie die Übersicht zum Medienzustand, um die Dateiredundanz zu prüfen und Dateien zwischen Speicherorten neu zu synchronisieren."
@@ -9114,7 +9108,7 @@ msgstr "Benutzerspezifische In-App-Benachrichtigungen auf Basis des Aktivitätsp
 msgid "Pick or upload a small icon image."
 msgstr "Wählen Sie ein kleines Symbolbild aus oder laden Sie eines hoch."
 
-#: lib/modules/storage/web/settings.html.heex:548
+#: lib/modules/storage/web/settings.html.heex:544
 #, elixir-autogen, elixir-format
 msgid "Reset dimensions and settings to defaults and create a local bucket if none exist. Does not delete uploaded files."
 msgstr "Setzt Abmessungen und Einstellungen auf die Standardwerte zurück und erstellt einen lokalen Bucket, falls keiner vorhanden ist. Hochgeladene Dateien werden nicht gelöscht."
@@ -9205,7 +9199,7 @@ msgstr "Ungelesen"
 msgid "View Notifications"
 msgstr "Benachrichtigungen anzeigen"
 
-#: lib/modules/storage/web/settings.html.heex:499
+#: lib/modules/storage/web/settings.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "View storage usage and media statistics. Coming soon."
 msgstr "Speicherverbrauch und Medienstatistiken anzeigen. Demnächst verfügbar."
@@ -9456,7 +9450,8 @@ msgstr "Willkommen zurück"
 msgid "optional"
 msgstr "optional"
 
-#: lib/modules/sitemap/web/settings.html.heex:690
+#: lib/modules/sitemap/web/settings.html.heex:83
+#: lib/modules/sitemap/web/settings.html.heex:714
 #, elixir-autogen, elixir-format
 msgid "Advanced"
 msgstr "Erweitert"
@@ -9497,7 +9492,7 @@ msgstr "Verwendet derzeit das Projektlogo."
 msgid "Currently using the site icon."
 msgstr "Verwendet derzeit das Website-Symbol."
 
-#: lib/modules/sitemap/web/settings.html.heex:752
+#: lib/modules/sitemap/web/settings.html.heex:776
 #, elixir-autogen, elixir-format
 msgid "Custom URLs"
 msgstr "Eigene URLs"
@@ -9513,12 +9508,12 @@ msgstr "Beispiel:"
 msgid "Features"
 msgstr "Funktionen"
 
-#: lib/modules/sitemap/web/settings.html.heex:755
+#: lib/modules/sitemap/web/settings.html.heex:779
 #, elixir-autogen, elixir-format
 msgid "JSON array of extra static URL entries (path, priority, changefreq, title, category)."
 msgstr "JSON-Array zusätzlicher statischer URL-Einträge (path, priority, changefreq, title, category)."
 
-#: lib/modules/sitemap/web/settings.html.heex:779
+#: lib/modules/sitemap/web/settings.html.heex:803
 #, elixir-autogen, elixir-format
 msgid "JSON array of route configurations (plug or path, priority, changefreq, title, category). Replaces the built-in defaults entirely when saved — an empty list removes the homepage entry too."
 msgstr "JSON-Array von Routenkonfigurationen (plug oder path, priority, changefreq, title, category). Ersetzt beim Speichern die integrierten Standardwerte vollständig – eine leere Liste entfernt auch den Eintrag der Startseite."
@@ -9528,7 +9523,7 @@ msgstr "JSON-Array von Routenkonfigurationen (plug oder path, priority, changefr
 msgid "Logo displayed across the application. Falls back to the site icon, then the project title text."
 msgstr "Logo, das in der gesamten Anwendung angezeigt wird. Ersatzweise wird das Website-Symbol und danach der Projekttitel verwendet."
 
-#: lib/modules/sitemap/web/settings.html.heex:693
+#: lib/modules/sitemap/web/settings.html.heex:717
 #, elixir-autogen, elixir-format
 msgid "Low-level Router Discovery and static-page settings. Most sites won't need these — they were previously only reachable by editing the database directly."
 msgstr "Detaileinstellungen für die Router-Erkennung und statische Seiten. Die meisten Websites brauchen sie nicht – sie waren früher nur durch direkte Bearbeitung der Datenbank erreichbar."
@@ -9538,12 +9533,12 @@ msgstr "Detaileinstellungen für die Router-Erkennung und statische Seiten. Die 
 msgid "Mobile background preview"
 msgstr "Vorschau des mobilen Hintergrunds"
 
-#: lib/modules/sitemap/web/settings.html.heex:732
+#: lib/modules/sitemap/web/settings.html.heex:756
 #, elixir-autogen, elixir-format
 msgid "One pipeline name per line. Added on top of the built-in defaults:"
 msgstr "Ein Pipeline-Name pro Zeile. Wird zu den integrierten Standardwerten hinzugefügt:"
 
-#: lib/modules/sitemap/web/settings.html.heex:729
+#: lib/modules/sitemap/web/settings.html.heex:753
 #, elixir-autogen, elixir-format
 msgid "Protected Pipelines"
 msgstr "Geschützte Pipelines"
@@ -9553,7 +9548,7 @@ msgstr "Geschützte Pipelines"
 msgid "Public base URL of this application"
 msgstr "Öffentliche Basis-URL dieser Anwendung"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:214
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Recipient"
 msgstr "Empfänger"
@@ -9563,27 +9558,27 @@ msgstr "Empfänger"
 msgid "Reset ALL settings to their defaults? Your title, logo, formats and feature toggles will be replaced. This cannot be undone."
 msgstr "ALLE Einstellungen auf die Standardwerte zurücksetzen? Titel, Logo, Formate und Funktionsschalter werden ersetzt. Dies kann nicht rückgängig gemacht werden."
 
-#: lib/modules/sitemap/web/settings.html.heex:703
+#: lib/modules/sitemap/web/settings.html.heex:727
 #, elixir-autogen, elixir-format
 msgid "Router Discovery: Exclude Patterns"
 msgstr "Router-Erkennung: Ausschlussmuster"
 
-#: lib/modules/sitemap/web/settings.html.heex:769
+#: lib/modules/sitemap/web/settings.html.heex:793
 #, elixir-autogen, elixir-format
 msgid "Save Custom URLs"
 msgstr "Eigene URLs speichern"
 
-#: lib/modules/sitemap/web/settings.html.heex:722
+#: lib/modules/sitemap/web/settings.html.heex:746
 #, elixir-autogen, elixir-format
 msgid "Save Exclude Patterns"
 msgstr "Ausschlussmuster speichern"
 
-#: lib/modules/sitemap/web/settings.html.heex:745
+#: lib/modules/sitemap/web/settings.html.heex:769
 #, elixir-autogen, elixir-format
 msgid "Save Protected Pipelines"
 msgstr "Geschützte Pipelines speichern"
 
-#: lib/modules/sitemap/web/settings.html.heex:793
+#: lib/modules/sitemap/web/settings.html.heex:817
 #, elixir-autogen, elixir-format
 msgid "Save Static Routes"
 msgstr "Statische Routen speichern"
@@ -9624,7 +9619,7 @@ msgstr "Vorschau des Website-Symbols"
 msgid "Square, at least 512×512 pixels."
 msgstr "Quadratisch, mindestens 512×512 Pixel."
 
-#: lib/modules/sitemap/web/settings.html.heex:776
+#: lib/modules/sitemap/web/settings.html.heex:800
 #, elixir-autogen, elixir-format
 msgid "Static Routes"
 msgstr "Statische Routen"
@@ -9685,7 +9680,7 @@ msgstr "Bucket nicht gefunden"
 msgid "Cannot set redundancy to %{count} copies. Only %{max} active bucket(s) available."
 msgstr "Redundanz kann nicht auf %{count} Kopien gesetzt werden. Nur %{max} aktive Buckets verfügbar."
 
-#: lib/modules/storage/web/settings.html.heex:342
+#: lib/modules/storage/web/settings.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Current setting (%{count} copies) exceeds available buckets (%{max})."
 msgstr "Die aktuelle Einstellung (%{count} Kopien) übersteigt die verfügbaren Buckets (%{max})."
@@ -10472,7 +10467,7 @@ msgstr "AWS SES ist ausgelastet – versuchen Sie es in einem Moment erneut"
 msgid "Acme Newsletter"
 msgstr "Acme Newsletter"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:111
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Add one"
 msgstr "Eine hinzufügen"
@@ -10498,7 +10493,7 @@ msgstr "Zusammenfassung"
 msgid "Aggregation updated."
 msgstr "Zusammenfassungseinstellungen aktualisiert."
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:186
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "All outbound core mail — authentication, notifications — routes through this integration when set. Leave unset to use the static mailer above. For newsletter broadcasts, see"
 msgstr "Die gesamte ausgehende Systempost – Authentifizierung, Benachrichtigungen – läuft über diese Integration, wenn sie gesetzt ist. Nicht setzen, um den statischen Mailer oben zu verwenden. Für Newsletter-Aussendungen siehe"
@@ -10598,7 +10593,7 @@ msgstr "Kommagetrennte Tags, die jeder Nachricht angehängt werden, zum Filtern 
 msgid "Configuration set"
 msgstr "Konfigurationssatz"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:88
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "Configured"
 msgstr "Konfiguriert"
@@ -10743,7 +10738,7 @@ msgstr "Sendeprofil erstellen"
 msgid "Credentials are valid, but not authorised for GetSendQuota — sending was not verified"
 msgstr "Die Anmeldedaten sind gültig, aber nicht für GetSendQuota berechtigt – der Versand wurde nicht überprüft"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:20
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Currently effective:"
 msgstr "Derzeit gültig:"
@@ -10764,7 +10759,7 @@ msgstr "Standard-Editormodus"
 msgid "Default Newsletter Profile"
 msgstr "Standard-Newsletter-Profil"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:184
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Default Transactional Integration"
 msgstr "Standard-Transaktionsintegration"
@@ -10827,7 +10822,7 @@ msgstr "E-Mail-Versand"
 msgid "Email confirmed. Welcome!"
 msgstr "E-Mail-Adresse bestätigt. Willkommen!"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:103
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "Email-capable integrations"
 msgstr "E-Mail-fähige Integrationen"
@@ -10868,13 +10863,13 @@ msgstr "Absender"
 msgid "From @BotFather → /newbot (or /token for an existing bot)"
 msgstr "Von @BotFather → /newbot (oder /token für einen bestehenden Bot)"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:53
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:86
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "From email"
 msgstr "Absender-E-Mail"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:46
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:79
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "From name"
@@ -10970,7 +10965,7 @@ msgstr "Ungültiger Port: %{port}"
 msgid "Invalid timeout: %{value}"
 msgstr "Ungültiges Zeitlimit: %{value}"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:58
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Leave a field blank to fall back to the application config or built-in default."
 msgstr "Lassen Sie ein Feld leer, um die Anwendungskonfiguration oder den integrierten Standardwert zu verwenden."
@@ -11001,7 +10996,7 @@ msgstr "Als Standard festlegen"
 msgid "Manage integrations under Settings → Integrations"
 msgstr "Integrationen unter „Einstellungen → Integrationen“ verwalten"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:230
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:277
 #, elixir-autogen, elixir-format
 msgid "Manage send profiles"
 msgstr "Sendeprofile verwalten"
@@ -11060,7 +11055,7 @@ msgstr "Meine Einstellungen"
 msgid "New send profile"
 msgstr "Neues Sendeprofil"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:95
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "No adapter configured for the static mailer. Set one in your application config, or connect an email-capable integration below and pick it as the default transactional integration."
 msgstr "Für den statischen Mailer ist kein Adapter konfiguriert. Legen Sie einen in Ihrer Anwendungskonfiguration fest oder verbinden Sie unten eine E-Mail-fähige Integration und wählen Sie sie als Standard-Transaktionsintegration."
@@ -11080,7 +11075,7 @@ msgstr "Noch keine Chats verknüpft – schreiben Sie Ihrem Bot und drücken Sie
 msgid "No dismissed notifications"
 msgstr "Keine ausgeblendeten Benachrichtigungen"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:106
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "No email-capable integrations connected yet."
 msgstr "Noch keine E-Mail-fähigen Integrationen verbunden."
@@ -11110,7 +11105,7 @@ msgstr "Keine ungelesenen Benachrichtigungen"
 msgid "None — plaintext"
 msgstr "Keine – unverschlüsselt"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:197
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "None — use the static mailer"
 msgstr "Keine – den statischen Mailer verwenden"
@@ -11160,7 +11155,7 @@ msgstr "Fügen Sie das Token in das Formular oben ein und drücken Sie **Verbind
 msgid "Pause between sends (seconds)"
 msgstr "Pause zwischen Sendungen (Sekunden)"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:227
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Per-account sender identity, rate limits, and provider-specific options."
 msgstr "Absenderidentität, Ratenbegrenzungen und anbieterspezifische Optionen pro Konto."
@@ -11282,7 +11277,7 @@ msgstr "STARTTLS – erforderlich"
 msgid "Same as after login"
 msgstr "Wie nach der Anmeldung"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:63
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Save sender identity"
 msgstr "Absenderidentität speichern"
@@ -11298,8 +11293,9 @@ msgid "Send **/newbot** and follow the prompts to name your bot"
 msgstr "Senden Sie **/newbot** und folgen Sie den Anweisungen, um Ihrem Bot einen Namen zu geben"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:292
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:190
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:225
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:36
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:233
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:272
 #: lib/phoenix_kit_web/live/settings/send_profile_form.ex:27
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:25
 #, elixir-autogen, elixir-format
@@ -11326,7 +11322,7 @@ msgstr "Sendeprofil nicht gefunden"
 msgid "Send profile saved successfully"
 msgstr "Sendeprofil erfolgreich gespeichert"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:220
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Send test email"
 msgstr "Test-E-Mail senden"
@@ -11336,7 +11332,8 @@ msgstr "Test-E-Mail senden"
 msgid "Sender ID"
 msgstr "Absender-ID"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:15
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:20
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Sender Identity"
 msgstr "Absenderidentität"
@@ -11376,12 +11373,12 @@ msgstr "Signatur (HTML)"
 msgid "Signature (plain text)"
 msgstr "Signatur (Nur-Text)"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:78
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Static mailer: built-in PhoenixKit mailer"
 msgstr "Statischer Mailer: integrierter PhoenixKit-Mailer"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:80
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Static mailer: parent app mailer (%{module})"
 msgstr "Statischer Mailer: Mailer der übergeordneten Anwendung (%{module})"
@@ -11407,7 +11404,8 @@ msgstr "Telegram"
 msgid "Telegram error %{status}"
 msgstr "Telegram-Fehler %{status}"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:204
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:33
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "Test Send"
 msgstr "Testsendung"
@@ -11442,7 +11440,7 @@ msgstr "Das ist bereits Ihr Konto."
 msgid "The CA certificate is not a valid PEM bundle (expected a -----BEGIN CERTIFICATE----- block)"
 msgstr "Das CA-Zertifikat ist kein gültiges PEM-Bundle (erwartet wurde ein -----BEGIN CERTIFICATE-----Block)"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:32
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "The email tracking module only records messages sent from a full address (name@domain.tld). With %{email} mail is still delivered, but nothing is written to the email log — silently."
 msgstr "Das E-Mail-Tracking-Modul erfasst nur Nachrichten, die von einer vollständigen Adresse (name@domain.tld) gesendet werden. Mit %{email} wird die Post weiterhin zugestellt, aber im E-Mail-Protokoll wird stillschweigend nichts festgehalten."
@@ -11468,7 +11466,7 @@ msgstr "Dieser Anbieter kann hier nicht hinzugefügt werden"
 msgid "This send profile will be permanently deleted."
 msgstr "Dieses Sendeprofil wird endgültig gelöscht."
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:29
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "This sender address cannot be logged"
 msgstr "Diese Absenderadresse kann nicht protokolliert werden"
@@ -11478,7 +11476,8 @@ msgstr "Diese Absenderadresse kann nicht protokolliert werden"
 msgid "Timeout (seconds)"
 msgstr "Zeitlimit (Sekunden)"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:68
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:21
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Transport"
 msgstr "Transport"
@@ -11508,7 +11507,7 @@ msgstr "Getrennt. Schreiben Sie dem Bot und drücken Sie „Testen“, um erneut
 msgid "Update send profile"
 msgstr "Sendeprofil aktualisieren"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:70
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Used when no default transactional integration is selected below."
 msgstr "Wird verwendet, wenn unten keine Standard-Transaktionsintegration ausgewählt ist."
@@ -11573,7 +11572,7 @@ msgstr "Sie haben hier alles gelesen."
 msgid "Your own service connections — only you can see these"
 msgstr "Ihre eigenen Dienstverbindungen – nur Sie können sie sehen"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:92
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "adapter"
 msgstr "Adapter"
@@ -11696,7 +11695,7 @@ msgstr "Geben Sie Ihren Empfehlungscode ein"
 msgid "Log out"
 msgstr "Abmelden"
 
-#: lib/modules/sitemap/web/settings.html.heex:707
+#: lib/modules/sitemap/web/settings.html.heex:731
 #, elixir-autogen, elixir-format
 msgid "One regular expression per line. Added on top of the built-in defaults, which always apply:"
 msgstr "Ein regulärer Ausdruck pro Zeile. Wird zusätzlich zu den integrierten Standardwerten angewendet, die immer gelten:"
@@ -11707,7 +11706,7 @@ msgstr "Ein regulärer Ausdruck pro Zeile. Wird zusätzlich zu den integrierten 
 msgid "Referral code"
 msgstr "Empfehlungscode"
 
-#: lib/modules/sitemap/web/settings.html.heex:672
+#: lib/modules/sitemap/web/settings.html.heex:694
 #, elixir-autogen, elixir-format
 msgid "Served at the site root as well as under the PhoenixKit prefix, because that is where crawlers look. A priv/static/sitemap.xml file would be served instead of this one."
 msgstr "Wird sowohl im Site-Root als auch unter dem PhoenixKit-Präfix ausgeliefert, weil Crawler dort suchen. Eine Datei priv/static/sitemap.xml würde stattdessen ausgeliefert."
@@ -11729,7 +11728,7 @@ msgstr "Diese Website ist nur auf Einladung zugänglich. Geben Sie den erhaltene
 msgid "Welcome! Your referral code has been accepted."
 msgstr "Willkommen! Ihr Empfehlungscode wurde akzeptiert."
 
-#: lib/modules/sitemap/web/settings.html.heex:681
+#: lib/modules/sitemap/web/settings.html.heex:703
 #, elixir-autogen, elixir-format
 msgid "has the robots.txt line that points crawlers here."
 msgstr "enthält die robots.txt-Zeile, die Crawler hierher verweist."
@@ -11863,7 +11862,7 @@ msgstr "Amazon Bedrock"
 msgid "Answer 403 to requests whose User-Agent matches a blocked group, for bots that ignore robots.txt."
 msgstr "Anfragen, deren User-Agent zu einer blockierten Gruppe passt, mit 403 beantworten – für Bots, die robots.txt ignorieren."
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:162
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Auth mail carries single-use tokens, and /dev/mailbox has no authentication — anyone who can reach this server can read them. Only for closed environments."
 msgstr "Authentifizierungs-E-Mails enthalten Einmal-Tokens, und /dev/mailbox hat keine Authentifizierung – jeder, der diesen Server erreicht, kann sie lesen. Nur für geschlossene Umgebungen."
@@ -11929,7 +11928,7 @@ msgstr "Diese Anfrage konnte nicht gesendet werden."
 msgid "Could not update the mailbox setting"
 msgstr "Die Postfach-Einstellung konnte nicht aktualisiert werden"
 
-#: lib/modules/sitemap/web/settings.html.heex:679
+#: lib/modules/sitemap/web/settings.html.heex:701
 #, elixir-autogen, elixir-format
 msgid "Crawler settings"
 msgstr "Crawler-Einstellungen"
@@ -11970,7 +11969,7 @@ msgstr "Erstellen Sie für diesen Benutzer einen Zugriffsschlüssel (Security cr
 msgid "Decide who may read this site — indexing directives, per-bot access, and what crawlers and AI assistants are told."
 msgstr "Legen Sie fest, wer diese Website lesen darf – Indexierungsanweisungen, Zugriff pro Bot und was Crawlern und KI-Assistenten mitgeteilt wird."
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:179
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Deliver development mail to /dev/mailbox"
 msgstr "Entwicklungs-E-Mails an /dev/mailbox zustellen"
@@ -12056,7 +12055,7 @@ msgstr "Schlüssel authentifiziert, aber in %{region} nicht autorisiert – erla
 msgid "Lets people type @ to mention someone and # to link a record, anywhere they can write free text. Turning it off stops the suggestions; mentions already written stay readable as plain text."
 msgstr "Ermöglicht es, überall dort, wo freier Text geschrieben werden kann, mit @ jemanden zu erwähnen und mit # einen Datensatz zu verlinken. Beim Deaktivieren entfallen die Vorschläge; bereits geschriebene Erwähnungen bleiben als reiner Text lesbar."
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:151
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "Local dev mailbox"
 msgstr "Lokales Entwicklungspostfach"
@@ -12191,7 +12190,7 @@ msgstr "Der OpenAI-kompatible Endpunkt (`…/openai/v1`) liefert derzeit nur die
 msgid "The key's IAM identity must allow the `bedrock:CallWithBearerToken` action — without it every Bearer call answers 403 even when invoke permissions are in place."
 msgstr "Die IAM-Identität des Schlüssels muss die Aktion `bedrock:CallWithBearerToken` erlauben – ohne sie beantwortet jeder Bearer-Aufruf mit 403, selbst wenn die Aufrufberechtigungen vorhanden sind."
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:170
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "The mailbox is off: outgoing mail is written to the server log instead."
 msgstr "Das Postfach ist aus: Ausgehende E-Mails werden stattdessen ins Serverprotokoll geschrieben."
@@ -12249,7 +12248,7 @@ msgstr "Einen Absender in SES verifizieren"
 msgid "What do you need it for?"
 msgstr "Wofür benötigen Sie es?"
 
-#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:156
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Where development mail goes while the resolved transport is the local adapter."
 msgstr "Wohin Entwicklungs-E-Mails gehen, solange der ermittelte Transport der lokale Adapter ist."
@@ -14401,3 +14400,23 @@ msgstr "Startseite für abgemeldete Besucher"
 #, elixir-autogen, elixir-format
 msgid "Where a visitor who isn't signed in lands — including right after logging out. Empty = the sign-in page."
 msgstr "Wohin ein nicht angemeldeter Besucher gelangt — auch direkt nach dem Abmelden. Leer = die Anmeldeseite."
+
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Default Integration"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/settings/email_sending.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Local Dev Mailbox"
+msgstr "Lokales Entwicklungspostfach"
+
+#: lib/modules/sitemap/web/settings.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Sources"
+msgstr "Quellen"
+
+#: lib/modules/storage/web/settings.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Storage buckets and file processing"
+msgstr ""
