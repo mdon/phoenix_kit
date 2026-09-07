@@ -1,3 +1,15 @@
+## Unreleased
+
+### Changed
+
+- **Breaking:** the website-wide Integrations settings page moved from
+  `/admin/settings/integrations/website` to `/admin/settings/integrations`.
+  The `/website` segment only ever existed to disambiguate it from the
+  personal per-user integrations page, which shared the same base path; that
+  page has since moved to `/profile/settings/integrations`, so the
+  disambiguation segment is no longer needed. Any bookmarked or linked
+  `/website` URL will 404.
+
 ## 2.21.2 - 2026-09-07
 
 ### Added

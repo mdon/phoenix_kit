@@ -51,15 +51,15 @@ Connections carry an **owner** — `:system | :any | {type, id}` (typed owners:
 rows read as `:user`). Two independent admin surfaces share the storage + the
 `integrations_ui.ex` markup:
 
-- **Personal** (`/admin/settings/integrations`, `Live.Integrations.MyIntegrations`
+- **Personal** (`/profile/settings/integrations`, `Live.Integrations.MyIntegrations`
   / `MyIntegrationForm`) — owner `{:user, current_uuid}`, gated by the
-  `integrations` permission key. The owner uuid comes ONLY from the request
-  scope, never params; every context call passes `owner:` explicitly (a forgotten
-  owner on `add_connection` would silently birth a SYSTEM row).
-- **Website-wide** (`/admin/settings/integrations/website`,
+  `integrations` permission key, checked by each LiveView in `mount/3` (no
+  admin gate). The owner uuid comes ONLY from the request scope, never params;
+  every context call passes `owner:` explicitly (a forgotten owner on
+  `add_connection` would silently birth a SYSTEM row).
+- **Website-wide** (`/admin/settings/integrations`,
   `Live.Settings.Integrations` / `IntegrationForm`) — owner `:system`, gated by
-  `integrations_system`. (Note the personal pages took the base path; the system
-  pages moved under `/website`.)
+  `integrations_system`.
 
 Owner threading in `integrations.ex`: reads/mutations take an `:owner` opt,
 **default `:system`** (fail-safe — a personal row never leaks into a system

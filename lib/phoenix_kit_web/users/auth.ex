@@ -1618,7 +1618,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     # The personal "integrations" key has no /admin page anymore ("My
     # Integrations" moved to /profile/settings/integrations) — a holder of
     # only that key falls through to the skip_admin default below instead.
-    {"integrations_system", "/admin/settings/integrations/website"},
+    {"integrations_system", "/admin/settings/integrations"},
     # Settings sub-pages (lower priority landing pages)
     {"languages", "/admin/settings/languages"},
     {"crawlers", "/admin/settings/crawlers"},

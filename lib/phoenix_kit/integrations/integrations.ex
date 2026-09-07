@@ -143,7 +143,7 @@ defmodule PhoenixKit.Integrations do
   Look up an integration row by its settings UUID and return a normalized
   shape with `provider`, `name`, `data`, and the original `uuid`.
 
-  Used by the integration form LV (route `/admin/settings/integrations/website/:uuid`)
+  Used by the integration form LV (route `/admin/settings/integrations/:uuid`)
   so the URL is stable across renames — the human-readable `name` lives in
   the JSONB blob, the URL stays pinned to the row's storage UUID.
   """

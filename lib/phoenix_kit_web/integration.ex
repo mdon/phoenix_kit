@@ -549,13 +549,12 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/settings/authorization", Live.Settings.Authorization, :index
       live "/admin/settings/website-access", Live.Settings.WebsiteAccess, :index
       live "/admin/settings/organization", Live.Settings.Organization, :index
-      # Website-wide integrations — the "Website Integrations" sub-subtab of the
-      # Settings › Integrations section (gated by "integrations_system"). Declared
-      # BEFORE the personal "/:uuid" route below so the static "website" segment
-      # isn't captured as a uuid.
-      live "/admin/settings/integrations/website", Live.Settings.Integrations, :index
-      live "/admin/settings/integrations/website/new", Live.Settings.IntegrationForm, :new
-      live "/admin/settings/integrations/website/:uuid", Live.Settings.IntegrationForm, :edit
+      # Website-wide integrations — the "Website Integrations" subtab of Settings
+      # (gated by "integrations_system"). Personal per-user integrations live
+      # separately under /profile/settings/integrations.
+      live "/admin/settings/integrations", Live.Settings.Integrations, :index
+      live "/admin/settings/integrations/new", Live.Settings.IntegrationForm, :new
+      live "/admin/settings/integrations/:uuid", Live.Settings.IntegrationForm, :edit
 
       # "email-sending", not "emails" — the optional emails module registers its
       # own routable "Emails" settings tab at /admin/settings/emails (via

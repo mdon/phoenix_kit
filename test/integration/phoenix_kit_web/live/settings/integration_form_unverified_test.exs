@@ -28,7 +28,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationFormUnverifiedTest do
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
 
-  @new_path Routes.path("/admin/settings/integrations/website/new")
+  @new_path Routes.path("/admin/settings/integrations/new")
   @provider_key "fixture_unverified"
 
   defmodule FixtureProvider do
