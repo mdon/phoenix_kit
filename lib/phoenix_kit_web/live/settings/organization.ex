@@ -51,6 +51,7 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
       |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:project_title, project_title)
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
+      |> assign(:active_tab, "company")
       |> load_settings()
 
     {:ok, socket}
@@ -188,6 +189,10 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
   # ===================================
   # EVENT HANDLERS
   # ===================================
+
+  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, :active_tab, tab)}
+  end
 
   def handle_event("country_changed", %{"company_country" => country_code}, socket) do
     # Update suggested tax rate when country changes
