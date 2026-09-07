@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Components.Core.UserInfo do
   use Phoenix.Component
 
   alias PhoenixKit.Modules.Storage.URLSigner
+  alias PhoenixKit.Users.AvatarCrop
   alias PhoenixKit.Users.Role
 
   # Gradient colors for avatar fallback (15 variants)
@@ -42,7 +43,7 @@ defmodule PhoenixKitWeb.Components.Core.UserInfo do
 
   ## Attributes
   - `user` - User struct with email and optional custom_fields
-  - `size` - Avatar size: "xs" (w-6), "sm" (w-8), "md" (w-10), "lg" (w-12). Defaults to "sm"
+  - `size` - Avatar size: "xs" (w-6), "sm" (w-8), "md" (w-10), "lg" (w-12), "xl" (w-40). Defaults to "sm"
   - `class` - Additional CSS classes
 
   ## Examples
@@ -59,10 +60,26 @@ defmodule PhoenixKitWeb.Components.Core.UserInfo do
     email = get_email(assigns.user)
     avatar_result = get_avatar_source(assigns.user, assigns.size)
 
+    # A stored crop only applies to the uploaded file it was made against —
+    # OAuth and Gravatar avatars have no variants and no crop.
+    crop =
+      case avatar_result do
+        {:storage, _file_id, _variant} -> AvatarCrop.from_user(assigns.user)
+        _ -> nil
+      end
+
     avatar_url =
       case avatar_result do
-        {:storage, file_id, storage_size} ->
-          URLSigner.signed_url(file_id, storage_size)
+        {:storage, file_id, variant} ->
+          # A zoomed crop shows only part of the source, so it may need a
+          # bigger variant than the box alone would: the geometry is free,
+          # the sharpness has to come from somewhere.
+          variant =
+            if crop,
+              do: AvatarCrop.variant_for(box_px(assigns.size), crop["zoom"]),
+              else: variant
+
+          URLSigner.signed_url(file_id, variant)
 
         {:url, url} ->
           url
@@ -81,6 +98,7 @@ defmodule PhoenixKitWeb.Components.Core.UserInfo do
     assigns =
       assigns
       |> assign(:avatar_url, avatar_url)
+      |> assign(:crop_style, crop && AvatarCrop.img_style(crop))
       |> assign(:size_classes, size_classes)
       |> assign(:gradient, gradient)
       |> assign(:initial, initial)
@@ -107,12 +125,22 @@ defmodule PhoenixKitWeb.Components.Core.UserInfo do
             {@initial}
           </span>
           <%!-- Image overlay (hides fallback when loaded successfully) --%>
-          <img
-            src={@avatar_url}
-            alt="Avatar"
-            class="absolute inset-0 w-full h-full object-cover"
-            onerror="this.style.display='none';"
-          />
+          <%= if @crop_style do %>
+            <%!-- Non-destructive crop: the stored geometry, as a style. --%>
+            <img
+              src={@avatar_url}
+              alt="Avatar"
+              style={@crop_style}
+              onerror="this.style.display='none';"
+            />
+          <% else %>
+            <img
+              src={@avatar_url}
+              alt="Avatar"
+              class="absolute inset-0 w-full h-full object-cover"
+              onerror="this.style.display='none';"
+            />
+          <% end %>
         <% else %>
           <span>{@initial}</span>
         <% end %>
@@ -179,7 +207,21 @@ defmodule PhoenixKitWeb.Components.Core.UserInfo do
       "sm" -> 64
       "md" -> 80
       "lg" -> 96
+      "xl" -> 320
       _ -> 64
+    end
+  end
+
+  # The CSS box each size renders into, for picking a variant that stays
+  # sharp under the crop's zoom (2x displays assumed).
+  defp box_px(size) do
+    case size do
+      "xs" -> 24
+      "sm" -> 32
+      "md" -> 40
+      "lg" -> 48
+      "xl" -> 160
+      _ -> 32
     end
   end
 
@@ -190,17 +232,22 @@ defmodule PhoenixKitWeb.Components.Core.UserInfo do
       "sm" -> "w-8 h-8 text-xs"
       "md" -> "w-10 h-10 text-sm"
       "lg" -> "w-12 h-12 text-base"
+      "xl" -> "w-40 h-40 text-5xl"
       _ -> "w-8 h-8 text-xs"
     end
   end
 
-  # Storage size for PhoenixKit Storage
+  # Storage size for PhoenixKit Storage. The settings page's "xl" preview
+  # was the reported blur: it used to load the 150px thumbnail into a 160px
+  # (320px on 2x displays) circle. It gets "medium" (800px) like the admin
+  # form always did.
   defp storage_size(size) do
     case size do
       "xs" -> "small"
       "sm" -> "small"
       "md" -> "medium"
       "lg" -> "medium"
+      "xl" -> "medium"
       _ -> "small"
     end
   end

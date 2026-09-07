@@ -45,10 +45,12 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
 
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Providers
+  alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Notifications.Prefs, as: NotificationPrefs
   alias PhoenixKit.Notifications.Types, as: NotificationTypes
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.AvatarCrop
   alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Users.OAuth
   alias PhoenixKit.Users.OAuthAvailability
@@ -85,7 +87,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   def update(%{action: :set_avatar, file_uuid: file_uuid}, socket) do
     user = socket.assigns.user
 
-    case Auth.update_user_fields(user, %{"avatar_file_uuid" => file_uuid}) do
+    case Auth.update_user_fields(user, %{"avatar_file_uuid" => file_uuid, "avatar_crop" => nil}) do
       {:ok, updated_user} ->
         send(self(), {:phoenix_kit_user_updated, updated_user})
 
@@ -186,6 +188,8 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       end)
       |> assign_new(:last_uploaded_avatar_uuid, fn -> nil end)
       |> assign_new(:show_avatar_selector, fn -> false end)
+      |> assign_new(:show_avatar_crop, fn -> false end)
+      |> assign_new(:pending_avatar_crop, fn -> nil end)
       |> assign_new(:show_email_form, fn -> false end)
       |> assign_new(:show_password_form, fn -> false end)
       |> assign_new(:show_notification_prefs, fn -> false end)
@@ -450,6 +454,49 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
 
   def handle_event("open_avatar_selector", _params, socket) do
     {:noreply, assign(socket, :show_avatar_selector, true)}
+  end
+
+  # ---- non-destructive avatar crop -----------------------------------------
+  #
+  # The crop is data in custom_fields["avatar_crop"], never a new image file:
+  # the editor below adjusts four numbers, and rendering applies them as CSS.
+  # See PhoenixKit.Users.AvatarCrop.
+
+  def handle_event("open_avatar_crop", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_avatar_crop, true)
+     |> assign(:pending_avatar_crop, AvatarCrop.from_user(socket.assigns.user))}
+  end
+
+  def handle_event("close_avatar_crop", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_avatar_crop, false)
+     |> assign(:pending_avatar_crop, nil)}
+  end
+
+  # Pushed by the AvatarCrop hook at the end of every gesture (drag release,
+  # zoom change), so "Save" always persists what the person is looking at.
+  def handle_event("avatar_crop_changed", params, socket) do
+    {:noreply, assign(socket, :pending_avatar_crop, AvatarCrop.normalize(params))}
+  end
+
+  def handle_event("save_avatar_crop", _params, socket) do
+    case socket.assigns.pending_avatar_crop do
+      nil ->
+        {:noreply, assign(socket, :show_avatar_crop, false)}
+
+      crop ->
+        persist_avatar_crop(socket, crop, gettext("Avatar crop updated!"))
+    end
+  end
+
+  # Back to the uncropped avatar. Storing nil rather than deleting the key:
+  # update_user_fields merges custom fields, and a merged nil reads as
+  # "no crop" everywhere while needing no delete plumbing.
+  def handle_event("reset_avatar_crop", _params, socket) do
+    persist_avatar_crop(socket, nil, gettext("Avatar crop reset."))
   end
 
   def handle_event("toggle_email_form", _params, socket) do
@@ -746,6 +793,43 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     end
   end
 
+  defp persist_avatar_crop(socket, crop, success_message) do
+    user = socket.assigns.user
+
+    case Auth.update_user_fields(user, %{"avatar_crop" => crop}) do
+      {:ok, updated_user} ->
+        send(self(), {:phoenix_kit_user_updated, updated_user})
+
+        PhoenixKit.Activity.log(%{
+          action: "user.avatar_crop_changed",
+          module: "users",
+          mode: "manual",
+          actor_uuid: updated_user.uuid,
+          resource_type: "user",
+          resource_uuid: updated_user.uuid,
+          metadata: %{
+            "cropped" => crop != nil,
+            "actor_role" => "user"
+          }
+        })
+
+        {:noreply,
+         socket
+         |> assign(:user, updated_user)
+         |> assign(:show_avatar_crop, false)
+         |> assign(:pending_avatar_crop, nil)
+         |> assign(:avatar_success_message, success_message)
+         |> assign(:avatar_error_message, nil)}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> assign(:show_avatar_crop, false)
+         |> assign(:avatar_error_message, gettext("Failed to update avatar crop"))
+         |> assign(:avatar_success_message, nil)}
+    end
+  end
+
   defp format_provider_name("google"), do: "Google"
   defp format_provider_name("apple"), do: "Apple"
   defp format_provider_name("github"), do: "GitHub"
@@ -792,24 +876,11 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
               <div class="flex flex-col gap-6 lg:flex-row lg:gap-4 lg:items-start">
                 <%!-- Avatar Section --%>
                 <div class="flex flex-col items-center gap-2 mx-auto lg:mx-0">
-                  <%= if get_in(@user.custom_fields, ["avatar_file_uuid"]) do %>
-                    <% avatar_url =
-                      PhoenixKit.Modules.Storage.URLSigner.signed_url(
-                        get_in(@user.custom_fields, ["avatar_file_uuid"]),
-                        "thumbnail"
-                      ) %>
-                    <img
-                      src={avatar_url}
-                      alt="Avatar"
-                      class="w-40 h-40 rounded-full object-cover border-2 border-primary"
-                    />
-                  <% else %>
-                    <div class="w-40 h-40 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center">
-                      <span class="text-5xl font-bold text-primary">
-                        {String.upcase(String.at(@user.email, 0))}
-                      </span>
-                    </div>
-                  <% end %>
+                  <%!-- The shared component: same cascade as everywhere else,
+                       and the "xl" size loads the medium (800px) variant — the
+                       old inline <img> here loaded the 150px thumbnail into
+                       this 160px circle, which is what made it blurry. --%>
+                  <.user_avatar user={@user} size="xl" class="border-2 border-primary" />
                   <button
                     type="button"
                     phx-click="open_avatar_selector"
@@ -817,6 +888,15 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                     class="btn btn-primary w-40"
                   >
                     <.icon name="hero-photo" class="w-5 h-5" /> Browse Media
+                  </button>
+                  <button
+                    :if={get_in(@user.custom_fields, ["avatar_file_uuid"])}
+                    type="button"
+                    phx-click="open_avatar_crop"
+                    phx-target={@myself}
+                    class="btn btn-ghost btn-sm w-40"
+                  >
+                    <.icon name="hero-viewfinder-circle" class="w-4 h-4" /> {gettext("Adjust Crop")}
                   </button>
                 </div>
 
@@ -912,6 +992,93 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
               phoenix_kit_current_user={@user}
               on_select={{PhoenixKitWeb.Live.Components.UserSettings, @id, :set_avatar}}
             />
+
+            <%!-- Non-destructive crop editor. Drag to position, slider or
+                 wheel to zoom — the AvatarCrop hook previews with the same
+                 math the avatar component renders with, and the original
+                 image is never touched. --%>
+            <.modal
+              :if={@show_avatar_crop}
+              show={@show_avatar_crop}
+              on_close="close_avatar_crop"
+              id={"#{@id}-avatar-crop-modal"}
+              max_width="md"
+            >
+              <:title>{gettext("Adjust Avatar Crop")}</:title>
+              <div
+                id={"#{@id}-avatar-crop-editor"}
+                phx-hook="AvatarCrop"
+                phx-target={@myself}
+                phx-update="ignore"
+                data-image-url={
+                  URLSigner.signed_url(
+                    get_in(@user.custom_fields, ["avatar_file_uuid"]),
+                    "large"
+                  )
+                }
+                data-crop={Phoenix.json_library().encode!(@pending_avatar_crop || %{})}
+                data-max-zoom={AvatarCrop.max_zoom()}
+                class="flex flex-col items-center gap-4 py-2"
+              >
+                <div
+                  data-crop-frame
+                  class="relative w-64 h-64 rounded-full overflow-hidden bg-neutral cursor-grab touch-none select-none ring-2 ring-primary ring-offset-2"
+                >
+                  <img
+                    data-crop-img
+                    src={
+                      URLSigner.signed_url(
+                        get_in(@user.custom_fields, ["avatar_file_uuid"]),
+                        "large"
+                      )
+                    }
+                    alt=""
+                    draggable="false"
+                    class="absolute max-w-none pointer-events-none"
+                  />
+                </div>
+                <div class="flex items-center gap-3 w-64">
+                  <.icon name="hero-magnifying-glass-minus" class="w-4 h-4 opacity-60" />
+                  <input
+                    data-crop-zoom
+                    type="range"
+                    min="1"
+                    max={AvatarCrop.max_zoom()}
+                    step="0.01"
+                    value="1"
+                    class="range range-primary range-xs flex-1"
+                    aria-label={gettext("Zoom")}
+                  />
+                  <.icon name="hero-magnifying-glass-plus" class="w-4 h-4 opacity-60" />
+                </div>
+              </div>
+              <:actions>
+                <button
+                  type="button"
+                  phx-click="reset_avatar_crop"
+                  phx-target={@myself}
+                  class="btn btn-ghost btn-sm mr-auto"
+                >
+                  {gettext("Reset")}
+                </button>
+                <button
+                  type="button"
+                  phx-click="close_avatar_crop"
+                  phx-target={@myself}
+                  class="btn btn-sm"
+                >
+                  {gettext("Cancel")}
+                </button>
+                <button
+                  type="button"
+                  phx-click="save_avatar_crop"
+                  phx-target={@myself}
+                  class="btn btn-primary btn-sm"
+                >
+                  {gettext("Save Crop")}
+                </button>
+              </:actions>
+            </.modal>
 
             <%= if Enum.any?([:custom_fields, :email, :password, :oauth], & &1 in @sections) do %>
               <div class="divider"></div>
