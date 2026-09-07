@@ -2160,9 +2160,9 @@ defmodule PhoenixKit.Modules.Storage do
        )},
       # The catalogue module (phoenix_kit_catalogue) stores its image
       # references inside the JSONB `data` column rather than dedicated
-      # columns — a plain join would miss them entirely, and a live
-      # catalogue item/category image would look orphaned and get queued
-      # for deletion by DeleteOrphanedFileJob.
+      # columns — a plain join would miss them entirely, and a
+      # live catalogue item, category, or catalogue-record image would
+      # look orphaned and get queued for deletion by DeleteOrphanedFileJob.
       {"phoenix_kit_cat_items",
        dynamic(
          [f],
@@ -2177,7 +2177,18 @@ defmodule PhoenixKit.Modules.Storage do
        dynamic(
          [f],
          fragment(
-           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->'ecommerce'->>'image_uuid' = ?::text)",
+           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->>'featured_image_uuid' = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->'media_order' @> to_jsonb(ARRAY[?::text])) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->'ecommerce'->>'image_uuid' = ?::text)",
+           f.uuid,
+           f.uuid,
+           f.uuid
+         )
+       )},
+      {"phoenix_kit_cat_catalogues",
+       dynamic(
+         [f],
+         fragment(
+           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_catalogues ct WHERE ct.data->>'featured_image_uuid' = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_catalogues ct WHERE ct.data->'media_order' @> to_jsonb(ARRAY[?::text]))",
+           f.uuid,
            f.uuid
          )
        )},
