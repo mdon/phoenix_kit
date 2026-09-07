@@ -347,10 +347,7 @@
             <div class="fieldset w-full">
               <label class="label">
                 <span class="fieldset-legend text-base font-medium">
-                  {gettext("Main Page")}
-                </span>
-                <span class="fieldset-label text-sm text-base-content/60">
-                  {gettext("Local path of the site's home page")}
+                  {gettext("Signed-Out Landing Page")}
                 </span>
               </label>
               <.input
@@ -363,7 +360,7 @@
               />
               <div class="text-xs text-base-content/60 mt-1">
                 {gettext(
-                  "Where PhoenixKit sends visitors who are not signed in. Empty = the sign-in page."
+                  "Where a visitor who isn't signed in lands — including right after logging out. Empty = the sign-in page."
                 )}
               </div>
               <.unsaved_hint

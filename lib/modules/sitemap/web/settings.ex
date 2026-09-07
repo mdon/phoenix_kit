@@ -46,7 +46,7 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
 
     socket =
       socket
-      |> assign(:page_title, "Sitemap Settings")
+      |> assign(:page_title, gettext("Sitemap"))
       |> assign(:project_title, project_title)
       |> assign(:current_locale, locale)
       |> assign(:current_path, Routes.path("/admin/settings/sitemap", locale: locale))
@@ -73,6 +73,7 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
       |> assign(:static_routes_text, static_routes_text())
       |> assign(:static_routes_error, nil)
       |> assign(:extension_sources, build_extension_sources(Generator.get_sources()))
+      |> assign(:active_tab, "sources")
 
     {:ok, socket}
   end
@@ -80,6 +81,11 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
   @impl true
   def handle_params(_params, _url, socket) do
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, :active_tab, tab)}
   end
 
   @impl true

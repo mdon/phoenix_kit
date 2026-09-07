@@ -1,3 +1,55 @@
+## 2.21.0 - 2026-09-07
+
+### Added
+
+- Tabs on the Email Sending and Sitemap settings pages — same treatment
+  as the rest of Settings: Sender Identity / Transport / Local Dev
+  Mailbox / Default Integration / Test Send / Send Profiles for Email
+  Sending, and Sources / Configuration / Quick Actions / Advanced for
+  Sitemap.
+
+### Fixed
+
+- **Settings breadcrumb regressions on several pages that don't call
+  `LayoutWrapper.app_layout` from a per-page `.ex`/`.heex` pair the same
+  way the rest of Settings does** — Media (`/admin/settings/media` and
+  its Dimensions/Health/bucket/dimension sub-pages) and Sitemap
+  (`/admin/settings/sitemap`) both linked their breadcrumb's second
+  segment to "Modules" → `/admin/modules` instead of "Settings" →
+  `/admin/settings`, even though both live under the Settings sidebar
+  group — the wrong link, not just a mislabeled one. Media's page title
+  was also shortened from "Media Settings" to "Media" to match the
+  sidebar and stop the breadcrumb truncating to unreadable fragments on
+  narrower screens.
+- **Languages settings page had no breadcrumb section at all**, showing
+  bare "Languages" instead of "Settings / Languages" like every sibling
+  page.
+- Renamed "Website Integrations" back to plain "Integrations" now that
+  the personal "My Integrations" page (the reason for the "Website"
+  qualifier) lives under Profile Settings instead of colliding with this
+  one.
+- "Main countries" label capitalization on the Organization settings
+  page's Main Countries tab (was inconsistent with the other tab
+  labels).
+- Drag-and-drop reordering on touch devices (iPad) for the Main
+  Countries list — SortableJS's fallback drag mode needs
+  `touch-action: none` on the drag handle, which nothing in the
+  codebase set; added it globally to `.pk-drag-handle`, plus a larger
+  touch target for this specific handle.
+- Flash notifications no longer auto-dismissed after their timeout — the
+  `FlashAutoDismiss` hook only started its timer in `mounted()`, which
+  LiveView doesn't call again when it patches an existing flash node in
+  place. Added the missing `updated()` lifecycle callback.
+- VAT/Tax ID on the Organization settings page is optional again (format
+  is still validated when a value is given) — most jurisdictions don't
+  require every company to register for VAT/a tax ID below a threshold.
+  Registration Number is now required instead, since every incorporated
+  company gets one.
+- The "Main Page" field under General → Site Address is now labeled
+  "Signed-Out Landing Page" with a clearer explanation of what it
+  actually controls (where a signed-out visitor lands, including right
+  after logging out).
+
 ## 2.20.0 - 2026-09-07
 
 ### Added

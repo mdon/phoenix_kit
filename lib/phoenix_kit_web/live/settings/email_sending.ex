@@ -61,12 +61,17 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
       |> assign_default_integration()
       |> assign_dev_mailbox()
       |> assign_email_settings_sections()
+      |> assign(:active_tab, "identity")
 
     {:ok, socket}
   end
 
   def handle_params(_params, _url, socket) do
     {:noreply, socket}
+  end
+
+  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, :active_tab, tab)}
   end
 
   # ---------------------------------------------------------------------------

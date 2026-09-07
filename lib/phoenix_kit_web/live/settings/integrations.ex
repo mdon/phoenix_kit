@@ -28,7 +28,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
 
     socket =
       socket
-      |> assign(:page_title, gettext("Website Integrations"))
+      |> assign(:page_title, gettext("Integrations"))
       |> assign(
         :page_subtitle,
         gettext("Connect external services for use across modules")

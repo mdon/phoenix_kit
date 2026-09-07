@@ -25,7 +25,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Dimensions do
     socket =
       socket
       |> assign(:current_path, Routes.path("/admin/settings/media/dimensions"))
-      |> assign(:page_title, gettext("Instance Dimensions"))
+      |> assign(:page_title, gettext("Dimensions"))
       |> assign(:project_title, project_title)
       |> assign(:dimensions, dimensions)
       |> assign(:current_locale, locale)

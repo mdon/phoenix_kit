@@ -42,7 +42,8 @@ defmodule PhoenixKitWeb.Live.Settings.OrganizationCompanyAndBankTest do
         "company_city" => "Springfield",
         "company_vat" => "12-3456789",
         "company_state" => "IL",
-        "company_postal_code" => "62701"
+        "company_postal_code" => "62701",
+        "company_registration" => "123456789"
       },
       overrides
     )
@@ -164,6 +165,34 @@ defmodule PhoenixKitWeb.Live.Settings.OrganizationCompanyAndBankTest do
   end
 
   describe "Company Information — everywhere else" do
+    test "VAT/tax-ID is optional — a company with none can still save" do
+      lv = mount_organization()
+      render_click(lv, "country_changed", %{"company_country" => "EE"})
+
+      html =
+        submit_company(
+          lv,
+          base_company_params(%{
+            "company_country" => "EE",
+            "company_state" => "",
+            "company_vat" => "",
+            "company_postal_code" => "10115"
+          })
+        )
+
+      assert html =~ "Organization information saved"
+      assert Organization.get_company_info()["vat_number"] == ""
+    end
+
+    test "registration number is required" do
+      lv = mount_organization()
+
+      html = submit_company(lv, base_company_params(%{"company_registration" => ""}))
+
+      assert html =~ "Registration number is required"
+      refute html =~ "Organization information saved"
+    end
+
     test "a country with no subdivision data keeps the free-text state field" do
       lv = mount_organization()
       html = render_click(lv, "country_changed", %{"company_country" => "VA"})

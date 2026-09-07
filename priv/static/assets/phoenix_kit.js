@@ -218,7 +218,18 @@ if (typeof window.Chart === "undefined") {
         "@keyframes pk-sortable-flash-err { 0% { background-color: rgba(239, 68, 68, 0); } 15% { background-color: rgba(239, 68, 68, 0.35); } 100% { background-color: rgba(239, 68, 68, 0); } }",
         ".pk-sortable-flash-ok::after { animation: pk-sortable-flash-ok 1.1s ease-out; }",
         ".pk-sortable-flash-err::after { animation: pk-sortable-flash-err 1.1s ease-out; }",
-        "@media (prefers-reduced-motion: reduce) { .pk-sortable-flash-ok::after, .pk-sortable-flash-err::after { animation: none; } }"
+        "@media (prefers-reduced-motion: reduce) { .pk-sortable-flash-ok::after, .pk-sortable-flash-err::after { animation: none; } }",
+        // Every sortable_handle consumer restricts drag-initiation to this
+        // class — without `touch-action: none` on it, iOS/Android treat the
+        // first touchmove as a page-scroll gesture and claim it before
+        // SortableJS's (forceFallback) touch handling ever sees it, so drag
+        // silently never starts on a touch device. `-webkit-user-select` /
+        // `user-select: none` stop a long-press from opening the text/image
+        // selection UI instead of dragging. Purely behavioral — no padding
+        // or sizing here, since some consumers (table_default's <td>
+        // handle) already size their own tap target and a blanket margin
+        // hack would be a no-op-or-worse on a table cell.
+        ".pk-drag-handle { touch-action: none; -webkit-user-select: none; user-select: none; }"
       ].join("\n");
       document.head.appendChild(style);
     }
@@ -3802,6 +3813,24 @@ if (typeof window.Chart === "undefined") {
 
       this.el.addEventListener("mouseenter", () => this.pauseTimer());
       this.el.addEventListener("mouseleave", () => this.resumeTimer());
+    },
+    // A same-kind flash id (e.g. "flash-info") is a stable id — a second
+    // flash of the same kind gets morphdom-patched into the SAME node
+    // rather than mounted fresh, so without this the original mounted()
+    // timer (already consumed, or already mid-flight) is all this message
+    // ever gets: on a page like Organization settings where one save
+    // after another keeps landing an :info flash, the second message can
+    // sit un-timed indefinitely, or inherit a prior dismiss()'s
+    // opacity:0/display:none and never even become visible. Reset both
+    // the timer and whatever dismiss() left behind, every patch.
+    updated() {
+      clearTimeout(this.timer);
+      this.el.style.transition = "";
+      this.el.style.opacity = "";
+      this.el.style.transform = "";
+      this.el.style.display = "";
+      this.duration = parseInt(this.el.dataset.dismissAfter || "5000");
+      this.startTimer();
     },
     startTimer() {
       this.remaining = this.duration;
