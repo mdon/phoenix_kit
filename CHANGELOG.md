@@ -1,3 +1,38 @@
+## 2.19.0 - 2026-09-07
+
+### Changed
+
+- **Personal integrations moved off Settings, onto the profile page** — "My
+  Integrations" was a Settings sub-sub-tab three levels deep (Settings ›
+  Integrations › My Integrations), and holding only the personal
+  `integrations` permission made the whole Settings section appear in a
+  regular user's sidebar just for that one page, despite it being per-user
+  data rather than a site-wide setting. It now lives at
+  `/profile/settings/integrations`, reached from a new **Integrations**
+  section on the Profile Settings page (connection summary + a "Manage
+  Integrations" link). The Settings sidebar's "Integrations" grouping tab is
+  gone; "Website Integrations" is now a plain flat Settings subtab like
+  Users/Authorization, gated on `integrations_system` alone. Hosts linking
+  directly to the old `/admin/settings/integrations` path need to update to
+  `/profile/settings/integrations`.
+
+### Added
+
+- Tabs on the General settings page (Site Identity, Site Address, Features,
+  Content Editor, Date & Time) instead of one long scroll — one form, one
+  Save button underneath all of them.
+
+### Fixed
+
+- Settings breadcrumbs are consistent across every subtab now: "Settings /
+  <Name>", matching the sidebar label exactly. Most subtabs previously
+  hardcoded their own breadcrumb title directly in the template (ignoring
+  the `page_title` their own `mount/3` set) and none showed a "Settings /"
+  parent crumb, so titles drifted from the sidebar's labels (e.g.
+  "Authorization Settings" vs. sidebar "Authorization") and General showed
+  bare "Settings" with no subtab name at all. Nested pages (Send Profiles,
+  the integration forms) now show their full breadcrumb trail.
+
 ## 2.18.1 - 2026-09-07
 
 ### Fixed
