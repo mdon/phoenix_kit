@@ -875,21 +875,23 @@
       </.table_default>
 
       <%!-- Pagination --%>
-      <%= if @users != [] && @total_pages > 1 do %>
-        <div class="flex justify-center p-4 border-t border-base-300">
-          <div class="join">
-            <%= for page <- 1..@total_pages do %>
-              <button
-                class={"join-item btn btn-sm #{if page == @page, do: "btn-active", else: ""}"}
-                phx-click="change_page"
-                phx-value-page={page}
-              >
-                {page}
-              </button>
-            <% end %>
-          </div>
-        </div>
-      <% end %>
+      <div
+        :if={@users != []}
+        class="flex flex-col sm:flex-row justify-center items-center gap-4 p-4 border-t border-base-300"
+      >
+        <.pagination_controls
+          page={@page}
+          total_pages={@total_pages}
+          build_url={&url_state_path(assigns, page: &1)}
+        />
+        <.page_size_selector
+          id="users-per-page"
+          value={@per_page}
+          auto_fit
+          auto={@auto_fit}
+          table_id="users-table"
+        />
+      </div>
     </div>
 
     <%!-- Enhanced Stats --%>

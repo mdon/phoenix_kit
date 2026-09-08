@@ -79,8 +79,13 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       |> assign(:form_max_upload_size_mb, current_max_upload_size_mb)
       |> assign(:imagemagick_status, imagemagick_status)
       |> assign(:ffmpeg_status, ffmpeg_status)
+      |> assign(:active_tab, "buckets")
 
     {:ok, socket}
+  end
+
+  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, :active_tab, tab)}
   end
 
   def handle_event("update_redundancy", %{"redundancy_copies" => copies}, socket) do

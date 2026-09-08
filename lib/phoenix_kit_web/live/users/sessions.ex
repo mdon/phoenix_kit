@@ -31,15 +31,16 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
         in: [:active, :today, :expired],
         url_key: "scope"
       ],
-      page: [default: 1, cast: :integer, min: 1]
+      page: [default: 1, cast: :integer, min: 1],
+      # Rows per page, picked with <.page_size_selector>. Allowlisted rather
+      # than bounded: an arbitrary integer out of the URL is a LIMIT clause.
+      per_page: [default: 20, cast: :integer, in: [10, 20, 25, 50, 100]]
     ]
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.{Auth, Sessions}
   alias PhoenixKit.Utils.Date, as: UtilsDate
-
-  @per_page 20
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -54,12 +55,11 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
     # Get project title from settings
     project_title = Settings.get_project_title()
 
-    # :page, :search_query and :filter_user_status are assigned from the
-    # query string by UrlState before mount/3 runs — re-assigning them here
-    # would overwrite a shared link's state with the defaults.
+    # :page, :per_page, :search_query and :filter_user_status are assigned
+    # from the query string by UrlState before mount/3 runs — re-assigning
+    # them here would overwrite a shared link's state with the defaults.
     socket =
       socket
-      |> assign(:per_page, @per_page)
       |> assign(:page_title, gettext("Session Management"))
       |> assign(:project_title, project_title)
       |> assign(:current_locale, locale)
@@ -110,9 +110,11 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
     {:noreply, push_url_state(socket, filter_scope: scope)}
   end
 
-  def handle_event("change_page", %{"page" => page}, socket) do
-    case Integer.parse(page) do
-      {page, ""} when page > 0 -> {:noreply, push_url_state(socket, page: page)}
+  # `push_url_state` resets the page along with the size: page 7 of 20 rows
+  # is not page 7 of 100.
+  def handle_event("change_per_page", %{"per_page" => per_page}, socket) do
+    case Integer.parse(per_page) do
+      {per_page, ""} -> {:noreply, push_url_state(socket, per_page: per_page)}
       _ -> {:noreply, socket}
     end
   end
@@ -229,29 +231,21 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
     {:noreply, socket}
   end
 
+  # Filtering and paging happen in SQL: with the page size now user-chosen,
+  # loading every session and slicing in memory would scale with the table
+  # rather than with the page.
   defp load_sessions(socket) do
-    sessions = Sessions.list_active_sessions(socket.assigns.filter_scope)
-
-    # Apply filtering
-    filtered_sessions =
-      sessions
-      |> filter_by_search(socket.assigns.search_query)
-      |> filter_by_user_status(socket.assigns.filter_user_status)
-
-    # Apply pagination
-    total_count = length(filtered_sessions)
-    total_pages = div(total_count + @per_page - 1, @per_page)
-
-    page = max(1, min(socket.assigns.page, total_pages))
-    offset = (page - 1) * @per_page
-
-    paginated_sessions =
-      filtered_sessions
-      |> Enum.drop(offset)
-      |> Enum.take(@per_page)
+    %{sessions: sessions, total_count: total_count, total_pages: total_pages, page: page} =
+      Sessions.list_sessions_paginated(
+        scope: socket.assigns.filter_scope,
+        search: socket.assigns.search_query,
+        user_status: socket.assigns.filter_user_status,
+        page: socket.assigns.page,
+        per_page: socket.assigns.per_page
+      )
 
     socket
-    |> assign(:sessions, paginated_sessions)
+    |> assign(:sessions, sessions)
     |> assign(:total_count, total_count)
     |> assign(:total_pages, total_pages)
     |> assign(:page, page)
@@ -262,35 +256,6 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
 
     socket
     |> assign(:stats, stats)
-  end
-
-  defp filter_by_search(sessions, ""), do: sessions
-
-  defp filter_by_search(sessions, query) do
-    query_lower = String.downcase(query)
-
-    Enum.filter(sessions, fn session ->
-      String.contains?(String.downcase(session.user_email), query_lower) ||
-        String.contains?(String.downcase(session.token_preview), query_lower)
-    end)
-  end
-
-  defp filter_by_user_status(sessions, "all"), do: sessions
-
-  defp filter_by_user_status(sessions, "active") do
-    Enum.filter(sessions, & &1.user_is_active)
-  end
-
-  defp filter_by_user_status(sessions, "inactive") do
-    Enum.filter(sessions, &(!&1.user_is_active))
-  end
-
-  defp filter_by_user_status(sessions, "confirmed") do
-    Enum.filter(sessions, &(!is_nil(&1.user_confirmed_at)))
-  end
-
-  defp filter_by_user_status(sessions, "pending") do
-    Enum.filter(sessions, &is_nil(&1.user_confirmed_at))
   end
 
   ## Live Event Handlers for Sessions

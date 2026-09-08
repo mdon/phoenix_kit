@@ -7,6 +7,16 @@ defmodule PhoenixKitWeb.Live.Users.Roles do
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  # Page and rows-per-page live in the query string, so a page of the list is
+  # a real URL: shareable, reload-proof, and Back returns to the previous
+  # page. `per_page` is allowlisted rather than bounded: an arbitrary integer
+  # out of the URL is a LIMIT clause.
+  use PhoenixKitWeb.Live.UrlState,
+    params: [
+      page: [default: 1, cast: :integer, min: 1],
+      per_page: [default: 25, cast: :integer, in: [10, 25, 50, 100]]
+    ]
+
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
@@ -30,6 +40,8 @@ defmodule PhoenixKitWeb.Live.Users.Roles do
     # Get project title from settings
     project_title = Settings.get_project_title()
 
+    # :page and :per_page are assigned from the query string by UrlState
+    # before mount/3 runs; the list itself is loaded in handle_url_state/2.
     socket =
       socket
       |> assign(:roles, [])
@@ -48,9 +60,26 @@ defmodule PhoenixKitWeb.Live.Users.Roles do
       |> assign(:role_stats, role_stats)
       |> assign(:project_title, project_title)
       |> assign(:can_manage_permissions, false)
-      |> load_roles()
 
     {:ok, socket}
+  end
+
+  # The list is loaded here rather than in mount/3: UrlState calls this after
+  # mount and on every change to the query string, so one code path serves the
+  # first render, a shared link, and the Back button alike.
+  #
+  # Deliberately not annotated with @impl — a single @impl anywhere in a module
+  # makes Elixir demand it on every other callback too, and this LiveView's
+  # mount/handle_event/handle_info carry none.
+  def handle_url_state(_state, socket), do: load_roles(socket)
+
+  # `push_url_state` resets the page along with the size: page 3 of 25 rows
+  # is not page 3 of 100.
+  def handle_event("change_per_page", %{"per_page" => per_page}, socket) do
+    case Integer.parse(per_page) do
+      {per_page, ""} -> {:noreply, push_url_state(socket, per_page: per_page)}
+      _ -> {:noreply, socket}
+    end
   end
 
   def handle_event("show_create_form", _params, socket) do
@@ -371,7 +400,9 @@ defmodule PhoenixKitWeb.Live.Users.Roles do
   end
 
   defp load_roles(socket) do
-    roles = Roles.list_roles()
+    %{roles: roles, total_count: total_count, total_pages: total_pages, page: page} =
+      Roles.list_roles_paginated(page: socket.assigns.page, per_page: socket.assigns.per_page)
+
     scope = socket.assigns[:phoenix_kit_current_scope]
 
     uneditable_role_uuids =
@@ -383,6 +414,10 @@ defmodule PhoenixKitWeb.Live.Users.Roles do
 
     socket
     |> assign(:roles, roles)
+    |> assign(:total_count, total_count)
+    |> assign(:total_pages, total_pages)
+    |> assign(:page, page)
+    |> assign(:role_counts, Roles.count_roles())
     |> assign(:uneditable_role_uuids, uneditable_role_uuids)
     |> assign(:can_manage_permissions, can_manage_permissions?(socket))
   end

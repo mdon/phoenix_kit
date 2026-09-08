@@ -79,7 +79,7 @@
 
     <%!-- Roles List --%>
     <div class="bg-base-100">
-      <%= if length(@roles) > 0 do %>
+      <%= if @total_count > 0 do %>
         <.table_default
           id="roles-table"
           variant="zebra"
@@ -100,7 +100,7 @@
         >
           <:toolbar_title>
             <span class="text-sm text-base-content/60">
-              {length(@roles)} {gettext("roles")}
+              {@total_count} {gettext("roles")}
             </span>
           </:toolbar_title>
           <:toolbar_actions>
@@ -237,6 +237,16 @@
             <% end %>
           </.table_default_body>
         </.table_default>
+
+        <%!-- Pagination --%>
+        <div class="flex flex-col sm:flex-row justify-center items-center gap-4 p-4 border-t border-base-300">
+          <.pagination_controls
+            page={@page}
+            total_pages={@total_pages}
+            build_url={&url_state_path(assigns, page: &1)}
+          />
+          <.page_size_selector value={@per_page} />
+        </div>
       <% else %>
         <%!-- Empty state --%>
         <.empty_state
@@ -260,7 +270,7 @@
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
           compact={true}
           rounded="xl"
-          value={Enum.count(@roles, & &1.is_system_role)}
+          value={@role_counts.system}
           title={gettext("System Roles")}
           subtitle={gettext("Protected core roles")}
         >
@@ -273,7 +283,7 @@
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
           compact={true}
           rounded="xl"
-          value={Enum.count(@roles, &(!&1.is_system_role))}
+          value={@role_counts.custom}
           title={gettext("Custom Roles")}
           subtitle={gettext("User-defined roles")}
         >
@@ -286,7 +296,7 @@
         <PhoenixKitWeb.Components.Core.StatCard.stat_card
           compact={true}
           rounded="xl"
-          value={length(@roles)}
+          value={@role_counts.total}
           title={gettext("Total Roles")}
           subtitle={gettext("All available roles")}
         >

@@ -208,6 +208,40 @@
   actually controls (where a signed-out visitor lands, including right
   after logging out).
 
+## Unreleased
+
+### Added
+
+- **Rows-per-page selector on the Users admin tabs.** Users, Sessions, Live
+  Sessions, Roles and the media picker each get a daisyUI `<select>` next to
+  the page links (`<.page_size_selector>`, a sibling of `<.pagination>` in
+  `PhoenixKitWeb.Components.Core.Pagination`). The choice lives in the URL as
+  `?per_page=` — validated against an allowlist, invalid values fall back to
+  the tab's default — so a size survives reload and is shareable; picking a
+  new size lands on page 1.
+- **Roles is paginated** (25 per page by default). It used to render every
+  role on one page; the summary cards now count the whole table rather than
+  the rows on screen.
+- **"Auto" page size (opt-in pilot on the Users tab).** `<.page_size_selector
+  auto_fit>` offers an Auto option backed by a small `PageSizeAutoFit` JS hook
+  that measures the table's top offset and one row against the viewport and
+  picks the largest allowed size that fits, re-fitting on resize. Off by
+  default; `?fit=true` in the URL.
+
+### Changed
+
+- Users, Sessions, Live Sessions and the media picker share the core
+  `<.pagination_controls>` instead of four hand-rolled `join` blocks with
+  their own page-range helpers.
+- `<.pagination_info>` is translated ("Showing … of … results" / "No results"
+  were hardcoded English) and takes a `noun_plural` attr so a caller can name
+  what is counted — Sessions passes `gettext("sessions")`, keeping the line it
+  had before switching to the shared component.
+- Sessions now filters and pages in SQL (`Sessions.list_sessions_paginated/1`)
+  instead of loading every session token and slicing the list in memory.
+  Live Sessions keeps the in-memory slice: Presence is an ETS-backed
+  GenServer, there is no table to push LIMIT/OFFSET down to.
+
 ## 2.20.0 - 2026-09-07
 
 ### Added
@@ -244,6 +278,7 @@
   "Province"; the real value from `beamlab_countries` is "Provinces and
   territories".
 
+||||||| parent of 8fbfa12992 (Make the public-page Edit link a documented API with a component and a permission gate)
 ## 2.19.0 - 2026-09-07
 
 ### Changed

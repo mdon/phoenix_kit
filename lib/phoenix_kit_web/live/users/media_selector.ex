@@ -34,7 +34,10 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
         url_key: "type",
         alias: "filter"
       ],
-      current_page: [default: 1, cast: :integer, min: 1, url_key: "page"]
+      current_page: [default: 1, cast: :integer, min: 1, url_key: "page"],
+      # Tiles per page, picked with <.page_size_selector>. Allowlisted so a
+      # hand-edited URL cannot ask for a million-row page.
+      per_page: [default: 30, cast: :integer, in: [10, 25, 30, 50, 100]]
     ],
     page_param: :current_page
 
@@ -50,8 +53,6 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
 
   import Ecto.Query
 
-  @per_page 30
-
   def mount(params, _session, socket) do
     # Handle locale
     locale =
@@ -66,9 +67,10 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
     mode = parse_mode(params["mode"])
     selected_uuids = parse_selected_uuids(params["selected"])
 
-    # :search_query, :file_type_filter, and :current_page are assigned from
-    # the query string by UrlState before mount/3 runs — re-assigning them
-    # here would overwrite a shared link's state with the defaults.
+    # :search_query, :file_type_filter, :current_page and :per_page are
+    # assigned from the query string by UrlState before mount/3 runs —
+    # re-assigning them here would overwrite a shared link's state with the
+    # defaults.
     socket =
       socket
       |> assign(:current_locale, locale)
@@ -78,7 +80,6 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
       |> assign(:return_to, return_to)
       |> assign(:selection_mode, mode)
       |> assign(:selected_uuids, selected_uuids)
-      |> assign(:per_page, @per_page)
       |> allow_upload(:media_files,
         accept: :any,
         max_entries: 10,
@@ -152,6 +153,15 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
 
   def handle_event("filter_type", %{"filter" => filter}, socket) do
     {:noreply, push_url_state(socket, file_type_filter: parse_filter(filter))}
+  end
+
+  # `push_url_state` resets the page along with the size: page 7 of 30 tiles
+  # is not page 7 of 100. The in-memory selection survives, as with any patch.
+  def handle_event("change_per_page", %{"per_page" => per_page}, socket) do
+    case Integer.parse(per_page) do
+      {per_page, ""} -> {:noreply, push_url_state(socket, per_page: per_page)}
+      _ -> {:noreply, socket}
+    end
   end
 
   def handle_event("validate", _params, socket) do
@@ -408,21 +418,5 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
   defp selection_subtitle(:multiple, count) do
     gettext("Select one or more images") <>
       " — " <> ngettext("%{count} selected", "%{count} selected", count, count: count)
-  end
-
-  defp pagination_range(current_page, total_pages) do
-    cond do
-      total_pages <= 7 ->
-        Enum.to_list(1..total_pages)
-
-      current_page <= 4 ->
-        [1, 2, 3, 4, 5, :ellipsis, total_pages]
-
-      current_page >= total_pages - 3 ->
-        [1, :ellipsis | Enum.to_list((total_pages - 4)..total_pages)]
-
-      true ->
-        [1, :ellipsis, current_page - 1, current_page, current_page + 1, :ellipsis, total_pages]
-    end
   end
 end
