@@ -710,10 +710,18 @@ defmodule PhoenixKit.Users.Auth do
   """
   def update_user_email(user, token) do
     context = "change:#{user.email}"
+    was_unconfirmed? = is_nil(user.confirmed_at)
 
     with {:ok, query} <- UserToken.verify_change_email_token_query(token, context),
          %UserToken{sent_to: email} <- Repo.one(query),
-         {:ok, _} <- Repo.transaction(user_email_multi(user, email, context)) do
+         {:ok, %{user: updated_user}} <- Repo.transaction(user_email_multi(user, email, context)) do
+      # Only a genuine unconfirmed -> confirmed transition, not every email
+      # change (an already-confirmed user changing their address re-runs
+      # confirm_changeset too, but did not just newly confirm) — otherwise a
+      # dashboard subscribed to `@topic_users` would see a false "just
+      # confirmed" event on every routine email change.
+      if was_unconfirmed?, do: Events.broadcast_user_confirmed(updated_user)
+
       PhoenixKit.Activity.log(%{
         action: "user.email_changed",
         module: "users",

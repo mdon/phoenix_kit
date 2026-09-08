@@ -432,6 +432,14 @@ defmodule PhoenixKitWeb.Integration do
       live "/users/confirm", Users.ConfirmationInstructions, :new,
         as: :user_confirmation_instructions
 
+      # Confirms an email change requested from the parked /users/confirm
+      # page's "Wrong email? Change it" form. Deliberately NOT
+      # /profile/settings/confirm-email/:token — that route sits behind the
+      # authenticated-AND-confirmed live_session, which an unconfirmed user
+      # fixing their email can never pass.
+      live "/users/confirm/change-email/:token", Users.ConfirmEmailChange, :edit,
+        as: :user_confirm_email_change
+
       # Where the invite-only gate parks an account that has not been admitted.
       # It belongs on this ungated surface for the same reason /users/confirm
       # does: the gates redirect *to* it, so gating it would be a loop.

@@ -1,3 +1,30 @@
+## 2.22.0 - 2026-09-08
+
+### Added
+
+- The parked `/users/confirm` page (where a logged-in but unconfirmed user
+  lands) now has a "Wrong email? Change it" option — a compact version of
+  Profile Settings' change-email form (current password + new address).
+  Confirming the new address both changes the account's email and confirms
+  it in one step, so a typo'd signup email no longer strands the account.
+  The confirmation link points at a new, purpose-built page
+  (`/users/confirm/change-email/:token`) rather than the normal
+  `/profile/settings/confirm-email/:token` — that page requires a confirmed
+  account to reach, which would have made the fix for "I'm unconfirmed"
+  depend on already being confirmed.
+
+### Fixed
+
+- The parked page's "Resend confirmation instructions" flash message said
+  "If your email is in our system and it has not been confirmed yet..." even
+  though the visitor was already logged in as that exact account — the
+  enumeration-safe hedge (correct for the public, logged-out resend form)
+  read as a wrong answer once you're signed in. A logged-in unconfirmed user
+  now gets a direct message naming their own address, and the (previously
+  editable) email field on that form is now read-only and its value ignored
+  server-side — editing it could otherwise be used to probe whether an
+  arbitrary address is registered.
+
 ## 2.21.5 - 2026-09-08
 
 ### Changed

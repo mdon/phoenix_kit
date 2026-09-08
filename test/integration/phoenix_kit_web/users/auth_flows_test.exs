@@ -9,6 +9,8 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
   """
   use PhoenixKitWeb.ConnCase, async: false
 
+  import Swoosh.TestAssertions
+
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
@@ -720,6 +722,130 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
       {:ok, _lv, html} = live(conn, Routes.path("/users/confirm"))
 
       assert html =~ "confirmation"
+    end
+
+    # A parked visitor is already authenticated, so the enumeration-safe
+    # "if your email is in our system" hedge (correct for the anonymous form)
+    # reads as a wrong answer here — they know perfectly well they're signed
+    # in. There is nothing left to avoid revealing, so the response names
+    # their own address directly.
+    test "parked user gets a direct message naming their own email", %{conn: conn} do
+      user = register_user()
+      {:ok, lv, _html} = live(login_conn(conn, user), Routes.path("/users/confirm"))
+
+      html =
+        lv
+        |> form("#resend_confirmation_form", %{"user" => %{"email" => user.email}})
+        |> render_submit()
+
+      assert html =~ "sent a new confirmation link to #{user.email}"
+      refute html =~ "If your email is in our system"
+    end
+
+    # The email field is pre-filled but still editable client-side. Without
+    # this, a logged-in unconfirmed user could rewrite it to probe whether an
+    # arbitrary address is registered and get the (now honest) answer back.
+    test "editing the pre-filled email still resends to the parked user's own account", %{
+      conn: conn
+    } do
+      user = register_user()
+      other = register_user()
+      {:ok, lv, _html} = live(login_conn(conn, user), Routes.path("/users/confirm"))
+
+      html =
+        lv
+        |> form("#resend_confirmation_form", %{"user" => %{"email" => other.email}})
+        |> render_submit()
+
+      assert html =~ user.email
+      refute html =~ other.email
+    end
+
+    test "parked user can fix a typo'd email; the resulting link changes AND confirms it", %{
+      conn: conn
+    } do
+      user = register_user()
+      other_conn = login_conn(build_conn(), user)
+      new_email = unique_email()
+
+      {:ok, lv, _html} = live(login_conn(conn, user), Routes.path("/users/confirm"))
+
+      html = lv |> element("button", "Wrong email? Change it") |> render_click()
+      assert html =~ "change_email_form"
+
+      html =
+        lv
+        |> form("#change_email_form", %{
+          "current_password" => @password,
+          "email_change" => %{"email" => new_email}
+        })
+        |> render_submit()
+
+      assert html =~ "sent a confirmation link to #{new_email}"
+
+      assert_email_sent(fn email ->
+        assert [_, token] =
+                 Regex.run(~r{change-email/([^\s"<]+)}, email.html_body || email.text_body)
+
+        # A second tab still parked on the same account live-advances once the
+        # new address is confirmed, exactly like the direct confirm-link flow.
+        {:ok, other_lv, _html} = live(other_conn, Routes.path("/users/confirm"))
+
+        {:ok, confirm_lv, _html} =
+          live(
+            login_conn(build_conn(), user),
+            Routes.path("/users/confirm/change-email/#{token}")
+          )
+
+        confirm_lv
+        |> form("#confirm_email_change_form", %{"user" => %{"token" => token}})
+        |> render_submit()
+
+        assert_redirect(other_lv, 3000)
+
+        updated = Auth.get_user(user.uuid)
+        assert updated.email == new_email
+        assert updated.confirmed_at
+      end)
+    end
+
+    test "changing to another account's email surfaces a real error, not a silent no-op", %{
+      conn: conn
+    } do
+      user = register_user()
+      taken = register_user()
+      {:ok, lv, _html} = live(login_conn(conn, user), Routes.path("/users/confirm"))
+
+      lv |> element("button", "Wrong email? Change it") |> render_click()
+
+      html =
+        lv
+        |> form("#change_email_form", %{
+          "current_password" => @password,
+          "email_change" => %{"email" => taken.email}
+        })
+        |> render_submit()
+
+      assert html =~ "has already been taken"
+      refute_email_sent()
+    end
+
+    test "changing email with the wrong password is rejected", %{conn: conn} do
+      user = register_user()
+      {:ok, lv, _html} = live(login_conn(conn, user), Routes.path("/users/confirm"))
+
+      lv |> element("button", "Wrong email? Change it") |> render_click()
+
+      html =
+        lv
+        |> form("#change_email_form", %{
+          "current_password" => "WrongPassword!",
+          "email_change" => %{"email" => unique_email()}
+        })
+        |> render_submit()
+
+      assert html =~ "is not valid"
+      refute_email_sent()
     end
 
     test "a confirmation landing between mount and subscribe is not missed", %{conn: conn} do
