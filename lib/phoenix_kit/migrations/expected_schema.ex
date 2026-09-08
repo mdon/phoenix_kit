@@ -157,6 +157,21 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # over the 49 shipped files; the real-database integration suite re-ran
   # clean against a DB migrated through V183.
   #
+  # V188 (2026-09-08) DECLARES three objects here by hand, all new and all
+  # indexes: `index:phoenix_kit_user_follows_unique_idx` (follower_uuid,
+  # followed_uuid), `index:phoenix_kit_user_blocks_unique_idx` (blocker_uuid,
+  # blocked_uuid) and
+  # `index:phoenix_kit_user_connections_requester_recipient_uidx`
+  # (requester_uuid, recipient_uuid) — the three UNIQUE indexes the
+  # phoenix_kit_user_connections schemas have always named in a
+  # `unique_constraint/3` and which have never existed, so those constraints
+  # were inert. No table or column changes. Shapes transcribed from a real
+  # database migrated through V188 (`pg_get_indexdef`, `pg_index.indisunique`,
+  # `pg_opclass`), not typed from the migration. `chain_hash` restamped over
+  # the shipped file set; V188's own up/down/dedupe behaviour was verified
+  # against a scratch database through
+  # `PhoenixKit.Squash.MigrationRunner.run_pinned_wrapper/4`.
+  #
   # V187 (2026-09-06) DECLARES nine objects here by hand, all new:
   # `table:phoenix_kit_access_attempts` (every try at the website password
   # gate), its six columns (`uuid` v7 PK, `verdict` varchar(16) NOT NULL,
@@ -279,7 +294,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "95a72e523c8c0a332537b8d713756be269a5091660cd0f73d64183ed58475e1c"
+  @chain_hash "b89e2f3118c4c5871f71520be95bd089e82447a13d151cb5078a2ecefe5c3499"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -70825,6 +70840,99 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
                "CREATE INDEX phoenix_kit_access_attempts_address_inserted_at_index ON __SCHEMA__.phoenix_kit_access_attempts USING btree (address, inserted_at)",
              predicate: nil,
              opclasses: ["text_ops", "timestamp_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_user_follows_unique_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_user_follows_unique_idx",
+             table: "phoenix_kit_user_follows",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_user_follows_unique_idx ON __SCHEMA__.phoenix_kit_user_follows USING btree (follower_uuid, followed_uuid)",
+        since: 188,
+        class: :index,
+        revisions: [
+          {188,
+           %{
+             table: "phoenix_kit_user_follows",
+             keys: ["follower_uuid", "followed_uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_user_follows_unique_idx ON __SCHEMA__.phoenix_kit_user_follows USING btree (follower_uuid, followed_uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops", "uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_user_blocks_unique_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_user_blocks_unique_idx",
+             table: "phoenix_kit_user_blocks",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_user_blocks_unique_idx ON __SCHEMA__.phoenix_kit_user_blocks USING btree (blocker_uuid, blocked_uuid)",
+        since: 188,
+        class: :index,
+        revisions: [
+          {188,
+           %{
+             table: "phoenix_kit_user_blocks",
+             keys: ["blocker_uuid", "blocked_uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_user_blocks_unique_idx ON __SCHEMA__.phoenix_kit_user_blocks USING btree (blocker_uuid, blocked_uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops", "uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_user_connections_requester_recipient_uidx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_user_connections_requester_recipient_uidx",
+             table: "phoenix_kit_user_connections",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_user_connections_requester_recipient_uidx ON __SCHEMA__.phoenix_kit_user_connections USING btree (requester_uuid, recipient_uuid)",
+        since: 188,
+        class: :index,
+        revisions: [
+          {188,
+           %{
+             table: "phoenix_kit_user_connections",
+             keys: ["requester_uuid", "recipient_uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_user_connections_requester_recipient_uidx ON __SCHEMA__.phoenix_kit_user_connections USING btree (requester_uuid, recipient_uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops", "uuid_ops"],
              name_template: nil
            }}
         ],
