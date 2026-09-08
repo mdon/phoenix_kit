@@ -10,7 +10,7 @@ Commit `630e6933` ("Move media browser title above the folder description") acci
 staged a stray dev symlink:
 
 ```
-priv/static/assets/leaf.js -> /Users/don/Projects/elixir/work/pk/leaf/priv/static/assets/leaf.js
+priv/static/assets/leaf.js -> ~/Projects/elixir/work/pk/leaf/priv/static/assets/leaf.js
 ```
 
 - Mode `120000`, an **absolute** path that only exists on the author's machine. On every

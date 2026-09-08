@@ -7,7 +7,17 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V187 - Website access: every try at the password gate is kept ⚡ LATEST
+  ### V188 - User connections: the three unique indexes the schemas name ⚡ LATEST
+
+  Creates `phoenix_kit_user_follows_unique_idx`,
+  `phoenix_kit_user_blocks_unique_idx` and
+  `phoenix_kit_user_connections_requester_recipient_uidx`, after removing any
+  duplicate rows. The `phoenix_kit_user_connections` schemas have always
+  declared `unique_constraint/3` under these names, but no index existed, so
+  the constraints were inert and two concurrent writes could both insert the
+  same relationship.
+
+  ### V187 - Website access: every try at the password gate is kept
 
   `phoenix_kit_access_attempts` records each attempt at the website password
   gate — what was typed on a failed one, where from, with what browser, when
@@ -723,7 +733,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 187
+  @current_version 188
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
