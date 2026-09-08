@@ -22,21 +22,47 @@ defmodule PhoenixKit.Migrations.Postgres.V188 do
   exactly the names the schemas name, so those `unique_constraint/3` calls
   start working with no change to the module.
 
-  De-duplication keeps the EARLIEST row of each duplicate set. All three
-  tables have a UUIDv7 primary key, which is time-ordered, so the smallest
-  `uuid` in a set is the first one written — `a.uuid > b.uuid` removes the
-  later arrival and keeps the relationship the user established first.
-  Nothing is lost that the pair still needs: a follow, block or connection
-  between the same two users still exists afterwards, with its original
-  timestamp. The module's `*_history` tables are untouched and keep the full
-  record either way.
+  ## Directed vs undirected, and why they differ
 
-  The connection index is on `(requester_uuid, recipient_uuid)` because that
-  is the pair the schema names. It deliberately does NOT normalise the pair:
-  A→B and B→A remain two insertable rows, which is the existing behaviour
-  `request_connection/2` relies on when it auto-accepts a mutual pending
-  request. Making the pair order-independent would change module behaviour
-  rather than enforce what the module already claims.
+  Follows and blocks are DIRECTED. "A follows B" and "B follows A" are two
+  different relationships, so their indexes are on the ordered pair and only
+  an exact repeat of one direction is a duplicate.
+
+  Connections are UNDIRECTED — one row represents one relationship, stored in
+  whichever direction it was asked — so the index is on the unordered pair:
+
+      (LEAST(requester_uuid, recipient_uuid),
+       GREATEST(requester_uuid, recipient_uuid))
+
+  An ordered index here would leave the race that actually matters open. Two
+  users clicking "connect" on each other at the same moment both pass
+  `request_connection/2`'s pre-check (`connected?/2` finds no accepted row,
+  and each direction-specific pending lookup finds nothing) and both insert —
+  one A→B row and one B→A row, which an ordered index permits. The damage is
+  not cosmetic: the next request auto-accepts ONE of them and leaves the other
+  as a live pending request between two already-connected users;
+  `remove_connection/2` then deletes only the accepted row and leaves that
+  ghost behind; and `get_accepted_connection/2` uses `Repo.one/1`, so a pair
+  that ends up accepted twice raises `Ecto.MultipleResultsError`.
+
+  The expression index is still reported under its own name in a `23505`, so
+  the schema's existing `unique_constraint/3` keeps working unchanged — the
+  field list only decides where the error is attached.
+
+  Nothing legitimately needs both directions at once: a mutual request UPDATES
+  the existing row to "accepted" rather than inserting a reverse one, and a
+  removed connection deletes its row, freeing the pair for a later request.
+
+  ## De-duplication
+
+  Existing duplicates are removed first, or `CREATE UNIQUE INDEX` would fail.
+  For follows and blocks the surviving row is the smallest `uuid`, which under
+  UUIDv7's time ordering is the one written first. Connections rank
+  "accepted" above "pending" before falling back to that rule, because the two
+  can only coexist through the race being closed and the accepted row is the
+  live relationship — dropping it for an older pending request would
+  disconnect two connected users. The `*_history` tables are untouched and
+  keep the full record either way.
 
   Rolling back drops the three indexes. It cannot bring back removed
   duplicates, which is correct: they were never valid.
@@ -48,9 +74,9 @@ defmodule PhoenixKit.Migrations.Postgres.V188 do
     prefix = Map.get(opts, :prefix, "public")
     p = prefix_str(prefix)
 
-    dedupe(p, "phoenix_kit_user_follows", "follower_uuid", "followed_uuid")
-    dedupe(p, "phoenix_kit_user_blocks", "blocker_uuid", "blocked_uuid")
-    dedupe(p, "phoenix_kit_user_connections", "requester_uuid", "recipient_uuid")
+    dedupe_directed(p, "phoenix_kit_user_follows", "follower_uuid", "followed_uuid")
+    dedupe_directed(p, "phoenix_kit_user_blocks", "blocker_uuid", "blocked_uuid")
+    dedupe_connection_pairs(p)
 
     execute("""
     CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_user_follows_unique_idx
@@ -64,7 +90,8 @@ defmodule PhoenixKit.Migrations.Postgres.V188 do
 
     execute("""
     CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_user_connections_requester_recipient_uidx
-      ON #{p}phoenix_kit_user_connections USING btree (requester_uuid, recipient_uuid)
+      ON #{p}phoenix_kit_user_connections
+      USING btree (LEAST(requester_uuid, recipient_uuid), GREATEST(requester_uuid, recipient_uuid))
     """)
 
     # Single-step runs rely on the migration stamping its own marker — the
@@ -83,16 +110,47 @@ defmodule PhoenixKit.Migrations.Postgres.V188 do
     execute("COMMENT ON TABLE #{p}phoenix_kit IS '187'")
   end
 
-  # Keeps the smallest uuid per pair. UUIDv7 is time-ordered, so that is the
-  # row written first. Runs before the index so CREATE UNIQUE INDEX cannot
-  # fail on an install that already raced one in.
-  defp dedupe(p, table, left, right) do
+  # Follows and blocks are DIRECTED: "A follows B" and "B follows A" are two
+  # different relationships and both must survive. Only an exact repeat of the
+  # same direction is a duplicate. Keeps the smallest uuid, which under UUIDv7's
+  # time ordering is the row written first.
+  defp dedupe_directed(p, table, left, right) do
     execute("""
     DELETE FROM #{p}#{table} a
     USING #{p}#{table} b
     WHERE a.#{left} = b.#{left}
       AND a.#{right} = b.#{right}
       AND a.uuid > b.uuid
+    """)
+  end
+
+  # Connections are UNDIRECTED, so the duplicate set is the unordered pair and
+  # a cross-direction pair (A->B and B->A) is just as much a duplicate as a
+  # repeat of one direction. Both must go before the index can be built.
+  #
+  # Which row survives is not arbitrary:
+  #
+  #   * an "accepted" row outranks a "pending" one. The two can coexist only
+  #     because of the race this migration closes, and the accepted row is the
+  #     live relationship — deleting it in favour of an older pending request
+  #     would disconnect two connected users.
+  #   * within one rank the smallest uuid wins, which under UUIDv7 is the row
+  #     written first, so "who asked" is preserved.
+  #
+  # Only "pending" and "accepted" ever persist ("rejected" and "cancelled"
+  # delete the row), so those two ranks cover every stored row.
+  defp dedupe_connection_pairs(p) do
+    table = "#{p}phoenix_kit_user_connections"
+
+    execute("""
+    DELETE FROM #{table} a
+    USING #{table} b
+    WHERE LEAST(a.requester_uuid, a.recipient_uuid) = LEAST(b.requester_uuid, b.recipient_uuid)
+      AND GREATEST(a.requester_uuid, a.recipient_uuid) = GREATEST(b.requester_uuid, b.recipient_uuid)
+      AND a.uuid <> b.uuid
+      AND ( (b.status = 'accepted')::int > (a.status = 'accepted')::int
+            OR ( (b.status = 'accepted')::int = (a.status = 'accepted')::int
+                 AND b.uuid < a.uuid ) )
     """)
   end
 

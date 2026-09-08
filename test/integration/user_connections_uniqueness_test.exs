@@ -74,10 +74,6 @@ defmodule PhoenixKit.Migrations.UserConnectionsUniquenessTest do
       assert {:error, %Postgrex.Error{postgres: pg}} = insert_follow(a, b)
       assert pg.code == :unique_violation
       assert pg.constraint == "phoenix_kit_user_follows_unique_idx"
-
-      # The reverse direction is a different relationship and must stay
-      # insertable — a follow is one-way.
-      assert {:ok, _} = insert_follow(b, a)
     end
 
     test "a duplicate block is refused by the index the schema names" do
@@ -89,11 +85,13 @@ defmodule PhoenixKit.Migrations.UserConnectionsUniquenessTest do
       assert {:error, %Postgrex.Error{postgres: pg}} = insert_block(a, b)
       assert pg.code == :unique_violation
       assert pg.constraint == "phoenix_kit_user_blocks_unique_idx"
-
-      assert {:ok, _} = insert_block(b, a)
     end
 
-    test "a duplicate connection request is refused, but the mutual one is not" do
+    # Connections are UNDIRECTED: one row is one relationship, stored in
+    # whichever direction it was asked. So BOTH a same-direction repeat and a
+    # cross-direction row are duplicates, and the index is on the unordered
+    # pair.
+    test "a duplicate connection request is refused in either direction" do
       a = user!("c1")
       b = user!("c2")
 
@@ -103,11 +101,30 @@ defmodule PhoenixKit.Migrations.UserConnectionsUniquenessTest do
       assert pg.code == :unique_violation
       assert pg.constraint == "phoenix_kit_user_connections_requester_recipient_uidx"
 
-      # Load-bearing, and the reason this index is NOT on a normalised pair:
-      # `PhoenixKitUserConnections.request_connection/2` auto-accepts when B
-      # requests while A→B is already pending, which needs B→A to be
-      # insertable. An order-independent index would break that flow.
-      assert {:ok, _} = insert_connection(b, a)
+      # The one that matters, and the one an ordered index would have let
+      # through: two users clicking "connect" on each other at the same moment.
+      # Both pass request_connection/2's pre-check, and without this the pair
+      # ends up with two rows — one of which survives a later auto-accept as a
+      # live pending request between two already-connected users, while
+      # get_accepted_connection/2's Repo.one/1 raises if both become accepted.
+      assert {:error, %Postgrex.Error{postgres: reverse}} = insert_connection(b, a)
+      assert reverse.code == :unique_violation
+      assert reverse.constraint == "phoenix_kit_user_connections_requester_recipient_uidx"
+    end
+
+    # The contrast that keeps the two shapes honest: follows and blocks are
+    # DIRECTED, so their reverse is a different relationship and must stay
+    # insertable. A future migration that "tidied" all three onto one shape
+    # would break this.
+    test "the directed relationships keep both directions" do
+      a = user!("d1")
+      b = user!("d2")
+
+      assert {:ok, _} = insert_follow(a, b)
+      assert {:ok, _} = insert_follow(b, a)
+
+      assert {:ok, _} = insert_block(a, b)
+      assert {:ok, _} = insert_block(b, a)
     end
   end
 end
