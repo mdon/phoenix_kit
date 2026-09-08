@@ -5,7 +5,6 @@
   page_subtitle={@page_subtitle}
   page_section={@page_section}
   page_section_path={@page_section_path}
-  page_crumbs={@page_crumbs}
   current_path={@current_path}
   project_title={@project_title}
 >
@@ -27,7 +26,7 @@
         </:toolbar_title>
         <:toolbar_actions>
           <.pk_link
-            navigate="/admin/settings/email-sending/profiles/new"
+            navigate="/admin/settings/emails-bulk/new"
             class="btn btn-primary btn-sm"
           >
             <.icon name="hero-plus" class="w-4 h-4" /> {gettext("New send profile")}
@@ -61,9 +60,7 @@
           >
             <.table_default_cell>
               <.row_link
-                navigate={
-                  Routes.path("/admin/settings/email-sending/profiles/#{send_profile.uuid}/edit")
-                }
+                navigate={Routes.path("/admin/settings/emails-bulk/#{send_profile.uuid}/edit")}
                 label={send_profile.name}
               />
               <div class="font-medium">{send_profile.name}</div>
@@ -105,11 +102,7 @@
                   label={gettext("Make default")}
                 />
                 <.table_row_menu_link
-                  navigate={
-                    Routes.path(
-                      "/admin/settings/email-sending/profiles/#{send_profile.uuid}/edit"
-                    )
-                  }
+                  navigate={Routes.path("/admin/settings/emails-bulk/#{send_profile.uuid}/edit")}
                   icon="hero-pencil"
                   label={gettext("Edit")}
                 />
@@ -141,9 +134,7 @@
               label={gettext("Make default")}
             />
             <.table_row_menu_link
-              navigate={
-                Routes.path("/admin/settings/email-sending/profiles/#{send_profile.uuid}/edit")
-              }
+              navigate={Routes.path("/admin/settings/emails-bulk/#{send_profile.uuid}/edit")}
               icon="hero-pencil"
               label={gettext("Edit")}
             />
@@ -170,7 +161,7 @@
       description={gettext("Create a send profile to choose how outbound email is delivered.")}
     >
       <.pk_link
-        navigate="/admin/settings/email-sending/profiles/new"
+        navigate="/admin/settings/emails-bulk/new"
         class="btn btn-primary btn-lg"
       >
         <.icon name="hero-plus" class="w-5 h-5 mr-2" /> {gettext("Create first send profile")}

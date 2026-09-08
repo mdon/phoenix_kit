@@ -94,7 +94,7 @@ defmodule PhoenixKit.Settings.Setting do
     # Maintenance Schedule (can be empty when no schedule is set)
     "maintenance_scheduled_start",
     "maintenance_scheduled_end",
-    # Email Sending (blank falls back to app config, then a built-in default —
+    # Emails Transactional (blank falls back to app config, then a built-in default —
     # see PhoenixKit.Mailer.get_from_name/0, get_from_email/0)
     "from_name",
     "from_email",

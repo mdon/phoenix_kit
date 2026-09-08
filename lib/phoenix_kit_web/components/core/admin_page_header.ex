@@ -52,9 +52,9 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
 
       <%!-- With a back affordance --%>
       <.admin_page_header
-        back={Routes.path("/admin/settings/email-sending")}
-        back_label="Email Sending"
-        title="Send Profiles"
+        back={Routes.path("/admin/settings")}
+        back_label="Settings"
+        title="Emails Bulk"
       />
 
       <%!-- With actions --%>

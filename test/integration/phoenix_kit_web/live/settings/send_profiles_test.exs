@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Live.Settings.SendProfilesTest do
   @moduledoc """
-  Smoke tests for the Send Profiles admin LiveViews
-  (`/admin/settings/email-sending/profiles`) — list, create, edit, and
-  the per-provider advanced fields.
+  Smoke tests for the "Emails Bulk" (Send Profiles) admin LiveViews
+  (`/admin/settings/emails-bulk`) — list, create, edit, and the
+  per-provider advanced fields.
 
   Auth + sandbox plumbing comes from `PhoenixKitWeb.ConnCase`.
   """
@@ -13,8 +13,8 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfilesTest do
   alias PhoenixKit.Integrations
   alias PhoenixKit.Utils.Routes
 
-  @list_path Routes.path("/admin/settings/email-sending/profiles")
-  @new_path Routes.path("/admin/settings/email-sending/profiles/new")
+  @list_path Routes.path("/admin/settings/emails-bulk")
+  @new_path Routes.path("/admin/settings/emails-bulk/new")
 
   defp setup_admin(%{conn: conn}) do
     {user, _token} = create_admin_user()
@@ -75,7 +75,7 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfilesTest do
 
       {:ok, _view, html} = live(conn, @list_path)
       assert html =~ "Marketing"
-      assert html =~ "/admin/settings/email-sending/profiles/#{profile.uuid}/edit"
+      assert html =~ "/admin/settings/emails-bulk/#{profile.uuid}/edit"
     end
 
     test "marks the default profile with a badge", %{conn: conn} do
@@ -240,7 +240,7 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfilesTest do
         })
 
       {:ok, _view, html} =
-        live(conn, Routes.path("/admin/settings/email-sending/profiles/#{profile.uuid}/edit"))
+        live(conn, Routes.path("/admin/settings/emails-bulk/#{profile.uuid}/edit"))
 
       assert html =~ ~s(value="Marketing")
       assert html =~ ~s(value="Acme Marketing")
@@ -257,7 +257,7 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfilesTest do
         })
 
       {:ok, view, _html} =
-        live(conn, Routes.path("/admin/settings/email-sending/profiles/#{profile.uuid}/edit"))
+        live(conn, Routes.path("/admin/settings/emails-bulk/#{profile.uuid}/edit"))
 
       {:error, {:live_redirect, %{to: target}}} =
         view
@@ -279,7 +279,7 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfilesTest do
       conn = conn |> Phoenix.ConnTest.init_test_session(%{}) |> Phoenix.Controller.fetch_flash()
 
       {:error, {:live_redirect, %{to: target}}} =
-        live(conn, Routes.path("/admin/settings/email-sending/profiles/#{ghost}/edit"))
+        live(conn, Routes.path("/admin/settings/emails-bulk/#{ghost}/edit"))
 
       assert target == @list_path
     end

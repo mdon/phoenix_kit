@@ -93,8 +93,8 @@ defmodule PhoenixKit.Module do
   - `required_integrations/0` - Integration provider keys this module needs (default: `[]`).
     Used by the Integrations settings page to show relevant providers.
   - `integration_providers/0` - Additional provider definitions this module contributes (default: `[]`).
-  - `email_settings_sections/0` - Sections this module contributes to the core Email Sending
-    settings page (default: `[]`).
+  - `email_settings_sections/0` - Sections this module contributes to the core Emails
+    Transactional settings page (default: `[]`).
   """
 
   @typedoc """
@@ -444,7 +444,7 @@ defmodule PhoenixKit.Module do
   @callback migrate_legacy() :: :ok | {:ok, map()} | {:error, term()}
 
   @typedoc """
-  A module-contributed section on the core Email Sending settings page
+  A module-contributed section on the core Emails Transactional settings page
   (`/admin/settings/email-sending`).
 
     * `:id` — unique atom, used as the `live_component` DOM id.
@@ -466,8 +466,8 @@ defmodule PhoenixKit.Module do
         }
 
   @doc """
-  Returns module-contributed sections to render on the core Email Sending
-  settings page (`/admin/settings/email-sending`), below the core sections
+  Returns module-contributed sections to render on the core Emails
+  Transactional settings page (`/admin/settings/email-sending`), below the core sections
   (sender identity, transport, default integration, test send).
 
   Lets a module (e.g. an emails or newsletters package) add its own

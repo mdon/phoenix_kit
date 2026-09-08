@@ -1,6 +1,6 @@
 defmodule PhoenixKitWeb.Live.Settings.EmailSendingTest do
   @moduledoc """
-  Smoke tests for the core Email Sending settings page
+  Smoke tests for the core Emails Transactional settings page
   (`/admin/settings/email-sending`) — sender identity, the transport
   panel, the default send integration picker, and the test-send action.
 
@@ -40,7 +40,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSendingTest do
 
     test "renders the page title", %{conn: conn} do
       {:ok, _view, html} = live(conn, @path)
-      assert html =~ "Email Sending"
+      assert html =~ "Emails Transactional"
     end
 
     test "shows the built-in mailer when no parent app mailer is configured",
@@ -71,9 +71,9 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSendingTest do
       assert html =~ ~s(value="#{uuid}")
     end
 
-    test "links to the send profiles subpage", %{conn: conn} do
+    test "links to the Emails Bulk page", %{conn: conn} do
       {:ok, _view, html} = live(conn, @path)
-      assert html =~ "/admin/settings/email-sending/profiles"
+      assert html =~ "/admin/settings/emails-bulk"
     end
   end
 

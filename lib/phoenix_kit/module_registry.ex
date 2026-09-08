@@ -27,7 +27,7 @@ defmodule PhoenixKit.ModuleRegistry do
       ModuleRegistry.enabled_modules()       # Only currently enabled
       ModuleRegistry.all_admin_tabs()        # Collect admin tabs from all modules
       ModuleRegistry.all_settings_tabs()     # Collect settings tabs
-      ModuleRegistry.all_email_settings_sections() # Collect Email Sending page sections
+      ModuleRegistry.all_email_settings_sections() # Collect Emails Transactional page sections
       ModuleRegistry.all_user_dashboard_tabs() # Collect user dashboard tabs
       ModuleRegistry.all_children()          # Collect supervisor child specs
       ModuleRegistry.all_permission_metadata() # Collect permission metadata
@@ -137,7 +137,7 @@ defmodule PhoenixKit.ModuleRegistry do
 
   @doc """
   Collect email settings sections contributed by all **enabled** modules,
-  for the core Email Sending settings page
+  for the core Emails Transactional settings page
   (`/admin/settings/email-sending`).
 
   Mirrors `all_settings_tabs/0`'s `safe_call` pattern, but — like

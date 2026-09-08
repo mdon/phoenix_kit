@@ -1977,7 +1977,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Settings.Authorization => "settings",
     # Website access (password gate, redirect, notice, maintenance switch…).
     PhoenixKitWeb.Live.Settings.WebsiteAccess => "settings",
-    # Integrations + Email Sending settings pages: none of these resolve
+    # Integrations + Emails Transactional/Bulk settings pages: none of these resolve
     # through the later inference layers (their PhoenixKitWeb namespace has no
     # ModuleRegistry entry), so an explicit mapping is required — unmapped
     # views fail closed and custom roles holding the "settings" permission

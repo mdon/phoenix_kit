@@ -30,12 +30,7 @@
               label: gettext("Default Integration"),
               icon: "hero-paper-airplane"
             },
-            %{id: "test_send", label: gettext("Test Send"), icon: "hero-paper-airplane"},
-            %{
-              id: "send_profiles",
-              label: gettext("Send Profiles"),
-              icon: "hero-adjustments-horizontal"
-            }
+            %{id: "test_send", label: gettext("Test Send"), icon: "hero-paper-airplane"}
           ] ++
           Enum.map(@email_settings_sections, fn section ->
             %{id: "module_#{section.id}", label: section.title, icon: "hero-puzzle-piece"}
@@ -229,9 +224,9 @@
           {gettext(
             "All outbound core mail — authentication, notifications — routes through this integration when set. Leave unset to use the static mailer above. For newsletter broadcasts, see"
           )}
-          <.pk_link navigate="/admin/settings/email-sending/profiles" class="link link-primary">
-          {gettext("Send Profiles")}
-        </.pk_link>.
+          <.pk_link navigate="/admin/settings/emails-bulk" class="link link-primary">
+            {gettext("Emails Bulk")}
+          </.pk_link>.
         </:subtitle>
         <form id="default-integration-form" phx-change="select_default_integration">
           <.select
@@ -265,17 +260,6 @@
             {gettext("Send test email")}
           </button>
         </form>
-      </.form_section>
-    </div>
-
-    <div class={@active_tab != "send_profiles" && "hidden"}>
-      <.form_section title={gettext("Send Profiles")} icon="hero-adjustments-horizontal">
-        <:subtitle>
-          {gettext("Per-account sender identity, rate limits, and provider-specific options.")}
-        </:subtitle>
-        <.pk_link navigate="/admin/settings/email-sending/profiles" class="btn btn-outline btn-sm">
-          {gettext("Manage send profiles")}
-        </.pk_link>
       </.form_section>
     </div>
 

@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Live.Settings.SendProfileForm do
   @moduledoc """
-  Create/edit form for a send profile — under the core Email Sending
-  settings (`/admin/settings/email-sending/profiles/new` and
-  `/admin/settings/email-sending/profiles/:uuid/edit`).
+  Create/edit form for a send profile — under the "Emails Bulk" settings
+  page (`/admin/settings/emails-bulk/new` and
+  `/admin/settings/emails-bulk/:uuid/edit`).
   """
 
   use PhoenixKitWeb, :live_view
@@ -22,11 +22,7 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfileForm do
       |> assign(:page_section, gettext("Settings"))
       |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:page_crumbs, [
-        %{label: gettext("Email Sending"), path: Routes.path("/admin/settings/email-sending")},
-        %{
-          label: gettext("Send Profiles"),
-          path: Routes.path("/admin/settings/email-sending/profiles")
-        }
+        %{label: gettext("Emails Bulk"), path: Routes.path("/admin/settings/emails-bulk")}
       ])
       |> assign(:project_title, Settings.get_project_title())
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
@@ -49,7 +45,7 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfileForm do
       {:noreply,
        socket
        |> put_flash(:error, gettext("Send profile not found"))
-       |> push_navigate(to: Routes.path("/admin/settings/email-sending/profiles"))}
+       |> push_navigate(to: Routes.path("/admin/settings/emails-bulk"))}
   end
 
   def handle_params(_params, _url, socket) do
@@ -82,7 +78,7 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfileForm do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Send profile saved successfully"))
-         |> push_navigate(to: Routes.path("/admin/settings/email-sending/profiles"))}
+         |> push_navigate(to: Routes.path("/admin/settings/emails-bulk"))}
 
       {:error, changeset} ->
         {:noreply, assign_form(socket, changeset)}
@@ -165,6 +161,6 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfileForm do
   end
 
   defp get_current_path(locale) do
-    Routes.path("/admin/settings/email-sending/profiles", locale: locale)
+    Routes.path("/admin/settings/emails-bulk", locale: locale)
   end
 end

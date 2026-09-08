@@ -1,13 +1,16 @@
 defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   @moduledoc """
-  Core "Email Sending" admin settings page (`/admin/settings/email-sending`).
+  Core "Emails Transactional" admin settings page (`/admin/settings/email-sending`).
 
-  Covers what core owns about outbound email: sender identity, which
-  transport is actually in effect (static app-config mailer vs. a
+  Covers what core owns about outbound TRANSACTIONAL email: sender identity,
+  which transport is actually in effect (static app-config mailer vs. a
   connected Integrations provider), the operator's choice of default send
-  integration, and a test-send action. Send Profiles (per-account sender
-  identity, rate limits, provider-specific options) live one level down
-  at `/admin/settings/email-sending/profiles`.
+  integration, and a test-send action. Bulk/marketing sending config (Send
+  Profiles — per-account sender identity, rate limits, provider-specific
+  options) lives on its own sibling page, "Emails Bulk"
+  (`/admin/settings/emails-bulk`) — a separate concern that Newsletters
+  broadcasts consume, not something a fresh transactional-only install needs
+  to see.
 
   ## Path note
 
@@ -44,7 +47,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   def mount(_params, _session, socket) do
     socket =
       socket
-      |> assign(:page_title, gettext("Email Sending"))
+      |> assign(:page_title, gettext("Emails Transactional"))
       |> assign(
         :page_subtitle,
         gettext(
@@ -163,7 +166,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
         gettext("Test email from %{site}", site: socket.assigns.project_title)
       )
       |> Swoosh.Email.text_body(
-        gettext("This is a test email sent from the Email Sending settings page.")
+        gettext("This is a test email sent from the Emails Transactional settings page.")
       )
 
     case Mailer.deliver_email(email) do

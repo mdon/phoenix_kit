@@ -1,7 +1,8 @@
 defmodule PhoenixKitWeb.Live.Settings.SendProfiles do
   @moduledoc """
-  Send profiles list page — under the core Email Sending settings
-  (`/admin/settings/email-sending/profiles`).
+  "Emails Bulk" send profiles list page (`/admin/settings/emails-bulk`) — a
+  top-level Settings tab, sibling of "Emails Transactional"
+  (`/admin/settings/email-sending`), not nested under it.
 
   Each send profile references an Integrations connection and carries
   per-account send parameters (sender identity, rate limits, provider
@@ -22,18 +23,15 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfiles do
   def mount(_params, _session, socket) do
     socket =
       socket
-      |> assign(:page_title, gettext("Send Profiles"))
+      |> assign(:page_title, gettext("Emails Bulk"))
       |> assign(
         :page_subtitle,
         gettext(
-          "Service-wide default profile used by newsletter broadcasts. Transactional mail (auth, notifications) is routed by the Default Transactional Integration on the Email Sending page."
+          "Service-wide default profile used by newsletter broadcasts. Transactional mail (auth, notifications) is routed by the Default Transactional Integration on the Emails Transactional page."
         )
       )
       |> assign(:page_section, gettext("Settings"))
       |> assign(:page_section_path, Routes.path("/admin/settings"))
-      |> assign(:page_crumbs, [
-        %{label: gettext("Email Sending"), path: Routes.path("/admin/settings/email-sending")}
-      ])
       |> assign(:project_title, Settings.get_project_title())
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
       |> assign(:send_profiles, [])
@@ -104,6 +102,6 @@ defmodule PhoenixKitWeb.Live.Settings.SendProfiles do
   end
 
   defp get_current_path(locale) do
-    Routes.path("/admin/settings/email-sending/profiles", locale: locale)
+    Routes.path("/admin/settings/emails-bulk", locale: locale)
   end
 end

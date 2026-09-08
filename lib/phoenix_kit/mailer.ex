@@ -257,7 +257,7 @@ defmodule PhoenixKit.Mailer do
   If Settings key `"default_email_integration_uuid"` is set and resolves to
   an Integrations connection with valid credentials, delivery is routed
   through that connection via `deliver_via_integration/3` (set on the core
-  Email Sending settings page). Otherwise, if a parent application mailer is
+  Emails Transactional settings page). Otherwise, if a parent application mailer is
   configured, delegates to it; failing that, uses the built-in PhoenixKit
   mailer. The setting being absent, blank, or pointing at a
   deleted/unconfigured connection is a no-op — behavior is unchanged from
@@ -737,7 +737,7 @@ defmodule PhoenixKit.Mailer do
   Gets the effective "from" email address.
 
   Priority: Settings Database (runtime) > Config file (compile-time) >
-  built-in default (`"noreply@localhost"`). Public so the Email Sending
+  built-in default (`"noreply@localhost"`). Public so the Emails Transactional
   settings page can display the value that's actually in effect, even
   when no Settings override is set.
   """
@@ -762,7 +762,7 @@ defmodule PhoenixKit.Mailer do
   Gets the effective "from" name.
 
   Priority: Settings Database (runtime) > Config file (compile-time) >
-  built-in default (`"PhoenixKit"`). Public so the Email Sending settings
+  built-in default (`"PhoenixKit"`). Public so the Emails Transactional settings
   page can display the value that's actually in effect, even when no
   Settings override is set.
   """

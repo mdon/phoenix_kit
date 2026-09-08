@@ -1,24 +1,25 @@
 defmodule PhoenixKit.Dashboard.AdminTabsTest do
   @moduledoc """
-  Unit tests for the Send Profiles sidebar sub-item registered under
-  Email Sending in `PhoenixKit.Dashboard.AdminTabs.settings_tabs/0`.
+  Unit tests for the "Emails Bulk" (Send Profiles) sidebar tab registered
+  as a top-level sibling of "Emails Transactional" in
+  `PhoenixKit.Dashboard.AdminTabs.settings_tabs/0`.
   """
 
   use ExUnit.Case, async: true
 
   alias PhoenixKit.Dashboard.AdminTabs
 
-  test "registers Send Profiles as its own sidebar tab nested under Email Sending" do
+  test "registers Emails Bulk as its own top-level sidebar tab, a sibling of Emails Transactional" do
     tabs = AdminTabs.settings_tabs()
 
     email_sending = Enum.find(tabs, &(&1.id == :admin_settings_email_sending))
-    send_profiles = Enum.find(tabs, &(&1.id == :admin_settings_send_profiles))
+    emails_bulk = Enum.find(tabs, &(&1.id == :admin_settings_emails_bulk))
 
     assert email_sending
-    assert send_profiles
-    assert send_profiles.parent == email_sending.id
-    assert send_profiles.path == "/admin/settings/email-sending/profiles"
-    assert send_profiles.permission == email_sending.permission
-    assert send_profiles.level == :admin
+    assert emails_bulk
+    assert emails_bulk.parent == email_sending.parent
+    assert emails_bulk.path == "/admin/settings/emails-bulk"
+    assert emails_bulk.permission == email_sending.permission
+    assert emails_bulk.level == :admin
   end
 end

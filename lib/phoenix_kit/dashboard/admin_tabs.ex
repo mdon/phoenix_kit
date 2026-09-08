@@ -280,7 +280,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       ),
       admin_subtab(
         :admin_settings_email_sending,
-        gettext_noop("Email Sending"),
+        gettext_noop("Emails Transactional"),
         "hero-envelope",
         "email-sending",
         916,
@@ -288,12 +288,12 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         "settings"
       ),
       admin_subtab(
-        :admin_settings_send_profiles,
-        gettext_noop("Send Profiles"),
+        :admin_settings_emails_bulk,
+        gettext_noop("Emails Bulk"),
         "hero-adjustments-horizontal",
-        "email-sending/profiles",
+        "emails-bulk",
         917,
-        :admin_settings_email_sending,
+        :admin_settings,
         "settings"
       ),
       # Personal "My Integrations" used to live here too, grouped under a
