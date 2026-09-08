@@ -7,7 +7,21 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V188 - User connections: the three unique indexes the schemas name ⚡ LATEST
+  ### V189 - Settings: dead `billing_default_currency` removed ⚡ LATEST
+
+  Deletes the `billing_default_currency` row `V135` seeds into
+  `phoenix_kit_settings`. Nothing reads it — confirmed by a full grep over
+  `phoenix_kit`, `phoenix_kit_billing`, `phoenix_kit_ecommerce`, and a host
+  application. The base currency a shop actually uses is the
+  `is_default = true` row of `phoenix_kit_currencies`; the removed setting
+  did not merely go unread, it actively disagreed with that row (seeded
+  `'EUR'` while the currency table's default is `USD`), which is worse than
+  no setting at all. `down/1` restores the row with V135's exact seed
+  statement (`ON CONFLICT ("key") DO NOTHING`), so a rollback never
+  overwrites a value an operator re-created by hand — the same shape as
+  V184's `shop_currency` removal.
+
+  ### V188 - User connections: the three unique indexes the schemas name
 
   Creates `phoenix_kit_user_follows_unique_idx`,
   `phoenix_kit_user_blocks_unique_idx` and
@@ -733,7 +747,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 188
+  @current_version 189
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

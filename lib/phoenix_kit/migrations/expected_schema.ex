@@ -157,6 +157,20 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # over the 49 shipped files; the real-database integration suite re-ran
   # clean against a DB migrated through V183.
   #
+  # V189 (2026-09-08, per-domain currency Э5) declares NO object here, and
+  # cannot: it is a pure data migration — `DELETE FROM phoenix_kit_settings
+  # WHERE "key" = 'billing_default_currency'` (a dead setting seeded by V135
+  # that nothing reads, and that actively disagreed with the currency
+  # table's `is_default` row it duplicates), plus the version-marker
+  # COMMENT. No table, column, index or constraint is added, dropped or
+  # reshaped — the same V182/V184 class — so `chain_hash` is restamped over
+  # the 55 shipped files rather than the manifest being regenerated. The
+  # chain was re-run end to end into a fresh database (V135→V189) and the
+  # migration's real statements are exercised against a seeded settings row
+  # by test/phoenix_kit/migrations/v189_test.exs, including down/1 never
+  # clobbering a value an operator re-created by hand — the same shape as
+  # V184's `shop_currency` removal.
+  #
   # V188 (2026-09-08) DECLARES three objects here by hand, all new and all
   # indexes: `index:phoenix_kit_user_follows_unique_idx` (follower_uuid,
   # followed_uuid), `index:phoenix_kit_user_blocks_unique_idx` (blocker_uuid,
@@ -296,7 +310,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "b31cd24d2f1d905455e5be3db11ce46a09eba374ec99f2fa988a35e7f6493fbc"
+  @chain_hash "2379effc7f93d11d2010c9f4cf0b1774865de371fe91a2674e96d958e4fbfabe"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
