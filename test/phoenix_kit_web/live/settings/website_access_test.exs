@@ -48,6 +48,17 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
       assert html =~ "Password gate"
     end
 
+    # The boss asked for all three off this page (2026-09-08). Pinned so a
+    # revert is a deliberate edit to this test, not a quiet re-appearance.
+    test "carries no presets, no visitor notice and no environment banner", %{conn: conn} do
+      {:ok, _view, html} = live(conn, @page)
+
+      refute html =~ ~s(phx-click="apply_preset"), "presets"
+      refute html =~ ~s(id="feature-notice"), "the visitor notice feature"
+      refute html =~ "pk-notice-form", "the notice's form"
+      refute html =~ "This install runs as", "the environment banner"
+    end
+
     test "switching the gate on without a password says what it needs", %{conn: conn} do
       {:ok, view, _} = live(conn, @page)
 

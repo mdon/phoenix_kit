@@ -197,6 +197,18 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccessTest do
     end
   end
 
+  test "the response body is passed through untouched — nothing is injected any more" do
+    body = "<html><head></head><body class=\"x\"><p>hi</p></body></html>"
+
+    conn =
+      request("/about")
+      |> run()
+      |> put_resp_content_type("text/html")
+      |> send_resp(200, body)
+
+    assert conn.resp_body == body
+  end
+
   # The header rides a before_send callback that the plug registers on two
   # different branches — the allowed-address one and the everyone-else one —
   # and the gate sets the same header itself before halting. Both branches
