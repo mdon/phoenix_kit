@@ -1,7 +1,12 @@
-## Unreleased
+## 2.22.1 - 2026-09-08
 
 ### Added
 
+- Tabs on the Media settings page (`/admin/settings/media`) — Buckets /
+  Configuration / Quick Actions, the same `<.nav_tabs>` treatment already
+  applied to Email Sending and Sitemap. The ImageMagick/FFmpeg dependency
+  warnings stay above the tab strip since they apply regardless of which
+  tab is open.
 - **Public "Edit link" API** — `PhoenixKitWeb.AdminEditHelper.assign_admin_edit/3`
   is now a documented public API: a host LiveView or a module's own public
   controller/LiveView calls it to declare a public page's matching admin
