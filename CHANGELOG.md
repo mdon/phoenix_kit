@@ -1,3 +1,17 @@
+## 2.22.6 - 2026-09-08
+
+### Changed
+
+- **Integrations encryption's legacy-key warning no longer logs on every
+  boot by default.** Any install still on the `secret_key_base`-derived
+  fallback (every install before the dedicated-key feature existed) got a
+  `Logger.warning` on every single restart with no way to quiet it short of
+  configuring a dedicated key. `PhoenixKit.boot/1` now only emits it when
+  `config :phoenix_kit, integration_encryption_warn_on_boot: true` is set
+  (default `false`). `mix phoenix_kit.doctor` and the admin-only system page
+  still surface the same diagnosis on demand, unconditionally — only the
+  unsolicited boot-time push is now opt-in.
+
 ## 2.22.5 - 2026-09-08
 
 ### Changed

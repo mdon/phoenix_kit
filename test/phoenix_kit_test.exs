@@ -111,12 +111,31 @@ defmodule PhoenixKitTest do
       original_dedicated = Application.get_env(:phoenix_kit, :integrations_encryption_key)
       original_flat = Application.get_env(:phoenix_kit, :secret_key_base)
 
+      original_warn_on_boot =
+        Application.get_env(:phoenix_kit, :integration_encryption_warn_on_boot)
+
       on_exit(fn ->
         restore_env(:integrations_encryption_key, original_dedicated)
         restore_env(:secret_key_base, original_flat)
+        restore_env(:integration_encryption_warn_on_boot, original_warn_on_boot)
       end)
 
       :ok
+    end
+
+    # Off by default: an install still on the legacy secret_key_base fallback
+    # (the common, supported case — see `Encryption`'s moduledoc) must not get
+    # this log line on every single restart with no way to quiet it.
+    # `mix phoenix_kit.doctor` and the admin system page still surface the
+    # same diagnosis on demand — this only silences the boot-time push.
+    test "does not warn about the legacy key tier by default" do
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.put_env(:phoenix_kit, :secret_key_base, "legacy-secret-for-boot-test")
+      Application.delete_env(:phoenix_kit, :integration_encryption_warn_on_boot)
+
+      log = capture_log(fn -> PhoenixKit.boot({:ok, self()}) end)
+
+      refute log =~ "[PhoenixKit.Integrations]"
     end
 
     # This check used to run as a `Task` child of `PhoenixKit.Supervisor`,
@@ -127,10 +146,11 @@ defmodule PhoenixKitTest do
     # `:legacy_secret_key_base`. `boot/1` runs only after
     # `Supervisor.start_link/2` returns, i.e. after the host's Endpoint has
     # definitely started — this proves the check is wired in here and
-    # produces the correct warning for the legacy tier.
-    test "warns about the legacy key tier when boot/1 runs" do
+    # produces the correct warning for the legacy tier, once opted in.
+    test "warns about the legacy key tier when boot/1 runs and warn_on_boot is enabled" do
       Application.delete_env(:phoenix_kit, :integrations_encryption_key)
       Application.put_env(:phoenix_kit, :secret_key_base, "legacy-secret-for-boot-test")
+      Application.put_env(:phoenix_kit, :integration_encryption_warn_on_boot, true)
 
       log = capture_log(fn -> PhoenixKit.boot({:ok, self()}) end)
 

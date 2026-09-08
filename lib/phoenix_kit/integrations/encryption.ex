@@ -26,9 +26,11 @@ defmodule PhoenixKit.Integrations.Encryption do
        (env, config file, git history) can decrypt every stored integration
        credential, since that secret is shared with session signing, CSRF
        tokens, and everything else Phoenix derives from it. `status/0`
-       reports this tier as `:legacy_secret_key_base` and
-       `PhoenixKit.Supervisor` logs a boot warning about it — see
-       `warn_if_insecure/0`.
+       reports this tier as `:legacy_secret_key_base`. `mix phoenix_kit.doctor`
+       and the admin-only system page always surface it; a boot-time log line
+       is also available (see `warn_if_insecure/0`) but OFF by default — set
+       `config :phoenix_kit, integration_encryption_warn_on_boot: true` to
+       have `PhoenixKit.boot/1` log it on every restart.
 
   Set `config :phoenix_kit, integration_encryption_enabled: false` to turn
   encryption off entirely (new and existing writes store plaintext). This is
@@ -925,10 +927,20 @@ defmodule PhoenixKit.Integrations.Encryption do
   def min_dedicated_key_length, do: @min_dedicated_key_length
 
   @doc """
-  Logs a one-time warning when integration credentials are not protected by
-  a dedicated key — called once at boot by `PhoenixKit.boot/1`.
-  Deliberately silent (no log line) for the healthy `:dedicated` case; the
-  common, correctly-configured install must produce zero noise here.
+  Logs a warning when integration credentials are not protected by a
+  dedicated key. Deliberately silent (no log line) for the healthy
+  `:dedicated` case; the common, correctly-configured install must produce
+  zero noise here.
+
+  This function itself is unconditional — every call evaluates `key_report/0`
+  and logs if it isn't `:ok`. What's opt-in is *who calls it at boot*:
+  `PhoenixKit.boot/1` only invokes it when
+  `config :phoenix_kit, integration_encryption_warn_on_boot: true` is set
+  (default `false`), since otherwise every install still on the legacy
+  `secret_key_base` fallback would get this log line on every single restart
+  with no way to quiet it. `mix phoenix_kit.doctor` and the admin-only system
+  page render `key_report/0` directly, independent of this flag, so the
+  diagnosis is always available on demand even when the boot push is off.
 
   An `:integrations_encryption_key` shorter than the minimum length gets
   its OWN message rather than being folded into the "no dedicated key"

@@ -160,8 +160,20 @@ defmodule PhoenixKit do
   # only after `Supervisor.start_link/2` returns — i.e. after every child in
   # the HOST's own tree has started, Endpoint included, regardless of where
   # it's listed.
+  #
+  # Off by default. The `secret_key_base`-derived fallback this warns about
+  # is the tier every install used before a dedicated key existed (see
+  # `Encryption`'s moduledoc) — for a host that hasn't opted into a
+  # dedicated key, this log line fired on every single boot/restart with no
+  # way to quiet it short of configuring one. `Encryption.warn_if_insecure/0`
+  # itself still runs unconditionally from `mix phoenix_kit.doctor` and the
+  # admin-only system page, so the diagnosis stays available on demand — this
+  # only silences the boot-time push. Opt in with
+  # `config :phoenix_kit, integration_encryption_warn_on_boot: true`.
   defp warn_if_integrations_encryption_insecure do
-    Encryption.warn_if_insecure()
+    if Application.get_env(:phoenix_kit, :integration_encryption_warn_on_boot, false) do
+      Encryption.warn_if_insecure()
+    end
   rescue
     error ->
       require Logger
