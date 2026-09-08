@@ -1,7 +1,7 @@
 defmodule PhoenixKitWeb.Live.Settings.IntegrationFormSecretMaskingTest do
   @moduledoc """
   D011: a saved credential must never round-trip into the rendered HTML of
-  the system integration setup form (`/admin/settings/integrations/website/:uuid`).
+  the system integration setup form (`/admin/settings/integrations/:uuid`).
 
   Uses `aws_ses` as the exercising provider — it mixes a non-sensitive
   required field (`access_key`, `aws_region`) with a sensitive one
@@ -16,7 +16,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationFormSecretMaskingTest do
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
 
-  @new_path Routes.path("/admin/settings/integrations/website/new")
+  @new_path Routes.path("/admin/settings/integrations/new")
 
   defp setup_admin(%{conn: conn}) do
     {user, _token} = create_admin_user()
@@ -69,7 +69,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationFormSecretMaskingTest do
       secret = "AwsSecretKey-#{System.unique_integer([:positive])}"
       uuid = seed_aws_ses(secret)
 
-      {:ok, _view, html} = live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
+      {:ok, _view, html} = live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
 
       refute html =~ secret
     end
@@ -79,7 +79,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationFormSecretMaskingTest do
       secret = "AwsSecretKey-#{System.unique_integer([:positive])}"
       uuid = seed_aws_ses(secret)
 
-      {:ok, _view, html} = live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
+      {:ok, _view, html} = live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
 
       assert html =~ "A secret is already configured — leave blank to keep the current value"
       assert html =~ ~s(name="secret_key" id="field-secret_key" value="")
@@ -88,7 +88,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationFormSecretMaskingTest do
     test "non-secret fields keep showing their saved value", %{conn: conn} do
       uuid = seed_aws_ses("AwsSecretKey-irrelevant")
 
-      {:ok, _view, html} = live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
+      {:ok, _view, html} = live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
 
       assert html =~ "AKIAEXAMPLE123"
       assert html =~ "eu-central-1"
@@ -102,7 +102,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationFormSecretMaskingTest do
       secret = "AwsSecretKey-#{System.unique_integer([:positive])}"
       uuid = seed_aws_ses(secret)
 
-      {:ok, view, _html} = live(conn, Routes.path("/admin/settings/integrations/website/#{uuid}"))
+      {:ok, view, _html} = live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
 
       view
       |> element(~s(form[phx-submit="save_form"]))

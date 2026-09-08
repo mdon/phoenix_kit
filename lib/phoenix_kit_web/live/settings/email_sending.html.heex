@@ -11,232 +11,281 @@
   current_locale={@current_locale}
 >
   <div class="flex flex-col px-4 py-6 gap-6">
-    <.form_section
-      title={gettext("Sender Identity")}
-      icon="hero-identification"
-      body_class="space-y-4"
-    >
-      <:subtitle>
-        {gettext("Currently effective:")} {@effective_from_name} &lt;{@effective_from_email}&gt;
-      </:subtitle>
-      <%!-- A sender the tracking module cannot log is the one failure mode with
+    <.nav_tabs
+      active_tab={@active_tab}
+      on_change="switch_settings_tab"
+      variant={:border}
+      tabs={
+        [
+          %{id: "identity", label: gettext("Sender Identity"), icon: "hero-identification"},
+          %{id: "transport", label: gettext("Transport"), icon: "hero-server-stack"}
+        ] ++
+          if(@mailbox_local?,
+            do: [%{id: "mailbox", label: gettext("Local Dev Mailbox"), icon: "hero-inbox"}],
+            else: []
+          ) ++
+          [
+            %{
+              id: "default_integration",
+              label: gettext("Default Integration"),
+              icon: "hero-paper-airplane"
+            },
+            %{id: "test_send", label: gettext("Test Send"), icon: "hero-paper-airplane"},
+            %{
+              id: "send_profiles",
+              label: gettext("Send Profiles"),
+              icon: "hero-adjustments-horizontal"
+            }
+          ] ++
+          Enum.map(@email_settings_sections, fn section ->
+            %{id: "module_#{section.id}", label: section.title, icon: "hero-puzzle-piece"}
+          end)
+      }
+    />
+
+    <div class={@active_tab != "identity" && "hidden"}>
+      <.form_section
+        title={gettext("Sender Identity")}
+        icon="hero-identification"
+        body_class="space-y-4"
+      >
+        <:subtitle>
+          {gettext("Currently effective:")} {@effective_from_name} &lt;{@effective_from_email}&gt;
+        </:subtitle>
+        <%!-- A sender the tracking module cannot log is the one failure mode with
            no symptom: mail still goes out, the log stays empty, and nothing in
            the UI says why. Warn where the address is edited. --%>
-      <div :if={!@sender_loggable?} class="alert alert-warning">
-        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
-        <div>
-          <div class="font-semibold">
-            {gettext("This sender address cannot be logged")}
+        <div :if={!@sender_loggable?} class="alert alert-warning">
+          <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+          <div>
+            <div class="font-semibold">
+              {gettext("This sender address cannot be logged")}
+            </div>
+            <div class="text-sm">
+              {gettext(
+                "The email tracking module only records messages sent from a full address (name@domain.tld). With %{email} mail is still delivered, but nothing is written to the email log — silently.",
+                email: @effective_from_email
+              )}
+            </div>
           </div>
+        </div>
+
+        <form id="sender-identity-form" phx-submit="save_sender_identity" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <.input
+              name="from_name"
+              type="text"
+              value={@from_name}
+              label={gettext("From name")}
+              placeholder={@effective_from_name}
+            />
+            <.input
+              name="from_email"
+              type="email"
+              value={@from_email}
+              label={gettext("From email")}
+              placeholder={@effective_from_email}
+            />
+          </div>
+          <p class="text-xs text-base-content/50">
+            {gettext(
+              "Leave a field blank to fall back to the application config or built-in default."
+            )}
+          </p>
+          <button type="submit" class="btn btn-primary btn-sm">
+            {gettext("Save sender identity")}
+          </button>
+        </form>
+      </.form_section>
+    </div>
+
+    <div class={@active_tab != "transport" && "hidden"}>
+      <.form_section title={gettext("Transport")} icon="hero-server-stack" body_class="space-y-4">
+        <:subtitle>
+          {gettext("Used when no default transactional integration is selected below.")}
+        </:subtitle>
+
+        <div class={["alert", if(@mailer_adapter, do: "alert-success", else: "alert-warning")]}>
+          <.icon name="hero-server-stack" class="w-5 h-5 shrink-0" />
+          <div>
+            <h3 class="font-bold flex items-center gap-2">
+              <%= if @mailer_built_in? do %>
+                {gettext("Static mailer: built-in PhoenixKit mailer")}
+              <% else %>
+                {gettext("Static mailer: parent app mailer (%{module})",
+                  module: inspect(@mailer_module)
+                )}
+              <% end %>
+              <span class={[
+                "badge badge-sm",
+                if(@mailer_adapter, do: "badge-success", else: "badge-warning")
+              ]}>
+                {if @mailer_adapter, do: gettext("Configured"), else: gettext("Not configured")}
+              </span>
+            </h3>
+            <p :if={@mailer_adapter} class="text-sm mt-1">
+              {gettext("adapter")}: {inspect(@mailer_adapter)}
+            </p>
+            <p :if={!@mailer_adapter} class="text-sm mt-1">
+              {gettext(
+                "No adapter configured for the static mailer. Set one in your application config, or connect an email-capable integration below and pick it as the default transactional integration."
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="font-medium text-sm mb-2">{gettext("Email-capable integrations")}</h4>
+          <%= if @email_connections == [] do %>
+            <p class="text-sm text-base-content/60">
+              {gettext("No email-capable integrations connected yet.")}
+              <.pk_link
+                navigate="/admin/settings/integrations/new"
+                class="link link-primary"
+              >
+                {gettext("Add one")}
+              </.pk_link>
+            </p>
+          <% else %>
+            <.table_default variant="zebra" size="sm" class="w-full">
+              <.table_default_header>
+                <.table_default_row>
+                  <.table_default_header_cell>{gettext("Service")}</.table_default_header_cell>
+                  <.table_default_header_cell>{gettext("Name")}</.table_default_header_cell>
+                  <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
+                </.table_default_row>
+              </.table_default_header>
+              <.table_default_body>
+                <.table_default_row :for={conn <- @email_connections}>
+                  <.table_default_cell>
+                    <div class="flex items-center gap-2">
+                      <.icon name={conn.provider.icon} class="w-4 h-4 text-base-content/60" />
+                      <span>{conn.provider.name}</span>
+                    </div>
+                  </.table_default_cell>
+                  <.table_default_cell>{conn.name}</.table_default_cell>
+                  <.table_default_cell>
+                    <% {badge_class, badge_text} = integration_status_badge(conn.data["status"]) %>
+                    <span class={"badge badge-sm #{badge_class}"}>{badge_text}</span>
+                    <span
+                      :if={conn.data["validation_status"] not in [nil, "", "ok"]}
+                      class="text-xs block mt-0.5 text-base-content/70"
+                    >
+                      {conn.data["validation_status"]}
+                    </span>
+                  </.table_default_cell>
+                </.table_default_row>
+              </.table_default_body>
+            </.table_default>
+          <% end %>
+        </div>
+      </.form_section>
+    </div>
+
+    <div :if={@mailbox_local?} class={@active_tab != "mailbox" && "hidden"}>
+      <.form_section
+        title={gettext("Local dev mailbox")}
+        icon="hero-inbox"
+        body_class="space-y-4"
+      >
+        <:subtitle>
+          {gettext(
+            "Where development mail goes while the resolved transport is the local adapter."
+          )}
+        </:subtitle>
+
+        <div :if={@dev_mailbox_enabled} class="alert alert-warning">
+          <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
           <div class="text-sm">
             {gettext(
-              "The email tracking module only records messages sent from a full address (name@domain.tld). With %{email} mail is still delivered, but nothing is written to the email log — silently.",
-              email: @effective_from_email
+              "Auth mail carries single-use tokens, and /dev/mailbox has no authentication — anyone who can reach this server can read them. Only for closed environments."
             )}
           </div>
         </div>
-      </div>
+        <div :if={!@dev_mailbox_enabled} class="alert alert-info">
+          <.icon name="hero-information-circle" class="w-5 h-5 shrink-0" />
+          <div class="text-sm">
+            {gettext("The mailbox is off: outgoing mail is written to the server log instead.")}
+          </div>
+        </div>
 
-      <form id="sender-identity-form" phx-submit="save_sender_identity" class="space-y-4">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <.input
-            name="from_name"
-            type="text"
-            value={@from_name}
-            label={gettext("From name")}
-            placeholder={@effective_from_name}
+        <form id="dev-mailbox-form" phx-change="toggle_dev_mailbox">
+          <.checkbox
+            id="dev_mailbox_enabled"
+            name="enabled"
+            checked={@dev_mailbox_enabled}
+            label={gettext("Deliver development mail to /dev/mailbox")}
           />
-          <.input
-            name="from_email"
-            type="email"
-            value={@from_email}
-            label={gettext("From email")}
-            placeholder={@effective_from_email}
-          />
-        </div>
-        <p class="text-xs text-base-content/50">
+        </form>
+      </.form_section>
+    </div>
+
+    <div class={@active_tab != "default_integration" && "hidden"}>
+      <.form_section
+        title={gettext("Default Transactional Integration")}
+        icon="hero-paper-airplane"
+      >
+        <:subtitle>
           {gettext(
-            "Leave a field blank to fall back to the application config or built-in default."
+            "All outbound core mail — authentication, notifications — routes through this integration when set. Leave unset to use the static mailer above. For newsletter broadcasts, see"
           )}
-        </p>
-        <button type="submit" class="btn btn-primary btn-sm">
-          {gettext("Save sender identity")}
-        </button>
-      </form>
-    </.form_section>
-
-    <.form_section title={gettext("Transport")} icon="hero-server-stack" body_class="space-y-4">
-      <:subtitle>
-        {gettext("Used when no default transactional integration is selected below.")}
-      </:subtitle>
-
-      <div class={["alert", if(@mailer_adapter, do: "alert-success", else: "alert-warning")]}>
-        <.icon name="hero-server-stack" class="w-5 h-5 shrink-0" />
-        <div>
-          <h3 class="font-bold flex items-center gap-2">
-            <%= if @mailer_built_in? do %>
-              {gettext("Static mailer: built-in PhoenixKit mailer")}
-            <% else %>
-              {gettext("Static mailer: parent app mailer (%{module})",
-                module: inspect(@mailer_module)
-              )}
-            <% end %>
-            <span class={[
-              "badge badge-sm",
-              if(@mailer_adapter, do: "badge-success", else: "badge-warning")
-            ]}>
-              {if @mailer_adapter, do: gettext("Configured"), else: gettext("Not configured")}
-            </span>
-          </h3>
-          <p :if={@mailer_adapter} class="text-sm mt-1">
-            {gettext("adapter")}: {inspect(@mailer_adapter)}
-          </p>
-          <p :if={!@mailer_adapter} class="text-sm mt-1">
-            {gettext(
-              "No adapter configured for the static mailer. Set one in your application config, or connect an email-capable integration below and pick it as the default transactional integration."
-            )}
-          </p>
-        </div>
-      </div>
-
-      <div>
-        <h4 class="font-medium text-sm mb-2">{gettext("Email-capable integrations")}</h4>
-        <%= if @email_connections == [] do %>
-          <p class="text-sm text-base-content/60">
-            {gettext("No email-capable integrations connected yet.")}
-            <.pk_link
-              navigate="/admin/settings/integrations/website/new"
-              class="link link-primary"
-            >
-              {gettext("Add one")}
-            </.pk_link>
-          </p>
-        <% else %>
-          <.table_default variant="zebra" size="sm" class="w-full">
-            <.table_default_header>
-              <.table_default_row>
-                <.table_default_header_cell>{gettext("Service")}</.table_default_header_cell>
-                <.table_default_header_cell>{gettext("Name")}</.table_default_header_cell>
-                <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
-              </.table_default_row>
-            </.table_default_header>
-            <.table_default_body>
-              <.table_default_row :for={conn <- @email_connections}>
-                <.table_default_cell>
-                  <div class="flex items-center gap-2">
-                    <.icon name={conn.provider.icon} class="w-4 h-4 text-base-content/60" />
-                    <span>{conn.provider.name}</span>
-                  </div>
-                </.table_default_cell>
-                <.table_default_cell>{conn.name}</.table_default_cell>
-                <.table_default_cell>
-                  <% {badge_class, badge_text} = integration_status_badge(conn.data["status"]) %>
-                  <span class={"badge badge-sm #{badge_class}"}>{badge_text}</span>
-                  <span
-                    :if={conn.data["validation_status"] not in [nil, "", "ok"]}
-                    class="text-xs block mt-0.5 text-base-content/70"
-                  >
-                    {conn.data["validation_status"]}
-                  </span>
-                </.table_default_cell>
-              </.table_default_row>
-            </.table_default_body>
-          </.table_default>
-        <% end %>
-      </div>
-    </.form_section>
-
-    <.form_section
-      :if={@mailbox_local?}
-      title={gettext("Local dev mailbox")}
-      icon="hero-inbox"
-      body_class="space-y-4"
-    >
-      <:subtitle>
-        {gettext("Where development mail goes while the resolved transport is the local adapter.")}
-      </:subtitle>
-
-      <div :if={@dev_mailbox_enabled} class="alert alert-warning">
-        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
-        <div class="text-sm">
-          {gettext(
-            "Auth mail carries single-use tokens, and /dev/mailbox has no authentication — anyone who can reach this server can read them. Only for closed environments."
-          )}
-        </div>
-      </div>
-      <div :if={!@dev_mailbox_enabled} class="alert alert-info">
-        <.icon name="hero-information-circle" class="w-5 h-5 shrink-0" />
-        <div class="text-sm">
-          {gettext("The mailbox is off: outgoing mail is written to the server log instead.")}
-        </div>
-      </div>
-
-      <form id="dev-mailbox-form" phx-change="toggle_dev_mailbox">
-        <.checkbox
-          id="dev_mailbox_enabled"
-          name="enabled"
-          checked={@dev_mailbox_enabled}
-          label={gettext("Deliver development mail to /dev/mailbox")}
-        />
-      </form>
-    </.form_section>
-
-    <.form_section title={gettext("Default Transactional Integration")} icon="hero-paper-airplane">
-      <:subtitle>
-        {gettext(
-          "All outbound core mail — authentication, notifications — routes through this integration when set. Leave unset to use the static mailer above. For newsletter broadcasts, see"
-        )}
-        <.pk_link navigate="/admin/settings/email-sending/profiles" class="link link-primary">
+          <.pk_link navigate="/admin/settings/email-sending/profiles" class="link link-primary">
           {gettext("Send Profiles")}
         </.pk_link>.
-      </:subtitle>
-      <form id="default-integration-form" phx-change="select_default_integration">
-        <.select
-          name="integration_uuid"
-          value={@default_integration_uuid}
-          prompt={gettext("None — use the static mailer")}
-          options={Enum.map(@email_connections, &{"#{&1.provider.name} — #{&1.name}", &1.uuid})}
-          class="max-w-md"
-        />
-      </form>
-    </.form_section>
+        </:subtitle>
+        <form id="default-integration-form" phx-change="select_default_integration">
+          <.select
+            name="integration_uuid"
+            value={@default_integration_uuid}
+            prompt={gettext("None — use the static mailer")}
+            options={Enum.map(@email_connections, &{"#{&1.provider.name} — #{&1.name}", &1.uuid})}
+            class="max-w-md"
+          />
+        </form>
+      </.form_section>
+    </div>
 
-    <.form_section title={gettext("Test Send")} icon="hero-paper-airplane">
-      <form
-        id="test-send-form"
-        phx-submit="send_test_email"
-        class="flex flex-col sm:flex-row gap-3 items-start sm:items-end"
-      >
-        <.input
-          name="recipient"
-          type="email"
-          value=""
-          label={gettext("Recipient")}
-          placeholder="you@example.com"
-          wrapper_class="w-full max-w-sm"
-          required
-        />
-        <button type="submit" class="btn btn-outline btn-sm">
-          {gettext("Send test email")}
-        </button>
-      </form>
-    </.form_section>
+    <div class={@active_tab != "test_send" && "hidden"}>
+      <.form_section title={gettext("Test Send")} icon="hero-paper-airplane">
+        <form
+          id="test-send-form"
+          phx-submit="send_test_email"
+          class="flex flex-col sm:flex-row gap-3 items-start sm:items-end"
+        >
+          <.input
+            name="recipient"
+            type="email"
+            value=""
+            label={gettext("Recipient")}
+            placeholder="you@example.com"
+            wrapper_class="w-full max-w-sm"
+            required
+          />
+          <button type="submit" class="btn btn-outline btn-sm">
+            {gettext("Send test email")}
+          </button>
+        </form>
+      </.form_section>
+    </div>
 
-    <.form_section title={gettext("Send Profiles")} icon="hero-adjustments-horizontal">
-      <:subtitle>
-        {gettext("Per-account sender identity, rate limits, and provider-specific options.")}
-      </:subtitle>
-      <.pk_link navigate="/admin/settings/email-sending/profiles" class="btn btn-outline btn-sm">
-        {gettext("Manage send profiles")}
-      </.pk_link>
-    </.form_section>
+    <div class={@active_tab != "send_profiles" && "hidden"}>
+      <.form_section title={gettext("Send Profiles")} icon="hero-adjustments-horizontal">
+        <:subtitle>
+          {gettext("Per-account sender identity, rate limits, and provider-specific options.")}
+        </:subtitle>
+        <.pk_link navigate="/admin/settings/email-sending/profiles" class="btn btn-outline btn-sm">
+          {gettext("Manage send profiles")}
+        </.pk_link>
+      </.form_section>
+    </div>
 
-    <.form_section
+    <div
       :for={section <- @email_settings_sections}
-      title={section.title}
-      icon="hero-puzzle-piece"
+      class={@active_tab != "module_#{section.id}" && "hidden"}
     >
-      <.live_component module={section.component} id={section.id} />
-    </.form_section>
+      <.form_section title={section.title} icon="hero-puzzle-piece">
+        <.live_component module={section.component} id={section.id} />
+      </.form_section>
+    </div>
   </div>
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>

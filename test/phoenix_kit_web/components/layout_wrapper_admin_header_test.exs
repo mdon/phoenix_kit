@@ -34,7 +34,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
   defp owner_scope, do: scope(["Owner"], Permissions.all_module_keys())
 
   defp admin_shell(scope, opts \\ []) do
-    assigns = %{scope: scope, show_label: Keyword.get(opts, :show_admin_panel_label)}
+    assigns = %{
+      scope: scope,
+      show_label: Keyword.get(opts, :show_admin_panel_label),
+      dev_environment: Keyword.get(opts, :dev_environment)
+    }
 
     ~H"""
     <LayoutWrapper.app_layout
@@ -44,6 +48,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
       page_title="Dashboard"
       project_title="Acme"
       show_admin_panel_label={@show_label}
+      dev_environment={@dev_environment}
       phoenix_kit_current_scope={@scope}
     >
       <span id="pk-test-body">body</span>
@@ -454,6 +459,38 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
       html = admin_shell(plain_user_scope(), show_admin_panel_label: true)
 
       refute html =~ "Admin Panel"
+    end
+  end
+
+  describe "the [dev] tag beside the project title" do
+    # Automatic — not a setting to remember to flip. `dev_environment: nil`
+    # (the default) reads `WebsiteAccess.environment().looks_like_dev?`,
+    # which is true under `mix test` (MIX_ENV=test is not "prod"). The
+    # explicit-override tests below pin the behavior without depending on
+    # that env fact.
+
+    test "shows up under an explicit dev override" do
+      html = admin_shell(owner_scope(), dev_environment: true)
+
+      assert html =~ "[dev]"
+    end
+
+    test "an explicit false hides it even though `mix test` looks like dev" do
+      html = admin_shell(owner_scope(), dev_environment: false)
+
+      refute html =~ "[dev]"
+    end
+
+    test "defaults to the live heuristic — MIX_ENV=test is not \"prod\"" do
+      html = admin_shell(owner_scope())
+
+      assert html =~ "[dev]"
+    end
+
+    test "renders for a visitor with no admin rights too — it's project metadata, not a permission" do
+      html = admin_shell(plain_user_scope(), dev_environment: true)
+
+      assert html =~ "[dev]"
     end
   end
 end

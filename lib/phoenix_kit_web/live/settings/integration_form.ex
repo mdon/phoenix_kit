@@ -28,7 +28,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
       socket
       |> assign(:page_title, gettext("Add Integration"))
       |> assign(:project_title, project_title)
-      |> assign(:current_path, Routes.path("/admin/settings/integrations/website"))
+      |> assign(:current_path, Routes.path("/admin/settings/integrations"))
       |> assign(:providers, Providers.all())
       |> assign(:selected_provider, nil)
       |> assign(:provider, nil)
@@ -106,7 +106,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
 
             %{"error" => error} ->
               description = params["error_description"] || error
-              clean_path = Routes.path("/admin/settings/integrations/website/#{uuid}")
+              clean_path = Routes.path("/admin/settings/integrations/#{uuid}")
 
               socket
               |> put_flash(
@@ -125,14 +125,14 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
       {:error, _} ->
         socket
         |> put_flash(:error, gettext("Integration not found"))
-        |> push_navigate(to: Routes.path("/admin/settings/integrations/website"))
+        |> push_navigate(to: Routes.path("/admin/settings/integrations"))
     end
   end
 
   defp apply_action(socket, :edit, _params) do
     socket
     |> put_flash(:error, gettext("Invalid integration URL"))
-    |> push_navigate(to: Routes.path("/admin/settings/integrations/website"))
+    |> push_navigate(to: Routes.path("/admin/settings/integrations"))
   end
 
   # ---------------------------------------------------------------------------
@@ -294,7 +294,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Connection removed"))
-         |> push_navigate(to: Routes.path("/admin/settings/integrations/website"))}
+         |> push_navigate(to: Routes.path("/admin/settings/integrations"))}
 
       {:error, _reason} ->
         {:noreply, assign(socket, :error, gettext("Failed to remove connection."))}
@@ -407,7 +407,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   # ---------------------------------------------------------------------------
 
   defp handle_oauth_callback(uuid, code, state, socket) do
-    clean_path = Routes.path("/admin/settings/integrations/website/#{uuid}")
+    clean_path = Routes.path("/admin/settings/integrations/#{uuid}")
 
     # Verify CSRF state token if one was stored
     case verify_oauth_state(uuid, state) do
@@ -530,7 +530,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
 
     case Integrations.save_setup(uuid, attrs, actor_uuid(socket)) do
       {:ok, data} ->
-        edit_path = Routes.path("/admin/settings/integrations/website/#{uuid}")
+        edit_path = Routes.path("/admin/settings/integrations/#{uuid}")
 
         socket =
           socket
@@ -673,7 +673,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   defp build_redirect_uri(socket, uuid) do
     base = Settings.get_setting("site_url", "")
     locale = socket.assigns[:current_locale_base]
-    path = Routes.path("/admin/settings/integrations/website/#{uuid}", locale: locale)
+    path = Routes.path("/admin/settings/integrations/#{uuid}", locale: locale)
 
     if is_binary(base) and base != "" do
       "#{String.trim_trailing(base, "/")}#{path}"

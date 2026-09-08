@@ -432,6 +432,14 @@ defmodule PhoenixKitWeb.Integration do
       live "/users/confirm", Users.ConfirmationInstructions, :new,
         as: :user_confirmation_instructions
 
+      # Confirms an email change requested from the parked /users/confirm
+      # page's "Wrong email? Change it" form. Deliberately NOT
+      # /profile/settings/confirm-email/:token — that route sits behind the
+      # authenticated-AND-confirmed live_session, which an unconfirmed user
+      # fixing their email can never pass.
+      live "/users/confirm/change-email/:token", Users.ConfirmEmailChange, :edit,
+        as: :user_confirm_email_change
+
       # Where the invite-only gate parks an account that has not been admitted.
       # It belongs on this ungated surface for the same reason /users/confirm
       # does: the gates redirect *to* it, so gating it would be a loop.
@@ -549,13 +557,12 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/settings/authorization", Live.Settings.Authorization, :index
       live "/admin/settings/website-access", Live.Settings.WebsiteAccess, :index
       live "/admin/settings/organization", Live.Settings.Organization, :index
-      # Website-wide integrations — the "Website Integrations" sub-subtab of the
-      # Settings › Integrations section (gated by "integrations_system"). Declared
-      # BEFORE the personal "/:uuid" route below so the static "website" segment
-      # isn't captured as a uuid.
-      live "/admin/settings/integrations/website", Live.Settings.Integrations, :index
-      live "/admin/settings/integrations/website/new", Live.Settings.IntegrationForm, :new
-      live "/admin/settings/integrations/website/:uuid", Live.Settings.IntegrationForm, :edit
+      # Website-wide integrations — the "Website Integrations" subtab of Settings
+      # (gated by "integrations_system"). Personal per-user integrations live
+      # separately under /profile/settings/integrations.
+      live "/admin/settings/integrations", Live.Settings.Integrations, :index
+      live "/admin/settings/integrations/new", Live.Settings.IntegrationForm, :new
+      live "/admin/settings/integrations/:uuid", Live.Settings.IntegrationForm, :edit
 
       # "email-sending", not "emails" — the optional emails module registers its
       # own routable "Emails" settings tab at /admin/settings/emails (via

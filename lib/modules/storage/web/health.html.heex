@@ -2,8 +2,11 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={@page_title}
-  page_section={gettext("Media")}
-  page_section_path={PhoenixKit.Utils.Routes.path("/admin/settings/media")}
+  page_section={gettext("Settings")}
+  page_section_path={PhoenixKit.Utils.Routes.path("/admin/settings")}
+  page_crumbs={[
+    %{label: gettext("Media"), path: PhoenixKit.Utils.Routes.path("/admin/settings/media")}
+  ]}
   page_subtitle={gettext("Check file redundancy against configured target")}
   current_path={@current_path}
   current_locale={@current_locale}

@@ -15,7 +15,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsEncryptionBannerTest do
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
 
-  @list_path Routes.path("/admin/settings/integrations/website")
+  @list_path Routes.path("/admin/settings/integrations")
 
   setup %{conn: conn} do
     {user, _token} = create_admin_user()

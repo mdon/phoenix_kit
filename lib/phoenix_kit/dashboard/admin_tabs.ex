@@ -305,7 +305,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
       # subtab like its siblings, gated on `integrations_system` alone.
       admin_subtab(
         :admin_settings_integrations,
-        gettext_noop("Website Integrations"),
+        gettext_noop("Integrations"),
         "hero-globe-alt",
         "integrations/website",
         920,

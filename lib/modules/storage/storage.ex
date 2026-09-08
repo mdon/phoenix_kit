@@ -2158,6 +2158,55 @@ defmodule PhoenixKit.Modules.Storage do
            f.uuid
          )
        )},
+      # The catalogue module (phoenix_kit_catalogue) stores its image
+      # references inside the JSONB `data` column rather than dedicated
+      # columns — a plain join would miss them entirely, and a
+      # live catalogue item, category, or catalogue-record image would
+      # look orphaned and get queued for deletion by DeleteOrphanedFileJob.
+      {"phoenix_kit_cat_items",
+       dynamic(
+         [f],
+         fragment(
+           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_items ci WHERE ci.data->>'featured_image_uuid' = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_items ci WHERE ci.data->'media_order' @> to_jsonb(ARRAY[?::text])) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_items ci WHERE ci.data->'ecommerce'->>'file_uuid' = ?::text)",
+           f.uuid,
+           f.uuid,
+           f.uuid
+         )
+       )},
+      {"phoenix_kit_cat_categories",
+       dynamic(
+         [f],
+         fragment(
+           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->>'featured_image_uuid' = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->'media_order' @> to_jsonb(ARRAY[?::text])) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->'ecommerce'->>'image_uuid' = ?::text)",
+           f.uuid,
+           f.uuid,
+           f.uuid
+         )
+       )},
+      {"phoenix_kit_cat_catalogues",
+       dynamic(
+         [f],
+         fragment(
+           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_catalogues ct WHERE ct.data->>'featured_image_uuid' = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_catalogues ct WHERE ct.data->'media_order' @> to_jsonb(ARRAY[?::text]))",
+           f.uuid,
+           f.uuid
+         )
+       )},
+      # Unlike the three JSONB-backed tables above, cat_pdfs references its
+      # source file through a plain NOT NULL `file_uuid` FK with
+      # ON DELETE RESTRICT — the same shape as phoenix_kit_post_media. Missing
+      # this entry would let DeleteOrphanedFileJob delete the physical file
+      # data for a PDF still in active use, then crash on the FK-RESTRICT
+      # violation while deleting the phoenix_kit_files row, leaving a
+      # dangling record and a broken PDF.
+      {"phoenix_kit_cat_pdfs",
+       dynamic(
+         [f],
+         fragment(
+           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_pdfs cp WHERE cp.file_uuid = ?)",
+           f.uuid
+         )
+       )},
       {"phoenix_kit_publishing_contents",
        dynamic(
          [f],

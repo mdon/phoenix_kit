@@ -31,7 +31,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Health do
     socket =
       socket
       |> assign(:current_path, Routes.path("/admin/settings/media/health"))
-      |> assign(:page_title, gettext("Media Health"))
+      |> assign(:page_title, gettext("Health"))
       |> assign(:project_title, project_title)
       |> assign(:current_locale, locale)
       |> assign(:url_path, Routes.path("/admin/settings/media/health"))

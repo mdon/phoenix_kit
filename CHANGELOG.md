@@ -1,3 +1,200 @@
+## 2.22.0 - 2026-09-08
+
+### Added
+
+- The parked `/users/confirm` page (where a logged-in but unconfirmed user
+  lands) now has a "Wrong email? Change it" option — a compact version of
+  Profile Settings' change-email form (current password + new address).
+  Confirming the new address both changes the account's email and confirms
+  it in one step, so a typo'd signup email no longer strands the account.
+  The confirmation link points at a new, purpose-built page
+  (`/users/confirm/change-email/:token`) rather than the normal
+  `/profile/settings/confirm-email/:token` — that page requires a confirmed
+  account to reach, which would have made the fix for "I'm unconfirmed"
+  depend on already being confirmed.
+
+### Fixed
+
+- The parked page's "Resend confirmation instructions" flash message said
+  "If your email is in our system and it has not been confirmed yet..." even
+  though the visitor was already logged in as that exact account — the
+  enumeration-safe hedge (correct for the public, logged-out resend form)
+  read as a wrong answer once you're signed in. A logged-in unconfirmed user
+  now gets a direct message naming their own address, and the (previously
+  editable) email field on that form is now read-only and its value ignored
+  server-side — editing it could otherwise be used to probe whether an
+  arbitrary address is registered.
+
+## 2.21.5 - 2026-09-08
+
+### Changed
+
+- The "Development site" preset (Website Access settings) no longer switches
+  on the visitor notice bar — the admin header's automatic "[dev]" tag
+  (added in 2.21.3) already tells an admin apart from production, so the
+  preset only needs the password gate and hiding from search engines now.
+  The notice feature itself is unchanged and still available for hosts that
+  want a visitor-facing banner for any reason (maintenance, under
+  construction, or their own dev-site text). Existing installs that already
+  applied the old preset keep their notice switched on until turned off by
+  hand on Settings → Website Access → Notice.
+
+### Fixed
+
+- Flash notifications could get stuck on screen indefinitely instead of
+  auto-dismissing. `@flash` is one Phoenix assign covering all three kinds
+  (info/warning/error), so putting or clearing a *different* kind's flash —
+  or the same kind with unchanged text — marks the whole assign dirty and
+  re-diffs every currently-shown flash node, not just the one that actually
+  changed. The `FlashAutoDismiss` hook's `updated()` callback (added in
+  2.21.0 to fix a related issue) treated every such patch as "a new message
+  landed" and unconditionally restarted the dismiss timer, so a flash on a
+  page where anything else touched flash state could sit on screen forever.
+  It now fingerprints the message text and only restarts the timer when it
+  actually changed.
+
+## 2.21.4 - 2026-09-07
+
+### Fixed
+
+- The "igniter dependency is missing" message that `mix phoenix_kit.update`
+  (and the other Igniter-backed tasks) prints for an unsupported `MIX_ENV`
+  (e.g. `prod`) told the operator to add
+  `{:igniter, "~> 0.7", only: [:dev, :test]}` — the exact fix the message had
+  just explained would not work, since that scoping excludes the very
+  environment the task is running in. It now explains that these tasks
+  generate/apply code and genuinely need igniter loaded wherever they run,
+  and offers the two real options: run the task from dev/CI and ship the
+  generated files, or broaden the host's own igniter dependency's `only:` to
+  include that environment.
+
+## 2.21.3 - 2026-09-07
+
+### Added
+
+- A quiet "[dev]" tag next to the project title in the admin header,
+  automatic whenever `PhoenixKit.WebsiteAccess.environment().looks_like_dev?`
+  is true (non-`prod` mix env, or a dev/staging/test/local/sandbox/preview
+  word in the hostname or configured site URL) — no setting to remember to
+  flip. Replaces the old workflow of switching on the general-purpose Notice
+  bar (a fixed bar across the bottom of every page) just to signal "this
+  isn't the production site"; that feature is unchanged and still available
+  for actual visitor announcements.
+
+### Changed
+
+- **Breaking:** the website-wide Integrations settings page moved from
+  `/admin/settings/integrations/website` to `/admin/settings/integrations`.
+  The `/website` segment only ever existed to disambiguate it from the
+  personal per-user integrations page, which shared the same base path; that
+  page has since moved to `/profile/settings/integrations`, so the
+  disambiguation segment is no longer needed. Any bookmarked or linked
+  `/website` URL will 404.
+
+## 2.21.2 - 2026-09-07
+
+### Added
+
+- Non-destructive avatar cropping, Apple Photos style — picking a new avatar
+  opens a drag/wheel/slider crop editor before anything persists; the crop
+  geometry (`x`, `y`, `zoom`, aspect ratio) is stored alongside the original
+  upload rather than baked into re-encoded pixels, so re-cropping never loses
+  quality.
+
+### Fixed
+
+- Multi-domain sitemaps could list the same home URL twice (once bare, once
+  with the full cross-domain hreflang set) when a locale-prefixed clone route
+  had no `canonical_path` of its own, and a single-language canonical group
+  on a non-primary domain could carry a self-only hreflang pair that the
+  page's own `<head>` never backed up.
+- The storage orphan-file check now recognizes catalogue-owned tables:
+  `phoenix_kit_cat_items`, `phoenix_kit_cat_categories`, and
+  `phoenix_kit_cat_catalogues` store image references inside a JSONB `data`
+  column rather than dedicated FK columns, so a plain join was missing them
+  and could queue a live catalogue image for deletion. `phoenix_kit_cat_pdfs`
+  references its file through a real FK with `ON DELETE RESTRICT`; a PDF
+  still in use could have its file data deleted and then crash the cleanup
+  job on the FK violation — that table is now guarded too.
+- A stale avatar crop could outlive the file it was framed for — replacing
+  an avatar without submitting a new crop now clears the old geometry
+  instead of stretching the old aspect ratio onto the new image.
+- Landscape avatars rendered soft: crop-variant selection compared needed
+  pixels against the image's width instead of its short side, which is what
+  actually bounds sharpness under cover-fit.
+
+## 2.21.1 - 2026-09-07
+
+### Fixed
+
+- **Languages settings page's breadcrumb fix from 2.21.0 was incomplete**
+  — the `page_section`/`page_section_path` assigns were added to `mount/3`
+  but never threaded into the template's `app_layout` call, so the
+  breadcrumb still showed bare "Languages" instead of "Settings /
+  Languages".
+- Media settings page's subtitle was a full paragraph that didn't fit in
+  the header on any but the widest screens, truncating to unreadable
+  fragments. Shortened to match the length of every other Settings page's
+  subtitle.
+- **Two mistranslated strings from 2.21.0's gettext round-trip**: the
+  Sitemap tab label "Sources" had been auto-fuzzy-matched to unrelated
+  "Success" translations in Russian, French, German, Spanish, Italian,
+  Polish, and Estonian; the Email Sending tab label "Local Dev Mailbox"
+  was fuzzy-matched correctly but never had its fuzzy flag verified and
+  cleared. Both fixed with real translations.
+
+## 2.21.0 - 2026-09-07
+
+### Added
+
+- Tabs on the Email Sending and Sitemap settings pages — same treatment
+  as the rest of Settings: Sender Identity / Transport / Local Dev
+  Mailbox / Default Integration / Test Send / Send Profiles for Email
+  Sending, and Sources / Configuration / Quick Actions / Advanced for
+  Sitemap.
+
+### Fixed
+
+- **Settings breadcrumb regressions on several pages that don't call
+  `LayoutWrapper.app_layout` from a per-page `.ex`/`.heex` pair the same
+  way the rest of Settings does** — Media (`/admin/settings/media` and
+  its Dimensions/Health/bucket/dimension sub-pages) and Sitemap
+  (`/admin/settings/sitemap`) both linked their breadcrumb's second
+  segment to "Modules" → `/admin/modules` instead of "Settings" →
+  `/admin/settings`, even though both live under the Settings sidebar
+  group — the wrong link, not just a mislabeled one. Media's page title
+  was also shortened from "Media Settings" to "Media" to match the
+  sidebar and stop the breadcrumb truncating to unreadable fragments on
+  narrower screens.
+- **Languages settings page had no breadcrumb section at all**, showing
+  bare "Languages" instead of "Settings / Languages" like every sibling
+  page.
+- Renamed "Website Integrations" back to plain "Integrations" now that
+  the personal "My Integrations" page (the reason for the "Website"
+  qualifier) lives under Profile Settings instead of colliding with this
+  one.
+- "Main countries" label capitalization on the Organization settings
+  page's Main Countries tab (was inconsistent with the other tab
+  labels).
+- Drag-and-drop reordering on touch devices (iPad) for the Main
+  Countries list — SortableJS's fallback drag mode needs
+  `touch-action: none` on the drag handle, which nothing in the
+  codebase set; added it globally to `.pk-drag-handle`, plus a larger
+  touch target for this specific handle.
+- Flash notifications no longer auto-dismissed after their timeout — the
+  `FlashAutoDismiss` hook only started its timer in `mounted()`, which
+  LiveView doesn't call again when it patches an existing flash node in
+  place. Added the missing `updated()` lifecycle callback.
+- VAT/Tax ID on the Organization settings page is optional again (format
+  is still validated when a value is given) — most jurisdictions don't
+  require every company to register for VAT/a tax ID below a threshold.
+  Registration Number is now required instead, since every incorporated
+  company gets one.
+- The "Main Page" field under General → Site Address is now labeled
+  "Signed-Out Landing Page" with a clearer explanation of what it
+  actually controls (where a signed-out visitor lands, including right
+  after logging out).
+
 ## Unreleased
 
 ### Added

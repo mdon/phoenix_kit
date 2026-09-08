@@ -1,6 +1,7 @@
 defmodule PhoenixKit.Integration.Users.EmailChangeTest do
   use PhoenixKit.DataCase, async: true
 
+  alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.Auth
 
   defp unique_email, do: "emailchg_#{System.unique_integer([:positive])}@example.com"
@@ -113,6 +114,56 @@ defmodule PhoenixKit.Integration.Users.EmailChangeTest do
       user = create_user()
 
       assert :error = Auth.update_user_email(user, "invalid_token_string")
+    end
+
+    # A parked /users/confirm page fixing a typo'd email is the exact case
+    # this covers: the user is unconfirmed going in, and clicking the new
+    # address's link must both change the email AND move that parked page
+    # along live — which only happens if this fires.
+    test "broadcasts user_confirmed when the change lands on a genuinely unconfirmed account" do
+      user = create_user()
+      new_email = unique_email()
+
+      Events.subscribe_to_user_confirmation(user.uuid)
+
+      {:ok, applied_user} = Auth.apply_user_email(user, @valid_password, %{email: new_email})
+
+      {:ok, %Swoosh.Email{} = email} =
+        Auth.deliver_user_update_email_instructions(
+          applied_user,
+          user.email,
+          &"http://example.com/confirm_email/#{&1}"
+        )
+
+      [_, token] = Regex.run(~r/confirm_email\/([^\s"<]+)/, email.html_body || email.text_body)
+
+      assert :ok = Auth.update_user_email(user, token)
+      assert_receive {:user_confirmed, %{uuid: uuid, email: ^new_email}} when uuid == user.uuid
+    end
+
+    # An already-confirmed user routinely changing their address must NOT
+    # re-fire this — a dashboard subscribed to the site-wide feed would
+    # otherwise see a false "just confirmed" event on every email change.
+    test "does not broadcast user_confirmed for an already-confirmed account" do
+      user = create_user()
+      {:ok, user} = Auth.admin_confirm_user(user)
+      new_email = unique_email()
+
+      Events.subscribe_to_user_confirmation(user.uuid)
+
+      {:ok, applied_user} = Auth.apply_user_email(user, @valid_password, %{email: new_email})
+
+      {:ok, %Swoosh.Email{} = email} =
+        Auth.deliver_user_update_email_instructions(
+          applied_user,
+          user.email,
+          &"http://example.com/confirm_email/#{&1}"
+        )
+
+      [_, token] = Regex.run(~r/confirm_email\/([^\s"<]+)/, email.html_body || email.text_body)
+
+      assert :ok = Auth.update_user_email(user, token)
+      refute_receive {:user_confirmed, _}
     end
   end
 

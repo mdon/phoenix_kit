@@ -508,7 +508,8 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
       address_line1: (params["company_address_line1"] || "") |> String.trim(),
       city: (params["company_city"] || "") |> String.trim(),
       state: (params["company_state"] || "") |> String.trim(),
-      postal_code: (params["company_postal_code"] || "") |> String.trim()
+      postal_code: (params["company_postal_code"] || "") |> String.trim(),
+      registration: (params["company_registration"] || "") |> String.trim()
     }
   end
 
@@ -516,12 +517,13 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
     []
     |> validate_required(data.name, gettext("Company name is required"))
     |> validate_required(data.country, gettext("Country is required"))
-    |> validate_required(
-      data.vat,
-      gettext("%{label} is required", label: tax_id_label(data.country))
-    )
+    # NOT required: VAT/tax-ID registration is threshold-based or opt-in in
+    # most jurisdictions (e.g. Estonia's own VAT threshold), so plenty of
+    # real companies simply have none. Format is still checked when one is
+    # given — see validate_tax_id/3 below.
     |> validate_required(data.address_line1, gettext("Street address is required"))
     |> validate_required(data.city, gettext("City is required"))
+    |> validate_required(data.registration, gettext("Registration number is required"))
     |> validate_tax_id(data.vat, data.country)
     |> validate_state(data.state, data.country)
     |> validate_postal_code(data.postal_code, data.country)
@@ -608,7 +610,7 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
         "postal_code" => data.postal_code,
         "country" => data.country,
         "vat_number" => String.upcase(data.vat),
-        "registration_number" => (params["company_registration"] || "") |> String.trim()
+        "registration_number" => data.registration
       })
 
     Settings.update_json_setting("company_info", company_info)

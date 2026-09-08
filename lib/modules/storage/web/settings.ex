@@ -60,7 +60,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     socket =
       socket
       |> assign(:current_path, current_path)
-      |> assign(:page_title, "Media Settings")
+      |> assign(:page_title, gettext("Media"))
       |> assign(:project_title, project_title)
       |> assign(:buckets, buckets)
       |> assign(:bucket_file_counts, bucket_file_counts)

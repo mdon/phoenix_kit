@@ -1,0 +1,24 @@
+<PhoenixKitWeb.Components.AuthPageWrapper.auth_page_wrapper
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title={gettext("Confirm Email Change")}
+  current_path={assigns[:url_path] || "/users/confirm"}
+>
+  <h1 class="text-2xl font-bold text-center mb-2">{gettext("Confirm your new email")}</h1>
+  <p class="text-center text-base-content/60 text-sm mb-6">
+    {gettext("Confirming also completes your account confirmation.")}
+  </p>
+  <.form for={@form} id="confirm_email_change_form" phx-submit="confirm_email_change">
+    <fieldset class="fieldset min-w-0">
+      <legend class="fieldset-legend sr-only">{gettext("Confirm Email Change")}</legend>
+      <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
+      <button
+        type="submit"
+        phx-disable-with={gettext("Confirming...")}
+        class="btn btn-primary w-full transition-all hover:scale-[1.02] active:scale-[0.98]"
+      >
+        {gettext("Confirm email change")} <span aria-hidden="true">→</span>
+      </button>
+    </fieldset>
+  </.form>
+</PhoenixKitWeb.Components.AuthPageWrapper.auth_page_wrapper>

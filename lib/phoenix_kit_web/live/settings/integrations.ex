@@ -28,7 +28,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
 
     socket =
       socket
-      |> assign(:page_title, gettext("Website Integrations"))
+      |> assign(:page_title, gettext("Integrations"))
       |> assign(
         :page_subtitle,
         gettext("Connect external services for use across modules")
@@ -202,7 +202,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   end
 
   defp get_current_path(locale) do
-    Routes.path("/admin/settings/integrations/website", locale: locale)
+    Routes.path("/admin/settings/integrations", locale: locale)
   end
 
   defp integration_status_badge("connected"), do: {"badge-success", gettext("Connected")}

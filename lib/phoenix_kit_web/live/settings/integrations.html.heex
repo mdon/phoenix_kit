@@ -84,7 +84,7 @@
         </:toolbar_title>
         <:toolbar_actions>
           <.pk_link
-            navigate="/admin/settings/integrations/website/new"
+            navigate="/admin/settings/integrations/new"
             class="btn btn-primary btn-sm"
           >
             <.icon name="hero-plus" class="w-4 h-4" />
@@ -119,9 +119,7 @@
             <.table_default_cell>
               <.row_link
                 navigate={
-                  PhoenixKit.Utils.Routes.path(
-                    "/admin/settings/integrations/website/#{conn.uuid}"
-                  )
+                  PhoenixKit.Utils.Routes.path("/admin/settings/integrations/#{conn.uuid}")
                 }
                 label={conn.provider.name}
               />
@@ -169,9 +167,7 @@
               >
                 <.table_row_menu_link
                   navigate={
-                    PhoenixKit.Utils.Routes.path(
-                      "/admin/settings/integrations/website/#{conn.uuid}"
-                    )
+                    PhoenixKit.Utils.Routes.path("/admin/settings/integrations/#{conn.uuid}")
                   }
                   icon="hero-pencil"
                   label={gettext("Configure")}
@@ -217,9 +213,7 @@
             label={gettext("Actions")}
           >
             <.table_row_menu_link
-              navigate={
-                PhoenixKit.Utils.Routes.path("/admin/settings/integrations/website/#{conn.uuid}")
-              }
+              navigate={PhoenixKit.Utils.Routes.path("/admin/settings/integrations/#{conn.uuid}")}
               icon="hero-pencil"
               label={gettext("Configure")}
             />
@@ -266,7 +260,7 @@
         gettext("Connect external services like %{providers}.", providers: @provider_names)
       }
     >
-      <.pk_link navigate="/admin/settings/integrations/website/new" class="btn btn-primary btn-sm">
+      <.pk_link navigate="/admin/settings/integrations/new" class="btn btn-primary btn-sm">
         <.icon name="hero-plus" class="w-4 h-4" />
         {gettext("Add Integration")}
       </.pk_link>

@@ -2,8 +2,15 @@
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
   page_title={@page_title}
-  page_section={gettext("Dimensions")}
-  page_section_path={PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions")}
+  page_section={gettext("Settings")}
+  page_section_path={PhoenixKit.Utils.Routes.path("/admin/settings")}
+  page_crumbs={[
+    %{label: gettext("Media"), path: PhoenixKit.Utils.Routes.path("/admin/settings/media")},
+    %{
+      label: gettext("Dimensions"),
+      path: PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions")
+    }
+  ]}
   page_subtitle={gettext("Configure dimension presets for automatic file variant generation")}
   current_path={@current_path}
   current_locale={@current_locale}

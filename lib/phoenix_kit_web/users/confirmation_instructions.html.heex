@@ -25,7 +25,13 @@
   <.form for={@form} id="resend_confirmation_form" phx-submit="send_instructions">
     <fieldset class="fieldset min-w-0">
       <legend class="fieldset-legend sr-only">{gettext("Resend Confirmation")}</legend>
-      <.input field={@form[:email]} type="email" label={gettext("Email")} required />
+      <.input
+        field={@form[:email]}
+        type="email"
+        label={gettext("Email")}
+        required
+        readonly={@awaiting_confirmation?}
+      />
       <button
         type="submit"
         phx-disable-with={gettext("Sending...")}
@@ -35,6 +41,50 @@
       </button>
     </fieldset>
   </.form>
+
+  <%= if @awaiting_confirmation? do %>
+    <div class="text-center mt-4">
+      <button
+        type="button"
+        phx-click="toggle_change_email"
+        class="text-sm font-semibold text-primary hover:underline"
+      >
+        {if @change_email?, do: gettext("Cancel"), else: gettext("Wrong email? Change it")}
+      </button>
+    </div>
+
+    <%= if @change_email? do %>
+      <.form
+        for={@email_form}
+        id="change_email_form"
+        phx-submit="update_email"
+        phx-change="validate_email_change"
+        class="mt-4"
+      >
+        <fieldset class="fieldset min-w-0">
+          <legend class="fieldset-legend sr-only">{gettext("Change Email")}</legend>
+          <.input field={@email_form[:email]} type="email" label={gettext("New email")} required />
+          <.input
+            field={@email_form[:current_password]}
+            name="current_password"
+            id="change-email-current-password"
+            type="password"
+            label={gettext("Current password")}
+            value={@email_form_current_password}
+            required
+          />
+          <button
+            type="submit"
+            phx-disable-with={gettext("Updating...")}
+            class="btn btn-secondary w-full mt-4"
+          >
+            {gettext("Update email & resend confirmation")}
+          </button>
+        </fieldset>
+      </.form>
+    <% end %>
+  <% end %>
+
   <div class="text-center mt-4 text-sm">
     <.link
       href={Routes.path("/users/register")}

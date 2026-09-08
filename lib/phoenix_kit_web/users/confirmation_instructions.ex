@@ -19,6 +19,18 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
     e.g. when the user clicks the emailed link in another tab. It is a
     per-user topic, not the site-wide admin users feed, so a parked
     non-admin never receives other users' structs.
+  - A parked user can also fix a typo'd address instead of only resending to
+    it: "Wrong email?" reveals the same change-email form Profile Settings
+    uses (current password + new address), via `Auth.apply_user_email/3` +
+    `Auth.deliver_user_update_email_instructions/3`. The emailed link points
+    at `PhoenixKitWeb.Users.ConfirmEmailChange`
+    (`/users/confirm/change-email/:token`), NOT the normal
+    `/profile/settings/confirm-email/:token` landing page — that one sits
+    behind the authenticated-AND-confirmed live_session, which an
+    unconfirmed user fixing their email could never pass. Confirming the
+    *new* address there changes the account's email AND confirms it in one
+    step (`Auth.update_user_email/2` runs `confirm_changeset` either way),
+    so there is no separate "now confirm again" round trip.
 
   "Onward" is `?return_to=` (stashed by the gate that parked them), then
   the session's `user_return_to`, then the `after_login_path` setting.
@@ -60,7 +72,10 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
            socket
            |> assign(form: to_form(%{"email" => user.email}, as: "user"))
            |> assign(awaiting_confirmation?: true)
-           |> assign(destination: destination)}
+           |> assign(destination: destination)
+           |> assign(change_email?: false)
+           |> assign(email_form: to_form(Auth.change_user_email(user), as: "email_change"))
+           |> assign(email_form_current_password: nil)}
         end
     end
   end
@@ -72,7 +87,19 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
     end
   end
 
-  def handle_event("send_instructions", %{"user" => %{"email" => email}}, socket) do
+  def handle_event("send_instructions", %{"user" => %{"email" => submitted_email}}, socket) do
+    # A parked visitor is already authenticated — resend to THEIR account,
+    # never whatever the (still-editable) form field currently holds. Without
+    # this, a logged-in unconfirmed user could edit the pre-filled field to
+    # probe whether an arbitrary address exists, and get an honest answer
+    # back (see below) instead of the anonymous form's deliberately vague one.
+    email =
+      if socket.assigns.awaiting_confirmation? do
+        socket.assigns.phoenix_kit_current_user.email
+      else
+        submitted_email
+      end
+
     # Throttle BEFORE the lookup and answer identically either way. This form
     # is public: only an existing unconfirmed account does work (insert a token,
     # send mail), so an unthrottled endpoint is both a targeted mail-flood
@@ -85,10 +112,19 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
       )
     end
 
+    # The vague "if your email is in our system" wording exists to avoid
+    # telling an anonymous visitor whether an address is registered. A parked
+    # visitor is already logged in as that account — there is nothing left to
+    # avoid revealing, and the hedge just reads as a wrong answer ("what do
+    # you mean IF, I'm signed in").
     info =
-      gettext(
-        "If your email is in our system and it has not been confirmed yet, you will receive an email with instructions shortly."
-      )
+      if socket.assigns.awaiting_confirmation? do
+        gettext("We've sent a new confirmation link to %{email}.", email: email)
+      else
+        gettext(
+          "If your email is in our system and it has not been confirmed yet, you will receive an email with instructions shortly."
+        )
+      end
 
     socket = put_flash(socket, :info, info)
 
@@ -99,6 +135,75 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
       {:noreply, socket}
     else
       {:noreply, redirect(socket, to: socket.assigns.destination)}
+    end
+  end
+
+  def handle_event("toggle_change_email", _params, socket) do
+    if socket.assigns.awaiting_confirmation? do
+      {:noreply, update(socket, :change_email?, &(!&1))}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("validate_email_change", params, socket) do
+    if socket.assigns.awaiting_confirmation? do
+      {:noreply, do_validate_email_change(params, socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_email", params, socket) do
+    if socket.assigns.awaiting_confirmation? do
+      {:noreply, do_update_email(params, socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  defp do_validate_email_change(
+         %{"current_password" => password, "email_change" => user_params},
+         socket
+       ) do
+    email_form =
+      socket.assigns.phoenix_kit_current_user
+      |> Auth.change_user_email(user_params)
+      |> Map.put(:action, :validate)
+      |> to_form(as: "email_change")
+
+    socket
+    |> assign(email_form: email_form)
+    |> assign(email_form_current_password: password)
+  end
+
+  defp do_update_email(%{"current_password" => password, "email_change" => user_params}, socket) do
+    user = socket.assigns.phoenix_kit_current_user
+
+    case Auth.apply_user_email(user, password, user_params) do
+      {:ok, applied_user} ->
+        Auth.deliver_user_update_email_instructions(
+          applied_user,
+          user.email,
+          &Routes.url("/users/confirm/change-email/#{&1}")
+        )
+
+        info =
+          gettext(
+            "We've sent a confirmation link to %{email}. Click it to finish updating your email — that also confirms your account.",
+            email: applied_user.email
+          )
+
+        socket
+        |> put_flash(:info, info)
+        |> assign(change_email?: false)
+        |> assign(email_form: to_form(Auth.change_user_email(user), as: "email_change"))
+        |> assign(email_form_current_password: nil)
+
+      {:error, changeset} ->
+        socket
+        |> assign(email_form: to_form(changeset, as: "email_change", action: :insert))
+        |> assign(email_form_current_password: password)
     end
   end
 

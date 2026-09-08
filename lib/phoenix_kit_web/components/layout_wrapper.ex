@@ -54,6 +54,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.PhoenixVersion
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.WebsiteAccess
   alias PhoenixKitWeb.Components.Core.AdminLabel
   alias PhoenixKitWeb.Users.Auth
 
@@ -114,6 +115,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     default: nil,
     doc:
       "Overrides the `show_admin_panel_label` setting for this render. `nil` (the default) reads the setting. Mirrors how `project_title` overrides `Settings.get_project_title/0`, and keeps the header renderable without a database."
+
+  attr :dev_environment, :boolean,
+    default: nil,
+    doc:
+      "Overrides `PhoenixKit.WebsiteAccess.environment().looks_like_dev?` for this render (nil, the default, reads it). Drives the small \"[dev]\" tag next to the project title — automatic, not a setting, so a dev/staging box never has to be told apart by an admin toggle."
 
   attr :current_locale, :string, default: nil
   attr :from_layout, :boolean, default: false
@@ -724,6 +730,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   defp resolve_admin_panel_label(value), do: value
 
+  # `nil` (the default) reads the live heuristic; an explicit `true`/`false`
+  # from the caller wins (tests, previews). Same "not `||`" reasoning as
+  # `resolve_admin_panel_label/1` — an explicit `false` must not fall through
+  # to the automatic read.
+  defp resolve_dev_environment(nil), do: WebsiteAccess.environment().looks_like_dev?
+  defp resolve_dev_environment(value), do: value
+
   # The chip's TEXT. Delegates to the shared resolver so the header and the
   # account-menu entry cannot disagree about what the admin area is called;
   # see `PhoenixKitWeb.Components.Core.AdminLabel`.
@@ -781,6 +794,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       show_admin_panel_label: resolve_admin_panel_label(assigns[:show_admin_panel_label]),
       # The chip's TEXT — see `admin_panel_text/0`.
       admin_panel_text: admin_panel_text(),
+      # The small "[dev]" tag beside the project title — see `resolve_dev_environment/1`.
+      dev_environment?: resolve_dev_environment(assigns[:dev_environment]),
       current_locale: assigns[:current_locale],
       current_locale_base:
         assigns[:current_locale] && DialectMapper.extract_base(assigns[:current_locale]),
@@ -902,6 +917,24 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     >
                       {@project_title}
                     </.link>
+                    <%!-- Automatic — not a setting. `resolve_dev_environment/1`
+                         reads `WebsiteAccess.environment().looks_like_dev?`
+                         (mix env, hostname, site_url heuristics), the same
+                         signal already shown on the Website Access settings
+                         page. Replaces the old fixed bottom-of-viewport
+                         "This is the development site" bar (still available,
+                         opt-in, as the general-purpose Notice feature) with a
+                         quiet header tag nobody has to remember to turn on
+                         or off. --%>
+                    <span
+                      :if={@dev_environment?}
+                      class={[
+                        "text-xs font-mono text-warning shrink-0",
+                        @page_title && "hidden lg:inline"
+                      ]}
+                    >
+                      [dev]
+                    </span>
                     <%!-- Progressive collapse when a page has a title, dropping
                          from the LEFT so the tail of the trail survives: below
                          lg the site name + "Admin Panel" give way to a "…" that

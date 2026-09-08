@@ -43,7 +43,9 @@ defmodule PhoenixKitWeb.Live.Modules.Languages do
     socket =
       socket
       |> assign(:current_path, current_path)
-      |> assign(:page_title, "Languages")
+      |> assign(:page_title, gettext("Languages"))
+      |> assign(:page_section, gettext("Settings"))
+      |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:project_title, project_title)
       |> assign(:ml_enabled, ml_config.enabled)
       |> assign(:languages, display_languages)
