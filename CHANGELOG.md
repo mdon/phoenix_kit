@@ -1,3 +1,24 @@
+## 2.22.5 - 2026-09-08
+
+### Changed
+
+- **"Email Sending" settings page renamed to "Emails Transactional."**
+  Labels and copy only — the route stays `/admin/settings/email-sending`
+  so existing links and bookmarks keep working.
+- **Send Profiles promoted to its own top-level "Emails Bulk" Settings
+  tab** (`/admin/settings/emails-bulk`), a sibling of Emails Transactional
+  rather than a subtab nested under it — bulk/marketing sending config is
+  a distinct concern from the always-needed transactional setup. Stays in
+  core: it's live infrastructure Newsletters' delivery worker depends on
+  today, not something `phoenix_kit_emails` itself consumes.
+- **Website access: dropped the environment banner, the presets, and the
+  visitor notice** (#797). The admin header's automatic `[dev]` tag
+  already tells a dev/staging box apart from production on every page, so
+  the banner and the notice repeated that signal; the presets picked
+  between values every feature already lets you set directly. "Hide from
+  search engines" keeps its `X-Robots-Tag` header, now its own plug step
+  instead of riding inside the removed notice's callback.
+
 ## 2.22.4 - 2026-09-08
 
 ### Added
