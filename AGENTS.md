@@ -100,7 +100,7 @@ Var name = dep app upper-cased + `_PATH`; unset = published Hex pin (`mix hex.pu
   ```
 - **CHANGELOG entries:** write against the bumped `@version` heading; match existing style (Added / Changed / Fixed / i18n, bullets from PR scopes + post-merge review fixes).
 - **PR reviews:** `dev_docs/pull_requests/{year}/{pr_number}-{slug}/{AGENT}_REVIEW.md` (`CLAUDE_REVIEW.md` for Claude). Severities: `BUG - CRITICAL/HIGH/MEDIUM`, `IMPROVEMENT - HIGH/MEDIUM`, `NITPICK`.
-- **Publish:** `mix hex.build`, `mix hex.publish`, `mix docs`.
+- **Publish:** `mix prerelease` first — it is the gate, running `deps.get --check-locked`, `deps.unlock --check-unused`, a prod `compile --warnings-as-errors`, `quality.ci`, `deps.audit`, `hex.audit`, `docs`, `hex.build` and `phoenix_kit.release_check`. Then `mix hex.publish`.
 
 ## Database
 
