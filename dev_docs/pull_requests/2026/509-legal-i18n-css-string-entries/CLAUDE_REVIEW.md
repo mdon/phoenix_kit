@@ -61,7 +61,7 @@ File: `lib/mix/tasks/compile.phoenix_kit_css_sources.ex:81`
 defp format_source(entry, _deps) when is_binary(entry), do: source_for_path(entry)
 ```
 
-A typo'd path (`"/Users/me/projects/foo"` when the dir doesn't exist, or a stale absolute path from a different machine) still emits a `@source` line. Tailwind silently scans nothing and the project loses styles in production with no error.
+A typo'd path (`"~/projects/foo"` when the dir doesn't exist, or a stale absolute path from a different machine) still emits a `@source` line. Tailwind silently scans nothing and the project loses styles in production with no error.
 
 A `Logger.warning("[PhoenixKit] css_sources path not found: #{path}")` when `not File.dir?(path) and not File.regular?(path)` catches typos at compile time without making the compiler fail (paths can legitimately be glob-shaped or live outside the build env).
 
