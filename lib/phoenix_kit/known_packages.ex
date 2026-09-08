@@ -48,7 +48,11 @@ defmodule PhoenixKit.KnownPackages do
   @hex_search_url "https://hex.pm/api/packages"
   @icon_marker_re ~r/\bhex_docs_icon_name:\s*([a-z0-9-]+)/
   @default_icon "hero-puzzle-piece"
-  @skip_packages ["phoenix_kit"]
+  # "phoenix_kit" is core itself. "phoenix_kit_hello_world" is a starter
+  # template for building a new module, not a real feature to offer for
+  # install — advertising it on the admin Modules page would read as a
+  # genuine plugin.
+  @skip_packages ["phoenix_kit", "phoenix_kit_hello_world"]
   @ttl_ms :timer.minutes(10)
   @max_stale_age_ms :timer.hours(24)
   @default_req_options [receive_timeout: 3000]
@@ -309,8 +313,16 @@ defmodule PhoenixKit.KnownPackages do
     end
   end
 
+  # Package-name words that are acronyms, not regular words — plain
+  # `String.capitalize/1` would render "og" (phoenix_kit_og) as "Og".
+  @acronym_words ~w(og)
+
   defp humanize_key(key) do
-    key |> String.split("_") |> Enum.map_join(" ", &String.capitalize/1)
+    key |> String.split("_") |> Enum.map_join(" ", &humanize_word/1)
+  end
+
+  defp humanize_word(word) do
+    if word in @acronym_words, do: String.upcase(word), else: String.capitalize(word)
   end
 
   defp parse_marker(description) do
