@@ -20,7 +20,15 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       # `Roles.get_extended_stats/0` counts with.
       filter_status: [default: "all", url_key: "status"],
       filter_confirmation: [default: "all", url_key: "confirmation"],
-      page: [default: 1, cast: :integer, min: 1]
+      page: [default: 1, cast: :integer, min: 1],
+      # Rows per page, picked with <.page_size_selector>. Allowlisted rather
+      # than bounded: an arbitrary integer out of the URL is a LIMIT clause.
+      per_page: [default: 10, cast: :integer, in: [10, 25, 50, 100]],
+      # The selector's "Auto" mode (pilot on this tab only): the client
+      # measures the viewport and pushes the per_page that fits. Only the
+      # flag lives here — the size it resolved to is `per_page` as usual, so
+      # the URL stays fully self-describing.
+      auto_fit: [default: false, cast: :boolean, url_key: "fit"]
     ]
 
   # Imported per-LiveView rather than from `PhoenixKitWeb, :live_view`: a host
@@ -36,7 +44,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKitWeb.Users.MultiSession
 
-  @per_page 10
   @max_cell_length 20
 
   # Per-admin grid/list preference for the users table, persisted in the
@@ -79,12 +86,12 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       TableColumns.update_user_table_columns(valid_columns)
     end
 
-    # :page, :search_query, :filter_role and :filter_account_type are assigned
-    # from the query string by UrlState before mount/3 runs — re-assigning them
-    # here would overwrite a shared link's state with the defaults.
+    # :page, :per_page, :search_query, :filter_role and :filter_account_type
+    # are assigned from the query string by UrlState before mount/3 runs —
+    # re-assigning them here would overwrite a shared link's state with the
+    # defaults.
     socket =
       socket
-      |> assign(:per_page, @per_page)
       |> assign(:impersonation_actor, impersonation_actor)
       # The rank predicates in the row menu ask the actor's roles once per row.
       # The plug-supplied `@phoenix_kit_current_user` carries no `:roles`
@@ -206,10 +213,24 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     {:noreply, reset_url_state(socket)}
   end
 
-  def handle_event("change_page", %{"page" => page}, socket) do
-    case Integer.parse(page) do
-      {page, ""} when page > 0 -> {:noreply, push_url_state(socket, page: page)}
-      _ -> {:noreply, socket}
+  # Picking "Auto" only raises the flag; the PageSizeAutoFit hook then
+  # measures and pushes the size it fits, tagged `auto: "1"` so the flag
+  # survives. A number picked by hand lowers it. Either way `push_url_state`
+  # resets the page: page 7 of 10 rows is not page 7 of 100.
+  def handle_event("change_per_page", %{"per_page" => "auto"}, socket) do
+    {:noreply, push_url_state(socket, auto_fit: true)}
+  end
+
+  def handle_event("change_per_page", %{"per_page" => per_page} = params, socket) do
+    case {Integer.parse(per_page), Map.has_key?(params, "auto")} do
+      {{per_page, ""}, true} ->
+        {:noreply, push_url_state(socket, per_page: per_page)}
+
+      {{per_page, ""}, false} ->
+        {:noreply, push_url_state(socket, per_page: per_page, auto_fit: false)}
+
+      _ ->
+        {:noreply, socket}
     end
   end
 

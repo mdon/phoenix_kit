@@ -379,6 +379,50 @@ defmodule PhoenixKit.Users.Roles do
   end
 
   @doc """
+  One page of roles for the admin list, system roles first, then by name.
+
+  Options `:page` (default 1) and `:per_page` (default 25). Returns
+  `%{roles: [...], total_count: n, total_pages: n, page: n}` — `page` is
+  clamped into `[1, total_pages]` before the offset is applied, so a link
+  past the end (the last custom role on the last page was just deleted)
+  shows the last page rather than an empty one.
+  """
+  def list_roles_paginated(opts \\ []) do
+    repo = RepoHelper.repo()
+    per_page = Keyword.get(opts, :per_page, 25)
+
+    total_count = repo.aggregate(Role, :count)
+    total_pages = max(div(total_count + per_page - 1, per_page), 1)
+    page = opts |> Keyword.get(:page, 1) |> max(1) |> min(total_pages)
+
+    roles =
+      from(role in Role,
+        order_by: [desc: role.is_system_role, asc: role.name],
+        limit: ^per_page,
+        offset: ^((page - 1) * per_page)
+      )
+      |> repo.all()
+
+    %{roles: roles, total_count: total_count, total_pages: total_pages, page: page}
+  end
+
+  @doc """
+  Role counts for the admin list's summary cards: `%{total: n, system: n, custom: n}`.
+  """
+  def count_roles do
+    repo = RepoHelper.repo()
+
+    {total, system} =
+      repo.one(
+        from(role in Role,
+          select: {count(role.uuid), count(role.uuid) |> filter(role.is_system_role)}
+        )
+      )
+
+    %{total: total, system: system, custom: total - system}
+  end
+
+  @doc """
   Gets role statistics for dashboard display.
 
   ## Examples

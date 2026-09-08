@@ -366,48 +366,22 @@
     </.table_default>
 
     <%!-- Pagination --%>
-    <%= if @total_pages > 1 do %>
-      <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
-        <div class="text-sm text-base-content/70">
-          {gettext("Showing %{from} to %{to} of %{total} sessions",
-            from: (@page - 1) * @per_page + 1,
-            to: min(@page * @per_page, @total_count),
-            total: @total_count
-          )}
-        </div>
-
-        <div class="join">
-          <%= if @page > 1 do %>
-            <button
-              phx-click="change_page"
-              phx-value-page={@page - 1}
-              class="join-item btn btn-outline"
-            >
-              {gettext("« Previous")}
-            </button>
-          <% end %>
-
-          <%= for page_num <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
-            <button
-              phx-click="change_page"
-              phx-value-page={page_num}
-              class={"join-item btn #{if page_num == @page, do: "btn-primary", else: "btn-outline"}"}
-            >
-              {page_num}
-            </button>
-          <% end %>
-
-          <%= if @page < @total_pages do %>
-            <button
-              phx-click="change_page"
-              phx-value-page={@page + 1}
-              class="join-item btn btn-outline"
-            >
-              {gettext("Next »")}
-            </button>
-          <% end %>
-        </div>
-      </div>
-    <% end %>
+    <div
+      :if={@total_count > 0}
+      class="flex flex-col sm:flex-row justify-between items-center gap-4"
+    >
+      <.pagination_info
+        page={@page}
+        per_page={@per_page}
+        total_count={@total_count}
+        noun_plural={gettext("sessions")}
+      />
+      <.pagination_controls
+        page={@page}
+        total_pages={@total_pages}
+        build_url={&url_state_path(assigns, page: &1)}
+      />
+      <.page_size_selector value={@per_page} options={[10, 20, 25, 50, 100]} />
+    </div>
   </div>
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
