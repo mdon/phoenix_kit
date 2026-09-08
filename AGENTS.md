@@ -93,7 +93,7 @@ The chain supports running into a named Postgres schema (`prefix:` opt / `--pref
 Centralized OAuth / API key / bot token / credential management. Full reference: `dev_docs/guides/2026-07-27-integrations-system.md`; design: `dev_docs/plans/integrations-system.md`.
 
 - **Storage:** `phoenix_kit_settings` JSONB, keys `integration:{provider}:{name}`. Consumers reference connections by storage-row **uuid** — all public API except `add_connection/3` and the read shims is uuid-strict.
-- **Owner scopes:** `:system` (website-wide UI `/admin/settings/integrations/website`) vs `{:user, uuid}` (personal UI `/admin/settings/integrations`). Every context call takes an `:owner` opt, **default `:system`** — pass `owner:` explicitly on the personal path or a forgotten owner silently births a SYSTEM row. Never encrypt `owner_uuid`.
+- **Owner scopes:** `:system` (website-wide UI `/admin/settings/integrations`) vs `{:user, uuid}` (personal UI `/profile/settings/integrations`). Every context call takes an `:owner` opt, **default `:system`** — pass `owner:` explicitly on the personal path or a forgotten owner silently births a SYSTEM row. Never encrypt `owner_uuid`.
 - **Module callbacks:** `required_integrations/0`, `integration_providers/0`, optional `migrate_legacy/0` (run via `ModuleRegistry.run_all_legacy_migrations/0`).
 
 ## Core Form Components

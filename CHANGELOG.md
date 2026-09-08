@@ -1,3 +1,16 @@
+## Unreleased
+
+### Fixed
+
+- The **Integrations** sidebar tab still pointed at
+  `/admin/settings/integrations/website`, the path 2.21.3 renamed to
+  `/admin/settings/integrations`. That URL does not 404 as the rename note
+  expected — it matches `/admin/settings/integrations/:uuid` with
+  `uuid = "website"`, so `Repo.get/2` raises `Ecto.Query.CastError` and
+  LiveView returns a 400 reload response, which loops. The two README route
+  lists and `AGENTS.md`'s owner-scope note were stale from the same rename
+  and are corrected alongside it.
+
 ## 2.22.0 - 2026-09-08
 
 ### Added
