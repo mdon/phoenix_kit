@@ -37,6 +37,7 @@ defmodule PhoenixKitWeb.Components.Core.Flash do
       phx-hook={@autoclose && "FlashAutoDismiss"}
       data-dismiss-after={@autoclose && @autoclose}
       data-flash-kind={@autoclose && @kind}
+      data-flash-message={@autoclose && msg}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide_flash("##{@id}")}
       role="alert"
       class="toast toast-top toast-end z-[1000]"

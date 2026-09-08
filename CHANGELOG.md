@@ -1,3 +1,31 @@
+## 2.21.5 - 2026-09-08
+
+### Changed
+
+- The "Development site" preset (Website Access settings) no longer switches
+  on the visitor notice bar — the admin header's automatic "[dev]" tag
+  (added in 2.21.3) already tells an admin apart from production, so the
+  preset only needs the password gate and hiding from search engines now.
+  The notice feature itself is unchanged and still available for hosts that
+  want a visitor-facing banner for any reason (maintenance, under
+  construction, or their own dev-site text). Existing installs that already
+  applied the old preset keep their notice switched on until turned off by
+  hand on Settings → Website Access → Notice.
+
+### Fixed
+
+- Flash notifications could get stuck on screen indefinitely instead of
+  auto-dismissing. `@flash` is one Phoenix assign covering all three kinds
+  (info/warning/error), so putting or clearing a *different* kind's flash —
+  or the same kind with unchanged text — marks the whole assign dirty and
+  re-diffs every currently-shown flash node, not just the one that actually
+  changed. The `FlashAutoDismiss` hook's `updated()` callback (added in
+  2.21.0 to fix a related issue) treated every such patch as "a new message
+  landed" and unconditionally restarted the dismiss timer, so a flash on a
+  page where anything else touched flash state could sit on screen forever.
+  It now fingerprints the message text and only restarts the timer when it
+  actually changed.
+
 ## 2.21.4 - 2026-09-07
 
 ### Fixed

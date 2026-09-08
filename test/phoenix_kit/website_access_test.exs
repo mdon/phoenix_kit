@@ -119,13 +119,12 @@ defmodule PhoenixKit.WebsiteAccessTest do
       assert Notice.text() == "Mind the dust"
     end
 
-    test "dev site: gate + noindex + warning notice pointing at production" do
+    test "dev site: gate + noindex, no visitor notice" do
       Settings.update_setting(Redirect.url_key(), "https://www.example.com")
       assert :ok = WebsiteAccess.apply_preset("dev_site", [])
       assert Gate.switched_on?()
       assert Crawlers.no_index_enabled?()
-      assert Notice.icon() == "warning"
-      assert Notice.link() == "https://www.example.com"
+      refute Notice.switched_on?(), "the admin header's automatic [dev] tag covers this now"
       refute Maintenance.active?()
       refute Redirect.switched_on?(), "a preset never starts redirecting on its own"
     end

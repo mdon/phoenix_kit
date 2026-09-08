@@ -178,7 +178,7 @@ defmodule PhoenixKit.WebsiteAccess do
         label: gettext("Development site"),
         description:
           gettext(
-            "The password gate on, search engines told to stay away, and the notice pointing visitors at the production site once its URL is set."
+            "The password gate on and search engines told to stay away. No visitor notice — the admin header's automatic \"[dev]\" tag already says this is a dev site to anyone logged in."
           )
       },
       %{
@@ -215,25 +215,13 @@ defmodule PhoenixKit.WebsiteAccess do
     end
   end
 
+  # No visitor notice here — the admin header's automatic "[dev]" tag
+  # (Environment.read/0's looks_like_dev?) already tells an admin apart from
+  # production without a switch to remember, and a bottom bar for every
+  # visitor was never the point of this preset.
   def apply_preset("dev_site", opts) do
-    production = Redirect.target_url()
-
     with {:ok, _} <- Gate.set_enabled(true, opts),
-         {:ok, _} <- Crawlers.update_no_index(true, opts),
-         {:ok, _} <- Settings.update_setting(Notice.icon_key(), "warning", opts),
-         {:ok, _} <-
-           Settings.update_setting(
-             Notice.text_key(),
-             default_if_blank(Notice.text(), gettext("This is the development site.")),
-             opts
-           ),
-         {:ok, _} <-
-           Settings.update_setting(
-             Notice.link_key(),
-             default_if_blank(Notice.link(), production || ""),
-             opts
-           ),
-         {:ok, _} <- Settings.update_boolean_setting(Notice.enabled_key(), true, opts) do
+         {:ok, _} <- Crawlers.update_no_index(true, opts) do
       :ok
     end
   end

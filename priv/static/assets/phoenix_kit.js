@@ -3809,6 +3809,7 @@ if (typeof window.Chart === "undefined") {
   window.PhoenixKitHooks.FlashAutoDismiss = {
     mounted() {
       this.duration = parseInt(this.el.dataset.dismissAfter || "5000");
+      this.lastMessage = this.el.dataset.flashMessage;
       this.startTimer();
 
       this.el.addEventListener("mouseenter", () => this.pauseTimer());
@@ -3823,7 +3824,19 @@ if (typeof window.Chart === "undefined") {
     // sit un-timed indefinitely, or inherit a prior dismiss()'s
     // opacity:0/display:none and never even become visible. Reset both
     // the timer and whatever dismiss() left behind, every patch.
+    //
+    // But `@flash` is ONE Phoenix assign covering all three kinds — putting
+    // or clearing a DIFFERENT kind marks the whole assign dirty and
+    // re-diffs THIS node too, even though its own message never changed.
+    // Unconditionally restarting here meant a flash on a page where
+    // anything else touched flash state could never count down to zero.
+    // `data-flash-message` fingerprints the actual text, so the timer only
+    // restarts for a genuinely new message.
     updated() {
+      var message = this.el.dataset.flashMessage;
+      if (message === this.lastMessage) return;
+      this.lastMessage = message;
+
       clearTimeout(this.timer);
       this.el.style.transition = "";
       this.el.style.opacity = "";
