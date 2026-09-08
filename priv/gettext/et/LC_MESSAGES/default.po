@@ -1333,7 +1333,7 @@ msgstr "Reavahe"
 
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:547
 #: lib/phoenix_kit_web/users/confirmation.html.heex:33
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:133
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:119
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:32
 #: lib/phoenix_kit_web/users/login.html.heex:79
 #: lib/phoenix_kit_web/users/reset_password.html.heex:52
@@ -7445,7 +7445,7 @@ msgid "Referral Code"
 msgstr "Soovituskood"
 
 #: lib/phoenix_kit_web/users/confirmation.html.heex:26
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:126
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:112
 #: lib/phoenix_kit_web/users/reset_password.html.heex:45
 #, elixir-autogen, elixir-format
 msgid "Register"
@@ -10748,7 +10748,7 @@ msgstr "Muuda saatmisprofiili seadeid"
 msgid "Edit send profile: %{name}"
 msgstr "Saatmisprofiili muutmine: %{name}"
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:220
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:211
 #, elixir-autogen, elixir-format
 msgid "Email confirmed. Welcome!"
 msgstr "E-post kinnitatud. Tere tulemast!"
@@ -11586,7 +11586,7 @@ msgstr "Juhised otsingurobotitele"
 msgid "Enter your referral code"
 msgstr "Sisesta oma soovituskood"
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:119
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:105
 #: lib/phoenix_kit_web/users/referral_gate.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Log out"
@@ -12470,7 +12470,7 @@ msgstr "Järgib noindexit"
 msgid "If that email address exists, a magic link has been sent."
 msgstr "Kui see e-posti aadress on olemas, on Magic Link saadetud."
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:125
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:124
 #, elixir-autogen, elixir-format
 msgid "If your email is in our system and it has not been confirmed yet, you will receive an email with instructions shortly."
 msgstr "Kui teie e-post on meie süsteemis ja pole veel kinnitatud, saate peagi juhistega e-kirja."
@@ -14202,11 +14202,6 @@ msgstr ""
 msgid "Confirming also completes your account confirmation."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:91
-#, elixir-autogen, elixir-format
-msgid "Current password"
-msgstr ""
-
 #: lib/phoenix_kit_web/users/confirm_email_change.ex:46
 #, elixir-autogen, elixir-format
 msgid "Email changed and confirmed. Welcome!"
@@ -14237,22 +14232,22 @@ msgstr ""
 msgid "Showing %{from} to %{to} of %{total} %{noun}"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:105
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Update email & resend confirmation"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:102
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Updating..."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:196
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:190
 #, elixir-autogen, elixir-format
 msgid "We've sent a confirmation link to %{email}. Click it to finish updating your email — that also confirms your account."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:123
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:122
 #, elixir-autogen, elixir-format
 msgid "We've sent a new confirmation link to %{email}."
 msgstr ""
@@ -14345,11 +14340,6 @@ msgstr "Saada e-kiri uuesti"
 #, elixir-autogen, elixir-format
 msgid "Sent"
 msgstr "Saadetud"
-
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:96
-#, elixir-autogen, elixir-format
-msgid "We ask for your password again as a safety check before moving your account to a new email address."
-msgstr "Küsime uuesti teie parooli turvakontrollina, enne kui viime teie konto uuele e-posti aadressile."
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:13
 #, elixir-autogen, elixir-format

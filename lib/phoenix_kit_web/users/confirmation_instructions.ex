@@ -75,7 +75,6 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
            |> assign(destination: destination)
            |> assign(change_email?: false)
            |> assign(email_form: to_form(Auth.change_user_email(user), as: "email_change"))
-           |> assign(email_form_current_password: nil)
            |> assign(confirmation_sent_at: Auth.get_last_confirmation_sent_at(user))}
         end
     end
@@ -166,25 +165,20 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
     end
   end
 
-  defp do_validate_email_change(
-         %{"current_password" => password, "email_change" => user_params},
-         socket
-       ) do
+  defp do_validate_email_change(%{"email_change" => user_params}, socket) do
     email_form =
       socket.assigns.phoenix_kit_current_user
       |> Auth.change_user_email(user_params)
       |> Map.put(:action, :validate)
       |> to_form(as: "email_change")
 
-    socket
-    |> assign(email_form: email_form)
-    |> assign(email_form_current_password: password)
+    assign(socket, email_form: email_form)
   end
 
-  defp do_update_email(%{"current_password" => password, "email_change" => user_params}, socket) do
+  defp do_update_email(%{"email_change" => user_params}, socket) do
     user = socket.assigns.phoenix_kit_current_user
 
-    case Auth.apply_user_email(user, password, user_params) do
+    case Auth.apply_unconfirmed_user_email(user, user_params) do
       {:ok, applied_user} ->
         Auth.deliver_user_update_email_instructions(
           applied_user,
@@ -202,12 +196,9 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
         |> put_flash(:info, info)
         |> assign(change_email?: false)
         |> assign(email_form: to_form(Auth.change_user_email(user), as: "email_change"))
-        |> assign(email_form_current_password: nil)
 
       {:error, changeset} ->
-        socket
-        |> assign(email_form: to_form(changeset, as: "email_change", action: :insert))
-        |> assign(email_form_current_password: password)
+        assign(socket, email_form: to_form(changeset, as: "email_change", action: :insert))
     end
   end
 

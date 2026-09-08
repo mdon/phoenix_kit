@@ -83,20 +83,6 @@
         <fieldset class="fieldset min-w-0">
           <legend class="fieldset-legend sr-only">{gettext("Change Email")}</legend>
           <.input field={@email_form[:email]} type="email" label={gettext("New email")} required />
-          <.input
-            field={@email_form[:current_password]}
-            name="current_password"
-            id="change-email-current-password"
-            type="password"
-            label={gettext("Current password")}
-            value={@email_form_current_password}
-            required
-          />
-          <p class="text-xs text-base-content/50 mt-1">
-            {gettext(
-              "We ask for your password again as a safety check before moving your account to a new email address."
-            )}
-          </p>
           <button
             type="submit"
             phx-disable-with={gettext("Updating...")}

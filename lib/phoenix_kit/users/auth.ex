@@ -703,6 +703,30 @@ defmodule PhoenixKit.Users.Auth do
   end
 
   @doc """
+  Emulates that the email will change without actually changing it in the
+  database — same as `apply_user_email/3`, but without a password check.
+
+  Restricted to a user who has never confirmed their account (enforced by
+  the pattern match, not just a caller convention). The password re-entry in
+  `apply_user_email/3` exists to stop a hijacked session from quietly
+  redirecting a *live* account's mail; there is no live account to protect
+  here yet, only a pending signup fixing a typo'd address before its first
+  confirmation. This is the only email-change path core exposes without a
+  password, so it must never be reachable once `confirmed_at` is set.
+
+  ## Examples
+
+      iex> apply_unconfirmed_user_email(unconfirmed_user, %{email: "new@example.com"})
+      {:ok, %User{}}
+
+  """
+  def apply_unconfirmed_user_email(%User{confirmed_at: nil} = user, attrs) do
+    user
+    |> User.email_changeset(attrs)
+    |> Ecto.Changeset.apply_action(:update)
+  end
+
+  @doc """
   Updates the user email using the given token.
 
   If the token matches, the user email is updated and the token is deleted.

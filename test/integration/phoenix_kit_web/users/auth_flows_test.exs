@@ -742,20 +742,20 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
       refute html =~ "If your email is in our system"
     end
 
-    # The email field is pre-filled but still editable client-side. Without
-    # this, a logged-in unconfirmed user could rewrite it to probe whether an
-    # arbitrary address is registered and get the (now honest) answer back.
-    test "editing the pre-filled email still resends to the parked user's own account", %{
-      conn: conn
-    } do
+    # The email field renders as a hidden input (not editable in the DOM), but
+    # the server must not trust the submitted value either — a client that
+    # crafts its own phx-submit payload could still send an arbitrary email.
+    # Without server-side enforcement, a logged-in unconfirmed user could
+    # probe whether an arbitrary address is registered and get the (now
+    # honest) answer back. `render_submit/3` bypasses the DOM entirely, the
+    # same way a hand-crafted client payload would.
+    test "a forged email in the resend payload still resends to the parked user's own account",
+         %{conn: conn} do
       user = register_user()
       other = register_user()
       {:ok, lv, _html} = live(login_conn(conn, user), Routes.path("/users/confirm"))
 
-      html =
-        lv
-        |> form("#resend_confirmation_form", %{"user" => %{"email" => other.email}})
-        |> render_submit()
+      html = render_submit(lv, "send_instructions", %{"user" => %{"email" => other.email}})
 
       assert html =~ user.email
       refute html =~ other.email
@@ -772,13 +772,14 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
 
       html = lv |> element("button", "Wrong email? Change it") |> render_click()
       assert html =~ "change_email_form"
+      # Unlike the confirmed Profile Settings flow, this parked/unconfirmed
+      # path never asks for the password — there is no live account yet for
+      # a hijacked session to protect (see `apply_unconfirmed_user_email/2`).
+      refute html =~ "current_password"
 
       html =
         lv
-        |> form("#change_email_form", %{
-          "current_password" => @password,
-          "email_change" => %{"email" => new_email}
-        })
+        |> form("#change_email_form", %{"email_change" => %{"email" => new_email}})
         |> render_submit()
 
       assert html =~ "sent a confirmation link to #{new_email}"
@@ -820,31 +821,10 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
 
       html =
         lv
-        |> form("#change_email_form", %{
-          "current_password" => @password,
-          "email_change" => %{"email" => taken.email}
-        })
+        |> form("#change_email_form", %{"email_change" => %{"email" => taken.email}})
         |> render_submit()
 
       assert html =~ "has already been taken"
-      refute_email_sent()
-    end
-
-    test "changing email with the wrong password is rejected", %{conn: conn} do
-      user = register_user()
-      {:ok, lv, _html} = live(login_conn(conn, user), Routes.path("/users/confirm"))
-
-      lv |> element("button", "Wrong email? Change it") |> render_click()
-
-      html =
-        lv
-        |> form("#change_email_form", %{
-          "current_password" => "WrongPassword!",
-          "email_change" => %{"email" => unique_email()}
-        })
-        |> render_submit()
-
-      assert html =~ "is not valid"
       refute_email_sent()
     end
 
