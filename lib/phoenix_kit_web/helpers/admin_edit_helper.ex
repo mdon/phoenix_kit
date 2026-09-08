@@ -13,13 +13,21 @@ defmodule PhoenixKitWeb.AdminEditHelper do
   which reads the `:admin_edit_url`/`:admin_edit_label` assigns this module
   sets and renders nothing when no URL was assigned.
 
+  The path passed to `assign_admin_edit/3` is the final URL — when it targets a
+  PhoenixKit-routed admin page (as both examples below do), run it through
+  `PhoenixKit.Utils.Routes.path/1` first so it still resolves under a mount
+  prefix, a locale segment, or a renamed `admin_path` segment.
+
   ## Host LiveView example
 
       def handle_params(%{"slug" => slug}, _uri, socket) do
         post = Blog.get_post_by_slug!(slug)
 
         socket =
-          AdminEditHelper.assign_admin_edit(socket, "/admin/posts/\#{post.id}/edit")
+          AdminEditHelper.assign_admin_edit(
+            socket,
+            PhoenixKit.Utils.Routes.path("/admin/posts/\#{post.id}/edit")
+          )
 
         {:noreply, assign(socket, :post, post)}
       end
@@ -36,7 +44,7 @@ defmodule PhoenixKitWeb.AdminEditHelper do
         conn =
           PhoenixKitWeb.AdminEditHelper.assign_admin_edit(
             conn,
-            "/admin/publishing/posts/\#{post.id}/edit",
+            PhoenixKit.Utils.Routes.path("/admin/publishing/posts/\#{post.id}/edit"),
             permission: "publishing"
           )
       end

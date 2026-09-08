@@ -277,14 +277,20 @@ public controller/LiveView — you can offer them a one-click "Edit" link into
 that page's admin counterpart.
 
 Declare the edit target from `handle_params`/`mount` (or a controller action)
-with `PhoenixKitWeb.AdminEditHelper.assign_admin_edit/3`:
+with `PhoenixKitWeb.AdminEditHelper.assign_admin_edit/3`. Route the path
+through `PhoenixKit.Utils.Routes.path/1` when it targets a PhoenixKit admin
+page (as here), so it still resolves under a mount prefix, a locale segment,
+or a renamed `admin_path` segment:
 
 ```elixir
 def handle_params(%{"slug" => slug}, _uri, socket) do
   post = Blog.get_post_by_slug!(slug)
 
   socket =
-    PhoenixKitWeb.AdminEditHelper.assign_admin_edit(socket, "/admin/posts/#{post.id}/edit")
+    PhoenixKitWeb.AdminEditHelper.assign_admin_edit(
+      socket,
+      PhoenixKit.Utils.Routes.path("/admin/posts/#{post.id}/edit")
+    )
 
   {:noreply, assign(socket, :post, post)}
 end
@@ -298,7 +304,7 @@ permission key, e.g. `"publishing"`, checked with
 ```elixir
 PhoenixKitWeb.AdminEditHelper.assign_admin_edit(
   socket,
-  "/admin/publishing/posts/#{post.id}/edit",
+  PhoenixKit.Utils.Routes.path("/admin/publishing/posts/#{post.id}/edit"),
   label: "Edit Post",
   permission: "publishing"
 )

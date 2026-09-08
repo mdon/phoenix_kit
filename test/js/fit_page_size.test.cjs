@@ -49,7 +49,13 @@ global.window = {
   localStorage: { getItem: () => null, setItem: noop, removeItem: noop },
   document: global.document,
 };
-global.navigator = { userAgent: "node" };
+// Node >= 21 defines a global `navigator` as a getter-only accessor
+// property, so a plain assignment throws; redefine it instead.
+Object.defineProperty(global, "navigator", {
+  value: { userAgent: "node" },
+  configurable: true,
+  writable: true,
+});
 global.localStorage = global.window.localStorage;
 global.MutationObserver = class { observe() {} disconnect() {} };
 global.IntersectionObserver = class { observe() {} disconnect() {} };
