@@ -1,3 +1,20 @@
+## Unreleased
+
+### Added
+
+- **Public "Edit link" API** — `PhoenixKitWeb.AdminEditHelper.assign_admin_edit/3`
+  is now a documented public API: a host LiveView or a module's own public
+  controller/LiveView calls it to declare a public page's matching admin
+  edit target. The label argument now also accepts a keyword list
+  (`label:`, `permission:`), gating the link on a specific module's
+  `Scope.has_module_access?/2` in addition to the existing admin-area check,
+  while every existing string-label call site keeps working unchanged. A new
+  `PhoenixKitWeb.Components.Core.AdminEditLink.admin_edit_link/1` component
+  (`<.admin_edit_link .../>`) renders the link — as a standalone button or a
+  `:menu_item` for dropdowns — and renders nothing when there is no URL, so
+  hosts can drop one line into their public layout unconditionally. See the
+  "Edit link on public pages" section in `guides/integration.md`.
+
 ## 2.22.0 - 2026-09-08
 
 ### Added
@@ -231,6 +248,7 @@
   "Province"; the real value from `beamlab_countries` is "Provinces and
   territories".
 
+||||||| parent of 8fbfa12992 (Make the public-page Edit link a documented API with a component and a permission gate)
 ## 2.19.0 - 2026-09-07
 
 ### Changed
