@@ -1,3 +1,38 @@
+## 2.22.3 - 2026-09-08
+
+### Added
+
+- **`PhoenixKit.TestSupport.PostgresPreflight`** — a shared, classified
+  PostgreSQL connection check for a package's `test_helper.exs`. Replaces the
+  `psql -lqt` listing that ran as the shell user over a unix socket and
+  answered the wrong question: it said nothing about whether the *configured*
+  role could reach the database over TCP, so a wrong `PGUSER` did not surface
+  as "wrong `PGUSER`" — it queued through the SQL sandbox and died minutes
+  later as a pool-checkout timeout that read like a flaky test. Ships in
+  `lib/` (not `test/support/`) so sibling packages depending on `phoenix_kit`
+  through Hex can call it too; never call it from application code.
+
+### Fixed
+
+- **`phoenix_kit_user_connections`' three `unique_constraint/3` declarations
+  were inert.** `phoenix_kit_user_follows_unique_idx`,
+  `phoenix_kit_user_blocks_unique_idx` and
+  `phoenix_kit_user_connections_requester_recipient_uidx` have always been
+  named in the module's schemas, but the indexes backing them never existed —
+  a database violation is what `unique_constraint/3` translates into a
+  changeset error, and with no index there was no violation. Two users
+  clicking "connect" on each other at the same moment both passed
+  `request_connection/2`'s read-then-write pre-check and both inserted,
+  leaving a duplicate relationship that a later auto-accept could turn into a
+  live pending request between two already-connected users, or into two
+  "accepted" rows that made `get_accepted_connection/2` raise
+  `Ecto.MultipleResultsError`. V188 removes any duplicates the race already
+  produced (favoring an accepted row over a pending one) and creates the
+  three indexes — an expression index on `LEAST`/`GREATEST` of the pair for
+  the undirected `phoenix_kit_user_connections` table, ordered-pair indexes
+  for the directed follows/blocks tables — so the existing
+  `unique_constraint/3` calls start enforcing what they always claimed to.
+
 ## 2.22.2 - 2026-09-08
 
 ### Added
