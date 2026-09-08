@@ -197,6 +197,33 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccessTest do
     end
   end
 
+  # The header rides a before_send callback that the plug registers on two
+  # different branches — the allowed-address one and the everyone-else one —
+  # and the gate sets the same header itself before halting. Both branches
+  # and the overlap, so a rewiring of that callback cannot quietly drop it.
+  test "the noindex header rides the allowed-address branch, and the gate's bounce carries it once" do
+    Crawlers.update_no_index(true)
+    Settings.update_setting(AllowedAddresses.key(), "203.0.113.7")
+
+    conn =
+      %{request("/about") | remote_ip: {203, 0, 113, 7}}
+      |> run()
+      |> put_resp_content_type("text/html")
+      |> send_resp(200, "<html></html>")
+
+    assert get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"],
+           "an allowed address skips the gate, not the header"
+
+    Settings.update_setting(AllowedAddresses.key(), "")
+    gate_on()
+    conn = request("/about") |> run()
+
+    assert conn.status == 302
+
+    assert get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"],
+           "the gate sets it too — one value, not two"
+  end
+
   test "hide from search engines adds the header to every page, a redirect and the closed page too" do
     Crawlers.update_no_index(true)
 
