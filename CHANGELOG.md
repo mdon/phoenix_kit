@@ -1,24 +1,15 @@
-## 2.22.1 - 2026-09-08
+## Unreleased
 
-### Added
+### Fixed
 
-- Tabs on the Media settings page (`/admin/settings/media`) — Buckets /
-  Configuration / Quick Actions, the same `<.nav_tabs>` treatment already
-  applied to Email Sending and Sitemap. The ImageMagick/FFmpeg dependency
-  warnings stay above the tab strip since they apply regardless of which
-  tab is open.
-- **Public "Edit link" API** — `PhoenixKitWeb.AdminEditHelper.assign_admin_edit/3`
-  is now a documented public API: a host LiveView or a module's own public
-  controller/LiveView calls it to declare a public page's matching admin
-  edit target. The label argument now also accepts a keyword list
-  (`label:`, `permission:`), gating the link on a specific module's
-  `Scope.has_module_access?/2` in addition to the existing admin-area check,
-  while every existing string-label call site keeps working unchanged. A new
-  `PhoenixKitWeb.Components.Core.AdminEditLink.admin_edit_link/1` component
-  (`<.admin_edit_link .../>`) renders the link — as a standalone button or a
-  `:menu_item` for dropdowns — and renders nothing when there is no URL, so
-  hosts can drop one line into their public layout unconditionally. See the
-  "Edit link on public pages" section in `guides/integration.md`.
+- The **Integrations** sidebar tab still pointed at
+  `/admin/settings/integrations/website`, the path 2.21.3 renamed to
+  `/admin/settings/integrations`. That URL does not 404 as the rename note
+  expected — it matches `/admin/settings/integrations/:uuid` with
+  `uuid = "website"`, so `Repo.get/2` raises `Ecto.Query.CastError` and
+  LiveView returns a 400 reload response, which loops. The two README route
+  lists and `AGENTS.md`'s owner-scope note were stale from the same rename
+  and are corrected alongside it.
 
 ## 2.22.0 - 2026-09-08
 
