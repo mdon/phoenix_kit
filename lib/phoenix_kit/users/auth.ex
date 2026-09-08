@@ -1386,6 +1386,23 @@ defmodule PhoenixKit.Users.Auth do
   end
 
   @doc """
+  Returns the `inserted_at` of the most recently sent, still-live confirmation
+  email for this user, or `nil` if none is on record (never sent, or all
+  confirm tokens have since expired/been consumed).
+
+  Backs the "sent X ago" wording on the parked confirmation-instructions page
+  — without it that page's "we sent a link" claim has no evidence behind it.
+  """
+  def get_last_confirmation_sent_at(%User{} = user) do
+    user
+    |> UserToken.by_user_and_contexts_query(["confirm"])
+    |> select([t], t.inserted_at)
+    |> order_by([t], desc: t.inserted_at)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  @doc """
   Confirms a user by the given token.
 
   If the token matches, the user account is marked as confirmed

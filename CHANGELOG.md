@@ -1,3 +1,30 @@
+## 2.22.7 - 2026-09-08
+
+### Changed
+
+- **Reworked the parked "confirm your email" screen** (`/users/confirm` for
+  an already-logged-in, unconfirmed user). The card now says what actually
+  happened and when ("Sent 3m ago", backed by a real read of the
+  confirmation token's `inserted_at` — there was previously no record shown
+  at all); the email field is a plain read-only display instead of a
+  disabled-looking, falsely-required `<input>`; the resend button reads
+  "Resend email" instead of the truncation-prone "Resend confirmation
+  instructions"; and the "Wrong email? Change it" password re-entry now
+  explains itself instead of looking arbitrary to an already-authenticated
+  visitor.
+- **The Register / Log in links on that same screen were nonsensical for a
+  parked, already-authenticated visitor** — clicking either just bounced
+  back to the same confirmation gate. They're now a single **Log out**
+  link while parked, matching the pattern already used on the referral-gate
+  screen; the anonymous "resend instructions" form (no session) keeps
+  Register / Log in.
+
+### Added
+
+- `PhoenixKit.Users.Auth.get_last_confirmation_sent_at/1` — the `inserted_at`
+  of a user's most recent live confirmation-email token, `nil` if none is on
+  record. Backs the "Sent X ago" wording above.
+
 ## 2.22.6 - 2026-09-08
 
 ### Changed

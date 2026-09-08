@@ -75,7 +75,8 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
            |> assign(destination: destination)
            |> assign(change_email?: false)
            |> assign(email_form: to_form(Auth.change_user_email(user), as: "email_change"))
-           |> assign(email_form_current_password: nil)}
+           |> assign(email_form_current_password: nil)
+           |> assign(confirmation_sent_at: Auth.get_last_confirmation_sent_at(user))}
         end
     end
   end
@@ -132,7 +133,10 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
     # auto-advance can fire once they click the emailed link; anonymous
     # visitors are sent on to the resolved destination.
     if socket.assigns.awaiting_confirmation? do
-      {:noreply, socket}
+      sent_at =
+        Auth.get_last_confirmation_sent_at(socket.assigns.phoenix_kit_current_user)
+
+      {:noreply, assign(socket, confirmation_sent_at: sent_at)}
     else
       {:noreply, redirect(socket, to: socket.assigns.destination)}
     end

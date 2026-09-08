@@ -7,12 +7,25 @@
 >
   <%= if @awaiting_confirmation? do %>
     <h1 class="text-2xl font-bold text-center mb-2">
-      {gettext("Confirm your email")}
+      {gettext("Confirm your email to continue")}
     </h1>
-    <p class="text-center text-base-content/60 text-sm mb-6">
+    <p class="text-center text-base-content/60 text-sm mb-1">
       {gettext(
-        "We sent a confirmation link to your inbox. This page continues automatically once your email is confirmed."
+        "We emailed a confirmation link to %{email}. Open it to continue — you'll land back in the app automatically, no need to come back to this page.",
+        email: @phoenix_kit_current_user.email
       )}
+    </p>
+    <p class="text-center text-base-content/40 text-xs mb-6">
+      <%= if @confirmation_sent_at do %>
+        {gettext("Sent")}
+        <.time_ago
+          datetime={@confirmation_sent_at}
+          class="text-base-content/40 text-xs"
+          id="confirmation-sent-at"
+        />
+      <% else %>
+        {gettext("No confirmation email on record — use Resend below.")}
+      <% end %>
     </p>
   <% else %>
     <h1 class="text-2xl font-bold text-center mb-2">
@@ -25,19 +38,25 @@
   <.form for={@form} id="resend_confirmation_form" phx-submit="send_instructions">
     <fieldset class="fieldset min-w-0">
       <legend class="fieldset-legend sr-only">{gettext("Resend Confirmation")}</legend>
-      <.input
-        field={@form[:email]}
-        type="email"
-        label={gettext("Email")}
-        required
-        readonly={@awaiting_confirmation?}
-      />
+      <%= if @awaiting_confirmation? do %>
+        <div>
+          <label class="label mb-2">
+            <span class="font-semibold">{gettext("Email")}</span>
+          </label>
+          <p class="text-base-content/80 font-medium break-all">
+            {@form[:email].value}
+          </p>
+          <input type="hidden" name="user[email]" value={@form[:email].value} />
+        </div>
+      <% else %>
+        <.input field={@form[:email]} type="email" label={gettext("Email")} required />
+      <% end %>
       <button
         type="submit"
         phx-disable-with={gettext("Sending...")}
         class="btn btn-primary w-full mt-4 transition-all hover:scale-[1.02] active:scale-[0.98]"
       >
-        {gettext("Resend confirmation instructions")} <span aria-hidden="true">→</span>
+        {gettext("Resend email")}
       </button>
     </fieldset>
   </.form>
@@ -73,6 +92,11 @@
             value={@email_form_current_password}
             required
           />
+          <p class="text-xs text-base-content/50 mt-1">
+            {gettext(
+              "We ask for your password again as a safety check before moving your account to a new email address."
+            )}
+          </p>
           <button
             type="submit"
             phx-disable-with={gettext("Updating...")}
@@ -86,18 +110,28 @@
   <% end %>
 
   <div class="text-center mt-4 text-sm">
-    <.link
-      href={Routes.path("/users/register")}
-      class="font-semibold text-primary hover:underline"
-    >
-      {gettext("Register")}
-    </.link>
-    <span class="mx-2 text-base-content/40">|</span>
-    <.link
-      href={Routes.path("/users/log-in")}
-      class="font-semibold text-primary hover:underline"
-    >
-      {gettext("Log in")}
-    </.link>
+    <%= if @awaiting_confirmation? do %>
+      <.link
+        href={Routes.path("/users/log-out")}
+        method="delete"
+        class="font-semibold text-primary hover:underline"
+      >
+        {gettext("Log out")}
+      </.link>
+    <% else %>
+      <.link
+        href={Routes.path("/users/register")}
+        class="font-semibold text-primary hover:underline"
+      >
+        {gettext("Register")}
+      </.link>
+      <span class="mx-2 text-base-content/40">|</span>
+      <.link
+        href={Routes.path("/users/log-in")}
+        class="font-semibold text-primary hover:underline"
+      >
+        {gettext("Log in")}
+      </.link>
+    <% end %>
   </div>
 </PhoenixKitWeb.Components.AuthPageWrapper.auth_page_wrapper>

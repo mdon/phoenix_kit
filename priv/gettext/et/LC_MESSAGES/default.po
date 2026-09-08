@@ -124,7 +124,8 @@ msgstr "Loo uus konto"
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:238
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:649
 #: lib/phoenix_kit_web/live/users/users.html.heex:308
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:31
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:44
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:52
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:15
 #: lib/phoenix_kit_web/users/magic_link.html.heex:30
 #: lib/phoenix_kit_web/users/registration.html.heex:56
@@ -405,7 +406,7 @@ msgstr "Aktiivne"
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:90
 #: lib/phoenix_kit_web/live/settings/users.html.heex:465
 #: lib/phoenix_kit_web/live/settings/users.html.heex:540
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:118
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:59
 #, elixir-autogen
 msgid "Enabled"
 msgstr "Lubatud"
@@ -546,7 +547,7 @@ msgid "Add a note above to start documenting information about this user."
 msgstr "Lisa märkus ülal, et alustada selle kasutaja teabe dokumenteerimist."
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:67
-#: lib/phoenix_kit_web/live/settings/website_access.ex:488
+#: lib/phoenix_kit_web/live/settings/website_access.ex:431
 #, elixir-autogen, elixir-format
 msgid "Address"
 msgstr "Aadress"
@@ -666,7 +667,7 @@ msgstr "Punktloend"
 #: lib/phoenix_kit_web/live/users/users.html.heex:75
 #: lib/phoenix_kit_web/live/users/users.html.heex:1211
 #: lib/phoenix_kit_web/live/users/users.html.heex:1228
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:52
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "Tühista"
@@ -994,7 +995,7 @@ msgstr "Kirjeldus"
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:49
 #: lib/phoenix_kit_web/live/settings/users.html.heex:466
 #: lib/phoenix_kit_web/live/settings/users.html.heex:542
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:118
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Disabled"
 msgstr "Keelatud"
@@ -1332,7 +1333,7 @@ msgstr "Reavahe"
 
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:547
 #: lib/phoenix_kit_web/users/confirmation.html.heex:33
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:100
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:133
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:32
 #: lib/phoenix_kit_web/users/login.html.heex:79
 #: lib/phoenix_kit_web/users/reset_password.html.heex:52
@@ -1541,7 +1542,7 @@ msgstr "Leht avaldatud edukalt"
 
 #: lib/phoenix_kit/integrations/providers.ex:1032
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:301
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:133
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:74
 #: lib/phoenix_kit_web/users/login.html.heex:39
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:42
 #: lib/phoenix_kit_web/users/registration.html.heex:160
@@ -1803,11 +1804,10 @@ msgstr "SWIFT/BIC"
 #: lib/phoenix_kit_web/live/notifications/settings.ex:436
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:264
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:314
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:210
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:151
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:324
 #: lib/phoenix_kit_web/live/settings/website_access.html.heex:383
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:419
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:485
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:540
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:436
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "Salvesta"
@@ -1882,7 +1882,7 @@ msgstr "Vali, millistele lõikudele ja moodulitele see roll pääseb juurde. Sa 
 #: lib/phoenix_kit_web/live/settings/send_profile_form.ex:22
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:33
 #: lib/phoenix_kit_web/live/settings/users.ex:48
-#: lib/phoenix_kit_web/live/settings/website_access.ex:56
+#: lib/phoenix_kit_web/live/settings/website_access.ex:53
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:51
 #: lib/phoenix_kit_web/live/users/users.html.heex:710
 #: lib/phoenix_kit_web/live/users/users.html.heex:826
@@ -2153,7 +2153,6 @@ msgid "View"
 msgstr "Vaata"
 
 #: lib/phoenix_kit_web/components/core/modal.ex:523
-#: lib/phoenix_kit_web/live/settings/website_access.ex:593
 #, elixir-autogen, elixir-format
 msgid "Warning"
 msgstr "Hoiatus"
@@ -2254,7 +2253,6 @@ msgstr "Kõik tüübid"
 
 #: lib/phoenix_kit_web/components/core/reorder_modal.ex:100
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:557
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr "Rakenda"
@@ -2353,7 +2351,7 @@ msgstr "Teenusepakkuja"
 msgid "Quick Actions"
 msgstr "Kiiraktsioonid"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:250
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:191
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:248
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:350
 #, elixir-autogen, elixir-format
@@ -2723,7 +2721,7 @@ msgstr "Enamiku paigalduste puhul kasutage turbe tagamiseks \"Kasutaja\"."
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:534
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:624
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:185
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:243
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "Copy"
 msgstr "Kopeeri"
@@ -3148,7 +3146,6 @@ msgid "Noindex · Nofollow"
 msgstr "Noindex · Nofollow"
 
 #: lib/modules/storage/web/settings.html.heex:310
-#: lib/phoenix_kit_web/live/settings/website_access.ex:595
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr "Puudub"
@@ -5632,7 +5629,7 @@ msgstr "Keele mooduli ja tõlgete haldamine"
 msgid "Manage modules"
 msgstr "Halda mooduleid"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:451
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:349
 #, elixir-autogen, elixir-format
 msgid "Message"
 msgstr "Sõnum"
@@ -6291,7 +6288,7 @@ msgstr "Kausta ei saa ümber nimetada lubatud ulatusest väljaspool"
 #: lib/phoenix_kit_web/components/core/bulk_actions_bar.ex:110
 #: lib/phoenix_kit_web/components/core/bulk_select.ex:197
 #: lib/phoenix_kit_web/components/media_browser.html.heex:791
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:302
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Clear"
 msgstr "Tühjenda"
@@ -7169,8 +7166,7 @@ msgid "No media files found"
 msgstr "Meediafaile ei leitud"
 
 #: lib/phoenix_kit_web/components/media_gallery.html.heex:67
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:424
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:493
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Preview"
 msgstr "Eelvaade"
@@ -7417,7 +7413,7 @@ msgstr "Uus parool"
 msgid "Next steps:"
 msgstr "Järgmised sammud:"
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:19
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "No confirmation instructions received?"
 msgstr "Ei saanud kinnitusjuhiseid?"
@@ -7449,7 +7445,7 @@ msgid "Referral Code"
 msgstr "Soovituskood"
 
 #: lib/phoenix_kit_web/users/confirmation.html.heex:26
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:93
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:126
 #: lib/phoenix_kit_web/users/reset_password.html.heex:45
 #, elixir-autogen, elixir-format
 msgid "Register"
@@ -7475,7 +7471,7 @@ msgstr "Registreeru parooliga"
 msgid "Remember your password?"
 msgstr "Mäletad oma parooli?"
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:27
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Resend Confirmation"
 msgstr "Saada kinnitus uuesti"
@@ -7489,11 +7485,6 @@ msgstr "Saada link uuesti"
 #, elixir-autogen, elixir-format
 msgid "Resend confirmation"
 msgstr "Saada kinnitus uuesti"
-
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:40
-#, elixir-autogen, elixir-format
-msgid "Resend confirmation instructions"
-msgstr "Saada kinnitusjuhised uuesti"
 
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:14
 #: lib/phoenix_kit_web/users/reset_password.html.heex:4
@@ -7525,7 +7516,7 @@ msgstr "Saada parooli lähtestamise juhised"
 msgid "Sending magic link..."
 msgstr "Magic Linki saatmine..."
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:37
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:56
 #: lib/phoenix_kit_web/users/magic_link_registration_request.html.heex:72
 #, elixir-autogen, elixir-format
 msgid "Sending..."
@@ -7536,7 +7527,7 @@ msgstr "Saatmine..."
 msgid "Sign in with password"
 msgstr "Logi sisse parooliga"
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:22
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "We'll send a new confirmation link to your inbox"
 msgstr "Saadame uue kinnituslingi sinu postkasti"
@@ -8945,7 +8936,6 @@ msgid "Heading %{level}"
 msgstr "Pealkiri %{level}"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:449
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Icon"
 msgstr "Ikoon"
@@ -9777,7 +9767,7 @@ msgstr "Kinnitatud — logime teid sisse…"
 msgid "Back to sign in"
 msgstr "Tagasi sisselogimise juurde"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:489
+#: lib/phoenix_kit_web/live/settings/website_access.ex:432
 #: lib/phoenix_kit_web/users/qr_login_confirm.ex:195
 #, elixir-autogen, elixir-format
 msgid "Browser"
@@ -10552,11 +10542,6 @@ msgstr "Konfiguratsioonikomplekt"
 msgid "Configured"
 msgstr "Seadistatud"
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:10
-#, elixir-autogen, elixir-format
-msgid "Confirm your email"
-msgstr "Kinnitage oma e-post"
-
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:325
 #, elixir-autogen, elixir-format
 msgid "Connect your own API keys and services. Only you can see these."
@@ -10763,7 +10748,7 @@ msgstr "Muuda saatmisprofiili seadeid"
 msgid "Edit send profile: %{name}"
 msgstr "Saatmisprofiili muutmine: %{name}"
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:216
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:220
 #, elixir-autogen, elixir-format
 msgid "Email confirmed. Welcome!"
 msgstr "E-post kinnitatud. Tere tulemast!"
@@ -11438,11 +11423,6 @@ msgstr "Kasutajat ei leitud."
 msgid "Verify (default)"
 msgstr "Kontrolli (vaikimisi)"
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:13
-#, elixir-autogen, elixir-format
-msgid "We sent a confirmation link to your inbox. This page continues automatically once your email is confirmed."
-msgstr "Saatsime kinnituslingi teie e-posti. See leht jätkab automaatselt, kui teie e-post on kinnitatud."
-
 #: lib/phoenix_kit_web/live/settings/users.html.heex:270
 #, elixir-autogen, elixir-format
 msgid "Where a freshly registered account lands. Empty = after-login path."
@@ -11585,7 +11565,7 @@ msgid "Continue"
 msgstr "Jätka"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:186
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:244
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:185
 #, elixir-autogen, elixir-format
 msgid "Copied!"
 msgstr "Kopeeritud!"
@@ -11606,6 +11586,7 @@ msgstr "Juhised otsingurobotitele"
 msgid "Enter your referral code"
 msgstr "Sisesta oma soovituskood"
 
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:119
 #: lib/phoenix_kit_web/users/referral_gate.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Log out"
@@ -12331,7 +12312,7 @@ msgid "Maximum file size: %{size}"
 msgstr "Maksimaalne failisuurus: %{size}"
 
 #: lib/phoenix_kit_web/components/core/column_settings.ex:74
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:293
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Columns"
 msgstr "Veerud"
@@ -12489,7 +12470,7 @@ msgstr "Järgib noindexit"
 msgid "If that email address exists, a magic link has been sent."
 msgstr "Kui see e-posti aadress on olemas, on Magic Link saadetud."
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:124
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:125
 #, elixir-autogen, elixir-format
 msgid "If your email is in our system and it has not been confirmed yet, you will receive an email with instructions shortly."
 msgstr "Kui teie e-post on meie süsteemis ja pole veel kinnitatud, saate peagi juhistega e-kirja."
@@ -13122,19 +13103,19 @@ msgstr "viimase tunni jooksul"
 msgid "in the last week"
 msgstr "viimase nädala jooksul"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1194
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1193
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Ahenda"
 
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1184
 #: lib/phoenix_kit_web/components/layout_wrapper.ex:1185
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1186
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1188
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1187
 #, elixir-autogen, elixir-format
 msgid "Collapse the menu to icons"
 msgstr "Ahenda menüü ikoonideks"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1187
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1186
 #, elixir-autogen, elixir-format
 msgid "Expand the menu"
 msgstr "Laienda menüü"
@@ -13221,137 +13202,137 @@ msgstr "Tööruum"
 msgid "Shown next to the project name. Turn it off to show just the project name. The wording is not editable here because it is translated — each visitor reads it in their own language. To call your admin area something else and keep that, a developer can set `admin_panel_label` in config.exs, where the available names are listed as comments. The browser tab title is unaffected."
 msgstr "Kuvatakse projekti nime kõrval. Lülita välja, et näidata ainult projekti nime. Teksti ei saa siin muuta, sest see on tõlgitud — iga külastaja loeb seda oma keeles. Kui soovid oma haldusala teisiti nimetada ja tõlke säilitada, saab arendaja määrata `admin_panel_label` failis config.exs, kus saadaolevad nimed on kommentaaridena kirjas. Brauseri vahelehe pealkiri jääb muutmata."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:537
+#: lib/phoenix_kit_web/live/settings/website_access.ex:480
 #, elixir-autogen, elixir-format
 msgid "%{feature} switched off."
 msgstr "%{feature} on välja lülitatud."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:534
+#: lib/phoenix_kit_web/live/settings/website_access.ex:477
 #, elixir-autogen, elixir-format
 msgid "%{feature} switched on."
 msgstr "%{feature} on sisse lülitatud."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:164
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "0 switches the lockout off."
 msgstr "0 lülitab lukustuse välja."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:224
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "A link to give a client instead of the password. Opening it shows one button; the button lets them in. Making a new one stops the old one."
 msgstr "Link, mille saab kliendile parooli asemel anda. Avamisel kuvatakse üks nupp; nupp laseb sisse. Uue tegemine tühistab vana."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:222
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Access link"
 msgstr "Juurdepääsulink"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:170
+#: lib/phoenix_kit_web/live/settings/website_access.ex:148
 #, elixir-autogen, elixir-format
 msgid "Access link revoked."
 msgstr "Juurdepääsulink tühistatud."
 
-#: lib/phoenix_kit/website_access.ex:113
+#: lib/phoenix_kit/website_access.ex:98
 #, elixir-autogen, elixir-format
 msgid "Addresses that walk past the password gate and the redirect without a password — the office, a home connection. One per line."
 msgstr "Aadressid, mis pääsevad paroolitõkkest ja ümbersuunamisest mööda ilma paroolita – kontor, koduühendus. Üks real."
 
-#: lib/phoenix_kit/website_access.ex:112
+#: lib/phoenix_kit/website_access.ex:97
 #, elixir-autogen, elixir-format
 msgid "Allowed addresses"
 msgstr "Lubatud aadressid"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:312
+#: lib/phoenix_kit_web/live/settings/website_access.ex:265
 #, elixir-autogen, elixir-format
 msgid "Allowed addresses saved."
 msgstr "Lubatud aadressid salvestatud."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:212
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "Ask everyone again"
 msgstr "Küsi kõigilt uuesti"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:149
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Changing it asks everyone for the password again."
 msgstr "Muutmine küsib kõigilt parooli uuesti."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:555
+#: lib/phoenix_kit_web/live/settings/website_access.ex:497
 #, elixir-autogen, elixir-format
 msgid "Could not save: %{reason}"
 msgstr "Salvestamine ebaõnnestus: %{reason}"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:178
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Counted per address; a locked-out try is recorded but never judged."
 msgstr "Loetakse aadressi kohta; lukustuse ajal tehtud katse pannakse kirja, aga seda ei hinnata."
 
-#: lib/phoenix_kit/website_access.ex:102
+#: lib/phoenix_kit/website_access.ex:87
 #, elixir-autogen, elixir-format
 msgid "Every page tells crawlers not to index it, in the page and in a response header. This is the same switch as on the Crawlers page — changing it here changes it there."
 msgstr "Iga leht ütleb roomikutele, et seda ei indekseeritaks – nii lehel kui ka vastuse päises. See on sama lüliti mis Roomikute lehel – muutmine siin muudab seda ka seal."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:571
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:461
 #, elixir-autogen, elixir-format
 msgid "Every switch here is recorded in the settings history with your name."
 msgstr "Iga siinne lüliti salvestatakse seadete ajalukku koos teie nimega."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:601
+#: lib/phoenix_kit_web/live/settings/website_access.ex:528
 #, elixir-autogen, elixir-format
 msgid "Everyone"
 msgstr "Kõik"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:183
+#: lib/phoenix_kit_web/live/settings/website_access.ex:161
 #, elixir-autogen, elixir-format
 msgid "Everyone has to type the password again."
 msgstr "Kõik peavad parooli uuesti sisestama."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:443
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "Heading"
 msgstr "Pealkiri"
 
-#: lib/phoenix_kit/website_access.ex:101
+#: lib/phoenix_kit/website_access.ex:86
 #, elixir-autogen, elixir-format
 msgid "Hide from search engines"
 msgstr "Peida otsingumootorite eest"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:230
+#: lib/phoenix_kit_web/live/settings/website_access.ex:208
 #, elixir-autogen, elixir-format
 msgid "History cleared."
 msgstr "Ajalugu kustutatud."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:558
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "How the pieces stack"
 msgstr "Kuidas osad kokku käivad"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:199
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Logged-in users pass without the password"
 msgstr "Sisselogitud kasutajad pääsevad ilma paroolita"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:247
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "Make a new one"
 msgstr "Tee uus"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:255
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Make an access link"
 msgstr "Tee juurdepääsulink"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:160
+#: lib/phoenix_kit_web/live/settings/website_access.ex:138
 #, elixir-autogen, elixir-format
 msgid "New access link made. The old one no longer works."
 msgstr "Uus juurdepääsulink tehtud. Vana enam ei tööta."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:317
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Nobody has tried yet."
 msgstr "Keegi pole veel proovinud."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:548
+#: lib/phoenix_kit_web/live/settings/website_access.ex:490
 #, elixir-autogen, elixir-format
 msgid "Nothing to save."
 msgstr "Pole midagi salvestada."
@@ -13361,7 +13342,7 @@ msgstr "Pole midagi salvestada."
 msgid "Open the site"
 msgstr "Ava sait"
 
-#: lib/phoenix_kit/website_access.ex:57
+#: lib/phoenix_kit/website_access.ex:53
 #, elixir-autogen, elixir-format
 msgid "Password gate"
 msgstr "Paroolitõke"
@@ -13371,27 +13352,27 @@ msgstr "Paroolitõke"
 msgid "Password gate is on"
 msgstr "Paroolitõke on sees"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:144
+#: lib/phoenix_kit_web/live/settings/website_access.ex:122
 #, elixir-autogen, elixir-format
 msgid "Password gate settings saved."
 msgstr "Paroolitõkke seaded salvestatud."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:511
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Per-bot access and robots.txt on the Crawlers page"
 msgstr "Juurdepääs roboti kaupa ja robots.txt Roomikute lehel"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:367
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:308
 #, elixir-autogen, elixir-format
 msgid "Production URL"
 msgstr "Tootmiskeskkonna URL"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:243
+#: lib/phoenix_kit_web/live/settings/website_access.ex:221
 #, elixir-autogen, elixir-format
 msgid "Redirect settings saved."
 msgstr "Ümbersuunamise seaded salvestatud."
 
-#: lib/phoenix_kit/website_access.ex:68
+#: lib/phoenix_kit/website_access.ex:64
 #, elixir-autogen, elixir-format
 msgid "Redirect to production"
 msgstr "Suuna ümber tootmiskeskkonda"
@@ -13401,22 +13382,22 @@ msgstr "Suuna ümber tootmiskeskkonda"
 msgid "Redirecting visitors to production"
 msgstr "Külastajad suunatakse tootmiskeskkonda"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:486
+#: lib/phoenix_kit_web/live/settings/website_access.ex:429
 #, elixir-autogen, elixir-format
 msgid "Result"
 msgstr "Tulemus"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:601
+#: lib/phoenix_kit_web/live/settings/website_access.ex:528
 #, elixir-autogen, elixir-format
 msgid "Search-engine crawlers only"
 msgstr "Ainult otsingumootorite roomikud"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:547
+#: lib/phoenix_kit_web/live/settings/website_access.ex:489
 #, elixir-autogen, elixir-format
 msgid "That is more than a year away."
 msgstr "See on rohkem kui aasta pärast."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:549
+#: lib/phoenix_kit_web/live/settings/website_access.ex:491
 #, elixir-autogen, elixir-format
 msgid "That is not a date and time."
 msgstr "See ei ole kuupäev ja kellaaeg."
@@ -13426,22 +13407,22 @@ msgstr "See ei ole kuupäev ja kellaaeg."
 msgid "That is not it."
 msgstr "See pole õige."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:259
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "The gate page itself is at %{url}."
 msgstr "Tõkkeleht ise on aadressil %{url}."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:566
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:456
 #, elixir-autogen, elixir-format
 msgid "The gate stands in the site's browser pipeline. It covers the pages; API routes and files a host serves outside that pipeline are not behind it."
 msgstr "Tõke asub saidi brauseritorustikus. See katab lehed; API-teed ja failid, mida host väljaspool seda torustikku väljastab, selle taga ei ole."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:372
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:313
 #, elixir-autogen, elixir-format
 msgid "The path and query are kept: /about here becomes /about there."
 msgstr "Tee ja päring säilivad: /about siin muutub /about seal."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:203
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "They proved more than a password already. Off, and every login has to type it too — including you, after you change it."
 msgstr "Nad on juba tõestanud rohkem kui parooli. Väljas – ja iga sisselogija peab selle samuti sisestama, ka teie pärast selle muutmist."
@@ -13456,7 +13437,7 @@ msgstr "See link enam ei kehti."
 msgid "Too many tries."
 msgstr "Liiga palju katseid."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:280
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Tries at the door"
 msgstr "Katsed ukse taga"
@@ -13468,7 +13449,7 @@ msgid_plural "Try again in %{count} minutes."
 msgstr[0] "Proovige minuti pärast uuesti."
 msgstr[1] "Proovige %{count} minuti pärast uuesti."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:137
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Type a new password to replace it — blank keeps the current one"
 msgstr "Sisestage uus parool selle asendamiseks – tühi jätab praeguse alles"
@@ -13478,28 +13459,28 @@ msgstr "Sisestage uus parool selle asendamiseks – tühi jätab praeguse alles"
 msgid "Type the password."
 msgstr "Sisestage parool."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:487
+#: lib/phoenix_kit_web/live/settings/website_access.ex:430
 #, elixir-autogen, elixir-format
 msgid "Typed"
 msgstr "Sisestatud"
 
-#: lib/phoenix_kit/website_access.ex:69
+#: lib/phoenix_kit/website_access.ex:65
 #, elixir-autogen, elixir-format
 msgid "Visitors asking for a public URL are sent to the same path on the production site. Logged-in users and admin paths are never redirected. Everyone, or only search-engine crawlers."
 msgstr "Avalikku URL-i küsivad külastajad saadetakse tootmissaidi samale teele. Sisselogitud kasutajaid ja administraatoriteid ei suunata kunagi ümber. Kõik või ainult otsingumootorite roomikud."
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:274
-#: lib/phoenix_kit_web/live/settings/website_access.ex:49
+#: lib/phoenix_kit_web/live/settings/website_access.ex:46
 #, elixir-autogen, elixir-format
 msgid "Website access"
 msgstr "Saidi juurdepääs"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:485
+#: lib/phoenix_kit_web/live/settings/website_access.ex:428
 #, elixir-autogen, elixir-format
 msgid "When"
 msgstr "Millal"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:378
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "Who is redirected"
 msgstr "Keda suunatakse ümber"
@@ -13509,83 +13490,82 @@ msgstr "Keda suunatakse ümber"
 msgid "Who sees this site, and what they see: a list of features you switch on one by one."
 msgstr "Kes seda saiti näeb ja mida: loend funktsioone, mida lülitate sisse ükshaaval."
 
-
-#: lib/phoenix_kit/website_access.ex:64
+#: lib/phoenix_kit/website_access.ex:60
 #, elixir-autogen, elixir-format
 msgid "a password"
 msgstr "parooli"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:564
+#: lib/phoenix_kit_web/live/settings/website_access.ex:506
 #, elixir-autogen, elixir-format
 msgid "access link"
 msgstr "juurdepääsulink"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:560
+#: lib/phoenix_kit_web/live/settings/website_access.ex:502
 #, elixir-autogen, elixir-format
 msgid "close — a typo"
 msgstr "lähedal – trükiviga"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:558
+#: lib/phoenix_kit_web/live/settings/website_access.ex:500
 #, elixir-autogen, elixir-format
 msgid "correct"
 msgstr "õige"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:144
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "current:"
 msgstr "praegune:"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:562
+#: lib/phoenix_kit_web/live/settings/website_access.ex:504
 #, elixir-autogen, elixir-format
 msgid "empty"
 msgstr "tühi"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:147
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "hide"
 msgstr "peida"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:563
+#: lib/phoenix_kit_web/live/settings/website_access.ex:505
 #, elixir-autogen, elixir-format
 msgid "locked out"
 msgstr "lukustatud"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:282
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "newest first, the last %{count} kept"
 msgstr "uuemad enne, viimased %{count} jäetakse alles"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:142
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "none set — the gate cannot close without one"
 msgstr "määramata – ilma paroolita ei saa tõke sulguda"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:100
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "on"
 msgstr "sees"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:559
+#: lib/phoenix_kit_web/live/settings/website_access.ex:501
 #, elixir-autogen, elixir-format
 msgid "right letters, wrong case"
 msgstr "õiged tähed, vale tähesuurus"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:147
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "show"
 msgstr "näita"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:105
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "switched on, needs %{what}"
 msgstr "sisse lülitatud, vajab: %{what}"
 
-#: lib/phoenix_kit/website_access.ex:75
+#: lib/phoenix_kit/website_access.ex:71
 #, elixir-autogen, elixir-format
 msgid "the production URL"
 msgstr "tootmiskeskkonna URL-i"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:561
+#: lib/phoenix_kit_web/live/settings/website_access.ex:503
 #, elixir-autogen, elixir-format
 msgid "wrong"
 msgstr "vale"
@@ -13635,62 +13615,62 @@ msgstr "Külastaja valib"
 msgid "What a visitor is allowed to open"
 msgstr "Mida külastaja võib avada"
 
-#: lib/phoenix_kit/website_access.ex:58
+#: lib/phoenix_kit/website_access.ex:54
 #, elixir-autogen, elixir-format
 msgid "A hard block before anyone sees anything: a blank page with only a password prompt. The password is needed to see the site at all and to reach your own login. Every try is kept — with what was typed — so a bot at the door can be told from a client mistyping."
 msgstr "Täielik tõke, enne kui keegi midagi näeb: tühi leht, millel on ainult parooliväli. Parooli on vaja, et saiti üldse näha ja oma sisselogimiseni jõuda. Iga katse jäetakse alles – koos sisestatuga –, nii et ukse taga olevat robotit saab eristada kliendist, kes trükib valesti."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:267
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Each row is one try: when, how it went, what was typed, from which address and browser."
 msgstr "Iga rida on üks katse: millal, kuidas läks, mida sisestati, milliselt aadressilt ja brauserist."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:583
+#: lib/phoenix_kit_web/live/settings/website_access.ex:520
 #, elixir-autogen, elixir-format
 msgid "Everything typed on a wrong try"
 msgstr "Kõik, mis valel katsel sisestati"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:185
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "Keep what was typed"
 msgstr "Sisestatu säilitamine"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:585
+#: lib/phoenix_kit_web/live/settings/website_access.ex:522
 #, elixir-autogen, elixir-format
 msgid "Nothing"
 msgstr "Mitte midagi"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:584
+#: lib/phoenix_kit_web/live/settings/website_access.ex:521
 #, elixir-autogen, elixir-format
 msgid "Only near misses (wrong case, a typo)"
 msgstr "Ainult peaaegu õiged (vale tähesuurus, trükiviga)"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:514
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:412
 #, elixir-autogen, elixir-format
 msgid "The Crawlers module is off (Modules page); this switch works without it — the module adds per-bot access and robots.txt."
 msgstr "Roomikute moodul on väljas (moodulite leht); see lüliti töötab ka ilma selleta – moodul lisab juurdepääsu roboti kaupa ja robots.txt."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:390
+#: lib/phoenix_kit_web/live/settings/website_access.ex:333
 #, elixir-autogen, elixir-format
 msgid "Closed now — the scheduled window is open and has no end."
 msgstr "Praegu suletud – plaanitud ajaaken on lahti ja sellel pole lõppu."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:393
+#: lib/phoenix_kit_web/live/settings/website_access.ex:336
 #, elixir-autogen, elixir-format
 msgid "Closed now — the scheduled window is open."
 msgstr "Praegu suletud – plaanitud ajaaken on lahti."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:384
+#: lib/phoenix_kit_web/live/settings/website_access.ex:327
 #, elixir-autogen, elixir-format
 msgid "Closed now, by hand — no end time."
 msgstr "Praegu suletud, käsitsi – lõpuaega pole."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:387
+#: lib/phoenix_kit_web/live/settings/website_access.ex:330
 #, elixir-autogen, elixir-format
 msgid "Closed now, by hand, until the time below."
 msgstr "Praegu suletud, käsitsi, kuni allpool oleva ajani."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:288
+#: lib/phoenix_kit_web/live/settings/website_access.ex:241
 #, elixir-autogen, elixir-format
 msgid "Closed page saved."
 msgstr "Suletud leht salvestatud."
@@ -13700,48 +13680,48 @@ msgstr "Suletud leht salvestatud."
 msgid "Everyone but admins and owners sees a closed page — a heading, a message, a countdown when there is an end time — instead of the site. By hand, or in a scheduled window."
 msgstr "Kõik peale administraatorite ja omanike näevad saidi asemel suletud lehte – pealkiri, sõnum, loendur, kui on lõpuaeg. Käsitsi või plaanitud ajaaknas."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:398
-#: lib/phoenix_kit_web/live/settings/website_access.ex:401
+#: lib/phoenix_kit_web/live/settings/website_access.ex:341
+#: lib/phoenix_kit_web/live/settings/website_access.ex:344
 #, elixir-autogen, elixir-format
 msgid "Open."
 msgstr "Avatud."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:397
+#: lib/phoenix_kit_web/live/settings/website_access.ex:340
 #, elixir-autogen, elixir-format
 msgid "Open. Closes by itself when the scheduled window starts."
 msgstr "Avatud. Sulgub ise, kui plaanitud ajaaken algab."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:479
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Optional: visitors see a countdown to it, and the page opens by itself then."
 msgstr "Valikuline: külastajad näevad loendurit selle ajani ja leht avaneb siis ise."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:487
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:385
 #, elixir-autogen, elixir-format
 msgid "See the closed page as an admin"
 msgstr "Vaata suletud lehte administraatorina"
 
-#: lib/phoenix_kit/website_access.ex:90
+#: lib/phoenix_kit/website_access.ex:75
 #, elixir-autogen, elixir-format
 msgid "Site closed"
 msgstr "Sait suletud"
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:542
+#: lib/phoenix_kit_web/live/settings/website_access.ex:484
 #, elixir-autogen, elixir-format
 msgid "The \"from\" time is in the past."
 msgstr "„Alates“ aeg on minevikus."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:545
+#: lib/phoenix_kit_web/live/settings/website_access.ex:487
 #, elixir-autogen, elixir-format
 msgid "The \"until\" time is before the \"from\" time."
 msgstr "„Kuni“ aeg on enne „alates“ aega."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:541
+#: lib/phoenix_kit_web/live/settings/website_access.ex:483
 #, elixir-autogen, elixir-format
 msgid "The \"until\" time is in the past."
 msgstr "„Kuni“ aeg on minevikus."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:461
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:359
 #, elixir-autogen, elixir-format
 msgid "Closed from (%{zone})"
 msgstr "Suletud alates (%{zone})"
@@ -13751,7 +13731,7 @@ msgstr "Suletud alates (%{zone})"
 msgid "Exact addresses, one per line. They still see the closed page."
 msgstr "Täpsed aadressid, üks real. Nad näevad endiselt suletud lehte."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:160
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "Lock out after (wrong tries)"
 msgstr "Lukusta pärast (vale katset)"
@@ -13761,17 +13741,17 @@ msgstr "Lukusta pärast (vale katset)"
 msgid "On every page request, in this order: an allowed address skips the next two; the redirect sends a public visitor away; the gate stops anyone without the password; the closed page shows to non-admins."
 msgstr "Iga lehepäringu puhul, selles järjekorras: lubatud aadress jätab kaks järgmist vahele; ümbersuunamine saadab avaliku külastaja minema; tõke peatab kõik, kel parooli pole; suletud leht kuvatakse mitte-administraatoritele."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:190
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "So you can tell a client's caps lock from a bot's guesses. Hide the Typed column below if it should not be on screen."
 msgstr "Et eristada kliendi Caps Locki roboti oletustest. Peitke allolev veerg „Sisestatud“, kui see ei tohi ekraanil olla."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:475
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Until (%{zone})"
 msgstr "Kuni (%{zone})"
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:174
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "for (minutes)"
 msgstr "ajaks (minutit)"
@@ -13966,12 +13946,12 @@ msgstr "Teie turvaline sisselogimislink"
 msgid "Your timezone looks wrong for where you are."
 msgstr "Teie ajavöönd ei näi vastavat teie asukohale."
 
-#: lib/phoenix_kit_web/live/settings/website_access.html.heex:465
+#: lib/phoenix_kit_web/live/settings/website_access.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "Optional: the page closes by itself at this time, without the switch. Switching the feature off clears the window."
 msgstr "Valikuline: leht sulgub sel ajal ise, ilma lülitita. Funktsiooni väljalülitamine kustutab ajaakna."
 
-#: lib/phoenix_kit_web/live/settings/website_access.ex:540
+#: lib/phoenix_kit_web/live/settings/website_access.ex:482
 #, elixir-autogen, elixir-format
 msgid "That feature has no switch."
 msgstr "Sellel funktsioonil pole lülitit."
@@ -14196,7 +14176,7 @@ msgstr "Suum"
 msgid "Auto"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:65
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Change Email"
 msgstr ""
@@ -14222,7 +14202,7 @@ msgstr ""
 msgid "Confirming also completes your account confirmation."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:72
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Current password"
 msgstr ""
@@ -14232,7 +14212,7 @@ msgstr ""
 msgid "Email changed and confirmed. Welcome!"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:66
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "New email"
 msgstr ""
@@ -14257,27 +14237,27 @@ msgstr ""
 msgid "Showing %{from} to %{to} of %{total} %{noun}"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:81
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Update email & resend confirmation"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:78
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Updating..."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:192
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:196
 #, elixir-autogen, elixir-format
 msgid "We've sent a confirmation link to %{email}. Click it to finish updating your email — that also confirms your account."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:122
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:123
 #, elixir-autogen, elixir-format
 msgid "We've sent a new confirmation link to %{email}."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:52
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Wrong email? Change it"
 msgstr ""
@@ -14345,3 +14325,33 @@ msgstr "Kogu teenuse vaikeprofiil uudiskirjade saatmiseks. Tehingupost (autentim
 #, elixir-autogen, elixir-format
 msgid "This is a test email sent from the Emails Transactional settings page."
 msgstr "See on testkiri, mis saadeti seadete lehelt „Tehingu e-kirjad“."
+
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Confirm your email to continue"
+msgstr "Kinnitage jätkamiseks oma e-posti aadress"
+
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "No confirmation email on record — use Resend below."
+msgstr "Kinnituskirja saatmise kohta pole kirjet — kasuta allolevat nuppu „Saada uuesti“."
+
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:59
+#, elixir-autogen, elixir-format
+msgid "Resend email"
+msgstr "Saada e-kiri uuesti"
+
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:20
+#, elixir-autogen, elixir-format
+msgid "Sent"
+msgstr "Saadetud"
+
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:96
+#, elixir-autogen, elixir-format
+msgid "We ask for your password again as a safety check before moving your account to a new email address."
+msgstr "Küsime uuesti teie parooli turvakontrollina, enne kui viime teie konto uuele e-posti aadressile."
+
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "We emailed a confirmation link to %{email}. Open it to continue — you'll land back in the app automatically, no need to come back to this page."
+msgstr "Saatsime kinnituslingi aadressile %{email}. Ava see jätkamiseks — jõuate automaatselt tagasi rakendusse, ilma et peaksite sellele lehele naasma."
