@@ -110,14 +110,12 @@ defmodule PhoenixKit.Settings.Setting do
     "crawlers_bing_verification",
     "crawlers_llms_extra",
     # Website access — a password not yet set, a link not yet made, a
-    # redirect URL / notice text / notice link / allowed list left blank:
-    # all legitimately empty (same first-write class as the crawlers keys).
+    # redirect URL or allowed list left blank: all legitimately empty
+    # (same first-write class as the crawlers keys).
     "website_access_password",
     "website_access_link_token",
     "website_access_gate_epoch",
     "website_access_redirect_url",
-    "website_access_notice_text",
-    "website_access_notice_link",
     "website_access_allowed_addresses",
     "maintenance_header",
     "maintenance_subtext"

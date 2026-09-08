@@ -10,9 +10,11 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccess do
     3. the **password gate** — no unlocked session means the gate page and
        nothing else (the gate's own route and the site's assets pass, so the
        page can render and be submitted);
-    4. **maintenance** — what it did before this plug existed;
-    5. the **visitor notice** is injected into the HTML response, the way
-       core injects its websocket fix.
+    4. **maintenance** — what it did before this plug existed.
+
+  "Hide from search engines" rides along: every response leaves with the
+  `X-Robots-Tag` header while it is on, pages the kit does not render
+  included.
 
   Each step is a no-op when its feature is off. The gate stands in the
   browser pipeline: it protects the site's pages; files a host serves
@@ -25,7 +27,7 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccess do
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Notice, Redirect}
+  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Redirect}
   alias PhoenixKitWeb.Plugs.MaintenanceMode
 
   def init(opts), do: opts
@@ -40,21 +42,20 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccess do
     cond do
       # The gate's own pages (prompt, access link, status): not redirected,
       # not gated, not under maintenance (a locked visitor must reach the
-      # prompt even while the site is down), no notice. Nothing else is
-      # exempt — files served before the router never reach this plug, and
-      # a routed path under /assets/ is a page like any other.
+      # prompt even while the site is down). Nothing else is exempt —
+      # files served before the router never reach this plug, and a routed
+      # path under /assets/ is a page like any other.
       exempt_path?(conn) ->
         conn
 
       allowed? ->
-        conn |> notice() |> maintenance()
+        conn |> robots() |> maintenance()
 
       true ->
-        # The response callback (robots header, notice) is registered FIRST,
-        # so a redirect, a gate bounce or a maintenance page carry the
-        # noindex header too; the notice itself only lands on HTML 200s.
+        # The robots header is registered FIRST, so a redirect, a gate
+        # bounce or a maintenance page carry the noindex directive too.
         conn
-        |> notice()
+        |> robots()
         |> redirect_to_production()
         |> gate()
         |> maintenance()
@@ -208,64 +209,17 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccess do
   defp maintenance(%Plug.Conn{halted: true} = conn), do: conn
   defp maintenance(conn), do: MaintenanceMode.call(conn, [])
 
-  # ── Notice ─────────────────────────────────────────────────────────
+  # ── Hide from search engines ───────────────────────────────────────
 
-  defp notice(conn) do
-    register_before_send(conn, fn conn ->
-      conn
-      |> robots_header()
-      |> inject_notice()
-    end)
-  end
+  defp robots(conn), do: register_before_send(conn, &robots_header/1)
 
-  # "Hide from search engines" as a header too, so pages rendered outside
-  # the kit's layouts (a host's own templates) carry the directive as well.
+  # As a header and not only in the page, so pages rendered outside the
+  # kit's layouts (a host's own templates) carry the directive as well.
   defp robots_header(conn) do
     if Crawlers.no_index_enabled?() do
       put_resp_header(conn, "x-robots-tag", "noindex, nofollow")
     else
       conn
-    end
-  end
-
-  defp inject_notice(conn) do
-    with 200 <- conn.status,
-         true <- html_response?(conn),
-         html when is_binary(html) <- Notice.html(),
-         body when is_binary(body) <- body_string(conn) do
-      inject_after_body(conn, body, html)
-    else
-      _ -> conn
-    end
-  end
-
-  defp html_response?(conn) do
-    content_type = get_resp_header(conn, "content-type") |> List.first() || ""
-    encoding = get_resp_header(conn, "content-encoding")
-    String.contains?(content_type, "text/html") and encoding == [] and conn.method != "HEAD"
-  end
-
-  defp body_string(conn) do
-    body = IO.iodata_to_binary(conn.resp_body)
-    if String.valid?(body), do: body, else: nil
-  rescue
-    _ -> nil
-  end
-
-  defp inject_after_body(conn, body, html) do
-    case Regex.run(~r/<body[^>]*>/i, body, return: :index) do
-      [{start, length}] ->
-        # Byte offsets from the regex, so a byte split — `String.split_at`
-        # counts graphemes and lands late after any non-ASCII `<head>`.
-        {before, rest} = :erlang.split_binary(body, start + length)
-
-        # A content-length or etag set upstream describe the old body.
-        %{conn | resp_body: before <> html <> rest}
-        |> delete_resp_header("content-length")
-        |> delete_resp_header("etag")
-
-      _ ->
-        conn
     end
   end
 

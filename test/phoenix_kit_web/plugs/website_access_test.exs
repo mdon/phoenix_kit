@@ -1,7 +1,7 @@
 defmodule PhoenixKitWeb.Plugs.WebsiteAccessTest do
   @moduledoc """
   The browser-pipeline chain: allowed addresses → redirect → gate →
-  maintenance → notice, each a no-op when off.
+  maintenance, each a no-op when off.
   """
   use PhoenixKit.DataCase, async: false
 
@@ -12,7 +12,7 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccessTest do
   alias PhoenixKit.Modules.Maintenance
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
-  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Notice, Redirect}
+  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Redirect}
   alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
 
   @gate "/phoenix_kit/access"
@@ -24,8 +24,6 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccessTest do
     Settings.update_boolean_setting(Redirect.enabled_key(), false)
     Settings.update_setting(Redirect.url_key(), "")
     Settings.update_setting(Redirect.scope_key(), "everyone")
-    Settings.update_boolean_setting(Notice.enabled_key(), false)
-    Settings.update_setting(Notice.text_key(), "")
     Settings.update_setting(AllowedAddresses.key(), "")
     Settings.update_boolean_setting("maintenance_enabled", false)
     Settings.update_setting("maintenance_scheduled_start", "")
@@ -196,72 +194,6 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccessTest do
       Settings.update_setting(AllowedAddresses.key(), "203.0.113.7")
       conn = %{request("/about") | remote_ip: {203, 0, 113, 7}} |> run()
       refute conn.halted
-    end
-  end
-
-  describe "the notice" do
-    setup do
-      Settings.update_boolean_setting(Notice.enabled_key(), true)
-      Settings.update_setting(Notice.text_key(), "This is the <dev> site")
-      :ok
-    end
-
-    defp page(
-           conn,
-           status \\ 200,
-           body \\ "<html><head></head><body class=\"x\"><p>hi</p></body></html>"
-         ) do
-      conn
-      |> put_resp_content_type("text/html")
-      |> send_resp(status, body)
-    end
-
-    test "is put right after <body> even when the head holds non-ASCII text" do
-      body =
-        ~s(<html><head><title>Кухня — дизайн</title></head><body class="y"><p>привет</p></body></html>)
-
-      conn = request("/about") |> run() |> page(200, body)
-      assert conn.resp_body =~ ~r{<body class="y"><div data-phoenix-kit-notice}
-      assert conn.resp_body =~ "<p>привет</p></body></html>"
-    end
-
-    test "is put right after <body> on an HTML 200" do
-      conn = request("/about") |> run() |> put_resp_header("content-length", "5") |> page()
-      assert conn.resp_body =~ ~r{<body class="x"><div data-phoenix-kit-notice}
-      assert get_resp_header(conn, "content-length") == [], "a stale length would truncate"
-      assert conn.resp_body =~ "This is the &lt;dev&gt; site"
-      assert conn.resp_body =~ "<p>hi</p>"
-    end
-
-    test "not on errors, redirects, non-HTML, HEAD or bodies without <body>" do
-      refute request("/about") |> run() |> page(404) |> Map.get(:resp_body) =~
-               "data-phoenix-kit-notice"
-
-      json =
-        request("/about")
-        |> run()
-        |> put_resp_content_type("application/json")
-        |> send_resp(200, "{}")
-
-      refute json.resp_body =~ "data-phoenix-kit-notice"
-
-      refute request(:head, "/about") |> run() |> page() |> Map.get(:resp_body) =~
-               "data-phoenix-kit-notice"
-
-      refute request("/about") |> run() |> page(200, "<p>fragment</p>") |> Map.get(:resp_body) =~
-               "data-phoenix-kit-notice"
-    end
-
-    test "a locked visitor never sees it (the gate answered first)" do
-      gate_on()
-      conn = request("/about") |> run()
-      refute conn.resp_body =~ "data-phoenix-kit-notice"
-    end
-
-    test "an allowed address still sees it" do
-      Settings.update_setting(AllowedAddresses.key(), "203.0.113.7")
-      conn = %{request("/about") | remote_ip: {203, 0, 113, 7}} |> run() |> page()
-      assert conn.resp_body =~ "data-phoenix-kit-notice"
     end
   end
 

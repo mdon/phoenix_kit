@@ -3258,34 +3258,6 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
-  // WebsiteAccessNotice Hook
-  // ---------------------------------------------------------------------------
-  //
-  // Mount on any element of the Website access settings page. The visitor
-  // notice is a bar the WebsiteAccess plug injects at the end of <body> on
-  // every page, this one included; when the admin changes the notice the
-  // LiveView pushes "website_access:notice" with the bar's new HTML (empty
-  // when the notice is off), and this hook swaps the injected bar for it, so
-  // the page shows the setting as saved without a reload. The preview inside
-  // the form is a different element and is never touched.
-  //
-  // Usage in LiveView template:
-  //   <div id="pk-website-access-notice-sync" phx-hook="WebsiteAccessNotice" hidden></div>
-  //
-  // ---------------------------------------------------------------------------
-
-  window.PhoenixKitHooks.WebsiteAccessNotice = {
-    mounted() {
-      this.handleEvent("website_access:notice", (payload) => {
-        var current = document.querySelector("body > [data-phoenix-kit-notice]");
-        var html = (payload && payload.html) || "";
-        if (current) current.remove();
-        if (html) document.body.insertAdjacentHTML("beforeend", html);
-      });
-    }
-  };
-
-  // ---------------------------------------------------------------------------
   // CopyToClipboard Hook
   // ---------------------------------------------------------------------------
   //

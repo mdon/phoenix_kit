@@ -1,8 +1,12 @@
 # Website access — one page, a list of features, presets instead of modes
 
-Status: BUILT 2026-09-06 (overnight), on max-dev only; no PR until Max has
-tried it. The "As built" section at the end records where the build departed
-from the plan and why.
+Status: BUILT 2026-09-06 (overnight), merged as #788. The "As built" section
+at the end records where the build departed from the plan and why.
+
+**Since trimmed, on the boss's call** (see the end of this file): the
+environment banner, the presets and the visitor notice are gone. Read the
+feature table below as history for those three; the gate, the redirect, the
+closed page, hide-from-search-engines and the allowed addresses stand.
 
 ## Why
 
@@ -167,3 +171,21 @@ preview live in the **Site closed** area of the Website access page; the
 page on with matching stock texts — a heading or message the admin wrote is
 kept, a stock one is replaced, so applying one preset after the other does
 change the page. `PhoenixKit.Modules.Maintenance` keeps its name and API.
+
+## 2026-09-08 — the boss trims it (Max relaying)
+
+Three removals, in the order they were asked for:
+
+- **The environment banner** at the top of the page ("this install runs as
+  mix (dev) on …", with the "Development site" preset suggested). The admin
+  header's automatic `[dev]` tag already says which site this is, on every
+  page. `WebsiteAccess.Environment` stays — it is what drives that tag.
+- **The presets.** `presets/0`, `apply_preset/2` and the stock heading and
+  message texts they picked between are gone; every feature is switched on
+  its own, which is what the page was for. The closed page keeps whatever
+  heading and message the admin wrote.
+- **The visitor notice.** The whole feature: the `Notice` context, its four
+  settings, the bar the plug injected after `<body>`, its preview and the
+  `WebsiteAccessNotice` JS hook. "Hide from search engines" kept its
+  `X-Robots-Tag` header, which had been riding in the notice's
+  `before_send` callback.

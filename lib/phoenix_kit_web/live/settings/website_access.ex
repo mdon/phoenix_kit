@@ -4,13 +4,11 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
   sees this site lives, for now (the boss decides later where each piece
   belongs):
 
-    * **presets** at the top — a button that switches a bundle of features
-      on, the old "modes";
     * **the features**, each a checkbox with an explanation and, where it
       needs one, its own area: the password gate (password, lockout, access
-      link, the history of tries), the redirect to production, the visitor
-      notice, maintenance, hide from search engines (shared with the
-      Crawlers page), allowed addresses.
+      link, the history of tries), the redirect to production,
+      maintenance, hide from search engines (shared with the Crawlers
+      page), allowed addresses.
 
   Every change goes through `PhoenixKit.WebsiteAccess` and lands in the
   settings history with this admin as the actor.
@@ -24,12 +22,12 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
   alias PhoenixKit.Utils.Date, as: DateUtils
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.WebsiteAccess
-  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Notice, Redirect}
+  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Redirect}
   alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
 
   # The features with a switch (allowed addresses has none — it is on when
   # the list is not empty).
-  @features ~w(gate redirect notice maintenance no_index)
+  @features ~w(gate redirect maintenance no_index)
 
   # The tries table's columns; the admin picks which show (core's column
   # settings modal), the choice is kept as a site setting like the Users
@@ -49,7 +47,7 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
       |> assign(
         :page_subtitle,
         gettext(
-          "Who sees this site, and what they see: a list of features you switch on one by one, and presets that switch on a bundle."
+          "Who sees this site, and what they see: a list of features you switch on one by one."
         )
       )
       |> assign(:page_section, gettext("Settings"))
@@ -65,7 +63,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
       |> assign(:show_column_modal, false)
       |> assign(:attempt_columns, load_attempt_columns())
       |> assign(:site_zone, Settings.get_setting_cached("time_zone", "0"))
-      |> assign(:presets, WebsiteAccess.presets())
       |> assign(:active_tab, "gate")
       |> assign_state()
 
@@ -76,23 +73,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
 
   def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
     {:noreply, assign(socket, :active_tab, tab)}
-  end
-
-  # ── Presets ────────────────────────────────────────────────────────
-
-  def handle_event("apply_preset", %{"preset" => key}, socket) do
-    case WebsiteAccess.apply_preset(key, history(socket)) do
-      :ok ->
-        label = Enum.find_value(socket.assigns.presets, key, &(&1.key == key && &1.label))
-
-        {:noreply,
-         socket
-         |> put_flash(:info, gettext("Preset applied: %{name}", name: label))
-         |> assign_state()}
-
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, error_text(reason))}
-    end
   end
 
   # ── Feature checkboxes ─────────────────────────────────────────────
@@ -244,31 +224,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
     end
   end
 
-  # ── Notice ─────────────────────────────────────────────────────────
-
-  def handle_event("save_notice", %{"notice" => params}, socket) do
-    opts = history(socket)
-
-    with {:ok, _} <-
-           Settings.update_setting(Notice.icon_key(), Map.get(params, "icon", "info"), opts),
-         {:ok, _} <-
-           Settings.update_setting(
-             Notice.text_key(),
-             String.trim(Map.get(params, "text", "")),
-             opts
-           ),
-         {:ok, _} <-
-           Settings.update_setting(
-             Notice.link_key(),
-             String.trim(Map.get(params, "link", "")),
-             opts
-           ) do
-      {:noreply, socket |> assign_state() |> put_flash(:info, gettext("Notice saved."))}
-    else
-      {:error, reason} -> {:noreply, put_flash(socket, :error, error_text(reason))}
-    end
-  end
-
   # ── Maintenance ────────────────────────────────────────────────────
 
   def handle_event("save_maintenance", %{"maintenance" => params}, socket) do
@@ -325,10 +280,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
   defp assign_state(socket) do
     link_token = Gate.access_link_token()
 
-    # The bar on THIS page was injected at load time; tell the page to swap
-    # it for the current one so a save shows at once, not after a reload.
-    socket = push_event(socket, "website_access:notice", %{html: Notice.html() || ""})
-
     socket
     |> assign(:features, WebsiteAccess.features())
     |> assign(:crawlers_module_on?, Crawlers.module_enabled?())
@@ -348,12 +299,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
       url: Settings.get_setting(Redirect.url_key(), "") || "",
       scope: Redirect.scope()
     })
-    |> assign(:notice, %{
-      icon: Notice.icon(),
-      text: Notice.text(),
-      link: Settings.get_setting(Notice.link_key(), "") || ""
-    })
-    |> assign(:notice_html, Notice.html(preview: true))
     |> assign(:maintenance, maintenance_state(socket.assigns.site_zone))
     |> assign(:allowed_addresses, Enum.join(AllowedAddresses.list(), "\n"))
   end
@@ -534,7 +479,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
   defp toggled_text(feature, false),
     do: gettext("%{feature} switched off.", feature: feature.label)
 
-  defp error_text(:unknown_preset), do: gettext("Unknown preset.")
   defp error_text(:not_switchable), do: gettext("That feature has no switch.")
   defp error_text(:end_in_past), do: gettext("The \"until\" time is in the past.")
   defp error_text(:start_in_past), do: gettext("The \"from\" time is in the past.")
@@ -580,16 +524,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
   end
 
   @doc false
-  def icon_options do
-    [
-      {gettext("Construction"), "construction"},
-      {gettext("Warning"), "warning"},
-      {gettext("Info"), "info"},
-      {gettext("None"), "none"}
-    ]
-  end
-
-  @doc false
   def scope_options do
     [{gettext("Everyone"), "everyone"}, {gettext("Search-engine crawlers only"), "crawlers"}]
   end
@@ -597,7 +531,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
   @doc false
   def feature_icon(:gate), do: "hero-lock-closed"
   def feature_icon(:redirect), do: "hero-arrow-top-right-on-square"
-  def feature_icon(:notice), do: "hero-megaphone"
   def feature_icon(:maintenance), do: "hero-wrench-screwdriver"
   def feature_icon(:no_index), do: "hero-eye-slash"
   def feature_icon(:allowed_addresses), do: "hero-map-pin"

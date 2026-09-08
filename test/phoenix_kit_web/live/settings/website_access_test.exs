@@ -7,7 +7,7 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: DateUtils
   alias PhoenixKit.WebsiteAccess
-  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Notice, Redirect}
+  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Redirect}
   alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
 
   @page "/phoenix_kit/admin/settings/website-access"
@@ -23,28 +23,28 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
   end
 
   setup %{conn: conn} do
-    :ok = WebsiteAccess.apply_preset("live", [])
+    {:ok, _} = Gate.set_enabled(false)
+    {:ok, _} = WebsiteAccess.set(:redirect, false, [])
+    {:ok, _} = Maintenance.set_active(false)
+    {:ok, _} = Crawlers.update_no_index(false)
     Settings.update_setting(Gate.password_key(), "")
     Settings.update_setting(Gate.link_key(), "")
     Settings.update_boolean_setting(Gate.users_pass_key(), true)
     Settings.update_setting(Gate.keep_typed_key(), "all")
     Settings.update_setting(Redirect.url_key(), "")
-    Settings.update_setting(Notice.text_key(), "")
     Gate.clear_attempts()
     {user, _} = create_admin_user()
     {:ok, conn: log_in_user(conn, user), user: user}
   end
 
   describe "the page" do
-    test "lists every feature with a switch and the presets", %{conn: conn} do
+    test "lists every feature with a switch", %{conn: conn} do
       {:ok, _view, html} = live(conn, @page)
 
-      for key <- ~w(gate redirect notice maintenance no_index allowed_addresses) do
+      for key <- ~w(gate redirect maintenance no_index allowed_addresses) do
         assert html =~ ~s(id="feature-#{key}"), key
       end
 
-      assert html =~ "Under construction"
-      assert html =~ "Development site"
       assert html =~ "Password gate"
     end
 
@@ -241,7 +241,7 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
       assert Gate.access_link_token() == nil
     end
 
-    test "redirect, notice, maintenance and allowed addresses save", %{conn: conn} do
+    test "redirect, maintenance and allowed addresses save", %{conn: conn} do
       {:ok, view, _} = live(conn, @page)
 
       view
@@ -252,20 +252,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
 
       assert Redirect.target_url() == "https://www.example.com"
       assert Redirect.scope() == "crawlers"
-
-      html =
-        view
-        |> form("#pk-notice-form", %{
-          "notice" => %{
-            "icon" => "warning",
-            "text" => "Dev site",
-            "link" => "https://www.example.com"
-          }
-        })
-        |> render_submit()
-
-      assert Notice.text() == "Dev site"
-      assert html =~ "data-phoenix-kit-notice", "the preview"
 
       view
       |> form("#pk-maintenance-form", %{
@@ -388,15 +374,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
       {:ok, view, _} = live(conn, @page)
       view |> element(~s(#feature-no_index input[phx-click="toggle_feature"])) |> render_click()
       assert Crawlers.no_index_enabled?()
-    end
-
-    test "a preset switches its bundle", %{conn: conn} do
-      {:ok, view, _} = live(conn, @page)
-      html = view |> element(~s(button[phx-value-preset="under_construction"])) |> render_click()
-      assert html =~ "Preset applied"
-      assert Maintenance.active?()
-      assert Notice.icon() == "construction"
-      assert html =~ "Closed now, by hand"
     end
   end
 

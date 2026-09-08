@@ -1,8 +1,7 @@
 defmodule PhoenixKit.Modules.Maintenance do
   @moduledoc """
   The closed page — part of core, the "Site closed" feature on the Website
-  access settings page (`PhoenixKit.WebsiteAccess`), where "Maintenance" and
-  "Under construction" are presets that switch it on with matching texts.
+  access settings page (`PhoenixKit.WebsiteAccess`).
 
   It shows a page (heading, message, countdown to a scheduled end) to all
   non-admin users while admins and owners see the site. It is not a module:

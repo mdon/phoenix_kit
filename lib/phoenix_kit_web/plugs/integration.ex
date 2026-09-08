@@ -10,7 +10,8 @@ defmodule PhoenixKitWeb.Plugs.Integration do
 
   - **Website access** (`PhoenixKitWeb.Plugs.WebsiteAccess`): allowed
     addresses, the redirect to production, the password gate, maintenance
-    mode, the visitor notice — in that order
+    mode — in that order, plus the `X-Robots-Tag` header while the site is
+    hidden from search engines
   - **WebSocket Transport Fix**: Clears cached LongPoll fallback preferences to ensure
     WebSocket is always tried first, providing much better LiveView performance
 
@@ -63,8 +64,8 @@ defmodule PhoenixKitWeb.Plugs.Integration do
   """
   def call(conn, _opts) do
     # Website access — the allowed addresses, the redirect to production, the
-    # password gate, maintenance (which used to be called from here directly),
-    # and the visitor notice.
+    # password gate, and maintenance (which used to be called from here
+    # directly).
     conn = WebsiteAccess.call(conn, [])
 
     # Skip remaining plugs if a feature already sent a response
