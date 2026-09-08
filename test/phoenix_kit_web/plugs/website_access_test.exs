@@ -1,7 +1,7 @@
 defmodule PhoenixKitWeb.Plugs.WebsiteAccessTest do
   @moduledoc """
   The browser-pipeline chain: allowed addresses → redirect → gate →
-  maintenance → notice, each a no-op when off.
+  maintenance, each a no-op when off.
   """
   use PhoenixKit.DataCase, async: false
 
@@ -12,7 +12,7 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccessTest do
   alias PhoenixKit.Modules.Maintenance
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
-  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Notice, Redirect}
+  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Redirect}
   alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
 
   @gate "/phoenix_kit/access"
@@ -24,8 +24,6 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccessTest do
     Settings.update_boolean_setting(Redirect.enabled_key(), false)
     Settings.update_setting(Redirect.url_key(), "")
     Settings.update_setting(Redirect.scope_key(), "everyone")
-    Settings.update_boolean_setting(Notice.enabled_key(), false)
-    Settings.update_setting(Notice.text_key(), "")
     Settings.update_setting(AllowedAddresses.key(), "")
     Settings.update_boolean_setting("maintenance_enabled", false)
     Settings.update_setting("maintenance_scheduled_start", "")
@@ -199,70 +197,43 @@ defmodule PhoenixKitWeb.Plugs.WebsiteAccessTest do
     end
   end
 
-  describe "the notice" do
-    setup do
-      Settings.update_boolean_setting(Notice.enabled_key(), true)
-      Settings.update_setting(Notice.text_key(), "This is the <dev> site")
-      :ok
-    end
+  test "the response body is passed through untouched — nothing is injected any more" do
+    body = "<html><head></head><body class=\"x\"><p>hi</p></body></html>"
 
-    defp page(
-           conn,
-           status \\ 200,
-           body \\ "<html><head></head><body class=\"x\"><p>hi</p></body></html>"
-         ) do
-      conn
+    conn =
+      request("/about")
+      |> run()
       |> put_resp_content_type("text/html")
-      |> send_resp(status, body)
-    end
+      |> send_resp(200, body)
 
-    test "is put right after <body> even when the head holds non-ASCII text" do
-      body =
-        ~s(<html><head><title>Кухня — дизайн</title></head><body class="y"><p>привет</p></body></html>)
+    assert conn.resp_body == body
+  end
 
-      conn = request("/about") |> run() |> page(200, body)
-      assert conn.resp_body =~ ~r{<body class="y"><div data-phoenix-kit-notice}
-      assert conn.resp_body =~ "<p>привет</p></body></html>"
-    end
+  # The header rides a before_send callback that the plug registers on two
+  # different branches — the allowed-address one and the everyone-else one —
+  # and the gate sets the same header itself before halting. Both branches
+  # and the overlap, so a rewiring of that callback cannot quietly drop it.
+  test "the noindex header rides the allowed-address branch, and the gate's bounce carries it once" do
+    Crawlers.update_no_index(true)
+    Settings.update_setting(AllowedAddresses.key(), "203.0.113.7")
 
-    test "is put right after <body> on an HTML 200" do
-      conn = request("/about") |> run() |> put_resp_header("content-length", "5") |> page()
-      assert conn.resp_body =~ ~r{<body class="x"><div data-phoenix-kit-notice}
-      assert get_resp_header(conn, "content-length") == [], "a stale length would truncate"
-      assert conn.resp_body =~ "This is the &lt;dev&gt; site"
-      assert conn.resp_body =~ "<p>hi</p>"
-    end
+    conn =
+      %{request("/about") | remote_ip: {203, 0, 113, 7}}
+      |> run()
+      |> put_resp_content_type("text/html")
+      |> send_resp(200, "<html></html>")
 
-    test "not on errors, redirects, non-HTML, HEAD or bodies without <body>" do
-      refute request("/about") |> run() |> page(404) |> Map.get(:resp_body) =~
-               "data-phoenix-kit-notice"
+    assert get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"],
+           "an allowed address skips the gate, not the header"
 
-      json =
-        request("/about")
-        |> run()
-        |> put_resp_content_type("application/json")
-        |> send_resp(200, "{}")
+    Settings.update_setting(AllowedAddresses.key(), "")
+    gate_on()
+    conn = request("/about") |> run()
 
-      refute json.resp_body =~ "data-phoenix-kit-notice"
+    assert conn.status == 302
 
-      refute request(:head, "/about") |> run() |> page() |> Map.get(:resp_body) =~
-               "data-phoenix-kit-notice"
-
-      refute request("/about") |> run() |> page(200, "<p>fragment</p>") |> Map.get(:resp_body) =~
-               "data-phoenix-kit-notice"
-    end
-
-    test "a locked visitor never sees it (the gate answered first)" do
-      gate_on()
-      conn = request("/about") |> run()
-      refute conn.resp_body =~ "data-phoenix-kit-notice"
-    end
-
-    test "an allowed address still sees it" do
-      Settings.update_setting(AllowedAddresses.key(), "203.0.113.7")
-      conn = %{request("/about") | remote_ip: {203, 0, 113, 7}} |> run() |> page()
-      assert conn.resp_body =~ "data-phoenix-kit-notice"
-    end
+    assert get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"],
+           "the gate sets it too — one value, not two"
   end
 
   test "hide from search engines adds the header to every page, a redirect and the closed page too" do

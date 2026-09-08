@@ -1975,7 +1975,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     # the other Settings.* pages it resolves through no inference layer, so an
     # explicit entry is required or it falls through to the unmapped fallback.
     PhoenixKitWeb.Live.Settings.Authorization => "settings",
-    # Website access (password gate, redirect, notice, maintenance switch…).
+    # Website access (password gate, redirect, closed page, noindex, allow list).
     PhoenixKitWeb.Live.Settings.WebsiteAccess => "settings",
     # Integrations + Emails Transactional/Bulk settings pages: none of these resolve
     # through the later inference layers (their PhoenixKitWeb namespace has no

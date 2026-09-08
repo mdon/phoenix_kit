@@ -1,6 +1,6 @@
 # Maintenance Mode
 
-Part of core, not a module: no switch, no card on the Modules page, no permission and no settings page of its own — it is the "Site closed" feature on the Website access page, and "Maintenance" is one of that page's presets. The `PhoenixKit.Modules.Maintenance` name is kept for compatibility.
+Part of core, not a module: no switch, no card on the Modules page, no permission and no settings page of its own — it is the "Site closed" feature on the Website access page. The `PhoenixKit.Modules.Maintenance` name is kept for compatibility.
 
 System-wide maintenance mode that redirects non-admin users to a dedicated `/maintenance` LiveView page. Admins and owners bypass maintenance and see the real site.
 
@@ -111,9 +111,8 @@ Returns true when either:
 Maintenance is a permanent part of core: `enabled?/0` (the PhoenixKit.Module
 callback) is always `true`, there is no card for it on the Modules page, and
 its settings page is always reachable. It is also one of the features on the
-**Website access** settings page (`PhoenixKit.WebsiteAccess`), whose
-"Under construction" preset switches it on. `set_active/2` takes the settings
-history's `actor_uuid:`/`source:` opts; `enable_system/0` and
+**Website access** settings page (`PhoenixKit.WebsiteAccess`). `set_active/2`
+takes the settings history's `actor_uuid:`/`source:` opts; `enable_system/0` and
 `disable_system/0` are the same without them.
 
 **PubSub:**
@@ -147,10 +146,9 @@ All settings stored in `phoenix_kit_settings` table:
 
 There is no page of its own: the closed page is the **"Site closed"** feature on
 Settings › Website access (`PhoenixKitWeb.Live.Settings.WebsiteAccess`) — the
-switch, heading, message, the scheduled window and a preview live there, and the
-**Maintenance** and **Under construction** presets on that page switch it on with
-the matching texts. `/maintenance` remains the user-facing page (an admin sees a
-preview banner there).
+switch, heading, message, the scheduled window and a preview live there.
+`/maintenance` remains the user-facing page (an admin sees a preview banner
+there).
 
 ## Component
 

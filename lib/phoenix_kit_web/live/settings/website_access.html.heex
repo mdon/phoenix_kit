@@ -11,65 +11,6 @@
   current_locale={@current_locale}
 >
   <div class="px-4 py-6 space-y-6">
-    <%!-- Environment --%>
-    <div class="alert bg-base-200/70 border border-base-300">
-      <.icon name="hero-server" class="w-6 h-6" />
-      <div class="text-sm leading-relaxed">
-        <p>
-          {gettext("This install runs as %{runtime} (%{env}) on %{host}.",
-            runtime:
-              if(@environment.runtime == :release, do: gettext("a release"), else: gettext("mix")),
-            env: @environment.mix_env || gettext("unknown env"),
-            host: @environment.hostname
-          )}
-          <span :if={@environment.site_url}>
-            {gettext("Site URL: %{url}.", url: @environment.site_url)}
-          </span>
-        </p>
-        <p :if={@environment.looks_like_dev?} class="font-semibold">
-          {gettext("It looks like a development site")} ({Enum.map_join(
-            @environment.reasons,
-            ", ",
-            &reason_text/1
-          )}) — {gettext(
-            "the \"Development site\" preset below would fit. Nothing is switched on by itself."
-          )}
-        </p>
-        <p :if={!@environment.looks_like_dev?}>
-          {gettext(
-            "Nothing here says development — treat it as a live site unless you know better."
-          )}
-        </p>
-      </div>
-    </div>
-
-    <%!-- Presets --%>
-    <.form_section title={gettext("Presets")} icon="hero-squares-2x2" body_class="space-y-4">
-      <:subtitle>
-        {gettext(
-          "A preset only sets the features below — nothing more. Everything stays adjustable afterwards."
-        )}
-      </:subtitle>
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div
-          :for={preset <- @presets}
-          class="rounded-lg border border-base-300 p-4 flex flex-col gap-2"
-        >
-          <h3 class="font-semibold">{preset.label}</h3>
-          <p class="text-sm text-base-content/70 flex-1">{preset.description}</p>
-          <.button
-            type="button"
-            variant="outline"
-            size="sm"
-            phx-click="apply_preset"
-            phx-value-preset={preset.key}
-          >
-            {gettext("Apply")}
-          </.button>
-        </div>
-      </div>
-    </.form_section>
-
     <%!-- Features --%>
     <.nav_tabs
       active_tab={@active_tab}
@@ -384,49 +325,6 @@
           </div>
         </form>
 
-        <%!-- Notice area --%>
-        <div :if={feature.key == :notice} class="space-y-4">
-          <form phx-submit="save_notice" id="pk-notice-form" class="grid gap-4 md:grid-cols-3">
-            <.select
-              id="notice-icon"
-              name="notice[icon]"
-              label={gettext("Icon")}
-              options={icon_options()}
-              value={@notice.icon}
-            />
-            <div class="md:col-span-2">
-              <.input
-                id="notice-text"
-                name="notice[text]"
-                type="text"
-                label={gettext("Text")}
-                value={@notice.text}
-                maxlength="300"
-                placeholder={gettext("This is the development site — the live one is at")}
-              />
-            </div>
-            <div class="md:col-span-3">
-              <.input
-                id="notice-link"
-                name="notice[link]"
-                type="text"
-                label={gettext("Link (optional)")}
-                value={@notice.link}
-                placeholder="https://www.example.com"
-              />
-            </div>
-            <div class="md:col-span-3">
-              <.button type="submit" variant="primary" size="sm">{gettext("Save")}</.button>
-            </div>
-          </form>
-          <div :if={@notice_html} class="rounded-lg overflow-hidden border border-base-300">
-            <p class="text-xs uppercase tracking-wide text-base-content/60 px-3 pt-2">
-              {gettext("Preview")}
-            </p>
-            <div class="p-2" data-preview>{Phoenix.HTML.raw(@notice_html)}</div>
-          </div>
-        </div>
-
         <%!-- Site closed area --%>
         <div :if={feature.key == :maintenance} class="space-y-4">
           <p class="text-sm font-semibold">{@maintenance.status}</p>
@@ -533,9 +431,7 @@
             placeholder="203.0.113.7"
           />
           <p class="text-xs text-base-content/60">
-            {gettext(
-              "Exact addresses, one per line. They still see the closed page and the notice."
-            )}
+            {gettext("Exact addresses, one per line. They still see the closed page.")}
           </p>
           <.button type="submit" variant="primary" size="sm">{gettext("Save")}</.button>
         </form>
@@ -548,18 +444,12 @@
       selected={@attempt_columns}
     />
 
-    <%!-- Keeps the live notice bar (the one the plug injected into this
-         page) in step with the settings: the WebsiteAccessNotice hook in
-         phoenix_kit.js swaps it for what the server pushes. A hook, not an
-         inline script — a script inserted by live navigation never runs. --%>
-    <div id="pk-website-access-notice-sync" phx-hook="WebsiteAccessNotice" hidden></div>
-
     <%!-- How it fits together --%>
     <.form_section title={gettext("How the pieces stack")} icon="hero-squares-plus">
       <div class="text-sm text-base-content/70 space-y-2">
         <p>
           {gettext(
-            "On every page request, in this order: an allowed address skips the next two; the redirect sends a public visitor away; the gate stops anyone without the password; the closed page shows to non-admins; the notice is added to whatever page is served."
+            "On every page request, in this order: an allowed address skips the next two; the redirect sends a public visitor away; the gate stops anyone without the password; the closed page shows to non-admins."
           )}
         </p>
         <p>

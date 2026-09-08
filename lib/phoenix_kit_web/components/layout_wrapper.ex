@@ -919,13 +919,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     </.link>
                     <%!-- Automatic — not a setting. `resolve_dev_environment/1`
                          reads `WebsiteAccess.environment().looks_like_dev?`
-                         (mix env, hostname, site_url heuristics), the same
-                         signal already shown on the Website Access settings
-                         page. Replaces the old fixed bottom-of-viewport
-                         "This is the development site" bar (still available,
-                         opt-in, as the general-purpose Notice feature) with a
-                         quiet header tag nobody has to remember to turn on
-                         or off. --%>
+                         (mix env, hostname, site_url heuristics). This tag is
+                         now the only thing that says which site you are on:
+                         it replaced both the old fixed bottom-of-viewport
+                         "This is the development site" bar and the Website
+                         access page's environment banner, neither of which
+                         anyone had to remember to switch on. --%>
                     <span
                       :if={@dev_environment?}
                       class={[
