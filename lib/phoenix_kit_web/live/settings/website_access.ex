@@ -10,8 +10,7 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
       needs one, its own area: the password gate (password, lockout, access
       link, the history of tries), the redirect to production, the visitor
       notice, maintenance, hide from search engines (shared with the
-      Crawlers page), allowed addresses;
-    * **the environment** — how this install runs, with a suggested preset.
+      Crawlers page), allowed addresses.
 
   Every change goes through `PhoenixKit.WebsiteAccess` and lands in the
   settings history with this admin as the actor.
@@ -66,7 +65,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
       |> assign(:show_column_modal, false)
       |> assign(:attempt_columns, load_attempt_columns())
       |> assign(:site_zone, Settings.get_setting_cached("time_zone", "0"))
-      |> assign(:environment, WebsiteAccess.environment())
       |> assign(:presets, WebsiteAccess.presets())
       |> assign(:active_tab, "gate")
       |> assign_state()
@@ -571,11 +569,6 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
   def verdict_class("close"), do: "badge-warning"
   def verdict_class("locked"), do: "badge-error"
   def verdict_class(_), do: "badge-ghost"
-
-  @doc false
-  def reason_text({:mix_env, value}), do: gettext("MIX_ENV is %{value}", value: value)
-  def reason_text({:hostname, value}), do: gettext("the hostname is %{value}", value: value)
-  def reason_text({:site_url, value}), do: gettext("the site URL is %{value}", value: value)
 
   @doc false
   def keep_typed_options do

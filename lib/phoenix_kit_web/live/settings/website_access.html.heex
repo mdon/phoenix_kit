@@ -11,38 +11,6 @@
   current_locale={@current_locale}
 >
   <div class="px-4 py-6 space-y-6">
-    <%!-- Environment --%>
-    <div class="alert bg-base-200/70 border border-base-300">
-      <.icon name="hero-server" class="w-6 h-6" />
-      <div class="text-sm leading-relaxed">
-        <p>
-          {gettext("This install runs as %{runtime} (%{env}) on %{host}.",
-            runtime:
-              if(@environment.runtime == :release, do: gettext("a release"), else: gettext("mix")),
-            env: @environment.mix_env || gettext("unknown env"),
-            host: @environment.hostname
-          )}
-          <span :if={@environment.site_url}>
-            {gettext("Site URL: %{url}.", url: @environment.site_url)}
-          </span>
-        </p>
-        <p :if={@environment.looks_like_dev?} class="font-semibold">
-          {gettext("It looks like a development site")} ({Enum.map_join(
-            @environment.reasons,
-            ", ",
-            &reason_text/1
-          )}) — {gettext(
-            "the \"Development site\" preset below would fit. Nothing is switched on by itself."
-          )}
-        </p>
-        <p :if={!@environment.looks_like_dev?}>
-          {gettext(
-            "Nothing here says development — treat it as a live site unless you know better."
-          )}
-        </p>
-      </div>
-    </div>
-
     <%!-- Presets --%>
     <.form_section title={gettext("Presets")} icon="hero-squares-2x2" body_class="space-y-4">
       <:subtitle>

@@ -1,8 +1,10 @@
 defmodule PhoenixKit.WebsiteAccess.Environment do
   @moduledoc """
-  How this install is running — shown on the Website access page so the
-  admin can tell a dev box from the live site, and offered a preset. It
-  never switches anything on by itself.
+  How this install is running. `looks_like_dev?` drives the automatic
+  "[dev]" tag next to the project title in the admin header
+  (`LayoutWrapper`), so a dev or staging box tells itself apart without an
+  admin having to switch anything on. It never switches anything on by
+  itself.
   """
 
   alias PhoenixKit.Settings

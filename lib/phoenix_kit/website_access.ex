@@ -22,8 +22,8 @@ defmodule PhoenixKit.WebsiteAccess do
 
   Every setting goes through `PhoenixKit.Settings`, so V184's history
   records who switched what and when (`opts` carry `actor_uuid:` and
-  `source:`). `Environment.read/0` describes how the install is running, to
-  suggest a preset — never to switch one on.
+  `source:`). `Environment.read/0` describes how the install is running —
+  it drives the admin header's automatic "[dev]" tag, never a setting.
   """
 
   use Gettext, backend: PhoenixKitWeb.Gettext
