@@ -1,3 +1,39 @@
+## 2.22.4 - 2026-09-08
+
+### Added
+
+- **Active / Disabled / Not Installed tabs on the admin Modules page.** The
+  page previously listed every accessible module in one grid regardless of
+  its on/off state. Toggling a module now moves it live between tabs (no
+  reload), and each tab shows a running count badge.
+
+### Changed
+
+- **Storage and Notifications no longer appear on the admin Modules page.**
+  Both are core capabilities, not real install/uninstall toggles — Storage
+  has always been unconditionally enabled (`enable_system`/`disable_system`
+  are no-ops) and Notifications is a settings kill-switch already exposed on
+  `/admin/settings/users`. Listing them alongside genuinely optional modules
+  (Languages, Crawlers, Sitemap, external packages) misrepresented them as
+  removable features. Their permission keys, admin tabs, and Settings pages
+  are unchanged — only the redundant Modules-page card was removed.
+- **`phoenix_kit_hello_world` no longer appears in "Not Installed" packages.**
+  It's a starter template for building a new module, not a real feature to
+  install.
+
+### Fixed
+
+- **The not-yet-installed "Og" package card showed "Og" instead of "OG".**
+  `PhoenixKit.KnownPackages`' key-to-name humanizer capitalized every word
+  instead of upper-casing known acronyms; it now special-cases them.
+- **`billing_default_currency` dead setting removed (V189).** Seeded by V135,
+  read by nothing (confirmed by a full grep across `phoenix_kit`,
+  `phoenix_kit_billing`, and `phoenix_kit_ecommerce`), and actively
+  disagreeing with the real base currency (the `is_default` row of
+  `phoenix_kit_currencies`) — worse than merely unread. Follows V184's
+  `shop_currency` removal shape exactly; `down/1` restores V135's exact seed
+  statement without clobbering a hand-recreated value. (#796)
+
 ## 2.22.3 - 2026-09-08
 
 ### Added

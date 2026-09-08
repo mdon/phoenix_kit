@@ -82,6 +82,22 @@ defmodule PhoenixKit.KnownPackagesTest do
       assert "phoenix_kit_newsletters" in package_names
     end
 
+    test "filters out phoenix_kit_hello_world (a module template, not a real package)" do
+      hex_hello_world = %{
+        "name" => "phoenix_kit_hello_world",
+        "latest_version" => "0.1.0",
+        "meta" => %{"description" => "Demo module template."}
+      }
+
+      stub_hex([hex_hello_world, @hex_newsletters])
+
+      packages = KnownPackages.list(test_opts())
+
+      package_names = Enum.map(packages, & &1.package)
+      refute "phoenix_kit_hello_world" in package_names
+      assert "phoenix_kit_newsletters" in package_names
+    end
+
     test "entry without icon marker gets default icon" do
       pkg = %{
         "name" => "phoenix_kit_crm",
@@ -111,6 +127,21 @@ defmodule PhoenixKit.KnownPackagesTest do
 
       support = Enum.find(packages, &(&1.package == "phoenix_kit_customer_support"))
       assert support.name == "Customer Support"
+    end
+
+    test "uppercases known acronym package keys" do
+      pkg = %{
+        "name" => "phoenix_kit_og",
+        "latest_version" => "0.1.0",
+        "meta" => %{"description" => "OpenGraph templates."}
+      }
+
+      stub_hex([pkg])
+
+      packages = KnownPackages.list(test_opts())
+
+      og = Enum.find(packages, &(&1.package == "phoenix_kit_og"))
+      assert og.name == "OG"
     end
   end
 

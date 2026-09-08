@@ -21,6 +21,12 @@ defmodule PhoenixKitWeb.Live.Modules do
   # Mount
   # ============================================================================
 
+  # Internal modules still rendered as hardcoded cards on this page. Storage
+  # and Notifications are core capabilities (not real install/uninstall
+  # toggles — see their moduledocs) and are configured entirely from their
+  # own Settings pages, so they're deliberately excluded from this list.
+  @internal_module_keys ["languages", "crawlers", "sitemap", "jobs"]
+
   def mount(_params, _session, socket) do
     if connected?(socket), do: Events.subscribe_to_modules()
 
@@ -47,8 +53,18 @@ defmodule PhoenixKitWeb.Live.Modules do
       |> assign(:not_installed_packages, not_installed)
       |> assign(:catalog_status, catalog_status)
       |> assign(:hex_browse_url, PhoenixKit.KnownPackages.browse_url())
+      |> assign(:modules_tab, "active")
+      |> refresh_tab_counts()
 
     {:ok, socket}
+  end
+
+  # ============================================================================
+  # Tab Switching
+  # ============================================================================
+
+  def handle_event("switch_modules_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, :modules_tab, tab)}
   end
 
   # ============================================================================
@@ -72,6 +88,7 @@ defmodule PhoenixKitWeb.Live.Modules do
       socket
       |> reload_module_config(module_key)
       |> assign(:dep_warnings, ModuleRegistry.dependency_warnings())
+      |> refresh_tab_counts()
 
     {:noreply, socket}
   end
@@ -81,6 +98,7 @@ defmodule PhoenixKitWeb.Live.Modules do
       socket
       |> reload_module_config(module_key)
       |> assign(:dep_warnings, ModuleRegistry.dependency_warnings())
+      |> refresh_tab_counts()
 
     {:noreply, socket}
   end
@@ -114,6 +132,7 @@ defmodule PhoenixKitWeb.Live.Modules do
       gettext_noop("Legal"),
       gettext_noop("Locations"),
       gettext_noop("Newsletters"),
+      gettext_noop("OG"),
       gettext_noop("Posts"),
       gettext_noop("Projects"),
       gettext_noop("Publishing"),
@@ -194,6 +213,23 @@ defmodule PhoenixKitWeb.Live.Modules do
       config -> Map.get(config, field, default)
     end
   end
+
+  @doc """
+  Normalizes a module's enabled flag across the two config key spellings
+  internal modules use (`:enabled` for most, `:module_enabled` for Crawlers).
+  """
+  def module_enabled?(config) do
+    cond do
+      Map.has_key?(config, :enabled) -> config.enabled || false
+      Map.has_key?(config, :module_enabled) -> config.module_enabled || false
+      true -> false
+    end
+  end
+
+  @doc "Whether a module's enabled state belongs on the given Modules-page tab."
+  def modules_tab_match?("active", enabled?), do: enabled? == true
+  def modules_tab_match?("disabled", enabled?), do: enabled? != true
+  def modules_tab_match?(_tab, _enabled?), do: false
 
   def format_timestamp(nil), do: "Never"
 
@@ -298,6 +334,7 @@ defmodule PhoenixKitWeb.Live.Modules do
             socket
             |> assign(:module_configs, configs)
             |> assign(:external_modules, load_external_modules(configs))
+            |> refresh_tab_counts()
             |> put_flash(
               :info,
               "#{mod.module_name()} #{if new_enabled, do: "enabled", else: "disabled"}"
@@ -350,6 +387,7 @@ defmodule PhoenixKitWeb.Live.Modules do
              socket
              |> assign(:module_configs, configs)
              |> assign(:external_modules, load_external_modules(configs))
+             |> refresh_tab_counts()
              |> put_flash(:info, label)}
 
           {:error, _} ->
@@ -414,6 +452,34 @@ defmodule PhoenixKitWeb.Live.Modules do
     else
       socket
     end
+  end
+
+  # Recomputes the Active/Disabled/Not Installed tab badge counts from the
+  # current `module_configs`/`external_modules`/`not_installed_packages`
+  # assigns. Must be called after anything that changes those assigns, or the
+  # counts drift from what the tabs actually show.
+  defp refresh_tab_counts(socket) do
+    %{
+      accessible_modules: accessible,
+      module_configs: configs,
+      external_modules: external,
+      not_installed_packages: not_installed
+    } = socket.assigns
+
+    internal_accessible = Enum.filter(@internal_module_keys, &(&1 in accessible))
+    active_internal = Enum.count(internal_accessible, &module_enabled?(configs[&1] || %{}))
+
+    external_accessible = Enum.filter(external, &(&1.key in accessible))
+    active_external = Enum.count(external_accessible, & &1.enabled)
+
+    active = active_internal + active_external
+    disabled = length(internal_accessible) + length(external_accessible) - active
+
+    assign(socket, :modules_tab_counts, %{
+      active: active,
+      disabled: disabled,
+      not_installed: length(not_installed)
+    })
   end
 
   defp normalize_result(:ok), do: :ok

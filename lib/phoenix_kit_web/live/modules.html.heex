@@ -24,54 +24,51 @@
       </div>
     </div>
 
-    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      <%!-- Storage Module --%>
-      <%= if "storage" in @accessible_modules do %>
-        <% cfg = @module_configs["storage"] || %{} %>
-        <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title={gettext("Storage")}
-          description={
-            gettext(
-              "Distributed file storage system with multi-location redundancy and automatic failover"
-            )
-          }
-          icon="💾"
-          enabled={cfg[:module_enabled]}
-          toggle_event="toggle_module"
-          toggle_key="storage"
-          show_toggle={false}
-        >
-          <:status_badges>
-            <span class="badge badge-success z-0">{gettext("Always Enabled")}</span>
-            <span class="badge badge-info z-0">{gettext("Core System")}</span>
-          </:status_badges>
+    <.nav_tabs
+      active_tab={@modules_tab}
+      on_change="switch_modules_tab"
+      variant={:border}
+      class="mb-6"
+      tabs={[
+        %{
+          id: "active",
+          label: gettext("Active"),
+          icon: "hero-check-circle",
+          badge: @modules_tab_counts.active
+        },
+        %{
+          id: "disabled",
+          label: gettext("Disabled"),
+          icon: "hero-pause-circle",
+          badge: @modules_tab_counts.disabled
+        },
+        %{
+          id: "not_installed",
+          label: gettext("Not Installed"),
+          icon: "hero-cube-transparent",
+          badge: @modules_tab_counts.not_installed
+        }
+      ]}
+    />
 
-          <:action_buttons>
-            <.link
-              navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media")}
-              class="btn btn-primary btn-sm"
-            >
-              <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> {gettext("Configure")}
-            </.link>
-          </:action_buttons>
+    <div
+      :if={
+        @modules_tab in ["active", "disabled"] and
+          Map.get(@modules_tab_counts, String.to_existing_atom(@modules_tab)) == 0
+      }
+      class="alert alert-info"
+    >
+      <.icon name="hero-information-circle" class="w-5 h-5" />
+      <span :if={@modules_tab == "active"}>{gettext("No modules are currently enabled.")}</span>
+      <span :if={@modules_tab == "disabled"}>{gettext("No modules are currently disabled.")}</span>
+    </div>
 
-          <:stats>
-            <div class="grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <span class="text-base-content/70">{gettext("Total Buckets")}:</span>
-                <span class="font-medium">{cfg[:buckets_count]}</span>
-              </div>
-              <div>
-                <span class="text-base-content/70">{gettext("Active")}:</span>
-                <span class="font-medium">{cfg[:active_buckets_count]}</span>
-              </div>
-            </div>
-          </:stats>
-        </PhoenixKitWeb.Components.Core.ModuleCard.module_card>
-      <% end %>
-
+    <div
+      :if={@modules_tab in ["active", "disabled"]}
+      class="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
+    >
       <%!-- Languages Module --%>
-      <%= if "languages" in @accessible_modules do %>
+      <%= if "languages" in @accessible_modules and modules_tab_match?(@modules_tab, module_enabled?(@module_configs["languages"] || %{})) do %>
         <% cfg = @module_configs["languages"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
           title={gettext("Languages")}
@@ -131,7 +128,7 @@
       <% end %>
 
       <%!-- Crawlers Module --%>
-      <%= if "crawlers" in @accessible_modules do %>
+      <%= if "crawlers" in @accessible_modules and modules_tab_match?(@modules_tab, module_enabled?(@module_configs["crawlers"] || %{})) do %>
         <% cfg = @module_configs["crawlers"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
           title={gettext("Crawlers")}
@@ -190,7 +187,7 @@
       <% end %>
 
       <%!-- Sitemap Module --%>
-      <%= if "sitemap" in @accessible_modules do %>
+      <%= if "sitemap" in @accessible_modules and modules_tab_match?(@modules_tab, module_enabled?(@module_configs["sitemap"] || %{})) do %>
         <% cfg = @module_configs["sitemap"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
           title={gettext("Sitemap")}
@@ -266,7 +263,7 @@
       <%!-- Pages module remains disabled but code retained for future use --%>
 
       <%!-- Jobs Module --%>
-      <%= if "jobs" in @accessible_modules do %>
+      <%= if "jobs" in @accessible_modules and modules_tab_match?(@modules_tab, module_enabled?(@module_configs["jobs"] || %{})) do %>
         <% cfg = @module_configs["jobs"] || %{} %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
           title={gettext("Jobs")}
@@ -330,65 +327,11 @@
         </PhoenixKitWeb.Components.Core.ModuleCard.module_card>
       <% end %>
 
-      <%!-- Notifications Module --%>
-      <%= if "notifications" in @accessible_modules do %>
-        <% cfg = @module_configs["notifications"] || %{} %>
-        <PhoenixKitWeb.Components.Core.ModuleCard.module_card
-          title={gettext("Notifications")}
-          description={gettext("Per-user in-app notifications driven by the activity log")}
-          icon="🔔"
-          enabled={cfg[:enabled] || false}
-          toggle_event="toggle_module"
-          toggle_key="notifications"
-        >
-          <:status_badges>
-            <span class={[
-              "badge",
-              if(cfg[:enabled], do: "badge-success", else: "badge-neutral")
-            ]}>
-              {if cfg[:enabled], do: gettext("Enabled"), else: gettext("Disabled")}
-            </span>
-          </:status_badges>
-
-          <:action_buttons>
-            <div class="flex flex-col gap-2 w-full">
-              <%= if cfg[:enabled] do %>
-                <.link
-                  navigate={PhoenixKit.Utils.Routes.path("/admin/notifications")}
-                  class="btn btn-primary btn-sm"
-                >
-                  <.icon name="hero-bell" class="w-4 h-4 mr-1" /> {gettext("View Notifications")}
-                </.link>
-              <% else %>
-                <span class="text-xs text-base-content/50 text-center">
-                  {gettext("Enable module to view notifications")}
-                </span>
-              <% end %>
-            </div>
-          </:action_buttons>
-
-          <:stats>
-            <div class="grid grid-cols-3 gap-2 text-xs">
-              <div>
-                <span class="text-base-content/70">{gettext("Total")}:</span>
-                <span class="font-medium">{cfg[:total] || 0}</span>
-              </div>
-              <div>
-                <span class="text-base-content/70">{gettext("Unread")}:</span>
-                <span class="font-medium">{cfg[:unread] || 0}</span>
-              </div>
-              <div>
-                <span class="text-base-content/70">{gettext("Dismissed")}:</span>
-                <span class="font-medium">{cfg[:dismissed] || 0}</span>
-              </div>
-            </div>
-          </:stats>
-        </PhoenixKitWeb.Components.Core.ModuleCard.module_card>
-      <% end %>
-
       <%!-- Legal Module --%>
       <%!-- External Modules (auto-discovered) --%>
-      <%= for ext <- @external_modules, ext.key in @accessible_modules do %>
+      <%= for ext <- @external_modules,
+              ext.key in @accessible_modules,
+              modules_tab_match?(@modules_tab, ext.enabled) do %>
         <PhoenixKitWeb.Components.Core.ModuleCard.module_card
           title={Gettext.gettext(PhoenixKitWeb.Gettext, ext.name)}
           description={Gettext.gettext(PhoenixKitWeb.Gettext, ext.description)}
@@ -482,30 +425,28 @@
       <% end %>
     </div>
 
-    <%!-- Hex was unreachable. Rendered separately from the list below, because an
-         empty list and "we could not ask" look identical to an operator and
-         only one of them means there is nothing to install. --%>
-    <div :if={@catalog_status == :unavailable} class="mt-8">
-      <h2 class="text-lg font-semibold mb-3 text-base-content/70">
-        {gettext("Available Packages")}
-      </h2>
-      <div class="alert alert-warning">
-        <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
-        <span>
-          {gettext("Couldn't reach hex.pm, so the package list is unavailable right now.")}
-          <a href={@hex_browse_url} target="_blank" rel="noopener" class="link">
-            {gettext("Browse PhoenixKit packages on hex.pm")} →
-          </a>
-        </span>
+    <div :if={@modules_tab == "not_installed"}>
+      <%!-- Hex was unreachable. Rendered separately from the list below, because an
+           empty list and "we could not ask" look identical to an operator and
+           only one of them means there is nothing to install. --%>
+      <div :if={@catalog_status == :unavailable} class="mb-8">
+        <div class="alert alert-warning">
+          <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+          <span>
+            {gettext("Couldn't reach hex.pm, so the package list is unavailable right now.")}
+            <a href={@hex_browse_url} target="_blank" rel="noopener" class="link">
+              {gettext("Browse PhoenixKit packages on hex.pm")} →
+            </a>
+          </span>
+        </div>
       </div>
-    </div>
 
-    <%!-- Available Packages (known but not installed) --%>
-    <%= if @not_installed_packages != [] do %>
-      <div class="mt-8">
-        <h2 class="text-lg font-semibold mb-3 text-base-content/70">
-          {gettext("Available Packages")}
-        </h2>
+      <%= if @not_installed_packages == [] do %>
+        <div class="alert alert-info">
+          <.icon name="hero-information-circle" class="w-5 h-5" />
+          <span>{gettext("No additional PhoenixKit packages available to install right now.")}</span>
+        </div>
+      <% else %>
         <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <%= for pkg <- @not_installed_packages do %>
             <div class="card bg-base-100 shadow border-2 border-dashed border-base-300">
@@ -546,8 +487,8 @@
             </div>
           <% end %>
         </div>
-      </div>
-    <% end %>
+      <% end %>
+    </div>
 
     <%!-- Module Management Help --%>
     <div class="alert alert-info mt-6">
