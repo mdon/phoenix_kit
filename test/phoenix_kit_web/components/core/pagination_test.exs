@@ -18,7 +18,9 @@ defmodule PhoenixKitWeb.Components.Core.PaginationTest do
 
   import Phoenix.LiveViewTest, only: [rendered_to_string: 1]
   import Phoenix.Component, only: [sigil_H: 2]
-  import PhoenixKitWeb.Components.Core.Pagination, only: [pagination: 1, pagination_controls: 1]
+
+  import PhoenixKitWeb.Components.Core.Pagination,
+    only: [pagination: 1, pagination_controls: 1, page_size_selector: 1]
 
   # Page-number links carry `page=N` in their href — a precise, whitespace-
   # proof way to check which page numbers rendered (the visible text node
@@ -146,6 +148,80 @@ defmodule PhoenixKitWeb.Components.Core.PaginationTest do
       assert result =~ "« Prev"
       assert result =~ "Next »"
       for n <- 3..7, do: assert(has_page_link?(result, n))
+    end
+  end
+
+  describe "page_size_selector/1" do
+    test "renders the default options in a phx-change form with the current value selected" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.page_size_selector value={25} />
+        """)
+
+      assert result =~ ~s(phx-change="change_per_page")
+      assert result =~ ~s(name="per_page")
+      for n <- [10, 25, 50, 100], do: assert(result =~ ~s(value="#{n}"))
+      assert result =~ ~r/value="25"\s+selected/
+      refute result =~ ~r/value="10"\s+selected/
+      refute result =~ ~s(value="auto")
+      refute result =~ "phx-hook"
+    end
+
+    test "custom options and event name" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.page_size_selector value={20} options={[20, 40]} on_change="resize" />
+        """)
+
+      assert result =~ ~s(phx-change="resize")
+      assert result =~ ~s(value="20")
+      assert result =~ ~s(value="40")
+      refute result =~ ~s(value="25")
+    end
+
+    # A page size the LiveView allows but the caller's option list omits must
+    # still be shown — otherwise the select would render blank.
+    test "a value outside the options is appended in order" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.page_size_selector value={30} options={[10, 50]} />
+        """)
+
+      assert result =~ ~r/value="10".*value="30"\s+selected.*value="50"/s
+    end
+
+    test "auto_fit renders the Auto option and the PageSizeAutoFit hook" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.page_size_selector id="pp" value={10} auto_fit auto table_id="users-table" />
+        """)
+
+      assert result =~ ~s(phx-hook="PageSizeAutoFit")
+      assert result =~ ~s(data-auto="true")
+      assert result =~ ~s(data-table-id="users-table")
+      assert result =~ ~s(data-options="10,25,50,100")
+      assert result =~ ~s(data-event="change_per_page")
+      assert result =~ ~r/value="auto"\s+selected/
+      # Auto wins the selection over the numeric value it resolved to.
+      refute result =~ ~r/value="10"\s+selected/
+    end
+
+    test "auto_fit without table_id raises" do
+      assigns = %{}
+
+      assert_raise ArgumentError, ~r/requires `table_id`/, fn ->
+        rendered_to_string(~H"""
+        <.page_size_selector value={10} auto_fit />
+        """)
+      end
     end
   end
 end

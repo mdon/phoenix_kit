@@ -79,6 +79,101 @@ defmodule PhoenixKit.Users.Sessions do
   end
 
   @doc """
+  One page of sessions for the admin list, filtered and paginated in SQL.
+
+  Options:
+
+    * `:scope` — `:active` (default), `:today` or `:expired`, as
+      `list_active_sessions/1`
+    * `:search` — case-insensitive match on the user's email or the token
+      preview (the first 8 hex chars shown in the UI)
+    * `:user_status` — `"all"` (default), `"active"`, `"inactive"`,
+      `"confirmed"` or `"pending"`
+    * `:page` / `:per_page` — defaults `1` / `20`
+
+  Returns `%{sessions: [...], total_count: n, total_pages: n}`. The page is
+  clamped into `[1, total_pages]` before the offset is applied, so a stale
+  link past the end shows the last page rather than an empty one — mirror
+  the returned `page` back into the assigns.
+  """
+  def list_sessions_paginated(opts \\ []) do
+    scope = Keyword.get(opts, :scope, :active)
+    page = Keyword.get(opts, :page, 1)
+    per_page = Keyword.get(opts, :per_page, 20)
+
+    base =
+      from(token in UserToken,
+        where: token.context == "session",
+        where: ^scope_condition(scope),
+        join: user in User,
+        on: token.user_uuid == user.uuid
+      )
+      |> filter_sessions_by_search(Keyword.get(opts, :search, ""))
+      |> filter_sessions_by_user_status(Keyword.get(opts, :user_status, "all"))
+
+    total_count = Repo.aggregate(base, :count, :uuid)
+    total_pages = max(div(total_count + per_page - 1, per_page), 1)
+    page = page |> max(1) |> min(total_pages)
+
+    sessions =
+      base
+      |> select([token, user], %{
+        token_uuid: token.uuid,
+        token_preview: fragment("encode(substring(?, 1, 4), 'hex')", token.token),
+        user_uuid: user.uuid,
+        user_email: user.email,
+        user_is_active: user.is_active,
+        user_confirmed_at: user.confirmed_at,
+        browser: token.browser,
+        os: token.os,
+        created_at: token.inserted_at,
+        expires_at: fragment("? + interval '60 days'", token.inserted_at)
+      })
+      |> order_by([token], desc: token.inserted_at)
+      |> limit(^per_page)
+      |> offset(^((page - 1) * per_page))
+      |> Repo.all()
+      |> Enum.map(&format_session_info/1)
+
+    %{sessions: sessions, total_count: total_count, total_pages: total_pages, page: page}
+  end
+
+  defp filter_sessions_by_search(query, search) when search in [nil, ""], do: query
+
+  defp filter_sessions_by_search(query, search) do
+    pattern = "%" <> escape_like(search) <> "%"
+
+    where(
+      query,
+      [token, user],
+      ilike(user.email, ^pattern) or
+        ilike(fragment("encode(substring(?, 1, 4), 'hex')", token.token), ^pattern)
+    )
+  end
+
+  defp filter_sessions_by_user_status(query, "active"),
+    do: where(query, [_token, user], user.is_active == true)
+
+  defp filter_sessions_by_user_status(query, "inactive"),
+    do: where(query, [_token, user], user.is_active == false)
+
+  defp filter_sessions_by_user_status(query, "confirmed"),
+    do: where(query, [_token, user], not is_nil(user.confirmed_at))
+
+  defp filter_sessions_by_user_status(query, "pending"),
+    do: where(query, [_token, user], is_nil(user.confirmed_at))
+
+  defp filter_sessions_by_user_status(query, _all), do: query
+
+  # `%` and `_` typed into the search box are literal characters, not wildcards.
+  defp escape_like(text) do
+    text
+    |> String.replace("\\", "\\\\")
+    |> String.replace("%", "\\%")
+    |> String.replace("_", "\\_")
+  end
+
+  @doc """
   Lists all active sessions for a specific user.
 
   ## Examples

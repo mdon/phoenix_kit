@@ -8,7 +8,8 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
 
     * Page-numbered (`<.pagination>`, `<.pagination_controls>`,
       `<.pagination_info>`) — URL-param driven, suits standalone admin
-      pages with deep-linkable state.
+      pages with deep-linkable state. `<.page_size_selector>` sits next to
+      either and lets the viewer pick the rows per page.
 
     * Load-more (`<.load_more>`) — click-driven LV event that grows
       the loaded set in place. Suits embeddable LVs (no URL routing),
@@ -181,6 +182,96 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
         </div>
       </div>
     <% end %>
+    """
+  end
+
+  @doc """
+  Rows-per-page selector, a sibling of `<.pagination>`.
+
+  A daisyUI `<select>` wrapped in its own `<form phx-change>`, so a change
+  reaches the LiveView as `%{"per_page" => "25"}` under the event named in
+  `on_change`. The LiveView is expected to push the value into the URL and
+  reset the page to 1 — with `PhoenixKitWeb.Live.UrlState` that is one
+  `push_url_state(socket, per_page: n)`, which does both.
+
+  ## Attributes
+
+  - `value` — the current page size (required)
+  - `options` — selectable sizes (default `[10, 25, 50, 100]`). A `value`
+    outside the list is appended so the select never shows a blank.
+  - `on_change` — LV event name (default `"change_per_page"`)
+  - `class` — additional classes on the wrapper
+  - `id` — DOM id of the `<select>`; the wrapping form gets `id <> "-form"`
+    (default `"pk-page-size-" <> on_change` — pass one when a page renders two
+    selectors with the same event)
+  - `auto_fit` — adds an "Auto" option backed by the `PageSizeAutoFit` JS
+    hook, which measures how many rows of `table_id` fit the viewport and
+    pushes `on_change` with `%{"per_page" => n, "auto" => "1"}`, `n` being
+    the largest option that fits (default `false`)
+  - `auto` — whether Auto is currently selected (default `false`)
+  - `table_id` — DOM id of the table the hook measures; required when `auto_fit`
+
+  ## Example
+
+      <.page_size_selector value={@per_page} />
+
+      <%!-- Auto-fit pilot --%>
+      <.page_size_selector
+        id="users-per-page"
+        value={@per_page}
+        auto_fit
+        auto={@auto_fit}
+        table_id="users-table"
+      />
+  """
+  attr :value, :integer, required: true
+  attr :options, :list, default: [10, 25, 50, 100]
+  attr :on_change, :string, default: "change_per_page"
+  attr :class, :string, default: ""
+  attr :id, :string, default: nil
+  attr :auto_fit, :boolean, default: false
+  attr :auto, :boolean, default: false
+  attr :table_id, :string, default: nil
+
+  def page_size_selector(assigns) do
+    if assigns.auto_fit and is_nil(assigns.table_id) do
+      raise ArgumentError,
+            "<.page_size_selector auto_fit> requires `table_id` (the PageSizeAutoFit JS hook measures that table)"
+    end
+
+    options =
+      if assigns.value in assigns.options,
+        do: assigns.options,
+        else: Enum.sort([assigns.value | assigns.options])
+
+    assigns =
+      assigns
+      |> assign(:options, options)
+      |> assign(:id, assigns.id || "pk-page-size-#{assigns.on_change}")
+
+    ~H"""
+    <form
+      id={"#{@id}-form"}
+      phx-change={@on_change}
+      class={["flex items-center gap-2 text-sm text-base-content/70", @class]}
+    >
+      <label for={@id}>{gettext("Rows per page")}</label>
+      <select
+        id={@id}
+        name="per_page"
+        class="select select-sm select-bordered w-auto"
+        phx-hook={@auto_fit && "PageSizeAutoFit"}
+        data-auto={@auto_fit && to_string(@auto)}
+        data-table-id={@auto_fit && @table_id}
+        data-options={@auto_fit && Enum.join(@options, ",")}
+        data-event={@auto_fit && @on_change}
+      >
+        <option :for={size <- @options} value={size} selected={size == @value and not @auto}>
+          {size}
+        </option>
+        <option :if={@auto_fit} value="auto" selected={@auto}>{gettext("Auto")}</option>
+      </select>
+    </form>
     """
   end
 

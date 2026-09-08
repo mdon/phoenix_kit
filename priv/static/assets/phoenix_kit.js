@@ -3791,6 +3791,75 @@ if (typeof window.Chart === "undefined") {
   };
 
 
+  // ---------------------------------------------------------------------------
+  // PageSizeAutoFit — the "Auto" option of `<.page_size_selector auto_fit>`.
+  // Measures how many rows of the table named in `data-table-id` fit between
+  // the table's top edge and the bottom of the viewport (minus room for the
+  // pagination bar) and pushes `data-event` with the LARGEST option from
+  // `data-options` that fits — so the value always lands inside the LV's
+  // allowlist and the page never needs a scrollbar just for the table.
+  // Active only while `data-auto="true"`; re-measures on resize (debounced)
+  // and after every LV diff, but pushes only when the answer changed, so a
+  // steady viewport costs nothing.
+  // ---------------------------------------------------------------------------
+
+  // Pure: the option that fits `rows` rows, clamped into the option range.
+  function fitPageSize(available, rowHeight, options) {
+    const sorted = options.map(Number).filter((n) => n > 0).sort((a, b) => a - b);
+    if (sorted.length === 0) return null;
+    if (!(rowHeight > 0)) return sorted[0];
+    const rows = Math.floor(available / rowHeight);
+    let fit = sorted[0];
+    for (const n of sorted) if (n <= rows) fit = n;
+    return fit;
+  }
+
+  window.PhoenixKitHooks.PageSizeAutoFit = {
+    active() {
+      return this.el.dataset.auto === "true";
+    },
+    measure() {
+      if (!this.active()) return;
+      const table = document.getElementById(this.el.dataset.tableId);
+      const row = table && table.querySelector("tbody tr");
+      if (!table || !row) return;
+      const reserve = 96; // pagination bar + breathing room below the table
+      const available = window.innerHeight - table.getBoundingClientRect().top - reserve;
+      const options = (this.el.dataset.options || "").split(",");
+      const size = fitPageSize(available, row.getBoundingClientRect().height, options);
+      if (size === null || String(size) === this.lastPushed) return;
+      this.lastPushed = String(size);
+      pushToOwner(this, this.el, this.el.dataset.event || "change_per_page", {
+        per_page: String(size),
+        auto: "1"
+      });
+    },
+    mounted() {
+      this.lastPushed = null;
+      this.onResize = () => {
+        clearTimeout(this.resizeTimer);
+        this.resizeTimer = setTimeout(() => this.measure(), 250);
+      };
+      window.addEventListener("resize", this.onResize);
+      this.measure();
+    },
+    updated() {
+      // A number picked by hand switches auto off: forget the last push so
+      // re-enabling Auto measures afresh instead of assuming nothing moved.
+      if (!this.active()) this.lastPushed = null;
+      this.measure();
+    },
+    destroyed() {
+      clearTimeout(this.resizeTimer);
+      window.removeEventListener("resize", this.onResize);
+    }
+  };
+
+  if (typeof module === "object" && module.exports) {
+    module.exports.fitPageSize = fitPageSize;
+  }
+
+
   // ============================================================================
   // 4. FLASH AUTO-DISMISS HOOK
   // ============================================================================

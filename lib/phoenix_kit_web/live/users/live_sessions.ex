@@ -29,7 +29,10 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
       filter_type: [default: "all", url_key: "type"],
       sort_by: [default: :connected_at, cast: :atom, in: [:type, :connected_at], url_key: "sort"],
       sort_dir: [default: :desc, cast: :atom, in: [:asc, :desc], url_key: "dir"],
-      page: [default: 1, cast: :integer, min: 1]
+      page: [default: 1, cast: :integer, min: 1],
+      # Rows per page, picked with <.page_size_selector>. Allowlisted so a
+      # hand-edited URL cannot ask for a million-row page.
+      per_page: [default: 20, cast: :integer, in: [10, 20, 25, 50, 100]]
     ]
 
   alias PhoenixKit.Admin.{Events, Presence}
@@ -43,7 +46,6 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
 
   # Refresh every 5 seconds
   @refresh_interval 5_000
-  @per_page 20
 
   def mount(_params, session, socket) do
     # Subscribe to presence events for real-time updates
@@ -61,12 +63,11 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
     # Get project title from settings
     project_title = Settings.get_project_title()
 
-    # :page, :search_query and :filter_type are assigned from the query string
-    # by UrlState before mount/3 runs — re-assigning them here would overwrite
-    # a shared link's state with the defaults.
+    # :page, :per_page, :search_query and :filter_type are assigned from the
+    # query string by UrlState before mount/3 runs — re-assigning them here
+    # would overwrite a shared link's state with the defaults.
     socket =
       socket
-      |> assign(:per_page, @per_page)
       |> assign(:page_title, gettext("Live Sessions"))
       |> assign(:project_title, project_title)
       |> assign(:auto_refresh, true)
@@ -114,9 +115,11 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
     {:noreply, push_url_state(socket, sort_by: sort_by, sort_dir: sort_dir)}
   end
 
-  def handle_event("change_page", %{"page" => page}, socket) do
-    case Integer.parse(page) do
-      {page, ""} when page > 0 -> {:noreply, push_url_state(socket, page: page)}
+  # `push_url_state` resets the page along with the size: page 7 of 20 rows
+  # is not page 7 of 100.
+  def handle_event("change_per_page", %{"per_page" => per_page}, socket) do
+    case Integer.parse(per_page) do
+      {per_page, ""} -> {:noreply, push_url_state(socket, per_page: per_page)}
       _ -> {:noreply, socket}
     end
   end
@@ -210,6 +213,8 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
   # Ignore other messages
   def handle_info(_msg, socket), do: {:noreply, socket}
 
+  # Presence sessions live in memory (ETS), not in a table, so the page is
+  # sliced from the tracked list — there is no LIMIT/OFFSET to push down to.
   defp load_sessions(socket) do
     sessions = Presence.list_active_sessions()
 
@@ -223,7 +228,7 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
     # Calculate pagination
     total_count = length(filtered_sessions)
     total_pages = Pagination.total_pages(total_count, socket.assigns.per_page)
-    page = min(socket.assigns.page, total_pages)
+    page = socket.assigns.page |> max(1) |> min(total_pages)
 
     # Get page sessions
     page_sessions =
