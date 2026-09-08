@@ -23,6 +23,10 @@
 - Users, Sessions, Live Sessions and the media picker share the core
   `<.pagination_controls>` instead of four hand-rolled `join` blocks with
   their own page-range helpers.
+- `<.pagination_info>` is translated ("Showing … of … results" / "No results"
+  were hardcoded English) and takes a `noun_plural` attr so a caller can name
+  what is counted — Sessions passes `gettext("sessions")`, keeping the line it
+  had before switching to the shared component.
 - Sessions now filters and pages in SQL (`Sessions.list_sessions_paginated/1`)
   instead of loading every session token and slicing the list in memory.
   Live Sessions keeps the in-memory slice: Presence is an ETS-backed

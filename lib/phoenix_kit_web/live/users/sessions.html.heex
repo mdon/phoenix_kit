@@ -370,7 +370,12 @@
       :if={@total_count > 0}
       class="flex flex-col sm:flex-row justify-between items-center gap-4"
     >
-      <.pagination_info page={@page} per_page={@per_page} total_count={@total_count} />
+      <.pagination_info
+        page={@page}
+        per_page={@per_page}
+        total_count={@total_count}
+        noun_plural={gettext("sessions")}
+      />
       <.pagination_controls
         page={@page}
         total_pages={@total_pages}

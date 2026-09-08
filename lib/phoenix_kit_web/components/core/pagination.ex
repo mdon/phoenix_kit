@@ -90,22 +90,47 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
       # Renders: "Showing 1 to 25 of 100 results"
       # Single-page result drops the redundant " of N" — e.g. with
       # total_count=4 and per_page=25: "Showing 1 to 4 results".
+
+  Every string is translated. `noun_plural` names what is being counted
+  (default `gettext("results")`); pass an already-translated word so the
+  line reads "… of 40 sessions" in the viewer's language:
+
+      <.pagination_info
+        page={@page}
+        per_page={@per_page}
+        total_count={@total_count}
+        noun_plural={gettext("sessions")}
+      />
   """
   attr :page, :integer, required: true
   attr :per_page, :integer, required: true
   attr :total_count, :integer, required: true
+  attr :noun_plural, :string, default: nil
   attr :class, :string, default: ""
 
   def pagination_info(assigns) do
+    # Resolved at render time so the default follows the viewer's locale,
+    # not the locale the module happened to compile under.
+    assigns = assign(assigns, :noun_plural, assigns.noun_plural || gettext("results"))
+
     ~H"""
     <div class={["text-sm text-base-content/70", @class]}>
       <%= cond do %>
         <% @total_count == 0 -> %>
-          No results
+          {gettext("No %{noun}", noun: @noun_plural)}
         <% @total_count > @per_page -> %>
-          Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} of {@total_count} results
+          {gettext("Showing %{from} to %{to} of %{total} %{noun}",
+            from: (@page - 1) * @per_page + 1,
+            to: min(@page * @per_page, @total_count),
+            total: @total_count,
+            noun: @noun_plural
+          )}
         <% true -> %>
-          Showing {(@page - 1) * @per_page + 1} to {min(@page * @per_page, @total_count)} results
+          {gettext("Showing %{from} to %{to} %{noun}",
+            from: (@page - 1) * @per_page + 1,
+            to: min(@page * @per_page, @total_count),
+            noun: @noun_plural
+          )}
       <% end %>
     </div>
     """

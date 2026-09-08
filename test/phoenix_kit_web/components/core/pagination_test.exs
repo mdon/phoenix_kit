@@ -20,7 +20,12 @@ defmodule PhoenixKitWeb.Components.Core.PaginationTest do
   import Phoenix.Component, only: [sigil_H: 2]
 
   import PhoenixKitWeb.Components.Core.Pagination,
-    only: [pagination: 1, pagination_controls: 1, page_size_selector: 1]
+    only: [
+      pagination: 1,
+      pagination_controls: 1,
+      pagination_info: 1,
+      page_size_selector: 1
+    ]
 
   # Page-number links carry `page=N` in their href — a precise, whitespace-
   # proof way to check which page numbers rendered (the visible text node
@@ -148,6 +153,41 @@ defmodule PhoenixKitWeb.Components.Core.PaginationTest do
       assert result =~ "« Prev"
       assert result =~ "Next »"
       for n <- 3..7, do: assert(has_page_link?(result, n))
+    end
+  end
+
+  describe "pagination_info/1" do
+    defp info(assigns) do
+      assigns = Map.put_new(assigns, :noun_plural, nil)
+
+      ~H"""
+      <.pagination_info
+        page={@page}
+        per_page={@per_page}
+        total_count={@total_count}
+        noun_plural={@noun_plural}
+      />
+      """
+      |> rendered_to_string()
+    end
+
+    test "counts results by default and drops ' of N' on a single page" do
+      assert info(%{page: 2, per_page: 25, total_count: 100}) =~
+               "Showing 26 to 50 of 100 results"
+
+      assert info(%{page: 1, per_page: 25, total_count: 4}) =~ "Showing 1 to 4 results"
+      assert info(%{page: 1, per_page: 25, total_count: 0}) =~ "No results"
+    end
+
+    test "noun_plural names what is counted in every branch" do
+      assert info(%{page: 1, per_page: 20, total_count: 40, noun_plural: "sessions"}) =~
+               "Showing 1 to 20 of 40 sessions"
+
+      assert info(%{page: 1, per_page: 20, total_count: 3, noun_plural: "sessions"}) =~
+               "Showing 1 to 3 sessions"
+
+      assert info(%{page: 1, per_page: 20, total_count: 0, noun_plural: "sessions"}) =~
+               "No sessions"
     end
   end
 
