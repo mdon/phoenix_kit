@@ -307,7 +307,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         :admin_settings_integrations,
         gettext_noop("Integrations"),
         "hero-globe-alt",
-        "integrations/website",
+        "integrations",
         920,
         :admin_settings,
         "integrations_system"

@@ -466,7 +466,7 @@ See [OAuth Setup Guide](guides/oauth-and-magic-link-setup.md) for details.
 - `GET {prefix}/admin/media` - Media/storage browser
 - `GET {prefix}/admin/modules` - Enable/disable modules
 - `GET {prefix}/admin/settings` - System settings
-- `GET {prefix}/admin/settings/integrations/website` - System-wide integration credentials
+- `GET {prefix}/admin/settings/integrations` - System-wide integration credentials
 
 Companion packages (if installed) register additional routes under `{prefix}/admin/*` automatically via module discovery — see "External Module Route Discovery" in this project's `AGENTS.md`.
 
@@ -636,8 +636,8 @@ PhoenixKitAI.disable_system()
 - `{prefix}/admin/settings/media` - Storage buckets and image dimensions
 - `{prefix}/admin/settings/sitemap` - Sitemap generation settings
 - `{prefix}/admin/settings/crawlers` - Crawler / bot-policy configuration
-- `{prefix}/admin/settings/integrations` - Personal (per-user) integration credentials
-- `{prefix}/admin/settings/integrations/website` - System-wide integration credentials (OAuth/API keys/bot tokens)
+- `{prefix}/profile/settings/integrations` - Personal (per-user) integration credentials
+- `{prefix}/admin/settings/integrations` - System-wide integration credentials (OAuth/API keys/bot tokens)
 
 **The following require installing their companion package** (see "Companion Modules" above) — they 404 until that package is added:
 
