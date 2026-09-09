@@ -62,6 +62,21 @@ defmodule PhoenixKitWeb.Components.Core.LoadMoreTest do
       assert result =~ ~s(phx-click="my_load_event")
     end
 
+    test "extra attributes ride along to the button" do
+      # A page with more than one load-more list needs to tell its handler
+      # which list was clicked; without a passthrough each list would need
+      # an event name of its own.
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.load_more loaded={10} total={50} on_load_more="load_more_rows" phx-value-field="title" />
+        """)
+
+      assert result =~ ~s(phx-value-field="title")
+      assert result =~ ~s(phx-click="load_more_rows")
+    end
+
     test "loaded == 0 with total > 0 renders the button" do
       assigns = %{}
 

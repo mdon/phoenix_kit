@@ -359,6 +359,13 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
   attr :infinite, :boolean, default: false
   attr :cursor, :string, default: ""
 
+  attr :rest, :global,
+    doc: """
+    Forwarded to the button, so a page with more than one load-more list can
+    tell its handler which one was clicked (`phx-value-*`). Without this a
+    caller has to mint a separate event name per list.
+    """
+
   def load_more(assigns) do
     if assigns.infinite and is_nil(assigns.id) do
       raise ArgumentError,
@@ -395,6 +402,7 @@ defmodule PhoenixKitWeb.Components.Core.Pagination do
         class="btn btn-sm"
         phx-click={@on_load_more}
         phx-disable-with={gettext("Loading…")}
+        {@rest}
       >
         {gettext("Load more")}
       </button>
