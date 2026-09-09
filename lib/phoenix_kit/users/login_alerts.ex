@@ -4,14 +4,31 @@ defmodule PhoenixKit.Users.LoginAlerts do
 
   On every login (`PhoenixKitWeb.Users.Auth.log_in_user/3`), the request's
   `(ip_address, user_agent_hash)` pair is checked against
-  `PhoenixKit.Users.Auth.KnownDevice` rows for that user. An unrecognized
-  pair is a new device: it's persisted and a `user.new_login_detected`
-  activity entry is logged either way — but the email
-  (`PhoenixKit.Users.Auth.UserNotifier.deliver_new_login_alert/2`, gated
-  behind `new_login_alert_enabled`) and the in-app notification are skipped
-  when this is the very first `KnownDevice` row the account has ever had.
+  `PhoenixKit.Users.Auth.KnownDevice` rows for that user, and a row is
+  persisted for every new pair either way (still used to enrich the
+  self-service "Active Sessions" list with browser/OS/location per
+  session — see `PhoenixKit.Users.Sessions.list_user_device_sessions/2`).
+  A `user.new_login_detected` activity entry is always logged too, for the
+  audit trail.
 
-  That first-device skip exists because registration ends by logging the new
+  The reader-facing alarms — the email
+  (`PhoenixKit.Users.Auth.UserNotifier.deliver_new_login_alert/2`, gated
+  behind `new_login_alert_enabled`) and the in-app notification — are
+  narrower than "unrecognized pair", though, and are skipped when either:
+
+    * this is the very first `KnownDevice` row the account has ever had
+      (see below), or
+    * the browser/OS (`user_agent_hash` alone, regardless of IP) HAS been
+      seen before for this account — an IP alone changing is not "a new
+      device" from the user's point of view. Most residential/mobile
+      connections don't have a static IP, so alerting on IP change alone
+      fires on a large fraction of logins from an already-trusted browser
+      and trains people to ignore the email — the exact alert-fatigue
+      failure this codebase already avoids elsewhere (see
+      `PhoenixKit.Utils.SessionFingerprint`, which treats an IP-only
+      mismatch as a mere warning, never an alarm).
+
+  The first-device skip exists because registration ends by logging the new
   user in through this exact path (`log_in_user/3`), and an account with no
   device history yet cannot help but treat its own signup as "a new device" —
   without it, every signup on an installation with alerts on immediately
@@ -21,7 +38,7 @@ defmodule PhoenixKit.Users.LoginAlerts do
   activity entry still logs for the audit trail — only the two
   reader-facing alarms are suppressed.
 
-  A recognized pair just bumps `last_seen_at` — no alert, no email.
+  A recognized `(ip, ua)` pair just bumps `last_seen_at` — no alert, no email.
 
   Sends synchronously (matching every other PhoenixKit auth email —
   confirmation, password reset, magic link — none of which are queued
@@ -82,11 +99,25 @@ defmodule PhoenixKit.Users.LoginAlerts do
            user_agent_hash: fingerprint.user_agent_hash
          ) do
       nil ->
-        # Checked BEFORE inserting the row below — once it's inserted this
-        # account always has at least one device on file, and every future
-        # first-time check would wrongly read as "first device ever" too.
+        # Both checked BEFORE inserting the row below — once it's inserted
+        # this account always has a matching device on file, and every
+        # future check would wrongly read as "first device"/"new browser"
+        # too.
         first_device? = not repo.exists?(from(d in KnownDevice, where: d.user_uuid == ^user.uuid))
-        record_new_device(user, conn, fingerprint, now, first_device?)
+
+        # This exact (ip, ua) pair is new, but the browser itself may not
+        # be — an IP alone changing (a new DHCP lease, switching wifi to
+        # mobile data, ...) is not "a new device" worth alarming the user
+        # over. See the moduledoc.
+        new_browser? =
+          not repo.exists?(
+            from(d in KnownDevice,
+              where:
+                d.user_uuid == ^user.uuid and d.user_agent_hash == ^fingerprint.user_agent_hash
+            )
+          )
+
+        record_new_device(user, conn, fingerprint, now, first_device?, new_browser?)
 
       %KnownDevice{} = device ->
         device |> KnownDevice.changeset(%{last_seen_at: now}) |> repo.update()
@@ -94,7 +125,7 @@ defmodule PhoenixKit.Users.LoginAlerts do
     end
   end
 
-  defp record_new_device(user, conn, fingerprint, now, first_device?) do
+  defp record_new_device(user, conn, fingerprint, now, first_device?, new_browser?) do
     repo = RepoHelper.repo()
     ua = user_agent_header(conn)
 
@@ -118,13 +149,16 @@ defmodule PhoenixKit.Users.LoginAlerts do
       conflict_target: [:user_uuid, :ip_address, :user_agent_hash]
     )
 
-    log_new_login(user, attrs, first_device?)
+    log_new_login(user, attrs, first_device?, new_browser?)
 
-    # The account's first-ever login (registration's own auto-login) is not a
-    # security event to alarm the reader with — skip only the two
-    # reader-facing alarms; the device row and activity entry above still
-    # record it, so the actual second device correctly reads as new.
-    unless first_device? do
+    # Two independent reasons to stay quiet, both explained in the
+    # moduledoc: the account's first-ever login (registration's own
+    # auto-login) is not a security event, and an IP-only change on an
+    # already-recognized browser is not "a new device" either. Either way
+    # only the two reader-facing alarms are skipped — the device row and
+    # activity entry above still record it, so a genuinely new browser
+    # still reads as new.
+    if new_browser? and not first_device? do
       notify_in_app(user, attrs)
       UserNotifier.deliver_new_login_alert(user, attrs)
     end
@@ -165,7 +199,7 @@ defmodule PhoenixKit.Users.LoginAlerts do
     end
   end
 
-  defp log_new_login(user, attrs, first_device?) do
+  defp log_new_login(user, attrs, first_device?, new_browser?) do
     if Code.ensure_loaded?(PhoenixKit.Activity) do
       PhoenixKit.Activity.log(%{
         action: "user.new_login_detected",
@@ -180,7 +214,8 @@ defmodule PhoenixKit.Users.LoginAlerts do
           "ip_address" => attrs.ip_address,
           "browser" => attrs.browser,
           "os" => attrs.os,
-          "first_device" => first_device?
+          "first_device" => first_device?,
+          "new_browser" => new_browser?
         }
       })
     end

@@ -1,3 +1,21 @@
+## 2.22.13 - 2026-09-09
+
+### Changed
+
+- **"New login" alerts no longer fire on an IP change alone.**
+  `LoginAlerts` treated a login as an unrecognized "new device" whenever
+  the exact `(ip_address, user_agent_hash)` pair had no matching history
+  row — so a user with a non-static IP (most residential/mobile
+  connections) got a "we noticed a new login" email on a large fraction
+  of logins from a browser they'd used many times before, training people
+  to ignore it. The email/in-app alert now fires only when the browser/OS
+  itself (`user_agent_hash`, regardless of IP) hasn't been seen for the
+  account before; an IP-only change on an already-recognized browser
+  updates the device record and activity log silently, same as it
+  already does for the account's first-ever login. The per-`(ip, ua)`
+  device history itself is unchanged — still used to enrich the
+  self-service Active Sessions list.
+
 ## 2.22.12 - 2026-09-09
 
 ### Fixed

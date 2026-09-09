@@ -17,9 +17,9 @@ defmodule PhoenixKit.Integration.Users.LoginAlertsTest do
     user
   end
 
-  defp conn_with_ua(ua) do
+  defp conn_with_ua(ua, remote_ip \\ {203, 0, 113, 42}) do
     Phoenix.ConnTest.build_conn()
-    |> Map.put(:remote_ip, {203, 0, 113, 42})
+    |> Map.put(:remote_ip, remote_ip)
     |> Plug.Conn.put_req_header("user-agent", ua)
   end
 
@@ -92,6 +92,48 @@ defmodule PhoenixKit.Integration.Users.LoginAlertsTest do
       assert :ok = LoginAlerts.check(user, conn_with_ua(@firefox_linux))
 
       assert [_, _] = Repo.all(KnownDevice)
+    end
+
+    test "the same browser from a new IP does not send an alert email" do
+      # A dynamic IP (a new DHCP lease, switching wifi to mobile data, ...)
+      # is not "a new device" — alerting on it alone trains people to
+      # ignore the email. See the LoginAlerts moduledoc.
+      user = create_user()
+
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac, {203, 0, 113, 42}))
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac, {198, 51, 100, 7}))
+
+      refute_email_sent()
+    end
+
+    test "the same browser from a new IP still records a device row for that IP" do
+      # Preserves Active Sessions enrichment, which matches each live
+      # session token's exact (ip, ua) against a KnownDevice row.
+      user = create_user()
+
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac, {203, 0, 113, 42}))
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac, {198, 51, 100, 7}))
+
+      assert [_, _] = Repo.all(KnownDevice)
+    end
+
+    test "the same browser from a new IP still logs the activity for the audit trail" do
+      user = create_user()
+
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac, {203, 0, 113, 42}))
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac, {198, 51, 100, 7}))
+
+      assert PhoenixKit.Activity.count(action: "user.new_login_detected", actor_uuid: user.uuid) ==
+               2
+    end
+
+    test "a genuinely new browser on a brand-new IP still sends an alert email" do
+      user = create_user()
+
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac, {203, 0, 113, 42}))
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@firefox_linux, {198, 51, 100, 7}))
+
+      assert_email_sent(fn email -> assert email.subject =~ "New login" end)
     end
 
     test "devices are isolated per user" do
