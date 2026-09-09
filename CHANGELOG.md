@@ -1,3 +1,21 @@
+## 2.22.11 - 2026-09-09
+
+### Fixed
+
+- **The IP address behind session-hijack detection and "new device" login
+  alerts could be spoofed with a plain HTTP header.**
+  `SessionFingerprint.get_ip_address/1` trusted `x-forwarded-for` /
+  `x-real-ip` unconditionally — with no check that the request actually
+  came through a trusted reverse proxy — and took the FIRST
+  `x-forwarded-for` entry, which is exactly the part a client controls. An
+  attacker replaying a stolen session token could forge that header to
+  match the victim's original login IP and defeat the "IP changed, force
+  re-auth" hijack check, or spoof the location shown in a "new login"
+  alert email. It now delegates to the already-proxy-aware
+  `IpAddress.client_address/1`, which trusts a forwarded header only when
+  `conn.remote_ip` is itself a loopback/private address, and only the LAST
+  entry — the one a proxy appends, not the one a client sent.
+
 ## 2.22.10 - 2026-09-09
 
 ### Fixed

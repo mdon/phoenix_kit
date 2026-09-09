@@ -38,6 +38,8 @@ defmodule PhoenixKit.Utils.SessionFingerprint do
 
   require Logger
 
+  alias PhoenixKit.Utils.IpAddress
+
   @hash_algorithm :sha256
 
   @enforce_keys [:ip_address, :user_agent_hash]
@@ -69,8 +71,14 @@ defmodule PhoenixKit.Utils.SessionFingerprint do
   @doc """
   Extracts the IP address from a connection.
 
-  Handles proxied connections by checking X-Forwarded-For and X-Real-IP headers,
-  falling back to the direct connection IP.
+  Delegates to `PhoenixKit.Utils.IpAddress.extract_from_conn/1`: a forwarded
+  header is trusted only when `conn.remote_ip` is itself a loopback or
+  private address (a proxy on the same box or network), and only the LAST
+  `x-forwarded-for` entry — the one a proxy appends, not the one a client
+  sent — is used. The previous implementation trusted `x-forwarded-for`
+  unconditionally and took the FIRST entry, so anyone could spoof this
+  fingerprint's IP (and therefore the "new device" / session-hijack checks
+  built on it) with a plain client-supplied header, proxy or no proxy.
 
   ## Examples
 
@@ -79,25 +87,7 @@ defmodule PhoenixKit.Utils.SessionFingerprint do
 
   """
   def get_ip_address(conn) do
-    # Check for proxied IP addresses first
-    cond do
-      # X-Forwarded-For header (may contain multiple IPs, take the first)
-      forwarded_for = get_header(conn, "x-forwarded-for") ->
-        forwarded_for
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-
-      # X-Real-IP header
-      real_ip = get_header(conn, "x-real-ip") ->
-        String.trim(real_ip)
-
-      # Direct connection IP
-      true ->
-        conn.remote_ip
-        |> :inet.ntoa()
-        |> to_string()
-    end
+    IpAddress.extract_from_conn(conn)
   rescue
     _ ->
       # Fallback to "unknown" if IP extraction fails
