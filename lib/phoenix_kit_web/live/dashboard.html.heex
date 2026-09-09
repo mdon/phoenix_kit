@@ -19,9 +19,18 @@
          holding no permissions. --%>
     <.welcome_block scope={assigns[:phoenix_kit_current_scope]} greeting={@greeting_key} />
 
+    <%!-- The admin-home dashboard, when the dashboards module is installed,
+         enabled, and something is bound to the home place. It reports back
+         whether it has anything to show, and the built-in overview below
+         steps aside only while it does. --%>
+    <div :if={@home_view} class="mt-8">
+      {live_render(@socket, @home_view, id: "pk-admin-home", session: @home_session)}
+    </div>
+
     <%!-- The operator half. Renders nothing at all when every block is gated
          off, so the `mt-8` gap exists only when there is something below. --%>
     <PhoenixKitWeb.Components.Core.DashboardOverview.dashboard_overview
+      :if={!@home_dashboard?}
       class="mt-8"
       show_users_card={@show_users_card}
       show_roles_card={@show_roles_card}
