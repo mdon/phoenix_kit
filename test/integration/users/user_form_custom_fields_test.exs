@@ -63,7 +63,38 @@ defmodule PhoenixKit.Integration.Users.UserFormCustomFieldsTest do
     updated
   end
 
+  defp boolean_definition!(key, label) do
+    {:ok, _} =
+      CustomFields.add_field_definition(%{
+        "key" => key,
+        "label" => label,
+        "type" => "boolean",
+        "enabled" => true,
+        "user_accessible" => false,
+        "position" => 99
+      })
+
+    key
+  end
+
   defp edit_path(user), do: Routes.path("/admin/users/edit/#{user.uuid}")
+
+  describe "a boolean field definition" do
+    test "the field's own label is the checkbox label, shown once", %{conn: conn} do
+      key = "approved_#{System.unique_integer([:positive])}"
+      boolean_definition!(key, "Approved for Wood Matrix")
+      target = user_with_field(key, true)
+      conn = log_in_user(conn, admin_user())
+
+      {:ok, _view, html} = live(conn, edit_path(target))
+
+      assert Regex.scan(~r/Approved for Wood Matrix/, html) |> length() == 1
+      # The generic "Label / Type" header and the generic checkbox label
+      # were redundant with each other and with the field's own label.
+      refute html =~ "Enable this option"
+      refute html =~ ">Boolean<"
+    end
+  end
 
   describe "a map under a field definition" do
     test "renders the page instead of raising Protocol.UndefinedError", %{conn: conn} do
@@ -274,6 +305,33 @@ defmodule PhoenixKit.Integration.Users.UserFormCustomFieldsTest do
 
     assert html =~ "&quot;dash&quot;:&quot;solid&quot;"
     refute html =~ "profile_form[user][custom_fields][#{key}]"
+  end
+
+  test "the user's own settings page renders a boolean field as a checkbox", %{conn: conn} do
+    # This page had no "boolean" clause at all — every boolean field fell
+    # through to the generic text-input default, so the account holder saw
+    # (and could freely retype) the raw "true"/"false" value instead of a
+    # checkbox.
+    key = "approved_#{System.unique_integer([:positive])}"
+
+    {:ok, _} =
+      CustomFields.add_field_definition(%{
+        "key" => key,
+        "label" => "Approved for Wood Matrix",
+        "type" => "boolean",
+        "enabled" => true,
+        "user_accessible" => true,
+        "position" => 99
+      })
+
+    user = plain_user()
+    {:ok, user} = Auth.update_user_custom_fields(user, %{key => true}, ensure_definitions: false)
+    conn = log_in_user(conn, user)
+
+    {:ok, _view, html} = live(conn, Routes.path("/profile/settings"))
+
+    assert html =~ ~s(type="checkbox")
+    assert html =~ "Approved for Wood Matrix"
   end
 
   test "a structured value stays on the page while another field is edited", %{conn: conn} do

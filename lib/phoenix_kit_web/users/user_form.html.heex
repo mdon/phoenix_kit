@@ -542,18 +542,23 @@
               <% field_error = Map.get(@custom_fields_errors, field_key) %>
 
               <div class="fieldset w-full">
-                <%!-- Label with required indicator --%>
-                <label class="label">
-                  <span class="fieldset-legend font-medium">
-                    {field_def["label"]}
-                    <%= if field_def["required"] do %>
-                      <span class="text-error">*</span>
-                    <% end %>
-                  </span>
-                  <span class="fieldset-label text-xs text-base-content/60">
-                    {String.capitalize(field_def["type"])}
-                  </span>
-                </label>
+                <%!-- A boolean field's own checkbox label already says what
+                     checking it means — a separate "Label / Boolean" header
+                     above it was redundant, and its own checkbox is labeled
+                     with the generic "Enable this option" below anyway. --%>
+                <%= if field_def["type"] != "boolean" do %>
+                  <label class="label">
+                    <span class="fieldset-legend font-medium">
+                      {field_def["label"]}
+                      <%= if field_def["required"] do %>
+                        <span class="text-error">*</span>
+                      <% end %>
+                    </span>
+                    <span class="fieldset-label text-xs text-base-content/60">
+                      {String.capitalize(field_def["type"])}
+                    </span>
+                  </label>
+                <% end %>
 
                 <%!-- A map or a list under a field definition cannot be edited
                      here: no field type can represent one, and handing the raw
@@ -600,8 +605,7 @@
                       <.checkbox
                         name={"user[custom_fields][#{field_key}]"}
                         checked={field_value == true || field_value == "true"}
-                        label="Enable this option"
-                        wrapper_class="mt-2"
+                        label={field_def["label"]}
                       />
                     <% "date" -> %>
                       <.input

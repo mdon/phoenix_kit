@@ -1233,6 +1233,12 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                             value={field_value}
                             required={field["required"]}
                           />
+                        <% "boolean" -> %>
+                          <.checkbox
+                            name={field_name}
+                            checked={field_value == true || field_value == "true"}
+                            label={field["label"]}
+                          />
                         <% _ -> %>
                           <.input
                             name={field_name}

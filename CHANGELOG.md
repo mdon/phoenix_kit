@@ -1,3 +1,25 @@
+## 2.22.14 - 2026-09-09
+
+### Fixed
+
+- **A boolean custom field on the user's own `/profile/settings` page had
+  no checkbox at all.** The self-service custom-fields form had no
+  `"boolean"` clause, so a boolean field fell through to the generic
+  text-input default — the account holder saw (and could freely retype)
+  the raw `"true"`/`"false"` value instead of a checkbox. The admin edit
+  form already had a checkbox for this type; the profile page now does
+  too.
+
+### Changed
+
+- **A boolean custom field on the admin edit form no longer shows two
+  redundant labels.** The generic "Label / Type" header above every field
+  plus the checkbox's own generic "Enable this option" label meant a field
+  named e.g. "Approved for Wood Matrix" rendered as "Approved for Wood
+  Matrix / Boolean" followed by an unrelated "[ ] Enable this option".
+  A boolean field now renders as a single checkbox labeled with the
+  field's own label, matching how a checkbox is normally presented.
+
 ## 2.22.13 - 2026-09-09
 
 ### Changed
