@@ -63,9 +63,12 @@ defmodule PhoenixKit.Utils.IpAddress do
   def extract_ip_address(_), do: "unknown"
 
   @doc """
-  Extracts IP address from Plug.Conn using get_peer_data.
+  Extracts the visitor's IP address from a `Plug.Conn`.
 
-  Convenience function that extracts peer_data and formats the IP.
+  Proxy-aware: delegates to `client_address/1`, which reads `x-forwarded-for`
+  / `x-real-ip` when `conn.remote_ip` is a loopback or private address (a
+  reverse proxy on the same box or network), and trusts a public
+  `conn.remote_ip` as-is.
 
   ## Parameters
 
@@ -73,12 +76,11 @@ defmodule PhoenixKit.Utils.IpAddress do
 
   ## Returns
 
-  - IP address string or "unknown"
+  - IP address string or "unknown" (never nil — callers that need to tell
+    "known" apart from "unknown" should call `client_address/1` directly)
   """
   def extract_from_conn(conn) do
-    conn
-    |> Plug.Conn.get_peer_data()
-    |> extract_ip_address()
+    client_address(conn) || "unknown"
   end
 
   @doc """
@@ -190,9 +192,11 @@ defmodule PhoenixKit.Utils.IpAddress do
     do: {div(ab, 256), rem(ab, 256), div(cd, 256), rem(cd, 256)}
 
   @doc """
-  Extracts IP address from Phoenix.LiveView socket using get_connect_info.
+  Extracts the visitor's IP address from a Phoenix.LiveView socket.
 
-  Convenience function that extracts peer_data from socket and formats the IP.
+  Proxy-aware: delegates to `client_address_from_socket/1`, which reads the
+  connect info's `:x_headers` when the socket's `:peer_data` is a loopback
+  or private address, and trusts a public `:peer_data` address as-is.
 
   ## Parameters
 
@@ -200,11 +204,12 @@ defmodule PhoenixKit.Utils.IpAddress do
 
   ## Returns
 
-  - IP address string or "unknown"
+  - IP address string or "unknown" (never nil — callers that need to tell
+    "known" apart from "unknown" should call `client_address_from_socket/1`
+    directly). "unknown" also covers a host endpoint that never declared
+    `:peer_data` in the socket's `connect_info` — see that function's docs.
   """
   def extract_from_socket(socket) do
-    socket
-    |> Phoenix.LiveView.get_connect_info(:peer_data)
-    |> extract_ip_address()
+    client_address_from_socket(socket) || "unknown"
   end
 end

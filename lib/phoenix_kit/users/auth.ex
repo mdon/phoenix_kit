@@ -514,7 +514,8 @@ defmodule PhoenixKit.Users.Auth do
       iex> register_user_with_geolocation(%{email: "invalid"}, "192.168.1.1")
       {:error, %Ecto.Changeset{}}
   """
-  def register_user_with_geolocation(attrs, ip_address) when is_binary(ip_address) do
+  def register_user_with_geolocation(attrs, ip_address)
+      when is_binary(ip_address) and ip_address != "unknown" do
     # `attrs` may arrive atom-keyed (e.g. the OAuth registration path) or
     # string-keyed (e.g. form params). Normalize to string keys before
     # merging in any of our own string-keyed fields below — Ecto.Changeset.cast/3
@@ -548,8 +549,12 @@ defmodule PhoenixKit.Users.Auth do
     end
   end
 
-  def register_user_with_geolocation(attrs, _invalid_ip) do
-    # Invalid IP provided, register without geolocation data
+  def register_user_with_geolocation(attrs, _invalid_or_unknown_ip) do
+    # No usable IP (nil, "unknown", or anything else non-address-shaped) —
+    # register without geolocation data and without a bogus `registration_ip`.
+    # A literal "unknown" here previously got stored as if it were an IP
+    # (the `is_binary` guard above didn't exclude it) and rendered verbatim
+    # in the admin UI.
     register_user(attrs, nil)
   end
 

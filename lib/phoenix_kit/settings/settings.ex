@@ -31,7 +31,11 @@ defmodule PhoenixKit.Settings do
   - `time_zone`: System timezone offset
   - `date_format`: Date display format
   - `time_format`: Time display format
-  - `track_registration_geolocation`: Enable IP geolocation tracking during registration (default: false)
+  - `track_registration_geolocation`: Enable IP geolocation tracking during registration (default: false).
+    Needs the host endpoint's LiveView socket to declare `:peer_data` in
+    `connect_info` (`websocket: [connect_info: [:peer_data, session: ...]]`)
+    — without it every registration's IP is unknown and the setting silently
+    does nothing. See `PhoenixKit.Utils.IpAddress.client_address_from_socket/1`.
 
   ## Usage Examples
 

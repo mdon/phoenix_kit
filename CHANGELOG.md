@@ -1,3 +1,31 @@
+## 2.22.10 - 2026-09-09
+
+### Fixed
+
+- **Registration IP/geolocation tracking silently recorded "unknown" for
+  every self-registered user.** `register_user_with_geolocation/2` guarded
+  on `is_binary(ip_address)` alone, and the socket/conn IP extractors return
+  the literal string `"unknown"` — never `nil` — when they can't tell the
+  visitor's address. That literal string satisfied the guard and got
+  written to `registration_ip` as if it were a real IP, then rendered
+  verbatim in the admin UI instead of "No data." Self-registration,
+  magic-link registration, and OAuth registration all funnel through this
+  one function, so all three are fixed at once.
+- **IP tracking now reads the visitor's real address behind a reverse
+  proxy, everywhere it's tracked.** `IpAddress.extract_from_socket/1` and
+  `extract_from_conn/1` — used for registration, login, magic link,
+  sessions, multi-session, live sessions, dashboard presence, the referral
+  gate, and the admin user form — used to read the raw TCP peer, which
+  behind nginx (or in a container) is the proxy's own address for every
+  visitor. They now delegate to the already-proxy-aware
+  `client_address_from_socket/1` / `client_address/1`, which read
+  `x-forwarded-for` / `x-real-ip` when the peer is a loopback or private
+  address.
+- Documented that `track_registration_geolocation` requires the host
+  endpoint's LiveView socket to declare `:peer_data` in `connect_info` —
+  `mix phoenix_kit.install` doesn't (and can't) set this up automatically,
+  and without it the setting silently does nothing.
+
 ## 2.22.9 - 2026-09-09
 
 ### Added
