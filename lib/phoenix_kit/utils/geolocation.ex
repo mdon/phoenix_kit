@@ -57,6 +57,7 @@ defmodule PhoenixKit.Utils.Geolocation do
       iex> lookup_location("8.8.8.8")
       {:ok, %{
         "country" => "United States",
+        "country_code" => "US",
         "region" => "California",
         "city" => "Mountain View"
       }}
@@ -90,12 +91,14 @@ defmodule PhoenixKit.Utils.Geolocation do
   end
 
   defp lookup_with_ip_api(ip_address) do
-    url = "http://ip-api.com/json/#{ip_address}?fields=status,message,country,regionName,city"
+    url =
+      "http://ip-api.com/json/#{ip_address}?fields=status,message,country,countryCode,regionName,city"
 
     case make_http_request(url) do
       {:ok, %{"status" => "success"} = data} ->
         location = %{
           "country" => data["country"],
+          "country_code" => data["countryCode"],
           "region" => data["regionName"],
           "city" => data["city"]
         }
@@ -123,6 +126,7 @@ defmodule PhoenixKit.Utils.Geolocation do
       {:ok, data} when is_map(data) ->
         location = %{
           "country" => data["country_name"],
+          "country_code" => data["country_code"],
           "region" => data["region"],
           "city" => data["city"]
         }

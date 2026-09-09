@@ -1,3 +1,30 @@
+## 2.22.12 - 2026-09-09
+
+### Fixed
+
+- **A successful geolocation lookup crashed registration mid-signup.**
+  `registration_country` is a 2-char column by design (ISO 3166-1
+  alpha-2), but `Geolocation.lookup_location/1` only ever fetched and
+  returned the full country name (e.g. "United States"), and
+  `register_user_with_geolocation/2` wrote that straight into the column.
+  This had gone unnoticed because geolocation never actually succeeded in
+  production before the 2.22.10/2.22.11 IP fixes — once it started
+  resolving real visitor IPs, every successful lookup raised an unhandled
+  Postgres `string_data_right_truncation` and killed the registration
+  LiveView mid-signup. `Geolocation` now also fetches the ISO alpha-2 code
+  from both providers, and only a genuine 2-letter code is written to
+  `registration_country`.
+- **`registration_country`'s changeset validation didn't match its own
+  column.** It allowed up to 100 characters — copied from
+  `registration_region`/`registration_city` — instead of the 2 the column
+  actually holds, so an oversized value reached Postgres as "valid" and
+  only failed at the SQL layer instead of a normal `{:error, changeset}`.
+  Now validated at `max: 2`, matching the column, as defense-in-depth for
+  any caller.
+- Admin UI locations (`user_details`'s and the Users list's "City, Region,
+  Country" text) now expand the stored ISO code back to a full country
+  name via `PhoenixKit.Utils.CountryData.country_name/1` for display.
+
 ## 2.22.11 - 2026-09-09
 
 ### Fixed

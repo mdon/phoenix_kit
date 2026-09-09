@@ -528,10 +528,16 @@ defmodule PhoenixKit.Users.Auth do
     # Attempt geolocation lookup
     case Geolocation.lookup_location(ip_address) do
       {:ok, location} ->
-        # Add geolocation data to registration
+        # Add geolocation data to registration. `registration_country` is a
+        # 2-char column by design (ISO 3166-1 alpha-2) — the full country
+        # name from `location["country"]` (e.g. "United States") does NOT
+        # fit and crashes the insert with `string_data_right_truncation`,
+        # killing the registration LiveView mid-signup. Only a genuine
+        # 2-letter code goes in; anything else (a provider quirk, a nil)
+        # leaves the column nil rather than risk a repeat of that crash.
         enhanced_attrs =
           enhanced_attrs
-          |> Map.put("registration_country", location["country"])
+          |> Map.put("registration_country", registration_country_code(location["country_code"]))
           |> Map.put("registration_region", location["region"])
           |> Map.put("registration_city", location["city"])
 
@@ -561,6 +567,9 @@ defmodule PhoenixKit.Users.Auth do
   defp stringify_keys(attrs) do
     Map.new(attrs, fn {key, value} -> {to_string(key), value} end)
   end
+
+  defp registration_country_code(code) when is_binary(code) and byte_size(code) == 2, do: code
+  defp registration_country_code(_), do: nil
 
   @doc """
   Creates a guest user from checkout billing data.

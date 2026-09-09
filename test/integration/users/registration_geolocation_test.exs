@@ -35,4 +35,45 @@ defmodule PhoenixKit.Integration.Users.RegistrationGeolocationTest do
 
     assert user.registration_ip == "127.0.0.1"
   end
+
+  describe "registration_country (a 2-char, ISO 3166-1 alpha-2 column)" do
+    test "a full country name from the geolocation API does not crash the insert" do
+      # This is exactly what a real, successful `Geolocation.lookup_location/1`
+      # result looks like: `location["country"]` is the full name, not a
+      # 2-letter code. Writing that name straight into `registration_country`
+      # (a `character varying(2)` column) used to raise an unhandled
+      # `string_data_right_truncation` from Postgres and crash the caller —
+      # the registration LiveView, mid-signup — instead of returning
+      # `{:error, changeset}`. Regressed for real once IP extraction started
+      # resolving a visitor's actual public IP (see the "unknown" IP fixes
+      # above) — before that, geolocation never actually succeeded in
+      # production, so this write path was never exercised.
+      # A changeset validation error, not a crash — the fix is that the
+      # changeset now rejects this itself (matching the column's real
+      # width) instead of forwarding it to Postgres, which used to raise
+      # `string_data_right_truncation` and take the whole request down.
+      assert {:error, changeset} =
+               Auth.register_user(%{
+                 email: unique_email(),
+                 password: "ValidPassword123!",
+                 registration_country: "United States"
+               })
+
+      assert {"should be at most %{count} character(s)", opts} =
+               changeset.errors[:registration_country]
+
+      assert opts[:count] == 2
+    end
+
+    test "a genuine ISO alpha-2 code is stored as-is" do
+      assert {:ok, user} =
+               Auth.register_user(%{
+                 email: unique_email(),
+                 password: "ValidPassword123!",
+                 registration_country: "US"
+               })
+
+      assert user.registration_country == "US"
+    end
+  end
 end

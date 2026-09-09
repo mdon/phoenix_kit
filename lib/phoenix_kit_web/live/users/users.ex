@@ -41,6 +41,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.{CustomFields, Roles, TableColumns}
+  alias PhoenixKit.Utils.CountryData
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKitWeb.Users.MultiSession
 
@@ -1093,7 +1094,11 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
   defp card_location(user, true) do
     parts =
-      [user.registration_country, user.registration_region, user.registration_city]
+      [
+        CountryData.country_name(user.registration_country),
+        user.registration_region,
+        user.registration_city
+      ]
       |> Enum.reject(&(is_nil(&1) or &1 == ""))
 
     if Enum.empty?(parts), do: "-", else: Enum.join(parts, " · ")

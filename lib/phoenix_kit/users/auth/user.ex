@@ -748,9 +748,15 @@ defmodule PhoenixKit.Users.Auth.User do
   end
 
   defp validate_registration_fields(changeset) do
+    # `registration_country` is a 2-char column (ISO 3166-1 alpha-2) — this
+    # validation used to say `max: 100`, matching region/city instead of the
+    # column it actually guards, so an oversized value (e.g. a full country
+    # name) sailed through the changeset as "valid" and only failed at the
+    # SQL layer with an unhandled `string_data_right_truncation`, crashing
+    # the caller instead of returning a normal `{:error, changeset}`.
     changeset
     |> validate_length(:registration_ip, max: 45)
-    |> validate_length(:registration_country, max: 100)
+    |> validate_length(:registration_country, max: 2)
     |> validate_length(:registration_region, max: 100)
     |> validate_length(:registration_city, max: 100)
   end

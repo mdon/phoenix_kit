@@ -69,6 +69,32 @@ defmodule PhoenixKit.Utils.CountryData do
   def get_country(_), do: nil
 
   @doc """
+  Full country name for an alpha-2 code — for display, where storage keeps
+  the compact ISO code (e.g. `registration_country`). Falls back to the
+  code itself when it isn't recognized, rather than showing nothing.
+
+  ## Examples
+
+      iex> CountryData.country_name("EE")
+      "Estonia"
+
+      iex> CountryData.country_name("XX")
+      "XX"
+
+      iex> CountryData.country_name(nil)
+      nil
+  """
+  def country_name(nil), do: nil
+  def country_name(""), do: nil
+
+  def country_name(code) when is_binary(code) do
+    case get_country(code) do
+      %{name: name} -> name
+      _ -> code
+    end
+  end
+
+  @doc """
   Get standard VAT rate for a country as Decimal.
 
   Returns rate in decimal format (0.20 = 20%).

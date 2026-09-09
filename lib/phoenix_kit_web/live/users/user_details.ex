@@ -26,6 +26,7 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Users.Roles
+  alias PhoenixKit.Utils.CountryData
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.TimeZone
@@ -679,7 +680,11 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   end
 
   defp format_location(user) do
-    [user.registration_city, user.registration_region, user.registration_country]
+    [
+      user.registration_city,
+      user.registration_region,
+      CountryData.country_name(user.registration_country)
+    ]
     |> Enum.filter(&(&1 && &1 != ""))
     |> Enum.join(", ")
     |> case do
