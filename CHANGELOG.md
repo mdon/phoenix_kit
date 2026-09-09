@@ -1,3 +1,37 @@
+## 2.22.8 - 2026-09-09
+
+### Changed
+
+- **The parked "wrong email?" fix-up form no longer asks for the current
+  password.** It reused the same `apply_user_email/3` path Profile
+  Settings uses for a confirmed user's email change, but there is no
+  live/confirmed account yet for a hijacked session to protect at that
+  point — just a pending signup fixing a typo before its first
+  confirmation. New `Auth.apply_unconfirmed_user_email/2` is
+  pattern-matched on `confirmed_at: nil` so it structurally cannot be
+  reused once an account is confirmed.
+- **A confirmation resend now says what actually happened.** The handler
+  ran the rate-limit check, the account lookup, and the send inside a
+  `with` whose result was never inspected, so hitting the 3-per-5-minutes
+  resend limit (or a genuine mailer failure) still flashed "we've sent a
+  new confirmation link" with nothing to explain why no mail showed up.
+  The parked (authenticated) branch now flashes the real outcome —
+  success, a clear rate-limit notice, or a retry message with the actual
+  reason logged server-side. The anonymous branch is unchanged: it always
+  shows the same vague message regardless of outcome, which is what
+  avoids turning the endpoint into an account-enumeration oracle for a
+  signed-out visitor.
+- **The "new login" security alert no longer fires on an account's own
+  signup.** Registration ends by logging the new user in through the same
+  path every other login uses, and a brand-new account has no device
+  history yet — so with `new_login_alert_enabled` on, every signup
+  immediately triggered a "we noticed a new login to your account" email
+  about the login it had just performed to finish registering.
+  `LoginAlerts` now checks whether the account has *any* known device on
+  record before alerting; a true first device is still recorded (so an
+  actual second device correctly reads as new) and still logged to the
+  activity feed, but skips the email and in-app notification.
+
 ## 2.22.7 - 2026-09-08
 
 ### Changed
