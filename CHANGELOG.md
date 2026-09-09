@@ -1,3 +1,13 @@
+## 2.22.9 - 2026-09-09
+
+### Added
+
+- **`<.load_more>` forwards extra HTML/`phx-*` attributes to its button.**
+  A page rendering more than one `<.load_more>` list can now attach
+  `phx-value-*` so a single shared `handle_event` clause can tell which
+  list's button was clicked, instead of minting a distinct `on_load_more`
+  event name per list.
+
 ## 2.22.8 - 2026-09-09
 
 ### Changed
