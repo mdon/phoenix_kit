@@ -742,6 +742,35 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
       refute html =~ "If your email is in our system"
     end
 
+    # A parked user is authenticated, so a rate-limit block is safe to name
+    # directly (see the comment above) — and it must be named: the resend
+    # handler used to flash "sent" unconditionally regardless of what the
+    # rate limiter or the mailer actually did, which is indistinguishable
+    # from working right up until the user notices no mail ever arrives.
+    test "parked user hitting the resend rate limit sees a real error, not a false 'sent'", %{
+      conn: conn
+    } do
+      user = register_user()
+      {:ok, lv, _html} = live(login_conn(conn, user), Routes.path("/users/confirm"))
+
+      for _ <- 1..3 do
+        lv
+        |> form("#resend_confirmation_form", %{"user" => %{"email" => user.email}})
+        |> render_submit()
+      end
+
+      html =
+        lv
+        |> form("#resend_confirmation_form", %{"user" => %{"email" => user.email}})
+        |> render_submit()
+
+      # The prior successful sends' :info flash is still on screen too — Phoenix
+      # flash is keyed by kind and only the auto-dismiss JS (which never runs in
+      # a headless render) clears it. The error flash existing at all, next to
+      # it, is the assertion: it used to never appear no matter what happened.
+      assert html =~ "wait a few minutes"
+    end
+
     # The email field renders as a hidden input (not editable in the DOM), but
     # the server must not trust the submitted value either — a client that
     # crafts its own phx-submit payload could still send an arbitrary email.

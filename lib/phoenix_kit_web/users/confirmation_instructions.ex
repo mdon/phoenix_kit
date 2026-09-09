@@ -20,9 +20,10 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
     per-user topic, not the site-wide admin users feed, so a parked
     non-admin never receives other users' structs.
   - A parked user can also fix a typo'd address instead of only resending to
-    it: "Wrong email?" reveals the same change-email form Profile Settings
-    uses (current password + new address), via `Auth.apply_user_email/3` +
-    `Auth.deliver_user_update_email_instructions/3`. The emailed link points
+    it: "Wrong email?" reveals a bare new-address form — no password, unlike
+    Profile Settings' confirmed-user change-email flow, because there is no
+    live/confirmed account yet for a hijacked session to protect (see
+    `Auth.apply_unconfirmed_user_email/2`). The emailed link points
     at `PhoenixKitWeb.Users.ConfirmEmailChange`
     (`/users/confirm/change-email/:token`), NOT the normal
     `/profile/settings/confirm-email/:token` landing page — that one sits
@@ -36,6 +37,8 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
   the session's `user_return_to`, then the `after_login_path` setting.
   """
   use PhoenixKitWeb, :live_view
+
+  require Logger
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.Auth
@@ -104,29 +107,16 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
     # is public: only an existing unconfirmed account does work (insert a token,
     # send mail), so an unthrottled endpoint is both a targeted mail-flood
     # vector and a timing oracle for which addresses are registered.
-    with :ok <- RateLimiter.check_confirmation_resend_rate_limit(email),
-         %{} = user <- Auth.get_user_by_email(email) do
-      Auth.deliver_user_confirmation_instructions(
-        user,
-        &Routes.url("/users/confirm/#{&1}")
-      )
-    end
-
-    # The vague "if your email is in our system" wording exists to avoid
-    # telling an anonymous visitor whether an address is registered. A parked
-    # visitor is already logged in as that account — there is nothing left to
-    # avoid revealing, and the hedge just reads as a wrong answer ("what do
-    # you mean IF, I'm signed in").
-    info =
-      if socket.assigns.awaiting_confirmation? do
-        gettext("We've sent a new confirmation link to %{email}.", email: email)
-      else
-        gettext(
-          "If your email is in our system and it has not been confirmed yet, you will receive an email with instructions shortly."
+    result =
+      with :ok <- RateLimiter.check_confirmation_resend_rate_limit(email),
+           %{} = user <- Auth.get_user_by_email(email) do
+        Auth.deliver_user_confirmation_instructions(
+          user,
+          &Routes.url("/users/confirm/#{&1}")
         )
       end
 
-    socket = put_flash(socket, :info, info)
+    socket = flash_send_result(socket, result, email)
 
     # A parked (logged-in, unconfirmed) user stays here so the live
     # auto-advance can fire once they click the emailed link; anonymous
@@ -217,6 +207,59 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
 
   # Defensive: the topic carries only this user's confirmation today.
   def handle_info(_msg, socket), do: {:noreply, socket}
+
+  # The anonymous path always shows the same vague copy no matter the outcome
+  # (unregistered address, rate limit, or a real mailer failure) — surfacing
+  # any of those as different from "sent" would tell an anonymous visitor
+  # whether an address is registered. A parked visitor is already logged in
+  # as that account, so there is nothing left to protect by hiding a real
+  # failure from them — and hiding it is exactly how "we sent it" survived a
+  # silent rate-limit block or mailer error undetected.
+  defp flash_send_result(socket, result, email) do
+    if socket.assigns.awaiting_confirmation? do
+      flash_parked_result(socket, result, email)
+    else
+      put_flash(
+        socket,
+        :info,
+        gettext(
+          "If your email is in our system and it has not been confirmed yet, you will receive an email with instructions shortly."
+        )
+      )
+    end
+  end
+
+  defp flash_parked_result(socket, {:ok, _email}, email) do
+    put_flash(
+      socket,
+      :info,
+      gettext("We've sent a new confirmation link to %{email}.", email: email)
+    )
+  end
+
+  defp flash_parked_result(socket, {:error, :rate_limit_exceeded}, _email) do
+    put_flash(
+      socket,
+      :error,
+      gettext(
+        "You've asked for this a few times already — please wait a few minutes and try again."
+      )
+    )
+  end
+
+  defp flash_parked_result(socket, {:error, :already_confirmed}, _email) do
+    put_flash(socket, :info, gettext("Your email is already confirmed."))
+  end
+
+  defp flash_parked_result(socket, other, email) do
+    Logger.error("Confirmation resend to #{email} failed: #{inspect(other)}")
+
+    put_flash(
+      socket,
+      :error,
+      gettext("We couldn't send that email just now — please try again in a moment.")
+    )
+  end
 
   # `:context` threads the socket's router so `"/"` is only used where the
   # host actually declares a root route. Without it the resolver synthesises
