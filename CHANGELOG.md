@@ -1,3 +1,18 @@
+## 2.22.15 - 2026-09-09
+
+### Changed
+
+- **Permanent user deletion moved off the Users list, and gets a real
+  confirmation screen.** The "Delete" action is no longer offered from
+  the list's row menu (table or card view) — it's a one-way, everything-
+  related action that now belongs only on the user's own page, renamed
+  "Permanently Delete" there. Confirming it now shows `Auth.
+  preview_user_deletion/1`'s real, per-user counts (session tokens, role
+  assignments, OAuth connections, billing profiles, shopping carts, admin
+  notes — and what would be anonymized: orders, posts, comments, support
+  tickets, email logs, files) instead of the same generic six-item bullet
+  list for every user regardless of whether any of it actually applied.
+
 ## 2.22.14 - 2026-09-09
 
 ### Fixed

@@ -139,7 +139,14 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
 
   @impl true
   def handle_event("show_delete_modal", _params, socket) do
-    {:noreply, assign(socket, :show_delete_modal, true)}
+    # Computed on open, not at mount — several count queries the ordinary
+    # page render has no reason to pay for on every visit.
+    socket =
+      socket
+      |> assign(:delete_preview, Auth.preview_user_deletion(socket.assigns.user))
+      |> assign(:show_delete_modal, true)
+
+    {:noreply, socket}
   end
 
   @impl true

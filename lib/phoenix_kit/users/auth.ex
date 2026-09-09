@@ -2976,6 +2976,91 @@ defmodule PhoenixKit.Users.Auth do
   ## User Deletion
 
   @doc """
+  Read-only preview of what `delete_user/2` would do to `user` — the exact
+  per-category record counts for a delete-confirmation screen, computed
+  the same defensive, module-optional way the real deletion counts them
+  (via `Code.ensure_loaded?/1`, never raising for a module that isn't
+  installed), but without writing anything. Keep the category list in
+  sync with `delete_cascade_data/1` and `anonymize_user_data/1` if either
+  changes — this does not derive from them, to avoid adding a "preview
+  mode" to code that runs on every real deletion.
+
+  ## Returns
+
+  `%{delete: [{label, count}, ...], anonymize: [{label, count}, ...]}` —
+  every category is included even at `0`, so the admin sees a complete,
+  accurate picture rather than a list that silently omits what doesn't
+  apply to this particular user.
+
+  ## Examples
+
+      iex> preview_user_deletion(user)
+      %{
+        delete: [{"Session and other tokens", 2}, {"Role assignments", 1}, ...],
+        anonymize: [{"Orders", 0}, {"Posts", 3}, ...]
+      }
+  """
+  @spec preview_user_deletion(User.t()) :: %{
+          delete: [{String.t(), non_neg_integer()}],
+          anonymize: [{String.t(), non_neg_integer()}]
+        }
+  def preview_user_deletion(%User{uuid: user_uuid}) do
+    %{
+      delete: [
+        {gettext("Session and other tokens"), count_schema(UserToken, user_uuid)},
+        {gettext("Role assignments"), count_schema(PhoenixKit.Users.RoleAssignment, user_uuid)},
+        {gettext("OAuth connections"), count_schema(PhoenixKit.Users.OAuthProvider, user_uuid)},
+        {gettext("Billing profiles"),
+         count_optional_schema(PhoenixKitBilling.BillingProfile, user_uuid)},
+        {gettext("Shopping carts"), count_optional_schema(PhoenixKitEcommerce.Cart, user_uuid)},
+        {gettext("Admin notes"), count_schema(AdminNote, user_uuid)}
+      ],
+      anonymize: [
+        {gettext("Orders"),
+         count_optional_schema(Module.concat([PhoenixKit, Modules, Shop, Order]), user_uuid)},
+        {gettext("Posts"),
+         count_optional_schema(Module.concat([PhoenixKit, Modules, Posts, Post]), user_uuid)},
+        {gettext("Comments"),
+         count_optional_schema(
+           Module.concat([PhoenixKit, Modules, Posts, PostComment]),
+           user_uuid
+         ) +
+           count_optional_schema(
+             Module.concat([PhoenixKit, Modules, Comments, Comment]),
+             user_uuid
+           )},
+        {gettext("Support tickets"),
+         count_optional_schema(Module.concat([PhoenixKitCustomerSupport, Ticket]), user_uuid)},
+        {gettext("Email logs"),
+         count_optional_schema(Module.concat([PhoenixKit, Modules, Emails, Log]), user_uuid)},
+        {gettext("Files"),
+         count_optional_schema(Module.concat([PhoenixKit, Modules, Storage, File]), user_uuid)}
+      ]
+    }
+  end
+
+  # A core schema that always exists — no optional-module guard needed,
+  # matching `delete_user_oauth_providers/1` and `delete_user_admin_notes/1`.
+  defp count_schema(module, user_uuid) do
+    from(r in module, where: r.user_uuid == ^user_uuid)
+    |> Repo.repo().aggregate(:count)
+  end
+
+  # A module belonging to an optional dependency or feature module — absent
+  # entirely on a host that hasn't installed it, exactly like every
+  # `anonymize_user_*`/`delete_user_*` counterpart this mirrors.
+  defp count_optional_schema(module, user_uuid) do
+    if Code.ensure_loaded?(module) and function_exported?(module, :__schema__, 1) do
+      from(r in module, where: r.user_uuid == ^user_uuid)
+      |> Repo.repo().aggregate(:count)
+    else
+      0
+    end
+  rescue
+    _ -> 0
+  end
+
+  @doc """
   Deletes a user account with proper cascade handling and data anonymization.
 
   ## Protection Rules

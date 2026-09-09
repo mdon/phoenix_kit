@@ -411,60 +411,9 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       "toggle_user_confirmation" ->
         handle_toggle_user_confirmation(%{"user_uuid" => user_uuid}, socket)
 
-      "delete_user" ->
-        handle_delete_user(%{"user_uuid" => user_uuid}, socket)
-
       _ ->
         {:noreply, socket}
     end
-  end
-
-  # User deletion events
-  def handle_event(
-        "request_delete_user",
-        %{"user_uuid" => user_uuid},
-        socket
-      ) do
-    user = Auth.get_user!(user_uuid)
-    current_user = socket.assigns.phoenix_kit_current_user
-
-    # Check if user can be deleted
-    case Auth.can_delete_user?(user, current_user) do
-      true ->
-        confirmation_modal = %{
-          show: true,
-          title: gettext("Delete User"),
-          message:
-            gettext(
-              "Are you sure you want to permanently delete %{email}? This action cannot be undone.",
-              email: user.email
-            ),
-          button_text: gettext("Delete"),
-          action: "delete_user",
-          user_uuid: user_uuid
-        }
-
-        {:noreply, assign(socket, :confirmation_modal, confirmation_modal)}
-
-      false ->
-        error_msg =
-          cond do
-            user.uuid == current_user.uuid ->
-              gettext("Cannot delete your own account")
-
-            Roles.user_has_role_owner?(user) ->
-              gettext("Cannot delete the last system owner")
-
-            true ->
-              gettext("Cannot delete this user")
-          end
-
-        {:noreply, put_flash(socket, :error, error_msg)}
-    end
-  end
-
-  def handle_event("delete_user", %{"user_uuid" => user_uuid}, socket) do
-    handle_delete_user(%{"user_uuid" => user_uuid}, socket)
   end
 
   # Keep old handlers for backward compatibility, but make them delegate to private handlers
@@ -660,42 +609,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       {:noreply, socket}
     else
       toggle_user_status_safely(socket, user)
-    end
-  end
-
-  defp handle_delete_user(%{"user_uuid" => user_uuid}, socket) do
-    current_user = socket.assigns.phoenix_kit_current_user
-    user = Auth.get_user!(user_uuid)
-
-    # Close modal first
-    socket = assign(socket, :confirmation_modal, %{show: false})
-
-    opts = %{
-      current_user: current_user,
-      ip_address: socket.assigns[:ip_address],
-      user_agent: socket.assigns[:user_agent]
-    }
-
-    case Auth.delete_user(user, opts) do
-      {:ok, _result} ->
-        # User list will be updated via PubSub broadcast
-        {:noreply, put_flash(socket, :info, gettext("User deleted successfully"))}
-
-      {:error, :cannot_delete_self} ->
-        {:noreply, put_flash(socket, :error, gettext("Cannot delete your own account"))}
-
-      {:error, :cannot_delete_last_owner} ->
-        {:noreply, put_flash(socket, :error, gettext("Cannot delete the last system owner"))}
-
-      # The rank refusals from `validate_admin_authority_over/2`. Named, so a
-      # refusal reads as a permission decision rather than as a failure.
-      {:error, reason}
-      when reason in [:insufficient_permissions, :target_is_owner, :target_is_staff] ->
-        {:noreply,
-         put_flash(socket, :error, gettext("You don't have permission to delete this user"))}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, gettext("Failed to delete user"))}
     end
   end
 

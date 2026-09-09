@@ -711,7 +711,12 @@
                                 variant="info"
                               />
                             <% end %>
-                            <%!-- Non-owner actions: confirmation, status, delete --%>
+                            <%!-- Non-owner actions: confirmation, status. Permanent
+                                  deletion is deliberately NOT offered from this list —
+                                  it's a one-way, all-the-related-data action that
+                                  belongs on the user's own page, where the admin sees
+                                  exactly what it will touch before confirming
+                                  (PhoenixKitWeb.Live.Users.UserDetails). --%>
                             <%= if user.uuid != @phoenix_kit_current_user.uuid && get_primary_role_name_unsafe(user) != "Owner" do %>
                               <.table_row_menu_divider />
                               <%!-- Confirmation answers to the same rank rule as
@@ -751,21 +756,6 @@
                                       else: gettext("Activate")
                                   }
                                   variant={if user.is_active, do: "success", else: "warning"}
-                                />
-                              <% end %>
-                              <%= if Auth.can_delete_user?(user, @actor_with_roles) do %>
-                                <.table_row_menu_divider />
-                                <.table_row_menu_button
-                                  phx-click="request_delete_user"
-                                  phx-value-user_uuid={user.uuid}
-                                  data-confirm={
-                                    gettext(
-                                      "Are you sure you want to delete this user? This action cannot be undone."
-                                    )
-                                  }
-                                  icon="hero-trash"
-                                  label={gettext("Delete")}
-                                  variant="error"
                                 />
                               <% end %>
                             <% end %>
@@ -852,21 +842,6 @@
                   icon={if user.is_active, do: "hero-check-circle", else: "hero-x-circle"}
                   label={if user.is_active, do: gettext("Deactivate"), else: gettext("Activate")}
                   variant={if user.is_active, do: "success", else: "warning"}
-                />
-              <% end %>
-              <%= if Auth.can_delete_user?(user, @actor_with_roles) do %>
-                <.table_row_menu_divider />
-                <.table_row_menu_button
-                  phx-click="request_delete_user"
-                  phx-value-user_uuid={user.uuid}
-                  data-confirm={
-                    gettext(
-                      "Are you sure you want to delete this user? This action cannot be undone."
-                    )
-                  }
-                  icon="hero-trash"
-                  label={gettext("Delete")}
-                  variant="error"
                 />
               <% end %>
             <% end %>
