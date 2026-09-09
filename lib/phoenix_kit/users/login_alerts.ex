@@ -5,10 +5,21 @@ defmodule PhoenixKit.Users.LoginAlerts do
   On every login (`PhoenixKitWeb.Users.Auth.log_in_user/3`), the request's
   `(ip_address, user_agent_hash)` pair is checked against
   `PhoenixKit.Users.Auth.KnownDevice` rows for that user. An unrecognized
-  pair is a new device: it's persisted, a `user.new_login_detected`
-  activity entry is logged, and — when `new_login_alert_enabled` is on —
-  an email goes out via
-  `PhoenixKit.Users.Auth.UserNotifier.deliver_new_login_alert/2`.
+  pair is a new device: it's persisted and a `user.new_login_detected`
+  activity entry is logged either way — but the email
+  (`PhoenixKit.Users.Auth.UserNotifier.deliver_new_login_alert/2`, gated
+  behind `new_login_alert_enabled`) and the in-app notification are skipped
+  when this is the very first `KnownDevice` row the account has ever had.
+
+  That first-device skip exists because registration ends by logging the new
+  user in through this exact path (`log_in_user/3`), and an account with no
+  device history yet cannot help but treat its own signup as "a new device" —
+  without it, every signup on an installation with alerts on immediately
+  received a "we noticed a new login" security email about the login it just
+  performed to finish registering. The device is still recorded (so the
+  *second* login, from anywhere else, correctly reads as new), and the
+  activity entry still logs for the audit trail — only the two
+  reader-facing alarms are suppressed.
 
   A recognized pair just bumps `last_seen_at` — no alert, no email.
 
@@ -20,6 +31,8 @@ defmodule PhoenixKit.Users.LoginAlerts do
   infrastructure this feature would otherwise be the only user of. A
   send failure is logged and swallowed — it must never block sign-in.
   """
+
+  import Ecto.Query
 
   require Logger
 
@@ -69,7 +82,11 @@ defmodule PhoenixKit.Users.LoginAlerts do
            user_agent_hash: fingerprint.user_agent_hash
          ) do
       nil ->
-        record_new_device(user, conn, fingerprint, now)
+        # Checked BEFORE inserting the row below — once it's inserted this
+        # account always has at least one device on file, and every future
+        # first-time check would wrongly read as "first device ever" too.
+        first_device? = not repo.exists?(from(d in KnownDevice, where: d.user_uuid == ^user.uuid))
+        record_new_device(user, conn, fingerprint, now, first_device?)
 
       %KnownDevice{} = device ->
         device |> KnownDevice.changeset(%{last_seen_at: now}) |> repo.update()
@@ -77,7 +94,7 @@ defmodule PhoenixKit.Users.LoginAlerts do
     end
   end
 
-  defp record_new_device(user, conn, fingerprint, now) do
+  defp record_new_device(user, conn, fingerprint, now, first_device?) do
     repo = RepoHelper.repo()
     ua = user_agent_header(conn)
 
@@ -101,10 +118,17 @@ defmodule PhoenixKit.Users.LoginAlerts do
       conflict_target: [:user_uuid, :ip_address, :user_agent_hash]
     )
 
-    log_new_login(user, attrs)
-    notify_in_app(user, attrs)
+    log_new_login(user, attrs, first_device?)
 
-    UserNotifier.deliver_new_login_alert(user, attrs)
+    # The account's first-ever login (registration's own auto-login) is not a
+    # security event to alarm the reader with — skip only the two
+    # reader-facing alarms; the device row and activity entry above still
+    # record it, so the actual second device correctly reads as new.
+    unless first_device? do
+      notify_in_app(user, attrs)
+      UserNotifier.deliver_new_login_alert(user, attrs)
+    end
+
     :ok
   end
 
@@ -141,7 +165,7 @@ defmodule PhoenixKit.Users.LoginAlerts do
     end
   end
 
-  defp log_new_login(user, attrs) do
+  defp log_new_login(user, attrs, first_device?) do
     if Code.ensure_loaded?(PhoenixKit.Activity) do
       PhoenixKit.Activity.log(%{
         action: "user.new_login_detected",
@@ -155,7 +179,8 @@ defmodule PhoenixKit.Users.LoginAlerts do
           "actor_role" => "user",
           "ip_address" => attrs.ip_address,
           "browser" => attrs.browser,
-          "os" => attrs.os
+          "os" => attrs.os,
+          "first_device" => first_device?
         }
       })
     end

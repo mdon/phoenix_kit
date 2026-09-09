@@ -1,6 +1,8 @@
 defmodule PhoenixKit.Integration.Users.LoginAlertsTest do
   use PhoenixKitWeb.ConnCase, async: true
 
+  import Swoosh.TestAssertions
+
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.KnownDevice
@@ -50,6 +52,27 @@ defmodule PhoenixKit.Integration.Users.LoginAlertsTest do
                Repo.all(KnownDevice)
 
       assert user_uuid == user.uuid
+    end
+
+    # Registration ends by logging the new user in through this exact path —
+    # with no skip, every signup on an install with alerts on would receive a
+    # "we noticed a new login" security email about the login it just
+    # performed to finish registering.
+    test "a first-time login does not send an alert email" do
+      user = create_user()
+
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac))
+
+      refute_email_sent()
+    end
+
+    test "a genuinely new device (the account's second) does send an alert email" do
+      user = create_user()
+
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac))
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@firefox_linux))
+
+      assert_email_sent(fn email -> assert email.subject =~ "New login" end)
     end
 
     test "a repeat login from the same device does not create a duplicate row" do
