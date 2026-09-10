@@ -559,14 +559,14 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   end
 
   def handle_event("update_start_page", %{"start_page" => path}, socket) do
-    user = socket.assigns.phoenix_kit_current_user
+    user = socket.assigns.user
     chosen = if path == "", do: nil, else: path
 
     case Auth.update_user_start_page(user, chosen) do
       {:ok, updated} ->
         {:noreply,
          socket
-         |> assign(:phoenix_kit_current_user, updated)
+         |> assign(:user, updated)
          |> assign(:start_page, chosen)
          |> assign(:start_page_message, gettext("Saved."))}
 
@@ -648,7 +648,11 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   # render, so one naming a page they have since lost simply stops being
   # selected rather than stranding them.
   defp assign_start_page(socket) do
-    user = socket.assigns[:phoenix_kit_current_user]
+    # `:user` is this component's assign for the current user — the parent
+    # passes `user={@phoenix_kit_current_user}` and nothing else. Reading the
+    # parent's name here got nil, built an ANONYMOUS scope, and the picker
+    # offered only the one tab that needs no permission.
+    user = socket.assigns[:user]
     scope = socket.assigns[:phoenix_kit_current_scope] || Scope.for_user(user)
 
     options =
