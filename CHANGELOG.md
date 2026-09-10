@@ -1,3 +1,13 @@
+## 2.22.16 - 2026-09-10
+
+### Changed
+
+- **Leaf bumped to 0.7.0.** Widens the `~> 0.4.1 or ~> 0.5 or ~> 0.6` requirement
+  to also admit `~> 0.7`, and moves the `LEAF_CDN` pin in `phoenix_kit.js` to
+  `leaf@v0.7.0` in lockstep with the resolved `mix.lock` version. Brings wiki-link
+  chips to hybrid source mode and an announced (rather than silent) flush
+  conflict in the collaboration layer.
+
 ## 2.22.15 - 2026-09-09
 
 ### Changed
