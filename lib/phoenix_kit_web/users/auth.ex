@@ -2795,7 +2795,26 @@ defmodule PhoenixKitWeb.Users.Auth do
   # on_mount hooks bounce an authenticated visitor right back through here, so
   # a blind `"/"` here would undo the guarantee one hop later.
   defp signed_in_path(source) do
-    Routes.post_auth_path([], context: source, scope: source_scope(source))
+    Routes.post_auth_path(start_page_candidates(source),
+      context: source,
+      scope: source_scope(source)
+    )
+  end
+
+  # The visitor's own "start on this page" preference, offered as the FIRST
+  # candidate so it wins over the configured default — and offered as a
+  # candidate rather than returned directly, so it inherits every check the
+  # chain already applies (local, not an auth page, routable in this host).
+  # A preference naming a page that has since been removed simply fails those
+  # and the chain carries on to the usual landing, which is why a stale one
+  # cannot strand anyone.
+  defp start_page_candidates(source) do
+    case Auth.user_start_page(source.assigns[:phoenix_kit_current_user]) do
+      nil -> []
+      path -> [Routes.path(path)]
+    end
+  rescue
+    _ -> []
   end
 
   # `:phoenix_kit_redirect_if_user_is_authenticated` assigns only the user, the

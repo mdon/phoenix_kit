@@ -1955,6 +1955,63 @@ defmodule PhoenixKit.Users.Auth do
   end
 
   @doc """
+  The page this user has chosen to land on after signing in, or `nil`.
+
+  A RELATIVE path (`"/admin/projects"`), never a resolved URL: the PhoenixKit
+  prefix and the active locale are applied at redirect time, so a preference
+  saved in Estonian still works in English and survives a prefix change.
+
+  Stored in `custom_fields` under a reserved key, exactly like
+  `preferred_locale` — an internal preference, not an admin-managed custom
+  field.
+  """
+  @spec user_start_page(User.t() | nil) :: String.t() | nil
+  def user_start_page(%User{custom_fields: fields}) when is_map(fields) do
+    case Map.get(fields, "start_page") do
+      path when is_binary(path) and path != "" -> path
+      _ -> nil
+    end
+  end
+
+  def user_start_page(_user), do: nil
+
+  @doc """
+  Sets (or clears, with `nil`) where this user lands after signing in.
+
+  Refuses anything that is not a local relative path — a stored `//evil.test`
+  or a full URL would turn a saved preference into an open redirect fired on
+  every login. Writes through the atomic single-key primitives with
+  `ensure_definitions: false`, the same discipline as
+  `update_user_locale_preference/2`, so a concurrent writer of another
+  `custom_fields` key is never lost.
+  """
+  @spec update_user_start_page(User.t(), String.t() | nil) ::
+          {:ok, User.t()} | {:error, String.t()} | {:error, :not_found}
+  def update_user_start_page(%User{} = user, path) do
+    cond do
+      is_nil(path) or path == "" ->
+        delete_user_custom_field(user, "start_page")
+
+      local_relative_path?(path) ->
+        merge_user_custom_fields(user, %{"start_page" => path}, ensure_definitions: false)
+
+      true ->
+        {:error, "must be a path within this site"}
+    end
+  end
+
+  # One leading slash and no scheme or host. `//host` and `/\host` are both
+  # protocol-relative and must not pass.
+  defp local_relative_path?(path) when is_binary(path) do
+    String.starts_with?(path, "/") and
+      not String.starts_with?(path, "//") and
+      not String.starts_with?(path, "/\\") and
+      not String.contains?(path, "://")
+  end
+
+  defp local_relative_path?(_path), do: false
+
+  @doc """
   Updates user custom fields.
 
   Custom fields are stored as JSONB and can contain arbitrary key-value pairs
