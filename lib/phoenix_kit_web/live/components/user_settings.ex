@@ -664,14 +664,17 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   defp admin_tab_options(scope) do
     for tab <- TabRegistry.get_admin_tabs(scope: scope),
         is_nil(tab.parent),
+        # Registered paths are MIXED — modules declare relative ones
+        # ("dashboards") while core resolves some already ("/admin/settings").
+        # `resolve_path/2` handles both and passes an absolute one through;
+        # hand-prefixing produced "/admin/admin/notifications" and collapsed
+        # the rest into one entry when they deduped.
+        resolved = Tab.resolve_path(tab, :admin).path,
         # A parameterized path is a route, not a destination.
-        # `to_string/1` rather than `|| ""`: `Tab.path` is typed non-nil, so
-        # the nil branch is dead code Dialyzer rejects, but a struct built by
-        # hand can still carry nil.
-        not String.contains?(to_string(tab.path), ":"),
+        not String.contains?(to_string(resolved), ":"),
         label = Tab.localized_label(tab),
         is_binary(label) do
-      {label, "/admin/" <> String.trim_leading(to_string(tab.path), "/")}
+      {label, resolved}
     end
   rescue
     _ -> []
