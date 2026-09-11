@@ -40,6 +40,25 @@ defmodule PhoenixKitWeb.Live.Dashboard do
   use Gettext, backend: PhoenixKitWeb.Gettext
   use PhoenixKitWeb.Live.Dashboard.Overview
 
+  # These MUST sit immediately after `use Overview`, which injects its own
+  # `handle_info/2` clause here — Elixir warns when one function's clauses are
+  # not grouped, and `mix precommit` compiles with `--warnings-as-errors`. See
+  # `Overview`'s moduledoc.
+  #
+  # The embedded admin-home view (an optional module's, rendered below) reports
+  # whether it has a dashboard to show, so the built-in overview can hide and
+  # come back LIVE as an administrator binds or unbinds one — rather than this
+  # page deciding once at mount and needing a reload.
+  # Deliberately NO catch-all below it: `Overview`'s guard names its ten tags
+  # and nothing else precisely so the host keeps control of every other
+  # message, and a test asserts that an unrelated one still raises rather than
+  # being silently swallowed. The embedded home view runs in its own process
+  # and sends only this one message, so nothing else arrives here.
+  @impl true
+  def handle_info({:admin_home, state}, socket) when state in [:shown, :empty] do
+    {:noreply, assign(socket, :home_dashboard?, state == :shown)}
+  end
+
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
@@ -75,8 +94,82 @@ defmodule PhoenixKitWeb.Live.Dashboard do
       # them at once: the scope-refresh hook calls the same function through the
       # `phoenix_kit_scope_changed/1` callback `use Overview` injects.
       |> Overview.assign_overview(session, Routes.path("/admin"))
+      |> assign_home_view(session)
 
     {:ok, socket}
+  end
+
+  # The dashboards module, when installed AND enabled, may own this page. It is
+  # resolved duck-typed — `Code.ensure_loaded?/1` before `function_exported?/3`,
+  # since on a cold VM the latter answers false without loading the module — so
+  # core keeps no dependency on an optional package and this page is unchanged
+  # wherever that package is absent.
+  #
+  # `home_dashboard?` is answered UP FRONT, by asking the module's own
+  # `admin_home_dashboards/1` for this viewer. The child view flips it later
+  # too — that is what makes binding and unbinding a dashboard land live — but
+  # it cannot be the FIRST answer: the child renders its board in the very same
+  # pass, so a page that starts with "no dashboard" paints the board and the
+  # built-in overview stacked together until the child's message arrives.
+  defp assign_home_view(socket, session) do
+    socket
+    |> assign(:home_view, home_view())
+    |> assign(:home_dashboard?, home_dashboard?(socket))
+    |> assign(:home_session, %{
+      "current_user_uuid" => current_user_uuid(socket),
+      "locale" => session["locale"],
+      "parent_pid" => self()
+    })
+  end
+
+  defp home_view do
+    module = PhoenixKitDashboards.Web.AdminHomeLive
+
+    if Code.ensure_loaded?(module) and enabled_module?(PhoenixKitDashboards) do
+      module
+    end
+  rescue
+    _ -> nil
+  end
+
+  # Whether anything is bound to the home place FOR THIS VIEWER — audience
+  # rules included, so a role-only board does not blank the overview for
+  # everyone else. Resolved through the same duck-typed contract as the view
+  # itself, and false on any failure: an optional module must never be able to
+  # leave `/admin` with neither half rendered.
+  defp home_dashboard?(socket), do: home_dashboard?(PhoenixKitDashboards, scope_of(socket))
+
+  # The module arrives as an argument for the same reason it does in
+  # `enabled_module?/1`: core does not depend on this package, and a call
+  # written against the literal alias warns at compile time here. Public only
+  # so a test can drive it with a stand-in module — core has no dependency to
+  # drive it with.
+  @doc false
+  def home_dashboard?(module, scope) do
+    Code.ensure_loaded?(module) and
+      function_exported?(module, :admin_home_dashboards, 1) and
+      match?({_tier, [_ | _]}, module.admin_home_dashboards(scope))
+  rescue
+    _ -> false
+  catch
+    :exit, _ -> false
+  end
+
+  defp scope_of(socket), do: socket.assigns[:phoenix_kit_current_scope]
+
+  defp enabled_module?(module) do
+    Code.ensure_loaded?(module) and function_exported?(module, :enabled?, 0) and module.enabled?()
+  rescue
+    _ -> false
+  catch
+    :exit, _ -> false
+  end
+
+  defp current_user_uuid(socket) do
+    case socket.assigns[:phoenix_kit_current_user] do
+      %{uuid: uuid} -> uuid
+      _ -> nil
+    end
   end
 
   attr :scope, :any,

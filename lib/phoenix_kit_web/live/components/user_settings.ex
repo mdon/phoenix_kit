@@ -43,6 +43,8 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
 
   require Logger
 
+  alias PhoenixKit.Dashboard.Registry, as: TabRegistry
+  alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Modules.Storage.URLSigner
@@ -50,6 +52,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   alias PhoenixKit.Notifications.Types, as: NotificationTypes
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.AvatarCrop
   alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Users.OAuth
@@ -66,6 +69,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   # `PhoenixKitWeb.Live.Users.ProfileSettings` for the reference caller.
   @default_sections [
     :identity,
+    :start_page,
     :custom_fields,
     :email,
     :password,
@@ -152,6 +156,8 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> assign_new(:browser_timezone_name, fn -> nil end)
       |> assign_new(:browser_timezone_offset, fn -> nil end)
       |> assign_new(:timezone_mismatch_warning, fn -> nil end)
+      |> assign_new(:start_page_message, fn -> nil end)
+      |> assign_start_page()
       |> assign_new(:trigger_submit, fn -> false end)
       |> assign_new(:oauth_providers, fn -> OAuth.get_user_oauth_providers(user.uuid) end)
       |> assign_new(:oauth_available, fn -> OAuthAvailability.oauth_available?() end)
@@ -552,6 +558,26 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
      assign(socket, :show_notification_prefs, not socket.assigns.show_notification_prefs)}
   end
 
+  def handle_event("update_start_page", %{"start_page" => path}, socket) do
+    user = socket.assigns.user
+    chosen = if path == "", do: nil, else: path
+
+    case Auth.update_user_start_page(user, chosen) do
+      {:ok, updated} ->
+        {:noreply,
+         socket
+         |> assign(:user, updated)
+         |> assign(:start_page, chosen)
+         |> assign(:start_page_message, gettext("Saved."))}
+
+      {:error, message} when is_binary(message) ->
+        {:noreply, assign(socket, :start_page_message, message)}
+
+      _ ->
+        {:noreply, assign(socket, :start_page_message, gettext("Could not save that."))}
+    end
+  end
+
   def handle_event("update_notification_prefs", params, socket) do
     user = socket.assigns.user
 
@@ -614,6 +640,48 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
      socket
      |> assign(:sessions, load_sessions(user, socket.assigns.current_session_token))
      |> assign(:session_success_message, gettext("Signed out of all other sessions."))}
+  end
+
+  # The pages this person may actually land on: their own visible, top-level
+  # admin tabs. Built per viewer rather than from a fixed list, so a tab they
+  # cannot reach is never offered — and a preference is re-derived on every
+  # render, so one naming a page they have since lost simply stops being
+  # selected rather than stranding them.
+  defp assign_start_page(socket) do
+    # `:user` is this component's assign for the current user — the parent
+    # passes `user={@phoenix_kit_current_user}` and nothing else. Reading the
+    # parent's name here got nil, built an ANONYMOUS scope, and the picker
+    # offered only the one tab that needs no permission.
+    user = socket.assigns[:user]
+    scope = socket.assigns[:phoenix_kit_current_scope] || Scope.for_user(user)
+
+    options =
+      scope
+      |> admin_tab_options()
+      |> Enum.uniq_by(&elem(&1, 1))
+
+    socket
+    |> assign(:start_page_options, options)
+    |> assign(:start_page, Auth.user_start_page(user))
+  end
+
+  defp admin_tab_options(scope) do
+    for tab <- TabRegistry.get_admin_tabs(scope: scope),
+        is_nil(tab.parent),
+        # Registered paths are MIXED — modules declare relative ones
+        # ("dashboards") while core resolves some already ("/admin/settings").
+        # `resolve_path/2` handles both and passes an absolute one through;
+        # hand-prefixing produced "/admin/admin/notifications" and collapsed
+        # the rest into one entry when they deduped.
+        resolved = Tab.resolve_path(tab, :admin).path,
+        # A parameterized path is a route, not a destination.
+        not String.contains?(to_string(resolved), ":"),
+        label = Tab.localized_label(tab),
+        is_binary(label) do
+      {label, resolved}
+    end
+  rescue
+    _ -> []
   end
 
   # Private helpers
@@ -1520,6 +1588,44 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
         <% end %>
 
         <%!-- Notifications Section --%>
+        <%!-- Start page. Somebody who lives in one module should not have to
+        navigate out of the admin home every morning; core has no per-user
+        preference store, so this rides in `custom_fields` under a reserved
+        key, exactly as `preferred_locale` does. --%>
+        <%= if :start_page in @sections and @start_page_options != [] do %>
+          <div class="divider"></div>
+          <div>
+            <h2 class="text-lg font-semibold flex items-center gap-2 mb-3">
+              <.icon name="hero-home" class="w-5 h-5 text-primary" /> {gettext("Start page")}
+            </h2>
+            <p class="text-sm text-base-content/60 mb-3">
+              {gettext("Where to go after you sign in.")}
+            </p>
+            <form
+              phx-submit="update_start_page"
+              phx-target={@myself}
+              class="flex flex-wrap items-end gap-2"
+            >
+              <label class="form-control min-w-64">
+                <select name="start_page" class="select select-bordered select-sm">
+                  <option value="">{gettext("The admin home")}</option>
+                  <option
+                    :for={{label, path} <- @start_page_options}
+                    value={path}
+                    selected={@start_page == path}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </label>
+              <button type="submit" class="btn btn-primary btn-sm">{gettext("Save")}</button>
+              <span :if={@start_page_message} class="text-sm text-success">
+                {@start_page_message}
+              </span>
+            </form>
+          </div>
+        <% end %>
+
         <%= if :notifications in @sections and @notification_types != [] do %>
           <%= if Enum.any?([:identity, :custom_fields, :email, :password, :oauth], & &1 in @sections) do %>
             <div class="divider"></div>

@@ -154,8 +154,13 @@ defmodule PhoenixKitWeb.Users.Auth do
     # it routes one, and a core-owned landing everywhere else. The subject is
     # the user being logged IN — `conn.assigns` still describes whoever the
     # pipeline saw, which for a fresh login is nobody.
+    # The user's own "start on this page" preference sits AFTER an explicit
+    # return_to — going back to the page you were actually trying to reach
+    # beats a standing preference — and BEFORE the configured default, which
+    # is the thing a personal choice is meant to override.
     user_return_to =
-      Routes.post_auth_path([params["return_to"], get_session(conn, :user_return_to)],
+      Routes.post_auth_path(
+        [params["return_to"], get_session(conn, :user_return_to)] ++ start_page_candidates(user),
         context: conn,
         scope: Scope.for_user(user)
       )
@@ -2795,8 +2800,29 @@ defmodule PhoenixKitWeb.Users.Auth do
   # on_mount hooks bounce an authenticated visitor right back through here, so
   # a blind `"/"` here would undo the guarantee one hop later.
   defp signed_in_path(source) do
-    Routes.post_auth_path([], context: source, scope: source_scope(source))
+    Routes.post_auth_path(start_page_candidates(source.assigns[:phoenix_kit_current_user]),
+      context: source,
+      scope: source_scope(source)
+    )
   end
+
+  # The visitor's own "start on this page" preference, offered as the FIRST
+  # candidate so it wins over the configured default — and offered as a
+  # candidate rather than returned directly, so it inherits every check the
+  # chain already applies (local, not an auth page, routable in this host).
+  # A preference naming a page that has since been removed simply fails those
+  # and the chain carries on to the usual landing, which is why a stale one
+  # cannot strand anyone.
+  defp start_page_candidates(%User{} = user) do
+    case Auth.user_start_page(user) do
+      nil -> []
+      path -> [Routes.path(path)]
+    end
+  rescue
+    _ -> []
+  end
+
+  defp start_page_candidates(_user), do: []
 
   # `:phoenix_kit_redirect_if_user_is_authenticated` assigns only the user, the
   # scope variants assign a scope, and `redirect_if_user_is_authenticated/2`
