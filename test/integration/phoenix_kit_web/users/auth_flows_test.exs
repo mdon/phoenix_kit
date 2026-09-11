@@ -17,6 +17,7 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
   alias PhoenixKit.Users.MagicLink
   alias PhoenixKit.Users.MagicLinkRegistration
   alias PhoenixKit.Users.RateLimiter
+  alias PhoenixKit.Users.RateLimiter.Backend
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Users.Auth, as: UserAuth
 
@@ -1148,6 +1149,72 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
 
       assert {:error, :rate_limit_exceeded} =
                RateLimiter.check_password_reset_rate_limit(user.email)
+    end
+
+    # The per-address bucket cannot see a spray — ten thousand addresses take
+    # one hit each and it never fires — so the IP bucket is the one that stops
+    # it. That only works if the page actually hands the visitor's address over,
+    # and connect info is readable during mount and nowhere else: capture it in
+    # the wrong place and the bucket silently keys on nothing forever. Assert on
+    # the bucket itself rather than on an email, so nothing else in the flow can
+    # make this pass.
+    test "the forgot-password page charges the IP bucket with the visitor's address" do
+      user = confirmed_user()
+      ip = {198, 51, 100, 77}
+      key = "auth:password_reset:ip:198.51.100.77"
+      window = 300_000
+
+      before = Backend.get(key, window)
+
+      {:ok, lv, _html} =
+        build_conn()
+        |> with_peer(ip)
+        |> live(Routes.path("/users/reset-password"))
+
+      lv
+      |> form("#reset_password_form", %{"user" => %{"email" => user.email}})
+      |> render_submit()
+
+      assert Backend.get(key, window) == before + 1
+    end
+
+    # Same requirement, different capture point in each file — the reason to
+    # pin all three rather than trust one.
+    test "the confirmation-resend page charges the IP bucket with the visitor's address" do
+      user = register_user()
+      ip = {198, 51, 100, 78}
+      key = "auth:confirmation_resend:ip:198.51.100.78"
+      window = 300_000
+
+      before = Backend.get(key, window)
+
+      {:ok, lv, _html} =
+        build_conn() |> with_peer(ip) |> live(Routes.path("/users/confirm"))
+
+      lv
+      |> form("#resend_confirmation_form", %{"user" => %{"email" => user.email}})
+      |> render_submit()
+
+      assert Backend.get(key, window) == before + 1
+    end
+
+    # Covered one level down from its page: mounting the magic-link LiveView
+    # connected calls `Presence.track_anonymous/2`, and `SimplePresence` is not
+    # among the processes `test_helper.exs` starts, so `live/2` exits there for
+    # reasons that have nothing to do with rate limiting. This pins the half
+    # that is ours — the address reaching the bucket — and the page hands it
+    # over the same way the two above do.
+    test "generate_magic_link/2 charges the IP bucket with the address it is given" do
+      user = confirmed_user()
+      key = "auth:magic_link:ip:198.51.100.79"
+      window = 300_000
+
+      before = Backend.get(key, window)
+
+      assert {:ok, _user, _token} =
+               MagicLink.generate_magic_link(user.email, "198.51.100.79")
+
+      assert Backend.get(key, window) == before + 1
     end
 
     test "deliver_user_reset_password_instructions/3 still limits by default" do

@@ -1684,7 +1684,7 @@ defmodule PhoenixKit.Users.Auth do
   ## Options
 
     * `:rate_limit` — set to `false` when the caller has ALREADY charged
-      `RateLimiter.check_password_reset_rate_limit/1` for this request. The
+      `RateLimiter.check_password_reset_rate_limit/2` for this request. The
       public forgot-password form has to throttle before the user lookup (a
       limiter that only runs for addresses which resolve to a user is an
       account-existence oracle), and both checks hit the same per-email bucket

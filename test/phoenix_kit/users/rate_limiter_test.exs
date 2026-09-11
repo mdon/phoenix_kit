@@ -269,4 +269,134 @@ defmodule PhoenixKit.Users.RateLimiterTest do
       assert 2 = RateLimiter.get_remaining_attempts(:magic_link, email)
     end
   end
+
+  # The address bucket cannot see a spray: every address takes a single hit, so
+  # none of them ever fires and the install sends one email per address asked
+  # for. These cover the two buckets that can.
+  describe "per-IP bucket on the mail-sending endpoints" do
+    test "a spray of fresh addresses from one IP is stopped", %{unique_id: id} do
+      ip = "198.51.100.#{rem(id, 200)}"
+
+      # Ten distinct addresses, one hit each — the per-address bucket (3) never
+      # fires, and before the IP bucket existed all ten went through.
+      for n <- 1..10 do
+        assert :ok = RateLimiter.check_password_reset_rate_limit("spray_#{id}_#{n}@e.com", ip)
+      end
+
+      assert {:error, :rate_limit_exceeded} =
+               RateLimiter.check_password_reset_rate_limit("spray_#{id}_11@e.com", ip)
+    end
+
+    test "another IP is unaffected", %{unique_id: id} do
+      ip = "198.51.100.#{rem(id, 200)}"
+
+      for n <- 1..10 do
+        assert :ok = RateLimiter.check_magic_link_rate_limit("ipa_#{id}_#{n}@e.com", ip)
+      end
+
+      assert {:error, :rate_limit_exceeded} =
+               RateLimiter.check_magic_link_rate_limit("ipa_#{id}_11@e.com", ip)
+
+      assert :ok = RateLimiter.check_magic_link_rate_limit("ipb_#{id}@e.com", "203.0.113.42")
+    end
+
+    test "each endpoint has its own IP bucket", %{unique_id: id} do
+      ip = "198.51.100.#{rem(id, 200)}"
+
+      for n <- 1..10 do
+        assert :ok = RateLimiter.check_confirmation_resend_rate_limit("mix_#{id}_#{n}@e.com", ip)
+      end
+
+      assert {:error, :rate_limit_exceeded} =
+               RateLimiter.check_confirmation_resend_rate_limit("mix_#{id}_11@e.com", ip)
+
+      # Exhausting one endpoint must not close the others for that IP.
+      assert :ok = RateLimiter.check_password_reset_rate_limit("mix2_#{id}@e.com", ip)
+    end
+
+    test "a request with no IP still gets the address bucket", %{unique_id: id} do
+      email = "noip_#{id}@example.com"
+
+      for _ <- 1..3 do
+        assert :ok = RateLimiter.check_password_reset_rate_limit(email, nil)
+      end
+
+      assert {:error, :rate_limit_exceeded} =
+               RateLimiter.check_password_reset_rate_limit(email, nil)
+    end
+
+    test "an unreadable address is treated as no IP, not as one shared bucket",
+         %{unique_id: id} do
+      # Lumping every unknown-IP visitor into one bucket would let a host that
+      # cannot read peer data lock out its own users site-wide.
+      for n <- 1..12 do
+        assert :ok =
+                 RateLimiter.check_password_reset_rate_limit("unk_#{id}_#{n}@e.com", "unknown")
+      end
+    end
+  end
+
+  # The site-wide cap. Switched off in config/test.exs (one counter shared by
+  # the whole run), so these turn it on for themselves and put it back.
+  describe "site-wide cap" do
+    setup do
+      previous = Application.get_env(:phoenix_kit, RateLimiter, [])
+
+      on_exit(fn -> Application.put_env(:phoenix_kit, RateLimiter, previous) end)
+
+      {:ok, previous: previous}
+    end
+
+    defp with_global_limit(previous, key, limit) do
+      Application.put_env(:phoenix_kit, RateLimiter, Keyword.put(previous, key, limit))
+    end
+
+    test "refuses everyone once the install's hourly allowance is spent", %{previous: previous} do
+      with_global_limit(previous, :password_reset_global_limit, 3)
+      id = :erlang.unique_integer([:positive])
+
+      # Distinct address AND distinct IP each time, so neither narrower bucket
+      # is what stops it — only the site-wide one can.
+      for n <- 1..3 do
+        assert :ok =
+                 RateLimiter.check_password_reset_rate_limit("g_#{id}_#{n}@e.com", "10.0.0.#{n}")
+      end
+
+      assert {:error, :rate_limit_exceeded} =
+               RateLimiter.check_password_reset_rate_limit("g_#{id}_4@e.com", "10.0.0.4")
+    end
+
+    test "a request the address bucket already refused does not spend it",
+         %{previous: previous} do
+      with_global_limit(previous, :magic_link_global_limit, 5)
+      id = :erlang.unique_integer([:positive])
+      victim = "victim_#{id}@example.com"
+
+      # Three accepted (the address limit), then hammer the same address: those
+      # are refused and send nothing, so they must not drain everyone's
+      # allowance — charging the cap first would make this the whole DoS.
+      for _ <- 1..3, do: RateLimiter.check_magic_link_rate_limit(victim, "10.1.0.1")
+      for _ <- 1..20, do: RateLimiter.check_magic_link_rate_limit(victim, "10.1.0.1")
+
+      # Two of the five are left for everybody else.
+      assert :ok = RateLimiter.check_magic_link_rate_limit("other_#{id}_a@e.com", "10.1.0.2")
+      assert :ok = RateLimiter.check_magic_link_rate_limit("other_#{id}_b@e.com", "10.1.0.3")
+
+      assert {:error, :rate_limit_exceeded} =
+               RateLimiter.check_magic_link_rate_limit("other_#{id}_c@e.com", "10.1.0.4")
+    end
+
+    test "nil switches the cap off", %{previous: previous} do
+      with_global_limit(previous, :confirmation_resend_global_limit, nil)
+      id = :erlang.unique_integer([:positive])
+
+      for n <- 1..25 do
+        assert :ok =
+                 RateLimiter.check_confirmation_resend_rate_limit(
+                   "off_#{id}_#{n}@e.com",
+                   "10.2.0.#{n}"
+                 )
+      end
+    end
+  end
 end

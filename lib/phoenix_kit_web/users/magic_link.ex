@@ -69,7 +69,10 @@ defmodule PhoenixKitWeb.Users.MagicLink do
      |> assign(:sent, false)
      |> assign(:loading, false)
      |> assign(:error, nil)
-     |> assign(:return_to, return_to)}
+     |> assign(:return_to, return_to)
+     # Connect info is readable during mount and nowhere else, so the address
+     # the per-IP bucket needs at submit time has to be captured here.
+     |> assign(:ip_address, IpAddress.client_address_from_socket(socket))}
   end
 
   @impl true
@@ -88,7 +91,7 @@ defmodule PhoenixKitWeb.Users.MagicLink do
        |> assign(:form, form)
        |> assign(:loading, true)
        |> assign(:error, nil)
-       |> send_magic_link_async(email, socket.assigns[:return_to])}
+       |> send_magic_link_async(email, socket.assigns[:return_to], socket.assigns[:ip_address])}
     else
       form = to_form(%{"email" => email}, as: "magic_link")
 
@@ -147,9 +150,9 @@ defmodule PhoenixKitWeb.Users.MagicLink do
   end
 
   # Process the magic link sending in the background
-  defp send_magic_link_async(socket, email, return_to) do
+  defp send_magic_link_async(socket, email, return_to, ip_address) do
     Phoenix.LiveView.start_async(socket, :send_magic_link, fn ->
-      case MagicLink.generate_magic_link(email) do
+      case MagicLink.generate_magic_link(email, ip_address) do
         {:ok, user, token} ->
           send_magic_link_email_to_user(user, token, return_to)
 

@@ -9,12 +9,21 @@ defmodule PhoenixKitWeb.Users.ForgotPassword do
 
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.RateLimiter
+  alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
 
   def mount(_params, _session, socket) do
     case PhoenixKitWeb.Users.Auth.maybe_redirect_authenticated(socket) do
-      {:redirect, socket} -> {:ok, socket}
-      :cont -> {:ok, assign(socket, form: to_form(%{}, as: "user"))}
+      {:redirect, socket} ->
+        {:ok, socket}
+
+      :cont ->
+        {:ok,
+         socket
+         |> assign(form: to_form(%{}, as: "user"))
+         # Connect info is readable during mount and nowhere else, so the
+         # address the per-IP bucket needs at submit time is captured here.
+         |> assign(ip_address: IpAddress.client_address_from_socket(socket))}
     end
   end
 
@@ -31,7 +40,7 @@ defmodule PhoenixKitWeb.Users.ForgotPassword do
     # action), and both hit the same per-email bucket, so charging it twice
     # would halve a real user's allowance and swallow every second email while
     # this page still showed the success notice.
-    case RateLimiter.check_password_reset_rate_limit(email) do
+    case RateLimiter.check_password_reset_rate_limit(email, socket.assigns[:ip_address]) do
       :ok ->
         if user = Auth.get_user_by_email(email) do
           Auth.deliver_user_reset_password_instructions(

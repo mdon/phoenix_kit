@@ -30,7 +30,14 @@ defmodule PhoenixKit.Users.RateLimiter do
         registration_limit: 3,             # Max registration attempts per window
         registration_window_ms: 3600_000,  # 1 hour window
         registration_ip_limit: 10,         # Max registrations per IP per window
-        registration_ip_window_ms: 3600_000 # 1 hour window
+        registration_ip_window_ms: 3600_000, # 1 hour window
+        # The three mail-sending endpoints (magic_link, password_reset,
+        # confirmation_resend) each take three buckets: per address, per IP,
+        # and one site-wide cap on how many the install will send at all.
+        password_reset_ip_limit: 10,
+        password_reset_ip_window_ms: 300_000,
+        password_reset_global_limit: 100,      # nil switches the cap off
+        password_reset_global_window_ms: 3600_000
 
   ## Security Features
 
@@ -79,6 +86,47 @@ defmodule PhoenixKit.Users.RateLimiter do
     # Confirmation resend: 3 requests per 5 minutes per email
     confirmation_resend_limit: 3,
     confirmation_resend_window_ms: 300_000,
+    # Per-IP companions for the three endpoints above. Each one SENDS MAIL on
+    # an unauthenticated request, and an address bucket alone cannot see a
+    # spray: ten thousand addresses, one hit each, no bucket ever fires.
+    # Comfortably above what one person behind a shared NAT would ever need —
+    # their own address bucket caps them at 3 — and far below what makes
+    # mailbox flooding, sender-reputation damage or quota exhaustion worthwhile.
+    magic_link_ip_limit: 10,
+    magic_link_ip_window_ms: 300_000,
+    password_reset_ip_limit: 10,
+    password_reset_ip_window_ms: 300_000,
+    confirmation_resend_ip_limit: 10,
+    confirmation_resend_ip_window_ms: 300_000,
+    # Site-wide backstop for the same three endpoints: the total number of these
+    # emails the install will send in an hour, no matter who asks or from where.
+    # The address and IP buckets both assume the attacker is concentrated; a
+    # botnet with a fresh address and a fresh IP per request defeats both, and
+    # only this one bounds the mail bill.
+    #
+    # Deliberately generous, because a site-wide cap is the one limit an
+    # attacker can turn against everybody else: every request it refuses is a
+    # real user who cannot reset their password. Treat it as a circuit breaker
+    # sized so normal traffic never approaches it — if it trips, either the
+    # install is under attack or the number is wrong, and both want an operator
+    # looking. Set to `nil` to switch off.
+    #
+    # RAISE IT before anything that sends a crowd to the forgot-password form
+    # at once — a forced credential rotation, a migration off another auth
+    # provider. That is the one legitimate way to hit this, and hitting it
+    # means the people you just told to reset their password cannot.
+    #
+    # Counts accepted REQUESTS, not delivered mail: a request for an address
+    # that turns out not to exist still spends one. The IP bucket above is what
+    # keeps that cheap to abuse — draining this costs an attacker a fresh IP
+    # every ten tries. Per node, like every bucket here (see the Hammer/Redis
+    # note in the moduledoc), so a multi-node install caps per node.
+    magic_link_global_limit: 300,
+    magic_link_global_window_ms: 3_600_000,
+    password_reset_global_limit: 300,
+    password_reset_global_window_ms: 3_600_000,
+    confirmation_resend_global_limit: 300,
+    confirmation_resend_global_window_ms: 3_600_000,
     # Registration: 3 attempts per hour per email
     registration_limit: 3,
     registration_window_ms: 3_600_000,
@@ -200,33 +248,22 @@ defmodule PhoenixKit.Users.RateLimiter do
 
   Returns `:ok` if the request is allowed, or `{:error, :rate_limit_exceeded}` if the limit is exceeded.
 
-  Magic links have stricter rate limits to prevent token enumeration attacks.
+  Guarded by all three buckets — address, IP and site-wide. See
+  `check_mail_endpoint/3` for why the order they are charged in matters.
+  Pass the caller's IP whenever one is known; omitting it leaves only the
+  address and site-wide buckets, which cannot see a spray.
 
   ## Examples
 
-      iex> PhoenixKit.Users.RateLimiter.check_magic_link_rate_limit("user@example.com")
+      iex> PhoenixKit.Users.RateLimiter.check_magic_link_rate_limit("user@example.com", "192.168.1.1")
       :ok
 
       # After 3 requests in 5 minutes:
-      iex> PhoenixKit.Users.RateLimiter.check_magic_link_rate_limit("user@example.com")
+      iex> PhoenixKit.Users.RateLimiter.check_magic_link_rate_limit("user@example.com", "192.168.1.1")
       {:error, :rate_limit_exceeded}
   """
-  def check_magic_link_rate_limit(email) when is_binary(email) do
-    email = normalize_email(email)
-    config = get_config()
-
-    key = "auth:magic_link:#{email}"
-    limit = Keyword.get(config, :magic_link_limit)
-    window = Keyword.get(config, :magic_link_window_ms)
-
-    case check_rate_limit(key, window, limit) do
-      :ok ->
-        :ok
-
-      {:error, :rate_limit_exceeded} = error ->
-        log_rate_limit_violation("magic_link", email, limit, window)
-        error
-    end
+  def check_magic_link_rate_limit(email, ip_address \\ nil) when is_binary(email) do
+    check_mail_endpoint("magic_link", email, ip_address)
   end
 
   @doc """
@@ -237,27 +274,16 @@ defmodule PhoenixKit.Users.RateLimiter do
   vector and — because only existing unconfirmed accounts do that work — a
   measurable oracle for which addresses are registered but unconfirmed.
 
+  Guarded by all three buckets — address, IP and site-wide. See
+  `check_mail_endpoint/3`.
+
   ## Examples
 
-      iex> PhoenixKit.Users.RateLimiter.check_confirmation_resend_rate_limit("user@example.com")
+      iex> PhoenixKit.Users.RateLimiter.check_confirmation_resend_rate_limit("user@example.com", "192.168.1.1")
       :ok
   """
-  def check_confirmation_resend_rate_limit(email) when is_binary(email) do
-    email = normalize_email(email)
-    config = get_config()
-
-    key = "auth:confirmation_resend:#{email}"
-    limit = Keyword.get(config, :confirmation_resend_limit)
-    window = Keyword.get(config, :confirmation_resend_window_ms)
-
-    case check_rate_limit(key, window, limit) do
-      :ok ->
-        :ok
-
-      {:error, :rate_limit_exceeded} = error ->
-        log_rate_limit_violation("confirmation_resend", email, limit, window)
-        error
-    end
+  def check_confirmation_resend_rate_limit(email, ip_address \\ nil) when is_binary(email) do
+    check_mail_endpoint("confirmation_resend", email, ip_address)
   end
 
   @doc """
@@ -268,31 +294,20 @@ defmodule PhoenixKit.Users.RateLimiter do
   Password reset requests have moderate rate limits to prevent mass reset attacks
   while still allowing legitimate users to recover their accounts.
 
+  Guarded by all three buckets — address, IP and site-wide. See
+  `check_mail_endpoint/3`.
+
   ## Examples
 
-      iex> PhoenixKit.Users.RateLimiter.check_password_reset_rate_limit("user@example.com")
+      iex> PhoenixKit.Users.RateLimiter.check_password_reset_rate_limit("user@example.com", "192.168.1.1")
       :ok
 
       # After 3 requests in 5 minutes:
-      iex> PhoenixKit.Users.RateLimiter.check_password_reset_rate_limit("user@example.com")
+      iex> PhoenixKit.Users.RateLimiter.check_password_reset_rate_limit("user@example.com", "192.168.1.1")
       {:error, :rate_limit_exceeded}
   """
-  def check_password_reset_rate_limit(email) when is_binary(email) do
-    email = normalize_email(email)
-    config = get_config()
-
-    key = "auth:password_reset:#{email}"
-    limit = Keyword.get(config, :password_reset_limit)
-    window = Keyword.get(config, :password_reset_window_ms)
-
-    case check_rate_limit(key, window, limit) do
-      :ok ->
-        :ok
-
-      {:error, :rate_limit_exceeded} = error ->
-        log_rate_limit_violation("password_reset", email, limit, window)
-        error
-    end
+  def check_password_reset_rate_limit(email, ip_address \\ nil) when is_binary(email) do
+    check_mail_endpoint("password_reset", email, ip_address)
   end
 
   @doc """
@@ -567,6 +582,92 @@ defmodule PhoenixKit.Users.RateLimiter do
   end
 
   # Private functions
+
+  # The three public endpoints that SEND MAIL on an unauthenticated request,
+  # each guarded by the same three buckets, charged narrowest first:
+  #
+  #   1. the address — stops one victim being hammered;
+  #   2. the IP — stops a spray, where ten thousand addresses each take a single
+  #      hit and no address bucket ever fires;
+  #   3. the install — the total this site will send in an hour, whoever asks.
+  #      A botnet with a fresh address and a fresh IP per request walks through
+  #      the first two; only this one bounds the mail bill.
+  #
+  # ORDER IS LOAD-BEARING, and specifically the global bucket goes LAST, charged
+  # only by a request the narrower two already allowed. A bucket counts the hit
+  # whether or not anything else refused, so charging the site-wide one up front
+  # would let an attacker hammering a SINGLE address — already refused, sending
+  # nothing — drain the allowance for everybody else. Charged last it counts
+  # mail this install would actually send, which is the thing being rationed,
+  # and draining it costs an attacker a fresh address AND a fresh IP per hit.
+  defp check_mail_endpoint(action, email, ip_address) do
+    config = get_config()
+    email = normalize_email(email)
+
+    with :ok <-
+           charge(
+             "auth:#{action}:#{email}",
+             Keyword.get(config, :"#{action}_window_ms"),
+             Keyword.get(config, :"#{action}_limit"),
+             action,
+             email
+           ),
+         :ok <-
+           charge_ip(
+             action,
+             ip_address,
+             Keyword.get(config, :"#{action}_ip_window_ms"),
+             Keyword.get(config, :"#{action}_ip_limit")
+           ) do
+      charge_global(
+        action,
+        Keyword.get(config, :"#{action}_global_window_ms"),
+        Keyword.get(config, :"#{action}_global_limit")
+      )
+    end
+  end
+
+  defp charge(key, window, limit, action, identifier) do
+    case check_rate_limit(key, window, limit) do
+      :ok ->
+        :ok
+
+      {:error, :rate_limit_exceeded} = error ->
+        log_rate_limit_violation(action, identifier, limit, window)
+        error
+    end
+  end
+
+  # No address to key on — the endpoint still has its own bucket, and its
+  # global one. Refusing instead would lock out every visitor on a host whose
+  # endpoint does not thread peer data through to the socket, which is the same
+  # call `check_login_rate_limit/2` makes.
+  defp charge_ip(_action, ip, _window, _limit) when ip in [nil, "", "unknown"], do: :ok
+
+  defp charge_ip(action, ip_address, window, limit),
+    do: charge("auth:#{action}:ip:#{ip_address}", window, limit, action, "ip:#{ip_address}")
+
+  defp charge_global(_action, _window, limit) when limit in [nil, false], do: :ok
+
+  defp charge_global(action, window, limit) do
+    case check_rate_limit("auth:#{action}:global", window, limit) do
+      :ok ->
+        :ok
+
+      {:error, :rate_limit_exceeded} = error ->
+        # Louder than the others on purpose: this one refuses everybody, so it
+        # is either an attack in progress or a limit set too low, and an
+        # operator needs to know which.
+        Logger.error(
+          "PhoenixKit.RateLimiter: SITE-WIDE limit reached for #{action} — " <>
+            "#{limit} in #{format_window(window)}. Every #{action} request is now " <>
+            "refused for all users until the window rolls. Investigate, or raise " <>
+            ":#{action}_global_limit."
+        )
+
+        error
+    end
+  end
 
   defp check_rate_limit(key, window_ms, limit) do
     # Hammer 7.x: Backend.hit/3 returns {:allow, count} or {:deny, retry_after}

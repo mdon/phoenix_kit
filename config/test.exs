@@ -68,7 +68,15 @@ config :phoenix_kit, PhoenixKit.Users.RateLimiter,
   registration_limit: 3,
   registration_window_ms: 3_600_000,
   registration_ip_limit: 10,
-  registration_ip_window_ms: 3_600_000
+  registration_ip_window_ms: 3_600_000,
+  # The site-wide caps are off here. They are one counter shared by the whole
+  # run — every test that touches a mail endpoint spends from it, so leaving
+  # them on would couple unrelated test files to each other and fail whichever
+  # one happened to run 300th. The tests that cover the caps switch them on
+  # for themselves.
+  magic_link_global_limit: nil,
+  password_reset_global_limit: nil,
+  confirmation_resend_global_limit: nil
 
 # Configure session fingerprinting for tests
 config :phoenix_kit,

@@ -1,3 +1,36 @@
+## Unreleased
+
+### Security
+
+- **The three endpoints that send mail to anyone who asks are no longer
+  throttled per address alone.** Magic link, password reset and confirmation
+  resend each counted hits per email address, while login and registration
+  already counted per IP too. An address bucket cannot see a spray: ten
+  thousand addresses take one hit each, no bucket ever fires, and the install
+  sends ten thousand emails — mailbox flooding for the people named, and
+  sender-reputation and mailer-quota damage for the operator. Each endpoint now
+  has three buckets:
+
+  - **per address** (unchanged, 3 per 5 minutes) — stops one person being
+    hammered;
+  - **per IP** (new, 10 per 5 minutes) — stops a spray from one host;
+  - **per install** (new, 300 per hour) — the total the site will send at all,
+    whoever asks and from wherever. A botnet with a fresh address and a fresh
+    IP per request walks through the first two; only this bounds the mail bill.
+
+  The site-wide cap is charged **last**, by requests the narrower two already
+  allowed. Charged first, an attacker hammering a single address — refused, and
+  sending nothing — would drain the allowance for everybody else, which is the
+  one way a site-wide limit becomes an attack in itself. It trips loudly (a
+  logged error naming the setting to raise), and is meant as a circuit breaker:
+  raise it before anything that sends a crowd to the forgot-password form at
+  once, such as a forced credential rotation. `nil` switches it off. All of it
+  is tunable under `config :phoenix_kit, PhoenixKit.Users.RateLimiter`.
+
+  Public pages capture the visitor's address during mount, which is the only
+  point a LiveView can read connect info — captured anywhere else the bucket
+  silently keys on nothing.
+
 ## 2.22.18 - 2026-09-11
 
 ### Security

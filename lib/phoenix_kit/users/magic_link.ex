@@ -88,11 +88,11 @@ defmodule PhoenixKit.Users.MagicLink do
       iex> PhoenixKit.Users.MagicLink.generate_magic_link("user@example.com")
       {:error, :rate_limit_exceeded}
   """
-  def generate_magic_link(email) when is_binary(email) do
+  def generate_magic_link(email, ip_address \\ nil) when is_binary(email) do
     email = String.trim(email) |> String.downcase()
 
     # Check rate limit before attempting to generate magic link
-    case RateLimiter.check_magic_link_rate_limit(email) do
+    case RateLimiter.check_magic_link_rate_limit(email, ip_address) do
       :ok ->
         case Auth.get_user_by_email(email) do
           %User{} = user ->

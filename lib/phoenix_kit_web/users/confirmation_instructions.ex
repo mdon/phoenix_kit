@@ -43,11 +43,16 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.RateLimiter
+  alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
 
   def mount(params, session, socket) do
     user = socket.assigns[:phoenix_kit_current_user]
     destination = resolve_destination(params, session, socket)
+
+    # Connect info is readable during mount and nowhere else, so the address
+    # the per-IP bucket needs at submit time has to be captured here.
+    socket = assign(socket, :ip_address, IpAddress.client_address_from_socket(socket))
 
     cond do
       user && user.confirmed_at ->
@@ -108,7 +113,11 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
     # send mail), so an unthrottled endpoint is both a targeted mail-flood
     # vector and a timing oracle for which addresses are registered.
     result =
-      with :ok <- RateLimiter.check_confirmation_resend_rate_limit(email),
+      with :ok <-
+             RateLimiter.check_confirmation_resend_rate_limit(
+               email,
+               socket.assigns[:ip_address]
+             ),
            %{} = user <- Auth.get_user_by_email(email) do
         Auth.deliver_user_confirmation_instructions(
           user,
