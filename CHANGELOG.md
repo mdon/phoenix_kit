@@ -1,3 +1,26 @@
+## 2.22.17 - 2026-09-11
+
+### Added
+
+- **An installed dashboards module can own the `/admin` landing page.** When
+  one is present, enabled, and a dashboard is bound to the home place, it
+  renders there instead of the built-in overview — live, so binding or
+  unbinding one updates the page without a reload. Nothing changes on an
+  install without that module.
+- **Users can pick where they land after signing in.** A new "Start page"
+  picker in profile settings lists the visitor's own visible, top-level admin
+  tabs; the choice is honored on every login/magic-link/OAuth sign-in, after
+  an explicit return-to destination and before the site's configured default.
+
+### Fixed
+
+- **`update_user_start_page/2` now delegates its local-path check to
+  `Routes.local_path?/1`** instead of a private re-implementation that missed
+  the ASCII control-character case documented as load-bearing elsewhere in
+  the codebase. The stored preference was already re-validated by the real
+  guard at redirect time, so this was not a live open redirect, but it closes
+  a second, drifting copy of a security-critical check (PR #800 review).
+
 ## 2.22.16 - 2026-09-10
 
 ### Changed
