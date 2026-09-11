@@ -204,17 +204,23 @@
               <div class="card-body">
                 <h3 class="card-title text-lg">{gettext("Basic Information")}</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                  <%= if @user.account_type == "organization" do %>
+                  <%= if @org_accounts_enabled do %>
                     <div>
                       <label class="text-sm font-medium text-base-content/70">
                         {gettext("Account Type")}
                       </label>
                       <p class="text-base-content">
-                        <span class="badge badge-info badge-sm h-auto">
-                          {gettext("Organization")}
+                        <span class={
+                          "badge badge-sm h-auto #{if @user.account_type == "organization", do: "badge-info", else: "badge-ghost"}"
+                        }>
+                          {if @user.account_type == "organization",
+                            do: gettext("Organization"),
+                            else: gettext("Personal")}
                         </span>
                       </p>
                     </div>
+                  <% end %>
+                  <%= if @user.account_type == "organization" do %>
                     <div>
                       <label class="text-sm font-medium text-base-content/70">
                         {gettext("Organization Name")}
@@ -227,8 +233,15 @@
                         <label class="text-sm font-medium text-base-content/70">
                           {gettext("Organization")}
                         </label>
-                        <p class="text-base-content font-mono text-sm">
-                          {@user.organization_uuid}
+                        <p class="text-base-content">
+                          <.pk_link
+                            navigate={"/admin/users/view/#{@user.organization_uuid}"}
+                            class="link link-primary text-sm"
+                          >
+                            {(Ecto.assoc_loaded?(@user.organization) && @user.organization &&
+                                PhoenixKit.Users.Auth.User.full_name(@user.organization)) ||
+                              to_string(@user.organization_uuid)}
+                          </.pk_link>
                         </p>
                       </div>
                     <% end %>
