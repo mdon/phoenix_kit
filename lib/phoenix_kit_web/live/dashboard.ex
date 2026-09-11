@@ -105,14 +105,16 @@ defmodule PhoenixKitWeb.Live.Dashboard do
   # core keeps no dependency on an optional package and this page is unchanged
   # wherever that package is absent.
   #
-  # `home_dashboard?` starts false so the very first paint is the built-in
-  # overview; the child view flips it the moment it reports a dashboard. That
-  # ordering matters: an admin with nothing bound must never see the page
-  # flicker through an empty state.
+  # `home_dashboard?` is answered UP FRONT, by asking the module's own
+  # `admin_home_dashboards/1` for this viewer. The child view flips it later
+  # too — that is what makes binding and unbinding a dashboard land live — but
+  # it cannot be the FIRST answer: the child renders its board in the very same
+  # pass, so a page that starts with "no dashboard" paints the board and the
+  # built-in overview stacked together until the child's message arrives.
   defp assign_home_view(socket, session) do
     socket
     |> assign(:home_view, home_view())
-    |> assign(:home_dashboard?, false)
+    |> assign(:home_dashboard?, home_dashboard?(socket))
     |> assign(:home_session, %{
       "current_user_uuid" => current_user_uuid(socket),
       "locale" => session["locale"],
@@ -129,6 +131,31 @@ defmodule PhoenixKitWeb.Live.Dashboard do
   rescue
     _ -> nil
   end
+
+  # Whether anything is bound to the home place FOR THIS VIEWER — audience
+  # rules included, so a role-only board does not blank the overview for
+  # everyone else. Resolved through the same duck-typed contract as the view
+  # itself, and false on any failure: an optional module must never be able to
+  # leave `/admin` with neither half rendered.
+  defp home_dashboard?(socket), do: home_dashboard?(PhoenixKitDashboards, scope_of(socket))
+
+  # The module arrives as an argument for the same reason it does in
+  # `enabled_module?/1`: core does not depend on this package, and a call
+  # written against the literal alias warns at compile time here. Public only
+  # so a test can drive it with a stand-in module — core has no dependency to
+  # drive it with.
+  @doc false
+  def home_dashboard?(module, scope) do
+    Code.ensure_loaded?(module) and
+      function_exported?(module, :admin_home_dashboards, 1) and
+      match?({_tier, [_ | _]}, module.admin_home_dashboards(scope))
+  rescue
+    _ -> false
+  catch
+    :exit, _ -> false
+  end
+
+  defp scope_of(socket), do: socket.assigns[:phoenix_kit_current_scope]
 
   defp enabled_module?(module) do
     Code.ensure_loaded?(module) and function_exported?(module, :enabled?, 0) and module.enabled?()
