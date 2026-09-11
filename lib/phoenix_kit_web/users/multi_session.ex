@@ -53,6 +53,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Role
+  alias PhoenixKit.Users.Sessions
   alias PhoenixKit.Utils.IpAddress
   alias PhoenixKitWeb.Users.Auth, as: WebAuth
 
@@ -814,7 +815,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   defp put_active_token(conn, token) do
     conn
     |> put_session(:user_token, token)
-    |> put_session(:live_socket_id, "phoenix_kit_sessions:#{Base.url_encode64(token)}")
+    |> put_session(:live_socket_id, Sessions.live_socket_id(token))
   end
 
   defp already_in_stack?(stack, %Auth.User{} = user) do

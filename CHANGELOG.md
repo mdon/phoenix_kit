@@ -1,5 +1,22 @@
 ## Unreleased
 
+### Security
+
+- **Revoking a session now actually closes the tab it belongs to.** Every path
+  that drops session tokens — "Sign out this device", "sign out everywhere",
+  deactivating a user, an admin password reset, a password change, the
+  external-proof confirmation — deleted the row and left any already-connected
+  LiveView running. A socket keeps its assigns, an authenticated scope
+  included, and goes on serving events until it re-mounts, so the account an
+  operator had just cut off kept working in an open tab. Two defects stacked:
+  the only function that broadcast the disconnect had no callers, and the
+  broadcast itself resolved `PhoenixKitWeb.Endpoint` — a module that ships in
+  this library but that nothing starts inside a host app, so it raised "no
+  :pubsub_server configured", was swallowed by a rescue, and disconnected
+  nothing anywhere. Disconnects now go to the host's endpoint (via
+  `PhoenixKit.Config.get_parent_endpoint/0`) and are part of the token drain
+  itself, so a future revocation path cannot forget them.
+
 ### Fixed
 
 - **The user detail page names the account type and the organization.** "Basic

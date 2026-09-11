@@ -57,6 +57,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.Referrals
   alias PhoenixKit.Users.ScopeNotifier
+  alias PhoenixKit.Users.Sessions
   alias PhoenixKit.Users.TimeZoneAlert
   alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
@@ -410,20 +411,10 @@ defmodule PhoenixKitWeb.Users.Auth do
       :ok
   """
   def log_out_user_from_all_sessions(user) do
-    # Get all session tokens before deleting them
-    user_tokens = Auth.get_all_user_session_tokens(user)
-
-    # Broadcast disconnect to all LiveView sessions for this user
-    # Each session token creates a unique live_socket_id
-    Enum.each(user_tokens, fn token ->
-      live_socket_id = "phoenix_kit_sessions:#{Base.url_encode64(token.token)}"
-      broadcast_disconnect(live_socket_id)
-    end)
-
-    # Delete all session tokens for this user
+    # The drain disconnects the sockets itself, so every caller of it — role
+    # changes, deactivation — gets the same treatment as this one without
+    # having to remember the broadcast.
     Auth.delete_all_user_session_tokens(user)
-
-    :ok
   end
 
   @doc """
@@ -2788,7 +2779,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp put_token_in_session(conn, token) do
     conn
     |> put_session(:user_token, token)
-    |> put_session(:live_socket_id, "phoenix_kit_sessions:#{Base.url_encode64(token)}")
+    |> put_session(:live_socket_id, Sessions.live_socket_id(token))
   end
 
   defp maybe_store_return_to(%{method: "GET"} = conn) do
@@ -3413,27 +3404,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   @doc false
   def broadcast_disconnect_for_socket(live_socket_id), do: broadcast_disconnect(live_socket_id)
 
-  defp broadcast_disconnect(live_socket_id) do
-    case get_endpoint() do
-      {:ok, endpoint} ->
-        try do
-          endpoint.broadcast(live_socket_id, "disconnect", %{})
-        rescue
-          error ->
-            Logger.warning("[PhoenixKit] Failed to broadcast disconnect: #{inspect(error)}")
-        end
-
-      {:error, reason} ->
-        Logger.warning("[PhoenixKit] Could not find parent endpoint for broadcast: #{reason}")
-    end
-  end
-
-  def get_endpoint do
-    if Code.ensure_loaded?(PhoenixKitWeb.Endpoint) and
-         function_exported?(PhoenixKitWeb.Endpoint, :broadcast, 3) do
-      {:ok, PhoenixKitWeb.Endpoint}
-    else
-      {:error, "No endpoint found"}
-    end
-  end
+  # One implementation, in the session context, so the endpoint a disconnect is
+  # broadcast on is resolved the same way everywhere.
+  defp broadcast_disconnect(live_socket_id), do: Sessions.disconnect(live_socket_id)
 end

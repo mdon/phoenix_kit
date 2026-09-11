@@ -88,6 +88,12 @@ config :logger, level: :warning
 config :phoenix_kit, PhoenixKitWeb.Endpoint,
   secret_key_base: "test_secret_key_base_at_least_64_bytes_long_for_phoenix_kit_tests_only",
   server: false,
+  # Point at the PubSub instance `test_helper.exs` already starts (before the
+  # endpoint), so `endpoint.broadcast/3` works here. Without it every
+  # force-logout logged "Failed to broadcast disconnect: no :pubsub_server
+  # configured" — noise that also meant no test could observe a disconnect,
+  # which is how a broken endpoint resolver survived in the first place.
+  pubsub_server: :phoenix_kit_internal_pubsub,
   live_view: [signing_salt: "phoenix_kit_test_live_view_salt_64bytes"],
   render_errors: [
     formats: [html: PhoenixKitWeb.ErrorHTML],

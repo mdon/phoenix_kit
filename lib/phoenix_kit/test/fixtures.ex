@@ -58,6 +58,7 @@ defmodule PhoenixKit.Test.Fixtures do
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Roles
+  alias PhoenixKit.Users.Sessions
 
   @doc """
   A registered, **unconfirmed** user.
@@ -117,7 +118,7 @@ defmodule PhoenixKit.Test.Fixtures do
 
     conn
     |> put_session(:user_token, token)
-    |> put_session(:live_socket_id, "phoenix_kit_sessions:#{Base.url_encode64(token)}")
+    |> put_session(:live_socket_id, Sessions.live_socket_id(token))
   end
 
   @doc """

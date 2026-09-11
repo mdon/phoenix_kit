@@ -268,10 +268,13 @@ defmodule PhoenixKit.Users.Sessions do
   def revoke_user_session(%User{uuid: user_uuid}, token_uuid) when is_binary(token_uuid) do
     case Repo.delete_all(
            from(t in UserToken,
-             where: t.uuid == ^token_uuid and t.user_uuid == ^user_uuid and t.context == "session"
+             where:
+               t.uuid == ^token_uuid and t.user_uuid == ^user_uuid and t.context == "session",
+             select: t.token
            )
          ) do
-      {1, _} ->
+      {1, revoked} ->
+        disconnect_tokens(revoked)
         Events.broadcast_session_revoked(token_uuid)
         :ok
 
@@ -289,14 +292,16 @@ defmodule PhoenixKit.Users.Sessions do
 
   def revoke_other_user_sessions(%User{uuid: user_uuid}, current_token)
       when is_binary(current_token) do
-    {count, _} =
+    {count, revoked} =
       Repo.delete_all(
         from(t in UserToken,
           where:
-            t.user_uuid == ^user_uuid and t.context == "session" and t.token != ^current_token
+            t.user_uuid == ^user_uuid and t.context == "session" and t.token != ^current_token,
+          select: t.token
         )
       )
 
+    disconnect_tokens(revoked)
     if count > 0, do: Events.broadcast_user_sessions_revoked(user_uuid, count)
     count
   end
@@ -355,10 +360,12 @@ defmodule PhoenixKit.Users.Sessions do
   def revoke_session(token_uuid) when is_binary(token_uuid) do
     case Repo.delete_all(
            from(token in UserToken,
-             where: token.uuid == ^token_uuid and token.context == "session"
+             where: token.uuid == ^token_uuid and token.context == "session",
+             select: token.token
            )
          ) do
-      {1, _} ->
+      {1, revoked} ->
+        disconnect_tokens(revoked)
         # Broadcast session revocation event
         Events.broadcast_session_revoked(token_uuid)
         :ok
@@ -380,12 +387,15 @@ defmodule PhoenixKit.Users.Sessions do
 
   """
   def revoke_user_sessions(%User{uuid: user_uuid}) do
-    {count, _} =
+    {count, revoked} =
       Repo.delete_all(
         from(token in UserToken,
-          where: token.user_uuid == ^user_uuid and token.context == "session"
+          where: token.user_uuid == ^user_uuid and token.context == "session",
+          select: token.token
         )
       )
+
+    disconnect_tokens(revoked)
 
     # Broadcast user sessions revocation event
     if count > 0 do
@@ -570,6 +580,82 @@ defmodule PhoenixKit.Users.Sessions do
       age_in_days: calculate_age_in_days(session_data.created_at),
       is_expired: session_expired?(session_data.created_at)
     }
+  end
+
+  ## Disconnecting live sockets
+
+  @doc """
+  The topic a LiveView socket authenticated by `token` is subscribed to.
+
+  Mirrors what the session plugs write to `:live_socket_id` at login.
+  """
+  @spec live_socket_id(binary()) :: String.t()
+  def live_socket_id(token) when is_binary(token),
+    do: "phoenix_kit_sessions:#{Base.url_encode64(token)}"
+
+  @doc """
+  Tells every LiveView socket authenticated by one of `tokens` to disconnect.
+
+  Deleting a token row ends a session for the NEXT request; it does nothing to a
+  socket that is already connected, which keeps its assigns — an authenticated
+  scope included — and goes on serving events until it re-mounts. Revoking a
+  session has to do both, so every path that drops session tokens calls this
+  with the raw token values it deleted.
+
+  Raw values, because the topic is derived from the token itself: once the row
+  is gone there is nothing left to address the socket with. Postgres'
+  `DELETE ... RETURNING` is how the callers keep them.
+  """
+  @spec disconnect_tokens([binary()]) :: :ok
+  def disconnect_tokens(tokens) when is_list(tokens) do
+    Enum.each(tokens, &disconnect(live_socket_id(&1)))
+  end
+
+  @doc """
+  Broadcasts LiveView's `"disconnect"` message on `live_socket_id`.
+  """
+  @spec disconnect(String.t()) :: :ok
+  def disconnect(live_socket_id) when is_binary(live_socket_id) do
+    case endpoint() do
+      {:ok, endpoint} ->
+        try do
+          endpoint.broadcast(live_socket_id, "disconnect", %{})
+          :ok
+        rescue
+          error ->
+            Logger.warning("[PhoenixKit] Failed to broadcast disconnect: #{inspect(error)}")
+            :ok
+        end
+
+      :error ->
+        Logger.warning("[PhoenixKit] Could not find an endpoint to broadcast disconnect on")
+        :ok
+    end
+  end
+
+  # The HOST's endpoint, not PhoenixKit's own.
+  #
+  # A LiveView socket subscribes to its `live_socket_id` on the endpoint that
+  # serves it, which in a host app is the host's. This resolved
+  # `PhoenixKitWeb.Endpoint` unconditionally — a module that ships in the
+  # library but that nothing here ever starts outside PhoenixKit's own dev and
+  # test apps. Broadcasting on it raised "no :pubsub_server configured", the
+  # rescue above swallowed it as a warning, and so every force-logout in every
+  # host app quietly closed no tab at all.
+  defp endpoint do
+    case PhoenixKit.Config.get_parent_endpoint() do
+      {:ok, endpoint} -> {:ok, endpoint}
+      :error -> own_endpoint()
+    end
+  end
+
+  defp own_endpoint do
+    if Code.ensure_loaded?(PhoenixKitWeb.Endpoint) and
+         function_exported?(PhoenixKitWeb.Endpoint, :broadcast, 3) do
+      {:ok, PhoenixKitWeb.Endpoint}
+    else
+      :error
+    end
   end
 
   defp calculate_age_in_days(created_at) do

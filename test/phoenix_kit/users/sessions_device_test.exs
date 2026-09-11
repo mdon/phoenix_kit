@@ -208,4 +208,78 @@ defmodule PhoenixKit.Users.SessionsDeviceTest do
       assert {"Unknown", 1} in stats.by_os
     end
   end
+
+  # Deleting the row ends the session at the next request and does nothing to a
+  # socket that is already connected: it keeps its authenticated assigns and
+  # goes on serving events until it re-mounts. "Sign out this device" that
+  # leaves the device working is the failure these cover.
+  describe "revocation disconnects live sockets" do
+    defp watch_socket(token) do
+      PhoenixKitWeb.Endpoint.subscribe(Sessions.live_socket_id(token))
+      token
+    end
+
+    # The listing exposes only the 4-byte preview the UI shows, never the raw
+    # token — match on that to find the row for a token the test holds.
+    defp token_uuid_for(user, token) do
+      preview = Base.encode16(binary_part(token, 0, 4), case: :lower)
+
+      user
+      |> Sessions.list_user_sessions()
+      |> Enum.find(&(&1.token_preview == preview))
+      |> Map.fetch!(:token_uuid)
+    end
+
+    test "revoking one session disconnects that session only" do
+      user = user_fixture("revoke-disconnect-one@example.com")
+      revoked = watch_socket(Auth.generate_user_session_token(user))
+      kept = watch_socket(Auth.generate_user_session_token(user))
+
+      assert :ok = Sessions.revoke_user_session(user, token_uuid_for(user, revoked))
+
+      revoked_topic = Sessions.live_socket_id(revoked)
+      assert_receive %Phoenix.Socket.Broadcast{topic: ^revoked_topic, event: "disconnect"}
+
+      kept_topic = Sessions.live_socket_id(kept)
+      refute_receive %Phoenix.Socket.Broadcast{topic: ^kept_topic}, 50
+    end
+
+    test "signing out other devices spares the one asking" do
+      user = user_fixture("revoke-disconnect-others@example.com")
+      current = watch_socket(Auth.generate_user_session_token(user))
+      other = watch_socket(Auth.generate_user_session_token(user))
+
+      assert 1 = Sessions.revoke_other_user_sessions(user, current)
+
+      other_topic = Sessions.live_socket_id(other)
+      assert_receive %Phoenix.Socket.Broadcast{topic: ^other_topic, event: "disconnect"}
+
+      current_topic = Sessions.live_socket_id(current)
+      refute_receive %Phoenix.Socket.Broadcast{topic: ^current_topic}, 50
+    end
+
+    test "deactivating a user disconnects every session they have open" do
+      user = user_fixture("revoke-disconnect-deactivated@example.com")
+      token = watch_socket(Auth.generate_user_session_token(user))
+
+      assert {:ok, _user} = Auth.update_user_status(user, %{"is_active" => false})
+
+      topic = Sessions.live_socket_id(token)
+      assert_receive %Phoenix.Socket.Broadcast{topic: ^topic, event: "disconnect"}
+    end
+
+    test "an admin password reset disconnects the account's open sessions" do
+      user = user_fixture("revoke-disconnect-password@example.com")
+      token = watch_socket(Auth.generate_user_session_token(user))
+
+      assert {:ok, _user} =
+               Auth.admin_update_user_password(user, %{
+                 password: "AnotherValidPassword123!",
+                 password_confirmation: "AnotherValidPassword123!"
+               })
+
+      topic = Sessions.live_socket_id(token)
+      assert_receive %Phoenix.Socket.Broadcast{topic: ^topic, event: "disconnect"}
+    end
+  end
 end
