@@ -504,7 +504,11 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
 
       html = conn |> get(Routes.path("/users/log-in")) |> html_response(200)
 
-      assert length(String.split(html, "UNIQUEFLASHMARKER")) - 1 == 1
+      # The guard against a second flash copy is the element id, not the
+      # message text: since flash auto-dismiss, the message ALSO lives in the
+      # hook's `data-flash-message` attribute, so the marker legitimately
+      # appears twice in the markup of a single, correctly rendered flash.
+      assert html =~ "UNIQUEFLASHMARKER"
       assert length(String.split(html, ~s(id="flash-error"))) - 1 == 1
     end
 
