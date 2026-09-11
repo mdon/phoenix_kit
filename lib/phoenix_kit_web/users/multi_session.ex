@@ -690,7 +690,10 @@ defmodule PhoenixKitWeb.Users.MultiSession do
     # a deletion would put a `Set-Cookie` on every anonymous response, since the
     # plug's recovery path runs for every visitor who is not signed in.
     if Map.has_key?(fetch_cookies(conn).req_cookies, @accounts_cookie) do
-      delete_resp_cookie(conn, @accounts_cookie)
+      # Same path/secure/same_site as the write — browsers will not clear a
+      # Secure cookie with a non-Secure deletion, and Plug's own docs require
+      # the delete options to match the put.
+      delete_resp_cookie(conn, @accounts_cookie, accounts_cookie_delete_options())
     else
       conn
     end
@@ -796,6 +799,10 @@ defmodule PhoenixKitWeb.Users.MultiSession do
       http_only: true,
       secure: true
     ]
+  end
+
+  defp accounts_cookie_delete_options do
+    Keyword.take(accounts_cookie_options(), [:same_site, :http_only, :secure])
   end
 
   # --- internal ---

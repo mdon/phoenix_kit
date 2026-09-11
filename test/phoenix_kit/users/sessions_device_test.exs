@@ -281,5 +281,45 @@ defmodule PhoenixKit.Users.SessionsDeviceTest do
       topic = Sessions.live_socket_id(token)
       assert_receive %Phoenix.Socket.Broadcast{topic: ^topic, event: "disconnect"}
     end
+
+    test "a self-service password change disconnects other devices but not the one submitting" do
+      user = user_fixture("revoke-disconnect-self-pw@example.com")
+      current = watch_socket(Auth.generate_user_session_token(user))
+      other = watch_socket(Auth.generate_user_session_token(user))
+
+      # The settings form still needs this socket: `phx-trigger-action` POSTs
+      # the re-login, and a disconnect here is a page reload onto a deleted
+      # remember-me token — a sign-out the user never asked for.
+      assert {:ok, _user} =
+               Auth.update_user_password(
+                 user,
+                 "ValidPassword123!",
+                 %{
+                   password: "AnotherValidPassword123!",
+                   password_confirmation: "AnotherValidPassword123!"
+                 },
+                 except_token: current
+               )
+
+      other_topic = Sessions.live_socket_id(other)
+      assert_receive %Phoenix.Socket.Broadcast{topic: ^other_topic, event: "disconnect"}
+
+      current_topic = Sessions.live_socket_id(current)
+      refute_receive %Phoenix.Socket.Broadcast{topic: ^current_topic}, 50
+    end
+
+    test "a self-service password change without except_token disconnects every session" do
+      user = user_fixture("revoke-disconnect-self-pw-all@example.com")
+      token = watch_socket(Auth.generate_user_session_token(user))
+
+      assert {:ok, _user} =
+               Auth.update_user_password(user, "ValidPassword123!", %{
+                 password: "AnotherValidPassword123!",
+                 password_confirmation: "AnotherValidPassword123!"
+               })
+
+      topic = Sessions.live_socket_id(token)
+      assert_receive %Phoenix.Socket.Broadcast{topic: ^topic, event: "disconnect"}
+    end
   end
 end

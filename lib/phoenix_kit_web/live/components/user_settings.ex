@@ -273,7 +273,9 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     %{"current_password" => password, "user" => user_params} = params
     user = socket.assigns.user
 
-    case Auth.update_user_password(user, password, user_params) do
+    case Auth.update_user_password(user, password, user_params,
+           except_token: socket.assigns.current_session_token
+         ) do
       {:ok, user} ->
         password_form =
           user

@@ -411,7 +411,7 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
           }
         })
 
-      assert %{max_age: 0} = second_login.resp_cookies[@accounts_cookie]
+      assert %{max_age: 0, secure: true} = second_login.resp_cookies[@accounts_cookie]
 
       restarted =
         restart_browser(%{

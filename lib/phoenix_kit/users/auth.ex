@@ -834,6 +834,12 @@ defmodule PhoenixKit.Users.Auth do
   @doc """
   Updates the user password.
 
+  Every session token is deleted. Other devices are disconnected immediately.
+  Pass `:except_token` for the browser that just submitted the form: LiveView
+  broadcasts `"disconnect"` as a page reload, and the settings form still needs
+  this socket alive so `phx-trigger-action` can POST the re-login. A reload
+  here lands on a deleted remember-me token and looks like a sign-out.
+
   ## Examples
 
       iex> update_user_password(user, "valid password", %{password: ...})
@@ -843,7 +849,7 @@ defmodule PhoenixKit.Users.Auth do
       {:error, %Ecto.Changeset{}}
 
   """
-  def update_user_password(user, password, attrs) do
+  def update_user_password(user, password, attrs, opts \\ []) do
     changeset =
       user
       |> User.password_changeset(attrs)
@@ -857,7 +863,7 @@ defmodule PhoenixKit.Users.Auth do
     |> Repo.transaction()
     |> case do
       {:ok, %{user: user, tokens: {_count, revoked}}} ->
-        disconnect_revoked_sessions(revoked)
+        disconnect_revoked_sessions(revoked, except_token: opts[:except_token])
 
         PhoenixKit.Activity.log(%{
           action: "user.password_changed",
@@ -1401,11 +1407,15 @@ defmodule PhoenixKit.Users.Auth do
   end
 
   # Picks the session tokens out of a `:all` delete — the rest are one-shot
-  # email tokens with no socket behind them.
-  defp disconnect_revoked_sessions(revoked) do
+  # email tokens with no socket behind them. `:except_token` is the browser
+  # that still has work to do on this request (see `update_user_password/4`).
+  defp disconnect_revoked_sessions(revoked, opts \\ []) do
+    except = opts[:except_token]
+
     revoked
     |> Enum.filter(&(&1.context == "session"))
     |> Enum.map(& &1.token)
+    |> Enum.reject(&(&1 == except))
     |> Sessions.disconnect_tokens()
   end
 

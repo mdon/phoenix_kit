@@ -1,3 +1,15 @@
+## 2.22.20 - 2026-09-11
+
+### Fixed
+
+- **Changing your password no longer signs you out of the tab that submitted
+  the form.** The session-revocation fix in 2.22.18 broadcasts LiveView's
+  `"disconnect"` (a page reload) for every token it deletes. The settings form
+  still needs that socket: `phx-trigger-action` POSTs the re-login, and a
+  reload here lands on a remember-me cookie pointing at a token that was just
+  deleted. Other devices still close immediately; the submitting browser is
+  skipped via `update_user_password/4`'s `:except_token`.
+
 ## 2.22.19 - 2026-09-11
 
 ### Security
