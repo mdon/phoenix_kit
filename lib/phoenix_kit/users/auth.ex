@@ -77,6 +77,7 @@ defmodule PhoenixKit.Users.Auth do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Geolocation
   alias PhoenixKit.Utils.Pagination
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.SessionFingerprint
   alias PhoenixKit.Utils.UUID, as: UUIDUtils
 
@@ -1980,8 +1981,13 @@ defmodule PhoenixKit.Users.Auth do
 
   Refuses anything that is not a local relative path — a stored `//evil.test`
   or a full URL would turn a saved preference into an open redirect fired on
-  every login. Writes through the atomic single-key primitives with
-  `ensure_definitions: false`, the same discipline as
+  every login. Delegates the check to `PhoenixKit.Utils.Routes.local_path?/1`
+  rather than re-testing the shape here: that function is the documented
+  single source of truth for this guard (it also blocks the ASCII
+  control-character smuggle, `"/\t/evil.com"`, that browsers strip down to
+  `//evil.com`) and a second, drifting copy of it is exactly what let that
+  gap open the first time. Writes through the atomic single-key primitives
+  with `ensure_definitions: false`, the same discipline as
   `update_user_locale_preference/2`, so a concurrent writer of another
   `custom_fields` key is never lost.
   """
@@ -1992,24 +1998,13 @@ defmodule PhoenixKit.Users.Auth do
       is_nil(path) or path == "" ->
         delete_user_custom_field(user, "start_page")
 
-      local_relative_path?(path) ->
+      Routes.local_path?(path) ->
         merge_user_custom_fields(user, %{"start_page" => path}, ensure_definitions: false)
 
       true ->
         {:error, "must be a path within this site"}
     end
   end
-
-  # One leading slash and no scheme or host. `//host` and `/\host` are both
-  # protocol-relative and must not pass.
-  defp local_relative_path?(path) when is_binary(path) do
-    String.starts_with?(path, "/") and
-      not String.starts_with?(path, "//") and
-      not String.starts_with?(path, "/\\") and
-      not String.contains?(path, "://")
-  end
-
-  defp local_relative_path?(_path), do: false
 
   @doc """
   Updates user custom fields.

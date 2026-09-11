@@ -57,6 +57,14 @@ defmodule PhoenixKit.Users.StartPagePreferenceTest do
       assert {:error, _} = Auth.update_user_start_page(user, "/\\evil.test")
     end
 
+    test "refuses a path smuggling an ASCII control character" do
+      # Browsers strip tab/CR/LF, so "/\t/evil.test" lands as "//evil.test".
+      # This is exactly the gap `Routes.local_path?/1` closes — the guard
+      # here must delegate to it rather than re-test the shape on its own.
+      user = user_fixture()
+      assert {:error, _} = Auth.update_user_start_page(user, "/\t/evil.test")
+    end
+
     test "refuses anything that is not a path at all" do
       user = user_fixture()
       assert {:error, _} = Auth.update_user_start_page(user, "admin/projects")
