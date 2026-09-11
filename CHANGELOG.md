@@ -1,3 +1,31 @@
+## 2.22.21 - 2026-09-11
+
+### Changed
+
+- **Leaf pinned to 0.8.0** (#801) — `mix.lock` and the `LEAF_CDN` constant in
+  `priv/static/assets/phoenix_kit.js` move together to `leaf@v0.8.0`, bringing
+  the atomic-chip editing batch: hand-typed preserved tags chip when the cursor
+  leaves the line, chips are click-selectable (Backspace deletes, Enter opens a
+  paragraph after, arrows step the caret out), and Ctrl+Backspace/Ctrl+Delete
+  word deletion works in hybrid source blocks. Riding along: a wiki link can be
+  typed in a row that already holds a markdown link, and the toolbar heading
+  button edits the source in hybrid mode so it survives leaving the line.
+
+### Fixed
+
+- **The `:leaf` requirement now has the ceiling its comment always claimed.**
+  Every alternative was patch-less — and `~> 0.5` means `>= 0.5.0 and < 1.0.0`,
+  not "the 0.5 line", so that one alternative swallowed the whole 0.x range and
+  made the `or ~> 0.6 or ~> 0.7 or ~> 0.8` enumeration after it inert. This
+  matters more than for an ordinary dep: core serves leaf's browser half from an
+  exact jsDelivr tag while Hex resolves the Elixir half, so an open ceiling let
+  a host float the server half past the frozen bundle the day leaf 0.9 shipped —
+  the silent cross-version editor the pin exists to prevent. The requirement is
+  now `~> 0.4.1 or ~> 0.5.0 or ~> 0.6.0 or ~> 0.7.0 or ~> 0.8.0`
+  (`>= 0.4.1 and < 0.9.0`); resolution is unchanged at leaf 0.8.0 and `mix.lock`
+  did not move. `leaf_bundle_pin_test.exs` gained a test that rejects the next
+  minor above the CDN pin, which the old floor-only check could never catch.
+
 ## 2.22.20 - 2026-09-11
 
 ### Fixed

@@ -37,6 +37,16 @@ PR #776 (0.6.1) and PR #709 (the lockstep pattern itself).
 
 ## Noticed, not fixed: `phoenix_kit_publishing`'s own leaf pin is now two lines behind
 
+> **CORRECTION (2026-09-11, during the #801 review): this section is wrong and
+> the follow-up PR it recommends should not be opened.** `~> 0.5` is
+> `>= 0.5.0 and < 1.0.0`, not "the 0.5 line" — `~>` takes the major as the
+> ceiling when no patch segment is given. So `{:leaf, "~> 0.4.1 or ~> 0.5"}`
+> caps nothing below 1.0.0 and `phoenix_kit_publishing` was never stranded; its
+> own `mix.lock` resolves leaf 0.7.0. The same misreading is why core's
+> per-minor `or ~> 0.6 or ~> 0.7 or ~> 0.8` enumeration was inert. Full analysis
+> and the fix: `dev_docs/pull_requests/2026/801-leaf-0.8.0-pin/CLAUDE_REVIEW.md`.
+
+
 `phoenix_kit_publishing/mix.exs` declares its own direct
 `{:leaf, "~> 0.4.1 or ~> 0.5"}` (it renders the post editor itself, per its own
 comment there). That requirement caps resolution below 0.6.0. Core's comment at

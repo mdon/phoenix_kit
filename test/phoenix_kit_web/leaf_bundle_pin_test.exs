@@ -41,15 +41,42 @@ defmodule PhoenixKitWeb.LeafBundlePinTest do
   end
 
   test "the pinned version is one mix.exs permits" do
-    requirement =
-      File.read!(Path.join([__DIR__, "..", "..", "mix.exs"]))
-      |> then(&Regex.run(~r/\{:leaf, "([^"]+)"/, &1))
-      |> case do
-        [_, req] -> req
-        nil -> flunk("no :leaf requirement found in mix.exs")
-      end
+    assert Version.match?(pinned_version(), requirement()),
+           "the pin (#{pinned_version()}) falls outside the mix.exs requirement (#{requirement()})"
+  end
 
-    assert Version.match?(pinned_version(), requirement),
-           "the pin (#{pinned_version()}) falls outside the mix.exs requirement (#{requirement})"
+  test "mix.exs does not admit a leaf minor the bundle cannot serve" do
+    # The floor half of this contract is easy and was always right. The
+    # ceiling is the half that bites: `~> 0.5` reads as "the 0.5 line" but
+    # means `>= 0.5.0 and < 1.0.0`, so a single patch-less alternative
+    # silently admits every later 0.x and makes the enumeration after it
+    # inert. A host is then free to resolve leaf past the tag
+    # `priv/static/assets/phoenix_kit.js` serves, which is the cross-version
+    # editor the pin exists to prevent — and neither the test above nor
+    # `vendored_cdn_pins_test.exs` can see it, because both only ever look at
+    # the version THIS project resolved.
+    %Version{major: major, minor: minor} = Version.parse!(pinned_version())
+    next_minor = "#{major}.#{minor + 1}.0"
+
+    refute Version.match?(next_minor, requirement()),
+           """
+           mix.exs permits leaf #{next_minor}, but the browser half is frozen \
+           at leaf@v#{pinned_version()} in priv/static/assets/phoenix_kit.js. \
+           A host resolving #{next_minor} would run that bundle against a \
+           newer server half — silently, since the editor still renders.
+
+           Give every alternative in the requirement a patch segment \
+           (`~> 0.8.0`, not `~> 0.8`) so the ceiling stops at the pinned \
+           minor, and move the pin, the lock and the requirement together.
+           """
+  end
+
+  defp requirement do
+    File.read!(Path.join([__DIR__, "..", "..", "mix.exs"]))
+    |> then(&Regex.run(~r/\{:leaf, "([^"]+)"/, &1))
+    |> case do
+      [_, req] -> req
+      nil -> flunk("no :leaf requirement found in mix.exs")
+    end
   end
 end

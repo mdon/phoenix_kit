@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "2.22.20"
+  @version "2.22.21"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -183,10 +183,20 @@ defmodule PhoenixKit.MixProject do
       #
       # NOT `~> 0.3`: that spanned 0.3 → 0.9, and for a 0.x package where each
       # minor is effectively a major it claimed a support window core cannot
-      # back. It also let a resolver reach for leaf 0.5 while phoenix_kit_publishing
-      # still excluded it, which silently stranded that package a release behind
-      # rather than reporting a conflict.
-      {:leaf, "~> 0.4.1 or ~> 0.5 or ~> 0.6 or ~> 0.7 or ~> 0.8"},
+      # back.
+      #
+      # Every alternative carries a PATCH segment on purpose. `~> 0.5` is
+      # `>= 0.5.0 and < 1.0.0` — one such alternative swallows the whole 0.x
+      # line and makes every later `or ~> 0.6 or ~> 0.7 or ~> 0.8` inert, so
+      # the enumeration reads as a curated window while admitting leaf 0.9 and
+      # everything after it. That matters here more than for an ordinary dep:
+      # `priv/static/assets/phoenix_kit.js` serves the browser half from an
+      # exact jsDelivr tag, so an open ceiling lets a host float the Elixir
+      # half past a frozen bundle — the silent cross-version editor exactly
+      # that pin exists to prevent. `~> 0.8.0` is `>= 0.8.0 and < 0.9.0`, so
+      # the next leaf minor needs the same three-file PR that moved this one.
+      # `leaf_bundle_pin_test.exs` holds the ceiling to the pinned minor.
+      {:leaf, "~> 0.4.1 or ~> 0.5.0 or ~> 0.6.0 or ~> 0.7.0 or ~> 0.8.0"},
 
       # Markdown → HTML (comrak). Declared here in core so every module shares
       # one resolved version instead of each pulling its own and risking
