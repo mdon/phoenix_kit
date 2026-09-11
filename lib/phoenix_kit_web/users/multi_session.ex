@@ -9,8 +9,43 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   Read helpers (`gate_allowed?/1`, `list_accounts/1`) take the string-keyed session
   map (works from both the plug and the LiveView on_mount). Conn-mutating ops
-  (`add_account/3`, `add_authenticated_user/2`, `switch_to/2`, `remove_account/2`,
+  (`add_account/3`, `add_authenticated_user/3`, `switch_to/2`, `remove_account/2`,
   logout helpers) take and return a `Plug.Conn`.
+
+  ## Surviving a lost session
+
+  The Plug session is the only place the stack lives, and on most hosts that is
+  a *browser-session* cookie: `mix phx.new` ships `@session_options` with no
+  `max_age`, so it is gone on browser restart. The remembered identity survives
+  that — `PhoenixKitWeb.Users.Auth.ensure_user_token/1` rebuilds the session
+  from the remember-me cookie — but that cookie holds exactly ONE token, so
+  every account the user had added silently disappeared and the switcher came
+  back holding a single row.
+
+  So the added accounts are mirrored into a second persistent cookie
+  (`persist_account/2`), and `restore_persisted_accounts/2` rebuilds the whole
+  stack next to the remembered root. Three rules keep that mirror honest:
+
+  - **It never outlives the remembered identity.** Nothing is written unless
+    this browser already holds a remember-me cookie, so a deliberately
+    session-only login stays session-only for every account in it, and
+    `remember_me_enabled: false` blocks the mirror exactly as it blocks
+    remember-me.
+  - **It holds only what the user asked for.** An impersonation is support
+    access, not an account of the operator's, so `impersonate/2` appends to the
+    session stack and writes nothing here: "sign in as this user" ends with the
+    browser session, as it did before any of this existed.
+  - **It is bound to the identity that built it.** The cookie names the root
+    token it belongs to, and `restore_persisted_accounts/2` refuses a mirror
+    naming any other. A fresh login clears the cookie too, but that is hygiene,
+    not the control: a browser is free to ignore a deletion, and the tokens in a
+    stale mirror stay valid until they expire — so on a shared computer the next
+    person to sign in would otherwise inherit the previous user's accounts.
+
+  The restored account becomes the root; the account that happened to be active
+  when the browser closed is not remembered. Coming back as the identity you
+  logged in as is the predictable outcome — and the safe one, since the
+  alternative is resuming inside a borrowed account.
   """
 
   import Plug.Conn
@@ -19,9 +54,17 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Role
   alias PhoenixKit.Utils.IpAddress
+  alias PhoenixKitWeb.Users.Auth, as: WebAuth
 
   @stack_key :pk_session_accounts
   @max_accounts 5
+
+  # The durable mirror of the accounts ADDED beyond the remembered one. Separate
+  # from the remember-me cookie rather than folded into it: that cookie's value
+  # is a bare token read by every released version, and widening it to a list
+  # would turn every in-flight cookie into a decode failure — a silent mass
+  # sign-out on upgrade.
+  @accounts_cookie "_phoenix_kit_web_session_accounts"
 
   @doc "Maximum number of accounts allowed in one stack."
   def max_accounts, do: @max_accounts
@@ -184,6 +227,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
               conn
               |> put_session(@stack_key, stack ++ [token])
               |> renew_and_put_active_token(token)
+              |> persist_account(token)
 
             log_event("session.account_added", root_user(session), user)
             {:ok, conn}
@@ -209,14 +253,19 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   Used by the OAuth add-account callback so the same logic applies whether the
   user was authenticated via password or via OAuth.
 
-  `event` names the activity-feed action written on success. It exists so
-  `impersonate/2` can record what actually happened instead of a second row
-  saying `session.account_added` — in the feed those two are the same sentence,
-  and one of them is a user adding an account of their own.
-  """
-  def add_authenticated_user(conn, user, event \\ "session.account_added")
+  ## Options
 
-  def add_authenticated_user(conn, %Auth.User{is_active: true} = user, event) do
+    * `:event` — the activity-feed action written on success (default
+      `"session.account_added"`). It exists so `impersonate/2` can record what
+      actually happened instead of a second row saying `session.account_added` —
+      in the feed those two are the same sentence, and one of them is a user
+      adding an account of their own.
+    * `:persist` — whether the account joins this browser's durable stack
+      (default `true`). `impersonate/2` passes `false`; see its docstring.
+  """
+  def add_authenticated_user(conn, user, opts \\ [])
+
+  def add_authenticated_user(conn, %Auth.User{is_active: true} = user, opts) do
     session = get_session(conn)
     stack = stack_tokens(session)
 
@@ -234,13 +283,17 @@ defmodule PhoenixKitWeb.Users.MultiSession do
           conn
           |> put_session(@stack_key, stack ++ [token])
           |> renew_and_put_active_token(token)
+          |> maybe_persist_account(token, Keyword.get(opts, :persist, true))
 
-        log_event(event, root_user(session), user)
+        log_event(Keyword.get(opts, :event, "session.account_added"), root_user(session), user)
         {:ok, conn}
     end
   end
 
-  def add_authenticated_user(_conn, %Auth.User{}, _event), do: {:error, :inactive}
+  def add_authenticated_user(_conn, %Auth.User{}, _opts), do: {:error, :inactive}
+
+  defp maybe_persist_account(conn, _token, false), do: conn
+  defp maybe_persist_account(conn, token, true), do: persist_account(conn, token)
 
   @doc """
   Adds `target` to the session stack on an administrator's authority, without
@@ -289,7 +342,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
     case authorize_impersonation(actor, target) do
       :ok ->
-        case add_authenticated_user(conn, target, "session.impersonated") do
+        case add_authenticated_user(conn, target, event: "session.impersonated", persist: false) do
           {:ok, conn} ->
             {:ok, conn}
 
@@ -513,7 +566,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
       token ->
         Auth.delete_user_session_token(token)
         new_stack = List.delete(stack, token)
-        conn = put_session(conn, @stack_key, new_stack)
+        conn = conn |> put_session(@stack_key, new_stack) |> forget_account(token)
 
         conn =
           if session["user_token"] == token,
@@ -564,6 +617,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
         conn
         |> put_session(@stack_key, new_stack)
         |> put_active_token(root_token)
+        |> forget_account(active)
 
       {:switched, conn, root_user}
     end
@@ -573,6 +627,174 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   def delete_all_stack_tokens(conn) do
     conn |> get_session() |> stack_tokens() |> Enum.each(&Auth.delete_user_session_token/1)
     conn
+  end
+
+  # --- durable stack (see "Surviving a lost session" above) ---
+
+  @doc """
+  Mirrors `token` into the persistent cookie, so the account survives a lost
+  session cookie.
+
+  A no-op unless this browser already holds a remember-me cookie: the mirror
+  must not give an account more persistence than the login it was added from.
+  """
+  @spec persist_account(Plug.Conn.t(), binary()) :: Plug.Conn.t()
+  def persist_account(conn, token) do
+    case remembered_root(conn) do
+      nil -> conn
+      root -> write_persisted(conn, root, read_persisted(conn, root) ++ [token])
+    end
+  end
+
+  @doc """
+  Drops `token` from the persistent cookie — the counterpart of
+  `persist_account/2` for an account being removed or logged out.
+
+  Reads the remembered identity directly rather than through
+  `remembered_root/1`: a browser must be able to stop persisting an account it
+  already holds even after an operator turns `remember_me_enabled` off.
+  """
+  @spec forget_account(Plug.Conn.t(), binary()) :: Plug.Conn.t()
+  def forget_account(conn, token) do
+    case WebAuth.remembered_token(conn) do
+      nil ->
+        conn
+
+      root ->
+        tokens = read_persisted(conn, root)
+
+        # An impersonation is in the session stack but never in the mirror, so
+        # removing one reaches here with nothing to drop — rewriting the cookie
+        # with an unchanged list would put a pointless `Set-Cookie` on that
+        # response.
+        if token in tokens do
+          write_persisted(conn, root, List.delete(tokens, token))
+        else
+          conn
+        end
+    end
+  end
+
+  @doc """
+  Drops the persistent cookie entirely.
+
+  Called wherever the session it mirrors ends or is replaced: full logout, a
+  fresh login (the stack belongs to whoever was signed in before), and the
+  plug's own recovery path when there is no remembered identity to hang a stack
+  on.
+  """
+  @spec forget_persisted_accounts(Plug.Conn.t()) :: Plug.Conn.t()
+  def forget_persisted_accounts(conn) do
+    # Presence is checked against the REQUEST cookies — unconditionally emitting
+    # a deletion would put a `Set-Cookie` on every anonymous response, since the
+    # plug's recovery path runs for every visitor who is not signed in.
+    if Map.has_key?(fetch_cookies(conn).req_cookies, @accounts_cookie) do
+      delete_resp_cookie(conn, @accounts_cookie)
+    else
+      conn
+    end
+  end
+
+  @doc """
+  Rebuilds the session stack around `root_token` from the persistent cookie.
+
+  Called from the plug's remember-me recovery, the one moment a real session is
+  reconstructed from cookies alone.
+
+  The mirror is accepted only if it names `root_token` as the identity it was
+  built under. Clearing the cookie at login is a request the browser is free to
+  ignore, and the tokens in a stale mirror stay valid until they expire — so
+  without this check the next person to sign in on a shared browser inherits the
+  previous user's accounts, live, in their own switcher. Binding makes that
+  unforgeable rather than merely unlikely: a login mints a new session token, so
+  a mirror written before it can never name the new root.
+
+  Tokens that no longer resolve to an active user are dropped *and* pruned from
+  the cookie: this is the only pass that ever looks at them, so without it a
+  revoked account would be re-offered for the cookie's full life.
+
+  Restores nothing while `multi_session_enabled` is off, and takes the cookie
+  with it — turning the feature off should not leave a browser quietly holding
+  other people's sessions until someone turns it back on.
+  """
+  @spec restore_persisted_accounts(Plug.Conn.t(), binary()) :: Plug.Conn.t()
+  def restore_persisted_accounts(conn, root_token) do
+    if Settings.get_boolean_setting("multi_session_enabled", false) do
+      do_restore(conn, root_token)
+    else
+      forget_persisted_accounts(conn)
+    end
+  end
+
+  defp do_restore(conn, root_token) do
+    case read_persisted(conn, root_token) do
+      # Nothing usable: no mirror, or one built under a different login. Either
+      # way this browser should stop carrying it.
+      [] ->
+        forget_persisted_accounts(conn)
+
+      tokens ->
+        live = Enum.filter(tokens, &resolves_to_active_user?/1)
+
+        conn
+        |> restore_stack(root_token, live)
+        |> prune_persisted(root_token, tokens, live)
+    end
+  end
+
+  defp restore_stack(conn, _root_token, []), do: conn
+
+  defp restore_stack(conn, root_token, live),
+    do: put_session(conn, @stack_key, [root_token | live])
+
+  defp prune_persisted(conn, _root_token, tokens, tokens), do: conn
+
+  defp prune_persisted(conn, root_token, _tokens, live),
+    do: write_persisted(conn, root_token, live)
+
+  # The identity a mirror may be written under, or nil. Gated on the site-wide
+  # switch as well as the cookie, so `remember_me_enabled: false` blocks the
+  # mirror exactly as it blocks the cookie it hangs off.
+  defp remembered_root(conn) do
+    if WebAuth.remember_me_enabled?(), do: WebAuth.remembered_token(conn)
+  end
+
+  defp resolves_to_active_user?(token), do: match?(%Auth.User{}, root_user_from_token(token))
+
+  # The `root` match is the binding check — see `restore_persisted_accounts/2`.
+  defp read_persisted(conn, expected_root) do
+    conn = fetch_cookies(conn, signed: [@accounts_cookie])
+
+    case conn.cookies[@accounts_cookie] do
+      %{root: ^expected_root, accounts: tokens} when is_list(tokens) ->
+        Enum.filter(tokens, &is_binary/1)
+
+      _ ->
+        []
+    end
+  end
+
+  defp write_persisted(conn, _root, []), do: forget_persisted_accounts(conn)
+
+  defp write_persisted(conn, root, tokens) do
+    # A signed cookie is read back from the REQUEST, so a read after this write
+    # still sees the old value within the same request. Every caller reads once
+    # and writes once; keep it that way.
+    value = %{root: root, accounts: Enum.take(tokens, -(@max_accounts - 1))}
+
+    put_resp_cookie(conn, @accounts_cookie, value, accounts_cookie_options())
+  end
+
+  # Shares the remember-me lifetime deliberately: the mirror exists to last
+  # exactly as long as the identity it hangs off, never a day longer.
+  defp accounts_cookie_options do
+    [
+      sign: true,
+      max_age: WebAuth.remember_me_max_age(),
+      same_site: "Lax",
+      http_only: true,
+      secure: true
+    ]
   end
 
   # --- internal ---

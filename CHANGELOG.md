@@ -1,3 +1,29 @@
+## Unreleased
+
+### Fixed
+
+- **The user detail page names the account type and the organization.** "Basic
+  Information" showed an "Account Type" row only for organization accounts, so
+  the answer for everyone else lived in the summary card — not where you look
+  first. A person account linked to an organization showed the organization's
+  raw uuid; it now renders the organization's name as a link to it, the same
+  way the summary card already did.
+
+- **The account switcher no longer forgets accounts when the browser's session
+  cookie goes away.** The multi-account stack lived only in the Plug session,
+  which on a stock `mix phx.new` endpoint is a browser-session cookie — so at
+  browser restart the remember-me cookie restored the one identity it holds and
+  every account the user had added silently disappeared, with no error and
+  nothing in the activity log. Added accounts are now mirrored into a second
+  persistent cookie and the whole stack comes back with the remembered login.
+  The mirror is written only for a browser that already holds a remember-me
+  cookie (a deliberately session-only login stays session-only), is bound to the
+  root token it was created under (so a stale mirror cannot attach itself to the
+  next person who signs in on a shared computer), drops tokens that no longer
+  resolve to an active user, and is cleared on logout, on a fresh login, and
+  when `multi_session_enabled` is turned off. An impersonation is never
+  mirrored: "sign in as this user" still ends with the browser session.
+
 ## 2.22.17 - 2026-09-11
 
 ### Added

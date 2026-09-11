@@ -302,4 +302,182 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
       assert redirected_to(conn) == return_to()
     end
   end
+
+  # The stack lives in the Plug session, which on a stock `mix phx.new` endpoint
+  # is a browser-session cookie — so these go through the real HTTP stack rather
+  # than `init_test_session/2`: the bug being fixed was invisible to any test
+  # that hands the session in directly. `post/3` on an already-sent conn recycles
+  # cookies like a browser, and dropping the session cookie while keeping the
+  # persistent ones is exactly what a browser restart looks like.
+  describe "durable stack" do
+    @remember_me_cookie "_phoenix_kit_web_user_remember_me"
+    @accounts_cookie "_phoenix_kit_web_session_accounts"
+
+    defp log_in_via_form(user, opts) do
+      params = %{"email_or_username" => user.email, "password" => "ValidPassword123!"}
+
+      params =
+        if Keyword.get(opts, :remember_me, true),
+          do: Map.put(params, "remember_me", "true"),
+          else: params
+
+      post(with_peer(build_conn(), unique_ip()), Routes.path("/users/log-in"), %{"user" => params})
+    end
+
+    defp cookie_value(conn, name) do
+      case conn.resp_cookies[name] do
+        %{value: value} when is_binary(value) and value != "" -> value
+        _ -> nil
+      end
+    end
+
+    # A browser restart: the session cookie is gone, the persistent ones remain.
+    defp restart_browser(cookies) do
+      cookies
+      |> Enum.reject(fn {_name, value} -> is_nil(value) end)
+      |> Enum.reduce(with_peer(build_conn(), unique_ip()), fn {name, value}, conn ->
+        put_req_cookie(conn, name, value)
+      end)
+      |> get(Routes.path("/users/log-in"))
+    end
+
+    defp added_account_conn(root, other) do
+      logged_in = log_in_via_form(root, [])
+
+      added =
+        post(logged_in, Routes.path("/users/session/accounts"), %{
+          "user" => %{"email_or_username" => other.email, "password" => "ValidPassword123!"}
+        })
+
+      {logged_in, added}
+    end
+
+    test "an added account survives losing the session cookie" do
+      Settings.update_boolean_setting("multi_session_enabled", true)
+      root = make(nil)
+      other = make(nil)
+
+      {logged_in, added} = added_account_conn(root, other)
+      assert length(get_session(added)["pk_session_accounts"]) == 2
+
+      restarted =
+        restart_browser(%{
+          @remember_me_cookie => cookie_value(logged_in, @remember_me_cookie),
+          @accounts_cookie => cookie_value(added, @accounts_cookie)
+        })
+
+      # Both accounts are back, root first, and the restored session is signed in
+      # as the REMEMBERED identity rather than whichever account was last active.
+      assert [root_token, second_token] = get_session(restarted)["pk_session_accounts"]
+      assert get_session(restarted)["user_token"] == root_token
+      assert Auth.get_user_by_session_token(root_token).uuid == root.uuid
+      assert Auth.get_user_by_session_token(second_token).uuid == other.uuid
+    end
+
+    test "a session-only login persists nothing" do
+      Settings.update_boolean_setting("multi_session_enabled", true)
+      root = make(nil)
+      other = make(nil)
+
+      logged_in = log_in_via_form(root, remember_me: false)
+
+      added =
+        post(logged_in, Routes.path("/users/session/accounts"), %{
+          "user" => %{"email_or_username" => other.email, "password" => "ValidPassword123!"}
+        })
+
+      # The account joined the session stack, but nothing outlives the browser:
+      # an account must not get more persistence than the login it was added to.
+      assert length(get_session(added)["pk_session_accounts"]) == 2
+      assert cookie_value(added, @accounts_cookie) == nil
+    end
+
+    test "a fresh login does not inherit the previous user's stack" do
+      Settings.update_boolean_setting("multi_session_enabled", true)
+      root = make(nil)
+      other = make(nil)
+      newcomer = make(nil)
+
+      {_logged_in, added} = added_account_conn(root, other)
+      assert cookie_value(added, @accounts_cookie)
+
+      # Same browser, different person signing in.
+      second_login =
+        post(added, Routes.path("/users/log-in"), %{
+          "user" => %{
+            "email_or_username" => newcomer.email,
+            "password" => "ValidPassword123!",
+            "remember_me" => "true"
+          }
+        })
+
+      assert %{max_age: 0} = second_login.resp_cookies[@accounts_cookie]
+
+      restarted =
+        restart_browser(%{
+          @remember_me_cookie => cookie_value(second_login, @remember_me_cookie),
+          @accounts_cookie => cookie_value(added, @accounts_cookie)
+        })
+
+      # Even handed the stale cookie, the new login stands alone — the old stack
+      # was drained at login, so nothing in it resolves any more.
+      assert [only_token] = MultiSession.list_accounts(get_session(restarted))
+      assert only_token.user.uuid == newcomer.uuid
+    end
+
+    test "removing an account stops persisting it" do
+      Settings.update_boolean_setting("multi_session_enabled", true)
+      root = make(nil)
+      other = make(nil)
+
+      {logged_in, added} = added_account_conn(root, other)
+      [_, second | _] = MultiSession.list_accounts(get_session(added))
+
+      removed = delete(added, Routes.path("/users/session/accounts/#{second.ref}"))
+
+      restarted =
+        restart_browser(%{
+          @remember_me_cookie => cookie_value(logged_in, @remember_me_cookie),
+          @accounts_cookie => cookie_value(removed, @accounts_cookie)
+        })
+
+      assert [only_token] = MultiSession.list_accounts(get_session(restarted))
+      assert only_token.user.uuid == root.uuid
+    end
+
+    test "an impersonation is not persisted" do
+      Settings.update_boolean_setting("multi_session_enabled", true)
+      admin = make("Admin")
+      target = make(nil)
+
+      logged_in = log_in_via_form(admin, [])
+
+      impersonated =
+        post(logged_in, Routes.path("/users/session/impersonate/#{target.uuid}"), %{})
+
+      assert length(get_session(impersonated)["pk_session_accounts"]) == 2
+
+      # Borrowing an account is support access, not an account of the operator's:
+      # it must end with the browser session.
+      assert cookie_value(impersonated, @accounts_cookie) == nil
+    end
+
+    test "turning multi-session off drops the persisted stack" do
+      Settings.update_boolean_setting("multi_session_enabled", true)
+      root = make(nil)
+      other = make(nil)
+
+      {logged_in, added} = added_account_conn(root, other)
+      Settings.update_boolean_setting("multi_session_enabled", false)
+
+      restarted =
+        restart_browser(%{
+          @remember_me_cookie => cookie_value(logged_in, @remember_me_cookie),
+          @accounts_cookie => cookie_value(added, @accounts_cookie)
+        })
+
+      refute get_session(restarted)["pk_session_accounts"]
+      assert %{max_age: 0} = restarted.resp_cookies[@accounts_cookie]
+    end
+  end
 end

@@ -178,6 +178,10 @@ defmodule PhoenixKitWeb.Users.Auth do
     |> renew_session()
     |> put_token_in_session(token)
     |> maybe_write_remember_me_cookie(token, params)
+    # A login starts a single-account stack. `renew_session/1` cleared the
+    # session copy; this clears the durable mirror, so the accounts a PREVIOUS
+    # user of this browser had stacked cannot be restored under the new login.
+    |> MultiSession.forget_persisted_accounts()
     |> redirect(to: user_return_to)
   end
 
@@ -234,6 +238,16 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp maybe_write_remember_me_cookie(conn, _token, _params) do
     delete_resp_cookie(conn, @remember_me_cookie)
   end
+
+  @doc """
+  Lifetime of a persistent session, in seconds.
+
+  Exposed so `PhoenixKitWeb.Users.MultiSession`'s durable stack cookie expires
+  with the remember-me cookie it hangs off instead of carrying a second copy of
+  the number.
+  """
+  @spec remember_me_max_age() :: pos_integer()
+  def remember_me_max_age, do: @max_age
 
   @doc """
   Whether the site allows persistent ("remember me") sessions at all.
@@ -308,9 +322,23 @@ defmodule PhoenixKitWeb.Users.Auth do
   downgrading them to a session-only login.
   """
   @spec remembered?(Plug.Conn.t()) :: boolean()
-  def remembered?(conn) do
+  def remembered?(conn), do: is_binary(remembered_token(conn))
+
+  @doc """
+  The session token this browser's remember-me cookie holds, or `nil`.
+
+  The token itself, not just its presence, because
+  `PhoenixKitWeb.Users.MultiSession` binds its durable stack to the identity
+  that built it — see `restore_persisted_accounts/2`.
+  """
+  @spec remembered_token(Plug.Conn.t()) :: binary() | nil
+  def remembered_token(conn) do
     conn = fetch_cookies(conn, signed: [@remember_me_cookie])
-    is_binary(conn.cookies[@remember_me_cookie])
+
+    case conn.cookies[@remember_me_cookie] do
+      token when is_binary(token) -> token
+      _ -> nil
+    end
   end
 
   # This function renews the session ID and erases the whole
@@ -362,6 +390,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     conn
     |> renew_session()
     |> delete_resp_cookie(@remember_me_cookie)
+    |> MultiSession.forget_persisted_accounts()
     |> redirect(to: Routes.safe_destination(conn, scope: nil))
   end
 
@@ -528,13 +557,28 @@ defmodule PhoenixKitWeb.Users.Auth do
           # before the switch was turned off keep restoring sessions for its
           # full 60 days — the opposite of what turning it off means.
           if remember_me_enabled?() do
-            {token, put_token_in_session(conn, token)}
+            # This is the ONE place a real session is rebuilt from cookies
+            # alone, so it is also where the multi-account stack has to come
+            # back. Restoring only the remembered token left the switcher
+            # holding a single row and silently dropped every account the user
+            # had added — the session copy of the stack dies with the host's
+            # session cookie, which on a stock `mix phx.new` endpoint means at
+            # browser restart.
+            {token,
+             conn
+             |> put_token_in_session(token)
+             |> MultiSession.restore_persisted_accounts(token)}
           else
-            {nil, delete_resp_cookie(conn, @remember_me_cookie)}
+            {nil,
+             conn
+             |> delete_resp_cookie(@remember_me_cookie)
+             |> MultiSession.forget_persisted_accounts()}
           end
 
+        # No remembered identity — a stack has nothing to hang off, so drop any
+        # mirror this browser is still carrying.
         _ ->
-          {nil, conn}
+          {nil, MultiSession.forget_persisted_accounts(conn)}
       end
     end
   end
