@@ -6886,6 +6886,10 @@ msgstr "Datei / Bild"
 msgid "File moved to trash"
 msgstr "Datei in den Papierkorb verschoben"
 
+#, elixir-autogen, elixir-format
+msgid "File removed from this folder"
+msgstr "Datei aus diesem Ordner entfernt"
+
 #: lib/phoenix_kit_web/components/media_browser.ex:1160
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:41
 #, elixir-autogen, elixir-format

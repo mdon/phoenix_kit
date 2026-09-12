@@ -779,6 +779,143 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
     end
   end
 
+  describe "folder-aware removal and moves (linked files, 2026-09-12)" do
+    test "removing a linked file from the linking folder only drops the link" do
+      home = create_folder!(%{name: "rm_home_#{System.unique_integer([:positive])}"})
+      other = create_folder!(%{name: "rm_other_#{System.unique_integer([:positive])}"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(other.uuid, file.uuid)
+
+      assert {:ok, :unlinked, _} = Storage.remove_file_from_folder(file, other.uuid)
+      reloaded = Repo.get!(StorageFile, file.uuid)
+      assert reloaded.status == "active"
+      assert reloaded.folder_uuid == home.uuid
+      refute Storage.folder_link(other.uuid, file.uuid)
+    end
+
+    test "removing a file from its home re-homes it to a folder that links it" do
+      home = create_folder!(%{name: "rh_home_#{System.unique_integer([:positive])}"})
+      other = create_folder!(%{name: "rh_other_#{System.unique_integer([:positive])}"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(other.uuid, file.uuid)
+
+      assert {:ok, :rehomed, rehomed} = Storage.remove_file_from_folder(file, home.uuid)
+      assert rehomed.folder_uuid == other.uuid
+      assert rehomed.status == "active"
+      refute Storage.folder_link(other.uuid, file.uuid)
+    end
+
+    test "removing a file nothing else holds trashes it; outside a folder likewise" do
+      home = create_folder!(%{name: "tr_home_#{System.unique_integer([:positive])}"})
+      file = create_file!(home.uuid)
+      assert {:ok, :trashed, trashed} = Storage.remove_file_from_folder(file, home.uuid)
+      assert trashed.status == "trashed"
+
+      loose = create_file!(nil)
+      assert {:ok, :trashed, _} = Storage.remove_file_from_folder(loose, nil)
+    end
+
+    test "attach_file_to_folder/2 adopts, no-ops, or links — never moves a home" do
+      home = create_folder!(%{name: "at_home_#{System.unique_integer([:positive])}"})
+      other = create_folder!(%{name: "at_other_#{System.unique_integer([:positive])}"})
+
+      loose = create_file!(nil)
+      assert {:ok, adopted} = Storage.attach_file_to_folder(loose, home.uuid)
+      assert adopted.folder_uuid == home.uuid
+
+      assert {:ok, ^adopted} = Storage.attach_file_to_folder(adopted, home.uuid)
+
+      assert {:ok, _} = Storage.attach_file_to_folder(adopted, other.uuid)
+      assert Repo.get!(StorageFile, adopted.uuid).folder_uuid == home.uuid
+      assert Storage.folder_link(other.uuid, adopted.uuid)
+      # Idempotent: a second attach into the same folder adds nothing.
+      assert {:ok, _} = Storage.attach_file_to_folder(adopted, other.uuid)
+      assert Storage.count_folder_contents(other.uuid) == 1
+    end
+
+    test "moving a linked file onto its own home just drops the link" do
+      home = create_folder!(%{name: "sl_home_#{System.unique_integer([:positive])}"})
+      from = create_folder!(%{name: "sl_from_#{System.unique_integer([:positive])}"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(from.uuid, file.uuid)
+
+      assert {:ok, _} = Storage.move_file_between_folders(file.uuid, from.uuid, home.uuid, nil)
+      refute Storage.folder_link(from.uuid, file.uuid)
+      refute Storage.folder_link(home.uuid, file.uuid)
+      assert Storage.count_folder_contents(home.uuid) == 1
+    end
+
+    test "a folder refuses to trash a file it never held" do
+      home = create_folder!(%{name: "nf_home_#{System.unique_integer([:positive])}"})
+      other = create_folder!(%{name: "nf_other_#{System.unique_integer([:positive])}"})
+      file = create_file!(home.uuid)
+
+      assert {:error, :not_in_folder} = Storage.remove_file_from_folder(file, other.uuid)
+      assert Repo.get!(StorageFile, file.uuid).status == "active"
+    end
+
+    test "re-homing prefers a live folder over a trashed one" do
+      home = create_folder!(%{name: "rl_home_#{System.unique_integer([:positive])}"})
+      trashed = create_folder!(%{name: "rl_trashed_#{System.unique_integer([:positive])}"})
+      live = create_folder!(%{name: "rl_live_#{System.unique_integer([:positive])}"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(trashed.uuid, file.uuid)
+      {:ok, _} = Storage.create_folder_link(live.uuid, file.uuid)
+      {:ok, _} = Storage.trash_folder(trashed, nil)
+
+      assert {:ok, :rehomed, rehomed} = Storage.remove_file_from_folder(file, home.uuid)
+      assert rehomed.folder_uuid == live.uuid
+    end
+
+    test "moving a linked appearance to the root drops the link; onto a folder already linking it adds nothing" do
+      home = create_folder!(%{name: "mr_home_#{System.unique_integer([:positive])}"})
+      from = create_folder!(%{name: "mr_from_#{System.unique_integer([:positive])}"})
+      also = create_folder!(%{name: "mr_also_#{System.unique_integer([:positive])}"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(from.uuid, file.uuid)
+      {:ok, _} = Storage.create_folder_link(also.uuid, file.uuid)
+
+      assert {:ok, _} = Storage.move_file_between_folders(file.uuid, from.uuid, also.uuid, nil)
+      refute Storage.folder_link(from.uuid, file.uuid)
+      assert Storage.count_folder_contents(also.uuid) == 1
+
+      {:ok, _} = Storage.create_folder_link(from.uuid, file.uuid)
+      assert {:ok, _} = Storage.move_file_between_folders(file.uuid, from.uuid, nil, nil)
+      refute Storage.folder_link(from.uuid, file.uuid)
+      assert Repo.get!(StorageFile, file.uuid).folder_uuid == home.uuid
+    end
+
+    test "a scoped browser's root lists files linked into the scope folder" do
+      scope = create_folder!(%{name: "sr_scope_#{System.unique_integer([:positive])}"})
+      outside = create_folder!(%{name: "sr_outside_#{System.unique_integer([:positive])}"})
+      linked = create_file!(outside.uuid)
+      {:ok, _} = Storage.create_folder_link(scope.uuid, linked.uuid)
+
+      # The browser's real root call passes the scope and no folder_uuid.
+      {files, _} = Storage.list_files_in_scope(scope.uuid)
+      assert linked.uuid in Enum.map(files, & &1.uuid)
+    end
+
+    test "moving a linked file out of the linking folder re-points the link, not the file" do
+      home = create_folder!(%{name: "mv_home_#{System.unique_integer([:positive])}"})
+      from = create_folder!(%{name: "mv_from_#{System.unique_integer([:positive])}"})
+      target = create_folder!(%{name: "mv_target_#{System.unique_integer([:positive])}"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(from.uuid, file.uuid)
+
+      assert {:ok, _} = Storage.move_file_between_folders(file.uuid, from.uuid, target.uuid, nil)
+      assert Repo.get!(StorageFile, file.uuid).folder_uuid == home.uuid
+      refute Storage.folder_link(from.uuid, file.uuid)
+      assert Storage.folder_link(target.uuid, file.uuid)
+
+      # A home file moves as before.
+      assert {:ok, moved} =
+               Storage.move_file_between_folders(file.uuid, home.uuid, target.uuid, nil)
+
+      assert moved.folder_uuid == target.uuid
+    end
+  end
+
   describe "list_files_in_scope with UUID search" do
     test "partial UUID prefix matches file" do
       file = create_file!(nil)

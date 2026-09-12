@@ -6893,6 +6893,10 @@ msgstr "Archivo / imagen"
 msgid "File moved to trash"
 msgstr "Archivo movido a la papelera"
 
+#, elixir-autogen, elixir-format
+msgid "File removed from this folder"
+msgstr "Archivo quitado de esta carpeta"
+
 #: lib/phoenix_kit_web/components/media_browser.ex:1160
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:41
 #, elixir-autogen, elixir-format

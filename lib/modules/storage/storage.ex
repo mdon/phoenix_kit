@@ -1587,8 +1587,9 @@ defmodule PhoenixKit.Modules.Storage do
         scope_subtree_query(scope_folder_id)
 
       true ->
-        # Scope root without search: show only direct children (files directly in scope)
-        from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid == ^scope_folder_id)
+        # Scope root without search: the scope folder's own contents
+        # (home files plus files linked into it), not the subtree.
+        folder_contents_query(scope_folder_id)
     end
     |> apply_file_search(search)
   end
@@ -1681,6 +1682,167 @@ defmodule PhoenixKit.Modules.Storage do
         |> Ecto.Changeset.change(%{folder_uuid: target_folder_uuid})
         |> repo().update()
     end
+  end
+
+  @doc """
+  Moves a file as SEEN in `from_folder_uuid` to `target_folder_uuid`.
+
+  A file that is merely linked into `from_folder_uuid` (its home is
+  another folder) has its LINK re-pointed at the target — the file
+  itself stays where it lives, and every other folder holding it keeps
+  it. A file whose home is `from_folder_uuid` (or that is viewed
+  outside any folder) moves as `move_file_to_folder/3` always has.
+  Folder listings show linked files (2026-09-12), so a move from a
+  folder must act on what that folder holds, not on the file's home.
+  """
+  def move_file_between_folders(file_uuid, from_folder_uuid, target_folder_uuid, scope_folder_id) do
+    case folder_link(from_folder_uuid, file_uuid) do
+      %FolderLink{} = link ->
+        cond do
+          not within_scope?(target_folder_uuid, scope_folder_id) ->
+            {:error, :out_of_scope}
+
+          to_string(target_folder_uuid) == to_string(from_folder_uuid) ->
+            {:ok, link}
+
+          true ->
+            relink(link, file_uuid, target_folder_uuid)
+        end
+
+      nil ->
+        move_file_to_folder(file_uuid, target_folder_uuid, scope_folder_id)
+    end
+  end
+
+  @doc """
+  Removes a file from `folder_uuid`'s view — what "trash" means when
+  done FROM a folder listing, now that listings show linked files:
+
+    * linked into `folder_uuid` (home elsewhere) → the link is deleted;
+      the file and every other folder holding it are untouched
+      (`{:ok, :unlinked, file}`);
+    * home is `folder_uuid` and another folder links to it → the file is
+      re-homed to that folder (consuming the link) rather than trashed
+      out from under it (`{:ok, :rehomed, file}`);
+    * home is `folder_uuid` and nothing else holds it, or the file is
+      viewed outside any folder (`nil`) → soft-trashed
+      (`{:ok, :trashed, file}`).
+
+  Trashing the record directly from a folder that only LINKED it would
+  destroy it for its owner — the same rule the catalogue's own attachment
+  removal has always applied.
+  """
+  def remove_file_from_folder(%PhoenixKit.Modules.Storage.File{} = file, folder_uuid)
+      when is_binary(folder_uuid) do
+    cond do
+      to_string(file.folder_uuid) == to_string(folder_uuid) ->
+        case other_folder_links(file.uuid, folder_uuid) do
+          [] ->
+            with {:ok, trashed} <- trash_file(file), do: {:ok, :trashed, trashed}
+
+          [%FolderLink{} = link | _] ->
+            repo().transaction(fn ->
+              {:ok, rehomed} =
+                file
+                |> Ecto.Changeset.change(%{folder_uuid: link.folder_uuid})
+                |> repo().update()
+
+              {:ok, _} = repo().delete(link)
+              rehomed
+            end)
+            |> case do
+              {:ok, rehomed} -> {:ok, :rehomed, rehomed}
+              {:error, reason} -> {:error, reason}
+            end
+        end
+
+      link = folder_link(folder_uuid, file.uuid) ->
+        with {:ok, _} <- repo().delete(link), do: {:ok, :unlinked, file}
+
+      # Neither homed nor linked here: a stale or forged row. Refuse
+      # rather than trash a file this folder never held.
+      true ->
+        {:error, :not_in_folder}
+    end
+  end
+
+  def remove_file_from_folder(%PhoenixKit.Modules.Storage.File{} = file, _no_folder) do
+    with {:ok, trashed} <- trash_file(file), do: {:ok, :trashed, trashed}
+  end
+
+  @doc """
+  Puts an existing file into `folder_uuid` the way every attach surface
+  should: a file with no home is adopted (its `folder_uuid` is set); a
+  file already homed there is left alone; a file homed ELSEWHERE gets a
+  `FolderLink` into `folder_uuid` (idempotent) rather than being moved
+  out from under whatever holds it. This is the rule the catalogue's
+  attachments and the media selector already followed; the media
+  browser's own upload path used to MOVE a content-duplicate's home
+  instead, silently emptying the folder that owned it.
+  """
+  def attach_file_to_folder(%PhoenixKit.Modules.Storage.File{} = file, folder_uuid)
+      when is_binary(folder_uuid) do
+    cond do
+      to_string(file.folder_uuid) == to_string(folder_uuid) ->
+        {:ok, file}
+
+      is_nil(file.folder_uuid) ->
+        file |> Ecto.Changeset.change(%{folder_uuid: folder_uuid}) |> repo().update()
+
+      true ->
+        %FolderLink{}
+        |> FolderLink.changeset(%{folder_uuid: folder_uuid, file_uuid: file.uuid})
+        |> repo().insert(on_conflict: :nothing)
+        |> case do
+          {:ok, _} -> {:ok, file}
+          {:error, changeset} -> {:error, changeset}
+        end
+    end
+  end
+
+  @doc "The `FolderLink` holding `file_uuid` in `folder_uuid`, or nil."
+  def folder_link(folder_uuid, file_uuid) when is_binary(folder_uuid) and is_binary(file_uuid) do
+    repo().get_by(FolderLink, folder_uuid: folder_uuid, file_uuid: file_uuid)
+  end
+
+  def folder_link(_, _), do: nil
+
+  # One transaction: the source link goes only if the target attach
+  # lands. A link cannot live at the root (nil target), so moving a
+  # linked appearance to the root simply drops it; landing on the file's
+  # own home, or on a folder that already links it, adds nothing
+  # (`attach_file_to_folder/2` is idempotent) — never a self-link
+  # counted twice.
+  defp relink(link, file_uuid, target_folder_uuid) do
+    repo().transaction(fn ->
+      with {:ok, _} <- repo().delete(link),
+           %PhoenixKit.Modules.Storage.File{} = file <-
+             repo().get(PhoenixKit.Modules.Storage.File, file_uuid),
+           {:ok, result} <- attach_to_target(file, target_folder_uuid) do
+        result
+      else
+        nil -> repo().rollback(:not_found)
+        {:error, reason} -> repo().rollback(reason)
+      end
+    end)
+  end
+
+  defp attach_to_target(file, nil), do: {:ok, file}
+
+  defp attach_to_target(file, target_folder_uuid),
+    do: attach_file_to_folder(file, target_folder_uuid)
+
+  # Links into LIVE folders only: re-homing a file into a trashed folder
+  # would strand it — listed nowhere, and not in the file trash either.
+  defp other_folder_links(file_uuid, except_folder_uuid) do
+    from(fl in FolderLink,
+      join: fo in Folder,
+      on: fo.uuid == fl.folder_uuid,
+      where: fl.file_uuid == ^file_uuid and fl.folder_uuid != ^except_folder_uuid,
+      where: is_nil(fo.trashed_at),
+      order_by: [asc: fl.inserted_at]
+    )
+    |> repo().all()
   end
 
   @doc "Creates a link (shortcut) of a file in a folder."

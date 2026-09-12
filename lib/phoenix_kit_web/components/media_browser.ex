@@ -1092,7 +1092,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # `move_file_to_folder/3` would reject it with `:out_of_scope`.
     target = if folder_uuid == "", do: scope, else: folder_uuid
 
-    case Storage.move_file_to_folder(file_uuid, target, scope) do
+    from = appearance_folder_of(socket, file_uuid)
+
+    case Storage.move_file_between_folders(file_uuid, from, target, scope) do
       {:ok, _} ->
         {:noreply, socket |> put_flash(:info, gettext("File moved")) |> reload_current_page()}
 
@@ -1154,21 +1156,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     scope = scope_folder_id(socket)
     repo = PhoenixKit.Config.get_repo()
     file = repo.get(Storage.File, file_uuid)
+    viewed = file && appearance_folder(socket, file)
 
     cond do
       is_nil(file) ->
         {:noreply, put_flash(socket, :error, gettext("File not found"))}
 
-      not Storage.within_scope?(file.folder_uuid, scope) ->
+      not removable_here?(file, viewed, scope) ->
         {:noreply,
          put_flash(socket, :error, gettext("Cannot move file outside the allowed scope"))}
 
       true ->
-        Storage.trash_file(file)
-
         {:noreply,
          socket
-         |> put_flash(:info, gettext("File moved to trash"))
+         |> put_flash(:info, removal_flash(Storage.remove_file_from_folder(file, viewed)))
          |> reload_current_page()}
     end
   end
@@ -1955,7 +1956,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     target = if folder_uuid == "", do: scope, else: folder_uuid
 
     Enum.each(socket.assigns.selected_files, fn file_uuid ->
-      Storage.move_file_to_folder(file_uuid, target, scope)
+      from = appearance_folder_of(socket, file_uuid)
+      Storage.move_file_between_folders(file_uuid, from, target, scope)
     end)
 
     Enum.each(socket.assigns.selected_folders, fn sel_folder_uuid ->
@@ -1998,12 +2000,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         end
       end)
     else
-      # Soft-delete to trash
+      # Soft-delete to trash — folder-aware: a file only LINKED into the
+      # viewed folder is unlinked, not trashed for its owner.
       Enum.each(socket.assigns.selected_files, fn file_uuid ->
         file = repo.get(Storage.File, file_uuid)
+        viewed = file && appearance_folder(socket, file)
 
-        if file && Storage.within_scope?(file.folder_uuid, scope) do
-          Storage.trash_file(file)
+        if file && removable_here?(file, viewed, scope) do
+          Storage.remove_file_from_folder(file, viewed)
         end
       end)
     end
@@ -2053,7 +2057,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     files =
       from(f in Storage.File, where: f.uuid in ^uuids)
       |> repo.all()
-      |> Enum.filter(&Storage.within_scope?(&1.folder_uuid, scope))
+      |> Enum.filter(&removable_here?(&1, appearance_folder(socket, &1), scope))
       |> enrich_files()
       |> Enum.map(fn f ->
         %{url: Map.get(f.urls, "original") || Map.get(f.urls, :original), name: f.filename}
@@ -2077,7 +2081,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     scope = scope_folder_id(socket)
 
     with %Storage.File{} = file <- Storage.get_file(file_uuid),
-         true <- Storage.within_scope?(file.folder_uuid, scope) do
+         true <- removable_here?(file, appearance_folder(socket, file), scope) do
       current = normalized_rotation(Map.get(file.metadata || %{}, "rotation"))
       next = Integer.mod(current + delta, 360)
       merged = Map.put(file.metadata || %{}, "rotation", next)
@@ -2100,20 +2104,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     repo = PhoenixKit.Config.get_repo()
     file = repo.get(Storage.File, file_uuid)
 
-    if file && Storage.within_scope?(file.folder_uuid, scope) do
+    viewed = file && appearance_folder(socket, file)
+
+    if file && removable_here?(file, viewed, scope) do
       # Same status guard as delete_selected: permanent deletion only for
       # files actually in the trash (the row could have been restored from
       # another session since this view rendered).
-      if socket.assigns.filter_trash and file.status == "trashed" do
-        Storage.delete_file_completely(file)
-      else
-        Storage.trash_file(file)
-      end
-
       flash =
-        if socket.assigns.filter_trash,
-          do: gettext("File permanently deleted"),
-          else: gettext("File moved to trash")
+        if socket.assigns.filter_trash and file.status == "trashed" do
+          Storage.delete_file_completely(file)
+          gettext("File permanently deleted")
+        else
+          removal_flash(Storage.remove_file_from_folder(file, viewed))
+        end
 
       {:noreply,
        socket
@@ -2657,6 +2660,48 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp assign_stacks(socket), do: socket
+
+  # A file listed in the viewed folder is either homed there (scope-checked
+  # on its home) or LINKED into it — a link is in scope by construction,
+  # wherever the file's home lives. Gates every per-file action taken
+  # from a listing: trash, move, download, rotate.
+  defp removable_here?(file, viewed, scope) do
+    if is_binary(viewed) do
+      # Inside a folder view the file must actually appear here — a
+      # stale or forged uuid of some other in-scope file is refused.
+      to_string(file.folder_uuid) == to_string(viewed) or
+        not is_nil(Storage.folder_link(viewed, file.uuid))
+    else
+      Storage.within_scope?(file.folder_uuid, scope)
+    end
+  end
+
+  # The folder a listed file APPEARS in: the folder being viewed when it
+  # holds the file (home or link), else the first expanded stack that
+  # does — a stack shows a child folder's files at the parent level, so
+  # the viewed folder alone would act on the wrong appearance (or, at
+  # the root, on the file's home). Nil only when no folder view shows
+  # it: the root / All Files / search, where actions address the file.
+  defp appearance_folder(socket, file) do
+    candidates =
+      List.wrap(current_folder_uuid(socket)) ++ (socket.assigns[:expanded_stacks] || [])
+
+    Enum.find(candidates, fn folder_uuid ->
+      to_string(file.folder_uuid) == to_string(folder_uuid) or
+        not is_nil(Storage.folder_link(folder_uuid, file.uuid))
+    end)
+  end
+
+  defp appearance_folder_of(socket, file_uuid) do
+    case Storage.get_file(file_uuid) do
+      %Storage.File{} = file -> appearance_folder(socket, file)
+      _ -> current_folder_uuid(socket)
+    end
+  end
+
+  defp removal_flash({:ok, :trashed, _}), do: gettext("File moved to trash")
+  defp removal_flash({:ok, _unlinked_or_rehomed, _}), do: gettext("File removed from this folder")
+  defp removal_flash(_), do: gettext("Failed to move file")
 
   # Enriched files directly in a folder, for an expanded stack grid. `limit`
   # caps how many are loaded (always from the top) — never the whole folder, so
@@ -3505,11 +3550,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         :ok
 
       is_nil(scope) or Storage.within_scope?(folder_uuid, scope) ->
-        # The target folder is verified in-scope above, so passing nil as the
-        # scope arg to move_file_to_folder/3 is safe — it skips the scope
-        # re-check against the file's current folder (which is the real root
-        # for a fresh upload and would fail the gate).
-        Storage.move_file_to_folder(file.uuid, folder_uuid, nil)
+        # The target folder is verified in-scope above. A fresh upload is
+        # adopted; a content-duplicate that already lives in another
+        # folder is LINKED here, never moved — moving it emptied the
+        # folder that owned it (2026-09-12).
+        Storage.attach_file_to_folder(file, folder_uuid)
 
       true ->
         Logger.warning(
