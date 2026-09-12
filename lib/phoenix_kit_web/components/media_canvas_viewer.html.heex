@@ -54,7 +54,7 @@
           <%!-- `scale(0.97)` on click, which would clobber a -translate-y-1/2    --%>
           <%!-- on the button itself and make it jump down 50% of its height.    --%>
           <%= if @has_prev do %>
-            <div class="absolute left-2 top-1/2 -translate-y-1/2 z-10">
+            <div class="absolute left-4 top-1/2 -translate-y-1/2 z-10">
               <button
                 type="button"
                 phx-click="step_viewer"
@@ -68,7 +68,7 @@
             </div>
           <% end %>
           <%= if @has_next do %>
-            <div class="absolute right-2 top-1/2 -translate-y-1/2 z-10">
+            <div class="absolute right-4 top-1/2 -translate-y-1/2 z-10">
               <button
                 type="button"
                 phx-click="step_viewer"
@@ -113,10 +113,15 @@
                 <%!-- toggle flipped on a board followed people here, where the  --%>
                 <%!-- anchors point at nothing (no arrow tool below). Hard off   --%>
                 <%!-- also hides the toggle from the toolbar.                    --%>
+                <%!-- panel_offset: the viewer's details-minimizer button      --%>
+                <%!-- (top-3 right-14 above) owns the top-right corner, and    --%>
+                <%!-- Etcher's style-panel chevron landed in the same row.     --%>
+                <%!-- Anchor the panel cluster below it (Etcher 0.13.2).         --%>
                 <Etcher.layer
                   fresco_id={"media-zoom-" <> f.file_uuid}
                   colors={@etcher_colors}
                   line_params={@etcher_line_params}
+                  panel_offset={%{top: 56}}
                   connectors={:off}
                   toolbar={@can_annotate}
                   nav_buttons={if @can_annotate, do: nil, else: [:visibility]}
@@ -242,13 +247,13 @@
               </div>
           <% end %>
 
-          <%!-- Sidebar collapse/expand toggle — pinned to the viewer's         --%>
-          <%!-- top-right corner, at the seam with the info sidebar. Collapsing --%>
-          <%!-- hides the sidebar so the Fresco viewer gets the full popup; the --%>
-          <%!-- choice is persisted per-user (survives prev/next and reopen).   --%>
-          <%!-- While collapsed (viewer spans the full popup) and on mobile     --%>
-          <%!-- (panels stacked, viewer on top) the modal's close button owns   --%>
-          <%!-- top-right, so the toggle shifts inward next to it (right-14).   --%>
+          <%!-- Sidebar collapse/expand toggle. On desktop with the sidebar    --%>
+          <%!-- expanded the control lives on the seam itself (the zero-width  --%>
+          <%!-- host between the columns, below) — this in-viewer copy serves  --%>
+          <%!-- the states with no seam: collapsed (viewer spans the full      --%>
+          <%!-- popup) and stacked mobile, where the modal's close button owns --%>
+          <%!-- top-right, so the toggle shifts inward next to it (right-14).  --%>
+          <%!-- The choice is persisted per-user (survives prev/next+reopen).  --%>
           <button
             :if={not @viewer_only}
             type="button"
@@ -256,7 +261,7 @@
             phx-target={@myself}
             class={[
               "btn btn-ghost btn-sm btn-circle absolute top-3 z-30 bg-base-100 hover:bg-base-200 shadow-lg ring-1 ring-base-300",
-              if(@sidebar_collapsed, do: "right-14", else: "right-14 lg:right-3")
+              if(@sidebar_collapsed, do: "right-14", else: "right-14 lg:hidden")
             ]}
             title={
               if @sidebar_collapsed, do: gettext("Show details"), else: gettext("Hide details")
@@ -325,6 +330,29 @@
               />
             </div>
           <% end %>
+        </div>
+
+        <%!-- Seam host for the sidebar toggle: a zero-width flex column       --%>
+        <%!-- exactly on the viewer/sidebar line, so the chevron straddles     --%>
+        <%!-- the boundary it controls. It can't live in either neighbor —    --%>
+        <%!-- the viewer clips (overflow-hidden) and the sidebar scrolls      --%>
+        <%!-- (overflow-y-auto) — and it only exists where the seam does:     --%>
+        <%!-- desktop, sidebar expanded. Collapsed and stacked-mobile keep    --%>
+        <%!-- the in-viewer button above.                                     --%>
+        <div
+          :if={not @viewer_only and not @sidebar_collapsed}
+          class="relative w-0 z-30 hidden lg:block"
+        >
+          <button
+            type="button"
+            phx-click="toggle_viewer_sidebar"
+            phx-target={@myself}
+            class="btn btn-ghost btn-sm btn-circle absolute top-3 -translate-x-1/2 bg-base-100 hover:bg-base-200 shadow-lg ring-1 ring-base-300"
+            title={gettext("Hide details")}
+            aria-label={gettext("Hide details")}
+          >
+            <.icon name="hero-chevron-right" class="w-4 h-4" />
+          </button>
         </div>
 
         <%!-- Sidebar: filename + download + metadata + comments. Suppressed --%>
