@@ -217,9 +217,16 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
                     >
                       <input type="hidden" name="ref" value={account.ref} />
                       <input type="hidden" name="return_to" value={@current_path} />
+                      <%!--
+                        `text-start` is load-bearing. A <button> inherits the UA
+                        `text-align: center`, and the email span below is
+                        `flex-1`, so a short email centres itself inside its
+                        column and drifts right of the active row's — that row
+                        is a <div> and starts at the text edge.
+                      --%>
                       <button
                         type="submit"
-                        class="flex w-full min-w-0 items-center gap-2 rounded-lg px-4 py-2 hover:bg-base-200"
+                        class="flex w-full min-w-0 items-center gap-2 rounded-lg px-4 py-2 text-start hover:bg-base-200"
                       >
                         <span class="flex-1 min-w-0 truncate" title={account.email}>
                           {account.email}

@@ -1,3 +1,15 @@
+## 2.22.23 - 2026-09-12
+
+### Fixed
+
+- **The inactive account rows in the user dropdown still sat a few pixels right
+  of everything else.** The row that switches accounts is a `<button>`, which
+  inherits the user-agent `text-align: center`, and the email inside it is
+  `flex-1` — so an email shorter than its column centred itself and drifted
+  right of the active row, which is a `<div>` and starts at the text edge. The
+  effect scaled with how much slack the email had, which is why it survived the
+  structural alignment fix in 2.22.22. The button now carries `text-start`.
+
 ## 2.22.22 - 2026-09-12
 
 ### Fixed
