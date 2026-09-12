@@ -218,6 +218,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
       |> assign(:admin_languages, admin_languages)
       |> assign(:show_language_section, show_language_section)
       |> assign(:show_language_divider, show_language_divider)
+      |> assign(:accounts_removable?, any_removable_account?(assigns.accounts))
 
     ~H"""
     <%= if @scope && PhoenixKit.Users.Auth.Scope.authenticated?(@scope) do %>
@@ -327,18 +328,31 @@ defmodule PhoenixKitWeb.Components.AdminNav do
               <span class="text-xs">Accounts</span>
             </li>
 
+            <%!--
+              Account rows. The wrapper div is the only `li > *`, so it carries
+              the `!p-0` / `!bg-transparent` reset for the padding and hover
+              colour daisyUI's `menu` puts on a menu item's direct child; every
+              bit of spacing then lives on the inner row, which is structurally
+              identical in both branches. That is what keeps the active row's
+              email flush with the inactive ones — the two branches used to nest
+              at different depths and the emails drifted apart by a pad's width.
+            --%>
             <%= for account <- @accounts do %>
               <li class="p-0">
-                <%= if account.active? do %>
-                  <div class="flex items-center gap-3 px-4 py-2 rounded-lg bg-base-200 min-w-0">
-                    <span class="flex-1 min-w-0 truncate" title={account.email}>
-                      {account.email}
-                    </span>
-                    <span class="badge badge-xs badge-ghost shrink-0">{account.role}</span>
-                    <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 shrink-0" />
-                  </div>
-                <% else %>
-                  <div class="flex items-center gap-2 px-1 min-w-0">
+                <div class="!p-0 flex items-center gap-1 min-w-0 !bg-transparent hover:!bg-transparent focus:!bg-transparent">
+                  <%= if account.active? do %>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex w-full min-w-0 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-content">
+                        <span class="flex-1 min-w-0 truncate" title={account.email}>
+                          {account.email}
+                        </span>
+                        <span class="badge badge-xs border-0 bg-primary-content/20 text-primary-content shrink-0">
+                          {account.role}
+                        </span>
+                        <PhoenixKitWeb.Components.Core.Icons.icon_check class="w-4 h-4 shrink-0" />
+                      </div>
+                    </div>
+                  <% else %>
                     <.form
                       for={%{}}
                       action={Routes.locale_aware_path(assigns, "/users/session/active")}
@@ -349,46 +363,59 @@ defmodule PhoenixKitWeb.Components.AdminNav do
                       <input type="hidden" name="return_to" value={@current_path} />
                       <button
                         type="submit"
-                        class="flex w-full min-w-0 items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200"
+                        class="flex w-full min-w-0 items-center gap-2 rounded-lg px-4 py-2 hover:bg-base-200"
                       >
                         <span class="flex-1 min-w-0 truncate" title={account.email}>
                           {account.email}
                         </span>
-                        <span class="badge badge-xs badge-ghost ml-auto shrink-0">
-                          {account.role}
-                        </span>
+                        <span class="badge badge-xs badge-ghost shrink-0">{account.role}</span>
+                        <%!-- Stands in for the active row's check so the role badges share a right edge. --%>
+                        <span class="w-4 shrink-0" aria-hidden="true"></span>
                       </button>
                     </.form>
-                    <%= unless account.root? do %>
-                      <.form
-                        for={%{}}
-                        action={
-                          Routes.locale_aware_path(assigns, "/users/session/accounts/#{account.ref}")
-                        }
-                        method="delete"
+                  <% end %>
+
+                  <%!--
+                    Fixed-width trailing slot, rendered on every row as soon as a
+                    single account is removable so the email column keeps one
+                    width down the list. Left empty for the active and root rows.
+                  --%>
+                  <div
+                    :if={@accounts_removable?}
+                    class="w-6 shrink-0 flex items-center justify-center"
+                  >
+                    <.form
+                      :if={not account.active? and not account.root?}
+                      for={%{}}
+                      action={
+                        Routes.locale_aware_path(assigns, "/users/session/accounts/#{account.ref}")
+                      }
+                      method="delete"
+                    >
+                      <input type="hidden" name="return_to" value={@current_path} />
+                      <button
+                        type="submit"
+                        class="btn btn-ghost btn-xs btn-square text-error"
+                        title="Remove"
+                        aria-label={"Remove " <> account.email}
                       >
-                        <input type="hidden" name="return_to" value={@current_path} />
-                        <button
-                          type="submit"
-                          class="btn btn-ghost btn-xs btn-square text-error shrink-0"
-                          title="Remove"
-                        >
-                          ✕
-                        </button>
-                      </.form>
-                    <% end %>
+                        <PhoenixKitWeb.Components.Core.Icons.icon_x_thin class="w-3 h-3" />
+                      </button>
+                    </.form>
                   </div>
-                <% end %>
+                </div>
               </li>
             <% end %>
 
             <li class="p-0">
               <label
                 for="pk-add-account-modal"
-                class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-base-200 cursor-pointer"
+                class="!p-0 !bg-transparent hover:!bg-transparent focus:!bg-transparent cursor-pointer"
               >
-                <PhoenixKitWeb.Components.Core.Icons.icon_settings class="w-4 h-4" />
-                <span>Add account</span>
+                <span class="flex w-full items-center gap-3 rounded-lg px-4 py-2 hover:bg-base-200">
+                  <PhoenixKitWeb.Components.Core.Icons.icon_user_add class="w-4 h-4 shrink-0" />
+                  <span>Add account</span>
+                </span>
               </label>
             </li>
           <% end %>
@@ -532,6 +559,14 @@ defmodule PhoenixKitWeb.Components.AdminNav do
       </div>
     <% end %>
     """
+  end
+
+  # True when at least one account row can show its remove button. Drives the
+  # fixed-width trailing slot on EVERY row: without it the rows that carry a
+  # remove button would squeeze their email column narrower than the rows that
+  # do not, and the list would step in and out down its right edge.
+  defp any_removable_account?(accounts) do
+    Enum.any?(accounts, &(not &1.active? and not &1.root?))
   end
 
   # Helper function to determine if navigation item is active

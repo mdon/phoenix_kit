@@ -1,3 +1,35 @@
+## 2.22.22 - 2026-09-12
+
+### Fixed
+
+- **The account switcher in the user dropdown is aligned and legible again**
+  (both `AdminNav.admin_user_dropdown/1` and `UserDashboardNav.user_dropdown/1`,
+  which carried byte-identical markup and so carried identical bugs).
+  - **"Add account" wore a gear icon** — `icon_settings`, the same glyph as the
+    Settings row above it, reading as a second settings entry rather than an
+    action. It is now `icon_user_add`.
+  - **The active and inactive rows were built differently and did not line up.**
+    The active row put its padding on the `li`'s direct child; the inactive row
+    split it across a wrapper and a `<button>` two levels deeper, so daisyUI's
+    own menu-child padding landed on each differently and the emails drifted a
+    pad's width apart. The wrapper is now the only `li > *` and carries the
+    `!p-0` reset (the idiom the in-menu language list already used), with every
+    bit of spacing on an inner row that is structurally identical in both
+    branches.
+  - **The role badge on the active row was invisible** — `badge-ghost` renders
+    as `base-200` and the row's own background was `base-200`, so the current
+    account's role read as bare text while every other row showed a chip.
+  - **Role badges now share a right edge**: the active row reserves width for
+    its check mark, the inactive rows gained a matching spacer.
+  - **Rows no longer change width with their remove button.** The trailing slot
+    is a fixed width rendered on every row as soon as any account is removable
+    (empty on the active and root rows), so the email column stops stepping in
+    and out down the list. The literal `✕` character became `icon_x_thin`, and
+    the button gained an `aria-label` naming the account it removes.
+  - The active account now takes the `bg-primary` treatment the active language
+    row above it already used, instead of a grey highlight — one active style
+    per menu.
+
 ## 2.22.21 - 2026-09-11
 
 ### Changed
