@@ -54,7 +54,7 @@
           <%!-- `scale(0.97)` on click, which would clobber a -translate-y-1/2    --%>
           <%!-- on the button itself and make it jump down 50% of its height.    --%>
           <%= if @has_prev do %>
-            <div class="absolute left-2 top-1/2 -translate-y-1/2 z-10">
+            <div class="absolute left-4 top-1/2 -translate-y-1/2 z-10">
               <button
                 type="button"
                 phx-click="step_viewer"
@@ -68,7 +68,7 @@
             </div>
           <% end %>
           <%= if @has_next do %>
-            <div class="absolute right-2 top-1/2 -translate-y-1/2 z-10">
+            <div class="absolute right-4 top-1/2 -translate-y-1/2 z-10">
               <button
                 type="button"
                 phx-click="step_viewer"
@@ -113,10 +113,15 @@
                 <%!-- toggle flipped on a board followed people here, where the  --%>
                 <%!-- anchors point at nothing (no arrow tool below). Hard off   --%>
                 <%!-- also hides the toggle from the toolbar.                    --%>
+                <%!-- panel_offset: the viewer's details-minimizer button      --%>
+                <%!-- (top-3 right-14 above) owns the top-right corner, and    --%>
+                <%!-- Etcher's style-panel chevron landed in the same row.     --%>
+                <%!-- Anchor the panel cluster below it (Etcher 0.13.2).         --%>
                 <Etcher.layer
                   fresco_id={"media-zoom-" <> f.file_uuid}
                   colors={@etcher_colors}
                   line_params={@etcher_line_params}
+                  panel_offset={%{top: 56}}
                   connectors={:off}
                   toolbar={@can_annotate}
                   nav_buttons={if @can_annotate, do: nil, else: [:visibility]}

@@ -961,10 +961,14 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
           theme={:inherit}
           infinite_canvas={true}
         />
+        <%!-- panel_offset: same collision as the html.heex embed — the
+              viewer chrome owns the top-right corner, so Etcher's style
+              panel anchors below it (Etcher 0.13.2). --%>
         <Etcher.layer
           fresco_id={"media-zoom-" <> @board.target_uuid}
           colors={@etcher_colors}
           line_params={@etcher_line_params}
+          panel_offset={%{top: 56}}
           toolbar={@can_annotate}
           nav_buttons={if @can_annotate, do: nil, else: [:visibility]}
           tools={
