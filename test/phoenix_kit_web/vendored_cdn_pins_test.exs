@@ -85,7 +85,10 @@ defmodule PhoenixKitWeb.VendoredCdnPinsTest do
       requirement =
         File.read!(Path.join(__DIR__, "../../mix.exs"))
         |> then(&Regex.run(~r/\{:#{app}, "([^"]+)"/, &1))
-        |> then(fn [_, req] -> req end)
+        |> case do
+          [_, req] -> req
+          nil -> flunk("no {:#{app}, \"...\"} requirement found in mix.exs")
+        end
 
       resolved = to_string(Application.spec(app, :vsn))
 

@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "2.22.23"
+  @version "2.22.24"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -239,9 +239,17 @@ defmodule PhoenixKit.MixProject do
       # day the next minor ships. `vendored_cdn_pins_test.exs` holds each
       # ceiling to the pinned minor; the next minor of any of them needs
       # the same requirement + lock + CDN-pin move :leaf gets.
+      #
+      # :etcher's FLOOR is load-bearing too, not just its ceiling: core's own
+      # markup passes `panel_offset` (0.13.2) and `connectors={:off}`
+      # (0.12.2), and phoenix_kit.js bridges `etcher:tooltip-action` (0.13.0).
+      # An older Etcher compiles with an undeclared-attr warning and silently
+      # drops them — and a host whose lock already holds etcher 0.12.x keeps
+      # it through `mix deps.update phoenix_kit` if the floor still admits
+      # it. Raise the floor whenever core starts consuming a newer Etcher API.
       {:fresco, "~> 0.10.0 or ~> 0.11.0"},
       {:tessera, "~> 0.3.0"},
-      {:etcher, "~> 0.9.0 or ~> 0.10.0 or ~> 0.11.0 or ~> 0.12.0 or ~> 0.13.0"},
+      {:etcher, "~> 0.13.2"},
 
       # QR device-handoff login ("scan to sign in" on the login page).
       #

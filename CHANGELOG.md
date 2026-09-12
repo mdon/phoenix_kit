@@ -1,3 +1,35 @@
+## 2.22.24 - 2026-09-12
+
+### Changed
+
+- **Etcher pinned to 0.13.2** (#803) — `mix.lock` and the `ETCHER_CDN` tag in
+  `priv/static/assets/phoenix_kit.js` move together. Both media-viewer embeds
+  (the lightbox and the `viewer_only` page) pass the new
+  `panel_offset={%{top: 56}}`, so Etcher's style-panel chevron anchors below
+  the viewer's details button instead of sharing its row.
+- **The media viewer's sidebar toggle sits on the viewer/sidebar seam** (#803)
+  on desktop with the sidebar expanded, hosted in a zero-width column between
+  the panels (the viewer clips and the sidebar scrolls, so neither can hold it).
+  Collapsed and stacked-mobile layouts keep the in-viewer button. The prev/next
+  arrows gained 16px of inset from the image edge.
+
+### Fixed
+
+- **The `:fresco`, `:tessera` and `:etcher` requirements now stop at the pinned
+  minor** (#802) — the same patch-less-`~>` bug 2.22.21 fixed for `:leaf`:
+  `~> 0.10`, `~> 0.3` and `~> 0.9` each meant `< 1.0.0`, letting a host float
+  the Elixir half past the exact jsDelivr tag core serves the browser half
+  from. `vendored_cdn_pins_test.exs` now holds every pinned sibling's ceiling
+  to its pinned minor. Resolution is unchanged.
+- **The `:etcher` floor is raised to 0.13.2.** Core's markup passes
+  `panel_offset` (Etcher 0.13.2) and `connectors={:off}` (0.12.2), and
+  `phoenix_kit.js` bridges `etcher:tooltip-action` (0.13.0), but the
+  requirement still admitted 0.9.0. A host whose lock held etcher 0.12.x kept
+  it through `mix deps.update phoenix_kit`: the attrs were silently dropped
+  (connector anchors reappeared on the lightbox) and the 0.13.2 bundle ran
+  against a 0.12 server half. Such a host now gets a resolver error naming
+  etcher instead.
+
 ## 2.22.23 - 2026-09-12
 
 ### Fixed
