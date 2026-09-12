@@ -1,6 +1,8 @@
 defmodule PhoenixKit.Integration.Storage.ScopeTest do
   use PhoenixKit.DataCase, async: true
 
+  import Ecto.Query
+
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.FolderLink
@@ -658,6 +660,27 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
       reloaded = Repo.get(StorageFile, file.uuid)
       assert reloaded.status == "trashed"
       assert reloaded.trashed_at
+    end
+
+    test "a file also linked into a folder outside the subtree is re-homed there, not trashed" do
+      # Content de-dup links a second upload of the same bytes into the
+      # second folder; trashing the first folder must not hide the file
+      # from the second (2026-09-12: a product's attachment vanished).
+      %{scope: scope, child_a: child_a, sibling: sibling} = build_tree()
+      file = create_file!(child_a.uuid)
+      {:ok, _link} = Storage.create_folder_link(sibling.uuid, file.uuid, nil)
+
+      assert {:ok, _} = Storage.trash_folder(child_a, scope.uuid)
+
+      reloaded = Repo.get(StorageFile, file.uuid)
+      assert reloaded.status == "active"
+      assert reloaded.folder_uuid == sibling.uuid
+
+      refute Repo.exists?(
+               from(fl in PhoenixKit.Modules.Storage.FolderLink,
+                 where: fl.file_uuid == ^file.uuid
+               )
+             )
     end
 
     test "trashed folders disappear from list_folders/list_folder_tree" do

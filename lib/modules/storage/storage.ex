@@ -1200,7 +1200,17 @@ defmodule PhoenixKit.Modules.Storage do
       from(f in Folder, where: f.uuid in ^subtree_uuids)
       |> repo().update_all(set: [trashed_at: now, updated_at: now])
 
-      # Trash every file whose folder is in the subtree. Files use both
+      # A file homed in the subtree but ALSO linked into a folder outside it
+      # is shown there too (a product's attachment, say — content de-dup
+      # links the second upload): re-home it there instead of trashing it,
+      # exactly as `delete_folder_completely/2` does. Trashing it hid the
+      # attachment from every reader outside this folder (2026-09-12).
+      from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
+      |> repo().all()
+      |> Enum.filter(&linked_outside_subtree?(&1.uuid, subtree_uuids))
+      |> Enum.each(&promote_out_of_subtree(&1, subtree_uuids))
+
+      # Trash every file still homed in the subtree. Files use both
       # `status: "trashed"` and `trashed_at` (the V99 convention) so the
       # existing file-listing filters (`status != "trashed"`) already
       # hide them without further changes.
