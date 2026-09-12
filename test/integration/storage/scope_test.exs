@@ -747,6 +747,38 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
   # UUID search in list_files_in_scope
   # ---------------------------------------------------------------------------
 
+  describe "list_files_in_scope/2 and folder links" do
+    # `assign_file_to_folder`-style attachment links a file that already
+    # lives elsewhere into a second folder via `FolderLink` instead of
+    # moving it. `count_folder_contents/1` always counted those; the
+    # listing read home rows only, so a linked file showed in the
+    # sidebar count and not in the grid (2026-09-12).
+    test "a folder's listing includes files linked into it, unscoped and scoped" do
+      home = create_folder!(%{name: "link_home_#{System.unique_integer([:positive])}"})
+      other = create_folder!(%{name: "link_other_#{System.unique_integer([:positive])}"})
+      own = create_file!(home.uuid)
+      linked = create_file!(other.uuid)
+
+      {:ok, _} =
+        %FolderLink{}
+        |> FolderLink.changeset(%{folder_uuid: home.uuid, file_uuid: linked.uuid})
+        |> Repo.insert()
+
+      {files, total} = Storage.list_files_in_scope(nil, folder_uuid: home.uuid)
+      assert Enum.sort(Enum.map(files, & &1.uuid)) == Enum.sort([own.uuid, linked.uuid])
+      assert total == 2
+      assert Storage.count_folder_contents(home.uuid) == 2
+
+      # Scoped variant (a folder inside a scope) reads the same set.
+      {scoped, _} = Storage.list_files_in_scope(home.uuid, folder_uuid: home.uuid)
+      assert Enum.sort(Enum.map(scoped, & &1.uuid)) == Enum.sort([own.uuid, linked.uuid])
+
+      # The other folder still lists only its own home file.
+      {others, _} = Storage.list_files_in_scope(nil, folder_uuid: other.uuid)
+      assert Enum.map(others, & &1.uuid) == [linked.uuid]
+    end
+  end
+
   describe "list_files_in_scope with UUID search" do
     test "partial UUID prefix matches file" do
       file = create_file!(nil)

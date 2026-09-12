@@ -1567,7 +1567,7 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   defp build_scope_file_query(nil, folder_uuid, search, _orphaned) when not is_nil(folder_uuid) do
-    from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid == ^folder_uuid)
+    folder_contents_query(folder_uuid)
     |> apply_file_search(search)
   end
 
@@ -1580,7 +1580,7 @@ defmodule PhoenixKit.Modules.Storage do
     cond do
       folder_uuid ->
         # Specific folder already validated within scope — no CTE needed
-        from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid == ^folder_uuid)
+        folder_contents_query(folder_uuid)
 
       search && search != "" ->
         # Search: walk the full scope subtree via recursive CTE
@@ -1591,6 +1591,22 @@ defmodule PhoenixKit.Modules.Storage do
         from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid == ^scope_folder_id)
     end
     |> apply_file_search(search)
+  end
+
+  # A folder's contents are its home files PLUS the files linked into it
+  # via `FolderLink` — the shape `assign_file_to_folder/2` produces when a
+  # file that already lives elsewhere is attached here (a content
+  # duplicate, a media-selector pick). `count_folder_contents/1` has
+  # always counted both; the listing read the home rows only, so a
+  # linked file showed in the sidebar count and not in the grid (found
+  # from the catalogue's item attachments, 2026-09-12).
+  defp folder_contents_query(folder_uuid) do
+    linked =
+      from(fl in FolderLink, where: fl.folder_uuid == ^folder_uuid, select: fl.file_uuid)
+
+    from(f in PhoenixKit.Modules.Storage.File,
+      where: f.folder_uuid == ^folder_uuid or f.uuid in subquery(linked)
+    )
   end
 
   defp scope_subtree_query(scope_folder_id) do
