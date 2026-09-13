@@ -1111,10 +1111,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     end
 
     # An ahead-of-code module is not pending — nothing here would migrate
-    # it — but it must not be silently reported as up to date either.
-    # `report_ahead_modules/1` already covers it (called unconditionally,
-    # same as `report_unreadable_modules/1`), so this only skips it here to
-    # avoid printing it twice.
+    # it — but it must not be silently reported as up to date either. Called
+    # unconditionally, same as `report_unreadable_modules/1`, so it still
+    # surfaces on a run where some other module IS pending and
+    # `report_modules_up_to_date/1` never runs.
     defp report_ahead_modules(modules) do
       case MigrationModules.ahead_of_code(modules) do
         [] ->
@@ -1137,6 +1137,8 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         %{status: :error} ->
           :ok
 
+        # Already reported by `report_ahead_modules/1` (called unconditionally
+        # before this runs) — skipped here to avoid printing it twice.
         %{status: :ahead_of_code} ->
           :ok
 
