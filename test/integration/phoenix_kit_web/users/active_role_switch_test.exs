@@ -179,6 +179,9 @@ defmodule PhoenixKitWeb.Integration.Users.ActiveRoleSwitchTest do
         |> post(Routes.path("/users/session/impersonate/#{target.uuid}"), %{})
 
       assert MultiSession.impersonating?(get_session(conn))
+
+      assert [%{impersonated?: false}, %{active?: true, impersonated?: true}] =
+               MultiSession.list_accounts(get_session(conn))
     end
 
     test "an Admin acting as a custom role cannot impersonate", %{conn: conn, seller: seller} do

@@ -135,6 +135,15 @@ defmodule PhoenixKit.Users.ActiveRoleTest do
     end
   end
 
+  describe "parse_location/1" do
+    test "header is recognised; anything else is menu" do
+      assert ActiveRole.parse_location("header") == :header
+      assert ActiveRole.parse_location("menu") == :menu
+      assert ActiveRole.parse_location(nil) == :menu
+      assert ActiveRole.parse_location("sidebar") == :menu
+    end
+  end
+
   describe "parse_sign_in_role/1" do
     test "last_used is recognised; anything else is staff_first" do
       assert ActiveRole.parse_sign_in_role("last_used") == :last_used
@@ -177,6 +186,17 @@ defmodule PhoenixKit.Users.ActiveRoleTest do
       assert Scope.narrowed?(scope)
       refute Scope.has_role?(scope, "Admin")
       refute Scope.system_role?(scope)
+    end
+
+    test "switchable_roles is [] unless set" do
+      assert Scope.switchable_roles(%Scope{authenticated?: true}) == []
+
+      assert Scope.switchable_roles(%Scope{switchable_roles: [@admin, @seller]}) == [
+               @admin,
+               @seller
+             ]
+
+      assert Scope.switchable_roles(nil) == []
     end
 
     test "nil scope" do

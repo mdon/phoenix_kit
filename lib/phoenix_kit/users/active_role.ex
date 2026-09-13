@@ -185,17 +185,45 @@ defmodule PhoenixKit.Users.ActiveRole do
   def stored_role_uuid(%User{}), do: nil
 
   @doc false
-  # Called by `Scope.for_user/1`. Returns the active role (or `nil`) and the
-  # roles in effect. A single held role can never yield two switchable
-  # candidates, so the common case skips the settings reads entirely.
-  @spec narrow(User.t(), [role()]) :: {role() | nil, [role()]}
-  def narrow(%User{}, held) when length(held) < 2, do: {nil, held}
+  # Called by `Scope.for_user/1`. Returns the active role (or `nil`), the roles
+  # in effect, and the switchable roles the switcher offers (`[]` when not
+  # narrowed). A single held role can never yield two switchable candidates, so
+  # the common case skips the settings reads entirely.
+  @spec narrow(User.t(), [role()]) :: {role() | nil, [role()], [role()]}
+  def narrow(%User{}, held) when length(held) < 2, do: {nil, held, []}
 
   def narrow(%User{} = user, held) do
     config = config()
     active = resolve(held, stored_role_uuid(user), config)
-    {active, effective_roles(held, active, config)}
+    switchable = if active, do: switchable_roles(held, config), else: []
+    {active, effective_roles(held, active, config), switchable}
   end
+
+  @doc """
+  The names of the roles in effect for `user`: the active role plus the
+  always-on roles while narrowed, every held role otherwise.
+
+  The same roles `Scope.for_user/1` puts in `cached_roles`, without loading
+  permissions — for callers that only need names (account labels, the
+  impersonation authority).
+  """
+  @spec effective_role_names(User.t()) :: [String.t()]
+  def effective_role_names(%User{} = user) do
+    {_active, effective, _switchable} = narrow(user, Roles.get_user_role_records(user))
+    Enum.map(effective, & &1.name)
+  end
+
+  @doc """
+  Where the switcher is shown: `:menu` (the account dropdown, default) or
+  `:header` (a header control from `sm` up, the account dropdown below it).
+  """
+  @spec location() :: :menu | :header
+  def location, do: parse_location(Settings.get_setting_cached("role_switcher_location"))
+
+  @doc "Parses `role_switcher_location`. Anything unrecognised is `:menu`."
+  @spec parse_location(term()) :: :menu | :header
+  def parse_location("header"), do: :header
+  def parse_location(_), do: :menu
 
   @doc """
   Makes `role_uuid` the role `user` acts as.

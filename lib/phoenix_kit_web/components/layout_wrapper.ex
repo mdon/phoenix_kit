@@ -1097,6 +1097,16 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       }
                     )}
                   <% end %>
+                  <%!-- Role switcher, when `role_switcher_location` is
+                       "header" (from `sm` up; the account menu carries it on
+                       phones). Renders nothing otherwise. --%>
+                  <PhoenixKitWeb.Components.Core.RoleSwitcher.role_switcher
+                    variant={:header}
+                    id="admin-role-switcher-header"
+                    scope={@phoenix_kit_current_scope}
+                    current_path={@current_path}
+                    current_locale={@current_locale}
+                  />
                   <.admin_user_dropdown
                     scope={@phoenix_kit_current_scope}
                     current_path={@current_path}

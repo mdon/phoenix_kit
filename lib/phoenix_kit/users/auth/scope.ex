@@ -76,6 +76,7 @@ defmodule PhoenixKit.Users.Auth.Scope do
   - `:cached_permissions` - MapSet of granted permission keys, loaded at scope creation
   - `:held_roles` - List of every role name the user really holds
   - `:active_role` - `%{uuid, name}` of the role the user is acting as, or `nil`
+  - `:switchable_roles` - `%{uuid, name}` of every role the user can switch to (`[]` when not narrowed)
 
   ## Active role
 
@@ -106,6 +107,7 @@ defmodule PhoenixKit.Users.Auth.Scope do
           cached_permissions: MapSet.t() | nil,
           held_roles: [String.t()] | nil,
           active_role: ActiveRole.role() | nil,
+          switchable_roles: [ActiveRole.role()],
           multi_session_accounts: list(),
           multi_session_allowed?: boolean()
         }
@@ -119,6 +121,7 @@ defmodule PhoenixKit.Users.Auth.Scope do
             cached_permissions: nil,
             held_roles: nil,
             active_role: nil,
+            switchable_roles: [],
             multi_session_accounts: [],
             multi_session_allowed?: false
 
@@ -155,10 +158,10 @@ defmodule PhoenixKit.Users.Auth.Scope do
     # Narrow to the active role (plus always-on roles) when the user is acting
     # as one. Everything below reads the EFFECTIVE roles, so an Owner acting as
     # "Seller" gets neither the Owner branch nor Owner's permissions.
-    {active_role, effective} =
+    {active_role, effective, switchable} =
       if Keyword.get(opts, :narrow, true),
         do: ActiveRole.narrow(user, held),
-        else: {nil, held}
+        else: {nil, held, []}
 
     cached_roles = Enum.map(effective, & &1.name)
 
@@ -201,7 +204,8 @@ defmodule PhoenixKit.Users.Auth.Scope do
       cached_roles: cached_roles,
       cached_permissions: cached_permissions,
       held_roles: Enum.map(held, & &1.name),
-      active_role: active_role
+      active_role: active_role,
+      switchable_roles: switchable
     }
   end
 
@@ -448,6 +452,14 @@ defmodule PhoenixKit.Users.Auth.Scope do
   """
   @spec narrowed?(t() | nil) :: boolean()
   def narrowed?(scope), do: active_role(scope) != nil
+
+  @doc """
+  The roles the user can switch between (`%{uuid, name}`), loaded with the
+  scope so the switcher renders without a query. `[]` when not narrowed.
+  """
+  @spec switchable_roles(t() | nil) :: [ActiveRole.role()]
+  def switchable_roles(%__MODULE__{switchable_roles: roles}) when is_list(roles), do: roles
+  def switchable_roles(_), do: []
 
   @doc """
   Gets the user's full name.

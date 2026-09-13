@@ -35,6 +35,15 @@
   last role for everyone. Applied in `log_in_user/3`, so password, magic link,
   QR, OAuth and registration auto-login all honour it; remember-me restore
   does not reset.
+- **The role switcher UI** — `PhoenixKitWeb.Components.Core.RoleSwitcher`. A
+  "Role" section under Language in both account dropdowns
+  (`AdminNav.admin_user_dropdown/1`, `UserDashboardNav.user_dropdown/1`), and
+  with `role_switcher_location` set to `"header"` a compact control in the
+  admin and dashboard headers from `sm` up, the menu section taking over on
+  phones. Renders only for a narrowed scope and never while impersonating; the
+  switchable roles ride on the scope (`Scope.switchable_roles/1`), so it costs
+  no query per page. The multi-session account list labels each account with
+  the role it is acting as and marks impersonated accounts (`impersonated?`).
 
 ### Fixed
 

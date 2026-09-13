@@ -51,8 +51,8 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   import Plug.Conn
 
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.ActiveRole
   alias PhoenixKit.Users.Auth
-  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Role
   alias PhoenixKit.Users.Sessions
   alias PhoenixKit.Utils.IpAddress
@@ -109,12 +109,14 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   @doc """
   Resolves each stack token to a render struct:
-  `%{ref, user, email, role, active?, root?}`. Tokens that no longer resolve to a
-  user (expired/deleted) are dropped.
+  `%{ref, user, email, role, active?, root?, impersonated?}`. Tokens that no
+  longer resolve to a user (expired/deleted) are dropped. `impersonated?` marks
+  an account `impersonate/2` added.
   """
   def list_accounts(session) when is_map(session) do
     active = session["user_token"]
     tokens = stack_tokens(session)
+    impersonated = List.wrap(session[Atom.to_string(@impersonated_key)])
 
     tokens
     |> Enum.with_index()
@@ -128,7 +130,8 @@ defmodule PhoenixKitWeb.Users.MultiSession do
               email: user.email,
               role: role_label(user),
               active?: token == active,
-              root?: index == 0
+              root?: index == 0,
+              impersonated?: token in impersonated
             }
           ]
 
@@ -172,11 +175,13 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   Owner, Admin *or any single permission holder*, so a Client — who holds
   `client_portal` — reads back as "Admin".
 
-  Reads role names straight from `User.get_roles/1` rather than building a full
-  `Scope` — the scope carries an opaque `MapSet` of permissions we don't need
-  here (and constructing it tripped a Dialyzer opaqueness warning).
+  Labels the roles IN EFFECT — for a user acting as one role
+  (`PhoenixKit.Users.ActiveRole`), that role — read through
+  `ActiveRole.effective_role_names/1` rather than by building a full `Scope`:
+  the scope carries an opaque `MapSet` of permissions we don't need here (and
+  constructing it tripped a Dialyzer opaqueness warning).
   """
-  def role_label(user), do: user |> Auth.User.get_roles() |> role_label_from_roles()
+  def role_label(user), do: user |> ActiveRole.effective_role_names() |> role_label_from_roles()
 
   @doc """
   `role_label/1` for callers that already hold the role names.
@@ -520,7 +525,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   # impersonation authority, not even by crafting the POST. Targets keep their
   # REAL roles (`role_names/1`, `get_roles/1`) — an Admin acting as a custom
   # role is still an administrator to be protected from being borrowed.
-  defp actor_roles(%Auth.User{} = actor), do: Scope.for_user(actor).cached_roles
+  defp actor_roles(%Auth.User{} = actor), do: ActiveRole.effective_role_names(actor)
 
   # The rule itself, over role names already in hand. Separated from the lookups
   # so a list render can decide many targets against one actor read; every

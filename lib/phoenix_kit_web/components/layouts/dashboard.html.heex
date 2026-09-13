@@ -258,6 +258,14 @@ has_multi_selector = context_selector_configs != [] %> <!DOCTYPE html>
               themes={PhoenixKit.Config.get(:dashboard_themes, :all)}
               id="dashboard-theme-dropdown"
             />
+            <%!-- Role switcher in the header, when so configured --%>
+            <PhoenixKitWeb.Components.Core.RoleSwitcher.role_switcher
+              variant={:header}
+              id="dashboard-role-switcher-header"
+              scope={assigns[:phoenix_kit_current_scope]}
+              current_path={assigns[:url_path] || "/dashboard"}
+              current_locale={assigns[:current_locale]}
+            />
             <PhoenixKitWeb.Components.UserDashboardNav.user_dropdown
               scope={assigns[:phoenix_kit_current_scope]}
               current_path={assigns[:url_path] || "/dashboard"}

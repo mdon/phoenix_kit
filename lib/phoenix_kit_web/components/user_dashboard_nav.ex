@@ -177,6 +177,13 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
             current_locale={@current_locale}
           />
 
+          <PhoenixKitWeb.Components.Core.RoleSwitcher.role_switcher
+            id="dashboard-role-switcher-menu"
+            scope={@scope}
+            current_path={@current_path}
+            current_locale={@current_locale}
+          />
+
           <%= if @multi_session_allowed? do %>
             <div class="divider my-0"></div>
 
