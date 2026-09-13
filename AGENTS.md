@@ -2,7 +2,7 @@
 
 **PhoenixKit** — foundation for building Elixir/Phoenix apps (SaaS, ERP, marketplaces, AI apps, community platforms). Library-first architecture with Phoenix/PostgreSQL: auth + Magic Links, role-based access (Owner/Admin/User), admin dashboard, daisyUI 5 themes, versioned migrations, layout integration with parent apps.
 
-**Topic guides** — read when working in that area: [core UI components](dev_docs/guides/2026-09-11-core-components.md) · [external module packages](dev_docs/guides/2026-09-11-external-module-development.md) · [login & registration](dev_docs/guides/2026-07-28-login-and-registration.md) · [activity feed](dev_docs/guides/2026-09-11-activity-feed.md) · [notifications](dev_docs/guides/2026-07-27-notifications.md) · [integrations](dev_docs/guides/2026-07-27-integrations-system.md) · [prefix-safe migrations](dev_docs/guides/2026-07-27-prefix-safe-migrations.md) · [admin path & label](dev_docs/guides/2026-09-11-admin-path-and-label.md)
+**Topic guides** — read when working in that area: [core UI components](dev_docs/guides/2026-09-11-core-components.md) · [external module packages](dev_docs/guides/2026-09-11-external-module-development.md) · [login & registration](dev_docs/guides/2026-07-28-login-and-registration.md) · [activity feed](dev_docs/guides/2026-09-11-activity-feed.md) · [notifications](dev_docs/guides/2026-07-27-notifications.md) · [integrations](dev_docs/guides/2026-07-27-integrations-system.md) · [prefix-safe migrations](dev_docs/guides/2026-07-27-prefix-safe-migrations.md) · [admin path & label](dev_docs/guides/2026-09-11-admin-path-and-label.md) · [active role](dev_docs/guides/2026-09-13-active-role.md)
 
 ## Workflow
 
@@ -115,6 +115,9 @@ Full reference: `dev_docs/guides/2026-07-28-login-and-registration.md`. All sett
 - **Admin-area gate**: `Scope.can_access_admin_area?/1` — true for Owner, Admin, OR any single permission holder (`admin?/1` is a deprecated alias). `Scope.holds_all_enabled_permissions?/1` is the "can do everything, like Owner" check.
 - **Sub-permissions** — dotted keys under a base (`"calendar.view_others"`), declared in `permission_metadata/0`'s `sub_permissions`, checked by the module via `Scope.can?/2`. A sub implies its base (granting a sub auto-grants the base; revoking the base cascades). Grant/revoke run under a per-`{role, base-key}` advisory lock.
 - **Edit protection**: `can_edit_role_permissions?/2` — users cannot edit their own role; only Owner can edit Admin.
+- **Active role** (`PhoenixKit.Users.ActiveRole`, opt-in `role_switcher_enabled`): a user with 2+ switchable roles acts as one, and `Scope.for_user/1` narrows `cached_roles`/`cached_permissions` to it. Guide: `dev_docs/guides/2026-09-13-active-role.md`.
+  - ⚠️ **Never hold the active role outside `for_user/1`** — it lives in `custom_fields["active_role_uuid"]`; the scope is rebuilt from scratch in plugs, every mount, the refresh and siblings, so a session/assign copy silently widens back to every role.
+  - Access decisions read the scope; rules protecting against a user's REAL roles read `Scope.held_roles/1`. `Roles.*`/`User.get_roles` DB reads ignore the active role.
 
 ## Integrations System
 

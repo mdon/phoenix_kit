@@ -3,7 +3,26 @@
 **Created:** 2026-09-13
 **Status:** Plan approved 2026-09-13 (all four open decisions taken as
 recommended: per-user, no "All roles", User always-on + configurable,
-sign-in-default fallback). Building in stages; not published.
+sign-in-default fallback). Stages 1–5 BUILT on `main` 2026-09-13 (stage 1
+`273b4b1e`, stage 2 `2196be19`, stage 3 `0d012071`, stages 4–5 in the commit
+after). Not published — awaiting review by other agents. Sibling follow-ups
+(end of this file) not started.
+
+**As built, departures from the plan below:**
+
+- The impersonation authority reads the root's roles *in effect* through
+  `ActiveRole.effective_role_names/1`, not a new active-scope gate on the
+  endpoint — impersonating from inside an impersonated session is intended
+  (the root decides), and a gate on the requesting scope would have broken it.
+- The impersonation marker is `:pk_impersonated_tokens` (a list of tokens
+  `impersonate/2` added), never cleared: removed tokens are deleted and cannot
+  become active again, and a fresh login clears the session.
+- `safe_destination/2` proves a path routable, not reachable, so the switch
+  redirect passes `skip_admin: true` when the new role has no admin-area access.
+- The switcher hides itself while impersonating using the `impersonated?` flag
+  `MultiSession.list_accounts/1` now carries, not a new Scope field.
+- `role_switcher_always_on_roles` is a comma-separated string (not JSON), so it
+  rides the ordinary settings form; the page joins the checkbox list.
 **Scope:** phoenix_kit (core). Sibling follow-ups listed at the end.
 
 ## Why

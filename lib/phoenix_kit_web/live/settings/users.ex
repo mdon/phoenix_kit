@@ -10,8 +10,11 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   use PhoenixKitWeb, :live_view
 
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.ActiveRole
   alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Users.CustomFields.Events, as: CustomFieldsEvents
+  alias PhoenixKit.Users.Role
+  alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
 
   def mount(_params, _session, socket) do
@@ -51,6 +54,9 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
       |> assign(:saved_settings, merged_settings)
       |> assign(:setting_options, setting_options)
       |> assign(:registration_account_type_options, registration_account_type_options())
+      |> assign(:role_switcher_custom_roles, role_switcher_custom_roles())
+      |> assign(:role_switcher_location_options, role_switcher_options(:location))
+      |> assign(:role_switcher_sign_in_options, role_switcher_options(:sign_in))
       |> assign(:changeset, changeset)
       |> assign(:saving, false)
       |> assign(
@@ -78,6 +84,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   end
 
   def handle_event("validate_settings", %{"settings" => settings_params}, socket) do
+    settings_params = normalize_settings_params(settings_params)
     changeset = Settings.validate_settings(settings_params)
 
     socket =
@@ -95,6 +102,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   end
 
   def handle_event("save_settings", %{"settings" => settings_params}, socket) do
+    settings_params = normalize_settings_params(settings_params)
     socket = assign(socket, :saving, true)
 
     case Settings.update_settings(settings_params,
@@ -356,4 +364,48 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   # Not reachable through the context list; kept so a value added there without
   # a clause degrades to a raw label instead of crashing the settings page.
   def registration_account_type_label(value), do: value
+
+  # The always-on roles arrive as a list of checkbox values, plus the hidden ""
+  # that makes unticking every box submit the key at all. The setting stores
+  # one comma-separated string of role uuids (`ActiveRole.parse_always_on/1`).
+  defp normalize_settings_params(%{"role_switcher_always_on_roles" => roles} = params)
+       when is_list(roles) do
+    joined = roles |> Enum.reject(&(&1 in ["", nil])) |> Enum.uniq() |> Enum.join(",")
+    Map.put(params, "role_switcher_always_on_roles", joined)
+  end
+
+  defp normalize_settings_params(params), do: params
+
+  # The custom roles an operator may mark always-on. Owner and Admin are always
+  # switchable and User always applies, so the three system roles are not
+  # offered.
+  defp role_switcher_custom_roles do
+    system = Role.system_roles()
+
+    Roles.list_roles()
+    |> Enum.reject(&(&1.name in [system.owner, system.admin, system.user]))
+    |> Enum.sort_by(& &1.name)
+  end
+
+  defp role_switcher_options(:location),
+    do: Enum.map(~w(menu header), &{role_switcher_location_label(&1), &1})
+
+  defp role_switcher_options(:sign_in),
+    do: Enum.map(~w(staff_first last_used), &{role_switcher_sign_in_label(&1), &1})
+
+  @doc false
+  def role_switcher_location_label("menu"), do: gettext("Account menu")
+  def role_switcher_location_label("header"), do: gettext("Header (account menu on phones)")
+  def role_switcher_location_label(value), do: value
+
+  @doc false
+  def role_switcher_sign_in_label("staff_first"),
+    do: gettext("Owner or Admin if held, otherwise the last role used")
+
+  def role_switcher_sign_in_label("last_used"), do: gettext("The last role used")
+  def role_switcher_sign_in_label(value), do: value
+
+  @doc false
+  def always_on_role?(settings, role_uuid),
+    do: role_uuid in ActiveRole.parse_always_on(settings["role_switcher_always_on_roles"])
 end

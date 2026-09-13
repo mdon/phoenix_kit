@@ -72,6 +72,7 @@
                   icon: "hero-arrow-right-circle"
                 },
                 %{id: "defaults", label: gettext("New User Defaults"), icon: "hero-user-circle"},
+                %{id: "roles", label: gettext("Roles"), icon: "hero-identification"},
                 %{id: "fields", label: gettext("Custom User Fields"), icon: "hero-list-bullet"}
               ]}
             />
@@ -410,6 +411,128 @@
                     </div>
                   <% end %>
                 </div>
+              </div>
+            </div>
+
+            <div class={if @active_tab != "roles", do: "hidden"}>
+              <%!-- Role switcher / active role — see `PhoenixKit.Users.ActiveRole`
+                 and dev_docs/guides/2026-09-13-active-role.md. --%>
+              <div class="fieldset w-full">
+                <.checkbox
+                  name="settings[role_switcher_enabled]"
+                  checked={@settings["role_switcher_enabled"] == "true"}
+                  label={gettext("Let users with several roles act as one role at a time")}
+                  wrapper_class="mb-2"
+                />
+                <div class="text-xs text-base-content/60 max-w-prose">
+                  {gettext(
+                    "A user holding two or more switchable roles works as one of them and gets only that role's access: an Admin acting as another role has no admin access until they switch back. Owner and Admin are always switchable; the User role always applies."
+                  )}
+                </div>
+                <.unsaved_hint dirty={
+                  @settings["role_switcher_enabled"] != @saved_settings["role_switcher_enabled"]
+                } />
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <div class="fieldset w-full">
+                  <label class="label">
+                    <span class="fieldset-legend text-base font-medium">
+                      {gettext("Switcher location")}
+                    </span>
+                    <span class="fieldset-label text-sm text-base-content/60">
+                      {gettext("Where users switch between their roles")}
+                    </span>
+                  </label>
+                  <.select
+                    name="settings[role_switcher_location]"
+                    value={@settings["role_switcher_location"]}
+                    options={@role_switcher_location_options}
+                    class="focus-within:select-primary"
+                  />
+                  <.unsaved_hint
+                    dirty={
+                      @settings["role_switcher_location"] !=
+                        @saved_settings["role_switcher_location"]
+                    }
+                    saved={
+                      get_option_label(
+                        @saved_settings["role_switcher_location"],
+                        @role_switcher_location_options
+                      )
+                    }
+                  />
+                </div>
+
+                <div class="fieldset w-full">
+                  <label class="label">
+                    <span class="fieldset-legend text-base font-medium">
+                      {gettext("Role on sign-in")}
+                    </span>
+                    <span class="fieldset-label text-sm text-base-content/60">
+                      {gettext("The role a user starts in each time they sign in")}
+                    </span>
+                  </label>
+                  <.select
+                    name="settings[role_switcher_sign_in_role]"
+                    value={@settings["role_switcher_sign_in_role"]}
+                    options={@role_switcher_sign_in_options}
+                    class="focus-within:select-primary"
+                  />
+                  <.unsaved_hint
+                    dirty={
+                      @settings["role_switcher_sign_in_role"] !=
+                        @saved_settings["role_switcher_sign_in_role"]
+                    }
+                    saved={
+                      get_option_label(
+                        @saved_settings["role_switcher_sign_in_role"],
+                        @role_switcher_sign_in_options
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div class="fieldset w-full mt-6">
+                <label class="label">
+                  <span class="fieldset-legend text-base font-medium">
+                    {gettext("Always-on roles")}
+                  </span>
+                  <span class="fieldset-label text-sm text-base-content/60">
+                    {gettext(
+                      "Ticked roles are not offered in the switcher: they apply whichever role is active."
+                    )}
+                  </span>
+                </label>
+                <%!-- Always submitted, so unticking every role saves an empty
+                   list instead of leaving the key out and the old value in
+                   place. Plain inputs rather than <.checkbox>: its hidden
+                   "false" fallback would land in this list as a value. --%>
+                <input type="hidden" name="settings[role_switcher_always_on_roles][]" value="" />
+                <%= if @role_switcher_custom_roles == [] do %>
+                  <p class="text-sm text-base-content/60">
+                    {gettext("There are no custom roles yet.")}
+                  </p>
+                <% else %>
+                  <label
+                    :for={role <- @role_switcher_custom_roles}
+                    class="label cursor-pointer justify-start gap-3 py-1"
+                  >
+                    <input
+                      type="checkbox"
+                      class="checkbox checkbox-sm"
+                      name="settings[role_switcher_always_on_roles][]"
+                      value={role.uuid}
+                      checked={always_on_role?(@settings, role.uuid)}
+                    />
+                    <span class="text-base-content">{role.name}</span>
+                  </label>
+                <% end %>
+                <.unsaved_hint dirty={
+                  @settings["role_switcher_always_on_roles"] !=
+                    @saved_settings["role_switcher_always_on_roles"]
+                } />
               </div>
             </div>
 

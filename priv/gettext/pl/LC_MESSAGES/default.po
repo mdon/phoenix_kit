@@ -54,7 +54,7 @@ msgstr "Informacje o systemie"
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:92
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:265
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:108
-#: lib/phoenix_kit_web/live/settings/users.ex:43
+#: lib/phoenix_kit_web/live/settings/users.ex:46
 #: lib/phoenix_kit_web/live/users/roles.html.heex:95
 #: lib/phoenix_kit_web/live/users/roles.html.heex:162
 #: lib/phoenix_kit_web/live/users/user_details.ex:110
@@ -71,6 +71,7 @@ msgstr "Zarządzanie użytkownikami"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:128
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:124
+#: lib/phoenix_kit_web/live/settings/users.html.heex:75
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:44
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:170
 #: lib/phoenix_kit_web/live/users/users.html.heex:701
@@ -120,8 +121,8 @@ msgstr "Utwórz nowe konto"
 
 #: lib/phoenix_kit/notifications/channels/email.ex:25
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:188
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:238
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:649
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:251
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:662
 #: lib/phoenix_kit_web/live/users/users.html.heex:308
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:44
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:52
@@ -189,7 +190,7 @@ msgstr "Zarejestrowane konta"
 
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:259
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:264
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1621
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1729
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:18
 #, elixir-autogen
 msgid "Active Sessions"
@@ -313,8 +314,8 @@ msgstr "Wyłączone konta"
 
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:400
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:151
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:244
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:302
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:257
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:315
 #: lib/phoenix_kit_web/live/users/users.ex:984
 #: lib/phoenix_kit_web/live/users/users.html.heex:564
 #: lib/phoenix_kit_web/live/users/users.html.heex:960
@@ -374,8 +375,8 @@ msgstr "Uwierzytelnianie"
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:114
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:267
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:145
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:297
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:682
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:310
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:695
 #: lib/phoenix_kit_web/live/users/users.ex:986
 #: lib/phoenix_kit_web/live/users/users.ex:1139
 #: lib/phoenix_kit_web/live/users/users.html.heex:248
@@ -402,8 +403,8 @@ msgstr "Aktywny"
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:61
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:49
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:90
-#: lib/phoenix_kit_web/live/settings/users.html.heex:465
-#: lib/phoenix_kit_web/live/settings/users.html.heex:540
+#: lib/phoenix_kit_web/live/settings/users.html.heex:588
+#: lib/phoenix_kit_web/live/settings/users.html.heex:663
 #: lib/phoenix_kit_web/live/settings/website_access.html.heex:59
 #, elixir-autogen
 msgid "Enabled"
@@ -439,7 +440,7 @@ msgstr "%{language} (szkic)"
 msgid "%{language} (Published)"
 msgstr "%{language} (opublikowany)"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:384
+#: lib/phoenix_kit_web/live/components/user_settings.ex:392
 #, elixir-autogen, elixir-format
 msgid "%{provider} account disconnected successfully"
 msgstr "Konto %{provider} zostało odłączone"
@@ -459,7 +460,7 @@ msgstr "(opcjonalnie)"
 msgid "123 Business Street"
 msgstr "ul. Przykładowa 123"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:231
+#: lib/phoenix_kit_web/live/components/user_settings.ex:237
 #, elixir-autogen, elixir-format
 msgid "A link to confirm your email change has been sent to the new address."
 msgstr "Link potwierdzający zmianę adresu e-mail został wysłany na nowy adres."
@@ -482,7 +483,7 @@ msgstr "Akceptuj wszystkie"
 msgid "Access denied"
 msgstr "Odmowa dostępu"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:284
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:297
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:25
 #: lib/phoenix_kit_web/users/registration.html.heex:52
 #, elixir-autogen, elixir-format
@@ -502,10 +503,10 @@ msgstr "Informacje o koncie"
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:52
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:95
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:127
-#: lib/phoenix_kit_web/live/settings/users.html.heex:512
+#: lib/phoenix_kit_web/live/settings/users.html.heex:635
 #: lib/phoenix_kit_web/live/users/roles.html.heex:163
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:269
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:651
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:664
 #: lib/phoenix_kit_web/users/user_form.html.heex:775
 #: lib/phoenix_kit_web/users/user_form.html.heex:855
 #, elixir-autogen, elixir-format
@@ -515,7 +516,7 @@ msgstr "Akcje"
 #: lib/phoenix_kit_web/components/media_gallery.html.heex:86
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:610
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:314
-#: lib/phoenix_kit_web/live/settings/users.html.heex:795
+#: lib/phoenix_kit_web/live/settings/users.html.heex:918
 #: lib/phoenix_kit_web/users/user_form.html.heex:754
 #, elixir-autogen, elixir-format
 msgid "Add"
@@ -527,18 +528,18 @@ msgstr "Dodaj"
 msgid "Add %{language} translation"
 msgstr "Dodaj tłumaczenie na %{language}"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:819
+#: lib/phoenix_kit_web/live/settings/users.html.heex:942
 #, elixir-autogen, elixir-format
 msgid "Add Field"
 msgstr "Dodaj pole"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:517
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:545
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:530
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:558
 #, elixir-autogen, elixir-format
 msgid "Add Note"
 msgstr "Dodaj notatkę"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:625
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:638
 #, elixir-autogen, elixir-format
 msgid "Add a note above to start documenting information about this user."
 msgstr "Dodaj notatkę powyżej, aby zacząć dokumentować informacje o tym użytkowniku."
@@ -574,12 +575,12 @@ msgstr "Zarchiwizowane"
 msgid "Are you sure you want to delete the role \"%{role_name}\"? This action cannot be undone."
 msgstr "Czy na pewno chcesz usunąć rolę „%{role_name}”? Tej operacji nie można cofnąć."
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:606
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:619
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this note?"
 msgstr "Czy na pewno chcesz usunąć tę notatkę?"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:732
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:745
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to permanently delete"
 msgstr "Czy na pewno chcesz trwale usunąć"
@@ -598,7 +599,7 @@ msgid "Basic Information"
 msgstr "Informacje podstawowe"
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:139
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:501
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:514
 #, elixir-autogen, elixir-format
 msgid "Blocked"
 msgstr "Zablokowany"
@@ -629,23 +630,23 @@ msgstr "Lista wypunktowana"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1357
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2392
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2440
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:311
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:352
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:65
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1113
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1549
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1183
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1657
 #: lib/phoenix_kit_web/live/notifications/settings.ex:434
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:493
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:152
-#: lib/phoenix_kit_web/live/settings/users.html.heex:822
+#: lib/phoenix_kit_web/live/settings/users.html.heex:945
 #: lib/phoenix_kit_web/live/users/media_selector.html.heex:18
 #: lib/phoenix_kit_web/live/users/roles.html.heex:38
 #: lib/phoenix_kit_web/live/users/roles.html.heex:72
 #: lib/phoenix_kit_web/live/users/roles.html.heex:450
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:135
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:536
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:776
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:845
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:862
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:549
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:789
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:858
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:875
 #: lib/phoenix_kit_web/live/users/users.html.heex:75
 #: lib/phoenix_kit_web/live/users/users.html.heex:1186
 #: lib/phoenix_kit_web/live/users/users.html.heex:1203
@@ -669,12 +670,12 @@ msgstr "Nie można usunąć ostatniego właściciela systemu"
 msgid "Cannot delete your own account"
 msgstr "Nie możesz usunąć własnego konta"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:418
+#: lib/phoenix_kit_web/live/components/user_settings.ex:426
 #, elixir-autogen, elixir-format
 msgid "Cannot disconnect %{provider}. Please ensure you have at least one sign-in method available."
 msgstr "Nie można odłączyć %{provider}. Upewnij się, że pozostanie co najmniej jedna metoda logowania."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:413
+#: lib/phoenix_kit_web/live/components/user_settings.ex:421
 #, elixir-autogen, elixir-format
 msgid "Cannot disconnect %{provider}. This is your only sign-in method. Please set a password or connect another provider first."
 msgstr "Nie można odłączyć %{provider}. To jedyna metoda logowania. Najpierw ustaw hasło lub połącz innego dostawcę."
@@ -701,7 +702,7 @@ msgstr "Kliknij ikonę znacznika lub krzyżyka, aby przełączyć uprawnienie dl
 #: lib/phoenix_kit_web/components/media_browser.html.heex:387
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:36
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:36
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:318
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:359
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:50
 #, elixir-autogen, elixir-format
 msgid "Close"
@@ -752,7 +753,7 @@ msgid "Confirm"
 msgstr "Potwierdź"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:101
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:483
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:496
 #, elixir-autogen, elixir-format
 msgid "Connections"
 msgstr "Połączenia"
@@ -851,9 +852,9 @@ msgstr "Utworzono"
 msgid "Custom"
 msgstr "Niestandardowe"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:483
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:413
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:436
+#: lib/phoenix_kit_web/live/settings/users.html.heex:606
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:426
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:449
 #: lib/phoenix_kit_web/live/users/users.html.heex:1127
 #, elixir-autogen, elixir-format
 msgid "Custom Fields"
@@ -898,12 +899,12 @@ msgstr "Kontakt do IOD zapisany"
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:487
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:114
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:146
-#: lib/phoenix_kit_web/live/settings/users.html.heex:587
-#: lib/phoenix_kit_web/live/settings/users.html.heex:629
+#: lib/phoenix_kit_web/live/settings/users.html.heex:710
+#: lib/phoenix_kit_web/live/settings/users.html.heex:752
 #: lib/phoenix_kit_web/live/users/roles.html.heex:137
 #: lib/phoenix_kit_web/live/users/roles.html.heex:216
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:607
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:610
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:620
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:623
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr "Usuń"
@@ -945,8 +946,8 @@ msgstr "Opis"
 #: lib/phoenix_kit_web/live/modules.html.heex:281
 #: lib/phoenix_kit_web/live/modules.html.heex:348
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:49
-#: lib/phoenix_kit_web/live/settings/users.html.heex:466
-#: lib/phoenix_kit_web/live/settings/users.html.heex:542
+#: lib/phoenix_kit_web/live/settings/users.html.heex:589
+#: lib/phoenix_kit_web/live/settings/users.html.heex:665
 #: lib/phoenix_kit_web/live/settings/website_access.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Disabled"
@@ -973,19 +974,19 @@ msgstr "Szkic"
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:382
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:107
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:139
-#: lib/phoenix_kit_web/live/settings/users.html.heex:578
-#: lib/phoenix_kit_web/live/settings/users.html.heex:620
+#: lib/phoenix_kit_web/live/settings/users.html.heex:701
+#: lib/phoenix_kit_web/live/settings/users.html.heex:743
 #: lib/phoenix_kit_web/live/users/roles.html.heex:128
 #: lib/phoenix_kit_web/live/users/roles.html.heex:207
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:596
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:599
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:609
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:612
 #: lib/phoenix_kit_web/live/users/users.html.heex:677
 #: lib/phoenix_kit_web/live/users/users.html.heex:791
 #, elixir-autogen, elixir-format
 msgid "Edit"
 msgstr "Edytuj"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:515
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:528
 #, elixir-autogen, elixir-format
 msgid "Edit Note"
 msgstr "Edytuj notatkę"
@@ -1052,7 +1053,7 @@ msgstr "Nie udało się usunąć roli"
 msgid "Failed to delete user"
 msgstr "Nie udało się usunąć użytkownika"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:404
+#: lib/phoenix_kit_web/live/components/user_settings.ex:412
 #, elixir-autogen, elixir-format
 msgid "Failed to disconnect provider. Please try again."
 msgstr "Nie udało się odłączyć dostawcy. Spróbuj ponownie."
@@ -1120,23 +1121,23 @@ msgstr "Moduły funkcji"
 
 #: lib/modules/storage/web/settings.html.heex:140
 #: lib/modules/storage/web/settings.html.heex:156
-#: lib/phoenix_kit/users/auth.ex:3036
+#: lib/phoenix_kit/users/auth.ex:3143
 #, elixir-autogen, elixir-format
 msgid "Files"
 msgstr "Pliki"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:261
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:274
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "First Name"
 msgstr "Imię"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:465
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:478
 #, elixir-autogen, elixir-format
 msgid "Followers"
 msgstr "Obserwujący"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:474
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:487
 #, elixir-autogen, elixir-format
 msgid "Following"
 msgstr "Obserwowani"
@@ -1181,8 +1182,8 @@ msgstr "Obraz"
 
 #: lib/phoenix_kit_web/components/core/badge.ex:103
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:147
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:297
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:686
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:310
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:699
 #: lib/phoenix_kit_web/live/users/users.ex:986
 #: lib/phoenix_kit_web/live/users/users.ex:1139
 #: lib/phoenix_kit_web/live/users/users.html.heex:249
@@ -1242,13 +1243,13 @@ msgstr "Kursywa"
 msgid "Keep me logged in"
 msgstr "Nie wylogowuj mnie"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:267
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:280
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Last Name"
 msgstr "Nazwisko"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:330
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Last Updated"
 msgstr "Ostatnia aktualizacja"
@@ -1273,7 +1274,7 @@ msgstr "Moduł Informacje prawne włączony"
 msgid "Line Break"
 msgstr "Podział wiersza"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:547
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:596
 #: lib/phoenix_kit_web/users/confirmation.html.heex:33
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:119
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:32
@@ -1326,8 +1327,8 @@ msgstr "Musi być unikalna, od 1 do 50 znaków."
 msgid "New to %{project_title}?"
 msgstr "Pierwszy raz w %{project_title}?"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:459
-#: lib/phoenix_kit_web/live/settings/users.html.heex:535
+#: lib/phoenix_kit_web/live/settings/users.html.heex:582
+#: lib/phoenix_kit_web/live/settings/users.html.heex:658
 #: lib/phoenix_kit_web/live/users/user_details.ex:740
 #: lib/phoenix_kit_web/live/users/user_details.ex:741
 #: lib/phoenix_kit_web/live/users/users.ex:1257
@@ -1343,7 +1344,7 @@ msgstr "Nie"
 msgid "No description"
 msgstr "Brak opisu"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:623
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:636
 #, elixir-autogen, elixir-format
 msgid "No notes yet"
 msgstr "Brak notatek"
@@ -1384,7 +1385,7 @@ msgstr "Nieuwierzytelniony"
 msgid "Not configured"
 msgstr "Nieskonfigurowane"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:312
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Not confirmed"
 msgstr "Niepotwierdzony"
@@ -1405,7 +1406,7 @@ msgid "Note updated successfully"
 msgstr "Notatka została zaktualizowana"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:103
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:558
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:571
 #, elixir-autogen, elixir-format
 msgid "Notes"
 msgstr "Notatki"
@@ -1436,7 +1437,7 @@ msgstr "Opcjonalnie"
 msgid "Optional, up to 500 characters."
 msgstr "Opcjonalnie, do 500 znaków."
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:752
+#: lib/phoenix_kit_web/live/settings/users.html.heex:875
 #, elixir-autogen, elixir-format
 msgid "Options"
 msgstr "Opcje"
@@ -1473,7 +1474,7 @@ msgid "Page published successfully"
 msgstr "Strona została opublikowana pomyślnie"
 
 #: lib/phoenix_kit/integrations/providers.ex:1032
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:301
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:342
 #: lib/phoenix_kit_web/live/settings/website_access.html.heex:74
 #: lib/phoenix_kit_web/users/login.html.heex:39
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:42
@@ -1482,12 +1483,12 @@ msgstr "Strona została opublikowana pomyślnie"
 msgid "Password"
 msgstr "Hasło"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:282
+#: lib/phoenix_kit_web/live/components/user_settings.ex:290
 #, elixir-autogen, elixir-format
 msgid "Password changed successfully."
 msgstr "Hasło zostało zmienione."
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:492
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:505
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr "Oczekujące"
@@ -1560,7 +1561,7 @@ msgstr "Ustawienia prywatności"
 msgid "Profile"
 msgstr "Profil"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:343
+#: lib/phoenix_kit_web/live/components/user_settings.ex:351
 #, elixir-autogen, elixir-format
 msgid "Profile updated successfully"
 msgstr "Profil został zaktualizowany"
@@ -1576,7 +1577,7 @@ msgstr "Chronione"
 msgid "Protected core roles"
 msgstr "Chronione role systemowe"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:394
+#: lib/phoenix_kit_web/live/components/user_settings.ex:402
 #, elixir-autogen, elixir-format
 msgid "Provider not found"
 msgstr "Nie znaleziono dostawcy"
@@ -1586,22 +1587,22 @@ msgstr "Nie znaleziono dostawcy"
 msgid "Published"
 msgstr "Opublikowane"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:318
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "Registered"
 msgstr "Zarejestrowano"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:347
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:360
 #, elixir-autogen, elixir-format
 msgid "Registration Details"
 msgstr "Szczegóły rejestracji"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:366
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:379
 #, elixir-autogen, elixir-format
 msgid "Registration IP"
 msgstr "IP rejestracji"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:376
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:389
 #, elixir-autogen, elixir-format
 msgid "Registration Location"
 msgstr "Lokalizacja rejestracji"
@@ -1625,6 +1626,8 @@ msgstr "Odrzuć wszystkie"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:491
 #: lib/phoenix_kit_web/components/media_browser.html.heex:541
 #: lib/phoenix_kit_web/components/media_gallery.html.heex:53
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:269
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:270
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:279
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:311
 #: lib/phoenix_kit_web/live/settings.html.heex:122
@@ -1640,8 +1643,8 @@ msgid "Remove"
 msgstr "Usuń"
 
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:87
-#: lib/phoenix_kit_web/live/settings/users.html.heex:458
-#: lib/phoenix_kit_web/live/settings/users.html.heex:503
+#: lib/phoenix_kit_web/live/settings/users.html.heex:581
+#: lib/phoenix_kit_web/live/settings/users.html.heex:626
 #, elixir-autogen, elixir-format
 msgid "Required"
 msgstr "Wymagane"
@@ -1656,6 +1659,7 @@ msgstr "Odbierz wszystkie"
 msgid "Revoked %{label} from %{role_name}"
 msgstr "Odebrano %{label} roli %{role_name}"
 
+#: lib/phoenix_kit_web/components/core/role_switcher.ex:133
 #: lib/phoenix_kit_web/live/activity/index.html.heex:49
 #: lib/phoenix_kit_web/live/users/roles.html.heex:159
 #: lib/phoenix_kit_web/live/users/users.html.heex:173
@@ -1728,6 +1732,7 @@ msgstr "SWIFT/BIC"
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:356
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:440
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1349
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1623
 #: lib/phoenix_kit_web/live/notifications/settings.ex:436
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:264
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:314
@@ -1773,7 +1778,7 @@ msgstr "Zapisano"
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:417
 #: lib/phoenix_kit_web/live/settings.html.heex:624
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:709
-#: lib/phoenix_kit_web/live/settings/users.html.heex:648
+#: lib/phoenix_kit_web/live/settings/users.html.heex:771
 #, elixir-autogen, elixir-format
 msgid "Saving..."
 msgstr "Zapisywanie…"
@@ -1797,7 +1802,7 @@ msgstr "Wybierz, do których sekcji i modułów ta rola ma dostęp. Możesz przy
 #: lib/modules/storage/web/health.html.heex:5
 #: lib/modules/storage/web/settings.html.heex:5
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:218
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:169
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:170
 #: lib/phoenix_kit_web/live/modules/languages.ex:47
 #: lib/phoenix_kit_web/live/settings.ex:65
 #: lib/phoenix_kit_web/live/settings/authorization.ex:43
@@ -1808,7 +1813,7 @@ msgstr "Wybierz, do których sekcji i modułów ta rola ma dostęp. Możesz przy
 #: lib/phoenix_kit_web/live/settings/organization.ex:50
 #: lib/phoenix_kit_web/live/settings/send_profile_form.ex:22
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:33
-#: lib/phoenix_kit_web/live/settings/users.ex:48
+#: lib/phoenix_kit_web/live/settings/users.ex:51
 #: lib/phoenix_kit_web/live/settings/website_access.ex:53
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:51
 #: lib/phoenix_kit_web/live/users/users.html.heex:710
@@ -1866,13 +1871,13 @@ msgstr "Województwo/Region"
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:109
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:98
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:51
-#: lib/phoenix_kit_web/live/settings/users.html.heex:462
-#: lib/phoenix_kit_web/live/settings/users.html.heex:506
+#: lib/phoenix_kit_web/live/settings/users.html.heex:585
+#: lib/phoenix_kit_web/live/settings/users.html.heex:629
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:114
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:193
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:265
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:294
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:650
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:307
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:663
 #: lib/phoenix_kit_web/live/users/users.html.heex:263
 #: lib/phoenix_kit_web/users/user_form.html.heex:774
 #, elixir-autogen, elixir-format
@@ -1936,7 +1941,7 @@ msgstr "Podatki i rejestracja"
 msgid "Tax ID"
 msgstr "NIP"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:733
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:746
 #, elixir-autogen, elixir-format
 msgid "This action cannot be undone."
 msgstr "Tej operacji nie można cofnąć."
@@ -1947,7 +1952,7 @@ msgstr "Tej operacji nie można cofnąć."
 msgid "This user has been deleted"
 msgstr "Ten użytkownik został usunięty"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:273
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Timezone"
 msgstr "Strefa czasowa"
@@ -1967,9 +1972,9 @@ msgstr "Łącznie ról"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1827
 #: lib/phoenix_kit_web/live/activity/index.html.heex:240
 #: lib/phoenix_kit_web/live/activity/show.html.heex:113
-#: lib/phoenix_kit_web/live/settings/users.html.heex:456
-#: lib/phoenix_kit_web/live/settings/users.html.heex:501
-#: lib/phoenix_kit_web/live/settings/users.html.heex:704
+#: lib/phoenix_kit_web/live/settings/users.html.heex:579
+#: lib/phoenix_kit_web/live/settings/users.html.heex:624
+#: lib/phoenix_kit_web/live/settings/users.html.heex:827
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:186
 #: lib/phoenix_kit_web/live/users/roles.html.heex:92
 #: lib/phoenix_kit_web/live/users/roles.html.heex:160
@@ -1999,12 +2004,12 @@ msgstr "Nieznany"
 msgid "Unsaved changes"
 msgstr "Niezapisane zmiany"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:819
+#: lib/phoenix_kit_web/live/settings/users.html.heex:942
 #, elixir-autogen, elixir-format
 msgid "Update Field"
 msgstr "Zaktualizuj pole"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:540
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:553
 #, elixir-autogen, elixir-format
 msgid "Update Note"
 msgstr "Zaktualizuj notatkę"
@@ -2041,7 +2046,7 @@ msgid "User-defined roles"
 msgstr "Role zdefiniowane przez użytkownika"
 
 #: lib/phoenix_kit/integrations/providers.ex:1020
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:255
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:268
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:30
 #: lib/phoenix_kit_web/users/registration.html.heex:69
 #, elixir-autogen, elixir-format
@@ -2054,7 +2059,7 @@ msgid "Video"
 msgstr "Wideo"
 
 #: lib/phoenix_kit_web/live/activity/index.html.heex:293
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:695
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:708
 #: lib/phoenix_kit_web/live/users/users.html.heex:667
 #: lib/phoenix_kit_web/live/users/users.html.heex:784
 #: lib/phoenix_kit_web/users/user_form.html.heex:813
@@ -2077,13 +2082,13 @@ msgstr "Używamy plików cookie, aby ulepszyć Twoje doświadczenie przeglądani
 msgid "We value your privacy"
 msgstr "Cenimy Twoją prywatność"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:528
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:541
 #, elixir-autogen, elixir-format
 msgid "Write a note about this user..."
 msgstr "Napisz notatkę o tym użytkowniku…"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:459
-#: lib/phoenix_kit_web/live/settings/users.html.heex:533
+#: lib/phoenix_kit_web/live/settings/users.html.heex:582
+#: lib/phoenix_kit_web/live/settings/users.html.heex:656
 #: lib/phoenix_kit_web/live/users/user_details.ex:738
 #: lib/phoenix_kit_web/live/users/user_details.ex:739
 #: lib/phoenix_kit_web/live/users/users.ex:1256
@@ -2136,7 +2141,7 @@ msgstr "Twój panel osobisty jest gotowy. Stąd możesz przejrzeć ustawienia ko
 msgid "always"
 msgstr "zawsze"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:581
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "edited"
 msgstr "edytowano"
@@ -2188,8 +2193,8 @@ msgstr "Usuń zasobnik"
 #: lib/modules/storage/web/settings.html.heex:235
 #: lib/modules/storage/web/settings.html.heex:272
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:128
-#: lib/phoenix_kit_web/live/settings/users.html.heex:563
-#: lib/phoenix_kit_web/live/settings/users.html.heex:609
+#: lib/phoenix_kit_web/live/settings/users.html.heex:686
+#: lib/phoenix_kit_web/live/settings/users.html.heex:732
 #, elixir-autogen, elixir-format
 msgid "Disable"
 msgstr "Wyłącz"
@@ -2205,8 +2210,8 @@ msgstr "Edytuj zasobnik"
 #: lib/modules/storage/web/dimensions.html.heex:466
 #: lib/modules/storage/web/settings.html.heex:235
 #: lib/modules/storage/web/settings.html.heex:272
-#: lib/phoenix_kit_web/live/settings/users.html.heex:564
-#: lib/phoenix_kit_web/live/settings/users.html.heex:611
+#: lib/phoenix_kit_web/live/settings/users.html.heex:687
+#: lib/phoenix_kit_web/live/settings/users.html.heex:734
 #, elixir-autogen, elixir-format
 msgid "Enable"
 msgstr "Włącz"
@@ -2301,7 +2306,7 @@ msgstr "Synchronizowanie…"
 #: lib/phoenix_kit_web/live/activity/show.html.heex:80
 #: lib/phoenix_kit_web/live/users/roles.html.heex:93
 #: lib/phoenix_kit_web/live/users/roles.html.heex:115
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:822
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:835
 #: lib/phoenix_kit_web/live/users/users.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "System"
@@ -2386,7 +2391,7 @@ msgstr "Typ dostępu"
 msgid "Active Buckets"
 msgstr "Aktywne zasobniki"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:371
+#: lib/phoenix_kit_web/live/settings/users.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Active status for new user registrations"
 msgstr "Status aktywny dla nowych rejestracji użytkowników"
@@ -2396,13 +2401,13 @@ msgstr "Status aktywny dla nowych rejestracji użytkowników"
 msgid "Add Bucket"
 msgstr "Dodaj zasobnik"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:492
-#: lib/phoenix_kit_web/live/settings/users.html.heex:663
+#: lib/phoenix_kit_web/live/settings/users.html.heex:615
+#: lib/phoenix_kit_web/live/settings/users.html.heex:786
 #, elixir-autogen, elixir-format
 msgid "Add Custom Field"
 msgstr "Dodaj pole niestandardowe"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:440
+#: lib/phoenix_kit_web/live/settings/users.html.heex:563
 #, elixir-autogen, elixir-format
 msgid "Add First Field"
 msgstr "Dodaj pierwsze pole"
@@ -2433,8 +2438,8 @@ msgstr "Dodaj powyżej adres URL wywołania zwrotnego, aby"
 msgid "Adds"
 msgstr "Dodaje"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:474
-#: lib/phoenix_kit_web/live/settings/users.html.heex:552
+#: lib/phoenix_kit_web/live/settings/users.html.heex:597
+#: lib/phoenix_kit_web/live/settings/users.html.heex:675
 #, elixir-autogen, elixir-format
 msgid "Admin Only"
 msgstr "Tylko administratorzy"
@@ -2445,12 +2450,12 @@ msgstr "Tylko administratorzy"
 msgid "Age"
 msgstr "Wiek"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:352
+#: lib/phoenix_kit_web/live/settings/users.html.heex:353
 #, elixir-autogen, elixir-format
 msgid "All new users will receive administrative privileges and access to the admin panel."
 msgstr "Wszyscy nowi użytkownicy otrzymają uprawnienia administracyjne i dostęp do panelu administracyjnego."
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:85
+#: lib/phoenix_kit_web/live/settings/users.html.heex:86
 #, elixir-autogen, elixir-format
 msgid "Anyone can register"
 msgstr "Każdy może się zarejestrować"
@@ -2508,7 +2513,7 @@ msgstr "Czy jesteś pewien? Spowoduje to usunięcie wszystkich obecnych wymiaró
 msgid "Aspect Ratio"
 msgstr "Proporcje"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:808
+#: lib/phoenix_kit_web/live/settings/users.html.heex:931
 #, elixir-autogen, elixir-format
 msgid "At least one option is required for %{type} fields"
 msgstr "Pola typu %{type} wymagają co najmniej jednej opcji"
@@ -2623,7 +2628,7 @@ msgstr "Skonfiguruj szablony wymiarów do automatycznego generowania wariantów 
 msgid "Configure system preferences and options"
 msgstr "Skonfiguruj preferencje i opcje systemu"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:355
+#: lib/phoenix_kit_web/live/settings/users.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Consider \"User\" for most installations to maintain security."
 msgstr "W większości instalacji rozważ „Użytkownik”, aby zachować bezpieczeństwo."
@@ -2701,7 +2706,7 @@ msgstr "Utwórz pierwszy szablon wymiarów, aby zacząć generować warianty pli
 msgid "Currently in use"
 msgstr "Obecnie w użyciu"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:75
+#: lib/phoenix_kit_web/live/settings/users.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Custom User Fields"
 msgstr "Niestandardowe pola użytkownika"
@@ -2716,7 +2721,7 @@ msgstr "Format daty"
 msgid "Default Bucket"
 msgstr "Domyślny zasobnik"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:421
+#: lib/phoenix_kit_web/live/settings/users.html.heex:544
 #, elixir-autogen, elixir-format
 msgid "Define additional profile fields for users"
 msgstr "Zdefiniuj dodatkowe pola profilu użytkowników"
@@ -2736,7 +2741,7 @@ msgstr "Szablony wymiarów"
 msgid "Dimensions define the target sizes for automatic variant generation. Images are resized and videos are transcoded to these preset sizes."
 msgstr "Wymiary określają rozmiary docelowe automatycznego generowania wariantów. Obrazy są skalowane, a wideo transkodowane do tych rozmiarów."
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:662
+#: lib/phoenix_kit_web/live/settings/users.html.heex:785
 #, elixir-autogen, elixir-format
 msgid "Edit Custom Field"
 msgstr "Edytuj pole niestandardowe"
@@ -2772,7 +2777,7 @@ msgstr "Wprowadź"
 msgid "Enter number of copies"
 msgstr "Wpisz liczbę kopii"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:785
+#: lib/phoenix_kit_web/live/settings/users.html.heex:908
 #, elixir-autogen, elixir-format
 msgid "Enter option value"
 msgstr "Wpisz wartość opcji"
@@ -2807,12 +2812,12 @@ msgstr "Dane OAuth Facebooka"
 msgid "Facebook Sign-In"
 msgstr "Logowanie przez Facebooka"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:499
+#: lib/phoenix_kit_web/live/settings/users.html.heex:622
 #, elixir-autogen, elixir-format
 msgid "Field"
 msgstr "Pole"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:670
+#: lib/phoenix_kit_web/live/settings/users.html.heex:793
 #, elixir-autogen, elixir-format
 msgid "Field Key"
 msgstr "Klucz pola"
@@ -2914,14 +2919,14 @@ msgstr "Obrazy używają skali 1–100 (jakość kompresji)"
 msgid "Installation:"
 msgstr "Instalacja:"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:455
-#: lib/phoenix_kit_web/live/settings/users.html.heex:524
+#: lib/phoenix_kit_web/live/settings/users.html.heex:578
+#: lib/phoenix_kit_web/live/settings/users.html.heex:647
 #, elixir-autogen, elixir-format
 msgid "Key:"
 msgstr "Klucz:"
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:421
-#: lib/phoenix_kit_web/live/settings/users.html.heex:690
+#: lib/phoenix_kit_web/live/settings/users.html.heex:813
 #, elixir-autogen, elixir-format
 msgid "Label"
 msgstr "Etykieta"
@@ -2948,7 +2953,7 @@ msgstr "Lokalny system plików"
 msgid "Login Page Branding"
 msgstr "Wygląd strony logowania"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:682
+#: lib/phoenix_kit_web/live/settings/users.html.heex:805
 #, elixir-autogen, elixir-format
 msgid "Lowercase letters, numbers, underscores only"
 msgstr "Tylko małe litery, cyfry i podkreślenia"
@@ -2978,7 +2983,7 @@ msgstr "Zarządzaj szablonami wymiarów do automatycznego generowania instancji 
 msgid "Manage login page branding and authentication methods"
 msgstr "Zarządzaj wyglądem strony logowania i metodami uwierzytelniania"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:46
+#: lib/phoenix_kit_web/live/settings/users.ex:49
 #, elixir-autogen, elixir-format
 msgid "Manage user registration, defaults, and custom fields"
 msgstr "Zarządzaj rejestracją użytkowników, wartościami domyślnymi i polami niestandardowymi"
@@ -3000,22 +3005,22 @@ msgstr "Maksymalnie %{count} kopii na podstawie %{buckets} aktywnych zasobników
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:107
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:19
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:47
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:648
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:661
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr "Nazwa"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:318
+#: lib/phoenix_kit_web/live/settings/users.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "New User Default Role"
 msgstr "Domyślna rola nowego użytkownika"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:368
+#: lib/phoenix_kit_web/live/settings/users.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "New User Default Status"
 msgstr "Domyślny status nowego użytkownika"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:402
+#: lib/phoenix_kit_web/live/settings/users.html.heex:403
 #, elixir-autogen, elixir-format
 msgid "New users will be created as inactive and will not be able to log in until an admin activates their account."
 msgstr "Nowi użytkownicy będą tworzeni jako nieaktywni i nie będą mogli się zalogować, dopóki administrator nie aktywuje ich konta."
@@ -3035,7 +3040,7 @@ msgstr "Nie znaleziono aktywnych sesji."
 msgid "No changes to apply"
 msgstr "Brak zmian do zastosowania"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:433
+#: lib/phoenix_kit_web/live/settings/users.html.heex:556
 #, elixir-autogen, elixir-format
 msgid "No custom fields defined yet"
 msgstr "Nie zdefiniowano jeszcze pól niestandardowych"
@@ -3098,7 +3103,7 @@ msgstr "Dostępny tylko 1 aktywny zasobnik. Dodaj więcej zasobników, aby włą
 msgid "Original"
 msgstr "Oryginał"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:696
+#: lib/phoenix_kit_web/live/settings/users.html.heex:819
 #, elixir-autogen, elixir-format
 msgid "Phone Number"
 msgstr "Numer telefonu"
@@ -3108,7 +3113,7 @@ msgstr "Numer telefonu"
 msgid "Preserve original"
 msgstr "Zachowaj oryginał"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:183
+#: lib/phoenix_kit_web/live/settings/users.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "Privacy Notice: IP Geolocation Data"
 msgstr "Informacja o prywatności: dane geolokalizacji IP"
@@ -3158,13 +3163,13 @@ msgstr "Kopie nadmiarowe"
 msgid "Reload OAuth Configuration"
 msgstr "Wczytaj ponownie konfigurację OAuth"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:725
+#: lib/phoenix_kit_web/live/settings/users.html.heex:848
 #, elixir-autogen, elixir-format
 msgid "Required field"
 msgstr "Pole wymagane"
 
 #: lib/phoenix_kit_web/components/core/column_settings.ex:136
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1104
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1174
 #: lib/phoenix_kit_web/live/settings.html.heex:640
 #, elixir-autogen, elixir-format
 msgid "Reset"
@@ -3198,7 +3203,7 @@ msgstr "Dyrektywa robots"
 msgid "Role actions"
 msgstr "Akcje roli"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:321
+#: lib/phoenix_kit_web/live/settings/users.html.heex:322
 #, elixir-autogen, elixir-format
 msgid "Role assigned to new user registrations"
 msgstr "Rola przypisywana nowym rejestracjom"
@@ -3213,7 +3218,7 @@ msgstr "Zapisz wszystkie ustawienia"
 msgid "Save Authorization Settings"
 msgstr "Zapisz ustawienia autoryzacji"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:650
+#: lib/phoenix_kit_web/live/settings/users.html.heex:773
 #, elixir-autogen, elixir-format
 msgid "Save User Settings"
 msgstr "Zapisz ustawienia użytkowników"
@@ -3230,12 +3235,12 @@ msgstr "Wyszukiwarki mają pomijać to środowisko. Usuń to przed uruchomieniem
 msgid "Secret Access Key"
 msgstr "Tajny klucz dostępu"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:399
+#: lib/phoenix_kit_web/live/settings/users.html.heex:400
 #, elixir-autogen, elixir-format
 msgid "Security Notice: Inactive Default"
 msgstr "Uwaga dotycząca bezpieczeństwa: domyślnie nieaktywny"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:349
+#: lib/phoenix_kit_web/live/settings/users.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "Security Notice: Medium Risk"
 msgstr "Uwaga dotycząca bezpieczeństwa: średnie ryzyko"
@@ -3278,7 +3283,7 @@ msgstr "Ustaw"
 msgid "Setup Instructions"
 msgstr "Instrukcje konfiguracji"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:103
+#: lib/phoenix_kit_web/live/settings/users.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Show username field on registration"
 msgstr "Pokaż pole nazwy użytkownika przy rejestracji"
@@ -3336,7 +3341,7 @@ msgstr "Docelowa szerokość (px)"
 msgid "Test Credentials"
 msgstr "Testuj dane logowania"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:405
+#: lib/phoenix_kit_web/live/settings/users.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "The first user (Owner) will always be active regardless of this setting."
 msgstr "Pierwszy użytkownik (właściciel) będzie zawsze aktywny niezależnie od tego ustawienia."
@@ -3377,12 +3382,12 @@ msgstr "Token"
 msgid "Total Buckets"
 msgstr "Łącznie zasobników"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:97
+#: lib/phoenix_kit_web/live/settings/users.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Track user registration location"
 msgstr "Śledź lokalizację rejestracji użytkowników"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:801
+#: lib/phoenix_kit_web/live/settings/users.html.heex:924
 #, elixir-autogen, elixir-format
 msgid "Type an option and press Enter or click Add"
 msgstr "Wpisz opcję i naciśnij Enter lub kliknij Dodaj"
@@ -3393,14 +3398,14 @@ msgstr "Wpisz opcję i naciśnij Enter lub kliknij Dodaj"
 msgid "User"
 msgstr "Użytkownik"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:470
-#: lib/phoenix_kit_web/live/settings/users.html.heex:509
+#: lib/phoenix_kit_web/live/settings/users.html.heex:593
+#: lib/phoenix_kit_web/live/settings/users.html.heex:632
 #, elixir-autogen, elixir-format
 msgid "User Access"
 msgstr "Dostęp użytkownika"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:473
-#: lib/phoenix_kit_web/live/settings/users.html.heex:548
+#: lib/phoenix_kit_web/live/settings/users.html.heex:596
+#: lib/phoenix_kit_web/live/settings/users.html.heex:671
 #, elixir-autogen, elixir-format
 msgid "User Editable"
 msgstr "Edytowalne przez użytkownika"
@@ -3411,12 +3416,12 @@ msgstr "Edytowalne przez użytkownika"
 msgid "User actions"
 msgstr "Akcje użytkownika"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:738
+#: lib/phoenix_kit_web/live/settings/users.html.heex:861
 #, elixir-autogen, elixir-format
 msgid "User can edit this field"
 msgstr "Użytkownik może edytować to pole"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:189
+#: lib/phoenix_kit_web/live/settings/users.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "Uses free APIs: IP-API.com (45 requests/minute) with ipapi.co (1000 requests/day) fallback. Defaults to OFF for privacy."
 msgstr "Używa darmowych API: IP-API.com (45 zapytań/minutę) z ipapi.co (1000 zapytań/dzień) jako zapasowym. Domyślnie wyłączone z uwagi na prywatność."
@@ -3458,12 +3463,12 @@ msgstr "Początek tygodnia"
 msgid "When a file is requested, the system automatically tries each location until it successfully retrieves the file."
 msgstr "Gdy plik jest żądany, system automatycznie sprawdza każdą lokalizację, aż go pobierze."
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:741
+#: lib/phoenix_kit_web/live/settings/users.html.heex:864
 #, elixir-autogen, elixir-format
 msgid "When checked, users can view and edit this field on their settings page. When unchecked, only admins can edit it."
 msgstr "Gdy zaznaczone, użytkownicy mogą widzieć i edytować to pole na stronie swoich ustawień. W przeciwnym razie może je edytować tylko administrator."
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:186
+#: lib/phoenix_kit_web/live/settings/users.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "When enabled, registration IP addresses and approximate location data (country, region, city) will be collected for analytics."
 msgstr "Po włączeniu adresy IP rejestracji i przybliżone dane lokalizacji (kraj, region, miasto) będą zbierane do analiz."
@@ -3556,7 +3561,7 @@ msgstr "nagłówek jest ustawiony na"
 msgid "mode"
 msgstr "tryb"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:754
+#: lib/phoenix_kit_web/live/settings/users.html.heex:877
 #, elixir-autogen, elixir-format
 msgid "option(s)"
 msgstr "opcja/opcje"
@@ -3800,7 +3805,7 @@ msgstr "Dodaj integrację"
 msgid "Add credits (optional)"
 msgstr "Dodaj kredyty (opcjonalnie)"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:642
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "Add members from the user edit page"
 msgstr "Dodaj członków na stronie edycji użytkownika"
@@ -3845,7 +3850,7 @@ msgstr "Czy na pewno chcesz odłączyć to konto?"
 msgid "Are you sure you want to disconnect?"
 msgstr "Czy na pewno chcesz odłączyć?"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:705
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:718
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to remove this member?"
 msgstr "Czy na pewno chcesz usunąć tego członka?"
@@ -3860,7 +3865,7 @@ msgstr "Autoryzacja nie powiodła się: %{reason}"
 msgid "Authorize access to your %{provider} account. This will open a sign-in page where you choose which account to connect."
 msgstr "Zezwól na dostęp do swojego konta %{provider}. Otworzy się strona logowania, na której wybierzesz konto do połączenia."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:825
+#: lib/phoenix_kit_web/live/components/user_settings.ex:895
 #, elixir-autogen, elixir-format
 msgid "Avatar updated successfully!"
 msgstr "Awatar został zaktualizowany!"
@@ -4175,7 +4180,7 @@ msgstr "Włącz podatek"
 msgid "Enable bucket"
 msgstr "Włącz zasobnik"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:109
+#: lib/phoenix_kit_web/live/settings/users.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Enable organization accounts"
 msgstr "Włącz konta organizacji"
@@ -4248,7 +4253,7 @@ msgstr "Nie udało się usunąć członka"
 msgid "Failed to save"
 msgstr "Nie udało się zapisać"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:589
+#: lib/phoenix_kit_web/live/components/user_settings.ex:617
 #, elixir-autogen, elixir-format
 msgid "Failed to save notification preferences."
 msgstr "Nie udało się zapisać preferencji powiadomień."
@@ -4258,7 +4263,7 @@ msgstr "Nie udało się zapisać preferencji powiadomień."
 msgid "Failed to send invitation"
 msgstr "Nie udało się wysłać zaproszenia"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:833
+#: lib/phoenix_kit_web/live/components/user_settings.ex:903
 #, elixir-autogen, elixir-format
 msgid "Failed to update avatar"
 msgstr "Nie udało się zaktualizować awatara"
@@ -4381,7 +4386,7 @@ msgid "Integration deleted"
 msgstr "Integracja usunięta"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:308
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1698
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1806
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:10
 #: lib/phoenix_kit_web/live/settings/integrations.ex:31
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:75
@@ -4575,7 +4580,7 @@ msgstr "Brak skonfigurowanych integracji."
 msgid "No integrations match your search."
 msgstr "Żadna integracja nie odpowiada wyszukiwaniu."
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:641
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:654
 #: lib/phoenix_kit_web/users/user_form.html.heex:764
 #, elixir-autogen, elixir-format
 msgid "No members yet"
@@ -4607,13 +4612,13 @@ msgstr "Niepołączone"
 msgid "Not tested"
 msgstr "Nietestowane"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:582
+#: lib/phoenix_kit_web/live/components/user_settings.ex:610
 #: lib/phoenix_kit_web/live/notifications/settings.ex:66
 #, elixir-autogen, elixir-format
 msgid "Notification preferences saved."
 msgstr "Preferencje powiadomień zapisane."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1536
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1644
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:483
 #: lib/phoenix_kit_web/live/settings.html.heex:382
 #, elixir-autogen, elixir-format
@@ -4644,8 +4649,8 @@ msgstr "Org."
 #: lib/phoenix_kit_web/live/settings/organization.ex:45
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:160
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:184
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:214
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:228
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:217
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:234
 #: lib/phoenix_kit_web/live/users/users.html.heex:203
 #: lib/phoenix_kit_web/users/registration.html.heex:136
 #: lib/phoenix_kit_web/users/user_form.html.heex:195
@@ -4654,13 +4659,13 @@ msgstr "Org."
 msgid "Organization"
 msgstr "Organizacja"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:637
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:650
 #: lib/phoenix_kit_web/users/user_form.html.heex:728
 #, elixir-autogen, elixir-format
 msgid "Organization Members"
 msgstr "Członkowie organizacji"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:220
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:226
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:58
 #: lib/phoenix_kit_web/users/registration.html.heex:148
 #: lib/phoenix_kit_web/users/user_form.html.heex:206
@@ -4684,6 +4689,7 @@ msgid "Per-user inbox driven by the activity feed"
 msgstr "Skrzynka dla użytkownika oparta na strumieniu aktywności"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:161
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:218
 #: lib/phoenix_kit_web/live/users/users.html.heex:202
 #: lib/phoenix_kit_web/users/registration.html.heex:130
 #: lib/phoenix_kit_web/users/user_form.html.heex:185
@@ -4691,7 +4697,7 @@ msgstr "Skrzynka dla użytkownika oparta na strumieniu aktywności"
 msgid "Personal"
 msgstr "Osoba prywatna"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1575
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1683
 #, elixir-autogen, elixir-format
 msgid "Pick which notification types you want to receive. Unchecked types are muted — activities still record in the audit log but no bell notification is created for you."
 msgstr "Wybierz, jakie typy powiadomień chcesz otrzymywać. Niezaznaczone typy są wyciszone — aktywności nadal są zapisywane w dzienniku audytu, ale powiadomienie w dzwonku nie jest tworzone."
@@ -4741,7 +4747,7 @@ msgstr "Jakość i format"
 msgid "Redundancy target: %{n} copies"
 msgstr "Docelowa nadmiarowość: %{n} kopii"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:704
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:717
 #: lib/phoenix_kit_web/users/user_form.html.heex:822
 #, elixir-autogen, elixir-format
 msgid "Remove from organization"
@@ -4772,7 +4778,7 @@ msgstr "Zapisz zasobnik"
 msgid "Save Tax Settings"
 msgstr "Zapisz ustawienia podatkowe"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1605
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1713
 #: lib/phoenix_kit_web/live/notifications/settings.ex:348
 #, elixir-autogen, elixir-format
 msgid "Save preferences"
@@ -5458,8 +5464,8 @@ msgstr "Dostępne"
 msgid "Body Saved"
 msgstr "Treść zapisana"
 
-#: lib/phoenix_kit/users/auth.ex:3023
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:405
+#: lib/phoenix_kit/users/auth.ex:3130
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:433
 #: lib/phoenix_kit_web/live/modules.ex:124
 #: lib/phoenix_kit_web/live/users/media_detail.html.heex:296
 #, elixir-autogen, elixir-format
@@ -5874,7 +5880,7 @@ msgstr "Encje"
 
 #: lib/modules/sitemap/web/settings.html.heex:141
 #: lib/modules/sitemap/web/settings.html.heex:321
-#: lib/phoenix_kit/users/auth.ex:3021
+#: lib/phoenix_kit/users/auth.ex:3128
 #: lib/phoenix_kit_web/live/modules.ex:136
 #, elixir-autogen
 msgid "Posts"
@@ -6265,7 +6271,7 @@ msgstr "Usunięte pliki pojawią się tutaj"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:814
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1603
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2233
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:351
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:379
 #, elixir-autogen, elixir-format
 msgid "Download"
 msgstr "Pobierz"
@@ -6327,7 +6333,7 @@ msgstr "Foldery"
 msgid "Image Missing"
 msgstr "Brak obrazu"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:373
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:401
 #, elixir-autogen, elixir-format
 msgid "MIME:"
 msgstr "MIME:"
@@ -6461,7 +6467,7 @@ msgstr "Zaznacz wszystko"
 msgid "Show folders"
 msgstr "Pokaż foldery"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:377
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:405
 #, elixir-autogen, elixir-format
 msgid "Size:"
 msgstr "Rozmiar:"
@@ -6487,7 +6493,7 @@ msgstr "Kosz"
 msgid "Trash is empty."
 msgstr "Kosz jest pusty."
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:367
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:395
 #, elixir-autogen, elixir-format
 msgid "Type:"
 msgstr "Typ:"
@@ -6521,12 +6527,12 @@ msgstr[0] "Przesyłanie udane! Przetworzono %{count} nowy plik"
 msgstr[1] "Przesyłanie udane! Przetworzono %{count} nowe pliki"
 msgstr[2] "Przesyłanie udane! Przetworzono %{count} nowych plików"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:381
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Uploaded:"
 msgstr "Przesłano:"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:183
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "Your browser does not support the video tag."
 msgstr "Twoja przeglądarka nie obsługuje elementu wideo."
@@ -6582,8 +6588,8 @@ msgstr[0] "dodano %{count} nowy plik"
 msgstr[1] "dodano %{count} nowe pliki"
 msgstr[2] "dodano %{count} nowych plików"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:239
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:369
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:244
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:397
 #, elixir-autogen, elixir-format
 msgid "FILE"
 msgstr "PLIK"
@@ -6800,8 +6806,8 @@ msgstr "Odpowiedz"
 msgid "Are you sure you want to delete this comment?"
 msgstr "Czy na pewno chcesz usunąć ten komentarz?"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1449
-#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1450
+#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1453
+#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1454
 #, elixir-autogen, elixir-format
 msgid "%b %d, %Y"
 msgstr "%d %b %Y"
@@ -7576,7 +7582,7 @@ msgstr "Wyczyść filtry"
 msgid "Date & Time"
 msgstr "Data i godzina"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:361
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:389
 #: lib/phoenix_kit_web/live/activity/index.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "Details"
@@ -7686,7 +7692,7 @@ msgid "Blog posts, categories, and content publishing"
 msgstr "Wpisy blogowe, kategorie i publikowanie treści"
 
 #: lib/phoenix_kit_web/live/modules.ex:122
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:394
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "CRM"
 msgstr "CRM"
@@ -7947,8 +7953,8 @@ msgstr "Czy na pewno chcesz potwierdzić adres e-mail tego użytkownika?"
 msgid "Are you sure you want to deactivate this user?"
 msgstr "Czy na pewno chcesz dezaktywować tego użytkownika?"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:591
-#: lib/phoenix_kit_web/live/settings/users.html.heex:627
+#: lib/phoenix_kit_web/live/settings/users.html.heex:714
+#: lib/phoenix_kit_web/live/settings/users.html.heex:750
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this field?"
 msgstr "Czy na pewno chcesz usunąć to pole?"
@@ -8048,12 +8054,12 @@ msgstr "Potwierdzony e-mail"
 msgid "Current Page"
 msgstr "Bieżąca strona"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:280
+#: lib/phoenix_kit_web/live/settings/users.ex:288
 #, elixir-autogen, elixir-format
 msgid "Custom field deleted successfully"
 msgstr "Pole niestandardowe zostało usunięte"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:200
+#: lib/phoenix_kit_web/live/settings/users.ex:208
 #, elixir-autogen, elixir-format
 msgid "Custom field saved successfully"
 msgstr "Pole niestandardowe zostało zapisane"
@@ -8068,17 +8074,17 @@ msgstr "Dostosuj kolumny tabeli"
 msgid "Drag to reorder selected columns above, or add new columns from the options below. Actions column is always included."
 msgstr "Przeciągnij, aby zmienić kolejność wybranych kolumn powyżej, lub dodaj nowe kolumny z opcji poniżej. Kolumna Akcje jest zawsze uwzględniona."
 
-#: lib/phoenix_kit_web/live/settings/users.ex:285
+#: lib/phoenix_kit_web/live/settings/users.ex:293
 #, elixir-autogen, elixir-format
 msgid "Failed to delete custom field"
 msgstr "Nie udało się usunąć pola niestandardowego"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:213
+#: lib/phoenix_kit_web/live/settings/users.ex:221
 #, elixir-autogen, elixir-format
 msgid "Failed to save custom field"
 msgstr "Nie udało się zapisać pola niestandardowego"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:314
+#: lib/phoenix_kit_web/live/settings/users.ex:322
 #, elixir-autogen, elixir-format
 msgid "Failed to update field"
 msgstr "Nie udało się zaktualizować pola"
@@ -8111,17 +8117,17 @@ msgstr "Nie udało się zaktualizować ról użytkownika"
 msgid "Failed to update user status"
 msgstr "Nie udało się zaktualizować statusu użytkownika"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:307
+#: lib/phoenix_kit_web/live/settings/users.ex:315
 #, elixir-autogen, elixir-format
 msgid "Field '%{label}' disabled"
 msgstr "Pole „%{label}” wyłączone"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:306
+#: lib/phoenix_kit_web/live/settings/users.ex:314
 #, elixir-autogen, elixir-format
 msgid "Field '%{label}' enabled"
 msgstr "Pole „%{label}” włączone"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:318
+#: lib/phoenix_kit_web/live/settings/users.ex:326
 #, elixir-autogen, elixir-format
 msgid "Field not found"
 msgstr "Nie znaleziono pola"
@@ -8176,7 +8182,7 @@ msgstr "Brak aktywnych sesji"
 msgid "No columns selected yet"
 msgstr "Nie wybrano jeszcze kolumn"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:383
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:396
 #: lib/phoenix_kit_web/live/users/users.html.heex:639
 #, elixir-autogen, elixir-format
 msgid "No data"
@@ -8188,7 +8194,7 @@ msgstr "Brak danych"
 msgid "No roles"
 msgstr "Brak ról"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:836
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:849
 #: lib/phoenix_kit_web/live/users/users.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "No roles available. Create roles first in Role Management."
@@ -8216,7 +8222,7 @@ msgstr "Nie ustawiono"
 msgid "Owner role cannot be assigned manually"
 msgstr "Roli Właściciel nie można przypisać ręcznie"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:808
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:821
 #: lib/phoenix_kit_web/live/users/users.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Owner role cannot be modified"
@@ -8333,7 +8339,7 @@ msgstr "Łącznie sesji"
 msgid "Try adjusting your search or filter criteria."
 msgstr "Spróbuj zmienić kryteria wyszukiwania lub filtrowania."
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:842
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:855
 #: lib/phoenix_kit_web/live/users/users.html.heex:72
 #, elixir-autogen, elixir-format
 msgid "Update Roles"
@@ -8374,7 +8380,7 @@ msgstr "Potwierdzenie adresu e-mail użytkownika zostało anulowane"
 msgid "User roles updated successfully"
 msgstr "Role użytkownika zostały zaktualizowane"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:113
+#: lib/phoenix_kit_web/live/settings/users.ex:121
 #, elixir-autogen, elixir-format
 msgid "User settings updated successfully"
 msgstr "Ustawienia użytkownika zostały zaktualizowane"
@@ -8439,7 +8445,7 @@ msgstr "Wczytaj więcej"
 msgid "Loading…"
 msgstr "Wczytywanie…"
 
-#: lib/phoenix_kit_web/users/session.ex:115
+#: lib/phoenix_kit_web/users/session.ex:116
 #, elixir-autogen, elixir-format
 msgid "Logged out. Now signed in as %{email}."
 msgstr "Wylogowano. Teraz jesteś zalogowany jako %{email}."
@@ -8480,7 +8486,7 @@ msgstr "Zmień kolejność 1 wybranego %{noun} (pozostałe wiersze zostają na m
 msgid "Showing %{loaded} of %{total} %{noun}"
 msgstr "Wyświetlanie %{loaded} z %{total} %{noun}"
 
-#: lib/phoenix_kit_web/users/session.ex:270
+#: lib/phoenix_kit_web/users/session.ex:342
 #, elixir-autogen, elixir-format
 msgid "Switched to %{email}."
 msgstr "Przełączono na %{email}."
@@ -8570,7 +8576,8 @@ msgstr "Wyświetl status i historię zadań w tle"
 msgid "AI models via OpenAI (GPT, embeddings, images, audio)"
 msgstr "Modele AI przez OpenAI (GPT, embeddingi, obrazy, audio)"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:420
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:469
+#: lib/phoenix_kit_web/live/settings/users.ex:397
 #, elixir-autogen, elixir-format
 msgid "Account menu"
 msgstr "Menu konta"
@@ -8794,7 +8801,7 @@ msgstr "Nazwa folderu"
 msgid "Folder name can't be blank"
 msgstr "Nazwa folderu nie może być pusta"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:549
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:598
 #, elixir-autogen, elixir-format
 msgid "Forgot password"
 msgstr "Nie pamiętam hasła"
@@ -8863,7 +8870,7 @@ msgstr "Ikona"
 msgid "If your account belongs to multiple organizations, keys are scoped to the org selected when the key was created."
 msgstr "Jeśli Twoje konto należy do wielu organizacji, klucze są ograniczone do organizacji wybranej przy ich tworzeniu."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:491
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:540
 #, elixir-autogen, elixir-format
 msgid "Language"
 msgstr "Język"
@@ -8887,7 +8894,7 @@ msgstr "Największe najpierw"
 msgid "List"
 msgstr "Lista"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:550
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:599
 #, elixir-autogen, elixir-format
 msgid "Magic link"
 msgstr "Magiczny link"
@@ -8938,7 +8945,7 @@ msgstr "Brak obrazów"
 msgid "No media yet."
 msgstr "Brak mediów."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:438
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:487
 #, elixir-autogen, elixir-format
 msgid "Not signed in"
 msgstr "Nie zalogowano"
@@ -9018,7 +9025,7 @@ msgstr "Pokaż ikonę"
 msgid "Show title"
 msgstr "Pokaż tytuł"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:548
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:597
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr "Zarejestruj się"
@@ -9218,7 +9225,7 @@ msgstr "Phoenix ciemny"
 msgid "Phoenix Light"
 msgstr "Phoenix jasny"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:214
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "Play / Pause"
 msgstr "Odtwórz / Wstrzymaj"
@@ -9258,12 +9265,12 @@ msgstr "Zima"
 msgid "Wireframe"
 msgstr "Wireframe"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:232
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "Your browser does not support the audio tag."
 msgstr "Twoja przeglądarka nie obsługuje elementu audio."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:261
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:302
 #, elixir-autogen, elixir-format
 msgid "Log Out"
 msgstr "Wyloguj się"
@@ -9297,7 +9304,7 @@ msgstr "Zaloguj się jako użytkownik"
 msgid "Sign in to %{project_title}"
 msgstr "Zaloguj się do %{project_title}"
 
-#: lib/phoenix_kit_web/live/dashboard.ex:214
+#: lib/phoenix_kit_web/live/dashboard.ex:307
 #: lib/phoenix_kit_web/users/login.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Welcome back"
@@ -9722,7 +9729,7 @@ msgid "Email Pending"
 msgstr "E-mail oczekuje"
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:153
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:248
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Email Unconfirmed"
 msgstr "E-mail niepotwierdzony"
@@ -9742,7 +9749,7 @@ msgstr "Adres IP"
 msgid "Location"
 msgstr "Lokalizacja"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:351
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:364
 #, elixir-autogen, elixir-format
 msgid "Location tracking is off, so this user has no registration location."
 msgstr "Śledzenie lokalizacji jest wyłączone, więc ten użytkownik nie ma lokalizacji rejestracji."
@@ -9852,7 +9859,7 @@ msgstr "To żądanie logowania wygasło lub nie jest już prawidłowe."
 msgid "This sign-in was already handled."
 msgstr "To logowanie zostało już obsłużone."
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:358
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:371
 #, elixir-autogen, elixir-format
 msgid "Turn it on in Settings > Users."
 msgstr "Włącz je w „Ustawienia > Użytkownicy”."
@@ -9869,7 +9876,7 @@ msgstr "Anuluj potwierdzenie e-maila"
 msgid "Use a phone that's already signed in to %{project_title}."
 msgstr "Użyj telefonu, na którym jesteś już zalogowany w %{project_title}."
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:288
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:301
 #, elixir-autogen, elixir-format
 msgid "User UUID"
 msgstr "UUID użytkownika"
@@ -9879,44 +9886,44 @@ msgstr "UUID użytkownika"
 msgid "You can close this page."
 msgstr "Możesz zamknąć tę stronę."
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:183
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:191
 #, elixir-autogen, elixir-format
 msgid "Accounts"
 msgstr "Konta"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:394
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:443
 #, elixir-autogen, elixir-format
 msgid "Add Facebook account"
 msgstr "Dodaj konto Facebook"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:382
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:431
 #, elixir-autogen, elixir-format
 msgid "Add GitHub account"
 msgstr "Dodaj konto GitHub"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:370
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:419
 #, elixir-autogen, elixir-format
 msgid "Add Google account"
 msgstr "Dodaj konto Google"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:247
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:283
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:313
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:287
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:324
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:354
 #, elixir-autogen, elixir-format
 msgid "Add account"
 msgstr "Dodaj konto"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:292
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:333
 #, elixir-autogen, elixir-format
 msgid "Email or username"
 msgstr "E-mail lub nazwa użytkownika"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:273
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:314
 #, elixir-autogen, elixir-format
 msgid "Log out from all accounts"
 msgstr "Wyloguj się ze wszystkich kont"
 
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:359
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:408
 #, elixir-autogen, elixir-format
 msgid "Or add via"
 msgstr "Lub dodaj przez"
@@ -10039,12 +10046,12 @@ msgstr "xAI"
 msgid "xAI requires a funded account before the API will return completions"
 msgstr "xAI wymaga zasilonego konta, aby API zwracało uzupełnienia"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:665
+#: lib/phoenix_kit_web/live/components/user_settings.ex:735
 #, elixir-autogen, elixir-format
 msgid "Active now"
 msgstr "Aktywny teraz"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1632
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1740
 #, elixir-autogen, elixir-format
 msgid "Devices currently signed in to your account. If you don't recognize one, sign it out."
 msgstr "Urządzenia obecnie zalogowane na Twoje konto. Jeśli któregoś nie rozpoznajesz, wyloguj je."
@@ -10059,58 +10066,58 @@ msgstr "Nowe logowanie na Twoje konto z %{details}."
 msgid "New sign-in to your account."
 msgstr "Nowe logowanie na Twoje konto."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1665
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1773
 #, elixir-autogen, elixir-format
 msgid "Sign out"
 msgstr "Wyloguj się"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1676
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1784
 #, elixir-autogen, elixir-format
 msgid "Sign out of all other sessions?"
 msgstr "Wylogować się ze wszystkich innych sesji?"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1679
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1787
 #, elixir-autogen, elixir-format
 msgid "Sign out other sessions"
 msgstr "Wyloguj inne sesje"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:616
+#: lib/phoenix_kit_web/live/components/user_settings.ex:644
 #, elixir-autogen, elixir-format
 msgid "Signed out of all other sessions."
 msgstr "Wylogowano ze wszystkich innych sesji."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:599
+#: lib/phoenix_kit_web/live/components/user_settings.ex:627
 #, elixir-autogen, elixir-format
 msgid "Signed out of that session."
 msgstr "Wylogowano z tej sesji."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:600
+#: lib/phoenix_kit_web/live/components/user_settings.ex:628
 #, elixir-autogen, elixir-format
 msgid "That session is no longer active."
 msgstr "Ta sesja nie jest już aktywna."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1649
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1757
 #, elixir-autogen, elixir-format
 msgid "This device"
 msgstr "To urządzenie"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:657
+#: lib/phoenix_kit_web/live/components/user_settings.ex:727
 #: lib/phoenix_kit_web/live/users/sessions.ex:307
 #, elixir-autogen, elixir-format
 msgid "Unknown device"
 msgstr "Nieznane urządzenie"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:679
+#: lib/phoenix_kit_web/live/components/user_settings.ex:749
 #, elixir-autogen, elixir-format
 msgid "Active %{date} at %{time}"
 msgstr "Aktywny %{date} o %{time}"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:673
+#: lib/phoenix_kit_web/live/components/user_settings.ex:743
 #, elixir-autogen, elixir-format
 msgid "Active today at %{time}"
 msgstr "Aktywny dziś o %{time}"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:676
+#: lib/phoenix_kit_web/live/components/user_settings.ex:746
 #, elixir-autogen, elixir-format
 msgid "Active yesterday at %{time}"
 msgstr "Aktywny wczoraj o %{time}"
@@ -10125,24 +10132,26 @@ msgstr "Według przeglądarki"
 msgid "By operating system"
 msgstr "Według systemu operacyjnego"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:294
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:299
 #, elixir-autogen, elixir-format
 msgid "Failed to save rotation"
 msgstr "Nie udało się zapisać obrotu"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:262
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:265
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:267
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:270
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:351
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:352
 #, elixir-autogen, elixir-format
 msgid "Hide details"
 msgstr "Ukryj szczegóły"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:293
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "Rotation saved"
 msgstr "Obrót zapisany"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:262
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:265
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:267
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:270
 #, elixir-autogen, elixir-format
 msgid "Show details"
 msgstr "Pokaż szczegóły"
@@ -10261,7 +10270,7 @@ msgstr "Edytuj informacje o użytkowniku"
 msgid "Media Detail"
 msgstr "Szczegóły medium"
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:396
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "This user is linked to a CRM contact."
 msgstr "Ten użytkownik jest powiązany z kontaktem CRM."
@@ -10335,12 +10344,12 @@ msgstr "Acme Newsletter"
 msgid "Add one"
 msgstr "Dodaj"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:242
+#: lib/phoenix_kit_web/live/settings/users.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "After-login path"
 msgstr "Ścieżka po zalogowaniu"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:259
+#: lib/phoenix_kit_web/live/settings/users.html.heex:260
 #, elixir-autogen, elixir-format
 msgid "After-registration path"
 msgstr "Ścieżka po rejestracji"
@@ -10361,7 +10370,7 @@ msgstr "Ustawienia podsumowań zaktualizowane."
 msgid "All outbound core mail — authentication, notifications — routes through this integration when set. Leave unset to use the static mailer above. For newsletter broadcasts, see"
 msgstr "Cała wychodząca poczta systemowa — uwierzytelnianie, powiadomienia — jest wysyłana przez tę integrację, gdy jest ustawiona. Pozostaw nieustawione, aby użyć statycznego mailera powyżej. Informacje o wysyłce newsletterów znajdziesz w"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:206
+#: lib/phoenix_kit_web/live/settings/users.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Allow \"Keep me logged in\" (persistent sessions)"
 msgstr "Zezwól na „Nie wylogowuj mnie” (sesje trwałe)"
@@ -10371,7 +10380,7 @@ msgstr "Zezwól na „Nie wylogowuj mnie” (sesje trwałe)"
 msgid "Always"
 msgstr "Zawsze"
 
-#: lib/phoenix_kit_web/users/session.ex:333
+#: lib/phoenix_kit_web/users/session.ex:405
 #, elixir-autogen, elixir-format
 msgid "An owner account cannot be used."
 msgstr "Nie można użyć konta właściciela."
@@ -10431,7 +10440,7 @@ msgstr "Nie można usunąć profilu wysyłki"
 msgid "Certificate verification"
 msgstr "Weryfikacja certyfikatu"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:217
+#: lib/phoenix_kit_web/live/settings/users.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Check it by default (users can still untick it)"
 msgstr "Zaznacz domyślnie (użytkownik może odznaczyć)"
@@ -10667,7 +10676,7 @@ msgstr "Edytuj ustawienia profilu wysyłki"
 msgid "Edit send profile: %{name}"
 msgstr "Edycja profilu wysyłki: %{name}"
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:201
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:210
 #, elixir-autogen, elixir-format
 msgid "Email confirmed. Welcome!"
 msgstr "E-mail potwierdzony. Witamy!"
@@ -10830,7 +10839,7 @@ msgstr "Pozostaw puste, aby użyć domyślnej wartości gen_smtp."
 msgid "Linked chats"
 msgstr "Powiązane czaty"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:253
+#: lib/phoenix_kit_web/live/settings/users.html.heex:254
 #, elixir-autogen, elixir-format
 msgid "Local path users land on after signing in."
 msgstr "Lokalna ścieżka, na którą trafiają użytkownicy po zalogowaniu."
@@ -10856,7 +10865,7 @@ msgstr "Oznacz wszystkie jako przeczytane"
 msgid "Mark read"
 msgstr "Oznacz jako przeczytane"
 
-#: lib/phoenix_kit_web/users/session.ex:342
+#: lib/phoenix_kit_web/users/session.ex:414
 #, elixir-autogen, elixir-format
 msgid "Maximum number of accounts reached — remove one first."
 msgstr "Osiągnięto maksymalną liczbę kont — najpierw usuń jedno."
@@ -10975,7 +10984,7 @@ msgstr "Otrzymane powiadomienia pojawią się tutaj."
 msgid "Numeric ID of a verified Brevo sender. Leave empty to send from the From address above."
 msgstr "Numeryczny identyfikator zweryfikowanego nadawcy Brevo. Pozostaw puste, aby wysyłać z adresu podanego powyżej."
 
-#: lib/phoenix_kit_web/users/session.ex:336
+#: lib/phoenix_kit_web/users/session.ex:408
 #, elixir-autogen, elixir-format
 msgid "Only an owner can sign in as another administrator."
 msgstr "Tylko właściciel może zalogować się jako inny administrator."
@@ -11000,7 +11009,7 @@ msgstr "Wklej token do formularza powyżej i naciśnij **Testuj połączenie**"
 msgid "Pause between sends (seconds)"
 msgstr "Przerwa między wysyłkami (sekundy)"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:220
+#: lib/phoenix_kit_web/live/settings/users.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Persistent sessions last 60 days. Magic-link and social logins have no checkbox to tick, so they follow the default above. Turning the first option off hides the checkbox everywhere and keeps every login to the browser session."
 msgstr "Sesje trwałe działają 60 dni. Logowanie magicznym linkiem i przez media społecznościowe nie ma pola wyboru, więc korzysta z wartości domyślnej powyżej. Wyłączenie pierwszej opcji ukrywa pole wszędzie i ogranicza każde logowanie do sesji przeglądarki."
@@ -11063,7 +11072,7 @@ msgstr "Usunąć to połączenie?"
 msgid "Reply-to"
 msgstr "Adres odpowiedzi"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:91
+#: lib/phoenix_kit_web/live/settings/users.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Require email confirmation before using the app"
 msgstr "Wymagaj potwierdzenia e-maila przed korzystaniem z aplikacji"
@@ -11112,7 +11121,7 @@ msgstr "STARTTLS — jeśli oferowane"
 msgid "STARTTLS — required"
 msgstr "STARTTLS — wymagane"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:267
+#: lib/phoenix_kit_web/live/settings/users.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "Same as after login"
 msgstr "Tak jak po zalogowaniu"
@@ -11245,17 +11254,17 @@ msgstr "E-mail testowy z %{site}"
 msgid "Test email sent to %{recipient}"
 msgstr "E-mail testowy wysłany na %{recipient}"
 
-#: lib/phoenix_kit_web/users/session.ex:345
+#: lib/phoenix_kit_web/users/session.ex:417
 #, elixir-autogen, elixir-format
 msgid "That account is already in your session — switch to it instead."
 msgstr "To konto jest już w Twojej sesji — po prostu przełącz się na nie."
 
-#: lib/phoenix_kit_web/users/session.ex:339
+#: lib/phoenix_kit_web/users/session.ex:411
 #, elixir-autogen, elixir-format
 msgid "That account is deactivated."
 msgstr "To konto jest dezaktywowane."
 
-#: lib/phoenix_kit_web/users/session.ex:338
+#: lib/phoenix_kit_web/users/session.ex:410
 #, elixir-autogen, elixir-format
 msgid "That is already your account."
 msgstr "To już jest Twoje konto."
@@ -11332,7 +11341,7 @@ msgstr "Zaktualizuj profil wysyłki"
 msgid "Used when no default transactional integration is selected below."
 msgstr "Używane, gdy poniżej nie wybrano domyślnej integracji transakcyjnej."
 
-#: lib/phoenix_kit_web/users/session.ex:311
+#: lib/phoenix_kit_web/users/session.ex:383
 #, elixir-autogen, elixir-format
 msgid "User not found."
 msgstr "Nie znaleziono użytkownika."
@@ -11342,7 +11351,7 @@ msgstr "Nie znaleziono użytkownika."
 msgid "Verify (default)"
 msgstr "Weryfikuj (domyślnie)"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:270
+#: lib/phoenix_kit_web/live/settings/users.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "Where a freshly registered account lands. Empty = after-login path."
 msgstr "Gdzie trafia świeżo zarejestrowane konto. Puste = ścieżka po zalogowaniu."
@@ -11362,12 +11371,12 @@ msgstr "Do kogo pisze ten bot?"
 msgid "Yesterday"
 msgstr "Wczoraj"
 
-#: lib/phoenix_kit_web/users/session.ex:322
+#: lib/phoenix_kit_web/users/session.ex:394
 #, elixir-autogen, elixir-format
 msgid "You are now signed in as %{email}."
 msgstr "Jesteś teraz zalogowany jako %{email}."
 
-#: lib/phoenix_kit_web/users/session.ex:331
+#: lib/phoenix_kit_web/users/session.ex:403
 #, elixir-autogen, elixir-format
 msgid "You do not have permission to sign in as another user."
 msgstr "Nie masz uprawnień, aby zalogować się jako inny użytkownik."
@@ -12240,7 +12249,7 @@ msgstr "Kolumny"
 msgid "Shown"
 msgstr "Widoczne"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:313
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Reply to this annotation"
 msgstr "Odpowiedz na tę adnotację"
@@ -12292,17 +12301,17 @@ msgid "A secret is already configured — leave blank to keep the current value"
 msgstr "Sekret jest już skonfigurowany — pozostaw puste, aby zachować bieżącą wartość"
 
 #: lib/phoenix_kit_web/users/oauth.ex:365
-#: lib/phoenix_kit_web/users/session.ex:245
+#: lib/phoenix_kit_web/users/session.ex:317
 #, elixir-autogen, elixir-format
 msgid "Account added."
 msgstr "Dodano konto."
 
-#: lib/phoenix_kit_web/users/session.ex:27
+#: lib/phoenix_kit_web/users/session.ex:28
 #, elixir-autogen, elixir-format
 msgid "Account created successfully!"
 msgstr "Konto zostało utworzone!"
 
-#: lib/phoenix_kit_web/users/session.ex:356
+#: lib/phoenix_kit_web/users/session.ex:428
 #, elixir-autogen, elixir-format
 msgid "Account removed."
 msgstr "Usunięto konto."
@@ -12339,7 +12348,7 @@ msgstr "Uwierzytelnianie nie powiodło się: %{errors}"
 msgid "Authentication failed: %{message}"
 msgstr "Uwierzytelnianie nie powiodło się: %{message}"
 
-#: lib/phoenix_kit_web/users/session.ex:360
+#: lib/phoenix_kit_web/users/session.ex:432
 #, elixir-autogen, elixir-format
 msgid "Cannot remove your primary account."
 msgstr "Nie można usunąć konta głównego."
@@ -12357,12 +12366,12 @@ msgstr "Przełączanie kontekstu nie jest włączone"
 msgid "Could not reach the storage endpoint"
 msgstr "Nie udało się połączyć z punktem końcowym magazynu"
 
-#: lib/phoenix_kit_web/users/session.ex:365
+#: lib/phoenix_kit_web/users/session.ex:437
 #, elixir-autogen, elixir-format
 msgid "Could not remove account."
 msgstr "Nie udało się usunąć konta."
 
-#: lib/phoenix_kit_web/users/session.ex:274
+#: lib/phoenix_kit_web/users/session.ex:346
 #, elixir-autogen, elixir-format
 msgid "Could not switch account."
 msgstr "Nie udało się przełączyć konta."
@@ -12382,18 +12391,18 @@ msgstr "Wyłączone"
 msgid "Follows noindex"
 msgstr "Zgodnie z noindex"
 
-#: lib/phoenix_kit_web/users/magic_link.ex:115
-#: lib/phoenix_kit_web/users/magic_link.ex:126
+#: lib/phoenix_kit_web/users/magic_link.ex:118
+#: lib/phoenix_kit_web/users/magic_link.ex:129
 #, elixir-autogen, elixir-format
 msgid "If that email address exists, a magic link has been sent."
 msgstr "Jeśli ten adres e-mail istnieje, magiczny link został wysłany."
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:225
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:234
 #, elixir-autogen, elixir-format
 msgid "If your email is in our system and it has not been confirmed yet, you will receive an email with instructions shortly."
 msgstr "Jeśli Twój adres e-mail jest w naszym systemie i nie został jeszcze potwierdzony, wkrótce otrzymasz wiadomość z instrukcjami."
 
-#: lib/phoenix_kit_web/users/forgot_password.ex:49
+#: lib/phoenix_kit_web/users/forgot_password.ex:58
 #, elixir-autogen, elixir-format
 msgid "If your email is in our system, you will receive instructions to reset your password shortly."
 msgstr "Jeśli Twój adres e-mail jest w naszym systemie, wkrótce otrzymasz instrukcje resetowania hasła."
@@ -12408,12 +12417,12 @@ msgstr "Nieprawidłowy kontekst"
 msgid "Invalid email format"
 msgstr "Nieprawidłowy format adresu e-mail"
 
-#: lib/phoenix_kit_web/users/session.ex:92
+#: lib/phoenix_kit_web/users/session.ex:93
 #, elixir-autogen, elixir-format
 msgid "Invalid email/username or password"
 msgstr "Nieprawidłowy e-mail/nazwa użytkownika lub hasło"
 
-#: lib/phoenix_kit_web/users/session.ex:259
+#: lib/phoenix_kit_web/users/session.ex:331
 #, elixir-autogen, elixir-format
 msgid "Invalid email/username or password."
 msgstr "Nieprawidłowy e-mail/nazwa użytkownika lub hasło."
@@ -12433,13 +12442,13 @@ msgstr "Nieprawidłowy link rejestracyjny. Poproś o nowy."
 msgid "Keep publishing the sitemap's real URLs even while noindex is on, so the feed can be verified without exposing the site to indexing. The noindex meta tag above is unaffected either way."
 msgstr "Publikuj prawdziwe adresy URL mapy witryny nawet przy włączonym noindex, aby można było zweryfikować kanał bez wystawiania witryny na indeksowanie. Powyższy metatag noindex pozostaje w obu przypadkach bez zmian."
 
-#: lib/phoenix_kit_web/users/session.ex:104
+#: lib/phoenix_kit_web/users/session.ex:105
 #, elixir-autogen, elixir-format
 msgid "Logged out of all accounts."
 msgstr "Wylogowano ze wszystkich kont."
 
-#: lib/phoenix_kit_web/users/session.ex:122
-#: lib/phoenix_kit_web/users/session.ex:235
+#: lib/phoenix_kit_web/users/session.ex:123
+#: lib/phoenix_kit_web/users/session.ex:307
 #, elixir-autogen, elixir-format
 msgid "Logged out successfully."
 msgstr "Wylogowano pomyślnie."
@@ -12461,12 +12470,12 @@ msgid "Magic link sign-in is currently disabled."
 msgstr "Logowanie magicznym linkiem jest obecnie wyłączone."
 
 #: lib/phoenix_kit_web/users/oauth.ex:370
-#: lib/phoenix_kit_web/users/session.ex:249
+#: lib/phoenix_kit_web/users/session.ex:321
 #, elixir-autogen, elixir-format
 msgid "Maximum number of accounts reached."
 msgstr "Osiągnięto maksymalną liczbę kont."
 
-#: lib/phoenix_kit_web/users/session.ex:137
+#: lib/phoenix_kit_web/users/session.ex:138
 #, elixir-autogen, elixir-format
 msgid "Multi-account switching is not available."
 msgstr "Przełączanie między wieloma kontami jest niedostępne."
@@ -12501,7 +12510,7 @@ msgstr "Magazyn obiektowy (zgodny z S3)"
 msgid "Password reset successfully."
 msgstr "Hasło zostało zresetowane."
 
-#: lib/phoenix_kit_web/users/session.ex:34
+#: lib/phoenix_kit_web/users/session.ex:35
 #, elixir-autogen, elixir-format
 msgid "Password updated successfully!"
 msgstr "Hasło zostało zaktualizowane!"
@@ -12575,7 +12584,7 @@ msgid "Successfully signed in with %{provider}!"
 msgstr "Zalogowano przez %{provider}!"
 
 #: lib/phoenix_kit_web/users/oauth.ex:375
-#: lib/phoenix_kit_web/users/session.ex:254
+#: lib/phoenix_kit_web/users/session.ex:326
 #, elixir-autogen, elixir-format
 msgid "That account is already in your session."
 msgstr "To konto jest już w Twojej sesji."
@@ -12595,7 +12604,7 @@ msgstr "Ten adres e-mail jest już zarejestrowany. Zaloguj się zamiast tego."
 msgid "Too many attempts"
 msgstr "Zbyt wiele prób"
 
-#: lib/phoenix_kit_web/users/session.ex:84
+#: lib/phoenix_kit_web/users/session.ex:85
 #, elixir-autogen, elixir-format
 msgid "Too many login attempts. Please try again later."
 msgstr "Zbyt wiele prób logowania. Spróbuj ponownie później."
@@ -12627,81 +12636,82 @@ msgstr "Rejestracja użytkowników jest obecnie wyłączona."
 msgid "User registration is currently disabled. Please contact an administrator."
 msgstr "Rejestracja użytkowników jest obecnie wyłączona. Skontaktuj się z administratorem."
 
-#: lib/phoenix_kit_web/users/session.ex:40
+#: lib/phoenix_kit_web/users/session.ex:41
 #, elixir-autogen, elixir-format
 msgid "Welcome back!"
 msgstr "Witamy ponownie!"
 
-#: lib/phoenix_kit_web/users/session.ex:66
+#: lib/phoenix_kit_web/users/session.ex:67
 #, elixir-autogen, elixir-format
 msgid "Your account is currently inactive. Please contact the team if you believe this is an error."
 msgstr "Twoje konto jest obecnie nieaktywne. Skontaktuj się z zespołem, jeśli uważasz, że to pomyłka."
 
-#: lib/phoenix_kit_web/users/auth.ex:1917
+#: lib/phoenix_kit_web/users/auth.ex:1982
 #, elixir-autogen, elixir-format
 msgid "%{label} module is not enabled"
 msgstr "Moduł %{label} nie jest włączony"
 
-#: lib/phoenix_kit_web/users/auth.ex:2549
+#: lib/phoenix_kit_web/users/auth.ex:2631
 #, elixir-autogen, elixir-format
 msgid "Enter your referral code to continue."
 msgstr "Wprowadź swój kod polecający, aby kontynuować."
 
-#: lib/phoenix_kit_web/users/auth.ex:2545
+#: lib/phoenix_kit_web/users/auth.ex:2627
 #, elixir-autogen, elixir-format
 msgid "Please confirm your email before accessing the application."
 msgstr "Potwierdź swój adres e-mail, zanim uzyskasz dostęp do aplikacji."
 
-#: lib/phoenix_kit_web/users/auth.ex:115
+#: lib/phoenix_kit_web/users/auth.ex:117
 #, elixir-autogen, elixir-format
 msgid "This account is not active. Contact an administrator."
 msgstr "To konto nie jest aktywne. Skontaktuj się z administratorem."
 
-#: lib/phoenix_kit_web/users/auth.ex:765
-#: lib/phoenix_kit_web/users/auth.ex:1936
-#: lib/phoenix_kit_web/users/auth.ex:2694
+#: lib/phoenix_kit_web/users/auth.ex:813
+#: lib/phoenix_kit_web/users/auth.ex:2001
+#: lib/phoenix_kit_web/users/auth.ex:2776
 #, elixir-autogen, elixir-format
 msgid "You do not have permission to access this section."
 msgstr "Nie masz uprawnień do tej sekcji."
 
-#: lib/phoenix_kit_web/users/auth.ex:740
-#: lib/phoenix_kit_web/users/auth.ex:894
-#: lib/phoenix_kit_web/users/auth.ex:2643
-#: lib/phoenix_kit_web/users/auth.ex:2679
+#: lib/phoenix_kit_web/users/auth.ex:788
+#: lib/phoenix_kit_web/users/auth.ex:942
+#: lib/phoenix_kit_web/users/auth.ex:2725
+#: lib/phoenix_kit_web/users/auth.ex:2761
 #, elixir-autogen, elixir-format
 msgid "You do not have the required permission to access this page."
 msgstr "Nie masz wymaganych uprawnień, aby otworzyć tę stronę."
 
-#: lib/phoenix_kit_web/users/auth.ex:1462
+#: lib/phoenix_kit_web/users/auth.ex:1540
 #, elixir-autogen, elixir-format
 msgid "You must be an admin to access this page."
 msgstr "Aby otworzyć tę stronę, musisz być administratorem."
 
-#: lib/phoenix_kit_web/users/auth.ex:695
-#: lib/phoenix_kit_web/users/auth.ex:2606
+#: lib/phoenix_kit_web/users/auth.ex:743
+#: lib/phoenix_kit_web/users/auth.ex:2688
 #, elixir-autogen, elixir-format
 msgid "You must be an owner to access this page."
 msgstr "Aby otworzyć tę stronę, musisz być właścicielem."
 
-#: lib/phoenix_kit_web/users/auth.ex:2722
+#: lib/phoenix_kit_web/users/auth.ex:2804
 #, elixir-autogen, elixir-format
 msgid "You must have the %{role_name} role to access this page."
 msgstr "Aby otworzyć tę stronę, musisz mieć rolę %{role_name}."
 
-#: lib/phoenix_kit_web/users/auth.ex:919
-#: lib/phoenix_kit_web/users/auth.ex:2475
-#: lib/phoenix_kit_web/users/auth.ex:2512
-#: lib/phoenix_kit_web/users/auth.ex:2650
+#: lib/phoenix_kit_web/users/auth.ex:967
+#: lib/phoenix_kit_web/users/auth.ex:2557
+#: lib/phoenix_kit_web/users/auth.ex:2594
+#: lib/phoenix_kit_web/users/auth.ex:2732
+#: lib/phoenix_kit_web/users/session.ex:189
 #, elixir-autogen, elixir-format
 msgid "You must log in to access this page."
 msgstr "Aby otworzyć tę stronę, musisz się zalogować."
 
-#: lib/phoenix_kit_web/users/auth.ex:1473
+#: lib/phoenix_kit_web/users/auth.ex:1543
 #, elixir-autogen, elixir-format
 msgid "You no longer have permission to access this section."
 msgstr "Nie masz już uprawnień do tej sekcji."
 
-#: lib/phoenix_kit_web/users/magic_link.ex:136
+#: lib/phoenix_kit_web/users/magic_link.ex:139
 #, elixir-autogen, elixir-format
 msgid "Failed to send magic link. Please try again."
 msgstr "Nie udało się odłączyć dostawcy. Spróbuj ponownie."
@@ -12711,7 +12721,7 @@ msgstr "Nie udało się odłączyć dostawcy. Spróbuj ponownie."
 msgid "Failed to send registration link. Please try again."
 msgstr "Nie udało się odrzucić zaproszenia. Spróbuj ponownie."
 
-#: lib/phoenix_kit_web/users/magic_link.ex:98
+#: lib/phoenix_kit_web/users/magic_link.ex:101
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid email address"
 msgstr "Podaj nazwę"
@@ -12726,7 +12736,7 @@ msgstr "Podaj nazwę"
 msgid "Too many registration attempts. Please try again later."
 msgstr "Zbyt wiele prób rejestracji. Spróbuj ponownie później."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1557
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1665
 #, elixir-autogen, elixir-format
 msgid "%{enabled} of %{total} notification types enabled"
 msgstr "Włączono %{enabled} z %{total} typów powiadomień"
@@ -12761,17 +12771,17 @@ msgstr "Skonfigurowano magazyn kluczy, ale nie udało się odczytać jego sekret
 msgid "A key store is configured but its secret could not be read, so encryption fell back to a weaker key. Values written under the stored key will not decrypt. Do NOT run mix phoenix_kit.integrations.rotate_key: the stored key may be the one they are encrypted under. Repair the store first; repairing it later will not make anything written in the meantime readable."
 msgstr "Skonfigurowano magazyn kluczy, ale nie udało się odczytać jego sekretu, więc szyfrowanie sięgnęło po słabszy klucz. Wartości zapisanych przechowywanym kluczem nie da się odszyfrować. NIE uruchamiaj mix phoenix_kit.integrations.rotate_key: przechowywany klucz może być tym, którym je zaszyfrowano. Najpierw napraw magazyn; naprawa w późniejszym czasie nie odczyta tego, co zapisano w międzyczasie."
 
-#: lib/phoenix_kit_web/live/dashboard.ex:213
+#: lib/phoenix_kit_web/live/dashboard.ex:306
 #, elixir-autogen, elixir-format
 msgid "Back at it"
 msgstr "Znowu do dzieła"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1016
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1086
 #, elixir-autogen, elixir-format
 msgid "Browser detected: %{zone}"
 msgstr "Wykryto w przeglądarce: %{zone}"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:995
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1065
 #, elixir-autogen, elixir-format
 msgid "Check your timezone"
 msgstr "Sprawdź swoją strefę czasową"
@@ -12811,52 +12821,52 @@ msgstr "Klucz ZAPASOWY — skonfigurowany klucz odrzucono jako zbyt krótki"
 msgid "FALLBACK key — the secret in the key store was rejected as too short"
 msgstr "Klucz ZAPASOWY — sekret w magazynie kluczy odrzucono jako zbyt krótki"
 
-#: lib/phoenix_kit_web/live/dashboard.ex:212
+#: lib/phoenix_kit_web/live/dashboard.ex:305
 #, elixir-autogen, elixir-format
 msgid "Glad you're here"
 msgstr "Dobrze, że jesteś"
 
-#: lib/phoenix_kit_web/live/dashboard.ex:204
+#: lib/phoenix_kit_web/live/dashboard.ex:297
 #, elixir-autogen, elixir-format
 msgid "Good afternoon"
 msgstr "Dzień dobry"
 
-#: lib/phoenix_kit_web/live/dashboard.ex:205
+#: lib/phoenix_kit_web/live/dashboard.ex:298
 #, elixir-autogen, elixir-format
 msgid "Good day"
 msgstr "Miłego dnia"
 
-#: lib/phoenix_kit_web/live/dashboard.ex:206
+#: lib/phoenix_kit_web/live/dashboard.ex:299
 #, elixir-autogen, elixir-format
 msgid "Good evening"
 msgstr "Dobry wieczór"
 
-#: lib/phoenix_kit_web/live/dashboard.ex:202
+#: lib/phoenix_kit_web/live/dashboard.ex:295
 #, elixir-autogen, elixir-format
 msgid "Good morning"
 msgstr "Dzień dobry"
 
-#: lib/phoenix_kit_web/live/dashboard.ex:209
+#: lib/phoenix_kit_web/live/dashboard.ex:302
 #, elixir-autogen, elixir-format
 msgid "Good to see you"
 msgstr "Miło Cię widzieć"
 
-#: lib/phoenix_kit_web/live/dashboard.ex:210
+#: lib/phoenix_kit_web/live/dashboard.ex:303
 #, elixir-autogen, elixir-format
 msgid "Hello again"
 msgstr "Witaj ponownie"
 
-#: lib/phoenix_kit_web/live/dashboard.ex:211
+#: lib/phoenix_kit_web/live/dashboard.ex:304
 #, elixir-autogen, elixir-format
 msgid "Hey there"
 msgstr "Cześć"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1550
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1658
 #, elixir-autogen, elixir-format
 msgid "Manage Notifications"
 msgstr "Zarządzaj powiadomieniami"
 
-#: lib/phoenix_kit_web/live/dashboard.ex:208
+#: lib/phoenix_kit_web/live/dashboard.ex:301
 #, elixir-autogen, elixir-format
 msgid "Night owl"
 msgstr "Nocny marek"
@@ -12881,7 +12891,7 @@ msgstr "Niezweryfikowane — ten dostawca nie ma sprawdzania połączenia"
 msgid "Profile Settings"
 msgstr "Ustawienia profilu"
 
-#: lib/phoenix_kit_web/live/dashboard.ex:203
+#: lib/phoenix_kit_web/live/dashboard.ex:296
 #, elixir-autogen, elixir-format
 msgid "Rise and shine"
 msgstr "Pobudka, dzień się zaczyna"
@@ -12926,42 +12936,42 @@ msgstr "Sekret w magazynie kluczy (%{location}) odrzucono jako krótszy niż min
 msgid "The secret in the key store was rejected as too short"
 msgstr "Sekret w magazynie kluczy odrzucono jako zbyt krótki"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:539
+#: lib/phoenix_kit_web/live/components/user_settings.ex:547
 #, elixir-autogen, elixir-format
 msgid "Timezone set to %{zone}."
 msgstr "Ustawiono strefę czasową %{zone}."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1009
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1079
 #, elixir-autogen, elixir-format
 msgid "Use %{zone}"
 msgstr "Użyj %{zone}"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:291
+#: lib/phoenix_kit_web/live/settings/users.html.heex:292
 #, elixir-autogen, elixir-format
 msgid "User settings path"
 msgstr "Ścieżka ustawień użytkownika"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:302
+#: lib/phoenix_kit_web/live/settings/users.html.heex:303
 #, elixir-autogen, elixir-format
 msgid "Where the \"Settings\" entry in the user menu goes. Empty = PhoenixKit's own profile settings page. Set it to send users to your own account page instead."
 msgstr "Dokąd prowadzi pozycja „Ustawienia” w menu użytkownika. Puste = własna strona ustawień profilu PhoenixKit. Ustaw wartość, aby kierować użytkowników na Twoją stronę konta."
 
-#: lib/phoenix_kit_web/live/dashboard.ex:207
+#: lib/phoenix_kit_web/live/dashboard.ex:300
 #, elixir-autogen, elixir-format
 msgid "Working late"
 msgstr "Praca do późna"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:737
+#: lib/phoenix_kit_web/live/components/user_settings.ex:807
 #, elixir-autogen, elixir-format
 msgid "Your browser reports %{browser}, but this account is set to %{saved}. Times on this site will be shown in %{saved}."
 msgstr "Twoja przeglądarka zgłasza %{browser}, ale to konto jest ustawione na %{saved}. Godziny w tej witrynie będą pokazywane w %{saved}."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:728
+#: lib/phoenix_kit_web/live/components/user_settings.ex:798
 #, elixir-autogen, elixir-format
 msgid "Your browser reports %{zone}. This account still stores a fixed UTC offset, which cannot follow daylight saving — it will drift by an hour at the next change."
 msgstr "Twoja przeglądarka zgłasza %{zone}. To konto wciąż przechowuje stałe przesunięcie UTC, które nie nadąża za czasem letnim — przy najbliższej zmianie rozjedzie się o godzinę."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:721
+#: lib/phoenix_kit_web/live/components/user_settings.ex:791
 #, elixir-autogen, elixir-format
 msgid "Your browser reports %{zone}. You have not set a timezone, so times are shown using the site default."
 msgstr "Twoja przeglądarka zgłasza %{zone}. Nie ustawiono strefy czasowej, więc godziny są pokazywane w domyślnej strefie witryny."
@@ -13021,19 +13031,19 @@ msgstr "w ciągu ostatniej godziny"
 msgid "in the last week"
 msgstr "w ciągu ostatniego tygodnia"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1193
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1203
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Zwiń"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1184
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1185
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1187
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1194
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1195
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1197
 #, elixir-autogen, elixir-format
 msgid "Collapse the menu to icons"
 msgstr "Zwiń menu do ikon"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1186
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1196
 #, elixir-autogen, elixir-format
 msgid "Expand the menu"
 msgstr "Rozwiń menu"
@@ -13070,7 +13080,7 @@ msgid "Started today"
 msgstr "Rozpoczęte dzisiaj"
 
 #: lib/phoenix_kit_web/components/core/admin_label.ex:70
-#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:616
+#: lib/phoenix_kit_web/components/user_dashboard_nav.ex:665
 #, elixir-autogen, elixir-format
 msgid "My Account"
 msgstr "Moje konto"
@@ -13499,37 +13509,37 @@ msgstr "Powrót za"
 msgid "Back on %{when}"
 msgstr "Powrót %{when}"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:135
+#: lib/phoenix_kit_web/live/settings/users.html.heex:136
 #, elixir-autogen, elixir-format
 msgid "Account types on the signup page"
 msgstr "Typy kont na stronie rejestracji"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:354
+#: lib/phoenix_kit_web/live/settings/users.ex:362
 #, elixir-autogen, elixir-format
 msgid "Organization accounts only"
 msgstr "Tylko konta organizacji"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:168
+#: lib/phoenix_kit_web/live/settings/users.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "People who work for one join it by invitation instead, so no personal account is ever opened from the public form."
 msgstr "Osoby pracujące dla organizacji dołączają do niej na zaproszenie, więc z publicznego formularza nigdy nie powstaje konto osobiste."
 
-#: lib/phoenix_kit_web/live/settings/users.ex:353
+#: lib/phoenix_kit_web/live/settings/users.ex:361
 #, elixir-autogen, elixir-format
 msgid "Personal accounts only"
 msgstr "Tylko konta osobiste"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:165
+#: lib/phoenix_kit_web/live/settings/users.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "The account type picker disappears from the signup page and every visitor who registers opens an organization."
 msgstr "Wybór typu konta znika ze strony rejestracji, a każdy rejestrujący się odwiedzający zakłada organizację."
 
-#: lib/phoenix_kit_web/live/settings/users.ex:352
+#: lib/phoenix_kit_web/live/settings/users.ex:360
 #, elixir-autogen, elixir-format
 msgid "Visitor chooses"
 msgstr "Wybiera odwiedzający"
 
-#: lib/phoenix_kit_web/live/settings/users.html.heex:138
+#: lib/phoenix_kit_web/live/settings/users.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "What a visitor is allowed to open"
 msgstr "Co może założyć odwiedzający"
@@ -13880,12 +13890,12 @@ msgstr "Ta funkcja nie ma przełącznika."
 msgid "Site is closed to visitors"
 msgstr "Strona jest zamknięta dla odwiedzających"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1701
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1809
 #, elixir-autogen, elixir-format
 msgid "Manage Integrations"
 msgstr "Zarządzaj integracjami"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1709
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1817
 #, elixir-autogen, elixir-format
 msgid "No personal integrations yet."
 msgstr "Brak integracji osobistych."
@@ -13896,7 +13906,7 @@ msgstr "Brak integracji osobistych."
 msgid "You don't have access to Integrations."
 msgstr "Nie masz dostępu do integracji."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1705
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1813
 #, elixir-autogen, elixir-format
 msgid "Your own API keys and bot connections — only you can see or use these."
 msgstr "Twoje własne klucze API i połączenia botów — tylko Ty możesz je widzieć i używać."
@@ -14055,37 +14065,37 @@ msgstr "Źródła"
 msgid "Storage buckets and file processing"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1051
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1121
 #, elixir-autogen, elixir-format
 msgid "Adjust Avatar Crop"
 msgstr "Dostosuj kadr awatara"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:943
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1013
 #, elixir-autogen, elixir-format
 msgid "Adjust Crop"
 msgstr "Dostosuj kadr"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:499
+#: lib/phoenix_kit_web/live/components/user_settings.ex:507
 #, elixir-autogen, elixir-format
 msgid "Avatar crop reset."
 msgstr "Kadr awatara zresetowany."
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:487
+#: lib/phoenix_kit_web/live/components/user_settings.ex:495
 #, elixir-autogen, elixir-format
 msgid "Avatar crop updated!"
 msgstr "Kadr awatara zaktualizowany!"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:871
+#: lib/phoenix_kit_web/live/components/user_settings.ex:941
 #, elixir-autogen, elixir-format
 msgid "Failed to update avatar crop"
 msgstr "Nie udało się zaktualizować kadru awatara"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1127
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1197
 #, elixir-autogen, elixir-format
 msgid "Save Crop"
 msgstr "Zapisz kadr"
 
-#: lib/phoenix_kit_web/live/components/user_settings.ex:1088
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1158
 #, elixir-autogen, elixir-format
 msgid "Zoom"
 msgstr "Powiększenie"
@@ -14161,12 +14171,12 @@ msgstr ""
 msgid "Updating..."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:180
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:189
 #, elixir-autogen, elixir-format
 msgid "We've sent a confirmation link to %{email}. Click it to finish updating your email — that also confirms your account."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:236
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:245
 #, elixir-autogen, elixir-format
 msgid "We've sent a new confirmation link to %{email}."
 msgstr ""
@@ -14265,83 +14275,200 @@ msgstr "Wysłano"
 msgid "We emailed a confirmation link to %{email}. Open it to continue — you'll land back in the app automatically, no need to come back to this page."
 msgstr "Wysłaliśmy link potwierdzający na adres %{email}. Otwórz go, aby kontynuować — zostaniesz automatycznie przeniesiony z powrotem do aplikacji, bez potrzeby wracania na tę stronę."
 
-#: lib/phoenix_kit/users/auth.ex:3016
+#: lib/phoenix_kit/users/auth.ex:3123
 #, elixir-autogen, elixir-format
 msgid "Admin notes"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3013
+#: lib/phoenix_kit/users/auth.ex:3120
 #, elixir-autogen, elixir-format
 msgid "Billing profiles"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3034
+#: lib/phoenix_kit/users/auth.ex:3141
 #, elixir-autogen, elixir-format
 msgid "Email logs"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3012
+#: lib/phoenix_kit/users/auth.ex:3119
 #, elixir-autogen, elixir-format
 msgid "OAuth connections"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3019
+#: lib/phoenix_kit/users/auth.ex:3126
 #, elixir-autogen, elixir-format
 msgid "Orders"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:91
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:773
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:786
 #, elixir-autogen, elixir-format
 msgid "Permanently Delete"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:727
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:740
 #, elixir-autogen, elixir-format
 msgid "Permanently Delete User"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3011
+#: lib/phoenix_kit/users/auth.ex:3118
 #, elixir-autogen, elixir-format
 msgid "Role assignments"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3010
+#: lib/phoenix_kit/users/auth.ex:3117
 #, elixir-autogen, elixir-format
 msgid "Session and other tokens"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3015
+#: lib/phoenix_kit/users/auth.ex:3122
 #, elixir-autogen, elixir-format
 msgid "Shopping carts"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3032
+#: lib/phoenix_kit/users/auth.ex:3139
 #, elixir-autogen, elixir-format
 msgid "Support tickets"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:260
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:269
 #, elixir-autogen, elixir-format
 msgid "We couldn't send that email just now — please try again in a moment."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:757
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:770
 #, elixir-autogen, elixir-format
 msgid "Will be anonymized (preserved without PII):"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/users/user_details.html.heex:743
+#: lib/phoenix_kit_web/live/users/user_details.html.heex:756
 #, elixir-autogen, elixir-format
 msgid "Will be permanently deleted:"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:244
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:253
 #, elixir-autogen, elixir-format
 msgid "You've asked for this a few times already — please wait a few minutes and try again."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:251
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:260
 #, elixir-autogen, elixir-format
 msgid "Your email is already confirmed."
 msgstr ""
+
+#: lib/phoenix_kit_web/live/settings/users.html.heex:428
+#, elixir-autogen, elixir-format
+msgid "A user holding two or more switchable roles works as one of them and gets only that role's access: an Admin acting as another role has no admin access until they switch back. Owner and Admin are always switchable; the User role always applies."
+msgstr "Użytkownik z co najmniej dwiema przełączalnymi rolami pracuje w jednej z nich i ma tylko uprawnienia tej roli: Admin działający w innej roli nie ma dostępu administracyjnego, dopóki nie przełączy się z powrotem. Owner i Admin są zawsze przełączalne; rola User obowiązuje zawsze."
+
+#: lib/phoenix_kit_web/components/core/role_switcher.ex:112
+#, elixir-autogen, elixir-format
+msgid "Act as"
+msgstr "Działaj jako"
+
+#: lib/phoenix_kit_web/live/settings/users.html.heex:500
+#, elixir-autogen, elixir-format
+msgid "Always-on roles"
+msgstr "Role zawsze aktywne"
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:579
+#, elixir-autogen, elixir-format
+msgid "Could not save that."
+msgstr "Nie udało się zapisać."
+
+#: lib/phoenix_kit_web/users/session.ex:208
+#: lib/phoenix_kit_web/users/session.ex:221
+#, elixir-autogen, elixir-format
+msgid "Could not switch to that role."
+msgstr "Nie udało się przełączyć na tę rolę."
+
+#: lib/phoenix_kit_web/live/settings/users.ex:398
+#, elixir-autogen, elixir-format
+msgid "Header (account menu on phones)"
+msgstr "Nagłówek (menu konta na telefonach)"
+
+#: lib/phoenix_kit_web/live/settings/users.html.heex:424
+#, elixir-autogen, elixir-format
+msgid "Let users with several roles act as one role at a time"
+msgstr "Pozwól użytkownikom z kilkoma rolami działać w jednej roli naraz"
+
+#: lib/phoenix_kit_web/live/settings/users.ex:403
+#, elixir-autogen, elixir-format
+msgid "Owner or Admin if held, otherwise the last role used"
+msgstr "Owner lub Admin, jeśli jest przypisany, w przeciwnym razie ostatnio używana rola"
+
+#: lib/phoenix_kit_web/live/settings/users.html.heex:470
+#, elixir-autogen, elixir-format
+msgid "Role on sign-in"
+msgstr "Rola przy logowaniu"
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:573
+#, elixir-autogen, elixir-format
+msgid "Saved."
+msgstr "Zapisano."
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1601
+#, elixir-autogen, elixir-format
+msgid "Start page"
+msgstr "Strona startowa"
+
+#: lib/phoenix_kit_web/components/core/role_switcher.ex:100
+#: lib/phoenix_kit_web/components/core/role_switcher.ex:101
+#, elixir-autogen, elixir-format
+msgid "Switch role"
+msgstr "Zmień rolę"
+
+#: lib/phoenix_kit_web/live/settings/users.html.heex:441
+#, elixir-autogen, elixir-format
+msgid "Switcher location"
+msgstr "Położenie przełącznika"
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1613
+#, elixir-autogen, elixir-format
+msgid "The admin home"
+msgstr "Strona główna panelu administracyjnego"
+
+#: lib/phoenix_kit_web/live/settings/users.ex:405
+#, elixir-autogen, elixir-format
+msgid "The last role used"
+msgstr "Ostatnio używana rola"
+
+#: lib/phoenix_kit_web/live/settings/users.html.heex:473
+#, elixir-autogen, elixir-format
+msgid "The role a user starts in each time they sign in"
+msgstr "Rola, w której użytkownik zaczyna po każdym zalogowaniu"
+
+#: lib/phoenix_kit_web/live/settings/users.html.heex:515
+#, elixir-autogen, elixir-format
+msgid "There are no custom roles yet."
+msgstr "Nie ma jeszcze ról niestandardowych."
+
+#: lib/phoenix_kit_web/users/auth.ex:1537
+#, elixir-autogen, elixir-format
+msgid "This page is not available in the role you switched to."
+msgstr "Ta strona nie jest dostępna w roli, na którą się przełączyłeś."
+
+#: lib/phoenix_kit_web/live/settings/users.html.heex:503
+#, elixir-autogen, elixir-format
+msgid "Ticked roles are not offered in the switcher: they apply whichever role is active."
+msgstr "Zaznaczone role nie są oferowane w przełączniku: obowiązują niezależnie od aktywnej roli."
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1604
+#, elixir-autogen, elixir-format
+msgid "Where to go after you sign in."
+msgstr "Dokąd przejść po zalogowaniu."
+
+#: lib/phoenix_kit_web/live/settings/users.html.heex:444
+#, elixir-autogen, elixir-format
+msgid "Where users switch between their roles"
+msgstr "Gdzie użytkownicy przełączają się między swoimi rolami"
+
+#: lib/phoenix_kit_web/users/session.ex:216
+#, elixir-autogen, elixir-format
+msgid "You are now acting as %{role}."
+msgstr "Działasz teraz jako %{role}."
+
+#: lib/phoenix_kit_web/users/session.ex:197
+#, elixir-autogen, elixir-format
+msgid "You cannot switch roles while signed in as another user."
+msgstr "Nie możesz zmienić roli, gdy jesteś zalogowany jako inny użytkownik."

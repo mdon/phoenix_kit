@@ -44,6 +44,10 @@
   switchable roles ride on the scope (`Scope.switchable_roles/1`), so it costs
   no query per page. The multi-session account list labels each account with
   the role it is acting as and marks impersonated accounts (`impersonated?`).
+- **A "Roles" tab on `/admin/settings/users`** for the four `role_switcher_*`
+  settings: the on/off switch, the switcher location, the role on sign-in,
+  and which custom roles are always on (Owner, Admin and User are fixed and
+  not offered). Guide: `dev_docs/guides/2026-09-13-active-role.md`.
 
 ### Fixed
 
