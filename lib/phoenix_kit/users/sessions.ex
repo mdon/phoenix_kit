@@ -664,6 +664,34 @@ defmodule PhoenixKit.Users.Sessions do
   end
 
   @doc """
+  `disconnect_tokens/1`, but `delay_ms` later (default 5 s), from a task under
+  `PhoenixKit.TaskSupervisor`.
+
+  For the one case where a token that is already deleted must NOT be
+  disconnected right away: the browser that just changed its password. Its
+  settings LiveView still needs the socket for the `phx-trigger-action`
+  re-login POST, and the re-login page has to finish loading before the old
+  socket's reconnect-and-redirect could race the navigation. Once the new
+  page is up the old topic is held only by leftovers — including any stolen
+  copy of the same cookie — and those are what the delayed broadcast closes.
+  """
+  @spec disconnect_tokens_later([binary()], non_neg_integer()) :: :ok
+  def disconnect_tokens_later(tokens, delay_ms \\ 5_000) when is_list(tokens) do
+    case Process.whereis(PhoenixKit.TaskSupervisor) do
+      nil ->
+        disconnect_tokens(tokens)
+
+      supervisor ->
+        Task.Supervisor.start_child(supervisor, fn ->
+          Process.sleep(delay_ms)
+          disconnect_tokens(tokens)
+        end)
+
+        :ok
+    end
+  end
+
+  @doc """
   Broadcasts LiveView's `"disconnect"` message on `live_socket_id`.
   """
   @spec disconnect(String.t()) :: :ok

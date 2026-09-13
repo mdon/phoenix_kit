@@ -19,6 +19,7 @@ defmodule PhoenixKitWeb.Users.Session do
   alias PhoenixKit.Users.ActiveRole
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Users.Sessions
   alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Users.Auth, as: UserAuth
@@ -29,12 +30,15 @@ defmodule PhoenixKitWeb.Users.Session do
   end
 
   def create(conn, %{"_action" => "password_updated"} = params) do
-    create(
-      conn,
+    previous_token = get_session(conn, :user_token)
+
+    conn
+    |> create(
       carry_remember_me(conn, params),
       gettext("Password updated successfully!"),
       :password_updated
     )
+    |> disconnect_previous_session(previous_token)
   end
 
   def create(conn, params) do
@@ -45,6 +49,24 @@ defmodule PhoenixKitWeb.Users.Session do
   # front leaked it into the failure branches, so a rejected registration
   # handoff left `after_registration_path` in the session and the user's NEXT
   # ordinary login landed on the registration page.
+  # The password change deleted every token but spared THIS browser's from
+  # the disconnect broadcast so the re-login above could go out. Now that a
+  # new token is in the session, the old one is closed too — after a delay,
+  # so the page load the POST triggers is never raced — which also drops any
+  # other socket riding a stolen copy of that same cookie.
+  defp disconnect_previous_session(conn, previous_token) when is_binary(previous_token) do
+    case get_session(conn, :user_token) do
+      new_token when is_binary(new_token) and new_token != previous_token ->
+        Sessions.disconnect_tokens_later([previous_token])
+        conn
+
+      _ ->
+        conn
+    end
+  end
+
+  defp disconnect_previous_session(conn, _previous_token), do: conn
+
   defp stash_destination(conn, :registered), do: maybe_store_after_registration_path(conn)
 
   defp stash_destination(conn, :password_updated),

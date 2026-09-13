@@ -244,6 +244,24 @@ defmodule PhoenixKit.Users.SessionsDeviceTest do
       refute_receive %Phoenix.Socket.Broadcast{topic: ^kept_topic}, 50
     end
 
+    test "disconnect_tokens_later/2 closes the socket after the delay, and only that one" do
+      # The suite does not run the application supervisor; without this the
+      # helper falls back to an immediate disconnect and the delay is untested.
+      start_supervised!({Task.Supervisor, name: PhoenixKit.TaskSupervisor})
+      user = user_fixture("revoke-disconnect-later@example.com")
+      old = watch_socket(Auth.generate_user_session_token(user))
+      fresh = watch_socket(Auth.generate_user_session_token(user))
+
+      assert :ok = Sessions.disconnect_tokens_later([old], 100)
+
+      old_topic = Sessions.live_socket_id(old)
+      refute_receive %Phoenix.Socket.Broadcast{topic: ^old_topic}, 20
+      assert_receive %Phoenix.Socket.Broadcast{topic: ^old_topic, event: "disconnect"}, 1_000
+
+      fresh_topic = Sessions.live_socket_id(fresh)
+      refute_receive %Phoenix.Socket.Broadcast{topic: ^fresh_topic}, 50
+    end
+
     test "signing out other devices spares the one asking" do
       user = user_fixture("revoke-disconnect-others@example.com")
       current = watch_socket(Auth.generate_user_session_token(user))

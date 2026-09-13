@@ -795,6 +795,42 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
       refute html =~ other.email
     end
 
+    # With confirmation NOT enforced the account is already usable, so the
+    # password-less path would let a hijacked session re-address a live
+    # account and take it over through a password reset. The form then asks
+    # for the password, exactly as Profile Settings does.
+    test "with confirmation not enforced, the parked email change needs the password", %{
+      conn: conn
+    } do
+      Settings.update_boolean_setting("require_email_confirmation", false)
+      user = register_user()
+      new_email = unique_email()
+
+      {:ok, lv, _html} = live(login_conn(conn, user), Routes.path("/users/confirm"))
+
+      html = lv |> element("button", "Wrong email? Change it") |> render_click()
+      assert html =~ "current_password"
+
+      html =
+        render_submit(lv, "update_email", %{
+          "current_password" => "not-the-password",
+          "email_change" => %{"email" => new_email}
+        })
+
+      refute html =~ "sent a confirmation link to #{new_email}"
+      refute_email_sent()
+
+      html =
+        lv
+        |> form("#change_email_form", %{
+          "current_password" => @password,
+          "email_change" => %{"email" => new_email}
+        })
+        |> render_submit()
+
+      assert html =~ "sent a confirmation link to #{new_email}"
+    end
+
     test "parked user can fix a typo'd email; the resulting link changes AND confirms it", %{
       conn: conn
     } do

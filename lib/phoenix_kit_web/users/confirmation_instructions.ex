@@ -83,6 +83,8 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
            |> assign(destination: destination)
            |> assign(change_email?: false)
            |> assign(email_form: to_form(Auth.change_user_email(user), as: "email_change"))
+           |> assign(email_change_requires_password?: email_change_requires_password?())
+           |> assign(email_form_current_password: nil)
            |> assign(confirmation_sent_at: Auth.get_last_confirmation_sent_at(user))}
         end
     end
@@ -164,20 +166,22 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
     end
   end
 
-  defp do_validate_email_change(%{"email_change" => user_params}, socket) do
+  defp do_validate_email_change(%{"email_change" => user_params} = params, socket) do
     email_form =
       socket.assigns.phoenix_kit_current_user
       |> Auth.change_user_email(user_params)
       |> Map.put(:action, :validate)
       |> to_form(as: "email_change")
 
-    assign(socket, email_form: email_form)
+    socket
+    |> assign(email_form: email_form)
+    |> assign(email_form_current_password: params["current_password"])
   end
 
-  defp do_update_email(%{"email_change" => user_params}, socket) do
+  defp do_update_email(%{"email_change" => user_params} = params, socket) do
     user = socket.assigns.phoenix_kit_current_user
 
-    case Auth.apply_unconfirmed_user_email(user, user_params) do
+    case apply_email_change(socket, user, params["current_password"], user_params) do
       {:ok, applied_user} ->
         Auth.deliver_user_update_email_instructions(
           applied_user,
@@ -195,11 +199,36 @@ defmodule PhoenixKitWeb.Users.ConfirmationInstructions do
         |> put_flash(:info, info)
         |> assign(change_email?: false)
         |> assign(email_form: to_form(Auth.change_user_email(user), as: "email_change"))
+        |> assign(email_form_current_password: nil)
 
       {:error, changeset} ->
-        assign(socket, email_form: to_form(changeset, as: "email_change", action: :insert))
+        socket
+        |> assign(email_form: to_form(changeset, as: "email_change", action: :insert))
+        |> assign(email_form_current_password: params["current_password"])
     end
   end
+
+  # The password-less path exists for a signup that cannot use its account
+  # yet: with `require_email_confirmation` on, an unconfirmed account is
+  # parked, so there is no live account for a hijacked session to re-address.
+  # With the setting OFF that premise is gone — the account works, only the
+  # confirmation is pending — so the change asks for the password exactly as
+  # Profile Settings does (`Auth.apply_user_email/3`). Either way the account
+  # must still be unconfirmed: the pattern match keeps this page from ever
+  # becoming a second email-change path for a confirmed user.
+  defp apply_email_change(
+         %{assigns: %{email_change_requires_password?: true}},
+         %{confirmed_at: nil} = user,
+         password,
+         user_params
+       ),
+       do: Auth.apply_user_email(user, password, user_params)
+
+  defp apply_email_change(_socket, user, _password, user_params),
+    do: Auth.apply_unconfirmed_user_email(user, user_params)
+
+  defp email_change_requires_password?,
+    do: not PhoenixKit.Settings.get_boolean_setting("require_email_confirmation", true)
 
   def handle_info({:user_confirmed, %{uuid: uuid}}, socket) do
     current = socket.assigns[:phoenix_kit_current_user]

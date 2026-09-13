@@ -1276,7 +1276,7 @@ msgstr "Podział wiersza"
 
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:596
 #: lib/phoenix_kit_web/users/confirmation.html.heex:33
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:119
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:138
 #: lib/phoenix_kit_web/users/forgot_password.html.heex:32
 #: lib/phoenix_kit_web/users/login.html.heex:79
 #: lib/phoenix_kit_web/users/reset_password.html.heex:52
@@ -7384,7 +7384,7 @@ msgid "Referral Code"
 msgstr "Kod polecający"
 
 #: lib/phoenix_kit_web/users/confirmation.html.heex:26
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:112
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:131
 #: lib/phoenix_kit_web/users/reset_password.html.heex:45
 #, elixir-autogen, elixir-format
 msgid "Register"
@@ -8446,7 +8446,7 @@ msgstr "Wczytaj więcej"
 msgid "Loading…"
 msgstr "Wczytywanie…"
 
-#: lib/phoenix_kit_web/users/session.ex:116
+#: lib/phoenix_kit_web/users/session.ex:138
 #, elixir-autogen, elixir-format
 msgid "Logged out. Now signed in as %{email}."
 msgstr "Wylogowano. Teraz jesteś zalogowany jako %{email}."
@@ -8487,7 +8487,7 @@ msgstr "Zmień kolejność 1 wybranego %{noun} (pozostałe wiersze zostają na m
 msgid "Showing %{loaded} of %{total} %{noun}"
 msgstr "Wyświetlanie %{loaded} z %{total} %{noun}"
 
-#: lib/phoenix_kit_web/users/session.ex:368
+#: lib/phoenix_kit_web/users/session.ex:390
 #, elixir-autogen, elixir-format
 msgid "Switched to %{email}."
 msgstr "Przełączono na %{email}."
@@ -10381,7 +10381,7 @@ msgstr "Zezwól na „Nie wylogowuj mnie” (sesje trwałe)"
 msgid "Always"
 msgstr "Zawsze"
 
-#: lib/phoenix_kit_web/users/session.ex:431
+#: lib/phoenix_kit_web/users/session.ex:453
 #, elixir-autogen, elixir-format
 msgid "An owner account cannot be used."
 msgstr "Nie można użyć konta właściciela."
@@ -10677,7 +10677,7 @@ msgstr "Edytuj ustawienia profilu wysyłki"
 msgid "Edit send profile: %{name}"
 msgstr "Edycja profilu wysyłki: %{name}"
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:210
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:239
 #, elixir-autogen, elixir-format
 msgid "Email confirmed. Welcome!"
 msgstr "E-mail potwierdzony. Witamy!"
@@ -10866,7 +10866,7 @@ msgstr "Oznacz wszystkie jako przeczytane"
 msgid "Mark read"
 msgstr "Oznacz jako przeczytane"
 
-#: lib/phoenix_kit_web/users/session.ex:440
+#: lib/phoenix_kit_web/users/session.ex:462
 #, elixir-autogen, elixir-format
 msgid "Maximum number of accounts reached — remove one first."
 msgstr "Osiągnięto maksymalną liczbę kont — najpierw usuń jedno."
@@ -10985,7 +10985,7 @@ msgstr "Otrzymane powiadomienia pojawią się tutaj."
 msgid "Numeric ID of a verified Brevo sender. Leave empty to send from the From address above."
 msgstr "Numeryczny identyfikator zweryfikowanego nadawcy Brevo. Pozostaw puste, aby wysyłać z adresu podanego powyżej."
 
-#: lib/phoenix_kit_web/users/session.ex:434
+#: lib/phoenix_kit_web/users/session.ex:456
 #, elixir-autogen, elixir-format
 msgid "Only an owner can sign in as another administrator."
 msgstr "Tylko właściciel może zalogować się jako inny administrator."
@@ -11255,17 +11255,17 @@ msgstr "E-mail testowy z %{site}"
 msgid "Test email sent to %{recipient}"
 msgstr "E-mail testowy wysłany na %{recipient}"
 
-#: lib/phoenix_kit_web/users/session.ex:443
+#: lib/phoenix_kit_web/users/session.ex:465
 #, elixir-autogen, elixir-format
 msgid "That account is already in your session — switch to it instead."
 msgstr "To konto jest już w Twojej sesji — po prostu przełącz się na nie."
 
-#: lib/phoenix_kit_web/users/session.ex:437
+#: lib/phoenix_kit_web/users/session.ex:459
 #, elixir-autogen, elixir-format
 msgid "That account is deactivated."
 msgstr "To konto jest dezaktywowane."
 
-#: lib/phoenix_kit_web/users/session.ex:436
+#: lib/phoenix_kit_web/users/session.ex:458
 #, elixir-autogen, elixir-format
 msgid "That is already your account."
 msgstr "To już jest Twoje konto."
@@ -11342,7 +11342,7 @@ msgstr "Zaktualizuj profil wysyłki"
 msgid "Used when no default transactional integration is selected below."
 msgstr "Używane, gdy poniżej nie wybrano domyślnej integracji transakcyjnej."
 
-#: lib/phoenix_kit_web/users/session.ex:409
+#: lib/phoenix_kit_web/users/session.ex:431
 #, elixir-autogen, elixir-format
 msgid "User not found."
 msgstr "Nie znaleziono użytkownika."
@@ -11372,12 +11372,12 @@ msgstr "Do kogo pisze ten bot?"
 msgid "Yesterday"
 msgstr "Wczoraj"
 
-#: lib/phoenix_kit_web/users/session.ex:420
+#: lib/phoenix_kit_web/users/session.ex:442
 #, elixir-autogen, elixir-format
 msgid "You are now signed in as %{email}."
 msgstr "Jesteś teraz zalogowany jako %{email}."
 
-#: lib/phoenix_kit_web/users/session.ex:429
+#: lib/phoenix_kit_web/users/session.ex:451
 #, elixir-autogen, elixir-format
 msgid "You do not have permission to sign in as another user."
 msgstr "Nie masz uprawnień, aby zalogować się jako inny użytkownik."
@@ -11515,7 +11515,7 @@ msgstr "Instrukcje dla robotów indeksujących"
 msgid "Enter your referral code"
 msgstr "Wpisz swój kod polecający"
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:105
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:124
 #: lib/phoenix_kit_web/users/referral_gate.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Log out"
@@ -12306,17 +12306,17 @@ msgid "A secret is already configured — leave blank to keep the current value"
 msgstr "Sekret jest już skonfigurowany — pozostaw puste, aby zachować bieżącą wartość"
 
 #: lib/phoenix_kit_web/users/oauth.ex:365
-#: lib/phoenix_kit_web/users/session.ex:343
+#: lib/phoenix_kit_web/users/session.ex:365
 #, elixir-autogen, elixir-format
 msgid "Account added."
 msgstr "Dodano konto."
 
-#: lib/phoenix_kit_web/users/session.ex:28
+#: lib/phoenix_kit_web/users/session.ex:29
 #, elixir-autogen, elixir-format
 msgid "Account created successfully!"
 msgstr "Konto zostało utworzone!"
 
-#: lib/phoenix_kit_web/users/session.ex:454
+#: lib/phoenix_kit_web/users/session.ex:476
 #, elixir-autogen, elixir-format
 msgid "Account removed."
 msgstr "Usunięto konto."
@@ -12353,7 +12353,7 @@ msgstr "Uwierzytelnianie nie powiodło się: %{errors}"
 msgid "Authentication failed: %{message}"
 msgstr "Uwierzytelnianie nie powiodło się: %{message}"
 
-#: lib/phoenix_kit_web/users/session.ex:458
+#: lib/phoenix_kit_web/users/session.ex:480
 #, elixir-autogen, elixir-format
 msgid "Cannot remove your primary account."
 msgstr "Nie można usunąć konta głównego."
@@ -12371,12 +12371,12 @@ msgstr "Przełączanie kontekstu nie jest włączone"
 msgid "Could not reach the storage endpoint"
 msgstr "Nie udało się połączyć z punktem końcowym magazynu"
 
-#: lib/phoenix_kit_web/users/session.ex:463
+#: lib/phoenix_kit_web/users/session.ex:485
 #, elixir-autogen, elixir-format
 msgid "Could not remove account."
 msgstr "Nie udało się usunąć konta."
 
-#: lib/phoenix_kit_web/users/session.ex:372
+#: lib/phoenix_kit_web/users/session.ex:394
 #, elixir-autogen, elixir-format
 msgid "Could not switch account."
 msgstr "Nie udało się przełączyć konta."
@@ -12402,7 +12402,7 @@ msgstr "Zgodnie z noindex"
 msgid "If that email address exists, a magic link has been sent."
 msgstr "Jeśli ten adres e-mail istnieje, magiczny link został wysłany."
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:234
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:263
 #, elixir-autogen, elixir-format
 msgid "If your email is in our system and it has not been confirmed yet, you will receive an email with instructions shortly."
 msgstr "Jeśli Twój adres e-mail jest w naszym systemie i nie został jeszcze potwierdzony, wkrótce otrzymasz wiadomość z instrukcjami."
@@ -12422,12 +12422,12 @@ msgstr "Nieprawidłowy kontekst"
 msgid "Invalid email format"
 msgstr "Nieprawidłowy format adresu e-mail"
 
-#: lib/phoenix_kit_web/users/session.ex:93
+#: lib/phoenix_kit_web/users/session.ex:115
 #, elixir-autogen, elixir-format
 msgid "Invalid email/username or password"
 msgstr "Nieprawidłowy e-mail/nazwa użytkownika lub hasło"
 
-#: lib/phoenix_kit_web/users/session.ex:357
+#: lib/phoenix_kit_web/users/session.ex:379
 #, elixir-autogen, elixir-format
 msgid "Invalid email/username or password."
 msgstr "Nieprawidłowy e-mail/nazwa użytkownika lub hasło."
@@ -12447,13 +12447,13 @@ msgstr "Nieprawidłowy link rejestracyjny. Poproś o nowy."
 msgid "Keep publishing the sitemap's real URLs even while noindex is on, so the feed can be verified without exposing the site to indexing. The noindex meta tag above is unaffected either way."
 msgstr "Publikuj prawdziwe adresy URL mapy witryny nawet przy włączonym noindex, aby można było zweryfikować kanał bez wystawiania witryny na indeksowanie. Powyższy metatag noindex pozostaje w obu przypadkach bez zmian."
 
-#: lib/phoenix_kit_web/users/session.ex:105
+#: lib/phoenix_kit_web/users/session.ex:127
 #, elixir-autogen, elixir-format
 msgid "Logged out of all accounts."
 msgstr "Wylogowano ze wszystkich kont."
 
-#: lib/phoenix_kit_web/users/session.ex:123
-#: lib/phoenix_kit_web/users/session.ex:333
+#: lib/phoenix_kit_web/users/session.ex:145
+#: lib/phoenix_kit_web/users/session.ex:355
 #, elixir-autogen, elixir-format
 msgid "Logged out successfully."
 msgstr "Wylogowano pomyślnie."
@@ -12475,12 +12475,12 @@ msgid "Magic link sign-in is currently disabled."
 msgstr "Logowanie magicznym linkiem jest obecnie wyłączone."
 
 #: lib/phoenix_kit_web/users/oauth.ex:370
-#: lib/phoenix_kit_web/users/session.ex:347
+#: lib/phoenix_kit_web/users/session.ex:369
 #, elixir-autogen, elixir-format
 msgid "Maximum number of accounts reached."
 msgstr "Osiągnięto maksymalną liczbę kont."
 
-#: lib/phoenix_kit_web/users/session.ex:138
+#: lib/phoenix_kit_web/users/session.ex:160
 #, elixir-autogen, elixir-format
 msgid "Multi-account switching is not available."
 msgstr "Przełączanie między wieloma kontami jest niedostępne."
@@ -12515,7 +12515,7 @@ msgstr "Magazyn obiektowy (zgodny z S3)"
 msgid "Password reset successfully."
 msgstr "Hasło zostało zresetowane."
 
-#: lib/phoenix_kit_web/users/session.ex:35
+#: lib/phoenix_kit_web/users/session.ex:38
 #, elixir-autogen, elixir-format
 msgid "Password updated successfully!"
 msgstr "Hasło zostało zaktualizowane!"
@@ -12589,7 +12589,7 @@ msgid "Successfully signed in with %{provider}!"
 msgstr "Zalogowano przez %{provider}!"
 
 #: lib/phoenix_kit_web/users/oauth.ex:375
-#: lib/phoenix_kit_web/users/session.ex:352
+#: lib/phoenix_kit_web/users/session.ex:374
 #, elixir-autogen, elixir-format
 msgid "That account is already in your session."
 msgstr "To konto jest już w Twojej sesji."
@@ -12609,7 +12609,7 @@ msgstr "Ten adres e-mail jest już zarejestrowany. Zaloguj się zamiast tego."
 msgid "Too many attempts"
 msgstr "Zbyt wiele prób"
 
-#: lib/phoenix_kit_web/users/session.ex:85
+#: lib/phoenix_kit_web/users/session.ex:107
 #, elixir-autogen, elixir-format
 msgid "Too many login attempts. Please try again later."
 msgstr "Zbyt wiele prób logowania. Spróbuj ponownie później."
@@ -12641,12 +12641,12 @@ msgstr "Rejestracja użytkowników jest obecnie wyłączona."
 msgid "User registration is currently disabled. Please contact an administrator."
 msgstr "Rejestracja użytkowników jest obecnie wyłączona. Skontaktuj się z administratorem."
 
-#: lib/phoenix_kit_web/users/session.ex:41
+#: lib/phoenix_kit_web/users/session.ex:45
 #, elixir-autogen, elixir-format
 msgid "Welcome back!"
 msgstr "Witamy ponownie!"
 
-#: lib/phoenix_kit_web/users/session.ex:67
+#: lib/phoenix_kit_web/users/session.ex:89
 #, elixir-autogen, elixir-format
 msgid "Your account is currently inactive. Please contact the team if you believe this is an error."
 msgstr "Twoje konto jest obecnie nieaktywne. Skontaktuj się z zespołem, jeśli uważasz, że to pomyłka."
@@ -12656,12 +12656,12 @@ msgstr "Twoje konto jest obecnie nieaktywne. Skontaktuj się z zespołem, jeśli
 msgid "%{label} module is not enabled"
 msgstr "Moduł %{label} nie jest włączony"
 
-#: lib/phoenix_kit_web/users/auth.ex:2647
+#: lib/phoenix_kit_web/users/auth.ex:2651
 #, elixir-autogen, elixir-format
 msgid "Enter your referral code to continue."
 msgstr "Wprowadź swój kod polecający, aby kontynuować."
 
-#: lib/phoenix_kit_web/users/auth.ex:2643
+#: lib/phoenix_kit_web/users/auth.ex:2647
 #, elixir-autogen, elixir-format
 msgid "Please confirm your email before accessing the application."
 msgstr "Potwierdź swój adres e-mail, zanim uzyskasz dostęp do aplikacji."
@@ -12673,15 +12673,15 @@ msgstr "To konto nie jest aktywne. Skontaktuj się z administratorem."
 
 #: lib/phoenix_kit_web/users/auth.ex:805
 #: lib/phoenix_kit_web/users/auth.ex:1999
-#: lib/phoenix_kit_web/users/auth.ex:2792
+#: lib/phoenix_kit_web/users/auth.ex:2796
 #, elixir-autogen, elixir-format
 msgid "You do not have permission to access this section."
 msgstr "Nie masz uprawnień do tej sekcji."
 
 #: lib/phoenix_kit_web/users/auth.ex:780
 #: lib/phoenix_kit_web/users/auth.ex:934
-#: lib/phoenix_kit_web/users/auth.ex:2741
-#: lib/phoenix_kit_web/users/auth.ex:2777
+#: lib/phoenix_kit_web/users/auth.ex:2745
+#: lib/phoenix_kit_web/users/auth.ex:2781
 #, elixir-autogen, elixir-format
 msgid "You do not have the required permission to access this page."
 msgstr "Nie masz wymaganych uprawnień, aby otworzyć tę stronę."
@@ -12692,21 +12692,21 @@ msgid "You must be an admin to access this page."
 msgstr "Aby otworzyć tę stronę, musisz być administratorem."
 
 #: lib/phoenix_kit_web/users/auth.ex:735
-#: lib/phoenix_kit_web/users/auth.ex:2704
+#: lib/phoenix_kit_web/users/auth.ex:2708
 #, elixir-autogen, elixir-format
 msgid "You must be an owner to access this page."
 msgstr "Aby otworzyć tę stronę, musisz być właścicielem."
 
-#: lib/phoenix_kit_web/users/auth.ex:2820
+#: lib/phoenix_kit_web/users/auth.ex:2824
 #, elixir-autogen, elixir-format
 msgid "You must have the %{role_name} role to access this page."
 msgstr "Aby otworzyć tę stronę, musisz mieć rolę %{role_name}."
 
 #: lib/phoenix_kit_web/users/auth.ex:959
-#: lib/phoenix_kit_web/users/auth.ex:2573
-#: lib/phoenix_kit_web/users/auth.ex:2610
-#: lib/phoenix_kit_web/users/auth.ex:2748
-#: lib/phoenix_kit_web/users/session.ex:190
+#: lib/phoenix_kit_web/users/auth.ex:2577
+#: lib/phoenix_kit_web/users/auth.ex:2614
+#: lib/phoenix_kit_web/users/auth.ex:2752
+#: lib/phoenix_kit_web/users/session.ex:212
 #, elixir-autogen, elixir-format
 msgid "You must log in to access this page."
 msgstr "Aby otworzyć tę stronę, musisz się zalogować."
@@ -14166,22 +14166,22 @@ msgstr ""
 msgid "Showing %{from} to %{to} of %{total} %{noun}"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:91
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Update email & resend confirmation"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:88
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Updating..."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:189
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:193
 #, elixir-autogen, elixir-format
 msgid "We've sent a confirmation link to %{email}. Click it to finish updating your email — that also confirms your account."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:245
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:274
 #, elixir-autogen, elixir-format
 msgid "We've sent a new confirmation link to %{email}."
 msgstr ""
@@ -14336,7 +14336,7 @@ msgstr ""
 msgid "Support tickets"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:269
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:298
 #, elixir-autogen, elixir-format
 msgid "We couldn't send that email just now — please try again in a moment."
 msgstr ""
@@ -14351,12 +14351,12 @@ msgstr ""
 msgid "Will be permanently deleted:"
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:253
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:282
 #, elixir-autogen, elixir-format
 msgid "You've asked for this a few times already — please wait a few minutes and try again."
 msgstr ""
 
-#: lib/phoenix_kit_web/users/confirmation_instructions.ex:260
+#: lib/phoenix_kit_web/users/confirmation_instructions.ex:289
 #, elixir-autogen, elixir-format
 msgid "Your email is already confirmed."
 msgstr ""
@@ -14376,8 +14376,8 @@ msgstr "Role zawsze aktywne"
 msgid "Could not save that."
 msgstr "Nie udało się zapisać."
 
-#: lib/phoenix_kit_web/users/session.ex:202
-#: lib/phoenix_kit_web/users/session.ex:210
+#: lib/phoenix_kit_web/users/session.ex:224
+#: lib/phoenix_kit_web/users/session.ex:232
 #, elixir-autogen, elixir-format
 msgid "Could not switch to that role."
 msgstr "Nie udało się przełączyć na tę rolę."
@@ -14443,7 +14443,7 @@ msgstr "Dokąd przejść po zalogowaniu."
 msgid "Where users switch between their roles"
 msgstr "Gdzie użytkownicy przełączają się między swoimi rolami"
 
-#: lib/phoenix_kit_web/users/session.ex:197
+#: lib/phoenix_kit_web/users/session.ex:219
 #, elixir-autogen, elixir-format
 msgid "You are now acting as %{role}."
 msgstr "Działasz teraz jako %{role}."
@@ -14463,3 +14463,13 @@ msgstr "Działa jako"
 #, elixir-autogen, elixir-format
 msgid "Acting as %{role}"
 msgstr "Działa jako %{role}"
+
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:95
+#, elixir-autogen, elixir-format
+msgid "Current password"
+msgstr "Aktualne hasło"
+
+#: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "We ask for your password again as a safety check before moving your account to a new email address."
+msgstr "Prosimy ponownie o hasło jako dodatkowe zabezpieczenie przed zmianą adresu e-mail powiązanego z kontem."
