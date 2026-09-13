@@ -77,10 +77,13 @@ defmodule PhoenixKit.Users.Permissions do
 
   ## Edit Protection
 
-      Permissions.can_edit_role_permissions?(scope, role) :: :ok | {:error, String.t()}
+      Permissions.can_edit_role_permissions?(scope, role) :: :ok | {:error, atom()}
 
   Enforces: users cannot edit their own role, only Owner can edit Admin,
-  system roles cannot have `is_system_role` changed.
+  system roles cannot have `is_system_role` changed. The error reason is a
+  bare atom, not display text — pass it through
+  `edit_role_permissions_error_message/1` before showing it to a user (e.g.
+  in a flash).
   """
 
   use Gettext, backend: PhoenixKitWeb.Gettext
