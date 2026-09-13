@@ -26,6 +26,11 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   # never renders.
   @oauth_secret_keys ~w(oauth_google_client_secret oauth_github_client_secret oauth_facebook_app_secret)
 
+  # Not password-masked, always resubmitted with the real (typed) value, so
+  # no `preserve_unset_secrets/2`-style handling is needed — only trimming,
+  # for the same copy-paste-padding reason as `@oauth_secret_keys`.
+  @oauth_id_keys ~w(oauth_google_client_id oauth_github_client_id oauth_facebook_app_id)
+
   def mount(_params, _session, socket) do
     current_settings = Settings.list_all_settings()
     defaults = Settings.get_defaults()
@@ -213,9 +218,11 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   # and then got persisted padded, which is not what Google issued and
   # fails the real OAuth flow. Runs after validation (on the raw params),
   # right before the params reach `do_save_settings`, so it only ever
-  # trims a value that already passed the length/blank checks.
+  # trims a value that already passed the length/blank checks. Client
+  # IDs are not format-gated the same way, but a padded one fails a real
+  # provider round trip identically, so they are trimmed here too.
   defp trim_oauth_secrets(settings_params) do
-    Enum.reduce(@oauth_secret_keys, settings_params, fn key, params ->
+    Enum.reduce(@oauth_secret_keys ++ @oauth_id_keys, settings_params, fn key, params ->
       case Map.get(params, key) do
         value when is_binary(value) -> Map.put(params, key, String.trim(value))
         _value -> params
@@ -318,22 +325,22 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   # admin just typed, not the last-persisted values.
   defp oauth_credentials_from_settings(:google, settings) do
     %{
-      client_id: settings["oauth_google_client_id"] || "",
-      client_secret: trim_secret(settings["oauth_google_client_secret"])
+      client_id: trim_credential(settings["oauth_google_client_id"]),
+      client_secret: trim_credential(settings["oauth_google_client_secret"])
     }
   end
 
   defp oauth_credentials_from_settings(:github, settings) do
     %{
-      client_id: settings["oauth_github_client_id"] || "",
-      client_secret: trim_secret(settings["oauth_github_client_secret"])
+      client_id: trim_credential(settings["oauth_github_client_id"]),
+      client_secret: trim_credential(settings["oauth_github_client_secret"])
     }
   end
 
   defp oauth_credentials_from_settings(:facebook, settings) do
     %{
-      app_id: settings["oauth_facebook_app_id"] || "",
-      app_secret: trim_secret(settings["oauth_facebook_app_secret"])
+      app_id: trim_credential(settings["oauth_facebook_app_id"]),
+      app_secret: trim_credential(settings["oauth_facebook_app_secret"])
     }
   end
 
@@ -341,8 +348,8 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   # Credentials" read path: a copy-pasted secret with surrounding
   # whitespace must be tested with the same value that would actually be
   # persisted and sent to the provider, not the padded one.
-  defp trim_secret(value) when is_binary(value), do: String.trim(value)
-  defp trim_secret(value), do: value || ""
+  defp trim_credential(value) when is_binary(value), do: String.trim(value)
+  defp trim_credential(value), do: value || ""
 
   @doc """
   Collapsible per-provider OAuth setup guide: the callback-URL box with a copy

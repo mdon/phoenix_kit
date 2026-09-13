@@ -9,22 +9,24 @@
   `invalid_client`. For Google, the button now POSTs the current client
   ID/secret to `oauth2.googleapis.com/token` with a deliberately invalid
   authorization code and reads Google's own verdict: `invalid_client` means
-  the credentials are wrong, `invalid_grant` means they are right (only the
-  fake code was rejected, as expected). No `redirect_uri` is sent — Google's
-  redirect-URI rules reject a non-registered host by policy before the
-  credentials are evaluated at all, so the placeholder value this used to
-  send made every check inconclusive regardless of whether the credentials
-  were right or wrong; verified live with a fabricated client_id/secret that
-  dropping it turns the response from `invalid_request` into `invalid_client`
-  (the "right credentials" leg was not exercised against a real registered
-  app — it follows from Google's own documented definitions and RFC 6749
-  §5.2, and falls back to inconclusive if Google ever answers otherwise). A
-  third outcome — could not reach Google, or a response that isn't cleanly
-  one of the two verdicts above — is reported as inconclusive (a distinct
-  `:inconclusive` result, shown as a warning rather than an error flash),
-  never folded into either a pass or a fail. GitHub and Facebook keep the
-  previous format-only check (now actually enforcing it — see below) rather
-  than an unverified live check against their token endpoints.
+  the credentials are wrong; `invalid_grant` means they are right (only the
+  fake code was rejected, as expected) — this "right credentials" leg
+  follows from Google's documented error definitions and was not itself
+  exercised against a real registered app, and falls back to inconclusive
+  if Google ever answers a correct pair with anything else. No
+  `redirect_uri` is sent — this used to send an RFC 2606 `.invalid`
+  placeholder, which fails Google's "Host TLDs must belong to the public
+  suffix list" redirect-URI rule and came back `invalid_request` regardless
+  of the credentials, making the check permanently inconclusive; a
+  placeholder on a real public-suffix host was not affected (verified
+  live with fabricated credentials: `example.com`/`localhost` and no
+  `redirect_uri` all answered the same `invalid_client`). A third outcome
+  — could not reach Google, or a response that isn't cleanly one of the two
+  verdicts above — is reported as inconclusive (a distinct `:inconclusive`
+  result, shown as a warning rather than an error flash), never folded into
+  either a pass or a fail. GitHub and Facebook keep the previous
+  format-only check (now actually enforcing it — see below) rather than an
+  unverified live check against their token endpoints.
 - **A short or blank-looking OAuth secret is now rejected on save**, not just
   by the button. `PhoenixKit.Users.OAuthConfig.validate_secret_format/2`
   rejects a value that is only whitespace or implausibly short (under 16

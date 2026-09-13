@@ -26,6 +26,16 @@ defmodule PhoenixKit.Users.OAuthConfig do
   @min_secret_length 16
 
   @google_token_url "https://oauth2.googleapis.com/token"
+  # The Probe deadline below (@google_test_timeout) is a backstop, not the
+  # primary bound — Req's own connect/receive timeouts are deliberately
+  # shorter so a slow-but-not-wedged network failure (DNS taking a while,
+  # a half-open connection) resolves as {:error, %Req.TransportError{}},
+  # which `interpret_google_token_response/1` reads as `:inconclusive`,
+  # instead of racing the Probe deadline and landing in Probe's own
+  # generic {:error, "did not respond in time"} fallback (which is not
+  # tagged `:inconclusive`).
+  @google_connect_timeout 3_000
+  @google_receive_timeout 5_000
   @google_test_timeout 8_000
 
   @doc """
@@ -386,11 +396,17 @@ defmodule PhoenixKit.Users.OAuthConfig do
       too short to be real, or (Google) actively refused by the provider
       (`invalid_client`).
     * `{:inconclusive, message}` — could not reach the provider at all
-      (timeout, DNS failure, connection refused) or got back a response
-      that could not be classified as either of the above. This is a
-      DIFFERENT situation from a rejection and must never be reported as
-      one — an admin in a network-isolated deployment must not read
-      "invalid credentials" when the real story is "no route to Google".
+      (timeout, DNS failure, connection refused — see `@google_connect_timeout`/
+      `@google_receive_timeout`) or got back a response that could not be
+      classified as either of the above. This is a DIFFERENT situation
+      from a rejection and must never be reported as one — an admin in a
+      network-isolated deployment must not read "invalid credentials" when
+      the real story is "no route to Google". A crash or exit inside the
+      check process (killed by `PhoenixKit.Integrations.Probe`'s own
+      deadline, or an untrappable `:kill`) is the one gap this cannot
+      close and surfaces as `{:error, message}` instead — rare in
+      practice, since the check's own timeouts below are deliberately
+      shorter than Probe's deadline.
 
   ## Examples
 
@@ -448,27 +464,31 @@ defmodule PhoenixKit.Users.OAuthConfig do
      )}
   end
 
-  # No `redirect_uri` is sent. Google's redirect-URI validation rules
-  # (developers.google.com/identity/protocols/oauth2/web-server — "Host
-  # TLDs must belong to the public suffix list") reject a non-registered
-  # host outright, before the credentials are evaluated at all — this used
-  # to send an RFC 2606 `.invalid` placeholder, which fails that rule and
-  # comes back `invalid_request` regardless of whether client_id/client_secret
-  # are right or wrong, making the check permanently inconclusive. Omitting
-  # `redirect_uri` entirely leaves Google to classify on client_id/client_secret
-  # alone. Verified live with a fabricated client_id/secret (no real Google
-  # OAuth app): dropping `redirect_uri` turns the response from
-  # `invalid_request` into `invalid_client`. The `invalid_grant` leg (right
-  # credentials) was NOT exercised against a real registered app in this
-  # change — it follows from Google's own definitions (same guide:
-  # `invalid_grant` = "supplied authorization code is invalid", `invalid_client`
-  # = "client secret is incorrect") and RFC 6749 §5.2, and from the fact that
-  # a wrong secret already comes back `invalid_client` for a real, public
-  # client_id (Google authenticates the client before it looks at the code),
-  # so a wrong secret cannot itself surface as `invalid_grant`. If Google
-  # ever answers a genuinely correct credential pair with something other
-  # than `invalid_grant`, `interpret_google_token_response/1`'s catch-all
-  # reports it as inconclusive rather than misreading it either way.
+  # No `redirect_uri` is sent. This used to send an RFC 2606 `.invalid`
+  # placeholder, which fails Google's redirect-URI validation rule "Host
+  # TLDs must belong to the public suffix list"
+  # (developers.google.com/identity/protocols/oauth2/web-server) and came
+  # back `invalid_request` regardless of whether client_id/client_secret
+  # were right or wrong — the check was permanently inconclusive. This is
+  # specifically a TLD-validity rejection, not a blanket "unregistered host"
+  # one: a non-`.invalid` placeholder on a real public-suffix TLD
+  # (`https://example.com/...`, `http://localhost/...`) came back the same
+  # `invalid_client`/`invalid_grant` verdict as sending no `redirect_uri` at
+  # all — verified live with a fabricated client_id/secret (no real Google
+  # OAuth app). Omitting the parameter entirely is simplest and avoids the
+  # TLD rule outright.
+  #
+  # The `invalid_grant` leg (right credentials) was NOT exercised against a
+  # real registered app in this change — it follows from Google's own
+  # definitions (same guide: `invalid_grant` = "supplied authorization code
+  # is invalid", `invalid_client` = "client secret is incorrect") and RFC
+  # 6749 §5.2, and from the fact that a wrong secret already comes back
+  # `invalid_client` for a real, public client_id (Google authenticates the
+  # client before it looks at the code), so a wrong secret cannot itself
+  # surface as `invalid_grant`. If Google ever answers a genuinely correct
+  # credential pair with something other than `invalid_grant`,
+  # `interpret_google_token_response/1`'s catch-all reports it as
+  # inconclusive rather than misreading it either way.
   defp google_live_check(%{client_id: client_id, client_secret: client_secret}, opts) do
     @google_token_url
     |> Req.post(
@@ -479,12 +499,23 @@ defmodule PhoenixKit.Users.OAuthConfig do
           code: "phoenix-kit-credential-check-#{System.unique_integer([:positive])}",
           grant_type: "authorization_code"
         ],
-        receive_timeout: @google_test_timeout,
+        connect_options: [timeout: @google_connect_timeout],
+        receive_timeout: @google_receive_timeout,
         retry: false
       ]
       |> Keyword.merge(opts)
     )
     |> interpret_google_token_response()
+  rescue
+    # A crash inside the request/response cycle (a Req/Mint bug, a
+    # malformed response Req itself cannot parse) is exactly as inconclusive
+    # as a transport error — it says nothing about whether the credentials
+    # are right or wrong, and must not be reported as a rejection. Probe's
+    # own crash handling (a `:DOWN` from this process dying) would otherwise
+    # catch it as a plain, untagged `{:error, ...}`.
+    error ->
+      {:inconclusive,
+       gettext("Could not verify these credentials: %{error}", error: Exception.message(error))}
   end
 
   @doc false

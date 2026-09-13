@@ -108,6 +108,19 @@ defmodule PhoenixKitWeb.Live.Settings.AuthorizationOAuthSecretValidationTest do
     assert Settings.get_setting("oauth_google_client_secret") == good_secret
   end
 
+  test "a padded client_id is trimmed before it is persisted", %{conn: conn} do
+    conn = login(conn)
+    {:ok, view, _html} = live(conn, Routes.path("/admin/settings/authorization"))
+
+    view
+    |> form("#authorization_settings_form", %{
+      "settings" => %{"oauth_google_client_id" => "  some-client-id  "}
+    })
+    |> render_submit()
+
+    assert Settings.get_setting("oauth_google_client_id") == "some-client-id"
+  end
+
   test "clicking Test Credentials with a bad secret reports the format problem, no network call needed",
        %{conn: conn} do
     conn = login(conn)

@@ -146,14 +146,16 @@ defmodule PhoenixKit.Users.OAuthConfigTest do
 
     # `invalid_request` is what Google answers for reasons that have nothing
     # to do with whether client_id/client_secret are right — verified live
-    # with a fabricated client_id/secret: a request carrying a `redirect_uri`
-    # Google's rules don't accept (this check used to send one) gets exactly
-    # this code, not `invalid_client`, even though the credentials were also
-    # wrong. Google's own redirect-URI rules reject the host before any
-    # credential is evaluated, so the same should hold for a real pair, but
-    # that combination (real credentials + a bad `redirect_uri`) was not
-    # itself exercised. Either way, `invalid_request` must not be misread as
-    # either a pass or a fail.
+    # with a fabricated client_id/secret: an RFC 2606 `.invalid` `redirect_uri`
+    # (this check used to send one) fails Google's "Host TLDs must belong to
+    # the public suffix list" rule and gets exactly this code, not
+    # `invalid_client`, even though the credentials were also wrong. This is
+    # specific to that TLD rule, not "any redirect_uri" — a placeholder on a
+    # real public-suffix host (`example.com`, `localhost`) answered the same
+    # `invalid_client` as sending none at all. Whether the same TLD-rule
+    # rejection holds with a real, correct credential pair was not itself
+    # exercised. Either way, `invalid_request` must not be misread as either
+    # a pass or a fail.
     test "an unrecognized error code is inconclusive, not silently accepted or rejected" do
       response = {:ok, %{status: 400, body: %{"error" => "invalid_request"}}}
       assert {:inconclusive, message} = OAuthConfig.interpret_google_token_response(response)
