@@ -3,7 +3,9 @@
 **Created:** 2026-09-13
 **Status:** BUILT on `main` 2026-09-13 in four commits (below). **Not published,
 no version bump** — waiting for review by other agents. Sibling follow-ups (end
-of this file) not started.
+of this file) not started. **Reviewed 2026-09-13 by Claude Fable 5.1** — see
+"Review findings" at the end of Part 1 (2 HIGH improvements, 8 MEDIUM, 5
+open questions; no privilege escalation found).
 **Scope:** phoenix_kit (core).
 **Topic guide (read first):** `dev_docs/guides/2026-09-13-active-role.md`
 
@@ -26,6 +28,8 @@ Line numbers below are as of commit `45b53e56`.
 
 ## Reviewer quick start
 
+0. If you are the maintainer: "Review findings" (end of Part 1) is the
+   actionable list; the questions there need answers before R3/R4 are fixed.
 1. Read the topic guide (5 minutes) for the behaviour.
 2. Review the commits **in order** — each is a stage that passed the gate on
    its own:
@@ -486,6 +490,205 @@ Review focus, roughly by importance.
 - [ ] Translations: the 23 new msgids read correctly per locale (formal
       de/es/fr/ru, informal it/pl), no fuzzy flags.
 - [ ] Risks 2 and 3 above: accept, or fix before publishing.
+
+## Review findings — Claude Fable 5.1, 2026-09-13
+
+**Verdict: the core invariant holds.** Every scope build goes through
+`Scope.for_user/1`, the refresh handler re-reads the user row
+(`Auth.get_user/1`, `auth.ex:2455`) before narrowing, the stored uuid is never
+trusted (`resolve/3`), the switch endpoint sits behind CSRF and `return_to`
+goes through `safe_destination/2` (`local_path?` + `auth_page?` +
+routability). No user cache sits between the row and `for_user/1`. Feature
+off is byte-for-byte the old path. The impersonation authority reading the
+root's roles *in effect* is the right call. Gettext is at the baseline
+(0 fuzzy, 42 untranslated per locale; spot-checked de/ru). The six feature
+files plus `multi_session_test.exs` and `auth_test.exs` pass against
+`beamlab_test` (145 tests, 0 failures).
+
+What follows is ordered by severity using the repo's review scale. Nothing
+below is a privilege escalation beyond the user's real grants; the two
+HIGH items are silent *re-widening* paths (a narrowed user quietly getting
+their admin access back without asking for it), which is the failure mode
+the design says to guard hardest.
+
+### IMPROVEMENT - HIGH
+
+**R1. Whole-map `custom_fields` writers can silently re-widen a user.**
+`TimeZoneAlert.remember/2` (`time_zone_alert.ex:88`) does
+`Map.put(user.custom_fields || %{}, key, zone)` and writes the *whole* map
+through `update_user_custom_fields/3` (`custom_fields_changeset` casts and
+replaces the column). Its `user` is `socket.assigns[:phoenix_kit_current_user]`
+(`auth.ex:1365`). If that struct predates a switch made in another tab or on
+another device, the write restores the old `active_role_uuid` — an Admin who
+switched to Seller elsewhere is silently Admin again, with no activity row
+and no broadcast. The window is small today (the refresh handler reassigns
+`phoenix_kit_current_user`, and the tz event fires shortly after connect),
+but the *pattern* is now privilege-relevant, and every future
+`update_user_custom_fields(user_from_assigns, full_map)` caller inherits it.
+The other core callers (`users.ex:812`, `activity/index.ex:212`,
+`media_browser.ex`, `media_canvas_viewer.ex`) re-fetch a `fresh` user
+first, which narrows the race but does not remove it.
+
+Fix: `remember/2` → `Auth.merge_user_custom_fields(user, %{key => zone},
+ensure_definitions: false, broadcast: false)` (atomic `||`, no struct
+involved). Add a landmine to AGENTS.md "Active role": *internal
+`custom_fields` keys must be written with `merge_user_custom_fields/3`,
+never by replacing the map from a struct held in assigns — a stale replace
+rewrites `active_role_uuid`.* A test: switch the role, then call
+`TimeZoneAlert.observe/2` with the pre-switch struct, assert the stored role
+is unchanged.
+
+**R2. The sign-in reset is invisible in the audit trail.**
+`apply_sign_in_role/1` writes the row and broadcasts, but logs nothing. In
+the activity feed a user is `session.role_switched` → Seller, then acts as
+Admin, with only a login row between. Given that this reset also re-widens
+every *other* device of that user (plan risk 2), the feed should say so. Log
+`session.role_switched` with `mode: "auto"` and `metadata: %{"from",
+"to", "reason" => "sign_in"}` (reuse `log_switch/3`), or add
+`active_role` to the login activity's metadata. Test: sign in as an Admin
+stored as Seller under `staff_first`, assert the row.
+
+### IMPROVEMENT - MEDIUM
+
+**R3. The multi-session "add account" paths bypass the sign-in rule.**
+`MultiSession.add_account/3` (`:218`, password) and
+`handle_oauth_add_account/3` (`oauth.ex:361`) create the token themselves
+and never pass through `log_in_user/3`, so an Admin added as a second
+account continues as their last role even under `staff_first`. The
+CHANGELOG and guide say "every interactive sign-in" honours the rule.
+Either call `ActiveRole.apply_sign_in_role/1` in both (before the token is
+generated, so `redirect_back/2` resolves against the right scope), or
+document the exception. Impersonation (`add_authenticated_user/3` with
+`session.impersonated`) should *stay* exempt — resetting the target's row
+is exactly what the impersonation check forbids. Test: add an Admin-stored-
+as-Seller as a second account, assert the stored role.
+
+**R4. Switch redirect only checks admin-*area* reachability, not the page.**
+`redirect_after_role_switch/2` passes `skip_admin: not
+can_access_admin_area?(scope)`. A custom role holding one admin permission
+(e.g. `media`) can access the admin area, so `return_to =
+/admin/settings/users` is kept, mounts, and is bounced by
+`enforce_admin_view_permission` with "You no longer have permission to
+access this section." — the bounce the design set out to avoid, with the
+wrong copy. Cheapest fix: keep `return_to` only when `Scope.system_role?(scope)`
+(Owner/Admin reach every admin page) **or** `not Routes.admin_area_path?(return_to)`;
+otherwise drop it and let the chain land on `/admin` (the landing admits any
+permission holder). Test: Admin + Seller-with-`media`, switch to Seller from
+`/admin/settings/users`, assert the redirect is not that page.
+
+**R5. Host role-gated pages are not evicted on a switch.**
+`scope_refresh_decision/4` knows two things: the admin area and the current
+admin module key. The guide recommends hosts gate a seller portal on
+`Scope.has_role?(scope, "Seller")` or a permission key in `mount`. A host
+page mounted that way stays open after the user switches Seller → Admin on
+another device: the scope assign is refreshed, but nothing re-runs the
+host's gate unless the view implements `phoenix_kit_scope_changed/1`
+(`auth.ex:1566`, currently `@doc false`, undocumented for hosts). Document
+that callback in the guide as the way to re-check (or navigate away) on a
+switch, and consider promoting it to public API in this release since the
+switcher makes it load-bearing for hosts.
+
+**R6. `store/2` fans out the admin `{:user_updated, user}` event on every switch.**
+`merge_user_custom_fields/3` defaults `broadcast: true`, so each switch and
+each `staff_first` sign-in reset hits `Admin.Events.broadcast_user_updated/1`
+→ the admin users list, user details, and any host subscriber re-fetch. The
+codebase's convention for internal preference writes is `broadcast: false`
+(see the comment on `update_user_custom_fields/3`). Pass it in `store/2`.
+
+**R7. No escape hatch when the kit's dropdown is not rendered.**
+The switcher lives in the admin and dashboard layouts only. An Owner who
+switches to Seller on a host whose pages use their own layout (no
+`admin_user_dropdown`/`user_dropdown`) has no admin access and no UI to
+switch back; under `last_used` even a sign-out does not reset. Guide should
+say: hosts with their own layout must render `role_switcher/1` (or a form to
+`PUT /users/session/role`) somewhere every role can reach; `/dashboard`
+(when enabled) always carries it. Worth a "you are acting as X" cue near the
+role badge, too — today a narrowed Admin looks like a plain Seller.
+
+**R8. `:pk_impersonated_tokens` — fix before publish, not after.**
+Plan risk 3. `remove_account/2` (`:590`) and `log_out_to_root/5` both know
+the token being retired; `List.delete/2` on the marker there is a two-line
+change and keeps the cookie bounded. Test: impersonate, remove, assert the
+marker is empty.
+
+**R9. Settings changes do not reach open sessions.**
+Enabling the switcher, disabling it, or moving a role to always-on writes
+settings only; no broadcast. Disabling leaves narrowed sessions narrowed
+until re-mount (safe); enabling leaves a `[Seller, Buyer]` user with the
+union until they navigate; making Seller always-on leaves a user *acting* as
+Seller in that mode until re-mount. None is a widening beyond real grants.
+Document in the guide ("takes effect on the next page load / sign-in"), or
+broadcast `roles_updated` to every user with ≥2 roles on save (a query, so
+probably not worth it).
+
+**R10. Sibling background jobs run in whatever role the user is in *now*.**
+`phoenix_kit_publishing` `ai_translatable.ex:257` builds `Scope.for_user/1`
+inside a job. A translation queued while acting as Admin runs narrowed if
+the user switched to Seller before it executed. Consequence of per-user
+storage; add to the guide's "For host apps" section so job authors either
+pass `narrow: false` deliberately (with the reasoning) or accept it.
+
+### NITPICK
+
+- **N1.** `apply_sign_in_role/1` has `rescue` without `catch :exit`
+  (AGENTS.md "Soft-failure paths need `rescue` AND `catch :exit`"). Moot in
+  practice — `log_in_user/3` hits the DB right after — but the house rule
+  exists so the next reader does not have to prove that.
+- **N2.** `Scope.user_roles/1`'s doc/doctest still reads as "the user's
+  roles"; it now returns the roles *in effect*. Point at `held_roles/1`.
+- **N3.** The Roles tab does not validate that submitted
+  `role_switcher_always_on_roles` uuids are custom roles (crafted submits
+  store any string; harmless — `switchable?/2` ignores Owner/Admin/User and
+  unknown uuids). `role_switcher_custom_roles/0` is read once at mount, so a
+  role created elsewhere is offered only after a reload.
+- **N4.** `PUT /users/session/role` has no rate limit. Authenticated only,
+  same-role requests write nothing; alternating requests each insert an
+  activity row and a broadcast. Self-inflicted noise, not an attack surface;
+  noting for the activity-retention budget.
+- **N5.** `carry_multi_session_fields/2` copies the *previous* account list,
+  whose `role` labels were computed before the switch — the account rows
+  show the old role name until the next full page load. Cosmetic.
+- **N6.** `held_roles` appears in `Scope.to_map/1`. Fine (the user learns
+  their own roles), just note it if a host ever ships `to_map/1` to JS.
+
+### Test gaps confirmed (beyond the plan's list)
+
+- R1 (stale-struct custom-field write preserves the active role).
+- R2 (sign-in reset logs an activity row).
+- R3 (add-account paths apply — or documentedly do not apply — the rule).
+- R4 (switch from an admin page into a permission-holding custom role).
+- R8 (marker pruned on remove / log-out-to-root).
+- The `require_admin` *plug* under narrowing (plan gap 5) — one conn test.
+
+### Questions for the maintainer
+
+1. **Impersonation shows the target's *current* role, not their union.** A
+   support agent borrowing an Admin-who-is-acting-as-Seller sees only the
+   seller side and cannot switch (by design, the row belongs to the target).
+   Is that wanted, or should impersonation always start in the target's
+   union (`narrow: false` for impersonated tokens would need a session-side
+   flag, which the design forbids) or in the target's *default* role?
+2. **R3 — should "add account" reset the role?** It is a sign-in with a
+   password/OAuth, so I lean yes for consistency with the CHANGELOG wording;
+   but it is also "I am already here, add my other account", which reads
+   like a continuation. Your call decides whether R3 is a code fix or a doc
+   fix.
+3. **Plan risk 2 (sign-in on device B re-widens device A) stands** — R2 at
+   least makes it visible. Accept as designed?
+4. **R4 — `system_role?`-only `return_to`** drops the return for every custom
+   role, even to a page that role *can* reach. Acceptable trade for never
+   bouncing? The alternative is a path→module-key resolver core does not
+   have outside mount.
+5. **Revoked-role fallback re-widens** (plan risk 9, confirmed by you): an
+   Owner removing "Seller" from a user acting as Seller makes that user
+   Admin on the spot, on every device. Re-confirming because it is the one
+   place where an *administrative* action widens someone else's session
+   without either party choosing it.
+
+### Suggested order before publishing
+
+R1, R8, R6 (small, mechanical) → R2 → R3/R4 per answers → guide updates for
+R5, R7, R9, R10 → then the maintainer's multi-agent review.
 
 ---
 
