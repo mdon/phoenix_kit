@@ -2,15 +2,13 @@ defmodule PhoenixKit.Test.SecretKeyPerimeter do
   @moduledoc """
   Closes a specific hole in the partition invariant (`settings_test.exs`,
   "every get_defaults/0 key is classified exactly once") — that check only
-  walks `Settings.get_defaults/0`,
-  so a secret-shaped setting key core never added to `get_defaults/0` at all
-  is invisible to it, not merely misclassified. That is exactly how
-  `billing_stripe_secret_key` and its siblings went unrestricted: they are
-  written through `PhoenixKit.Settings.update_setting/2` by a separate hex
-  package, and no `get_defaults/0` entry ever named them, so the invariant
-  had nothing to compare them against — verified live in
-  `settings_secret_perimeter_test.exs`, "a key outside get_defaults/0
-  entirely is invisible to the old partition invariant".
+  walks `Settings.get_defaults/0`, so a secret-shaped setting key core never
+  added to `get_defaults/0` at all is invisible to it, not merely
+  misclassified. That is exactly how `billing_stripe_secret_key` and its
+  siblings went unrestricted: they are written through
+  `PhoenixKit.Settings.update_setting/2` by a separate hex package, and no
+  `get_defaults/0` entry ever named them, so the invariant had nothing to
+  compare them against.
 
   This module answers a narrower question than "every key core's source
   references must be classified" — that assertion fails today against dozens
@@ -29,35 +27,27 @@ defmodule PhoenixKit.Test.SecretKeyPerimeter do
   occur inside THIS repository. It structurally CANNOT see a key that only
   exists inside a separate hex package's source (`phoenix_kit_billing`,
   `phoenix_kit_emails`, ...) — those are different git repositories with no
-  path into this one, which is exactly why the original billing secrets
-  needed a manual cross-repo audit and why this module cannot replace one
-  for a FUTURE module package. It closes the perimeter for what
-  core owns and can read; what core cannot read stays on manual audit.
+  path into this one. It closes the perimeter for what core owns and can
+  read; a module package's own secret-shaped keys are that package's
+  responsibility to assert against `PhoenixKit.Settings.restricted_setting_keys/0`
+  in its own test suite (it already depends on core, so it can).
   """
 
-  # Ends this way => public by the provider's own design (an id/username/
-  # publishable key meant for client-side use), even when the generic
-  # "ends in _key" rule below would otherwise catch it — the same reasoning
-  # settings.ex's own comment gives for oauth_*_client_id/app_id, extended to
-  # their billing-provider counterparts by the earlier audit.
+  # Ends this way => public by design (an id meant for client-side use), even
+  # when the generic "ends in _key" rule below would otherwise catch it —
+  # the same reasoning settings.ex's own comment gives for
+  # oauth_*_client_id/oauth_*_app_id, core's own public OAuth identifiers.
   @secret_suffix_exclusions ~w(
     _client_id
     _app_id
-    _key_id
-    _webhook_id
-    _publishable_key
-    _username
-    _account_name
   )
 
-  @secret_substrings ~w(secret password private_key api_key)
+  @secret_substrings ~w(secret password private_key api_key token credential passphrase)
 
   @doc """
   Whether a setting key's NAME looks like it carries live credential material
   worth guarding — independent of whether it is actually classified
-  anywhere. This is the heuristic that already separated the restricted
-  keys from their public siblings during the earlier audit, made checkable
-  instead of remembered.
+  anywhere.
   """
   @spec secret_shaped?(String.t()) :: boolean()
   def secret_shaped?(key) when is_binary(key) do
@@ -69,28 +59,56 @@ defmodule PhoenixKit.Test.SecretKeyPerimeter do
     end
   end
 
-  @doc """
-  Every setting-key literal passed to a single-key `PhoenixKit.Settings`
-  read/write function (`get_setting/1,2`, `update_setting/2`,
-  `update_setting_with_module/3`) anywhere under `root`'s `.ex` files —
-  aliased (`Settings.foo("key")`) or fully qualified
-  (`PhoenixKit.Settings.foo("key")`).
+  @attribute_definition ~r/@([a-zA-Z_][a-zA-Z0-9_]*)\s+"([a-z0-9_]+)"/
+  @call_with_literal ~r/(?:PhoenixKit\.Settings|(?<!\.)Settings)\.\w+\(\s*"([a-z0-9_]+)"/
+  @call_with_attribute ~r/(?:PhoenixKit\.Settings|(?<!\.)Settings)\.\w+\(\s*@([a-zA-Z_][a-zA-Z0-9_]*)/
 
-  List-taking readers (`get_settings_direct/1`, `get_settings_cached/2`, ...)
-  are not covered — every secret found so far was written through one of the
-  four functions above; extending the regex to list literals is separate
-  work, not something this task's evidence depends on.
+  @doc """
+  Every setting-key literal passed as the first argument to ANY
+  `PhoenixKit.Settings` function anywhere under `root`'s `.ex` files —
+  aliased (`Settings.foo("key")`) or fully qualified
+  (`PhoenixKit.Settings.foo("key")`), covering `get_setting/1,2`,
+  `get_boolean_setting/1,2`, `get_setting_cached/1,2`, `get_json_setting/1,2`,
+  `update_setting/2`, `update_boolean_setting/2`, `update_json_setting/2`,
+  `update_setting_with_module/3` and anything else with the same shape — not
+  a fixed function list, so a new reader/writer added later needs no update
+  here. `(?<!\\.)Settings\\.` (rather than a bare `\\bSettings\\.`) so a call
+  through some OTHER module also named `Settings` (`Foo.Settings.bar(...)`)
+  is not mistaken for this one.
+
+  Also resolves the common `@key_name "literal"` module-attribute pattern
+  (`Settings.foo(@key_name)`) back to its literal, in the same file — this is
+  how core's own `website_access_password`/`website_access_link_token` are
+  actually referenced (`PhoenixKit.WebsiteAccess.Gate`), so without it this
+  scan would never see either despite both being real, already-restricted
+  keys.
+
+  List-taking readers (`get_settings_direct/1`, `get_settings_cached/2`,
+  taking a list of keys rather than one) are not covered — the key isn't a
+  single literal argument there, it's a list built from data the scan cannot
+  resolve statically.
   """
   @spec scan_settings_literals(String.t()) :: [String.t()]
   def scan_settings_literals(root) do
-    regex =
-      ~r/(?:PhoenixKit\.)?Settings\.(?:get_setting|update_setting|update_setting_with_module)\(\s*"([a-z0-9_]+)"/
-
     for path <- Path.wildcard(Path.join(root, "**/*.ex")),
-        {:ok, content} = File.read(path),
-        [_, key] <- Regex.scan(regex, content) do
-      key
+        {:ok, content} = File.read(path) do
+      literal_keys = for [_, key] <- Regex.scan(@call_with_literal, content), do: key
+
+      attribute_values =
+        for [_, name, value] <- Regex.scan(@attribute_definition, content), into: %{} do
+          {name, value}
+        end
+
+      attribute_keys =
+        for [_, name] <- Regex.scan(@call_with_attribute, content),
+            value = Map.get(attribute_values, name),
+            not is_nil(value) do
+          value
+        end
+
+      literal_keys ++ attribute_keys
     end
+    |> List.flatten()
     |> Enum.uniq()
   end
 
@@ -121,40 +139,6 @@ defmodule PhoenixKit.Test.SecretKeyPerimeter do
       end)
     end
     |> List.flatten()
-    |> Enum.uniq()
-  end
-
-  @doc """
-  The class of gap `billing_paypal_webhook_secret` fell into —
-  `PhoenixKitBilling.Web.WebhookController.get_webhook_secret/1` builds its
-  setting key by STRING INTERPOLATION
-  (`"billing_\#{provider}_webhook_secret"`), never as a literal, so it is
-  invisible to `scan_settings_literals/1` no matter which root it is pointed
-  at. The only way to find every key this family can produce is to resolve
-  `provider` at its actual source: the `handle_webhook(conn, :provider, ...)`
-  call sites in the controller, one per registered webhook route.
-
-  Returns the provider atoms (as strings) found, NOT the constructed keys —
-  the caller decides the key shape, so this function doesn't encode
-  `"billing_\#{p}_webhook_secret"` itself and go stale the day a second
-  interpolated family exists with a different shape.
-
-  Reaches into a SEPARATE hex package's source on purpose, unlike every
-  other function in this module — this one specific gap cannot be found any
-  other way, since the interpolation itself is what hid it from a
-  core-only, literal-only scan. `root` is the caller's job to locate (see
-  `settings_webhook_provider_perimeter_test.exs` for how this test's
-  environment finds it, and what happens when it can't).
-  """
-  @spec scan_webhook_provider_atoms(String.t()) :: [String.t()]
-  def scan_webhook_provider_atoms(root) do
-    regex = ~r/handle_webhook\(\s*conn\s*,\s*:([a-z0-9_]+)/
-
-    for path <- Path.wildcard(Path.join(root, "**/*.ex")),
-        {:ok, content} = File.read(path),
-        [_, provider] <- Regex.scan(regex, content) do
-      provider
-    end
     |> Enum.uniq()
   end
 end

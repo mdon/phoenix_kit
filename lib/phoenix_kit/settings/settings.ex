@@ -108,36 +108,18 @@ defmodule PhoenixKit.Settings do
   # secret an attacker could use directly (a private key, an API secret, a
   # webhook-signing secret) belongs here regardless of which package defines
   # it, because encryption-at-rest is enforced once, here, for the whole
-  # `phoenix_kit_settings` table. `oauth_apple_private_key` has no
-  # reader/writer yet (Apple Sign-In isn't implemented) but is classified
-  # now so a key dropped in ahead of the feature is never written in the
-  # clear. The `billing_*` secrets belong to phoenix_kit_billing
-  # (`lib/phoenix_kit_billing/providers/{stripe,paypal,razorpay,everypay}.ex`),
-  # which calls `PhoenixKit.Settings.update_setting/2` directly — core has
-  # no other notion of that module's keys, but this list is what
-  # `Setting.changeset/2` actually consults, so it must know them to protect
-  # them. `billing_stripe_api_key` is a legacy alias
+  # `phoenix_kit_settings` table. The `billing_*` secrets belong to
+  # phoenix_kit_billing (`lib/phoenix_kit_billing/providers/{stripe,paypal,
+  # razorpay,everypay}.ex`), which calls `PhoenixKit.Settings.update_setting/2`
+  # directly — core has no other notion of that module's keys, but this list
+  # is what `Setting.changeset/2` actually consults, so it must know them to
+  # protect them. `billing_stripe_api_key` is a legacy alias
   # `PhoenixKitBilling.Providers.Stripe.stripe_secret_key/0` still falls back
   # to — as sensitive as `billing_stripe_secret_key` itself.
-  #
-  # `billing_paypal_webhook_secret` needed a second pass: it was missed
-  # initially because `WebhookController.get_webhook_secret/1` builds the
-  # key by STRING INTERPOLATION (`"billing_#{provider}_webhook_secret"`),
-  # never as a literal — invisible to grep-for-literals the same way it is
-  # invisible to `PhoenixKit.Test.SecretKeyPerimeter`'s literal scan.
-  # `:stripe` and `:razorpay` happened to already have their own literal
-  # call sites elsewhere (`billing_stripe_webhook_secret`,
-  # `billing_razorpay_webhook_secret`, both above); `:paypal` had none, so
-  # it alone went unclassified. `:everypay` never reaches
-  # `get_webhook_secret/1` at all — `WebhookController.everypay/2`
-  # re-fetches the authoritative record from EveryPay's API instead of
-  # trusting a signed callback, so `billing_everypay_webhook_secret` is not
-  # a missed key, it does not exist. See
-  # `settings_webhook_provider_perimeter_test.exs`, which resolves
-  # providers from `handle_webhook(conn, :provider, ...)` call sites in
-  # phoenix_kit_billing rather than a hand-maintained list, so a fifth
-  # provider added to that family fails this list instead of silently
-  # joining :everypay.
+  # `billing_<provider>_webhook_secret` is built by string interpolation at
+  # its one call site (`WebhookController.get_webhook_secret/1`), not a
+  # literal, so a future provider added to that family needs the same
+  # treatment even though no static scan in this repo can see it.
   @restricted_setting_keys ~w(
     oauth_google_client_secret
     oauth_github_client_secret

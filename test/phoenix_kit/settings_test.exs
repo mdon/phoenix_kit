@@ -102,8 +102,7 @@ defmodule PhoenixKit.SettingsTest do
     # keys). That gap predates this fix and is not this fix's to close;
     # this test only pins down the one guarantee this fix actually owns
     # for them: a value the provider's own design makes public was not
-    # swept into
-    # @restricted_setting_keys by the broader audit above.
+    # swept into @restricted_setting_keys by the test above.
     test "the billing provider identifiers meant for client-side use were not swept into the restricted list" do
       for key <- ~w(
             billing_stripe_publishable_key
@@ -271,128 +270,37 @@ defmodule PhoenixKit.SettingsTest do
                "synthetic-round-trip-secret"
     end
 
-    # The same round trip as the test above, once per key the broader
-    # audit added to @restricted_setting_keys. Written out
-    # individually (not a `for` loop over one shared test body) so a
-    # regression names exactly which key broke, and so the mutation check
-    # this task requires — delete one key from @restricted_setting_keys and
-    # confirm ONLY its own test goes red — has a 1:1 test to point at.
-    # Every `assert String.starts_with?(raw.value, "enc:v1:")` below is the
-    # assertion that mutation exercises: it is true only because
-    # `Setting.changeset/2` consulted `restricted_setting_keys/0` for this
-    # exact key, not because of anything else in the write path.
-    test "write then read: oauth_apple_private_key is stored encrypted" do
-      plaintext = "synthetic-apple-private-key-round-trip"
-      {:ok, _} = Settings.update_setting("oauth_apple_private_key", plaintext)
+    # The same round trip as the test above, once per key this fix added to
+    # @restricted_setting_keys — a module-level `for` so each key still gets
+    # its own named test (a regression names exactly which key broke), while
+    # sharing one body. `billing_paypal_webhook_secret` is included here even
+    # though its key is built by string interpolation at its one real call
+    # site (`WebhookController.get_webhook_secret/1`), not a literal — that
+    # only affects whether a static scan can find the call site, not whether
+    # the key itself round-trips through encryption once classified.
+    for key <- ~w(
+          oauth_apple_private_key
+          billing_stripe_secret_key
+          billing_stripe_webhook_secret
+          billing_stripe_api_key
+          billing_paypal_client_secret
+          billing_paypal_webhook_secret
+          billing_razorpay_key_secret
+          billing_razorpay_webhook_secret
+          billing_everypay_api_secret
+        ) do
+      test "write then read: #{key} is stored encrypted" do
+        key = unquote(key)
+        plaintext = "synthetic-#{key}-round-trip"
+        {:ok, _} = Settings.update_setting(key, plaintext)
 
-      raw = Queries.get_setting_by_key("oauth_apple_private_key")
-      assert String.starts_with?(raw.value, "enc:v1:")
-      refute raw.value == plaintext
+        raw = Queries.get_setting_by_key(key)
+        assert String.starts_with?(raw.value, "enc:v1:")
+        refute raw.value == plaintext
 
-      assert Settings.get_setting("oauth_apple_private_key") == plaintext
-      assert Settings.list_all_settings()["oauth_apple_private_key"] == plaintext
-    end
-
-    test "write then read: billing_stripe_secret_key is stored encrypted" do
-      plaintext = "synthetic-stripe-secret-key-round-trip"
-      {:ok, _} = Settings.update_setting("billing_stripe_secret_key", plaintext)
-
-      raw = Queries.get_setting_by_key("billing_stripe_secret_key")
-      assert String.starts_with?(raw.value, "enc:v1:")
-      refute raw.value == plaintext
-
-      assert Settings.get_setting("billing_stripe_secret_key") == plaintext
-      assert Settings.list_all_settings()["billing_stripe_secret_key"] == plaintext
-    end
-
-    test "write then read: billing_stripe_webhook_secret is stored encrypted" do
-      plaintext = "synthetic-stripe-webhook-secret-round-trip"
-      {:ok, _} = Settings.update_setting("billing_stripe_webhook_secret", plaintext)
-
-      raw = Queries.get_setting_by_key("billing_stripe_webhook_secret")
-      assert String.starts_with?(raw.value, "enc:v1:")
-      refute raw.value == plaintext
-
-      assert Settings.get_setting("billing_stripe_webhook_secret") == plaintext
-      assert Settings.list_all_settings()["billing_stripe_webhook_secret"] == plaintext
-    end
-
-    test "write then read: billing_stripe_api_key (legacy alias) is stored encrypted" do
-      plaintext = "synthetic-stripe-legacy-api-key-round-trip"
-      {:ok, _} = Settings.update_setting("billing_stripe_api_key", plaintext)
-
-      raw = Queries.get_setting_by_key("billing_stripe_api_key")
-      assert String.starts_with?(raw.value, "enc:v1:")
-      refute raw.value == plaintext
-
-      assert Settings.get_setting("billing_stripe_api_key") == plaintext
-      assert Settings.list_all_settings()["billing_stripe_api_key"] == plaintext
-    end
-
-    test "write then read: billing_paypal_client_secret is stored encrypted" do
-      plaintext = "synthetic-paypal-client-secret-round-trip"
-      {:ok, _} = Settings.update_setting("billing_paypal_client_secret", plaintext)
-
-      raw = Queries.get_setting_by_key("billing_paypal_client_secret")
-      assert String.starts_with?(raw.value, "enc:v1:")
-      refute raw.value == plaintext
-
-      assert Settings.get_setting("billing_paypal_client_secret") == plaintext
-      assert Settings.list_all_settings()["billing_paypal_client_secret"] == plaintext
-    end
-
-    # Found via WebhookController.get_webhook_secret/1, which builds this
-    # key by string interpolation (`"billing_#{provider}_webhook_secret"`)
-    # rather than a literal — invisible to the static perimeter scan the
-    # same way it was invisible to the original audit's literal grep. See
-    # settings_webhook_provider_perimeter_test.exs for the guard that
-    # resolves this from call sites instead of a hand-maintained list.
-    test "write then read: billing_paypal_webhook_secret is stored encrypted" do
-      plaintext = "synthetic-paypal-webhook-secret-round-trip"
-      {:ok, _} = Settings.update_setting("billing_paypal_webhook_secret", plaintext)
-
-      raw = Queries.get_setting_by_key("billing_paypal_webhook_secret")
-      assert String.starts_with?(raw.value, "enc:v1:")
-      refute raw.value == plaintext
-
-      assert Settings.get_setting("billing_paypal_webhook_secret") == plaintext
-      assert Settings.list_all_settings()["billing_paypal_webhook_secret"] == plaintext
-    end
-
-    test "write then read: billing_razorpay_key_secret is stored encrypted" do
-      plaintext = "synthetic-razorpay-key-secret-round-trip"
-      {:ok, _} = Settings.update_setting("billing_razorpay_key_secret", plaintext)
-
-      raw = Queries.get_setting_by_key("billing_razorpay_key_secret")
-      assert String.starts_with?(raw.value, "enc:v1:")
-      refute raw.value == plaintext
-
-      assert Settings.get_setting("billing_razorpay_key_secret") == plaintext
-      assert Settings.list_all_settings()["billing_razorpay_key_secret"] == plaintext
-    end
-
-    test "write then read: billing_razorpay_webhook_secret is stored encrypted" do
-      plaintext = "synthetic-razorpay-webhook-secret-round-trip"
-      {:ok, _} = Settings.update_setting("billing_razorpay_webhook_secret", plaintext)
-
-      raw = Queries.get_setting_by_key("billing_razorpay_webhook_secret")
-      assert String.starts_with?(raw.value, "enc:v1:")
-      refute raw.value == plaintext
-
-      assert Settings.get_setting("billing_razorpay_webhook_secret") == plaintext
-      assert Settings.list_all_settings()["billing_razorpay_webhook_secret"] == plaintext
-    end
-
-    test "write then read: billing_everypay_api_secret is stored encrypted" do
-      plaintext = "synthetic-everypay-api-secret-round-trip"
-      {:ok, _} = Settings.update_setting("billing_everypay_api_secret", plaintext)
-
-      raw = Queries.get_setting_by_key("billing_everypay_api_secret")
-      assert String.starts_with?(raw.value, "enc:v1:")
-      refute raw.value == plaintext
-
-      assert Settings.get_setting("billing_everypay_api_secret") == plaintext
-      assert Settings.list_all_settings()["billing_everypay_api_secret"] == plaintext
+        assert Settings.get_setting(key) == plaintext
+        assert Settings.list_all_settings()[key] == plaintext
+      end
     end
 
     # An old plaintext billing secret must keep being read as plaintext by
