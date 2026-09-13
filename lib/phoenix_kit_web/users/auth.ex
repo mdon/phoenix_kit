@@ -2488,17 +2488,21 @@ defmodule PhoenixKitWeb.Users.Auth do
   # acts as lives on the token — `PhoenixKit.Users.ActiveRole`); by uuid for
   # an embedded mount that only ever had a `current_user_uuid`. A token that
   # no longer resolves (revoked, expired) is `nil` here, which the caller
-  # treats as "the user is gone" — exactly what a revocation means.
+  # treats as "the user is gone" — exactly what a revocation means. Both
+  # branches go through `ensure_active_user/1` like every other token/user
+  # resolution in this module: this refresh fires on a role-change broadcast,
+  # and a deactivated user must not be handed a fresh authenticated scope by
+  # the one path that re-reads them from the database.
   defp reload_session_user(socket, user_uuid) do
     case socket.assigns[:phoenix_kit_session_token] do
       token when is_binary(token) ->
-        case Auth.get_user_by_session_token(token) do
+        case token |> Auth.get_user_by_session_token() |> Auth.ensure_active_user() do
           %User{uuid: ^user_uuid} = user -> user
           _ -> nil
         end
 
       _ ->
-        Auth.get_user(user_uuid)
+        user_uuid |> Auth.get_user() |> Auth.ensure_active_user()
     end
   end
 
