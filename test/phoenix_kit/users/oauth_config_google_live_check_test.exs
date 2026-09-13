@@ -2,7 +2,8 @@ defmodule PhoenixKit.Users.OAuthConfigGoogleLiveCheckTest do
   @moduledoc """
   End-to-end coverage of `OAuthConfig.test_connection/3`'s Google path
   through `google_live_check/2`, via a `Req.Test` stub instead of a real
-  network call — request shape sent, and all four response outcomes.
+  network call — request shape sent, the four HTTP response outcomes, and
+  a raise inside the check itself.
 
   The MAJOR bug this guards against: the check used to send a `redirect_uri`
   that fails Google's "Host TLDs must belong to the public suffix list"
@@ -107,5 +108,17 @@ defmodule PhoenixKit.Users.OAuthConfigGoogleLiveCheckTest do
              OAuthConfig.test_connection(:google, credentials, req_opts())
 
     assert message =~ "reach"
+  end
+
+  test "a crash inside the request/response cycle is reported as inconclusive, without leaking the exception text" do
+    Req.Test.stub(@stub_name, fn _conn -> raise "boom, contains client_secret_value" end)
+
+    credentials = %{client_id: "some-client-id", client_secret: "some-client-secret-value"}
+
+    assert {:inconclusive, message} =
+             OAuthConfig.test_connection(:google, credentials, req_opts())
+
+    refute message =~ "boom"
+    refute message =~ "client_secret_value"
   end
 end
