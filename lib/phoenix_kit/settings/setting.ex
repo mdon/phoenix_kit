@@ -86,6 +86,18 @@ defmodule PhoenixKit.Settings.Setting do
     "oauth_github_client_secret",
     "oauth_facebook_app_id",
     "oauth_facebook_app_secret",
+    # Unset until the Apple Sign-In feature and its admin UI exist
+    "oauth_apple_private_key",
+    # Billing-provider secrets (phoenix_kit_billing) — unset until an admin
+    # configures that provider
+    "billing_stripe_secret_key",
+    "billing_stripe_webhook_secret",
+    "billing_stripe_api_key",
+    "billing_paypal_client_secret",
+    "billing_paypal_webhook_secret",
+    "billing_razorpay_key_secret",
+    "billing_razorpay_webhook_secret",
+    "billing_everypay_api_secret",
     # Auth Page Branding
     "auth_logo_file_uuid",
     "auth_background_image_file_uuid",

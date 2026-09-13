@@ -93,15 +93,68 @@ defmodule PhoenixKit.Settings do
   # S007: keys that hold live credential material, not just data an admin
   # would rather keep quiet. `oauth_*_client_id`/`oauth_*_app_id` are NOT
   # here on purpose — they are public by OAuth's own design (visible in the
-  # authorization redirect URL) and carry no exposure to guard.
+  # authorization redirect URL) and carry no exposure to guard. Same
+  # reasoning excludes the billing-provider public counterparts written by
+  # the (separate) phoenix_kit_billing package through this same table:
+  # `billing_stripe_publishable_key` (meant for client-side JS),
+  # `billing_paypal_client_id` (loaded in PayPal's client-side SDK tag),
+  # `billing_razorpay_key_id` (loaded in Razorpay's client-side Checkout.js)
+  # and `billing_everypay_api_username`/`billing_everypay_account_name`
+  # (identifiers, not secrets) stay public for the same reason their oauth
+  # counterparts do.
+  #
+  # This list also extends beyond OAuth: any key — core's own or a module's,
+  # written through this same `Setting.changeset/2` — that carries a live
+  # secret an attacker could use directly (a private key, an API secret, a
+  # webhook-signing secret) belongs here regardless of which package defines
+  # it, because encryption-at-rest is enforced once, here, for the whole
+  # `phoenix_kit_settings` table. `oauth_apple_private_key` has no
+  # reader/writer yet (Apple Sign-In isn't implemented) but is classified
+  # now so a key dropped in ahead of the feature is never written in the
+  # clear. The `billing_*` secrets belong to phoenix_kit_billing
+  # (`lib/phoenix_kit_billing/providers/{stripe,paypal,razorpay,everypay}.ex`),
+  # which calls `PhoenixKit.Settings.update_setting/2` directly — core has
+  # no other notion of that module's keys, but this list is what
+  # `Setting.changeset/2` actually consults, so it must know them to protect
+  # them. `billing_stripe_api_key` is a legacy alias
+  # `PhoenixKitBilling.Providers.Stripe.stripe_secret_key/0` still falls back
+  # to — as sensitive as `billing_stripe_secret_key` itself.
+  #
+  # `billing_paypal_webhook_secret` needed a second pass: it was missed
+  # initially because `WebhookController.get_webhook_secret/1` builds the
+  # key by STRING INTERPOLATION (`"billing_#{provider}_webhook_secret"`),
+  # never as a literal — invisible to grep-for-literals the same way it is
+  # invisible to `PhoenixKit.Test.SecretKeyPerimeter`'s literal scan.
+  # `:stripe` and `:razorpay` happened to already have their own literal
+  # call sites elsewhere (`billing_stripe_webhook_secret`,
+  # `billing_razorpay_webhook_secret`, both above); `:paypal` had none, so
+  # it alone went unclassified. `:everypay` never reaches
+  # `get_webhook_secret/1` at all — `WebhookController.everypay/2`
+  # re-fetches the authoritative record from EveryPay's API instead of
+  # trusting a signed callback, so `billing_everypay_webhook_secret` is not
+  # a missed key, it does not exist. See
+  # `settings_webhook_provider_perimeter_test.exs`, which resolves
+  # providers from `handle_webhook(conn, :provider, ...)` call sites in
+  # phoenix_kit_billing rather than a hand-maintained list, so a fifth
+  # provider added to that family fails this list instead of silently
+  # joining :everypay.
   @restricted_setting_keys ~w(
     oauth_google_client_secret
     oauth_github_client_secret
     oauth_facebook_app_secret
+    oauth_apple_private_key
     aws_access_key_id
     aws_secret_access_key
     website_access_password
     website_access_link_token
+    billing_stripe_secret_key
+    billing_stripe_webhook_secret
+    billing_stripe_api_key
+    billing_paypal_client_secret
+    billing_paypal_webhook_secret
+    billing_razorpay_key_secret
+    billing_razorpay_webhook_secret
+    billing_everypay_api_secret
   )
 
   # The explicit ALLOW list `list_public_settings/0` reads from. Deliberately
@@ -324,6 +377,22 @@ defmodule PhoenixKit.Settings do
       "oauth_github_client_secret" => "",
       "oauth_facebook_app_id" => "",
       "oauth_facebook_app_secret" => "",
+      # Apple Sign-In has no UI yet — classified ahead of the feature so a
+      # private key set before it ships is never stored in the clear (see
+      # @restricted_setting_keys).
+      "oauth_apple_private_key" => "",
+      # Billing-provider secrets. Written by the separate phoenix_kit_billing
+      # package through this same table — core carries no other knowledge of
+      # these keys, only enough to classify them (see
+      # @restricted_setting_keys for why core has to know them at all).
+      "billing_stripe_secret_key" => "",
+      "billing_stripe_webhook_secret" => "",
+      "billing_stripe_api_key" => "",
+      "billing_paypal_client_secret" => "",
+      "billing_paypal_webhook_secret" => "",
+      "billing_razorpay_key_secret" => "",
+      "billing_razorpay_webhook_secret" => "",
+      "billing_everypay_api_secret" => "",
       # Notifications
       "notifications_enabled" => "true",
       # Multi-session switcher (opt-in; disabled by default)
