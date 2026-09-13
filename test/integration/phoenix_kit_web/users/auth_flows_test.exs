@@ -576,6 +576,32 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
       assert get_session(conn, :user_return_to)
     end
 
+    # The account is fine; the user is asked to do one routine thing. Error
+    # styling made a first visit look like a failure (reported from topp.ee).
+    test "the confirmation halt is a warning flash, not an error", %{conn: conn} do
+      user = register_user()
+
+      conn = conn |> plug_conn(user) |> UserAuth.require_authenticated_user([])
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :warning) =~ "confirm your email"
+      refute Phoenix.Flash.get(conn.assigns.flash, :error)
+    end
+
+    test "the scope-based plug halts with the same warning flash", %{conn: conn} do
+      user = register_user()
+
+      conn =
+        conn
+        |> plug_conn(user)
+        |> Plug.Conn.assign(:phoenix_kit_current_scope, Scope.for_user(user))
+        |> UserAuth.require_authenticated_scope([])
+
+      assert conn.halted
+      assert redirected_to(conn) == Routes.path("/users/confirm")
+      assert Phoenix.Flash.get(conn.assigns.flash, :warning) =~ "confirm your email"
+      refute Phoenix.Flash.get(conn.assigns.flash, :error)
+    end
+
     test "off: unconfirmed users pass through", %{conn: conn} do
       Settings.update_setting("require_email_confirmation", "false")
       user = register_user()
