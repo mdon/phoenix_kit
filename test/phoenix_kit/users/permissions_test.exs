@@ -593,4 +593,34 @@ defmodule PhoenixKit.Users.PermissionsTest do
       assert {:error, :owner_immutable} = Permissions.can_edit_role_permissions?(scope, role)
     end
   end
+
+  # --- Access Control: edit_role_permissions_error_message ---
+  #
+  # can_edit_role_permissions?/2 returns bare atoms on error; LiveViews must
+  # never put_flash the atom itself (raw term leaks to the user). This pins
+  # the exact sentence for every reason it can produce today, so a clause
+  # silently collapsing into the generic fallback would fail the assertion
+  # for that specific reason.
+  describe "edit_role_permissions_error_message/1" do
+    @known_reason_messages %{
+      not_authenticated: "Not authenticated",
+      owner_immutable: "Owner role always has full access and cannot be modified",
+      self_role: "You cannot edit permissions for your own role",
+      admin_owner_only: "Only the Owner can edit Admin permissions"
+    }
+
+    test "maps every known reason to its exact translated sentence" do
+      for {reason, expected} <- @known_reason_messages do
+        message = Permissions.edit_role_permissions_error_message(reason)
+
+        assert message == expected
+        refute message == "Permission denied"
+      end
+    end
+
+    test "falls back to a generic message for an unknown reason" do
+      assert Permissions.edit_role_permissions_error_message(:something_unexpected) ==
+               "Permission denied"
+    end
+  end
 end

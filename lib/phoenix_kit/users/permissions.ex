@@ -77,11 +77,16 @@ defmodule PhoenixKit.Users.Permissions do
 
   ## Edit Protection
 
-      Permissions.can_edit_role_permissions?(scope, role) :: :ok | {:error, String.t()}
+      Permissions.can_edit_role_permissions?(scope, role) :: :ok | {:error, atom()}
 
   Enforces: users cannot edit their own role, only Owner can edit Admin,
-  system roles cannot have `is_system_role` changed.
+  system roles cannot have `is_system_role` changed. The error reason is a
+  bare atom, not display text — pass it through
+  `edit_role_permissions_error_message/1` before showing it to a user (e.g.
+  in a flash).
   """
+
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   import Ecto.Query, warn: false
   require Logger
@@ -1393,6 +1398,26 @@ defmodule PhoenixKit.Users.Permissions do
         :ok
     end
   end
+
+  @doc """
+  Maps a `can_edit_role_permissions?/2` error reason to a human-readable,
+  translated message suitable for display (e.g. in a flash).
+  """
+  @spec edit_role_permissions_error_message(atom()) :: String.t()
+  def edit_role_permissions_error_message(:not_authenticated),
+    do: gettext("Not authenticated")
+
+  def edit_role_permissions_error_message(:owner_immutable),
+    do: gettext("Owner role always has full access and cannot be modified")
+
+  def edit_role_permissions_error_message(:self_role),
+    do: gettext("You cannot edit permissions for your own role")
+
+  def edit_role_permissions_error_message(:admin_owner_only),
+    do: gettext("Only the Owner can edit Admin permissions")
+
+  def edit_role_permissions_error_message(_reason),
+    do: gettext("Permission denied")
 
   # --- Helpers ---
 
