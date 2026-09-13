@@ -46,9 +46,17 @@ defmodule PhoenixKit.Integrations.Probe do
 
   @typedoc """
   Talks to the network; answers `:ok`, `{:ok, note}` when it succeeded but has
-  something the operator needs to know, or `{:error, message}`.
+  something the operator needs to know, `{:error, message}` when it was
+  actively rejected, or `{:inconclusive, message}` when the check could not
+  reach a yes/no verdict at all (a response neither a pass nor a rejection) —
+  distinct from `:error` so a caller can tell "definitely wrong" apart from
+  "could not tell".
   """
-  @type check :: (-> :ok | {:ok, String.t()} | {:error, String.t()})
+  @type check ::
+          (-> :ok
+              | {:ok, String.t()}
+              | {:error, String.t()}
+              | {:inconclusive, String.t()})
 
   @default_deadline 15_000
 
@@ -59,7 +67,8 @@ defmodule PhoenixKit.Integrations.Probe do
   returns `{:error, message}` — either way the caller is left standing, and the
   check does not outlive it.
   """
-  @spec run(check(), timeout()) :: :ok | {:ok, String.t()} | {:error, String.t()}
+  @spec run(check(), timeout()) ::
+          :ok | {:ok, String.t()} | {:error, String.t()} | {:inconclusive, String.t()}
   def run(check, deadline \\ deadline()) when is_function(check, 0) do
     parent = self()
     ref = make_ref()

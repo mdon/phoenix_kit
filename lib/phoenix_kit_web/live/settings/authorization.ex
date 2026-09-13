@@ -26,6 +26,11 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   # never renders.
   @oauth_secret_keys ~w(oauth_google_client_secret oauth_github_client_secret oauth_facebook_app_secret)
 
+  # Not password-masked, always resubmitted with the real (typed) value, so
+  # no `preserve_unset_secrets/2`-style handling is needed — only trimming,
+  # for the same copy-paste-padding reason as `@oauth_secret_keys`.
+  @oauth_id_keys ~w(oauth_google_client_id oauth_github_client_id oauth_facebook_app_id)
+
   def mount(_params, _session, socket) do
     current_settings = Settings.list_all_settings()
     defaults = Settings.get_defaults()
@@ -80,10 +85,10 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   def handle_event("save_settings", %{"settings" => settings_params}, socket) do
     socket = assign(socket, :saving, true)
 
-    case validate_background_color(settings_params) do
-      :ok ->
-        do_save_settings(socket, settings_params)
-
+    with :ok <- validate_background_color(settings_params),
+         :ok <- validate_oauth_secret_formats(settings_params) do
+      do_save_settings(socket, trim_oauth_secrets(settings_params))
+    else
       {:error, message} ->
         {:noreply, socket |> assign(:saving, false) |> put_flash(:error, message)}
     end
@@ -105,6 +110,9 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
       {:ok, message} ->
         {:noreply, put_flash(socket, :info, message)}
 
+      {:inconclusive, message} ->
+        {:noreply, put_flash(socket, :warning, message)}
+
       {:error, message} ->
         {:noreply, put_flash(socket, :error, message)}
     end
@@ -112,7 +120,7 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
 
   def handle_event("reload_oauth_config", _params, socket) do
     OAuthConfig.configure_providers()
-    {:noreply, put_flash(socket, :info, "OAuth configuration reloaded from database")}
+    {:noreply, put_flash(socket, :info, gettext("OAuth configuration reloaded from database"))}
   end
 
   def handle_event("open_media_selector", %{"target" => target}, socket)
@@ -182,6 +190,45 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   end
 
   defp validate_background_color(_settings_params), do: :ok
+
+  # Gate the save on secret *format* the same way `validate_background_color/1`
+  # gates it on color format — runs on the RAW submitted params, before
+  # `preserve_unset_secrets/2` fills a blank field back in with whatever is
+  # already stored. That ordering matters: an admin saving an unrelated
+  # field (say, project_title) must not suddenly be blocked because an
+  # OAuth secret saved before this fix already happens to be short — this
+  # only rejects a secret the admin is actively typing right now, never one
+  # that is merely being carried forward untouched.
+  defp validate_oauth_secret_formats(settings_params) do
+    Enum.reduce_while(@oauth_secret_keys, :ok, fn key, :ok ->
+      case OAuthConfig.validate_secret_format(provider_for_secret_key(key), settings_params[key]) do
+        :ok -> {:cont, :ok}
+        {:error, message} -> {:halt, {:error, message}}
+      end
+    end)
+  end
+
+  defp provider_for_secret_key("oauth_google_client_secret"), do: :google
+  defp provider_for_secret_key("oauth_github_client_secret"), do: :github
+  defp provider_for_secret_key("oauth_facebook_app_secret"), do: :facebook
+
+  # `validate_secret_format/2` trims before checking length, but that
+  # trimmed value never made it to disk on its own — a copy-paste with
+  # leading/trailing whitespace ("  GOCSPX-...  ") passed the format gate
+  # and then got persisted padded, which is not what Google issued and
+  # fails the real OAuth flow. Runs after validation (on the raw params),
+  # right before the params reach `do_save_settings`, so it only ever
+  # trims a value that already passed the length/blank checks. Client
+  # IDs are not format-gated the same way, but a padded one fails a real
+  # provider round trip identically, so they are trimmed here too.
+  defp trim_oauth_secrets(settings_params) do
+    Enum.reduce(@oauth_secret_keys ++ @oauth_id_keys, settings_params, fn key, params ->
+      case Map.get(params, key) do
+        value when is_binary(value) -> Map.put(params, key, String.trim(value))
+        _value -> params
+      end
+    end)
+  end
 
   # S009: the template never renders a real OAuth secret into `value=`
   # (view-source can't leak it), so an untouched password field arrives here
@@ -278,24 +325,31 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   # admin just typed, not the last-persisted values.
   defp oauth_credentials_from_settings(:google, settings) do
     %{
-      client_id: settings["oauth_google_client_id"] || "",
-      client_secret: settings["oauth_google_client_secret"] || ""
+      client_id: trim_credential(settings["oauth_google_client_id"]),
+      client_secret: trim_credential(settings["oauth_google_client_secret"])
     }
   end
 
   defp oauth_credentials_from_settings(:github, settings) do
     %{
-      client_id: settings["oauth_github_client_id"] || "",
-      client_secret: settings["oauth_github_client_secret"] || ""
+      client_id: trim_credential(settings["oauth_github_client_id"]),
+      client_secret: trim_credential(settings["oauth_github_client_secret"])
     }
   end
 
   defp oauth_credentials_from_settings(:facebook, settings) do
     %{
-      app_id: settings["oauth_facebook_app_id"] || "",
-      app_secret: settings["oauth_facebook_app_secret"] || ""
+      app_id: trim_credential(settings["oauth_facebook_app_id"]),
+      app_secret: trim_credential(settings["oauth_facebook_app_secret"])
     }
   end
+
+  # Same padding concern as `trim_oauth_secrets/1`, but on the "Test
+  # Credentials" read path: a copy-pasted secret with surrounding
+  # whitespace must be tested with the same value that would actually be
+  # persisted and sent to the provider, not the padded one.
+  defp trim_credential(value) when is_binary(value), do: String.trim(value)
+  defp trim_credential(value), do: value || ""
 
   @doc """
   Collapsible per-provider OAuth setup guide: the callback-URL box with a copy

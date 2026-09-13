@@ -7,9 +7,41 @@ defmodule PhoenixKit.Users.OAuthConfig do
   configuration dynamically.
   """
 
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
   alias PhoenixKit.Config
+  alias PhoenixKit.Integrations.Probe
   alias PhoenixKit.Settings
   require Logger
+
+  # Real issued secrets sit far above this floor — Google's are 24+
+  # characters (35 with the current GOCSPX- prefix), GitHub OAuth App
+  # secrets are 40 hex characters, Facebook's App Secret is 32 hex
+  # characters. This is a plausibility floor, not a per-provider format
+  # check (provider formats are not ours to pin down and can change without
+  # notice) — it exists to catch the incident that prompted it: a
+  # 9-character Google secret saved silently and passed the old "Test
+  # Credentials" button (which checked only for non-emptiness) for four
+  # days.
+  @min_secret_length 16
+
+  @google_token_url "https://oauth2.googleapis.com/token"
+  # The Probe deadline below (@google_test_timeout) is a backstop, not the
+  # primary bound — Req's own connect/receive timeouts are deliberately
+  # shorter, with margin, so a slow-but-not-wedged network failure (DNS
+  # taking a while, a half-open connection) resolves as
+  # {:error, %Req.TransportError{}}, which
+  # `interpret_google_token_response/1` reads as `:inconclusive`, instead
+  # of racing the Probe deadline and landing in Probe's own generic
+  # {:error, "did not respond in time"} fallback (which is not tagged
+  # `:inconclusive`). Connect (a single `:ssl.connect/3` covering TCP+TLS
+  # in Mint) bounds the worst case at 3s; receive_timeout covers everything
+  # after that, so the two are not simply additive against the deadline —
+  # 3s + 4s still leaves 1s of margin under the 8s deadline for scheduling
+  # jitter.
+  @google_connect_timeout 3_000
+  @google_receive_timeout 4_000
+  @google_test_timeout 8_000
 
   @doc """
   Configures all OAuth providers from database settings.
@@ -224,74 +256,129 @@ defmodule PhoenixKit.Users.OAuthConfig do
     do: validate_facebook_credentials(credentials)
 
   defp validate_google_credentials(credentials) do
-    missing = find_missing_google_credentials(credentials)
-
-    if missing == [] do
-      {:ok, :google}
-    else
-      {:error, "Missing Google OAuth credentials: #{Enum.join(missing, ", ")}"}
+    case find_missing_google_credentials(credentials) do
+      [] -> {:ok, :google}
+      missing -> {:error, missing_credentials_message(:google, missing)}
     end
   end
 
   defp validate_github_credentials(credentials) do
-    missing = find_missing_github_credentials(credentials)
-
-    if missing == [] do
-      {:ok, :github}
-    else
-      {:error, "Missing GitHub OAuth credentials: #{Enum.join(missing, ", ")}"}
+    case find_missing_github_credentials(credentials) do
+      [] -> {:ok, :github}
+      missing -> {:error, missing_credentials_message(:github, missing)}
     end
   end
 
   defp find_missing_google_credentials(credentials) do
     []
-    |> add_if_missing("Client ID", credentials.client_id)
-    |> add_if_missing("Client Secret", credentials.client_secret)
+    |> add_if_missing(gettext("Client ID"), credentials.client_id)
+    |> add_if_missing(gettext("Client Secret"), credentials.client_secret)
   end
 
   defp find_missing_github_credentials(credentials) do
     []
-    |> add_if_missing("Client ID", credentials.client_id)
-    |> add_if_missing("Client Secret", credentials.client_secret)
+    |> add_if_missing(gettext("Client ID"), credentials.client_id)
+    |> add_if_missing(gettext("Client Secret"), credentials.client_secret)
   end
 
   defp validate_facebook_credentials(credentials) do
-    missing = find_missing_facebook_credentials(credentials)
-
-    if missing == [] do
-      {:ok, :facebook}
-    else
-      {:error, "Missing Facebook OAuth credentials: #{Enum.join(missing, ", ")}"}
+    case find_missing_facebook_credentials(credentials) do
+      [] -> {:ok, :facebook}
+      missing -> {:error, missing_credentials_message(:facebook, missing)}
     end
   end
 
   defp find_missing_facebook_credentials(credentials) do
     []
-    |> add_if_missing("App ID", credentials.app_id)
-    |> add_if_missing("App Secret", credentials.app_secret)
+    |> add_if_missing(gettext("App ID"), credentials.app_id)
+    |> add_if_missing(gettext("App Secret"), credentials.app_secret)
   end
 
+  defp missing_credentials_message(provider, missing) do
+    gettext("Missing %{provider} OAuth credentials: %{fields}",
+      provider: provider_name(provider),
+      fields: Enum.join(missing, ", ")
+    )
+  end
+
+  # A field consisting of only whitespace ("   ") is not a value — the old
+  # `value == ""` check let it through as if it were a real, non-empty
+  # credential.
   defp add_if_missing(list, field_name, value) do
-    if value == "" do
+    if blank?(value) do
       [field_name | list]
     else
       list
     end
   end
 
-  @doc """
-  Tests OAuth connection for a specific provider.
+  defp blank?(nil), do: true
+  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank?(_), do: false
 
-  This function validates the credentials format but does not make actual API calls.
-  For true connection testing, OAuth flow needs to be initiated through the browser.
+  @doc """
+  Validates the *format* of a single OAuth secret value.
+
+  Independent of `test_connection/2` below — this needs no network and no
+  already-saved state, so it is cheap enough to run on every settings save,
+  not just on a "Test Credentials" click. A blank value is not an error:
+  OAuth is opt-in per provider, and an unconfigured secret is a legitimate
+  state (`PhoenixKit.Settings.Setting.optional_settings/0` already allows
+  these keys to be empty). A value that is only whitespace, or implausibly
+  short (see `@min_secret_length`), is rejected with a message naming why.
 
   ## Examples
 
+      iex> PhoenixKit.Users.OAuthConfig.validate_secret_format(:google, "")
+      :ok
+
+      iex> {:error, _reason} = PhoenixKit.Users.OAuthConfig.validate_secret_format(:google, "short")
+  """
+  @spec validate_secret_format(atom(), String.t() | nil) :: :ok | {:error, String.t()}
+  def validate_secret_format(_provider, nil), do: :ok
+  def validate_secret_format(_provider, ""), do: :ok
+
+  def validate_secret_format(provider, value)
+      when provider in [:google, :github, :facebook] and is_binary(value) do
+    trimmed = String.trim(value)
+
+    cond do
+      trimmed == "" ->
+        {:error,
+         gettext("%{provider} secret cannot be only whitespace",
+           provider: provider_name(provider)
+         )}
+
+      String.length(trimmed) < @min_secret_length ->
+        {:error,
+         gettext(
+           "%{provider} secret looks too short to be real (%{length} characters, expected at least %{min}) — double-check you copied the whole value",
+           provider: provider_name(provider),
+           length: String.length(trimmed),
+           min: @min_secret_length
+         )}
+
+      true ->
+        :ok
+    end
+  end
+
+  @doc """
+  Tests OAuth credentials for a specific provider against the database.
+
+  Reads the currently-saved credentials and delegates to `test_connection/2`
+  — see that function for what "testing" actually does per provider.
+
+  ## Examples
+
+  Result depends on what is already stored; shown here for a provider with
+  nothing configured yet:
+
       iex> PhoenixKit.Users.OAuthConfig.test_connection(:google)
-      {:ok, "Google OAuth credentials are properly formatted"}
+      {:error, "Missing Google OAuth credentials: Client Secret, Client ID"}
   """
   def test_connection(provider) when provider in [:google, :github, :facebook] do
-    test_connection_result(provider, validate_credentials(provider))
+    test_connection(provider, Settings.get_oauth_credentials_direct(provider))
   end
 
   @doc """
@@ -302,28 +389,224 @@ defmodule PhoenixKit.Users.OAuthConfig do
   Credentials" button) before the settings are saved — `test_connection/1`
   would otherwise validate the stale, already-persisted credentials.
 
+  `opts` is a test hook, not a general passthrough: production call sites
+  pass `[]` (the default) and only `:plug` (e.g. `[plug: {Req.Test, ...}]`,
+  to route the underlying request through a stub) is ever honored — see
+  `google_live_check/2`.
+
+  Three distinct outcomes, each with its own tag so a caller can never
+  conflate them:
+
+    * `{:ok, message}` — the credentials were accepted. For Google, this
+      means Google's own token endpoint authenticated the client_id/secret
+      pair (see `google_live_check/1`). For GitHub/Facebook, no live
+      network round trip is made yet (see the moduledoc note below) — this
+      means only that the fields are present and not implausibly short.
+    * `{:error, message}` — the credentials were rejected: missing, blank,
+      too short to be real, or (Google) actively refused by the provider
+      (`invalid_client`).
+    * `{:inconclusive, message}` — could not reach the provider at all
+      (timeout, DNS failure, connection refused — see `@google_connect_timeout`/
+      `@google_receive_timeout`) or got back a response that could not be
+      classified as either of the above. This is a DIFFERENT situation
+      from a rejection and must never be reported as one — an admin in a
+      network-isolated deployment must not read "invalid credentials" when
+      the real story is "no route to Google". A raise or exit inside the
+      check itself is also caught here (`google_live_check/2`) rather than
+      left to `PhoenixKit.Integrations.Probe`'s own generic, untagged
+      `{:error, message}` fallback. Only an untrappable `:kill` — Probe's
+      own deadline firing, or a third party killing the check process
+      outright — is the one gap this cannot close.
+
   ## Examples
 
-      iex> PhoenixKit.Users.OAuthConfig.test_connection(:google, %{client_id: "x", client_secret: "y"})
-      {:ok, "Google OAuth credentials are properly formatted. Initiate OAuth flow to test actual connection."}
+      iex> PhoenixKit.Users.OAuthConfig.test_connection(:github, %{client_id: "x", client_secret: "0123456789abcdef"})
+      {:ok, "GitHub OAuth credentials are properly formatted. Initiate OAuth flow to test actual connection."}
   """
-  def test_connection(provider, %{} = credentials)
-      when provider in [:google, :github, :facebook] do
-    test_connection_result(provider, validate_credentials_map(provider, credentials))
+  def test_connection(provider, credentials, opts \\ [])
+
+  def test_connection(provider, %{} = credentials, opts)
+      when provider in [:google, :github, :facebook] and is_list(opts) do
+    with {:ok, _provider} <- validate_credentials_map(provider, credentials),
+         :ok <- validate_secret_format(provider, Map.get(credentials, secret_field(provider))) do
+      provider
+      |> live_test_result(credentials, opts)
+      |> tap(&log_test_result(provider, &1))
+    else
+      {:error, reason} ->
+        Logger.warning("OAuth: #{provider_name(provider)} connection test failed: #{reason}")
+        {:error, reason}
+    end
   end
 
-  defp test_connection_result(provider, {:ok, _provider}) do
-    Logger.info(
-      "OAuth: #{provider_name(provider)} connection test successful - credentials validated"
-    )
+  defp secret_field(:google), do: :client_secret
+  defp secret_field(:github), do: :client_secret
+  defp secret_field(:facebook), do: :app_secret
 
+  # Google: an actual network round trip against Google's own token
+  # endpoint, bounded by `PhoenixKit.Integrations.Probe` (the same
+  # deadline/isolation wrapper the Integrations "Test Connection" checks
+  # use, rather than reinventing timeout-and-crash handling here). `opts`
+  # is only ever non-empty in tests (`plug: {Req.Test, ...}`, merged into
+  # the Req call below) — production call sites never pass it.
+  defp live_test_result(:google, credentials, opts) do
+    Probe.run(fn -> google_live_check(credentials, opts) end, @google_test_timeout)
+  end
+
+  # GitHub/Facebook: no live network round trip (yet). Chosen deliberately
+  # over reaching for all three at once. In short: the reported incident and
+  # the fix here are both Google-specific (Google's authorization_code
+  # exchange cleanly separates "bad client" from "bad code" via
+  # invalid_client/invalid_grant); GitHub's `/login/oauth/access_token` and
+  # Facebook's `/oauth/access_token` would need their own from-scratch
+  # verification of the same three-outcome property before being trusted
+  # here, which this change does not do. Format is already known-good at
+  # this point (`validate_credentials_map/2` + `validate_secret_format/2`
+  # both passed), so this is an honest "looks right" verdict, not a
+  # "verified against the provider" one — same wording the button always
+  # used for these two providers, now just gettext-wrapped and only reached
+  # when the format checks actually passed.
+  defp live_test_result(provider, _credentials, _opts) when provider in [:github, :facebook] do
     {:ok,
-     "#{provider_name(provider)} OAuth credentials are properly formatted. Initiate OAuth flow to test actual connection."}
+     gettext(
+       "%{provider} OAuth credentials are properly formatted. Initiate OAuth flow to test actual connection.",
+       provider: provider_name(provider)
+     )}
   end
 
-  defp test_connection_result(provider, {:error, reason}) do
+  # No `redirect_uri` is sent. This used to send an RFC 2606 `.invalid`
+  # placeholder, which fails Google's redirect-URI validation rule "Host
+  # TLDs must belong to the public suffix list"
+  # (developers.google.com/identity/protocols/oauth2/web-server) and came
+  # back `invalid_request` regardless of whether client_id/client_secret
+  # were right or wrong — the check was permanently inconclusive. This is
+  # specifically a TLD-validity rejection, not a blanket "unregistered host"
+  # one: a non-`.invalid` placeholder on a real public-suffix TLD
+  # (`https://example.com/...`, `http://localhost/...`) came back the same
+  # `invalid_client`/`invalid_grant` verdict as sending no `redirect_uri` at
+  # all — verified live with a fabricated client_id/secret (no real Google
+  # OAuth app). Omitting the parameter entirely is simplest and avoids the
+  # TLD rule outright.
+  #
+  # The `invalid_grant` leg (right credentials) was NOT exercised against a
+  # real registered app in this change — it follows from Google's own
+  # definitions (same guide: `invalid_grant` = "supplied authorization code
+  # is invalid", `invalid_client` = "client secret is incorrect") and RFC
+  # 6749 §5.2, and from the fact that a wrong secret already comes back
+  # `invalid_client` for a real, public client_id (Google authenticates the
+  # client before it looks at the code), so a wrong secret cannot itself
+  # surface as `invalid_grant`. If Google ever answers a genuinely correct
+  # credential pair with something other than `invalid_grant`,
+  # `interpret_google_token_response/1`'s catch-all reports it as
+  # inconclusive rather than misreading it either way.
+  defp google_live_check(%{client_id: client_id, client_secret: client_secret}, opts) do
+    @google_token_url
+    |> Req.post(
+      [
+        form: [
+          client_id: client_id,
+          client_secret: client_secret,
+          code: "phoenix-kit-credential-check-#{System.unique_integer([:positive])}",
+          grant_type: "authorization_code"
+        ],
+        connect_options: [timeout: @google_connect_timeout],
+        receive_timeout: @google_receive_timeout,
+        retry: false
+      ]
+      # Only :plug is ever honored from `opts` — a test hook to route the
+      # request through `Req.Test`, not a general passthrough a caller
+      # could use to override `form:`/`retry:`/the timeouts above.
+      |> Keyword.merge(Keyword.take(opts, [:plug]))
+    )
+    |> interpret_google_token_response()
+  rescue
+    # A crash inside the request/response cycle (a Req/Mint bug, a
+    # malformed response Req itself cannot parse) is exactly as inconclusive
+    # as a transport error — it says nothing about whether the credentials
+    # are right or wrong, and must not be reported as a rejection. Probe's
+    # own crash handling (a `:DOWN` from this process dying) would otherwise
+    # catch it as a plain, untagged `{:error, ...}`. The exception's own
+    # message is deliberately never put in the flash or the log: this is
+    # the one path in the module that holds `client_secret`, and an
+    # exception raised mid-request/response can carry request or response
+    # data in its message — only the exception's module name is logged.
+    error ->
+      Logger.warning("OAuth: Google credential check raised #{inspect(error.__struct__)}")
+      {:inconclusive, google_inconclusive_message()}
+  catch
+    # `Probe.run/2` only catches a `:DOWN` (this process dying) or its own
+    # deadline — an `exit` from inside a `GenServer.call` in the request
+    # path (e.g. a connection pool) is neither, and would otherwise surface
+    # as Probe's plain, untagged `{:error, ...}` fallback just like a raise
+    # would.
+    kind, reason ->
+      Logger.warning("OAuth: Google credential check #{kind}ed: #{inspect(reason)}")
+      {:inconclusive, google_inconclusive_message()}
+  end
+
+  defp google_inconclusive_message do
+    gettext(
+      "Could not reach Google to verify these credentials — check network connectivity and try again"
+    )
+  end
+
+  @doc false
+  # Pure: a Req-response-shaped tuple in, an operator-facing verdict out —
+  # public so the three-way classification is unit-testable against
+  # synthetic Google responses, without a network round trip (see
+  # oauth_config_test.exs). The two documented outcomes for POSTing a
+  # syntactically-valid-but-fabricated authorization `code` to Google's
+  # token endpoint (RFC 6749 §5.2):
+  #
+  #   "invalid_client" -> Google does not recognize this client_id/secret
+  #                        pair — the credentials themselves are wrong.
+  #   "invalid_grant"  -> Google authenticated the client fine and only
+  #                        rejected the (deliberately fake) code — the
+  #                        credentials are right.
+  #
+  # Anything else — a different error code, an unexpected status, or a
+  # transport failure — is INCONCLUSIVE, tagged `:inconclusive` and never
+  # coerced into either verdict. Google's token endpoint can refuse a
+  # well-formed request for reasons that have nothing to do with whether
+  # client_id/client_secret are right (a bad `redirect_uri` used to trigger
+  # exactly this here — see `google_live_check/1`), so a response we cannot
+  # positively classify must not be read as either a yes or a no.
+  def interpret_google_token_response({:ok, %{body: %{"error" => "invalid_client"}}}) do
+    {:error,
+     gettext(
+       "Google rejected these credentials (invalid_client) — the Client ID and Client Secret do not match a registered Google OAuth app"
+     )}
+  end
+
+  def interpret_google_token_response({:ok, %{body: %{"error" => "invalid_grant"}}}) do
+    {:ok,
+     gettext(
+       "Google accepted these credentials. (The test authorization code was rejected, as expected — a full sign-in still requires the real OAuth flow.)"
+     )}
+  end
+
+  def interpret_google_token_response({:ok, %{status: status}}) do
+    {:inconclusive,
+     gettext(
+       "Google gave an inconclusive response (status %{status}) while checking these credentials — try again in a moment",
+       status: status
+     )}
+  end
+
+  def interpret_google_token_response({:error, _reason}) do
+    {:inconclusive, google_inconclusive_message()}
+  end
+
+  defp log_test_result(provider, {:ok, _message}) do
+    Logger.info("OAuth: #{provider_name(provider)} connection test successful")
+  end
+
+  defp log_test_result(provider, {:inconclusive, reason}) do
+    Logger.warning("OAuth: #{provider_name(provider)} connection test inconclusive: #{reason}")
+  end
+
+  defp log_test_result(provider, {:error, reason}) do
     Logger.warning("OAuth: #{provider_name(provider)} connection test failed: #{reason}")
-    {:error, reason}
   end
 
   defp provider_name(:google), do: "Google"
