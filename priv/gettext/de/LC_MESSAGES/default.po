@@ -6108,21 +6108,21 @@ msgstr "Sitemap-Quelle"
 msgid "Open in Browser"
 msgstr "Im Browser öffnen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2249
+#: lib/phoenix_kit_web/components/media_browser.ex:2252
 #, elixir-autogen, elixir-format
 msgid "%{count} file permanently deleted"
 msgid_plural "%{count} files permanently deleted"
 msgstr[0] "%{count} Datei endgültig gelöscht"
 msgstr[1] "%{count} Dateien endgültig gelöscht"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1979
+#: lib/phoenix_kit_web/components/media_browser.ex:1981
 #, elixir-autogen, elixir-format
 msgid "%{count} item moved"
 msgid_plural "%{count} items moved"
 msgstr[0] "%{count} Element verschoben"
 msgstr[1] "%{count} Elemente verschoben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2306
+#: lib/phoenix_kit_web/components/media_browser.ex:2309
 #, elixir-autogen, elixir-format
 msgid "%{count} orphaned file queued for deletion"
 msgid_plural "%{count} orphaned files queued for deletion"
@@ -6170,14 +6170,14 @@ msgstr "Alle Medien"
 msgid "All file types supported"
 msgstr "Alle Dateitypen werden unterstützt"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3466
+#: lib/phoenix_kit_web/components/media_browser.ex:3511
 #, elixir-autogen, elixir-format
 msgid "Already have %{count} duplicate file. No new files were added."
 msgid_plural "Already have %{count} duplicate files. No new files were added."
 msgstr[0] "Es gibt bereits %{count} doppelte Datei. Es wurden keine neuen Dateien hinzugefügt."
 msgstr[1] "Es gibt bereits %{count} doppelte Dateien. Es wurden keine neuen Dateien hinzugefügt."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1728
+#: lib/phoenix_kit_web/components/media_browser.ex:1729
 #, elixir-autogen, elixir-format
 msgid "Cannot change folder outside the allowed scope"
 msgstr "Der Ordner kann außerhalb des zulässigen Bereichs nicht geändert werden"
@@ -6192,13 +6192,13 @@ msgstr "Es kann kein Ordner außerhalb des zulässigen Bereichs erstellt werden"
 msgid "Cannot delete folder outside the allowed scope"
 msgstr "Der Ordner kann außerhalb des zulässigen Bereichs nicht gelöscht werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1101
-#: lib/phoenix_kit_web/components/media_browser.ex:1164
+#: lib/phoenix_kit_web/components/media_browser.ex:1103
+#: lib/phoenix_kit_web/components/media_browser.ex:1167
 #, elixir-autogen, elixir-format
 msgid "Cannot move file outside the allowed scope"
 msgstr "Die Datei kann nicht außerhalb des zulässigen Bereichs verschoben werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1510
+#: lib/phoenix_kit_web/components/media_browser.ex:1511
 #, elixir-autogen, elixir-format
 msgid "Cannot rename folder outside the allowed scope"
 msgstr "Der Ordner kann außerhalb des zulässigen Bereichs nicht umbenannt werden"
@@ -6258,7 +6258,7 @@ msgstr "Endgültig löschen"
 msgid "Deleted files will appear here"
 msgstr "Gelöschte Dateien erscheinen hier"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2876
+#: lib/phoenix_kit_web/components/media_browser.ex:2921
 #: lib/phoenix_kit_web/components/media_browser.html.heex:811
 #: lib/phoenix_kit_web/components/media_browser.html.heex:814
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1603
@@ -6278,7 +6278,7 @@ msgstr "Dateien hier ablegen oder auf „Medien hinzufügen“ klicken, um sie h
 msgid "Empty Trash"
 msgstr "Papierkorb leeren"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1731
+#: lib/phoenix_kit_web/components/media_browser.ex:1732
 #, elixir-autogen, elixir-format
 msgid "Failed to change color"
 msgstr "Farbe konnte nicht geändert werden"
@@ -6288,17 +6288,18 @@ msgstr "Farbe konnte nicht geändert werden"
 msgid "Failed to create folder"
 msgstr "Ordner konnte nicht erstellt werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1104
+#: lib/phoenix_kit_web/components/media_browser.ex:1106
+#: lib/phoenix_kit_web/components/media_browser.ex:2704
 #, elixir-autogen, elixir-format
 msgid "Failed to move file"
 msgstr "Datei konnte nicht verschoben werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1513
+#: lib/phoenix_kit_web/components/media_browser.ex:1514
 #, elixir-autogen, elixir-format
 msgid "Failed to rename folder"
 msgstr "Ordner konnte nicht umbenannt werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1097
+#: lib/phoenix_kit_web/components/media_browser.ex:1099
 #, elixir-autogen, elixir-format
 msgid "File moved"
 msgstr "Datei verschoben"
@@ -6309,8 +6310,8 @@ msgid "Folder not accessible — showing root"
 msgstr "Ordner nicht zugänglich – Wurzelverzeichnis wird angezeigt"
 
 #: lib/phoenix_kit_web/components/media_browser.ex:1080
-#: lib/phoenix_kit_web/components/media_browser.ex:1123
-#: lib/phoenix_kit_web/components/media_browser.ex:1187
+#: lib/phoenix_kit_web/components/media_browser.ex:1125
+#: lib/phoenix_kit_web/components/media_browser.ex:1188
 #, elixir-autogen, elixir-format
 msgid "Folder not found"
 msgstr "Ordner nicht gefunden"
@@ -6341,7 +6342,7 @@ msgstr "Benutzermedien und Uploads verwalten"
 msgid "More actions"
 msgstr "Weitere Aktionen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2903
+#: lib/phoenix_kit_web/components/media_browser.ex:2948
 #: lib/phoenix_kit_web/components/media_browser.html.heex:801
 #: lib/phoenix_kit_web/components/media_browser.html.heex:804
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1472
@@ -6352,7 +6353,7 @@ msgstr "Weitere Aktionen"
 msgid "Move"
 msgstr "Verschieben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3692
+#: lib/phoenix_kit_web/components/media_browser.ex:3737
 #, elixir-autogen, elixir-format
 msgid "Move %{count} file to trash?"
 msgid_plural "Move %{count} files to trash?"
@@ -6403,7 +6404,7 @@ msgstr "Verwaiste Dateien"
 msgid "Path"
 msgstr "Pfad"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3668
+#: lib/phoenix_kit_web/components/media_browser.ex:3713
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{count} file? This cannot be undone."
 msgid_plural "Permanently delete %{count} files? This cannot be undone."
@@ -6497,18 +6498,18 @@ msgstr "Medien hochladen"
 msgid "Upload Media Files"
 msgstr "Mediendateien hochladen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3447
+#: lib/phoenix_kit_web/components/media_browser.ex:3492
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:593
 #, elixir-autogen, elixir-format
 msgid "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
 msgstr "Upload fehlgeschlagen: Keine Speicher-Buckets konfiguriert. Bitte konfigurieren Sie mindestens einen Speicher-Bucket, bevor Sie Dateien hochladen."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3433
+#: lib/phoenix_kit_web/components/media_browser.ex:3478
 #, elixir-autogen, elixir-format
 msgid "Upload processed"
 msgstr "Upload verarbeitet"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3475
+#: lib/phoenix_kit_web/components/media_browser.ex:3520
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{count} new file processed"
 msgid_plural "Upload successful! %{count} new files processed"
@@ -6525,15 +6526,15 @@ msgstr "Hochgeladen:"
 msgid "Your browser does not support the video tag."
 msgstr "Ihr Browser unterstützt das Video-Element nicht."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3454
+#: lib/phoenix_kit_web/components/media_browser.ex:3499
 #, elixir-autogen, elixir-format
 msgid "%{count} failed"
 msgid_plural "%{count} failed"
 msgstr[0] "%{count} fehlgeschlagen"
 msgstr[1] "%{count} fehlgeschlagen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3651
-#: lib/phoenix_kit_web/components/media_browser.ex:3675
+#: lib/phoenix_kit_web/components/media_browser.ex:3696
+#: lib/phoenix_kit_web/components/media_browser.ex:3720
 #: lib/phoenix_kit_web/components/media_browser.html.heex:753
 #, elixir-autogen, elixir-format
 msgid "%{count} file"
@@ -6541,29 +6542,29 @@ msgid_plural "%{count} files"
 msgstr[0] "%{count} Datei"
 msgstr[1] "%{count} Dateien"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3453
+#: lib/phoenix_kit_web/components/media_browser.ex:3498
 #, elixir-autogen, elixir-format
 msgid "%{count} file uploaded"
 msgid_plural "%{count} files uploaded"
 msgstr[0] "%{count} Datei hochgeladen"
 msgstr[1] "%{count} Dateien hochgeladen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3486
+#: lib/phoenix_kit_web/components/media_browser.ex:3531
 #, elixir-autogen, elixir-format
 msgid "%{count} file was already uploaded"
 msgid_plural "%{count} files were already uploaded"
 msgstr[0] "%{count} Datei war bereits hochgeladen"
 msgstr[1] "%{count} Dateien waren bereits hochgeladen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3652
-#: lib/phoenix_kit_web/components/media_browser.ex:3676
+#: lib/phoenix_kit_web/components/media_browser.ex:3697
+#: lib/phoenix_kit_web/components/media_browser.ex:3721
 #, elixir-autogen, elixir-format
 msgid "%{count} folder"
 msgid_plural "%{count} folders"
 msgstr[0] "%{count} Ordner"
 msgstr[1] "%{count} Ordner"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3483
+#: lib/phoenix_kit_web/components/media_browser.ex:3528
 #, elixir-autogen, elixir-format
 msgid "%{count} new file added"
 msgid_plural "%{count} new files added"
@@ -6576,12 +6577,12 @@ msgstr[1] "%{count} neue Dateien hinzugefügt"
 msgid "FILE"
 msgstr "DATEI"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3457
+#: lib/phoenix_kit_web/components/media_browser.ex:3502
 #, elixir-autogen, elixir-format
 msgid "Partially successful: %{uploaded}, %{failed} due to missing storage buckets."
 msgstr "Teilweise erfolgreich: %{uploaded}, %{failed} wegen fehlender Speicher-Buckets."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3493
+#: lib/phoenix_kit_web/components/media_browser.ex:3538
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{added}. %{duplicates}."
 msgstr "Upload erfolgreich! %{added}. %{duplicates}."
@@ -6794,7 +6795,7 @@ msgstr "Möchten Sie diesen Kommentar wirklich löschen?"
 msgid "%b %d, %Y"
 msgstr "%d. %b %Y"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2234
+#: lib/phoenix_kit_web/components/media_browser.ex:2237
 #, elixir-autogen, elixir-format
 msgid "%{count} item restored"
 msgid_plural "%{count} items restored"
@@ -6821,24 +6822,24 @@ msgstr "Anhänge sind deaktiviert"
 msgid "Auth failed"
 msgstr "Authentifizierung fehlgeschlagen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3613
+#: lib/phoenix_kit_web/components/media_browser.ex:3658
 #, elixir-autogen, elixir-format
 msgid "Cannot create folders in the all-files view"
 msgstr "In der Ansicht „Alle Dateien“ können keine Ordner erstellt werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3610
+#: lib/phoenix_kit_web/components/media_browser.ex:3655
 #, elixir-autogen, elixir-format
 msgid "Cannot create folders in trash"
 msgstr "Im Papierkorb können keine Ordner erstellt werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1140
+#: lib/phoenix_kit_web/components/media_browser.ex:1142
 #, elixir-autogen, elixir-format
 msgid "Cannot move a folder into its own descendant"
 msgstr "Ein Ordner kann nicht in einen seiner Unterordner verschoben werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1136
-#: lib/phoenix_kit_web/components/media_browser.ex:1191
-#: lib/phoenix_kit_web/components/media_browser.ex:1204
+#: lib/phoenix_kit_web/components/media_browser.ex:1138
+#: lib/phoenix_kit_web/components/media_browser.ex:1192
+#: lib/phoenix_kit_web/components/media_browser.ex:1205
 #, elixir-autogen, elixir-format
 msgid "Cannot move folder outside the allowed scope"
 msgstr "Der Ordner kann nicht außerhalb des zulässigen Bereichs verschoben werden"
@@ -6854,7 +6855,7 @@ msgstr "Kommentar konnte nicht veröffentlicht werden"
 msgid "Deep Zoom Tile Generation"
 msgstr "Erzeugung von Deep-Zoom-Kacheln"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2919
+#: lib/phoenix_kit_web/components/media_browser.ex:2964
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1648
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2278
 #, elixir-autogen, elixir-format
@@ -6872,12 +6873,12 @@ msgstr "Wird gelöscht …"
 msgid "Disconnecting…"
 msgstr "Wird getrennt …"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1143
+#: lib/phoenix_kit_web/components/media_browser.ex:1145
 #, elixir-autogen, elixir-format
 msgid "Failed to move folder"
 msgstr "Ordner konnte nicht verschoben werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1207
+#: lib/phoenix_kit_web/components/media_browser.ex:1208
 #, elixir-autogen, elixir-format
 msgid "Failed to move folder to trash"
 msgstr "Ordner konnte nicht in den Papierkorb verschoben werden"
@@ -6887,23 +6888,23 @@ msgstr "Ordner konnte nicht in den Papierkorb verschoben werden"
 msgid "File / Image"
 msgstr "Datei / Bild"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1171
-#: lib/phoenix_kit_web/components/media_browser.ex:2116
+#: lib/phoenix_kit_web/components/media_browser.ex:2702
 #, elixir-autogen, elixir-format
 msgid "File moved to trash"
 msgstr "Datei in den Papierkorb verschoben"
 
+#: lib/phoenix_kit_web/components/media_browser.ex:2703
 #, elixir-autogen, elixir-format
 msgid "File removed from this folder"
 msgstr "Datei aus diesem Ordner entfernt"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1160
+#: lib/phoenix_kit_web/components/media_browser.ex:1163
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "File not found"
 msgstr "Datei nicht gefunden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2115
+#: lib/phoenix_kit_web/components/media_browser.ex:2116
 #, elixir-autogen, elixir-format
 msgid "File permanently deleted"
 msgstr "Datei endgültig gelöscht"
@@ -6929,13 +6930,13 @@ msgstr "Ordner"
 msgid "Folder \"%{name}\" created"
 msgstr "Ordner „%{name}“ erstellt"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1130
+#: lib/phoenix_kit_web/components/media_browser.ex:1132
 #, elixir-autogen, elixir-format
 msgid "Folder moved"
 msgstr "Ordner verschoben"
 
 #: lib/phoenix_kit_web/components/media_browser.ex:1065
-#: lib/phoenix_kit_web/components/media_browser.ex:1198
+#: lib/phoenix_kit_web/components/media_browser.ex:1199
 #, elixir-autogen, elixir-format
 msgid "Folder moved to trash"
 msgstr "Ordner in den Papierkorb verschoben"
@@ -6962,14 +6963,14 @@ msgid_plural "Move %{count} items to folder"
 msgstr[0] "%{count} Element in Ordner verschieben"
 msgstr[1] "%{count} Elemente in Ordner verschieben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2920
+#: lib/phoenix_kit_web/components/media_browser.ex:2965
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1649
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2279
 #, elixir-autogen, elixir-format
 msgid "Move to Trash"
 msgstr "In den Papierkorb verschieben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2912
+#: lib/phoenix_kit_web/components/media_browser.ex:2957
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1640
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2270
 #, elixir-autogen, elixir-format
@@ -7040,7 +7041,7 @@ msgstr "Schreiben Sie eine Notiz zu dieser Anmerkung …"
 msgid "e.g. Main, Personal, My Company Drive"
 msgstr "z. B. Haupt, Privat, Firmen-Drive"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3621
+#: lib/phoenix_kit_web/components/media_browser.ex:3666
 #, elixir-autogen, elixir-format
 msgid "untitled"
 msgstr "ohne Titel"
@@ -8622,8 +8623,8 @@ msgstr "Brennt Etcher-Anmerkungsformen (Rechtecke, Markierungsstriche usw.) in d
 msgid "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
 msgstr "Durchsuchen Sie Dateien, die keinem Datensatz mehr zugeordnet sind (verwaiste Medien), um sie zu prüfen oder zu löschen."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1586
-#: lib/phoenix_kit_web/components/media_browser.ex:3122
+#: lib/phoenix_kit_web/components/media_browser.ex:1587
+#: lib/phoenix_kit_web/components/media_browser.ex:3167
 #, elixir-autogen, elixir-format
 msgid "Cannot edit a folder outside the allowed scope"
 msgstr "Ein Ordner außerhalb des zulässigen Bereichs kann nicht bearbeitet werden"
@@ -8742,12 +8743,12 @@ msgstr "Alles andere"
 msgid "Exit selection"
 msgstr "Auswahl verlassen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1590
+#: lib/phoenix_kit_web/components/media_browser.ex:1591
 #, elixir-autogen, elixir-format
 msgid "Failed to save folder description"
 msgstr "Ordnerbeschreibung konnte nicht gespeichert werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3125
+#: lib/phoenix_kit_web/components/media_browser.ex:3170
 #, elixir-autogen, elixir-format
 msgid "Failed to save folder header"
 msgstr "Ordnerkopfzeile konnte nicht gespeichert werden"
@@ -8777,7 +8778,7 @@ msgstr "Verwaiste Dateien finden"
 msgid "Folder name"
 msgstr "Ordnername"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1700
+#: lib/phoenix_kit_web/components/media_browser.ex:1701
 #, elixir-autogen, elixir-format
 msgid "Folder name can't be blank"
 msgstr "Der Ordnername darf nicht leer sein"
@@ -8915,7 +8916,7 @@ msgstr "Kein Hintergrund"
 msgid "No description — add one"
 msgstr "Keine Beschreibung – fügen Sie eine hinzu"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2727
+#: lib/phoenix_kit_web/components/media_browser.ex:2772
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1724
 #, elixir-autogen, elixir-format
 msgid "No images"
@@ -10136,14 +10137,14 @@ msgstr "Drehung gespeichert"
 msgid "Show details"
 msgstr "Details anzeigen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3685
+#: lib/phoenix_kit_web/components/media_browser.ex:3730
 #, elixir-autogen, elixir-format
 msgid "Move %{count} folder and all its contents to trash?"
 msgid_plural "Move %{count} folders and all their contents to trash?"
 msgstr[0] "%{count} Ordner mit seinem gesamten Inhalt in den Papierkorb verschieben?"
 msgstr[1] "%{count} Ordner mit ihrem gesamten Inhalt in den Papierkorb verschieben?"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3678
+#: lib/phoenix_kit_web/components/media_browser.ex:3723
 #, elixir-autogen, elixir-format
 msgid "Move %{files} and %{folders} (including all folder contents) to trash?"
 msgstr "%{files} und %{folders} (einschließlich aller Ordnerinhalte) in den Papierkorb verschieben?"
@@ -10154,14 +10155,14 @@ msgstr "%{files} und %{folders} (einschließlich aller Ordnerinhalte) in den Pap
 msgid "Move '%{name}' and all its contents to trash?"
 msgstr "„%{name}“ mit dem gesamten Inhalt in den Papierkorb verschieben?"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3661
+#: lib/phoenix_kit_web/components/media_browser.ex:3706
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{count} folder and all its contents? This cannot be undone."
 msgid_plural "Permanently delete %{count} folders and all their contents? This cannot be undone."
 msgstr[0] "%{count} Ordner mit seinem gesamten Inhalt endgültig löschen? Dies kann nicht rückgängig gemacht werden."
 msgstr[1] "%{count} Ordner mit ihrem gesamten Inhalt endgültig löschen? Dies kann nicht rückgängig gemacht werden."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3654
+#: lib/phoenix_kit_web/components/media_browser.ex:3699
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{files} and %{folders} (including all folder contents)? This cannot be undone."
 msgstr "%{files} und %{folders} (einschließlich aller Ordnerinhalte) endgültig löschen? Dies kann nicht rückgängig gemacht werden."
@@ -10502,7 +10503,7 @@ msgstr "Telegram war nicht erreichbar"
 msgid "Could not reach the SMTP server"
 msgstr "Der SMTP-Server war nicht erreichbar"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2091
+#: lib/phoenix_kit_web/components/media_browser.ex:2095
 #, elixir-autogen, elixir-format
 msgid "Could not rotate the image."
 msgstr "Das Bild konnte nicht gedreht werden."
@@ -11059,14 +11060,14 @@ msgstr "E-Mail-Bestätigung vor der Nutzung der Anwendung verlangen"
 msgid "Restore"
 msgstr "Wiederherstellen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2887
+#: lib/phoenix_kit_web/components/media_browser.ex:2932
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1615
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2245
 #, elixir-autogen, elixir-format
 msgid "Rotate left"
 msgstr "Nach links drehen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2896
+#: lib/phoenix_kit_web/components/media_browser.ex:2941
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1624
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2254
 #, elixir-autogen, elixir-format
@@ -12632,12 +12633,12 @@ msgstr "Ihr Konto ist derzeit inaktiv. Bitte wenden Sie sich an das Team, wenn S
 msgid "%{label} module is not enabled"
 msgstr "Das Modul %{label} ist nicht aktiviert"
 
-#: lib/phoenix_kit_web/users/auth.ex:2651
+#: lib/phoenix_kit_web/users/auth.ex:2656
 #, elixir-autogen, elixir-format
 msgid "Enter your referral code to continue."
 msgstr "Geben Sie Ihren Empfehlungscode ein, um fortzufahren."
 
-#: lib/phoenix_kit_web/users/auth.ex:2647
+#: lib/phoenix_kit_web/users/auth.ex:2652
 #, elixir-autogen, elixir-format
 msgid "Please confirm your email before accessing the application."
 msgstr "Bitte bestätigen Sie Ihre E-Mail-Adresse, bevor Sie die Anwendung nutzen."
@@ -12649,15 +12650,15 @@ msgstr "Dieses Konto ist nicht aktiv. Wenden Sie sich an die Administration."
 
 #: lib/phoenix_kit_web/users/auth.ex:805
 #: lib/phoenix_kit_web/users/auth.ex:1999
-#: lib/phoenix_kit_web/users/auth.ex:2796
+#: lib/phoenix_kit_web/users/auth.ex:2801
 #, elixir-autogen, elixir-format
 msgid "You do not have permission to access this section."
 msgstr "Sie haben keine Berechtigung, auf diesen Bereich zuzugreifen."
 
 #: lib/phoenix_kit_web/users/auth.ex:780
 #: lib/phoenix_kit_web/users/auth.ex:934
-#: lib/phoenix_kit_web/users/auth.ex:2745
-#: lib/phoenix_kit_web/users/auth.ex:2781
+#: lib/phoenix_kit_web/users/auth.ex:2750
+#: lib/phoenix_kit_web/users/auth.ex:2786
 #, elixir-autogen, elixir-format
 msgid "You do not have the required permission to access this page."
 msgstr "Sie haben nicht die erforderliche Berechtigung, um auf diese Seite zuzugreifen."
@@ -12668,12 +12669,12 @@ msgid "You must be an admin to access this page."
 msgstr "Sie müssen Administrator sein, um auf diese Seite zuzugreifen."
 
 #: lib/phoenix_kit_web/users/auth.ex:735
-#: lib/phoenix_kit_web/users/auth.ex:2708
+#: lib/phoenix_kit_web/users/auth.ex:2713
 #, elixir-autogen, elixir-format
 msgid "You must be an owner to access this page."
 msgstr "Sie müssen Eigentümer sein, um auf diese Seite zuzugreifen."
 
-#: lib/phoenix_kit_web/users/auth.ex:2824
+#: lib/phoenix_kit_web/users/auth.ex:2829
 #, elixir-autogen, elixir-format
 msgid "You must have the %{role_name} role to access this page."
 msgstr "Sie benötigen die Rolle %{role_name}, um auf diese Seite zuzugreifen."
@@ -12681,7 +12682,7 @@ msgstr "Sie benötigen die Rolle %{role_name}, um auf diese Seite zuzugreifen."
 #: lib/phoenix_kit_web/users/auth.ex:959
 #: lib/phoenix_kit_web/users/auth.ex:2577
 #: lib/phoenix_kit_web/users/auth.ex:2614
-#: lib/phoenix_kit_web/users/auth.ex:2752
+#: lib/phoenix_kit_web/users/auth.ex:2757
 #: lib/phoenix_kit_web/users/session.ex:212
 #, elixir-autogen, elixir-format
 msgid "You must log in to access this page."

@@ -71,6 +71,24 @@
 
 ### Fixed
 
+- **Permanently deleting from a folder's trash view no longer destroys a file
+  merely linked in from another scope** (post-#804 review): the single-file
+  delete now requires the file's home in scope, like the bulk delete always
+  did; a linked file in this folder's trash is unlinked instead. Rotation,
+  which is written on the file, again requires the file's home in scope
+  rather than only its appearance in the viewed folder.
+- **The parked "Wrong email? Change it" form asks for the password when
+  email confirmation is not enforced.** With `require_email_confirmation` off
+  an unconfirmed account is fully usable, so the password-less path (2.22.7)
+  would have let a stolen session re-address a live account. Confirmation
+  enforced keeps the password-less path.
+- **A stolen copy of the session cookie survived a password change** on the
+  submitting browser's token, which 2.22.18 exempted from the disconnect so
+  the re-login could go out. `Session.create` now disconnects that token five
+  seconds after the new one is issued (`Sessions.disconnect_tokens_later/2`).
+- **The LiveView scope refresh handed a deactivated user a fresh scope.**
+  `reload_session_user/2` now passes through `ensure_active_user/1` like every
+  other token/user resolution.
 - **An Admin acting as another role could still impersonate.** The
   impersonation authority now reads the root session's roles in effect, so it
   follows the active role even for a hand-crafted POST. Targets are still

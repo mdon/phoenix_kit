@@ -2080,8 +2080,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     delta = if dir == "left", do: -90, else: 90
     scope = scope_folder_id(socket)
 
+    # Rotation is written on the FILE, so it shows in every folder holding
+    # it — the owner's included. The file's home must be in scope, not only
+    # its appearance here: a file merely linked in from outside (a content
+    # duplicate another user uploaded first) is theirs to rotate, not ours.
     with %Storage.File{} = file <- Storage.get_file(file_uuid),
-         true <- removable_here?(file, appearance_folder(socket, file), scope) do
+         true <- Storage.within_scope?(file.folder_uuid, scope) do
       current = normalized_rotation(Map.get(file.metadata || %{}, "rotation"))
       next = Integer.mod(current + delta, 360)
       merged = Map.put(file.metadata || %{}, "rotation", next)
@@ -2107,11 +2111,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     viewed = file && appearance_folder(socket, file)
 
     if file && removable_here?(file, viewed, scope) do
-      # Same status guard as delete_selected: permanent deletion only for
-      # files actually in the trash (the row could have been restored from
-      # another session since this view rendered).
+      # Same guards as delete_selected: permanent deletion only for files
+      # actually in the trash (the row could have been restored from another
+      # session since this view rendered) AND whose home is in scope —
+      # destroying the record and its bytes reaches every folder holding
+      # the file, so appearing here (a link from outside) is not enough. A
+      # linked file in this folder's trash is unlinked instead.
       flash =
-        if socket.assigns.filter_trash and file.status == "trashed" do
+        if socket.assigns.filter_trash and file.status == "trashed" and
+             Storage.within_scope?(file.folder_uuid, scope) do
           Storage.delete_file_completely(file)
           gettext("File permanently deleted")
         else
