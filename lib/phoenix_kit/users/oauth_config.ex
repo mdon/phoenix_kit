@@ -384,6 +384,11 @@ defmodule PhoenixKit.Users.OAuthConfig do
   Credentials" button) before the settings are saved — `test_connection/1`
   would otherwise validate the stale, already-persisted credentials.
 
+  `opts` is a test hook, not a general passthrough: production call sites
+  pass `[]` (the default) and only `:plug` (e.g. `[plug: {Req.Test, ...}]`,
+  to route the underlying request through a stub) is ever honored — see
+  `google_live_check/2`.
+
   Three distinct outcomes, each with its own tag so a caller can never
   conflate them:
 
@@ -503,7 +508,10 @@ defmodule PhoenixKit.Users.OAuthConfig do
         receive_timeout: @google_receive_timeout,
         retry: false
       ]
-      |> Keyword.merge(opts)
+      # Only :plug is ever honored from `opts` — a test hook to route the
+      # request through `Req.Test`, not a general passthrough a caller
+      # could use to override `form:`/`retry:`/the timeouts above.
+      |> Keyword.merge(Keyword.take(opts, [:plug]))
     )
     |> interpret_google_token_response()
   rescue
