@@ -636,7 +636,11 @@ defmodule PhoenixKit.Settings do
   defp fill_missing_settings(keys) do
     case query_settings_or_error(keys) do
       {:ok, found} ->
-        to_cache = Map.new(keys, &{&1, Map.get(found, &1, @not_found_sentinel)})
+        to_cache =
+          keys
+          |> Enum.reject(&restricted_decrypt_failure?(&1, found))
+          |> Map.new(&{&1, Map.get(found, &1, @not_found_sentinel)})
+
         PhoenixKit.Cache.put_multiple(@cache_name, to_cache)
         found
 
@@ -645,6 +649,33 @@ defmodule PhoenixKit.Settings do
         # read, and the next read tries the database again.
         %{}
     end
+  end
+
+  # A restricted key (`@restricted_setting_keys`) decrypts to `nil` in exactly
+  # one case — `decrypt_if_restricted/2`'s `{:error, reason}` branch — never
+  # as a genuinely stored value. `update_setting/2` coerces a `nil` write to
+  # `""` before it ever reaches the database, so a restricted key's row is
+  # always either ciphertext or `""`, never a literal `NULL`; `key` present
+  # in `found` (a row exists) mapped to `nil` can only mean that branch ran.
+  #
+  # Per ee48b351 ("Do not cache a restricted setting the boot warmer cannot
+  # decrypt"), a decrypt failure is answered but must NOT be cached — the
+  # key may simply not be available yet, and the next read has to try again.
+  # Caching `@not_found_sentinel` for it instead would be a DIFFERENT, wrong
+  # rule: `get_setting_cached/2` treats that sentinel as "row does not
+  # exist" and returns the caller's default without ever retrying the
+  # decrypt, for as long as the entry stays cached (a full TTL, or forever
+  # without one) — and since the single-key and batch paths share one cache
+  # entry per key, that would poison `get_setting_cached/2` too. Leave the
+  # key out of the cache write entirely instead, exactly like
+  # `warm_cache_data/0`'s own `undecryptable_at_boot?/1` guard does for the
+  # boot path.
+  #
+  # A key genuinely absent from `found` (no row at all) is a different case
+  # — that one still gets `@not_found_sentinel`, which is the correct,
+  # intentional negative-cache entry for "no such setting".
+  defp restricted_decrypt_failure?(key, found) do
+    key in @restricted_setting_keys and Map.get(found, key, :__absent__) == nil
   end
 
   defp fill_missing_json_settings(keys) do
@@ -2195,6 +2226,13 @@ defmodule PhoenixKit.Settings do
         end)
         |> Enum.reject(&undecryptable_at_boot?/1)
         |> decrypt_and_map_settings()
+        # Defense in depth: `undecryptable_at_boot?/1` already excludes an
+        # undecryptable restricted key above, but if one still slips through
+        # (e.g. becomes undecryptable between that check and the decrypt
+        # right above), drop it here too rather than warm the cache with a
+        # bare `nil` for it — same ee48b351 rule as `restricted_decrypt_failure?/2`:
+        # leave it out entirely so the first cached read retries the decrypt.
+        |> Map.reject(fn {key, value} -> key in @restricted_setting_keys and is_nil(value) end)
       else
         # Repo not available (likely during Mix task execution)
         # Return empty map - cache will be warmed later when repo becomes available
