@@ -182,7 +182,6 @@ defmodule PhoenixKit.Settings do
     multi_session_enabled
     role_switcher_enabled
     role_switcher_location
-    role_switcher_sign_in_role
     role_switcher_always_on_roles
   )
 
@@ -333,7 +332,6 @@ defmodule PhoenixKit.Settings do
       # `role_switcher_always_on_roles` is comma-separated role uuids.
       "role_switcher_enabled" => "false",
       "role_switcher_location" => "menu",
-      "role_switcher_sign_in_role" => "staff_first",
       "role_switcher_always_on_roles" => ""
     }
   end

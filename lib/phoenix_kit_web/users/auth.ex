@@ -51,7 +51,6 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Modules.Maintenance
-  alias PhoenixKit.Users.ActiveRole
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.{Scope, User}
   alias PhoenixKit.Users.LoginAlerts
@@ -121,13 +120,6 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   def log_in_user(conn, user, params) do
-    # Start in the role the switcher's sign-in rule picks — an Owner or Admin
-    # starts as that, under the default — BEFORE the destination below is
-    # resolved against this user's scope, so the landing page matches the role.
-    # A no-op while the role switcher is off. Remember-me restore does not come
-    # through here: it continues a session rather than starting one.
-    user = ActiveRole.apply_sign_in_role(user)
-
     # Create session fingerprint if enabled
     opts =
       if SessionFingerprint.fingerprinting_enabled?() do
@@ -1191,7 +1183,13 @@ defmodule PhoenixKitWeb.Users.Auth do
         &set_routing_info(&1, &2, &3)
       )
 
-    Phoenix.Component.assign_new(socket, :phoenix_kit_current_user, fn ->
+    # The raw session token is kept on the socket so the scope refresh can
+    # reload the user THROUGH it (`refresh_scope_assigns/1`): the role a
+    # session acts as rides on the token (`PhoenixKit.Users.ActiveRole`), and
+    # a reload by uuid would drop it. Server-side only; never rendered.
+    socket
+    |> Phoenix.Component.assign_new(:phoenix_kit_session_token, fn -> session["user_token"] end)
+    |> Phoenix.Component.assign_new(:phoenix_kit_current_user, fn ->
       case session["user_token"] do
         nil -> nil
         user_token -> get_active_user_from_token(user_token)
@@ -2453,7 +2451,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp refresh_scope_assigns(socket) do
     case socket.assigns[:phoenix_kit_current_user] do
       %User{uuid: user_uuid} ->
-        case Auth.get_user(user_uuid) do
+        case reload_session_user(socket, user_uuid) do
           %User{} = user ->
             scope =
               user
@@ -2483,6 +2481,24 @@ defmodule PhoenixKitWeb.Users.Auth do
       _ ->
         scope = socket.assigns[:phoenix_kit_current_scope] || Scope.for_user(nil)
         {socket, scope}
+    end
+  end
+
+  # Through the session token when the mount kept one (the role the session
+  # acts as lives on the token — `PhoenixKit.Users.ActiveRole`); by uuid for
+  # an embedded mount that only ever had a `current_user_uuid`. A token that
+  # no longer resolves (revoked, expired) is `nil` here, which the caller
+  # treats as "the user is gone" — exactly what a revocation means.
+  defp reload_session_user(socket, user_uuid) do
+    case socket.assigns[:phoenix_kit_session_token] do
+      token when is_binary(token) ->
+        case Auth.get_user_by_session_token(token) do
+          %User{uuid: ^user_uuid} = user -> user
+          _ -> nil
+        end
+
+      _ ->
+        Auth.get_user(user_uuid)
     end
   end
 

@@ -18,7 +18,6 @@ defmodule PhoenixKitWeb.Live.Settings.RoleSwitcherSettingsTest do
 
     assert html =~ ~s(name="settings[role_switcher_enabled]")
     assert html =~ ~s(name="settings[role_switcher_location]")
-    assert html =~ ~s(name="settings[role_switcher_sign_in_role]")
     assert html =~ ~s(value="#{role.uuid}")
 
     for system <- ~w(Owner Admin User) do
@@ -34,7 +33,6 @@ defmodule PhoenixKitWeb.Live.Settings.RoleSwitcherSettingsTest do
       "settings" => %{
         "role_switcher_enabled" => "true",
         "role_switcher_location" => "header",
-        "role_switcher_sign_in_role" => "last_used",
         "role_switcher_always_on_roles" => ["", role.uuid]
       }
     })
@@ -42,7 +40,6 @@ defmodule PhoenixKitWeb.Live.Settings.RoleSwitcherSettingsTest do
 
     assert Settings.get_setting("role_switcher_enabled") == "true"
     assert Settings.get_setting("role_switcher_location") == "header"
-    assert Settings.get_setting("role_switcher_sign_in_role") == "last_used"
     assert Settings.get_setting("role_switcher_always_on_roles") == role.uuid
   end
 

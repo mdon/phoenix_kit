@@ -2,57 +2,77 @@
 
 ### Added
 
-- **Active role: users act as one role at a time** (opt-in,
+- **Active role: users act as one role at a time, per session** (opt-in,
   `role_switcher_enabled`, default off). A user holding two or more switchable
   roles acts as exactly one of them, and `Scope.for_user/1` narrows
   `cached_roles` and `cached_permissions` to that role plus the always-on roles
   — an Admin acting as "Seller" has no admin access until they switch back.
   Owner and Admin are always switchable; User is always on; custom roles are
   switchable unless listed in `role_switcher_always_on_roles`. The choice is
-  stored per user (`custom_fields["active_role_uuid"]`) and applied inside
-  `for_user/1`, so every scope rebuild — plugs, LiveView mounts, the
-  role-change refresh, sibling packages — narrows without changes. A stored
-  role the user no longer holds is ignored (Owner > Admin > first role by
-  name). New: `PhoenixKit.Users.ActiveRole`, `Scope.active_role/1`,
-  `Scope.held_roles/1`, `Scope.narrowed?/1`, `Scope.for_user(user, narrow:
-  false)`, `Roles.get_user_role_records/1`,
-  `Permissions.get_permissions_for_roles/1`; settings `role_switcher_enabled`,
-  `role_switcher_location`, `role_switcher_sign_in_role`,
-  `role_switcher_always_on_roles`. Design:
+  stored **on the session token** (`phoenix_kit_users_tokens.active_role_uuid`,
+  V190): Admin on one machine and Seller on another at the same time, a role
+  of its own for an impersonation session, a fresh start for every sign-in and
+  every added multi-session account. It reaches `for_user/1` through
+  `%User{active_role_uuid: _}`, a virtual field only the session-token loader
+  fills, so every scope rebuild — plugs, LiveView mounts, the role-change
+  refresh (now reloading through the session token), sibling packages —
+  narrows without changes. A stored role the user no longer holds is ignored.
+  New: `PhoenixKit.Users.ActiveRole`, `Scope.active_role/1`,
+  `Scope.held_roles/1`, `Scope.narrowed?/1`, `Scope.switchable_roles/1`,
+  `Scope.for_user(user, narrow: false)`, `Roles.get_user_role_records/1`,
+  `Roles.get_role_records_for_users/1`, `Permissions.get_permissions_for_roles/1`;
+  settings `role_switcher_enabled`, `role_switcher_location`,
+  `role_switcher_always_on_roles`. Design and review record:
   `dev_docs/plans/2026-09-13-active-role.md`.
+- **Role order** — `phoenix_kit_user_roles.position` (V190; seeded Owner,
+  Admin, User, then custom roles by creation). Reordered on
+  `/admin/users/roles` by dragging or with the arrows (`Roles.reorder_roles/1`,
+  `Roles.move_role/2`); `Roles.list_roles/0`, `list_roles_paginated/1`,
+  `get_custom_roles/0` and `get_user_role_records/1` follow it. It decides the
+  **default role** of every new session — the first switchable role the user
+  holds — and the order the switcher lists roles in.
 - **Switching the active role** — `PUT /users/session/role` (`role_uuid`,
-  optional `return_to`) through `ActiveRole.switch/2`: refused unless the
-  switcher is on and the role is one of the user's switchable roles, logged as
-  `session.role_switched`, and broadcast so every open LiveView of the user,
-  on every device, rebuilds its scope and leaves pages the new role cannot
-  reach ("This page is not available in the role you switched to."). A switch
-  into a role with no admin-area access never follows `return_to` into the
-  admin area. Refused while impersonating, since the role is stored on the
-  borrowed account.
-- **Sign-in role** (`role_switcher_sign_in_role`) — under `staff_first` (the
-  default) an Owner or Admin starts every sign-in as that role, whatever they
-  used last; everyone else continues as their last role. `last_used` keeps the
-  last role for everyone. Applied in `log_in_user/3`, so password, magic link,
-  QR, OAuth and registration auto-login all honour it; remember-me restore
-  does not reset.
+  optional `return_to`) through `ActiveRole.switch/3`: refused unless the
+  switcher is on and the role is one of the user's switchable roles, written
+  to that session's token only, logged as `session.role_switched`, and
+  broadcast so every open LiveView of the user rebuilds its scope from its own
+  token and leaves pages the new role cannot reach ("This page is not
+  available in the role you switched to."). `return_to` is followed only when
+  the new scope can mount it — admin-area paths are resolved through the
+  router to their LiveView and asked the mount gate's own question, every
+  role alike.
+- **Removing a role signs out the sessions acting as it**
+  (`Sessions.revoke_user_sessions_in_role/2`, from `Roles.remove_role/3` and
+  `sync_user_roles/3`): the person starts over in whatever they still hold.
+  Sessions in another role keep going and refresh in place.
 - **The role switcher UI** — `PhoenixKitWeb.Components.Core.RoleSwitcher`. A
   "Role" section under Language in both account dropdowns
   (`AdminNav.admin_user_dropdown/1`, `UserDashboardNav.user_dropdown/1`), and
   with `role_switcher_location` set to `"header"` a compact control in the
   admin and dashboard headers from `sm` up, the menu section taking over on
-  phones. Renders only for a narrowed scope and never while impersonating; the
-  switchable roles ride on the scope (`Scope.switchable_roles/1`), so it costs
-  no query per page. The multi-session account list labels each account with
-  the role it is acting as and marks impersonated accounts (`impersonated?`).
-- **A "Roles" tab on `/admin/settings/users`** for the four `role_switcher_*`
-  settings: the on/off switch, the switcher location, the role on sign-in,
-  and which custom roles are always on (Owner, Admin and User are fixed and
-  not offered). Guide: `dev_docs/guides/2026-09-13-active-role.md`.
+  phones. Renders only for a narrowed scope — an impersonation session
+  included; the switchable roles ride on the scope
+  (`Scope.switchable_roles/1`), so it costs no query per page. The
+  multi-session account list labels each account with the role its session is
+  acting as.
+- **Sessions lists show the role each session acts as** — `Sessions.*` rows
+  carry `active_role`; `/admin/users/sessions` and the user's own devices list
+  render it beside the device.
+- **A "Roles" tab on `/admin/settings/users`** for the `role_switcher_*`
+  settings: the on/off switch, the switcher location, and which custom roles
+  are always on (Owner, Admin and User are fixed and not offered). Guide:
+  `dev_docs/guides/2026-09-13-active-role.md`.
+
+### Changed
+
+- **`Roles.list_roles/0` and `list_roles_paginated/1` order by role order**
+  (`position`, then name) instead of system-roles-first-then-name. The seeded
+  order is the same for an untouched install.
 
 ### Fixed
 
 - **An Admin acting as another role could still impersonate.** The
-  impersonation authority now reads the root account's roles in effect, so it
+  impersonation authority now reads the root session's roles in effect, so it
   follows the active role even for a hand-crafted POST. Targets are still
   judged by their real roles.
 - **"You cannot edit your own role" ignored roles you hold but are not acting
@@ -61,6 +81,10 @@
 - **A role or permission change emptied the header's account switcher** until
   the next full page load: the LiveView scope refresh rebuilt the scope
   without the multi-session fields. They are now carried over.
+- **The time-zone alert replaced the whole `custom_fields` map** from the
+  socket's user struct, silently restoring stale values of every other key a
+  concurrent tab had changed. It now merges its one key atomically
+  (`Auth.merge_user_custom_fields/3`).
 
 ## 2.22.24 - 2026-09-12
 

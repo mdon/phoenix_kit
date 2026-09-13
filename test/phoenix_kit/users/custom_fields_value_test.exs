@@ -13,7 +13,6 @@ defmodule PhoenixKit.Users.CustomFieldsValueTest do
   describe "internal_key?/1" do
     test "the keys PhoenixKit writes as per-user state are internal" do
       for key <- ~w(
-            active_role_uuid
             activity_view_mode
             etcher_colors
             etcher_line_params

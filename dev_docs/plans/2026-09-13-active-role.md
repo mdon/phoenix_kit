@@ -1,14 +1,14 @@
 # Active role — one role at a time, and a switcher to change it
 
 **Created:** 2026-09-13
-**Status:** BUILT on `main` 2026-09-13 in four commits (below). **Not published,
-no version bump** — waiting for review by other agents. Sibling follow-ups (end
-of this file) not started. **Reviewed 2026-09-13 by Claude Fable 5.1** — see
-"Review findings" at the end of Part 1 (2 HIGH improvements, 8 MEDIUM; no
-privilege escalation found). **Maintainer answered the same day: the role
-must be per SESSION, not per user** — see "Maintainer answers … and the
-redesign they require" (end of Part 1). The per-user storage on `main` is to
-be replaced before any publish.
+**Status:** BUILT on `main` 2026-09-13 — **twice.** The first build (four
+commits, Part 1 below) stored the role per *user*; the maintainer's review
+answers (end of Part 1) required it per *session*, and the second build
+(commit after `a4a7d524`, "Second build — as built" below) moved it to the
+session token, added role order, and closed the review findings that the
+move made moot. **Not published, no version bump** — the second build is what
+should be reviewed and released. Sibling follow-ups (end of this file) not
+started.
 **Scope:** phoenix_kit (core).
 **Topic guide (read first):** `dev_docs/guides/2026-09-13-active-role.md`
 
@@ -893,6 +893,107 @@ sessions lists + R4 + docs/CHANGELOG/translations. Each stage `mix precommit`
    (recommended) or all of the user's sessions (literal answer)?
 3. Reorder UI: the Roles page (`/admin/users/roles`) is the natural place;
    confirm, since it is the first non-list-style use of the reorder modal there.
+
+## Second build — as built (per session), 2026-09-13
+
+Everything in "Part 1 — As built" above describes the **first** build and
+stays as the record of it; where the two differ, this section wins. The
+review findings and the maintainer answers explain *why*; this is *what*.
+
+### Storage
+
+- **V190** (`lib/phoenix_kit/migrations/postgres/v190.ex`): additive.
+  `phoenix_kit_users_tokens.active_role_uuid uuid NULL` (no FK — validated on
+  every read, and the assignment that made it meaningful revokes the session
+  when it goes) and `phoenix_kit_user_roles.position integer NOT NULL DEFAULT
+  0`, seeded Owner 0 / Admin 1 / User 2 / custom roles 3… by creation.
+  `ExpectedSchema` carries the two columns by hand (`since: 190`, pos 13 and
+  8 — checked by `hand_declared_manifest_test.exs` against a real DB);
+  `chain_hash` restamped; `@current_version 190`.
+- `custom_fields["active_role_uuid"]` is gone (internal key removed).
+- `%User{active_role_uuid: _}` — a **virtual** field, filled only by
+  `UserToken.verify_session_token_query/1` (`select_merge`). `ActiveRole.
+  session_role_uuid/1` reads it; `narrow/2` is otherwise unchanged.
+- `NULL` = **default role** = the first switchable role in role order
+  (`resolve/3`'s `[default, _ | _]` head). Nothing is written at sign-in, so
+  there is no sign-in rule, no `role_switcher_sign_in_role` setting, no
+  `apply_sign_in_role/1`, no `sign_in_role/3` — and no audit gap (R2), no
+  add-account bypass (R3), no `user_updated` fan-out (R6). A user loaded
+  without a session resolves to the default too (never the union).
+
+### Rebuild sites that had to change
+
+- `mount_phoenix_kit_current_user/2` assigns `phoenix_kit_session_token`;
+  `refresh_scope_assigns/1` reloads through it (`reload_session_user/2`),
+  falling back to `Auth.get_user/1` only for embedded mounts that never had a
+  token. A revoked token resolves to `nil` → the existing "user gone"
+  eviction, which is how answer 5 reaches an open LiveView.
+- Everything else (plugs, on_mount hooks, `Session.conn_scope/1`,
+  `OAuth.conn_scope/1`, controllers, `MultiSession.root_user/1`) already
+  loaded through the token and needed nothing.
+
+### Switching, impersonation, revocation, redirect
+
+- `ActiveRole.switch(user, token, role_uuid)` updates the one token row;
+  `Session.set_active_role/2` passes `get_session(conn, :user_token)`.
+- Impersonation: marker (`:pk_impersonated_tokens`), `impersonating?/1`,
+  `impersonated?` and the controller refusal **deleted**. The borrowed token
+  is a session like any other, starting at the target's default. Authority
+  still reads the root account's roles in effect — for the root *session*,
+  since `root_user/1` loads through the root token.
+- `Roles.remove_role/3` → `Sessions.revoke_user_sessions_in_role/2`
+  (delete + `disconnect_tokens/1` + `session_revoked` events); reached from
+  `sync_user_roles/3` too. Only the sessions *in* that role (confirmed).
+- `Session.redirect_after_role_switch/2` keeps `return_to` iff
+  `reachable_return_to?/3`: admin-area paths → `Phoenix.Router.route_info/4` →
+  the LiveView → `admin_gate_decision/2` + `can_access_admin_view?/2`. No
+  `skip_admin`, no Owner/Admin special case (R4, answer 4).
+
+### Role order
+
+- `Roles.reorder_roles/1`, `move_role/2`, `create_role/1` appends
+  (`next_position/1`); `list_roles/0`, `list_roles_paginated/1`,
+  `get_custom_roles/0`, `get_user_role_records/1` and the new
+  `get_role_records_for_users/1` order by `position, name`.
+- `/admin/users/roles`: `<.sortable_tbody event="reorder_roles">` +
+  `<.drag_handle_cell>` + Move up / Move down arrows (`move_role` event).
+  A drop payload is re-checked against the rows shown and merged into the
+  full order (`page_order/2`), so a page can only permute what it shows.
+
+### Sessions lists
+
+- Every `Sessions.list_*`/`get_session_info/1` row carries
+  `active_role_uuid` and `active_role` (the name, via
+  `ActiveRole.session_role_names/1` — one roles query per page, then the
+  pure rules). `/admin/users/sessions` and the user's devices list show it.
+
+### Also in this build
+
+- R1: `TimeZoneAlert.remember/2` merges atomically; AGENTS.md landmine added.
+- Docs: guide rewritten for per-session semantics (incl. the
+  `phoenix_kit_scope_changed/1` callback for host pages, the own-layout
+  escape hatch, jobs, settings latency — R5/R7/R9/R10 as documentation).
+
+### Tests (second build)
+
+| File | Covers |
+|---|---|
+| `test/phoenix_kit/users/active_role_test.exs` | Pure rules; default = first in given order; `session_role_uuid/1`; `narrow/2` short-circuit. |
+| `test/integration/users/active_role_scope_test.exs` | `for_user/1` with the virtual field; role order decides the default; a by-uuid load acts as the default. |
+| `test/integration/users/role_order_test.exs` | **New.** Seeded order, `reorder_roles/1`, `move_role/2`, `get_user_role_records/1`; `remove_role` and `sync_user_roles` revoke only the sessions in that role; sessions lists carry the role. |
+| `test/integration/phoenix_kit_web/users/active_role_gate_test.exs` | on_mount gate and the HTTP gate under a narrowed session. |
+| `test/integration/phoenix_kit_web/users/active_role_switch_test.exs` | PUT: narrows this session only; `return_to` reachable/unreachable/page-by-page (custom role holding `media`); off-site; refusals; a fresh session starts at the default; impersonation gets its own role and the target's session is untouched; narrowed root cannot impersonate; open LiveView evicted on its own switch, not on another session's. |
+| `test/phoenix_kit_web/components/core/role_switcher_test.exs` | Component render (no impersonation branch). |
+| `test/integration/phoenix_kit_web/live/settings/role_switcher_settings_test.exs` | Three settings. |
+| `test/integration/hand_declared_manifest_test.exs`, `prefix_migration_test.exs`, `repair_test.exs`, `phoenix_kit_release_check_test.exs` | V190 + manifest. |
+
+### Review findings — final status
+
+R1 fixed · R2/R3/R6/R8/R10 moot (no user-row write, no sign-in write, no
+marker, no session → default) · R4 fixed role-agnostically · R5/R7/R9
+documented in the guide · plan risks 2 and 9 closed by construction. Open:
+N1–N6 nitpicks (N5 moot), the sibling follow-ups, and browser verification
+of the reorder UI.
 
 ---
 

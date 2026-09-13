@@ -28,6 +28,7 @@ defmodule PhoenixKit.Users.Sessions do
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.RepoHelper, as: Repo
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.ActiveRole
   alias PhoenixKit.Users.Auth.{KnownDevice, User, UserToken}
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.TimeZone
@@ -69,6 +70,7 @@ defmodule PhoenixKit.Users.Sessions do
         user_confirmed_at: user.confirmed_at,
         browser: token.browser,
         os: token.os,
+        active_role_uuid: token.active_role_uuid,
         created_at: token.inserted_at,
         expires_at: fragment("? + interval '60 days'", token.inserted_at)
       },
@@ -76,6 +78,7 @@ defmodule PhoenixKit.Users.Sessions do
     )
     |> Repo.all()
     |> Enum.map(&format_session_info/1)
+    |> with_active_roles()
   end
 
   @doc """
@@ -126,6 +129,7 @@ defmodule PhoenixKit.Users.Sessions do
         user_confirmed_at: user.confirmed_at,
         browser: token.browser,
         os: token.os,
+        active_role_uuid: token.active_role_uuid,
         created_at: token.inserted_at,
         expires_at: fragment("? + interval '60 days'", token.inserted_at)
       })
@@ -134,6 +138,7 @@ defmodule PhoenixKit.Users.Sessions do
       |> offset(^((page - 1) * per_page))
       |> Repo.all()
       |> Enum.map(&format_session_info/1)
+      |> with_active_roles()
 
     %{sessions: sessions, total_count: total_count, total_pages: total_pages, page: page}
   end
@@ -198,6 +203,7 @@ defmodule PhoenixKit.Users.Sessions do
         user_confirmed_at: user.confirmed_at,
         browser: token.browser,
         os: token.os,
+        active_role_uuid: token.active_role_uuid,
         created_at: token.inserted_at,
         expires_at: fragment("? + interval '60 days'", token.inserted_at)
       },
@@ -205,6 +211,7 @@ defmodule PhoenixKit.Users.Sessions do
     )
     |> Repo.all()
     |> Enum.map(&format_session_info/1)
+    |> with_active_roles()
   end
 
   @doc """
@@ -231,10 +238,12 @@ defmodule PhoenixKit.Users.Sessions do
       where: token.inserted_at > ago(@session_validity_in_days, "day"),
       select: %{
         token_uuid: token.uuid,
+        user_uuid: token.user_uuid,
         ip_address: token.ip_address,
         user_agent_hash: token.user_agent_hash,
         browser: token.browser,
         os: token.os,
+        active_role_uuid: token.active_role_uuid,
         created_at: token.inserted_at
       },
       order_by: [desc: token.inserted_at]
@@ -245,6 +254,7 @@ defmodule PhoenixKit.Users.Sessions do
 
       %{
         token_uuid: s.token_uuid,
+        user_uuid: s.user_uuid,
         ip_address: s.ip_address,
         # Device name comes from the token (V148), populated at login for every
         # session; fall back to a known-device row for pre-V148 sessions.
@@ -254,9 +264,14 @@ defmodule PhoenixKit.Users.Sessions do
         location: device && device.location,
         last_active: (device && device.last_seen_at) || s.created_at,
         created_at: s.created_at,
+        # The role this session acts as (`PhoenixKit.Users.ActiveRole`), nil
+        # when not narrowed.
+        active_role_uuid: s.active_role_uuid,
+        active_role: nil,
         is_current: s.token_uuid == current_uuid
       }
     end)
+    |> with_active_roles()
   end
 
   @doc """
@@ -332,14 +347,18 @@ defmodule PhoenixKit.Users.Sessions do
         user_email: user.email,
         user_is_active: user.is_active,
         user_confirmed_at: user.confirmed_at,
+        active_role_uuid: token.active_role_uuid,
         created_at: token.inserted_at,
         expires_at: fragment("? + interval '60 days'", token.inserted_at)
       }
     )
     |> Repo.one()
     |> case do
-      nil -> nil
-      session_data -> format_session_info(session_data)
+      nil ->
+        nil
+
+      session_data ->
+        session_data |> format_session_info() |> List.wrap() |> with_active_roles() |> hd()
     end
   end
 
@@ -373,6 +392,37 @@ defmodule PhoenixKit.Users.Sessions do
       {0, _} ->
         {:error, :not_found}
     end
+  end
+
+  @doc """
+  Revokes every session of `user` that is **acting as** `role_uuid`
+  (`PhoenixKit.Users.ActiveRole`) — called when that role is taken away from
+  them, so the affected browser signs out instead of quietly continuing in
+  another role. Sessions in another role, and sessions that never switched
+  (`NULL`, the default role), are left alone. Returns the number revoked.
+  """
+  @spec revoke_user_sessions_in_role(User.t(), String.t()) :: non_neg_integer()
+  def revoke_user_sessions_in_role(%User{uuid: user_uuid}, role_uuid) when is_binary(role_uuid) do
+    {count, revoked} =
+      Repo.delete_all(
+        from(token in UserToken,
+          where:
+            token.user_uuid == ^user_uuid and token.context == "session" and
+              token.active_role_uuid == ^role_uuid,
+          select: %{uuid: token.uuid, token: token.token}
+        )
+      )
+
+    disconnect_tokens(Enum.map(revoked, & &1.token))
+    Enum.each(revoked, &Events.broadcast_session_revoked(&1.uuid))
+    count
+  end
+
+  # Fills `:active_role` (the name of the role each session acts as, or nil)
+  # from the sessions' stored uuids — one roles query for the whole list.
+  defp with_active_roles(sessions) do
+    names = ActiveRole.session_role_names(sessions)
+    Enum.map(sessions, &%{&1 | active_role: Map.get(names, &1.token_uuid)})
   end
 
   @doc """
@@ -575,6 +625,8 @@ defmodule PhoenixKit.Users.Sessions do
       user_confirmed_at: session_data.user_confirmed_at,
       browser: Map.get(session_data, :browser),
       os: Map.get(session_data, :os),
+      active_role_uuid: Map.get(session_data, :active_role_uuid),
+      active_role: nil,
       created_at: session_data.created_at,
       expires_at: session_data.expires_at,
       age_in_days: calculate_age_in_days(session_data.created_at),

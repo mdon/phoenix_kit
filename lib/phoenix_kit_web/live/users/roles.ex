@@ -82,6 +82,32 @@ defmodule PhoenixKitWeb.Live.Users.Roles do
     end
   end
 
+  # Role ORDER (`PhoenixKit.Users.ActiveRole`): a drop from the SortableGrid
+  # hook sends this page's rows in their new order; the ids are re-checked
+  # against the rows actually shown, so a stale or crafted payload can only
+  # permute the roles on this page, never insert one.
+  def handle_event("reorder_roles", %{"ordered_ids" => ids}, socket) when is_list(ids) do
+    shown = Enum.map(socket.assigns.roles, & &1.uuid)
+    ordered = Enum.filter(ids, &(&1 in shown))
+
+    if Enum.sort(ordered) == Enum.sort(shown) do
+      Roles.reorder_roles(page_order(socket, ordered))
+      {:noreply, load_roles(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("reorder_roles", _params, socket), do: {:noreply, socket}
+
+  def handle_event("move_role", %{"role_uuid" => uuid, "direction" => direction}, socket)
+      when direction in ["up", "down"] do
+    Roles.move_role(uuid, String.to_existing_atom(direction))
+    {:noreply, load_roles(socket)}
+  end
+
+  def handle_event("move_role", _params, socket), do: {:noreply, socket}
+
   def handle_event("show_create_form", _params, socket) do
     form = to_form(Role.changeset(%Role{}, %{}))
 
@@ -397,6 +423,14 @@ defmodule PhoenixKitWeb.Live.Users.Roles do
       socket = put_flash(socket, :error, gettext("System roles cannot be deleted"))
       {:noreply, socket}
     end
+  end
+
+  # The full order with this page's slice replaced by `ordered` — the list is
+  # paginated, and a page must not be able to reorder roles it does not show.
+  defp page_order(socket, ordered) do
+    all = Roles.list_roles() |> Enum.map(& &1.uuid)
+    offset = (socket.assigns.page - 1) * socket.assigns.per_page
+    Enum.take(all, offset) ++ ordered ++ Enum.drop(all, offset + length(ordered))
   end
 
   defp load_roles(socket) do

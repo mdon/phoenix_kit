@@ -157,6 +157,20 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # over the 49 shipped files; the real-database integration suite re-ran
   # clean against a DB migrated through V183.
   #
+  # V190 (2026-09-13, active role per session) DECLARES two objects here by
+  # hand, both new columns and the V166 class: `column:phoenix_kit_users_tokens.
+  # active_role_uuid` (uuid, nullable — the role a session acts as, NULL =
+  # the default, no FK by design: validated on every read and cleared by
+  # session revocation when the assignment goes) and
+  # `column:phoenix_kit_user_roles.position` (integer NOT NULL DEFAULT 0 —
+  # the operator's role order, seeded by a one-off UPDATE that is row DATA,
+  # not a manifest object). No index, constraint or reshape. `chain_hash`
+  # restamped over the shipped file set; the hand-declared shapes were
+  # checked by `test/integration/hand_declared_manifest_test.exs` and the
+  # rest of the real-database migration suite against a DB migrated through
+  # V190 (`generate_baseline.exs` still needs the pre-squash checkout this
+  # environment does not have).
+  #
   # V189 (2026-09-08, per-domain currency Э5) declares NO object here, and
   # cannot: it is a pure data migration — `DELETE FROM phoenix_kit_settings
   # WHERE "key" = 'billing_default_currency'` (a dead setting seeded by V135
@@ -310,7 +324,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "2379effc7f93d11d2010c9f4cf0b1774865de371fe91a2674e96d958e4fbfabe"
+  @chain_hash "54fb223a017caff715be31e511a18356807a052419745cd359f18543333d5cd5"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -70957,6 +70971,33 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         ],
         presence: :required,
         backfill: nil
+      },
+      # ── V190: active role per session + role order ──
+      %{
+        id: "column:phoenix_kit_users_tokens.active_role_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_users_tokens", column: "active_role_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_users_tokens ADD COLUMN IF NOT EXISTS \"active_role_uuid\" uuid",
+        since: 190,
+        class: :column,
+        revisions: [{190, %{default: nil, type: "uuid", pos: 13, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_user_roles.position",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_user_roles", column: "position", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_user_roles ADD COLUMN IF NOT EXISTS \"position\" integer DEFAULT 0 NOT NULL",
+        since: 190,
+        class: :column,
+        revisions: [{190, %{default: "0", type: "integer", pos: 8, not_null: true}}],
+        presence: :required,
+        backfill: :default
       }
     ]
   end

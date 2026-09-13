@@ -56,7 +56,6 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
       |> assign(:registration_account_type_options, registration_account_type_options())
       |> assign(:role_switcher_custom_roles, role_switcher_custom_roles())
       |> assign(:role_switcher_location_options, role_switcher_options(:location))
-      |> assign(:role_switcher_sign_in_options, role_switcher_options(:sign_in))
       |> assign(:changeset, changeset)
       |> assign(:saving, false)
       |> assign(
@@ -390,20 +389,10 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   defp role_switcher_options(:location),
     do: Enum.map(~w(menu header), &{role_switcher_location_label(&1), &1})
 
-  defp role_switcher_options(:sign_in),
-    do: Enum.map(~w(staff_first last_used), &{role_switcher_sign_in_label(&1), &1})
-
   @doc false
   def role_switcher_location_label("menu"), do: gettext("Account menu")
   def role_switcher_location_label("header"), do: gettext("Header (account menu on phones)")
   def role_switcher_location_label(value), do: value
-
-  @doc false
-  def role_switcher_sign_in_label("staff_first"),
-    do: gettext("Owner or Admin if held, otherwise the last role used")
-
-  def role_switcher_sign_in_label("last_used"), do: gettext("The last role used")
-  def role_switcher_sign_in_label(value), do: value
 
   @doc false
   def always_on_role?(settings, role_uuid),

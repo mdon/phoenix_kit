@@ -61,11 +61,6 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   @stack_key :pk_session_accounts
   @max_accounts 5
 
-  # Tokens `impersonate/2` added. Only ever grows within a session: a removed or
-  # logged-out token is deleted from the DB and cannot become active again, and
-  # a fresh login's `renew_session/1` clears the whole session.
-  @impersonated_key :pk_impersonated_tokens
-
   # The durable mirror of the accounts ADDED beyond the remembered one. Separate
   # from the remember-me cookie rather than folded into it: that cookie's value
   # is a bare token read by every released version, and widening it to a list
@@ -109,14 +104,13 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   @doc """
   Resolves each stack token to a render struct:
-  `%{ref, user, email, role, active?, root?, impersonated?}`. Tokens that no
-  longer resolve to a user (expired/deleted) are dropped. `impersonated?` marks
-  an account `impersonate/2` added.
+  `%{ref, user, email, role, active?, root?}`. Tokens that no longer resolve to a
+  user (expired/deleted) are dropped. `role` labels the roles in effect for
+  that account's session (`PhoenixKit.Users.ActiveRole`).
   """
   def list_accounts(session) when is_map(session) do
     active = session["user_token"]
     tokens = stack_tokens(session)
-    impersonated = List.wrap(session[Atom.to_string(@impersonated_key)])
 
     tokens
     |> Enum.with_index()
@@ -130,8 +124,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
               email: user.email,
               role: role_label(user),
               active?: token == active,
-              root?: index == 0,
-              impersonated?: token in impersonated
+              root?: index == 0
             }
           ]
 
@@ -356,7 +349,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
       :ok ->
         case add_authenticated_user(conn, target, event: "session.impersonated", persist: false) do
           {:ok, conn} ->
-            {:ok, mark_impersonated(conn)}
+            {:ok, conn}
 
           {:error, reason} = error ->
             log_impersonation_refused(actor, target, reason)
@@ -367,23 +360,6 @@ defmodule PhoenixKitWeb.Users.MultiSession do
         log_impersonation_refused(actor, target, reason)
         error
     end
-  end
-
-  # `add_authenticated_user/3` has just made the impersonated token active.
-  defp mark_impersonated(conn) do
-    token = get_session(conn, :user_token)
-
-    put_session(conn, @impersonated_key, [token | List.wrap(get_session(conn, @impersonated_key))])
-  end
-
-  @doc """
-  True when the active account is one `impersonate/2` added — the session is
-  borrowing someone else's account rather than using one of its own.
-  """
-  @spec impersonating?(map()) :: boolean()
-  def impersonating?(session) when is_map(session) do
-    token = session["user_token"]
-    is_binary(token) and token in List.wrap(session[Atom.to_string(@impersonated_key)])
   end
 
   @doc """
@@ -520,11 +496,13 @@ defmodule PhoenixKitWeb.Users.MultiSession do
     )
   end
 
-  # The ACTOR's roles in effect, narrowed to the role they are acting as
-  # (`PhoenixKit.Users.ActiveRole`): an Admin acting as "Seller" holds no
-  # impersonation authority, not even by crafting the POST. Targets keep their
-  # REAL roles (`role_names/1`, `get_roles/1`) — an Admin acting as a custom
-  # role is still an administrator to be protected from being borrowed.
+  # The ACTOR's roles in effect, narrowed to the role the ROOT SESSION is acting
+  # as (`PhoenixKit.Users.ActiveRole` — `root_user/1` loads the root account
+  # through its own token, which carries the role): an Admin acting as
+  # "Seller" holds no impersonation authority, not even by crafting the POST.
+  # Targets keep their REAL roles (`role_names/1`, `get_roles/1`) — an Admin
+  # acting as a custom role is still an administrator to be protected from
+  # being borrowed.
   defp actor_roles(%Auth.User{} = actor), do: ActiveRole.effective_role_names(actor)
 
   # The rule itself, over role names already in hand. Separated from the lookups

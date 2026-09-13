@@ -115,9 +115,10 @@ Full reference: `dev_docs/guides/2026-07-28-login-and-registration.md`. All sett
 - **Admin-area gate**: `Scope.can_access_admin_area?/1` — true for Owner, Admin, OR any single permission holder (`admin?/1` is a deprecated alias). `Scope.holds_all_enabled_permissions?/1` is the "can do everything, like Owner" check.
 - **Sub-permissions** — dotted keys under a base (`"calendar.view_others"`), declared in `permission_metadata/0`'s `sub_permissions`, checked by the module via `Scope.can?/2`. A sub implies its base (granting a sub auto-grants the base; revoking the base cascades). Grant/revoke run under a per-`{role, base-key}` advisory lock.
 - **Edit protection**: `can_edit_role_permissions?/2` — users cannot edit their own role; only Owner can edit Admin.
-- **Active role** (`PhoenixKit.Users.ActiveRole`, opt-in `role_switcher_enabled`): a user with 2+ switchable roles acts as one, and `Scope.for_user/1` narrows `cached_roles`/`cached_permissions` to it. Guide: `dev_docs/guides/2026-09-13-active-role.md`.
-  - ⚠️ **Never hold the active role outside `for_user/1`** — it lives in `custom_fields["active_role_uuid"]`; the scope is rebuilt from scratch in plugs, every mount, the refresh and siblings, so a session/assign copy silently widens back to every role.
-  - Access decisions read the scope; rules protecting against a user's REAL roles read `Scope.held_roles/1`. `Roles.*`/`User.get_roles` DB reads ignore the active role.
+- **Active role** (`PhoenixKit.Users.ActiveRole`, opt-in `role_switcher_enabled`): a user with 2+ switchable roles acts as one **per session**, and `Scope.for_user/1` narrows `cached_roles`/`cached_permissions` to it. Default = first held role in role order (`/admin/users/roles`). Guide: `dev_docs/guides/2026-09-13-active-role.md`.
+  - ⚠️ **The active role lives on the session token** (`phoenix_kit_users_tokens.active_role_uuid`) and reaches `for_user/1` only through `%User{active_role_uuid: _}`, a virtual field that only the token loader fills. The refresh reloads through `phoenix_kit_session_token`, never by uuid — a by-uuid reload or a session/assign copy silently changes the role.
+  - Access decisions read the scope; rules protecting against a user's REAL roles read `Scope.held_roles/1`. `Roles.*`/`User.get_roles` DB reads ignore the active role. Removing a role signs out the sessions acting as it (`Sessions.revoke_user_sessions_in_role/2`).
+  - ⚠️ **Internal `custom_fields` keys: `Auth.merge_user_custom_fields/3`, never a whole-map replace from a struct held in assigns** — a stale replace restores every other key's old value.
 
 ## Integrations System
 

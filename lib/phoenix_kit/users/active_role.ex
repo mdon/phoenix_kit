@@ -1,6 +1,6 @@
 defmodule PhoenixKit.Users.ActiveRole do
   @moduledoc """
-  The role a user is currently *acting as*.
+  The role a session is currently *acting as*.
 
   By default a user's access is the union of every role they hold. With the
   role switcher on (`role_switcher_enabled`), a user holding two or more
@@ -19,12 +19,24 @@ defmodule PhoenixKit.Users.ActiveRole do
 
   ## Where the active role lives
 
-  In the user's `custom_fields` under `"active_role_uuid"`, and it is applied
-  inside `PhoenixKit.Users.Auth.Scope.for_user/1`. Never hold it anywhere else:
-  the scope is rebuilt from scratch with `for_user/1` in many places (plugs,
-  every LiveView mount, the role-change refresh, controllers, sibling
-  packages), and each of those would silently widen a role kept outside it
-  back to the full union.
+  **On the session token** (`phoenix_kit_users_tokens.active_role_uuid`,
+  V190), so it is per browser session: Admin on the laptop, Seller on the
+  phone, a role of its own for an impersonation, a fresh start for a second
+  multi-session account. `NULL` means the **default role** — the first
+  switchable role the user holds in role order (`phoenix_kit_user_roles.
+  position`: Owner, Admin, then the operator's order) — and nothing is written
+  until the user switches.
+
+  It reaches `PhoenixKit.Users.Auth.Scope.for_user/1` through the user's
+  virtual field `active_role_uuid`, which only
+  `PhoenixKit.Users.Auth.UserToken.verify_session_token_query/1` fills: every
+  web path starts from a session token, so every scope build narrows without
+  knowing about tokens. A user loaded any other way (by uuid, in a background
+  job, in an admin list) has `nil` there and acts as their **default role** —
+  the same rule as a session that never switched, and never wider than a
+  session could be. Never copy the value anywhere else (a session key, an
+  assign): the scope is rebuilt from the token in plugs, every LiveView mount
+  and the role-change refresh.
 
   The stored value is never trusted on its own. `resolve/3` only ever returns a
   role the user holds and that is switchable right now, so the narrowed scope
@@ -34,28 +46,19 @@ defmodule PhoenixKit.Users.ActiveRole do
   without a database.
   """
 
-  require Logger
+  import Ecto.Query
 
+  alias PhoenixKit.RepoHelper
   alias PhoenixKit.Settings
-  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.Auth.UserToken
   alias PhoenixKit.Users.Role
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Users.ScopeNotifier
 
-  @custom_field_key "active_role_uuid"
-
   @type role :: %{uuid: String.t(), name: String.t()}
 
-  @type config :: %{
-          enabled?: boolean(),
-          sign_in_role: :staff_first | :last_used,
-          always_on: [String.t()]
-        }
-
-  @doc "The `custom_fields` key the active role's uuid is stored under."
-  @spec custom_field_key() :: String.t()
-  def custom_field_key, do: @custom_field_key
+  @type config :: %{enabled?: boolean(), always_on: [String.t()]}
 
   @doc """
   The switcher configuration, read from settings.
@@ -67,8 +70,6 @@ defmodule PhoenixKit.Users.ActiveRole do
     if Settings.get_boolean_setting("role_switcher_enabled", false) do
       %{
         enabled?: true,
-        sign_in_role:
-          parse_sign_in_role(Settings.get_setting_cached("role_switcher_sign_in_role")),
         always_on: parse_always_on(Settings.get_setting_cached("role_switcher_always_on_roles"))
       }
     else
@@ -78,15 +79,7 @@ defmodule PhoenixKit.Users.ActiveRole do
 
   @doc false
   @spec disabled_config() :: config()
-  def disabled_config, do: %{enabled?: false, sign_in_role: :staff_first, always_on: []}
-
-  @doc """
-  Parses the `role_switcher_sign_in_role` setting. Anything unrecognised is
-  `:staff_first`, the default.
-  """
-  @spec parse_sign_in_role(term()) :: :staff_first | :last_used
-  def parse_sign_in_role("last_used"), do: :last_used
-  def parse_sign_in_role(_), do: :staff_first
+  def disabled_config, do: %{enabled?: false, always_on: []}
 
   @doc """
   Parses the `role_switcher_always_on_roles` setting: comma-separated role
@@ -124,19 +117,19 @@ defmodule PhoenixKit.Users.ActiveRole do
   def switchable_roles(held, config), do: Enum.filter(held, &switchable?(&1, config))
 
   @doc """
-  The role a user holding `held` acts as, given the uuid stored on their
-  record. `nil` means no narrowing: the feature is off, or the user holds
-  fewer than two switchable roles.
+  The role a session acts as, given the roles the user holds (in role order)
+  and the uuid stored on the session. `nil` means no narrowing: the feature
+  is off, or the user holds fewer than two switchable roles.
 
   A stored uuid naming a role that is not held, or not switchable, is ignored
-  and the default applies: Owner, then Admin, then the first switchable role
-  by name.
+  and the **default** applies: the first switchable role in role order. So is
+  `nil` — a session that never switched.
   """
   @spec resolve([role()], String.t() | nil, config()) :: role() | nil
   def resolve(held, stored_uuid, %{enabled?: true} = config) when is_list(held) do
     case switchable_roles(held, config) do
-      [_, _ | _] = candidates ->
-        Enum.find(candidates, &(&1.uuid == stored_uuid)) || default_role(candidates)
+      [default, _ | _] = candidates ->
+        Enum.find(candidates, &(&1.uuid == stored_uuid)) || default
 
       _ ->
         nil
@@ -144,25 +137,6 @@ defmodule PhoenixKit.Users.ActiveRole do
   end
 
   def resolve(_held, _stored_uuid, _config), do: nil
-
-  @doc """
-  The role a user should act as right after signing in.
-
-  Under `:staff_first` (the default) an Owner or Admin starts as their highest
-  staff role whatever they used last; everyone else continues as the role they
-  last used. Under `:last_used` everyone continues as the role they last used.
-  """
-  @spec sign_in_role([role()], String.t() | nil, config()) :: role() | nil
-  def sign_in_role(held, stored_uuid, %{sign_in_role: :staff_first} = config) do
-    system = Role.system_roles()
-
-    case resolve(held, nil, config) do
-      %{name: name} = staff when name in [system.owner, system.admin] -> staff
-      _ -> resolve(held, stored_uuid, config)
-    end
-  end
-
-  def sign_in_role(held, stored_uuid, config), do: resolve(held, stored_uuid, config)
 
   @doc """
   The roles in effect while acting as `active`: the active role plus every
@@ -176,13 +150,12 @@ defmodule PhoenixKit.Users.ActiveRole do
   end
 
   @doc """
-  The role uuid stored on the user's record, or `nil`.
+  The role uuid the current session stored, carried on the user loaded from
+  that session's token, or `nil` (no session, or the session never switched).
   """
-  @spec stored_role_uuid(User.t()) :: String.t() | nil
-  def stored_role_uuid(%User{custom_fields: %{@custom_field_key => uuid}}) when is_binary(uuid),
-    do: uuid
-
-  def stored_role_uuid(%User{}), do: nil
+  @spec session_role_uuid(User.t()) :: String.t() | nil
+  def session_role_uuid(%User{active_role_uuid: uuid}) when is_binary(uuid), do: uuid
+  def session_role_uuid(%User{}), do: nil
 
   @doc false
   # Called by `Scope.for_user/1`. Returns the active role (or `nil`), the roles
@@ -194,7 +167,7 @@ defmodule PhoenixKit.Users.ActiveRole do
 
   def narrow(%User{} = user, held) do
     config = config()
-    active = resolve(held, stored_role_uuid(user), config)
+    active = resolve(held, session_role_uuid(user), config)
     switchable = if active, do: switchable_roles(held, config), else: []
     {active, effective_roles(held, active, config), switchable}
   end
@@ -205,12 +178,39 @@ defmodule PhoenixKit.Users.ActiveRole do
 
   The same roles `Scope.for_user/1` puts in `cached_roles`, without loading
   permissions — for callers that only need names (account labels, the
-  impersonation authority).
+  impersonation authority). Like `for_user/1`, honours the session role only
+  when `user` was loaded from its session token.
   """
   @spec effective_role_names(User.t()) :: [String.t()]
   def effective_role_names(%User{} = user) do
     {_active, effective, _switchable} = narrow(user, Roles.get_user_role_records(user))
     Enum.map(effective, & &1.name)
+  end
+
+  @doc """
+  The role in effect for each session in `sessions`, for the sessions lists.
+
+  Takes maps with `:token_uuid`, `:user_uuid` and `:active_role_uuid` (what
+  `PhoenixKit.Users.Sessions` selects) and returns `%{token_uuid => name}`
+  with `nil` where the session is not narrowed — one roles query for the
+  whole page, then the pure rules per row.
+  """
+  @spec session_role_names([map()]) :: %{optional(String.t()) => String.t() | nil}
+  def session_role_names([]), do: %{}
+
+  def session_role_names(sessions) when is_list(sessions) do
+    config = config()
+
+    held_by_user =
+      if config.enabled?,
+        do: sessions |> Enum.map(& &1.user_uuid) |> Roles.get_role_records_for_users(),
+        else: %{}
+
+    Map.new(sessions, fn session ->
+      held = Map.get(held_by_user, session.user_uuid, [])
+      active = resolve(held, session.active_role_uuid, config)
+      {session.token_uuid, active && active.name}
+    end)
   end
 
   @doc """
@@ -226,96 +226,52 @@ defmodule PhoenixKit.Users.ActiveRole do
   def parse_location(_), do: :menu
 
   @doc """
-  Makes `role_uuid` the role `user` acts as.
+  Makes `role_uuid` the role the session identified by the raw session
+  `token` acts as. `user` is that session's user, as loaded from the token.
 
   Refused unless the switcher is on and the role is one of the user's
   switchable roles — and there are at least two of those, or there is nothing
   to switch between. Switching to the role already in effect writes nothing.
 
-  On a change the choice is stored on the user, logged as
-  `session.role_switched`, and broadcast through `ScopeNotifier`, so every open
-  LiveView of this user — on every device — rebuilds its scope and leaves pages
-  the new role cannot reach.
-
-  The caller decides whether the session may switch at all (e.g. not while
-  impersonating); this function only knows the user.
+  On a change the choice is stored on the session token, logged as
+  `session.role_switched`, and broadcast through `ScopeNotifier`, so every
+  open LiveView of this user rebuilds its scope — each from its own token, so
+  only this session actually changes — and leaves pages the new role cannot
+  reach. Other sessions of the same user, and the user's own sessions while
+  someone impersonates them, are untouched.
   """
-  @spec switch(User.t(), String.t()) ::
-          {:ok, User.t(), role()} | {:error, :disabled | :not_switchable | term()}
-  def switch(%User{} = user, role_uuid) when is_binary(role_uuid) do
+  @spec switch(User.t(), binary(), String.t()) ::
+          {:ok, role()} | {:error, :disabled | :not_switchable | :not_found}
+  def switch(%User{} = user, token, role_uuid) when is_binary(token) and is_binary(role_uuid) do
     config = config()
     held = Roles.get_user_role_records(user)
     candidates = switchable_roles(held, config)
     target = Enum.find(candidates, &(&1.uuid == role_uuid))
-    current = resolve(held, stored_role_uuid(user), config)
+    current = resolve(held, session_role_uuid(user), config)
 
     cond do
       not config.enabled? -> {:error, :disabled}
       is_nil(target) or length(candidates) < 2 -> {:error, :not_switchable}
-      current && current.uuid == target.uuid -> {:ok, user, target}
-      true -> store_switch(user, current, target)
+      current && current.uuid == target.uuid -> {:ok, target}
+      true -> store_switch(user, token, current, target)
     end
   end
 
-  defp store_switch(user, current, target) do
-    case store(user, target.uuid) do
-      {:ok, user} ->
+  defp store_switch(user, token, current, target) do
+    query =
+      from(t in UserToken,
+        where: t.token == ^token and t.context == "session" and t.user_uuid == ^user.uuid
+      )
+
+    case RepoHelper.repo().update_all(query, set: [active_role_uuid: target.uuid]) do
+      {1, _} ->
         log_switch(user, current, target)
         ScopeNotifier.broadcast_active_role_changed(user)
-        {:ok, user, target}
+        {:ok, target}
 
-      {:error, _} = error ->
-        error
+      {0, _} ->
+        {:error, :not_found}
     end
-  end
-
-  @doc """
-  Applies the sign-in rule (`sign_in_role/3`) to a user who is signing in and
-  returns the user as stored afterwards.
-
-  Called by `PhoenixKitWeb.Users.Auth.log_in_user/3` before the post-login
-  destination is resolved, so the landing page matches the role the session
-  starts in. Never raises: signing in must not fail over this, and a user left
-  with their previous stored role is still narrowed by `resolve/3` on every
-  read.
-  """
-  @spec apply_sign_in_role(User.t()) :: User.t()
-  def apply_sign_in_role(%User{} = user) do
-    config = config()
-
-    if config.enabled? do
-      stored = stored_role_uuid(user)
-
-      case sign_in_role(Roles.get_user_role_records(user), stored, config) do
-        nil ->
-          user
-
-        %{uuid: ^stored} ->
-          user
-
-        role ->
-          case store(user, role.uuid) do
-            {:ok, updated} ->
-              ScopeNotifier.broadcast_active_role_changed(updated)
-              updated
-
-            {:error, _} ->
-              user
-          end
-      end
-    else
-      user
-    end
-  rescue
-    error ->
-      Logger.warning("ActiveRole.apply_sign_in_role failed: #{inspect(error)}")
-      user
-  end
-
-  defp store(user, role_uuid) do
-    Auth.merge_user_custom_fields(user, %{@custom_field_key => role_uuid},
-      ensure_definitions: false
-    )
   end
 
   # The user is both actor and target, so `Activity.log/1` fans out no
@@ -333,13 +289,5 @@ defmodule PhoenixKit.Users.ActiveRole do
     })
   rescue
     _ -> :ok
-  end
-
-  defp default_role(candidates) do
-    system = Role.system_roles()
-
-    Enum.find(candidates, &(&1.name == system.owner)) ||
-      Enum.find(candidates, &(&1.name == system.admin)) ||
-      Enum.min_by(candidates, & &1.name)
   end
 end

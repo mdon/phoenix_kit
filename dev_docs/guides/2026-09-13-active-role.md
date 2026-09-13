@@ -5,19 +5,26 @@ access is narrowed to that role. An Admin who also holds "Seller" can switch to
 Seller, see the app exactly as a seller does, and has no admin access until they
 switch back.
 
+The choice is **per session**: Admin on the laptop and Seller on the phone at
+the same time. It is stored on the session token
+(`phoenix_kit_users_tokens.active_role_uuid`, V190).
+
 Design and decision record: `dev_docs/plans/2026-09-13-active-role.md`.
 
 ## Turning it on
 
-`/admin/settings/users` → **Roles** tab. All four settings are public keys in
+`/admin/settings/users` → **Roles** tab. All three settings are public keys in
 `Settings.get_defaults/0`:
 
 | Setting | Values | Default | Meaning |
 |---|---|---|---|
 | `role_switcher_enabled` | `"true"` / `"false"` | `"false"` | Off = every user has the union of their roles, exactly as before the feature existed. |
 | `role_switcher_location` | `"menu"` / `"header"` | `"menu"` | Where the switcher shows. `header` = a header control from `sm` up, the account menu below it. |
-| `role_switcher_sign_in_role` | `"staff_first"` / `"last_used"` | `"staff_first"` | `staff_first`: an Owner/Admin starts every sign-in as that role; others continue as their last role. `last_used`: everyone continues as their last role. |
 | `role_switcher_always_on_roles` | comma-separated role uuids | `""` | Custom roles that are never a mode; they apply whichever role is active. |
+
+**Role order** is set on `/admin/users/roles` (drag a row, or the arrows).
+It decides the default role of a new session and the order the switcher lists
+roles in. Seeded Owner, Admin, User, then custom roles by creation.
 
 ## Semantics
 
@@ -31,11 +38,19 @@ Design and decision record: `dev_docs/plans/2026-09-13-active-role.md`.
 - Narrowed scope = active role + every always-on role held.
 - No "All roles" entry: while narrowed, a multi-role user is always exactly one
   role.
-- The active role is **per user**, not per browser: switching on the laptop
-  switches the phone too (its LiveViews refresh and leave pages the new role
-  cannot reach).
-- A stored role the user no longer holds is ignored; they fall back to Owner >
-  Admin > first switchable role by name. Nothing is written on read.
+- **Default role** = the first switchable role the user holds, in role order.
+  Every new session starts there: a sign-in, a second multi-session account, an
+  impersonation. Nothing is written until the session switches.
+- **Per session, not per user.** Switching on the laptop changes nothing on the
+  phone. An impersonation session has a role of its own and can switch freely;
+  the borrowed account's own sessions never see it.
+- A stored role the session's user no longer holds is ignored: the default
+  applies. Nothing is written on read.
+- **Removing a role from a user signs out the sessions acting as it.** They
+  start over and land in whatever they still hold. Sessions in another role
+  keep going and refresh in place.
+- A user loaded **without** a session (`Auth.get_user/1`, a background job, an
+  admin list) acts as their default role — never the union.
 
 ## For host apps and modules
 
@@ -48,7 +63,7 @@ filters, the admin gates.
 Scope.active_role(scope)       # %{uuid: "...", name: "Seller"} | nil
 Scope.narrowed?(scope)         # acting as one role?
 Scope.held_roles(scope)        # every role REALLY held: ["Admin", "Seller", "User"]
-Scope.switchable_roles(scope)  # [%{uuid, name}] the switcher offers ([] unless narrowed)
+Scope.switchable_roles(scope)  # [%{uuid, name}] the switcher offers, in role order ([] unless narrowed)
 Scope.for_user(user, narrow: false)  # the full union, ignoring the active role
 ```
 
@@ -58,19 +73,38 @@ granted to that role, or on `Scope.has_role?(scope, "Seller")` in a tab's
 sees the seller UI and an Admin acting as Admin does not (unless Admin also
 holds the key).
 
-Switching from your own UI: a form `PUT` to `Routes.path("/users/session/role")`
-with `role_uuid` and an optional `return_to`, or render
-`PhoenixKitWeb.Components.Core.RoleSwitcher.role_switcher/1`. From code:
-`PhoenixKit.Users.ActiveRole.switch(user, role_uuid)`.
+**Re-checking on a switch.** Core evicts a LiveView from the admin area or an
+admin module the new role cannot reach. A host page gated in its own `mount`
+is not evicted by core; implement `phoenix_kit_scope_changed/1` on the
+LiveView — core's refresh hook calls it with the socket after
+`phoenix_kit_current_scope` is replaced — and re-run your gate (or
+`push_navigate`) there.
+
+**Your own layout.** The switcher renders in the kit's admin and dashboard
+layouts. A host with its own layout must render
+`PhoenixKitWeb.Components.Core.RoleSwitcher.role_switcher/1` (or a form `PUT`
+to `Routes.path("/users/session/role")` with `role_uuid` and an optional
+`return_to`) somewhere every role can reach — an Owner acting as Seller has no
+admin page to find it on. From code:
+`PhoenixKit.Users.ActiveRole.switch(user, session_token, role_uuid)`.
+
+**Background jobs** that build `Scope.for_user/1` from a user loaded by uuid
+run as that user's default role. Pass `narrow: false` deliberately if a job
+must act with the union.
+
+**Settings changes** (turning the switcher on or off, changing always-on roles)
+take effect on each session's next page load; open LiveViews keep their
+current scope until then.
 
 ## Landmines
 
-- ⚠️ **Never hold the active role anywhere but the user row.** It lives in
-  `custom_fields["active_role_uuid"]` and is applied inside
-  `Scope.for_user/1`. The scope is rebuilt from scratch with `for_user/1` in
-  plugs, every LiveView mount, the role-change refresh, controllers and sibling
-  packages; a role kept in the session or a socket assign is dropped by each of
-  them, silently **widening** the user back to every role.
+- ⚠️ **The active role lives on the session token and nowhere else.** It
+  reaches `Scope.for_user/1` through `%User{active_role_uuid: _}`, a virtual
+  field that only `UserToken.verify_session_token_query/1` fills. The scope is
+  rebuilt from the token in plugs, every LiveView mount and the role-change
+  refresh (`refresh_scope_assigns/1` reloads through
+  `phoenix_kit_session_token`, never by uuid). A copy held in a session key or
+  an assign is dropped by each of them.
 - ⚠️ **Access decisions read the scope; rules protecting against a user's real
   roles read `held_roles/1`.** Example: "you cannot edit a role you hold"
   (`Permissions.can_edit_role_permissions?/2`) uses `held_roles`, so acting as
@@ -81,13 +115,17 @@ with `role_uuid` and an optional `return_to`, or render
   Known sibling sites still to move: phoenix_kit_comments
   (`user_is_admin?`), phoenix_kit_posts (`user_is_admin?`),
   phoenix_kit_projects (`Grants.role_subjects`).
-- **Impersonation** judges the root account's roles *in effect*: an Admin
-  acting as a custom role cannot impersonate. Targets are judged by their real
-  roles. Switching roles while impersonating is refused (it would rewrite the
-  borrowed account's stored role), and the switcher is hidden.
-- **Sign-in** applies the rule in `PhoenixKitWeb.Users.Auth.log_in_user/3`
-  (every sign-in flow). Remember-me restore continues a session and does not
-  reset the role.
+- ⚠️ **Internal `custom_fields` keys are written with
+  `Auth.merge_user_custom_fields/3`**, never by replacing the map from a
+  struct held in assigns: a stale replace silently restores every other key's
+  old value (`TimeZoneAlert.remember/2` is the worked example).
+- **Impersonation** authority judges the root account's roles *in effect for
+  the root session*: an Admin whose root session acts as a custom role cannot
+  impersonate. Targets are judged by their real roles.
+- **Switch redirect:** `return_to` is followed only when the new scope can
+  mount it — admin-area paths are resolved through the router to their
+  LiveView and asked the mount gate's own question
+  (`Session.reachable_return_to?/3`), every role alike.
 
 ## Events
 
@@ -95,25 +133,30 @@ with `role_uuid` and an optional `return_to`, or render
   target, so no notification).
 - PubSub: `ScopeNotifier.broadcast_active_role_changed/1` sends
   `{:phoenix_kit_scope_roles_updated, user_uuid, :active_role_changed}` on the
-  user's scope topic. Core's LiveView hook refreshes the scope exactly as for a
-  role change, with switch-specific eviction copy. A process subscribing to
-  that topic directly must handle the 3-tuple.
+  user's scope topic. Core's LiveView hook refreshes the scope — each session
+  from its own token, so only the session that switched actually changes —
+  with switch-specific eviction copy. A process subscribing to that topic
+  directly must handle the 3-tuple.
+- The sessions lists (`/admin/users/sessions`, the user's own devices) show
+  the role each session acts as (`Sessions.*` rows carry `active_role`).
 
 ## Testing
 
 The settings cache is not started in the test suite, so settings writes stay in
-the sandbox transaction and tests can run `async: true`. Put a user into a role
-without the HTTP switch:
+the sandbox transaction and tests can run `async: true`. Put a **session** into
+a role without the HTTP switch by writing the token row:
 
 ```elixir
 Settings.update_boolean_setting("role_switcher_enabled", true)
-{:ok, user} =
-  Auth.merge_user_custom_fields(user, %{"active_role_uuid" => role.uuid},
-    ensure_definitions: false
-  )
+token = get_session(conn, :user_token)
+Repo.update_all(from(t in UserToken, where: t.token == ^token), set: [active_role_uuid: role.uuid])
 ```
+
+For a scope without a conn, set the virtual field the token loader would:
+`Scope.for_user(%{user | active_role_uuid: role.uuid})`.
 
 Reference suites: `test/phoenix_kit/users/active_role_test.exs` (pure rules),
 `test/integration/users/active_role_scope_test.exs`,
-`test/integration/phoenix_kit_web/users/active_role_{gate,switch}_test.exs`,
+`test/integration/users/role_order_test.exs` (order, revocation, sessions
+lists), `test/integration/phoenix_kit_web/users/active_role_{gate,switch}_test.exs`,
 `test/phoenix_kit_web/components/core/role_switcher_test.exs`.

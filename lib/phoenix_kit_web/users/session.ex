@@ -173,14 +173,15 @@ defmodule PhoenixKitWeb.Users.Session do
   end
 
   @doc """
-  Switches the role the ACTIVE account acts as (`PhoenixKit.Users.ActiveRole`).
+  Switches the role the ACTIVE session acts as (`PhoenixKit.Users.ActiveRole`).
 
   A plain form PUT, like the account switcher: the switcher renders in the
   layout, where a `phx-click` would land in whichever LiveView the page
   mounted. See `redirect_after_role_switch/2` for where it lands.
 
-  Refused while impersonating: the role is stored on the user, so a switch
-  would rewrite the borrowed account's own choice.
+  The role is stored on the session token, so this changes only the browser
+  session making the request: another device, another multi-session account,
+  and the borrowed account's own sessions while impersonating are untouched.
   """
   def set_active_role(conn, %{"role_uuid" => role_uuid} = params) when is_binary(role_uuid) do
     case session_user(conn) do
@@ -190,15 +191,16 @@ defmodule PhoenixKitWeb.Users.Session do
         |> redirect(to: Routes.path("/users/log-in"))
 
       user ->
-        if MultiSession.impersonating?(get_session(conn)) do
-          conn
-          |> put_flash(
-            :error,
-            gettext("You cannot switch roles while signed in as another user.")
-          )
-          |> redirect_back(params)
-        else
-          do_set_active_role(conn, user, role_uuid, params)
+        case ActiveRole.switch(user, get_session(conn, :user_token), role_uuid) do
+          {:ok, role} ->
+            conn
+            |> put_flash(:info, gettext("You are now acting as %{role}.", role: role.name))
+            |> redirect_after_role_switch(params)
+
+          {:error, _reason} ->
+            conn
+            |> put_flash(:error, gettext("Could not switch to that role."))
+            |> redirect_back(params)
         end
     end
   end
@@ -209,37 +211,61 @@ defmodule PhoenixKitWeb.Users.Session do
     |> redirect_back(params)
   end
 
-  defp do_set_active_role(conn, user, role_uuid, params) do
-    case ActiveRole.switch(user, role_uuid) do
-      {:ok, _user, role} ->
-        conn
-        |> put_flash(:info, gettext("You are now acting as %{role}.", role: role.name))
-        |> redirect_after_role_switch(params)
-
-      {:error, _reason} ->
-        conn
-        |> put_flash(:error, gettext("Could not switch to that role."))
-        |> redirect_back(params)
-    end
-  end
-
   # The scope is read from the session AFTER the switch, so it is the new
-  # role's. `safe_destination/2` only proves a path routable, not reachable by
-  # that scope, so a role with no admin-area access passes `skip_admin`, which
-  # rejects admin-area candidates: switching to "Seller" from an admin page
-  # must not follow `return_to` straight into that page's gate and its
-  # "You must be an admin" bounce.
+  # role's. `return_to` is followed only when that scope can actually mount
+  # it — every role judged the same way, through the router and the same gate
+  # the mount runs (`reachable_return_to?/3`) — otherwise the chain falls
+  # through to the first page the new role can reach. Without this, switching
+  # from an admin page to a role without that page's permission would follow
+  # `return_to` straight into the mount gate and its "no longer have
+  # permission" bounce.
   defp redirect_after_role_switch(conn, params) do
     scope = conn_scope(conn)
+    return_to = params["return_to"]
 
     redirect(conn,
       to:
         Routes.safe_destination(conn,
           scope: scope,
-          return_to: params["return_to"],
-          skip_admin: not Scope.can_access_admin_area?(scope)
+          return_to: if(reachable_return_to?(conn, scope, return_to), do: return_to)
         )
     )
+  end
+
+  # Admin-area paths are resolved to their LiveView and asked the mount gate's
+  # own question (`UserAuth.admin_gate_decision/2` + `can_access_admin_view?/2`);
+  # an admin-area path that does not resolve to a LiveView is judged by
+  # admin-area access alone. Everything else is left to `safe_destination/2`,
+  # which already proves it local and routable — host pages gate themselves.
+  defp reachable_return_to?(conn, scope, path) when is_binary(path) do
+    if Routes.admin_area_path?(path) do
+      case admin_view_for(conn, path) do
+        {:ok, view} ->
+          case UserAuth.admin_gate_decision(scope, view) do
+            :landing -> true
+            :enforce_view -> UserAuth.can_access_admin_view?(scope, view)
+            :deny -> false
+          end
+
+        :error ->
+          Scope.can_access_admin_area?(scope)
+      end
+    else
+      true
+    end
+  end
+
+  defp reachable_return_to?(_conn, _scope, _path), do: false
+
+  defp admin_view_for(conn, path) do
+    path_only = path |> String.split(["?", "#"], parts: 2) |> hd()
+
+    case Phoenix.Router.route_info(conn.private.phoenix_router, "GET", path_only, conn.host) do
+      %{phoenix_live_view: {view, _action, _opts, _meta}} when is_atom(view) -> {:ok, view}
+      _ -> :error
+    end
+  rescue
+    _ -> :error
   end
 
   # Changing a password deletes every token for the user, the one inside the

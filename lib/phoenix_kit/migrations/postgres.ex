@@ -7,7 +7,14 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V189 - Settings: dead `billing_default_currency` removed ⚡ LATEST
+  ### V190 - Active role per session + role order ⚡ LATEST
+
+  Adds `phoenix_kit_users_tokens.active_role_uuid` (the role a session acts
+  as, `NULL` = the default) and `phoenix_kit_user_roles.position` (the
+  operator-defined role order, seeded Owner, Admin, User, then custom roles
+  by creation). Backs `PhoenixKit.Users.ActiveRole`. Additive only.
+
+  ### V189 - Settings: dead `billing_default_currency` removed
 
   Deletes the `billing_default_currency` row `V135` seeds into
   `phoenix_kit_settings`. Nothing reads it — confirmed by a full grep over
@@ -747,7 +754,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 189
+  @current_version 190
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

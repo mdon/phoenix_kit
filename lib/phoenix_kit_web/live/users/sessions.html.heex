@@ -156,6 +156,7 @@
           [
             %{label: gettext("Token"), value: "#{session.token_preview}..."},
             %{label: gettext("Device"), value: device_name(session)},
+            %{label: gettext("Acting as"), value: session.active_role || gettext("—")},
             %{
               label: gettext("Created"),
               value:
@@ -298,9 +299,13 @@
                 </code>
               </.table_default_cell>
 
-              <%!-- Device --%>
+              <%!-- Device, and the role the session acts as when narrowed
+                   (`PhoenixKit.Users.ActiveRole`) --%>
               <.table_default_cell class="text-sm">
-                {device_name(session)}
+                <div>{device_name(session)}</div>
+                <div :if={session.active_role} class="text-xs text-base-content/60">
+                  {gettext("Acting as %{role}", role: session.active_role)}
+                </div>
               </.table_default_cell>
 
               <%!-- User Status --%>

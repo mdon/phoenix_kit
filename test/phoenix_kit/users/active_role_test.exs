@@ -1,7 +1,7 @@
 defmodule PhoenixKit.Users.ActiveRoleTest do
   @moduledoc """
   The active-role rules, with no database: every function under test takes the
-  held roles and the switcher config as arguments.
+  held roles (in role order) and the switcher config as arguments.
   """
   use ExUnit.Case, async: true
 
@@ -10,7 +10,6 @@ defmodule PhoenixKit.Users.ActiveRoleTest do
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.Role
-  alias PhoenixKitWeb.Users.MultiSession
 
   @owner %{uuid: "role-owner", name: "Owner"}
   @admin %{uuid: "role-admin", name: "Admin"}
@@ -22,7 +21,6 @@ defmodule PhoenixKit.Users.ActiveRoleTest do
   defp config(opts \\ []) do
     %{
       enabled?: Keyword.get(opts, :enabled?, true),
-      sign_in_role: Keyword.get(opts, :sign_in_role, :staff_first),
       always_on: Keyword.get(opts, :always_on, [])
     }
   end
@@ -65,13 +63,15 @@ defmodule PhoenixKit.Users.ActiveRoleTest do
       assert ActiveRole.resolve([@admin, @seller, @user], @seller.uuid, config()) == @seller
     end
 
-    test "with nothing stored: Owner, then Admin, then the first role by name" do
-      assert ActiveRole.resolve([@admin, @owner, @seller], nil, config()) == @owner
-      assert ActiveRole.resolve([@seller, @admin], nil, config()) == @admin
-      assert ActiveRole.resolve([@seller, @buyer], nil, config()) == @buyer
+    test "nothing stored: the first switchable role in role order (the default)" do
+      assert ActiveRole.resolve([@owner, @admin, @seller], nil, config()) == @owner
+      assert ActiveRole.resolve([@admin, @seller], nil, config()) == @admin
+      # Role order is whatever the operator set — a custom role may come first.
+      assert ActiveRole.resolve([@seller, @admin], nil, config()) == @seller
+      assert ActiveRole.resolve([@user, @seller, @buyer], nil, config()) == @seller
     end
 
-    test "a stored role the user does not hold is ignored" do
+    test "a stored role the user does not hold falls back to the default" do
       assert ActiveRole.resolve([@admin, @seller], @buyer.uuid, config()) == @admin
     end
 
@@ -83,30 +83,7 @@ defmodule PhoenixKit.Users.ActiveRoleTest do
     end
 
     test "a stored User role is ignored" do
-      assert ActiveRole.resolve([@seller, @buyer, @user], @user.uuid, config()) == @buyer
-    end
-  end
-
-  describe "sign_in_role/3" do
-    test "staff_first: an Admin starts as Admin whatever they used last" do
-      assert ActiveRole.sign_in_role([@admin, @seller], @seller.uuid, config()) == @admin
-    end
-
-    test "staff_first: an Owner starts as Owner over Admin" do
-      assert ActiveRole.sign_in_role([@admin, @owner, @seller], @admin.uuid, config()) == @owner
-    end
-
-    test "staff_first: a non-staff user continues as their last role" do
-      assert ActiveRole.sign_in_role([@buyer, @seller], @seller.uuid, config()) == @seller
-    end
-
-    test "last_used: an Admin continues as their last role" do
-      config = config(sign_in_role: :last_used)
-      assert ActiveRole.sign_in_role([@admin, @seller], @seller.uuid, config) == @seller
-    end
-
-    test "the feature off is nil" do
-      assert ActiveRole.sign_in_role([@admin, @seller], nil, config(enabled?: false)) == nil
+      assert ActiveRole.resolve([@seller, @buyer, @user], @user.uuid, config()) == @seller
     end
   end
 
@@ -144,25 +121,20 @@ defmodule PhoenixKit.Users.ActiveRoleTest do
     end
   end
 
-  describe "parse_sign_in_role/1" do
-    test "last_used is recognised; anything else is staff_first" do
-      assert ActiveRole.parse_sign_in_role("last_used") == :last_used
-      assert ActiveRole.parse_sign_in_role("staff_first") == :staff_first
-      assert ActiveRole.parse_sign_in_role(nil) == :staff_first
-      assert ActiveRole.parse_sign_in_role("bogus") == :staff_first
+  describe "session_role_uuid/1" do
+    test "reads the virtual field the token loader fills" do
+      assert ActiveRole.session_role_uuid(%User{active_role_uuid: "x"}) == "x"
+    end
+
+    test "a user loaded without a session has none" do
+      assert ActiveRole.session_role_uuid(%User{}) == nil
+      assert ActiveRole.session_role_uuid(%User{active_role_uuid: nil}) == nil
     end
   end
 
-  describe "stored_role_uuid/1" do
-    test "reads the custom field" do
-      assert ActiveRole.stored_role_uuid(%User{custom_fields: %{"active_role_uuid" => "x"}}) ==
-               "x"
-    end
-
-    test "missing, nil or non-string is nil" do
-      assert ActiveRole.stored_role_uuid(%User{custom_fields: %{}}) == nil
-      assert ActiveRole.stored_role_uuid(%User{custom_fields: nil}) == nil
-      assert ActiveRole.stored_role_uuid(%User{custom_fields: %{"active_role_uuid" => 1}}) == nil
+  describe "narrow/2" do
+    test "a single held role never reads settings" do
+      assert ActiveRole.narrow(%User{active_role_uuid: "x"}, [@admin]) == {nil, [@admin], []}
     end
   end
 
@@ -233,23 +205,6 @@ defmodule PhoenixKit.Users.ActiveRoleTest do
 
       assert Permissions.can_edit_role_permissions?(scope, %Role{name: "Admin"}) ==
                {:error, :self_role}
-    end
-  end
-
-  describe "MultiSession.impersonating?/1" do
-    test "true only when the active token is one impersonate/2 added" do
-      assert MultiSession.impersonating?(%{
-               "user_token" => "t2",
-               "pk_impersonated_tokens" => ["t2"]
-             })
-
-      refute MultiSession.impersonating?(%{
-               "user_token" => "t1",
-               "pk_impersonated_tokens" => ["t2"]
-             })
-
-      refute MultiSession.impersonating?(%{"user_token" => "t1"})
-      refute MultiSession.impersonating?(%{})
     end
   end
 end

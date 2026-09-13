@@ -12,15 +12,14 @@ defmodule PhoenixKitWeb.Components.Core.RoleSwitcherTest do
   @admin %{uuid: "0193a5e4-0000-7000-8000-00000000a001", name: "Admin"}
   @seller %{uuid: "0193a5e4-0000-7000-8000-00000000a002", name: "Seller"}
 
-  defp narrowed_scope(opts \\ []) do
+  defp narrowed_scope do
     %Scope{
       user: %User{uuid: "0193a5e4-0000-7000-8000-000000000001"},
       authenticated?: true,
       cached_roles: ["Seller", "User"],
       held_roles: ["Admin", "Seller", "User"],
       active_role: @seller,
-      switchable_roles: [@admin, @seller],
-      multi_session_accounts: Keyword.get(opts, :accounts, [])
+      switchable_roles: [@admin, @seller]
     }
   end
 
@@ -54,12 +53,6 @@ defmodule PhoenixKitWeb.Components.Core.RoleSwitcherTest do
       scope = %Scope{authenticated?: true, cached_roles: ["Admin", "Seller"]}
       assert render_switcher(scope: scope, location: :menu) == ""
       assert render_switcher(scope: nil, location: :menu) == ""
-    end
-
-    test "renders nothing while impersonating" do
-      accounts = [%{active?: true, impersonated?: true, root?: false}]
-      html = render_switcher(scope: narrowed_scope(accounts: accounts), location: :menu)
-      assert html == ""
     end
   end
 

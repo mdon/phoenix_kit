@@ -426,7 +426,7 @@
                 />
                 <div class="text-xs text-base-content/60 max-w-prose">
                   {gettext(
-                    "A user holding two or more switchable roles works as one of them and gets only that role's access: an Admin acting as another role has no admin access until they switch back. Owner and Admin are always switchable; the User role always applies."
+                    "A user holding two or more switchable roles works as one of them and gets only that role's access: an Admin acting as another role has no admin access until they switch back. Owner and Admin are always switchable; the User role always applies. The choice is per session — each sign-in starts in the first role the user holds, in the order set on the Roles page."
                   )}
                 </div>
                 <.unsaved_hint dirty={
@@ -434,7 +434,7 @@
                 } />
               </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              <div class="grid grid-cols-1 gap-6 mt-6">
                 <div class="fieldset w-full">
                   <label class="label">
                     <span class="fieldset-legend text-base font-medium">
@@ -459,35 +459,6 @@
                       get_option_label(
                         @saved_settings["role_switcher_location"],
                         @role_switcher_location_options
-                      )
-                    }
-                  />
-                </div>
-
-                <div class="fieldset w-full">
-                  <label class="label">
-                    <span class="fieldset-legend text-base font-medium">
-                      {gettext("Role on sign-in")}
-                    </span>
-                    <span class="fieldset-label text-sm text-base-content/60">
-                      {gettext("The role a user starts in each time they sign in")}
-                    </span>
-                  </label>
-                  <.select
-                    name="settings[role_switcher_sign_in_role]"
-                    value={@settings["role_switcher_sign_in_role"]}
-                    options={@role_switcher_sign_in_options}
-                    class="focus-within:select-primary"
-                  />
-                  <.unsaved_hint
-                    dirty={
-                      @settings["role_switcher_sign_in_role"] !=
-                        @saved_settings["role_switcher_sign_in_role"]
-                    }
-                    saved={
-                      get_option_label(
-                        @saved_settings["role_switcher_sign_in_role"],
-                        @role_switcher_sign_in_options
                       )
                     }
                   />

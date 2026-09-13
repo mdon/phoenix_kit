@@ -45,6 +45,7 @@ defmodule PhoenixKit.Users.Roles do
   alias PhoenixKit.RepoHelper
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.{Role, RoleAssignment, ScopeNotifier}
+  alias PhoenixKit.Users.Sessions
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @doc """
@@ -155,6 +156,12 @@ defmodule PhoenixKit.Users.Roles do
       assignment ->
         case repo.delete(assignment) do
           {:ok, deleted_assignment} ->
+            # A session ACTING as the removed role is signed out rather than
+            # silently moved to another role (`PhoenixKit.Users.ActiveRole`):
+            # the person starts over and lands in whatever they still hold.
+            # Sessions in another role keep going and get the refresh below.
+            Sessions.revoke_user_sessions_in_role(user, deleted_assignment.role_uuid)
+
             if broadcast? do
               Events.broadcast_user_role_removed(user, role_name)
               ScopeNotifier.broadcast_roles_updated(user)
@@ -259,11 +266,13 @@ defmodule PhoenixKit.Users.Roles do
   end
 
   @doc """
-  Gets the roles a user holds as `%{uuid, name}` maps, ordered by name.
+  Gets the roles a user holds as `%{uuid, name}` maps, in **role order**
+  (`position`, then name).
 
   The same query as `get_user_roles/1`, keeping the uuid: the active-role
   resolution in `PhoenixKit.Users.ActiveRole` identifies roles by uuid, because
-  role names are editable.
+  role names are editable — and relies on this order: the first switchable
+  role here is a session's default.
   """
   @spec get_user_role_records(User.t()) :: [%{uuid: String.t(), name: String.t()}]
   def get_user_role_records(%User{} = user) do
@@ -274,9 +283,33 @@ defmodule PhoenixKit.Users.Roles do
         join: role in assoc(assignment, :role),
         where: assignment.user_uuid == ^user.uuid,
         select: %{uuid: role.uuid, name: role.name},
-        order_by: role.name
+        order_by: [asc: role.position, asc: role.name]
 
     repo.all(query)
+  end
+
+  @doc """
+  `get_user_role_records/1` for many users at once: `%{user_uuid => [role]}`,
+  each list in role order. Users holding no role are absent.
+  """
+  @spec get_role_records_for_users([String.t()]) :: %{
+          optional(String.t()) => [%{uuid: String.t(), name: String.t()}]
+        }
+  def get_role_records_for_users([]), do: %{}
+
+  def get_role_records_for_users(user_uuids) when is_list(user_uuids) do
+    repo = RepoHelper.repo()
+
+    query =
+      from assignment in RoleAssignment,
+        join: role in assoc(assignment, :role),
+        where: assignment.user_uuid in ^Enum.uniq(user_uuids),
+        select: {assignment.user_uuid, %{uuid: role.uuid, name: role.name}},
+        order_by: [asc: role.position, asc: role.name]
+
+    query
+    |> repo.all()
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   end
 
   @doc """
@@ -326,7 +359,7 @@ defmodule PhoenixKit.Users.Roles do
   def create_role(attrs \\ %{}) do
     repo = RepoHelper.repo()
 
-    case %Role{}
+    case %Role{position: next_position(repo)}
          |> Role.changeset(attrs)
          |> repo.insert() do
       {:ok, role} ->
@@ -394,7 +427,7 @@ defmodule PhoenixKit.Users.Roles do
 
     query =
       from role in Role,
-        order_by: [desc: role.is_system_role, asc: role.name]
+        order_by: [asc: role.position, asc: role.name]
 
     repo.all(query)
   end
@@ -418,7 +451,7 @@ defmodule PhoenixKit.Users.Roles do
 
     roles =
       from(role in Role,
-        order_by: [desc: role.is_system_role, asc: role.name],
+        order_by: [asc: role.position, asc: role.name],
         limit: ^per_page,
         offset: ^((page - 1) * per_page)
       )
@@ -1205,12 +1238,80 @@ defmodule PhoenixKit.Users.Roles do
     query =
       from role in Role,
         where: role.is_system_role == false,
-        order_by: role.name
+        order_by: [asc: role.position, asc: role.name]
 
     repo.all(query)
   end
 
+  @doc """
+  Sets the role order (`position`) to the order of `ordered_uuids`; any role
+  not listed keeps its relative order after them.
+
+  The order decides the default role of a new session and how the role
+  switcher lists roles (`PhoenixKit.Users.ActiveRole`). Broadcasts
+  `:role_updated` for the roles whose position changed.
+  """
+  @spec reorder_roles([String.t()]) :: :ok
+  def reorder_roles(ordered_uuids) when is_list(ordered_uuids) do
+    repo = RepoHelper.repo()
+    roles = list_roles()
+    listed = Enum.filter(ordered_uuids, fn uuid -> Enum.any?(roles, &(&1.uuid == uuid)) end)
+    rest = roles |> Enum.map(& &1.uuid) |> Kernel.--(listed)
+
+    changed =
+      (listed ++ rest)
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {uuid, position} ->
+        role = Enum.find(roles, &(&1.uuid == uuid))
+
+        if role.position == position do
+          []
+        else
+          from(r in Role, where: r.uuid == ^uuid)
+          |> repo.update_all(set: [position: position, updated_at: UtilsDate.utc_now()])
+
+          [%{role | position: position}]
+        end
+      end)
+
+    Enum.each(changed, &Events.broadcast_role_updated/1)
+    :ok
+  end
+
+  @doc """
+  Moves one role one step `:up` or `:down` in role order. A move past either
+  end is a no-op.
+  """
+  @spec move_role(String.t(), :up | :down) :: :ok
+  def move_role(role_uuid, direction) when direction in [:up, :down] do
+    uuids = list_roles() |> Enum.map(& &1.uuid)
+
+    case Enum.find_index(uuids, &(&1 == role_uuid)) do
+      nil ->
+        :ok
+
+      index ->
+        target = if direction == :up, do: index - 1, else: index + 1
+
+        if target in 0..(length(uuids) - 1)//1 do
+          uuids
+          |> List.delete_at(index)
+          |> List.insert_at(target, role_uuid)
+          |> reorder_roles()
+        else
+          :ok
+        end
+    end
+  end
+
   # Private helper functions
+
+  defp next_position(repo) do
+    case repo.one(from(r in Role, select: max(r.position))) do
+      nil -> 0
+      max -> max + 1
+    end
+  end
 
   defp remove_role_or_rollback(user, role_name, repo) do
     case remove_role(user, role_name, broadcast: false) do

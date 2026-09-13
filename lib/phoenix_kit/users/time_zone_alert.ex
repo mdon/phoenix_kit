@@ -84,11 +84,15 @@ defmodule PhoenixKit.Users.TimeZoneAlert do
     do: Auth.get_user_field(user, @alerted_zone_key) == detected
 
   defp remember(user, detected) do
-    fields = Map.put(user.custom_fields || %{}, @alerted_zone_key, detected)
-
     # Internal bookkeeping, not something to surface in the admin's Custom
-    # Fields list — same treatment as the editor palette.
-    Auth.update_user_custom_fields(user, fields, ensure_definitions: false)
+    # Fields list — same treatment as the editor palette. An atomic JSONB
+    # merge, never a replace of the whole map: `user` here is the socket's
+    # struct, which may predate a preference another tab wrote since, and a
+    # replace would silently restore the stale copy of every other key.
+    Auth.merge_user_custom_fields(user, %{@alerted_zone_key => detected},
+      ensure_definitions: false,
+      broadcast: false
+    )
   end
 
   defp log_activity(user, detected) do

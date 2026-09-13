@@ -31,14 +31,9 @@ defmodule PhoenixKit.Integration.Users.ActiveRoleScopeTest do
     role
   end
 
-  defp store_active_role(user, role) do
-    {:ok, user} =
-      Auth.merge_user_custom_fields(user, %{"active_role_uuid" => role.uuid},
-        ensure_definitions: false
-      )
-
-    user
-  end
+  # What `UserToken.verify_session_token_query/1` does for a session that
+  # switched: the role rides on the user's virtual field.
+  defp store_active_role(user, role), do: %{user | active_role_uuid: role.uuid}
 
   defp enable, do: Settings.update_boolean_setting("role_switcher_enabled", true)
 
@@ -94,15 +89,34 @@ defmodule PhoenixKit.Integration.Users.ActiveRoleScopeTest do
     test "permissions come from the active role only", %{seller: seller, buyer: buyer} do
       user = create_user([seller.name, buyer.name])
 
-      # Nothing stored: the first switchable role by name.
+      # Nothing stored: the default is the first switchable role in ROLE ORDER
+      # — Seller was created before Buyer, so it comes first.
       scope = Scope.for_user(user)
-      assert Scope.active_role(scope).uuid == buyer.uuid
-      assert Scope.has_module_access?(scope, "media")
-      refute Scope.has_module_access?(scope, "dashboard")
-
-      scope = user |> store_active_role(seller) |> Scope.for_user()
+      assert Scope.active_role(scope).uuid == seller.uuid
       assert Scope.has_module_access?(scope, "dashboard")
       refute Scope.has_module_access?(scope, "media")
+
+      scope = user |> store_active_role(buyer) |> Scope.for_user()
+      assert Scope.has_module_access?(scope, "media")
+      refute Scope.has_module_access?(scope, "dashboard")
+    end
+
+    test "the operator's role order decides the default", %{seller: seller, buyer: buyer} do
+      user = create_user([seller.name, buyer.name])
+      :ok = Roles.reorder_roles([buyer.uuid, seller.uuid])
+
+      assert Scope.active_role(Scope.for_user(user)).uuid == buyer.uuid
+    end
+
+    test "a user loaded without a session acts as their default role", %{seller: seller} do
+      user = create_user(["Admin", seller.name])
+      # `Auth.get_user/1` (jobs, admin lists) never fills the virtual field:
+      # the default applies, never the union.
+      scope = user.uuid |> Auth.get_user() |> Scope.for_user()
+
+      assert Scope.active_role(scope).name == "Admin"
+      assert Scope.has_role?(scope, "Admin")
+      refute Scope.has_role?(scope, seller.name)
     end
 
     test "a stored role the user no longer holds falls back to the default", %{seller: seller} do

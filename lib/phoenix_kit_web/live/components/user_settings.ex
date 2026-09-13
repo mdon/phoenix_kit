@@ -1756,6 +1756,9 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                         <span :if={session.is_current} class="badge badge-primary badge-sm ml-1">
                           {gettext("This device")}
                         </span>
+                        <span :if={session.active_role} class="badge badge-ghost badge-sm ml-1">
+                          {gettext("Acting as %{role}", role: session.active_role)}
+                        </span>
                       </div>
                       <div class="text-xs text-base-content/60 truncate">
                         {session_meta_line(session)}

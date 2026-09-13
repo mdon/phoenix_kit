@@ -50,6 +50,10 @@ defmodule PhoenixKit.Users.Role do
     field :name, :string
     field :description, :string
     field :is_system_role, :boolean, default: false
+    # Operator-defined order (V190): decides the default role of a new session
+    # and the order the role switcher lists roles in. See
+    # `PhoenixKit.Users.ActiveRole`.
+    field :position, :integer, default: 0
 
     has_many :role_assignments, PhoenixKit.Users.RoleAssignment,
       foreign_key: :role_uuid,
@@ -80,7 +84,7 @@ defmodule PhoenixKit.Users.Role do
   """
   def changeset(role, attrs) do
     role
-    |> cast(attrs, [:name, :description, :is_system_role])
+    |> cast(attrs, [:name, :description, :is_system_role, :position])
     |> validate_required([:name])
     |> validate_length(:name, min: 1, max: 50)
     |> validate_length(:description, max: 500)

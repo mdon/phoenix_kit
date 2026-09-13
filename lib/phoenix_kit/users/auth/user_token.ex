@@ -49,6 +49,9 @@ defmodule PhoenixKit.Users.Auth.UserToken do
     field :user_agent_hash, :string
     field :browser, :string
     field :os, :string
+    # The role this SESSION acts as (`PhoenixKit.Users.ActiveRole`); `nil` is
+    # the default role. Session tokens only.
+    field :active_role_uuid, UUIDv7
 
     belongs_to :user, PhoenixKit.Users.Auth.User,
       foreign_key: :user_uuid,
@@ -137,11 +140,18 @@ defmodule PhoenixKit.Users.Auth.UserToken do
   not expired (after @session_validity_in_days).
   """
   def verify_session_token_query(token) do
+    # `active_role_uuid` rides along on the user's virtual field: this query
+    # is the ONLY writer of `%User{active_role_uuid: _}`, which is how a
+    # per-session value reaches `Scope.for_user/1` without every caller
+    # learning about tokens. `nil` — a session that never switched, or a user
+    # loaded any other way — resolves to the default role, never to the
+    # union. See `PhoenixKit.Users.ActiveRole`.
     query =
       from token in by_token_and_context_query(token, "session"),
         join: user in assoc(token, :user),
         where: token.inserted_at > ago(@session_validity_in_days, "day"),
-        select: user
+        select: user,
+        select_merge: %{active_role_uuid: token.active_role_uuid}
 
     {:ok, query}
   end

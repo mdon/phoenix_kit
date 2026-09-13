@@ -78,6 +78,12 @@ defmodule PhoenixKit.Users.Auth.User do
     field :account_type, :string, default: "person"
     field :organization_name, :string
     field :organization_uuid, UUIDv7
+    # The role the CURRENT SESSION acts as (`PhoenixKit.Users.ActiveRole`).
+    # Filled only by `UserToken.verify_session_token_query/1` from the session
+    # token's `active_role_uuid`; `nil` for a session that never switched AND
+    # for a user loaded any other way — both resolve to the DEFAULT role
+    # (never to the union) in `Scope.for_user/1`.
+    field :active_role_uuid, :string, virtual: true
 
     has_many :role_assignments, PhoenixKit.Users.RoleAssignment,
       foreign_key: :user_uuid,

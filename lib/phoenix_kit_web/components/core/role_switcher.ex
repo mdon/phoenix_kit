@@ -3,11 +3,12 @@ defmodule PhoenixKitWeb.Components.Core.RoleSwitcher do
   The switcher for the role a user acts as (`PhoenixKit.Users.ActiveRole`).
 
   Renders nothing unless the scope is narrowed — the switcher is on and the
-  user holds two or more switchable roles — and the session is not
-  impersonating (a switch there would rewrite the borrowed account's choice,
-  and the controller refuses it). Every row is a plain form `PUT` to
-  `/users/session/role`, like the account switcher: this renders in layouts,
-  where a `phx-click` would land in whichever LiveView the page mounted.
+  user holds two or more switchable roles. An impersonation session gets the
+  switcher like any other: the role lives on the session token, so switching
+  there never touches the borrowed account's own sessions. Every row is a
+  plain form `PUT` to `/users/session/role`, like the account switcher: this
+  renders in layouts, where a `phx-click` would land in whichever LiveView the
+  page mounted.
 
   Reads only the scope: the switchable roles are loaded once by
   `PhoenixKit.Users.Auth.Scope.for_user/1`, so rendering on every page costs no
@@ -67,7 +68,7 @@ defmodule PhoenixKitWeb.Components.Core.RoleSwitcher do
     scope = assigns.scope
     roles = Scope.switchable_roles(scope)
     active = Scope.active_role(scope)
-    visible? = not is_nil(active) and match?([_, _ | _], roles) and not impersonating?(scope)
+    visible? = not is_nil(active) and match?([_, _ | _], roles)
 
     # The setting is read only for a visitor who will see the switcher.
     location = if visible?, do: assigns.location || ActiveRole.location(), else: :menu
@@ -78,13 +79,6 @@ defmodule PhoenixKitWeb.Components.Core.RoleSwitcher do
     |> assign(:visible?, visible?)
     |> assign(:location, location)
   end
-
-  # The multi-session account list marks an impersonated account; with the
-  # feature off there is no list, and no impersonation either.
-  defp impersonating?(%Scope{multi_session_accounts: accounts}) when is_list(accounts),
-    do: Enum.any?(accounts, &(&1[:active?] == true and &1[:impersonated?] == true))
-
-  defp impersonating?(_scope), do: false
 
   defp render_switcher(%{visible?: false} = assigns), do: ~H""
 
