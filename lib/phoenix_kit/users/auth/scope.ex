@@ -72,19 +72,40 @@ defmodule PhoenixKit.Users.Auth.Scope do
 
   - `:user` - The current user struct or nil
   - `:authenticated?` - Boolean indicating if user is authenticated
-  - `:cached_roles` - List of role name strings, loaded at scope creation
+  - `:cached_roles` - List of role name strings IN EFFECT, loaded at scope creation
   - `:cached_permissions` - MapSet of granted permission keys, loaded at scope creation
+  - `:held_roles` - List of every role name the user really holds
+  - `:active_role` - `%{uuid, name}` of the role the user is acting as, or `nil`
+
+  ## Active role
+
+  With the role switcher on, a user holding two or more switchable roles acts
+  as one of them, and `for_user/1` narrows `cached_roles` and
+  `cached_permissions` to that role plus the always-on ones — so every check
+  above answers for the active role. See `PhoenixKit.Users.ActiveRole`.
+
+      Scope.active_role(scope)  # %{uuid: "...", name: "Seller"} or nil
+      Scope.held_roles(scope)   # ["Admin", "Seller", "User"]
+      Scope.narrowed?(scope)    # acting as one role?
+
+  `held_roles/1` is for the switcher and for rules that protect against a
+  user's REAL roles (e.g. "cannot edit a role you hold"). Access decisions use
+  the narrowed checks. `for_user(user, narrow: false)` builds the full union.
   """
 
+  alias PhoenixKit.Users.ActiveRole
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.Role
+  alias PhoenixKit.Users.Roles
 
   @type t :: %__MODULE__{
           user: User.t() | nil,
           authenticated?: boolean(),
           cached_roles: [String.t()] | nil,
           cached_permissions: MapSet.t() | nil,
+          held_roles: [String.t()] | nil,
+          active_role: ActiveRole.role() | nil,
           multi_session_accounts: list(),
           multi_session_allowed?: boolean()
         }
@@ -96,6 +117,8 @@ defmodule PhoenixKit.Users.Auth.Scope do
             authenticated?: false,
             cached_roles: nil,
             cached_permissions: nil,
+            held_roles: nil,
+            active_role: nil,
             multi_session_accounts: [],
             multi_session_allowed?: false
 
@@ -123,10 +146,21 @@ defmodule PhoenixKit.Users.Auth.Scope do
   # `base_held?/2`, and `can?/2` via `holds?/2`.
   @superadmin_key "*"
 
-  @spec for_user(User.t() | nil) :: t()
-  def for_user(%User{} = user) do
-    # Pre-load user roles to cache them in the scope
-    cached_roles = User.get_roles(user)
+  @spec for_user(User.t() | nil, keyword()) :: t()
+  def for_user(user, opts \\ [])
+
+  def for_user(%User{} = user, opts) do
+    held = Roles.get_user_role_records(user)
+
+    # Narrow to the active role (plus always-on roles) when the user is acting
+    # as one. Everything below reads the EFFECTIVE roles, so an Owner acting as
+    # "Seller" gets neither the Owner branch nor Owner's permissions.
+    {active_role, effective} =
+      if Keyword.get(opts, :narrow, true),
+        do: ActiveRole.narrow(user, held),
+        else: {nil, held}
+
+    cached_roles = Enum.map(effective, & &1.name)
 
     # Load permissions: Owner gets all, others get from DB
     roles = Role.system_roles()
@@ -137,7 +171,7 @@ defmodule PhoenixKit.Users.Auth.Scope do
           MapSet.new(Permissions.all_module_keys())
 
         roles.admin in cached_roles ->
-          case Permissions.get_permissions_for_user(user) do
+          case load_permissions(user, active_role, effective) do
             # Admin with no explicit permissions falls back to full access
             # ONLY when the permissions table is genuinely MISSING (pre-V53
             # / migrations not yet run). Once the table exists, zero rows
@@ -158,18 +192,20 @@ defmodule PhoenixKit.Users.Auth.Scope do
           end
 
         true ->
-          Permissions.get_permissions_for_user(user) |> MapSet.new()
+          load_permissions(user, active_role, effective) |> MapSet.new()
       end
 
     %__MODULE__{
       user: user,
       authenticated?: true,
       cached_roles: cached_roles,
-      cached_permissions: cached_permissions
+      cached_permissions: cached_permissions,
+      held_roles: Enum.map(held, & &1.name),
+      active_role: active_role
     }
   end
 
-  def for_user(nil) do
+  def for_user(nil, _opts) do
     %__MODULE__{
       user: nil,
       authenticated?: false,
@@ -177,6 +213,13 @@ defmodule PhoenixKit.Users.Auth.Scope do
       cached_permissions: MapSet.new()
     }
   end
+
+  # Not narrowed: the union across every held role, exactly as before the
+  # active role existed. Narrowed: only the roles in effect.
+  defp load_permissions(user, nil, _effective), do: Permissions.get_permissions_for_user(user)
+
+  defp load_permissions(_user, _active_role, effective),
+    do: Permissions.get_permissions_for_roles(Enum.map(effective, & &1.uuid))
 
   @doc """
   Checks if the scope represents an authenticated user.
@@ -380,6 +423,33 @@ defmodule PhoenixKit.Users.Auth.Scope do
   def user_roles(_), do: []
 
   @doc """
+  Every role the user really holds, whatever role they are acting as.
+
+  For the role switcher and for rules that must judge the user's REAL roles
+  (e.g. "you cannot edit a role you hold"). Access decisions belong to the
+  narrowed checks (`has_role?/2`, `can_access_admin_area?/1`, ...), never this.
+  A scope built without `held_roles` answers with its `cached_roles`.
+  """
+  @spec held_roles(t() | nil) :: [String.t()]
+  def held_roles(%__MODULE__{held_roles: held}) when is_list(held), do: held
+  def held_roles(%__MODULE__{cached_roles: roles}) when is_list(roles), do: roles
+  def held_roles(_), do: []
+
+  @doc """
+  The role the user is acting as (`%{uuid, name}`), or `nil` when the scope is
+  not narrowed. See `PhoenixKit.Users.ActiveRole`.
+  """
+  @spec active_role(t() | nil) :: ActiveRole.role() | nil
+  def active_role(%__MODULE__{active_role: %{uuid: _, name: _} = role}), do: role
+  def active_role(_), do: nil
+
+  @doc """
+  Whether the scope is narrowed to an active role.
+  """
+  @spec narrowed?(t() | nil) :: boolean()
+  def narrowed?(scope), do: active_role(scope) != nil
+
+  @doc """
   Gets the user's full name.
 
   ## Examples
@@ -446,6 +516,8 @@ defmodule PhoenixKit.Users.Auth.Scope do
       user_email: user_email(scope),
       user_full_name: user_full_name(scope),
       user_roles: user_roles(scope),
+      held_roles: held_roles(scope),
+      active_role: scope |> active_role() |> then(&(&1 && &1.name)),
       owner?: owner?(scope),
       # Map key kept as `admin?:` for back-compat; sourced from the non-deprecated fn.
       admin?: can_access_admin_area?(scope),

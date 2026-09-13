@@ -847,6 +847,31 @@ defmodule PhoenixKit.Users.Permissions do
   end
 
   @doc """
+  Returns the union of module_keys granted to the given roles.
+
+  The role-restricted counterpart of `get_permissions_for_user/1`, and how a
+  scope narrowed to an active role (`PhoenixKit.Users.ActiveRole`) loads its
+  permissions. Same failure policy: any error returns `[]`, failing closed.
+  """
+  @spec get_permissions_for_roles([String.t()]) :: [String.t()]
+  def get_permissions_for_roles([]), do: []
+
+  def get_permissions_for_roles(role_uuids) when is_list(role_uuids) do
+    repo = RepoHelper.repo()
+
+    from(rp in RolePermission,
+      where: rp.role_uuid in ^role_uuids,
+      select: rp.module_key,
+      distinct: true
+    )
+    |> repo.all()
+  rescue
+    e ->
+      Logger.warning("Permissions.get_permissions_for_roles failed: #{inspect(e)}")
+      []
+  end
+
+  @doc """
   Returns a matrix of role_uuid → MapSet of granted keys for all roles.
   """
   @spec get_permissions_matrix() :: %{String.t() => MapSet.t()}

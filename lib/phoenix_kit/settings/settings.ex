@@ -180,6 +180,10 @@ defmodule PhoenixKit.Settings do
     oauth_facebook_app_id
     notifications_enabled
     multi_session_enabled
+    role_switcher_enabled
+    role_switcher_location
+    role_switcher_sign_in_role
+    role_switcher_always_on_roles
   )
 
   @doc """
@@ -324,7 +328,13 @@ defmodule PhoenixKit.Settings do
       # Notifications
       "notifications_enabled" => "true",
       # Multi-session switcher (opt-in; disabled by default)
-      "multi_session_enabled" => "false"
+      "multi_session_enabled" => "false",
+      # Role switcher / active role (opt-in) — see `PhoenixKit.Users.ActiveRole`.
+      # `role_switcher_always_on_roles` is comma-separated role uuids.
+      "role_switcher_enabled" => "false",
+      "role_switcher_location" => "menu",
+      "role_switcher_sign_in_role" => "staff_first",
+      "role_switcher_always_on_roles" => ""
     }
   end
 

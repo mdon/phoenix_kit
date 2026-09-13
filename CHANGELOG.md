@@ -1,3 +1,26 @@
+## Unreleased
+
+### Added
+
+- **Active role: users act as one role at a time** (opt-in,
+  `role_switcher_enabled`, default off). A user holding two or more switchable
+  roles acts as exactly one of them, and `Scope.for_user/1` narrows
+  `cached_roles` and `cached_permissions` to that role plus the always-on roles
+  — an Admin acting as "Seller" has no admin access until they switch back.
+  Owner and Admin are always switchable; User is always on; custom roles are
+  switchable unless listed in `role_switcher_always_on_roles`. The choice is
+  stored per user (`custom_fields["active_role_uuid"]`) and applied inside
+  `for_user/1`, so every scope rebuild — plugs, LiveView mounts, the
+  role-change refresh, sibling packages — narrows without changes. A stored
+  role the user no longer holds is ignored (Owner > Admin > first role by
+  name). New: `PhoenixKit.Users.ActiveRole`, `Scope.active_role/1`,
+  `Scope.held_roles/1`, `Scope.narrowed?/1`, `Scope.for_user(user, narrow:
+  false)`, `Roles.get_user_role_records/1`,
+  `Permissions.get_permissions_for_roles/1`; settings `role_switcher_enabled`,
+  `role_switcher_location`, `role_switcher_sign_in_role`,
+  `role_switcher_always_on_roles`. Design:
+  `dev_docs/plans/2026-09-13-active-role.md`.
+
 ## 2.22.24 - 2026-09-12
 
 ### Changed

@@ -75,6 +75,7 @@ defmodule PhoenixKit.Users.CustomFields do
   # should do behind their back, and `down/1` could not restore it. Existing
   # definitions for the five stay; only new registrations stop.
   @internal_keys ~w(
+    active_role_uuid
     activity_view_mode
     avatar_crop
     avatar_file_uuid

@@ -259,6 +259,27 @@ defmodule PhoenixKit.Users.Roles do
   end
 
   @doc """
+  Gets the roles a user holds as `%{uuid, name}` maps, ordered by name.
+
+  The same query as `get_user_roles/1`, keeping the uuid: the active-role
+  resolution in `PhoenixKit.Users.ActiveRole` identifies roles by uuid, because
+  role names are editable.
+  """
+  @spec get_user_role_records(User.t()) :: [%{uuid: String.t(), name: String.t()}]
+  def get_user_role_records(%User{} = user) do
+    repo = RepoHelper.repo()
+
+    query =
+      from assignment in RoleAssignment,
+        join: role in assoc(assignment, :role),
+        where: assignment.user_uuid == ^user.uuid,
+        select: %{uuid: role.uuid, name: role.name},
+        order_by: role.name
+
+    repo.all(query)
+  end
+
+  @doc """
   Gets all users who have a specific role.
 
   ## Parameters

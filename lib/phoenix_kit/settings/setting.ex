@@ -118,7 +118,9 @@ defmodule PhoenixKit.Settings.Setting do
     "website_access_redirect_url",
     "website_access_allowed_addresses",
     "maintenance_header",
-    "maintenance_subtext"
+    "maintenance_subtext",
+    # Role switcher — no always-on custom roles is the default.
+    "role_switcher_always_on_roles"
   ]
 
   @doc false
