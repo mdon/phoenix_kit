@@ -517,7 +517,7 @@ msgid "Actions"
 msgstr "Действия"
 
 #: lib/phoenix_kit_web/components/media_gallery.html.heex:86
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:610
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:615
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:314
 #: lib/phoenix_kit_web/live/settings/users.html.heex:889
 #: lib/phoenix_kit_web/users/user_form.html.heex:754
@@ -658,7 +658,7 @@ msgstr "Маркированный список"
 msgid "Cancel"
 msgstr "Отмена"
 
-#: lib/phoenix_kit_web/live/users/roles.ex:413
+#: lib/phoenix_kit_web/live/users/roles.ex:414
 #, elixir-autogen, elixir-format
 msgid "Cannot delete role: it is currently assigned to users"
 msgstr "Невозможно удалить роль: она назначена пользователям"
@@ -1046,7 +1046,7 @@ msgstr "Ошибка"
 msgid "Failed to delete note"
 msgstr "Не удалось удалить заметку"
 
-#: lib/phoenix_kit_web/live/users/roles.ex:419
+#: lib/phoenix_kit_web/live/users/roles.ex:420
 #, elixir-autogen, elixir-format
 msgid "Failed to delete role"
 msgstr "Не удалось удалить роль"
@@ -1066,7 +1066,7 @@ msgstr "Не удалось отключить провайдер. Попроб�
 msgid "Failed to generate page: %{reason}"
 msgstr "Не удалось создать страницу: %{reason}"
 
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:198
+#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:199
 #, elixir-autogen, elixir-format
 msgid "Failed to grant %{label} to %{role_name}"
 msgstr "Не удалось предоставить %{label} для %{role_name}"
@@ -1086,7 +1086,7 @@ msgstr "Не удалось импортировать email"
 msgid "Failed to publish page: %{reason}"
 msgstr "Не удалось опубликовать страницу: %{reason}"
 
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:172
+#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:173
 #, elixir-autogen, elixir-format
 msgid "Failed to revoke %{label} from %{role_name}"
 msgstr "Не удалось отозвать %{label} у %{role_name}"
@@ -1106,7 +1106,7 @@ msgstr "Не удалось сохранить стандарты соответ
 msgid "Failed to save settings"
 msgstr "Не удалось сохранить настройки"
 
-#: lib/phoenix_kit_web/live/users/roles.ex:389
+#: lib/phoenix_kit_web/live/users/roles.ex:390
 #, elixir-autogen, elixir-format
 msgid "Failed to update permissions"
 msgstr "Не удалось обновить права"
@@ -1167,7 +1167,7 @@ msgstr "Создано страниц: %{count}"
 msgid "Grant All"
 msgstr "Предоставить всё"
 
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:186
+#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:187
 #, elixir-autogen, elixir-format
 msgid "Granted %{label} to %{role_name}"
 msgstr "Предоставлено %{label} для %{role_name}"
@@ -1352,7 +1352,7 @@ msgstr "Нет описания"
 msgid "No notes yet"
 msgstr "Заметок пока нет"
 
-#: lib/phoenix_kit_web/live/users/roles.ex:353
+#: lib/phoenix_kit_web/live/users/roles.ex:354
 #, elixir-autogen, elixir-format
 msgid "No role selected"
 msgstr "Роль не выбрана"
@@ -1372,7 +1372,7 @@ msgstr "Noindex/nofollow отключены. Сайт снова доступе�
 msgid "Noindex/nofollow enabled. Search engines will not index this site."
 msgstr "Noindex/nofollow включены. Поисковые системы не будут индексировать этот сайт."
 
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:342
+#: lib/phoenix_kit/users/permissions.ex:1408
 #, elixir-autogen, elixir-format
 msgid "Not authenticated"
 msgstr "Не аутентифицирован"
@@ -1424,7 +1424,7 @@ msgstr "Нумерованный список"
 msgid "OK"
 msgstr "ОК"
 
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:351
+#: lib/phoenix_kit/users/permissions.ex:1417
 #, elixir-autogen, elixir-format
 msgid "Only the Owner can edit Admin permissions"
 msgstr "Только Владелец может редактировать права Администратора"
@@ -1461,7 +1461,7 @@ msgstr "Информация об организации сохранена"
 msgid "Overview of role permissions across all modules"
 msgstr "Обзор прав ролей по всем модулям"
 
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:345
+#: lib/phoenix_kit/users/permissions.ex:1411
 #, elixir-autogen, elixir-format
 msgid "Owner role always has full access and cannot be modified"
 msgstr "Роль Владелец всегда имеет полный доступ и не может быть изменена"
@@ -1496,7 +1496,7 @@ msgstr "Пароль успешно изменён."
 msgid "Pending"
 msgstr "Ожидает"
 
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:353
+#: lib/phoenix_kit/users/permissions.ex:1420
 #, elixir-autogen, elixir-format
 msgid "Permission denied"
 msgstr "Доступ запрещён"
@@ -1515,7 +1515,7 @@ msgstr "Права"
 msgid "Permissions for"
 msgstr "Права для"
 
-#: lib/phoenix_kit_web/live/users/roles.ex:378
+#: lib/phoenix_kit_web/live/users/roles.ex:379
 #, elixir-autogen, elixir-format
 msgid "Permissions updated for %{role_name}"
 msgstr "Права обновлены для %{role_name}"
@@ -1657,7 +1657,7 @@ msgstr "Обязательно"
 msgid "Revoke All"
 msgstr "Отозвать всё"
 
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:154
+#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:155
 #, elixir-autogen, elixir-format
 msgid "Revoked %{label} from %{role_name}"
 msgstr "Отозвано %{label} у %{role_name}"
@@ -1675,8 +1675,8 @@ msgstr "Роль"
 msgid "Role \"%{role_name}\" created. Click Permissions to configure access."
 msgstr "Роль \"%{role_name}\" создана. Нажмите «Права», чтобы настроить доступ."
 
-#: lib/phoenix_kit_web/live/users/roles.ex:561
-#: lib/phoenix_kit_web/live/users/roles.ex:575
+#: lib/phoenix_kit_web/live/users/roles.ex:562
+#: lib/phoenix_kit_web/live/users/roles.ex:576
 #, elixir-autogen, elixir-format
 msgid "Role \"%{role_name}\" was deleted"
 msgstr "Роль \"%{role_name}\" удалена"
@@ -1702,7 +1702,7 @@ msgstr "Статистика ролей"
 msgid "Role created successfully"
 msgstr "Роль успешно создана"
 
-#: lib/phoenix_kit_web/live/users/roles.ex:403
+#: lib/phoenix_kit_web/live/users/roles.ex:404
 #, elixir-autogen, elixir-format
 msgid "Role deleted successfully"
 msgstr "Роль успешно удалена"
@@ -1712,8 +1712,8 @@ msgstr "Роль успешно удалена"
 msgid "Role no longer exists"
 msgstr "Роль больше не существует"
 
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:103
-#: lib/phoenix_kit_web/live/users/roles.ex:278
+#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:104
+#: lib/phoenix_kit_web/live/users/roles.ex:279
 #: lib/phoenix_kit_web/live/users/user_details.ex:628
 #: lib/phoenix_kit_web/live/users/users.ex:907
 #, elixir-autogen, elixir-format
@@ -1780,7 +1780,7 @@ msgstr "Сохранено"
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:333
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:417
 #: lib/phoenix_kit_web/live/settings.html.heex:624
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:709
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:714
 #: lib/phoenix_kit_web/live/settings/users.html.heex:742
 #, elixir-autogen, elixir-format
 msgid "Saving..."
@@ -1808,7 +1808,7 @@ msgstr "Выберите, к каким разделам и модулям эт�
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:170
 #: lib/phoenix_kit_web/live/modules/languages.ex:47
 #: lib/phoenix_kit_web/live/settings.ex:65
-#: lib/phoenix_kit_web/live/settings/authorization.ex:43
+#: lib/phoenix_kit_web/live/settings/authorization.ex:48
 #: lib/phoenix_kit_web/live/settings/crawlers.ex:42
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:57
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:6
@@ -1924,7 +1924,7 @@ msgstr "Системная роль"
 msgid "System Roles"
 msgstr "Системные роли"
 
-#: lib/phoenix_kit_web/live/users/roles.ex:423
+#: lib/phoenix_kit_web/live/users/roles.ex:424
 #, elixir-autogen, elixir-format
 msgid "System roles cannot be deleted"
 msgstr "Системные роли нельзя удалить"
@@ -2105,28 +2105,28 @@ msgid "Yes"
 msgstr "Да"
 
 #: lib/phoenix_kit_web/live/users/permissions_matrix.ex:96
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:164
-#: lib/phoenix_kit_web/live/users/roles.ex:321
+#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:165
+#: lib/phoenix_kit_web/live/users/roles.ex:322
 #, elixir-autogen, elixir-format
 msgid "You can only manage permissions you have"
 msgstr "Вы можете управлять только теми правами, которыми обладаете"
 
-#: lib/phoenix_kit_web/live/users/roles.ex:362
+#: lib/phoenix_kit_web/live/users/roles.ex:363
 #, elixir-autogen, elixir-format
 msgid "You cannot edit permissions for this role"
 msgstr "Вы не можете редактировать права для этой роли"
 
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:348
+#: lib/phoenix_kit/users/permissions.ex:1414
 #, elixir-autogen, elixir-format
 msgid "You cannot edit permissions for your own role"
 msgstr "Вы не можете редактировать права для своей собственной роли"
 
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:107
-#: lib/phoenix_kit_web/live/users/roles.ex:282
-#: lib/phoenix_kit_web/live/users/roles.ex:325
-#: lib/phoenix_kit_web/live/users/roles.ex:335
-#: lib/phoenix_kit_web/live/users/roles.ex:344
-#: lib/phoenix_kit_web/live/users/roles.ex:357
+#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:108
+#: lib/phoenix_kit_web/live/users/roles.ex:283
+#: lib/phoenix_kit_web/live/users/roles.ex:326
+#: lib/phoenix_kit_web/live/users/roles.ex:336
+#: lib/phoenix_kit_web/live/users/roles.ex:345
+#: lib/phoenix_kit_web/live/users/roles.ex:358
 #, elixir-autogen, elixir-format
 msgid "You don't have permission to manage permissions"
 msgstr "У вас нет прав для управления правами"
@@ -2141,7 +2141,7 @@ msgstr "Название вашей компании"
 msgid "Your personal dashboard is ready. Explore your account settings and manage your profile from here."
 msgstr "Ваша личная панель управления готова. Изучите настройки аккаунта и управляйте профилем отсюда."
 
-#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:308
+#: lib/phoenix_kit_web/live/users/permissions_matrix.ex:309
 #, elixir-autogen, elixir-format
 msgid "always"
 msgstr "всегда"
@@ -2356,22 +2356,22 @@ msgstr "(пусто)"
 msgid "(registration disabled)"
 msgstr "(регистрация отключена)"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:647
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:652
 #, elixir-autogen, elixir-format
 msgid "1. Enable the provider above and save settings"
 msgstr "1. Включите провайдера выше и сохраните настройки"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:648
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:653
 #, elixir-autogen, elixir-format
 msgid "2. Enter your OAuth credentials in the form that appears"
 msgstr "2. Введите учётные данные OAuth в появившейся форме"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:649
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:654
 #, elixir-autogen, elixir-format
 msgid "3. Save settings again to store credentials"
 msgstr "3. Снова сохраните настройки для сохранения учётных данных"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:650
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "4. Click \"Test Credentials\" to verify configuration"
 msgstr "4. Нажмите «Проверить учётные данные», чтобы проверить конфигурацию"
@@ -2433,9 +2433,9 @@ msgstr "Добавить размер изображения"
 msgid "Add Video Dimension"
 msgstr "Добавить размер видео"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:444
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:527
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:617
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:445
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:531
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:622
 #, elixir-autogen, elixir-format
 msgid "Add callback URL above to"
 msgstr "Добавьте URL обратного вызова выше в"
@@ -2467,12 +2467,14 @@ msgstr "Все новые пользователи получат админис
 msgid "Anyone can register"
 msgstr "Кто угодно может зарегистрироваться"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:561
+#: lib/phoenix_kit/users/oauth_config.ex:293
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "App ID"
 msgstr "ID приложения"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:571
+#: lib/phoenix_kit/users/oauth_config.ex:294
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:575
 #, elixir-autogen, elixir-format
 msgid "App Secret"
 msgstr "Секрет приложения"
@@ -2581,7 +2583,7 @@ msgstr "Бакеты могут быть локальными директори
 msgid "CSS color or gradient for auth page background. Ignored if a background image is set."
 msgstr "Цвет CSS или градиент для фона страницы аутентификации. Игнорируется, если задано фоновое изображение."
 
-#: lib/phoenix_kit_web/live/settings/authorization.ex:326
+#: lib/phoenix_kit_web/live/settings/authorization.ex:380
 #, elixir-autogen, elixir-format
 msgid "Callback URL"
 msgstr "URL обратного вызова"
@@ -2591,25 +2593,29 @@ msgstr "URL обратного вызова"
 msgid "Changes will be saved immediately"
 msgstr "Изменения будут сохранены немедленно"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:449
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:531
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:538
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:634
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:450
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:535
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:542
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:639
 #, elixir-autogen, elixir-format
 msgid "Click"
 msgstr "Нажмите"
 
 #: lib/phoenix_kit/integrations/providers.ex:220
+#: lib/phoenix_kit/users/oauth_config.ex:274
+#: lib/phoenix_kit/users/oauth_config.ex:280
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:388
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:473
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:476
 #, elixir-autogen, elixir-format
 msgid "Client ID"
 msgstr "ID клиента"
 
 #: lib/phoenix_kit/integrations/providers.ex:229
 #: lib/phoenix_kit/integrations/providers.ex:1245
+#: lib/phoenix_kit/users/oauth_config.ex:275
+#: lib/phoenix_kit/users/oauth_config.ex:281
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:398
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:483
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:486
 #, elixir-autogen, elixir-format
 msgid "Client Secret"
 msgstr "Секрет клиента"
@@ -2640,35 +2646,35 @@ msgstr "Настройте системные параметры и опции"
 msgid "Consider \"User\" for most installations to maintain security."
 msgstr "Для большинства установок используйте «Пользователь» в целях безопасности."
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:534
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:624
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:538
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:629
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:185
 #: lib/phoenix_kit_web/live/settings/website_access.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "Copy"
 msgstr "Копировать"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:447
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "Copy Client ID and Secret to fields above"
 msgstr "Скопировать ID клиента и Секрет в поля выше"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:593
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:598
 #, elixir-autogen, elixir-format
 msgid "Copy this URL to Facebook App Settings"
 msgstr "Скопируйте этот URL в настройки приложения Facebook"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:505
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:509
 #, elixir-autogen, elixir-format
 msgid "Copy this URL to GitHub OAuth Apps"
 msgstr "Скопируйте этот URL в OAuth Apps GitHub"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:420
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:421
 #, elixir-autogen, elixir-format
 msgid "Copy this URL to Google Cloud Console"
 msgstr "Скопируйте этот URL в Google Cloud Console"
 
-#: lib/phoenix_kit_web/live/settings/authorization.ex:336
+#: lib/phoenix_kit_web/live/settings/authorization.ex:390
 #, elixir-autogen, elixir-format
 msgid "Copy to clipboard"
 msgstr "Скопировать в буфер обмена"
@@ -2693,12 +2699,12 @@ msgstr "Создать путь хранилища"
 msgid "Create Your First Bucket"
 msgstr "Создайте первый бакет"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:607
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:612
 #, elixir-autogen, elixir-format
 msgid "Create a new app or select existing one"
 msgstr "Создайте новое приложение или выберите существующее"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:433
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:434
 #, elixir-autogen, elixir-format
 msgid "Create project or select existing one"
 msgstr "Создайте проект или выберите существующий"
@@ -2774,7 +2780,7 @@ msgstr "Включить OAuth (главный переключатель)"
 msgid "Endpoint"
 msgstr "Конечная точка"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:523
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "Enter"
 msgstr "Введите"
@@ -2809,7 +2815,7 @@ msgstr "FFmpeg не установлен"
 msgid "FFmpeg is required for video processing, transcoding, and thumbnail generation."
 msgstr "FFmpeg необходим для обработки видео, перекодирования и создания миниатюр."
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:552
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:556
 #, elixir-autogen, elixir-format
 msgid "Facebook OAuth Credentials"
 msgstr "Учётные данные Facebook OAuth"
@@ -2852,7 +2858,7 @@ msgstr "Переопределение формата"
 msgid "Format Override:"
 msgstr "Переопределение формата:"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:464
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:467
 #, elixir-autogen, elixir-format
 msgid "GitHub OAuth Credentials"
 msgstr "Учётные данные GitHub OAuth"
@@ -2862,10 +2868,10 @@ msgstr "Учётные данные GitHub OAuth"
 msgid "GitHub Sign-In"
 msgstr "Вход через GitHub"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:435
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:519
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:613
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:621
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:436
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:523
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:618
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:626
 #, elixir-autogen, elixir-format
 msgid "Go to"
 msgstr "Перейти в"
@@ -2895,7 +2901,7 @@ msgstr "Как отображаются даты"
 msgid "How times are displayed"
 msgstr "Как отображается время"
 
-#: lib/phoenix_kit_web/live/settings/authorization.ex:361
+#: lib/phoenix_kit_web/live/settings/authorization.ex:415
 #, elixir-autogen, elixir-format
 msgid "If behind nginx/apache, ensure"
 msgstr "При использовании nginx/apache убедитесь, что"
@@ -2985,7 +2991,7 @@ msgstr "Управление размерами"
 msgid "Manage dimension presets for automatic file instance generation"
 msgstr "Управление пресетами размеров для автоматической генерации экземпляров файлов"
 
-#: lib/phoenix_kit_web/live/settings/authorization.ex:41
+#: lib/phoenix_kit_web/live/settings/authorization.ex:46
 #, elixir-autogen, elixir-format
 msgid "Manage login page branding and authentication methods"
 msgstr "Управляйте оформлением страницы входа и методами аутентификации"
@@ -3077,7 +3083,7 @@ msgstr "Нет"
 msgid "Note"
 msgstr "Примечание"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:652
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:657
 #, elixir-autogen, elixir-format
 msgid "Note: OAuth providers require ueberauth dependencies to be installed."
 msgstr "Примечание: провайдеры OAuth требуют установки зависимостей ueberauth."
@@ -3092,7 +3098,7 @@ msgstr "Количество хранимых копий"
 msgid "OAuth Providers"
 msgstr "Провайдеры OAuth"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:645
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:650
 #, elixir-autogen, elixir-format
 msgid "OAuth Setup Instructions"
 msgstr "Инструкции по настройке OAuth"
@@ -3165,7 +3171,7 @@ msgstr "Уменьшите резервирование или включите 
 msgid "Redundancy Copies"
 msgstr "Копии резервирования"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:667
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:672
 #, elixir-autogen, elixir-format
 msgid "Reload OAuth Configuration"
 msgstr "Перезагрузить конфигурацию OAuth"
@@ -3193,7 +3199,7 @@ msgstr "Сбросить к настройкам по умолчанию"
 msgid "Resolution"
 msgstr "Разрешение"
 
-#: lib/phoenix_kit_web/live/settings/authorization.ex:359
+#: lib/phoenix_kit_web/live/settings/authorization.ex:413
 #, elixir-autogen, elixir-format
 msgid "Reverse Proxy Users:"
 msgstr "Пользователи обратного прокси:"
@@ -3220,7 +3226,7 @@ msgstr "Роль, назначаемая при регистрации новы�
 msgid "Save All Settings"
 msgstr "Сохранить все настройки"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:711
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:716
 #, elixir-autogen, elixir-format
 msgid "Save Authorization Settings"
 msgstr "Сохранить настройки авторизации"
@@ -3254,7 +3260,7 @@ msgstr "Уведомление безопасности: средний риск
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1180
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1182
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:440
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:441
 #, elixir-autogen, elixir-format
 msgid "Select"
 msgstr "Выбрать"
@@ -3284,7 +3290,7 @@ msgid "Set"
 msgstr "Установить"
 
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:355
-#: lib/phoenix_kit_web/live/settings/authorization.ex:314
+#: lib/phoenix_kit_web/live/settings/authorization.ex:368
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Setup Instructions"
@@ -3321,7 +3327,7 @@ msgstr "Провайдер хранилища"
 msgid "Success!"
 msgstr "Успешно!"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:629
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:634
 #, elixir-autogen, elixir-format
 msgid "Switch app from"
 msgstr "Переключить приложение с"
@@ -3341,9 +3347,12 @@ msgstr "Часовой пояс системы по умолчанию"
 msgid "Target Width (px)"
 msgstr "Целевая ширина (пкс)"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:415
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:500
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:588
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:416
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:451
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:504
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:543
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:593
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:640
 #, elixir-autogen, elixir-format
 msgid "Test Credentials"
 msgstr "Проверить учётные данные"
@@ -3454,9 +3463,9 @@ msgstr "Настройки видео:"
 msgid "Videos use CRF 0-51 scale (lower = higher quality)"
 msgstr "Видео использует шкалу CRF 0–51 (ниже = лучше качество)"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:424
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:509
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:597
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:425
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:513
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:602
 #, elixir-autogen, elixir-format
 msgid "Visit"
 msgstr "Перейти"
@@ -3501,22 +3510,22 @@ msgstr "Без него обработка видеофайлов не буде�
 msgid "Would you like to create it now?"
 msgstr "Вы хотите создать его сейчас?"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:562
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:566
 #, elixir-autogen, elixir-format
 msgid "Your Facebook App ID"
 msgstr "Ваш Facebook App ID"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:575
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:579
 #, elixir-autogen, elixir-format
 msgid "Your Facebook App Secret"
 msgstr "Ваш Facebook App Secret"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:474
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "Your GitHub OAuth Client ID"
 msgstr "Ваш GitHub OAuth Client ID"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:487
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:490
 #, elixir-autogen, elixir-format
 msgid "Your GitHub OAuth Client Secret"
 msgstr "Ваш GitHub OAuth Client Secret"
@@ -3531,14 +3540,14 @@ msgstr "Ваш Google OAuth Client ID"
 msgid "Your Google OAuth Client Secret"
 msgstr "Ваш Google OAuth Client Secret"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:524
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:625
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:528
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:630
 #: lib/phoenix_kit_web/live/settings/integrations.ex:194
 #, elixir-autogen, elixir-format
 msgid "and"
 msgstr "и"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:535
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "and generate/copy"
 msgstr "и сгенерируйте/скопируйте"
@@ -3559,12 +3568,12 @@ msgstr "например, thumbnail, medium, 720p"
 msgid "files"
 msgstr "файлы"
 
-#: lib/phoenix_kit_web/live/settings/authorization.ex:365
+#: lib/phoenix_kit_web/live/settings/authorization.ex:419
 #, elixir-autogen, elixir-format
 msgid "header is set to"
 msgstr "заголовок установлен в"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:631
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:636
 #, elixir-autogen, elixir-format
 msgid "mode"
 msgstr "режим"
@@ -3574,12 +3583,12 @@ msgstr "режим"
 msgid "option(s)"
 msgstr "вариант(ов)"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:610
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "product"
 msgstr "продукт"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:630
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:635
 #, elixir-autogen, elixir-format
 msgid "to"
 msgstr "в"
@@ -3589,19 +3598,19 @@ msgstr "в"
 msgid "to every PhoenixKit layout, blocking crawlers from indexing or following links."
 msgstr "во все макеты PhoenixKit, запрещая роботам индексировать или переходить по ссылкам."
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:626
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:631
 #, elixir-autogen, elixir-format
 msgid "to fields above"
 msgstr "в поля выше"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:450
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:539
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:635
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:451
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:543
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:640
 #, elixir-autogen, elixir-format
 msgid "to verify setup"
 msgstr "для проверки настройки"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:441
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:442
 #, elixir-autogen, elixir-format
 msgid "type"
 msgstr "тип"
@@ -4080,7 +4089,7 @@ msgid "Copy the key and paste it into the form above"
 msgstr "Скопируйте ключ и вставьте его в форму выше"
 
 #: lib/phoenix_kit/integrations/integrations.ex:1181
-#: lib/phoenix_kit/integrations/probe.ex:102
+#: lib/phoenix_kit/integrations/probe.ex:111
 #, elixir-autogen, elixir-format
 msgid "Could not reach the service"
 msgstr "Не удалось связаться с сервисом"
@@ -6119,7 +6128,7 @@ msgstr "Исходный код карты сайта"
 msgid "Open in Browser"
 msgstr "Открыть в браузере"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2252
+#: lib/phoenix_kit_web/components/media_browser.ex:2260
 #, elixir-autogen, elixir-format
 msgid "%{count} file permanently deleted"
 msgid_plural "%{count} files permanently deleted"
@@ -6135,7 +6144,7 @@ msgstr[0] "%{count} объект перемещён"
 msgstr[1] "%{count} объекта перемещено"
 msgstr[2] "%{count} объектов перемещено"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2309
+#: lib/phoenix_kit_web/components/media_browser.ex:2317
 #, elixir-autogen, elixir-format
 msgid "%{count} orphaned file queued for deletion"
 msgid_plural "%{count} orphaned files queued for deletion"
@@ -6185,7 +6194,7 @@ msgstr "Все медиа"
 msgid "All file types supported"
 msgstr "Поддерживаются все типы файлов"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3511
+#: lib/phoenix_kit_web/components/media_browser.ex:3519
 #, elixir-autogen, elixir-format
 msgid "Already have %{count} duplicate file. No new files were added."
 msgid_plural "Already have %{count} duplicate files. No new files were added."
@@ -6275,7 +6284,7 @@ msgstr "Удалить навсегда"
 msgid "Deleted files will appear here"
 msgstr "Удалённые файлы появятся здесь"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2921
+#: lib/phoenix_kit_web/components/media_browser.ex:2929
 #: lib/phoenix_kit_web/components/media_browser.html.heex:811
 #: lib/phoenix_kit_web/components/media_browser.html.heex:814
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1603
@@ -6306,7 +6315,7 @@ msgid "Failed to create folder"
 msgstr "Не удалось создать папку"
 
 #: lib/phoenix_kit_web/components/media_browser.ex:1106
-#: lib/phoenix_kit_web/components/media_browser.ex:2704
+#: lib/phoenix_kit_web/components/media_browser.ex:2712
 #, elixir-autogen, elixir-format
 msgid "Failed to move file"
 msgstr "Не удалось переместить файл"
@@ -6359,7 +6368,7 @@ msgstr "Управление медиа и загрузками пользова
 msgid "More actions"
 msgstr "Ещё действия"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2948
+#: lib/phoenix_kit_web/components/media_browser.ex:2956
 #: lib/phoenix_kit_web/components/media_browser.html.heex:801
 #: lib/phoenix_kit_web/components/media_browser.html.heex:804
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1472
@@ -6370,7 +6379,7 @@ msgstr "Ещё действия"
 msgid "Move"
 msgstr "Переместить"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3737
+#: lib/phoenix_kit_web/components/media_browser.ex:3745
 #, elixir-autogen, elixir-format
 msgid "Move %{count} file to trash?"
 msgid_plural "Move %{count} files to trash?"
@@ -6422,7 +6431,7 @@ msgstr "Несвязанные файлы"
 msgid "Path"
 msgstr "Путь"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3713
+#: lib/phoenix_kit_web/components/media_browser.ex:3721
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{count} file? This cannot be undone."
 msgid_plural "Permanently delete %{count} files? This cannot be undone."
@@ -6518,18 +6527,18 @@ msgstr "Загрузить медиа"
 msgid "Upload Media Files"
 msgstr "Загрузить медиафайлы"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3492
+#: lib/phoenix_kit_web/components/media_browser.ex:3500
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:593
 #, elixir-autogen, elixir-format
 msgid "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
 msgstr "Загрузка не удалась: хранилища не настроены. Настройте хотя бы одно хранилище перед загрузкой файлов."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3478
+#: lib/phoenix_kit_web/components/media_browser.ex:3486
 #, elixir-autogen, elixir-format
 msgid "Upload processed"
 msgstr "Загрузка обработана"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3520
+#: lib/phoenix_kit_web/components/media_browser.ex:3528
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{count} new file processed"
 msgid_plural "Upload successful! %{count} new files processed"
@@ -6547,7 +6556,7 @@ msgstr "Загружено:"
 msgid "Your browser does not support the video tag."
 msgstr "Ваш браузер не поддерживает тег video."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3499
+#: lib/phoenix_kit_web/components/media_browser.ex:3507
 #, elixir-autogen, elixir-format
 msgid "%{count} failed"
 msgid_plural "%{count} failed"
@@ -6555,8 +6564,8 @@ msgstr[0] "%{count} не загружен"
 msgstr[1] "%{count} не загружено"
 msgstr[2] "%{count} не загружено"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3696
-#: lib/phoenix_kit_web/components/media_browser.ex:3720
+#: lib/phoenix_kit_web/components/media_browser.ex:3704
+#: lib/phoenix_kit_web/components/media_browser.ex:3728
 #: lib/phoenix_kit_web/components/media_browser.html.heex:753
 #, elixir-autogen, elixir-format
 msgid "%{count} file"
@@ -6565,7 +6574,7 @@ msgstr[0] "%{count} файл"
 msgstr[1] "%{count} файла"
 msgstr[2] "%{count} файлов"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3498
+#: lib/phoenix_kit_web/components/media_browser.ex:3506
 #, elixir-autogen, elixir-format
 msgid "%{count} file uploaded"
 msgid_plural "%{count} files uploaded"
@@ -6573,7 +6582,7 @@ msgstr[0] "загружен %{count} файл"
 msgstr[1] "загружено %{count} файла"
 msgstr[2] "загружено %{count} файлов"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3531
+#: lib/phoenix_kit_web/components/media_browser.ex:3539
 #, elixir-autogen, elixir-format
 msgid "%{count} file was already uploaded"
 msgid_plural "%{count} files were already uploaded"
@@ -6581,8 +6590,8 @@ msgstr[0] "%{count} файл уже был загружен"
 msgstr[1] "%{count} файла уже были загружены"
 msgstr[2] "%{count} файлов уже были загружены"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3697
-#: lib/phoenix_kit_web/components/media_browser.ex:3721
+#: lib/phoenix_kit_web/components/media_browser.ex:3705
+#: lib/phoenix_kit_web/components/media_browser.ex:3729
 #, elixir-autogen, elixir-format
 msgid "%{count} folder"
 msgid_plural "%{count} folders"
@@ -6590,7 +6599,7 @@ msgstr[0] "%{count} папка"
 msgstr[1] "%{count} папки"
 msgstr[2] "%{count} папок"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3528
+#: lib/phoenix_kit_web/components/media_browser.ex:3536
 #, elixir-autogen, elixir-format
 msgid "%{count} new file added"
 msgid_plural "%{count} new files added"
@@ -6604,12 +6613,12 @@ msgstr[2] "добавлено %{count} новых файлов"
 msgid "FILE"
 msgstr "ФАЙЛ"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3502
+#: lib/phoenix_kit_web/components/media_browser.ex:3510
 #, elixir-autogen, elixir-format
 msgid "Partially successful: %{uploaded}, %{failed} due to missing storage buckets."
 msgstr "Частично успешно: %{uploaded}, %{failed} из-за отсутствия хранилищ."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3538
+#: lib/phoenix_kit_web/components/media_browser.ex:3546
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{added}. %{duplicates}."
 msgstr "Загрузка успешна! %{added}. %{duplicates}."
@@ -6822,7 +6831,7 @@ msgstr "Точно удалить этот комментарий?"
 msgid "%b %d, %Y"
 msgstr "%d %b %Y"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2237
+#: lib/phoenix_kit_web/components/media_browser.ex:2245
 #, elixir-autogen, elixir-format
 msgid "%{count} item restored"
 msgid_plural "%{count} items restored"
@@ -6850,12 +6859,12 @@ msgstr "Вложения отключены"
 msgid "Auth failed"
 msgstr "Ошибка авторизации"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3658
+#: lib/phoenix_kit_web/components/media_browser.ex:3666
 #, elixir-autogen, elixir-format
 msgid "Cannot create folders in the all-files view"
 msgstr "Нельзя создать папку в режиме просмотра всех файлов"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3655
+#: lib/phoenix_kit_web/components/media_browser.ex:3663
 #, elixir-autogen, elixir-format
 msgid "Cannot create folders in trash"
 msgstr "Нельзя создавать папки в корзине"
@@ -6883,7 +6892,7 @@ msgstr "Не удалось опубликовать комментарий"
 msgid "Deep Zoom Tile Generation"
 msgstr "Генерация тайлов для глубокого масштабирования"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2964
+#: lib/phoenix_kit_web/components/media_browser.ex:2972
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1648
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2278
 #, elixir-autogen, elixir-format
@@ -6916,12 +6925,12 @@ msgstr "Не удалось переместить папку в корзину"
 msgid "File / Image"
 msgstr "Файл / Изображение"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2702
+#: lib/phoenix_kit_web/components/media_browser.ex:2710
 #, elixir-autogen, elixir-format
 msgid "File moved to trash"
 msgstr "Файл перемещён в корзину"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2703
+#: lib/phoenix_kit_web/components/media_browser.ex:2711
 #, elixir-autogen, elixir-format
 msgid "File removed from this folder"
 msgstr "Файл удалён из этой папки"
@@ -6932,7 +6941,7 @@ msgstr "Файл удалён из этой папки"
 msgid "File not found"
 msgstr "Файл не найден"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2116
+#: lib/phoenix_kit_web/components/media_browser.ex:2124
 #, elixir-autogen, elixir-format
 msgid "File permanently deleted"
 msgstr "Файл удалён навсегда"
@@ -6992,14 +7001,14 @@ msgstr[0] "Переместить %{count} элемент в папку"
 msgstr[1] "Переместить %{count} элемента в папку"
 msgstr[2] "Переместить %{count} элементов в папку"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2965
+#: lib/phoenix_kit_web/components/media_browser.ex:2973
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1649
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2279
 #, elixir-autogen, elixir-format
 msgid "Move to Trash"
 msgstr "Переместить в корзину"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2957
+#: lib/phoenix_kit_web/components/media_browser.ex:2965
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1640
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2270
 #, elixir-autogen, elixir-format
@@ -7025,6 +7034,9 @@ msgid "Saving…"
 msgstr "Сохранение…"
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:455
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:414
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:502
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:591
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "Testing…"
@@ -7070,7 +7082,7 @@ msgstr "Напишите заметку об этой аннотации..."
 msgid "e.g. Main, Personal, My Company Drive"
 msgstr "напр., Основной, Личный, Мой Google Диск"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3666
+#: lib/phoenix_kit_web/components/media_browser.ex:3674
 #, elixir-autogen, elixir-format
 msgid "untitled"
 msgstr "без названия"
@@ -7665,7 +7677,7 @@ msgid "View details"
 msgstr "Подробнее"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:247
-#: lib/phoenix_kit_web/live/settings/authorization.ex:38
+#: lib/phoenix_kit_web/live/settings/authorization.ex:43
 #, elixir-autogen, elixir-format
 msgid "Authorization"
 msgstr "Авторизация"
@@ -8432,7 +8444,7 @@ msgstr[2] "Вы уверены, что хотите отозвать %{count} с
 msgid "Last updated:"
 msgstr "Обновлено:"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:681
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:686
 #, elixir-autogen, elixir-format
 msgid "Account switcher for signing in to several accounts at once"
 msgstr "Переключатель аккаунтов для входа в несколько аккаунтов одновременно"
@@ -8442,7 +8454,7 @@ msgstr "Переключатель аккаунтов для входа в не�
 msgid "Applying…"
 msgstr "Применение..."
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:687
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:692
 #, elixir-autogen, elixir-format
 msgid "Enable the multi-account switcher in the header"
 msgstr "Включить переключатель нескольких аккаунтов в шапке"
@@ -8465,7 +8477,7 @@ msgstr "Загрузка…"
 msgid "Logged out. Now signed in as %{email}."
 msgstr "Выполнен выход. Теперь вы вошли как %{email}."
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:678
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:683
 #, elixir-autogen, elixir-format
 msgid "Multiple Sessions"
 msgstr "Несколько сессий"
@@ -8506,7 +8518,7 @@ msgstr "Показано %{loaded} из %{total} %{noun}"
 msgid "Switched to %{email}."
 msgstr "Переключено на %{email}."
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:690
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:695
 #, elixir-autogen, elixir-format
 msgid "When on, any signed-in user can add other accounts (with their password) and switch between them from the user menu."
 msgstr "Когда включено, любой вошедший пользователь может добавлять другие аккаунты (с их паролем) и переключаться между ними из меню пользователя."
@@ -8657,7 +8669,7 @@ msgid "Browse files no longer attached to any record (orphaned media) so you can
 msgstr "Просматривайте файлы, больше не привязанные ни к одной записи (потерянные медиа), чтобы просмотреть или удалить их."
 
 #: lib/phoenix_kit_web/components/media_browser.ex:1587
-#: lib/phoenix_kit_web/components/media_browser.ex:3167
+#: lib/phoenix_kit_web/components/media_browser.ex:3175
 #, elixir-autogen, elixir-format
 msgid "Cannot edit a folder outside the allowed scope"
 msgstr "Нельзя изменить папку вне разрешённой области"
@@ -8781,7 +8793,7 @@ msgstr "Выйти из выбора"
 msgid "Failed to save folder description"
 msgstr "Не удалось сохранить описание папки"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3170
+#: lib/phoenix_kit_web/components/media_browser.ex:3178
 #, elixir-autogen, elixir-format
 msgid "Failed to save folder header"
 msgstr "Не удалось сохранить заголовок папки"
@@ -8949,7 +8961,7 @@ msgstr "Без фона"
 msgid "No description — add one"
 msgstr "Нет описания — добавьте"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2772
+#: lib/phoenix_kit_web/components/media_browser.ex:2780
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1724
 #, elixir-autogen, elixir-format
 msgid "No images"
@@ -10174,7 +10186,7 @@ msgstr "Поворот сохранён"
 msgid "Show details"
 msgstr "Показать детали"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3730
+#: lib/phoenix_kit_web/components/media_browser.ex:3738
 #, elixir-autogen, elixir-format
 msgid "Move %{count} folder and all its contents to trash?"
 msgid_plural "Move %{count} folders and all their contents to trash?"
@@ -10182,7 +10194,7 @@ msgstr[0] "Переместить %{count} папку со всем содерж
 msgstr[1] "Переместить %{count} папки со всем их содержимым в корзину?"
 msgstr[2] "Переместить %{count} папок со всем их содержимым в корзину?"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3723
+#: lib/phoenix_kit_web/components/media_browser.ex:3731
 #, elixir-autogen, elixir-format
 msgid "Move %{files} and %{folders} (including all folder contents) to trash?"
 msgstr "Переместить %{files} и %{folders} (со всем содержимым папок) в корзину?"
@@ -10193,7 +10205,7 @@ msgstr "Переместить %{files} и %{folders} (со всем содер�
 msgid "Move '%{name}' and all its contents to trash?"
 msgstr "Переместить '%{name}' со всем содержимым в корзину?"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3706
+#: lib/phoenix_kit_web/components/media_browser.ex:3714
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{count} folder and all its contents? This cannot be undone."
 msgid_plural "Permanently delete %{count} folders and all their contents? This cannot be undone."
@@ -10201,7 +10213,7 @@ msgstr[0] "Удалить навсегда %{count} папку со всем с�
 msgstr[1] "Удалить навсегда %{count} папки со всем их содержимым? Это действие нельзя отменить."
 msgstr[2] "Удалить навсегда %{count} папок со всем их содержимым? Это действие нельзя отменить."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3699
+#: lib/phoenix_kit_web/components/media_browser.ex:3707
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{files} and %{folders} (including all folder contents)? This cannot be undone."
 msgstr "Удалить навсегда %{files} и %{folders} (со всем содержимым папок)? Это действие нельзя отменить."
@@ -10543,7 +10555,7 @@ msgstr "Не удалось связаться с Telegram"
 msgid "Could not reach the SMTP server"
 msgstr "Не удалось связаться с SMTP-сервером"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2095
+#: lib/phoenix_kit_web/components/media_browser.ex:2099
 #, elixir-autogen, elixir-format
 msgid "Could not rotate the image."
 msgstr "Не удалось повернуть изображение."
@@ -11100,14 +11112,14 @@ msgstr "Требовать подтверждение почты перед ис
 msgid "Restore"
 msgstr "Восстановить"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2932
+#: lib/phoenix_kit_web/components/media_browser.ex:2940
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1615
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2245
 #, elixir-autogen, elixir-format
 msgid "Rotate left"
 msgstr "Повернуть влево"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2941
+#: lib/phoenix_kit_web/components/media_browser.ex:2949
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1624
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2254
 #, elixir-autogen, elixir-format
@@ -11297,7 +11309,7 @@ msgstr "Сертификат CA не является корректным на�
 msgid "The email tracking module only records messages sent from a full address (name@domain.tld). With %{email} mail is still delivered, but nothing is written to the email log — silently."
 msgstr "Модуль отслеживания почты записывает только письма, отправленные с полного адреса (name@domain.tld). С адресом %{email} письма по-прежнему доставляются, но в журнал почты ничего не пишется — без предупреждения."
 
-#: lib/phoenix_kit/integrations/probe.ex:111
+#: lib/phoenix_kit/integrations/probe.ex:120
 #, elixir-autogen, elixir-format
 msgid "The service did not respond in time"
 msgstr "Сервис не ответил вовремя"
@@ -12198,7 +12210,7 @@ msgstr "Выбрать аудио"
 msgid "Select Avatar"
 msgstr "Выбрать аватар"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:727
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:732
 #, elixir-autogen, elixir-format
 msgid "Select Background Image"
 msgstr "Выбрать фоновое изображение"
@@ -12215,7 +12227,7 @@ msgstr "Выбрать изображения"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2469
 #: lib/phoenix_kit_web/live/settings.html.heex:668
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:728
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:733
 #, elixir-autogen, elixir-format
 msgid "Select Logo"
 msgstr "Выбрать логотип"
@@ -12317,7 +12329,7 @@ msgid "The current encryption status could not be described by this admin page �
 msgstr "Текущий статус шифрования не удалось описать на этой странице администрирования — возможно, он новее, чем распознаёт эта страница. Проверьте PhoenixKit.Integrations.Encryption.status/0 напрямую."
 
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:330
-#: lib/phoenix_kit_web/live/settings/authorization.ex:271
+#: lib/phoenix_kit_web/live/settings/authorization.ex:318
 #, elixir-autogen, elixir-format
 msgid "A secret is already configured — leave blank to keep the current value"
 msgstr "Секрет уже настроен — оставьте пустым, чтобы сохранить текущее значение"
@@ -14490,3 +14502,48 @@ msgstr "Текущий пароль"
 #, elixir-autogen, elixir-format
 msgid "We ask for your password again as a safety check before moving your account to a new email address."
 msgstr "Мы снова спрашиваем ваш пароль в качестве меры безопасности перед переносом аккаунта на новый адрес электронной почты."
+
+#: lib/phoenix_kit/users/oauth_config.ex:471
+#, elixir-autogen, elixir-format
+msgid "%{provider} OAuth credentials are properly formatted. Initiate OAuth flow to test actual connection."
+msgstr "Учётные данные OAuth %{provider} имеют правильный формат. Запустите процесс OAuth, чтобы проверить реальное подключение."
+
+#: lib/phoenix_kit/users/oauth_config.ex:348
+#, elixir-autogen, elixir-format
+msgid "%{provider} secret cannot be only whitespace"
+msgstr "Секрет %{provider} не может состоять только из пробелов"
+
+#: lib/phoenix_kit/users/oauth_config.ex:354
+#, elixir-autogen, elixir-format
+msgid "%{provider} secret looks too short to be real (%{length} characters, expected at least %{min}) — double-check you copied the whole value"
+msgstr "Секрет %{provider} слишком короткий для настоящего (%{length} символов, ожидается не менее %{min}) — проверьте, что значение скопировано целиком"
+
+#: lib/phoenix_kit/users/oauth_config.ex:550
+#, elixir-autogen, elixir-format
+msgid "Could not reach Google to verify these credentials — check network connectivity and try again"
+msgstr "Не удалось связаться с Google для проверки этих учётных данных — проверьте сетевое подключение и повторите попытку"
+
+#: lib/phoenix_kit/users/oauth_config.ex:585
+#, elixir-autogen, elixir-format
+msgid "Google accepted these credentials. (The test authorization code was rejected, as expected — a full sign-in still requires the real OAuth flow.)"
+msgstr "Google принял эти учётные данные. (Тестовый код авторизации был отклонён, как и ожидалось — для полноценного входа по-прежнему нужен настоящий процесс OAuth.)"
+
+#: lib/phoenix_kit/users/oauth_config.ex:592
+#, elixir-autogen, elixir-format
+msgid "Google gave an inconclusive response (status %{status}) while checking these credentials — try again in a moment"
+msgstr "Google вернул неоднозначный ответ (статус %{status}) при проверке этих учётных данных — повторите попытку чуть позже"
+
+#: lib/phoenix_kit/users/oauth_config.ex:578
+#, elixir-autogen, elixir-format
+msgid "Google rejected these credentials (invalid_client) — the Client ID and Client Secret do not match a registered Google OAuth app"
+msgstr "Google отклонил эти учётные данные (invalid_client) — ID клиента и секрет клиента не соответствуют ни одному зарегистрированному приложению Google OAuth"
+
+#: lib/phoenix_kit/users/oauth_config.ex:298
+#, elixir-autogen, elixir-format
+msgid "Missing %{provider} OAuth credentials: %{fields}"
+msgstr "Отсутствуют учётные данные OAuth %{provider}: %{fields}"
+
+#: lib/phoenix_kit_web/live/settings/authorization.ex:123
+#, elixir-autogen, elixir-format
+msgid "OAuth configuration reloaded from database"
+msgstr "Конфигурация OAuth перезагружена из базы данных"

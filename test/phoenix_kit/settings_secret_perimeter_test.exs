@@ -6,8 +6,12 @@ defmodule PhoenixKit.SettingsSecretPerimeterTest do
   caught the billing-secrets gap, had the offending code lived inside core
   rather than in a separate hex package (see the scanner's own moduledoc for
   that boundary).
+
+  No database: the scan reads files and `restricted_setting_keys/0` is a
+  compile-time list, so this runs (and guards) even where Postgres is
+  unreachable — `DataCase` would tag it `:integration` and skip it there.
   """
-  use PhoenixKit.DataCase, async: false
+  use ExUnit.Case, async: true
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Test.SecretKeyPerimeter

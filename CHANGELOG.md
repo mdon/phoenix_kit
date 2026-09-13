@@ -1,7 +1,57 @@
-## Unreleased
+## 2.23.1 - 2026-09-13
+
+### Changed
+
+- **A module whose database schema is newer than its code is now reported
+  as "ahead of code", not "up to date"** (#806).
+  `PhoenixKit.Migrations.Modules.classify/2` returns a new `:ahead_of_code`
+  status for `installed > target` (a rollback, or a dependency pinned
+  backwards), with a matching `Modules.ahead_of_code/1` filter.
+  `mix phoenix_kit.status` shows it in red with a new
+  `{:modules_ahead_of_code, names}` next action; `mix phoenix_kit.doctor`
+  warns; `mix phoenix_kit.update` names it instead of printing "up to date".
+  When another module is genuinely behind, `update` is still the next action
+  and the ahead module is listed as an extra reason. Note:
+  `mix phoenix_kit.status --exit-code` exits non-zero for this state, as it
+  does for every non-Ready action, so a deploy gated on it fails after a
+  code rollback past a module migration.
+- **Apple Sign-In and billing-provider secrets are encrypted at rest**
+  (#807). `oauth_apple_private_key`, `billing_stripe_secret_key`,
+  `billing_stripe_webhook_secret`, `billing_stripe_api_key`,
+  `billing_paypal_client_secret`, `billing_paypal_webhook_secret`,
+  `billing_razorpay_key_secret`, `billing_razorpay_webhook_secret` and
+  `billing_everypay_api_secret` join `restricted_setting_keys/0`, so writes
+  through `Settings.update_setting/2` store `enc:v1:` ciphertext and
+  `Settings.get_setting/2` decrypts. phoenix_kit_billing reads every one of
+  them through `get_setting/2` and needs no change. Existing plaintext values
+  keep reading correctly and are encrypted on the next save or
+  `mix phoenix_kit.integrations.rotate_key`. The public identifiers (Stripe
+  publishable key, PayPal client/webhook ID, Razorpay key ID, EveryPay
+  username/account) stay unencrypted. A new test-support perimeter scan
+  asserts that every secret-shaped setting key core references or seeds is
+  restricted.
 
 ### Fixed
 
+- **Settings batch reads now actually fill cache misses from the database**
+  (#810). `Settings.get_settings_cached/2` and `get_json_settings_cached/2`
+  looked for a missing key in `Cache.get_multiple/3`'s result, but that
+  function returns every requested key and substitutes the default on a
+  miss, so a miss was never detected. A cold or expired cache read as `nil`
+  for every key without querying the database. This affected every
+  `get_settings_cached/2` caller, including phoenix_kit_web_analytics and
+  phoenix_kit_publishing. Misses are now detected with a sentinel. A
+  restricted key that fails to decrypt is answered but not cached, so the
+  next read retries, matching the boot warmer. A JSON read of a row with no
+  JSON value now caches `nil` instead of "not found".
+- **Activity feed order is stable when timestamps tie** (#809).
+  `Activity.list/1` and `Activity.recent/1` sorted by `inserted_at` alone,
+  so rows with the same timestamp (every pre-V185 whole-second row) could
+  come back in any order. They now add `uuid` as a tiebreak.
+- **A blocked role-permissions click shows a translated reason** (#805). The
+  Roles page flashed the raw error atom (`owner_immutable`). The message
+  mapping moved from `PermissionsMatrix` to
+  `Permissions.edit_role_permissions_error_message/1`, and both pages use it.
 - **The OAuth "Test Credentials" button now actually tests the credentials.**
   It compared each field to `""` and nothing else, so a 9-character Google
   client secret — or a field containing only a space — read as "properly
@@ -46,6 +96,13 @@
   All three providers' messages, on all three (now honest) outcomes, are
   gettext-wrapped, along with the adjacent "Reload Config" flash and the
   "Test Credentials" button name repeated in the on-page setup instructions.
+- **Post-merge review fixes (#808, #807).** The nine new OAuth msgids had
+  never been extracted, so every locale still rendered them in English. They
+  are now extracted and translated into de/es/et/fr/it/pl/ru. The Google
+  credential check no longer logs an exit/throw reason verbatim (a
+  `GenServer.call` exit reason embeds the call's arguments), matching the
+  `rescue` branch's rule. The secret-key perimeter test no longer runs under
+  `DataCase`, which had silently excluded it on database-less runs.
 
 ## 2.23.0 - 2026-09-13
 

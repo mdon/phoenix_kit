@@ -538,9 +538,11 @@ defmodule PhoenixKit.Users.OAuthConfig do
     # deadline — an `exit` from inside a `GenServer.call` in the request
     # path (e.g. a connection pool) is neither, and would otherwise surface
     # as Probe's plain, untagged `{:error, ...}` fallback just like a raise
-    # would.
-    kind, reason ->
-      Logger.warning("OAuth: Google credential check #{kind}ed: #{inspect(reason)}")
+    # would. Same rule as the `rescue` above: the exit/throw reason is never
+    # logged — a `GenServer.call` exit reason embeds the call's arguments, so
+    # only the kind is.
+    kind, _reason ->
+      Logger.warning("OAuth: Google credential check failed (#{kind})")
       {:inconclusive, google_inconclusive_message()}
   end
 
