@@ -34,9 +34,14 @@ defmodule PhoenixKit.Users.ActiveRole do
   without a database.
   """
 
+  require Logger
+
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Role
+  alias PhoenixKit.Users.Roles
+  alias PhoenixKit.Users.ScopeNotifier
 
   @custom_field_key "active_role_uuid"
 
@@ -190,6 +195,116 @@ defmodule PhoenixKit.Users.ActiveRole do
     config = config()
     active = resolve(held, stored_role_uuid(user), config)
     {active, effective_roles(held, active, config)}
+  end
+
+  @doc """
+  Makes `role_uuid` the role `user` acts as.
+
+  Refused unless the switcher is on and the role is one of the user's
+  switchable roles — and there are at least two of those, or there is nothing
+  to switch between. Switching to the role already in effect writes nothing.
+
+  On a change the choice is stored on the user, logged as
+  `session.role_switched`, and broadcast through `ScopeNotifier`, so every open
+  LiveView of this user — on every device — rebuilds its scope and leaves pages
+  the new role cannot reach.
+
+  The caller decides whether the session may switch at all (e.g. not while
+  impersonating); this function only knows the user.
+  """
+  @spec switch(User.t(), String.t()) ::
+          {:ok, User.t(), role()} | {:error, :disabled | :not_switchable | term()}
+  def switch(%User{} = user, role_uuid) when is_binary(role_uuid) do
+    config = config()
+    held = Roles.get_user_role_records(user)
+    candidates = switchable_roles(held, config)
+    target = Enum.find(candidates, &(&1.uuid == role_uuid))
+    current = resolve(held, stored_role_uuid(user), config)
+
+    cond do
+      not config.enabled? -> {:error, :disabled}
+      is_nil(target) or length(candidates) < 2 -> {:error, :not_switchable}
+      current && current.uuid == target.uuid -> {:ok, user, target}
+      true -> store_switch(user, current, target)
+    end
+  end
+
+  defp store_switch(user, current, target) do
+    case store(user, target.uuid) do
+      {:ok, user} ->
+        log_switch(user, current, target)
+        ScopeNotifier.broadcast_active_role_changed(user)
+        {:ok, user, target}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @doc """
+  Applies the sign-in rule (`sign_in_role/3`) to a user who is signing in and
+  returns the user as stored afterwards.
+
+  Called by `PhoenixKitWeb.Users.Auth.log_in_user/3` before the post-login
+  destination is resolved, so the landing page matches the role the session
+  starts in. Never raises: signing in must not fail over this, and a user left
+  with their previous stored role is still narrowed by `resolve/3` on every
+  read.
+  """
+  @spec apply_sign_in_role(User.t()) :: User.t()
+  def apply_sign_in_role(%User{} = user) do
+    config = config()
+
+    if config.enabled? do
+      stored = stored_role_uuid(user)
+
+      case sign_in_role(Roles.get_user_role_records(user), stored, config) do
+        nil ->
+          user
+
+        %{uuid: ^stored} ->
+          user
+
+        role ->
+          case store(user, role.uuid) do
+            {:ok, updated} ->
+              ScopeNotifier.broadcast_active_role_changed(updated)
+              updated
+
+            {:error, _} ->
+              user
+          end
+      end
+    else
+      user
+    end
+  rescue
+    error ->
+      Logger.warning("ActiveRole.apply_sign_in_role failed: #{inspect(error)}")
+      user
+  end
+
+  defp store(user, role_uuid) do
+    Auth.merge_user_custom_fields(user, %{@custom_field_key => role_uuid},
+      ensure_definitions: false
+    )
+  end
+
+  # The user is both actor and target, so `Activity.log/1` fans out no
+  # notification.
+  defp log_switch(user, from, to) do
+    PhoenixKit.Activity.log(%{
+      action: "session.role_switched",
+      module: "users",
+      mode: "auto",
+      actor_uuid: user.uuid,
+      resource_type: "user",
+      resource_uuid: user.uuid,
+      target_uuid: user.uuid,
+      metadata: %{"from" => from && from.name, "to" => to.name}
+    })
+  rescue
+    _ -> :ok
   end
 
   defp default_role(candidates) do

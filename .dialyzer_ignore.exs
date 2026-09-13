@@ -103,6 +103,10 @@
   # be the one place that reads as though the weaker check is in use.
   {"lib/phoenix_kit_web/controllers/upload_controller.ex", :call_without_opaque},
   {"lib/phoenix_kit_web/controllers/file_controller.ex", :call_without_opaque},
+  # Same inheritance: the role switch's redirect asks the freshly built scope
+  # (`conn_scope/1` -> `Scope.for_user/1`) `can_access_admin_area?/1` to decide
+  # whether admin-area destinations are still candidates.
+  {"lib/phoenix_kit_web/users/session.ex", :call_without_opaque},
   # Same inheritance: the invite-only gate's User clause has no scope to work
   # from, so it builds one with Scope.for_user/1 and passes it straight to
   # Scope.holds_all_enabled_permissions?/1.

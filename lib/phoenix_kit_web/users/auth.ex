@@ -51,6 +51,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Modules.Maintenance
+  alias PhoenixKit.Users.ActiveRole
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.{Scope, User}
   alias PhoenixKit.Users.LoginAlerts
@@ -120,6 +121,13 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   def log_in_user(conn, user, params) do
+    # Start in the role the switcher's sign-in rule picks — an Owner or Admin
+    # starts as that, under the default — BEFORE the destination below is
+    # resolved against this user's scope, so the landing page matches the role.
+    # A no-op while the role switcher is off. Remember-me restore does not come
+    # through here: it continues a session rather than starting one.
+    user = ActiveRole.apply_sign_in_role(user)
+
     # Create session fingerprint if enabled
     opts =
       if SessionFingerprint.fingerprinting_enabled?() do
@@ -1390,7 +1398,21 @@ defmodule PhoenixKitWeb.Users.Auth do
     Phoenix.Component.assign(socket, :phoenix_kit_scope_subscription_user_uuid, nil)
   end
 
-  defp handle_scope_refresh({:phoenix_kit_scope_roles_updated, user_uuid}, socket) do
+  defp handle_scope_refresh({:phoenix_kit_scope_roles_updated, user_uuid}, socket),
+    do: refresh_scope(user_uuid, :roles_updated, socket)
+
+  # The user switched the role they act as (`PhoenixKit.Users.ActiveRole`),
+  # possibly in another tab or on another device. Refreshed identically; only
+  # the copy shown if the page must be left differs.
+  defp handle_scope_refresh(
+         {:phoenix_kit_scope_roles_updated, user_uuid, :active_role_changed},
+         socket
+       ),
+       do: refresh_scope(user_uuid, :active_role_changed, socket)
+
+  defp handle_scope_refresh(_msg, socket), do: {:cont, socket}
+
+  defp refresh_scope(user_uuid, reason, socket) do
     current_scope = socket.assigns[:phoenix_kit_current_scope]
 
     if Scope.user_uuid(current_scope) == user_uuid do
@@ -1415,13 +1437,11 @@ defmodule PhoenixKitWeb.Users.Auth do
           socket.assigns[:phoenix_kit_current_module_key]
         )
 
-      {:halt, apply_scope_refresh_decision(socket, decision, new_scope)}
+      {:halt, apply_scope_refresh_decision(socket, decision, new_scope, reason)}
     else
       {:cont, socket}
     end
   end
-
-  defp handle_scope_refresh(_msg, socket), do: {:cont, socket}
 
   # What a mid-session permission change does to the page the visitor is on.
   # Pure — no socket, no flash, no navigation — so the branches are unit
@@ -1495,27 +1515,32 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
   end
 
-  defp apply_scope_refresh_decision(socket, :evict_admin_area, new_scope) do
+  defp apply_scope_refresh_decision(socket, :evict_admin_area, new_scope, reason) do
     socket
-    |> LiveView.put_flash(
-      :error,
-      gettext("You must be an admin to access this page.")
-    )
+    |> LiveView.put_flash(:error, eviction_message(:evict_admin_area, reason))
     |> LiveView.push_navigate(
       to: Routes.safe_destination(socket, scope: new_scope, skip_admin: true)
     )
   end
 
-  defp apply_scope_refresh_decision(socket, :evict_module, new_scope) do
+  defp apply_scope_refresh_decision(socket, :evict_module, new_scope, reason) do
     socket
-    |> LiveView.put_flash(
-      :error,
-      gettext("You no longer have permission to access this section.")
-    )
+    |> LiveView.put_flash(:error, eviction_message(:evict_module, reason))
     |> LiveView.push_navigate(to: best_available_admin_path(socket, new_scope))
   end
 
-  defp apply_scope_refresh_decision(socket, :stay, _new_scope), do: socket
+  defp apply_scope_refresh_decision(socket, :stay, _new_scope, _reason), do: socket
+
+  # "You must be an admin" reads as an accusation to someone who just chose to
+  # act as another role, so a switch gets its own copy.
+  defp eviction_message(_decision, :active_role_changed),
+    do: gettext("This page is not available in the role you switched to.")
+
+  defp eviction_message(:evict_admin_area, _reason),
+    do: gettext("You must be an admin to access this page.")
+
+  defp eviction_message(:evict_module, _reason),
+    do: gettext("You no longer have permission to access this section.")
 
   # Lets a LiveView re-derive whatever it computed from the scope, now that the
   # scope has changed under it.
@@ -2430,7 +2455,10 @@ defmodule PhoenixKitWeb.Users.Auth do
       %User{uuid: user_uuid} ->
         case Auth.get_user(user_uuid) do
           %User{} = user ->
-            scope = Scope.for_user(user)
+            scope =
+              user
+              |> Scope.for_user()
+              |> carry_multi_session_fields(socket.assigns[:phoenix_kit_current_scope])
 
             socket =
               socket
@@ -2457,6 +2485,20 @@ defmodule PhoenixKitWeb.Users.Auth do
         {socket, scope}
     end
   end
+
+  # `Scope.for_user/1` knows nothing of the session, so the account switcher's
+  # fields come over from the scope being replaced. Rebuilding without them
+  # emptied the header's account list after every role or permission change
+  # until the next full page load.
+  defp carry_multi_session_fields(%Scope{} = scope, %Scope{} = previous) do
+    %{
+      scope
+      | multi_session_accounts: previous.multi_session_accounts,
+        multi_session_allowed?: previous.multi_session_allowed?
+    }
+  end
+
+  defp carry_multi_session_fields(scope, _previous), do: scope
 
   @doc false
   def init(opts), do: opts

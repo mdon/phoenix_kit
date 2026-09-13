@@ -20,6 +20,34 @@
   `role_switcher_location`, `role_switcher_sign_in_role`,
   `role_switcher_always_on_roles`. Design:
   `dev_docs/plans/2026-09-13-active-role.md`.
+- **Switching the active role** — `PUT /users/session/role` (`role_uuid`,
+  optional `return_to`) through `ActiveRole.switch/2`: refused unless the
+  switcher is on and the role is one of the user's switchable roles, logged as
+  `session.role_switched`, and broadcast so every open LiveView of the user,
+  on every device, rebuilds its scope and leaves pages the new role cannot
+  reach ("This page is not available in the role you switched to."). A switch
+  into a role with no admin-area access never follows `return_to` into the
+  admin area. Refused while impersonating, since the role is stored on the
+  borrowed account.
+- **Sign-in role** (`role_switcher_sign_in_role`) — under `staff_first` (the
+  default) an Owner or Admin starts every sign-in as that role, whatever they
+  used last; everyone else continues as their last role. `last_used` keeps the
+  last role for everyone. Applied in `log_in_user/3`, so password, magic link,
+  QR, OAuth and registration auto-login all honour it; remember-me restore
+  does not reset.
+
+### Fixed
+
+- **An Admin acting as another role could still impersonate.** The
+  impersonation authority now reads the root account's roles in effect, so it
+  follows the active role even for a hand-crafted POST. Targets are still
+  judged by their real roles.
+- **"You cannot edit your own role" ignored roles you hold but are not acting
+  as.** `Permissions.can_edit_role_permissions?/2` now checks
+  `Scope.held_roles/1`.
+- **A role or permission change emptied the header's account switcher** until
+  the next full page load: the LiveView scope refresh rebuilt the scope
+  without the multi-session fields. They are now carried over.
 
 ## 2.22.24 - 2026-09-12
 

@@ -1374,7 +1374,10 @@ defmodule PhoenixKit.Users.Permissions do
   end
 
   defp can_edit_role_permissions_check(scope, role) do
-    user_roles = Scope.user_roles(scope)
+    # Every role the user REALLY holds, not only the one they are acting as
+    # (`PhoenixKit.Users.ActiveRole`): acting as "Seller" must not make the
+    # user's other roles editable by them.
+    user_roles = Scope.held_roles(scope)
 
     cond do
       role.name == "Owner" ->

@@ -185,8 +185,11 @@ account switching is a controller). Added to **both** route blocks in
    `scope_refresh_decision/4` if it lost access.
 
 Redirect: `Routes.safe_destination(conn, scope: new_scope, return_to: …)`,
-which already rejects paths the new scope cannot reach and terminates at a
-reachable page. Scope built with `conn_scope/1`-style freshness.
+with the scope read from the session after the switch. `safe_destination/2`
+only proves a path *routable*, not reachable by the scope, so when the new
+role has no admin-area access the call passes `skip_admin: true` — which
+rejects admin-area candidates — instead of following `return_to` into an admin
+page whose gate would bounce the user with "You must be an admin".
 
 Eviction flash: the existing copy ("You must be an admin to access this page")
 reads wrong after a deliberate switch. The refresh handler cannot tell a switch

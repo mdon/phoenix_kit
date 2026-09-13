@@ -52,6 +52,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Role
   alias PhoenixKit.Users.Sessions
   alias PhoenixKit.Utils.IpAddress
@@ -59,6 +60,11 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   @stack_key :pk_session_accounts
   @max_accounts 5
+
+  # Tokens `impersonate/2` added. Only ever grows within a session: a removed or
+  # logged-out token is deleted from the DB and cannot become active again, and
+  # a fresh login's `renew_session/1` clears the whole session.
+  @impersonated_key :pk_impersonated_tokens
 
   # The durable mirror of the accounts ADDED beyond the remembered one. Separate
   # from the remember-me cookie rather than folded into it: that cookie's value
@@ -345,7 +351,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
       :ok ->
         case add_authenticated_user(conn, target, event: "session.impersonated", persist: false) do
           {:ok, conn} ->
-            {:ok, conn}
+            {:ok, mark_impersonated(conn)}
 
           {:error, reason} = error ->
             log_impersonation_refused(actor, target, reason)
@@ -356,6 +362,23 @@ defmodule PhoenixKitWeb.Users.MultiSession do
         log_impersonation_refused(actor, target, reason)
         error
     end
+  end
+
+  # `add_authenticated_user/3` has just made the impersonated token active.
+  defp mark_impersonated(conn) do
+    token = get_session(conn, :user_token)
+
+    put_session(conn, @impersonated_key, [token | List.wrap(get_session(conn, @impersonated_key))])
+  end
+
+  @doc """
+  True when the active account is one `impersonate/2` added — the session is
+  borrowing someone else's account rather than using one of its own.
+  """
+  @spec impersonating?(map()) :: boolean()
+  def impersonating?(session) when is_map(session) do
+    token = session["user_token"]
+    is_binary(token) and token in List.wrap(session[Atom.to_string(@impersonated_key)])
   end
 
   @doc """
@@ -428,7 +451,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   def impersonable?(%Auth.User{} = actor, %Auth.User{is_active: true} = target) do
     decide_impersonation(
       actor.uuid,
-      Auth.User.get_roles(actor),
+      actor_roles(actor),
       target.uuid,
       role_names(target)
     ) == :ok
@@ -458,7 +481,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   def impersonable_uuids(nil, _users), do: MapSet.new()
 
   def impersonable_uuids(%Auth.User{} = actor, users) when is_list(users) do
-    actor_roles = Auth.User.get_roles(actor)
+    actor_roles = actor_roles(actor)
 
     for %Auth.User{is_active: true} = user <- users,
         decide_impersonation(actor.uuid, actor_roles, user.uuid, role_names(user)) == :ok,
@@ -486,11 +509,18 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   defp authorize_impersonation(%Auth.User{} = actor, %Auth.User{} = target) do
     decide_impersonation(
       actor.uuid,
-      Auth.User.get_roles(actor),
+      actor_roles(actor),
       target.uuid,
       Auth.User.get_roles(target)
     )
   end
+
+  # The ACTOR's roles in effect, narrowed to the role they are acting as
+  # (`PhoenixKit.Users.ActiveRole`): an Admin acting as "Seller" holds no
+  # impersonation authority, not even by crafting the POST. Targets keep their
+  # REAL roles (`role_names/1`, `get_roles/1`) — an Admin acting as a custom
+  # role is still an administrator to be protected from being borrowed.
+  defp actor_roles(%Auth.User{} = actor), do: Scope.for_user(actor).cached_roles
 
   # The rule itself, over role names already in hand. Separated from the lookups
   # so a list render can decide many targets against one actor read; every
@@ -522,7 +552,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   # Owner or Admin by ROLE. Deliberately not `can_access_admin_area?/1` — see
   # `impersonate/2`'s docstring for why a permission check opens the door to
   # any customer holding one self-service permission.
-  defp staff?(%Auth.User{} = user), do: user |> Auth.User.get_roles() |> staff_roles?()
+  defp staff?(%Auth.User{} = user), do: user |> actor_roles() |> staff_roles?()
 
   defp staff_roles?(roles) when is_list(roles) do
     system = Role.system_roles()

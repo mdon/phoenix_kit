@@ -16,6 +16,7 @@ defmodule PhoenixKitWeb.Users.Session do
   """
   use PhoenixKitWeb, :controller
 
+  alias PhoenixKit.Users.ActiveRole
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.IpAddress
@@ -155,7 +156,9 @@ defmodule PhoenixKitWeb.Users.Session do
   # now-impersonated plain user to `/admin`, which then denies them.
   #
   # `with_gate/3` refuses before any mutation, so the same read is correct there.
-  defp conn_scope(conn) do
+  defp conn_scope(conn), do: conn |> session_user() |> Scope.for_user()
+
+  defp session_user(conn) do
     conn
     |> get_session(:user_token)
     |> case do
@@ -167,7 +170,76 @@ defmodule PhoenixKitWeb.Users.Session do
     # so this is defence in depth rather than the control — but the filter
     # belongs on every token resolution, not only the ones currently load-bearing.
     |> Auth.ensure_active_user()
-    |> Scope.for_user()
+  end
+
+  @doc """
+  Switches the role the ACTIVE account acts as (`PhoenixKit.Users.ActiveRole`).
+
+  A plain form PUT, like the account switcher: the switcher renders in the
+  layout, where a `phx-click` would land in whichever LiveView the page
+  mounted. See `redirect_after_role_switch/2` for where it lands.
+
+  Refused while impersonating: the role is stored on the user, so a switch
+  would rewrite the borrowed account's own choice.
+  """
+  def set_active_role(conn, %{"role_uuid" => role_uuid} = params) when is_binary(role_uuid) do
+    case session_user(conn) do
+      nil ->
+        conn
+        |> put_flash(:error, gettext("You must log in to access this page."))
+        |> redirect(to: Routes.path("/users/log-in"))
+
+      user ->
+        if MultiSession.impersonating?(get_session(conn)) do
+          conn
+          |> put_flash(
+            :error,
+            gettext("You cannot switch roles while signed in as another user.")
+          )
+          |> redirect_back(params)
+        else
+          do_set_active_role(conn, user, role_uuid, params)
+        end
+    end
+  end
+
+  def set_active_role(conn, params) do
+    conn
+    |> put_flash(:error, gettext("Could not switch to that role."))
+    |> redirect_back(params)
+  end
+
+  defp do_set_active_role(conn, user, role_uuid, params) do
+    case ActiveRole.switch(user, role_uuid) do
+      {:ok, _user, role} ->
+        conn
+        |> put_flash(:info, gettext("You are now acting as %{role}.", role: role.name))
+        |> redirect_after_role_switch(params)
+
+      {:error, _reason} ->
+        conn
+        |> put_flash(:error, gettext("Could not switch to that role."))
+        |> redirect_back(params)
+    end
+  end
+
+  # The scope is read from the session AFTER the switch, so it is the new
+  # role's. `safe_destination/2` only proves a path routable, not reachable by
+  # that scope, so a role with no admin-area access passes `skip_admin`, which
+  # rejects admin-area candidates: switching to "Seller" from an admin page
+  # must not follow `return_to` straight into that page's gate and its
+  # "You must be an admin" bounce.
+  defp redirect_after_role_switch(conn, params) do
+    scope = conn_scope(conn)
+
+    redirect(conn,
+      to:
+        Routes.safe_destination(conn,
+          scope: scope,
+          return_to: params["return_to"],
+          skip_admin: not Scope.can_access_admin_area?(scope)
+        )
+    )
   end
 
   # Changing a password deletes every token for the user, the one inside the

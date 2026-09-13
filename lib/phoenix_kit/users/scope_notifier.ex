@@ -29,6 +29,26 @@ defmodule PhoenixKit.Users.ScopeNotifier do
   def broadcast_roles_updated(_), do: :ok
 
   @doc """
+  Broadcasts that the user changed the role they act as
+  (`PhoenixKit.Users.ActiveRole`). Refreshed exactly like
+  `broadcast_roles_updated/1`; the extra element lets a page that the new role
+  cannot reach say why it is sending the visitor away.
+  """
+  @spec broadcast_active_role_changed(User.t() | binary() | nil) :: :ok
+  def broadcast_active_role_changed(%User{uuid: user_uuid}) when is_binary(user_uuid) do
+    broadcast_active_role_changed(user_uuid)
+  end
+
+  def broadcast_active_role_changed(user_uuid) when is_binary(user_uuid) do
+    Manager.broadcast(
+      topic(user_uuid),
+      {:phoenix_kit_scope_roles_updated, user_uuid, :active_role_changed}
+    )
+  end
+
+  def broadcast_active_role_changed(_), do: :ok
+
+  @doc """
   Subscribes the current process to scope refresh notifications for the user.
   """
   @spec subscribe(User.t() | binary()) :: :ok | {:error, term()}

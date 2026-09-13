@@ -8,6 +8,9 @@ defmodule PhoenixKit.Users.ActiveRoleTest do
   alias PhoenixKit.Users.ActiveRole
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.Permissions
+  alias PhoenixKit.Users.Role
+  alias PhoenixKitWeb.Users.MultiSession
 
   @owner %{uuid: "role-owner", name: "Owner"}
   @admin %{uuid: "role-admin", name: "Admin"}
@@ -180,6 +183,53 @@ defmodule PhoenixKit.Users.ActiveRoleTest do
       assert Scope.held_roles(nil) == []
       assert Scope.active_role(nil) == nil
       refute Scope.narrowed?(nil)
+    end
+  end
+
+  describe "Permissions.can_edit_role_permissions?/2 while narrowed" do
+    test "a role the user holds but is not acting as is still their own" do
+      scope = %Scope{
+        user: %User{uuid: "u1"},
+        authenticated?: true,
+        cached_roles: ["Seller", "User"],
+        cached_permissions: MapSet.new(["users"]),
+        held_roles: ["Buyer", "Seller", "User"],
+        active_role: @seller
+      }
+
+      assert Permissions.can_edit_role_permissions?(scope, %Role{name: "Buyer"}) ==
+               {:error, :self_role}
+    end
+
+    test "an Admin acting as a custom role cannot edit the Admin role" do
+      scope = %Scope{
+        user: %User{uuid: "u1"},
+        authenticated?: true,
+        cached_roles: ["Seller"],
+        cached_permissions: MapSet.new(["users"]),
+        held_roles: ["Admin", "Seller"],
+        active_role: @seller
+      }
+
+      assert Permissions.can_edit_role_permissions?(scope, %Role{name: "Admin"}) ==
+               {:error, :self_role}
+    end
+  end
+
+  describe "MultiSession.impersonating?/1" do
+    test "true only when the active token is one impersonate/2 added" do
+      assert MultiSession.impersonating?(%{
+               "user_token" => "t2",
+               "pk_impersonated_tokens" => ["t2"]
+             })
+
+      refute MultiSession.impersonating?(%{
+               "user_token" => "t1",
+               "pk_impersonated_tokens" => ["t2"]
+             })
+
+      refute MultiSession.impersonating?(%{"user_token" => "t1"})
+      refute MultiSession.impersonating?(%{})
     end
   end
 end
