@@ -99,10 +99,9 @@ defmodule PhoenixKit.SettingsTest do
     # they were never added to get_defaults/0, so the partition invariant
     # does not examine them at all (see "every get_defaults/0 key is
     # classified exactly once" above — it only walks get_defaults/0's own
-    # keys). That gap predates this fix and is not this fix's to close;
-    # this test only pins down the one guarantee this fix actually owns
-    # for them: a value the provider's own design makes public was not
-    # swept into @restricted_setting_keys by the test above.
+    # keys). That gap is outside this test's scope; it only pins down that
+    # these public identifiers, made public by the provider's own design,
+    # were not swept into @restricted_setting_keys by the test above.
     test "the billing provider identifiers meant for client-side use were not swept into the restricted list" do
       for key <- ~w(
             billing_stripe_publishable_key
