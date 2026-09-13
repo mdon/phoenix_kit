@@ -698,7 +698,9 @@ R5, R7, R9, R10 → then the maintainer's multi-agent review.
 The five questions above were answered the same day. Three of the answers
 contradict the plan's central decision, so this section supersedes
 "The central decision: where the active role lives" in Part 2 and the
-per-user consequences in Part 1. **Nothing below is built yet.**
+per-user consequences in Part 1. **Built** — the maintainer approved this
+redesign the same day and it landed as commit `81171863`; "Second build —
+as built" below records what shipped where it differs from this proposal.
 
 ### What the maintainer said
 
@@ -885,14 +887,16 @@ marker and the custom-field key; (3) role order + reorder modal + default
 sessions lists + R4 + docs/CHANGELOG/translations. Each stage `mix precommit`
 + the feature files against `beamlab_test`, as before.
 
-### Open before building
+### Confirmed before building (maintainer, 2026-09-13)
 
-1. Confirm the redesign (token-row storage, `NULL` = default, role order as
-   the default rule, drop `role_switcher_sign_in_role`).
-2. Revocation scope on role removal: only the sessions *in* that role
-   (recommended) or all of the user's sessions (literal answer)?
-3. Reorder UI: the Roles page (`/admin/users/roles`) is the natural place;
-   confirm, since it is the first non-list-style use of the reorder modal there.
+1. The redesign as written (token-row storage, `NULL` = default, role order
+   as the default rule, drop `role_switcher_sign_in_role`) — **go**.
+2. Revocation on role removal: **only the sessions acting as that role**.
+3. Reorder UI on the Roles page (`/admin/users/roles`) — **confirmed**; built
+   with the drag-and-drop table (`sortable_tbody`) plus arrows rather than
+   the strategy-picker modal, which sorts rather than orders.
+
+Browser testing is deferred to the maintainer's deployment.
 
 ## Second build — as built (per session), 2026-09-13
 
@@ -993,7 +997,10 @@ R1 fixed · R2/R3/R6/R8/R10 moot (no user-row write, no sign-in write, no
 marker, no session → default) · R4 fixed role-agnostically · R5/R7/R9
 documented in the guide · plan risks 2 and 9 closed by construction. Open:
 N1–N6 nitpicks (N5 moot), the sibling follow-ups, and browser verification
-of the reorder UI.
+of the reorder UI and the header switcher — **the maintainer will do that
+on deployment**. Gates: `mix precommit` exit 0; full suite 4991 tests,
+1 failure (the pre-existing MediaBrowser sidebar-toggle test, unrelated).
+Next step: the maintainer's multi-agent review, then version bump + publish.
 
 ---
 
