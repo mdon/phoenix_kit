@@ -6906,6 +6906,10 @@ msgstr "Plik / obraz"
 msgid "File moved to trash"
 msgstr "Plik przeniesiony do kosza"
 
+#, elixir-autogen, elixir-format
+msgid "File removed from this folder"
+msgstr "Plik usunięto z tego folderu"
+
 #: lib/phoenix_kit_web/components/media_browser.ex:1160
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:41
 #, elixir-autogen, elixir-format

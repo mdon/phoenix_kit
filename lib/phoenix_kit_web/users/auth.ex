@@ -967,10 +967,10 @@ defmodule PhoenixKitWeb.Users.Auth do
       :ok ->
         {:cont, socket}
 
-      {:halt, message, target} ->
+      {:halt, kind, message, target} ->
         socket =
           socket
-          |> Phoenix.LiveView.put_flash(:error, message)
+          |> Phoenix.LiveView.put_flash(kind, message)
           |> Phoenix.LiveView.redirect(to: path_with_return_to(socket, target))
 
         {:halt, socket}
@@ -2521,9 +2521,9 @@ defmodule PhoenixKitWeb.Users.Auth do
         :ok ->
           conn
 
-        {:halt, message, target} ->
+        {:halt, kind, message, target} ->
           conn
-          |> put_flash(:error, message)
+          |> put_flash(kind, message)
           |> maybe_store_return_to()
           |> redirect(to: Routes.path(target))
           |> halt()
@@ -2576,17 +2576,22 @@ defmodule PhoenixKitWeb.Users.Auth do
   # which is how the invite-only gate reached eleven call sites without eleven
   # copies of the rule.
   #
-  # Returns `:ok`, or `{:halt, flash_message, path}` where `path` is the page
-  # that will unblock the user. Callers turn that into a conn or socket
-  # redirect and are responsible for carrying `return_to`.
+  # Returns `:ok`, or `{:halt, flash_kind, flash_message, path}` where `path`
+  # is the page that will unblock the user. Callers turn that into a conn or
+  # socket redirect and are responsible for carrying `return_to`.
+  #
+  # Both halts are `:warning`, not `:error`: the account is fine and the user
+  # is being asked to do one routine thing ("check your inbox", "enter your
+  # code"). Error styling made a first visit to the app look like a failure
+  # (reported from topp.ee).
   defp account_gate(subject) do
     cond do
       not email_confirmed?(subject) and confirmation_required?() ->
-        {:halt, gettext("Please confirm your email before accessing the application."),
+        {:halt, :warning, gettext("Please confirm your email before accessing the application."),
          "/users/confirm"}
 
       not Referrals.access_satisfied?(subject) ->
-        {:halt, gettext("Enter your referral code to continue."), "/users/referral"}
+        {:halt, :warning, gettext("Enter your referral code to continue."), "/users/referral"}
 
       true ->
         :ok
@@ -2612,10 +2617,10 @@ defmodule PhoenixKitWeb.Users.Auth do
   # asks them to satisfy their account is nonsense.
   defp enforce_account_gate(conn, scope) do
     with true <- Scope.authenticated?(scope),
-         {:halt, message, target} <- account_gate(scope) do
+         {:halt, kind, message, target} <- account_gate(scope) do
       {:halt,
        conn
-       |> put_flash(:error, message)
+       |> put_flash(kind, message)
        |> maybe_store_return_to()
        |> redirect(to: Routes.path(target))
        |> halt()}
