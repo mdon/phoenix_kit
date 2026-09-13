@@ -38,7 +38,7 @@ Line numbers below are as of commit `45b53e56`.
    | 4–5 | `45b53e56` | Add the Roles settings tab, active-role docs and translations |
 
    `git diff 7909e5f3..45b53e56` is the whole feature
-   (≈2,500 lines excluding `priv/gettext`, of which ≈1,000 are tests and ≈470
+   (≈2,500 lines excluding `priv/gettext`, of which ≈880 are tests and ≈470
    docs).
 3. Start with `lib/phoenix_kit/users/active_role.ex` (the rules, mostly pure)
    and `Scope.for_user/1` (the one place narrowing is applied). Everything else
@@ -374,8 +374,13 @@ page files are `async: false` like their neighbour).
 
 ## Gates run
 
-Every stage: `mix precommit` exit 0 (compile warnings-as-errors, credo --strict,
-dialyzer, format) and the full `mix test` against `beamlab_test`.
+Every stage ended clean on compile (warnings as errors), format, credo
+--strict and dialyzer, and ran the full `mix test` against `beamlab_test`.
+Stages 1, 3 and 4–5 finished with a whole `mix precommit` at exit 0. Stage 2's
+precommit failed only on dialyzer (`call_without_opaque` at `session.ex`);
+after the `.dialyzer_ignore.exs` entry, `mix dialyzer` alone was re-run to
+exit 0 — compile, credo and format had already passed in that same precommit
+run, and every later stage's full precommit covers stage 2's code too.
 
 | After | Full suite | Failures |
 |---|---|---|
