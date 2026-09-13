@@ -989,6 +989,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       modules = MigrationModules.list(prefix: prefix)
 
       report_unreadable_modules(modules)
+      report_ahead_modules(modules)
 
       case MigrationModules.pending(modules) do
         [] ->
@@ -1069,6 +1070,13 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
                 "Run mix phoenix_kit.status to confirm its schema version."
             )
 
+          %{status: :ahead_of_code, installed: installed} ->
+            Mix.shell().error(
+              "❌ #{entry.name} is now at V#{pad_version(installed)}, ahead of what " <>
+                "#{inspect(entry.migration_module)} expects (V#{pad_version(entry.target)}). " <>
+                "Something else migrated it further than this run asked for."
+            )
+
           %{installed: installed} ->
             Mix.shell().error(
               "❌ #{entry.name} is still at V#{pad_version(installed)}, expected " <>
@@ -1102,11 +1110,36 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       end
     end
 
+    # An ahead-of-code module is not pending — nothing here would migrate
+    # it — but it must not be silently reported as up to date either. Called
+    # unconditionally, same as `report_unreadable_modules/1`, so it still
+    # surfaces on a run where some other module IS pending and
+    # `report_modules_up_to_date/1` never runs.
+    defp report_ahead_modules(modules) do
+      case MigrationModules.ahead_of_code(modules) do
+        [] ->
+          :ok
+
+        ahead ->
+          Enum.each(ahead, fn entry ->
+            Mix.shell().info(
+              "⚠️  #{entry.name}: V#{pad_version(entry.installed)} is ahead of code " <>
+                "(code expects V#{pad_version(entry.target)}) — rollback or a backwards-pinned dependency?"
+            )
+          end)
+      end
+    end
+
     defp report_modules_up_to_date([]), do: :ok
 
     defp report_modules_up_to_date(modules) do
       Enum.each(modules, fn
         %{status: :error} ->
+          :ok
+
+        # Already reported by `report_ahead_modules/1` (called unconditionally
+        # before this runs) — skipped here to avoid printing it twice.
+        %{status: :ahead_of_code} ->
           :ok
 
         entry ->
@@ -1560,6 +1593,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     defp format_module_version(%{status: :up_to_date} = entry) do
       "#{IO.ANSI.green()}V#{pad_version(entry.installed)} ✅#{IO.ANSI.reset()}"
+    end
+
+    defp format_module_version(%{status: :ahead_of_code} = entry) do
+      "#{IO.ANSI.red()}V#{pad_version(entry.installed)} ⚠ ahead of code (code expects V#{pad_version(entry.target)})#{IO.ANSI.reset()}"
     end
 
     defp format_module_version(entry) do

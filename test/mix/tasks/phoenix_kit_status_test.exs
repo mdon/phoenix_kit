@@ -34,6 +34,11 @@ defmodule Mix.Tasks.PhoenixKit.StatusTest do
                1
     end
 
+    test "a module ahead of code → 1" do
+      action = {:modules_ahead_of_code, ["Boards"]}
+      assert StatusTask.exit_code(action, [module_entry(:ahead_of_code, 3, 2)]) == 1
+    end
+
     test "unreadable core version comment → 1" do
       assert StatusTask.exit_code({:fix_version_comment, "mix phoenix_kit.doctor"}, []) == 1
     end
@@ -78,6 +83,11 @@ defmodule Mix.Tasks.PhoenixKit.StatusTest do
         StatusReport.next_action(
           {:up_to_date, 166},
           [module_entry(:needs_update, 1, 2)],
+          "public"
+        ),
+        StatusReport.next_action(
+          {:up_to_date, 166},
+          [module_entry(:ahead_of_code, 3, 2)],
           "public"
         )
       ]

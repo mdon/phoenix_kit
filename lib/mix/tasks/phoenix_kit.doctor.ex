@@ -658,10 +658,18 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # admin page — no migration error, and `doctor` previously gave the install a
   # clean bill of health, which is the worst possible moment to be reassuring.
   defp check_module_schema_versions(prefix) do
-    modules = MigrationModules.list(prefix: prefix)
+    module_schema_versions_result(MigrationModules.list(prefix: prefix))
+  end
 
+  # Exposed (not `defp`) and `@doc false`, same reason as the other pure
+  # decision functions in this module: it takes an already-fetched module
+  # list, so a test can pin every classification this check makes without a
+  # database.
+  @doc false
+  def module_schema_versions_result(modules) do
     failed = MigrationModules.failed(modules)
     pending = MigrationModules.pending(modules)
+    ahead = MigrationModules.ahead_of_code(modules)
 
     cond do
       modules == [] ->
@@ -669,13 +677,21 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
       pending != [] ->
         {:fail,
-         "Behind: #{describe_module_versions(pending)}#{unreadable_suffix(failed)}. " <>
+         "Behind: #{describe_module_versions(pending)}#{unreadable_suffix(failed)}#{ahead_suffix(ahead)}. " <>
            "Run mix phoenix_kit.update --yes (mix ecto.migrate alone does not write these)."}
 
       failed != [] ->
         {:warn,
          "Version unreadable for #{Enum.map_join(failed, ", ", & &1.name)} — " <>
            "their tables may be behind and nothing can tell. See mix phoenix_kit.status --verbose."}
+
+      # Not pending — `mix phoenix_kit.update` has nothing to run — but a
+      # database newer than the code now running is a rollback or a
+      # backwards-pinned dependency, not a clean bill of health.
+      ahead != [] ->
+        {:warn,
+         "Ahead of code: #{describe_module_versions(ahead)}. " <>
+           "Database schema is newer than the running code — rollback or a backwards-pinned dependency?"}
 
       true ->
         {:pass, "#{length(modules)} module(s), all at the version their code expects."}
@@ -699,6 +715,14 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   defp unreadable_suffix(failed),
     do: "; version unreadable for #{Enum.map_join(failed, ", ", & &1.name)}"
+
+  # Same reasoning as `unreadable_suffix/1`: a pending module and an
+  # ahead-of-code module are not alternatives, and `:fail` must not swallow
+  # the ahead one silently just because it isn't what made this run fail.
+  defp ahead_suffix([]), do: ""
+
+  defp ahead_suffix(ahead),
+    do: "; ahead of code: #{describe_module_versions(ahead)}"
 
   defp check_schema_drift(prefix) do
     repo = get_repo!()

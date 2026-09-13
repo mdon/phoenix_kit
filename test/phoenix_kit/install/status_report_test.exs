@@ -139,6 +139,51 @@ defmodule PhoenixKit.Install.StatusReportTest do
       assert StatusReport.next_action({:up_to_date, 159}, :not_queried, "public") ==
                {:ready, "Ready"}
     end
+
+    # Neither `pending` (nothing for `mix phoenix_kit.update` to run) nor
+    # `failed` (its version reads fine) — folding this into Ready would hide a
+    # rollback/backwards-pinned dependency exactly like the core-level bug
+    # this whole distinction exists to fix.
+    test "a module ahead of code is NOT Ready" do
+      modules = [entry("Boards", 1, 1, :up_to_date), entry("Inbox", 3, 2, :ahead_of_code)]
+
+      assert StatusReport.next_action({:up_to_date, 159}, modules, "public") ==
+               {:modules_ahead_of_code, ["Inbox"]}
+    end
+
+    test "an unreadable module takes priority over an ahead-of-code one" do
+      modules = [error_entry("Broken"), entry("Inbox", 3, 2, :ahead_of_code)]
+
+      assert {:check_modules, ["Broken"]} =
+               StatusReport.next_action({:up_to_date, 159}, modules, "public")
+    end
+
+    test "core behind AND a module ahead of code report both in one action" do
+      modules = [entry("Inbox", 3, 2, :ahead_of_code)]
+
+      assert {:update, _cmd, reasons} =
+               StatusReport.next_action({:needs_update, 159, 160}, modules, "public")
+
+      assert reasons == [
+               "database is V159, code expects V160",
+               "module schema ahead of code: Inbox"
+             ]
+    end
+
+    # `pending` must win over `ahead`: an ahead-of-code module does not stop
+    # `mix phoenix_kit.update` from fixing a *different* module that is
+    # genuinely behind, and the ahead module must still be named, not dropped.
+    test "one module behind and another ahead of code are BOTH reported, update wins" do
+      modules = [entry("Boards", 1, 2, :needs_update), entry("Inbox", 3, 2, :ahead_of_code)]
+
+      assert {:update, "mix phoenix_kit.update", reasons} =
+               StatusReport.next_action({:up_to_date, 159}, modules, "public")
+
+      assert reasons == [
+               "module schema behind: Boards",
+               "module schema ahead of code: Inbox"
+             ]
+    end
   end
 
   describe "prefix handling" do
@@ -169,6 +214,7 @@ defmodule PhoenixKit.Install.StatusReportTest do
         {:update, "mix phoenix_kit.update", ["reason"]},
         {:update, "mix phoenix_kit.update", []},
         {:check_modules, ["Broken"]},
+        {:modules_ahead_of_code, ["Inbox"]},
         {:ready, "Ready"}
       ]
 
@@ -191,6 +237,7 @@ defmodule PhoenixKit.Install.StatusReportTest do
     test "returns nil for actions that are not commands" do
       assert StatusReport.command({:ready, "Ready"}) == nil
       assert StatusReport.command({:check_modules, ["Broken"]}) == nil
+      assert StatusReport.command({:modules_ahead_of_code, ["Inbox"]}) == nil
       assert StatusReport.command({:fix_connection, "..."}) == nil
     end
   end

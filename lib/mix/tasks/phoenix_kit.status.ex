@@ -257,21 +257,38 @@ defmodule Mix.Tasks.PhoenixKit.Status do
   defp format_modules_summary(modules) do
     pending = MigrationModules.pending(modules)
     failed = MigrationModules.failed(modules)
+    ahead = MigrationModules.ahead_of_code(modules)
     count = "#{length(modules)} #{pluralize(length(modules), "module", "modules")}"
 
     cond do
       failed != [] ->
         "#{IO.ANSI.red()}#{count}, #{length(failed)} unreadable ❌#{IO.ANSI.reset()}"
 
-      # "behind", not "updates available" — same reasoning as the core version
-      # line: this is measured against the installed code, not against Hex, so
-      # nothing here is an optional upgrade being offered.
-      pending != [] ->
-        "#{IO.ANSI.yellow()}#{count}, #{length(pending)} behind ⚠#{IO.ANSI.reset()}"
+      # Pending and ahead-of-code are not alternatives — one run can hold
+      # both, and each needs to say so: a pending module doesn't excuse an
+      # ahead-of-code one from being reported, and an ahead-of-code module
+      # must not push this into "all up to date" (a rollback or a
+      # backwards-pinned dependency reporting healthy is exactly the defect
+      # this status distinction exists to surface).
+      pending != [] or ahead != [] ->
+        color = if ahead != [], do: IO.ANSI.red(), else: IO.ANSI.yellow()
+        "#{color}#{count}, #{module_status_summary_parts(pending, ahead)}#{IO.ANSI.reset()}"
 
       true ->
         "#{IO.ANSI.green()}#{count}, all up to date ✅#{IO.ANSI.reset()}"
     end
+  end
+
+  # "behind", not "updates available" — same reasoning as the core version
+  # line: this is measured against the installed code, not against Hex, so
+  # nothing here is an optional upgrade being offered.
+  defp module_status_summary_parts(pending, ahead) do
+    [
+      if(pending != [], do: "#{length(pending)} behind ⚠"),
+      if(ahead != [], do: "#{length(ahead)} ahead of code ⚠")
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(", ")
   end
 
   defp format_module_entry(%{status: :up_to_date} = entry) do
@@ -284,6 +301,10 @@ defmodule Mix.Tasks.PhoenixKit.Status do
 
   defp format_module_entry(%{status: :not_installed} = entry) do
     "#{entry.name}: #{IO.ANSI.yellow()}tables not created ⚠ (code expects V#{pad_version(entry.target)})#{IO.ANSI.reset()}"
+  end
+
+  defp format_module_entry(%{status: :ahead_of_code} = entry) do
+    "#{entry.name}: #{IO.ANSI.red()}V#{pad_version(entry.installed)} ⚠ ahead of code (code expects V#{pad_version(entry.target)}) — rollback?#{IO.ANSI.reset()}"
   end
 
   defp format_module_entry(%{status: :error} = entry) do
@@ -474,6 +495,10 @@ defmodule Mix.Tasks.PhoenixKit.Status do
   end
 
   defp format_next_action({:check_modules, _names} = action) do
+    "#{IO.ANSI.red()}#{StatusReport.describe(action)}#{IO.ANSI.reset()}"
+  end
+
+  defp format_next_action({:modules_ahead_of_code, _names} = action) do
     "#{IO.ANSI.red()}#{StatusReport.describe(action)}#{IO.ANSI.reset()}"
   end
 
