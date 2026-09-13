@@ -257,11 +257,18 @@ defmodule Mix.Tasks.PhoenixKit.Status do
   defp format_modules_summary(modules) do
     pending = MigrationModules.pending(modules)
     failed = MigrationModules.failed(modules)
+    ahead = MigrationModules.ahead_of_code(modules)
     count = "#{length(modules)} #{pluralize(length(modules), "module", "modules")}"
 
     cond do
       failed != [] ->
         "#{IO.ANSI.red()}#{count}, #{length(failed)} unreadable ❌#{IO.ANSI.reset()}"
+
+      # Neither `pending` nor `failed` — must not fall through to "all up to
+      # date": a rollback or backwards-pinned dependency reporting healthy is
+      # exactly the defect this status distinction exists to surface.
+      ahead != [] ->
+        "#{IO.ANSI.red()}#{count}, #{length(ahead)} ahead of code ⚠#{IO.ANSI.reset()}"
 
       # "behind", not "updates available" — same reasoning as the core version
       # line: this is measured against the installed code, not against Hex, so
@@ -478,6 +485,10 @@ defmodule Mix.Tasks.PhoenixKit.Status do
   end
 
   defp format_next_action({:check_modules, _names} = action) do
+    "#{IO.ANSI.red()}#{StatusReport.describe(action)}#{IO.ANSI.reset()}"
+  end
+
+  defp format_next_action({:modules_ahead_of_code, _names} = action) do
     "#{IO.ANSI.red()}#{StatusReport.describe(action)}#{IO.ANSI.reset()}"
   end
 

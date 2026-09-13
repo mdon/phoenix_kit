@@ -33,6 +33,8 @@ defmodule PhoenixKit.Install.StatusReport do
       missing or unreadable; the fix is a restamp by hand, not an update
     * `{:update, command, reasons}` — schema behind the code; `reasons` says how
     * `{:check_modules, names}` — a module's version could not be read
+    * `{:modules_ahead_of_code, names}` — a module's database schema is newer
+      than the code now running (a rollback, or a dependency pinned backwards)
     * `{:ready, message}` — database and code agree
   """
   @type action ::
@@ -41,6 +43,7 @@ defmodule PhoenixKit.Install.StatusReport do
           | {:fix_version_comment, String.t()}
           | {:update, String.t(), [String.t()]}
           | {:check_modules, [String.t()]}
+          | {:modules_ahead_of_code, [String.t()]}
           | {:ready, String.t()}
 
   @doc """
@@ -93,6 +96,7 @@ defmodule PhoenixKit.Install.StatusReport do
 
   def next_action({:up_to_date, _version}, modules, prefix) do
     failed = MigrationModules.failed(modules)
+    ahead = MigrationModules.ahead_of_code(modules)
     pending = MigrationModules.pending(modules)
 
     cond do
@@ -101,6 +105,11 @@ defmodule PhoenixKit.Install.StatusReport do
       # "Ready" either: its tables may well be behind, and "1 unreadable ❌"
       # one line above "Next: Ready" tells the operator there is nothing to do.
       failed != [] -> {:check_modules, Enum.map(failed, & &1.name)}
+      # A module ahead of code is not pending either — there is nothing for
+      # `mix phoenix_kit.update` to run — but it is exactly the failure this
+      # whole distinction exists to surface: folding it into "Ready" would
+      # hide a rollback behind the same message a healthy install gets.
+      ahead != [] -> {:modules_ahead_of_code, Enum.map(ahead, & &1.name)}
       pending != [] -> {:update, update_command(prefix), module_reasons(pending)}
       true -> {:ready, "Ready"}
     end
@@ -140,6 +149,12 @@ defmodule PhoenixKit.Install.StatusReport do
       Enum.join(names, ", ") <> " (schema version unknown — run with --verbose)"
   end
 
+  def describe({:modules_ahead_of_code, names}) do
+    "Module(s) ahead of code: " <>
+      Enum.join(names, ", ") <>
+      " (database schema is newer than the running code — rollback or a backwards-pinned dependency?)"
+  end
+
   @doc "The `mix phoenix_kit.update` invocation for a prefix."
   @spec update_command(String.t()) :: String.t()
   def update_command("public"), do: "mix phoenix_kit.update"
@@ -154,10 +169,19 @@ defmodule PhoenixKit.Install.StatusReport do
   defp module_reasons(:not_queried), do: []
 
   defp module_reasons(modules) when is_list(modules) do
-    case MigrationModules.pending(modules) do
-      [] -> []
-      pending -> ["module schema behind: " <> Enum.map_join(pending, ", ", & &1.name)]
-    end
+    pending_reason =
+      case MigrationModules.pending(modules) do
+        [] -> []
+        pending -> ["module schema behind: " <> Enum.map_join(pending, ", ", & &1.name)]
+      end
+
+    ahead_reason =
+      case MigrationModules.ahead_of_code(modules) do
+        [] -> []
+        ahead -> ["module schema ahead of code: " <> Enum.map_join(ahead, ", ", & &1.name)]
+      end
+
+    pending_reason ++ ahead_reason
   end
 
   defp pad(version) when is_integer(version) and version < 10, do: "0#{version}"

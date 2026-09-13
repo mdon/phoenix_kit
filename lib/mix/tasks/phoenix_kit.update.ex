@@ -1069,6 +1069,13 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
                 "Run mix phoenix_kit.status to confirm its schema version."
             )
 
+          %{status: :ahead_of_code, installed: installed} ->
+            Mix.shell().error(
+              "❌ #{entry.name} is now at V#{pad_version(installed)}, ahead of what " <>
+                "#{inspect(entry.migration_module)} expects (V#{pad_version(entry.target)}). " <>
+                "Something else migrated it further than this run asked for."
+            )
+
           %{installed: installed} ->
             Mix.shell().error(
               "❌ #{entry.name} is still at V#{pad_version(installed)}, expected " <>
@@ -1108,6 +1115,14 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       Enum.each(modules, fn
         %{status: :error} ->
           :ok
+
+        # Not pending, so nothing here would migrate it — but "up to date"
+        # would be a false all-clear for a database ahead of the running code.
+        %{status: :ahead_of_code} = entry ->
+          Mix.shell().info(
+            "⚠️  #{entry.name}: V#{pad_version(entry.installed)} is ahead of code " <>
+              "(code expects V#{pad_version(entry.target)}) — rollback or a backwards-pinned dependency?"
+          )
 
         entry ->
           Mix.shell().info("✅ #{entry.name}: V#{pad_version(entry.installed)} (up to date)")
@@ -1560,6 +1575,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     defp format_module_version(%{status: :up_to_date} = entry) do
       "#{IO.ANSI.green()}V#{pad_version(entry.installed)} ✅#{IO.ANSI.reset()}"
+    end
+
+    defp format_module_version(%{status: :ahead_of_code} = entry) do
+      "#{IO.ANSI.red()}V#{pad_version(entry.installed)} ⚠ ahead of code (code expects V#{pad_version(entry.target)})#{IO.ANSI.reset()}"
     end
 
     defp format_module_version(entry) do

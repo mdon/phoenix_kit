@@ -155,6 +155,20 @@ defmodule PhoenixKit.Migrations.Modules do
     Enum.filter(entries, &(&1.status == :error))
   end
 
+  @doc """
+  Filters a `list/1` result down to entries whose database is newer than the
+  code now running — a rollback, or a dependency pinned backwards. Surfaced
+  separately from `pending/1` so callers don't fold a genuine problem into
+  "nothing to do" just because it isn't something `mix phoenix_kit.update`
+  would act on.
+
+  Pure filter, same reasoning as `pending/1`.
+  """
+  @spec ahead_of_code([entry()]) :: [entry()]
+  def ahead_of_code(entries) when is_list(entries) do
+    Enum.filter(entries, &(&1.status == :ahead_of_code))
+  end
+
   # ── internals ───────────────────────────────────────────────────────────────
 
   # Beam-file scanning, so this works under `--no-start` like the tasks need.

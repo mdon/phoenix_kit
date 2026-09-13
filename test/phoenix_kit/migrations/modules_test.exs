@@ -81,6 +81,23 @@ defmodule PhoenixKit.Migrations.ModulesTest do
     end
   end
 
+  describe "ahead_of_code/1" do
+    test "isolates modules whose database is newer than the code" do
+      entries = [
+        entry("Current", 1, 1, :up_to_date),
+        entry("Behind", 1, 2, :needs_update),
+        entry("Rollback", 3, 2, :ahead_of_code),
+        error_entry("Broken")
+      ]
+
+      assert Modules.ahead_of_code(entries) |> Enum.map(& &1.name) == ["Rollback"]
+    end
+
+    test "an empty list stays empty" do
+      assert Modules.ahead_of_code([]) == []
+    end
+  end
+
   describe "classify/2" do
     test "installed exactly at target is up to date" do
       assert Modules.classify(2, 2) == :up_to_date
