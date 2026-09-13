@@ -10,18 +10,21 @@
   ID/secret to `oauth2.googleapis.com/token` with a deliberately invalid
   authorization code and reads Google's own verdict: `invalid_client` means
   the credentials are wrong, `invalid_grant` means they are right (only the
-  fake code was rejected, as expected). No `redirect_uri` is sent — Google
-  validates that parameter against its own OAuth 2.0 policy before it even
-  looks at the credentials, so a placeholder value made every check
-  inconclusive regardless of whether the credentials were right or wrong; a
-  request with none at all lets Google classify on client_id/client_secret
-  alone (confirmed live against `oauth2.googleapis.com`). A third outcome —
-  could not reach Google, or a response that isn't cleanly one of the two
-  verdicts above — is reported as inconclusive (a distinct `:inconclusive`
-  result, shown as a warning rather than an error flash), never folded into
-  either a pass or a fail. GitHub and Facebook keep the previous format-only
-  check (now actually enforcing it — see below) rather than an unverified
-  live check against their token endpoints.
+  fake code was rejected, as expected). No `redirect_uri` is sent — Google's
+  redirect-URI rules reject a non-registered host by policy before the
+  credentials are evaluated at all, so the placeholder value this used to
+  send made every check inconclusive regardless of whether the credentials
+  were right or wrong; verified live with a fabricated client_id/secret that
+  dropping it turns the response from `invalid_request` into `invalid_client`
+  (the "right credentials" leg was not exercised against a real registered
+  app — it follows from Google's own documented definitions and RFC 6749
+  §5.2, and falls back to inconclusive if Google ever answers otherwise). A
+  third outcome — could not reach Google, or a response that isn't cleanly
+  one of the two verdicts above — is reported as inconclusive (a distinct
+  `:inconclusive` result, shown as a warning rather than an error flash),
+  never folded into either a pass or a fail. GitHub and Facebook keep the
+  previous format-only check (now actually enforcing it — see below) rather
+  than an unverified live check against their token endpoints.
 - **A short or blank-looking OAuth secret is now rejected on save**, not just
   by the button. `PhoenixKit.Users.OAuthConfig.validate_secret_format/2`
   rejects a value that is only whitespace or implausibly short (under 16

@@ -397,12 +397,14 @@ defmodule PhoenixKit.Users.OAuthConfig do
       iex> PhoenixKit.Users.OAuthConfig.test_connection(:github, %{client_id: "x", client_secret: "0123456789abcdef"})
       {:ok, "GitHub OAuth credentials are properly formatted. Initiate OAuth flow to test actual connection."}
   """
-  def test_connection(provider, %{} = credentials)
-      when provider in [:google, :github, :facebook] do
+  def test_connection(provider, credentials, opts \\ [])
+
+  def test_connection(provider, %{} = credentials, opts)
+      when provider in [:google, :github, :facebook] and is_list(opts) do
     with {:ok, _provider} <- validate_credentials_map(provider, credentials),
          :ok <- validate_secret_format(provider, Map.get(credentials, secret_field(provider))) do
       provider
-      |> live_test_result(credentials)
+      |> live_test_result(credentials, opts)
       |> tap(&log_test_result(provider, &1))
     else
       {:error, reason} ->
@@ -418,9 +420,11 @@ defmodule PhoenixKit.Users.OAuthConfig do
   # Google: an actual network round trip against Google's own token
   # endpoint, bounded by `PhoenixKit.Integrations.Probe` (the same
   # deadline/isolation wrapper the Integrations "Test Connection" checks
-  # use, rather than reinventing timeout-and-crash handling here).
-  defp live_test_result(:google, credentials) do
-    Probe.run(fn -> google_live_check(credentials) end, @google_test_timeout)
+  # use, rather than reinventing timeout-and-crash handling here). `opts`
+  # is only ever non-empty in tests (`plug: {Req.Test, ...}`, merged into
+  # the Req call below) — production call sites never pass it.
+  defp live_test_result(:google, credentials, opts) do
+    Probe.run(fn -> google_live_check(credentials, opts) end, @google_test_timeout)
   end
 
   # GitHub/Facebook: no live network round trip (yet). Chosen deliberately
@@ -436,7 +440,7 @@ defmodule PhoenixKit.Users.OAuthConfig do
   # "verified against the provider" one — same wording the button always
   # used for these two providers, now just gettext-wrapped and only reached
   # when the format checks actually passed.
-  defp live_test_result(provider, _credentials) when provider in [:github, :facebook] do
+  defp live_test_result(provider, _credentials, _opts) when provider in [:github, :facebook] do
     {:ok,
      gettext(
        "%{provider} OAuth credentials are properly formatted. Initiate OAuth flow to test actual connection.",
@@ -444,30 +448,41 @@ defmodule PhoenixKit.Users.OAuthConfig do
      )}
   end
 
-  # No `redirect_uri` is sent. Google validates a supplied `redirect_uri`
-  # against its own OAuth 2.0 policy before it even looks at the client
-  # credentials — any non-registered/non-localhost value (including an
-  # RFC 2606 `.invalid` placeholder, which this used to send) comes back
-  # `invalid_request` regardless of whether client_id/client_secret are
-  # right or wrong, which made the check permanently inconclusive.
-  # Omitting the parameter entirely leaves Google to classify the request
-  # on client_id/client_secret alone, which is the only thing being tested
-  # here — confirmed live: a bare POST with a made-up client_id/secret and
-  # no `redirect_uri` answers `invalid_client`, while the same request with
-  # a `redirect_uri` (including the RFC 2606 `.invalid` placeholder this
-  # used to send) answers `invalid_request` regardless of whether the
-  # credentials are right or wrong.
-  defp google_live_check(%{client_id: client_id, client_secret: client_secret}) do
+  # No `redirect_uri` is sent. Google's redirect-URI validation rules
+  # (developers.google.com/identity/protocols/oauth2/web-server — "Host
+  # TLDs must belong to the public suffix list") reject a non-registered
+  # host outright, before the credentials are evaluated at all — this used
+  # to send an RFC 2606 `.invalid` placeholder, which fails that rule and
+  # comes back `invalid_request` regardless of whether client_id/client_secret
+  # are right or wrong, making the check permanently inconclusive. Omitting
+  # `redirect_uri` entirely leaves Google to classify on client_id/client_secret
+  # alone. Verified live with a fabricated client_id/secret (no real Google
+  # OAuth app): dropping `redirect_uri` turns the response from
+  # `invalid_request` into `invalid_client`. The `invalid_grant` leg (right
+  # credentials) was NOT exercised against a real registered app in this
+  # change — it follows from Google's own definitions (same guide:
+  # `invalid_grant` = "supplied authorization code is invalid", `invalid_client`
+  # = "client secret is incorrect") and RFC 6749 §5.2, and from the fact that
+  # a wrong secret already comes back `invalid_client` for a real, public
+  # client_id (Google authenticates the client before it looks at the code),
+  # so a wrong secret cannot itself surface as `invalid_grant`. If Google
+  # ever answers a genuinely correct credential pair with something other
+  # than `invalid_grant`, `interpret_google_token_response/1`'s catch-all
+  # reports it as inconclusive rather than misreading it either way.
+  defp google_live_check(%{client_id: client_id, client_secret: client_secret}, opts) do
     @google_token_url
     |> Req.post(
-      form: [
-        client_id: client_id,
-        client_secret: client_secret,
-        code: "phoenix-kit-credential-check-#{System.unique_integer([:positive])}",
-        grant_type: "authorization_code"
-      ],
-      receive_timeout: @google_test_timeout,
-      retry: false
+      [
+        form: [
+          client_id: client_id,
+          client_secret: client_secret,
+          code: "phoenix-kit-credential-check-#{System.unique_integer([:positive])}",
+          grant_type: "authorization_code"
+        ],
+        receive_timeout: @google_test_timeout,
+        retry: false
+      ]
+      |> Keyword.merge(opts)
     )
     |> interpret_google_token_response()
   end

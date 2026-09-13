@@ -145,11 +145,15 @@ defmodule PhoenixKit.Users.OAuthConfigTest do
     end
 
     # `invalid_request` is what Google answers for reasons that have nothing
-    # to do with whether client_id/client_secret are right — confirmed live:
-    # a well-formed request carrying a `redirect_uri` Google's OAuth 2.0
-    # policy doesn't accept (this check used to send one) gets exactly this
-    # code regardless of the credentials. It must not be misread as either
-    # a pass or a fail.
+    # to do with whether client_id/client_secret are right — verified live
+    # with a fabricated client_id/secret: a request carrying a `redirect_uri`
+    # Google's rules don't accept (this check used to send one) gets exactly
+    # this code, not `invalid_client`, even though the credentials were also
+    # wrong. Google's own redirect-URI rules reject the host before any
+    # credential is evaluated, so the same should hold for a real pair, but
+    # that combination (real credentials + a bad `redirect_uri`) was not
+    # itself exercised. Either way, `invalid_request` must not be misread as
+    # either a pass or a fail.
     test "an unrecognized error code is inconclusive, not silently accepted or rejected" do
       response = {:ok, %{status: 400, body: %{"error" => "invalid_request"}}}
       assert {:inconclusive, message} = OAuthConfig.interpret_google_token_response(response)
