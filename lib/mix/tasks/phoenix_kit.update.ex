@@ -989,6 +989,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       modules = MigrationModules.list(prefix: prefix)
 
       report_unreadable_modules(modules)
+      report_ahead_modules(modules)
 
       case MigrationModules.pending(modules) do
         [] ->
@@ -1109,6 +1110,26 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       end
     end
 
+    # An ahead-of-code module is not pending — nothing here would migrate
+    # it — but it must not be silently reported as up to date either.
+    # `report_ahead_modules/1` already covers it (called unconditionally,
+    # same as `report_unreadable_modules/1`), so this only skips it here to
+    # avoid printing it twice.
+    defp report_ahead_modules(modules) do
+      case MigrationModules.ahead_of_code(modules) do
+        [] ->
+          :ok
+
+        ahead ->
+          Enum.each(ahead, fn entry ->
+            Mix.shell().info(
+              "⚠️  #{entry.name}: V#{pad_version(entry.installed)} is ahead of code " <>
+                "(code expects V#{pad_version(entry.target)}) — rollback or a backwards-pinned dependency?"
+            )
+          end)
+      end
+    end
+
     defp report_modules_up_to_date([]), do: :ok
 
     defp report_modules_up_to_date(modules) do
@@ -1116,13 +1137,8 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         %{status: :error} ->
           :ok
 
-        # Not pending, so nothing here would migrate it — but "up to date"
-        # would be a false all-clear for a database ahead of the running code.
-        %{status: :ahead_of_code} = entry ->
-          Mix.shell().info(
-            "⚠️  #{entry.name}: V#{pad_version(entry.installed)} is ahead of code " <>
-              "(code expects V#{pad_version(entry.target)}) — rollback or a backwards-pinned dependency?"
-          )
+        %{status: :ahead_of_code} ->
+          :ok
 
         entry ->
           Mix.shell().info("✅ #{entry.name}: V#{pad_version(entry.installed)} (up to date)")

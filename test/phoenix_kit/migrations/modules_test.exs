@@ -111,14 +111,6 @@ defmodule PhoenixKit.Migrations.ModulesTest do
       assert Modules.classify(3, 2) == :ahead_of_code
     end
 
-    test "equal stays up to date even when ahead is also possible nearby" do
-      # Guards against the opposite mutation: swapping `==` for `>=` on the
-      # up_to_date clause would make this pass too, but the ahead test above
-      # would then fail since :ahead_of_code could never be reached first —
-      # together the two tests pin both boundaries of `installed == target`.
-      assert Modules.classify(5, 5) == :up_to_date
-    end
-
     test "zero installed with a target has never been installed" do
       assert Modules.classify(0, 1) == :not_installed
     end

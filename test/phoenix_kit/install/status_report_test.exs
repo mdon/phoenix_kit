@@ -151,13 +151,6 @@ defmodule PhoenixKit.Install.StatusReportTest do
                {:modules_ahead_of_code, ["Inbox"]}
     end
 
-    test "an ahead-of-code module is never silently migrated or reported behind" do
-      modules = [entry("Inbox", 3, 2, :ahead_of_code)]
-
-      assert {:modules_ahead_of_code, ["Inbox"]} =
-               StatusReport.next_action({:up_to_date, 159}, modules, "public")
-    end
-
     test "an unreadable module takes priority over an ahead-of-code one" do
       modules = [error_entry("Broken"), entry("Inbox", 3, 2, :ahead_of_code)]
 
@@ -173,6 +166,21 @@ defmodule PhoenixKit.Install.StatusReportTest do
 
       assert reasons == [
                "database is V159, code expects V160",
+               "module schema ahead of code: Inbox"
+             ]
+    end
+
+    # `pending` must win over `ahead`: an ahead-of-code module does not stop
+    # `mix phoenix_kit.update` from fixing a *different* module that is
+    # genuinely behind, and the ahead module must still be named, not dropped.
+    test "one module behind and another ahead of code are BOTH reported, update wins" do
+      modules = [entry("Boards", 1, 2, :needs_update), entry("Inbox", 3, 2, :ahead_of_code)]
+
+      assert {:update, "mix phoenix_kit.update", reasons} =
+               StatusReport.next_action({:up_to_date, 159}, modules, "public")
+
+      assert reasons == [
+               "module schema behind: Boards",
                "module schema ahead of code: Inbox"
              ]
     end

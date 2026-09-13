@@ -264,21 +264,31 @@ defmodule Mix.Tasks.PhoenixKit.Status do
       failed != [] ->
         "#{IO.ANSI.red()}#{count}, #{length(failed)} unreadable ❌#{IO.ANSI.reset()}"
 
-      # Neither `pending` nor `failed` — must not fall through to "all up to
-      # date": a rollback or backwards-pinned dependency reporting healthy is
-      # exactly the defect this status distinction exists to surface.
-      ahead != [] ->
-        "#{IO.ANSI.red()}#{count}, #{length(ahead)} ahead of code ⚠#{IO.ANSI.reset()}"
-
-      # "behind", not "updates available" — same reasoning as the core version
-      # line: this is measured against the installed code, not against Hex, so
-      # nothing here is an optional upgrade being offered.
-      pending != [] ->
-        "#{IO.ANSI.yellow()}#{count}, #{length(pending)} behind ⚠#{IO.ANSI.reset()}"
+      # Pending and ahead-of-code are not alternatives — one run can hold
+      # both, and each needs to say so: a pending module doesn't excuse an
+      # ahead-of-code one from being reported, and an ahead-of-code module
+      # must not push this into "all up to date" (a rollback or a
+      # backwards-pinned dependency reporting healthy is exactly the defect
+      # this status distinction exists to surface).
+      pending != [] or ahead != [] ->
+        color = if ahead != [], do: IO.ANSI.red(), else: IO.ANSI.yellow()
+        "#{color}#{count}, #{module_status_summary_parts(pending, ahead)}#{IO.ANSI.reset()}"
 
       true ->
         "#{IO.ANSI.green()}#{count}, all up to date ✅#{IO.ANSI.reset()}"
     end
+  end
+
+  # "behind", not "updates available" — same reasoning as the core version
+  # line: this is measured against the installed code, not against Hex, so
+  # nothing here is an optional upgrade being offered.
+  defp module_status_summary_parts(pending, ahead) do
+    [
+      if(pending != [], do: "#{length(pending)} behind ⚠"),
+      if(ahead != [], do: "#{length(ahead)} ahead of code ⚠")
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(", ")
   end
 
   defp format_module_entry(%{status: :up_to_date} = entry) do

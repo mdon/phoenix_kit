@@ -104,14 +104,26 @@ defmodule PhoenixKit.Install.StatusReport do
       # we cannot read would be worse than leaving it. But it must not report
       # "Ready" either: its tables may well be behind, and "1 unreadable ❌"
       # one line above "Next: Ready" tells the operator there is nothing to do.
-      failed != [] -> {:check_modules, Enum.map(failed, & &1.name)}
-      # A module ahead of code is not pending either — there is nothing for
-      # `mix phoenix_kit.update` to run — but it is exactly the failure this
-      # whole distinction exists to surface: folding it into "Ready" would
-      # hide a rollback behind the same message a healthy install gets.
-      ahead != [] -> {:modules_ahead_of_code, Enum.map(ahead, & &1.name)}
-      pending != [] -> {:update, update_command(prefix), module_reasons(pending)}
-      true -> {:ready, "Ready"}
+      failed != [] ->
+        {:check_modules, Enum.map(failed, & &1.name)}
+
+      # `pending` takes priority over `ahead`: an ahead-of-code module does
+      # not stop `mix phoenix_kit.update` from fixing a *different* module
+      # that is genuinely behind, so this must still point at that command —
+      # `module_reasons/1` (full list, not the already-filtered `pending`)
+      # folds the ahead module in as an extra reason rather than dropping it.
+      pending != [] ->
+        {:update, update_command(prefix), module_reasons(modules)}
+
+      # Not pending — there is nothing for `mix phoenix_kit.update` to run —
+      # but it is exactly the failure this whole distinction exists to
+      # surface: folding it into "Ready" would hide a rollback behind the
+      # same message a healthy install gets.
+      ahead != [] ->
+        {:modules_ahead_of_code, Enum.map(ahead, & &1.name)}
+
+      true ->
+        {:ready, "Ready"}
     end
   end
 

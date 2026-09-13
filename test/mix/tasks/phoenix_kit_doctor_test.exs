@@ -73,6 +73,61 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     def perform(_job), do: :ok
   end
 
+  describe "module_schema_versions_result/1 — an ahead-of-code module must not read as a clean bill of health" do
+    test "no modules → pass" do
+      assert DoctorTask.module_schema_versions_result([]) ==
+               {:pass, "No installed module owns migrations."}
+    end
+
+    test "every module current → pass" do
+      modules = [module_entry("Boards", 1, 1, :up_to_date)]
+
+      assert DoctorTask.module_schema_versions_result(modules) ==
+               {:pass, "1 module(s), all at the version their code expects."}
+    end
+
+    test "a pending module → fail" do
+      modules = [module_entry("Inbox", 1, 2, :needs_update)]
+
+      assert {:fail, message} = DoctorTask.module_schema_versions_result(modules)
+      assert message =~ "Behind: Inbox V1 (code expects V2)"
+    end
+
+    # This is the regression: an ahead-of-code module is neither pending nor
+    # failed, and previously fell through to the same `:pass` a healthy
+    # install gets — the same "reports healthy" defect this whole fix exists
+    # to remove, just one layer up.
+    test "an ahead-of-code module alone → warn, never pass" do
+      modules = [module_entry("Inbox", 3, 2, :ahead_of_code)]
+
+      assert {:warn, message} = DoctorTask.module_schema_versions_result(modules)
+      assert message =~ "Ahead of code: Inbox V3 (code expects V2)"
+    end
+
+    test "an unreadable module alone → warn" do
+      modules = [error_module_entry("Broken")]
+
+      assert {:warn, message} = DoctorTask.module_schema_versions_result(modules)
+      assert message =~ "Version unreadable for Broken"
+    end
+
+    # Pending, unreadable, and ahead-of-code are not alternatives — one run
+    # can hold all three, and `:fail` (the actionable one) must not swallow
+    # the other two silently.
+    test "pending, unreadable, and ahead-of-code together → fail names all three" do
+      modules = [
+        module_entry("Behind", 1, 2, :needs_update),
+        error_module_entry("Broken"),
+        module_entry("Rollback", 3, 2, :ahead_of_code)
+      ]
+
+      assert {:fail, message} = DoctorTask.module_schema_versions_result(modules)
+      assert message =~ "Behind: Behind V1 (code expects V2)"
+      assert message =~ "version unreadable for Broken"
+      assert message =~ "ahead of code: Rollback V3 (code expects V2)"
+    end
+  end
+
   describe "check_cron_queues/1 — a crontab entry with no queue to run it" do
     test "warns when a crontab worker's queue is not configured" do
       # PhoenixKit's own 2025-12-28 → 1.7.63 bug, reproduced: the entry fires
@@ -822,5 +877,31 @@ defmodule Mix.Tasks.PhoenixKit.DoctorTest do
     File.write!(path, content)
     File.chmod!(path, 0o755)
     path
+  end
+
+  # Shape mirrors `PhoenixKit.Migrations.Modules.list/1` entries — same
+  # helper shape used by `PhoenixKit.Migrations.ModulesTest`.
+  defp module_entry(name, installed, target, status) do
+    %{
+      name: name,
+      module: SomeModule,
+      migration_module: SomeModule.Migrations,
+      installed: installed,
+      target: target,
+      status: status,
+      error: nil
+    }
+  end
+
+  defp error_module_entry(name) do
+    %{
+      name: name,
+      module: SomeModule,
+      migration_module: SomeModule.Migrations,
+      installed: 0,
+      target: nil,
+      status: :error,
+      error: "relation does not exist"
+    }
   end
 end
