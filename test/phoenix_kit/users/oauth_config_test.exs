@@ -9,13 +9,12 @@ defmodule PhoenixKit.Users.OAuthConfigTest do
   trip or a database: `validate_secret_format/2` and `test_connection/2`'s
   fast pre-checks (which reject before ever calling out to a provider), plus
   `interpret_google_token_response/1`, the pure classifier behind the real
-  Google check, fed synthetic Req-response-shaped tuples. The live Google
-  round trip itself is exercised manually — not here, because a real call to
-  `oauth2.googleapis.com` is network-dependent and (confirmed live) not
-  perfectly deterministic: Google can answer a well-formed request with a
-  generic anti-abuse page instead of a clean invalid_client/invalid_grant,
-  which is exactly the "inconclusive" branch
-  `interpret_google_token_response/1` is tested against below.
+  Google check, fed synthetic Req-response-shaped tuples — including the
+  `:inconclusive` branch for a response that can't be read as either a
+  pass or a fail (an unrecognized error code, an unexpected status, or a
+  transport failure). The live Google round trip itself is exercised
+  manually — not here, because a real call to `oauth2.googleapis.com` is
+  network-dependent.
   """
   use ExUnit.Case, async: true
 
@@ -138,27 +137,29 @@ defmodule PhoenixKit.Users.OAuthConfigTest do
       assert message =~ "accepted"
     end
 
-    test "a transport failure is neither an accept nor a reject — it is 'could not reach'" do
+    test "a transport failure is neither an accept nor a reject — it is inconclusive" do
       response = {:error, %Req.TransportError{reason: :nxdomain}}
-      assert {:error, message} = OAuthConfig.interpret_google_token_response(response)
+      assert {:inconclusive, message} = OAuthConfig.interpret_google_token_response(response)
       assert message =~ "reach"
       refute message =~ "invalid_client"
     end
 
-    # Confirmed live: Google's own anti-abuse front door can answer a
-    # well-formed request with "invalid_request" instead of a real
-    # invalid_client/invalid_grant verdict — this must not be misread as
-    # either.
+    # `invalid_request` is what Google answers for reasons that have nothing
+    # to do with whether client_id/client_secret are right — confirmed live:
+    # a well-formed request carrying a `redirect_uri` Google's OAuth 2.0
+    # policy doesn't accept (this check used to send one) gets exactly this
+    # code regardless of the credentials. It must not be misread as either
+    # a pass or a fail.
     test "an unrecognized error code is inconclusive, not silently accepted or rejected" do
       response = {:ok, %{status: 400, body: %{"error" => "invalid_request"}}}
-      assert {:error, message} = OAuthConfig.interpret_google_token_response(response)
+      assert {:inconclusive, message} = OAuthConfig.interpret_google_token_response(response)
       assert message =~ "inconclusive"
       refute message =~ "invalid_client"
     end
 
     test "a response with no recognizable error field is inconclusive" do
       response = {:ok, %{status: 500, body: %{}}}
-      assert {:error, message} = OAuthConfig.interpret_google_token_response(response)
+      assert {:inconclusive, message} = OAuthConfig.interpret_google_token_response(response)
       assert message =~ "inconclusive"
     end
   end

@@ -26,11 +26,6 @@ defmodule PhoenixKit.Users.OAuthConfig do
   @min_secret_length 16
 
   @google_token_url "https://oauth2.googleapis.com/token"
-  # Syntactically valid, never dereferenced anywhere real: the `code` sent
-  # alongside it is always fabricated (see `google_live_check/1`), so this
-  # exists only to satisfy the token endpoint's redirect_uri parameter, not
-  # to receive a redirect.
-  @google_test_redirect_uri "https://phoenixkit.invalid/oauth/callback"
   @google_test_timeout 8_000
 
   @doc """
@@ -361,6 +356,9 @@ defmodule PhoenixKit.Users.OAuthConfig do
 
   ## Examples
 
+  Result depends on what is already stored; shown here for a provider with
+  nothing configured yet:
+
       iex> PhoenixKit.Users.OAuthConfig.test_connection(:google)
       {:error, "Missing Google OAuth credentials: Client Secret, Client ID"}
   """
@@ -376,7 +374,8 @@ defmodule PhoenixKit.Users.OAuthConfig do
   Credentials" button) before the settings are saved — `test_connection/1`
   would otherwise validate the stale, already-persisted credentials.
 
-  Three distinct outcomes, never conflated:
+  Three distinct outcomes, each with its own tag so a caller can never
+  conflate them:
 
     * `{:ok, message}` — the credentials were accepted. For Google, this
       means Google's own token endpoint authenticated the client_id/secret
@@ -384,13 +383,14 @@ defmodule PhoenixKit.Users.OAuthConfig do
       network round trip is made yet (see the moduledoc note below) — this
       means only that the fields are present and not implausibly short.
     * `{:error, message}` — the credentials were rejected: missing, blank,
-      too short to be real, or (Google) actively refused by the provider.
-    * `{:error, message}` — could not reach the provider at all (timeout,
-      DNS failure, connection refused) or got back a response that could
-      not be classified as either of the above. This is a DIFFERENT
-      situation from a rejection and must never be reported as one — an
-      admin in a network-isolated deployment must not read "invalid
-      credentials" when the real story is "no route to Google".
+      too short to be real, or (Google) actively refused by the provider
+      (`invalid_client`).
+    * `{:inconclusive, message}` — could not reach the provider at all
+      (timeout, DNS failure, connection refused) or got back a response
+      that could not be classified as either of the above. This is a
+      DIFFERENT situation from a rejection and must never be reported as
+      one — an admin in a network-isolated deployment must not read
+      "invalid credentials" when the real story is "no route to Google".
 
   ## Examples
 
@@ -444,6 +444,19 @@ defmodule PhoenixKit.Users.OAuthConfig do
      )}
   end
 
+  # No `redirect_uri` is sent. Google validates a supplied `redirect_uri`
+  # against its own OAuth 2.0 policy before it even looks at the client
+  # credentials — any non-registered/non-localhost value (including an
+  # RFC 2606 `.invalid` placeholder, which this used to send) comes back
+  # `invalid_request` regardless of whether client_id/client_secret are
+  # right or wrong, which made the check permanently inconclusive.
+  # Omitting the parameter entirely leaves Google to classify the request
+  # on client_id/client_secret alone, which is the only thing being tested
+  # here — confirmed live: a bare POST with a made-up client_id/secret and
+  # no `redirect_uri` answers `invalid_client`, while the same request with
+  # a `redirect_uri` (including the RFC 2606 `.invalid` placeholder this
+  # used to send) answers `invalid_request` regardless of whether the
+  # credentials are right or wrong.
   defp google_live_check(%{client_id: client_id, client_secret: client_secret}) do
     @google_token_url
     |> Req.post(
@@ -451,8 +464,7 @@ defmodule PhoenixKit.Users.OAuthConfig do
         client_id: client_id,
         client_secret: client_secret,
         code: "phoenix-kit-credential-check-#{System.unique_integer([:positive])}",
-        grant_type: "authorization_code",
-        redirect_uri: @google_test_redirect_uri
+        grant_type: "authorization_code"
       ],
       receive_timeout: @google_test_timeout,
       retry: false
@@ -475,11 +487,12 @@ defmodule PhoenixKit.Users.OAuthConfig do
   #                        credentials are right.
   #
   # Anything else — a different error code, an unexpected status, or a
-  # transport failure — is INCONCLUSIVE, never coerced into either verdict.
-  # Confirmed live: Google's own front door can answer a well-formed request
-  # with a generic anti-abuse "invalid_request" page instead of a real
-  # invalid_client/invalid_grant, so a response we cannot positively
-  # classify must not be read as either a yes or a no.
+  # transport failure — is INCONCLUSIVE, tagged `:inconclusive` and never
+  # coerced into either verdict. Google's token endpoint can refuse a
+  # well-formed request for reasons that have nothing to do with whether
+  # client_id/client_secret are right (a bad `redirect_uri` used to trigger
+  # exactly this here — see `google_live_check/1`), so a response we cannot
+  # positively classify must not be read as either a yes or a no.
   def interpret_google_token_response({:ok, %{body: %{"error" => "invalid_client"}}}) do
     {:error,
      gettext(
@@ -495,19 +508,15 @@ defmodule PhoenixKit.Users.OAuthConfig do
   end
 
   def interpret_google_token_response({:ok, %{status: status}}) do
-    {:error,
+    {:inconclusive,
      gettext(
        "Google gave an inconclusive response (status %{status}) while checking these credentials — try again in a moment",
        status: status
      )}
   end
 
-  def interpret_google_token_response({:error, reason}) do
-    Logger.warning(
-      "OAuth: Google credential check could not reach the provider: #{inspect(reason)}"
-    )
-
-    {:error,
+  def interpret_google_token_response({:error, _reason}) do
+    {:inconclusive,
      gettext(
        "Could not reach Google to verify these credentials — check network connectivity and try again"
      )}
@@ -515,6 +524,10 @@ defmodule PhoenixKit.Users.OAuthConfig do
 
   defp log_test_result(provider, {:ok, _message}) do
     Logger.info("OAuth: #{provider_name(provider)} connection test successful")
+  end
+
+  defp log_test_result(provider, {:inconclusive, reason}) do
+    Logger.warning("OAuth: #{provider_name(provider)} connection test inconclusive: #{reason}")
   end
 
   defp log_test_result(provider, {:error, reason}) do

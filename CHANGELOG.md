@@ -1,3 +1,47 @@
+## Unreleased
+
+### Fixed
+
+- **The OAuth "Test Credentials" button now actually tests the credentials.**
+  It compared each field to `""` and nothing else, so a 9-character Google
+  client secret — or a field containing only a space — read as "properly
+  formatted" while Google itself answered the same values with 401
+  `invalid_client`. For Google, the button now POSTs the current client
+  ID/secret to `oauth2.googleapis.com/token` with a deliberately invalid
+  authorization code and reads Google's own verdict: `invalid_client` means
+  the credentials are wrong, `invalid_grant` means they are right (only the
+  fake code was rejected, as expected). No `redirect_uri` is sent — Google
+  validates that parameter against its own OAuth 2.0 policy before it even
+  looks at the credentials, so a placeholder value made every check
+  inconclusive regardless of whether the credentials were right or wrong; a
+  request with none at all lets Google classify on client_id/client_secret
+  alone (confirmed live against `oauth2.googleapis.com`). A third outcome —
+  could not reach Google, or a response that isn't cleanly one of the two
+  verdicts above — is reported as inconclusive (a distinct `:inconclusive`
+  result, shown as a warning rather than an error flash), never folded into
+  either a pass or a fail. GitHub and Facebook keep the previous format-only
+  check (now actually enforcing it — see below) rather than an unverified
+  live check against their token endpoints.
+- **A short or blank-looking OAuth secret is now rejected on save**, not just
+  by the button. `PhoenixKit.Users.OAuthConfig.validate_secret_format/2`
+  rejects a value that is only whitespace or implausibly short (under 16
+  characters — real secrets from all three providers are at least 24) before
+  `PhoenixKitWeb.Live.Settings.Authorization` persists it; the generic
+  settings schema (`PhoenixKit.Settings.Setting`) is deliberately left alone,
+  since a Google-secret-shaped format check does not belong in a schema
+  shared by every setting in the app. A secret already saved before this fix
+  does not retroactively block saving an unrelated field. A secret with
+  leading/trailing whitespace (a copy-paste artifact) is now trimmed before
+  it is persisted or tested, instead of being saved and sent to the
+  provider padded.
+- **OAuth test-result messages are now translated.** The success message was
+  never wrapped in `gettext` — a translated button produced an English
+  response, and the wording ("...properly formatted. Initiate OAuth flow to
+  test actual connection.") was easy to mistake for "this works" at a glance.
+  All three providers' messages, on all three (now honest) outcomes, are
+  gettext-wrapped, along with the adjacent "Reload Config" flash and the
+  "Test Credentials" button name repeated in the on-page setup instructions.
+
 ## 2.23.0 - 2026-09-13
 
 ### Added
@@ -103,37 +147,6 @@
   socket's user struct, silently restoring stale values of every other key a
   concurrent tab had changed. It now merges its one key atomically
   (`Auth.merge_user_custom_fields/3`).
-- **The OAuth "Test Credentials" button now actually tests the credentials.**
-  It compared each field to `""` and nothing else, so a 9-character Google
-  client secret — or a field containing only a space — read as "properly
-  formatted" while Google itself answered the same values with 401
-  `invalid_client`. For Google, the button now POSTs the current client
-  ID/secret to `oauth2.googleapis.com/token` with a deliberately invalid
-  authorization code and reads Google's own verdict: `invalid_client` means
-  the credentials are wrong, `invalid_grant` means they are right (only the
-  fake code was rejected, as expected). A third outcome — could not reach
-  Google, or Google answered with something else entirely (its own anti-abuse
-  front door can return a generic `invalid_request` instead of a real
-  verdict, confirmed live) — is reported as inconclusive, never folded into
-  either a pass or a fail. GitHub and Facebook keep the previous
-  format-only check (now actually enforcing it — see below) rather than an
-  unverified live check against their token endpoints.
-- **A short or blank-looking OAuth secret is now rejected on save**, not just
-  by the button. `PhoenixKit.Users.OAuthConfig.validate_secret_format/2`
-  rejects a value that is only whitespace or implausibly short (under 16
-  characters — real secrets from all three providers are at least 24) before
-  `PhoenixKitWeb.Live.Settings.Authorization` persists it; the generic
-  settings schema (`PhoenixKit.Settings.Setting`) is deliberately left alone,
-  since a Google-secret-shaped format check does not belong in a schema
-  shared by every setting in the app. A secret already saved before this fix
-  does not retroactively block saving an unrelated field.
-- **OAuth test-result messages are now translated.** The success message was
-  never wrapped in `gettext` — a translated button produced an English
-  response, and the wording ("...properly formatted. Initiate OAuth flow to
-  test actual connection.") was easy to mistake for "this works" at a glance.
-  All three providers' messages, on all three (now honest) outcomes, are
-  gettext-wrapped, along with the adjacent "Reload Config" flash and the
-  "Test Credentials" button name repeated in the on-page setup instructions.
 
 ## 2.22.24 - 2026-09-12
 

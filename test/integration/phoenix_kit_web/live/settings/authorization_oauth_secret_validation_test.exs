@@ -77,6 +77,7 @@ defmodule PhoenixKitWeb.Live.Settings.AuthorizationOAuthSecretValidationTest do
     conn: conn
   } do
     conn = login(conn)
+    before_color = Settings.get_setting("auth_background_color")
     {:ok, view, _html} = live(conn, Routes.path("/admin/settings/authorization"))
 
     html =
@@ -90,7 +91,40 @@ defmodule PhoenixKitWeb.Live.Settings.AuthorizationOAuthSecretValidationTest do
       |> render_submit()
 
     assert html =~ "too short"
-    assert Settings.get_setting("auth_background_color") != "#112233"
+    assert Settings.get_setting("auth_background_color") == before_color
+  end
+
+  test "a padded secret is trimmed before it is persisted", %{conn: conn} do
+    conn = login(conn)
+    {:ok, view, _html} = live(conn, Routes.path("/admin/settings/authorization"))
+    good_secret = "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cret-value"
+
+    view
+    |> form("#authorization_settings_form", %{
+      "settings" => %{"oauth_google_client_secret" => "  #{good_secret}  "}
+    })
+    |> render_submit()
+
+    assert Settings.get_setting("oauth_google_client_secret") == good_secret
+  end
+
+  test "clicking Test Credentials with a bad secret reports the format problem, no network call needed",
+       %{conn: conn} do
+    conn = login(conn)
+    {:ok, view, _html} = live(conn, Routes.path("/admin/settings/authorization"))
+
+    view
+    |> form("#authorization_settings_form", %{
+      "settings" => %{
+        "oauth_google_client_id" => "some-client-id",
+        "oauth_google_client_secret" => "short"
+      }
+    })
+    |> render_change()
+
+    html = view |> element("button[phx-value-provider='google']") |> render_click()
+
+    assert html =~ "too short"
   end
 
   # This is the scenario the gate is deliberately ordered around (see the
