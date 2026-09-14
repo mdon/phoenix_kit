@@ -18,19 +18,33 @@ defmodule PhoenixKit.Modules.Storage do
   ## Folder conventions for modules
 
   Modules that create one folder per object (catalogue items, warehouse
-  documents, machines, …) should:
+  documents, CRM records, machines, …) should:
 
-  - offer a host hook, e.g. `config :my_module, :attachments_parent_folder,
-    {Mod, :fun}` called with `(resource_kind, actor_uuid)` and returning
-    `{:ok, parent_folder_uuid}` or `nil`, defaulting to the root when
-    absent — hosts use it to group folders per type (`Orders/`, `Items/`);
-  - resolve an object's folder by a stored uuid pointer first, then by
-    deterministic name under the parent, then by name at the root;
-  - never assume `parent_uuid IS NULL` for their folders.
+  - offer a host hook `config :my_module, :attachments_parent_folder, {Mod, :fun}`
+    called as `fun(kind, actor_uuid, subject)` — `kind` an atom naming the
+    resource, `subject` the owning record (or a context map for uploads that
+    belong to another record, e.g. `%{resource_type: "order", resource_uuid: uuid}`)
+    — returning `{:ok, parent_folder_uuid}` or `nil` (= storage root, the
+    default when unconfigured). Call `fun/2` (`kind, actor_uuid`) when the
+    host exports only that arity; check `Code.ensure_loaded?/1` before
+    `function_exported?/3`;
+  - optionally offer `config :my_module, :attachments_folder_name, {Mod, :fun}`
+    called as `fun(subject, actor_uuid)` returning `{:ok, name}` or `nil`, so
+    a host may give folders human names; the deterministic
+    `<module>-<kind>-<uuid>` name stays the fallback;
+  - resolve an object's folder by a stored uuid pointer first, then by the
+    host name under the parent, then by the deterministic name under the
+    parent, then by the deterministic name at the root — never assume
+    `parent_uuid IS NULL`; purge/delete and bulk listings use the same
+    resolution;
+  - leave moving/renaming existing folders to the host (adoption is a host
+    concern), and never create folders for people's own use.
 
-  `update_folder/3` with `parent_uuid` moves a folder (with cycle check);
-  the `(name, parent_uuid)` unique index means the same name can exist
-  under different parents.
+  Hosts typically group containers (`Warehouse/Supplier orders`, `CRM/Contacts`)
+  and may re-parent a container that was created elsewhere; `update_folder/3`
+  with `parent_uuid` moves a folder (with cycle check), and the
+  `(name, parent_uuid)` unique index means the same name can exist under
+  different parents.
 
   ## Module Status
 
