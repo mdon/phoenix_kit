@@ -89,6 +89,7 @@ advise_memory() {
     echo "   run less at once - one command per BEAM:"
     echo "     mix compile --warnings-as-errors --all-warnings"
     echo "     mix deps.unlock --check-unused"
+    echo "     mix test.compile      # compiles test/**/*_test.exs in a MIX_ENV=test subprocess"
     echo "     mix format --check-formatted"
     echo "     mix credo --strict"
     echo "     mix dialyzer          # heaviest; builds priv/plts/dialyzer.plt"
@@ -188,6 +189,7 @@ run_step() {
 # commit that just claimed to pass.
 run_step "Compilation" "🔨 Compiling code..." mix compile --warnings-as-errors --all-warnings
 run_step "Unused dependencies" "📦 Checking for unused dependencies..." mix deps.unlock --check-unused
+run_step "Test tree compilation" "🧱 Compiling test/**/*_test.exs (no tests run)..." mix test.compile
 run_step "Code quality checks" "🔍 Running code quality checks..." mix quality.ci
 run_step "JavaScript tests" "🧪 Running JavaScript tests..." mix test.js
 

@@ -1,3 +1,22 @@
+## Unreleased
+
+### Added
+
+- **`mix precommit` now compiles the test tree** via a new `test.compile`
+  alias, run between `deps.unlock --check-unused` and `quality.ci`. No
+  existing gate step ever *compiled* `test/**/*_test.exs`: `format` and
+  `credo` only parse them, `compile` and `dialyzer` see `elixirc_paths`
+  (which covers `test/support`, not the `.exs` test files), and ExUnit is
+  the only thing that compiles those — so a test file that is valid syntax
+  but fails to compile (a duplicate `describe` name, for example, which
+  ExUnit rejects at `defmodule` time) passed every step and only surfaced on
+  the next `mix test`. The alias compiles every test file with
+  `Kernel.ParallelCompiler.compile/1` in a `MIX_ENV=test` subprocess,
+  deliberately without `test_helper.exs`: no `ExUnit.start`, no database
+  probe, no migration, zero tests run, so it cannot go red from the
+  environment — only from a genuine compile error in `test/`. `mix test`
+  itself is still not part of `precommit`; see AGENTS.md "CI/CD".
+
 ## 2.23.2 - 2026-09-15
 
 ### Added
