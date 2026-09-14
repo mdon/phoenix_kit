@@ -2356,6 +2356,8 @@ defmodule PhoenixKit.Users.Auth do
            filename
          ) do
       {:ok, file} ->
+        PhoenixKit.UploadsParentFolder.place(file, :avatar, user_uuid, user)
+
         # Save the file UUID to user's custom fields
         update_user_fields(user, %{"avatar_file_uuid" => file.uuid})
 

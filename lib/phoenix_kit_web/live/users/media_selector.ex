@@ -44,7 +44,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
   require Logger
 
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{File, FileInstance, URLSigner}
+  alias PhoenixKit.Modules.Storage.{File, FileInstance, Folder, URLSigner}
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Format
@@ -66,7 +66,13 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
     return_to = parse_return_to(params["return_to"])
     mode = parse_mode(params["mode"])
     selected_uuids = parse_selected_uuids(params["selected"])
+    scope_folder = parse_scope_folder(params["scope_folder"])
 
+    # `scope_folder` is not declared to `use PhoenixKitWeb.Live.UrlState`
+    # above — an undeclared query param survives every `push_url_state`
+    # round-trip (search, filter, paging) on its own, so it needs no
+    # handling beyond this one read.
+    #
     # :search_query, :file_type_filter, :current_page and :per_page are
     # assigned from the query string by UrlState before mount/3 runs —
     # re-assigning them here would overwrite a shared link's state with the
@@ -80,6 +86,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
       |> assign(:return_to, return_to)
       |> assign(:selection_mode, mode)
       |> assign(:selected_uuids, selected_uuids)
+      |> assign(:scope_folder, scope_folder)
       |> allow_upload(:media_files,
         accept: :any,
         max_entries: 10,
@@ -259,10 +266,12 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
          ) do
       {:ok, file, :duplicate} ->
         Logger.info("Duplicate file uploaded: #{file.uuid}")
+        maybe_attach_to_scope_folder(file, socket.assigns.scope_folder)
         {:ok, file.uuid}
 
       {:ok, file} ->
         Logger.info("New file uploaded: #{file.uuid}")
+        maybe_attach_to_scope_folder(file, socket.assigns.scope_folder)
         {:ok, file.uuid}
 
       {:error, reason} ->
@@ -271,6 +280,13 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
         Logger.error("Upload failed: #{inspect(reason)}")
         {:postpone, :error}
     end
+  end
+
+  defp maybe_attach_to_scope_folder(_file, nil), do: :ok
+
+  defp maybe_attach_to_scope_folder(file, scope_folder) do
+    Storage.attach_file_to_folder(file, scope_folder)
+    :ok
   end
 
   defp load_files(socket, page) do
@@ -400,6 +416,20 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
   end
 
   defp parse_selected_uuids(_), do: []
+
+  # Uploads made from the selector are placed under this folder (H3) — a
+  # deleted or trashed folder is treated the same as no scope at all rather
+  # than silently attaching new uploads to a dead folder.
+  defp parse_scope_folder(value) when is_binary(value) do
+    with {:ok, uuid} <- Ecto.UUID.cast(value),
+         %Folder{trashed_at: nil} <- Storage.get_folder(uuid) do
+      uuid
+    else
+      _ -> nil
+    end
+  end
+
+  defp parse_scope_folder(_), do: nil
 
   defp parse_filter(nil), do: :all
   defp parse_filter("image"), do: :image
