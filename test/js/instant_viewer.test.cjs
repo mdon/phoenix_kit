@@ -61,15 +61,18 @@ function fakeEl(armed, opts) {
     dataset: { baseClass: BASE },
   };
   const sidebar = { style: {} };
+  const box = { style: {} };
   return {
     img,
     sidebar,
+    box,
     style: {},
     dataset: {
       armed: String(armed),
       sidebarOpen: String((opts && opts.sidebarOpen) ?? true),
     },
-    querySelector: (sel) => (sel.includes("sidebar") ? sidebar : img),
+    querySelector: (sel) =>
+      sel.includes("sidebar") ? sidebar : sel.includes("modal-box") ? box : img,
   };
 }
 
@@ -236,35 +239,89 @@ test("exactly one dark layer at every moment of the hand-off", () => {
 
   // Both the stand-in and the real viewer are .modal-open, and .modal-open
   // paints its own 40% black — stacked, they compound to ~64%, a visible
-  // darker pulse for as long as both are up. So the real modal's black is
-  // suppressed while the stand-in's is showing…
+  // darker pulse for as long as both are up. The stand-in sits on top, so
+  // ITS black goes transparent in the same frame the real one's appears…
   const viewer = realViewer(false);
   listeners.window["pk:viewer-open"].fn(viewer);
-  assert.strictEqual(viewer.root.style.backgroundColor, "transparent",
-    "the real modal must not add its black on top of the stand-in's");
+  assert.strictEqual(el.style.backgroundColor, "transparent",
+    "the stand-in must not add its black on top of the real modal's");
   assert.strictEqual(viewer.root.style.transition, "none",
-    "…and with the transition off, or restoring it would fade over 0.3s");
+    "…with the real one's transition off, or its black fades in over 0.3s " +
+    "while the stand-in's vanishes instantly — a visible dip");
 
-  // …and restored in the very call that hides the stand-in, so the swap is
-  // within one frame and the darkness never doubles or dips.
+  // …and comes back when the stand-in resets, ready for the next open.
   viewer.img.handlers.load();
   assert.strictEqual(el.style.display, "none");
-  assert.strictEqual(viewer.root.style.backgroundColor, "",
-    "the real modal's own black takes over the same frame");
+  assert.strictEqual(el.style.backgroundColor, "",
+    "the stand-in's own black is restored for its next showing");
 });
 
-test("a viewer that opened without the stand-in keeps its own backdrop", () => {
+test("a viewer that opened without the stand-in is left entirely alone", () => {
   const { hook, listeners } = loadHook();
   const el = fakeEl(true);
   hook.mounted.call({ el });
 
   // No click preceded this open (select-mode, keyboard nav, a card with no
-  // image) — the real modal's black is the ONLY dark layer, and
-  // suppressing it would flash the page bright instead of dark.
+  // image) — there is nothing to hand over and nothing to align.
   const viewer = realViewer(false);
   listeners.window["pk:viewer-open"].fn(viewer);
-  assert.notStrictEqual(viewer.root.style.backgroundColor, "transparent",
-    "nothing to hand over, so nothing to suppress");
+  assert.strictEqual(viewer.root.style.transition, undefined,
+    "no styles are touched on a viewer the stand-in never covered");
+});
+
+test("the real sidebar shows through while the blur covers the image column", () => {
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+  listeners.document.click.fn(cardClick("/x.jpg"));
+
+  // The real modal mounts UNDER the stand-in, its sidebar content already
+  // rendered — only its image is still in flight. The stand-in becomes a
+  // window: box and skeleton pane transparent, so the real comments are
+  // visible at once instead of popping in when the image arrives.
+  const viewer = realViewer(false);
+  listeners.window["pk:viewer-open"].fn(viewer);
+  assert.strictEqual(el.box.style.backgroundColor, "transparent",
+    "the stand-in's box must not hide the real sidebar behind it");
+  assert.strictEqual(el.sidebar.style.visibility, "hidden",
+    "the skeleton pane yields to the real content, keeping its ground " +
+    "(visibility, not display) so the image column's width holds");
+
+  viewer.img.handlers.load();
+  assert.strictEqual(el.box.style.backgroundColor, "", "box reset for next open");
+  assert.strictEqual(el.sidebar.style.visibility, "", "pane reset for next open");
+});
+
+test("the real layout corrects a mispredicted pane before the image lands", () => {
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true, { sidebarOpen: true });
+  hook.mounted.call({ el });
+  listeners.document.click.fn(cardClick("/x.jpg"));
+  assert.strictEqual(el.sidebar.style.display, "", "predicted open");
+
+  // The viewer arrives with NO sidebar: the blurry column must widen now,
+  // not keep a phantom 30% reserved until the image loads.
+  listeners.window["pk:viewer-open"].fn(realViewer(false, { sidebar: false }));
+  assert.strictEqual(el.sidebar.style.display, "none",
+    "truth beats prediction the moment the real layout exists");
+});
+
+test("closing the viewer mid-hold takes the floating blur down with it", () => {
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+  listeners.document.click.fn(cardClick("/x.jpg"));
+  listeners.window["pk:viewer-open"].fn(realViewer(false));
+  assert.strictEqual(el.style.display, "", "holding, waiting on the image");
+
+  // Escape tears the modal out from under the overlay — without this, the
+  // blurry column hangs over the grid until the 8s fallback.
+  listeners.window["pk:viewer-closed"].fn();
+  assert.strictEqual(el.style.display, "none");
+
+  const keydown = src.slice(src.indexOf("window.PhoenixKitHooks.ViewerKeydown = {"));
+  assert.ok(keydown.includes('new CustomEvent("pk:viewer-closed")'),
+    "the viewer's own teardown is what announces the close");
 });
 
 test("the stand-in reserves the sidebar's ground when the pref says open", () => {
@@ -373,6 +430,16 @@ test("the markup keeps LiveView's hands off it", () => {
     "and fills the box rather than sitting small in the middle of it");
   assert.ok(block.includes('data-pane="sidebar"') && block.includes("flex-[7]"),
     "it mirrors the viewer's image/sidebar split, not one centred box");
+  assert.ok(/z-index:\s*1000/.test(block),
+    "it floats ABOVE the real modal (.modal is 999): the hold only works " +
+    "if the blur stays visible after the real viewer mounts underneath");
+  assert.ok(/pointer-events:\s*none/.test(block),
+    "and it must never block the real viewer's close button or sidebar");
+  assert.ok(/transition:\s*none/.test(block),
+    "its backdrop must appear and yield instantly, not on daisyUI's fade");
+  assert.ok(block.includes("skeleton"),
+    "the pane shows loading bars — an empty white block reads as 'no " +
+    "comments', making the real content's arrival a pop");
   assert.ok(block.includes("data-sidebar-open="),
     "and is seeded with the user's sidebar pref for the first open");
 

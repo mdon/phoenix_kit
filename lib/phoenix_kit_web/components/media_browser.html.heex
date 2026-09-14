@@ -2505,7 +2505,7 @@
       )
     }
     class="modal modal-open"
-    style="display:none"
+    style="display:none; z-index: 1000; pointer-events: none; transition: none"
     aria-hidden="true"
   >
     <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:!h-[90vh] lg:!rounded-2xl lg:!m-auto p-0 !overflow-hidden">
@@ -2547,11 +2547,20 @@
             alt=""
           />
         </div>
+        <%!-- Skeleton bars, not an empty block: an empty white pane reads as --%>
+        <%!-- "no comments", and then the real sidebar's content arriving     --%>
+        <%!-- reads as the comments suddenly opening. Bars that pulse read as --%>
+        <%!-- a panel still loading — the content arriving is it finishing.   --%>
+        <%!-- Bar widths are inline because w-2/3-style utilities are not in  --%>
+        <%!-- every host's compiled CSS.                                      --%>
         <div
           data-pane="sidebar"
-          class="flex-[3] lg:min-w-[280px] bg-base-100"
+          class="flex-[3] lg:min-w-[280px] bg-base-100 p-4 space-y-3"
           style="display:none"
         >
+          <div class="skeleton h-4" style="width: 70%"></div>
+          <div class="skeleton h-4" style="width: 45%"></div>
+          <div class="skeleton h-4" style="width: 55%"></div>
         </div>
       </div>
     </div>

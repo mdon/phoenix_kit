@@ -2053,17 +2053,14 @@ if (typeof window.Chart === "undefined") {
         el.style.display = "none";
         const img = el.querySelector("img");
         if (img) img.removeAttribute("src");
-        // Hand the darkness back. While the stand-in showed, the real
-        // modal's own 40% black was suppressed (below) — two stacked
-        // .modal-open layers compound to ~64%, which is the darker pulse
-        // this fixes. Restoring it in the same frame the stand-in leaves
-        // keeps exactly one dark layer on screen at every moment. The
-        // transition stays off: the modal is removed from the DOM on
-        // close, so the fade it loses was never going to be seen.
-        if (self._realModal) {
-          self._realModal.style.backgroundColor = "";
-          self._realModal = null;
-        }
+        // Undo the see-through state (below) so the next open starts as a
+        // full stand-in again: its own backdrop, an opaque box, a visible
+        // skeleton pane.
+        el.style.backgroundColor = "";
+        const box = el.querySelector(".modal-box");
+        if (box) box.style.backgroundColor = "";
+        const pane = el.querySelector('[data-pane="sidebar"]');
+        if (pane) pane.style.visibility = "";
         if (self._timer) { clearTimeout(self._timer); self._timer = null; }
       };
       self._hide();
@@ -2136,22 +2133,42 @@ if (typeof window.Chart === "undefined") {
         }
 
         // Nothing to hand over — the viewer opened without the stand-in
-        // (select-mode click, a card with no image). Leave its backdrop
-        // alone; suppressing it would flash the page BRIGHT instead.
+        // (select-mode click, a card with no image).
         if (el.style.display === "none") return;
 
-        // .modal-open paints its own 40% black — on top of the stand-in's,
-        // which compounds to a darker pulse for as long as both are up.
-        // Make the real modal's transparent until the stand-in leaves;
-        // _hide restores it the same frame. Transition off, or the
-        // restore would fade the black back in over daisyUI's 0.3s.
-        if (root && root.style) {
-          root.style.transition = "none";
-          root.style.backgroundColor = "transparent";
-          self._realModal = root;
+        // No element to align with (defensive) — just get out of the way.
+        if (!root || !root.querySelector) { self._hide(); return; }
+
+        // The real modal mounts UNDER this stand-in (the stand-in carries
+        // z-index 1000 against .modal's 999) and its sidebar content is
+        // ready NOW — only its image is still in flight. So turn the
+        // stand-in into a window: its own backdrop, box, and skeleton pane
+        // go transparent, leaving just the blurry image column floating
+        // exactly over the real modal's identical — and still empty —
+        // image column. The real sidebar shows through immediately, and
+        // the empty column never shows at all.
+        //
+        // The darkness swaps in the same frame: the real .modal-open
+        // paints its own 40% black as the stand-in's goes transparent —
+        // exactly one dark layer at every moment, no doubling and no dip.
+        // Both transitions are off (the stand-in's inline in the markup),
+        // or daisyUI's 0.3s background fade would turn the swap into a
+        // visible dip.
+        if (root.style) root.style.transition = "none";
+        el.style.backgroundColor = "transparent";
+        const box = el.querySelector(".modal-box");
+        if (box) box.style.backgroundColor = "transparent";
+        const pane = el.querySelector('[data-pane="sidebar"]');
+        if (pane) {
+          // The real layout is here, so truth replaces prediction: on a
+          // mispredicted open the blurry column snaps to the right width
+          // now rather than covering the real sidebar until the image
+          // loads. visibility (not display) keeps the column's ground.
+          pane.style.display = self._sidebarWasOpen ? "" : "none";
+          pane.style.visibility = "hidden";
         }
 
-        const real = root && root.querySelector && root.querySelector("img");
+        const real = root.querySelector("img");
         // No image to wait for, or already decoded (same URL as the card, or
         // a warm cache) — hand over now.
         if (!real || real.complete) { self._hide(); return; }
@@ -2168,11 +2185,19 @@ if (typeof window.Chart === "undefined") {
         real.addEventListener("error", done);
       };
       window.addEventListener("pk:viewer-open", self._onReady);
+
+      // Escape (or anything else) can close the viewer while the hold is
+      // still waiting on the image — the modal is torn out from under the
+      // floating blurry column, which would otherwise hang over the grid
+      // until the fallback timer. The viewer announces its teardown.
+      self._onClosed = function() { self._hide(); };
+      window.addEventListener("pk:viewer-closed", self._onClosed);
     },
 
     destroyed() {
       document.removeEventListener("click", this._onClick, true);
       window.removeEventListener("pk:viewer-open", this._onReady);
+      window.removeEventListener("pk:viewer-closed", this._onClosed);
       if (this._timer) { clearTimeout(this._timer); this._timer = null; }
     }
   };
@@ -2193,6 +2218,9 @@ if (typeof window.Chart === "undefined") {
       document.addEventListener("keydown", self._handler);
     },
     destroyed() {
+      // The stand-in may be holding a blurry overlay over this modal,
+      // waiting for an image that is now never going to load.
+      window.dispatchEvent(new CustomEvent("pk:viewer-closed"));
       if (this._handler) {
         document.removeEventListener("keydown", this._handler);
         this._handler = null;
