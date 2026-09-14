@@ -1522,10 +1522,17 @@
                             </label>
                           <% end %>
 
+                          <%!-- data-prefetch-*: the viewer opens on `small`  --%>
+                          <%!-- and swaps up to `large` — both cold fetches  --%>
+                          <%!-- that used to START at the click. The hook    --%>
+                          <%!-- warms them on hover instead, so by the time  --%>
+                          <%!-- the click lands they are usually in cache.   --%>
                           <div
                             phx-click="click_file"
                             phx-target={@myself}
                             phx-value-file-uuid={file.file_uuid}
+                            data-prefetch-small={file.file_type == "image" && file.urls["small"]}
+                            data-prefetch-large={file.file_type == "image" && file.urls["large"]}
                             class="block w-full h-full cursor-pointer"
                           >
                             <.thumbnail_url :let={url} file={file} size={:card}>
@@ -2136,6 +2143,12 @@
                               phx-click="click_file"
                               phx-target={@myself}
                               phx-value-file-uuid={file.file_uuid}
+                              data-prefetch-small={
+                                file.file_type == "image" && file.urls["small"]
+                              }
+                              data-prefetch-large={
+                                file.file_type == "image" && file.urls["large"]
+                              }
                               class={[
                                 "hover cursor-pointer",
                                 @select_mode &&

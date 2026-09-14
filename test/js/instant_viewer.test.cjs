@@ -35,8 +35,14 @@ function loadHook() {
     removeEventListener: () => {},
   };
   const hooks = {};
+  const fetched = [];
+  function FakeImage() { fetched.push(this); }
+  Object.defineProperty(FakeImage.prototype, "src", {
+    set(v) { this._src = v; fetched.srcs = (fetched.srcs || []).concat(v); },
+    get() { return this._src; },
+  });
   const fn = new Function(
-    "window", "document", "setTimeout", "clearTimeout",
+    "window", "document", "setTimeout", "clearTimeout", "Image",
     "window.PhoenixKitHooks = window.PhoenixKitHooks || {};" +
       src.slice(start, end) + "; return window.PhoenixKitHooks.InstantViewer;"
   );
@@ -45,9 +51,10 @@ function loadHook() {
     Object.assign(win, { PhoenixKitHooks: hooks }),
     doc,
     (cb, ms) => { timers.push({ cb, ms }); return timers.length; },
-    () => {}
+    () => {},
+    FakeImage
   );
-  return { hook, listeners, timers };
+  return { hook, listeners, timers, fetched };
 }
 
 function fakeEl(armed, opts) {
@@ -414,6 +421,42 @@ test("the upscale is blurred, and by a style the className rewrite cannot drop",
     "template, and would not survive the hook's className rewrite either");
 });
 
+function hoverCard(small, large) {
+  const card = { dataset: {} };
+  if (small) card.dataset.prefetchSmall = small;
+  if (large) card.dataset.prefetchLarge = large;
+  return { target: { closest: (sel) => (sel.includes("click_file") ? card : null) } };
+}
+
+test("hovering a card starts the viewer's downloads before the click", () => {
+  const { hook, listeners, fetched } = loadHook();
+  hook.mounted.call({ el: fakeEl(true) });
+
+  // The viewer opens on `small` and swaps up to `large` — a third of a
+  // megabyte that used to start moving only after the click's round trip.
+  // The pointer rests on a card for a beat before the button goes down;
+  // that beat is download time now.
+  listeners.document.pointerover.fn(hoverCard("/f/small/aa", "/f/large/bb"));
+  assert.deepStrictEqual(fetched.srcs, ["/f/small/aa", "/f/large/bb"],
+    "both variants the open will ask for are warming");
+
+  // Once per page: the second hover of the same card fetches nothing —
+  // the first fetch is either done (cached, immutable) or in flight.
+  listeners.document.pointerover.fn(hoverCard("/f/small/aa", "/f/large/bb"));
+  assert.strictEqual(fetched.srcs.length, 2, "no re-fetch on re-hover");
+
+  assert.ok(listeners.document.pointerdown,
+    "pointerdown is the backstop for touch, where there is no hover");
+});
+
+test("hovering anything that is not a file card fetches nothing", () => {
+  const { hook, listeners, fetched } = loadHook();
+  hook.mounted.call({ el: fakeEl(true) });
+  listeners.document.pointerover.fn({ target: { closest: () => null } });
+  listeners.document.pointerover.fn(hoverCard(null, null)); // video/pdf card
+  assert.strictEqual(fetched.length, 0);
+});
+
 test("the markup keeps LiveView's hands off it", () => {
   const heex = fs.readFileSync(
     path.join(__dirname, "..", "..", "lib", "phoenix_kit_web", "components",
@@ -440,6 +483,15 @@ test("the markup keeps LiveView's hands off it", () => {
   assert.ok(block.includes("skeleton"),
     "the pane shows loading bars — an empty white block reads as 'no " +
     "comments', making the real content's arrival a pop");
+
+  // Every click_file site carries the prefetch attributes, or hovering
+  // that surface silently loses the head start.
+  const sites = heex.split('phx-click="click_file"').length - 1;
+  assert.ok(sites >= 2, "grid and list both open the viewer");
+  assert.strictEqual(heex.split("data-prefetch-small=").length - 1, sites,
+    "every click_file site advertises the small variant to warm");
+  assert.strictEqual(heex.split("data-prefetch-large=").length - 1, sites,
+    "…and the large one, which is what the open actually waits on");
   assert.ok(block.includes("data-sidebar-open="),
     "and is seeded with the user's sidebar pref for the first open");
 

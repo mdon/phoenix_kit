@@ -2111,6 +2111,30 @@ if (typeof window.Chart === "undefined") {
       };
       document.addEventListener("click", self._onClick, true);
 
+      // Start the viewer's downloads BEFORE the click. Opening fetches
+      // `small` and then `large` — a third of a megabyte that used to
+      // start moving only after the round trip. A pointer rests on a card
+      // for a beat before the button goes down, which is enough head
+      // start for the fetches to be in cache (immutable, so the browser
+      // serves them without revalidating) by the time the viewer asks.
+      // pointerdown is the backstop for touch, where there is no hover.
+      // Each URL is fetched once per page; a miss costs nothing extra —
+      // it is the same download the click was about to start anyway.
+      self._prefetched = {};
+      self._prefetch = function(e) {
+        const card = e.target.closest && e.target.closest('[phx-click="click_file"]');
+        if (!card || !card.dataset) return;
+        for (const key of ["prefetchSmall", "prefetchLarge"]) {
+          const url = card.dataset[key];
+          if (!url || self._prefetched[url]) continue;
+          self._prefetched[url] = true;
+          new Image().src = url;
+        }
+      };
+      // pointerover, not pointerenter: only the former bubbles.
+      document.addEventListener("pointerover", self._prefetch, true);
+      document.addEventListener("pointerdown", self._prefetch, true);
+
       // The real viewer says when it is up. Nothing else can: the modal is a
       // different LiveComponent that this hook has no reference to, so it
       // hands its own element over in the event.
@@ -2196,6 +2220,8 @@ if (typeof window.Chart === "undefined") {
 
     destroyed() {
       document.removeEventListener("click", this._onClick, true);
+      document.removeEventListener("pointerover", this._prefetch, true);
+      document.removeEventListener("pointerdown", this._prefetch, true);
       window.removeEventListener("pk:viewer-open", this._onReady);
       window.removeEventListener("pk:viewer-closed", this._onClosed);
       if (this._timer) { clearTimeout(this._timer); this._timer = null; }
