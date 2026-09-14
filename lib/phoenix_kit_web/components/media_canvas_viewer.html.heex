@@ -360,8 +360,13 @@
         <%!-- in viewer_only mode — standalone-page hosts render their own  --%>
         <%!-- sidebar with admin actions / metadata editor / file details —  --%>
         <%!-- and while collapsed via the viewer-corner toggle above.        --%>
+        <%!-- data-viewer-sidebar: read by the InstantViewer hook when this   --%>
+        <%!-- viewer announces itself, so the next stand-in predicts the same --%>
+        <%!-- image/sidebar split this open actually used — the server-       --%>
+        <%!-- rendered pref only covers the first open of a session.          --%>
         <div
           :if={not @viewer_only and not @sidebar_collapsed}
+          data-viewer-sidebar
           class="flex-[3] flex flex-col gap-3 p-4 overflow-y-auto lg:min-w-[280px] bg-base-100"
         >
           <h2 class="text-base font-bold break-all leading-tight pr-10">

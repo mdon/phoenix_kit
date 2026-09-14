@@ -543,6 +543,23 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   defp load_sidebar_collapsed(_), do: false
 
+  @doc """
+  Whether the viewer's info sidebar will be open for this user.
+
+  Used by the media browser's instant stand-in to predict the layout it is
+  standing in for — the sidebar is open by default, so a stand-in that paints
+  the image over the full popup shrinks it a beat later when the real viewer
+  mounts, which reads as a flash. Reads the same per-user flag the viewer
+  itself loads; `nil` user (or a never-toggled one) means open, matching the
+  viewer's default.
+
+  Deliberately reads the user struct it is handed (usually the LiveView
+  assign) rather than re-fetching the row: this is a prediction, and the
+  stand-in's hook corrects itself from the layout the real viewer actually
+  used, so a stale read costs one mispredicted frame at worst.
+  """
+  def sidebar_open?(user), do: not load_sidebar_collapsed(user)
+
   # Merge into a freshly-read copy so a concurrent custom_fields change
   # elsewhere isn't clobbered. No user → session-local only (the assign
   # still toggles; it just won't survive a remount).

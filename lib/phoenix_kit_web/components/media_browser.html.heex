@@ -2487,45 +2487,72 @@
   <%!-- `phx-update="ignore"` because the hook owns its contents; LiveView    --%>
   <%!-- patching it mid-show is how it would flicker. `data-armed` is how it  --%>
   <%!-- stays out of select mode, where the same click is a checkbox.         --%>
+  <%!-- `data-sidebar-open` seeds the hook's layout prediction for the first --%>
+  <%!-- open of a session; after that the hook remembers what the real       --%>
+  <%!-- viewer actually showed (data-viewer-sidebar), which also covers the  --%>
+  <%!-- user toggling the sidebar mid-session — this attribute would not,    --%>
+  <%!-- because the assign never refreshes on a toggle.                      --%>
   <div
     id={"#{@id}-instant-viewer"}
     phx-hook="InstantViewer"
     phx-update="ignore"
     data-armed={to_string(not @select_mode)}
+    data-sidebar-open={
+      to_string(
+        PhoenixKitWeb.Components.MediaCanvasViewer.sidebar_open?(
+          assigns[:phoenix_kit_current_user]
+        )
+      )
+    }
     class="modal modal-open"
     style="display:none"
     aria-hidden="true"
   >
     <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:!h-[90vh] lg:!rounded-2xl lg:!m-auto p-0 !overflow-hidden">
-      <div class="w-full h-full flex items-center justify-center bg-base-200">
-        <%!-- `w-full h-full`, not `max-w-full`: max-* constrains but never   --%>
-        <%!-- scales UP, so a 300px thumbnail sat at 300px in the middle of a --%>
-        <%!-- 95vw box — which reads as the viewer having opened wrong rather --%>
-        <%!-- than as something still loading. Filling the box puts it at the --%>
-        <%!-- size and position the real image is about to occupy, so the     --%>
-        <%!-- hand-off is a sharpening rather than a jump.                    --%>
-        <%!--                                                                  --%>
-        <%!-- object-contain, not cover, for the same reason: this stands in  --%>
-        <%!-- for a viewer that fits the whole picture. Cropping here and     --%>
-        <%!-- un-cropping a moment later is worse than the wait it replaces.  --%>
-        <%!--                                                                  --%>
-        <%!-- The blur is the point, not an apology for it. The card holds a --%>
-        <%!-- 300-400px variant, so filling the box is a ~4x upscale and is   --%>
-        <%!-- going to look rough however it is presented. Blurred, it reads  --%>
-        <%!-- as "developing" — which is what is actually happening — and the --%>
-        <%!-- eye waits for it instead of judging it.                         --%>
-        <%!--                                                                  --%>
-        <%!-- Inline, not `blur-sm`: this template is a library's, and a host --%>
-        <%!-- whose Tailwind build does not reach into the package would drop --%>
-        <%!-- the utility and leave a hard-edged pixelated upscale. The hook  --%>
-        <%!-- rewrites className to carry the card's rotation, so the style   --%>
-        <%!-- attribute is also the one place a blur survives that.           --%>
-        <img
-          data-base-class="w-full h-full object-contain"
-          class="w-full h-full object-contain"
-          style="filter: blur(6px)"
-          alt=""
-        />
+      <%!-- Mirror of the real viewer's split: flex-[7] image column,        --%>
+      <%!-- flex-[3] info sidebar (open by default). Painting the image over --%>
+      <%!-- the full popup and shrinking it when the sidebar mounts is its   --%>
+      <%!-- own flash; the hook shows or hides the sidebar pane per          --%>
+      <%!-- prediction before each open. The pane stays empty — its content  --%>
+      <%!-- is the server's to render — but it holds the sidebar's ground    --%>
+      <%!-- so the image column starts at its final size.                    --%>
+      <div class="flex flex-col lg:flex-row h-full overflow-hidden">
+        <div class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-0 lg:p-2 min-h-[40vh] lg:min-h-0">
+          <%!-- `w-full h-full`, not `max-w-full`: max-* constrains but never   --%>
+          <%!-- scales UP, so a 300px thumbnail sat at 300px in the middle of a --%>
+          <%!-- 95vw box — which reads as the viewer having opened wrong rather --%>
+          <%!-- than as something still loading. Filling the box puts it at the --%>
+          <%!-- size and position the real image is about to occupy, so the     --%>
+          <%!-- hand-off is a sharpening rather than a jump.                    --%>
+          <%!--                                                                  --%>
+          <%!-- object-contain, not cover, for the same reason: this stands in  --%>
+          <%!-- for a viewer that fits the whole picture. Cropping here and     --%>
+          <%!-- un-cropping a moment later is worse than the wait it replaces.  --%>
+          <%!--                                                                  --%>
+          <%!-- The blur is the point, not an apology for it. The card holds a --%>
+          <%!-- 300-400px variant, so filling the box is a ~4x upscale and is   --%>
+          <%!-- going to look rough however it is presented. Blurred, it reads  --%>
+          <%!-- as "developing" — which is what is actually happening — and the --%>
+          <%!-- eye waits for it instead of judging it.                         --%>
+          <%!--                                                                  --%>
+          <%!-- Inline, not `blur-sm`: this template is a library's, and a host --%>
+          <%!-- whose Tailwind build does not reach into the package would drop --%>
+          <%!-- the utility and leave a hard-edged pixelated upscale. The hook  --%>
+          <%!-- rewrites className to carry the card's rotation, so the style   --%>
+          <%!-- attribute is also the one place a blur survives that.           --%>
+          <img
+            data-base-class="w-full h-full object-contain"
+            class="w-full h-full object-contain"
+            style="filter: blur(6px)"
+            alt=""
+          />
+        </div>
+        <div
+          data-pane="sidebar"
+          class="flex-[3] lg:min-w-[280px] bg-base-100"
+          style="display:none"
+        >
+        </div>
       </div>
     </div>
   </div>

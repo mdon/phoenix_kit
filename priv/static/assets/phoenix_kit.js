@@ -2053,6 +2053,17 @@ if (typeof window.Chart === "undefined") {
         el.style.display = "none";
         const img = el.querySelector("img");
         if (img) img.removeAttribute("src");
+        // Hand the darkness back. While the stand-in showed, the real
+        // modal's own 40% black was suppressed (below) — two stacked
+        // .modal-open layers compound to ~64%, which is the darker pulse
+        // this fixes. Restoring it in the same frame the stand-in leaves
+        // keeps exactly one dark layer on screen at every moment. The
+        // transition stays off: the modal is removed from the DOM on
+        // close, so the fade it loses was never going to be seen.
+        if (self._realModal) {
+          self._realModal.style.backgroundColor = "";
+          self._realModal = null;
+        }
         if (self._timer) { clearTimeout(self._timer); self._timer = null; }
       };
       self._hide();
@@ -2071,6 +2082,22 @@ if (typeof window.Chart === "undefined") {
 
         const shown = el.querySelector("img");
         if (!shown) return;
+
+        // Predict the layout the real viewer is about to use: image column
+        // alone, or image + info sidebar — which is open by default, so
+        // painting the image over the full popup and shrinking it when the
+        // sidebar mounts is its own flash. The last viewer seen this
+        // session is the best predictor (the user may have toggled the
+        // sidebar inside it); before any viewer has opened, the
+        // server-rendered pref decides.
+        const pane = el.querySelector('[data-pane="sidebar"]');
+        if (pane) {
+          const open = self._sidebarWasOpen !== undefined
+            ? self._sidebarWasOpen
+            : el.dataset.sidebarOpen === "true";
+          pane.style.display = open ? "" : "none";
+        }
+
         shown.setAttribute("src", src);
         // Carry the card's rotation across, or a sideways photo would flip
         // upright for a moment and then turn back.
@@ -2099,6 +2126,31 @@ if (typeof window.Chart === "undefined") {
       // So hold on until the real bitmap is actually on screen.
       self._onReady = function(e) {
         const root = e && e.detail && e.detail.el;
+
+        // Remember the layout this viewer actually used, so the NEXT
+        // stand-in predicts it right even after the user toggles the
+        // sidebar mid-session — the server-rendered pref cannot follow
+        // that, its assign never refreshes on a toggle.
+        if (root && root.querySelector) {
+          self._sidebarWasOpen = !!root.querySelector("[data-viewer-sidebar]");
+        }
+
+        // Nothing to hand over — the viewer opened without the stand-in
+        // (select-mode click, a card with no image). Leave its backdrop
+        // alone; suppressing it would flash the page BRIGHT instead.
+        if (el.style.display === "none") return;
+
+        // .modal-open paints its own 40% black — on top of the stand-in's,
+        // which compounds to a darker pulse for as long as both are up.
+        // Make the real modal's transparent until the stand-in leaves;
+        // _hide restores it the same frame. Transition off, or the
+        // restore would fade the black back in over daisyUI's 0.3s.
+        if (root && root.style) {
+          root.style.transition = "none";
+          root.style.backgroundColor = "transparent";
+          self._realModal = root;
+        }
+
         const real = root && root.querySelector && root.querySelector("img");
         // No image to wait for, or already decoded (same URL as the card, or
         // a warm cache) — hand over now.
