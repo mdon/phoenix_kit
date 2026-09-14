@@ -2022,9 +2022,89 @@ if (typeof window.Chart === "undefined") {
   // `handle_event "viewer_keydown"` clauses keep working unchanged.
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // InstantViewer — put the picture on screen on the click, not on the reply.
+  //
+  // Opening the viewer is a server round trip: the modal does not exist in the
+  // DOM until LiveView sends it back. The server's part of that is ~2ms, so on
+  // a fast connection it reads as a small hitch and on a slow one as a wait,
+  // and in both cases the thing you clicked is a picture the browser ALREADY
+  // HAS — the grid painted it.
+  //
+  // So this paints it immediately, full size, behind a backdrop, and gets out
+  // of the way when the real viewer arrives. Nothing here talks to the server
+  // or changes what gets opened; it is the same bitmap the card is showing,
+  // scaled up, for the length of one round trip.
+  //
+  // Listens on the document in the CAPTURE phase so it runs before LiveView
+  // sends the event, which is the whole point — a listener that waited its turn
+  // would be racing the thing it exists to hide.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.InstantViewer = {
+    mounted() {
+      const self = this;
+      const el = self.el;
+
+      // Hidden until a click, and never left showing: `_hide` is called by the
+      // real viewer's arrival, by a click that turns out not to open one, and
+      // by a timeout — see below for why all three are needed.
+      self._hide = function() {
+        el.style.display = "none";
+        const img = el.querySelector("img");
+        if (img) img.removeAttribute("src");
+        if (self._timer) { clearTimeout(self._timer); self._timer = null; }
+      };
+      self._hide();
+
+      self._onClick = function(e) {
+        const card = e.target.closest && e.target.closest('[phx-click="click_file"]');
+        if (!card) return;
+        // Select mode turns the same click into a checkbox toggle, and a
+        // picker's click may open nothing at all. The browser marks which it
+        // is, so this can stay out of both.
+        if (el.dataset.armed !== "true") return;
+
+        const img = card.querySelector("img");
+        const src = img && img.getAttribute("src");
+        if (!src) return;
+
+        const shown = el.querySelector("img");
+        if (!shown) return;
+        shown.setAttribute("src", src);
+        // Carry the card's rotation across, or a sideways photo would flip
+        // upright for a moment and then turn back.
+        shown.className = shown.dataset.baseClass +
+          " " + (img.className.match(/rotate-\d+/) || [""])[0];
+        el.style.display = "";
+
+        // A click that opens nothing — a stale uuid, a server error, a
+        // connection that drops between here and there — must not leave a
+        // picture stuck over the page. The real viewer normally clears this
+        // in well under a second.
+        if (self._timer) clearTimeout(self._timer);
+        self._timer = setTimeout(self._hide, 8000);
+      };
+      document.addEventListener("click", self._onClick, true);
+
+      // The real viewer says when it is up. Nothing else can: the modal is a
+      // different LiveComponent that this hook has no reference to.
+      self._onReady = function() { self._hide(); };
+      window.addEventListener("pk:viewer-open", self._onReady);
+    },
+
+    destroyed() {
+      document.removeEventListener("click", this._onClick, true);
+      window.removeEventListener("pk:viewer-open", this._onReady);
+      if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+    }
+  };
+
   window.PhoenixKitHooks.ViewerKeydown = {
     mounted() {
       const self = this;
+      // The stand-in has done its job the moment this exists.
+      window.dispatchEvent(new CustomEvent("pk:viewer-open"));
       self._handler = function(e) {
         if (e.key !== "Escape" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
         const t = document.activeElement;
