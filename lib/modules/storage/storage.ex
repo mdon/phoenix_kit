@@ -15,6 +15,23 @@ defmodule PhoenixKit.Modules.Storage do
   - Built-in usage tracking and statistics
   - PostgreSQL-backed file registry
 
+  ## Folder conventions for modules
+
+  Modules that create one folder per object (catalogue items, warehouse
+  documents, machines, …) should:
+
+  - offer a host hook, e.g. `config :my_module, :attachments_parent_folder,
+    {Mod, :fun}` called with `(resource_kind, actor_uuid)` and returning
+    `{:ok, parent_folder_uuid}` or `nil`, defaulting to the root when
+    absent — hosts use it to group folders per type (`Orders/`, `Items/`);
+  - resolve an object's folder by a stored uuid pointer first, then by
+    deterministic name under the parent, then by name at the root;
+  - never assume `parent_uuid IS NULL` for their folders.
+
+  `update_folder/3` with `parent_uuid` moves a folder (with cycle check);
+  the `(name, parent_uuid)` unique index means the same name can exist
+  under different parents.
+
   ## Module Status
 
   This module is **always enabled** and cannot be disabled. It provides core
