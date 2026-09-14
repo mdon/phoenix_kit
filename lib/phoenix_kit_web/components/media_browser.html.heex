@@ -2498,12 +2498,32 @@
   >
     <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:!h-[90vh] lg:!rounded-2xl lg:!m-auto p-0 !overflow-hidden">
       <div class="w-full h-full flex items-center justify-center bg-base-200">
-        <%!-- object-contain, not cover: this is standing in for the viewer,  --%>
-        <%!-- which fits the whole picture. Cropping here and un-cropping a   --%>
-        <%!-- moment later is worse than the wait it replaces.                --%>
+        <%!-- `w-full h-full`, not `max-w-full`: max-* constrains but never   --%>
+        <%!-- scales UP, so a 300px thumbnail sat at 300px in the middle of a --%>
+        <%!-- 95vw box — which reads as the viewer having opened wrong rather --%>
+        <%!-- than as something still loading. Filling the box puts it at the --%>
+        <%!-- size and position the real image is about to occupy, so the     --%>
+        <%!-- hand-off is a sharpening rather than a jump.                    --%>
+        <%!--                                                                  --%>
+        <%!-- object-contain, not cover, for the same reason: this stands in  --%>
+        <%!-- for a viewer that fits the whole picture. Cropping here and     --%>
+        <%!-- un-cropping a moment later is worse than the wait it replaces.  --%>
+        <%!--                                                                  --%>
+        <%!-- The blur is the point, not an apology for it. The card holds a --%>
+        <%!-- 300-400px variant, so filling the box is a ~4x upscale and is   --%>
+        <%!-- going to look rough however it is presented. Blurred, it reads  --%>
+        <%!-- as "developing" — which is what is actually happening — and the --%>
+        <%!-- eye waits for it instead of judging it.                         --%>
+        <%!--                                                                  --%>
+        <%!-- Inline, not `blur-sm`: this template is a library's, and a host --%>
+        <%!-- whose Tailwind build does not reach into the package would drop --%>
+        <%!-- the utility and leave a hard-edged pixelated upscale. The hook  --%>
+        <%!-- rewrites className to carry the card's rotation, so the style   --%>
+        <%!-- attribute is also the one place a blur survives that.           --%>
         <img
-          data-base-class="max-w-full max-h-full object-contain"
-          class="max-w-full max-h-full object-contain"
+          data-base-class="w-full h-full object-contain"
+          class="w-full h-full object-contain"
+          style="filter: blur(6px)"
           alt=""
         />
       </div>

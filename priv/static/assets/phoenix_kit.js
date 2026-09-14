@@ -2088,8 +2088,33 @@ if (typeof window.Chart === "undefined") {
       document.addEventListener("click", self._onClick, true);
 
       // The real viewer says when it is up. Nothing else can: the modal is a
-      // different LiveComponent that this hook has no reference to.
-      self._onReady = function() { self._hide(); };
+      // different LiveComponent that this hook has no reference to, so it
+      // hands its own element over in the event.
+      //
+      // Mounting is not the same moment as being PAINTED, and the difference
+      // is visible: the card shows `thumbnail_annotated` where the viewer
+      // loads `small`, so the two are usually different URLs and the real one
+      // is not in cache. Hiding on mount would swap the blurred picture for an
+      // empty box and then paint — the flash this whole hook exists to remove.
+      // So hold on until the real bitmap is actually on screen.
+      self._onReady = function(e) {
+        const root = e && e.detail && e.detail.el;
+        const real = root && root.querySelector && root.querySelector("img");
+        // No image to wait for, or already decoded (same URL as the card, or
+        // a warm cache) — hand over now.
+        if (!real || real.complete) { self._hide(); return; }
+
+        const done = function() {
+          real.removeEventListener("load", done);
+          real.removeEventListener("error", done);
+          self._hide();
+        };
+        // `error` too: a broken image must not leave the stand-in up pretending
+        // the picture loaded. The 8s fallback still covers anything that fires
+        // neither.
+        real.addEventListener("load", done);
+        real.addEventListener("error", done);
+      };
       window.addEventListener("pk:viewer-open", self._onReady);
     },
 
@@ -2103,8 +2128,9 @@ if (typeof window.Chart === "undefined") {
   window.PhoenixKitHooks.ViewerKeydown = {
     mounted() {
       const self = this;
-      // The stand-in has done its job the moment this exists.
-      window.dispatchEvent(new CustomEvent("pk:viewer-open"));
+      // Tell the stand-in the real viewer is here. It needs the element to
+      // find the image and wait for it to paint — mounted is not painted.
+      window.dispatchEvent(new CustomEvent("pk:viewer-open", { detail: { el: self.el } }));
       self._handler = function(e) {
         if (e.key !== "Escape" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
         const t = document.activeElement;

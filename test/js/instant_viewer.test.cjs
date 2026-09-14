@@ -51,13 +51,14 @@ function loadHook() {
 }
 
 function fakeEl(armed) {
+  const BASE = "w-full h-full object-contain";
   const img = {
-    attrs: { "data-base-class": "max-w-full max-h-full object-contain" },
+    attrs: { "data-base-class": BASE },
     className: "",
     getAttribute: (k) => img.attrs[k] ?? null,
     setAttribute: (k, v) => (img.attrs[k] = v),
     removeAttribute: (k) => delete img.attrs[k],
-    dataset: { baseClass: "max-w-full max-h-full object-contain" },
+    dataset: { baseClass: BASE },
   };
   return {
     img,
@@ -163,13 +164,109 @@ test("gives up on its own if no viewer ever arrives", () => {
     "picture stuck over the page");
 });
 
+// A stand-in for the real viewer's modal, whose image may or may not have
+// decoded by the time the hook mounts.
+function realViewer(complete) {
+  const img = { complete, handlers: {},
+    addEventListener: (n, fn) => (img.handlers[n] = fn),
+    removeEventListener: (n) => delete img.handlers[n] };
+  return { detail: { el: { querySelector: () => img } }, img };
+}
+
+test("holds on until the real image has actually painted", () => {
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+  listeners.document.click.fn(cardClick("/thumbnail_annotated/x.jpg"));
+
+  // Mounted is not painted. The card shows `thumbnail_annotated` where the
+  // viewer loads `small`, so the real image is usually a different URL and
+  // not in cache — hiding on mount swaps the blurred picture for an empty
+  // box and then paints, which is the flash this hook exists to remove.
+  const viewer = realViewer(false);
+  listeners.window["pk:viewer-open"].fn(viewer);
+  assert.strictEqual(el.style.display, "",
+    "still up: the real image has not decoded yet");
+
+  viewer.img.handlers.load();
+  assert.strictEqual(el.style.display, "none", "and out of the way once it has");
+});
+
+test("hands over at once when the real image is already decoded", () => {
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+  listeners.document.click.fn(cardClick("/x.jpg"));
+
+  listeners.window["pk:viewer-open"].fn(realViewer(true));
+  assert.strictEqual(el.style.display, "none",
+    "a warm cache should not be made to wait a frame");
+});
+
+test("a broken image does not strand the stand-in", () => {
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+  listeners.document.click.fn(cardClick("/x.jpg"));
+
+  const viewer = realViewer(false);
+  listeners.window["pk:viewer-open"].fn(viewer);
+  viewer.img.handlers.error();
+  assert.strictEqual(el.style.display, "none",
+    "it must not sit there pretending the picture loaded");
+});
+
+test("the viewer hands over its element, or there is nothing to wait on", () => {
+  const keydown = src.slice(src.indexOf("window.PhoenixKitHooks.ViewerKeydown = {"),
+                            src.indexOf("destroyed()", src.indexOf("window.PhoenixKitHooks.ViewerKeydown = {")));
+  assert.ok(/detail:\s*\{\s*el:/.test(keydown),
+    "the stand-in finds the image through the element the event carries");
+});
+
 test("the real viewer is what announces itself", () => {
   // Nothing else can: the modal is a different LiveComponent, and this hook
   // holds no reference to it.
   const keydown = src.slice(src.indexOf("window.PhoenixKitHooks.ViewerKeydown = {"),
                             src.indexOf("destroyed()", src.indexOf("window.PhoenixKitHooks.ViewerKeydown = {")));
-  assert.ok(keydown.includes('new CustomEvent("pk:viewer-open")'),
+  assert.ok(/new CustomEvent\("pk:viewer-open"/.test(keydown),
     "the viewer's own hook fires the event the stand-in waits for");
+});
+
+test("fills the box the real image is about to occupy", () => {
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+  listeners.document.click.fn(cardClick("/x.jpg", "object-cover"));
+
+  // `max-w-full` constrains but never scales UP, so a 300px thumbnail sat
+  // at 300px in the middle of a 95vw box — which reads as the viewer having
+  // opened wrong, not as something still loading.
+  assert.ok(/\bw-full\b/.test(el.img.className) && /\bh-full\b/.test(el.img.className),
+    "the stand-in occupies the box, so the hand-off is a sharpening not a jump");
+  assert.ok(!/max-w-full/.test(el.img.className), "not merely constrained by it");
+});
+
+test("the upscale is blurred, and by a style the className rewrite cannot drop", () => {
+  const heex = fs.readFileSync(
+    path.join(__dirname, "..", "..", "lib", "phoenix_kit_web", "components",
+              "media_browser.html.heex"), "utf8"
+  );
+  const block = heex.slice(heex.indexOf("-instant-viewer"), heex.indexOf("Read-only modal viewer"));
+
+  // Blurred on purpose: filling the box from a 300-400px card variant is a
+  // ~4x upscale, which reads as "developing" when soft and as broken when
+  // sharp and pixelated.
+  assert.ok(/style="filter: blur\(/.test(block), "the stand-in is softened");
+  // Inline rather than `blur-sm`, for two reasons that both bite silently:
+  // a host whose Tailwind build does not reach into this package would drop
+  // the utility, and the hook overwrites className wholesale to carry the
+  // card's rotation across.
+  // Checked against the class attributes, not the block, so the comment
+  // explaining the choice does not satisfy the assertion about it.
+  const classes = (block.match(/(?:data-base-)?class="[^"]*"/g) || []).join(" ");
+  assert.ok(!/blur/.test(classes),
+    "a utility class here depends on the host's Tailwind scanning a library " +
+    "template, and would not survive the hook's className rewrite either");
 });
 
 test("the markup keeps LiveView's hands off it", () => {
@@ -184,4 +281,6 @@ test("the markup keeps LiveView's hands off it", () => {
     "and it is told when a click is actually going to open something");
   assert.ok(block.includes("object-contain"),
     "it fits the whole picture, like the viewer it stands in for");
+  assert.ok(/data-base-class="w-full h-full/.test(block),
+    "and fills the box rather than sitting small in the middle of it");
 });
