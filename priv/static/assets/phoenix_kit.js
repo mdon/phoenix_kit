@@ -2243,6 +2243,22 @@ if (typeof window.Chart === "undefined") {
       // Tell the stand-in the real viewer is here. It needs the element to
       // find the image and wait for it to paint — mounted is not painted.
       window.dispatchEvent(new CustomEvent("pk:viewer-open", { detail: { el: self.el } }));
+
+      // Warm the NEIGHBOURS while this image is being looked at. An arrow
+      // press remounts the viewer on the next file, and its small + large
+      // variants used to start downloading only then — that download was
+      // the whole wait between pressing → and seeing the picture. The
+      // files are served immutable, so a warmed URL is a cache hit; each
+      // is fetched once per page (the map is module-level and shared
+      // across remounts), and looking without ever stepping costs only
+      // the two downloads a step would have started anyway.
+      window.__pkWarmedUrls = window.__pkWarmedUrls || {};
+      var warm = (self.el.dataset && self.el.dataset.neighborPrefetch) || "";
+      warm.split(" ").forEach(function(url) {
+        if (!url || window.__pkWarmedUrls[url]) return;
+        window.__pkWarmedUrls[url] = true;
+        new Image().src = url;
+      });
       self._handler = function(e) {
         if (e.key !== "Escape" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
         const t = document.activeElement;

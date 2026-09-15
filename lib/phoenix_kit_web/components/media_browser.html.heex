@@ -2595,11 +2595,26 @@
     <% viewer_idx = Enum.find_index(siblings, &(&1.file_uuid == f.file_uuid)) %>
     <% has_prev = is_integer(viewer_idx) and viewer_idx > 0 %>
     <% has_next = is_integer(viewer_idx) and viewer_idx < length(siblings) - 1 %>
+    <%!-- The neighbours' viewer variants, for ViewerKeydown to warm while --%>
+    <%!-- the current image is being looked at: an arrow press remounts    --%>
+    <%!-- the viewer on the next file, and its `small` + the `large` rung  --%>
+    <%!-- Tessera jumps to used to start downloading only then — the whole --%>
+    <%!-- wait. Warmed, the remount paints from cache.                     --%>
+    <% neighbor_prefetch =
+      [
+        has_prev && Enum.at(siblings, viewer_idx - 1),
+        has_next && Enum.at(siblings, viewer_idx + 1)
+      ]
+      |> Enum.filter(&(is_map(&1) and &1.file_type == "image"))
+      |> Enum.flat_map(&[&1.urls["small"], &1.urls["large"]])
+      |> Enum.filter(&is_binary/1)
+      |> Enum.join(" ") %>
     <div
       id={"#{@id}-viewer-modal"}
       class="modal modal-open"
       phx-hook="ViewerKeydown"
       phx-target={@myself}
+      data-neighbor-prefetch={neighbor_prefetch}
     >
       <%!-- Mobile: pin the modal-box directly to the viewport via          --%>
       <%!--   position: fixed; inset: 0;                                    --%>
