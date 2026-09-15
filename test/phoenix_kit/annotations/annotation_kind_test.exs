@@ -95,12 +95,20 @@ defmodule PhoenixKit.Annotations.AnnotationKindTest do
 
       [tools_block] = Regex.run(~r/tools=\{.*?\]/s, heex)
 
+      # A tool is not always a kind of its own: the highlighter draws
+      # MARKER shapes at a fixed opacity — a deliberate reuse, so its
+      # persistence never needed widening. A new alias belongs here with
+      # the kind it commits as; a new KIND must not appear here, or this
+      # test would wave it through unpersisted.
+      tool_kinds = %{"highlighter" => "marker"}
+
       offered =
         Regex.scan(~r/:(\w+)/, tools_block)
         |> Enum.map(fn [_, t] -> t end)
         # Not annotation kinds: the grabber draws nothing and the eraser
         # deletes; both are tools without a persisted shape.
         |> Enum.reject(&(&1 in ["grabber", "eraser"]))
+        |> Enum.map(&Map.get(tool_kinds, &1, &1))
 
       assert offered != [], "could not read the viewer's tool list"
 
