@@ -58,8 +58,16 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
       |> assign(:show_media_selector, false)
       |> assign(:media_selection_target, nil)
       |> assign(:active_tab, "branding")
+      |> assign(
+        :branding_scope_folder,
+        PhoenixKit.UploadsParentFolder.resolve(:branding, current_user_uuid(socket), nil)
+      )
 
     {:ok, socket}
+  end
+
+  defp current_user_uuid(socket) do
+    socket.assigns[:phoenix_kit_current_user] && socket.assigns.phoenix_kit_current_user.uuid
   end
 
   def handle_params(_params, _url, socket) do

@@ -4,6 +4,7 @@
   phx-hook="PkDialog"
   data-show={to_string(@show)}
   data-close-event="close_modal"
+  data-scope-folder={@scope_folder_id}
   phx-click="close_modal"
   phx-target={@myself}
   aria-labelledby={"media-selector-modal-title-#{@id}"}

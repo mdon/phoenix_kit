@@ -44,6 +44,8 @@ defmodule PhoenixKitWeb.Helpers.MediaSelectorHelper do
       - `:mode` - Selection mode: `:single` or `:multiple` (default: `:single`)
       - `:filter` - File type filter: `:image`, `:video`, or `:all` (default: `:all`)
       - `:selected` - List of pre-selected file UUIDs (optional)
+      - `:scope_folder` - Folder UUID uploads made from the selector should be
+        placed under (optional; ignored unless it is a valid UUID)
 
   ## Examples
 
@@ -60,9 +62,11 @@ defmodule PhoenixKitWeb.Helpers.MediaSelectorHelper do
     mode = Keyword.get(opts, :mode, :single)
     filter = Keyword.get(opts, :filter, :all)
     selected = Keyword.get(opts, :selected, [])
+    scope_folder = opts |> Keyword.get(:scope_folder) |> valid_uuid()
 
     base_url = Routes.path("/admin/media/selector")
     params = build_query_params(return_to, mode, filter, selected)
+    params = if scope_folder, do: params <> "&scope_folder=" <> scope_folder, else: params
 
     "#{base_url}?#{params}"
   end
@@ -143,4 +147,13 @@ defmodule PhoenixKitWeb.Helpers.MediaSelectorHelper do
 
     URI.encode_query(params)
   end
+
+  defp valid_uuid(value) when is_binary(value) do
+    case Ecto.UUID.cast(value) do
+      {:ok, uuid} -> uuid
+      :error -> nil
+    end
+  end
+
+  defp valid_uuid(_), do: nil
 end

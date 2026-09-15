@@ -85,10 +85,22 @@ defmodule PhoenixKitWeb.Users.UserForm do
       |> assign(:page_section_path, Routes.path("/admin/users"))
       |> load_user_data(mode, user_uuid)
       |> assign_credential_authority()
+      |> assign_avatar_scope_folder()
       |> load_form_data()
       |> maybe_set_edit_page_title()
 
     {:ok, socket}
+  end
+
+  defp assign_avatar_scope_folder(socket) do
+    actor_uuid =
+      socket.assigns[:phoenix_kit_current_user] && socket.assigns.phoenix_kit_current_user.uuid
+
+    assign(
+      socket,
+      :avatar_scope_folder,
+      PhoenixKit.UploadsParentFolder.resolve(:avatar, actor_uuid, socket.assigns[:user])
+    )
   end
 
   # Whether this actor may set a password for, mail a reset link to, or change
