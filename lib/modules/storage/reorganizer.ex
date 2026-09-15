@@ -22,8 +22,9 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
   transaction, so a failed `UPDATE` can't be retried inside the same
   transaction. Rather than retry, the engine SELECTs the target name for a
   collision *before* writing (`on_conflict: :suffix` picks a free
-  `"name (N)"`, `on_conflict: :report` just checks): the transaction either
-  hits no naming constraint at all, or is the one query it ever attempts.
+  `"name (N)"`, `on_conflict: :report` just checks): the `UPDATE` either
+  hits no naming constraint at all, or is the one write the transaction
+  ever attempts.
 
       {:ok, report} = PhoenixKit.Modules.Storage.Reorganizer.run(actor_uuid, apply?: false)
       IO.puts(PhoenixKit.Modules.Storage.Reorganizer.format_report(report))
@@ -95,23 +96,28 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
     end
   end
 
+  # Keeps the exception's own struct (not just its message) so both the log
+  # line and the report's `reason` say WHAT kind of failure this was
+  # (`RuntimeError`, `ArgumentError`, …), not just the message text.
   defp safe_plan(source_module, actor_uuid, opts) do
     {:ok, source_module.plan(actor_uuid, opts)}
   rescue
-    error -> {:error, Exception.message(error)}
+    error -> {:error, {error.__struct__, Exception.message(error)}}
   catch
     kind, reason -> {:error, {kind, reason}}
   end
 
-  defp normalize_action(attrs, _source_module) do
+  defp normalize_action(attrs, source_module) do
     [Action.new!(attrs)]
   rescue
-    error -> [Action.new!(invalid_action(attrs, error))]
+    error -> [Action.new!(invalid_action(attrs, source_module, {error.__struct__, error}))]
   catch
-    kind, reason -> [Action.new!(invalid_action(attrs, {kind, reason}))]
+    kind, reason -> [Action.new!(invalid_action(attrs, source_module, {kind, reason}))]
   end
 
   defp source_error_action(source_module, reason) do
+    Logger.warning("[Reorganizer] #{inspect(source_module)}.plan/2 raised: #{inspect(reason)}")
+
     %{
       source: inspect(source_module),
       kind: :source_error,
@@ -121,20 +127,33 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
     }
   end
 
-  defp invalid_action(attrs, reason) do
+  defp invalid_action(attrs, source_module, reason) do
+    Logger.warning(
+      "[Reorganizer] #{inspect(source_module)} produced an invalid action: #{inspect(reason)}"
+    )
+
     %{
       source: action_source(attrs, reason),
       kind: :invalid_action,
-      label: "invalid action: #{inspect(attrs)}",
+      label: "invalid action: #{truncate(inspect(attrs))}",
       op: :report,
       reason: format_invalid_action_reason(reason)
     }
   end
 
+  @max_label_length 200
+  defp truncate(string) when byte_size(string) > @max_label_length do
+    String.slice(string, 0, @max_label_length) <> "…"
+  end
+
+  defp truncate(string), do: string
+
   defp action_source(%{source: source}, _reason) when is_binary(source), do: source
   defp action_source(_attrs, _reason), do: "unknown"
 
-  defp format_invalid_action_reason(%_{} = exception), do: Exception.message(exception)
+  defp format_invalid_action_reason({module, %_{} = exception}) when is_atom(module),
+    do: "#{inspect(module)}: #{Exception.message(exception)}"
+
   defp format_invalid_action_reason(reason), do: inspect(reason)
 
   @doc """
@@ -173,11 +192,27 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
 
   defp resolve_source(key) do
     Enum.find_value(ModuleRegistry.enabled_modules(), fn mod ->
-      if function_exported?(mod, :module_key, 0) and mod.module_key() == key and
-           function_exported?(mod, :media_reorganizer, 0) do
-        mod.media_reorganizer()
-      end
+      safe_resolve_source(mod, key)
     end)
+  end
+
+  # `module_key/0` and `media_reorganizer/0` are plain callbacks on a
+  # `PhoenixKit.Module` implementation — a bug in one enabled module's
+  # callback must not crash `resolve_source/1` (and with it `run/2` and
+  # `plan/2` for every OTHER source) just because it was asked for by key.
+  defp safe_resolve_source(mod, key) do
+    if function_exported?(mod, :module_key, 0) and mod.module_key() == key and
+         function_exported?(mod, :media_reorganizer, 0) do
+      mod.media_reorganizer()
+    end
+  rescue
+    error ->
+      Logger.warning(
+        "[Reorganizer] #{inspect(mod)}.module_key/0 or .media_reorganizer/0 raised while " <>
+          "resolving source #{inspect(key)}: #{Exception.message(error)}"
+      )
+
+      nil
   end
 
   # ===== RUN =====
@@ -530,6 +565,9 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
   end
 
   defp counts(folder_uuid) do
+    # `select: count()` is a SQL aggregate — it always returns an integer
+    # (0 for no matching rows), never NULL, so `repo().one()` here can't
+    # return `nil`.
     files =
       from(f in StorageFile, where: f.folder_uuid == ^folder_uuid, select: count())
       |> repo().one()
@@ -538,7 +576,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
       from(l in FolderLink, where: l.folder_uuid == ^folder_uuid, select: count())
       |> repo().one()
 
-    {files || 0, links || 0}
+    {files, links}
   end
 
   defp failed(action, reason) do
