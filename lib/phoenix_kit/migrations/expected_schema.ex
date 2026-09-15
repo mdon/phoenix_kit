@@ -45,6 +45,14 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # database. `verify.exs --scenario s7,s8` is what would do that and has not run
   # against this chain.
   #
+  # DECLARED POST-GENERATION (2026-09-15, V191): the annotation kind CHECK
+  # gains 'arrow' — one revisions entry on the existing
+  # phoenix_kit_annotations_kind_check object plus the matching create
+  # DO-block, mirroring how V157 added 'image'. Declared by hand because the
+  # container's pg_dump (17) cannot dump the Postgres 18 server the full
+  # generator needs; the object itself is exercised against a real database
+  # by the annotation_kind_test CHECK-constraint assertions.
+  #
   # DECLARED POST-GENERATION (2026-08-09, release recheck of #692/#694): V165
   # adds `phoenix_kit_mentions` + `phoenix_kit_access_requests` (tables,
   # columns, indexes, checks, FKs); V166 adds four columns, one check and one
@@ -324,7 +332,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "54fb223a017caff715be31e511a18356807a052419745cd359f18543333d5cd5"
+  @chain_hash "6d09530af6d402eac5a43d9cf4a76d8cb62749ce5ab4af4feb13d0b341202744"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -52081,7 +52089,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :constraint
            }},
         create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_annotations_kind_check'\n      AND t.relname = 'phoenix_kit_annotations'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_annotations ADD CONSTRAINT phoenix_kit_annotations_kind_check CHECK (((kind)::text = ANY ((ARRAY['rectangle'::character varying, 'circle'::character varying, 'polygon'::character varying, 'freehand'::character varying, 'callout'::character varying, 'text'::character varying, 'dimension'::character varying, 'line'::character varying, 'marker'::character varying, 'image'::character varying])::text[])));\n  END IF;\nEND\n$$",
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_annotations_kind_check'\n      AND t.relname = 'phoenix_kit_annotations'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_annotations ADD CONSTRAINT phoenix_kit_annotations_kind_check CHECK (((kind)::text = ANY ((ARRAY['rectangle'::character varying, 'circle'::character varying, 'polygon'::character varying, 'freehand'::character varying, 'callout'::character varying, 'text'::character varying, 'dimension'::character varying, 'line'::character varying, 'marker'::character varying, 'image'::character varying, 'arrow'::character varying])::text[])));\n  END IF;\nEND\n$$",
         since: 115,
         class: :constraint,
         revisions: [
@@ -52151,6 +52159,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              columns: ["kind"],
              definition:
                "CHECK (((kind)::text = ANY ((ARRAY['rectangle'::character varying, 'circle'::character varying, 'polygon'::character varying, 'freehand'::character varying, 'callout'::character varying, 'text'::character varying, 'dimension'::character varying, 'line'::character varying, 'marker'::character varying, 'image'::character varying])::text[])))",
+             name_template: nil,
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }},
+          {191,
+           %{
+             type: "c",
+             columns: ["kind"],
+             definition:
+               "CHECK (((kind)::text = ANY ((ARRAY['rectangle'::character varying, 'circle'::character varying, 'polygon'::character varying, 'freehand'::character varying, 'callout'::character varying, 'text'::character varying, 'dimension'::character varying, 'line'::character varying, 'marker'::character varying, 'image'::character varying, 'arrow'::character varying])::text[])))",
              name_template: nil,
              foreign_table: nil,
              foreign_columns: nil,
