@@ -46,6 +46,17 @@
 
 ### Fixed
 
+- **PDF uploads are processed again on hosts that have poppler.**
+  `ProcessFileJob` merged pdfinfo's string-keyed fields (`"page_count"`,
+  `"author"`, …) into the atom-keyed `%{status: "active"}` update, and
+  `Ecto.Changeset.cast/3` rejects a mixed-key map — so every PDF job raised
+  `Ecto.CastError` on the metadata step and was discarded after three
+  attempts, before any preview variant was rendered. Without poppler
+  `extract_metadata/1` returns `%{}` and the merge happened to be clean, which
+  is why the crash only showed up once the tool was installed. The fields now
+  go into the file's `:metadata` map (`PdfProcessor.file_attrs/2`), merged over
+  whatever it already holds.
+
 - The upload placement hook is consulted when a picker opens, not in
   `mount/3`, so viewing a settings page or the user form no longer runs a
   host hook (which may create a folder) twice per load.

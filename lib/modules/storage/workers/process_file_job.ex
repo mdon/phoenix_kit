@@ -175,7 +175,7 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   defp process_pdf(file) do
     with {:ok, temp_path} <- retrieve_and_log_file(file.uuid),
          {:ok, metadata} <- extract_pdf_metadata(temp_path),
-         :ok <- update_and_log_metadata(file, metadata),
+         :ok <- update_and_log_metadata(file, PdfProcessor.file_attrs(file.metadata, metadata)),
          {:ok, variants} <- generate_and_log_variants(file) do
       File.rm(temp_path)
       {:ok, variants}
