@@ -628,8 +628,65 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
 
       list ->
         parent_names = resolve_parent_names(list)
-        "\n\nDetails:\n" <> Enum.map_join(list, "\n", &detail_line(&1, parent_names))
+        taken_by_parent = taken_names_by_parent(list)
+
+        "\n\nDetails:\n" <>
+          Enum.map_join(list, "\n", &detail_line(&1, parent_names, taken_by_parent))
     end
+  end
+
+  # One batched query for every parent a `:suffix` detail line might collide
+  # under, instead of a `name_taken?`/`free_name` pair PER LINE — with
+  # `:suffix` the main mode across modules (catalogue/manufacturing/
+  # locations/warehouse), that per-line cost turned into 2/6/21 queries for
+  # 1/5/20 planned actions (41 when names were actually taken). Mirrors
+  # `resolve_parent_names/1`'s shape: gather the live siblings once per
+  # distinct target parent, keyed by parent, and let `display_new_name/3`
+  # look the answer up in memory.
+  defp taken_names_by_parent(actions) do
+    parents =
+      actions
+      |> Enum.filter(&suffix_rename?/1)
+      |> Enum.map(&Map.get(&1, :parent_uuid))
+      |> Enum.uniq()
+
+    case parents do
+      [] -> %{}
+      _ -> siblings_by_parent(parents)
+    end
+  end
+
+  defp suffix_rename?(%{op: :move, folder: %Folder{} = folder} = action) do
+    Map.get(action, :on_conflict) == :suffix and
+      not Action.matches_name?(folder.name, Map.get(action, :name) || folder.name)
+  end
+
+  defp suffix_rename?(_action), do: false
+
+  defp siblings_by_parent(parents) do
+    non_nil_parents = Enum.reject(parents, &is_nil/1)
+    include_root? = Enum.member?(parents, nil)
+
+    query =
+      from(f in Folder, where: is_nil(f.trashed_at), select: {f.parent_uuid, f.name, f.uuid})
+
+    query =
+      cond do
+        include_root? and non_nil_parents != [] ->
+          where(query, [f], f.parent_uuid in ^non_nil_parents or is_nil(f.parent_uuid))
+
+        include_root? ->
+          where(query, [f], is_nil(f.parent_uuid))
+
+        true ->
+          where(query, [f], f.parent_uuid in ^non_nil_parents)
+      end
+
+    query
+    |> repo().all()
+    |> Enum.group_by(fn {parent_uuid, _name, _uuid} -> parent_uuid end, fn {_p, name, uuid} ->
+      {name, uuid}
+    end)
   end
 
   # One batched query for every parent name a detail line needs (current +
@@ -657,9 +714,13 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
   defp current_parent_uuid(%{folder: %Folder{parent_uuid: parent_uuid}}), do: parent_uuid
   defp current_parent_uuid(_action), do: nil
 
-  defp detail_line(%{source: source, kind: kind, op: op, label: label} = action, parent_names) do
+  defp detail_line(
+         %{source: source, kind: kind, op: op, label: label} = action,
+         parent_names,
+         taken_by_parent
+       ) do
     "  [#{source}/#{kind}] #{op} #{label}"
-    |> append_transition(action, parent_names)
+    |> append_transition(action, parent_names, taken_by_parent)
     |> maybe_append(Map.get(action, :counts), &" (#{format_counts(&1)})")
     |> maybe_append(Map.get(action, :outcome), &" -> #{&1}")
     |> maybe_append(Map.get(action, :reason) || Map.get(action, :error), &" (#{inspect(&1)})")
@@ -667,16 +728,21 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
 
   defp format_counts({files, links}), do: "#{files} file(s), #{links} link(s)"
 
-  defp append_transition(line, %{op: :move, folder: %Folder{} = folder} = action, parent_names) do
+  defp append_transition(
+         line,
+         %{op: :move, folder: %Folder{} = folder} = action,
+         parent_names,
+         taken_by_parent
+       ) do
     from_name = parent_label(folder.parent_uuid, parent_names)
     to_name = parent_label(Map.get(action, :parent_uuid), parent_names)
     old_name = folder.name
-    new_name = display_new_name(folder, action)
+    new_name = display_new_name(folder, action, taken_by_parent)
 
     line <> ": #{from_name} → #{to_name}, name \"#{old_name}\" → \"#{new_name}\""
   end
 
-  defp append_transition(line, _action, _parent_names), do: line
+  defp append_transition(line, _action, _parent_names, _taken_by_parent), do: line
 
   # "root" means the parent really is the system root (`nil`) — anything
   # else that isn't resolvable (a target/current parent uuid the batched
@@ -689,20 +755,23 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
   end
 
   # The name shown here is only what `--apply` would ATTEMPT — for
-  # `on_conflict: :suffix` it peeks at the same collision check
-  # `maybe_presuffix/3` runs at apply time, so a dry-run doesn't show a name
-  # that would actually land as "name (2)".
-  defp display_new_name(folder, action) do
+  # `on_conflict: :suffix` it looks up the same live siblings
+  # `maybe_presuffix/3` would check at apply time, but from the ONE
+  # `taken_names_by_parent/1` batch instead of a query per line, so a
+  # dry-run doesn't show a name that would actually land as "name (2)".
+  defp display_new_name(folder, action, taken_by_parent) do
     wanted = Map.get(action, :name) || folder.name
 
-    if Map.get(action, :on_conflict) == :suffix and not Action.matches_name?(folder.name, wanted) do
+    if suffix_rename?(action) do
       target_parent = Map.get(action, :parent_uuid)
 
-      if name_taken?(wanted, target_parent, folder.uuid) do
-        free_name(wanted, target_parent, folder.uuid)
-      else
-        wanted
-      end
+      taken_names =
+        taken_by_parent
+        |> Map.get(target_parent, [])
+        |> Enum.reject(fn {_name, uuid} -> uuid == folder.uuid end)
+        |> Enum.map(&elem(&1, 0))
+
+      pick_free_name(taken_names, wanted)
     else
       wanted
     end

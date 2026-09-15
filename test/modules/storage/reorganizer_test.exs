@@ -1128,13 +1128,16 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
   end
 
   # ---------------------------------------------------------------------
-  # N1 — resolve_parent_names is one batched query for the whole report,
-  # not one query per detail line
+  # N1/G2 — resolve_parent_names and the `:suffix` collision preview are
+  # each one batched query for the whole report, not one query per detail
+  # line. `:suffix` is the mode that regressed (G2): `display_new_name/3`
+  # used to run a `name_taken?`/`free_name` pair PER `:suffix` action.
   # ---------------------------------------------------------------------
 
-  test "resolving parent names for the details section is one query regardless of how many lines need it" do
+  test "resolving parent names and suffix candidates for the details section is a constant number of queries" do
     origin = create_folder!(%{name: "Origin"})
     target = create_folder!(%{name: "Target"})
+    _existing = create_folder!(%{name: "New", parent_uuid: target.uuid})
 
     plan =
       for n <- 1..5 do
@@ -1143,8 +1146,9 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
         move_action(%{
           folder: folder,
           parent_uuid: target.uuid,
+          name: "New",
           counts: {0, 0},
-          on_conflict: :report
+          on_conflict: :suffix
         })
       end
 
@@ -1153,7 +1157,10 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
 
     query_count = count_repo_queries(fn -> Reorganizer.format_report(report) end)
 
-    assert query_count == 1
+    # One query for the batched parent-name lookup + one for the batched
+    # live-siblings-under-target lookup used to preview the suffix — NOT
+    # one per detail line (that would be 11: 1 + 2*5).
+    assert query_count == 2
   end
 
   # Counts Ecto query telemetry events fired on this process while running
