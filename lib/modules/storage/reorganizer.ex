@@ -261,6 +261,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
          :ok <- verify_target_parent(Map.get(action, :parent_uuid)),
          attrs = move_attrs(folder, action),
          {:ok, updated, final_attrs} <- perform_update(folder, attrs, action),
+         :ok <- restore_subtree_if_needed(folder),
          :ok <- run_after_move(action),
          :ok <- verify_counts(updated.uuid, Map.get(action, :counts)) do
       Map.put(action, :outcome, outcome_for(attrs, final_attrs, action))
@@ -268,6 +269,31 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
       {:error, {:conflict, reason}} -> repo().rollback({:conflict, reason})
       {:error, reason} -> repo().rollback(reason)
     end
+  end
+
+  # A trashed folder being restored by this move was trashed as a whole
+  # subtree (`Storage.trash_folder/1` trashes every descendant folder and
+  # files, see `storage.ex`) — restoring only the root row left the
+  # descendants trashed and their files hidden (`status: "trashed"`) even
+  # though the report claimed a clean `:moved`. Ported from
+  # `Storage.restore_folder/2`'s subtree logic (`folder_subtree_uuids/1` +
+  # `update_all` on folders and files) and run in THIS same transaction,
+  # right after the root row's own update succeeds — the root is already
+  # live at this point (no collision to worry about), so this is a plain
+  # bulk un-trash of everything still marked trashed underneath it.
+  defp restore_subtree_if_needed(%Folder{trashed_at: nil}), do: :ok
+
+  defp restore_subtree_if_needed(%Folder{uuid: uuid}) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    subtree_uuids = Storage.folder_subtree_uuids(uuid)
+
+    from(f in Folder, where: f.uuid in ^subtree_uuids)
+    |> repo().update_all(set: [trashed_at: nil, updated_at: now])
+
+    from(f in StorageFile, where: f.folder_uuid in ^subtree_uuids)
+    |> repo().update_all(set: [status: "active", trashed_at: nil, updated_at: now])
+
+    :ok
   end
 
   # A target parent must exist and be live: a folder can't be moved under one

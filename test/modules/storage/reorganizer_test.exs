@@ -353,14 +353,18 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
     assert second.actions == []
   end
 
-  test "restores a trashed folder before moving it" do
+  test "restores a trashed folder and its whole subtree before moving it" do
     target = create_folder!(%{name: "Target"})
     folder = create_folder!(%{name: "x-legacy"})
+    child = create_folder!(%{name: "child", parent_uuid: folder.uuid})
+    file_in_folder = create_file!(folder.uuid)
+    file_in_child = create_file!(child.uuid)
+
     {:ok, _} = Storage.trash_folder(folder)
     trashed_folder = Storage.get_folder(folder.uuid)
 
     plan = [
-      move_action(%{folder: trashed_folder, parent_uuid: target.uuid, counts: {0, 0}})
+      move_action(%{folder: trashed_folder, parent_uuid: target.uuid, counts: {1, 0}})
     ]
 
     report = run!(plan)
@@ -370,6 +374,19 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
 
     reloaded = Storage.get_folder(folder.uuid)
     assert reloaded.trashed_at == nil
+    assert reloaded.parent_uuid == target.uuid
+
+    reloaded_child = Storage.get_folder(child.uuid)
+    assert reloaded_child.trashed_at == nil
+    assert reloaded_child.parent_uuid == folder.uuid
+
+    reloaded_file_in_folder = Repo.get!(StorageFile, file_in_folder.uuid)
+    assert reloaded_file_in_folder.status == "active"
+    assert reloaded_file_in_folder.trashed_at == nil
+
+    reloaded_file_in_child = Repo.get!(StorageFile, file_in_child.uuid)
+    assert reloaded_file_in_child.status == "active"
+    assert reloaded_file_in_child.trashed_at == nil
   end
 
   # ---------------------------------------------------------------------
