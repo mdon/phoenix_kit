@@ -224,7 +224,7 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     provider = get_provider_for_bucket(bucket)
 
     destination_path =
-      Keyword.get(opts, :destination_path, generate_temp_path() <> Path.extname(file_path))
+      Keyword.get(opts, :destination_path, generate_temp_path() <> temp_extension(file_path))
 
     case provider.retrieve_file(bucket, file_path, destination_path) do
       :ok ->
@@ -258,6 +258,27 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     temp_dir = System.tmp_dir!()
     random_name = :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
     Path.join(temp_dir, "phoenix_kit_#{random_name}")
+  end
+
+  @doc false
+  # The extension a processing temp copy of `file_path` should carry.
+  #
+  # ImageMagick identifies some formats (ICO among them) by extension alone,
+  # so an extensionless copy fails with "no decode delegate". But the stored
+  # extension is the uploader's filename, and an extension also *selects*
+  # the coders that have no magic bytes to sniff — MVG, MSL, TXT — which an
+  # extensionless copy never reaches. So it is kept only when it names a
+  # media type (image, video, audio, PDF); `.mvg` uploaded as `image/png`
+  # gets no extension and ImageMagick still reads it by content alone.
+  @spec temp_extension(String.t()) :: String.t()
+  def temp_extension(file_path) do
+    case MIME.from_path(file_path) do
+      "image/" <> _ -> Path.extname(file_path)
+      "video/" <> _ -> Path.extname(file_path)
+      "audio/" <> _ -> Path.extname(file_path)
+      "application/pdf" -> Path.extname(file_path)
+      _ -> ""
+    end
   end
 
   defp get_enabled_buckets do

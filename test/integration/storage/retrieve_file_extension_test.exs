@@ -59,11 +59,11 @@ defmodule PhoenixKit.Modules.Storage.RetrieveFileExtensionTest do
     _ -> false
   end
 
-  defp store!(user, source) do
+  defp store!(user, source, ext \\ "ico", name \\ "favicon.ico", opts \\ []) do
     checksum = :sha256 |> :crypto.hash(File.read!(source)) |> Base.encode16(case: :lower)
 
     {:ok, file} =
-      Storage.store_file_in_buckets(source, "image", user.uuid, checksum, "ico", "favicon.ico")
+      Storage.store_file_in_buckets(source, "image", user.uuid, checksum, ext, name, opts)
 
     file
   end
@@ -79,7 +79,22 @@ defmodule PhoenixKit.Modules.Storage.RetrieveFileExtensionTest do
     assert File.read!(path) == File.read!(source)
   end
 
-  @tag :integration
+  # The extension is the uploader's filename. MVG has no magic bytes, so
+  # ImageMagick picks its coder from the extension alone — a `.mvg` sent with
+  # an `image/png` content type is stored as an image, and its temp copy must
+  # not hand ImageMagick that choice.
+  test "a non-media extension is not carried onto the temp copy", %{user: user, source: source} do
+    File.write!(source, "viewbox 0 0 10 10 #{System.unique_integer()}")
+    file = store!(user, source, "mvg", "drawing.mvg", mime_type: "image/png")
+
+    assert {:ok, path, _file} = Storage.retrieve_file(file.uuid)
+    on_exit(fn -> File.rm(path) end)
+
+    assert file.file_type == "image"
+    assert Path.extname(path) == ""
+    assert File.read!(path) == File.read!(source)
+  end
+
   test "ImageMagick identifies an ICO from the temp copy", %{user: user, source: source} do
     if imagemagick?() do
       {_, 0} = System.cmd("convert", ["-size", "32x32", "xc:red", source], stderr_to_stdout: true)

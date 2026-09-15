@@ -11,9 +11,21 @@ defmodule PhoenixKit.Modules.Storage.PdfProcessorTest do
       assert PdfProcessor.file_attrs(nil, pdf) == %{metadata: pdf}
     end
 
-    test "merges over metadata the file already carries" do
+    test "adds pdfinfo fields to metadata the file already carries" do
       assert PdfProcessor.file_attrs(%{"source" => "import"}, %{"page_count" => 2}) ==
                %{metadata: %{"source" => "import", "page_count" => 2}}
+    end
+
+    # `"title"` is also what the media detail page saves as the user's title;
+    # a duplicate upload re-runs ProcessFileJob on the same row.
+    test "a title already on the file wins over pdfinfo's Title" do
+      existing = %{"title" => "Q3 report", "tags" => ["finance"]}
+      pdf = %{"title" => "Microsoft Word - draft.docx", "page_count" => 4}
+
+      assert PdfProcessor.file_attrs(existing, pdf) ==
+               %{
+                 metadata: %{"title" => "Q3 report", "tags" => ["finance"], "page_count" => 4}
+               }
     end
 
     test "an empty pdfinfo result (pdfinfo missing or failed) keeps existing metadata" do

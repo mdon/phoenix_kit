@@ -1,6 +1,13 @@
-## Unreleased
+## 2.23.3 - 2026-09-15
 
 ### Added
+
+- **`mix package.clean`** deletes the `phoenix_kit-*.tar` tarballs that
+  `mix hex.build` / `mix hex.publish` leave in the project root (64 of them,
+  199 MB, had piled up). It runs as the last `mix prerelease` step; run it by
+  hand after a bare `mix hex.publish`. The `.gitignore` entry for them, a
+  leftover `phoenix_module_template-*.tar` from the template repo, now names
+  `phoenix_kit-*.tar`.
 
 - **`mix precommit` now compiles the test tree** via a new `test.compile`
   alias, run between `deps.unlock --check-unused` and `quality.ci`. No
@@ -27,7 +34,12 @@
   with `identify: no decode delegate for this image format` and the job was
   discarded, even where ImageMagick reads ICO. The temp copy now carries the
   stored original's extension, as `Manager.replicate_to_buckets/3` already
-  did. `AnnotationThumbnail` reads its source through the same call.
+  did. `AnnotationThumbnail` reads its source through the same call (#817).
+  Only a media extension (image, video, audio, PDF — `Manager.temp_extension/1`)
+  is kept: the extension is the uploader's filename, and it also selects the
+  ImageMagick coders that have no magic bytes (MVG, MSL, TXT), which an
+  extensionless copy never reached — a `.mvg` uploaded as `image/png` is
+  stored as an image and would have been handed to `identify` as MVG.
 - **A missing `pdftoppm`, `pdfinfo`, `identify` or `ffmpeg` is reported as not
   installed.** `System.cmd/3` raises `ErlangError` with `:enoent` in
   `original` and `reason: nil`; `PdfProcessor` and `System.Dependencies`
@@ -43,8 +55,10 @@
   attempts, before any preview variant was rendered. Without poppler
   `extract_metadata/1` returns `%{}` and the merge happened to be clean, which
   is why the crash only showed up once the tool was installed. The fields now
-  go into the file's `:metadata` map (`PdfProcessor.file_attrs/2`), merged over
-  whatever it already holds.
+  go into the file's `:metadata` map (`PdfProcessor.file_attrs/2`) (#816),
+  filling only keys it doesn't already hold — `"title"` is also the
+  user-editable title the media detail page saves there, and a re-processed
+  PDF must not replace it with the document's own Title.
 
 ## 2.23.2 - 2026-09-15
 
