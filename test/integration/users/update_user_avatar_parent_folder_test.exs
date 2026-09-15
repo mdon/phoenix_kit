@@ -88,6 +88,19 @@ defmodule PhoenixKit.Users.UpdateUserAvatarParentFolderTest do
     assert stored.folder_uuid == folder.uuid
   end
 
+  test "hook answering a stale folder uuid: the avatar still saves, at the root" do
+    user = create_user!()
+    Process.put(:update_user_avatar_test_folder_uuid, Ecto.UUID.generate())
+    Application.put_env(:phoenix_kit, :uploads_parent_folder, {Hook, :parent_for})
+
+    source_path = write_tmp_source!(System.unique_integer([:positive]))
+
+    assert {:ok, updated} = Auth.update_user_avatar(user, source_path, "avatar.png")
+
+    stored = Storage.get_file(updated.custom_fields["avatar_file_uuid"])
+    assert stored.folder_uuid == nil
+  end
+
   test "no hook configured: the stored file stays at the root" do
     user = create_user!()
     source_path = write_tmp_source!(System.unique_integer([:positive]))

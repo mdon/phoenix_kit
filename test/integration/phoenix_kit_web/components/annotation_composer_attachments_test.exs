@@ -5,7 +5,8 @@ defmodule PhoenixKitWeb.Components.AnnotationComposerAttachmentsTest do
   `@doc false` on the function, public only for this test.
   """
 
-  use PhoenixKit.DataCase, async: true
+  # Not async: the tests write the global `:phoenix_kit_comments` app env.
+  use PhoenixKit.DataCase, async: false
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile

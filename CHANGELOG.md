@@ -1,3 +1,41 @@
+## 2.23.2 - 2026-09-15
+
+### Added
+
+- **Hosts can choose the folder core's own uploads land in** (#813).
+  `config :phoenix_kit, :uploads_parent_folder, {Mod, :fun}` is called as
+  `fun(kind, actor_uuid, subject)` (or `fun(kind, actor_uuid)`) with `kind`
+  `:avatar` or `:branding` and returns `{:ok, folder_uuid}` or `nil` for the
+  storage root (the default). `Auth.update_user_avatar/4` places the stored
+  avatar there; the user form's avatar picker and the logo / site-icon /
+  auth-background pickers on `/admin/settings` and
+  `/admin/settings/authorization` pass the answer to `MediaSelectorModal` as
+  `scope_folder_id`. Note that `scope_folder_id` also scopes browsing, so once
+  the hook is configured those pickers list only files under the returned
+  folder. An answer that is not a live folder (not a UUID, no such folder, or
+  trashed), or a hook that raises or exits, falls back to the root.
+- **The standalone media selector accepts `?scope_folder=<uuid>`** (#813) and
+  attaches uploads made from it to that folder; a malformed, missing or
+  trashed folder is ignored. `MediaSelectorHelper.media_selector_url/2` takes
+  a matching `:scope_folder` option.
+- **Annotation-comment attachments can be placed by the host** (#813) through
+  `config :phoenix_kit_comments, :attachments_parent_folder`, called with
+  `:annotation_attachment` and `%{resource_type: "file", resource_uuid: uuid}`.
+- **Storage moduledoc: folder conventions for module packages** (#813) — the
+  parent-folder and folder-name hooks, the lookup order for an object's
+  folder, and leaving re-parenting to the host.
+
+### Fixed
+
+- The upload placement hook is consulted when a picker opens, not in
+  `mount/3`, so viewing a settings page or the user form no longer runs a
+  host hook (which may create a folder) twice per load.
+- A hook answering a folder that no longer exists no longer crashes
+  `Auth.update_user_avatar/4` after the file was stored, nor the picker's
+  upload.
+- The standalone media selector logs a failed scope-folder attach instead of
+  discarding it.
+
 ## 2.23.1 - 2026-09-13
 
 ### Changed

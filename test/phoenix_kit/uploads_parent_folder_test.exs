@@ -85,6 +85,11 @@ defmodule PhoenixKit.UploadsParentFolderTest do
     def parent_for(_kind, _actor_uuid, _subject), do: raise("boom")
   end
 
+  defmodule ExitingHook do
+    @moduledoc false
+    def parent_for(_kind, _actor_uuid, _subject), do: exit(:pool_gone)
+  end
+
   setup do
     on_exit(fn -> Application.delete_env(:phoenix_kit, :uploads_parent_folder) end)
     :ok
@@ -135,6 +140,35 @@ defmodule PhoenixKit.UploadsParentFolderTest do
 
       assert UploadsParentFolder.resolve(:avatar, Ecto.UUID.generate(), nil) == nil
     end
+
+    test "an exiting hook returns nil" do
+      Application.put_env(:phoenix_kit, :uploads_parent_folder, {ExitingHook, :parent_for})
+
+      assert UploadsParentFolder.resolve(:avatar, Ecto.UUID.generate(), nil) == nil
+    end
+
+    test "an answer that is not a uuid returns nil" do
+      Process.put(:uploads_parent_folder_test_folder_uuid, "not-a-uuid")
+      Application.put_env(:phoenix_kit, :uploads_parent_folder, {ReturningHook, :parent_for})
+
+      assert UploadsParentFolder.resolve(:avatar, Ecto.UUID.generate(), nil) == nil
+    end
+
+    test "a uuid naming no folder returns nil" do
+      Process.put(:uploads_parent_folder_test_folder_uuid, Ecto.UUID.generate())
+      Application.put_env(:phoenix_kit, :uploads_parent_folder, {ReturningHook, :parent_for})
+
+      assert UploadsParentFolder.resolve(:avatar, Ecto.UUID.generate(), nil) == nil
+    end
+
+    test "a trashed folder returns nil" do
+      folder = create_folder!()
+      {:ok, _trashed} = Storage.trash_folder(folder, nil)
+      Process.put(:uploads_parent_folder_test_folder_uuid, folder.uuid)
+      Application.put_env(:phoenix_kit, :uploads_parent_folder, {ReturningHook, :parent_for})
+
+      assert UploadsParentFolder.resolve(:branding, Ecto.UUID.generate(), nil) == nil
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -171,6 +205,21 @@ defmodule PhoenixKit.UploadsParentFolderTest do
       file = create_root_file!(user.uuid)
 
       Application.put_env(:phoenix_kit, :uploads_parent_folder, {RaisingHook, :parent_for})
+
+      assert :ok = UploadsParentFolder.place(file, :avatar, user.uuid, user)
+
+      reloaded = Storage.get_file(file.uuid)
+      assert reloaded.folder_uuid == nil
+    end
+
+    # A root file's folder is written through a bare `change/2`, so before the
+    # answer was validated a stale uuid raised a foreign-key error here.
+    test "a hook answering a stale folder uuid returns :ok and leaves the file at the root" do
+      user = create_user!()
+      file = create_root_file!(user.uuid)
+      Process.put(:uploads_parent_folder_test_folder_uuid, Ecto.UUID.generate())
+
+      Application.put_env(:phoenix_kit, :uploads_parent_folder, {ReturningHook, :parent_for})
 
       assert :ok = UploadsParentFolder.place(file, :avatar, user.uuid, user)
 

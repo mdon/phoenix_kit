@@ -58,10 +58,8 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
       |> assign(:show_media_selector, false)
       |> assign(:media_selection_target, nil)
       |> assign(:active_tab, "branding")
-      |> assign(
-        :branding_scope_folder,
-        PhoenixKit.UploadsParentFolder.resolve(:branding, current_user_uuid(socket), nil)
-      )
+      # Resolved when the selector opens — the host hook may create a folder.
+      |> assign(:branding_scope_folder, nil)
 
     {:ok, socket}
   end
@@ -135,6 +133,10 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
       when is_map_key(@media_targets, target) do
     {:noreply,
      socket
+     |> assign(
+       :branding_scope_folder,
+       PhoenixKit.UploadsParentFolder.resolve(:branding, current_user_uuid(socket), nil)
+     )
      |> assign(:show_media_selector, true)
      |> assign(:media_selection_target, @media_targets[target])}
   end

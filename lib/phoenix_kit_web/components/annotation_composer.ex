@@ -59,8 +59,6 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
 
   use PhoenixKitWeb, :live_component
 
-  require Logger
-
   import PhoenixKitWeb.Components.Core.Icon
   import PhoenixKitWeb.Components.Core.Input, only: [translate_error: 1]
 
@@ -361,44 +359,22 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
     end
   end
 
-  # Host placement of annotation-comment uploads (same config key as
-  # phoenix_kit_comments so a host configures one hook for both).
+  # Host placement of annotation-comment uploads. The comments feature's
+  # attachment hook key, per the Storage moduledoc's module folder convention,
+  # so a host configures one hook for both.
   @doc false
   # public only for the unit test
   def place_stored_file(file, socket, user_uuid) do
-    # The composer always comments on a FILE (create_comment("file", file_uuid, …), :283).
+    # The composer always comments on a FILE (create_comment("file", file_uuid, …)).
     subject = %{resource_type: "file", resource_uuid: socket.assigns.file_uuid}
 
-    case Application.get_env(:phoenix_kit_comments, :attachments_parent_folder) do
-      {mod, fun} when is_atom(mod) and is_atom(fun) ->
-        result =
-          cond do
-            Code.ensure_loaded?(mod) and function_exported?(mod, fun, 3) ->
-              apply(mod, fun, [:annotation_attachment, user_uuid, subject])
-
-            Code.ensure_loaded?(mod) and function_exported?(mod, fun, 2) ->
-              apply(mod, fun, [:annotation_attachment, user_uuid])
-
-            true ->
-              nil
-          end
-
-        # attach_file_to_folder/2 requires a %Storage.File{}; the consume closure only has the uuid.
-        with {:ok, folder_uuid} when is_binary(folder_uuid) <- result,
-             %Storage.File{} = stored <- Storage.get_file(file.uuid),
-             {:ok, _} <- Storage.attach_file_to_folder(stored, folder_uuid) do
-          :ok
-        else
-          _ -> :ok
-        end
-
-      _ ->
-        :ok
-    end
-  rescue
-    error ->
-      Logger.warning("[AnnotationComposer] placement hook failed: #{inspect(error)}")
-      :ok
+    PhoenixKit.UploadsParentFolder.place_with(
+      Application.get_env(:phoenix_kit_comments, :attachments_parent_folder),
+      file,
+      :annotation_attachment,
+      user_uuid,
+      subject
+    )
   end
 
   defp maybe_put_giphy(metadata, nil), do: metadata

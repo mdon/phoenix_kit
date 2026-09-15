@@ -73,10 +73,8 @@ defmodule PhoenixKitWeb.Live.Settings do
       |> assign(:saving, false)
       |> assign(:show_media_selector, false)
       |> assign(:media_selector_target, nil)
-      |> assign(
-        :branding_scope_folder,
-        PhoenixKit.UploadsParentFolder.resolve(:branding, current_user_uuid(socket), nil)
-      )
+      # Resolved when the selector opens — the host hook may create a folder.
+      |> assign(:branding_scope_folder, nil)
       |> assign(
         :project_title,
         merged_settings["project_title"] || PhoenixKit.Config.get(:project_title, "PhoenixKit")
@@ -169,6 +167,10 @@ defmodule PhoenixKitWeb.Live.Settings do
   def handle_event("open_media_selector", %{"target" => target}, socket) do
     {:noreply,
      socket
+     |> assign(
+       :branding_scope_folder,
+       PhoenixKit.UploadsParentFolder.resolve(:branding, current_user_uuid(socket), nil)
+     )
      |> assign(:show_media_selector, true)
      |> assign(:media_selector_target, target)}
   end

@@ -285,8 +285,17 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
   defp maybe_attach_to_scope_folder(_file, nil), do: :ok
 
   defp maybe_attach_to_scope_folder(file, scope_folder) do
-    Storage.attach_file_to_folder(file, scope_folder)
-    :ok
+    case Storage.attach_file_to_folder(file, scope_folder) do
+      {:ok, _} ->
+        :ok
+
+      other ->
+        Logger.warning(
+          "MediaSelector: could not place #{file.uuid} in #{scope_folder}: #{inspect(other)}"
+        )
+
+        :ok
+    end
   end
 
   defp load_files(socket, page) do

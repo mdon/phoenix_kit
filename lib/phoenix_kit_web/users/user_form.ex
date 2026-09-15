@@ -85,7 +85,8 @@ defmodule PhoenixKitWeb.Users.UserForm do
       |> assign(:page_section_path, Routes.path("/admin/users"))
       |> load_user_data(mode, user_uuid)
       |> assign_credential_authority()
-      |> assign_avatar_scope_folder()
+      # Resolved when the selector opens — the host hook may create a folder.
+      |> assign(:avatar_scope_folder, nil)
       |> load_form_data()
       |> maybe_set_edit_page_title()
 
@@ -150,7 +151,10 @@ defmodule PhoenixKitWeb.Users.UserForm do
   defp resolve_return_to(_return_to, _user_uuid), do: Routes.path("/admin/users")
 
   def handle_event("open_media_selector", _params, socket) do
-    {:noreply, assign(socket, :show_media_selector, true)}
+    {:noreply,
+     socket
+     |> assign_avatar_scope_folder()
+     |> assign(:show_media_selector, true)}
   end
 
   def handle_event("validate_user", %{"user" => user_params}, socket) do
