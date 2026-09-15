@@ -37,20 +37,50 @@ function loadKeydown() {
   return { hook, fetched, win };
 }
 
+function mountEl(dataset, colW) {
+  return {
+    dataset,
+    querySelector: (sel) => sel.includes("pk-annotation-actions")
+      ? { clientWidth: colW }
+      : null,
+  };
+}
+
 test("mounting the viewer warms both neighbours' variants", () => {
   const { hook, fetched } = loadKeydown();
-  hook.mounted.call({ el: {
-    dataset: { neighborPrefetch: "/f/p/small/aa /f/p/large/ab /f/n/small/ba /f/n/large/bb" },
-    querySelector: () => null,
-  }, pushEventTo: () => {} });
+  hook.mounted.call({ el: mountEl({
+    neighborPrefetch: "/f/p/small/aa /f/p/large/ab /f/n/small/ba /f/n/large/bb",
+  }, 1200), pushEventTo: () => {} });
   assert.deepStrictEqual(fetched,
     ["/f/p/small/aa", "/f/p/large/ab", "/f/n/small/ba", "/f/n/large/bb"],
     "prev and next, small and large — everything an arrow press will ask for");
 });
 
+test("a wide viewer column warms the originals too — a narrow one never", () => {
+  // Tessera picks its raster by displayed width against each rung's
+  // pixels x 1.1 headroom: past 1920x1.1 CSS px the FIRST pick is the
+  // original, and a multi-MB original nothing warmed was the "waiting
+  // and waiting" a step onto a big image showed on large monitors.
+  const wide = loadKeydown();
+  wide.hook.mounted.call({ el: mountEl({
+    neighborPrefetch: "/f/n/small/aa",
+    neighborPrefetchHi: "/f/n/original/zz",
+  }, 2400), pushEventTo: () => {} });
+  assert.deepStrictEqual(wide.fetched, ["/f/n/small/aa", "/f/n/original/zz"],
+    "past the large rung's reach, the original is what the step will show");
+
+  const narrow = loadKeydown();
+  narrow.hook.mounted.call({ el: mountEl({
+    neighborPrefetch: "/f/n/small/aa",
+    neighborPrefetchHi: "/f/n/original/zz",
+  }, 1400), pushEventTo: () => {} });
+  assert.deepStrictEqual(narrow.fetched, ["/f/n/small/aa"],
+    "where large suffices, multi-MB originals are pure waste — never warmed");
+});
+
 test("each URL warms once per page, across remounts", () => {
   const { hook, fetched, win } = loadKeydown();
-  const el = { dataset: { neighborPrefetch: "/f/x/small/aa" }, querySelector: () => null };
+  const el = mountEl({ neighborPrefetch: "/f/x/small/aa" }, 1200);
   hook.mounted.call({ el, pushEventTo: () => {} });
   // the next file's mount lists the same URL as ITS neighbour
   hook.mounted.call({ el, pushEventTo: () => {} });
@@ -76,4 +106,8 @@ test("the modal advertises its neighbours", () => {
     "…built from the same siblings list the arrows step through");
   assert.ok(heex.includes(`&1.file_type == "image"`),
     "videos and pdfs are not image-warmable and are skipped");
+  assert.ok(heex.includes("data-neighbor-prefetch-hi={neighbor_prefetch_hi}"),
+    "the originals ride a separate attribute, warmed only on wide viewports");
+  assert.ok(/> 4096 and\s*\n\s*is_binary\(n\.urls\["dzi"\]\)/.test(heex),
+    "an over-4K file WITH tiles never raster-loads its original — excluded");
 });

@@ -2600,13 +2600,32 @@
     <%!-- the viewer on the next file, and its `small` + the `large` rung  --%>
     <%!-- Tessera jumps to used to start downloading only then — the whole --%>
     <%!-- wait. Warmed, the remount paints from cache.                     --%>
-    <% neighbor_prefetch =
+    <% neighbors =
       [
         has_prev && Enum.at(siblings, viewer_idx - 1),
         has_next && Enum.at(siblings, viewer_idx + 1)
       ]
-      |> Enum.filter(&(is_map(&1) and &1.file_type == "image"))
+      |> Enum.filter(&(is_map(&1) and &1.file_type == "image")) %>
+    <% neighbor_prefetch =
+      neighbors
       |> Enum.flat_map(&[&1.urls["small"], &1.urls["large"]])
+      |> Enum.filter(&is_binary/1)
+      |> Enum.join(" ") %>
+    <%!-- The rung above `large`. On a viewer column wider than large's    --%>
+    <%!-- 1920px (x Tessera's 1.1 headroom) — a 4K monitor at 95vw —      --%>
+    <%!-- Tessera's FIRST pick is the original, and a multi-MB original    --%>
+    <%!-- nothing warmed was exactly the "waiting and waiting" a step     --%>
+    <%!-- onto a big image showed. Advertised separately so the hook can   --%>
+    <%!-- warm it only where the viewport will actually ask for it.        --%>
+    <%!-- Mirrors tessera_sources: an over-4K file WITH tiles never        --%>
+    <%!-- raster-loads its original, so there is nothing to warm there.    --%>
+    <% neighbor_prefetch_hi =
+      neighbors
+      |> Enum.reject(fn n ->
+        max(Map.get(n, :width) || 0, Map.get(n, :height) || 0) > 4096 and
+          is_binary(n.urls["dzi"]) and n.urls["dzi"] != ""
+      end)
+      |> Enum.map(& &1.urls["original"])
       |> Enum.filter(&is_binary/1)
       |> Enum.join(" ") %>
     <div
@@ -2615,6 +2634,7 @@
       phx-hook="ViewerKeydown"
       phx-target={@myself}
       data-neighbor-prefetch={neighbor_prefetch}
+      data-neighbor-prefetch-hi={neighbor_prefetch_hi}
     >
       <%!-- Mobile: pin the modal-box directly to the viewport via          --%>
       <%!--   position: fixed; inset: 0;                                    --%>

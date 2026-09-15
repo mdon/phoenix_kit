@@ -2253,8 +2253,20 @@ if (typeof window.Chart === "undefined") {
       // across remounts), and looking without ever stepping costs only
       // the two downloads a step would have started anyway.
       window.__pkWarmedUrls = window.__pkWarmedUrls || {};
-      var warm = (self.el.dataset && self.el.dataset.neighborPrefetch) || "";
-      warm.split(" ").forEach(function(url) {
+      var warmList = (self.el.dataset && self.el.dataset.neighborPrefetch) || "";
+      // The rung above large, only where this viewport will actually ask
+      // for it: Tessera picks its raster by displayed width against each
+      // rung's pixels x 1.1 headroom, so a viewer column wider than
+      // 1920 x 1.1 CSS px opens straight on the original — and a multi-MB
+      // original nothing warmed was the "waiting and waiting" a step onto
+      // a big image showed on large monitors, invisible on small ones
+      // (where large suffices and originals would be pure waste).
+      var column = self.el.querySelector('[id^="pk-annotation-actions-"]');
+      var colW = (column && column.clientWidth) || window.innerWidth || 0;
+      if (colW > 1920 * 1.1) {
+        warmList += " " + ((self.el.dataset && self.el.dataset.neighborPrefetchHi) || "");
+      }
+      warmList.split(" ").forEach(function(url) {
         if (!url || window.__pkWarmedUrls[url]) return;
         window.__pkWarmedUrls[url] = true;
         new Image().src = url;
