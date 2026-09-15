@@ -67,7 +67,8 @@ Var name = dep app upper-cased + `_PATH`; unset = published Hex pin (`mix hex.pu
   ```
 - **CHANGELOG entries:** write against the bumped `@version` heading; match existing style (Added / Changed / Fixed / i18n, bullets from PR scopes + post-merge review fixes).
 - **PR reviews:** `dev_docs/pull_requests/{year}/{pr_number}-{slug}/{AGENT}_REVIEW.md` (`CLAUDE_REVIEW.md` for Claude). Severities: `BUG - CRITICAL/HIGH/MEDIUM`, `IMPROVEMENT - HIGH/MEDIUM`, `NITPICK`.
-- **Publish:** `mix prerelease` first — it is the gate, running `deps.get --check-locked`, `deps.unlock --check-unused`, a prod `compile --warnings-as-errors`, `quality.ci`, `deps.audit`, `hex.audit`, `docs`, `hex.build` and `phoenix_kit.release_check`. Then `mix hex.publish`.
+- **Publish:** `mix prerelease` first — it is the gate, running `deps.get --check-locked`, `deps.unlock --check-unused`, a prod `compile --warnings-as-errors`, `quality.ci`, `deps.audit`, `hex.audit`, `docs`, `hex.build`, `phoenix_kit.release_check` and `package.clean`. Then `mix hex.publish`.
+- **Package tarballs:** `hex.build`/`hex.publish` drop `phoenix_kit-<version>.tar` in the project root and never clean up — left alone they pile up one-per-release (199 MB by Sep 2026). `prerelease` now ends with `package.clean`; after a bare `mix hex.publish`, or if a gate step failed before the cleanup ran, sweep them with `mix package.clean`. They are gitignored, never commit one.
 
 ## Database
 

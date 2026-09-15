@@ -35,8 +35,11 @@ erl_crash.dump
 # Compiled BEAM files
 *.beam
 
-# Ignore package tarball (built via "mix hex.build").
-phoenix_module_template-*.tar
+# Ignore package tarballs (built via "mix hex.build"/"mix hex.publish").
+# Was "phoenix_module_template-*.tar" — a leftover from the template repo this
+# was forked from, so it matched nothing here; the generic *.tar below is what
+# actually kept these out of git. `mix package.clean` deletes them.
+phoenix_kit-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/

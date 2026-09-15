@@ -416,6 +416,11 @@ defmodule PhoenixKit.MixProject do
       # precommit over an optional tool.
       "test.js": &run_js_tests/1,
 
+      # Removes accumulated `mix hex.build` / `mix hex.publish` tarballs.
+      # Runs as the last prerelease step; run it by hand after a bare
+      # `mix hex.publish`, which also leaves one behind.
+      "package.clean": &clean_package_artifacts/1,
+
       # Release gate — run before `mix hex.publish`. Catches release-metadata
       # drift and packaging mistakes that precommit/quality.ci structurally
       # cannot. Deliberately DB-free — running `mix test` is a separate
@@ -442,7 +447,14 @@ defmodule PhoenixKit.MixProject do
         "cmd mix hex.audit",
         "docs",
         "cmd mix hex.build",
-        "phoenix_kit.release_check"
+        "phoenix_kit.release_check",
+        # `hex.build` writes <app>-<version>.tar into the project root and
+        # never cleans up, so every release since Jun 2026 left one behind —
+        # 64 tarballs / 199 MB by Sep 2026. The gate only needs hex.build to
+        # PROVE the package assembles; the artifact itself is disposable
+        # (`hex.publish` builds its own). Clean last so a failed step leaves
+        # the tarball around to inspect.
+        "package.clean"
       ]
     ]
   end
@@ -467,6 +479,27 @@ defmodule PhoenixKit.MixProject do
         {output, status} = System.cmd("node", ["--test" | files], stderr_to_stdout: true)
         IO.puts(output)
         if status != 0, do: Mix.raise("JS tests failed")
+    end
+  end
+
+  # Deletes Hex package tarballs from the project root. Globs on the app name
+  # rather than the current @version so tarballs left by EARLIER versions get
+  # swept too — that accumulation is the whole reason this exists.
+  defp clean_package_artifacts(_args) do
+    app = to_string(Mix.Project.config()[:app])
+
+    case Path.wildcard("#{app}-*.tar") do
+      [] ->
+        Mix.shell().info("[package.clean] no tarballs to remove")
+
+      files ->
+        bytes = files |> Enum.map(fn f -> File.stat!(f).size end) |> Enum.sum()
+        Enum.each(files, &File.rm!/1)
+
+        Mix.shell().info(
+          "[package.clean] removed #{length(files)} tarball(s), " <>
+            "#{Float.round(bytes / 1_048_576, 1)} MB"
+        )
     end
   end
 end
