@@ -1115,6 +1115,71 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
   end
 
   # ---------------------------------------------------------------------
+  # G6 — dry-run must match apply even when the collision is unrelated to
+  # a rename: a clean move (no name change requested, and the folder's own
+  # name already matches, incl. a suffix-variant match) still collides at
+  # the target under `on_conflict: :suffix`, and apply suffixes it there.
+  # ---------------------------------------------------------------------
+
+  test "dry-run previews the suffix for a clean move that collides at the target, even with no rename requested" do
+    target = create_folder!(%{name: "Target"})
+    _existing = create_folder!(%{name: "Same", parent_uuid: target.uuid})
+    folder = create_folder!(%{name: "Same"})
+
+    plan = [
+      move_action(%{
+        folder: folder,
+        parent_uuid: target.uuid,
+        counts: {0, 0},
+        on_conflict: :suffix
+      })
+    ]
+
+    {:ok, dry_run} =
+      Reorganizer.run(nil, apply?: false, sources: [StubSource], stub_actions: plan)
+
+    assert Reorganizer.format_report(dry_run) =~ "\"Same (2)\""
+
+    report = run!(plan)
+    [action] = report.actions
+
+    assert action.outcome in [:renamed, :moved_renamed]
+
+    reloaded = Storage.get_folder(folder.uuid)
+    assert reloaded.name == "Same (2)"
+    assert reloaded.parent_uuid == target.uuid
+  end
+
+  test "dry-run shows the folder's own suffix-variant name unchanged when apply wouldn't rename it" do
+    target = create_folder!(%{name: "Target"})
+    folder = create_folder!(%{name: "New (2)"})
+
+    plan = [
+      move_action(%{
+        folder: folder,
+        parent_uuid: target.uuid,
+        name: "New",
+        counts: {0, 0},
+        on_conflict: :suffix
+      })
+    ]
+
+    {:ok, dry_run} =
+      Reorganizer.run(nil, apply?: false, sources: [StubSource], stub_actions: plan)
+
+    text = Reorganizer.format_report(dry_run)
+    assert text =~ "\"New (2)\" → \"New (2)\""
+
+    report = run!(plan)
+    [action] = report.actions
+
+    reloaded = Storage.get_folder(folder.uuid)
+    assert reloaded.name == "New (2)"
+    assert reloaded.parent_uuid == target.uuid
+    assert action.outcome == :moved
+  end
+
+  # ---------------------------------------------------------------------
   # M9 — disabled module's Source is skipped by sources: :all
   # ---------------------------------------------------------------------
 

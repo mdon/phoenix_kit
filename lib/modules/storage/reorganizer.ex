@@ -694,9 +694,15 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
     end
   end
 
+  # Mirrors `perform_update/3`'s own gate for whether `maybe_presuffix/3` runs
+  # at apply time: NOT "is the name itself changing" (a suffix-variant name
+  # already matching, or a clean move to a parent that happens to already
+  # hold that name, both still hit the live collision check at apply — G6),
+  # but "would this action write anything at all". `move_attrs/2` is the
+  # exact same pure attrs-builder `do_move/2` uses, so this can't drift from
+  # what apply actually decides.
   defp suffix_rename?(%{op: :move, folder: %Folder{} = folder} = action) do
-    Map.get(action, :on_conflict) == :suffix and
-      not Action.matches_name?(folder.name, Map.get(action, :name) || folder.name)
+    Map.get(action, :on_conflict) == :suffix and move_attrs(folder, action) != %{}
   end
 
   defp suffix_rename?(_action), do: false
@@ -792,13 +798,19 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
     Map.get(parent_names, uuid, "(missing parent)")
   end
 
-  # The name shown here is only what `--apply` would ATTEMPT — for
-  # `on_conflict: :suffix` it looks up the same live siblings
-  # `maybe_presuffix/3` would check at apply time, but from the ONE
-  # `taken_names_by_parent/1` batch instead of a query per line, so a
-  # dry-run doesn't show a name that would actually land as "name (2)".
+  # The name shown here is only what `--apply` would ATTEMPT — mirrors
+  # `maybe_put_name/3` + `maybe_presuffix/3` exactly (G6): `check_name` is
+  # what apply would actually write absent a collision (the folder's OWN
+  # name when it already matches — including a suffix-variant match like
+  # "New (2)" for a wanted "New" — never the raw wanted name in that case);
+  # the collision check runs whenever `suffix_rename?/1` says apply would
+  # (a clean move to a parent that already holds that exact name still
+  # collides, even with no rename involved); the taken-name lookup comes
+  # from the ONE `taken_names_by_parent/1` batch instead of a query per
+  # line.
   defp display_new_name(folder, action, taken_by_parent) do
     wanted = Map.get(action, :name) || folder.name
+    check_name = if Action.matches_name?(folder.name, wanted), do: folder.name, else: wanted
 
     if suffix_rename?(action) do
       target_parent = Map.get(action, :parent_uuid)
@@ -809,9 +821,13 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
         |> Enum.reject(fn {_name, uuid} -> uuid == folder.uuid end)
         |> Enum.map(&elem(&1, 0))
 
-      pick_free_name(taken_names, wanted)
+      if check_name in taken_names do
+        pick_free_name(taken_names, wanted)
+      else
+        check_name
+      end
     else
-      wanted
+      check_name
     end
   end
 
