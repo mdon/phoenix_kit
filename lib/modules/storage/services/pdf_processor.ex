@@ -62,11 +62,13 @@ defmodule PhoenixKit.Modules.Storage.PdfProcessor do
         {:error, "pdftoppm failed (exit #{exit_code}): #{String.trim(output)}"}
     end
   rescue
+    # `System.cmd/3` on a missing binary raises `ErlangError` with `:enoent`
+    # in `original`; `reason` is nil there.
     e in ErlangError ->
-      if e.reason == :enoent do
+      if e.original == :enoent do
         {:error, :poppler_not_installed}
       else
-        {:error, "pdftoppm error: #{inspect(e.reason)}"}
+        {:error, "pdftoppm error: #{inspect(e.original)}"}
       end
   end
 
@@ -94,10 +96,10 @@ defmodule PhoenixKit.Modules.Storage.PdfProcessor do
     end
   rescue
     e in ErlangError ->
-      if e.reason == :enoent do
+      if e.original == :enoent do
         Logger.warning("PdfProcessor: pdfinfo not installed")
       else
-        Logger.warning("PdfProcessor: pdfinfo error: #{inspect(e.reason)}")
+        Logger.warning("PdfProcessor: pdfinfo error: #{inspect(e.original)}")
       end
 
       {:ok, %{}}

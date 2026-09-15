@@ -17,6 +17,25 @@
   environment — only from a genuine compile error in `test/`. `mix test`
   itself is still not part of `precommit`; see AGENTS.md "CI/CD".
 
+### Fixed
+
+- **Stored originals keep their extension when copied out for processing.**
+  `Storage.retrieve_file/1` — and `Manager.retrieve_file/2` without a
+  `:destination_path` — wrote the temp copy as `phoenix_kit_<random>`, with no
+  extension. ImageMagick identifies some formats by extension alone, ICO
+  among them, so `ProcessFileJob` failed every variant of an `.ico` upload
+  with `identify: no decode delegate for this image format` and the job was
+  discarded, even where ImageMagick reads ICO. The temp copy now carries the
+  stored original's extension, as `Manager.replicate_to_buckets/3` already
+  did. `AnnotationThumbnail` reads its source through the same call.
+- **A missing `pdftoppm`, `pdfinfo`, `identify` or `ffmpeg` is reported as not
+  installed.** `System.cmd/3` raises `ErlangError` with `:enoent` in
+  `original` and `reason: nil`; `PdfProcessor` and `System.Dependencies`
+  checked `reason`, so the not-installed branch never ran — a host without
+  poppler logged `pdftoppm error: nil` for every PDF, and
+  `check_imagemagick/0` / `check_ffmpeg/0` returned
+  `{:error, "Error checking …: nil"}` instead of `{:error, :not_installed}`.
+
 ## 2.23.2 - 2026-09-15
 
 ### Added

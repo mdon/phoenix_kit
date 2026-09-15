@@ -2814,7 +2814,10 @@ defmodule PhoenixKit.Modules.Storage do
         # Look up the original variant path from file_instances table
         case get_file_instance_by_name(file_uuid, "original") do
           %FileInstance{file_name: file_path} ->
-            destination_path = generate_temp_path()
+            # Keep the stored extension: ImageMagick identifies some formats
+            # (ICO among them) by extension alone, so an extensionless copy
+            # fails every variant with "no decode delegate".
+            destination_path = generate_temp_path() <> Path.extname(file_path)
 
             case Manager.retrieve_file(file_path,
                    destination_path: destination_path
