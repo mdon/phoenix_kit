@@ -82,20 +82,29 @@ if (typeof window.Chart === "undefined") {
 
   (function clearPhoenixTransportCache() {
     try {
-      // Clear localStorage keys containing 'phx' (transport fallback cache)
-      // IMPORTANT: Exclude 'phx:' prefixed keys - those are PhoenixKit features (e.g., phx:theme)
-      var lsKeys = Object.keys(localStorage).filter(function(k) {
-        return k.includes('phx') && !k.startsWith('phx:');
-      });
+      // Clear the transport fallback cache. Phoenix stores the sticky
+      // longpoll flag under `phx:fallback:<transport>` — a "phx:"-prefixed
+      // key — and the old filter here EXCLUDED everything "phx:"-prefixed
+      // on the theory that those are PhoenixKit's own (phx:theme). So this
+      // code never cleared the one key it exists for, and a browser that
+      // fell back once (a slow dev load was enough) stayed on longpoll for
+      // the life of the tab: laggy, and prone to full-page reloads when a
+      // longpoll POST died mid-flight — which read as "the page refreshed
+      // itself and ate my work". Target the fallback keys BY NAME and
+      // keep excluding the rest of the phx:* namespace.
+      function isTransportKey(k) {
+        return k.startsWith('phx:fallback:') ||
+          (k.includes('phx') && !k.startsWith('phx:'));
+      }
+      var lsKeys = Object.keys(localStorage).filter(isTransportKey);
       if (lsKeys.length > 0) {
         console.debug("[PhoenixKit] Clearing cached transport preferences from localStorage:", lsKeys);
         lsKeys.forEach(function(k) { localStorage.removeItem(k); });
       }
 
-      // Clear sessionStorage keys containing 'phx' (excluding phx: prefixed keys)
-      var ssKeys = Object.keys(sessionStorage).filter(function(k) {
-        return k.includes('phx') && !k.startsWith('phx:');
-      });
+      // Same for sessionStorage — which is where Phoenix actually keeps
+      // the fallback flag (getSession/storeSession).
+      var ssKeys = Object.keys(sessionStorage).filter(isTransportKey);
       if (ssKeys.length > 0) {
         console.debug("[PhoenixKit] Clearing cached transport preferences from sessionStorage:", ssKeys);
         ssKeys.forEach(function(k) { sessionStorage.removeItem(k); });
