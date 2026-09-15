@@ -25,7 +25,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.Action do
           optional(:name) => String.t() | nil,
           optional(:counts) => {non_neg_integer(), non_neg_integer()} | nil,
           optional(:on_conflict) => on_conflict(),
-          optional(:after_move) => (-> :ok | {:error, term()}) | nil,
+          optional(:after_move) => (-> :ok | {:ok, term()} | {:error, term()}) | nil,
           optional(:reason) => String.t() | nil,
           optional(:outcome) => atom(),
           optional(:error) => term()
@@ -45,10 +45,15 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.Action do
     reason: nil
   }
 
-  @known_keys @required_keys ++ Map.keys(@defaults) ++ [:outcome, :error]
+  # :outcome and :error are engine-internal — `apply_one/1` sets them on the
+  # normalized result, a `Source` never legitimately carries them. They're
+  # deliberately excluded here so a Source that DOES set one gets it dropped
+  # (with a warning, like any other unknown key) instead of leaking a fake
+  # outcome straight into the dry-run summary.
+  @known_keys @required_keys ++ Map.keys(@defaults)
 
   # Matches an accepted `"name (N)"` variant of a base name, e.g. "Item (2)".
-  @suffix_regex ~r/^(?<base>.+) \((?<n>\d+)\)$/
+  @suffix_regex ~r/^(?<base>.+) \((?<n>\d+)\)\z/
 
   @doc """
   Validates a plain map from a `Source`, raising `ArgumentError` naming the
