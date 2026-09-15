@@ -168,11 +168,12 @@ defmodule PhoenixKit.System.Dependencies do
     end
   rescue
     e in ErlangError ->
-      # ErlangError with :enoent means command not found
-      if e.reason == :enoent do
+      # A missing command raises ErlangError with :enoent in `original`
+      # (`reason` is nil for it)
+      if e.original == :enoent do
         {:error, :enoent}
       else
-        {:error, "Error checking #{command}: #{inspect(e.reason)}"}
+        {:error, "Error checking #{command}: #{inspect(e.original)}"}
       end
 
     error ->
