@@ -1,3 +1,51 @@
+## Unreleased
+
+### Added
+
+- **`mix precommit` now compiles the test tree** via a new `test.compile`
+  alias, run between `deps.unlock --check-unused` and `quality.ci`. No
+  existing gate step ever *compiled* `test/**/*_test.exs`: `format` and
+  `credo` only parse them, `compile` and `dialyzer` see `elixirc_paths`
+  (which covers `test/support`, not the `.exs` test files), and ExUnit is
+  the only thing that compiles those — so a test file that is valid syntax
+  but fails to compile (a duplicate `describe` name, for example, which
+  ExUnit rejects at `defmodule` time) passed every step and only surfaced on
+  the next `mix test`. The alias compiles every test file with
+  `Kernel.ParallelCompiler.compile/1` in a `MIX_ENV=test` subprocess,
+  deliberately without `test_helper.exs`: no `ExUnit.start`, no database
+  probe, no migration, zero tests run, so it cannot go red from the
+  environment — only from a genuine compile error in `test/`. `mix test`
+  itself is still not part of `precommit`; see AGENTS.md "CI/CD".
+
+### Fixed
+
+- **Stored originals keep their extension when copied out for processing.**
+  `Storage.retrieve_file/1` — and `Manager.retrieve_file/2` without a
+  `:destination_path` — wrote the temp copy as `phoenix_kit_<random>`, with no
+  extension. ImageMagick identifies some formats by extension alone, ICO
+  among them, so `ProcessFileJob` failed every variant of an `.ico` upload
+  with `identify: no decode delegate for this image format` and the job was
+  discarded, even where ImageMagick reads ICO. The temp copy now carries the
+  stored original's extension, as `Manager.replicate_to_buckets/3` already
+  did. `AnnotationThumbnail` reads its source through the same call.
+- **A missing `pdftoppm`, `pdfinfo`, `identify` or `ffmpeg` is reported as not
+  installed.** `System.cmd/3` raises `ErlangError` with `:enoent` in
+  `original` and `reason: nil`; `PdfProcessor` and `System.Dependencies`
+  checked `reason`, so the not-installed branch never ran — a host without
+  poppler logged `pdftoppm error: nil` for every PDF, and
+  `check_imagemagick/0` / `check_ffmpeg/0` returned
+  `{:error, "Error checking …: nil"}` instead of `{:error, :not_installed}`.
+- **PDF uploads are processed again on hosts that have poppler.**
+  `ProcessFileJob` merged pdfinfo's string-keyed fields (`"page_count"`,
+  `"author"`, …) into the atom-keyed `%{status: "active"}` update, and
+  `Ecto.Changeset.cast/3` rejects a mixed-key map — so every PDF job raised
+  `Ecto.CastError` on the metadata step and was discarded after three
+  attempts, before any preview variant was rendered. Without poppler
+  `extract_metadata/1` returns `%{}` and the merge happened to be clean, which
+  is why the crash only showed up once the tool was installed. The fields now
+  go into the file's `:metadata` map (`PdfProcessor.file_attrs/2`), merged over
+  whatever it already holds.
+
 ## 2.23.2 - 2026-09-15
 
 ### Added

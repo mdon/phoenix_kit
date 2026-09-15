@@ -222,7 +222,9 @@ defmodule PhoenixKit.Modules.Storage.Manager do
 
   defp retrieve_with_failover(file_path, [bucket | remaining_buckets], opts) do
     provider = get_provider_for_bucket(bucket)
-    destination_path = Keyword.get(opts, :destination_path, generate_temp_path())
+
+    destination_path =
+      Keyword.get(opts, :destination_path, generate_temp_path() <> Path.extname(file_path))
 
     case provider.retrieve_file(bucket, file_path, destination_path) do
       :ok ->

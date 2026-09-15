@@ -8,7 +8,7 @@
 
 0. **First clone only:** `git config core.hooksPath .githooks` — enables the tracked pre-commit hook (a clone must not run code on checkout, so git won't do this for you). `mix phoenix_kit.doctor` reports it under "Git Hooks".
 1. Make changes
-2. `mix precommit` — compile (warnings as errors) + `deps.unlock --check-unused` + `quality.ci` (format-check, credo --strict, dialyzer) + JS tests. **Does NOT run `mix test`** — see "CI/CD" below.
+2. `mix precommit` — compile (warnings as errors) + `deps.unlock --check-unused` + `test.compile` (compiles every `test/**/*_test.exs` in a `MIX_ENV=test` subprocess without `test_helper.exs` — no DB, zero tests run; catches a test file that does not compile, e.g. a duplicate `describe`) + `quality.ci` (format-check, credo --strict, dialyzer) + JS tests. **Does NOT run `mix test`** — see "CI/CD" below.
 3. Fix problems
 4. `git diff` / `git status` → commit
 
