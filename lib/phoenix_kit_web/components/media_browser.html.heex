@@ -2635,6 +2635,24 @@
       phx-target={@myself}
       data-neighbor-prefetch={neighbor_prefetch}
       data-neighbor-prefetch-hi={neighbor_prefetch_hi}
+      data-step-prev-src={
+        with true <- has_prev,
+             %{file_type: "image"} = p <- Enum.at(siblings, viewer_idx - 1) do
+          p.urls["small"]
+        else
+          _ -> nil
+        end
+      }
+      data-step-next-src={
+        with true <- has_next,
+             %{file_type: "image"} = n <- Enum.at(siblings, viewer_idx + 1) do
+          n.urls["small"]
+        else
+          _ -> nil
+        end
+      }
+      data-step-prev-rot={has_prev && rotation_class(Enum.at(siblings, viewer_idx - 1))}
+      data-step-next-rot={has_next && rotation_class(Enum.at(siblings, viewer_idx + 1))}
     >
       <%!-- Mobile: pin the modal-box directly to the viewport via          --%>
       <%!--   position: fixed; inset: 0;                                    --%>

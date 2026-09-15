@@ -29,6 +29,7 @@ function loadHook() {
   const doc = {
     addEventListener: (n, fn, capture) => (listeners.document[n] = { fn, capture }),
     removeEventListener: () => {},
+    querySelector: () => null,
   };
   const win = {
     addEventListener: (n, fn) => (listeners.window[n] = { fn }),
@@ -54,7 +55,7 @@ function loadHook() {
     () => {},
     FakeImage
   );
-  return { hook, listeners, timers, fetched };
+  return { hook, listeners, timers, fetched, doc };
 }
 
 function fakeEl(armed, opts) {
@@ -419,6 +420,56 @@ test("the upscale is blurred, and by a style the className rewrite cannot drop",
   assert.ok(!/blur/.test(classes),
     "a utility class here depends on the host's Tailwind scanning a library " +
     "template, and would not survive the hook's className rewrite either");
+});
+
+function stepEl(withModal) {
+  // a chevron press: target inside a [phx-click="step_viewer"] button
+  const btn = {
+    getAttribute: (k) => (k === "phx-value-dir" ? "next" : null),
+  };
+  return { target: { closest: (sel) => (sel.includes("step_viewer") ? btn : null) } };
+}
+
+test("a chevron press paints the neighbour instantly", () => {
+  const { hook, listeners, doc } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+  doc.querySelector = () => ({
+    dataset: { stepNextSrc: "/f/n/small/aa", stepNextRot: "rotate-90" } });
+  listeners.document.click.fn(stepEl());
+  assert.strictEqual(el.style.display, "", "shown on the press, not on the reply");
+  assert.strictEqual(el.img.attrs.src, "/f/n/small/aa",
+    "…with the neighbour's warmed small — a cache hit");
+  assert.ok(/rotate-90/.test(el.img.className), "the neighbour's rotation rides along");
+});
+
+test("a keyboard step announces itself and the stand-in answers", () => {
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+  listeners.window["pk:viewer-step"].fn({ detail: { src: "/f/p/small/zz", rotation: "" } });
+  assert.strictEqual(el.style.display, "");
+  assert.strictEqual(el.img.attrs.src, "/f/p/small/zz");
+});
+
+test("the step's own teardown of the old viewer does not kill the bridge", () => {
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+  listeners.window["pk:viewer-step"].fn({ detail: { src: "/f/n/small/aa" } });
+  // The OLD viewer's destroyed() fires pk:viewer-closed mid-step — the
+  // stand-in exists precisely to bridge that gap and must survive it.
+  listeners.window["pk:viewer-closed"].fn();
+  assert.strictEqual(el.style.display, "", "still bridging");
+  // The NEW viewer arrives; the normal hand-off takes over.
+  listeners.window["pk:viewer-open"].fn(realViewer(true));
+  assert.strictEqual(el.style.display, "none", "handed off");
+  // …and a plain close afterwards hides as before.
+  listeners.window["pk:viewer-step"].fn({ detail: { src: "/f/n/small/aa" } });
+  listeners.window["pk:viewer-open"].fn(realViewer(true));
+  listeners.window["pk:viewer-closed"].fn();
+  assert.strictEqual(el.style.display, "none",
+    "the stepping guard clears on hand-off — Esc still cleans up");
 });
 
 function hoverCard(small, large) {

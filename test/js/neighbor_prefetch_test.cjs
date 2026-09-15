@@ -108,6 +108,11 @@ test("the modal advertises its neighbours", () => {
     "videos and pdfs are not image-warmable and are skipped");
   assert.ok(heex.includes("data-neighbor-prefetch-hi={neighbor_prefetch_hi}"),
     "the originals ride a separate attribute, warmed only on wide viewports");
+  for (const a of ["data-step-prev-src=", "data-step-next-src=",
+                   "data-step-prev-rot=", "data-step-next-rot="]) {
+    assert.ok(heex.includes(a),
+      `the modal advertises ${a} for the step stand-in`);
+  }
   assert.ok(/> 4096 and\s*\n\s*is_binary\(n\.urls\["dzi"\]\)/.test(heex),
     "an over-4K file WITH tiles never raster-loads its original — excluded");
 });

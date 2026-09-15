@@ -2059,6 +2059,7 @@ if (typeof window.Chart === "undefined") {
       // real viewer's arrival, by a click that turns out not to open one, and
       // by a timeout — see below for why all three are needed.
       self._hide = function() {
+        self._stepping = false;
         el.style.display = "none";
         const img = el.querySelector("img");
         if (img) img.removeAttribute("src");
@@ -2074,18 +2075,10 @@ if (typeof window.Chart === "undefined") {
       };
       self._hide();
 
-      self._onClick = function(e) {
-        const card = e.target.closest && e.target.closest('[phx-click="click_file"]');
-        if (!card) return;
-        // Select mode turns the same click into a checkbox toggle, and a
-        // picker's click may open nothing at all. The browser marks which it
-        // is, so this can stay out of both.
-        if (el.dataset.armed !== "true") return;
-
-        const img = card.querySelector("img");
-        const src = img && img.getAttribute("src");
-        if (!src) return;
-
+      // Paint a bitmap into the stand-in and show it — shared by the two
+      // triggers: opening from a grid card, and stepping prev/next inside
+      // the viewer (whose neighbour bitmaps the warm has already cached).
+      self._show = function(src, rotationClass) {
         const shown = el.querySelector("img");
         if (!shown) return;
 
@@ -2102,23 +2095,69 @@ if (typeof window.Chart === "undefined") {
             ? self._sidebarWasOpen
             : el.dataset.sidebarOpen === "true";
           pane.style.display = open ? "" : "none";
+          pane.style.visibility = "";
         }
+        el.style.backgroundColor = "";
+        const box = el.querySelector(".modal-box");
+        if (box) box.style.backgroundColor = "";
 
         shown.setAttribute("src", src);
-        // Carry the card's rotation across, or a sideways photo would flip
-        // upright for a moment and then turn back.
         shown.className = shown.dataset.baseClass +
-          " " + (img.className.match(/rotate-\d+/) || [""])[0];
+          " " + (rotationClass || "");
         el.style.display = "";
 
-        // A click that opens nothing — a stale uuid, a server error, a
+        // A trigger that opens nothing — a stale uuid, a server error, a
         // connection that drops between here and there — must not leave a
         // picture stuck over the page. The real viewer normally clears this
         // in well under a second.
         if (self._timer) clearTimeout(self._timer);
         self._timer = setTimeout(self._hide, 8000);
       };
+
+      self._onClick = function(e) {
+        // Stepping inside the viewer: the chevron buttons. The neighbour's
+        // warmed small paints immediately, blurred, so the press reads as
+        // motion instead of the viewer freezing on the old image.
+        const step = e.target.closest && e.target.closest('[phx-click="step_viewer"]');
+        if (step) {
+          const modal = document.querySelector('[id$="-viewer-modal"]');
+          const d = (modal && modal.dataset) || {};
+          const dir = step.getAttribute("phx-value-dir");
+          const src = dir === "prev" ? d.stepPrevSrc : d.stepNextSrc;
+          const rot = dir === "prev" ? d.stepPrevRot : d.stepNextRot;
+          if (src) {
+            self._stepping = true;
+            self._show(src, rot || "");
+          }
+          return;
+        }
+
+        const card = e.target.closest && e.target.closest('[phx-click="click_file"]');
+        if (!card) return;
+        // Select mode turns the same click into a checkbox toggle, and a
+        // picker's click may open nothing at all. The browser marks which it
+        // is, so this can stay out of both.
+        if (el.dataset.armed !== "true") return;
+
+        const img = card.querySelector("img");
+        const src = img && img.getAttribute("src");
+        if (!src) return;
+
+        // Carry the card's rotation across, or a sideways photo would flip
+        // upright for a moment and then turn back.
+        self._show(src, (img.className.match(/rotate-\d+/) || [""])[0]);
+      };
       document.addEventListener("click", self._onClick, true);
+
+      // Keyboard steps announce themselves from ViewerKeydown (which owns
+      // the arrow keys and the modal's neighbour data).
+      self._onStep = function(e) {
+        const d = e && e.detail;
+        if (!d || !d.src) return;
+        self._stepping = true;
+        self._show(d.src, d.rotation || "");
+      };
+      window.addEventListener("pk:viewer-step", self._onStep);
 
       // Start the viewer's downloads BEFORE the click. Opening fetches
       // `small` and then `large` — a third of a megabyte that used to
@@ -2155,6 +2194,7 @@ if (typeof window.Chart === "undefined") {
       // empty box and then paint — the flash this whole hook exists to remove.
       // So hold on until the real bitmap is actually on screen.
       self._onReady = function(e) {
+        self._stepping = false;
         const root = e && e.detail && e.detail.el;
 
         // Remember the layout this viewer actually used, so the NEXT
@@ -2223,7 +2263,13 @@ if (typeof window.Chart === "undefined") {
       // still waiting on the image — the modal is torn out from under the
       // floating blurry column, which would otherwise hang over the grid
       // until the fallback timer. The viewer announces its teardown.
-      self._onClosed = function() { self._hide(); };
+      self._onClosed = function() {
+        // A step tears the OLD viewer down on its way to the new one —
+        // that teardown must not kill the stand-in that exists to bridge
+        // it. The real hand-off (or the fallback timer) clears the flag.
+        if (self._stepping) return;
+        self._hide();
+      };
       window.addEventListener("pk:viewer-closed", self._onClosed);
     },
 
@@ -2233,6 +2279,7 @@ if (typeof window.Chart === "undefined") {
       document.removeEventListener("pointerdown", this._prefetch, true);
       window.removeEventListener("pk:viewer-open", this._onReady);
       window.removeEventListener("pk:viewer-closed", this._onClosed);
+      window.removeEventListener("pk:viewer-step", this._onStep);
       if (this._timer) { clearTimeout(this._timer); this._timer = null; }
     }
   };
@@ -2276,6 +2323,22 @@ if (typeof window.Chart === "undefined") {
         const t = document.activeElement;
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
                   t.isContentEditable === true)) return;
+        // Announce the step so the stand-in can paint the neighbour's
+        // warmed bitmap NOW — blurred, in the final geometry — instead of
+        // the viewer freezing on the current image until the next one's
+        // pixels arrive. src comes off this modal's own data attributes;
+        // empty (edge of the list, a video) means no stand-in, and the
+        // step behaves as before.
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          const d = self.el.dataset || {};
+          const src = e.key === "ArrowLeft" ? d.stepPrevSrc : d.stepNextSrc;
+          const rot = e.key === "ArrowLeft" ? d.stepPrevRot : d.stepNextRot;
+          if (src) {
+            window.dispatchEvent(new CustomEvent("pk:viewer-step", {
+              detail: { src: src, rotation: rot || "" }
+            }));
+          }
+        }
         self.pushEventTo(self.el, "viewer_keydown", { key: e.key });
       };
       document.addEventListener("keydown", self._handler);
