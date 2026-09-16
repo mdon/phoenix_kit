@@ -1128,6 +1128,14 @@ defmodule PhoenixKit.Migrations.Postgres do
 
     _ ->
       0
+  catch
+    # A dead or dying connection pool EXITS rather than raising (an unowned
+    # sandbox checkout raises, a pool whose owner is gone exits). This is the
+    # read path — status, doctor, the update task's "what is installed?" —
+    # and its contract is "0 when unknown", so an exit must not escape it and
+    # crash the task instead of letting it report the database unreachable.
+    :exit, _ ->
+      0
   end
 
   # Retry version detection with exponential backoff
@@ -1167,16 +1175,21 @@ defmodule PhoenixKit.Migrations.Postgres do
         end
     end
   rescue
-    _ ->
-      if retries_left > 1 do
-        Process.sleep(100)
-        retry_version_detection(opts, escaped_prefix, retries_left - 1)
-      else
-        0
-      end
+    _ -> retry_or_give_up(opts, escaped_prefix, retries_left)
+  catch
+    :exit, _ -> retry_or_give_up(opts, escaped_prefix, retries_left)
   end
 
   defp retry_version_detection(_opts, _escaped_prefix, 0), do: 0
+
+  defp retry_or_give_up(opts, escaped_prefix, retries_left) do
+    if retries_left > 1 do
+      Process.sleep(100)
+      retry_version_detection(opts, escaped_prefix, retries_left - 1)
+    else
+      0
+    end
+  end
 
   # Check version using runtime repo (same logic as migrated_version)
   defp check_version_with_runtime_repo(repo, escaped_prefix) do
