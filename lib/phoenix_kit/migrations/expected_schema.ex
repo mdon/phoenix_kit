@@ -13933,8 +13933,14 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         owner: :core,
         check:
           "SELECT EXISTS (SELECT 1 FROM __SCHEMA__.phoenix_kit_settings WHERE \"key\" = 'billing_default_currency')",
-        create:
-          "INSERT INTO __SCHEMA__.phoenix_kit_settings (\"key\", \"module\", \"value\", \"value_json\")\nVALUES ('billing_default_currency', 'billing', 'EUR', NULL)\nON CONFLICT (\"key\") DO NOTHING",
+        # DECLARED POST-GENERATION (2026-09-17): V189 DELETES this seed
+        # (a dead setting that disagreed with the default currency row), so it is bimodal like the
+        # V179 foreign key — present on installs that stopped before V189,
+        # absent after. `:legacy_optional` + `create: nil`
+        # keeps `mix phoenix_kit.repair` from re-creating a setting the chain
+        # removed on purpose; while it was `:required`, repair put it back on
+        # every healthy install (`s8` caught it).
+        create: nil,
         since: 31,
         class: :seed,
         revisions: [
@@ -13950,7 +13956,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              key_column: "key"
            }}
         ],
-        presence: :required,
+        presence: :legacy_optional,
         backfill: nil
       },
       %{
@@ -25975,8 +25981,14 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         owner: :core,
         check:
           "SELECT EXISTS (SELECT 1 FROM __SCHEMA__.phoenix_kit_settings WHERE \"key\" = 'shop_currency')",
-        create:
-          "INSERT INTO __SCHEMA__.phoenix_kit_settings (\"key\", \"module\", \"value\", \"value_json\")\nVALUES ('shop_currency', 'shop', 'USD', NULL)\nON CONFLICT (\"key\") DO NOTHING",
+        # DECLARED POST-GENERATION (2026-09-17): V184 DELETES this seed
+        # (a dead setting superseded by the currency table), so it is bimodal like the
+        # V179 foreign key — present on installs that stopped before V184,
+        # absent after. `:legacy_optional` + `create: nil`
+        # keeps `mix phoenix_kit.repair` from re-creating a setting the chain
+        # removed on purpose; while it was `:required`, repair put it back on
+        # every healthy install (`s8` caught it).
+        create: nil,
         since: 45,
         class: :seed,
         revisions: [
@@ -25992,7 +26004,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              key_column: "key"
            }}
         ],
-        presence: :required,
+        presence: :legacy_optional,
         backfill: nil
       },
       %{
@@ -49675,6 +49687,13 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
       # pg_index on a live V169 database after creating the indexes, not
       # hand-derived. `verify.exs --scenario s7,s8` against a real database is
       # still what proves the body.
+      #
+      # CORRECTED 2026-09-17: the two `keys` lists had been copied from the full
+      # definition, which wraps an expression column in a second pair of
+      # parentheses. `keys` is the per-column form the probe reads
+      # (`pg_get_indexdef(oid, n, true)`: `(seen_at IS NOT NULL)`), so every
+      # healthy install reported both indexes as the wrong shape — `s8` caught
+      # it on a freshly migrated chain.
       %{
         id: "index:phoenix_kit_notifications_dedupe_unseen_idx",
         owner: :core,
@@ -49693,7 +49712,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           {170,
            %{
              table: "phoenix_kit_notifications",
-             keys: ["recipient_uuid", "((metadata ->> 'dedupe_key'::text))"],
+             keys: ["recipient_uuid", "(metadata ->> 'dedupe_key'::text)"],
              unique: true,
              method: "btree",
              definition:
@@ -49727,7 +49746,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              table: "phoenix_kit_notifications",
              keys: [
                "recipient_uuid",
-               "((seen_at IS NOT NULL))",
+               "(seen_at IS NOT NULL)",
                "inserted_at",
                "uuid"
              ],
