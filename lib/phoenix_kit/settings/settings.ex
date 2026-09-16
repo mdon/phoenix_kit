@@ -1452,6 +1452,22 @@ defmodule PhoenixKit.Settings do
   def restricted_setting_keys, do: @restricted_setting_keys
 
   @doc """
+  Whether a settings row holds credential material whose value must never be
+  copied anywhere else — into the settings history, or into a broadcast.
+
+  True for the restricted keys above, and for every integration connection row.
+  Integration rows are identified by their `module` (`"integrations"`): since
+  V114 their keys are uuids, so no key-name rule can recognise them, and with
+  integration encryption off their `value_json` holds live tokens in plain
+  text.
+  """
+  @spec secret_setting?(String.t() | nil, String.t() | nil) :: boolean()
+  def secret_setting?(key, module) do
+    module == "integrations" or key in @restricted_setting_keys or
+      (is_binary(key) and String.starts_with?(key, "integration:"))
+  end
+
+  @doc """
   The changes to `key`, newest first — permanent `setting.changed` activity
   entries; see `PhoenixKit.Settings.History.list/2`.
   """

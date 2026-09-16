@@ -138,10 +138,25 @@ defmodule PhoenixKit.SettingsSubscribeTest do
       refute_received {:setting_changed, "oauth_google_client_secret", "s3cr3t-value"}
     end
 
+    test "an integration row is announced without its body, whatever its key" do
+      key = Ecto.UUID.generate()
+
+      {:ok, _} =
+        Settings.update_json_setting_with_module(
+          key,
+          %{"access_token" => "tok-live", "status" => "connected"},
+          "integrations"
+        )
+
+      assert_receive {:setting_changed, ^key, :redacted}
+      refute_received {:setting_changed, ^key, %{}}
+    end
+
     test "a module's secret is recognised by its name" do
       assert Events.secret_key?("billing_acme_webhook_secret")
       assert Events.secret_key?("mymodule_api_key")
       assert Events.secret_key?("integration:openai:default")
+      assert Events.secret_key?(Ecto.UUID.generate(), "integrations")
       refute Events.secret_key?("project_title")
       refute Events.secret_key?("time_zone")
     end

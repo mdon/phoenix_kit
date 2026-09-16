@@ -23,10 +23,15 @@ defmodule PhoenixKit.Settings.Events do
       the local settings cache has already dropped the old one before the
       message goes out, so a subscriber may use the value directly or read it
       again — both are current on this node.
-    * **Secrets never travel.** A key that holds credential material carries
+    * **Secrets never travel.** A row that holds credential material carries
       `:redacted` instead of a value: PubSub delivers to any process on the
       node, and a subscriber that needs the secret reads it through the access
-      it already has. What counts as a secret is `secret_key?/1`.
+      it already has. What counts as a secret is `secret_key?/2` — integration
+      connection rows included, whatever their key.
+    * **Order between writers is not guaranteed.** Two processes writing one
+      key can have their messages delivered in either order. When that matters,
+      treat the message as "this key changed" and read the setting again rather
+      than keeping the last payload received.
 
   ## Limits
 
@@ -72,11 +77,16 @@ defmodule PhoenixKit.Settings.Events do
   @doc """
   Broadcast that `key` now holds `value`.
 
-  The value is withheld (`:redacted`) when `secret_key?/1` says the key holds
-  credential material, whatever the caller passed.
+  The value is withheld (`:redacted`) when `secret_key?/2` says the row holds
+  credential material, whatever the caller passed. Pass the row's `module`
+  when it is known: integration rows have uuid keys and are recognised only by
+  it.
   """
-  def broadcast_setting_changed(key, value) do
-    Manager.broadcast(@topic_settings, {:setting_changed, key, public_value(key, value)})
+  def broadcast_setting_changed(key, value, module \\ nil) do
+    Manager.broadcast(
+      @topic_settings,
+      {:setting_changed, key, public_value(key, module, value)}
+    )
   end
 
   @doc "Broadcast that `key` was deleted."
@@ -85,19 +95,20 @@ defmodule PhoenixKit.Settings.Events do
   end
 
   @doc """
-  Whether `key` holds credential material that must never be broadcast.
+  Whether a row holds credential material that must never be broadcast.
 
-  True for the keys `PhoenixKit.Settings` encrypts at rest, for integration
-  connection rows, and for any key whose name marks it as a secret.
+  True for everything `PhoenixKit.Settings.secret_setting?/2` withholds (the
+  restricted keys and every integration row, recognised by `module`), and —
+  wider on purpose, because withholding only costs a subscriber a re-read —
+  for any key whose name marks it as a secret.
   """
-  @spec secret_key?(String.t()) :: boolean()
-  def secret_key?(key) when is_binary(key) do
-    key in PhoenixKit.Settings.restricted_setting_keys() or
-      String.starts_with?(key, "integration:") or
+  @spec secret_key?(String.t(), String.t() | nil) :: boolean()
+  def secret_key?(key, module \\ nil) when is_binary(key) do
+    PhoenixKit.Settings.secret_setting?(key, module) or
       String.contains?(String.downcase(key), @secret_fragments)
   end
 
-  defp public_value(key, value) do
-    if secret_key?(key), do: :redacted, else: value
+  defp public_value(key, module, value) do
+    if secret_key?(key, module), do: :redacted, else: value
   end
 end

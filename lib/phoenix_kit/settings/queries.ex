@@ -254,7 +254,10 @@ defmodule PhoenixKit.Settings.Queries do
 
     for {setting, recorded} <- pairs, recorded != :unchanged do
       announce(fn -> History.publish(recorded) end)
-      announce(fn -> Events.broadcast_setting_changed(setting.key, committed_value(setting)) end)
+
+      announce(fn ->
+        Events.broadcast_setting_changed(setting.key, committed_value(setting), setting.module)
+      end)
     end
 
     :ok
