@@ -1,3 +1,44 @@
+## 2.24.0 - 2026-09-16
+
+### Added
+
+- **Media reorganizer** (#815) — moves every module's legacy media folders to
+  where the host's `attachments_parent_folder` / `attachments_folder_name`
+  hooks now put new ones.
+  - `mix phoenix_kit.media.reorganize` — dry-run by default (prints a
+    per-`{source, kind}` summary table plus details); `--apply` writes,
+    `--source <module_key>` (repeatable) narrows the run, `--pending-days`
+    sets the stale-pending-folder threshold (default 7). Options are
+    validated before the app starts; an unknown or disabled `--source` key
+    is an error. Exits 1 when `--apply` leaves any action `:failed` or
+    `:conflict`.
+  - `PhoenixKit.Modules.Storage.Reorganizer` engine — each action runs in its
+    own transaction against a `FOR UPDATE` re-read of the folder, re-verifies
+    the plan-time file/link counts before and after the write, and never
+    halts the run on a raising source, a failed action or a naming conflict.
+    Nothing is hard-deleted: `:trash` only soft-deletes a folder still empty
+    at apply time. Moving a trashed folder restores the subtree trashed with
+    it. `on_conflict: :suffix` picks a free `"name (N)"`.
+  - `PhoenixKit.Modules.Storage.Reorganizer.Source` behaviour — the full
+    contract for module implementations (hook failures, claims, duplicates,
+    pointer back-fill, stale pending folders, query cost) lives in its
+    moduledoc. Actions are plain maps validated by `Reorganizer.Action`, so a
+    module never compiles against core's action struct; unknown keys are
+    dropped with one warning.
+  - New optional `PhoenixKit.Module` callback `media_reorganizer/0`
+    (default `nil`), collected from enabled modules by
+    `ModuleRegistry.all_media_reorganizers/0`.
+
+### Fixed
+
+- **Reorganizer summary no longer hides a back-fill's rename or restore.** A
+  move carrying `after_move` always reports outcome `:backfilled`, and the
+  `renamed` / `restored` columns were derived from that single outcome, so a
+  back-filled action that also renamed or un-trashed its folder counted in
+  neither. Applied actions now carry an engine-internal `changes` list
+  (`:moved` / `:renamed` / `:restored`) that the summary and the details
+  section read.
+
 ## 2.23.3 - 2026-09-15
 
 ### Added

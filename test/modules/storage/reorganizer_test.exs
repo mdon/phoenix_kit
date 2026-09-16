@@ -345,6 +345,46 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
     assert reloaded.name == "New"
   end
 
+  test "a back-filled move still counts its rename and restore in the summary" do
+    target = create_folder!(%{name: "Target"})
+    folder = create_folder!(%{name: "x-legacy"})
+    {:ok, _} = Storage.trash_folder(folder)
+    trashed_folder = Storage.get_folder(folder.uuid)
+
+    plan = [
+      move_action(%{
+        folder: trashed_folder,
+        parent_uuid: target.uuid,
+        name: "New",
+        counts: {0, 0},
+        after_move: fn -> :ok end
+      })
+    ]
+
+    report = run!(plan)
+    [action] = report.actions
+
+    assert action.outcome == :backfilled
+    assert action.changes == [:moved, :renamed, :restored]
+
+    assert %{moved: 1, renamed: 1, backfilled: 1, restored: 1} =
+             report.summary[{action.source, action.kind}]
+
+    assert Reorganizer.format_report(report) =~ "Details:"
+  end
+
+  test "an in-place back-fill records no folder changes" do
+    folder = create_folder!(%{name: "x-legacy"})
+
+    report = run!([move_action(%{folder: folder, counts: {0, 0}, after_move: fn -> :ok end})])
+    [action] = report.actions
+
+    assert action.changes == []
+
+    assert %{renamed: 0, restored: 0, backfilled: 1} =
+             report.summary[{action.source, action.kind}]
+  end
+
   test "folder already in place + after_move still backfills the pointer" do
     folder = create_folder!(%{name: "x-legacy"})
 

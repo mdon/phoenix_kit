@@ -20,11 +20,12 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
 
   A real unique-constraint violation aborts the surrounding Postgres
   transaction, so a failed `UPDATE` can't be retried inside the same
-  transaction. Rather than retry, the engine SELECTs the target name for a
-  collision *before* writing (`on_conflict: :suffix` picks a free
-  `"name (N)"`, `on_conflict: :report` just checks): the `UPDATE` either
-  hits no naming constraint at all, or is the one write the transaction
-  ever attempts.
+  transaction. Rather than retry, `on_conflict: :suffix` SELECTs the target
+  name for a collision *before* writing and picks a free `"name (N)"`, so
+  its `UPDATE` hits no naming constraint at all; `on_conflict: :report`
+  skips the pre-check and lets the `UPDATE` — the one write its transaction
+  ever attempts — hit the constraint, reporting `:conflict` and rolling
+  back.
 
       {:ok, report} = PhoenixKit.Modules.Storage.Reorganizer.run(actor_uuid, apply?: false)
       IO.puts(PhoenixKit.Modules.Storage.Reorganizer.format_report(report))
@@ -320,7 +321,10 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
          :ok <- restore_subtree_if_needed(folder),
          :ok <- run_after_move(action),
          :ok <- verify_counts(updated.uuid, Map.get(action, :counts)) do
-      Map.put(action, :outcome, outcome_for(attrs, final_attrs, action))
+      Map.merge(action, %{
+        outcome: outcome_for(attrs, final_attrs, action),
+        changes: changes_for(attrs, final_attrs)
+      })
     else
       {:error, {:conflict, reason}} -> repo().rollback({:conflict, reason})
       {:error, reason} -> repo().rollback(reason)
@@ -414,8 +418,10 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
   end
 
   # Only LIVE child folders block a `:trash` — a folder whose only children
-  # are already trashed is still "empty" for this purpose; their
-  # `trashed_at` is simply left as-is (already set) when the parent trashes.
+  # are already trashed is still "empty" for this purpose. Note that
+  # `Storage.trash_folder/1` re-stamps those already-trashed children (and
+  # their files) with the parent's `trashed_at` — its subtree `update_all`
+  # has no `is_nil(trashed_at)` guard — so they restore together with it.
   defp child_folder_count(folder_uuid) do
     from(f in Folder,
       where: f.parent_uuid == ^folder_uuid and is_nil(f.trashed_at),
@@ -573,6 +579,20 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
 
   defp run_after_move(_action), do: :ok
 
+  # Every change the move actually wrote, independent of `outcome_for/3`'s
+  # single headline atom: an `after_move` action's outcome is always
+  # `:backfilled`, which alone hid a rename or restore it performed from the
+  # summary's `renamed`/`restored` columns.
+  defp changes_for(attrs, final_attrs) do
+    [
+      {:moved, Map.has_key?(attrs, :parent_uuid)},
+      {:renamed, Map.has_key?(final_attrs, :name)},
+      {:restored, Map.has_key?(attrs, :trashed_at)}
+    ]
+    |> Enum.filter(&elem(&1, 1))
+    |> Enum.map(&elem(&1, 0))
+  end
+
   defp outcome_for(attrs, final_attrs, action) do
     moved? = Map.has_key?(attrs, :parent_uuid)
     renamed? = Map.has_key?(final_attrs, :name)
@@ -647,15 +667,17 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
           actions,
           &(Map.get(&1, :outcome) in [:moved, :renamed, :moved_renamed, :backfilled])
         ),
-      renamed: Enum.count(actions, &(Map.get(&1, :outcome) in [:renamed, :moved_renamed])),
+      renamed: Enum.count(actions, &changed?(&1, :renamed)),
       backfilled: Enum.count(actions, &(Map.get(&1, :outcome) == :backfilled)),
-      restored: Enum.count(actions, &(Map.get(&1, :outcome) == :restored)),
+      restored: Enum.count(actions, &changed?(&1, :restored)),
       conflicts: Enum.count(actions, &(Map.get(&1, :outcome) == :conflict)),
       failed: Enum.count(actions, &(Map.get(&1, :outcome) == :failed)),
       trashed: Enum.count(actions, &(Map.get(&1, :outcome) == :trashed)),
       reported: Enum.count(actions, &(Map.get(&1, :outcome) == :reported))
     }
   end
+
+  defp changed?(action, change), do: change in Map.get(action, :changes, [])
 
   @doc """
   Renders the report as a fixed-width text table: one row per `{source,
@@ -697,7 +719,8 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
     noteworthy =
       Enum.filter(actions, fn action ->
         not applied? or
-          Map.get(action, :outcome) in [:conflict, :failed, :reported, :trashed, :restored]
+          Map.get(action, :outcome) in [:conflict, :failed, :reported, :trashed, :restored] or
+          changed?(action, :restored)
       end)
 
     case noteworthy do

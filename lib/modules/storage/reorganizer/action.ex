@@ -28,6 +28,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.Action do
           optional(:after_move) => (-> :ok | {:ok, term()} | {:error, term()}) | nil,
           optional(:reason) => String.t() | nil,
           optional(:outcome) => atom(),
+          optional(:changes) => [:moved | :renamed | :restored],
           optional(:error) => term()
         }
 
@@ -45,7 +46,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.Action do
     reason: nil
   }
 
-  # :outcome and :error are engine-internal — `apply_one/1` sets them on the
+  # :outcome, :changes and :error are engine-internal — `apply_one/1` sets them on the
   # normalized result, a `Source` never legitimately carries them. They're
   # deliberately excluded here so a Source that DOES set one gets it dropped
   # (with a warning, like any other unknown key) instead of leaking a fake
