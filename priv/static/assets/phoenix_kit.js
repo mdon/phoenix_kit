@@ -2072,6 +2072,7 @@ if (typeof window.Chart === "undefined") {
         const pane = el.querySelector('[data-pane="sidebar"]');
         if (pane) pane.style.visibility = "";
         if (self._timer) { clearTimeout(self._timer); self._timer = null; }
+        if (self._closeGrace) { clearTimeout(self._closeGrace); self._closeGrace = null; }
       };
       self._hide();
 
@@ -2195,6 +2196,10 @@ if (typeof window.Chart === "undefined") {
       // So hold on until the real bitmap is actually on screen.
       self._onReady = function(e) {
         self._stepping = false;
+        // The viewer is (still) here — a mid-step close signal that was
+        // waiting to take the stand-in down was the old one's teardown
+        // after all.
+        if (self._closeGrace) { clearTimeout(self._closeGrace); self._closeGrace = null; }
         const root = e && e.detail && e.detail.el;
 
         // Remember the layout this viewer actually used, so the NEXT
@@ -2266,8 +2271,18 @@ if (typeof window.Chart === "undefined") {
       self._onClosed = function() {
         // A step tears the OLD viewer down on its way to the new one —
         // that teardown must not kill the stand-in that exists to bridge
-        // it. The real hand-off (or the fallback timer) clears the flag.
-        if (self._stepping) return;
+        // it. But a REAL close mid-step (Escape, or a backdrop click that
+        // fell through this pointer-events-none overlay onto the actual
+        // modal) must: ignoring it outright left the blur orphaned over
+        // a viewer that was already gone, until the fallback timer. The
+        // two are indistinguishable here, so give the replacement viewer
+        // a beat to announce itself — pk:viewer-open cancels the hide —
+        // and take the blur down when nothing does.
+        if (self._stepping) {
+          if (self._closeGrace) clearTimeout(self._closeGrace);
+          self._closeGrace = setTimeout(self._hide, 400);
+          return;
+        }
         self._hide();
       };
       window.addEventListener("pk:viewer-closed", self._onClosed);
@@ -2300,24 +2315,33 @@ if (typeof window.Chart === "undefined") {
       // across remounts), and looking without ever stepping costs only
       // the two downloads a step would have started anyway.
       window.__pkWarmedUrls = window.__pkWarmedUrls || {};
-      var warmList = (self.el.dataset && self.el.dataset.neighborPrefetch) || "";
-      // The rung above large, only where this viewport will actually ask
-      // for it: Tessera picks its raster by displayed width against each
-      // rung's pixels x 1.1 headroom, so a viewer column wider than
-      // 1920 x 1.1 CSS px opens straight on the original — and a multi-MB
-      // original nothing warmed was the "waiting and waiting" a step onto
-      // a big image showed on large monitors, invisible on small ones
-      // (where large suffices and originals would be pure waste).
-      var column = self.el.querySelector('[id^="pk-annotation-actions-"]');
-      var colW = (column && column.clientWidth) || window.innerWidth || 0;
-      if (colW > 1920 * 1.1) {
-        warmList += " " + ((self.el.dataset && self.el.dataset.neighborPrefetchHi) || "");
-      }
-      warmList.split(" ").forEach(function(url) {
-        if (!url || window.__pkWarmedUrls[url]) return;
-        window.__pkWarmedUrls[url] = true;
-        new Image().src = url;
-      });
+      // Factored so updated() can re-run it: a step PATCHES this modal in
+      // place (its id is stable), so mounted() fires once per open — and
+      // the warm it used to hold ran once too, leaving every neighbour
+      // after the first step cold. Each step rewrites the dataset with
+      // the new neighbours; warming again from here keeps the NEXT press
+      // as instant as the first.
+      self._warm = function() {
+        var warmList = (self.el.dataset && self.el.dataset.neighborPrefetch) || "";
+        // The rung above large, only where this viewport will actually ask
+        // for it: Tessera picks its raster by displayed width against each
+        // rung's pixels x 1.1 headroom, so a viewer column wider than
+        // 1920 x 1.1 CSS px opens straight on the original — and a multi-MB
+        // original nothing warmed was the "waiting and waiting" a step onto
+        // a big image showed on large monitors, invisible on small ones
+        // (where large suffices and originals would be pure waste).
+        var column = self.el.querySelector('[id^="pk-annotation-actions-"]');
+        var colW = (column && column.clientWidth) || window.innerWidth || 0;
+        if (colW > 1920 * 1.1) {
+          warmList += " " + ((self.el.dataset && self.el.dataset.neighborPrefetchHi) || "");
+        }
+        warmList.split(" ").forEach(function(url) {
+          if (!url || window.__pkWarmedUrls[url]) return;
+          window.__pkWarmedUrls[url] = true;
+          new Image().src = url;
+        });
+      };
+      self._warm();
       self._handler = function(e) {
         if (e.key !== "Escape" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
         const t = document.activeElement;
@@ -2343,6 +2367,25 @@ if (typeof window.Chart === "undefined") {
       };
       document.addEventListener("keydown", self._handler);
     },
+
+    // A step does NOT remount this hook — the modal's id is stable, so
+    // LiveView patches it in place and only the canvas child (file uuid
+    // in its id) remounts. mounted() above is therefore once per OPEN,
+    // and the stand-in a step had painted waited on a pk:viewer-open
+    // that never came: it sat opaque over the new image for the full
+    // fallback timeout, which read as the step being slow — and as the
+    // popup refusing to close, since the click-off had actually closed
+    // the real viewer somewhere under the blur. Re-announcing from here
+    // gives a step the same hand-off as an open: see-through at once,
+    // gone when the new image paints. Extra firings from unrelated
+    // patches (sidebar toggle, a comment) are harmless — with the
+    // stand-in hidden the listener only refreshes its layout prediction.
+    updated() {
+      window.dispatchEvent(new CustomEvent("pk:viewer-open", { detail: { el: this.el } }));
+      // …and the dataset now names the NEW neighbours.
+      if (this._warm) this._warm();
+    },
+
     destroyed() {
       // The stand-in may be holding a blurry overlay over this modal,
       // waiting for an image that is now never going to load.

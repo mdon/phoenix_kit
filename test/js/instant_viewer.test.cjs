@@ -472,6 +472,39 @@ test("the step's own teardown of the old viewer does not kill the bridge", () =>
     "the stepping guard clears on hand-off — Esc still cleans up");
 });
 
+test("a REAL close mid-step takes the blur down after a grace beat", () => {
+  // The stand-in is pointer-events: none, so a click "off the popup"
+  // mid-step lands on the real backdrop and closes the viewer under the
+  // blur. Ignoring that close outright — the old blanket stepping guard —
+  // left the blur orphaned over nothing until the fallback timer, which
+  // read as the popup refusing to close.
+  const { hook, listeners, timers } = loadHook();
+  const el = fakeEl(true);
+  const ctx = { el };
+  hook.mounted.call(ctx);
+  listeners.window["pk:viewer-step"].fn({ detail: { src: "/f/n/small/aa" } });
+  listeners.window["pk:viewer-closed"].fn();
+  assert.strictEqual(el.style.display, "", "not killed on the spot — it may be the teardown");
+  const grace = timers.find((t) => t.ms === 400);
+  assert.ok(grace, "…but the close arms a short grace countdown");
+  grace.cb();
+  assert.strictEqual(el.style.display, "none",
+    "no replacement viewer announced itself — the close was real, the blur goes");
+});
+
+test("the replacement viewer's arrival cancels the grace hide", () => {
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  const ctx = { el };
+  hook.mounted.call(ctx);
+  listeners.window["pk:viewer-step"].fn({ detail: { src: "/f/n/small/aa" } });
+  listeners.window["pk:viewer-closed"].fn();
+  assert.ok(ctx._closeGrace, "grace armed by the mid-step close");
+  listeners.window["pk:viewer-open"].fn(realViewer(true));
+  assert.strictEqual(ctx._closeGrace, null,
+    "the viewer is (still) here — the close was the old one's teardown after all");
+});
+
 function hoverCard(small, large) {
   const card = { dataset: {} };
   if (small) card.dataset.prefetchSmall = small;

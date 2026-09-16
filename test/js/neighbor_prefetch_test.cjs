@@ -25,16 +25,17 @@ function loadKeydown() {
   Object.defineProperty(FakeImage.prototype, "src", {
     set(v) { fetched.push(v); }, get() { return null; },
   });
+  const dispatched = [];
   const win = {
     addEventListener: () => {}, removeEventListener: () => {},
-    dispatchEvent: () => {},
+    dispatchEvent: (e) => dispatched.push(e),
   };
   const doc = { addEventListener: () => {}, removeEventListener: () => {} };
   const fn = new Function("window", "document", "Image", "CustomEvent",
     "window.PhoenixKitHooks = window.PhoenixKitHooks || {};" +
     src.slice(start, end) + "; return window.PhoenixKitHooks.ViewerKeydown;");
   const hook = fn(win, doc, FakeImage, function C(n, o) { this.name = n; this.detail = o && o.detail; });
-  return { hook, fetched, win };
+  return { hook, fetched, win, dispatched };
 }
 
 function mountEl(dataset, colW) {
@@ -115,4 +116,31 @@ test("the modal advertises its neighbours", () => {
   }
   assert.ok(/> 4096 and\s*\n\s*is_binary\(n\.urls\["dzi"\]\)/.test(heex),
     "an over-4K file WITH tiles never raster-loads its original — excluded");
+});
+
+test("a step re-announces the viewer and re-warms — the modal is patched, not remounted", () => {
+  // A step keeps this hook's element (stable id) and only swaps the canvas
+  // child, so mounted() fires once per OPEN. Before updated() existed, a
+  // step's stand-in waited on a pk:viewer-open that never came (the 8s
+  // fallback WAS the "blurry for much much longer"), and every neighbour
+  // after the first step went unwarmed.
+  const { hook, fetched, dispatched } = loadKeydown();
+  const ctx = {
+    el: mountEl({ neighborPrefetch: "/f/p/small/aa /f/p/large/ab" }, 1200),
+    pushEventTo: () => {},
+  };
+  hook.mounted.call(ctx);
+  fetched.length = 0;
+  dispatched.length = 0;
+
+  // The patch rewrote the dataset with the NEW neighbours.
+  ctx.el.dataset.neighborPrefetch = "/f/q/small/qq /f/q/large/ql";
+  hook.updated.call(ctx);
+
+  const open = dispatched.find((e) => e.name === "pk:viewer-open");
+  assert.ok(open, "the stand-in's hand-off rides pk:viewer-open — a step must re-fire it");
+  assert.strictEqual(open.detail.el, ctx.el,
+    "…with the modal element, so the hold can find the new image");
+  assert.deepStrictEqual(fetched, ["/f/q/small/qq", "/f/q/large/ql"],
+    "and the NEXT press's neighbours warm now, not never");
 });
