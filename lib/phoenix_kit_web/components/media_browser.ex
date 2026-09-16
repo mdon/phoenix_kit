@@ -185,6 +185,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # instead of the default fixed-height card. Used by the full-page
       # admin media view; modal/gallery embeds keep the bounded default.
       |> assign_new(:fill_height, fn -> false end)
+      |> assign_new(:upload_in_flight, fn -> false end)
+      |> close_upload_on_start()
 
     cond do
       not Map.has_key?(socket.assigns, :uploaded_files) ->
@@ -235,6 +237,32 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
       true ->
         {:ok, socket}
+    end
+  end
+
+  # The upload drawer's job ends the moment files are accepted: transfers
+  # are auto_upload, and their progress renders as the same inline rows the
+  # drag-drop path uses — so a drawer left open past that point only spends
+  # vertical space over the grid the uploads are about to land in. The
+  # parent re-renders on every transfer tick and pushes fresh
+  # parent_uploads here; the render where in-flight entries FIRST appear
+  # closes the drawer. Transition-triggered, not state-triggered, so a
+  # user who deliberately reopens the drawer mid-upload (to add more
+  # files) is not fighting a panel that snaps shut on every tick.
+  defp close_upload_on_start(socket) do
+    active =
+      case socket.assigns[:parent_uploads] do
+        %{media_files: %{entries: [_ | _]}} -> true
+        _ -> false
+      end
+
+    started = active and not socket.assigns.upload_in_flight
+    socket = assign(socket, :upload_in_flight, active)
+
+    if started and socket.assigns[:show_upload] do
+      assign(socket, :show_upload, false)
+    else
+      socket
     end
   end
 
@@ -537,6 +565,64 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp header_option_field(_), do: nil
 
   defp apply_nav_params(socket, params) do
+    # Opening / stepping / closing the modal viewer patches only `file` into
+    # the URL; the listing the params describe is the one already on screen.
+    # Skip the folder/search/count queries in that case — the full reload
+    # below is for landing on a URL whose listing this socket has not
+    # loaded (first mount, refresh, back/forward across folders).
+    if nav_matches_current?(socket, params) do
+      sync_viewer_from_params(socket, params)
+    else
+      apply_nav_listing(socket, params) |> sync_viewer_from_params(params)
+    end
+  end
+
+  defp nav_matches_current?(socket, params) do
+    a = socket.assigns
+
+    {current_folder_uuid(socket), a.search_query, a.current_page, a.filter_orphaned, a.file_view} ==
+      {params[:folder], params[:q] || "", params[:page] || 1, params[:filter_orphaned] || false,
+       params[:view]}
+  end
+
+  # The `file` URL param is the modal viewer's state: a refresh lands back
+  # in the viewer on that file instead of at root with the modal gone. The
+  # param is authoritative in both directions — absent closes (that is what
+  # makes the browser's Back button close the viewer it opened).
+  defp sync_viewer_from_params(socket, params) do
+    uuid = params[:file]
+    current = socket.assigns[:viewer_file]
+
+    cond do
+      is_nil(uuid) ->
+        if current, do: open_viewer(socket, nil), else: socket
+
+      is_map(current) and current.file_uuid == uuid ->
+        socket
+
+      true ->
+        case locate_file(socket, uuid) do
+          {file, siblings} ->
+            open_viewer(socket, file, siblings)
+
+          nil ->
+            # Not in the loaded listing (another page, a collapsed stack, a
+            # hand-edited link): fetch it directly. Siblings collapse to the
+            # file itself, so prev/next bound at it rather than stepping a
+            # list the file is not in.
+            case Storage.get_file(uuid) do
+              %Storage.File{} = file ->
+                enriched = enrich_files([file]) |> List.first()
+                open_viewer(socket, enriched, [enriched])
+
+              _ ->
+                socket
+            end
+        end
+    end
+  end
+
+  defp apply_nav_listing(socket, params) do
     q = params[:q] || ""
     page = params[:page] || 1
     filter_orphaned = params[:filter_orphaned] || false
@@ -1792,38 +1878,38 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # against a since-reloaded page) leaves the viewer alone rather than
       # opening it empty.
       case locate_file(socket, file_uuid) do
-        {file, siblings} -> {:noreply, open_viewer(socket, file, siblings)}
+        {file, siblings} -> {:noreply, open_viewer(socket, file, siblings) |> notify_viewer_nav()}
         nil -> {:noreply, socket}
       end
     end
   end
 
   def handle_event("close_viewer", _params, socket) do
-    {:noreply, open_viewer(socket, nil)}
+    {:noreply, open_viewer(socket, nil) |> notify_viewer_nav()}
   end
 
   # Single keydown router so we can handle multiple keys without stacking
   # phx-window-keydown directives (only one fires per element).
   def handle_event("viewer_keydown", %{"key" => "Escape"}, socket) do
-    {:noreply, open_viewer(socket, nil)}
+    {:noreply, open_viewer(socket, nil) |> notify_viewer_nav()}
   end
 
   def handle_event("viewer_keydown", %{"key" => "ArrowLeft"}, socket) do
-    {:noreply, step_viewer(socket, :prev)}
+    {:noreply, step_viewer(socket, :prev) |> notify_viewer_nav()}
   end
 
   def handle_event("viewer_keydown", %{"key" => "ArrowRight"}, socket) do
-    {:noreply, step_viewer(socket, :next)}
+    {:noreply, step_viewer(socket, :next) |> notify_viewer_nav()}
   end
 
   def handle_event("viewer_keydown", _params, socket), do: {:noreply, socket}
 
   def handle_event("step_viewer", %{"dir" => "prev"}, socket) do
-    {:noreply, step_viewer(socket, :prev)}
+    {:noreply, step_viewer(socket, :prev) |> notify_viewer_nav()}
   end
 
   def handle_event("step_viewer", %{"dir" => "next"}, socket) do
-    {:noreply, step_viewer(socket, :next)}
+    {:noreply, step_viewer(socket, :next) |> notify_viewer_nav()}
   end
 
   # Etcher annotation events + composer lifecycle are owned by the
@@ -2462,6 +2548,33 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp open_viewer(socket, %{file_uuid: _} = file, siblings) do
     socket |> assign(:viewer_file, file) |> assign(:viewer_siblings, siblings)
+  end
+
+  # In controlled mode, a viewer change patches `file` into the URL (via
+  # the parent's url_sync hook) so a refresh reopens exactly this view —
+  # folder AND file. The rest of the nav rides along unchanged; the hook's
+  # feed-back lands in apply_nav_params' fast path, so no reload happens.
+  # Uncontrolled hosts get the local state only, as before.
+  defp notify_viewer_nav(socket) do
+    if controlled_mode?(socket) do
+      viewer = socket.assigns[:viewer_file]
+
+      send(
+        self(),
+        {__MODULE__, socket.assigns.id,
+         {:navigate,
+          %{
+            folder: current_folder_uuid(socket),
+            q: socket.assigns.search_query,
+            page: socket.assigns.current_page,
+            filter_orphaned: socket.assigns.filter_orphaned,
+            view: socket.assigns.file_view,
+            file: viewer && viewer.file_uuid
+          }}}
+      )
+    end
+
+    socket
   end
 
   defp navigate_to_folder(socket, folder_uuid) when folder_uuid in [nil, ""] do

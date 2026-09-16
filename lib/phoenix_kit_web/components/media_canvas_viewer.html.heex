@@ -135,9 +135,11 @@
                         :polygon,
                         :freehand,
                         :marker,
+                        :highlighter,
                         :callout,
                         :text,
                         :dimension,
+                        :arrow,
                         :line,
                         :eraser
                       ],
@@ -345,6 +347,7 @@
         >
           <button
             type="button"
+            data-sidebar-seam-toggle
             phx-click="toggle_viewer_sidebar"
             phx-target={@myself}
             class="btn btn-ghost btn-sm btn-circle absolute top-3 -translate-x-1/2 bg-base-100 hover:bg-base-200 shadow-lg ring-1 ring-base-300"
@@ -359,9 +362,14 @@
         <%!-- in viewer_only mode — standalone-page hosts render their own  --%>
         <%!-- sidebar with admin actions / metadata editor / file details —  --%>
         <%!-- and while collapsed via the viewer-corner toggle above.        --%>
+        <%!-- data-viewer-sidebar: read by the InstantViewer hook when this   --%>
+        <%!-- viewer announces itself, so the next stand-in predicts the same --%>
+        <%!-- image/sidebar split this open actually used — the server-       --%>
+        <%!-- rendered pref only covers the first open of a session.          --%>
         <div
           :if={not @viewer_only and not @sidebar_collapsed}
-          class="flex-[3] flex flex-col gap-3 p-4 overflow-y-auto lg:min-w-[280px] bg-base-100"
+          data-viewer-sidebar
+          class="flex-[3] flex flex-col gap-3 p-4 overflow-y-auto lg:min-w-[280px] lg:max-w-[26rem] bg-base-100"
         >
           <h2 class="text-base font-bold break-all leading-tight pr-10">
             {f.filename}

@@ -582,8 +582,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
       assert html =~ "MIME:"
 
       # Collapse via the divider strip — the metadata sidebar disappears and
-      # the expand affordance takes its place.
-      html = view |> element("[phx-click='toggle_viewer_sidebar']") |> render_click()
+      # the expand affordance takes its place. Targeted via the seam
+      # toggle's own attribute: the corner toggle (`lg:hidden`, for mobile)
+      # answers the same phx-click and renders alongside it, so the bare
+      # selector matches two buttons.
+      html = view |> element("[data-sidebar-seam-toggle]") |> render_click()
       refute html =~ "MIME:"
       assert html =~ "Show details"
 

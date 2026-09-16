@@ -242,14 +242,20 @@ defmodule PhoenixKit.MixProject do
       #
       # :etcher's FLOOR is load-bearing too, not just its ceiling: core's own
       # markup passes `panel_offset` (0.13.2) and `connectors={:off}`
-      # (0.12.2), and phoenix_kit.js bridges `etcher:tooltip-action` (0.13.0).
-      # An older Etcher compiles with an undeclared-attr warning and silently
-      # drops them — and a host whose lock already holds etcher 0.12.x keeps
-      # it through `mix deps.update phoenix_kit` if the floor still admits
-      # it. Raise the floor whenever core starts consuming a newer Etcher API.
-      {:fresco, "~> 0.10.0 or ~> 0.11.0"},
+      # (0.12.2), phoenix_kit.js bridges `etcher:tooltip-action` (0.13.0),
+      # and the media viewer's toolbar offers the `:highlighter` and `:arrow`
+      # tools (0.14.0). An older Etcher compiles with an undeclared-attr
+      # warning and silently drops them — and a host whose lock already holds
+      # an older etcher keeps it through `mix deps.update phoenix_kit` if the
+      # floor still admits it. Raise the floor whenever core starts consuming
+      # a newer Etcher API.
+      #
+      # Etcher 0.14's out-of-bounds pan/zoom features engage on fresco
+      # ≥ 0.12 (isInfiniteCanvas / getZoomFloor on the outer handles) and
+      # quietly stand down on older — hence the new fresco alternative.
+      {:fresco, "~> 0.10.0 or ~> 0.11.0 or ~> 0.12.0"},
       {:tessera, "~> 0.3.0"},
-      {:etcher, "~> 0.13.2"},
+      {:etcher, "~> 0.14.0"},
 
       # QR device-handoff login ("scan to sign in" on the login page).
       #

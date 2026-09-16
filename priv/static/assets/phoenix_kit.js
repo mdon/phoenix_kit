@@ -82,20 +82,29 @@ if (typeof window.Chart === "undefined") {
 
   (function clearPhoenixTransportCache() {
     try {
-      // Clear localStorage keys containing 'phx' (transport fallback cache)
-      // IMPORTANT: Exclude 'phx:' prefixed keys - those are PhoenixKit features (e.g., phx:theme)
-      var lsKeys = Object.keys(localStorage).filter(function(k) {
-        return k.includes('phx') && !k.startsWith('phx:');
-      });
+      // Clear the transport fallback cache. Phoenix stores the sticky
+      // longpoll flag under `phx:fallback:<transport>` — a "phx:"-prefixed
+      // key — and the old filter here EXCLUDED everything "phx:"-prefixed
+      // on the theory that those are PhoenixKit's own (phx:theme). So this
+      // code never cleared the one key it exists for, and a browser that
+      // fell back once (a slow dev load was enough) stayed on longpoll for
+      // the life of the tab: laggy, and prone to full-page reloads when a
+      // longpoll POST died mid-flight — which read as "the page refreshed
+      // itself and ate my work". Target the fallback keys BY NAME and
+      // keep excluding the rest of the phx:* namespace.
+      function isTransportKey(k) {
+        return k.startsWith('phx:fallback:') ||
+          (k.includes('phx') && !k.startsWith('phx:'));
+      }
+      var lsKeys = Object.keys(localStorage).filter(isTransportKey);
       if (lsKeys.length > 0) {
         console.debug("[PhoenixKit] Clearing cached transport preferences from localStorage:", lsKeys);
         lsKeys.forEach(function(k) { localStorage.removeItem(k); });
       }
 
-      // Clear sessionStorage keys containing 'phx' (excluding phx: prefixed keys)
-      var ssKeys = Object.keys(sessionStorage).filter(function(k) {
-        return k.includes('phx') && !k.startsWith('phx:');
-      });
+      // Same for sessionStorage — which is where Phoenix actually keeps
+      // the fallback flag (getSession/storeSession).
+      var ssKeys = Object.keys(sessionStorage).filter(isTransportKey);
       if (ssKeys.length > 0) {
         console.debug("[PhoenixKit] Clearing cached transport preferences from sessionStorage:", ssKeys);
         ssKeys.forEach(function(k) { sessionStorage.removeItem(k); });
@@ -2022,19 +2031,365 @@ if (typeof window.Chart === "undefined") {
   // `handle_event "viewer_keydown"` clauses keep working unchanged.
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // InstantViewer — put the picture on screen on the click, not on the reply.
+  //
+  // Opening the viewer is a server round trip: the modal does not exist in the
+  // DOM until LiveView sends it back. The server's part of that is ~2ms, so on
+  // a fast connection it reads as a small hitch and on a slow one as a wait,
+  // and in both cases the thing you clicked is a picture the browser ALREADY
+  // HAS — the grid painted it.
+  //
+  // So this paints it immediately, full size, behind a backdrop, and gets out
+  // of the way when the real viewer arrives. Nothing here talks to the server
+  // or changes what gets opened; it is the same bitmap the card is showing,
+  // scaled up, for the length of one round trip.
+  //
+  // Listens on the document in the CAPTURE phase so it runs before LiveView
+  // sends the event, which is the whole point — a listener that waited its turn
+  // would be racing the thing it exists to hide.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.InstantViewer = {
+    mounted() {
+      const self = this;
+      const el = self.el;
+
+      // Hidden until a click, and never left showing: `_hide` is called by the
+      // real viewer's arrival, by a click that turns out not to open one, and
+      // by a timeout — see below for why all three are needed.
+      self._hide = function() {
+        self._stepping = false;
+        el.style.display = "none";
+        const img = el.querySelector("img");
+        if (img) img.removeAttribute("src");
+        // Undo the see-through state (below) so the next open starts as a
+        // full stand-in again: its own backdrop, an opaque box, a visible
+        // skeleton pane.
+        el.style.backgroundColor = "";
+        const box = el.querySelector(".modal-box");
+        if (box) box.style.backgroundColor = "";
+        const pane = el.querySelector('[data-pane="sidebar"]');
+        if (pane) pane.style.visibility = "";
+        if (self._timer) { clearTimeout(self._timer); self._timer = null; }
+        if (self._closeGrace) { clearTimeout(self._closeGrace); self._closeGrace = null; }
+      };
+      self._hide();
+
+      // Paint a bitmap into the stand-in and show it — shared by the two
+      // triggers: opening from a grid card, and stepping prev/next inside
+      // the viewer (whose neighbour bitmaps the warm has already cached).
+      self._show = function(src, rotationClass) {
+        const shown = el.querySelector("img");
+        if (!shown) return;
+
+        // Predict the layout the real viewer is about to use: image column
+        // alone, or image + info sidebar — which is open by default, so
+        // painting the image over the full popup and shrinking it when the
+        // sidebar mounts is its own flash. The last viewer seen this
+        // session is the best predictor (the user may have toggled the
+        // sidebar inside it); before any viewer has opened, the
+        // server-rendered pref decides.
+        const pane = el.querySelector('[data-pane="sidebar"]');
+        if (pane) {
+          const open = self._sidebarWasOpen !== undefined
+            ? self._sidebarWasOpen
+            : el.dataset.sidebarOpen === "true";
+          pane.style.display = open ? "" : "none";
+          pane.style.visibility = "";
+        }
+        el.style.backgroundColor = "";
+        const box = el.querySelector(".modal-box");
+        if (box) box.style.backgroundColor = "";
+
+        shown.setAttribute("src", src);
+        shown.className = shown.dataset.baseClass +
+          " " + (rotationClass || "");
+        el.style.display = "";
+
+        // A trigger that opens nothing — a stale uuid, a server error, a
+        // connection that drops between here and there — must not leave a
+        // picture stuck over the page. The real viewer normally clears this
+        // in well under a second.
+        if (self._timer) clearTimeout(self._timer);
+        self._timer = setTimeout(self._hide, 8000);
+      };
+
+      self._onClick = function(e) {
+        // Stepping inside the viewer: the chevron buttons. The neighbour's
+        // warmed small paints immediately, blurred, so the press reads as
+        // motion instead of the viewer freezing on the old image.
+        const step = e.target.closest && e.target.closest('[phx-click="step_viewer"]');
+        if (step) {
+          const modal = document.querySelector('[id$="-viewer-modal"]');
+          const d = (modal && modal.dataset) || {};
+          const dir = step.getAttribute("phx-value-dir");
+          const src = dir === "prev" ? d.stepPrevSrc : d.stepNextSrc;
+          const rot = dir === "prev" ? d.stepPrevRot : d.stepNextRot;
+          if (src) {
+            self._stepping = true;
+            self._show(src, rot || "");
+          }
+          return;
+        }
+
+        const card = e.target.closest && e.target.closest('[phx-click="click_file"]');
+        if (!card) return;
+        // Select mode turns the same click into a checkbox toggle, and a
+        // picker's click may open nothing at all. The browser marks which it
+        // is, so this can stay out of both.
+        if (el.dataset.armed !== "true") return;
+
+        const img = card.querySelector("img");
+        const src = img && img.getAttribute("src");
+        if (!src) return;
+
+        // Carry the card's rotation across, or a sideways photo would flip
+        // upright for a moment and then turn back.
+        self._show(src, (img.className.match(/rotate-\d+/) || [""])[0]);
+      };
+      document.addEventListener("click", self._onClick, true);
+
+      // Keyboard steps announce themselves from ViewerKeydown (which owns
+      // the arrow keys and the modal's neighbour data).
+      self._onStep = function(e) {
+        const d = e && e.detail;
+        if (!d || !d.src) return;
+        self._stepping = true;
+        self._show(d.src, d.rotation || "");
+      };
+      window.addEventListener("pk:viewer-step", self._onStep);
+
+      // Start the viewer's downloads BEFORE the click. Opening fetches
+      // `small` and then `large` — a third of a megabyte that used to
+      // start moving only after the round trip. A pointer rests on a card
+      // for a beat before the button goes down, which is enough head
+      // start for the fetches to be in cache (immutable, so the browser
+      // serves them without revalidating) by the time the viewer asks.
+      // pointerdown is the backstop for touch, where there is no hover.
+      // Each URL is fetched once per page; a miss costs nothing extra —
+      // it is the same download the click was about to start anyway.
+      self._prefetched = {};
+      self._prefetch = function(e) {
+        const card = e.target.closest && e.target.closest('[phx-click="click_file"]');
+        if (!card || !card.dataset) return;
+        for (const key of ["prefetchSmall", "prefetchLarge"]) {
+          const url = card.dataset[key];
+          if (!url || self._prefetched[url]) continue;
+          self._prefetched[url] = true;
+          new Image().src = url;
+        }
+      };
+      // pointerover, not pointerenter: only the former bubbles.
+      document.addEventListener("pointerover", self._prefetch, true);
+      document.addEventListener("pointerdown", self._prefetch, true);
+
+      // The real viewer says when it is up. Nothing else can: the modal is a
+      // different LiveComponent that this hook has no reference to, so it
+      // hands its own element over in the event.
+      //
+      // Mounting is not the same moment as being PAINTED, and the difference
+      // is visible: the card shows `thumbnail_annotated` where the viewer
+      // loads `small`, so the two are usually different URLs and the real one
+      // is not in cache. Hiding on mount would swap the blurred picture for an
+      // empty box and then paint — the flash this whole hook exists to remove.
+      // So hold on until the real bitmap is actually on screen.
+      self._onReady = function(e) {
+        self._stepping = false;
+        // The viewer is (still) here — a mid-step close signal that was
+        // waiting to take the stand-in down was the old one's teardown
+        // after all.
+        if (self._closeGrace) { clearTimeout(self._closeGrace); self._closeGrace = null; }
+        const root = e && e.detail && e.detail.el;
+
+        // Remember the layout this viewer actually used, so the NEXT
+        // stand-in predicts it right even after the user toggles the
+        // sidebar mid-session — the server-rendered pref cannot follow
+        // that, its assign never refreshes on a toggle.
+        if (root && root.querySelector) {
+          self._sidebarWasOpen = !!root.querySelector("[data-viewer-sidebar]");
+        }
+
+        // Nothing to hand over — the viewer opened without the stand-in
+        // (select-mode click, a card with no image).
+        if (el.style.display === "none") return;
+
+        // No element to align with (defensive) — just get out of the way.
+        if (!root || !root.querySelector) { self._hide(); return; }
+
+        // The real modal mounts UNDER this stand-in (the stand-in carries
+        // z-index 1000 against .modal's 999) and its sidebar content is
+        // ready NOW — only its image is still in flight. So turn the
+        // stand-in into a window: its own backdrop, box, and skeleton pane
+        // go transparent, leaving just the blurry image column floating
+        // exactly over the real modal's identical — and still empty —
+        // image column. The real sidebar shows through immediately, and
+        // the empty column never shows at all.
+        //
+        // The darkness swaps in the same frame: the real .modal-open
+        // paints its own 40% black as the stand-in's goes transparent —
+        // exactly one dark layer at every moment, no doubling and no dip.
+        // Both transitions are off (the stand-in's inline in the markup),
+        // or daisyUI's 0.3s background fade would turn the swap into a
+        // visible dip.
+        if (root.style) root.style.transition = "none";
+        el.style.backgroundColor = "transparent";
+        const box = el.querySelector(".modal-box");
+        if (box) box.style.backgroundColor = "transparent";
+        const pane = el.querySelector('[data-pane="sidebar"]');
+        if (pane) {
+          // The real layout is here, so truth replaces prediction: on a
+          // mispredicted open the blurry column snaps to the right width
+          // now rather than covering the real sidebar until the image
+          // loads. visibility (not display) keeps the column's ground.
+          pane.style.display = self._sidebarWasOpen ? "" : "none";
+          pane.style.visibility = "hidden";
+        }
+
+        const real = root.querySelector("img");
+        // No image to wait for, or already decoded (same URL as the card, or
+        // a warm cache) — hand over now.
+        if (!real || real.complete) { self._hide(); return; }
+
+        const done = function() {
+          real.removeEventListener("load", done);
+          real.removeEventListener("error", done);
+          self._hide();
+        };
+        // `error` too: a broken image must not leave the stand-in up pretending
+        // the picture loaded. The 8s fallback still covers anything that fires
+        // neither.
+        real.addEventListener("load", done);
+        real.addEventListener("error", done);
+      };
+      window.addEventListener("pk:viewer-open", self._onReady);
+
+      // Escape (or anything else) can close the viewer while the hold is
+      // still waiting on the image — the modal is torn out from under the
+      // floating blurry column, which would otherwise hang over the grid
+      // until the fallback timer. The viewer announces its teardown.
+      self._onClosed = function() {
+        // A step tears the OLD viewer down on its way to the new one —
+        // that teardown must not kill the stand-in that exists to bridge
+        // it. But a REAL close mid-step (Escape, or a backdrop click that
+        // fell through this pointer-events-none overlay onto the actual
+        // modal) must: ignoring it outright left the blur orphaned over
+        // a viewer that was already gone, until the fallback timer. The
+        // two are indistinguishable here, so give the replacement viewer
+        // a beat to announce itself — pk:viewer-open cancels the hide —
+        // and take the blur down when nothing does.
+        if (self._stepping) {
+          if (self._closeGrace) clearTimeout(self._closeGrace);
+          self._closeGrace = setTimeout(self._hide, 400);
+          return;
+        }
+        self._hide();
+      };
+      window.addEventListener("pk:viewer-closed", self._onClosed);
+    },
+
+    destroyed() {
+      document.removeEventListener("click", this._onClick, true);
+      document.removeEventListener("pointerover", this._prefetch, true);
+      document.removeEventListener("pointerdown", this._prefetch, true);
+      window.removeEventListener("pk:viewer-open", this._onReady);
+      window.removeEventListener("pk:viewer-closed", this._onClosed);
+      window.removeEventListener("pk:viewer-step", this._onStep);
+      if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+    }
+  };
+
   window.PhoenixKitHooks.ViewerKeydown = {
     mounted() {
       const self = this;
+      // Tell the stand-in the real viewer is here. It needs the element to
+      // find the image and wait for it to paint — mounted is not painted.
+      window.dispatchEvent(new CustomEvent("pk:viewer-open", { detail: { el: self.el } }));
+
+      // Warm the NEIGHBOURS while this image is being looked at. An arrow
+      // press remounts the viewer on the next file, and its small + large
+      // variants used to start downloading only then — that download was
+      // the whole wait between pressing → and seeing the picture. The
+      // files are served immutable, so a warmed URL is a cache hit; each
+      // is fetched once per page (the map is module-level and shared
+      // across remounts), and looking without ever stepping costs only
+      // the two downloads a step would have started anyway.
+      window.__pkWarmedUrls = window.__pkWarmedUrls || {};
+      // Factored so updated() can re-run it: a step PATCHES this modal in
+      // place (its id is stable), so mounted() fires once per open — and
+      // the warm it used to hold ran once too, leaving every neighbour
+      // after the first step cold. Each step rewrites the dataset with
+      // the new neighbours; warming again from here keeps the NEXT press
+      // as instant as the first.
+      self._warm = function() {
+        var warmList = (self.el.dataset && self.el.dataset.neighborPrefetch) || "";
+        // The rung above large, only where this viewport will actually ask
+        // for it: Tessera picks its raster by displayed width against each
+        // rung's pixels x 1.1 headroom, so a viewer column wider than
+        // 1920 x 1.1 CSS px opens straight on the original — and a multi-MB
+        // original nothing warmed was the "waiting and waiting" a step onto
+        // a big image showed on large monitors, invisible on small ones
+        // (where large suffices and originals would be pure waste).
+        var column = self.el.querySelector('[id^="pk-annotation-actions-"]');
+        var colW = (column && column.clientWidth) || window.innerWidth || 0;
+        if (colW > 1920 * 1.1) {
+          warmList += " " + ((self.el.dataset && self.el.dataset.neighborPrefetchHi) || "");
+        }
+        warmList.split(" ").forEach(function(url) {
+          if (!url || window.__pkWarmedUrls[url]) return;
+          window.__pkWarmedUrls[url] = true;
+          new Image().src = url;
+        });
+      };
+      self._warm();
       self._handler = function(e) {
         if (e.key !== "Escape" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
         const t = document.activeElement;
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
                   t.isContentEditable === true)) return;
+        // Announce the step so the stand-in can paint the neighbour's
+        // warmed bitmap NOW — blurred, in the final geometry — instead of
+        // the viewer freezing on the current image until the next one's
+        // pixels arrive. src comes off this modal's own data attributes;
+        // empty (edge of the list, a video) means no stand-in, and the
+        // step behaves as before.
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          const d = self.el.dataset || {};
+          const src = e.key === "ArrowLeft" ? d.stepPrevSrc : d.stepNextSrc;
+          const rot = e.key === "ArrowLeft" ? d.stepPrevRot : d.stepNextRot;
+          if (src) {
+            window.dispatchEvent(new CustomEvent("pk:viewer-step", {
+              detail: { src: src, rotation: rot || "" }
+            }));
+          }
+        }
         self.pushEventTo(self.el, "viewer_keydown", { key: e.key });
       };
       document.addEventListener("keydown", self._handler);
     },
+
+    // A step does NOT remount this hook — the modal's id is stable, so
+    // LiveView patches it in place and only the canvas child (file uuid
+    // in its id) remounts. mounted() above is therefore once per OPEN,
+    // and the stand-in a step had painted waited on a pk:viewer-open
+    // that never came: it sat opaque over the new image for the full
+    // fallback timeout, which read as the step being slow — and as the
+    // popup refusing to close, since the click-off had actually closed
+    // the real viewer somewhere under the blur. Re-announcing from here
+    // gives a step the same hand-off as an open: see-through at once,
+    // gone when the new image paints. Extra firings from unrelated
+    // patches (sidebar toggle, a comment) are harmless — with the
+    // stand-in hidden the listener only refreshes its layout prediction.
+    updated() {
+      window.dispatchEvent(new CustomEvent("pk:viewer-open", { detail: { el: this.el } }));
+      // …and the dataset now names the NEW neighbours.
+      if (this._warm) this._warm();
+    },
+
     destroyed() {
+      // The stand-in may be holding a blurry overlay over this modal,
+      // waiting for an image that is now never going to load.
+      window.dispatchEvent(new CustomEvent("pk:viewer-closed"));
       if (this._handler) {
         document.removeEventListener("keydown", this._handler);
         this._handler = null;
@@ -4560,7 +4915,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.11.0/priv/static/fresco.js";
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.12.0/priv/static/fresco.js";
     var frescoLoading = false;
     var frescoCallbacks = [];
 
@@ -4654,7 +5009,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.3.5/priv/static/tessera.js";
+    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.3.6/priv/static/tessera.js";
     var tesseraLoading = false;
     var tesseraCallbacks = [];
 
@@ -4718,7 +5073,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.13.2/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.14.0/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 
@@ -5291,7 +5646,19 @@ if (typeof window.Chart === "undefined") {
       var maxAttempts = 20;
 
       function tryInject() {
-        var uploadInput = self.el.closest(".flex-1").querySelector("[data-phx-upload-ref]");
+        // Walk outward to the NEAREST scope containing an upload input.
+        // This used to be a hard closest(".flex-1") hop, which silently
+        // broke when a second flex-1 wrapper landed between the drop area
+        // and the hidden upload form: closest() resolved to the inner
+        // wrapper, found no input, and every OS drop no-opped after the
+        // retry loop gave up. The walk also finds the drawer's own input
+        // when the drawer is open (the hidden form only renders while it
+        // is closed) — same upload, either input — and stays inside this
+        // browser's subtree before it ever reaches the page.
+        var uploadInput = null;
+        for (var scope = self.el; scope && !uploadInput; scope = scope.parentElement) {
+          uploadInput = scope.querySelector("[data-phx-upload-ref]");
+        }
         if (uploadInput && self._pendingFiles) {
           var dt = new DataTransfer();
           for (var i = 0; i < self._pendingFiles.length; i++) {

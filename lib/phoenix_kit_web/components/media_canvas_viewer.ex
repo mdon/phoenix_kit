@@ -98,6 +98,12 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   @etcher_line_params_key "etcher_line_params"
   @default_etcher_line_params %{"width" => 2, "opacity" => 1, "dash" => "solid"}
   @etcher_dash_values ~w(solid dashed dotted)
+  # Label font size, when the user has pinned one. Deliberately absent from
+  # the defaults above: having no value is what "size each label by its own
+  # box" means, and that is what labels did before the control existed, so a
+  # default here would silently pin every board to one size. Limits match the
+  # control's own.
+  @etcher_font_size_range {6, 200}
 
   # Whether the info sidebar (filename / Download / metadata / comments) is
   # collapsed to give the viewer the full popup width. Per-user, one value
@@ -226,10 +232,17 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
           |> assign(:viewer_rotation, load_saved_rotation(file.file_uuid))
           # Read fresh from the DB (not the parent-passed struct) so the
           # palette is correct even on modal prev/next after an in-session
-          # edit, where the parent's `current_user` may be stale.
-          |> assign(:etcher_colors, load_user_colors(assigns[:current_user]))
-          |> assign(:etcher_line_params, load_user_line_params(assigns[:current_user]))
-          |> assign(:sidebar_collapsed, load_sidebar_collapsed(assigns[:current_user]))
+          # edit, where the parent's `current_user` may be stale. ONE read
+          # for all three: they are three fields of the same row, and this
+          # used to fetch it three times per open.
+          |> then(fn s ->
+            prefs = viewer_user_prefs(assigns[:current_user])
+
+            s
+            |> assign(:etcher_colors, load_user_colors(prefs))
+            |> assign(:etcher_line_params, load_user_line_params(prefs))
+            |> assign(:sidebar_collapsed, load_sidebar_collapsed(prefs))
+          end)
 
         socket.assigns[:viewer_canvas] == nil and is_map(board) ->
           annotations = load_annotations_for_target(board.target_type, board.target_uuid)
@@ -238,8 +251,13 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
           |> assign(:viewer_annotations, annotations)
           |> assign(:viewer_canvas, build_board_canvas(board, annotations, locked?(socket)))
           |> assign(:viewer_rotation, 0)
-          |> assign(:etcher_colors, load_user_colors(assigns[:current_user]))
-          |> assign(:etcher_line_params, load_user_line_params(assigns[:current_user]))
+          |> then(fn s ->
+            prefs = viewer_user_prefs(assigns[:current_user])
+
+            s
+            |> assign(:etcher_colors, load_user_colors(prefs))
+            |> assign(:etcher_line_params, load_user_line_params(prefs))
+          end)
           |> assign(:sidebar_collapsed, true)
 
         true ->
@@ -517,15 +535,30 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # Info sidebar collapse (see handle_event "toggle_viewer_sidebar")
   # ──────────────────────────────────────────────────────────────
 
-  # Fresh read (not the parent-passed struct), matching the Etcher palette
-  # helpers — keeps the value correct on modal prev/next after an
-  # in-session toggle. Anything but a stored `true` means expanded.
-  defp load_sidebar_collapsed(%{uuid: uuid} = user) do
-    fresh = Auth.get_user(uuid) || user
-    Auth.get_user_field(fresh, @viewer_info_collapsed_key) == true
+  # Read off the row `viewer_user_prefs/1` hands over, which is where the
+  # freshness comes from. Anything but a stored `true` means expanded.
+  defp load_sidebar_collapsed(user) when is_map(user) do
+    Auth.get_user_field(user, @viewer_info_collapsed_key) == true
   end
 
   defp load_sidebar_collapsed(_), do: false
+
+  @doc """
+  Whether the viewer's info sidebar will be open for this user.
+
+  Used by the media browser's instant stand-in to predict the layout it is
+  standing in for — the sidebar is open by default, so a stand-in that paints
+  the image over the full popup shrinks it a beat later when the real viewer
+  mounts, which reads as a flash. Reads the same per-user flag the viewer
+  itself loads; `nil` user (or a never-toggled one) means open, matching the
+  viewer's default.
+
+  Deliberately reads the user struct it is handed (usually the LiveView
+  assign) rather than re-fetching the row: this is a prediction, and the
+  stand-in's hook corrects itself from the layout the real viewer actually
+  used, so a stale read costs one mispredicted frame at worst.
+  """
+  def sidebar_open?(user), do: not load_sidebar_collapsed(user)
 
   # Merge into a freshly-read copy so a concurrent custom_fields change
   # elsewhere isn't clobbered. No user → session-local only (the assign
@@ -984,6 +1017,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
                 :callout,
                 :text,
                 :dimension,
+                :arrow,
                 :line,
                 :eraser
               ],
@@ -1021,10 +1055,28 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   defp build_viewer_canvas(nil, _annotations, _locked?), do: nil
 
   defp build_viewer_canvas(file, annotations, locked?) when is_map(file) do
-    # Open on the cheap medium variant; Tessera swaps up to large (and DZI
-    # tiles for >4K images) as the user zooms. The canvas keeps the full
-    # original dimensions so the coordinate space matches the DZI pyramid.
-    src = file.urls["medium"] || file.urls["large"] || file.urls["original"]
+    # Open on the variant the GRID was already showing, not a bigger one.
+    #
+    # The card behind this popup paints `small` (300px). Opening on `medium`
+    # (800px) asked the browser for a URL it had never seen, so a click was
+    # a fresh download before anything appeared at all — the whole reason
+    # opening a picture felt slow, and worse the slower the connection. The
+    # already-decoded bitmap was sitting in cache, unused.
+    #
+    # `small` is usually a cache hit and paints on the spot; Tessera then
+    # swaps up to medium → large (→ DZI tiles past 4K) in the background,
+    # so the soft first frame lasts about as long as the fetch that used to
+    # be a blank one. `small` is deliberately NOT added to that ladder: a
+    # rung it can settle on is a rung it might not climb off, and this one
+    # is only ever meant to be the thing you see while the real one loads.
+    #
+    # The canvas keeps the full original dimensions either way — the src is
+    # a texture stretched over that extent, and `put_natural_size` reads the
+    # file row rather than the variant — so annotations stay aligned to the
+    # pixel whichever rung is showing.
+    src =
+      file.urls["small"] || file.urls["medium"] || file.urls["large"] ||
+        file.urls["original"]
 
     if is_binary(src) and src != "" do
       {width, height} = canvas_dimensions(file)
@@ -1110,10 +1162,15 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # after an in-session edit. Re-sanitize on read too (not just on write) so
   # data persisted before the write-side guard shipped, or written by any
   # other path, can't reach `<Etcher.layer colors={…}>` untrusted.
-  defp load_user_colors(%{uuid: uuid} = user) do
-    fresh = Auth.get_user(uuid) || user
+  # The user row the three viewer preferences are read out of. Fresh from
+  # the DB rather than the parent-passed struct, which can be stale on modal
+  # prev/next after an in-session edit — but fetched ONCE, where each of the
+  # three used to fetch it for itself.
+  defp viewer_user_prefs(%{uuid: uuid} = user), do: Auth.get_user(uuid) || user
+  defp viewer_user_prefs(other), do: other
 
-    case sanitize_colors(Auth.get_user_field(fresh, @etcher_colors_key)) do
+  defp load_user_colors(user) when is_map(user) do
+    case sanitize_colors(Auth.get_user_field(user, @etcher_colors_key)) do
       [_ | _] = colors -> colors
       [] -> @default_etcher_colors
     end
@@ -1135,16 +1192,14 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   defp sanitize_colors(_), do: []
 
-  # Read this user's saved Etcher line params fresh from the DB, falling back
-  # to the default when nothing valid is stored (or there's no user). Fresh
-  # read (not the parent-passed struct) keeps it correct on modal prev/next
-  # after an in-session edit. Re-sanitize on read too (not just on write) so
+  # This user's saved Etcher line params, falling back to the default when
+  # nothing valid is stored (or there's no user). The row comes from
+  # `viewer_user_prefs/1`, which is what makes it a fresh read. Re-sanitize
+  # on read too (not just on write) so
   # data persisted before this guard shipped, or by any other path, can't reach
   # `<Etcher.layer line_params={…}>` untrusted.
-  defp load_user_line_params(%{uuid: uuid} = user) do
-    fresh = Auth.get_user(uuid) || user
-
-    case sanitize_line_params(Auth.get_user_field(fresh, @etcher_line_params_key)) do
+  defp load_user_line_params(user) when is_map(user) do
+    case sanitize_line_params(Auth.get_user_field(user, @etcher_line_params_key)) do
       %{} = params -> params
       nil -> @default_etcher_line_params
     end
@@ -1153,26 +1208,38 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   defp load_user_line_params(_), do: @default_etcher_line_params
 
   # Line params arrive from the same untrusted client hook as the palette.
-  # Keep only the three known keys, clamped to Etcher's own ranges (width
-  # 1..40, opacity 0..1, dash enum), then merge over the default so a partial
-  # or garbage payload still yields a usable map. Returns `nil` when nothing
-  # valid survives so the caller can ignore the update rather than wipe the
-  # saved ink.
+  # Keep only the known keys, clamped to Etcher's own ranges (width 1..40,
+  # opacity 0..1, dash enum, font size 6..200), then merge over the default
+  # so a partial or garbage payload still yields a usable map. Returns `nil`
+  # when nothing valid survives so the caller can ignore the update rather
+  # than wipe the saved ink.
   defp sanitize_line_params(params) when is_map(params) do
     clean =
       Enum.reduce(params, %{}, fn
         {"width", w}, acc when is_number(w) -> Map.put(acc, "width", clamp_number(w, 1, 40))
         {"opacity", o}, acc when is_number(o) -> Map.put(acc, "opacity", clamp_number(o, 0, 1))
         {"dash", d}, acc when d in @etcher_dash_values -> Map.put(acc, "dash", d)
+        {"font_size", s}, acc when is_number(s) -> Map.put(acc, "font_size", clamp_font(s))
         _, acc -> acc
       end)
 
+    # Merged into the DEFAULTS rather than into whatever was stored before,
+    # which is what lets a cleared font size clear: Etcher omits the key
+    # when the user unpins it, and an omitted key has to mean "back to
+    # sizing labels by their box" rather than "leave the old one alone".
     if map_size(clean) == 0, do: nil, else: Map.merge(@default_etcher_line_params, clean)
   end
 
   defp sanitize_line_params(_), do: nil
 
   defp clamp_number(n, lo, hi), do: n |> max(lo) |> min(hi)
+
+  # Rounded as well as clamped: the control only ever offers whole pixels,
+  # and a stored 17.5 would come back as a size the user cannot type.
+  defp clamp_font(n) do
+    {lo, hi} = @etcher_font_size_range
+    n |> clamp_number(lo, hi) |> round()
+  end
 
   @doc """
   Loads annotations for a file into the curated map shape this component
