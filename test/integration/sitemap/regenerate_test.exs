@@ -58,10 +58,7 @@ defmodule PhoenixKit.Integration.Sitemap.RegenerateTest do
     # site that had never set site_url.
     {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", true)
     {:ok, _} = Settings.update_setting("site_url", "")
-    # Core's own endpoint stands in for the host's. Set explicitly rather than
-    # inherited: this test is about the fallback, not about what state the
-    # suite happens to leave `:parent_module` in.
-    with_parent_module(PhoenixKit)
+    with_parent_module(SitemapPublicHost)
 
     {:ok, _} =
       Settings.update_setting(
@@ -69,11 +66,31 @@ defmodule PhoenixKit.Integration.Sitemap.RegenerateTest do
         JSON.encode!([%{"path" => "/fallback-probe", "title" => "Probe"}])
       )
 
-    endpoint_url = String.trim_trailing(PhoenixKitWeb.Endpoint.url(), "/")
-    assert Sitemap.get_base_url() == endpoint_url
+    assert Sitemap.get_base_url() == "https://shop.acme.dev"
 
     assert {:ok, result} = Sitemap.regenerate(:test_scope)
-    assert result.index_xml =~ endpoint_url
+    assert result.index_xml =~ "https://shop.acme.dev"
+  end
+
+  test "a localhost endpoint is a base URL only on a development server" do
+    {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", true)
+    {:ok, _} = Settings.update_setting("site_url", "")
+
+    # Phoenix's default when the endpoint sets no `url` — in production that
+    # means it was never configured, and crawlers must not get these links.
+    with_parent_module(SitemapUnconfiguredHost)
+    assert Sitemap.get_base_url() == ""
+    assert Sitemap.regenerate() == {:error, :base_url_not_configured}
+
+    with_parent_module(SitemapDevHost)
+    assert Sitemap.get_base_url() == "http://localhost:4000"
+  end
+
+  test "a placeholder endpoint host is never a base URL" do
+    {:ok, _} = Settings.update_setting("site_url", "")
+    with_parent_module(SitemapPlaceholderHost)
+
+    assert Sitemap.get_base_url() == ""
   end
 
   # Point the parent-endpoint lookup at an application (with or without an
@@ -98,4 +115,29 @@ defmodule PhoenixKit.Integration.Sitemap.RegenerateTest do
 
     assert Sitemap.regenerate() == {:error, :sitemap_disabled}
   end
+end
+
+# Host endpoints for the fallback tests: `Config.get_parent_endpoint/0` takes
+# `<parent>.Endpoint` when it exports `url/0`.
+defmodule SitemapPublicHost.Endpoint do
+  def url, do: "https://shop.acme.dev/"
+  def config(_key), do: nil
+end
+
+defmodule SitemapUnconfiguredHost.Endpoint do
+  def url, do: "http://localhost:4000"
+  def config(_key), do: nil
+end
+
+defmodule SitemapDevHost.Endpoint do
+  def url, do: "http://localhost:4000"
+  def config(:code_reloader), do: true
+  def config(_key), do: nil
+end
+
+defmodule SitemapPlaceholderHost.Endpoint do
+  # phx.new's production default when PHX_HOST is unset.
+  def url, do: "https://example.com"
+  def config(:code_reloader), do: true
+  def config(_key), do: nil
 end

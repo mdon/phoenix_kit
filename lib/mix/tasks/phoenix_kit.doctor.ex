@@ -2622,11 +2622,26 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       endpoint_url != "" ->
         "site_url is not set, so sitemap links use the endpoint URL (#{endpoint_url}). " <>
           "Set site_url if that is not your public address (behind a proxy, say); a " <>
-          "sitemap generated before this change keeps its old links until it is regenerated."
+          "sitemap generated before this change keeps its old links until it is regenerated." <>
+          loopback_note(endpoint_url)
 
       true ->
-        "site_url is not set and the endpoint has no absolute URL, so the sitemap " <>
-          "answers 503. Set site_url in the admin settings."
+        "site_url is not set and the endpoint has no public absolute URL (a placeholder " <>
+          "host like example.com never counts; localhost counts only on a development " <>
+          "server), so the sitemap answers 503. Set site_url in the admin settings."
+    end
+  end
+
+  # The doctor usually runs on a development box, where a local endpoint URL
+  # is accepted; say what the same config does in production.
+  defp loopback_note(endpoint_url) do
+    host = URI.parse(endpoint_url).host || ""
+
+    if Sitemap.local_host?(host) do
+      " #{host} counts only on a development server — in production the sitemap " <>
+        "answers 503 until site_url (or the endpoint's url) is set."
+    else
+      ""
     end
   end
 

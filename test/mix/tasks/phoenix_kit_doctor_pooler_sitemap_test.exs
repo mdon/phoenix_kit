@@ -114,9 +114,17 @@ defmodule Mix.Tasks.PhoenixKit.DoctorPoolerSitemapTest do
     end
 
     test "names the endpoint URL the sitemap falls back to" do
-      finding = Doctor.sitemap_base_url_finding("", "https://app.example.com")
-      assert finding =~ "https://app.example.com"
+      finding = Doctor.sitemap_base_url_finding("", "https://shop.acme.dev")
+      assert finding =~ "https://shop.acme.dev"
       assert finding =~ "Set site_url"
+      refute finding =~ "development server"
+    end
+
+    test "a loopback fallback warns that production would 503" do
+      finding = Doctor.sitemap_base_url_finding("", "http://localhost:4000")
+      assert finding =~ "http://localhost:4000"
+      assert finding =~ "localhost counts only on a development server"
+      assert finding =~ "in production the sitemap answers 503"
     end
 
     test "says the sitemap 503s when there is nothing to fall back to" do
