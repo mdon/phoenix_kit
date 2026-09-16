@@ -1057,7 +1057,7 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
 
     text = Reorganizer.format_report(report)
 
-    assert text =~ "root → Target"
+    assert text =~ "(no parent: root) → Target"
   end
 
   test "dry-run detail line marks a target parent that no longer exists instead of showing root" do
@@ -1074,6 +1074,22 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
 
     assert text =~ "Origin → (missing parent)"
     refute text =~ "Origin → root"
+  end
+
+  test "dry-run detail line flags a target parent that's trashed" do
+    origin = create_folder!(%{name: "Origin"})
+    folder = create_folder!(%{name: "x-legacy", parent_uuid: origin.uuid})
+    target = create_folder!(%{name: "Target"})
+    {:ok, _} = Storage.trash_folder(target)
+
+    plan = [move_action(%{folder: folder, parent_uuid: target.uuid, counts: {0, 0}})]
+
+    {:ok, report} =
+      Reorganizer.run(nil, apply?: false, sources: [StubSource], stub_actions: plan)
+
+    text = Reorganizer.format_report(report)
+
+    assert text =~ "Origin → Target (trashed)"
   end
 
   test "dry-run detail line includes the measured file/link counts" do

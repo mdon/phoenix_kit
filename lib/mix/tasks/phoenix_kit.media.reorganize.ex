@@ -69,8 +69,16 @@ defmodule Mix.Tasks.PhoenixKit.Media.Reorganize do
   defp format_option_error({switch, value}), do: "invalid value #{inspect(value)} for #{switch}"
 
   defp run_reorganize(opts, pending_days) do
-    apply? = opts[:apply] || false
     source_keys = Keyword.get_values(opts, :source)
+
+    case validate_sources(source_keys) do
+      :ok -> do_run_reorganize(opts, pending_days, source_keys)
+      {:error, message} -> halt_with_error(message)
+    end
+  end
+
+  defp do_run_reorganize(opts, pending_days, source_keys) do
+    apply? = opts[:apply] || false
     sources = if source_keys == [], do: :all, else: source_keys
 
     actor_uuid = first_owner_uuid()
@@ -81,6 +89,31 @@ defmodule Mix.Tasks.PhoenixKit.Media.Reorganize do
     Mix.shell().info("\n" <> Reorganizer.format_report(report))
 
     halt_with(exit_code(report, apply?))
+  end
+
+  # A `--source` key that resolves to nothing (a typo, or a module that
+  # exists but isn't enabled) must never fall through to "ran fine, planned
+  # nothing" — that already happened silently (Reorganizer.sources/1 only
+  # warns) and left the owner thinking a run against every enabled module
+  # had happened. Checked one key at a time so the error names every bad
+  # key, not just the first.
+  defp validate_sources([]), do: :ok
+
+  defp validate_sources(source_keys) do
+    unresolved =
+      source_keys
+      |> Enum.uniq()
+      |> Enum.filter(&(Reorganizer.sources([&1]) == []))
+
+    case unresolved do
+      [] ->
+        :ok
+
+      keys ->
+        {:error,
+         "unknown or disabled --source key(s): #{Enum.join(keys, ", ")} " <>
+           "(module_key of an enabled module implementing media_reorganizer/0)"}
+    end
   end
 
   defp halt_with_error(message) do

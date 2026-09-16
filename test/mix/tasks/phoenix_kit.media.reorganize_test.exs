@@ -147,5 +147,28 @@ defmodule Mix.Tasks.PhoenixKit.Media.ReorganizeTest do
       assert log =~ "no_such_module_key"
       assert log =~ "unresolved source key"
     end
+
+    test "an unresolved --source key on the mix task halts with an error instead of running with fewer sources" do
+      {exit_reason, output} =
+        ExUnit.CaptureIO.with_io(:stderr, fn ->
+          catch_exit(ReorganizeTask.run(["--source", "no_such_module_key"]))
+        end)
+
+      assert exit_reason == {:shutdown, 1}
+      assert output =~ "no_such_module_key"
+    end
+
+    test "one unresolved --source key among several halts even though the others are valid" do
+      {exit_reason, output} =
+        ExUnit.CaptureIO.with_io(:stderr, fn ->
+          catch_exit(
+            ReorganizeTask.run(["--source", "stub_task_module", "--source", "no_such_key"])
+          )
+        end)
+
+      assert exit_reason == {:shutdown, 1}
+      assert output =~ "no_such_key"
+      refute output =~ "stub_task_module"
+    end
   end
 end

@@ -749,9 +749,9 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
         %{}
 
       _ ->
-        from(f in Folder, where: f.uuid in ^uuids, select: {f.uuid, f.name})
+        from(f in Folder, where: f.uuid in ^uuids, select: {f.uuid, f.name, f.trashed_at})
         |> repo().all()
-        |> Map.new()
+        |> Map.new(fn {uuid, name, trashed_at} -> {uuid, {name, trashed_at}} end)
     end
   end
 
@@ -788,14 +788,21 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
 
   defp append_transition(line, _action, _parent_names, _taken_by_parent), do: line
 
-  # "root" means the parent really is the system root (`nil`) — anything
-  # else that isn't resolvable (a target/current parent uuid the batched
-  # lookup didn't find, e.g. deleted between plan and report) says so
-  # explicitly instead of silently reading as root too.
-  defp parent_label(nil, _parent_names), do: "root"
+  # "(no parent: root)" spells out that the parent really is the system root
+  # (`nil`) — anything else that isn't resolvable (a target/current parent
+  # uuid the batched lookup didn't find, e.g. deleted between plan and
+  # report) says so explicitly instead of silently reading as root too. A
+  # resolved parent that's trashed is flagged too — a folder can't actually
+  # move under it (`verify_target_parent/1` fails it at apply time), so a
+  # dry-run showing it as an ordinary destination would be misleading.
+  defp parent_label(nil, _parent_names), do: "(no parent: root)"
 
   defp parent_label(uuid, parent_names) do
-    Map.get(parent_names, uuid, "(missing parent)")
+    case Map.get(parent_names, uuid) do
+      nil -> "(missing parent)"
+      {name, nil} -> name
+      {name, _trashed_at} -> "#{name} (trashed)"
+    end
   end
 
   # The name shown here is only what `--apply` would ATTEMPT — mirrors
