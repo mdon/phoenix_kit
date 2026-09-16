@@ -86,6 +86,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
   defp collect(source_module, actor_uuid, opts) do
     case safe_plan(source_module, actor_uuid, opts) do
       {:ok, actions} when is_list(actions) ->
+        warn_unknown_keys(actions, source_module)
         Enum.flat_map(actions, &normalize_action(&1, source_module))
 
       {:ok, other} ->
@@ -94,6 +95,26 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
       {:error, reason} ->
         [Action.new!(source_error_action(source_module, reason))]
     end
+  end
+
+  # One warning per distinct unknown-key-set a source returns, not one per
+  # action — a source whose plan/2 returns many actions all carrying the
+  # same stray key(s) (a typo'd field, a key from a newer core release) used
+  # to log once per action (N15). Actions with a different attrs shape
+  # (non-map, caught by `normalize_action/2` below) are skipped here; they
+  # get their own `:invalid_action` report.
+  defp warn_unknown_keys(actions, source_module) do
+    actions
+    |> Enum.filter(&is_map/1)
+    |> Enum.map(&Action.unknown_keys/1)
+    |> Enum.reject(&(&1 == []))
+    |> Enum.uniq()
+    |> Enum.each(fn unknown_keys ->
+      Logger.warning(
+        "[Reorganizer] #{inspect(source_module)} plan/2 returned action(s) with unknown " <>
+          "key(s) #{inspect(unknown_keys)} — dropped"
+      )
+    end)
   end
 
   # Keeps the exception's own struct (not just its message) so both the log
@@ -316,16 +337,26 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
   # right after the root row's own update succeeds — the root is already
   # live at this point (no collision to worry about), so this is a plain
   # bulk un-trash of everything still marked trashed underneath it.
+  #
+  # `do_trash_folder/1` stamps ONE `trashed_at` across the whole subtree it
+  # trashes — but a descendant folder or file can have been trashed
+  # individually BEFORE that (e.g. a file trashed on its own, then the
+  # folder around it trashed later). Restoring unconditionally would also
+  # un-trash that earlier, unrelated trashing. Only rows whose `trashed_at`
+  # equals THIS folder's own `trashed_at` were trashed by the same
+  # `do_trash_folder/1` call that trashed this folder — those are the ones
+  # this restore un-does; anything trashed at a different time stays
+  # trashed (H1).
   defp restore_subtree_if_needed(%Folder{trashed_at: nil}), do: :ok
 
-  defp restore_subtree_if_needed(%Folder{uuid: uuid}) do
+  defp restore_subtree_if_needed(%Folder{uuid: uuid, trashed_at: trashed_at}) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     subtree_uuids = Storage.folder_subtree_uuids(uuid)
 
-    from(f in Folder, where: f.uuid in ^subtree_uuids)
+    from(f in Folder, where: f.uuid in ^subtree_uuids and f.trashed_at == ^trashed_at)
     |> repo().update_all(set: [trashed_at: nil, updated_at: now])
 
-    from(f in StorageFile, where: f.folder_uuid in ^subtree_uuids)
+    from(f in StorageFile, where: f.folder_uuid in ^subtree_uuids and f.trashed_at == ^trashed_at)
     |> repo().update_all(set: [status: "active", trashed_at: nil, updated_at: now])
 
     :ok
@@ -619,10 +650,10 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
 
   @doc """
   Renders the report as a fixed-width text table: one row per `{source,
-  kind}` with columns `total moved renamed backfilled conflicts failed
-  trashed reported`, then a details section — everything not a clean move
-  (conflicts, failures, reports, trashes), and in dry-run every planned
-  action, so the owner sees what `--apply` would do.
+  kind}` with columns `total moved renamed backfilled restored conflicts
+  failed trashed reported`, then a details section — everything not a clean
+  move (conflicts, failures, reports, trashes, restores), and in dry-run
+  every planned action, so the owner sees what `--apply` would do.
   """
   @spec format_report(%{actions: [Action.t()], summary: map(), applied?: boolean()}) :: String.t()
   def format_report(%{actions: actions, summary: summary, applied?: applied?}) do

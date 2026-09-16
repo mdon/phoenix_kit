@@ -4,9 +4,12 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
   # test running concurrently in another process.
   use PhoenixKit.DataCase, async: false
 
+  import ExUnit.CaptureLog
+
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.Reorganizer
+  alias PhoenixKit.Modules.Storage.Reorganizer.Action
   alias PhoenixKit.Users.Auth
 
   defmodule StubSource do
@@ -144,6 +147,21 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
       },
       overrides
     )
+  end
+
+  # ---------------------------------------------------------------------
+  # n1 — the suffix regex only accepts the "(N)" variants
+  # `pick_free_name/2` ever generates (N >= 2, no leading zero); a folder
+  # legitimately named "Item (0)"/"Item (1)"/"Item (02)" is not a
+  # suffix-on-collision variant of "Item".
+  # ---------------------------------------------------------------------
+
+  test "matches_name?/2 only accepts N >= 2 with no leading zero as a suffix variant" do
+    assert Action.matches_name?("Item (2)", "Item")
+    assert Action.matches_name?("Item (10)", "Item")
+    refute Action.matches_name?("Item (0)", "Item")
+    refute Action.matches_name?("Item (1)", "Item")
+    refute Action.matches_name?("Item (02)", "Item")
   end
 
   # ---------------------------------------------------------------------
@@ -390,6 +408,97 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
   end
 
   # ---------------------------------------------------------------------
+  # H1 — restoring a moved-from-trash folder must not un-trash a file that
+  # was trashed on its own BEFORE the folder was trashed as a whole subtree.
+  # ---------------------------------------------------------------------
+
+  test "restoring a moved folder's subtree leaves a file trashed before the folder still trashed" do
+    target = create_folder!(%{name: "Target"})
+    folder = create_folder!(%{name: "x-legacy"})
+    child = create_folder!(%{name: "child", parent_uuid: folder.uuid})
+    file_a = create_file!(folder.uuid)
+    file_b = create_file!(child.uuid)
+
+    {:ok, _} = Storage.trash_folder(folder)
+    trashed_folder = Storage.get_folder(folder.uuid)
+
+    # `do_trash_folder/1` stamps ONE `trashed_at` across the whole subtree it
+    # trashes, so a file trashed on its own BEFORE the folder around it — its
+    # own earlier `trashed_at` — is exactly what a bulk `trash_folder/1` call
+    # would otherwise stamp over. Setting it back here, after the bulk
+    # trash, is how the test pins down that earlier, distinct timestamp
+    # (what the folder's own subtree-restore must never touch).
+    earlier = DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+
+    {:ok, _} =
+      file_a
+      |> Ecto.Changeset.change(%{trashed_at: earlier})
+      |> Repo.update()
+
+    plan = [
+      move_action(%{folder: trashed_folder, parent_uuid: target.uuid, counts: {1, 0}})
+    ]
+
+    report = run!(plan)
+    [action] = report.actions
+    assert action.outcome == :moved
+
+    reloaded = Storage.get_folder(folder.uuid)
+    assert reloaded.trashed_at == nil
+    assert reloaded.parent_uuid == target.uuid
+
+    reloaded_child = Storage.get_folder(child.uuid)
+    assert reloaded_child.trashed_at == nil
+
+    reloaded_file_b = Repo.get!(StorageFile, file_b.uuid)
+    assert reloaded_file_b.status == "active"
+    assert reloaded_file_b.trashed_at == nil
+
+    # file_a was trashed on its own, before the folder — the move restores
+    # the folder's own trashing, never file_a's separate, earlier one.
+    reloaded_file_a = Repo.get!(StorageFile, file_a.uuid)
+    assert reloaded_file_a.status == "trashed"
+    assert reloaded_file_a.trashed_at == earlier
+  end
+
+  test "a rolled-back move leaves the whole trashed subtree exactly as it was" do
+    parent = create_folder!(%{name: "Parent"})
+    trashed = create_folder!(%{name: "x-legacy", parent_uuid: parent.uuid})
+    child = create_folder!(%{name: "child", parent_uuid: trashed.uuid})
+    file_in_folder = create_file!(trashed.uuid)
+    file_in_child = create_file!(child.uuid)
+
+    {:ok, _} = Storage.trash_folder(trashed)
+    # Created after the trash, so it collides only when `trashed` tries to
+    # restore back into this exact spot — forcing the transaction to abort
+    # AFTER `restore_subtree_if_needed/1` already ran inside it.
+    _live_twin = create_folder!(%{name: "x-legacy", parent_uuid: parent.uuid})
+    trashed_folder = Storage.get_folder(trashed.uuid)
+
+    plan = [
+      move_action(%{folder: trashed_folder, parent_uuid: parent.uuid, counts: {1, 0}})
+    ]
+
+    report = run!(plan)
+    [action] = report.actions
+    assert action.outcome == :conflict
+
+    reloaded = Storage.get_folder(trashed.uuid)
+    assert reloaded.trashed_at != nil
+
+    reloaded_child = Storage.get_folder(child.uuid)
+    assert reloaded_child.trashed_at != nil
+
+    reloaded_file_in_folder = Repo.get!(StorageFile, file_in_folder.uuid)
+    assert reloaded_file_in_folder.status == "trashed"
+    assert reloaded_file_in_folder.trashed_at != nil
+
+    reloaded_file_in_child = Repo.get!(StorageFile, file_in_child.uuid)
+    assert reloaded_file_in_child.status == "trashed"
+    assert reloaded_file_in_child.trashed_at != nil
+  end
+
+  # ---------------------------------------------------------------------
   # N5 — restoring in place tolerates a live twin at the current spot
   # ---------------------------------------------------------------------
 
@@ -593,6 +702,63 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
 
     moved = Enum.find(report.actions, &(&1.kind == :item))
     assert moved.outcome == :moved_renamed
+  end
+
+  # ---------------------------------------------------------------------
+  # N15 — one "unknown key(s) dropped" warning per source per key-set, not
+  # one per action.
+  # ---------------------------------------------------------------------
+
+  test "unknown action keys from the same source and key-set warn once, not once per action" do
+    folder_a = create_folder!(%{name: "a-legacy"})
+    folder_b = create_folder!(%{name: "b-legacy"})
+
+    actions = [
+      move_action(%{folder: folder_a, label: "a", stray_key: :oops}),
+      move_action(%{folder: folder_b, label: "b", stray_key: :oops})
+    ]
+
+    log =
+      capture_log(fn ->
+        {:ok, _report} =
+          Reorganizer.run(nil, apply?: true, sources: [StubSource], stub_actions: actions)
+      end)
+
+    occurrences =
+      log
+      |> String.split("\n")
+      |> Enum.count(&(&1 =~ "unknown" and &1 =~ "stray_key"))
+
+    assert occurrences == 1
+  end
+
+  test "unknown action keys from the same source warn once per distinct key-set" do
+    folder_a = create_folder!(%{name: "a-legacy"})
+    folder_b = create_folder!(%{name: "b-legacy"})
+
+    actions = [
+      move_action(%{folder: folder_a, label: "a", stray_key: :oops}),
+      move_action(%{folder: folder_b, label: "b", other_stray: :oops})
+    ]
+
+    log =
+      capture_log(fn ->
+        {:ok, _report} =
+          Reorganizer.run(nil, apply?: true, sources: [StubSource], stub_actions: actions)
+      end)
+
+    warning_lines =
+      log
+      |> String.split("\n")
+      |> Enum.filter(&(&1 =~ "unknown"))
+
+    assert length(warning_lines) == 2
+
+    # The stray key is still dropped, not merely warned about — the action
+    # normalizes and runs like any other.
+    report = %{actions: Enum.map(actions, &Action.new!/1)}
+    assert Enum.all?(report.actions, &(not Map.has_key?(&1, :stray_key)))
+    assert Enum.all?(report.actions, &(not Map.has_key?(&1, :other_stray)))
   end
 
   test "after_move raising an exception is caught and the action fails without losing other actions" do

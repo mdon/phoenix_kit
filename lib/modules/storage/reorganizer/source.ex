@@ -79,6 +79,13 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.Source do
     record points at is never planned as an orphan or a stale-pending
     `:trash`, hook or no hook. Orphan candidates always exclude every
     claimed folder (pointer-resolved or name-resolved).
+  - **No hook call without a candidate** (a record with a resolvable current
+    folder) — orphan/pending scanning under a parent that no candidate's
+    hook call resolved is scoped to root only, never guessed from where a
+    folder happens to sit. The orphan scope is every parent returned by a
+    SUCCESSFUL hook call for any candidate, regardless of that candidate's
+    own outcome (`:move`, `:relocated`, `:duplicate`, `:hook_nil` all
+    count) — never a parent inferred from a folder's current position.
   - **A hook answer is `{:ok, uuid}`, `{:ok, nil}`, or bare `nil`** — the
     last two both mean root. Every other shape — a raise, throw, exit,
     `{:error, _}`, `{:ok, <non-UUID>}` (including `{:ok, ""}`), or a
@@ -91,6 +98,10 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.Source do
     hook answer is normalized through `Ecto.UUID.cast/1` and downcased
     before use — a non-UUID string must become `:hook_error`, never an
     uncaught `Ecto.Query.CastError` from feeding it straight into a query.
+    This applies to the orphan/pending scan too, not only to candidate
+    records: a hook call failing while resolving a scope parent is still one
+    `:hook_error`, and the exception itself is logged
+    (`Logger.warning`) with the module/kind, not only counted.
   - **An explicit `nil`/`{:ok, nil}` never moves a folder that isn't already
     at root.** For a candidate whose current folder has a parent, a `nil`
     answer from the parent hook yields only the pointer back-fill (if any)
@@ -110,7 +121,10 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.Source do
     to EVERY extra live copy found (not only the first one), and a copy
     already checked off as a claim is never also reported `:relocated`.
     When the hook itself depends on the acting user (not just database
-    state), the `:relocated` reason says so.
+    state), the `:relocated` reason says so. Every `:relocated` reason names
+    WHERE the copy actually is — at the media root, under `<parent name>`,
+    or as a `"(N)"` twin already sitting under the target parent — never a
+    bare "found elsewhere".
   - **Records whose parent record is trashed** (e.g. a CRM interaction of a
     trashed contact) are skipped by the `Source`; their folders, if any, are
     reported as orphans, not moved. Archived/inactive-but-not-deleted
@@ -137,8 +151,12 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.Source do
     business, not the `Source`'s.
   - **Query cost**: load only the light columns a plan needs for CANDIDATE
     DETECTION (uuid, name/number, status, pointer, parent id) — never whole
-    records with large/jsonb payloads — in one batched query per kind, and
-    keep the query count independent of record count (grouped/batched
+    records with large/jsonb payloads — in one batched query per kind. When
+    the pointer field lives inside a `data` jsonb column, the light select
+    pulls it with `fragment("?->>'field_name'", data)` — never `select:
+    data` or `select: m` just to reach one key, which drags the whole
+    payload along for every row. Also keep the query count independent of
+    record count (grouped/batched
     lookups, not one query per record). Every by-name lookup filters
     `trashed_at is nil` (the unique index is partial; a trashed twin must
     never hide a live folder). A pointer that fails `Ecto.UUID.cast/1`, or

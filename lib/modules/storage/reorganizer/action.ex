@@ -53,7 +53,11 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.Action do
   @known_keys @required_keys ++ Map.keys(@defaults)
 
   # Matches an accepted `"name (N)"` variant of a base name, e.g. "Item (2)".
-  @suffix_regex ~r/^(?<base>.+) \((?<n>\d+)\)\z/
+  # `N` must be an integer >= 2 with no leading zero — exactly what
+  # `pick_free_name/2` ever generates (it starts at 2, plain integers) — so
+  # a folder legitimately named "Item (0)" or "Item (02)" is never mistaken
+  # for a suffix-on-collision variant of "Item".
+  @suffix_regex ~r/^(?<base>.+) \((?<n>[2-9]|[1-9]\d+)\)\z/
 
   @doc """
   Validates a plain map from a `Source`, raising `ArgumentError` naming the
@@ -125,22 +129,26 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.Action do
     end
   end
 
-  # Unknown keys are dropped (with a warning), never raised on — a Source
-  # from a newer module release may carry a key this (older) core doesn't
-  # know about yet; raising here would break the decoupling the plain-map
-  # action shape exists for (forward compatibility).
+  @doc false
+  # Exposed so `PhoenixKit.Modules.Storage.Reorganizer.collect/3` can warn
+  # about a source's unknown keys ONCE per distinct key-set (grouped across
+  # every action the source returned) instead of once per action — a source
+  # planning 200 actions that all carry the same stray key used to log 200
+  # times.
+  @spec unknown_keys(map()) :: [atom()]
+  def unknown_keys(attrs) when is_map(attrs) do
+    Enum.reject(Map.keys(attrs), &(&1 in @known_keys))
+  end
+
+  # Unknown keys are dropped, never raised on — a Source from a newer module
+  # release may carry a key this (older) core doesn't know about yet;
+  # raising here would break the decoupling the plain-map action shape
+  # exists for (forward compatibility). The warning itself is logged once
+  # per source/key-set by the caller (see `unknown_keys/1`'s doc), not here.
   defp drop_unknown_keys(attrs) do
-    case Enum.reject(Map.keys(attrs), &(&1 in @known_keys)) do
-      [] ->
-        attrs
-
-      unknown_keys ->
-        Logger.warning(
-          "[Reorganizer] dropping unknown Action key(s) #{inspect(unknown_keys)} " <>
-            "from source #{inspect(Map.get(attrs, :source))}"
-        )
-
-        Map.drop(attrs, unknown_keys)
+    case unknown_keys(attrs) do
+      [] -> attrs
+      unknown_keys -> Map.drop(attrs, unknown_keys)
     end
   end
 

@@ -22,6 +22,11 @@ defmodule Mix.Tasks.PhoenixKit.Media.Reorganize do
       enabled modules)
     * `--pending-days` - Age threshold for stale pending folders (default: 7)
 
+  Actions run as the first user with the "Owner" role (`Roles.users_with_role/1`,
+  falling back to `nil` when there is none) — the same `actor_uuid` a
+  `Source`'s hooks would see, since the task has no interactive user of its
+  own to attribute the run to.
+
   Exits `1` when `--apply` leaves any action `:failed` or `:conflict`.
   """
 
