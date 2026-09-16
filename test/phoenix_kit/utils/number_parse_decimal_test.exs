@@ -78,6 +78,19 @@ defmodule PhoenixKit.Utils.NumberParseDecimalTest do
       end
     end
 
+    test "tabs and line breaks are not grouping spaces" do
+      assert Number.parse_decimal("\t5\n") == {:error, :invalid}
+      assert Number.parse_decimal("1\n234") == {:error, :invalid}
+    end
+
+    test "an oversized string is rejected before any parsing work" do
+      assert Number.parse_decimal(String.duplicate("9", 65)) == {:error, :invalid}
+      assert Number.parse_decimal(String.duplicate("1", 5_000_000)) == {:error, :invalid}
+
+      # Inside the bound a long fraction is still legitimate.
+      assert {:ok, _} = Number.parse_decimal("0." <> String.duplicate("1", 30))
+    end
+
     test "a non-binary that is not a number is :invalid" do
       assert Number.parse_decimal(:atom) == {:error, :invalid}
       assert Number.parse_decimal(%{}) == {:error, :invalid}

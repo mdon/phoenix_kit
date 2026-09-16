@@ -99,6 +99,12 @@ defmodule PhoenixKit.Utils.Number do
   # reaches arithmetic. `parse_decimal/2` rejects anything at or above it.
   @magnitude_ceiling Decimal.new("1000000000000")
 
+  # Longer than any number a form field legitimately holds (sign, twelve
+  # integer digits with grouping, a long fraction). Anything beyond is
+  # rejected before a single regex runs: the parse is linear in the input,
+  # and an 8 MB text field is a cheap way to burn seconds of scheduler time.
+  @max_text_length 64
+
   @doc """
   Parses a number a person typed into a form field — the counterpart of
   `PhoenixKitWeb.Components.Core.DecimalInput.decimal_input/1`.
@@ -110,8 +116,9 @@ defmodule PhoenixKit.Utils.Number do
   `Decimal` or a reason:
 
     * a dot or a comma is the decimal point (`"2.5"`, `"2,5"`, `",5"`);
-    * spaces (no-break and thin spaces too) are thousands grouping and are
-      dropped (`"1 234,56"`);
+    * spaces (no-break, thin and narrow no-break spaces too) are thousands
+      grouping and are dropped (`"1 234,56"`); tabs and line breaks are not
+      spaces — a value pasted with one is `:invalid`;
     * with both a dot and a comma present, the LAST one is the decimal
       point and the other is grouping (`"1.234,56"`, `"1,234.56"`);
     * one kind repeated is grouping (`"1,234,567"`);
@@ -119,6 +126,8 @@ defmodule PhoenixKit.Utils.Number do
       `Infinity`, hex, stray letters are all `{:error, :invalid}`;
     * blank (or `nil`) is `{:error, :empty}`, so a caller can tell "left
       empty" from "typed garbage";
+    * more than #{@max_text_length} characters is `{:error, :invalid}` without
+      further inspection;
     * integers, floats and decimals pass straight through as a `Decimal`.
 
   The result is normalized (`"2.500"` → `2.5`, never an exponent form).
@@ -152,6 +161,9 @@ defmodule PhoenixKit.Utils.Number do
   def parse_decimal(raw, opts \\ [])
 
   def parse_decimal(nil, _opts), do: {:error, :empty}
+
+  def parse_decimal(raw, _opts) when is_binary(raw) and byte_size(raw) > @max_text_length,
+    do: {:error, :invalid}
 
   def parse_decimal(raw, opts) when is_binary(raw) do
     with {:ok, normalized} <- normalize_decimal_text(raw),
@@ -211,13 +223,14 @@ defmodule PhoenixKit.Utils.Number do
   def format_decimal(n) when is_float(n), do: format_decimal(Decimal.from_float(n))
   def format_decimal(other), do: to_string(other)
 
-  # Whitespace of every kind (ASCII, no-break, thin, narrow no-break) is
-  # grouping; then the separators are resolved as documented above. Returns
+  # Space characters (ASCII, no-break, thin, narrow no-break) are grouping
+  # — tabs and line breaks are not, they mark a bad paste; then the
+  # separators are resolved as documented above. Returns
   # the text with a single dot as the decimal point, or `{:error, :invalid}`
   # when a separator taken as grouping does not sit between 3-digit groups
   # ("2..5", "1,23,4") — that is a typo, not a number.
   defp normalize_decimal_text(raw) do
-    text = String.replace(raw, ~r/[\s\x{00A0}\x{2009}\x{202F}]/u, "")
+    text = String.replace(raw, ~r/[ \x{00A0}\x{2009}\x{202F}]/u, "")
 
     if text == "" do
       {:error, :empty}

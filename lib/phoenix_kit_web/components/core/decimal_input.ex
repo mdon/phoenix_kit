@@ -22,7 +22,6 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
   """
 
   use Phoenix.Component
-  use Gettext, backend: PhoenixKitWeb.Gettext
 
   import PhoenixKitWeb.Components.Core.FormFieldError, only: [error: 1]
   import PhoenixKitWeb.Components.Core.Input, only: [translate_error: 1]
