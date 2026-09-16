@@ -1,3 +1,42 @@
+## 2.27.0 - 2026-09-16
+
+### Added
+
+- **Etcher 0.14 tools in the media viewer** — `:highlighter` and `:arrow`
+  join the toolbar, and label font size is a per-user pref (clamped
+  6–200px, whole pixels). Pins move to `etcher ~> 0.14.0`, a fresco
+  `~> 0.12.0` alternative, and tessera 0.3.6. (#820)
+- **V192 migration** — `phoenix_kit_annotations_kind_check` allows
+  `'arrow'`. `down/1` refuses while arrow annotations exist. A new test reads
+  the viewer's tool list, so a tool the schema can't persist fails CI. (#820)
+- **The media viewer's file is in the URL** (`?file=<uuid>`) for url-synced
+  browsers: a refresh reopens the viewer on that file, and Back closes it.
+  Opening, stepping and closing the viewer skip the listing reload. (#820)
+
+### Changed
+
+- The media viewer opens faster (#820):
+  - it opens on the `small` variant the grid already cached
+  - an instant stand-in shows the card's bitmap while the server replies
+  - grid cards warm their viewer variants on hover
+  - the open viewer warms its neighbours' variants
+  - the user row is read once per open instead of three times
+- The folder sidebar collapses and expands client-side before the server
+  round trip. (#820)
+- The upload drawer closes itself once files are accepted. (#820)
+- OS drag-drop uploads find their upload input from any nesting depth. (#820)
+
+### Fixed
+
+- Post-merge review of #820:
+  - A `?file=` uuid missing from the loaded listing is now held to the
+    browser's `scope_folder_id`, its `only_file_type` lock and the
+    system-managed filter. Before, a scoped picker opened any file in the
+    install by uuid. A malformed uuid no longer crash-loops the mount.
+  - V192 stamps version `192` (it stamped `191`, and `190` on rollback, left
+    over from its pre-merge number). A new test checks every migration's
+    version comment.
+
 ## 2.26.1 - 2026-09-16
 
 ### Fixed

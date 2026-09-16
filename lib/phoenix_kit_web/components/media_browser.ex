@@ -124,6 +124,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Utils.Format
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.Utils.UUID, as: UUIDUtils
 
   # Grid/list view preference is persisted per-user in `custom_fields`
   # ("user meta") so the server renders the correct mode on first paint —
@@ -610,15 +611,31 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
             # hand-edited link): fetch it directly. Siblings collapse to the
             # file itself, so prev/next bound at it rather than stepping a
             # list the file is not in.
-            case Storage.get_file(uuid) do
+            case fetch_viewable_file(socket, uuid) do
               %Storage.File{} = file ->
                 enriched = enrich_files([file]) |> List.first()
                 open_viewer(socket, enriched, [enriched])
 
-              _ ->
+              nil ->
                 socket
             end
         end
+    end
+  end
+
+  # The URL is user-editable, so a `file` that missed the loaded listing
+  # gets the same gates the listing itself applies: a well-formed uuid (a
+  # malformed one raises in the cast and crash-loops the mount), the
+  # browser's scope folder, never a system-managed tile chunk, and the
+  # `only_file_type` lock. Anything else leaves the viewer closed.
+  defp fetch_viewable_file(socket, uuid) do
+    with true <- UUIDUtils.valid?(uuid),
+         %Storage.File{system_managed: false} = file <- Storage.get_file(uuid),
+         true <- Storage.within_scope?(file.folder_uuid, scope_folder_id(socket)),
+         true <- socket.assigns[:only_file_type] in [nil, file.file_type] do
+      file
+    else
+      _ -> nil
     end
   end
 

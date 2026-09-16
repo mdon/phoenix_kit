@@ -17,6 +17,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Components.MediaBrowser
 
   @media_path Routes.path("/admin/media")
 
@@ -319,6 +320,73 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   # ---------------------------------------------------------------------------
   # Admin click → in-place viewer popup (not a page navigation)
   # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # ?file= URL param: a file outside the loaded listing is fetched directly
+  # ---------------------------------------------------------------------------
+
+  describe "?file= fallback fetch" do
+    # A socket past first mount whose listing is empty and already matches
+    # the nav params, so update/2 goes straight to the viewer sync and the
+    # file can only come from the direct-fetch fallback.
+    defp viewer_socket(assigns) do
+      %Phoenix.LiveView.Socket{
+        assigns:
+          Map.merge(
+            %{
+              __changed__: %{},
+              uploaded_files: [],
+              stack_files: %{},
+              current_folder: nil,
+              search_query: "",
+              current_page: 1,
+              filter_orphaned: false,
+              file_view: nil,
+              viewer_file: nil,
+              viewer_siblings: [],
+              upload_in_flight: false,
+              show_upload: false,
+              scope_folder_id: nil,
+              only_file_type: nil
+            },
+            assigns
+          )
+      }
+    end
+
+    defp open_via_url(file, socket) do
+      nav = %{folder: nil, q: "", page: 1, filter_orphaned: false, view: nil, file: file}
+      {:ok, socket} = MediaBrowser.update(%{nav_params: nav}, socket)
+      socket.assigns.viewer_file
+    end
+
+    test "opens an in-scope file that is not in the listing" do
+      scope = create_folder!()
+      file = create_file!(create_folder!(%{parent_uuid: scope.uuid}).uuid)
+
+      assert %{file_uuid: uuid} =
+               open_via_url(file.uuid, viewer_socket(%{scope_folder_id: scope.uuid}))
+
+      assert uuid == file.uuid
+    end
+
+    test "refuses a file outside the browser's scope folder" do
+      scope = create_folder!()
+      outside = create_file!(create_folder!().uuid)
+
+      assert open_via_url(outside.uuid, viewer_socket(%{scope_folder_id: scope.uuid})) == nil
+    end
+
+    test "refuses a file of another type when only_file_type is set" do
+      file = create_file!(create_folder!().uuid)
+
+      assert open_via_url(file.uuid, viewer_socket(%{only_file_type: "audio"})) == nil
+    end
+
+    test "a malformed uuid leaves the viewer closed instead of raising" do
+      assert open_via_url("not-a-uuid", viewer_socket(%{})) == nil
+    end
+  end
 
   describe "admin click_file" do
     test "opens the in-place viewer popup with a Details link to the admin page",

@@ -9,12 +9,17 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ### V192 - Allow 'arrow' annotations ⚡ LATEST
 
+  Widens `phoenix_kit_annotations_kind_check` with `'arrow'` for Etcher's
+  single-arrow tool (V130 did the same for `'marker'`, V157 for `'image'`).
+  `down/1` refuses while any `kind = 'arrow'` row exists.
+
   ### V191 - Who added a user
 
   Adds `phoenix_kit_users.created_by_uuid` (self-referencing foreign key,
   `ON DELETE SET NULL`, indexed) — the admin who created the user from the
   admin panel, `NULL` for a self-registered user. Backfilled from the
   `user.created` Activity entries the admin form has always logged.
+
   ### V190 - Active role per session + role order
 
   Adds `phoenix_kit_users_tokens.active_role_uuid` (the role a session acts
