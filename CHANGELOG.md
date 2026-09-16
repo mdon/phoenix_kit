@@ -11,6 +11,11 @@
   - the session fingerprint no longer logs "changed IP" for a rotated
     address, and login alerts reuse the known-device row instead of adding
     one per rotation (Active Sessions matches by the same key)
+  - loopback (`::1`), unspecified (`::`), and link-local (`fe80::/10`) stay
+    per-address; well-known NAT64 (`64:ff9b::/96`) and IPv4-compatible
+    (`::a.b.c.d`) unmap to the embedded IPv4, same as `::ffff:a.b.c.d`
+  - known-device reuse hits the unique `(user, ip, ua)` index first and only
+    scans same-UA rows by `/64` when grouping is coarser than the address
 - `IpAddress.extract_ip_address/1` printed IPv6 as decimal groups
   (`"8193:3512:1:0:0:0:0:1"`); it now prints standard hex (`"2001:db8:1::1"`).
 

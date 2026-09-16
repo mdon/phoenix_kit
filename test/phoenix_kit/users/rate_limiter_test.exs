@@ -254,6 +254,59 @@ defmodule PhoenixKit.Users.RateLimiterTest do
     end
   end
 
+  describe "IPv6 /64 grouping on login and mail IP buckets" do
+    # QR already covers check_qr_login_rate_limit/1. Login keys the IP
+    # itself; the mail endpoints go through charge_ip/4. A revert of either
+    # call site must fail without the QR test catching it.
+    test "login IP bucket is the /64", %{unique_id: id} do
+      net = Integer.to_string(rem(id, 0xFFFF), 16)
+      # login IP limit is login_limit * 3 = 15
+      for n <- 1..15 do
+        assert :ok =
+                 RateLimiter.check_login_rate_limit(
+                   "login6_#{id}_#{n}@e.com",
+                   "2001:db8:#{net}:1::#{n}"
+                 )
+      end
+
+      assert {:error, :rate_limit_exceeded} =
+               RateLimiter.check_login_rate_limit(
+                 "login6_#{id}_16@e.com",
+                 "2001:db8:#{net}:1:dead:beef:0:99"
+               )
+
+      assert :ok =
+               RateLimiter.check_login_rate_limit(
+                 "login6_#{id}_other@e.com",
+                 "2001:db8:#{net}:2::1"
+               )
+    end
+
+    test "mail IP bucket is the /64", %{unique_id: id} do
+      net = Integer.to_string(rem(id, 0xFFFF), 16)
+
+      for n <- 1..10 do
+        assert :ok =
+                 RateLimiter.check_password_reset_rate_limit(
+                   "spray6_#{id}_#{n}@e.com",
+                   "2001:db8:#{net}:1::#{n}"
+                 )
+      end
+
+      assert {:error, :rate_limit_exceeded} =
+               RateLimiter.check_password_reset_rate_limit(
+                 "spray6_#{id}_11@e.com",
+                 "2001:db8:#{net}:1:dead:beef:0:99"
+               )
+
+      assert :ok =
+               RateLimiter.check_password_reset_rate_limit(
+                 "spray6_#{id}_other@e.com",
+                 "2001:db8:#{net}:2::1"
+               )
+    end
+  end
+
   describe "get_remaining_attempts/2" do
     test "returns correct remaining attempts for login", %{unique_id: id} do
       email = "remaining_login_#{id}@example.com"

@@ -139,7 +139,16 @@ defmodule PhoenixKit.Utils.IpAddress do
   it is theirs to use — operating systems rotate a temporary address inside
   it daily, and anyone can pick a fresh one per request. Keyed on the full
   address, a rate limit is one new address away from empty and a session
-  "changes IP" every day. An IPv4-mapped IPv6 address is its IPv4 address.
+  "changes IP" every day.
+
+  Exceptions, where a `/64` would put many hosts in one bucket:
+
+  - IPv4-mapped (`::ffff:a.b.c.d`) and well-known NAT64 (`64:ff9b::/96`)
+    unmap to the embedded IPv4, as does deprecated IPv4-compatible
+    (`::a.b.c.d`)
+  - loopback (`::1`), unspecified (`::`), and link-local (`fe80::/10`)
+    are the address itself
+
   Anything that does not parse (including "unknown") comes back unchanged.
 
       iex> PhoenixKit.Utils.IpAddress.network("2a0d:3344:6a:c310:88f8:482c:e41a:9ef5")
@@ -159,12 +168,19 @@ defmodule PhoenixKit.Utils.IpAddress do
 
   def network(address) when is_binary(address) do
     case :inet.parse_strict_address(String.to_charlist(address)) do
-      {:ok, {_, _, _, _} = v4} -> format(v4)
-      {:ok, {0, 0, 0, 0, 0, 65_535, _, _} = v4_mapped} -> format(unmap(v4_mapped))
-      {:ok, {a, b, c, d, _, _, _, _}} -> format({a, b, c, d, 0, 0, 0, 0}) <> "/64"
+      {:ok, tuple} -> network_key(tuple)
       {:error, _} -> address
     end
   end
+
+  defp network_key({_, _, _, _} = v4), do: format(v4)
+  defp network_key({0, 0, 0, 0, 0, 65_535, _, _} = mapped), do: format(unmap(mapped))
+  defp network_key({0x64, 0xFF9B, 0, 0, 0, 0, _, _} = nat64), do: format(unmap(nat64))
+  defp network_key({0, 0, 0, 0, 0, 0, 0, 1} = loopback), do: format(loopback)
+  defp network_key({0, 0, 0, 0, 0, 0, 0, 0} = unspecified), do: format(unspecified)
+  defp network_key({0, 0, 0, 0, 0, 0, _, _} = compatible), do: format(unmap(compatible))
+  defp network_key({a, _, _, _, _, _, _, _} = ll) when a in 0xFE80..0xFEBF, do: format(ll)
+  defp network_key({a, b, c, d, _, _, _, _}), do: format({a, b, c, d, 0, 0, 0, 0}) <> "/64"
 
   # Every instance of the header, in order, as one list — a proxy that adds
   # its own header line rather than appending to the visitor's still puts
@@ -215,7 +231,8 @@ defmodule PhoenixKit.Utils.IpAddress do
   defp local?({a, _, _, _, _, _, _, _}) when a in 0xFC00..0xFDFF, do: true
   defp local?(_), do: false
 
-  defp unmap({0, 0, 0, 0, 0, 65_535, ab, cd}),
+  # Mapped, NAT64, and IPv4-compatible all stash the IPv4 in the last 32 bits.
+  defp unmap({_, _, _, _, _, _, ab, cd}),
     do: {div(ab, 256), rem(ab, 256), div(cd, 256), rem(cd, 256)}
 
   @doc """

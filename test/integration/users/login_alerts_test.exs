@@ -130,6 +130,17 @@ defmodule PhoenixKit.Integration.Users.LoginAlertsTest do
       assert [_] = Repo.all(KnownDevice)
     end
 
+    test "the same browser from a different IPv6 /64 still records a second row" do
+      user = create_user()
+      first = {0x2A0D, 0x3344, 0x6A, 0xC310, 0, 0, 0, 1}
+      other = {0x2A0D, 0x3344, 0x6A, 0xC311, 0, 0, 0, 1}
+
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac, first))
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac, other))
+
+      assert [_, _] = Repo.all(KnownDevice)
+    end
+
     test "the same browser from a new IP still logs the activity for the audit trail" do
       user = create_user()
 

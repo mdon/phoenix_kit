@@ -3,11 +3,13 @@ defmodule PhoenixKit.Users.LoginAlerts do
   New-login security alerts ("we noticed a new login to your account").
 
   On every login (`PhoenixKitWeb.Users.Auth.log_in_user/3`), the request's
-  `(ip_address, user_agent_hash)` pair is checked against
-  `PhoenixKit.Users.Auth.KnownDevice` rows for that user, and a row is
-  persisted for every new pair either way (still used to enrich the
-  self-service "Active Sessions" list with browser/OS/location per
-  session — see `PhoenixKit.Users.Sessions.list_user_device_sessions/2`).
+  `(network, user_agent_hash)` pair is checked against
+  `PhoenixKit.Users.Auth.KnownDevice` rows for that user
+  (`PhoenixKit.Utils.IpAddress.network/1`: IPv4 is the address, IPv6 is
+  its `/64`). A row is persisted for every new pair either way (still used
+  to enrich the self-service "Active Sessions" list with browser/OS/location
+  per session — see `PhoenixKit.Users.Sessions.list_user_device_sessions/2`).
+  The stored `ip_address` remains the full address (display, geo, audit).
   A `user.new_login_detected` activity entry is always logged too, for the
   audit trail.
 
@@ -38,7 +40,9 @@ defmodule PhoenixKit.Users.LoginAlerts do
   activity entry still logs for the audit trail — only the two
   reader-facing alarms are suppressed.
 
-  A recognized `(ip, ua)` pair just bumps `last_seen_at` — no alert, no email.
+  A recognized `(network, ua)` pair just bumps `last_seen_at` — no alert,
+  no email. IPv4 still creates one row per address, because each address
+  is its own network.
 
   Sends synchronously (matching every other PhoenixKit auth email —
   confirmation, password reset, magic link — none of which are queued
@@ -94,19 +98,11 @@ defmodule PhoenixKit.Users.LoginAlerts do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     repo = RepoHelper.repo()
 
-    # Every row for this browser, matched by network rather than exact
-    # address — an IPv6 client's rotating temporary address inside its /64
-    # is the same device, not a new row per day.
-    devices =
-      repo.all(
-        from(d in KnownDevice,
-          where: d.user_uuid == ^user.uuid and d.user_agent_hash == ^fingerprint.user_agent_hash
-        )
-      )
+    case matching_device(repo, user, fingerprint) do
+      %KnownDevice{} = device ->
+        device |> KnownDevice.changeset(%{last_seen_at: now}) |> repo.update()
+        :ok
 
-    network = IpAddress.network(fingerprint.ip_address)
-
-    case Enum.find(devices, &(IpAddress.network(&1.ip_address) == network)) do
       nil ->
         # This (network, ua) pair is new, but the browser itself may not
         # be — an IP alone changing (a new DHCP lease, switching wifi to
@@ -115,17 +111,48 @@ defmodule PhoenixKit.Users.LoginAlerts do
         # below — once it's inserted this account always has a matching
         # device on file, and every future check would wrongly read as
         # "first device"/"new browser" too.
-        new_browser? = devices == []
+        new_browser? =
+          not repo.exists?(
+            from(d in KnownDevice,
+              where:
+                d.user_uuid == ^user.uuid and d.user_agent_hash == ^fingerprint.user_agent_hash
+            )
+          )
 
         first_device? =
           new_browser? and
             not repo.exists?(from(d in KnownDevice, where: d.user_uuid == ^user.uuid))
 
         record_new_device(user, conn, fingerprint, now, first_device?, new_browser?)
+    end
+  end
 
-      %KnownDevice{} = device ->
-        device |> KnownDevice.changeset(%{last_seen_at: now}) |> repo.update()
-        :ok
+  # Unique index first. Scan same-UA rows by /64 only when grouping could
+  # match a different stored address (IPv4 cannot).
+  defp matching_device(repo, user, fingerprint) do
+    exact =
+      repo.get_by(KnownDevice,
+        user_uuid: user.uuid,
+        ip_address: fingerprint.ip_address,
+        user_agent_hash: fingerprint.user_agent_hash
+      )
+
+    exact || network_device(repo, user, fingerprint)
+  end
+
+  defp network_device(repo, user, fingerprint) do
+    network = IpAddress.network(fingerprint.ip_address)
+
+    if network == fingerprint.ip_address do
+      nil
+    else
+      repo.all(
+        from(d in KnownDevice,
+          where: d.user_uuid == ^user.uuid and d.user_agent_hash == ^fingerprint.user_agent_hash,
+          order_by: [desc: d.last_seen_at]
+        )
+      )
+      |> Enum.find(&(IpAddress.network(&1.ip_address) == network))
     end
   end
 

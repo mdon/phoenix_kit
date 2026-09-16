@@ -17,6 +17,19 @@ defmodule PhoenixKit.Utils.IpAddressNetworkTest do
       assert IpAddress.network("::ffff:203.0.113.7") == "203.0.113.7"
     end
 
+    test "loopback, unspecified, and link-local are the address itself" do
+      assert IpAddress.network("::1") == "::1"
+      assert IpAddress.network("::") == "::"
+      assert IpAddress.network("fe80::1") == "fe80::1"
+      assert IpAddress.network("fe80::2") == "fe80::2"
+      assert IpAddress.network("febf::1") == "febf::1"
+    end
+
+    test "NAT64 and IPv4-compatible unmap to the embedded IPv4" do
+      assert IpAddress.network("64:ff9b::203.0.113.7") == "203.0.113.7"
+      assert IpAddress.network("::203.0.113.7") == "203.0.113.7"
+    end
+
     test "anything unparseable comes back unchanged" do
       assert IpAddress.network("unknown") == "unknown"
       assert IpAddress.network("") == ""
