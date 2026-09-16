@@ -7,7 +7,15 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V192 - Allow 'arrow' annotations ⚡ LATEST
+  ### V193 - Indexes for the AI spend caps ⚡ LATEST
+
+  Two composite partial indexes on `phoenix_kit_ai_requests` —
+  `(endpoint_uuid, inserted_at)` and `(user_uuid, inserted_at)`, each
+  `INCLUDE (cost_cents) WHERE status = 'success'` — so the trailing-24-hour
+  spend sums `phoenix_kit_ai`'s caps run are answered from the index instead
+  of an endpoint's or user's whole history. Additive only.
+
+  ### V192 - Allow 'arrow' annotations
 
   Widens `phoenix_kit_annotations_kind_check` with `'arrow'` for Etcher's
   single-arrow tool (V130 did the same for `'marker'`, V157 for `'image'`).
@@ -767,7 +775,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 192
+  @current_version 193
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

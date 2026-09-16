@@ -165,6 +165,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # over the 49 shipped files; the real-database integration suite re-ran
   # clean against a DB migrated through V183.
   #
+  # V193 (2026-09-17, AI spend-cap indexes) DECLARES two objects here by
+  # hand, both new indexes and the V175 class:
+  # `index:phoenix_kit_ai_requests_endpoint_spend_idx` and
+  # `index:phoenix_kit_ai_requests_user_spend_idx`, each
+  # `(<uuid>, inserted_at) INCLUDE (cost_cents) WHERE status = 'success'`. No
+  # column, constraint or reshape. The shapes are CATALOG-EXACT: read with the
+  # repair probe (`Repair.Probe.snapshot/2`) from a test DB migrated through
+  # V193 — note that `keys` carries the INCLUDE column while `opclasses` covers
+  # only the two key columns, and the predicate is Postgres's deparse
+  # (`((status)::text = 'success'::text)`), not the migration's text.
+  # `chain_hash` restamped over the shipped file set.
+  #
   # V191 (2026-09-16, who added a user) DECLARES three objects here by hand,
   # the V92 `organization_uuid` shape repeated on a second self-reference:
   # `column:phoenix_kit_users.created_by_uuid` (uuid, nullable — NULL for a
@@ -348,7 +360,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "aa9bf5a1d1293753d8a9960c3fde57229709268da1d1c7e4a4096296893ee36e"
+  @chain_hash "08f039bed092b5ddadf2a4353949e38818291b4b9393f0b63ed0c9a3c63fcb09"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -71106,6 +71118,69 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              foreign_columns: ["uuid"],
              on_delete: "n",
              on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      # ── V193: AI spend-cap indexes ──
+      %{
+        id: "index:phoenix_kit_ai_requests_endpoint_spend_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_ai_requests_endpoint_spend_idx",
+             table: "phoenix_kit_ai_requests",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_requests_endpoint_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (endpoint_uuid, inserted_at) INCLUDE (cost_cents) WHERE ((status)::text = 'success'::text)",
+        since: 193,
+        class: :index,
+        revisions: [
+          {193,
+           %{
+             table: "phoenix_kit_ai_requests",
+             keys: ["endpoint_uuid", "inserted_at", "cost_cents"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_ai_requests_endpoint_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (endpoint_uuid, inserted_at) INCLUDE (cost_cents) WHERE ((status)::text = 'success'::text)",
+             predicate: "((status)::text = 'success'::text)",
+             opclasses: ["uuid_ops", "timestamptz_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_ai_requests_user_spend_idx",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_ai_requests_user_spend_idx",
+             table: "phoenix_kit_ai_requests",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_requests_user_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (user_uuid, inserted_at) INCLUDE (cost_cents) WHERE ((status)::text = 'success'::text)",
+        since: 193,
+        class: :index,
+        revisions: [
+          {193,
+           %{
+             table: "phoenix_kit_ai_requests",
+             keys: ["user_uuid", "inserted_at", "cost_cents"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_ai_requests_user_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (user_uuid, inserted_at) INCLUDE (cost_cents) WHERE ((status)::text = 'success'::text)",
+             predicate: "((status)::text = 'success'::text)",
+             opclasses: ["uuid_ops", "timestamptz_ops"],
+             name_template: nil
            }}
         ],
         presence: :required,
