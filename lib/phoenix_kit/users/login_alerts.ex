@@ -61,6 +61,7 @@ defmodule PhoenixKit.Users.LoginAlerts do
   alias PhoenixKit.Users.Auth.KnownDevice
   alias PhoenixKit.Users.Auth.UserNotifier
   alias PhoenixKit.Utils.Geolocation
+  alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.SessionFingerprint
   alias PhoenixKit.Utils.UserAgent
@@ -93,29 +94,32 @@ defmodule PhoenixKit.Users.LoginAlerts do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     repo = RepoHelper.repo()
 
-    case repo.get_by(KnownDevice,
-           user_uuid: user.uuid,
-           ip_address: fingerprint.ip_address,
-           user_agent_hash: fingerprint.user_agent_hash
-         ) do
-      nil ->
-        # Both checked BEFORE inserting the row below — once it's inserted
-        # this account always has a matching device on file, and every
-        # future check would wrongly read as "first device"/"new browser"
-        # too.
-        first_device? = not repo.exists?(from(d in KnownDevice, where: d.user_uuid == ^user.uuid))
+    # Every row for this browser, matched by network rather than exact
+    # address — an IPv6 client's rotating temporary address inside its /64
+    # is the same device, not a new row per day.
+    devices =
+      repo.all(
+        from(d in KnownDevice,
+          where: d.user_uuid == ^user.uuid and d.user_agent_hash == ^fingerprint.user_agent_hash
+        )
+      )
 
-        # This exact (ip, ua) pair is new, but the browser itself may not
+    network = IpAddress.network(fingerprint.ip_address)
+
+    case Enum.find(devices, &(IpAddress.network(&1.ip_address) == network)) do
+      nil ->
+        # This (network, ua) pair is new, but the browser itself may not
         # be — an IP alone changing (a new DHCP lease, switching wifi to
         # mobile data, ...) is not "a new device" worth alarming the user
-        # over. See the moduledoc.
-        new_browser? =
-          not repo.exists?(
-            from(d in KnownDevice,
-              where:
-                d.user_uuid == ^user.uuid and d.user_agent_hash == ^fingerprint.user_agent_hash
-            )
-          )
+        # over. See the moduledoc. Both are read BEFORE inserting the row
+        # below — once it's inserted this account always has a matching
+        # device on file, and every future check would wrongly read as
+        # "first device"/"new browser" too.
+        new_browser? = devices == []
+
+        first_device? =
+          new_browser? and
+            not repo.exists?(from(d in KnownDevice, where: d.user_uuid == ^user.uuid))
 
         record_new_device(user, conn, fingerprint, now, first_device?, new_browser?)
 

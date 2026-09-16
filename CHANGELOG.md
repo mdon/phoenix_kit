@@ -1,3 +1,19 @@
+## Unreleased
+
+### Fixed
+
+- **IPv6 clients are grouped by their `/64`** (`IpAddress.network/1`).
+  Every address in a `/64` belongs to one client, and the OS rotates a
+  temporary address inside it daily:
+  - per-IP rate limits (login, registration, magic link, password reset,
+    confirmation resend, QR login, referral codes) now count per `/64`, so a
+    fresh address per request no longer resets the limit
+  - the session fingerprint no longer logs "changed IP" for a rotated
+    address, and login alerts reuse the known-device row instead of adding
+    one per rotation (Active Sessions matches by the same key)
+- `IpAddress.extract_ip_address/1` printed IPv6 as decimal groups
+  (`"8193:3512:1:0:0:0:0:1"`); it now prints standard hex (`"2001:db8:1::1"`).
+
 ## 2.27.0 - 2026-09-16
 
 ### Added

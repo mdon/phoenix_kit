@@ -237,6 +237,21 @@ defmodule PhoenixKit.Users.RateLimiterTest do
       assert {:error, :rate_limit_exceeded} = RateLimiter.check_qr_login_rate_limit(ip1)
       assert :ok = RateLimiter.check_qr_login_rate_limit(ip2)
     end
+
+    # Every address in a /64 belongs to the same client, who can pick a
+    # fresh one per request — the bucket has to be the /64.
+    test "IPv6 addresses in the same /64 share one bucket", %{unique_id: id} do
+      net = Integer.to_string(rem(id, 0xFFFF), 16)
+
+      for n <- 1..10 do
+        assert :ok = RateLimiter.check_qr_login_rate_limit("2001:db8:#{net}:1::#{n}")
+      end
+
+      assert {:error, :rate_limit_exceeded} =
+               RateLimiter.check_qr_login_rate_limit("2001:db8:#{net}:1:dead:beef:0:99")
+
+      assert :ok = RateLimiter.check_qr_login_rate_limit("2001:db8:#{net}:2::1")
+    end
   end
 
   describe "get_remaining_attempts/2" do
