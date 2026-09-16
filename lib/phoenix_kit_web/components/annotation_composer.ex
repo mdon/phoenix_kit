@@ -340,8 +340,12 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
           ]
 
           case Storage.store_file(meta.path, opts) do
-            {:ok, %{uuid: uuid}} -> {:ok, {:ok, uuid}}
-            {:error, reason} -> {:ok, {:error, reason}}
+            {:ok, %{uuid: uuid} = file} ->
+              place_stored_file(file, socket, user_uuid)
+              {:ok, {:ok, uuid}}
+
+            {:error, reason} ->
+              {:ok, {:error, reason}}
           end
         end)
 
@@ -353,6 +357,24 @@ defmodule PhoenixKitWeb.Components.AnnotationComposer do
           {:error, gettext("Upload failed: %{reason}", reason: inspect(reason))}
       end
     end
+  end
+
+  # Host placement of annotation-comment uploads. The comments feature's
+  # attachment hook key, per the Storage moduledoc's module folder convention,
+  # so a host configures one hook for both.
+  @doc false
+  # public only for the unit test
+  def place_stored_file(file, socket, user_uuid) do
+    # The composer always comments on a FILE (create_comment("file", file_uuid, …)).
+    subject = %{resource_type: "file", resource_uuid: socket.assigns.file_uuid}
+
+    PhoenixKit.UploadsParentFolder.place_with(
+      Application.get_env(:phoenix_kit_comments, :attachments_parent_folder),
+      file,
+      :annotation_attachment,
+      user_uuid,
+      subject
+    )
   end
 
   defp maybe_put_giphy(metadata, nil), do: metadata

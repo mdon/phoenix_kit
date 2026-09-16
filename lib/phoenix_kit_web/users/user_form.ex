@@ -85,10 +85,23 @@ defmodule PhoenixKitWeb.Users.UserForm do
       |> assign(:page_section_path, Routes.path("/admin/users"))
       |> load_user_data(mode, user_uuid)
       |> assign_credential_authority()
+      # Resolved when the selector opens — the host hook may create a folder.
+      |> assign(:avatar_scope_folder, nil)
       |> load_form_data()
       |> maybe_set_edit_page_title()
 
     {:ok, socket}
+  end
+
+  defp assign_avatar_scope_folder(socket) do
+    actor_uuid =
+      socket.assigns[:phoenix_kit_current_user] && socket.assigns.phoenix_kit_current_user.uuid
+
+    assign(
+      socket,
+      :avatar_scope_folder,
+      PhoenixKit.UploadsParentFolder.resolve(:avatar, actor_uuid, socket.assigns[:user])
+    )
   end
 
   # Whether this actor may set a password for, mail a reset link to, or change
@@ -138,7 +151,10 @@ defmodule PhoenixKitWeb.Users.UserForm do
   defp resolve_return_to(_return_to, _user_uuid), do: Routes.path("/admin/users")
 
   def handle_event("open_media_selector", _params, socket) do
-    {:noreply, assign(socket, :show_media_selector, true)}
+    {:noreply,
+     socket
+     |> assign_avatar_scope_folder()
+     |> assign(:show_media_selector, true)}
   end
 
   def handle_event("validate_user", %{"user" => user_params}, socket) do
@@ -509,38 +525,23 @@ defmodule PhoenixKitWeb.Users.UserForm do
     )
   end
 
+  # Everything after the insert is best effort. The row is committed the moment
+  # `admin_create_user/2` returns, so a raise from the confirmation mailer (the
+  # one unguarded step) killed this LiveView AFTER the user existed: the page
+  # remounted, form recovery refilled every field, and a second "Create User"
+  # was told the email was taken. Nothing past the insert may take the navigation away.
   defp create_user(socket, user_params) do
-    ip_address = socket.assigns.registration_ip
+    admin_user = socket.assigns[:phoenix_kit_current_user]
 
-    case Auth.register_user(user_params, ip_address) do
+    case Auth.admin_create_user(user_params, admin_user) do
       {:ok, user} ->
-        # Optionally send confirmation email
-        case Auth.deliver_user_confirmation_instructions(
-               user,
-               &Routes.url("/users/confirm/#{&1}")
-             ) do
-          {:ok, _} -> :ok
-          # Continue even if email fails
-          {:error, _} -> :ok
-        end
-
-        admin_user = socket.assigns[:phoenix_kit_current_user]
-
-        PhoenixKit.Activity.log(%{
-          action: "user.created",
-          module: "users",
-          mode: "manual",
-          actor_uuid: admin_user && admin_user.uuid,
-          resource_type: "user",
-          resource_uuid: user.uuid,
-          target_uuid: user.uuid,
-          metadata: %{"method" => "manual", "actor_role" => "admin"}
-        })
+        email_result = send_confirmation_email(user)
+        log_user_created(user, admin_user)
 
         socket =
           socket
-          |> put_flash(:info, "User created successfully. Confirmation email sent.")
-          |> push_navigate(to: socket.assigns.return_to)
+          |> put_flash(email_result_flash_kind(email_result), created_flash(email_result))
+          |> push_navigate(to: Routes.path("/admin/users/view/#{user.uuid}"))
 
         {:noreply, socket}
 
@@ -553,6 +554,60 @@ defmodule PhoenixKitWeb.Users.UserForm do
         {:noreply, socket}
     end
   end
+
+  defp send_confirmation_email(user) do
+    case Auth.deliver_user_confirmation_instructions(
+           user,
+           &Routes.url("/users/confirm/#{&1}")
+         ) do
+      {:ok, _} ->
+        :sent
+
+      {:error, reason} ->
+        Logger.warning(
+          "PhoenixKit: admin-created user #{user.uuid} got no confirmation email: #{inspect(reason)}"
+        )
+
+        :failed
+    end
+  rescue
+    error ->
+      Logger.error(
+        "PhoenixKit: confirmation email for admin-created user #{user.uuid} raised: " <>
+          Exception.format(:error, error, __STACKTRACE__)
+      )
+
+      :failed
+  catch
+    :exit, reason ->
+      Logger.error(
+        "PhoenixKit: confirmation email for admin-created user #{user.uuid} exited: #{inspect(reason)}"
+      )
+
+      :failed
+  end
+
+  # `Activity.log/1` rescues and catches exits itself.
+  defp log_user_created(user, admin_user) do
+    PhoenixKit.Activity.log(%{
+      action: "user.created",
+      module: "users",
+      mode: "manual",
+      actor_uuid: admin_user.uuid,
+      resource_type: "user",
+      resource_uuid: user.uuid,
+      target_uuid: user.uuid,
+      metadata: %{"method" => "manual", "actor_role" => "admin"}
+    })
+  end
+
+  defp email_result_flash_kind(:sent), do: :info
+  defp email_result_flash_kind(:failed), do: :warning
+
+  defp created_flash(:sent), do: gettext("User created. A confirmation email was sent.")
+
+  defp created_flash(:failed),
+    do: gettext("User created, but the confirmation email could not be sent.")
 
   defp update_user(socket, user_params) do
     user = socket.assigns.user

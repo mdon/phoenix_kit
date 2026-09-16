@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "2.23.1"
+  @version "2.26.1"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -410,17 +410,50 @@ defmodule PhoenixKit.MixProject do
       # gets ignored, which is worse than an honest gap. Run the suite
       # explicitly — `mix test` — and see AGENTS.md for pointing it at a
       # database you already have.
+      #
+      # `test.compile` below is not that step reappearing under a new name —
+      # it compiles the test tree and runs zero tests, so none of the three
+      # reasons above apply: no DB read, no pool, and it cannot go red from
+      # environment (only from a genuine compile error in test/).
       precommit: [
         "compile --warnings-as-errors --all-warnings",
         "deps.unlock --check-unused",
+        "test.compile",
         "quality.ci",
         "test.js"
       ],
+
+      # Nothing above ever COMPILES test/**/*_test.exs: `format` and `credo`
+      # only parse them, and `compile`/`dialyzer` see elixirc_paths(:test),
+      # which covers test/support (plain .ex, picked up by the ordinary
+      # compiler) but not the *_test.exs files themselves — ExUnit is the
+      # only thing that ever compiles .exs test files, only when `mix test`
+      # requires them. So a test file that is valid syntax but fails to
+      # compile (e.g. two identical `describe` blocks — ExUnit rejects a
+      # duplicate describe name with ArgumentError at defmodule-time, before
+      # any test runs) was invisible to every existing gate step. Warnings
+      # from those files are printed, not fatal — same as under `mix test`.
+      # This compiles every test/**/*_test.exs directly, deliberately WITHOUT
+      # test_helper.exs — no ExUnit.start, no DB probe, no migration — so it
+      # cannot inherit the DB-availability problems `mix test` itself has
+      # (see NOTE above). It needs MIX_ENV=test for elixirc_paths' test/support
+      # half, which the surrounding precommit run doesn't set — env is fixed
+      # for the whole aliased run once the VM boots (same reason `prerelease`
+      # below shells out for its own MIX_ENV=prod step) — so this shells out
+      # too, via System.cmd's `env:` option rather than `mix cmd`'s
+      # shell-string form: no shell involved, so the embedded script needs no
+      # quoting.
+      "test.compile": &compile_test_tree/1,
 
       # Pure logic inside the shipped hook bundle (test/js, node --test). Skips
       # itself when node isn't installed rather than failing a contributor's
       # precommit over an optional tool.
       "test.js": &run_js_tests/1,
+
+      # Removes accumulated `mix hex.build` / `mix hex.publish` tarballs.
+      # Runs as the last prerelease step; run it by hand after a bare
+      # `mix hex.publish`, which also leaves one behind.
+      "package.clean": &clean_package_artifacts/1,
 
       # Release gate — run before `mix hex.publish`. Catches release-metadata
       # drift and packaging mistakes that precommit/quality.ci structurally
@@ -448,9 +481,45 @@ defmodule PhoenixKit.MixProject do
         "cmd mix hex.audit",
         "docs",
         "cmd mix hex.build",
-        "phoenix_kit.release_check"
+        "phoenix_kit.release_check",
+        # `hex.build` writes <app>-<version>.tar into the project root and
+        # never cleans up, so every release since Jun 2026 left one behind —
+        # 64 tarballs / 199 MB by Sep 2026. The gate only needs hex.build to
+        # PROVE the package assembles; the artifact itself is disposable
+        # (`hex.publish` builds its own). Clean last so a failed step leaves
+        # the tarball around to inspect.
+        "package.clean"
       ]
     ]
+  end
+
+  # Compiles every test/**/*_test.exs in a MIX_ENV=test subprocess — see the
+  # "test.compile" alias comment above for why this exists and why it's a
+  # subprocess. `Kernel.ParallelCompiler.compile/1` has no bang variant: it
+  # returns `{:error, ...}` on a bad file rather than raising, so the halt
+  # below is load-bearing, not decoration.
+  @compile_test_tree_script ~S"""
+  files = Path.wildcard("test/**/*_test.exs")
+
+  case Kernel.ParallelCompiler.compile(files) do
+    {:ok, _modules, _warnings} ->
+      :ok
+
+    {:error, errors, _warnings} ->
+      IO.puts(:stderr, "\n#{length(errors)} test file(s) failed to compile.")
+      System.halt(1)
+  end
+  """
+
+  defp compile_test_tree(_args) do
+    {output, status} =
+      System.cmd("mix", ["run", "--no-start", "-e", @compile_test_tree_script],
+        env: [{"MIX_ENV", "test"}],
+        stderr_to_stdout: true
+      )
+
+    IO.puts(output)
+    if status != 0, do: Mix.raise("test suite failed to compile")
   end
 
   # `node --test test/js` over the pure helpers exported from the hook bundle.
@@ -473,6 +542,27 @@ defmodule PhoenixKit.MixProject do
         {output, status} = System.cmd("node", ["--test" | files], stderr_to_stdout: true)
         IO.puts(output)
         if status != 0, do: Mix.raise("JS tests failed")
+    end
+  end
+
+  # Deletes Hex package tarballs from the project root. Globs on the app name
+  # rather than the current @version so tarballs left by EARLIER versions get
+  # swept too — that accumulation is the whole reason this exists.
+  defp clean_package_artifacts(_args) do
+    app = to_string(Mix.Project.config()[:app])
+
+    case Path.wildcard("#{app}-*.tar") do
+      [] ->
+        Mix.shell().info("[package.clean] no tarballs to remove")
+
+      files ->
+        bytes = files |> Enum.map(fn f -> File.stat!(f).size end) |> Enum.sum()
+        Enum.each(files, &File.rm!/1)
+
+        Mix.shell().info(
+          "[package.clean] removed #{length(files)} tarball(s), " <>
+            "#{Float.round(bytes / 1_048_576, 1)} MB"
+        )
     end
   end
 end

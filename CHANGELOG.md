@@ -1,3 +1,207 @@
+## 2.26.1 - 2026-09-16
+
+### Fixed
+
+- `PhoenixKit.Utils.Number.parse_decimal/2` and `format_decimal/1` no longer
+  return a whole number in exponent form: `"10"` used to parse to `1E+1`,
+  which is `Decimal.equal?/2` to `Decimal.new("10")` but not `==` to it, and
+  printed as `1E+1` through `to_string/1` and Jason. Trailing fraction zeros
+  are still stripped (`"2.500"` → `2.5`). (#819)
+
+## 2.26.0 - 2026-09-16
+
+### Added
+
+- **`<.decimal_input>`** (`PhoenixKitWeb.Components.Core.DecimalInput`) — a
+  form control for quantities, prices and measurements, where a comma and a
+  dot must both work and nothing may be rounded. It renders
+  `type="text" inputmode="decimal"` in place of a browser number control,
+  whose separator follows the page locale and whose `step` blocks submits.
+  It takes an optional `unit` suffix, and the text a person typed survives a
+  re-render unchanged. Otherwise it matches `<.input>`: FormField or raw
+  name/value, label, translated errors, `class` / `wrapper_class`. (#818)
+- **`PhoenixKit.Utils.Number.parse_decimal/2`** (plus `parse_decimal!/2` and
+  `format_decimal/1`) — turns typed text into a normalized `Decimal`. A comma
+  or a dot is the decimal point, and space / dot / comma grouping is accepted
+  only between 3-digit groups. It takes `:min` / `:max` and never clamps.
+  Exponents, `NaN`, hex and values of 10¹² or more are refused, and input
+  over 64 bytes is rejected before any parsing. It returns
+  `{:error, :empty | :invalid | :below_min | :above_max}`. (#818)
+
+### Fixed
+
+- Post-merge review of #818: space grouping is now held to the same 3-digit
+  rule as dot/comma grouping (`"12 34"` and `"1,234 567"` were silently
+  merged into `1234` and `1.234567`), and a negative zero is returned
+  unsigned so the field never shows `-0`.
+
+## 2.25.0 - 2026-09-16
+
+### Added
+
+- **Who added a user** — `phoenix_kit_users.created_by_uuid` (migration
+  **V191**: self-referencing foreign key, `ON DELETE SET NULL`, indexed),
+  shown as "Added By" on the admin user details page. Backfilled from the
+  `user.created` activity entries the admin form has always logged, as far
+  back as activity retention kept them. Set only by the new
+  `Auth.admin_create_user/2`; never cast from params, so a public sign-up
+  cannot claim an admin added it.
+
+### Fixed
+
+- **Admin "Create User" left the admin on a refilled form.** Anything that
+  raised after the insert (the confirmation mailer is the unguarded step)
+  crashed the LiveView; form recovery
+  refilled every field, and a second submit reported the email as taken. The
+  email send is now rescued (a failed send shows a warning flash instead of
+  claiming it was sent), and a successful create navigates to the new user's
+  page instead of the users list.
+- **Admin user creation no longer counts against the registration rate
+  limits.** The admin form went through the anonymous sign-up limiter, so an
+  admin adding more than ten users an hour was refused — and used up the
+  public sign-up budget of their own IP.
+
+## 2.24.0 - 2026-09-16
+
+### Added
+
+- **Media reorganizer** (#815) — moves every module's legacy media folders to
+  where the host's `attachments_parent_folder` / `attachments_folder_name`
+  hooks now put new ones.
+  - `mix phoenix_kit.media.reorganize` — dry-run by default (prints a
+    per-`{source, kind}` summary table plus details); `--apply` writes,
+    `--source <module_key>` (repeatable) narrows the run, `--pending-days`
+    sets the stale-pending-folder threshold (default 7). Options are
+    validated before the app starts; an unknown or disabled `--source` key
+    is an error. Exits 1 when `--apply` leaves any action `:failed` or
+    `:conflict`.
+  - `PhoenixKit.Modules.Storage.Reorganizer` engine — each action runs in its
+    own transaction against a `FOR UPDATE` re-read of the folder, re-verifies
+    the plan-time file/link counts before and after the write, and never
+    halts the run on a raising source, a failed action or a naming conflict.
+    Nothing is hard-deleted: `:trash` only soft-deletes a folder still empty
+    at apply time. Moving a trashed folder restores the subtree trashed with
+    it. `on_conflict: :suffix` picks a free `"name (N)"`.
+  - `PhoenixKit.Modules.Storage.Reorganizer.Source` behaviour — the full
+    contract for module implementations (hook failures, claims, duplicates,
+    pointer back-fill, stale pending folders, query cost) lives in its
+    moduledoc. Actions are plain maps validated by `Reorganizer.Action`, so a
+    module never compiles against core's action struct; unknown keys are
+    dropped with one warning.
+  - New optional `PhoenixKit.Module` callback `media_reorganizer/0`
+    (default `nil`), collected from enabled modules by
+    `ModuleRegistry.all_media_reorganizers/0`.
+
+### Fixed
+
+- **Reorganizer summary no longer hides a back-fill's rename or restore.** A
+  move carrying `after_move` always reports outcome `:backfilled`, and the
+  `renamed` / `restored` columns were derived from that single outcome, so a
+  back-filled action that also renamed or un-trashed its folder counted in
+  neither. Applied actions now carry an engine-internal `changes` list
+  (`:moved` / `:renamed` / `:restored`) that the summary and the details
+  section read.
+
+## 2.23.3 - 2026-09-15
+
+### Added
+
+- **`mix package.clean`** deletes the `phoenix_kit-*.tar` tarballs that
+  `mix hex.build` / `mix hex.publish` leave in the project root (64 of them,
+  199 MB, had piled up). It runs as the last `mix prerelease` step; run it by
+  hand after a bare `mix hex.publish`. The `.gitignore` entry for them, a
+  leftover `phoenix_module_template-*.tar` from the template repo, now names
+  `phoenix_kit-*.tar`.
+
+- **`mix precommit` now compiles the test tree** via a new `test.compile`
+  alias, run between `deps.unlock --check-unused` and `quality.ci`. No
+  existing gate step ever *compiled* `test/**/*_test.exs`: `format` and
+  `credo` only parse them, `compile` and `dialyzer` see `elixirc_paths`
+  (which covers `test/support`, not the `.exs` test files), and ExUnit is
+  the only thing that compiles those — so a test file that is valid syntax
+  but fails to compile (a duplicate `describe` name, for example, which
+  ExUnit rejects at `defmodule` time) passed every step and only surfaced on
+  the next `mix test`. The alias compiles every test file with
+  `Kernel.ParallelCompiler.compile/1` in a `MIX_ENV=test` subprocess,
+  deliberately without `test_helper.exs`: no `ExUnit.start`, no database
+  probe, no migration, zero tests run, so it cannot go red from the
+  environment — only from a genuine compile error in `test/`. `mix test`
+  itself is still not part of `precommit`; see AGENTS.md "CI/CD".
+
+### Fixed
+
+- **Stored originals keep their extension when copied out for processing.**
+  `Storage.retrieve_file/1` — and `Manager.retrieve_file/2` without a
+  `:destination_path` — wrote the temp copy as `phoenix_kit_<random>`, with no
+  extension. ImageMagick identifies some formats by extension alone, ICO
+  among them, so `ProcessFileJob` failed every variant of an `.ico` upload
+  with `identify: no decode delegate for this image format` and the job was
+  discarded, even where ImageMagick reads ICO. The temp copy now carries the
+  stored original's extension, as `Manager.replicate_to_buckets/3` already
+  did. `AnnotationThumbnail` reads its source through the same call (#817).
+  Only a media extension (image, video, audio, PDF — `Manager.temp_extension/1`)
+  is kept: the extension is the uploader's filename, and it also selects the
+  ImageMagick coders that have no magic bytes (MVG, MSL, TXT), which an
+  extensionless copy never reached — a `.mvg` uploaded as `image/png` is
+  stored as an image and would have been handed to `identify` as MVG.
+- **A missing `pdftoppm`, `pdfinfo`, `identify` or `ffmpeg` is reported as not
+  installed.** `System.cmd/3` raises `ErlangError` with `:enoent` in
+  `original` and `reason: nil`; `PdfProcessor` and `System.Dependencies`
+  checked `reason`, so the not-installed branch never ran — a host without
+  poppler logged `pdftoppm error: nil` for every PDF, and
+  `check_imagemagick/0` / `check_ffmpeg/0` returned
+  `{:error, "Error checking …: nil"}` instead of `{:error, :not_installed}`.
+- **PDF uploads are processed again on hosts that have poppler.**
+  `ProcessFileJob` merged pdfinfo's string-keyed fields (`"page_count"`,
+  `"author"`, …) into the atom-keyed `%{status: "active"}` update, and
+  `Ecto.Changeset.cast/3` rejects a mixed-key map — so every PDF job raised
+  `Ecto.CastError` on the metadata step and was discarded after three
+  attempts, before any preview variant was rendered. Without poppler
+  `extract_metadata/1` returns `%{}` and the merge happened to be clean, which
+  is why the crash only showed up once the tool was installed. The fields now
+  go into the file's `:metadata` map (`PdfProcessor.file_attrs/2`) (#816),
+  filling only keys it doesn't already hold — `"title"` is also the
+  user-editable title the media detail page saves there, and a re-processed
+  PDF must not replace it with the document's own Title.
+
+## 2.23.2 - 2026-09-15
+
+### Added
+
+- **Hosts can choose the folder core's own uploads land in** (#813).
+  `config :phoenix_kit, :uploads_parent_folder, {Mod, :fun}` is called as
+  `fun(kind, actor_uuid, subject)` (or `fun(kind, actor_uuid)`) with `kind`
+  `:avatar` or `:branding` and returns `{:ok, folder_uuid}` or `nil` for the
+  storage root (the default). `Auth.update_user_avatar/4` places the stored
+  avatar there; the user form's avatar picker and the logo / site-icon /
+  auth-background pickers on `/admin/settings` and
+  `/admin/settings/authorization` pass the answer to `MediaSelectorModal` as
+  `scope_folder_id`. Note that `scope_folder_id` also scopes browsing, so once
+  the hook is configured those pickers list only files under the returned
+  folder. An answer that is not a live folder (not a UUID, no such folder, or
+  trashed), or a hook that raises or exits, falls back to the root.
+- **The standalone media selector accepts `?scope_folder=<uuid>`** (#813) and
+  attaches uploads made from it to that folder; a malformed, missing or
+  trashed folder is ignored. `MediaSelectorHelper.media_selector_url/2` takes
+  a matching `:scope_folder` option.
+- **Annotation-comment attachments can be placed by the host** (#813) through
+  `config :phoenix_kit_comments, :attachments_parent_folder`, called with
+  `:annotation_attachment` and `%{resource_type: "file", resource_uuid: uuid}`.
+- **Storage moduledoc: folder conventions for module packages** (#813) — the
+  parent-folder and folder-name hooks, the lookup order for an object's
+  folder, and leaving re-parenting to the host.
+
+### Fixed
+
+- The upload placement hook is consulted when a picker opens, not in
+  `mount/3`, so viewing a settings page or the user form no longer runs a
+  host hook (which may create a folder) twice per load.
+- A hook answering a folder that no longer exists no longer crashes
+  `Auth.update_user_avatar/4` after the file was stored, nor the picker's
+  upload.
+- The standalone media selector logs a failed scope-folder attach instead of
+  discarding it.
+
 ## 2.23.1 - 2026-09-13
 
 ### Changed

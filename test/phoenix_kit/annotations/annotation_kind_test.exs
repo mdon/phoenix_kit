@@ -7,7 +7,7 @@ defmodule PhoenixKit.Annotations.AnnotationKindTest do
   regression that motivated this test: it drew + skipped the composer but
   silently failed to persist because both layers still rejected it.
   `"image"` (V157) repeated the same regression when PR #660 exposed
-  Etcher's `:image` tool without widening either layer. `"arrow"` (V191)
+  Etcher's `:image` tool without widening either layer. `"arrow"` (V192)
   made it three: Etcher 0.13's single-arrow tool shipped in the viewer's
   toolbar while both layers still rejected the kind — drawing and
   labelling worked, persisting warned and dropped, and the arrows were
@@ -116,7 +116,7 @@ defmodule PhoenixKit.Annotations.AnnotationKindTest do
         assert tool in Annotation.kinds(),
                "the viewer offers :#{tool} but the schema rejects kind \"#{tool}\" — " <>
                  "it will draw and silently fail to persist (see marker/V130, " <>
-                 "image/V157, arrow/V191)"
+                 "image/V157, arrow/V192)"
       end
     end
   end
@@ -139,7 +139,7 @@ defmodule PhoenixKit.Annotations.AnnotationKindTest do
         )
 
       assert def =~ "arrow",
-             "expected the kind CHECK constraint to include 'arrow' (V191), got: #{def}"
+             "expected the kind CHECK constraint to include 'arrow' (V192), got: #{def}"
     end
 
     test "phoenix_kit_annotations_kind_check allows image" do

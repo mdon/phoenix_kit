@@ -62,11 +62,13 @@ defmodule PhoenixKit.Modules.Storage.PdfProcessor do
         {:error, "pdftoppm failed (exit #{exit_code}): #{String.trim(output)}"}
     end
   rescue
+    # `System.cmd/3` on a missing binary raises `ErlangError` with `:enoent`
+    # in `original`; `reason` is nil there.
     e in ErlangError ->
-      if e.reason == :enoent do
+      if e.original == :enoent do
         {:error, :poppler_not_installed}
       else
-        {:error, "pdftoppm error: #{inspect(e.reason)}"}
+        {:error, "pdftoppm error: #{inspect(e.original)}"}
       end
   end
 
@@ -94,13 +96,34 @@ defmodule PhoenixKit.Modules.Storage.PdfProcessor do
     end
   rescue
     e in ErlangError ->
-      if e.reason == :enoent do
+      if e.original == :enoent do
         Logger.warning("PdfProcessor: pdfinfo not installed")
       else
-        Logger.warning("PdfProcessor: pdfinfo error: #{inspect(e.reason)}")
+        Logger.warning("PdfProcessor: pdfinfo error: #{inspect(e.original)}")
       end
 
       {:ok, %{}}
+  end
+
+  @doc """
+  Turn `extract_metadata/1`'s result into attrs for
+  `PhoenixKit.Modules.Storage.File.changeset/2`.
+
+  The pdfinfo fields (`"page_count"`, `"title"`, `"author"`, `"creator"`,
+  `"creation_date"`) are string-keyed and are not columns on the file row —
+  they belong inside its `:metadata` map. Returning them at the top level
+  next to the atom-keyed `:status` the job adds gives Ecto a mixed-key map,
+  which `cast/3` rejects with `Ecto.CastError` — that crashed every PDF job
+  on a host with poppler.
+
+  They only fill keys the map doesn't already hold. `"title"` is also the
+  user-editable title the media detail page saves into the same map, so a
+  pdfinfo value merged over it would replace the user's title each time the
+  file is processed again.
+  """
+  @spec file_attrs(map() | nil, map()) :: %{metadata: map()}
+  def file_attrs(existing_metadata, pdf_metadata) do
+    %{metadata: Map.merge(pdf_metadata || %{}, existing_metadata || %{})}
   end
 
   @field_mapping %{

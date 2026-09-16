@@ -338,6 +338,31 @@
                       )}
                     </p>
                   </div>
+                  <%!-- Who added this user from the admin panel. "-" covers a
+                       self-registered user, a user added before V191 whose
+                       activity entry was already pruned, and one whose
+                       creator has since been deleted (ON DELETE SET NULL). --%>
+                  <div>
+                    <label class="text-sm font-medium text-base-content/70">
+                      {gettext("Added By")}
+                    </label>
+                    <p class="text-base-content">
+                      <%= if @user.created_by do %>
+                        <.link
+                          navigate={
+                            PhoenixKit.Utils.Routes.path(
+                              "/admin/users/view/#{@user.created_by.uuid}"
+                            )
+                          }
+                          class="link link-primary"
+                        >
+                          {user_display_name(@user.created_by)}
+                        </.link>
+                      <% else %>
+                        -
+                      <% end %>
+                    </p>
+                  </div>
                   <div>
                     <label class="text-sm font-medium text-base-content/70">
                       {gettext("Last Updated")}

@@ -15,6 +15,37 @@ defmodule PhoenixKit.Modules.Storage do
   - Built-in usage tracking and statistics
   - PostgreSQL-backed file registry
 
+  ## Folder conventions for modules
+
+  Modules that create one folder per object (catalogue items, warehouse
+  documents, CRM records, machines, …) should:
+
+  - offer a host hook `config :my_module, :attachments_parent_folder, {Mod, :fun}`
+    called as `fun(kind, actor_uuid, subject)` — `kind` an atom naming the
+    resource, `subject` the owning record (or a context map for uploads that
+    belong to another record, e.g. `%{resource_type: "order", resource_uuid: uuid}`)
+    — returning `{:ok, parent_folder_uuid}` or `nil` (= storage root, the
+    default when unconfigured). Call `fun/2` (`kind, actor_uuid`) when the
+    host exports only that arity; check `Code.ensure_loaded?/1` before
+    `function_exported?/3`;
+  - optionally offer `config :my_module, :attachments_folder_name, {Mod, :fun}`
+    called as `fun(subject, actor_uuid)` returning `{:ok, name}` or `nil`, so
+    a host may give folders human names; the deterministic
+    `<module>-<kind>-<uuid>` name stays the fallback;
+  - resolve an object's folder by a stored uuid pointer first, then by the
+    host name under the parent, then by the deterministic name under the
+    parent, then by the deterministic name at the root — never assume
+    `parent_uuid IS NULL`; purge/delete and bulk listings use the same
+    resolution;
+  - leave moving/renaming existing folders to the host (adoption is a host
+    concern), and never create folders for people's own use.
+
+  Hosts typically group containers (`Warehouse/Supplier orders`, `CRM/Contacts`)
+  and may re-parent a container that was created elsewhere; `update_folder/3`
+  with `parent_uuid` moves a folder (with cycle check), and the
+  `(name, parent_uuid)` unique index means the same name can exist under
+  different parents.
+
   ## Module Status
 
   This module is **always enabled** and cannot be disabled. It provides core
@@ -2783,7 +2814,11 @@ defmodule PhoenixKit.Modules.Storage do
         # Look up the original variant path from file_instances table
         case get_file_instance_by_name(file_uuid, "original") do
           %FileInstance{file_name: file_path} ->
-            destination_path = generate_temp_path()
+            # Keep a media extension: ImageMagick identifies some formats
+            # (ICO among them) by extension alone, so an extensionless copy
+            # fails every variant with "no decode delegate". Non-media
+            # extensions are dropped — see `Manager.temp_extension/1`.
+            destination_path = generate_temp_path() <> Manager.temp_extension(file_path)
 
             case Manager.retrieve_file(file_path,
                    destination_path: destination_path

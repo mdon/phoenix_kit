@@ -1,104 +1,112 @@
 defmodule PhoenixKit.Migrations.Postgres.V191 do
   @moduledoc """
-  V191: Widen `phoenix_kit_annotations_kind_check` for the new
-  `"arrow"` kind.
+  V191: who added a user.
 
-  Etcher 0.13's single-arrow tool was exposed in the media viewer's
-  toolbar (`media_canvas_viewer.html.heex`) without widening the CHECK
-  constraint (or the schema's `@kinds`) to match — the THIRD time this
-  exact regression has shipped, after `"marker"` (V130) and `"image"`
-  (V157). Without this, drawing an arrow works, labelling it works, and
-  the whole thing silently fails to persist across a reload — the
-  changeset rejection is a [warning] in the log and nothing else.
+  Adds `phoenix_kit_users.created_by_uuid uuid NULL` — the account that
+  created this user by hand from the admin panel. `NULL` means the user
+  signed themselves up (registration form, magic link, OAuth, guest
+  checkout), or was added before this column existed and left no trace.
 
-  Idempotent: each `ADD CONSTRAINT` is preceded by `DROP CONSTRAINT
-  IF EXISTS` on the same prefixed table.
+    * **Foreign key, `ON DELETE SET NULL`** — the same shape as
+      `organization_uuid`. Deleting the admin who added someone must not
+      delete, or block deleting, the people they added.
+    * **Index** — `ON DELETE SET NULL` makes Postgres look up every row
+      pointing at a deleted user; without one that is a full scan of
+      `phoenix_kit_users` per user deletion.
+    * **Backfill** — the admin form has logged a `user.created` activity
+      with `metadata.method = 'manual'` and the creating admin as
+      `actor_uuid` since the Activity feed shipped. Those entries seed the
+      column, so users added before this version still show who added
+      them — as far back as `activity_retention_days` kept the entry. Only
+      an actor that still exists is copied, and a value already present is
+      never overwritten, so the statement is safe to re-run.
 
-  ## down/1 is conditional, by necessity
-
-  Rolling back re-adds the *narrower* CHECK, and Postgres validates
-  every existing row when a CHECK is added. So the rollback is only
-  possible while no `kind = 'arrow'` annotation exists — once a user has
-  drawn one, the old constraint is not a truthful description of the
-  data and there is no correct way for a schema migration to assert it.
-
-  `down/1` therefore checks first and raises a message naming the row
-  count and the two ways forward, rather than letting the `ALTER` fail
-  with an opaque `23514` mid-rollback. The alternatives were both worse:
-  deleting or rewriting user annotations is data loss a rollback has no
-  business performing, and `NOT VALID` would leave a constraint that
-  lies about the rows already in the table.
+  The column is written only by `PhoenixKit.Users.Auth.admin_create_user/2`
+  and is never cast from params: a public registration form cannot claim to
+  have been added by someone.
   """
 
   use Ecto.Migration
 
-  # The DROP IF EXISTS immediately before each ADD makes the re-add
-  # unconditional and safe. A `pg_constraint` existence guard would be
-  # wrong here: `conname` is unique per namespace, not globally, so on a
-  # multi-prefix install it would match another prefix's identically
-  # named constraint and skip the add — leaving this prefix's table with
-  # no kind check at all.
   def up(opts) do
     prefix = Map.get(opts, :prefix, "public")
-    p = prefix_str(prefix)
 
-    execute(
-      "ALTER TABLE #{p}phoenix_kit_annotations DROP CONSTRAINT IF EXISTS phoenix_kit_annotations_kind_check"
-    )
-
-    execute("""
-    ALTER TABLE #{p}phoenix_kit_annotations
-      ADD CONSTRAINT phoenix_kit_annotations_kind_check
-      CHECK (kind IN ('rectangle', 'circle', 'polygon', 'freehand', 'callout', 'text', 'dimension', 'line', 'marker', 'image', 'arrow'))
-    """)
-
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '191'")
+    Enum.each(up_statements(prefix), &execute/1)
   end
 
+  @doc """
+  Rolls V191 back: drops the column (its index and foreign key go with it).
+
+  **Lossy:** who added each user is lost, except for what the Activity feed
+  still holds.
+  """
   def down(opts) do
     prefix = Map.get(opts, :prefix, "public")
-    p = prefix_str(prefix)
 
-    # Runs before anything is queued, so no flush/1 is needed and no
-    # half-applied DDL can be left behind when this raises.
-    guard_no_arrow_annotations!(p)
-
-    execute(
-      "ALTER TABLE #{p}phoenix_kit_annotations DROP CONSTRAINT IF EXISTS phoenix_kit_annotations_kind_check"
-    )
-
-    execute("""
-    ALTER TABLE #{p}phoenix_kit_annotations
-      ADD CONSTRAINT phoenix_kit_annotations_kind_check
-      CHECK (kind IN ('rectangle', 'circle', 'polygon', 'freehand', 'callout', 'text', 'dimension', 'line', 'marker', 'image'))
-    """)
-
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '190'")
+    Enum.each(down_statements(prefix), &execute/1)
   end
 
-  defp guard_no_arrow_annotations!(p) do
-    %{rows: [[count]]} =
-      repo().query!("SELECT count(*) FROM #{p}phoenix_kit_annotations WHERE kind = 'arrow'")
+  # Public so the suite can run the REAL statements — `up/1` can't be invoked
+  # outside an `Ecto.Migrator` runner (same constraint as V189Test and
+  # friends). `prefix` is the bare schema name.
+  @doc false
+  def up_statements(prefix) do
+    p = prefix_str(prefix)
 
-    if count > 0 do
-      raise """
-      Cannot roll back V191: #{count} annotation(s) with kind = 'arrow' exist \
-      in #{p}phoenix_kit_annotations.
-
-      V191 widened phoenix_kit_annotations_kind_check to allow 'arrow'. Rolling \
-      back re-adds the narrower CHECK, which Postgres validates against every \
-      existing row — so these rows would make the ALTER fail regardless.
-
-      To proceed, either:
-
-        1. Remove or convert them first, e.g.
-             DELETE FROM #{p}phoenix_kit_annotations WHERE kind = 'arrow';
-           (or UPDATE ... SET kind = 'callout' to keep the geometry), then \
-      re-run the rollback; or
-        2. Stay on V191 — the widened CHECK is a superset of V190's and is \
-      harmless to a host that no longer draws arrow annotations.
+    [
       """
-    end
+      ALTER TABLE #{p}phoenix_kit_users
+      ADD COLUMN IF NOT EXISTS created_by_uuid uuid
+      """,
+      """
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+          JOIN pg_namespace n ON n.oid = t.relnamespace
+          WHERE c.conname = 'phoenix_kit_users_created_by_uuid_fkey'
+            AND t.relname = 'phoenix_kit_users'
+            AND n.nspname = '#{prefix}'
+        ) THEN
+          ALTER TABLE #{p}phoenix_kit_users ADD CONSTRAINT phoenix_kit_users_created_by_uuid_fkey FOREIGN KEY (created_by_uuid) REFERENCES #{p}phoenix_kit_users(uuid) ON DELETE SET NULL;
+        END IF;
+      END
+      $$
+      """,
+      """
+      CREATE INDEX IF NOT EXISTS phoenix_kit_users_created_by_uuid_index
+      ON #{p}phoenix_kit_users USING btree (created_by_uuid)
+      """,
+      """
+      UPDATE #{p}phoenix_kit_users AS u
+      SET created_by_uuid = s.actor_uuid
+      FROM (
+        SELECT DISTINCT ON (a.resource_uuid) a.resource_uuid, a.actor_uuid
+        FROM #{p}phoenix_kit_activities AS a
+        JOIN #{p}phoenix_kit_users AS actor ON actor.uuid = a.actor_uuid
+        WHERE a.action = 'user.created'
+          AND a.metadata->>'method' = 'manual'
+          AND a.resource_uuid IS NOT NULL
+          AND a.actor_uuid <> a.resource_uuid
+        ORDER BY a.resource_uuid, a.inserted_at
+      ) AS s
+      WHERE u.uuid = s.resource_uuid
+        AND u.created_by_uuid IS NULL
+      """,
+      "COMMENT ON TABLE #{p}phoenix_kit IS '191'"
+    ]
+  end
+
+  @doc false
+  def down_statements(prefix) do
+    p = prefix_str(prefix)
+
+    [
+      "ALTER TABLE #{p}phoenix_kit_users DROP COLUMN IF EXISTS created_by_uuid",
+      "COMMENT ON TABLE #{p}phoenix_kit IS '190'"
+    ]
   end
 
   defp prefix_str("public"), do: "public."

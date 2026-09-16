@@ -8,7 +8,7 @@
 
 0. **First clone only:** `git config core.hooksPath .githooks` — enables the tracked pre-commit hook (a clone must not run code on checkout, so git won't do this for you). `mix phoenix_kit.doctor` reports it under "Git Hooks".
 1. Make changes
-2. `mix precommit` — compile (warnings as errors) + `deps.unlock --check-unused` + `quality.ci` (format-check, credo --strict, dialyzer) + JS tests. **Does NOT run `mix test`** — see "CI/CD" below.
+2. `mix precommit` — compile (warnings as errors) + `deps.unlock --check-unused` + `test.compile` (compiles every `test/**/*_test.exs` in a `MIX_ENV=test` subprocess without `test_helper.exs` — no DB, zero tests run; catches a test file that does not compile, e.g. a duplicate `describe`) + `quality.ci` (format-check, credo --strict, dialyzer) + JS tests. **Does NOT run `mix test`** — see "CI/CD" below.
 3. Fix problems
 4. `git diff` / `git status` → commit
 
@@ -67,7 +67,8 @@ Var name = dep app upper-cased + `_PATH`; unset = published Hex pin (`mix hex.pu
   ```
 - **CHANGELOG entries:** write against the bumped `@version` heading; match existing style (Added / Changed / Fixed / i18n, bullets from PR scopes + post-merge review fixes).
 - **PR reviews:** `dev_docs/pull_requests/{year}/{pr_number}-{slug}/{AGENT}_REVIEW.md` (`CLAUDE_REVIEW.md` for Claude). Severities: `BUG - CRITICAL/HIGH/MEDIUM`, `IMPROVEMENT - HIGH/MEDIUM`, `NITPICK`.
-- **Publish:** `mix prerelease` first — it is the gate, running `deps.get --check-locked`, `deps.unlock --check-unused`, a prod `compile --warnings-as-errors`, `quality.ci`, `deps.audit`, `hex.audit`, `docs`, `hex.build` and `phoenix_kit.release_check`. Then `mix hex.publish`.
+- **Publish:** `mix prerelease` first — it is the gate, running `deps.get --check-locked`, `deps.unlock --check-unused`, a prod `compile --warnings-as-errors`, `quality.ci`, `deps.audit`, `hex.audit`, `docs`, `hex.build`, `phoenix_kit.release_check` and `package.clean`. Then `mix hex.publish`.
+- **Package tarballs:** `hex.build`/`hex.publish` drop `phoenix_kit-<version>.tar` in the project root and never clean up — left alone they pile up one-per-release (199 MB by Sep 2026). `prerelease` now ends with `package.clean`; after a bare `mix hex.publish`, or if a gate step failed before the cleanup ran, sweep them with `mix package.clean`. They are gitignored, never commit one.
 
 ## Database
 
