@@ -1,0 +1,138 @@
+defmodule PhoenixKit.Utils.NumberParseDecimalTest do
+  use ExUnit.Case, async: true
+
+  alias PhoenixKit.Utils.Number
+
+  defp ok(raw, opts \\ []) do
+    assert {:ok, %Decimal{} = d} = Number.parse_decimal(raw, opts)
+    Decimal.to_string(d, :normal)
+  end
+
+  describe "parse_decimal/2 — separators" do
+    test "a dot or a comma is the decimal point" do
+      assert ok("2.5") == "2.5"
+      assert ok("2,5") == "2.5"
+      assert ok("0,0005") == "0.0005"
+      assert ok(",5") == "0.5"
+      assert ok("7") == "7"
+    end
+
+    test "surrounding and grouping whitespace is ignored, no-break spaces included" do
+      assert ok("  12,5 ") == "12.5"
+      assert ok("1 234,56") == "1234.56"
+      assert ok("1 234 567.8") == "1234567.8"
+    end
+
+    test "with both kinds present the last one is the decimal point, the other groups" do
+      assert ok("1.234,56") == "1234.56"
+      assert ok("1,234.56") == "1234.56"
+    end
+
+    test "one kind repeated is thousands grouping" do
+      assert ok("1,234,567") == "1234567"
+      assert ok("1.234.567") == "1234567"
+      assert ok("12.345.678,9") == "12345678.9"
+    end
+
+    test "separators that are not grouping are typos, not numbers" do
+      for raw <- ["1.2.3,4", "2..5", "1,23,4", ",,5", "1.234.56"] do
+        assert Number.parse_decimal(raw) == {:error, :invalid}, raw
+      end
+    end
+
+    test "a sign is accepted" do
+      assert ok("-2,5") == "-2.5"
+      assert ok("+3") == "3"
+    end
+
+    test "the value is normalized — no trailing zeros, no exponent" do
+      assert ok("2.500") == "2.5"
+      assert ok("1000") == "1000"
+      assert ok("0.0") == "0"
+    end
+  end
+
+  describe "parse_decimal/2 — rejections" do
+    test "blank is :empty" do
+      assert Number.parse_decimal("") == {:error, :empty}
+      assert Number.parse_decimal("   ") == {:error, :empty}
+      assert Number.parse_decimal(nil) == {:error, :empty}
+    end
+
+    test "garbage, exponent forms and non-finite words are :invalid" do
+      for raw <- [
+            "abc",
+            "1e9",
+            "1E-3",
+            "NaN",
+            "Infinity",
+            "-",
+            "+",
+            ".",
+            ",",
+            "2..5",
+            "12abc",
+            "0x1F"
+          ] do
+        assert Number.parse_decimal(raw) == {:error, :invalid}, raw
+      end
+    end
+
+    test "a non-binary that is not a number is :invalid" do
+      assert Number.parse_decimal(:atom) == {:error, :invalid}
+      assert Number.parse_decimal(%{}) == {:error, :invalid}
+    end
+  end
+
+  describe "parse_decimal/2 — already-numeric input" do
+    test "integers, floats and decimals pass through as Decimal" do
+      assert ok(3) == "3"
+      assert ok(2.5) == "2.5"
+      assert ok(Decimal.new("1.25")) == "1.25"
+    end
+
+    test "non-finite decimals are :invalid" do
+      assert Number.parse_decimal(Decimal.new("NaN")) == {:error, :invalid}
+      assert Number.parse_decimal(Decimal.new("Infinity")) == {:error, :invalid}
+    end
+  end
+
+  describe "parse_decimal/2 — bounds" do
+    test "min and max reject, they never clamp" do
+      assert Number.parse_decimal("-1", min: 0) == {:error, :below_min}
+      assert Number.parse_decimal("0", min: 0) == {:ok, Decimal.new("0")}
+      assert Number.parse_decimal("101", max: 100) == {:error, :above_max}
+      assert ok("99.5", min: 0, max: 100) == "99.5"
+    end
+
+    test "bounds accept any numeric shape" do
+      assert Number.parse_decimal("0,5", min: Decimal.new("1")) == {:error, :below_min}
+      assert Number.parse_decimal("0,5", min: 0.75) == {:error, :below_min}
+      assert Number.parse_decimal("0,5", max: "0.25") == {:error, :above_max}
+    end
+
+    test "the magnitude ceiling is enforced even without max" do
+      assert Number.parse_decimal("9999999999999999") == {:error, :above_max}
+      assert ok("999999999999") == "999999999999"
+    end
+  end
+
+  describe "parse_decimal!/2" do
+    test "returns the Decimal or raises ArgumentError" do
+      assert Decimal.equal?(Number.parse_decimal!("2,5"), Decimal.new("2.5"))
+      assert_raise ArgumentError, ~r/invalid/, fn -> Number.parse_decimal!("abc") end
+      assert_raise ArgumentError, ~r/empty/, fn -> Number.parse_decimal!("") end
+    end
+  end
+
+  describe "format_decimal/1" do
+    test "renders a value the way the decimal input shows it" do
+      assert Number.format_decimal(Decimal.new("2.500")) == "2.5"
+      assert Number.format_decimal(Decimal.new("1E+3")) == "1000"
+      assert Number.format_decimal(2) == "2"
+      assert Number.format_decimal(2.5) == "2.5"
+      assert Number.format_decimal(nil) == ""
+      assert Number.format_decimal("2,5") == "2,5"
+    end
+  end
+end
