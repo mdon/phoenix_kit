@@ -185,6 +185,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # instead of the default fixed-height card. Used by the full-page
       # admin media view; modal/gallery embeds keep the bounded default.
       |> assign_new(:fill_height, fn -> false end)
+      |> assign_new(:upload_in_flight, fn -> false end)
+      |> close_upload_on_start()
 
     cond do
       not Map.has_key?(socket.assigns, :uploaded_files) ->
@@ -235,6 +237,32 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
       true ->
         {:ok, socket}
+    end
+  end
+
+  # The upload drawer's job ends the moment files are accepted: transfers
+  # are auto_upload, and their progress renders as the same inline rows the
+  # drag-drop path uses — so a drawer left open past that point only spends
+  # vertical space over the grid the uploads are about to land in. The
+  # parent re-renders on every transfer tick and pushes fresh
+  # parent_uploads here; the render where in-flight entries FIRST appear
+  # closes the drawer. Transition-triggered, not state-triggered, so a
+  # user who deliberately reopens the drawer mid-upload (to add more
+  # files) is not fighting a panel that snaps shut on every tick.
+  defp close_upload_on_start(socket) do
+    active =
+      case socket.assigns[:parent_uploads] do
+        %{media_files: %{entries: [_ | _]}} -> true
+        _ -> false
+      end
+
+    started = active and not socket.assigns.upload_in_flight
+    socket = assign(socket, :upload_in_flight, active)
+
+    if started and socket.assigns[:show_upload] do
+      assign(socket, :show_upload, false)
+    else
+      socket
     end
   end
 
