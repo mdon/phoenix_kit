@@ -340,13 +340,22 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
   #
   # `do_trash_folder/1` stamps ONE `trashed_at` across the whole subtree it
   # trashes — but a descendant folder or file can have been trashed
-  # individually BEFORE that (e.g. a file trashed on its own, then the
-  # folder around it trashed later). Restoring unconditionally would also
-  # un-trash that earlier, unrelated trashing. Only rows whose `trashed_at`
-  # equals THIS folder's own `trashed_at` were trashed by the same
-  # `do_trash_folder/1` call that trashed this folder — those are the ones
-  # this restore un-does; anything trashed at a different time stays
+  # individually AFTER that (e.g. the folder trashed as a subtree, then one
+  # file inside it trashed again on its own, later). Restoring unconditionally
+  # would also un-trash that later, unrelated trashing. Only rows whose
+  # `trashed_at` equals THIS folder's own `trashed_at` were trashed by the
+  # same `do_trash_folder/1` call that trashed this folder — those are the
+  # ones this restore un-does; anything trashed at a different time stays
   # trashed (H1).
+  #
+  # The reverse case — a row trashed BEFORE the folder — can't be told apart
+  # here: `do_trash_folder/1`'s subtree `update_all` has no
+  # `is_nil(trashed_at)` guard, so it overwrites any earlier `trashed_at`
+  # with the folder's own before this code ever runs. Those rows are
+  # restored along with the folder, which is `Storage`'s own trash/restore
+  # semantics, not something the reorganizer introduces — out of scope here,
+  # tracked against the `Storage.restore_folder/2` follow-up. `trashed_at`
+  # granularity is seconds throughout.
   defp restore_subtree_if_needed(%Folder{trashed_at: nil}), do: :ok
 
   defp restore_subtree_if_needed(%Folder{uuid: uuid, trashed_at: trashed_at}) do

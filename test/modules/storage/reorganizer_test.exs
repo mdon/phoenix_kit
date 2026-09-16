@@ -409,10 +409,15 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
 
   # ---------------------------------------------------------------------
   # H1 — restoring a moved-from-trash folder must not un-trash a file that
-  # was trashed on its own BEFORE the folder was trashed as a whole subtree.
+  # was trashed on its own AFTER the folder was already trashed as a whole
+  # subtree. (The opposite case — a file trashed BEFORE the folder — can't
+  # be modeled here: `Storage.do_trash_folder/1` stamps its subtree
+  # `update_all` over every row without an `is_nil(trashed_at)` guard, so an
+  # earlier trash gets overwritten with the folder's own `trashed_at` before
+  # this code ever runs. See the comment on `restore_subtree_if_needed/1`.)
   # ---------------------------------------------------------------------
 
-  test "restoring a moved folder's subtree leaves a file trashed before the folder still trashed" do
+  test "restoring a moved folder's subtree leaves a file trashed after the folder still trashed" do
     target = create_folder!(%{name: "Target"})
     folder = create_folder!(%{name: "x-legacy"})
     child = create_folder!(%{name: "child", parent_uuid: folder.uuid})
@@ -422,17 +427,17 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
     {:ok, _} = Storage.trash_folder(folder)
     trashed_folder = Storage.get_folder(folder.uuid)
 
-    # `do_trash_folder/1` stamps ONE `trashed_at` across the whole subtree it
-    # trashes, so a file trashed on its own BEFORE the folder around it — its
-    # own earlier `trashed_at` — is exactly what a bulk `trash_folder/1` call
-    # would otherwise stamp over. Setting it back here, after the bulk
-    # trash, is how the test pins down that earlier, distinct timestamp
-    # (what the folder's own subtree-restore must never touch).
-    earlier = DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+    # file_a is trashed separately, after the folder was trashed as a whole
+    # subtree — the only reachable way for a row's `trashed_at` to differ
+    # from the folder's own. `trashed_at` granularity is seconds, so bump it
+    # forward by a second to guarantee it lands strictly later even when
+    # both trashes land in the same wall-clock second.
+    {:ok, trashed_file_a} = Storage.trash_file(Storage.get_file(file_a.uuid))
+    later = DateTime.add(trashed_file_a.trashed_at, 1, :second)
 
     {:ok, _} =
-      file_a
-      |> Ecto.Changeset.change(%{trashed_at: earlier})
+      trashed_file_a
+      |> Ecto.Changeset.change(%{trashed_at: later})
       |> Repo.update()
 
     plan = [
@@ -454,11 +459,11 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
     assert reloaded_file_b.status == "active"
     assert reloaded_file_b.trashed_at == nil
 
-    # file_a was trashed on its own, before the folder — the move restores
-    # the folder's own trashing, never file_a's separate, earlier one.
+    # file_a was trashed on its own, after the folder — the move restores
+    # the folder's own trashing, never file_a's separate, later one.
     reloaded_file_a = Repo.get!(StorageFile, file_a.uuid)
     assert reloaded_file_a.status == "trashed"
-    assert reloaded_file_a.trashed_at == earlier
+    assert reloaded_file_a.trashed_at == later
   end
 
   test "a rolled-back move leaves the whole trashed subtree exactly as it was" do
