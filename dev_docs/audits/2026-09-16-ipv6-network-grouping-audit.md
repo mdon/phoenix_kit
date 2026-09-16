@@ -129,6 +129,44 @@ Match is `(network, user_agent_hash)` via `IpAddress.network/1`. The stored
 `ip_address` remains the full address. IPv4 still creates one row per
 address. Docs now say that.
 
+### 6. Website-access allowlist matches the exact address — remaining
+
+**Severity:** suggestion · **Added by:** Claude (second-pass check of this
+audit) · **File:** `lib/phoenix_kit/website_access/allowed_addresses.ex:22`
+(`address in list()`), `lib/phoenix_kit_web/users/auth.ex:2187`
+(`remembered_address/2`, `client_address_from_socket(socket) in [nil,
+address]`)
+
+An allowlist entry is a literal string, and the LiveView reconnect check
+compares the socket's address to the remembered one exactly. An office on
+IPv6 whose machines use temporary addresses falls off its own allowlist
+when the OS rotates them (daily by default), and an open tab loses its pass
+on the next reconnect after a rotation.
+
+Not a regression from `04084d93` — the list never grouped — but it is the
+same failure mode that commit fixed for rate limits. Unlike findings 1 and
+3 it needs no migration: accept CIDR entries (`2001:db8:1:1::/64`,
+`203.0.113.0/24`) in the list, and compare the reconnect by
+`IpAddress.network/1` only when the remembered address was allowed via a
+network entry (an exact entry must stay exact, or a `/64` neighbour inherits
+a single-host pass).
+
+### 7. `/64` is the floor, not the allocation — doc gap
+
+**Severity:** nit · **Added by:** Claude · **File:**
+`lib/phoenix_kit/utils/ip_address.ex` (`network/1` moduledoc)
+
+The doc says a `/64` is "the block one household, phone or server is
+handed". Mobile carriers do hand out a `/64`, but home ISPs commonly
+delegate a `/56` and hosting providers a `/48`. Such a client still has 256
+to 65,536 separate buckets under every per-IP limit. Grouping wider would
+put unrelated mobile subscribers in one bucket, so `/64` is the right
+trade-off — the doc should say it is a trade-off, so nobody reads the
+rate limits as closing IPv6 rotation completely. Only the three mail
+endpoints (magic link, password reset, confirmation resend) have a site-wide
+cap (`charge_global/3`) behind the per-IP one; login, registration, QR login
+and referral validation have nothing wider than the `/64`.
+
 ## What was verified
 
 Unit: `test/phoenix_kit/utils/ip_address_network_test.exs`,
@@ -143,11 +181,15 @@ Integration (PostgreSQL): `test/integration/users/login_alerts_test.exs`,
 
 ## Open follow-ups
 
-Both need a versioned, prefix-safe migration. Do not fold them into a
-drive-by:
+The first two need a versioned, prefix-safe migration. Do not fold them
+into a drive-by:
 
 1. `phoenix_kit_user_known_devices.network` + unique
    `(user_uuid, network, user_agent_hash)`, keep `ip_address` for
    display/geo/audit, backfill, fold duplicate `/64` rows.
 2. `phoenix_kit_access_attempts.network` (or equivalent), lock and count on
    it, keep storing the full client address on the attempt row.
+3. Website-access allowlist: CIDR entries, and a network-aware reconnect
+   check for addresses allowed through one (finding 6). No migration.
+4. `network/1` moduledoc: say `/64` is a trade-off against `/56`–`/48`
+   delegations, and which limits have a global backstop (finding 7).
