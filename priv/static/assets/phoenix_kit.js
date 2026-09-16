@@ -4915,7 +4915,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.11.0/priv/static/fresco.js";
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.12.0/priv/static/fresco.js";
     var frescoLoading = false;
     var frescoCallbacks = [];
 
@@ -5009,7 +5009,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.3.5/priv/static/tessera.js";
+    var TESSERA_CDN = "https://cdn.jsdelivr.net/gh/alexdont/tessera@v0.3.6/priv/static/tessera.js";
     var tesseraLoading = false;
     var tesseraCallbacks = [];
 
@@ -5073,7 +5073,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.13.2/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.14.0/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 
