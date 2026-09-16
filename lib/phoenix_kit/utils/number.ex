@@ -133,8 +133,10 @@ defmodule PhoenixKit.Utils.Number do
       further inspection;
     * integers, floats and decimals pass straight through as a `Decimal`.
 
-  The result is normalized (`"2.500"` → `2.5`, never an exponent form, and
-  a zero is always unsigned — `"-0"` → `0`).
+  The result has no trailing fraction zeros (`"2.500"` → `2.5`) and no
+  exponent (`"10"` stays `10`, never `1E+1`), so it compares with `==`
+  against `Decimal.new/1` of the same text and prints plainly everywhere;
+  a zero is always unsigned — `"-0"` → `0`.
 
   ## Options
 
@@ -173,7 +175,7 @@ defmodule PhoenixKit.Utils.Number do
     with {:ok, normalized} <- normalize_decimal_text(raw),
          true <- Regex.match?(~r/^[+-]?(\d+(\.\d*)?|\.\d+)$/, normalized) || :invalid,
          {decimal, ""} <- Decimal.parse(normalized) do
-      bound(Decimal.normalize(decimal), opts)
+      bound(plain_normalize(decimal), opts)
     else
       {:error, reason} -> {:error, reason}
       _ -> {:error, :invalid}
@@ -183,7 +185,7 @@ defmodule PhoenixKit.Utils.Number do
   def parse_decimal(%Decimal{} = decimal, opts) do
     if Decimal.nan?(decimal) or Decimal.inf?(decimal),
       do: {:error, :invalid},
-      else: bound(Decimal.normalize(decimal), opts)
+      else: bound(plain_normalize(decimal), opts)
   end
 
   def parse_decimal(n, opts) when is_integer(n), do: bound(Decimal.new(n), opts)
@@ -222,7 +224,7 @@ defmodule PhoenixKit.Utils.Number do
   @spec format_decimal(term()) :: String.t()
   def format_decimal(nil), do: ""
   def format_decimal(text) when is_binary(text), do: text
-  def format_decimal(%Decimal{} = d), do: Decimal.to_string(Decimal.normalize(d), :normal)
+  def format_decimal(%Decimal{} = d), do: Decimal.to_string(plain_normalize(d), :normal)
   def format_decimal(n) when is_integer(n), do: Integer.to_string(n)
   def format_decimal(n) when is_float(n), do: format_decimal(Decimal.from_float(n))
   def format_decimal(other), do: to_string(other)
@@ -234,6 +236,22 @@ defmodule PhoenixKit.Utils.Number do
   # with a single dot as the decimal point, or `{:error, :invalid}` when a
   # separator or space taken as grouping does not sit between 3-digit
   # groups ("2..5", "1,23,4", "12 34") — that is a typo, not a number.
+  # `Decimal.normalize/1` strips trailing zeros from BOTH sides — "2.500"
+  # becomes 2.5, but "10" becomes 1E+1: a different struct from
+  # `Decimal.new("10")` (equal under `Decimal.equal?/2`, not under `==`),
+  # and `to_string/1`, Jason and Postgres text casts all print the
+  # exponent form. Trailing fraction zeros go; integer digits stay put.
+  # NaN/Infinity carry `exp: 0`, so the guard never fires for them.
+  defp plain_normalize(%Decimal{} = d) do
+    case Decimal.normalize(d) do
+      %Decimal{exp: exp, coef: coef} = n when exp > 0 ->
+        %Decimal{n | coef: coef * Integer.pow(10, exp), exp: 0}
+
+      n ->
+        n
+    end
+  end
+
   defp normalize_decimal_text(raw) do
     text =
       raw
