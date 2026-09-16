@@ -165,6 +165,15 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # over the 49 shipped files; the real-database integration suite re-ran
   # clean against a DB migrated through V183.
   #
+  # V194 (2026-09-17, settings history) declares NO object here, and cannot:
+  # it is a pure data migration — an UPDATE on `phoenix_kit_activities` that
+  # withholds the values of `setting.changed` entries recorded for integration
+  # connection rows (`from`/`to` null, `restricted: true`), plus the
+  # version-marker COMMENT. No table, column, index or constraint is added,
+  # dropped or reshaped — the V182/V184/V189 class — so `chain_hash` is
+  # restamped over the shipped file set. The real statements run against
+  # seeded entries in test/phoenix_kit/migrations/v194_test.exs.
+  #
   # V193 (2026-09-17, AI spend-cap indexes) DECLARES two objects here by
   # hand, both new indexes and the V175 class:
   # `index:phoenix_kit_ai_requests_endpoint_spend_idx` and
@@ -360,7 +369,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "08f039bed092b5ddadf2a4353949e38818291b4b9393f0b63ed0c9a3c63fcb09"
+  @chain_hash "f0e922e10de7b218b621c65f0ac5a375788cefa16c8b68df888fa9c6731e0707"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)

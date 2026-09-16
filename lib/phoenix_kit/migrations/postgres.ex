@@ -7,7 +7,16 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V193 - Indexes for the AI spend caps ⚡ LATEST
+  ### V194 - Settings history: integration bodies withheld ⚡ LATEST
+
+  The settings history recorded integration connection rows (keyed by their
+  own uuid, tokens in the body) in full, because it withheld values by key
+  name alone. The writer now withholds them; this version withholds what was
+  already written — `from`/`to` null and `restricted: true` on those
+  `setting.changed` entries, the rest of each entry kept. Data only;
+  `down/1` moves the marker back and restores nothing, by design.
+
+  ### V193 - Indexes for the AI spend caps
 
   Two composite partial indexes on `phoenix_kit_ai_requests` —
   `(endpoint_uuid, inserted_at)` and `(user_uuid, inserted_at)`, each
@@ -775,7 +784,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 193
+  @current_version 194
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
