@@ -73,6 +73,7 @@ defmodule PhoenixKit.Settings do
   alias PhoenixKit.Config.AWS
   alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Settings.Events
   alias PhoenixKit.Settings.History
   alias PhoenixKit.Settings.Queries
   alias PhoenixKit.Settings.Setting
@@ -1096,12 +1097,41 @@ defmodule PhoenixKit.Settings do
     result = Queries.delete_setting_by_key(key)
 
     case result do
-      {:ok, _} -> PhoenixKit.Cache.invalidate(@cache_name, key)
-      _ -> :ok
+      {:ok, _} ->
+        PhoenixKit.Cache.invalidate_now(@cache_name, [key])
+        Queries.announce(fn -> Events.broadcast_setting_deleted(key) end)
+
+      _ ->
+        :ok
     end
 
     result
   end
+
+  @doc """
+  Subscribes the calling process to settings changes.
+
+  After a committed write that changed a value, the process receives
+  `{:setting_changed, key, value}` — `value` is the committed value, or
+  `:redacted` for a key that holds credential material — and after a delete,
+  `{:setting_deleted, key}`. The local cache has already dropped the old
+  value when the message arrives. Details and limits:
+  `PhoenixKit.Settings.Events`.
+
+      def mount(_params, _session, socket) do
+        if connected?(socket), do: PhoenixKit.Settings.subscribe()
+        {:ok, assign(socket, :theme, PhoenixKit.Settings.get_setting("theme"))}
+      end
+
+      def handle_info({:setting_changed, "theme", value}, socket) do
+        {:noreply, assign(socket, :theme, value)}
+      end
+
+      def handle_info({:setting_changed, _key, _value}, socket), do: {:noreply, socket}
+      def handle_info({:setting_deleted, _key}, socket), do: {:noreply, socket}
+  """
+  @spec subscribe() :: :ok | {:error, term()}
+  def subscribe, do: Events.subscribe_to_settings()
 
   @doc """
   Gets OAuth credentials for a specific provider.
@@ -1837,11 +1867,15 @@ defmodule PhoenixKit.Settings do
 
     case result do
       {:ok, changes} ->
-        # Invalidate cache for all updated keys in a single call
-        PhoenixKit.Cache.invalidate_multiple(@cache_name, keys)
-
-        # Committed: now the feed may hear of each change.
-        for {{:history, _key}, recorded} <- changes, do: History.publish(recorded)
+        # Committed: drop the cached values, then announce each real change.
+        # Keys whose value did not change are still dropped (cheap) but
+        # announced to nobody.
+        changes
+        |> Enum.flat_map(fn
+          {{:history, key}, recorded} -> [{batch_written(changes, key), recorded}]
+          _ -> []
+        end)
+        |> Queries.announce_committed()
 
         # The result is the settings written, as before; the history's own
         # steps are bookkeeping.
@@ -1853,6 +1887,10 @@ defmodule PhoenixKit.Settings do
       {:error, _failed_operation, _failed_value, _changes} ->
         result
     end
+  end
+
+  defp batch_written(changes, key) do
+    Map.get(changes, {:update, key}) || Map.fetch!(changes, {:insert, key})
   end
 
   # Helper function to add operations to Multi

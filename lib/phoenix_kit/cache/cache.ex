@@ -229,6 +229,33 @@ defmodule PhoenixKit.Cache do
   end
 
   @doc """
+  Invalidates `keys` and returns only once they are gone.
+
+  `invalidate/2` and `invalidate_multiple/2` are casts: the caller moves on
+  while the cache process still holds the old values. That is fine for a
+  write nobody is watching, and wrong for one that is about to be announced —
+  a subscriber that reacts to "this setting changed" by reading it again
+  would get the value from before the change. Use this when a notification
+  follows.
+
+  Never turns a successful write into a failure: a slow, dead or missing
+  cache process is logged and reported as `:ok`, and the entry expires on its
+  TTL like any other.
+  """
+  @spec invalidate_now(cache_name(), [cache_key()]) :: :ok
+  def invalidate_now(cache_name, keys) when is_list(keys) do
+    GenServer.call(via_tuple(cache_name), {:invalidate_multiple, keys})
+  rescue
+    error in [ArgumentError, RuntimeError] ->
+      Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
+      :ok
+  catch
+    :exit, reason ->
+      Logger.warning("Cache #{cache_name} could not be invalidated: #{inspect(reason)}")
+      :ok
+  end
+
+  @doc """
   Invalidates multiple keys in the cache.
 
   ## Examples
@@ -473,6 +500,13 @@ defmodule PhoenixKit.Cache do
 
     new_stats = %{stats | hits: stats.hits + hits, misses: stats.misses + misses}
     {:reply, result, %{state | stats: new_stats}}
+  end
+
+  @impl GenServer
+  def handle_call({:invalidate_multiple, keys}, _from, %{table: table, stats: stats} = state) do
+    Enum.each(keys, &:ets.delete(table, &1))
+    new_stats = %{stats | invalidations: stats.invalidations + length(keys)}
+    {:reply, :ok, %{state | stats: new_stats}}
   end
 
   @impl GenServer
