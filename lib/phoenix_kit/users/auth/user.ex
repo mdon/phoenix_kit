@@ -53,6 +53,7 @@ defmodule PhoenixKit.Users.Auth.User do
           account_type: String.t(),
           organization_name: String.t() | nil,
           organization_uuid: UUIDv7.t() | nil,
+          created_by_uuid: UUIDv7.t() | nil,
           inserted_at: DateTime.t(),
           updated_at: DateTime.t()
         }
@@ -102,6 +103,15 @@ defmodule PhoenixKit.Users.Auth.User do
     has_many :members, __MODULE__,
       foreign_key: :organization_uuid,
       references: :uuid
+
+    # The admin who added this user from the admin panel; `nil` for a user who
+    # signed themselves up. Written only by `Auth.admin_create_user/2` — never
+    # add it to a `cast/3` list, or a public form could claim to have been
+    # added by anyone.
+    belongs_to :created_by, __MODULE__,
+      foreign_key: :created_by_uuid,
+      references: :uuid,
+      type: UUIDv7
 
     timestamps(type: :utc_datetime)
   end

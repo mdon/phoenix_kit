@@ -7,7 +7,14 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V190 - Active role per session + role order ⚡ LATEST
+  ### V191 - Who added a user ⚡ LATEST
+
+  Adds `phoenix_kit_users.created_by_uuid` (self-referencing foreign key,
+  `ON DELETE SET NULL`, indexed) — the admin who created the user from the
+  admin panel, `NULL` for a self-registered user. Backfilled from the
+  `user.created` Activity entries the admin form has always logged.
+
+  ### V190 - Active role per session + role order
 
   Adds `phoenix_kit_users_tokens.active_role_uuid` (the role a session acts
   as, `NULL` = the default) and `phoenix_kit_user_roles.position` (the
@@ -754,7 +761,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 190
+  @current_version 191
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

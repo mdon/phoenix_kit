@@ -464,9 +464,36 @@ defmodule PhoenixKit.Users.Auth do
     end
   end
 
-  defp do_register_user(attrs) do
+  @doc """
+  Creates a user on behalf of an admin, recording who added them.
+
+  The admin-panel counterpart of `register_user/2`: the same changeset, the
+  same role assignment and `user_created` broadcast, plus
+  `created_by_uuid = actor.uuid`. `created_by_uuid` is put on the changeset
+  here rather than cast, so no params map can set it.
+
+  Not rate limited: the registration limits exist to stop anonymous sign-up
+  spam, and this path is reachable only by an authenticated actor already
+  admitted to the users admin. Counting it against the admin's IP would lock
+  the admin out after ten additions an hour — and lock their office network
+  out of public sign-up with it.
+
+  ## Examples
+
+      iex> admin_create_user(%{"email" => "new@example.com", "password" => "..."}, admin)
+      {:ok, %User{created_by_uuid: ^admin_uuid}}
+
+      iex> admin_create_user(%{"email" => "invalid"}, admin)
+      {:error, %Ecto.Changeset{}}
+  """
+  def admin_create_user(attrs, %User{uuid: actor_uuid}) when is_map(attrs) do
+    do_register_user(attrs, created_by_uuid: actor_uuid)
+  end
+
+  defp do_register_user(attrs, opts \\ []) do
     case %User{}
          |> User.registration_changeset(attrs)
+         |> Ecto.Changeset.put_change(:created_by_uuid, Keyword.get(opts, :created_by_uuid))
          |> Repo.insert() do
       {:ok, user} ->
         # Safely assign Owner role to first user, User role to others
@@ -2720,7 +2747,8 @@ defmodule PhoenixKit.Users.Auth do
   end
 
   @doc """
-  Gets a user by UUID with preloaded roles.
+  Gets a user by UUID with preloaded roles, organization, and the admin who
+  created them (`created_by`, `nil` for a self-registered user).
 
   ## Examples
 
@@ -2731,7 +2759,10 @@ defmodule PhoenixKit.Users.Auth do
       nil
   """
   def get_user_with_roles(uuid) when is_binary(uuid) do
-    from(u in User, where: u.uuid == ^uuid, preload: [:roles, :role_assignments, :organization])
+    from(u in User,
+      where: u.uuid == ^uuid,
+      preload: [:roles, :role_assignments, :organization, :created_by]
+    )
     |> Repo.one()
   end
 

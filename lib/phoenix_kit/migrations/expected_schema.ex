@@ -157,6 +157,22 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # over the 49 shipped files; the real-database integration suite re-ran
   # clean against a DB migrated through V183.
   #
+  # V191 (2026-09-16, who added a user) DECLARES three objects here by hand,
+  # the V92 `organization_uuid` shape repeated on a second self-reference:
+  # `column:phoenix_kit_users.created_by_uuid` (uuid, nullable — NULL for a
+  # self-registered user), `index:phoenix_kit_users_created_by_uuid_index`
+  # (btree, so ON DELETE SET NULL does not scan the table per user deletion)
+  # and `constraint:…phoenix_kit_users_created_by_uuid_fkey` (ON DELETE SET
+  # NULL). The migration's backfill UPDATE (from `user.created` activity
+  # entries) is row DATA, not a manifest object. Shapes transcribed from a
+  # real database migrated through V191 (`information_schema.columns`,
+  # `pg_get_indexdef`, `pg_get_constraintdef`); `pos` follows this manifest's
+  # own numbering for the table (organization_uuid = 21), which the drift
+  # check does not compare. `chain_hash` restamped over the shipped file set;
+  # the hand-declared shapes were checked by
+  # `test/integration/hand_declared_manifest_test.exs` and the rest of the
+  # real-database migration suite against a DB migrated through V191.
+  #
   # V190 (2026-09-13, active role per session) DECLARES two objects here by
   # hand, both new columns and the V166 class: `column:phoenix_kit_users_tokens.
   # active_role_uuid` (uuid, nullable — the role a session acts as, NULL =
@@ -324,7 +340,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "54fb223a017caff715be31e511a18356807a052419745cd359f18543333d5cd5"
+  @chain_hash "6f35b984582e7fc0669e57fe727e6cf233f5a001ab25d2c1de3dbf3cb44c4cda"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -70998,6 +71014,82 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         revisions: [{190, %{default: "0", type: "integer", pos: 8, not_null: true}}],
         presence: :required,
         backfill: :default
+      },
+      # ── V191: who added a user ──
+      %{
+        id: "column:phoenix_kit_users.created_by_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_users", column: "created_by_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_users ADD COLUMN IF NOT EXISTS \"created_by_uuid\" uuid",
+        since: 191,
+        class: :column,
+        revisions: [{191, %{default: nil, type: "uuid", pos: 22, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_users_created_by_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_users_created_by_uuid_index",
+             table: "phoenix_kit_users",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_users_created_by_uuid_index ON __SCHEMA__.phoenix_kit_users USING btree (created_by_uuid)",
+        since: 191,
+        class: :index,
+        revisions: [
+          {191,
+           %{
+             table: "phoenix_kit_users",
+             keys: ["created_by_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_users_created_by_uuid_index ON __SCHEMA__.phoenix_kit_users USING btree (created_by_uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_users.phoenix_kit_users_created_by_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_users_created_by_uuid_fkey",
+             table: "phoenix_kit_users",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_users_created_by_uuid_fkey'\n      AND t.relname = 'phoenix_kit_users'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_users ADD CONSTRAINT phoenix_kit_users_created_by_uuid_fkey FOREIGN KEY (created_by_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL;\n  END IF;\nEND\n$$",
+        since: 191,
+        class: :constraint,
+        revisions: [
+          {191,
+           %{
+             type: "f",
+             columns: ["created_by_uuid"],
+             definition:
+               "FOREIGN KEY (created_by_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL",
+             name_template: nil,
+             foreign_table: "phoenix_kit_users",
+             foreign_columns: ["uuid"],
+             on_delete: "n",
+             on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
       }
     ]
   end

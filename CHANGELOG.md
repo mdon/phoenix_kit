@@ -1,3 +1,29 @@
+## Unreleased
+
+### Added
+
+- **Who added a user** — `phoenix_kit_users.created_by_uuid` (migration
+  **V191**: self-referencing foreign key, `ON DELETE SET NULL`, indexed),
+  shown as "Added By" on the admin user details page. Backfilled from the
+  `user.created` activity entries the admin form has always logged, as far
+  back as activity retention kept them. Set only by the new
+  `Auth.admin_create_user/2`; never cast from params, so a public sign-up
+  cannot claim an admin added it.
+
+### Fixed
+
+- **Admin "Create User" left the admin on a refilled form.** Anything that
+  raised after the insert (the confirmation mailer is the unguarded step)
+  crashed the LiveView; form recovery
+  refilled every field, and a second submit reported the email as taken. The
+  email send is now rescued (a failed send shows a warning flash instead of
+  claiming it was sent), and a successful create navigates to the new user's
+  page instead of the users list.
+- **Admin user creation no longer counts against the registration rate
+  limits.** The admin form went through the anonymous sign-up limiter, so an
+  admin adding more than ten users an hour was refused — and used up the
+  public sign-up budget of their own IP.
+
 ## 2.24.0 - 2026-09-16
 
 ### Added
