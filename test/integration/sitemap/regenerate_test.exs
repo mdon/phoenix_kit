@@ -58,6 +58,10 @@ defmodule PhoenixKit.Integration.Sitemap.RegenerateTest do
     # site that had never set site_url.
     {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", true)
     {:ok, _} = Settings.update_setting("site_url", "")
+    # Core's own endpoint stands in for the host's. Set explicitly rather than
+    # inherited: this test is about the fallback, not about what state the
+    # suite happens to leave `:parent_module` in.
+    with_parent_module(PhoenixKit)
 
     {:ok, _} =
       Settings.update_setting(
@@ -72,12 +76,14 @@ defmodule PhoenixKit.Integration.Sitemap.RegenerateTest do
     assert result.index_xml =~ endpoint_url
   end
 
-  # Point the parent-endpoint lookup at an application with no endpoint.
-  # `PhoenixKit.Config.get/1` reads the application env directly, so this is
-  # enough; async: false keeps it from leaking into other tests.
-  defp without_parent_endpoint do
+  # Point the parent-endpoint lookup at an application (with or without an
+  # endpoint). `PhoenixKit.Config.get/1` reads the application env directly,
+  # so this is enough; async: false keeps it from leaking into other tests.
+  defp without_parent_endpoint, do: with_parent_module(NoSuchHostApp)
+
+  defp with_parent_module(module) do
     previous = Application.get_env(:phoenix_kit, :parent_module)
-    Application.put_env(:phoenix_kit, :parent_module, NoSuchHostApp)
+    Application.put_env(:phoenix_kit, :parent_module, module)
 
     on_exit(fn ->
       case previous do
