@@ -256,6 +256,25 @@ defmodule PhoenixKit.ObanQueuesTest do
       end
     end
 
+    test "another app's block listing a queue does not count for this app", %{declared: declared} do
+      content = """
+      config :other_app, Oban,
+        queues: [
+          notifications: 5,
+          image_generation: 1
+        ]
+
+      #{@host}
+      """
+
+      updated = ObanConfig.ensure_declared_queues(content, "my_app", declared)
+      [_other, mine] = String.split(updated, "config :my_app, Oban,")
+
+      assert mine =~ ~r/notifications:\s*10/
+      assert mine =~ ~r/image_generation:\s*3/
+      assert {:ok, _} = Code.string_to_quoted(updated)
+    end
+
     test "another app's disabled queues do not stop this app's backfill", %{declared: declared} do
       content = """
       config :other_app, Oban,

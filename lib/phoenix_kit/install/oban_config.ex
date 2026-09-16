@@ -371,12 +371,9 @@ if Code.ensure_loaded?(Igniter) do
     # `queues: false`, `queues: []` — Oban's two spellings of "this node runs
     # no queues". Scoped to this app's Oban block, like `insert_queue/4`.
     def queues_disabled?(content, app_name) do
-      case Regex.run(
-             ~r/^config\s+:#{app_name},\s+Oban\b((?:(?!\n(?:config\s|import_config\s)).)*)/ms,
-             strip_comment_lines(content)
-           ) do
-        [_, block] -> Regex.match?(~r/^\s*queues:\s*(?:false\b|\[\s*\])/m, block)
+      case app_oban_block(content, app_name) do
         nil -> false
+        block -> Regex.match?(~r/^\s*queues:\s*(?:false\b|\[\s*\])/m, block)
       end
     end
 
@@ -436,7 +433,7 @@ if Code.ensure_loaded?(Igniter) do
     """
     @spec ensure_queue(String.t(), atom() | String.t(), String.t(), pos_integer()) :: String.t()
     def ensure_queue(content, app_name, queue, limit) do
-      if queue_configured?(content, queue) do
+      if queue_configured?(content, app_name, queue) do
         Mix.shell().info("  ℹ️  #{queue} queue already configured")
         content
       else
@@ -463,11 +460,29 @@ if Code.ensure_loaded?(Igniter) do
     # host's own `push_notifications: 5` — the siblings' unanchored patterns
     # read any key *ending* in the queue's name as the queue itself and skipped
     # the insert, which is the missing-queue failure all over again.
-    defp queue_configured?(content, queue) do
+    #
+    # Scoped to THIS app's Oban block: in a config holding several apps' Oban
+    # blocks (an umbrella, a host that also runs a second instance), another
+    # block listing the same queue used to make the updater skip it here — the
+    # missing-queue failure again, for a queue that is plainly absent from this
+    # app.
+    defp queue_configured?(content, app_name, queue) do
       Regex.match?(
         ~r/^\s*#{Regex.escape(queue)}:\s*(?:\d+|\[)/m,
-        strip_comment_lines(content)
+        app_oban_block(content, app_name) || strip_comment_lines(content)
       )
+    end
+
+    # The body of `config :app_name, Oban, ...` up to the next top-level
+    # `config`/`import_config`, comment lines removed; nil when there is none.
+    defp app_oban_block(content, app_name) do
+      case Regex.run(
+             ~r/^config\s+:#{app_name},\s+Oban\b((?:(?!\n(?:config\s|import_config\s)).)*)/ms,
+             strip_comment_lines(content)
+           ) do
+        [_, block] -> block
+        nil -> nil
+      end
     end
 
     # Two ways string surgery on a queues list goes wrong, both already paid for
