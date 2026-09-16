@@ -166,6 +166,19 @@ url = Routes.url("/users/confirm/#{token}")
 <.pk_link_button navigate="/admin/users" variant="primary">Manage Users</.pk_link_button>
 ```
 
+#### The language lives in the URL — never in the session
+
+Every localized page is served at a URL that carries its language
+(`/et/products`; the default language may be prefixless). The navigation hook
+sets Gettext from the URL on every navigation, and the language switcher
+rewrites the locale segment. **Session-locale routing is unsupported by
+design** — don't add a session fallback, a "session locale mode", or a switcher
+option that can emit the same URL for every language. A saved preference may
+only pick where a bare landing request redirects. Rationale and a migration
+recipe: `guides/locale-routing.md`; the switcher's moduledoc states the same
+contract, and in dev it warns when a non-default language renders at a
+locale-less URL.
+
 #### The admin segment is renameable — keep writing `/admin`
 
 `config :phoenix_kit, admin_path: "/backoffice"` (compile-time, `config.exs` only) moves the whole admin area; `admin_panel_label` (ten translated presets, or a plain string as untranslated escape hatch) renames the *wording*. **`/admin` stays the canonical name in code** — never write the configured value anywhere:
