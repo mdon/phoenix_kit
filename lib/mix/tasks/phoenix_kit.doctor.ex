@@ -162,6 +162,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         run_check("Lock Conflicts", fn -> check_lock_conflicts() end),
         run_check("Orphaned Connections", fn -> check_orphaned_connections() end),
         run_check("Oban Configuration", fn -> check_oban_config(oban_config) end),
+        run_check("Declared Oban Queues", fn -> check_declared_queues(oban_config) end),
         run_check("Oban Cron Queues", fn -> check_cron_queues(oban_config) end),
         run_check("PhoenixKit Supervisor", fn -> check_supervisor_state() end),
         run_check("Child Start Order", fn -> check_child_order() end),
@@ -1855,6 +1856,57 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   # Reports the Oban config snapshotted in run/1 BEFORE cap_repo_pool_size/1
   # zeroed its queues/plugins — reading it live here would always show 0/0.
+  # Queues PhoenixKit and the installed modules declare (`oban_queues/0`)
+  # that this node's Oban config does not run. Jobs sent to such a queue wait
+  # forever without an error, which is why this is worth a line of its own.
+  defp check_declared_queues(oban_config) do
+    {declared, conflicts} = PhoenixKit.ObanQueues.resolve()
+    declared_queues_verdict(oban_config, PhoenixKit.ObanQueues.required(declared), conflicts)
+  end
+
+  @doc false
+  # Pure: the verdict for the declared-queues check.
+  def declared_queues_verdict(oban_config, declared, conflicts) do
+    conflict_text =
+      Enum.map_join(conflicts, " ", &(PhoenixKit.ObanQueues.describe_conflict(&1) <> "."))
+
+    cond do
+      not is_list(oban_config) ->
+        {:pass, "Oban not configured statically; declared queues not checked."}
+
+      # Oban then runs nothing, like `queues: false` — but nobody chose it,
+      # and the updater has no list to add to.
+      not Keyword.has_key?(oban_config, :queues) ->
+        {:warn,
+         "Your Oban config has no queues: list, so this node runs no queues and these " <>
+           "jobs never run: " <>
+           Enum.map_join(declared, ", ", &"#{&1.name}: #{&1.limit}") <>
+           ". Add a queues: list with them, or set `queues: false` on a node that " <>
+           "should run no jobs." <>
+           if(conflict_text == "", do: "", else: " " <> conflict_text)}
+
+      Keyword.get(oban_config, :queues) in [false, []] ->
+        {:pass,
+         "This node runs no queues (queues: false or []). Declared queues must run on your " <>
+           "worker nodes: " <> Enum.map_join(declared, ", ", &"#{&1.name}")}
+
+      (missing = PhoenixKit.ObanQueues.missing(oban_config, declared)) != [] ->
+        {:warn,
+         "Not configured, so their jobs never run: " <>
+           Enum.map_join(missing, ", ", fn spec ->
+             "#{spec.name}: #{spec.limit} (#{PhoenixKit.ObanQueues.owner_label(spec.owner)})"
+           end) <>
+           ". Run `mix phoenix_kit.update`, or add them to your Oban queues." <>
+           if(conflict_text == "", do: "", else: " " <> conflict_text)}
+
+      conflicts != [] ->
+        {:warn, conflict_text}
+
+      true ->
+        {:pass, "All #{length(declared)} declared queues are configured."}
+    end
+  end
+
   defp check_oban_config(nil), do: {:pass, "Oban not configured"}
 
   defp check_oban_config(config) when is_list(config) do
