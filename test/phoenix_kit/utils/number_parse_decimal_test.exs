@@ -62,6 +62,21 @@ defmodule PhoenixKit.Utils.NumberParseDecimalTest do
       assert ok("0.0") == "0"
     end
 
+    test "integers keep exponent 0 — structurally equal to Decimal.new of the same text" do
+      # Decimal.normalize/1 alone turns "10" into 1E+1, which `==` and
+      # to_string/1 (and Jason, and Postgres text casts) treat as a
+      # different value from Decimal.new("10").
+      assert Number.parse_decimal("10") == {:ok, Decimal.new("10")}
+      assert Number.parse_decimal("1 000 000") == {:ok, Decimal.new("1000000")}
+      assert Number.parse_decimal(Decimal.new("1E+3")) == {:ok, Decimal.new("1000")}
+      assert Number.parse_decimal(Decimal.new("-5E+2")) == {:ok, Decimal.new("-500")}
+      assert Number.parse_decimal("10.0") == {:ok, Decimal.new("10")}
+      assert Number.parse_decimal("2.50") == {:ok, Decimal.new("2.5")}
+      assert {:ok, %Decimal{} = d} = Number.parse_decimal("10")
+      assert Decimal.to_string(d) == "10"
+      assert Number.format_decimal(Decimal.new("1E+1")) == "10"
+    end
+
     test "a zero is never negative" do
       for raw <- ["-0", "-0,0", -0.0, Decimal.new("-0")] do
         assert {:ok, %Decimal{sign: 1, coef: 0}} = Number.parse_decimal(raw), inspect(raw)
