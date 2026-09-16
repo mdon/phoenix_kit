@@ -5646,7 +5646,19 @@ if (typeof window.Chart === "undefined") {
       var maxAttempts = 20;
 
       function tryInject() {
-        var uploadInput = self.el.closest(".flex-1").querySelector("[data-phx-upload-ref]");
+        // Walk outward to the NEAREST scope containing an upload input.
+        // This used to be a hard closest(".flex-1") hop, which silently
+        // broke when a second flex-1 wrapper landed between the drop area
+        // and the hidden upload form: closest() resolved to the inner
+        // wrapper, found no input, and every OS drop no-opped after the
+        // retry loop gave up. The walk also finds the drawer's own input
+        // when the drawer is open (the hidden form only renders while it
+        // is closed) — same upload, either input — and stays inside this
+        // browser's subtree before it ever reaches the page.
+        var uploadInput = null;
+        for (var scope = self.el; scope && !uploadInput; scope = scope.parentElement) {
+          uploadInput = scope.querySelector("[data-phx-upload-ref]");
+        }
         if (uploadInput && self._pendingFiles) {
           var dt = new DataTransfer();
           for (var i = 0; i < self._pendingFiles.length; i++) {
