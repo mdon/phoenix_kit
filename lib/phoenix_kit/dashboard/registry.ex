@@ -1101,7 +1101,11 @@ defmodule PhoenixKit.Dashboard.Registry do
         description: Map.get(tab_config, :description),
         gettext_backend: Map.get(tab_config, :gettext_backend),
         gettext_domain: Map.get(tab_config, :gettext_domain),
-        auto_grant_admin: Map.get(tab_config, :auto_grant_admin, true)
+        auto_grant_admin: Map.get(tab_config, :auto_grant_admin, true),
+        # Tabs sharing a permission re-register it once per tab and on every
+        # reload; that is expected, so it does not warn (see
+        # `Permissions.register_custom_key/2`).
+        from_admin_tab: true
       )
     end
 
