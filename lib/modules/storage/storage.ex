@@ -3424,10 +3424,7 @@ defmodule PhoenixKit.Modules.Storage do
                 _ = create_file_locations(instance.uuid, storage_info.bucket_ids, original_path)
 
                 # Queue background job for variant processing
-                _ =
-                  %{file_uuid: file.uuid, user_uuid: user_uuid, filename: orig_filename}
-                  |> ProcessFileJob.new()
-                  |> Oban.insert()
+                _ = queue_variant_generation(file, user_uuid, orig_filename)
 
                 {:ok, file}
 
@@ -3558,13 +3555,44 @@ defmodule PhoenixKit.Modules.Storage do
 
   # ===== HELPER FUNCTIONS =====
 
-  defp queue_variant_generation(file, user_uuid, original_filename) do
-    # Queue variant generation to ensure all variants exist for this file
-    Task.start(fn ->
-      %{file_uuid: file.uuid, user_uuid: user_uuid, filename: original_filename}
-      |> ProcessFileJob.new()
-      |> Oban.insert()
-    end)
+  @doc false
+  # Queue variant generation so every declared variant exists for this file —
+  # the one enqueue every upload and variant-fallback path goes through.
+  #
+  # Inline rather than in a `Task`: the payload is a single local insert, and a
+  # detached task inherits the caller's DB connection — under a host's test
+  # sandbox that surfaces as "DBConnection owner exited" after the test has
+  # finished, in a library the host cannot fix from the outside.
+  #
+  # Best-effort: an upload must still succeed when Oban is unavailable, so a
+  # raise (bad config, no Oban instance), an exit (dead repo) and an error
+  # result are all logged and answered `:error`. `ProcessFileJob` is unique per
+  # file while incomplete, so a re-upload of the same file collapses into the
+  # run already queued.
+  @spec queue_variant_generation(map(), String.t() | nil, String.t() | nil) :: :ok | :error
+  def queue_variant_generation(file, user_uuid, original_filename) do
+    %{file_uuid: file.uuid, user_uuid: user_uuid, filename: original_filename}
+    |> ProcessFileJob.new()
+    |> Oban.insert()
+    |> case do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "Could not enqueue variant generation for #{file.uuid}: #{inspect(reason)}"
+        )
+
+        :error
+    end
+  rescue
+    error ->
+      Logger.warning("Could not enqueue variant generation for #{file.uuid}: #{inspect(error)}")
+      :error
+  catch
+    :exit, reason ->
+      Logger.warning("Could not enqueue variant generation for #{file.uuid}: #{inspect(reason)}")
+      :error
   end
 
   defp verify_file_in_storage(stored_file_path) do

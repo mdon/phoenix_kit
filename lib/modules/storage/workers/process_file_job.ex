@@ -6,8 +6,29 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   - Generating file variants (thumbnails, resizes)
   - Extracting metadata (dimensions, duration)
   - Updating file status
+
+  Unique per `file_uuid` while still pending or running, because the job
+  regenerates **every** variant of a file rather than one: a gallery page whose
+  thumbnails do not exist yet asks `FileController` for a dozen variants at
+  once, and without this each request would enqueue another full run of the
+  same work. The key is the file, not the variant, for the same reason — the
+  args carry no variant at all.
+
+  `:completed` is deliberately NOT a unique state (same reasoning as
+  `AnnotationThumbnailJob`): once a run finishes, a later request — a new
+  dimension added to the kit, a replaced original, a run that failed to write
+  an instance — must be able to enqueue again instead of being silently
+  swallowed until the period lapses.
   """
-  use Oban.Worker, queue: :file_processing, max_attempts: 3
+  # Computed from the *installed* Oban so the list stays valid across versions:
+  # `:suspended` exists in some releases and not others, and naming a state the
+  # installed Oban does not know is a hard compile error in the host app.
+  @unique_states Oban.Job.states() -- [:completed, :cancelled, :discarded]
+
+  use Oban.Worker,
+    queue: :file_processing,
+    max_attempts: 3,
+    unique: [period: 300, keys: [:file_uuid], states: @unique_states]
 
   require Logger
 

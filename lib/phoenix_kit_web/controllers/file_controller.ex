@@ -9,7 +9,7 @@ defmodule PhoenixKitWeb.FileController do
   require Logger
 
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{Manager, ProcessFileJob, TesseraAdapter, URLSigner}
+  alias PhoenixKit.Modules.Storage.{Manager, TesseraAdapter, URLSigner}
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Utils.Routes
@@ -48,17 +48,23 @@ defmodule PhoenixKitWeb.FileController do
   def show(conn, %{"file_uuid" => file_uuid, "variant" => variant, "token" => token}) do
     with {:ok, file} <- get_file(file_uuid),
          :ok <- verify_token(file_uuid, variant, token),
-         {:ok, instance} <- get_file_instance(file_uuid, variant),
+         {:ok, instance, freshness} <- get_file_instance(file_uuid, variant),
          result <- get_file_access(instance) do
       case result do
         {:local, file_path} ->
-          serve_file(conn, file, instance, file_path)
+          serve_file(conn, file, instance, file_path, freshness)
 
         {:redirect, url} ->
-          redirect(conn, external: url)
+          # A pending variant redirects to the ORIGINAL's storage URL. The
+          # redirect itself must not be cached, or the client keeps following
+          # it to the full-size image after the variant exists. (The object's
+          # own headers are the bucket's business, not ours.)
+          conn
+          |> maybe_no_store(freshness)
+          |> redirect(external: url)
 
         {:proxy, file_name} ->
-          proxy_remote_file(conn, file, instance, file_name)
+          proxy_remote_file(conn, file, instance, file_name, freshness)
 
         {:error, :not_found} ->
           conn
@@ -504,7 +510,14 @@ defmodule PhoenixKitWeb.FileController do
     end
   end
 
-  defp get_file_instance(file_uuid, variant) do
+  # Returns `{:ok, instance, :exact}` for the variant that was asked for, and
+  # `{:ok, instance, :pending}` when that variant does not exist yet and the
+  # ORIGINAL is served in its place. The caller must keep the two apart: a
+  # stand-in served under the variant's own URL may never be cached, or every
+  # browser and CDN pins the full-size image at the thumbnail URL (the variant
+  # URL is deterministic, so the entry is reused for as long as it lives).
+  @doc false
+  def get_file_instance(file_uuid, variant) do
     case Storage.get_file_instance_by_name(file_uuid, variant) do
       nil ->
         # Variant doesn't exist, try to get the original to queue generation
@@ -513,34 +526,43 @@ defmodule PhoenixKitWeb.FileController do
             {:error, :not_found}
 
           original_instance ->
-            # Queue the variant for generation if not already requested
-            queue_missing_variant(file_uuid, variant, original_instance)
+            queue_missing_variant(file_uuid, original_instance)
             # Return the original for now
-            {:ok, original_instance}
+            {:ok, original_instance, :pending}
         end
 
       instance ->
-        {:ok, instance}
+        {:ok, instance, :exact}
     end
   end
 
-  defp queue_missing_variant(file_uuid, _variant, original_instance) do
-    # Queue background job to generate the missing variant
-    Task.start(fn ->
-      case Storage.get_file(file_uuid) do
-        nil ->
-          :error
+  # Enqueue generation for a file whose variant was requested before it existed.
+  #
+  # Inline, not in a `Task`: the payload is one local insert, and a detached
+  # task inherits the caller's DB connection — under the test sandbox that
+  # surfaces as "DBConnection owner exited" in the host's logs long after the
+  # request is done. `ProcessFileJob` is unique while incomplete, so the insert
+  # itself is the "already requested?" check and a gallery page full of missing
+  # thumbnails enqueues one job, not one per image.
+  #
+  # Best-effort by design: an upload (or a view) must not fail because Oban is
+  # down, so both a raise and an exit are swallowed with a warning.
+  defp queue_missing_variant(file_uuid, original_instance) do
+    case Storage.get_file(file_uuid) do
+      nil ->
+        :error
 
-        file ->
-          %{
-            file_uuid: file_uuid,
-            user_uuid: file.user_uuid,
-            filename: original_instance.file_name
-          }
-          |> ProcessFileJob.new()
-          |> Oban.insert()
-      end
-    end)
+      file ->
+        Storage.queue_variant_generation(file, file.user_uuid, original_instance.file_name)
+    end
+  rescue
+    error ->
+      Logger.warning("[FileController] could not enqueue variant generation: #{inspect(error)}")
+      :error
+  catch
+    :exit, reason ->
+      Logger.warning("[FileController] could not enqueue variant generation: #{inspect(reason)}")
+      :error
   end
 
   defp verify_token(file_uuid, variant, token) do
@@ -582,19 +604,35 @@ defmodule PhoenixKitWeb.FileController do
     end
   end
 
-  # Serve a local file with proper headers
-  defp serve_file(conn, file, instance, file_path) do
+  # Serve a local file with proper headers.
+  #
+  # `freshness` is `:exact` for the variant that was requested and `:pending`
+  # when the original stands in for a variant that has not been generated yet.
+  # A stand-in carries neither an ETag nor a cache lifetime: it is the wrong
+  # bytes for this URL, and the URL is permanent. Sending the original's ETag
+  # would be worse still — a later conditional request for the real variant
+  # would match it and get a 304 for an image the client never received.
+  defp serve_file(conn, file, instance, file_path, :pending) do
+    conn
+    |> put_variant_cache_headers(instance, :pending)
+    |> put_resp_header(
+      "content-disposition",
+      ~s(inline; filename="#{file.original_file_name}")
+    )
+    |> put_resp_content_type(instance.mime_type)
+    |> send_file(200, file_path)
+  end
+
+  defp serve_file(conn, file, instance, file_path, :exact) do
     etag = ~s("#{instance.checksum}")
 
     if etag in Plug.Conn.get_req_header(conn, "if-none-match") do
       conn
-      |> put_resp_header("etag", etag)
-      |> put_resp_header("cache-control", "public, max-age=31536000, immutable")
+      |> put_variant_cache_headers(instance, :exact)
       |> send_resp(304, "")
     else
       conn
-      |> put_resp_header("cache-control", "public, max-age=31536000, immutable")
-      |> put_resp_header("etag", etag)
+      |> put_variant_cache_headers(instance, :exact)
       |> put_resp_header(
         "content-disposition",
         ~s(inline; filename="#{file.original_file_name}")
@@ -604,14 +642,40 @@ defmodule PhoenixKitWeb.FileController do
     end
   end
 
+  @doc false
+  # The cache policy for a file response, in one place because getting it wrong
+  # is expensive in both directions: a stand-in cached for a year pins the
+  # full-size original at a thumbnail's permanent URL, while dropping the long
+  # lifetime from real variants would re-download every image on every view.
+  def put_variant_cache_headers(conn, _instance, :pending) do
+    conn
+    |> put_resp_header("cache-control", "no-store")
+    |> put_resp_header("x-variant-status", "pending")
+  end
+
+  def put_variant_cache_headers(conn, instance, :exact) do
+    conn
+    |> put_resp_header("cache-control", "public, max-age=31536000, immutable")
+    |> put_resp_header("etag", ~s("#{instance.checksum}"))
+  end
+
+  # No cache lifetime for a stand-in; the real variant keeps the long one.
+  defp maybe_no_store(conn, :pending) do
+    conn
+    |> put_resp_header("cache-control", "no-store")
+    |> put_resp_header("x-variant-status", "pending")
+  end
+
+  defp maybe_no_store(conn, :exact), do: conn
+
   # Proxy a remote file through the server (for private buckets)
-  defp proxy_remote_file(conn, file, instance, file_name) do
+  defp proxy_remote_file(conn, file, instance, file_name, freshness) do
     temp_path =
       Path.join(System.tmp_dir!(), "phoenix_kit_#{instance.uuid}_#{:rand.uniform(1_000_000)}")
 
     case Manager.retrieve_file(file_name, destination_path: temp_path) do
       {:ok, _} ->
-        conn = serve_file(conn, file, instance, temp_path)
+        conn = serve_file(conn, file, instance, temp_path, freshness)
         File.rm(temp_path)
         conn
 
