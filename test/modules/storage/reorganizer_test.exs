@@ -429,16 +429,15 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
 
     # file_a is trashed separately, after the folder was trashed as a whole
     # subtree — the only reachable way for a row's `trashed_at` to differ
-    # from the folder's own. `trashed_at` granularity is seconds, so bump it
-    # forward by a second to guarantee it lands strictly later even when
-    # both trashes land in the same wall-clock second.
-    {:ok, trashed_file_a} = Storage.trash_file(Storage.get_file(file_a.uuid))
-    later = DateTime.add(trashed_file_a.trashed_at, 1, :second)
+    # from the folder's own. `trashed_at` is truncated to whole seconds (see
+    # `do_trash_folder/1`), so trashing file_a immediately after could land
+    # in the same second by pure timing luck; crossing a full second first
+    # (as `test/integration/notifications/ordering_test.exs` does for the
+    # same reason) guarantees it lands in a distinct, later second instead
+    # of leaving this test on a coin flip.
+    Process.sleep(1_100)
 
-    {:ok, _} =
-      trashed_file_a
-      |> Ecto.Changeset.change(%{trashed_at: later})
-      |> Repo.update()
+    {:ok, trashed_file_a} = Storage.trash_file(Storage.get_file(file_a.uuid))
 
     plan = [
       move_action(%{folder: trashed_folder, parent_uuid: target.uuid, counts: {1, 0}})
@@ -463,7 +462,8 @@ defmodule PhoenixKit.Modules.Storage.ReorganizerTest do
     # the folder's own trashing, never file_a's separate, later one.
     reloaded_file_a = Repo.get!(StorageFile, file_a.uuid)
     assert reloaded_file_a.status == "trashed"
-    assert reloaded_file_a.trashed_at == later
+    assert reloaded_file_a.trashed_at == trashed_file_a.trashed_at
+    assert DateTime.compare(reloaded_file_a.trashed_at, trashed_folder.trashed_at) == :gt
   end
 
   test "a rolled-back move leaves the whole trashed subtree exactly as it was" do
