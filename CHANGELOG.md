@@ -1,3 +1,30 @@
+## 2.26.0 - 2026-09-16
+
+### Added
+
+- **`<.decimal_input>`** (`PhoenixKitWeb.Components.Core.DecimalInput`) — a
+  form control for quantities, prices and measurements, where a comma and a
+  dot must both work and nothing may be rounded. It renders
+  `type="text" inputmode="decimal"` in place of a browser number control,
+  whose separator follows the page locale and whose `step` blocks submits.
+  It takes an optional `unit` suffix, and the text a person typed survives a
+  re-render unchanged. Otherwise it matches `<.input>`: FormField or raw
+  name/value, label, translated errors, `class` / `wrapper_class`. (#818)
+- **`PhoenixKit.Utils.Number.parse_decimal/2`** (plus `parse_decimal!/2` and
+  `format_decimal/1`) — turns typed text into a normalized `Decimal`. A comma
+  or a dot is the decimal point, and space / dot / comma grouping is accepted
+  only between 3-digit groups. It takes `:min` / `:max` and never clamps.
+  Exponents, `NaN`, hex and values of 10¹² or more are refused, and input
+  over 64 bytes is rejected before any parsing. It returns
+  `{:error, :empty | :invalid | :below_min | :above_max}`. (#818)
+
+### Fixed
+
+- Post-merge review of #818: space grouping is now held to the same 3-digit
+  rule as dot/comma grouping (`"12 34"` and `"1,234 567"` were silently
+  merged into `1234` and `1.234567`), and a negative zero is returned
+  unsigned so the field never shows `-0`.
+
 ## 2.25.0 - 2026-09-16
 
 ### Added

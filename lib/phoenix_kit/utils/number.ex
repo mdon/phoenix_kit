@@ -116,8 +116,11 @@ defmodule PhoenixKit.Utils.Number do
   `Decimal` or a reason:
 
     * a dot or a comma is the decimal point (`"2.5"`, `"2,5"`, `",5"`);
-    * spaces (no-break, thin and narrow no-break spaces too) are thousands
-      grouping and are dropped (`"1 234,56"`); tabs and line breaks are not
+    * spaces (no-break, thin and narrow no-break spaces too) around the
+      number are ignored; inside it they are thousands grouping of the
+      integer part and are dropped (`"1 234,56"`) — like the separators
+      below, only between 3-digit groups, so `"12 34"` and `"1,5 25"` are
+      `:invalid` rather than silently merged; tabs and line breaks are not
       spaces — a value pasted with one is `:invalid`;
     * with both a dot and a comma present, the LAST one is the decimal
       point and the other is grouping (`"1.234,56"`, `"1,234.56"`);
@@ -126,11 +129,12 @@ defmodule PhoenixKit.Utils.Number do
       `Infinity`, hex, stray letters are all `{:error, :invalid}`;
     * blank (or `nil`) is `{:error, :empty}`, so a caller can tell "left
       empty" from "typed garbage";
-    * more than #{@max_text_length} characters is `{:error, :invalid}` without
+    * more than #{@max_text_length} bytes is `{:error, :invalid}` without
       further inspection;
     * integers, floats and decimals pass straight through as a `Decimal`.
 
-  The result is normalized (`"2.500"` → `2.5`, never an exponent form).
+  The result is normalized (`"2.500"` → `2.5`, never an exponent form, and
+  a zero is always unsigned — `"-0"` → `0`).
 
   ## Options
 
@@ -223,14 +227,18 @@ defmodule PhoenixKit.Utils.Number do
   def format_decimal(n) when is_float(n), do: format_decimal(Decimal.from_float(n))
   def format_decimal(other), do: to_string(other)
 
-  # Space characters (ASCII, no-break, thin, narrow no-break) are grouping
-  # — tabs and line breaks are not, they mark a bad paste; then the
-  # separators are resolved as documented above. Returns
-  # the text with a single dot as the decimal point, or `{:error, :invalid}`
-  # when a separator taken as grouping does not sit between 3-digit groups
-  # ("2..5", "1,23,4") — that is a typo, not a number.
+  # Space characters (ASCII, no-break, thin, narrow no-break) are folded to
+  # one ASCII space and trimmed — tabs and line breaks are not, they mark a
+  # bad paste; then the separators are resolved as documented above, and
+  # the spaces left inside must group the integer part. Returns the text
+  # with a single dot as the decimal point, or `{:error, :invalid}` when a
+  # separator or space taken as grouping does not sit between 3-digit
+  # groups ("2..5", "1,23,4", "12 34") — that is a typo, not a number.
   defp normalize_decimal_text(raw) do
-    text = String.replace(raw, ~r/[ \x{00A0}\x{2009}\x{202F}]/u, "")
+    text =
+      raw
+      |> String.replace(~r/[ \x{00A0}\x{2009}\x{202F}]+/u, " ")
+      |> String.trim(" ")
 
     if text == "" do
       {:error, :empty}
@@ -238,19 +246,29 @@ defmodule PhoenixKit.Utils.Number do
       dots = count_char(text, ".")
       commas = count_char(text, ",")
 
-      cond do
-        dots > 0 and commas > 0 ->
-          split_mixed(text)
+      resolved =
+        cond do
+          dots > 0 and commas > 0 -> split_mixed(text)
+          commas > 1 -> ungroup(text, ",")
+          dots > 1 -> ungroup(text, ".")
+          true -> {:ok, String.replace(text, ",", ".")}
+        end
 
-        commas > 1 ->
-          ungroup(text, ",")
+      with {:ok, resolved} <- resolved, do: ungroup_spaces(resolved)
+    end
+  end
 
-        dots > 1 ->
-          ungroup(text, ".")
+  # Only the integer part may carry space grouping; a space in the fraction
+  # ("1,5 25") means two numbers ran together.
+  defp ungroup_spaces(text) do
+    case String.split(text, ".", parts: 2) do
+      [int, frac] ->
+        if String.contains?(frac, " "),
+          do: {:error, :invalid},
+          else: with({:ok, int} <- ungroup(int, " "), do: {:ok, int <> "." <> frac})
 
-        true ->
-          {:ok, String.replace(text, ",", ".")}
-      end
+      [int] ->
+        ungroup(int, " ")
     end
   end
 
@@ -281,7 +299,7 @@ defmodule PhoenixKit.Utils.Number do
     end
   end
 
-  defp count_char(text, char), do: text |> String.graphemes() |> Enum.count(&(&1 == char))
+  defp count_char(text, char), do: length(:binary.matches(text, char))
 
   defp last_index(text, char) do
     case :binary.matches(text, char) do
@@ -297,11 +315,15 @@ defmodule PhoenixKit.Utils.Number do
     cond do
       min && Decimal.lt?(decimal, min) -> {:error, :below_min}
       max && Decimal.gt?(decimal, max) -> {:error, :above_max}
-      Decimal.gt?(Decimal.abs(decimal), @magnitude_ceiling) -> {:error, :above_max}
-      Decimal.equal?(Decimal.abs(decimal), @magnitude_ceiling) -> {:error, :above_max}
-      true -> {:ok, decimal}
+      Decimal.compare(Decimal.abs(decimal), @magnitude_ceiling) != :lt -> {:error, :above_max}
+      true -> {:ok, unsigned_zero(decimal)}
     end
   end
+
+  # `"-0"`, `"-0,0"` and `-0.0` parse to a negative zero, which
+  # `format_decimal/1` would echo back into the field as "-0".
+  defp unsigned_zero(%Decimal{coef: 0}), do: Decimal.new(0)
+  defp unsigned_zero(decimal), do: decimal
 
   defp to_decimal!(%Decimal{} = d, _opt), do: d
   defp to_decimal!(n, _opt) when is_integer(n), do: Decimal.new(n)

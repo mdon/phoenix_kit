@@ -23,6 +23,17 @@ defmodule PhoenixKit.Utils.NumberParseDecimalTest do
       assert ok("1 234 567.8") == "1234567.8"
     end
 
+    test "spaces group only the integer part, and only between 3-digit groups" do
+      assert ok("-1 234,56") == "-1234.56"
+      assert ok("1\u00A0234\u202F567") == "1234567"
+      assert ok("1  234") == "1234"
+
+      # Two numbers run together, not a grouped one.
+      for raw <- ["12 34", "1 2 3", "1,5 25", "1,234 567", "- 5"] do
+        assert Number.parse_decimal(raw) == {:error, :invalid}, raw
+      end
+    end
+
     test "with both kinds present the last one is the decimal point, the other groups" do
       assert ok("1.234,56") == "1234.56"
       assert ok("1,234.56") == "1234.56"
@@ -49,6 +60,14 @@ defmodule PhoenixKit.Utils.NumberParseDecimalTest do
       assert ok("2.500") == "2.5"
       assert ok("1000") == "1000"
       assert ok("0.0") == "0"
+    end
+
+    test "a zero is never negative" do
+      for raw <- ["-0", "-0,0", -0.0, Decimal.new("-0")] do
+        assert {:ok, %Decimal{sign: 1, coef: 0}} = Number.parse_decimal(raw), inspect(raw)
+      end
+
+      assert Number.format_decimal(Number.parse_decimal!("-0")) == "0"
     end
   end
 
