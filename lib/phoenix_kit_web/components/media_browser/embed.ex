@@ -72,7 +72,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
   ids, sub-tab) is preserved.
 
   Single-browser-per-page is assumed: the query keys (`folder`, `q`,
-  `page`, `orphaned`, `view`) are not namespaced per component, so two
+  `page`, `orphaned`, `view`, `file`) are not namespaced per component, so two
   url-synced browsers on one page would fight over them. Give only one
   the `url_sync` option in that case.
 
@@ -206,7 +206,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
       q: params["q"] || "",
       page: Pagination.parse_page(params["page"]),
       filter_orphaned: params["orphaned"] == "1",
-      view: params["view"]
+      view: params["view"],
+      # The file open in the modal viewer. In the URL so a refresh lands
+      # back in the viewer on that file — not at root with the modal gone
+      # and the user hunting for the folder and file again.
+      file: params["file"]
     }
   end
 
@@ -221,6 +225,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
     page = p[:page] || 1
     filter_orphaned = p[:filter_orphaned] || false
     view = p[:view]
+    file = p[:file]
 
     %{}
     |> then(&if(folder, do: Map.put(&1, "folder", folder), else: &1))
@@ -228,6 +233,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
     |> then(&if(page > 1, do: Map.put(&1, "page", page), else: &1))
     |> then(&if(filter_orphaned, do: Map.put(&1, "orphaned", "1"), else: &1))
     |> then(&if(view == "all", do: Map.put(&1, "view", "all"), else: &1))
+    |> then(&if(file, do: Map.put(&1, "file", file), else: &1))
   end
 
   defmacro __using__(opts) do
