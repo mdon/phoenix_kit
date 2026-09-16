@@ -229,13 +229,6 @@ defmodule PhoenixKit.Utils.Number do
   def format_decimal(n) when is_float(n), do: format_decimal(Decimal.from_float(n))
   def format_decimal(other), do: to_string(other)
 
-  # Space characters (ASCII, no-break, thin, narrow no-break) are folded to
-  # one ASCII space and trimmed — tabs and line breaks are not, they mark a
-  # bad paste; then the separators are resolved as documented above, and
-  # the spaces left inside must group the integer part. Returns the text
-  # with a single dot as the decimal point, or `{:error, :invalid}` when a
-  # separator or space taken as grouping does not sit between 3-digit
-  # groups ("2..5", "1,23,4", "12 34") — that is a typo, not a number.
   # `Decimal.normalize/1` strips trailing zeros from BOTH sides — "2.500"
   # becomes 2.5, but "10" becomes 1E+1: a different struct from
   # `Decimal.new("10")` (equal under `Decimal.equal?/2`, not under `==`),
@@ -252,6 +245,13 @@ defmodule PhoenixKit.Utils.Number do
     end
   end
 
+  # Space characters (ASCII, no-break, thin, narrow no-break) are folded to
+  # one ASCII space and trimmed — tabs and line breaks are not, they mark a
+  # bad paste; then the separators are resolved as documented above, and
+  # the spaces left inside must group the integer part. Returns the text
+  # with a single dot as the decimal point, or `{:error, :invalid}` when a
+  # separator or space taken as grouping does not sit between 3-digit
+  # groups ("2..5", "1,23,4", "12 34") — that is a typo, not a number.
   defp normalize_decimal_text(raw) do
     text =
       raw

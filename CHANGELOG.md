@@ -1,3 +1,13 @@
+## 2.26.1 - 2026-09-16
+
+### Fixed
+
+- `PhoenixKit.Utils.Number.parse_decimal/2` and `format_decimal/1` no longer
+  return a whole number in exponent form: `"10"` used to parse to `1E+1`,
+  which is `Decimal.equal?/2` to `Decimal.new("10")` but not `==` to it, and
+  printed as `1E+1` through `to_string/1` and Jason. Trailing fraction zeros
+  are still stripped (`"2.500"` → `2.5`). (#819)
+
 ## 2.26.0 - 2026-09-16
 
 ### Added
