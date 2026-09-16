@@ -53,7 +53,7 @@ defmodule PhoenixKit.Modules.Sitemap do
   - `sitemap_include_entities` - Include entities in sitemap (boolean, all entity types)
   - `sitemap_include_blogs` - Include blog posts (boolean)
   - `sitemap_include_static` - Include static pages (boolean)
-  - `sitemap_base_url` - Base URL for sitemap (string, fallback to site_url)
+  - `site_url` - Base URL for sitemap entries (string; falls back to the host endpoint's URL, see `get_base_url/0`)
   - `sitemap_html_enabled` - Enable HTML sitemap (boolean)
   - `sitemap_html_style` - HTML display style (hierarchical/flat/grouped)
   - `sitemap_default_changefreq` - Default change frequency (string)
@@ -268,7 +268,17 @@ defmodule PhoenixKit.Modules.Sitemap do
   @doc """
   Returns the base URL for sitemap generation.
 
-  Uses site_url from Settings. Returns empty string if not configured.
+  The `site_url` setting when it is set; otherwise the URL of the host
+  application's running endpoint (the same fallback email links use); `""`
+  when neither gives an absolute `http(s)` URL, which the controller answers
+  with 503 rather than publishing a sitemap of relative or bogus links.
+
+  The endpoint fallback matters because the generated sitemap file lives
+  inside the dependency: upgrading PhoenixKit deletes it, the next request
+  regenerates it, and a site that never set `site_url` used to lose its
+  sitemap to a 503 right after the upgrade. Set `site_url` explicitly anyway
+  when the endpoint's configured URL is not the public one (behind a proxy,
+  for instance) — `mix phoenix_kit.doctor` reports when the fallback is in use.
 
   ## Examples
 
@@ -277,7 +287,30 @@ defmodule PhoenixKit.Modules.Sitemap do
   """
   @spec get_base_url() :: String.t()
   def get_base_url do
-    settings_call(:get_setting_cached, ["site_url", ""])
+    case settings_call(:get_setting_cached, ["site_url", ""]) do
+      url when is_binary(url) and url != "" -> url
+      _ -> endpoint_base_url()
+    end
+  end
+
+  @doc """
+  The host endpoint's URL, when it is running and configured with an absolute
+  `http(s)` URL; `""` otherwise.
+
+  Deliberately strict: `PhoenixKit.Config.get_dynamic_base_url/0` ends in a
+  static default (`localhost`) when there is no endpoint, which is right for a
+  dev-mode email link and wrong for a public sitemap.
+  """
+  @spec endpoint_base_url() :: String.t()
+  def endpoint_base_url do
+    with {:ok, url} when is_binary(url) <- PhoenixKit.Config.get_parent_endpoint_url(),
+         %URI{scheme: scheme, host: host}
+         when scheme in ["http", "https"] and host not in [nil, ""] <-
+           URI.parse(url) do
+      String.trim_trailing(url, "/")
+    else
+      _ -> ""
+    end
   end
 
   @doc """

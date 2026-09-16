@@ -40,14 +40,51 @@ defmodule PhoenixKit.Integration.Sitemap.RegenerateTest do
     assert result.index_xml =~ "/regenerate-probe"
   end
 
-  test "regenerate/1 refuses when no base URL is configured" do
+  test "regenerate/1 refuses when neither site_url nor the endpoint gives a base URL" do
+    {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", true)
+    {:ok, _} = Settings.update_setting("site_url", "")
+    without_parent_endpoint()
+
+    # Generator.generate_all/1 only rejects nil, so an unset base URL would
+    # otherwise be written into the files as host-less <loc>s. The scheduler
+    # guards this; so must this entry point.
+    assert Sitemap.get_base_url() == ""
+    assert Sitemap.regenerate() == {:error, :base_url_not_configured}
+  end
+
+  test "with site_url unset, the sitemap uses the host endpoint's URL" do
+    # The generated file lives inside the dependency, so an upgrade deletes it
+    # and the next request regenerates — which used to mean a 503 for every
+    # site that had never set site_url.
     {:ok, _} = Settings.update_boolean_setting("sitemap_enabled", true)
     {:ok, _} = Settings.update_setting("site_url", "")
 
-    # Generator.generate_all/1 only rejects nil, so an unset site_url would
-    # otherwise be written into the files as host-less <loc>s. The scheduler
-    # guards this; so must this entry point.
-    assert Sitemap.regenerate() == {:error, :base_url_not_configured}
+    {:ok, _} =
+      Settings.update_setting(
+        "sitemap_custom_urls",
+        JSON.encode!([%{"path" => "/fallback-probe", "title" => "Probe"}])
+      )
+
+    endpoint_url = String.trim_trailing(PhoenixKitWeb.Endpoint.url(), "/")
+    assert Sitemap.get_base_url() == endpoint_url
+
+    assert {:ok, result} = Sitemap.regenerate(:test_scope)
+    assert result.index_xml =~ endpoint_url
+  end
+
+  # Point the parent-endpoint lookup at an application with no endpoint.
+  # `PhoenixKit.Config.get/1` reads the application env directly, so this is
+  # enough; async: false keeps it from leaking into other tests.
+  defp without_parent_endpoint do
+    previous = Application.get_env(:phoenix_kit, :parent_module)
+    Application.put_env(:phoenix_kit, :parent_module, NoSuchHostApp)
+
+    on_exit(fn ->
+      case previous do
+        nil -> Application.delete_env(:phoenix_kit, :parent_module)
+        value -> Application.put_env(:phoenix_kit, :parent_module, value)
+      end
+    end)
   end
 
   test "regenerate/1 refuses when the module is disabled" do
