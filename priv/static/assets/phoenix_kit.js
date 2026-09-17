@@ -2326,7 +2326,7 @@ if (typeof window.Chart === "undefined") {
         // The rung above large, only where this viewport will actually ask
         // for it: Tessera picks its raster by displayed width against each
         // rung's pixels x 1.1 headroom, so a viewer column wider than
-        // 1920 x 1.1 CSS px opens straight on the original — and a multi-MB
+        // 1920 x 1.1 device px opens straight on the original — and a multi-MB
         // original nothing warmed was the "waiting and waiting" a step onto
         // a big image showed on large monitors, invisible on small ones
         // (where large suffices and originals would be pure waste).

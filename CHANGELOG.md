@@ -1,3 +1,26 @@
+## 2.28.2 - 2026-09-17
+
+### Changed
+
+- **Tessera 0.3.7** (#824). The deep-zoom viewer now picks its image size by
+  device pixels, so hiDPI displays open on a sharp enough image. On a 4K
+  monitor at 200% scaling, the viewer now loads the original instead of
+  stretching `large`.
+
+### Fixed
+
+- **The viewer warms the neighbouring originals on hiDPI displays too**
+  (#824). When deciding whether a neighbour's original is worth fetching in
+  advance, the viewer now multiplies the column width by `devicePixelRatio`,
+  matching Tessera 0.3.7. Before, a hiDPI screen stepped onto a multi-MB
+  original nobody had fetched yet.
+- **Two JS test files never ran in `mix precommit`.** `mix test.js` only picks
+  up `*.test.cjs`, so it skipped `neighbor_prefetch_test.cjs` and
+  `transport_cache_test.cjs`. Both are renamed. The Phoenix fallback-key test
+  also pointed at the wrong `deps/` path, and that is fixed. (#824 review)
+- **`swoosh` is back on 1.28.1.** The #824 merge had moved it back to 1.28.0
+  in `mix.lock`. (#824 review)
+
 ## 2.28.1 - 2026-09-17
 
 ### Fixed
