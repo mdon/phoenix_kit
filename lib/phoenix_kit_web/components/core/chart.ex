@@ -45,6 +45,8 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
 
   use Phoenix.Component
 
+  alias PhoenixKitWeb.Components.Core.ChartScale
+
   @doc """
   A line chart for a numeric series, optionally filled.
 
@@ -407,15 +409,7 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   # Ecto-backed caller hands us Decimals; a JSON-backed one hands us strings
   # and nils. Coerce what we can, drop what we can't, and let the :empty slot
   # handle "nothing usable left".
-  defp numeric(value) when is_integer(value) or is_float(value), do: value
-
-  defp numeric(%Decimal{} = value) do
-    Decimal.to_float(value)
-  rescue
-    _ -> nil
-  end
-
-  defp numeric(_), do: nil
+  defp numeric(value), do: ChartScale.numeric(value)
 
   defp normalize_points(data) when is_list(data) do
     data
@@ -445,7 +439,9 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         nil
 
       data ->
-        {x_min, x_max} = normalize_domain(assigns.x_domain, minmax_x(data))
+        # The public scale, so an overlay aligned with `ChartScale` cannot
+        # drift from what is drawn here.
+        {x_min, x_max} = ChartScale.domain(assigns.x_domain, Enum.map(data, &elem(&1, 0)))
         {y_min, y_max} = normalize_domain(assigns.y_domain, padded_y_domain(data))
 
         to_x = axis_scale(x_min, x_max, width)
@@ -564,12 +560,7 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   # every value belongs at the CENTRE, exactly as a flat y series centres
   # vertically. Dividing by a 1.0e-9 floor instead pinned everything to the
   # left edge, where half of each stroke is clipped away.
-  defp axis_scale(lo, hi, extent) when hi > lo do
-    span = hi - lo
-    fn v -> (v - lo) / span * extent end
-  end
-
-  defp axis_scale(_lo, _hi, extent), do: fn _v -> extent / 2 end
+  defp axis_scale(lo, hi, extent), do: fn v -> ChartScale.fraction({lo, hi}, v) * extent end
 
   # Only a path whose points ALL coincide paints nothing. Two points sharing an
   # x still draw a vertical segment, and collapsing that to one y silently
@@ -602,11 +593,6 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
     end
   end
 
-  defp minmax_x(data) do
-    {{x_min, _}, {x_max, _}} = Enum.min_max_by(data, &elem(&1, 0))
-    {x_min, x_max}
-  end
-
   # A reversed domain ({10, 0}) otherwise drove the span negative, which the
   # 1.0e-9 floor turned into coordinates around 1.0e12 — the chart vanished
   # off-canvas instead of simply drawing.
@@ -614,18 +600,7 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   # An unusable bound falls back to the DATA's own domain, never to a constant:
   # a {0, 1} fallback recreated exactly that failure, because every real x range
   # then scaled by a factor of thousands and left the canvas just as finally.
-  defp normalize_domain(nil, fallback), do: fallback
-
-  defp normalize_domain({a, b}, fallback) do
-    case {numeric(a), numeric(b)} do
-      {nil, _} -> fallback
-      {_, nil} -> fallback
-      {lo, hi} when lo > hi -> {hi, lo}
-      {lo, hi} -> {lo, hi}
-    end
-  end
-
-  defp normalize_domain(_, fallback), do: fallback
+  defp normalize_domain(explicit, fallback), do: ChartScale.domain(explicit, []) || fallback
 
   defp padded_y_domain(data) do
     {y_min, y_max} = data |> Enum.map(&elem(&1, 1)) |> Enum.min_max()
