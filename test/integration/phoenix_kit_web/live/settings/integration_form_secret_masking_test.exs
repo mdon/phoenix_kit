@@ -135,6 +135,43 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationFormSecretMaskingTest do
     end
   end
 
+  describe "Test, then Create" do
+    setup :setup_admin
+
+    test "the edit page Create lands on does not echo the secret typed on /new", %{conn: conn} do
+      typed_secret = "typed-then-saved-#{System.unique_integer([:positive])}"
+
+      {:ok, view, _html} = live(conn, @new_path)
+
+      view
+      |> element(~s(button[phx-value-provider="aws_ses"]))
+      |> render_click()
+
+      fields = %{
+        "access_key" => "AKIAEXAMPLE123",
+        "secret_key" => typed_secret,
+        # Blank region -> Validators.aws_ses/1 fails locally, no network call.
+        "aws_region" => ""
+      }
+
+      # The dry run keeps the typed values on screen, as it should on /new.
+      assert view
+             |> element(~s(form[phx-submit="save_form"]))
+             |> render_submit(Map.put(fields, "_intent", "test")) =~ typed_secret
+
+      view
+      |> element(~s(form[phx-submit="save_form"]))
+      |> render_submit(Map.put(fields, "name", "typed ses"))
+
+      path = assert_patch(view)
+      assert path =~ "/admin/settings/integrations/"
+
+      html = render(view)
+      assert html =~ "A secret is already configured — leave blank to keep the current value"
+      refute html =~ typed_secret
+    end
+  end
+
   describe "a failed dry-run test on /new preserves what the operator typed" do
     setup :setup_admin
 
