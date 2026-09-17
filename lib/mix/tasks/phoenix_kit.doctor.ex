@@ -138,7 +138,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
     cap_repo_pool_size(2)
     Application.put_env(:phoenix_kit, :update_mode, true)
-    Mix.Task.run("app.start")
+    start_app_or_explain!()
 
     header("PhoenixKit Doctor")
 
@@ -2734,6 +2734,49 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   end
 
   # ── Display ─────────────────────────────────────────────────────────
+
+  # The doctor needs the host application running, and a column-adding release
+  # is exactly when that fails: the freshly compiled schema modules select a
+  # column the database has not got, so a host child that queries at init
+  # (a registry warming a cache, a GenServer loading settings) takes the whole
+  # boot down. Raw, the crash reads as an application bug. It is a pending
+  # migration, and there is a way to run it without the app — say so, then
+  # re-raise so the exit status and the original stacktrace are unchanged.
+  defp start_app_or_explain! do
+    Mix.Task.run("app.start")
+  rescue
+    error ->
+      error |> Exception.message() |> explain_if_undefined_column()
+      reraise error, __STACKTRACE__
+  catch
+    # A boot failure can exit rather than raise, depending on where in the
+    # host's tree it happened — the hint is worth the same either way.
+    :exit, reason ->
+      reason |> inspect(limit: :infinity) |> explain_if_undefined_column()
+      exit(reason)
+  end
+
+  # Postgres 42703 is undefined_column. The failure reaches us wrapped in
+  # whatever the host's supervision tree raised on the way up (`Mix.Error`
+  # around an `{:EXIT, ...}` around a `Postgrex.Error`), so match the rendered
+  # text rather than trying to pattern-match a nesting we do not control.
+  defp explain_if_undefined_column(text) do
+    if String.contains?(text, "42703") do
+      Mix.shell().error("""
+
+      ❌ The application could not start: a query named a column the database
+         has not got. The schema modules in this release are ahead of the
+         database — a migration is pending, not a bug in the app.
+
+         Migrate without starting the application, then run the doctor again:
+
+             mix phoenix_kit.update --no-start
+             mix phoenix_kit.doctor
+      """)
+    end
+
+    :ok
+  end
 
   defp header(title) do
     IO.puts("\n#{IO.ANSI.bright()}#{IO.ANSI.cyan()}#{title}#{IO.ANSI.reset()}")

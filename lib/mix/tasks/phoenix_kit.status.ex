@@ -219,12 +219,32 @@ defmodule Mix.Tasks.PhoenixKit.Status do
       show_verbose_diagnostics(prefix, installation_status, database_status, modules)
     end
 
+    maybe_hint_no_start(installation_status)
+
     IO.puts("")
 
     # `modules` rides along for the `--exit-code` decision: whether the list was
     # queried at all is not recoverable from `next_action` alone.
     {next_action, modules}
   end
+
+  # A core version gap means the compiled schema modules are already selecting
+  # columns the database has not got, so the very app `phoenix_kit.update`
+  # starts may not boot — a host child that queries at init takes the whole
+  # tree down with "column p0.<new_column> does not exist", and the updater
+  # that would add the column never gets to run. The plain
+  # "Next: mix phoenix_kit.update" walks straight into that, so name the way
+  # out beside it. Only for a CORE gap: a module-only gap leaves
+  # `phoenix_kit_users` (what every host queries at boot) intact.
+  defp maybe_hint_no_start({:needs_update, _current, _target}) do
+    IO.puts(
+      "\n#{IO.ANSI.faint()}   If the app will not boot (\"column ... does not exist\"), " <>
+        "migrate without starting it:#{IO.ANSI.reset()}\n" <>
+        "#{IO.ANSI.cyan()}   mix phoenix_kit.update --no-start#{IO.ANSI.reset()}"
+    )
+  end
+
+  defp maybe_hint_no_start(_), do: :ok
 
   # ── Module schema versions ──────────────────────────────────────────────────
 

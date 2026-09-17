@@ -1,3 +1,32 @@
+## 2.29.1 - 2026-09-17
+
+### Added
+
+- **`mix phoenix_kit.update --no-start`** — migrate the database without
+  starting the host application. A column-adding release creates a deadlock on
+  any host whose supervision tree queries at init: the newly compiled schema
+  module selects a column the database has not got, so the `app.start` the full
+  update needs brings the boot down with `ERROR 42703 (undefined_column)`, and
+  the updater that would add the column never runs. (`update_mode: true` stands
+  PhoenixKit's own supervisor down, but it has no say over the host's
+  children.) The flag runs the two steps that need no application — generate
+  the chain step-up migration (`phoenix_kit.gen.migration` reads the version off
+  the migration filenames, never the database) and apply it with `ecto.migrate`,
+  which starts the repo alone. Configuration repair, asset rebuild and module
+  migrations are skipped and reported; re-run the full update once the host
+  boots again.
+
+### Changed
+
+- **`mix phoenix_kit.status` names the way out** when the core schema is behind
+  the code. Its bare `Next: mix phoenix_kit.update` walked hosts straight into
+  the deadlock above; it now points at `--no-start` beside it. Core gap only —
+  a module-only gap leaves `phoenix_kit_users` intact, which is what hosts
+  actually query at boot.
+- **`mix phoenix_kit.doctor` explains a 42703 boot failure** instead of
+  surfacing it raw as an application bug, then re-raises unchanged so the exit
+  status and stacktrace are untouched.
+
 ## 2.29.0 - 2026-09-17
 
 ### Added

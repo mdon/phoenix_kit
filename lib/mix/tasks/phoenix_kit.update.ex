@@ -34,6 +34,25 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         $ mix phoenix_kit.update --status
         $ mix phoenix_kit.update --skip-assets
         $ mix phoenix_kit.update -y
+        $ mix phoenix_kit.update --no-start
+
+    ## When the application will not start (`--no-start`)
+
+    The full update runs `Mix.Task.run("app.start")`, and a column-adding
+    release is exactly when that fails. The newly compiled schema module
+    selects a column the database has not got, so any host child that queries
+    at init — a registry warming a cache, a GenServer loading settings — takes
+    the whole boot down with `ERROR 42703 (undefined_column)`, and the updater
+    that would add the column cannot run. `update_mode: true` stands
+    PhoenixKit's own supervisor down; it has no say over the host's children.
+
+    `--no-start` runs the two steps that need no application: it generates the
+    chain step-up migration (`mix phoenix_kit.gen.migration` reads the current
+    version off the migration FILENAMES, never the database) and applies it
+    with `mix ecto.migrate`, which starts the repo alone. Configuration repair,
+    asset rebuild and module migrations are skipped and reported — every one of
+    them needs the app. Run the full `mix phoenix_kit.update` once the host
+    boots again.
 
     ## Options
 
@@ -45,6 +64,8 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       * `--force` - Force update even if already up to date
       * `--skip-assets` - Skip automatic asset rebuild check
       * `--yes` / `-y` - Skip confirmation prompts and run migrations automatically
+      * `--no-start` - Migrate the database without starting the host
+        application. See "When the application will not start" above.
 
     ## Examples
 
@@ -123,7 +144,8 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
           status: :boolean,
           force: :boolean,
           skip_assets: :boolean,
-          yes: :boolean
+          yes: :boolean,
+          no_start: :boolean
         ],
         aliases: [
           p: :prefix,
@@ -175,7 +197,8 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
               status: :boolean,
               force: :boolean,
               skip_assets: :boolean,
-              yes: :boolean
+              yes: :boolean,
+              no_start: :boolean
             ],
             aliases: [
               p: :prefix,
@@ -186,91 +209,96 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
           )
 
         # If --status flag, handle directly and exit
-        if Keyword.get(elem(opts, 0), :status) do
-          show_status(elem(opts, 0))
-          :ok
-        else
-          # CRITICAL: Check if required configuration exists BEFORE starting app
-          # This prevents configuration timing issues where config is added via Igniter
-          # but the app has already started with cached (missing) configuration
+        cond do
+          Keyword.get(elem(opts, 0), :status) ->
+            show_status(elem(opts, 0))
+            :ok
 
-          # Check if this is a retry pass (automatic restart after adding config)
-          is_retry = Process.get(:phoenix_kit_retry_pass, false)
-          config_status = check_required_configuration()
+          Keyword.get(elem(opts, 0), :no_start) ->
+            schema_only_update(elem(opts, 0))
 
-          case {config_status, is_retry} do
-            {:missing, false} ->
-              # First pass: Add configuration via Igniter without starting app
-              # Store config status in Process dictionary for igniter/1 to read
-              Process.put(:phoenix_kit_config_status, :missing)
-              show_missing_config_message(argv)
-              super(argv)
+          true ->
+            # CRITICAL: Check if required configuration exists BEFORE starting app
+            # This prevents configuration timing issues where config is added via Igniter
+            # but the app has already started with cached (missing) configuration
 
-              # Automatic restart instead of manual prompt
-              Mix.shell().info("""
+            # Check if this is a retry pass (automatic restart after adding config)
+            is_retry = Process.get(:phoenix_kit_retry_pass, false)
+            config_status = check_required_configuration()
 
-              ✅ Configuration added successfully!
-              🔄 Automatically restarting to complete the update...
-              """)
+            case {config_status, is_retry} do
+              {:missing, false} ->
+                # First pass: Add configuration via Igniter without starting app
+                # Store config status in Process dictionary for igniter/1 to read
+                Process.put(:phoenix_kit_config_status, :missing)
+                show_missing_config_message(argv)
+                super(argv)
 
-              # Clean Process dictionary for fresh state
-              Process.delete(:phoenix_kit_config_status)
-              Process.put(:phoenix_kit_retry_pass, true)
+                # Automatic restart instead of manual prompt
+                Mix.shell().info("""
 
-              # Recursive call with same arguments
-              run(argv)
+                ✅ Configuration added successfully!
+                🔄 Automatically restarting to complete the update...
+                """)
 
-            {:ok, _} ->
-              # Second pass (automatic or manual): Configuration exists, safe to start app
-              # Store config status in Process dictionary for igniter/1 to read
-              Process.put(:phoenix_kit_config_status, :ok)
+                # Clean Process dictionary for fresh state
+                Process.delete(:phoenix_kit_config_status)
+                Process.put(:phoenix_kit_retry_pass, true)
 
-              # Cap the Ecto pool to 2 connections so we don't saturate PgBouncer
-              # when the production app is already running.
-              #
-              # The sequencing is critical:
-              # 1. Run app.config first — this evaluates config/runtime.exs (which
-              #    reads POOL_SIZE env and sets pool_size: N in Application env).
-              # 2. THEN override pool_size to 2 via Application.put_env, after
-              #    runtime.exs has already run and can no longer overwrite us.
-              # 3. THEN start app — app.config won't run again (Mix tracks ran tasks),
-              #    so Ecto initialises the pool with our capped pool_size: 2.
-              Mix.Task.run("app.config")
-              cap_repo_pool_size_for_update(2)
+                # Recursive call with same arguments
+                run(argv)
 
-              # Tell PhoenixKit.Supervisor to skip Dashboard.Registry,
-              # OAuthConfigLoader, and module workers so they don't compete
-              # for the 2 available DB connections during startup.
-              Application.put_env(:phoenix_kit, :update_mode, true)
+              {:ok, _} ->
+                # Second pass (automatic or manual): Configuration exists, safe to start app
+                # Store config status in Process dictionary for igniter/1 to read
+                Process.put(:phoenix_kit_config_status, :ok)
 
-              Mix.Task.run("app.start")
+                # Cap the Ecto pool to 2 connections so we don't saturate PgBouncer
+                # when the production app is already running.
+                #
+                # The sequencing is critical:
+                # 1. Run app.config first — this evaluates config/runtime.exs (which
+                #    reads POOL_SIZE env and sets pool_size: N in Application env).
+                # 2. THEN override pool_size to 2 via Application.put_env, after
+                #    runtime.exs has already run and can no longer overwrite us.
+                # 3. THEN start app — app.config won't run again (Mix tracks ran tasks),
+                #    so Ecto initialises the pool with our capped pool_size: 2.
+                Mix.Task.run("app.config")
+                cap_repo_pool_size_for_update(2)
 
-              # Verify database is reachable before running update
-              DbConnectionCheck.ensure_connected!()
+                # Tell PhoenixKit.Supervisor to skip Dashboard.Registry,
+                # OAuthConfigLoader, and module workers so they don't compete
+                # for the 2 available DB connections during startup.
+                Application.put_env(:phoenix_kit, :update_mode, true)
 
-              result = super(argv)
-              post_igniter_tasks(elem(opts, 0))
+                Mix.Task.run("app.start")
 
-              # Clean retry flag
-              Process.delete(:phoenix_kit_retry_pass)
-              result
+                # Verify database is reachable before running update
+                DbConnectionCheck.ensure_connected!()
 
-            {:missing, true} ->
-              # Safety: Configuration still missing after retry
-              Mix.shell().error("""
+                result = super(argv)
+                post_igniter_tasks(elem(opts, 0))
 
-              ❌ Configuration was not added successfully after automatic retry.
+                # Clean retry flag
+                Process.delete(:phoenix_kit_retry_pass)
+                result
 
-              This may indicate a problem with your config/config.exs file.
-              Please check the file manually and ensure it's writable.
+              {:missing, true} ->
+                # Safety: Configuration still missing after retry
+                Mix.shell().error("""
 
-              Then run manually:
-                mix phoenix_kit.update #{Enum.join(argv, " ")}
-              """)
+                ❌ Configuration was not added successfully after automatic retry.
 
-              Process.delete(:phoenix_kit_retry_pass)
-              :error
-          end
+                This may indicate a problem with your config/config.exs file.
+                Please check the file manually and ensure it's writable.
+
+                Then run manually:
+                  mix phoenix_kit.update #{Enum.join(argv, " ")}
+                """)
+
+                Process.delete(:phoenix_kit_retry_pass)
+                :error
+            end
         end
       end
     end
@@ -910,6 +938,16 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
                                 Automatically runs migrations without asking
                                 Useful for CI/CD environments
 
+        --no-start              Migrate the database WITHOUT starting the app
+                                For when the app cannot boot because its
+                                schema modules are ahead of the database
+                                (a column-adding release: "column
+                                p0.<new_column> does not exist" at startup).
+                                Generates the chain step-up migration and
+                                runs it; skips configuration repair, assets
+                                and module migrations, which all need the
+                                application. Re-run the full update after.
+
         -h, --help              Show this help message
 
       EXAMPLES
@@ -930,6 +968,10 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
         # Update without rebuilding assets
         mix phoenix_kit.update --skip-assets
+
+        # App will not boot ("column ... does not exist")? Migrate first,
+        # then run the full update once it starts again
+        mix phoenix_kit.update --no-start
 
       VERSION MANAGEMENT
         PhoenixKit uses a versioned migration system.
@@ -974,6 +1016,9 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         • Force regeneration: mix phoenix_kit.update --force
         • Manual migration: mix ecto.migrate
         • Rollback: mix ecto.rollback
+        • App will not boot after upgrading the dep, because a host child
+          queries a table whose new column is not there yet:
+          mix phoenix_kit.update --no-start
 
       DOCUMENTATION
         For more information, visit:
@@ -1278,6 +1323,59 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
     end
 
     # Show current installation status and available updates
+    # `--no-start`: bring the DATABASE up to this release's chain version
+    # without booting the host application.
+    #
+    # The full update needs `Mix.Task.run("app.start")`, and that is exactly
+    # what a column-adding release breaks: the newly compiled schema module
+    # selects a column the database has not got yet, so any host child that
+    # queries at init — a registry warming its cache, a GenServer loading
+    # settings — brings the whole boot down, and the updater that would add
+    # the column cannot run. `update_mode: true` stands PhoenixKit's own
+    # supervisor down, but it has no say over the host's children.
+    #
+    # This path runs the two steps that need no application: generate the
+    # chain step-up migration (`phoenix_kit.gen.migration` reads the version
+    # off the migration FILENAMES, never the database) and apply it with
+    # `ecto.migrate`, which starts the repo alone. Everything else the full
+    # update does — configuration repair, asset rebuild, module migrations —
+    # is deliberately skipped and reported, because all of it needs the app.
+    defp schema_only_update(opts) do
+      Mix.shell().info("""
+
+      🔧 PhoenixKit update — schema only (--no-start)
+
+      Bringing the database up to this release's migration version without
+      starting #{Mix.Project.config()[:app]}. Use this when the app cannot
+      boot because its schema modules are ahead of the database.
+      """)
+
+      # Loads config/*.exs (including runtime.exs) and compiles, without
+      # starting any application — `--prefix` still resolves through
+      # `config :phoenix_kit, :prefix` below.
+      Mix.Task.run("app.config")
+
+      gen_args = if opts[:prefix], do: ["--prefix", opts[:prefix]], else: []
+      Mix.Task.run("phoenix_kit.gen.migration", gen_args)
+      Mix.Task.run("ecto.migrate")
+
+      Mix.shell().info("""
+
+      ✅ Database schema is up to date.
+
+      Skipped (every one of these needs the application running):
+        • configuration repair (Ueberauth, Hammer, Oban, supervisor order)
+        • asset rebuild and JS/CSS integration
+        • migrations for registered PhoenixKit modules
+
+      Run the full update once #{Mix.Project.config()[:app]} boots again:
+
+          mix phoenix_kit.update
+      """)
+
+      :ok
+    end
+
     defp show_status(opts) do
       prefix = PrefixConfig.resolve_prefix(opts)
 
