@@ -435,10 +435,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
       # pushEventTo(hook.el, ...) — which targets the owning LiveComponent.
       # render_hook/3 on an element only follows an explicit phx-target,
       # so aim at the MediaCanvasViewer component directly. Its id encodes
-      # dims + variant count (see the viewer-modal comment in the heex):
-      # this fixture has no dimensions and one "original" instance.
+      # dims + variant count + the original's version (see
+      # `MediaBrowser.viewer_component_id/1`): this fixture has no dimensions
+      # and one "original" instance.
       view
-      |> with_target("#media-canvas-viewer-#{file.uuid}-0x0-1")
+      |> with_target("[id^='media-canvas-viewer-#{file.uuid}-0x0-1-']")
       |> render_hook("fresco:rotate", %{
         "id" => "media-zoom-#{file.uuid}",
         "rotation" => 90,
@@ -557,6 +558,89 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
       # Left from 0 wraps to 270 (the other direction).
       view |> element(left) |> render_click()
       assert %{metadata: %{"rotation" => 270}} = Storage.get_file(file.uuid)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Image editor — opened from a file's menu or the viewer
+  # ---------------------------------------------------------------------------
+
+  describe "image editor" do
+    setup %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      create_instance!(file.uuid)
+      %{conn: log_in_user(conn, user), folder: folder, photo: file}
+    end
+
+    defp edit_item(file),
+      do: "[phx-click='open_image_editor'][phx-value-file-uuid='#{file.uuid}']"
+
+    test "opens from the file's menu, over the browser, and closes", ctx do
+      {:ok, view, _html} = live(ctx.conn, @media_path <> "?folder=#{ctx.folder.uuid}")
+
+      html = view |> element(edit_item(ctx.photo)) |> render_click()
+      assert html =~ "media-browser-image-editor-modal"
+      assert html =~ ~s(id="media-browser-image-editor-#{ctx.photo.uuid}-form")
+
+      html =
+        view |> element("#media-browser-image-editor-modal .modal-backdrop") |> render_click()
+
+      refute html =~ "media-browser-image-editor-modal"
+
+      # Esc closes it too.
+      view |> element(edit_item(ctx.photo)) |> render_click()
+
+      html =
+        view
+        |> element("#media-browser-image-editor-modal")
+        |> render_keydown(%{"key" => "Escape"})
+
+      refute html =~ "media-browser-image-editor-modal"
+    end
+
+    test "is not offered for an image it cannot write back, or in the trash", ctx do
+      gif = create_file!(ctx.folder.uuid)
+      {:ok, gif} = gif |> Ecto.Changeset.change(mime_type: "image/gif") |> Repo.update()
+      create_instance!(gif.uuid)
+
+      {:ok, view, _html} = live(ctx.conn, @media_path <> "?folder=#{ctx.folder.uuid}")
+
+      assert has_element?(view, edit_item(ctx.photo))
+      refute has_element?(view, edit_item(gif))
+    end
+
+    test "opens from the viewer's sidebar, closing the viewer", ctx do
+      {:ok, view, _html} = live(ctx.conn, @media_path <> "?folder=#{ctx.folder.uuid}")
+
+      view
+      |> element("[phx-click='click_file'][phx-value-file-uuid='#{ctx.photo.uuid}']")
+      |> render_click()
+
+      view |> element("[phx-click='edit_image']") |> render_click()
+      html = render(view)
+
+      assert html =~ "media-browser-image-editor-modal"
+      refute html =~ "media-browser-viewer-modal"
+    end
+
+    test "is told when the file has been processed", ctx do
+      {:ok, view, _html} = live(ctx.conn, @media_path <> "?folder=#{ctx.folder.uuid}")
+      view |> element(edit_item(ctx.photo)) |> render_click()
+
+      Repo.update_all(
+        from(f in StorageFile, where: f.uuid == ^ctx.photo.uuid),
+        set: [edit_state: "failed", edits: %{"rotate" => 90}]
+      )
+
+      send(view.pid, {:phoenix_kit_file_processed, ctx.photo.uuid})
+
+      # It travels as two send_updates (the browser, then the editor), each
+      # queued behind the render that follows it: the third render sees both.
+      _ = render(view)
+      _ = render(view)
+      assert render(view) =~ "The edit could not be applied."
     end
   end
 
