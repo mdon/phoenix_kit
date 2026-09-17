@@ -261,4 +261,26 @@ defmodule PhoenixKit.Integrations.ProvidersTest do
       assert :ok = Providers.clear_cache()
     end
   end
+
+  describe "telegram provider instructions" do
+    test "tell the operator how to link a chat, not only how to make a bot" do
+      # A token alone delivers nothing: until a chat is linked the channel has
+      # nowhere to send. The instructions used to stop at "paste the token".
+      steps =
+        Providers.get("telegram").instructions
+        |> Enum.flat_map(& &1.steps)
+        |> Enum.map_join(" ", fn {text, _} -> text end)
+
+      assert steps =~ "/start"
+    end
+
+    test "cover linking a group, which needs a command the bot can see" do
+      steps =
+        Providers.get("telegram").instructions
+        |> Enum.flat_map(& &1.steps)
+        |> Enum.map_join(" ", fn {text, _} -> text end)
+
+      assert steps =~ "group"
+    end
+  end
 end
