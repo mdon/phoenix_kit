@@ -1,3 +1,9 @@
+## Unreleased
+
+### Fixed
+
+- **Form language tabs drop the country qualifier** (`Multilang.build_language_tabs/0`). With one dialect per language enabled, the tabs now read `English` / `German` instead of `English (United States)` / `German (Germany)`, matching the nav dropdowns. The qualifier comes back only when two dialects of the same language are enabled (e.g. `en-US` + `en-GB`).
+
 ## 2.27.1 - 2026-09-17
 
 ### Fixed
