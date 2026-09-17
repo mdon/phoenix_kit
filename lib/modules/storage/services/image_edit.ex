@@ -31,13 +31,17 @@ defmodule PhoenixKit.Modules.Storage.ImageEdit do
   @max_regions 50
   @max_straighten 45.0
 
-  # A redacted region is shrunk to at most this many cells along its shorter
-  # side, and no cell is smaller than @min_cell pixels: a large region still
-  # ends up as a handful of flat colours (a 1600 px face shrunk by a ratio
-  # alone would stay a recognisable face), and a region smaller than two
-  # cells becomes one flat colour.
-  @cells_on_short_side 8
+  # A redacted region is shrunk to at most this many cells along its LONGER
+  # side, and no cell is smaller than @min_cell pixels: however large the
+  # region, it ends up as a handful of flat colours (a 4000 px plate shrunk by
+  # a ratio alone would still be readable), and a region smaller than two
+  # cells becomes one flat colour. `-scale` shrinks with a box filter, so each
+  # cell is a true average — point sampling could pass a thin stroke through.
+  @cells_on_long_side 12
   @min_cell 32
+  # Percent-to-pixel rounding can leave a sliver at a region's edge — where a
+  # plate's last character sits — so every region is widened by this much.
+  @redact_outset 2
 
   @typedoc "A normalised edit (string keys, as stored)."
   @type t :: %{optional(String.t()) => term()}
@@ -168,6 +172,120 @@ defmodule PhoenixKit.Modules.Storage.ImageEdit do
     ])
   end
 
+  ## Changing an edit
+
+  @doc """
+  The parts of an edit that move pixels (see `geometric?/1`), for comparing
+  two edits: annotations stay in place as long as these do not change.
+  """
+  @spec geometry(t() | nil) :: map()
+  def geometry(nil), do: %{}
+  def geometry(edit), do: Map.take(edit, ~w(rotate flip_h flip_v straighten crop))
+
+  @doc """
+  Turns the result a quarter to the `:left` or `:right`, keeping the crop
+  and the redacted areas on the pixels they cover.
+
+  The pipeline mirrors after rotating, so while exactly one mirror is on, a
+  visual turn to the right is a rotation to the left.
+
+      iex> PhoenixKit.Modules.Storage.ImageEdit.turn(%{}, :right)
+      %{"rotate" => 90}
+
+      iex> PhoenixKit.Modules.Storage.ImageEdit.turn(%{"flip_h" => true}, :right)
+      %{"flip_h" => true, "rotate" => 270}
+
+      iex> PhoenixKit.Modules.Storage.ImageEdit.turn(
+      ...>   %{"crop" => %{"x" => 10.0, "y" => 20.0, "w" => 30.0, "h" => 40.0}},
+      ...>   :right
+      ...> )
+      %{"crop" => %{"x" => 40.0, "y" => 10.0, "w" => 40.0, "h" => 30.0}, "rotate" => 90}
+  """
+  @spec turn(t() | nil, :left | :right) :: t()
+  def turn(edit, direction) when direction in [:left, :right] do
+    edit = edit || %{}
+    visual = if direction == :right, do: 90, else: -90
+    applied = if mirrored?(edit), do: -visual, else: visual
+
+    edit
+    |> Map.put("rotate", Integer.mod(Map.get(edit, "rotate", 0) + applied, 360))
+    |> map_rects(&turn_rect(&1, visual))
+    |> Map.reject(fn {key, value} -> key == "rotate" and value == 0 end)
+  end
+
+  @doc """
+  Mirrors the result `:horizontal`ly (left–right) or `:vertical`ly,
+  keeping the crop and the redacted areas on the pixels they cover. A
+  straightening turns the other way in a mirror, so its sign flips too.
+
+      iex> PhoenixKit.Modules.Storage.ImageEdit.mirror(%{"straighten" => 5.0}, :horizontal)
+      %{"flip_h" => true, "straighten" => -5.0}
+
+      iex> PhoenixKit.Modules.Storage.ImageEdit.mirror(%{"flip_h" => true}, :horizontal)
+      %{}
+  """
+  @spec mirror(t() | nil, :horizontal | :vertical) :: t()
+  def mirror(edit, axis) when axis in [:horizontal, :vertical] do
+    edit = edit || %{}
+    key = if axis == :horizontal, do: "flip_h", else: "flip_v"
+
+    edit
+    |> Map.put(key, not Map.get(edit, key, false))
+    |> Map.update("straighten", nil, &(-&1))
+    |> map_rects(&mirror_rect(&1, axis))
+    |> Map.reject(fn {_key, value} -> value in [nil, false] end)
+  end
+
+  @doc """
+  The largest crop of pixel shape `aw`:`ah`, centred in the frame the edit
+  produces from an original of `size`.
+
+      iex> PhoenixKit.Modules.Storage.ImageEdit.centred_crop(%{}, {1, 1}, {400, 200})
+      %{"x" => 25.0, "y" => 0.0, "w" => 50.0, "h" => 100.0}
+  """
+  @spec centred_crop(t() | nil, {pos_integer(), pos_integer()}, {pos_integer(), pos_integer()}) ::
+          map()
+  def centred_crop(edit, {aw, ah}, size) do
+    {fw, fh} = frame_size(edit, size)
+
+    {w, h} =
+      if fw * ah > fh * aw,
+        do: {fh * aw / ah, fh * 1.0},
+        else: {fw * 1.0, fw * ah / aw}
+
+    pw = w / fw * 100
+    ph = h / fh * 100
+
+    %{
+      "x" => round3((100 - pw) / 2),
+      "y" => round3((100 - ph) / 2),
+      "w" => round3(pw),
+      "h" => round3(ph)
+    }
+  end
+
+  defp mirrored?(edit), do: Map.get(edit, "flip_h", false) != Map.get(edit, "flip_v", false)
+
+  defp map_rects(edit, fun) do
+    edit
+    |> Map.update("crop", nil, fun)
+    |> Map.update("redact", [], &Enum.map(&1, fun))
+    |> Map.reject(fn {key, value} -> {key, value} in [{"crop", nil}, {"redact", []}] end)
+  end
+
+  # Quarter turns of a percentage rectangle with its frame.
+  defp turn_rect(%{"x" => x, "y" => y, "w" => w, "h" => h} = rect, 90),
+    do: %{rect | "x" => round3(100 - y - h), "y" => x, "w" => h, "h" => w}
+
+  defp turn_rect(%{"x" => x, "y" => y, "w" => w, "h" => h} = rect, -90),
+    do: %{rect | "x" => y, "y" => round3(100 - x - w), "w" => h, "h" => w}
+
+  defp mirror_rect(%{"x" => x, "w" => w} = rect, :horizontal),
+    do: %{rect | "x" => round3(100 - x - w)}
+
+  defp mirror_rect(%{"y" => y, "h" => h} = rect, :vertical),
+    do: %{rect | "y" => round3(100 - y - h)}
+
   ## Args
 
   defp rotate_args(%{"rotate" => r}), do: ["-rotate", Integer.to_string(r), "+repage"]
@@ -195,8 +313,11 @@ defmodule PhoenixKit.Modules.Storage.ImageEdit do
 
   defp straighten_args(_edit, _frame), do: []
 
-  defp redact_args(region, frame) do
+  defp redact_args(region, {fw, fh} = frame) do
     {x, y, w, h} = pixels(region, frame)
+    {x, y} = {max(x - @redact_outset, 0), max(y - @redact_outset, 0)}
+    w = min(w + 2 * @redact_outset, fw - x)
+    h = min(h + 2 * @redact_outset, fh - y)
 
     [
       "(",
@@ -226,7 +347,7 @@ defmodule PhoenixKit.Modules.Storage.ImageEdit do
   # must not leak into the averages. Sizes are exact (`!`) so the patch
   # covers the whole region.
   defp style_args(style, w, h) do
-    cell = max(@min_cell, ceil(min(w, h) / @cells_on_short_side))
+    cell = max(@min_cell, ceil(max(w, h) / @cells_on_long_side))
     grid = "#{max(1, div(w, cell))}x#{max(1, div(h, cell))}!"
     back = "#{w}x#{h}!"
 

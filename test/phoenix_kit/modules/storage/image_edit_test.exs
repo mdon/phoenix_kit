@@ -125,7 +125,8 @@ defmodule PhoenixKit.Modules.Storage.ImageEditTest do
       assert List.last(args) == "out.jpg"
 
       # The frame is 200x400 after the quarter turn, so percentages map onto it.
-      assert "100x200+0+0" in args
+      # The redaction is widened by 2 px on each side, inside the frame.
+      assert "104x204+0+0" in args
       assert "100x200+50+100" in args
       assert Enum.at(args, index(args, "-rotate") + 2) == "+repage"
       assert Enum.at(args, index(args, "-distort") + 3) == "+repage"
@@ -139,21 +140,156 @@ defmodule PhoenixKit.Modules.Storage.ImageEditTest do
     test "redaction keeps cells large in absolute pixels" do
       region = fn w, h -> %{"x" => 0.0, "y" => 0.0, "w" => w, "h" => h, "style" => "pixelate"} end
 
-      # 20x20 px: smaller than two 32 px cells, so one flat colour.
-      assert "1x1!" in ImageEdit.magick_args(
-               %{"redact" => [region.(20.0, 20.0)]},
-               {100, 100},
-               "i",
-               "o"
-             )
+      args = fn region, size -> ImageEdit.magick_args(%{"redact" => [region]}, size, "i", "o") end
 
-      # 1600x800 px: at most 8 cells on the short side (100 px each).
-      assert "16x8!" in ImageEdit.magick_args(
-               %{"redact" => [region.(100.0, 100.0)]},
-               {1600, 800},
-               "i",
-               "o"
-             )
+      # 20x20 px (24 with the outset): under two 32 px cells, one flat colour.
+      assert "1x1!" in args.(region.(20.0, 20.0), {100, 100})
+
+      # 4000x2000 px: at most 12 cells on the long side (334 px each),
+      # however large the region — a plate this size shrunk by a ratio alone
+      # would still be readable.
+      assert "11x5!" in args.(region.(100.0, 100.0), {4000, 2000})
+    end
+  end
+
+  describe "turn/2 and mirror/2" do
+    # Where a point of the source (fractions 0..1) ends up in the frame, for
+    # the quarter turn and the mirrors of `edit` — the order the pipeline
+    # applies them in (rotate, then mirror).
+    defp forward(edit, {u, v}) do
+      {x, y} =
+        case Map.get(edit, "rotate", 0) do
+          0 -> {u, v}
+          90 -> {1 - v, u}
+          180 -> {1 - u, 1 - v}
+          270 -> {v, 1 - u}
+        end
+
+      x = if edit["flip_h"], do: 1 - x, else: x
+      y = if edit["flip_v"], do: 1 - y, else: y
+      {x, y}
+    end
+
+    # The inverse: which source point a frame point shows.
+    defp backward(edit, {x, y}) do
+      x = if edit["flip_h"], do: 1 - x, else: x
+      y = if edit["flip_v"], do: 1 - y, else: y
+
+      case Map.get(edit, "rotate", 0) do
+        0 -> {x, y}
+        90 -> {y, 1 - x}
+        180 -> {1 - x, 1 - y}
+        270 -> {1 - y, x}
+      end
+    end
+
+    # The source pixels a rectangle covers, as a set of rounded corners.
+    defp covered(edit, %{"x" => x, "y" => y, "w" => w, "h" => h}) do
+      for cx <- [x, x + w], cy <- [y, y + h], into: MapSet.new() do
+        {u, v} = backward(edit, {cx / 100, cy / 100})
+        {Float.round(u * 1.0, 6), Float.round(v * 1.0, 6)}
+      end
+    end
+
+    defp edits do
+      rect = %{"x" => 10.0, "y" => 20.0, "w" => 30.0, "h" => 15.0}
+      area = %{"x" => 55.0, "y" => 5.0, "w" => 20.0, "h" => 40.0, "style" => "fill"}
+
+      for rotate <- [0, 90, 180, 270], flip_h <- [false, true], flip_v <- [false, true] do
+        %{
+          "rotate" => rotate,
+          "flip_h" => flip_h,
+          "flip_v" => flip_v,
+          "crop" => rect,
+          "redact" => [area]
+        }
+        |> Map.reject(fn {_k, v} -> v in [0, false] end)
+      end
+    end
+
+    defp operations do
+      [
+        {&ImageEdit.turn(&1, :right), &__MODULE__.turned_right/1},
+        {&ImageEdit.turn(&1, :left), &__MODULE__.turned_left/1},
+        {&ImageEdit.mirror(&1, :horizontal), &__MODULE__.mirrored_h/1},
+        {&ImageEdit.mirror(&1, :vertical), &__MODULE__.mirrored_v/1}
+      ]
+    end
+
+    # What the shown image does, as a map of frame points.
+    def turned_right({x, y}), do: {1 - y, x}
+    def turned_left({x, y}), do: {y, 1 - x}
+    def mirrored_h({x, y}), do: {1 - x, y}
+    def mirrored_v({x, y}), do: {x, 1 - y}
+
+    test "the shown image turns and mirrors as asked, whatever is already applied" do
+      for edit <- edits(),
+          {operation, expected} <- operations(),
+          point <- [{0.1, 0.3}, {0.8, 0.6}] do
+        changed = operation.(edit)
+        {x, y} = expected.(forward(edit, point))
+        {nx, ny} = forward(changed, point)
+
+        assert_in_delta nx, x, 1.0e-9, "#{inspect(edit)} -> #{inspect(changed)}"
+        assert_in_delta ny, y, 1.0e-9, "#{inspect(edit)} -> #{inspect(changed)}"
+      end
+    end
+
+    test "the crop and the areas stay on the pixels they covered" do
+      for edit <- edits(), {operation, _} <- operations() do
+        changed = operation.(edit)
+
+        assert covered(changed, changed["crop"]) == covered(edit, edit["crop"])
+        [before] = edit["redact"]
+        [after_] = changed["redact"]
+        assert covered(changed, after_) == covered(edit, before)
+        assert after_["style"] == "fill"
+      end
+    end
+
+    test "a straightening turns with a mirror, not with a turn" do
+      edit = %{"straighten" => 3.5}
+
+      assert ImageEdit.turn(edit, :right)["straighten"] == 3.5
+      assert ImageEdit.mirror(edit, :vertical)["straighten"] == -3.5
+    end
+
+    test "four turns, or two mirrors, change nothing" do
+      for edit <- edits() do
+        assert edit
+               |> ImageEdit.turn(:right)
+               |> ImageEdit.turn(:right)
+               |> ImageEdit.turn(:right)
+               |> ImageEdit.turn(:right) == edit
+
+        assert edit |> ImageEdit.mirror(:horizontal) |> ImageEdit.mirror(:horizontal) == edit
+        assert edit |> ImageEdit.turn(:left) |> ImageEdit.turn(:right) == edit
+      end
+    end
+
+    test "results are canonical: what normalize/1 would make of them" do
+      for edit <- edits(), {operation, _} <- operations() do
+        changed = operation.(edit)
+        assert {:ok, ^changed} = ImageEdit.normalize(changed)
+      end
+    end
+
+    test "centred_crop/3 is the largest centred crop of that shape in the turned frame" do
+      assert ImageEdit.centred_crop(%{"rotate" => 90}, {1, 1}, {400, 200}) ==
+               %{"x" => 0.0, "y" => 25.0, "w" => 100.0, "h" => 50.0}
+
+      crop = ImageEdit.centred_crop(%{}, {16, 9}, {1000, 1000})
+      assert_in_delta crop["w"] * 1000 / (crop["h"] * 1000), 16 / 9, 0.001
+      assert crop["x"] == 0.0
+    end
+  end
+
+  describe "geometry/1" do
+    test "is what moves pixels, nothing else" do
+      assert ImageEdit.geometry(nil) == %{}
+
+      assert ImageEdit.geometry(%{"rotate" => 90, "brightness" => 10, "redact" => []}) ==
+               %{"rotate" => 90}
     end
   end
 

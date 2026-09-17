@@ -12,6 +12,8 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
 
   require Logger
 
+  alias PhoenixKit.Modules.Storage.ImageEdit
+
   @doc """
   Get the width of an image file using ImageMagick identify.
 
@@ -402,7 +404,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   @spec render_edit(String.t(), String.t(), map() | nil, {pos_integer(), pos_integer()}) ::
           :ok | {:error, String.t()}
   def render_edit(input_path, output_path, edit, size) do
-    args = PhoenixKit.Modules.Storage.ImageEdit.magick_args(edit, size, input_path, output_path)
+    args = ImageEdit.magick_args(edit, size, input_path, output_path)
 
     case System.cmd("convert", args, stderr_to_stdout: true) do
       {_output, 0} ->
