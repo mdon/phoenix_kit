@@ -1196,6 +1196,19 @@ defmodule PhoenixKit.Integrations.Providers do
              ), nil},
             {gettext("Paste the token into the form above and press **Test Connection**"), nil}
           ]
+        },
+        # A valid token delivers nothing on its own: Telegram forbids a bot from
+        # messaging first, so every destination has to be linked explicitly.
+        %{
+          title: gettext("Link the chats the bot will message"),
+          steps: [
+            {gettext("Send **/start** to your bot in Telegram, then press **Test Connection**"),
+             nil},
+            {gettext(
+               "For a group: add the bot to the group, send **/start@yourbotname** there, then press **Test Connection** — a bot cannot read ordinary group messages, only commands addressed to it"
+             ), nil},
+            {gettext("A chat id you already know can be typed into **Link a chat by ID**"), nil}
+          ]
         }
       ]
     }
