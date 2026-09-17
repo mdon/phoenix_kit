@@ -60,6 +60,11 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
   `"multi"` unions everything captured. The empty `newly_added_ids` is what
   lets a caller tell "nothing new was found" from "linked a chat" — the old
   code could not, and reported success either way.
+
+  Both modes govern AUTO-CAPTURE only. Linking a chat by id is a deliberate
+  act by the connection's owner, so it is not capped here: "single" means
+  "capture cannot quietly add a second private chat", not "this connection
+  can only ever reach one chat".
   """
   @spec merge(String.t(), [String.t()], [map()]) :: {[String.t()], [String.t()]}
   def merge(mode, existing, chats) when is_list(existing) and is_list(chats) do
@@ -98,19 +103,62 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
 
   def normalize_chat_id(_), do: :error
 
-  @doc "Whether a stored id denotes a group/supergroup (Telegram signs those negative)."
+  @doc """
+  Folds a `getUpdates` peek into everything the connection should store:
+  the linked ids, which of them are new, and the metadata for those ids.
+
+  Metadata is kept for LINKED chats only, and pruned to them. Recording a
+  chat the lock just refused would turn the connection's data into a log of
+  everyone who has ever messaged the bot.
+  """
+  @spec capture(String.t(), [String.t()], map(), [map()]) :: %{
+          ids: [String.t()],
+          added: [String.t()],
+          meta: map()
+        }
+  def capture(mode, existing, existing_meta, chats) do
+    {ids, added} = merge(mode, existing, chats)
+
+    meta =
+      chats
+      |> Enum.reduce(existing_meta || %{}, fn chat, acc ->
+        Map.put(acc, chat["id"], %{"type" => chat["type"], "title" => chat["title"]})
+      end)
+      |> prune_meta(ids)
+
+    %{ids: ids, added: added, meta: meta}
+  end
+
+  @doc "Metadata for the given ids only — everything else is dropped."
+  @spec prune_meta(map(), [String.t()]) :: map()
+  def prune_meta(meta, ids) when is_map(meta) and is_list(ids), do: Map.take(meta, ids)
+  def prune_meta(_meta, ids) when is_list(ids), do: %{}
+
+  @doc """
+  What a stored id denotes. A stored `chat_ids` entry is a bare string, so
+  kind is read back from its shape: Telegram signs group ids negative, and a
+  channel is linked by its `@handle`.
+  """
+  @spec kind(String.t()) :: :group | :channel | :private
+  def kind("@" <> _), do: :channel
+  def kind("-" <> _), do: :group
+  def kind(_), do: :private
+
+  @doc "Whether a stored id denotes a group/supergroup."
   @spec group_id?(String.t()) :: boolean()
-  def group_id?(id) when is_binary(id), do: String.starts_with?(id, "-")
+  def group_id?(id) when is_binary(id), do: kind(id) == :group
   def group_id?(_), do: false
 
   defp group?(chat), do: chat["type"] in @group_types
 
   defp ids(chats), do: Enum.map(chats, & &1["id"])
 
-  # The lock is per-KIND: a linked group must not block linking the private
-  # chat the operator still owes themselves.
+  # The lock is per-KIND: a linked group — or a hand-linked channel — must not
+  # block linking the private chat the operator still owes themselves. Asking
+  # "does this id start with a minus" got that wrong for an @handle, which
+  # silently consumed the single slot.
   defp lockable_private(existing, privates) do
-    if Enum.any?(existing, &(not group_id?(&1))) do
+    if Enum.any?(existing, &(kind(&1) == :private)) do
       []
     else
       privates |> ids() |> Enum.take(-1)

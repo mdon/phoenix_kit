@@ -70,6 +70,75 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLinkTest do
     end
   end
 
+  describe "kind/1" do
+    test "reads a group from the negative sign Telegram gives group ids" do
+      assert :group = ChatLink.kind("-1001234567890")
+    end
+
+    test "reads a channel from an @handle" do
+      assert :channel = ChatLink.kind("@decor3d_orders")
+    end
+
+    test "reads a private chat from a plain positive id" do
+      assert :private = ChatLink.kind("428897538")
+    end
+  end
+
+  describe "merge/3 and chats that are neither private nor a group" do
+    test "a hand-linked channel does not count as the locked private chat" do
+      # The lock asks "is a private chat already linked". Answering it with
+      # "does this id start with a minus" made an @handle look private, so a
+      # channel linked by hand silently consumed the single slot and the
+      # owner's own chat could never be captured.
+      chats = [%{"id" => "428897538", "type" => "private"}]
+
+      assert {["@myannounce", "428897538"], ["428897538"]} =
+               ChatLink.merge("single", ["@myannounce"], chats)
+    end
+  end
+
+  describe "capture/4" do
+    test "records metadata only for chats that were actually linked" do
+      # In single mode a stranger's chat is refused by the lock; remembering
+      # who they are anyway turns chat_meta into a log of everyone who ever
+      # messaged the bot.
+      chats = [
+        %{"id" => "999", "type" => "private", "title" => nil},
+        %{"id" => "-500", "type" => "group", "title" => "Shop"}
+      ]
+
+      %{ids: ids, added: added, meta: meta} = ChatLink.capture("single", ["111"], %{}, chats)
+
+      assert ids == ["111", "-500"]
+      assert added == ["-500"]
+      assert Map.keys(meta) == ["-500"]
+    end
+
+    test "keeps metadata already known for a still-linked chat" do
+      known = %{"111" => %{"type" => "private", "title" => nil}}
+
+      %{meta: meta} = ChatLink.capture("single", ["111"], known, [])
+
+      assert Map.has_key?(meta, "111")
+    end
+
+    test "drops metadata for a chat that is no longer linked" do
+      known = %{"gone" => %{"type" => "group", "title" => "Old"}}
+
+      %{meta: meta} = ChatLink.capture("single", ["111"], known, [])
+
+      refute Map.has_key?(meta, "gone")
+    end
+  end
+
+  describe "prune_meta/2" do
+    test "keeps only metadata for ids still linked" do
+      meta = %{"a" => %{"type" => "private"}, "b" => %{"type" => "group"}}
+
+      assert %{"b" => %{"type" => "group"}} == ChatLink.prune_meta(meta, ["b"])
+    end
+  end
+
   describe "merge/3 in multi mode" do
     test "unions every captured chat with what is already linked" do
       chats = [%{"id" => "222", "type" => "private"}, %{"id" => "-300", "type" => "group"}]

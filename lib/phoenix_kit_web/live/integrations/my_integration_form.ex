@@ -216,21 +216,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
   # (single mode has no nonce, so a stranger who messaged the bot right before
   # Test could be captured). Re-link by messaging the bot again + pressing Test.
   def handle_event("unlink_chats", _params, socket) do
-    case Integrations.save_setup(
-           socket.assigns.uuid,
-           %{"chat_ids" => []},
-           socket.assigns.user_uuid,
-           owner: owner(socket)
-         ) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> reload()
-         |> put_flash(:info, gettext("Unlinked. Message the bot and press Test to re-link."))}
-
-      _ ->
-        {:noreply, put_flash(socket, :error, gettext("Could not unlink chats"))}
-    end
+    save_chat_ids(socket, [], gettext("Unlinked. Message the bot and press Test to re-link."))
   end
 
   # Link a chat by its id. Capture can only reach chats whose update is still
@@ -323,13 +309,18 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
 
     case Telegram.get_updates(uuid, offset: nil, owner: owner) do
       {:ok, updates} ->
-        chats = ChatLink.capturable_chats(updates)
-        {merged, added} = ChatLink.merge(mode, existing, chats)
+        %{ids: ids, added: added, meta: meta} =
+          ChatLink.capture(
+            mode,
+            existing,
+            socket.assigns.data["chat_meta"] || %{},
+            ChatLink.capturable_chats(updates)
+          )
 
         if added != [] do
           Integrations.save_setup(
             uuid,
-            %{"chat_ids" => merged, "chat_meta" => chat_meta(socket, chats)},
+            %{"chat_ids" => ids, "chat_meta" => meta},
             socket.assigns.user_uuid,
             owner: owner
           )
@@ -356,9 +347,16 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
       {:warning,
        gettext(
          "The bot works, but no chat is linked yet — message the bot (or run /start@%{bot} in a group), then press Test again.",
-         bot: bot_username(socket) || "yourbot"
+         bot: bot_username(socket.assigns.data)
        )}
     end
+  end
+
+  # The token checked out but the update peek didn't: whatever is linked stays
+  # linked, and nothing new could have been. Saying "connection works" here
+  # would hide the one thing that just failed.
+  defp capture_flash(:unreachable, _socket) do
+    {:warning, gettext("The bot answers, but its chats could not be read just now — try again.")}
   end
 
   defp capture_flash(_capture, _socket), do: nil
@@ -386,37 +384,26 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
     end
   end
 
-  defp bot_username_or_placeholder(data) do
+  # BotFather's handle, as recorded by the last successful validation
+  # ("Connected as @somebot") — the group command is useless without it, so an
+  # unvalidated connection still gets a placeholder to show the shape.
+  defp bot_username(data) do
     case Regex.run(~r/@([A-Za-z0-9_]+)/, to_string(data["validation_status"])) do
       [_, name] -> name
       _ -> "yourbot"
     end
   end
 
-  # BotFather's handle, as recorded by the last successful validation
-  # ("Connected as @somebot") — the group command is useless without it.
-  defp bot_username(socket) do
-    case Regex.run(~r/@([A-Za-z0-9_]+)/, to_string(socket.assigns.data["validation_status"])) do
-      [_, name] -> name
-      _ -> nil
-    end
-  end
-
-  # Remember what each captured chat IS, so the card can name it. Kept
-  # alongside `chat_ids` rather than inside it: the notifications channel
-  # reads that list and must keep seeing plain ids.
-  defp chat_meta(socket, chats) do
-    known = socket.assigns.data["chat_meta"] || %{}
-
-    Enum.reduce(chats, known, fn chat, acc ->
-      Map.put(acc, chat["id"], %{"type" => chat["type"], "title" => chat["title"]})
-    end)
-  end
-
+  # `chat_meta` (what each linked chat IS, so the card can name it) is kept
+  # alongside `chat_ids` rather than inside it: the notifications channel reads
+  # that list and must keep seeing plain ids. It follows the list on every
+  # write — an unlinked chat's title has no business lingering.
   defp save_chat_ids(socket, ids, message) do
+    meta = ChatLink.prune_meta(socket.assigns.data["chat_meta"] || %{}, ids)
+
     case Integrations.save_setup(
            socket.assigns.uuid,
-           %{"chat_ids" => ids},
+           %{"chat_ids" => ids, "chat_meta" => meta},
            socket.assigns.user_uuid,
            owner: owner(socket)
          ) do
@@ -652,7 +639,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
                 </p>
                 <p>
                   {gettext("A group:")} {gettext("add the bot to the group, then send")}
-                  <span class="font-mono">/start@{bot_username_or_placeholder(@data)}</span>
+                  <span class="font-mono">/start@{bot_username(@data)}</span>
                   {gettext(
                     "there and press Test Connection. A group needs that command — bots cannot read ordinary group messages."
                   )}
@@ -663,6 +650,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
                 <div class="flex-1">
                   <.input
                     type="text"
+                    id="telegram-chat-id-input"
                     name="chat_id"
                     value=""
                     label={gettext("Or link a chat by ID")}

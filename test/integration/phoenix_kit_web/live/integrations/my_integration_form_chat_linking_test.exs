@@ -103,6 +103,36 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormChatLinkingTest do
     end
   end
 
+  describe "metadata follows the linked chats" do
+    test "unlinking a chat drops what was remembered about it", %{
+      conn: conn,
+      uuid: uuid,
+      user: user
+    } do
+      {:ok, _} =
+        Integrations.save_setup(
+          uuid,
+          %{
+            "chat_ids" => [@dm_id, @group_id],
+            "chat_meta" => %{
+              @dm_id => %{"type" => "private", "title" => nil},
+              @group_id => %{"type" => "supergroup", "title" => "Shop"}
+            }
+          },
+          user.uuid,
+          owner: {:user, user.uuid}
+        )
+
+      {:ok, view, _html} = live(conn, edit_path(uuid))
+
+      render_click(view, "unlink_chat", %{"chat_id" => @group_id})
+
+      [conn_row] = Integrations.list_connections("telegram", owner: {:user, user.uuid})
+
+      assert Map.keys(conn_row.data["chat_meta"]) == [@dm_id]
+    end
+  end
+
   describe "the group is discoverable at all" do
     test "the card tells the operator the command that links a group", %{conn: conn, uuid: uuid} do
       # Telegram privacy mode means plain chatter in a group never reaches the
