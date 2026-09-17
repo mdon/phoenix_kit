@@ -553,10 +553,15 @@ defmodule PhoenixKit.Settings do
     # Use a special sentinel to distinguish "not in cache" from "cached nil" or "cached non-existent"
     cache_miss_sentinel = :__cache_not_found__
 
-    case PhoenixKit.Cache.get(@cache_name, key, cache_miss_sentinel) do
+    # The generation travels with the miss so the fill cannot bring back a
+    # value a concurrent write has just invalidated (`Cache.put/4`).
+    {cached, generation} =
+      PhoenixKit.Cache.get_with_generation(@cache_name, key, cache_miss_sentinel)
+
+    case cached do
       ^cache_miss_sentinel ->
         # Cache miss - query database and cache result
-        value = query_and_cache_setting(key)
+        value = query_and_cache_setting(key, generation)
         value || default
 
       @not_found_sentinel ->
@@ -623,10 +628,12 @@ defmodule PhoenixKit.Settings do
     # formats reading `nil`, site-wide, until something happened to re-warm them.
     cache_miss_sentinel = :__cache_not_found__
     cache_defaults = Map.new(keys, &{&1, cache_miss_sentinel})
-    cached_results = PhoenixKit.Cache.get_multiple(@cache_name, keys, cache_defaults)
+    # See `get_setting_cached/2` for the generation.
+    {cached_results, generation} =
+      PhoenixKit.Cache.get_multiple_with_generation(@cache_name, keys, cache_defaults)
 
     missing = Enum.filter(keys, &(Map.get(cached_results, &1) == cache_miss_sentinel))
-    fetched = if missing == [], do: %{}, else: fill_missing_settings(missing)
+    fetched = if missing == [], do: %{}, else: fill_missing_settings(missing, generation)
 
     Enum.reduce(keys, %{}, fn key, acc ->
       value =
@@ -685,7 +692,7 @@ defmodule PhoenixKit.Settings do
   # wave would make configured OAuth credentials read as unconfigured, site-wide,
   # for five minutes. The single-key path already avoids caching on failure; this
   # one has to as well.
-  defp fill_missing_settings(keys) do
+  defp fill_missing_settings(keys, generation) do
     case query_settings_or_error(keys) do
       {:ok, found} ->
         to_cache =
@@ -693,7 +700,7 @@ defmodule PhoenixKit.Settings do
           |> Enum.reject(&restricted_decrypt_failure?(&1, found))
           |> Map.new(&{&1, Map.get(found, &1, @not_found_sentinel)})
 
-        PhoenixKit.Cache.put_multiple(@cache_name, to_cache)
+        PhoenixKit.Cache.put_multiple(@cache_name, to_cache, if_generation: generation)
         found
 
       :error ->
@@ -730,7 +737,7 @@ defmodule PhoenixKit.Settings do
     key in @restricted_setting_keys and Map.get(found, key, :__absent__) == nil
   end
 
-  defp fill_missing_json_settings(keys) do
+  defp fill_missing_json_settings(keys, generation) do
     if Application.get_env(:phoenix_kit, :update_mode, false) or not repo_available?() do
       %{}
     else
@@ -753,7 +760,7 @@ defmodule PhoenixKit.Settings do
           {key, value}
         end)
 
-      PhoenixKit.Cache.put_multiple(@cache_name, to_cache)
+      PhoenixKit.Cache.put_multiple(@cache_name, to_cache, if_generation: generation)
       found
     end
   rescue
@@ -813,10 +820,14 @@ defmodule PhoenixKit.Settings do
     # detect a miss by matching that sentinel rather than by key presence.
     cache_miss_sentinel = :__cache_not_found__
     cache_defaults = Map.new(keys, &{&1, cache_miss_sentinel})
-    cached_results = PhoenixKit.Cache.get_multiple(@cache_name, keys, cache_defaults)
+
+    {cached_results, generation} =
+      PhoenixKit.Cache.get_multiple_with_generation(@cache_name, keys, cache_defaults)
 
     missing = Enum.filter(keys, &(Map.get(cached_results, &1) == cache_miss_sentinel))
-    fetched = if missing == [], do: %{}, else: fill_missing_json_settings(missing)
+
+    fetched =
+      if missing == [], do: %{}, else: fill_missing_json_settings(missing, generation)
 
     Enum.reduce(keys, %{}, fn key, acc ->
       value =
@@ -936,10 +947,14 @@ defmodule PhoenixKit.Settings do
     # Use a special sentinel to distinguish "not in cache" from "cached nil" or "cached non-existent"
     cache_miss_sentinel = :__cache_not_found__
 
-    case PhoenixKit.Cache.get(@cache_name, key, cache_miss_sentinel) do
+    # See `get_setting_cached/2` for the generation.
+    {cached, generation} =
+      PhoenixKit.Cache.get_with_generation(@cache_name, key, cache_miss_sentinel)
+
+    case cached do
       ^cache_miss_sentinel ->
         # Cache miss - query database and cache result
-        value = query_and_cache_json_setting(key)
+        value = query_and_cache_json_setting(key, generation)
         value || default
 
       @not_found_sentinel ->
@@ -2365,9 +2380,9 @@ defmodule PhoenixKit.Settings do
   # A restricted value that failed to decrypt is answered nil but NOT
   # cached — the key may simply not be available yet (see
   # `undecryptable_at_boot?/1`), and the next read must try again.
-  defp cache_decrypted(key, raw, decrypted) do
+  defp cache_decrypted(key, raw, decrypted, generation) do
     unless decrypt_failed?(key, raw, decrypted) do
-      PhoenixKit.Cache.put(@cache_name, key, decrypted)
+      PhoenixKit.Cache.put(@cache_name, key, decrypted, if_generation: generation)
     end
 
     decrypted
@@ -2465,7 +2480,7 @@ defmodule PhoenixKit.Settings do
   ## Private Cache Management Functions
 
   # Queries database for a single setting and caches the result
-  defp query_and_cache_setting(key) do
+  defp query_and_cache_setting(key, generation) do
     # In update_mode, skip DB — return nil immediately.
     if Application.get_env(:phoenix_kit, :update_mode, false) do
       nil
@@ -2474,12 +2489,12 @@ defmodule PhoenixKit.Settings do
       if repo_available?() do
         case Queries.get_setting_by_key(key) do
           %Setting{value: value} ->
-            cache_decrypted(key, value, decrypt_if_restricted(key, value))
+            cache_decrypted(key, value, decrypt_if_restricted(key, value), generation)
 
           nil ->
             # Cache a sentinel value to indicate this setting doesn't exist
             # This prevents repeated database queries for non-existent settings
-            PhoenixKit.Cache.put(@cache_name, key, @not_found_sentinel)
+            PhoenixKit.Cache.put(@cache_name, key, @not_found_sentinel, if_generation: generation)
             nil
         end
       else
@@ -2500,23 +2515,23 @@ defmodule PhoenixKit.Settings do
   end
 
   # Queries database for a single JSON setting and caches the result
-  defp query_and_cache_json_setting(key) do
+  defp query_and_cache_json_setting(key, generation) do
     # Check if repository is available before attempting query
     if repo_available?() do
       case Queries.get_setting_by_key(key) do
         %Setting{value_json: value_json} when not is_nil(value_json) ->
-          PhoenixKit.Cache.put(@cache_name, key, value_json)
+          PhoenixKit.Cache.put(@cache_name, key, value_json, if_generation: generation)
           value_json
 
         %Setting{value: value} when not is_nil(value) and value != "" ->
           # Has meaningful string value but no JSON - cache nil for JSON lookup
-          PhoenixKit.Cache.put(@cache_name, key, nil)
+          PhoenixKit.Cache.put(@cache_name, key, nil, if_generation: generation)
           nil
 
         nil ->
           # Cache a sentinel value to indicate this setting doesn't exist
           # This prevents repeated database queries for non-existent settings
-          PhoenixKit.Cache.put(@cache_name, key, @not_found_sentinel)
+          PhoenixKit.Cache.put(@cache_name, key, @not_found_sentinel, if_generation: generation)
           nil
       end
     else

@@ -89,6 +89,54 @@ defmodule PhoenixKit.SettingsSubscribeTest do
              "a subscriber re-reading on the event must not get the value from before it"
     end
 
+    test "a reader that missed before a write cannot put the old value back" do
+      # The reader misses, reads the old row, and is held (by a telemetry
+      # handler on its own query) until the write has committed and the cache
+      # has dropped the key. Its fill then arrives after the invalidation; an
+      # unconditional put would re-cache the value that was just replaced, for
+      # a full TTL.
+      key = key()
+      {:ok, _} = Settings.update_setting(key, "old")
+      assert_receive {:setting_changed, ^key, "old"}
+      test_pid = self()
+      handler = "hold-reader-#{key}"
+
+      :telemetry.attach(
+        handler,
+        [:phoenix_kit, :test, :repo, :query],
+        fn _event, _measurements, %{source: "phoenix_kit_settings", params: params}, _ ->
+          if key in params and Process.get(:hold_after_read) do
+            Process.delete(:hold_after_read)
+            send(test_pid, {:reader_read, self()})
+
+            receive do
+              :continue -> :ok
+            end
+          end
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler) end)
+
+      reader =
+        Task.async(fn ->
+          Process.put(:hold_after_read, true)
+          Settings.get_setting_cached(key)
+        end)
+
+      assert_receive {:reader_read, reader_pid}, 2_000
+      {:ok, _} = Settings.update_setting(key, "new")
+      assert_receive {:setting_changed, ^key, "new"}
+      send(reader_pid, :continue)
+
+      assert Task.await(reader) == "old", "the reader read before the write"
+      cache = GenServer.whereis({:via, Registry, {PhoenixKit.Cache.Registry, @cache}})
+      _ = :sys.get_state(cache)
+
+      assert Settings.get_setting_cached(key) == "new"
+    end
+
     test "a failed announcement is logged and the next one still goes out" do
       # The write has committed by now; a notification that raises (here the
       # feed publish, handed something that is not an entry) must neither
