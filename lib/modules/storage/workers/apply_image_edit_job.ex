@@ -41,6 +41,7 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.FileInstance
+  alias PhoenixKit.Modules.Storage.FileLocation
   alias PhoenixKit.Modules.Storage.ImageEdit
   alias PhoenixKit.Modules.Storage.ImageEditing
   alias PhoenixKit.Modules.Storage.ImageProcessor
@@ -176,9 +177,15 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
     result =
       with {:ok, prepared} <- prepare(file) do
         case publish(file.uuid, revision, prepared) do
-          {:ok, outcome} -> after_publish(file.uuid, revision, outcome)
-          {:superseded, prepared} -> discard_then(:superseded, prepared)
-          other -> other
+          {:ok, outcome} ->
+            release_unused_copies(prepared)
+            after_publish(file.uuid, revision, outcome)
+
+          {:superseded, prepared} ->
+            discard_then(:superseded, prepared)
+
+          other ->
+            other
         end
       end
 
@@ -206,7 +213,16 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
       case Manager.store_file(rendered.path, path_prefix: key) do
         {:ok, %{bucket_ids: bucket_ids}} ->
           File.rm(rendered.path)
-          {:ok, {:render, Map.merge(rendered, %{key: key, bucket_ids: bucket_ids})}}
+          rendered = Map.merge(rendered, %{key: key, bucket_ids: bucket_ids, copies: %{}})
+
+          case copy_unedited(file) do
+            {:ok, copies} ->
+              {:ok, {:render, %{rendered | copies: copies}}}
+
+            {:error, reason} ->
+              discard({:render, rendered})
+              {:error, reason}
+          end
 
         {:error, reason} ->
           File.rm(rendered.path)
@@ -214,6 +230,75 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
       end
     end
   end
+
+  # The unedited original must not stay at the keys it was served under.
+  # On a public bucket those keys were handed out as plain bucket URLs
+  # (`Manager.get_file_access/1` redirects to them), so a redaction that
+  # left the bytes there would still be one saved link away. The backup's
+  # objects are therefore copied to fresh, unguessable keys before the swap;
+  # the swap points the backup's rows at the copies and the old keys are
+  # deleted once nothing references them.
+  #
+  # Which objects: all of the file's when this edit creates the backup, else
+  # the backup's rows that still sit at a served key (a backup made before
+  # this existed). Copying happens here, outside the transaction; the swap
+  # checks every row it moves has its copy and starts over when one does not
+  # (a variant generated in between).
+  defp copy_unedited(file) do
+    keys =
+      case ImageEditing.backup(file) do
+        nil ->
+          ImageEditing.instance_keys([file.uuid])
+
+        backup ->
+          backup.uuid
+          |> List.wrap()
+          |> ImageEditing.instance_keys()
+          |> Enum.reject(&unedited_key?/1)
+      end
+
+    keys
+    |> Enum.uniq()
+    |> Enum.reduce_while({:ok, %{}}, fn key, {:ok, copies} ->
+      case copy_object(key) do
+        {:ok, copy} ->
+          {:cont, {:ok, Map.put(copies, key, copy)}}
+
+        {:error, reason} ->
+          Storage.delete_stored_objects(Enum.map(Map.values(copies), & &1.key))
+          {:halt, {:error, {:copy_failed, key, reason}}}
+      end
+    end)
+  end
+
+  defp copy_object(key) do
+    copy_key = unedited_key(key)
+    temp = temp_path(Manager.temp_extension(key))
+
+    try do
+      with {:ok, _} <- Manager.retrieve_file(key, destination_path: temp),
+           {:ok, %{bucket_ids: bucket_ids}} <- Manager.store_file(temp, path_prefix: copy_key) do
+        {:ok, %{key: copy_key, bucket_ids: bucket_ids}}
+      end
+    after
+      File.rm(temp)
+    end
+  end
+
+  @unedited_prefix "unedited_"
+
+  # Same directory (the directory lock covers it), a name no upload,
+  # variant or render produces, and 128 random bits nobody can guess.
+  defp unedited_key(key) do
+    token = :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
+    Path.join(Path.dirname(key), "#{@unedited_prefix}#{token}_#{Path.basename(key)}")
+  end
+
+  @doc false
+  def unedited_key?(key) when is_binary(key),
+    do: String.starts_with?(Path.basename(key), @unedited_prefix)
+
+  def unedited_key?(_key), do: false
 
   @doc false
   # Renders `edit` from the file's unedited original into a temp file.
@@ -312,9 +397,21 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
 
   # A rendered object that never got published: delete it unless something
   # references it (an identical earlier render can share its key).
-  defp discard({:render, %{key: key}}), do: Storage.delete_stored_objects([key])
+  defp discard({:render, %{key: key} = rendered}),
+    do: Storage.delete_stored_objects([key | copy_keys(rendered)])
 
   defp discard(_), do: :ok
+
+  # After a publish: the copies the swap did not use (the backup already had
+  # them, or an overlapping run published first). A used copy is referenced
+  # and stays.
+  defp release_unused_copies({:render, rendered}),
+    do: Storage.delete_stored_objects(copy_keys(rendered))
+
+  defp release_unused_copies(_), do: :ok
+
+  defp copy_keys(rendered),
+    do: rendered |> Map.get(:copies, %{}) |> Map.values() |> Enum.map(& &1.key)
 
   # Already published (an overlapping run, or this run's own earlier
   # attempt): only the variants are still to be made.
@@ -351,12 +448,13 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
     {backup, dropped_keys} =
       case backup do
         nil ->
-          {create_backup!(file), []}
+          backup = create_backup!(file)
+          {backup, move_to_copies!(backup, :all, rendered)}
 
         backup ->
           keys = ImageEditing.instance_keys([file.uuid])
           repo().delete_all(from(fi in FileInstance, where: fi.file_uuid == ^file.uuid))
-          {backup, keys}
+          {backup, keys ++ move_to_copies!(backup, :served, rendered)}
       end
 
     previous = applied_edit(backup)
@@ -462,8 +560,38 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
      {:reverted, ImageEdit.geometry(previous) != %{}}}
   end
 
+  # Points the backup's rows at the copies `prepare/1` made (see
+  # `copy_unedited/1`) and returns the keys they left, for deletion once
+  # unreferenced. `:all` for a backup this swap created (every row sat at a
+  # served key); `:served` for an existing one. A row without a copy means
+  # the rows changed since `prepare/1`: start over rather than leave it.
+  defp move_to_copies!(backup, which, rendered) do
+    from(fi in FileInstance, where: fi.file_uuid == ^backup.uuid)
+    |> repo().all()
+    |> Enum.reject(&(which == :served and unedited_key?(&1.file_name)))
+    |> Enum.map(fn instance ->
+      case Map.fetch(rendered.copies, instance.file_name) do
+        {:ok, %{key: copy_key, bucket_ids: bucket_ids}} ->
+          repo().delete_all(
+            from(l in FileLocation, where: l.file_instance_uuid == ^instance.uuid)
+          )
+
+          instance |> Ecto.Changeset.change(file_name: copy_key) |> repo().update!()
+
+          {:ok, _} =
+            Storage.create_file_locations_for_instance(instance.uuid, bucket_ids, copy_key)
+
+          instance.file_name
+
+        :error ->
+          repo().rollback({:superseded, {:render, rendered}})
+      end
+    end)
+  end
+
   # The unedited original as a hidden child of `file`: the file's current
-  # instance rows (and their locations) move to it, no bytes are copied.
+  # instance rows (and their locations) move to it. `move_to_copies!/3` then
+  # points them at private copies of their bytes.
   defp create_backup!(file) do
     {:ok, backup} =
       %StorageFile{}

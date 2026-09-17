@@ -1,3 +1,20 @@
+## 2.28.1 - 2026-09-17
+
+### Fixed
+
+- **A redaction no longer leaves the unredacted image at its public bucket
+  URL.** Before, the first edit of an image moved the original's rows to the
+  hidden backup but left its objects where they were. On a public bucket,
+  file URLs redirect to those objects, so any saved link still showed the
+  unedited original and its variants.
+  - The first edit now copies the unedited objects to private
+    `unedited_<random>_*` keys and deletes the served keys once nothing
+    references them.
+  - A backup made by 2.28.0 moves on its next edit.
+  - Responses a CDN or browser already cached can't be revoked. Purge on
+    `[:phoenix_kit, :storage, :file_edited]` telemetry (see the storage
+    README, "Editing images"). (#821 review)
+
 ## 2.28.0 - 2026-09-17
 
 ### Added

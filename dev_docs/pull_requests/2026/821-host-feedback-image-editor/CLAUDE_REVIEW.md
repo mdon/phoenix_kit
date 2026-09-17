@@ -20,14 +20,14 @@ Ship it. Most of the PR holds up under a close read:
   cycle
 - reference-counted deletion handles every shared-key case
 
-The review found one high-severity bug (the uploader's extension picked
-ImageMagick's coder in the edit job) and five medium ones. All six are fixed and
-covered by tests. It also found that **the PR's image-editing test suites never
+The review found two high-severity bugs (the uploader's extension picked
+ImageMagick's coder in the edit job; a redaction left the unredacted image at
+its public bucket URL) and five medium ones. All are fixed and covered by tests. It also found that **the PR's image-editing test suites never
 actually ran**: two probed for ImageMagick 7's `magick`, and all four "skipped"
 from `setup`, which ExUnit does not honour. With that fixed they all pass, except
 the 6 deep-zoom tile tests, which skip without ImageMagick 7 (see below).
 
-Released in 2.28.0.
+Released in 2.28.0; the public-bucket fix in 2.28.1.
 
 ## Findings
 
@@ -109,6 +109,38 @@ the `@disable_ddl_transaction` advice and the Postgres-notifier hint.
 **Fix:** that case warns again, says the probe cannot clear an idle pooler, and
 keeps both hints. `Repair.Environment.pooled?/2` was unaffected.
 
+### BUG - HIGH — redaction on a public bucket left the unredacted image at its public URL (FIXED in 2.28.1)
+
+On a first edit the original's instance rows moved to the hidden backup, but
+the objects stayed at their keys. On a public bucket `Manager.get_file_access/1`
+answers with `{:redirect, bucket_url}`, so before the edit every viewer had
+been sent to the raw object URL of the original and each variant
+(`…/<md5>_original.jpg`). Those objects stayed world-readable after a
+redaction, so anyone holding a saved link, a log line or an archived page
+still got the unredacted image. The "never served by the public routes" claim
+only covered PhoenixKit's own routes.
+
+**Fix:** `ApplyImageEditJob.prepare/1` copies every unedited object to a
+private key (`unedited_<128 random bits>_<name>`, same directory). The swap
+then does three things under the file-row lock:
+
+- points each backup row and its locations at its copy
+- starts over if a row has no copy (for example, a variant generated
+  meanwhile)
+- queues the served keys for `delete_stored_objects/2`, which keeps a key
+  another file still references (a cross-user copy)
+
+Unused copies are released after publish and deleted on discard. A backup
+made by 2.28.0 moves on its next edit. After a revert, the next edit copies
+again, because the rows were served in between. The tests assert the old keys
+are gone and the copy holds the original bytes: three fail on the 2.28.0 job.
+
+**What remains, documented in the storage README:** responses already cached.
+A versioned URL is `immutable`, so a CDN or browser that fetched the unedited
+image keeps it until its own cache expires. Hosts behind a CDN should purge on
+`[:phoenix_kit, :storage, :file_edited]` telemetry, which carries
+`removed_keys`.
+
 ### IMPROVEMENT - HIGH — the PR's image-editing tests never ran (FIXED)
 
 - `file_editing_serving_test.exs` and `image_editor_test.exs` probed
@@ -169,13 +201,6 @@ crashed. Both catch `:exit` now.
   embedded browsers out of editing their own module's files. **A host that
   treats redaction as a privacy control should gate the browser (or pass
   `scope`-based authorization) until core grows a per-embed `can_edit` option.**
-- **BUG - MEDIUM (docs) — redaction on a public bucket does not revoke copies
-  already handed out.** On a first edit the original's objects become the hidden
-  backup's under the same key. On a public bucket that key was a direct 302
-  target, and old `?v=` responses were `public, immutable` for a year, so CDNs
-  and saved links keep the unredacted bytes. Moving backups to fresh keys on
-  public buckets is the real fix; it touches the backup/revert swap and wants
-  its own PR.
 - **BUG - MEDIUM (pre-existing since V184) — settings history stores
   name-marked secrets.** The broadcast withholds keys whose names contain
   `secret`/`password`/`token`; `History.record` only withholds restricted keys

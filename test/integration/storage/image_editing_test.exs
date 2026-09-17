@@ -159,6 +159,16 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
 
   defp exists?(key), do: Manager.file_exists?(key)
 
+  defp object_sha256(key) do
+    tmp = Path.join(System.tmp_dir!(), "pk_edit_sha_#{System.unique_integer([:positive])}")
+    {:ok, _} = Manager.retrieve_file(key, destination_path: tmp)
+    sha = :sha256 |> :crypto.hash(File.read!(tmp)) |> Base.encode16(case: :lower)
+    File.rm(tmp)
+    sha
+  end
+
+  defp unedited_keys?(keys), do: Enum.all?(Map.values(keys), &ApplyImageEditJob.unedited_key?/1)
+
   defp original_size(file) do
     %{file_name: key} = Storage.get_file_instance_by_name(file.uuid, "original")
     tmp = Path.join(System.tmp_dir!(), "pk_edit_probe_#{System.unique_integer([:positive])}")
@@ -185,8 +195,11 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
       assert backup.system_managed
       assert backup.parent_file_uuid == file.uuid
       assert backup.file_checksum == ctx.photo.file_checksum
-      assert keys(backup.uuid) == before_keys, "the unedited rows moved, untouched"
-      assert Enum.all?(Map.values(before_keys), &exists?/1)
+      backup_keys = keys(backup.uuid)
+      assert Map.keys(backup_keys) == Map.keys(before_keys), "every unedited row moved"
+      assert unedited_keys?(backup_keys), "at private copies, not the served keys"
+      assert Enum.all?(Map.values(backup_keys), &exists?/1)
+      assert object_sha256(backup_keys["original"]) == ctx.photo.file_checksum
 
       after_keys = keys(file.uuid)
       assert Map.keys(after_keys) |> Enum.sort() == Map.keys(before_keys) |> Enum.sort()
@@ -237,6 +250,7 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
       unedited = keys(ctx.photo.uuid)
       edited = edit!(ctx.photo, %{"rotate" => 180}, ctx)
       backup = ImageEditing.backup(edited)
+      backup_keys = keys(backup.uuid)
       edited_keys = keys(edited.uuid)
 
       assert {:ok, _} = ImageEditing.revert(edited, scope: ctx.scope)
@@ -248,11 +262,92 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
       assert file.file_checksum == ctx.photo.file_checksum
       assert file.user_file_checksum == ctx.photo.user_file_checksum
       assert file.file_name == ctx.photo.file_name
-      assert keys(file.uuid) == unedited
+      assert keys(file.uuid) == backup_keys
+      assert Map.keys(keys(file.uuid)) == Map.keys(unedited)
       refute Storage.get_file(backup.uuid)
       refute Enum.any?(Map.values(edited_keys), &exists?/1)
-      assert Enum.all?(Map.values(unedited), &exists?/1)
+      assert Enum.all?(Map.values(keys(file.uuid)), &exists?/1)
       assert {:error, :not_edited} = ImageEditing.revert(file, scope: ctx.scope)
+    end
+
+    test "never stays at the keys it was served under", ctx do
+      # A public bucket hands those keys out as plain bucket URLs: a redaction
+      # that left the bytes there would still be one saved link away.
+      served = keys(ctx.photo.uuid)
+
+      edited =
+        edit!(
+          ctx.photo,
+          %{"redact" => [%{"x" => 0, "y" => 0, "w" => 50, "h" => 100, "style" => "fill"}]},
+          ctx
+        )
+
+      refute Enum.any?(Map.values(served), &exists?/1)
+      assert unedited_keys?(keys(ImageEditing.backup(edited).uuid))
+
+      # Locations follow the rows.
+      backup_original =
+        Storage.get_file_instance_by_name(ImageEditing.backup(edited).uuid, "original")
+
+      assert Enum.all?(
+               Repo.all(
+                 from(l in Storage.FileLocation,
+                   where: l.file_instance_uuid == ^backup_original.uuid
+                 )
+               ),
+               &(&1.path == backup_original.file_name)
+             )
+
+      # Reverted and edited again: the rows were served again meanwhile.
+      assert {:ok, _} = ImageEditing.revert(edited, scope: ctx.scope)
+      assert [:ok] = drain()
+      served_again = keys(ctx.photo.uuid)
+
+      again = edit!(reload(ctx.photo), %{"rotate" => 90}, ctx)
+
+      refute Enum.any?(Map.values(served_again), &exists?/1)
+      assert unedited_keys?(keys(ImageEditing.backup(again).uuid))
+    end
+
+    test "a backup still at its served keys moves to private copies on the next edit", ctx do
+      edited = edit!(ctx.photo, %{"rotate" => 90}, ctx)
+      backup = ImageEditing.backup(edited)
+      original = Storage.get_file_instance_by_name(backup.uuid, "original")
+
+      # A backup made before the copies existed: its original at a served key.
+      served_key = Path.join(Path.dirname(original.file_name), "legacy_original.jpg")
+      tmp = Path.join(ctx.tmp, "legacy.jpg")
+      {:ok, _} = Manager.retrieve_file(original.file_name, destination_path: tmp)
+      {:ok, _} = Manager.store_file(tmp, path_prefix: served_key)
+
+      Repo.update_all(from(fi in Storage.FileInstance, where: fi.uuid == ^original.uuid),
+        set: [file_name: served_key]
+      )
+
+      Repo.update_all(
+        from(l in Storage.FileLocation, where: l.file_instance_uuid == ^original.uuid),
+        set: [path: served_key]
+      )
+
+      again = edit!(edited, %{"rotate" => 180}, ctx)
+      moved = Storage.get_file_instance_by_name(ImageEditing.backup(again).uuid, "original")
+
+      assert ApplyImageEditJob.unedited_key?(moved.file_name)
+      assert object_sha256(moved.file_name) == ctx.photo.file_checksum
+      refute exists?(served_key)
+    end
+
+    test "bytes another file still references stay put", ctx do
+      other = user!("sharer", ctx.n)
+      shared = upload!(other, image!(ctx.tmp, "photo.jpg"), "theirs.jpg")
+      shared_keys = keys(shared.uuid)
+
+      _edited = edit!(ctx.photo, %{"rotate" => 90}, ctx)
+
+      # Their own copy of the bytes is theirs to serve; only this file's
+      # references moved.
+      assert Enum.all?(Map.values(keys(reload(shared).uuid)), &exists?/1)
+      assert keys(reload(shared).uuid) == shared_keys
     end
 
     test "deleting it bakes the edit in", ctx do

@@ -427,6 +427,24 @@ Whoever may edit the image can download it
 (`GET /api/files/:uuid/unedited`), restore it, or delete it, which bakes the
 edit in. With `replace_original`, every save bakes immediately.
 
+**The unedited original leaves the keys it was served under.** On a public
+bucket a file's objects are reachable as plain bucket URLs (the file routes
+redirect to them), so bytes left at those keys would survive a redaction
+behind any saved link. The first edit therefore copies every unedited object
+to a private key (`unedited_<128 random bits>_<name>`, same directory), points
+the backup's rows and locations at the copies, and deletes the served keys
+once nothing references them. A key another file still references (a
+cross-user copy of the same bytes) is that file's and stays. A backup made
+before this (2.28.0) moves on its next edit; a revert brings the copies back
+as the file's keys, and the next edit copies them again.
+
+**What an edit cannot take back:** copies already made of a response. A
+versioned file URL is served `immutable`, so a browser or CDN that fetched
+the unredacted image keeps it until its own cache expires. If you front
+files with a CDN and redact, purge it: `[:phoenix_kit, :storage,
+:file_edited]` telemetry fires after each swap with the `file_uuid` and the
+`removed_keys`.
+
 **While an edit renders** (`edit_state: "pending"`) **or after it failed**
 (`"failed"`), every variant of the file is served as a placeholder: a
 half-applied redaction must never show what it hides. Retry from the editor
