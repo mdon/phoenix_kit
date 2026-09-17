@@ -143,7 +143,8 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      |> assign(:rotation_status_token, 0)
      |> assign(:sidebar_collapsed, false)
      |> assign(:details_path, nil)
-     |> assign(:edit_target, nil)}
+     |> assign(:edit_target, nil)
+     |> assign(:media_meta_status_token, 0)}
   end
 
   @impl true
@@ -173,13 +174,21 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      |> assign(:reply_parent_uuid, nil)}
   end
 
+  # Auto-hide timer for the sidebar's title/description save-status.
+  # Token-guarded like the rotation pill below: a second Save inside the
+  # two-second window bumps the token, so the earlier timer no longer
+  # wipes the status the later save just put up.
+  def update(%{action: :clear_media_meta_status, token: token}, socket) do
+    if socket.assigns[:media_meta_status_token] == token do
+      {:ok, assign(socket, :media_meta_status, nil)}
+    else
+      {:ok, socket}
+    end
+  end
+
   # Auto-hide timer for the rotation save-status pill (scheduled by
   # show_rotation_status/2). Token-guarded: a burst of saves bumps the
   # token, so only the latest timer clears the pill.
-  def update(%{action: :clear_media_meta_status}, socket) do
-    {:ok, assign(socket, :media_meta_status, nil)}
-  end
-
   def update(%{action: :clear_rotation_status, token: token}, socket) do
     if socket.assigns[:rotation_status_token] == token do
       {:ok, assign(socket, :rotation_status, nil)}
@@ -228,6 +237,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       |> assign_new(:media_meta, fn -> %{title: "", description: ""} end)
       |> assign_new(:media_details_open, fn -> false end)
       |> assign_new(:media_meta_status, fn -> nil end)
+      |> assign_new(:media_meta_status_token, fn -> 0 end)
 
     # First mount (or file changed via re-mount): hydrate annotations
     # + canvas. Because the id encodes the file uuid, the parent's
@@ -438,6 +448,21 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     {:noreply, assign(socket, :media_details_open, !socket.assigns.media_details_open)}
   end
 
+  # Hosts that never offered the editor: refuse the write outright. The
+  # form is only rendered where `can_edit_media_meta?/2` holds, but the
+  # sidebar itself renders for anyone who can open the viewer — including
+  # the anonymous visitor of a readonly `MediaGallery` lightbox, which
+  # passes neither assign — and a hidden form is not a boundary. Same rule
+  # the `can_annotate: false` clauses above follow: the template flag is
+  # UX, this clause is the boundary. Silent no-op, not an error status:
+  # the UI these users see has nothing to report a failure in.
+  def handle_event(
+        "save_media_details",
+        _params,
+        %{assigns: %{details_path: nil, edit_target: nil}} = socket
+      ),
+      do: {:noreply, socket}
+
   # Writes the sidebar's title/description edits into the file's metadata
   # JSONB — the same keys the admin detail page's editor uses, so the two
   # surfaces read each other's writes. MERGED into the row's current
@@ -448,23 +473,28 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     title = String.trim(params["title"] || "")
     description = String.trim(params["description"] || "")
 
+    updated_meta = fn row ->
+      (row.metadata || %{})
+      |> Map.put("title", title)
+      |> Map.put("description", description)
+    end
+
     with %{file_uuid: uuid} <- socket.assigns.file,
          %Storage.File{} = row <- Storage.get_file(uuid),
-         updated =
-           (row.metadata || %{})
-           |> Map.put("title", title)
-           |> Map.put("description", description),
-         {:ok, _} <- Storage.update_file(row, %{metadata: updated}) do
+         {:ok, _} <- Storage.update_file(row, %{metadata: updated_meta.(row)}) do
+      token = (socket.assigns[:media_meta_status_token] || 0) + 1
+
       Phoenix.LiveView.send_update_after(
         __MODULE__,
-        [id: socket.assigns.id, action: :clear_media_meta_status],
+        [id: socket.assigns.id, action: :clear_media_meta_status, token: token],
         2000
       )
 
       {:noreply,
        socket
        |> assign(:media_meta, %{title: title, description: description})
-       |> assign(:media_meta_status, :saved)}
+       |> assign(:media_meta_status, :saved)
+       |> assign(:media_meta_status_token, token)}
     else
       _ -> {:noreply, assign(socket, :media_meta_status, :error)}
     end
@@ -497,9 +527,11 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     end
   end
 
-  # The image's saved orientation (degrees), read from the file row's metadata.
-  # A lightweight PK fetch at viewer-open — negligible next to loading the image
-  # + annotations. Missing/garbage → 0 (unrotated). Never crashes the viewer.
+  # Everything the sidebar needs off the file's own row, in one read at
+  # viewer-open: the saved orientation (degrees) and the title/description
+  # the "Title & description" section shows. A lightweight PK fetch —
+  # negligible next to loading the image + annotations. Missing/garbage →
+  # unrotated and blank. Never crashes the viewer.
   defp seed_file_row_state(socket, file_uuid) do
     meta =
       case Storage.get_file(file_uuid) do
@@ -524,6 +556,16 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       |> assign(:media_details_open, false)
       |> assign(:media_meta_status, nil)
   end
+
+  # Whether THIS host offers the title/description editor. One rule, read
+  # by both the template (which form to render) and the save handler
+  # (whether to accept the write) — two copies would drift into a hidden
+  # form the server still honours. The signal is the host's own opt-in,
+  # like `persist_rotation`: a host that already hands the user a road to
+  # the metadata editor (the detail page, the image editor) is a host
+  # where editing here changes nothing about who may write what.
+  defp can_edit_media_meta?(details_path, edit_target),
+    do: details_path != nil or edit_target != nil
 
   defp media_meta_from(meta) when is_map(meta) do
     %{

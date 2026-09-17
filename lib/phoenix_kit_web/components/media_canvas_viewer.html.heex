@@ -418,7 +418,7 @@
           <%!-- (details_path / edit_target hosts), read-only elsewhere —      --%>
           <%!-- and hidden entirely when it is both empty and uneditable,      --%>
           <%!-- because an empty section nobody can fill is furniture.         --%>
-          <% can_edit_meta = @details_path != nil or @edit_target != nil %>
+          <% can_edit_meta = can_edit_media_meta?(@details_path, @edit_target) %>
           <div
             :if={@media_meta.title != "" or @media_meta.description != "" or can_edit_meta}
             class="border-t border-base-300 pt-2"

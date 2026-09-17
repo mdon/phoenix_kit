@@ -2,6 +2,21 @@
 
 ### Added
 
+- **Title and description in the media viewer's sidebar** (#825). The file's own
+  words about itself lived only on the admin detail page; the viewer popup —
+  where people actually look at the file — showed the technical row (type, MIME,
+  size) and nothing human. A collapsible "Title & description" section now sits
+  between the action buttons and that row: an inline editor in the contexts that
+  already offer a road to the metadata editor (`details_path` / `edit_target`
+  hosts), read-only elsewhere, and absent entirely when it is both empty and
+  uneditable. It opens itself when there is something to see.
+  - Writes go into the file's `metadata` JSONB under the same keys the detail
+    page's editor uses, so the two surfaces read each other's edits, and they
+    MERGE into the row's current metadata — rotation and tags survive a title
+    edit. The write re-reads the row; the parent-passed map carries no metadata.
+  - Seeding rides the mount read the rotation already did: one `Storage.get_file`
+    for both, where there used to be one for rotation alone.
+
 - **A user's Google address** (`google_email` on `phoenix_kit_users`, V196).
   Sharing something with a user through Google — a Drive file, a calendar
   invite — needs the address their Google account answers to, which is not
@@ -19,7 +34,37 @@
   - It is not an identity: optional, not unique, and nothing authenticates
     against it. `email` stays the identity.
 
+### Changed
+
+- **Etcher pinned to 0.14.1** (#826) — `mix.lock` and the jsDelivr tag in
+  `phoenix_kit.js` move together, per the pin discipline
+  (`vendored_cdn_pins_test.exs`). Shaft labels now default to their line's
+  colour, the dimension drops into a skippable label editor on release, the
+  shaft breaks under the editor while typing instead of popping in at
+  placement, and a label-prompted shape stays fresh so the label size chosen
+  while typing becomes the tool's default. The `~> 0.14.0` requirement already
+  admitted the patch, so `mix.exs` is unchanged.
+
 ### Fixed
+
+- **The viewer's title/description editor accepted writes from hosts that never
+  offered it** (#825 follow-up). The editability rule lived only in the
+  template, so `save_media_details` wrote the shared file row for any sender —
+  including an anonymous visitor of a readonly `MediaGallery` lightbox, which
+  passes neither `details_path` nor `edit_target` and renders the section
+  read-only. The handler now refuses that case outright, the same way the
+  `can_annotate: false` clauses refuse annotation writes, and one predicate
+  (`can_edit_media_meta?/2`) feeds both the template and the handler so they
+  cannot drift.
+- **The viewer metadata suite never ran** (#825 follow-up). Its `Storage.File`
+  fixture omitted three required fields, and the setup returned the row under
+  `:file`, a reserved ExUnit context key — so both DB tests died in `setup` and
+  the merge-don't-replace guarantee they exist to prove was never checked.
+  Fixed, with new tests covering the gate above.
+- **The sidebar's save status could be wiped by a stale timer** (#825
+  follow-up). A second Save inside the two-second auto-hide window left the
+  first save's timer alive to clear the status the second one had just put up.
+  Token-guarded now, like the rotation pill beside it.
 
 - **Three translations were wrong in all seven locales.** A catalog merge had
   copied a near neighbour's translation onto new strings: "Channel" read as
