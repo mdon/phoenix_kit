@@ -1,3 +1,9 @@
+## Unreleased
+
+### Changed
+
+- **Faster compile for `PhoenixKitWeb.Gettext`**: the backend now compiles one module per locale, in parallel (`split_module_by: [:locale]`). A clean phoenix_kit compile went from ~69s to ~20s, most of which went to this one file. Lookups through the backend are unchanged.
+
 ## 2.27.2 - 2026-09-17
 
 ### Fixed
