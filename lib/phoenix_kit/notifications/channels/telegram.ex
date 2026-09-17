@@ -14,9 +14,11 @@ defmodule PhoenixKit.Notifications.Channels.Telegram do
 
   The mode governs auto-capture only: the owner can also link a chat by id
   (a group, a channel), so `chat_ids` is not capped by it. The channel sends
-  to every id on the list and does not care which kind each one is. `configured?/2` is true once the recipient has a
-  connection with at least one captured chat. The bot token is resolved
-  owner-scoped to the recipient at send time — this module never handles it.
+  to every id on the list and does not care which kind each one is.
+
+  `configured?/2` is true once the recipient has a connection with at least
+  one linked chat. The bot token is resolved owner-scoped to the recipient at
+  send time — this module never handles it.
 
   The `config` arg (the `notification_channel:telegram` blob) carries only
   routing/cadence for this channel; connection + chat live on the integration.
