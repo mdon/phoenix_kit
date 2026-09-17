@@ -165,6 +165,16 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # over the 49 shipped files; the real-database integration suite re-ran
   # clean against a DB migrated through V183.
   #
+  # V195 (2026-09-17, image editing) DECLARES ten objects here by hand: five
+  # columns on phoenix_kit_files (`edits` jsonb, `edit_revision` integer NOT
+  # NULL DEFAULT 0, `edit_state` varchar(16), `original_file_uuid` and
+  # `edited_from_uuid` uuid), their two self-referencing foreign keys (ON
+  # DELETE SET NULL), an index on each, and a plain index on
+  # `phoenix_kit_file_instances.file_name` (reference-based object deletion).
+  # Shapes read with the repair probe from a test database migrated through
+  # V195; `pos` follows the table's real ordinal positions after V135's 22.
+  # `chain_hash` restamped over the shipped file set.
+  #
   # V194 (2026-09-17, settings history) declares NO object here, and cannot:
   # it is a pure data migration — an UPDATE on `phoenix_kit_activities` that
   # withholds the values of `setting.changed` entries recorded for integration
@@ -369,7 +379,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "f0e922e10de7b218b621c65f0ac5a375788cefa16c8b68df888fa9c6731e0707"
+  @chain_hash "bd3d1b985c9729558831eff78e7827f81f996e9c52d2bf0ce5d439b418d33ef4"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -71146,6 +71156,226 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              foreign_columns: ["uuid"],
              on_delete: "n",
              on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      # ── V195: image editing ──
+      %{
+        id: "column:phoenix_kit_files.edits",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_files", column: "edits", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"edits\" jsonb",
+        since: 195,
+        class: :column,
+        revisions: [{195, %{default: nil, type: "jsonb", pos: 23, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.edit_revision",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_files", column: "edit_revision", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"edit_revision\" integer DEFAULT 0 NOT NULL",
+        since: 195,
+        class: :column,
+        revisions: [{195, %{default: "0", type: "integer", pos: 24, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_files.edit_state",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_files", column: "edit_state", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"edit_state\" character varying(16)",
+        since: 195,
+        class: :column,
+        revisions: [
+          {195, %{default: nil, type: "character varying(16)", pos: 25, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.original_file_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_files", column: "original_file_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"original_file_uuid\" uuid",
+        since: 195,
+        class: :column,
+        revisions: [{195, %{default: nil, type: "uuid", pos: 26, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.edited_from_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_files", column: "edited_from_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"edited_from_uuid\" uuid",
+        since: 195,
+        class: :column,
+        revisions: [{195, %{default: nil, type: "uuid", pos: 27, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_files.phoenix_kit_files_original_file_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_files_original_file_uuid_fkey",
+             table: "phoenix_kit_files",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_files_original_file_uuid_fkey'\n      AND t.relname = 'phoenix_kit_files'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_files ADD CONSTRAINT phoenix_kit_files_original_file_uuid_fkey FOREIGN KEY (original_file_uuid) REFERENCES __SCHEMA__.phoenix_kit_files(uuid) ON DELETE SET NULL;\n  END IF;\nEND\n$$",
+        since: 195,
+        class: :constraint,
+        revisions: [
+          {195,
+           %{
+             type: "f",
+             columns: ["original_file_uuid"],
+             definition:
+               "FOREIGN KEY (original_file_uuid) REFERENCES __SCHEMA__.phoenix_kit_files(uuid) ON DELETE SET NULL",
+             name_template: nil,
+             foreign_table: "phoenix_kit_files",
+             foreign_columns: ["uuid"],
+             on_delete: "n",
+             on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_files.phoenix_kit_files_edited_from_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_files_edited_from_uuid_fkey",
+             table: "phoenix_kit_files",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_files_edited_from_uuid_fkey'\n      AND t.relname = 'phoenix_kit_files'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_files ADD CONSTRAINT phoenix_kit_files_edited_from_uuid_fkey FOREIGN KEY (edited_from_uuid) REFERENCES __SCHEMA__.phoenix_kit_files(uuid) ON DELETE SET NULL;\n  END IF;\nEND\n$$",
+        since: 195,
+        class: :constraint,
+        revisions: [
+          {195,
+           %{
+             type: "f",
+             columns: ["edited_from_uuid"],
+             definition:
+               "FOREIGN KEY (edited_from_uuid) REFERENCES __SCHEMA__.phoenix_kit_files(uuid) ON DELETE SET NULL",
+             name_template: nil,
+             foreign_table: "phoenix_kit_files",
+             foreign_columns: ["uuid"],
+             on_delete: "n",
+             on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_files_original_file_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_files_original_file_uuid_index",
+             table: "phoenix_kit_files",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_files_original_file_uuid_index ON __SCHEMA__.phoenix_kit_files USING btree (original_file_uuid)",
+        since: 195,
+        class: :index,
+        revisions: [
+          {195,
+           %{
+             table: "phoenix_kit_files",
+             keys: ["original_file_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_files_original_file_uuid_index ON __SCHEMA__.phoenix_kit_files USING btree (original_file_uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_files_edited_from_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_files_edited_from_uuid_index",
+             table: "phoenix_kit_files",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_files_edited_from_uuid_index ON __SCHEMA__.phoenix_kit_files USING btree (edited_from_uuid)",
+        since: 195,
+        class: :index,
+        revisions: [
+          {195,
+           %{
+             table: "phoenix_kit_files",
+             keys: ["edited_from_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_files_edited_from_uuid_index ON __SCHEMA__.phoenix_kit_files USING btree (edited_from_uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_file_instances_file_name_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_file_instances_file_name_index",
+             table: "phoenix_kit_file_instances",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_file_instances_file_name_index ON __SCHEMA__.phoenix_kit_file_instances USING btree (file_name)",
+        since: 195,
+        class: :index,
+        revisions: [
+          {195,
+           %{
+             table: "phoenix_kit_file_instances",
+             keys: ["file_name"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_file_instances_file_name_index ON __SCHEMA__.phoenix_kit_file_instances USING btree (file_name)",
+             predicate: nil,
+             opclasses: ["text_ops"],
+             name_template: nil
            }}
         ],
         presence: :required,

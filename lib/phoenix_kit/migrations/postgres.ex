@@ -7,7 +7,15 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V194 - Settings history: integration bodies withheld ⚡ LATEST
+  ### V195 - Image editing ⚡ LATEST
+
+  Adds `edits`, `edit_revision`, `edit_state`, `original_file_uuid` and
+  `edited_from_uuid` to `phoenix_kit_files` (an edited image keeps its uuid;
+  its unedited original moves to a hidden system-managed child), and indexes
+  `phoenix_kit_file_instances.file_name` for reference-based deletion of
+  stored objects. Additive only.
+
+  ### V194 - Settings history: integration bodies withheld
 
   The settings history recorded integration connection rows (keyed by their
   own uuid, tokens in the body) in full, because it withheld values by key
@@ -784,7 +792,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 194
+  @current_version 195
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
