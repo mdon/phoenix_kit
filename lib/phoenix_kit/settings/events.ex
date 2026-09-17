@@ -36,9 +36,12 @@ defmodule PhoenixKit.Settings.Events do
   ## Limits
 
     * **One node's cache.** The writing node drops its cached value before
-      notifying. Another node in a cluster drops its own copy when its cache
-      hears of the change, which may be after its subscribers do — so on a
-      cluster, use the value in the message rather than re-reading.
+      notifying. Nothing drops another node's copy: the message reaches every
+      node, but a cached read there keeps returning the old value until the
+      settings cache's TTL (five minutes) expires it. On a cluster, use the
+      value in the message rather than re-reading — a secret setting arrives
+      as `:redacted`, so read it through `PhoenixKit.Settings.Queries` (the
+      database) if you need it at once.
     * **Inside your own transaction.** A settings write called inside a
       transaction your code opened notifies when the settings call returns,
       not when your transaction commits (Ecto has no after-commit hook). If

@@ -64,7 +64,7 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
     # A crash on the last attempt leaves no run behind: the file must not stay
     # "pending" (a placeholder) with nothing left to render it.
     error ->
-      if final_attempt?(job), do: mark_current_failed(uuid, error)
+      if final_attempt?(job), do: mark_current_failed(uuid, job, error)
       reraise error, __STACKTRACE__
   end
 
@@ -116,9 +116,10 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
     case meta do
       %{
         state: :discard,
-        job: %Oban.Job{worker: worker, args: %{"mode" => "apply", "file_uuid" => uuid}}
+        job: %Oban.Job{worker: worker, args: %{"mode" => "apply", "file_uuid" => uuid}} = job
       } ->
-        if worker == inspect(__MODULE__), do: mark_current_failed(uuid, Map.get(meta, :reason))
+        if worker == inspect(__MODULE__),
+          do: mark_current_failed(uuid, job, Map.get(meta, :reason))
 
       _other ->
         :ok
@@ -127,14 +128,33 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
     :ok
   end
 
-  # The run always works on the file's current revision.
-  defp mark_current_failed(uuid, error) do
+  # The run always works on the file's current revision — unless a save
+  # landed while it ran: that save enqueued a run of its own (uniqueness
+  # ignores an executing job), which owns the current revision now. Failing
+  # it here would leave the newer save on the failed placeholder, and its
+  # own run would find nothing pending and stop.
+  defp mark_current_failed(uuid, job, error) do
     case Storage.get_file(uuid) do
-      %StorageFile{edit_revision: revision} -> mark_failed(uuid, revision, error)
-      nil -> :ok
+      %StorageFile{edit_revision: revision} ->
+        unless another_run?(uuid, job), do: mark_failed(uuid, revision, error)
+
+      nil ->
+        :ok
     end
   rescue
     _ -> :ok
+  end
+
+  defp another_run?(uuid, %Oban.Job{id: id}) do
+    from(j in Oban.Job,
+      where:
+        j.worker == ^inspect(__MODULE__) and
+          j.state in ["available", "scheduled", "retryable", "executing"] and
+          fragment("?->>'file_uuid' = ?", j.args, ^uuid) and
+          fragment("?->>'mode' = 'apply'", j.args)
+    )
+    |> then(fn query -> if id, do: where(query, [j], j.id != ^id), else: query end)
+    |> repo().exists?(prefix: Application.get_env(:phoenix_kit, :prefix))
   end
 
   ## Apply
@@ -199,7 +219,7 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
   # Renders `edit` from the file's unedited original into a temp file.
   def render(%StorageFile{} = file, edit) do
     with %FileInstance{file_name: source_key} <- ImageEditing.source_instance(file),
-         source = temp_path(file.ext),
+         source = temp_path(Manager.temp_extension("source." <> to_string(file.ext))),
          {:ok, _} <- Manager.retrieve_file(source_key, destination_path: source) do
       try do
         render_from(source, file, edit)
@@ -213,7 +233,7 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
   end
 
   defp render_from(source, file, edit) do
-    output = temp_path(file.ext)
+    output = temp_path(output_extension(file.mime_type))
 
     with {:ok, {w, h, frames}} <- oriented_info(source),
          :ok <- if(frames > 1, do: {:cancel, :animated}, else: :ok),
@@ -669,9 +689,29 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
 
   defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
 
-  defp temp_path(ext) do
-    Path.join(System.tmp_dir!(), "pk_edit_#{System.unique_integer([:positive])}.#{ext}")
+  # The temp names never carry the uploader's extension as-is: ImageMagick
+  # picks a coder by extension, so `x.mvg` uploaded as `image/png` would be
+  # read (and written) as MVG. The source keeps its extension only when it
+  # names a media type (`Manager.temp_extension/1`, as the variant pipeline
+  # does); the output's comes from the file's MIME type, which is on the
+  # editable allowlist.
+  defp temp_path(extension) do
+    Path.join(System.tmp_dir!(), "pk_edit_#{System.unique_integer([:positive])}#{extension}")
   end
+
+  @doc false
+  def output_extension(mime_type) when is_binary(mime_type) do
+    if ImageEditing.editable_mime?(mime_type) do
+      case MIME.extensions(mime_type) do
+        [ext | _] -> "." <> ext
+        [] -> ""
+      end
+    else
+      ""
+    end
+  end
+
+  def output_extension(_mime_type), do: ""
 
   defp hex(algorithm, bytes), do: algorithm |> :crypto.hash(bytes) |> Base.encode16(case: :lower)
 

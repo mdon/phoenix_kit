@@ -37,6 +37,12 @@ defmodule PhoenixKitWeb.FileEditingServingTest do
 
   @moduletag :tmp_dir
 
+  # ExUnit cannot skip from `setup` (a `skip:` it returns is only context), so
+  # the ImageMagick check is a module tag. `convert`/`identify` are what
+  # `ImageProcessor` runs — ImageMagick 6 has no `magick` binary.
+  unless System.find_executable("convert") && System.find_executable("identify"),
+    do: @moduletag(skip: "ImageMagick (convert, identify) is not installed")
+
   @buckets_cache :phoenix_kit_buckets_cache
   @job_worker "PhoenixKit.Modules.Storage.ApplyImageEditJob"
 
@@ -84,7 +90,7 @@ defmodule PhoenixKitWeb.FileEditingServingTest do
   end
 
   defp imagemagick? do
-    match?({_, 0}, System.cmd("magick", ["-version"], stderr_to_stdout: true))
+    match?({_, 0}, System.cmd("identify", ["-version"], stderr_to_stdout: true))
   rescue
     _ -> false
   end
@@ -178,7 +184,15 @@ defmodule PhoenixKitWeb.FileEditingServingTest do
     test "a URL naming other bytes is sent to the current ones", ctx do
       current = URLSigner.version(instance(ctx.photo))
 
-      for stale <- ["0123456789abcdef", "0123", "not-hex!", String.slice(current, 0, 7)] do
+      # `?v[a]=b` and `?v[]=...` arrive as a map and a list — stale, never a 500.
+      for stale <- [
+            "0123456789abcdef",
+            "0123",
+            "not-hex!",
+            String.slice(current, 0, 7),
+            %{"a" => "b"},
+            [current]
+          ] do
         conn = show(ctx.photo, "original", v: stale)
 
         assert conn.status == 302, "#{inspect(stale)} is not the current version"
@@ -435,6 +449,10 @@ defmodule PhoenixKitWeb.FileEditingServingTest do
   end
 
   describe "deep-zoom tiles" do
+    # Tessera cuts tiles with ImageMagick 7's `magick`; 6 alone can't.
+    unless System.find_executable("magick"),
+      do: @describetag(skip: "ImageMagick 7 (magick) is not installed")
+
     setup do
       {:ok, _} = Settings.update_setting("storage_tile_generation_enabled", "true")
       :ok

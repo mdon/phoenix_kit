@@ -182,8 +182,10 @@ defmodule PhoenixKit.Modules.Storage.ImageEditing do
   """
   @spec retry(StorageFile.t(), keyword()) :: {:ok, StorageFile.t()} | {:error, term()}
   def retry(%StorageFile{} = file, opts \\ []) do
+    # The caller's struct can be stale (another tab saved since): the retry
+    # re-renders the edit the locked row holds, never the one it was shown.
     with :ok <- authorize(file, opts) do
-      if edit_in_progress?(file), do: start(file, file.edits), else: {:error, :nothing_to_retry}
+      start(file, :current)
     end
   end
 
@@ -283,6 +285,13 @@ defmodule PhoenixKit.Modules.Storage.ImageEditing do
     result =
       repo().transaction(fn ->
         current = lock_file(file.uuid) || repo().rollback(:not_found)
+
+        edit =
+          cond do
+            edit != :current -> edit
+            edit_in_progress?(current) -> current.edits
+            true -> repo().rollback(:nothing_to_retry)
+          end
 
         {:ok, updated} =
           current

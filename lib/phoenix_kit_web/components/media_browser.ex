@@ -3420,14 +3420,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # The image editor, in a modal over the browser. Editing is authorized the
   # way rotating and deleting are here: the file's home is in this browser's
-  # scope (the host decided who sees the browser).
+  # scope (the host decided who sees the browser). The uuid arrives from the
+  # client, so it gets the viewer's gates first (well-formed uuid, never
+  # system-managed, the `only_file_type` lock).
+  #
+  # The editor's scope is built here, once: `Scope.for_user/1` reads roles and
+  # permissions, and a template attribute would repeat that on every render.
   defp open_image_editor(socket, file_uuid) do
-    with %Storage.File{} = file <- Storage.get_file(file_uuid),
-         true <- Storage.within_scope?(file.folder_uuid, scope_folder_id(socket)),
+    with %Storage.File{} = file <- fetch_viewable_file(socket, file_uuid),
          true <- ImageEditing.editable?(file) do
       socket
       |> open_viewer(nil)
       |> notify_viewer_nav()
+      |> assign(:image_editor_scope, editor_scope(socket.assigns[:phoenix_kit_current_user]))
       |> assign(:image_editor_file, file)
     else
       _ -> socket
@@ -3450,9 +3455,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  @doc false
-  def editor_scope(%User{} = user), do: Scope.for_user(user)
-  def editor_scope(_user), do: nil
+  defp editor_scope(%User{} = user), do: Scope.for_user(user)
+  defp editor_scope(_user), do: nil
 
   # The scope for the Trash view + badge: the folder you're currently in (its
   # whole subtree), falling back to the embedded browser scope at the root.

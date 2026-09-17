@@ -1,8 +1,125 @@
-## Unreleased
+## 2.28.0 - 2026-09-17
+
+### Added
+
+- **Image editor** (#821). Crop (drawn or by aspect preset), quarter turns,
+  mirror/flip, straighten, brightness/contrast, and hide areas with blur,
+  pixelate or a black box. It opens from the media browser's grid, list and
+  stack menus, the viewer sidebar, and the media detail page (`?edit=image`).
+  Details:
+  - An edited image keeps its uuid, and its unedited original moves to a
+    hidden system-managed backup. From the editor you can download (signed
+    link), restore or delete that original.
+  - Redaction coarsens the area before scaling it back, so it can't be
+    undone. Edited images lose EXIF (GPS included), XMP, IPTC and comments.
+  - `PhoenixKit.Modules.Storage.ImageEditing` is the API (`edit`, `revert`,
+    `retry`, `save_copy`, `delete_unedited_original`). The media settings
+    choose `keep_original` or `replace_original`.
+  - `ApplyImageEditJob` renders from the unedited original and swaps the
+    result in one transaction. `edit_revision` guards every step.
+  - `GET /api/files/:uuid/unedited` serves the unedited original to editors,
+    or with a one-hour token bound to the user.
+- **V195 migration** — image-editing columns on `phoenix_kit_files` (`edits`,
+  `edit_revision`, `edit_state`, `original_file_uuid`, `edited_from_uuid`)
+  and an index on `phoenix_kit_file_instances.file_name`. (#821)
+- **Versioned file URLs** — `?v=` names the served checksum. Only a versioned
+  URL is cached as `immutable`; a different `v` redirects to the current one.
+  An unversioned URL keeps for a day, or is revalidated once the file has been
+  edited. Tiles are stored under their version. Build URLs with
+  `URLSigner.signed_url(uuid, variant, version: instance)`. (#821)
+- **Modules can declare their Oban queues** with the optional
+  `oban_queues/0` callback (`name: limit` or `name: [limit: n, kind: ...]`).
+  (#821)
+  - The installer generates its queue list from the declarations.
+  - The updater adds only missing queues and never changes a limit the host
+    set.
+  - The doctor, and a one-time log line after boot, report declared queues
+    that aren't running.
+- **`{:phoenix_kit_require, requirement}` on_mount hook** — checks the scope a
+  session-level mount left (`:authenticated`, `:owner`, `:admin`,
+  `{:module, key}`) without mounting again, so public and signed-in pages can
+  share one `live_session`. The `ensure_*` hooks keep their behaviour.
+  Stacking the kit's hooks no longer raises "hook :current_page already
+  attached". (#821)
+- **`Settings.subscribe/0`** — every committed settings change broadcasts
+  `{:setting_changed, key, value}` (secrets as `:redacted`), and a delete
+  broadcasts `{:setting_deleted, key}`. ⚠️ A `phoenix_kit:settings`
+  subscriber whose `handle_info` has no catch-all clause will now receive
+  messages it doesn't match. (#821)
+- **`chart_lanes/1` and a public `ChartScale`** — HTML rows of bands that line
+  up with `line_chart`'s x axis. `line_chart` gains an opt-in `hover` readout,
+  still without JavaScript. (#821)
+- **Locale routing contract** (`guides/locale-routing.md`):
+  - The language lives in the URL, never in the session.
+  - `LanguageSwitcher.locale_path/2` is public.
+  - `goto_home` now works.
+  - In development, the switcher warns once when a page shows a language its
+    URL doesn't carry. (#821)
+- **V193 migration** — composite partial indexes for the AI spend caps
+  (`(endpoint_uuid, inserted_at)` and `(user_uuid, inserted_at)`, including
+  `cost_cents`, for successful requests). (#821)
+- **V194 migration** — withholds integration connection bodies (tokens)
+  already copied into the settings history. (#821)
 
 ### Changed
 
 - **Faster compile for `PhoenixKitWeb.Gettext`**: the backend now compiles one module per locale, in parallel (`split_module_by: [:locale]`). A clean phoenix_kit compile went from ~69s to ~20s, most of which went to this one file. Lookups through the backend are unchanged.
+
+- Stored objects are deleted by reference, not by shared directory.
+  `delete_file_completely/1` removes every key no remaining row references,
+  checked and deleted under a per-path lock. It used to keep or leak whole
+  directories. (#821)
+- Auth pages set their own `page_title`, and the root layout no longer ships
+  the `" · Phoenix Framework"` suffix. (#821)
+- Tabs that share a permission key no longer log a re-registration warning
+  per tab. (#821)
+- `mix phoenix_kit.update` leaves a host's own `data-theme` script alone when
+  updating the root layout. (#821)
+- The sitemap falls back to the endpoint URL when `site_url` is empty.
+  Placeholder hosts are never used, and localhost only on a dev server. (#821)
+- The doctor probes for transaction poolers and reports how `/sitemap.xml` is
+  served. (#821)
+- Generated admin pages no longer assign `url_path`. (#821)
+
+### Fixed
+
+- A variant served in place of one not generated yet is no longer cached as
+  `immutable` at the variant's permanent URL. Generation jobs are unique per
+  file, and are enqueued inline instead of from a `Task`. (#821)
+- A settings cache miss-fill can no longer re-cache a value a concurrent
+  write just replaced. (#821)
+- Integration connection bodies are no longer copied into settings history
+  or broadcasts. (#821)
+- `mix phoenix_kit.update` survives a boot-time `Registry.unregister_tab/1`
+  call and a database pool that exits. (#821)
+- The updater checks for a queue in this app's own Oban block, not the whole
+  config file. (#821)
+- Repair no longer misreports the V170 notification indexes or re-creates
+  the deleted `billing_default_currency` / `shop_currency` seeds. (#821)
+- Post-merge review of #821:
+  - The image edit job no longer lets the uploader's file extension choose
+    ImageMagick's coder. `x.mvg` uploaded as `image/png` was read as MVG.
+  - A run Oban discards no longer fails a newer save's revision. That save
+    now stays with its own run.
+  - Retry re-renders the edit saved on the row, not the stale one a second
+    tab showed, which could undo a newer redaction.
+  - `open_image_editor` in `MediaBrowser` now checks the uuid, the
+    `only_file_type` lock and system-managed files. It also stops building
+    the editor scope on every render.
+  - A non-string `?v=` is treated as a stale version instead of a 500.
+  - The doctor read `site_url` in update mode, so it always reported it
+    unset.
+  - A pooler-looking config with no pooling detected warns again, because an
+    idle PgBouncer can hide transaction pooling from the probe.
+  - The switcher's session-locale warning now reaches hosts in dev. It used
+    to be compiled out of every dependency build. It also no longer flags
+    default-language host pages outside the mount.
+  - `Install.Common` DB checks catch `:exit`.
+  - Settings history fails closed when it can't tell whether a row is
+    secret.
+  - The magic-link registration title is translated.
+  - The image-editing test suites actually run on ImageMagick 6. They probed
+    for `magick` and "skipped" from `setup`, which ExUnit ignores.
 
 ## 2.27.2 - 2026-09-17
 

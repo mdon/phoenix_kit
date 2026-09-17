@@ -24,6 +24,12 @@ defmodule PhoenixKitWeb.Components.ImageEditorTest do
   @endpoint PhoenixKitWeb.Endpoint
   @moduletag :tmp_dir
 
+  # ExUnit cannot skip from `setup` (a `skip:` it returns is only context), so
+  # the ImageMagick check is a module tag. `convert`/`identify` are what
+  # `ImageProcessor` runs — ImageMagick 6 has no `magick` binary.
+  unless System.find_executable("convert") && System.find_executable("identify"),
+    do: @moduletag(skip: "ImageMagick (convert, identify) is not installed")
+
   @buckets_cache :phoenix_kit_buckets_cache
   @job_worker "PhoenixKit.Modules.Storage.ApplyImageEditJob"
 
@@ -60,7 +66,7 @@ defmodule PhoenixKitWeb.Components.ImageEditorTest do
   end
 
   setup %{tmp_dir: tmp} do
-    if match?({_, 0}, System.cmd("magick", ["-version"], stderr_to_stdout: true)) do
+    if match?({_, 0}, System.cmd("identify", ["-version"], stderr_to_stdout: true)) do
       :persistent_term.erase(@buckets_cache)
       n = System.unique_integer([:positive])
       Repo.update_all(Bucket, set: [enabled: false])

@@ -1187,41 +1187,43 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
   # kit deliberately does not support — and without this the host only sees a
   # switcher whose links "don't work", and files a bug.
   #
-  # Compiled per environment rather than branching on a compile-time boolean:
-  # outside :dev the function does nothing and costs nothing.
-  if Mix.env() == :dev do
-    @session_locale_warned {__MODULE__, :session_locale_warned}
+  # Decided at runtime, not with `if Mix.env() == :dev` around the function:
+  # Mix compiles dependencies in :prod whatever the host runs, so a
+  # compile-time branch never reaches a host's dev server. `Mix` is absent
+  # from a release, and `Mix.env/0` is the host's own env under `mix`.
+  @session_locale_warned {__MODULE__, :session_locale_warned}
 
-    defp warn_if_session_locale(current_base, current_path) do
-      if is_binary(current_path) and is_binary(current_base) and
-           not :persistent_term.get(@session_locale_warned, false) and
-           session_locale_page?(current_base, current_path) do
-        :persistent_term.put(@session_locale_warned, true)
+  defp warn_if_session_locale(current_base, current_path) do
+    if dev_runtime?() and is_binary(current_path) and is_binary(current_base) and
+         not :persistent_term.get(@session_locale_warned, false) and
+         session_locale_page?(current_base, current_path) do
+      :persistent_term.put(@session_locale_warned, true)
 
-        Logger.warning(
-          "[PhoenixKit] The language switcher is rendering #{inspect(current_base)} on " <>
-            "#{current_path}, a URL with no language in it. PhoenixKit keeps the language " <>
-            "in the URL (/#{current_base}/...), never in the session: a shared link must show " <>
-            "the same language to everyone, and search engines need one URL per language. " <>
-            "The switcher's links will not behave on a session-locale page. Route your pages " <>
-            "under the locale segment instead — see \"Locale routing contract\" in " <>
-            "PhoenixKitWeb.Components.Core.LanguageSwitcher."
-        )
-      end
-
-      :ok
-    rescue
-      _ -> :ok
+      Logger.warning(
+        "[PhoenixKit] The language switcher is rendering #{inspect(current_base)} on " <>
+          "#{current_path}, a URL with no language in it. PhoenixKit keeps the language " <>
+          "in the URL (/#{current_base}/...), never in the session: a shared link must show " <>
+          "the same language to everyone, and search engines need one URL per language. " <>
+          "The switcher's links will not behave on a session-locale page. Route your pages " <>
+          "under the locale segment instead — see \"Locale routing contract\" in " <>
+          "PhoenixKitWeb.Components.Core.LanguageSwitcher."
+      )
     end
-  else
-    defp warn_if_session_locale(_current_base, _current_path), do: :ok
+
+    :ok
+  rescue
+    _ -> :ok
+  end
+
+  defp dev_runtime? do
+    function_exported?(Mix, :env, 0) and Mix.env() == :dev
   end
 
   @doc false
   # The page shows `current_base`, yet the path carries no locale, and the kit
   # would have given this language a prefix. (The default language on an
   # unprefixed site is the one case where no locale in the URL is right.)
-  # Public for tests: the warning that uses it only compiles in :dev.
+  # Public for tests: the warning that uses it only fires in :dev.
   def session_locale_page?(current_base, current_path) do
     # Only the path decides: a query would hide the locale segment itself
     # ("/fr?page=2") and sits after the slash a built URL carries.
@@ -1234,9 +1236,16 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
     # A trailing slash is the same page: the default language's root at a
     # prefixed mount is built as "/phoenix_kit/", and the request is
     # "/phoenix_kit".
+    # Both sides without the mount prefix: `Routes.path/2` puts it on every
+    # built URL, host pages outside the mount included, so comparing the
+    # built URL with the raw path flagged every default-language host page.
+    built =
+      current_base
+      |> generate_base_code_url(current_path)
+      |> String.replace_prefix(prefix_to_remove, "")
+
     extract_locale_from_path(normalized) == nil and
-      trim_trailing_slash(generate_base_code_url(current_base, current_path)) !=
-        trim_trailing_slash(current_path)
+      trim_trailing_slash(built) != trim_trailing_slash(normalized)
   end
 
   defp trim_trailing_slash("/"), do: "/"

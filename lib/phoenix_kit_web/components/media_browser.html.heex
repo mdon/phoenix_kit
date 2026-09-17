@@ -2736,7 +2736,7 @@
           module={PhoenixKitWeb.Components.ImageEditor}
           id={image_editor_id(@id, file.uuid)}
           file={file}
-          scope={editor_scope(assigns[:phoenix_kit_current_user])}
+          scope={assigns[:image_editor_scope]}
           authorized={true}
           on_close={JS.push("close_image_editor", target: @myself)}
         />

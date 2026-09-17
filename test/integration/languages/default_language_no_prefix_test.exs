@@ -85,6 +85,13 @@ defmodule PhoenixKit.Integration.Languages.DefaultLanguageNoPrefixTest do
     test "another language at that root still is" do
       assert LanguageSwitcher.session_locale_page?("fr", "/phoenix_kit")
     end
+
+    # `Routes.path/2` puts the mount prefix on every built URL, host pages
+    # outside the mount included; the check compares both sides without it.
+    test "a host page outside the mount is judged without the mount prefix" do
+      refute LanguageSwitcher.session_locale_page?("en", "/products")
+      assert LanguageSwitcher.session_locale_page?("fr", "/products")
+    end
   end
 
   describe "migrate_legacy/0 — backfills from publishing key" do

@@ -222,7 +222,11 @@ defmodule PhoenixKit.Settings.History do
 
     Settings.secret_setting?(key, module)
   rescue
-    _ -> Settings.secret_setting?(key, nil)
+    # Fail closed: an integration row's uuid key is only recognisable by its
+    # module, so a lookup that could not answer must not reveal its body.
+    _ -> true
+  catch
+    :exit, _ -> true
   end
 
   # The restricted keys, and every integration connection row — whose key is a

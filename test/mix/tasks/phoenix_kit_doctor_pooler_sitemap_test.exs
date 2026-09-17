@@ -54,11 +54,14 @@ defmodule Mix.Tasks.PhoenixKit.DoctorPoolerSitemapTest do
       refute message =~ "Direct PostgreSQL"
     end
 
-    test "a pooler-looking config with no pooling detected is explained, not flagged" do
-      assert {:pass, message} =
+    test "a pooler-looking config with no pooling detected keeps the advice" do
+      # An idle PgBouncer reuses one backend, so the probe cannot clear it.
+      assert {:warn, message} =
                Doctor.pgbouncer_verdict(:maybe_pooled, :not_detected, nil, "port=6432")
 
       assert message =~ "session pooling"
+      assert message =~ "@disable_ddl_transaction"
+      assert message =~ "Oban.Notifiers.PG"
     end
 
     test "an inconclusive probe says so" do

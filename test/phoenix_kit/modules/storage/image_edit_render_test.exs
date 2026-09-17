@@ -14,6 +14,12 @@ defmodule PhoenixKit.Modules.Storage.ImageEditRenderTest do
   @moduletag :tmp_dir
   @moduletag :integration
 
+  # ExUnit cannot skip from `setup` (a `skip:` it returns is only context), so
+  # the ImageMagick check is a module tag. `convert`/`identify` are what
+  # `ImageProcessor` runs — ImageMagick 6 has no `magick` binary.
+  unless System.find_executable("convert") && System.find_executable("identify"),
+    do: @moduletag(skip: "ImageMagick (convert, identify) is not installed")
+
   setup do
     if imagemagick?(), do: :ok, else: {:ok, skip: true}
   end

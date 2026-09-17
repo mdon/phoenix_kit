@@ -31,6 +31,12 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
 
   @moduletag :tmp_dir
 
+  # ExUnit cannot skip from `setup` (a `skip:` it returns is only context), so
+  # the ImageMagick check is a module tag. `convert`/`identify` are what
+  # `ImageProcessor` runs — ImageMagick 6 has no `magick` binary.
+  unless System.find_executable("convert") && System.find_executable("identify"),
+    do: @moduletag(skip: "ImageMagick (convert, identify) is not installed")
+
   @buckets_cache :phoenix_kit_buckets_cache
   @job_worker "PhoenixKit.Modules.Storage.ApplyImageEditJob"
 
@@ -475,6 +481,23 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
       assert [_] = edit_jobs()
     end
 
+    test "a retry from a stale view re-renders the saved edit, not the one it showed", ctx do
+      assert {:ok, first} = ImageEditing.edit(ctx.photo, %{"rotate" => 90}, scope: ctx.scope)
+
+      Repo.update_all(from(f in Storage.File, where: f.uuid == ^first.uuid),
+        set: [edit_state: "failed"]
+      )
+
+      stale = reload(ctx.photo)
+
+      # Another tab saves a different edit meanwhile (a redaction, say).
+      assert {:ok, newer} = ImageEditing.edit(stale, %{"rotate" => 180}, scope: ctx.scope)
+
+      assert {:ok, retried} = ImageEditing.retry(stale, scope: ctx.scope)
+      assert retried.edits == newer.edits
+      refute retried.edits == stale.edits
+    end
+
     test "a run that crashes on its last attempt leaves the edit failed, not pending", ctx do
       # An edit no render can take (stored behind normalize/1's back).
       Repo.update_all(from(f in Storage.File, where: f.uuid == ^ctx.photo.uuid),
@@ -494,24 +517,29 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
       assert reload(ctx.photo).edit_state == "failed"
     end
 
+    defp discard_event(state, worker, job) do
+      ApplyImageEditJob.handle_oban_exception(
+        [:oban, :job, :exception],
+        %{},
+        %{
+          state: state,
+          reason: %Oban.TimeoutError{message: "timed out"},
+          job: %Oban.Job{id: job.id, worker: worker, args: job.args}
+        },
+        nil
+      )
+    end
+
+    defp start_executing!(job) do
+      Repo.update_all(from(j in Oban.Job, where: j.id == ^job.id), set: [state: "executing"])
+    end
+
     test "a run Oban discards without an answer (a timeout) leaves the edit failed", ctx do
       assert {:ok, pending} = ImageEditing.edit(ctx.photo, %{"rotate" => 90}, scope: ctx.scope)
+      [job] = edit_jobs()
+      start_executing!(job)
 
-      event = fn state, worker ->
-        ApplyImageEditJob.handle_oban_exception(
-          [:oban, :job, :exception],
-          %{},
-          %{
-            state: state,
-            reason: %Oban.TimeoutError{message: "timed out"},
-            job: %Oban.Job{
-              worker: worker,
-              args: %{"file_uuid" => pending.uuid, "mode" => "apply"}
-            }
-          },
-          nil
-        )
-      end
+      event = fn state, worker -> discard_event(state, worker, job) end
 
       # A retry is still coming, or it is some other worker's job.
       assert :ok = event.(:failure, @job_worker)
@@ -531,6 +559,21 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
              )
     end
 
+    test "a discarded run leaves a save that landed meanwhile to its own run", ctx do
+      assert {:ok, _} = ImageEditing.edit(ctx.photo, %{"rotate" => 90}, scope: ctx.scope)
+      [first] = edit_jobs()
+      start_executing!(first)
+
+      # Uniqueness ignores an executing run, so this save gets a run of its own.
+      assert {:ok, newer} = ImageEditing.edit(ctx.photo, %{"rotate" => 180}, scope: ctx.scope)
+      assert [_second] = edit_jobs()
+
+      assert :ok = discard_event(:discard, @job_worker, first)
+
+      assert %{edit_state: "pending", edit_revision: revision} = reload(ctx.photo)
+      assert revision == newer.edit_revision
+    end
+
     test "a file deleted meanwhile is a tidy error, not a crash", ctx do
       stale = ctx.photo
       {:ok, _} = Storage.delete_file_completely(ctx.photo)
@@ -540,6 +583,22 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
 
     test "only a failed or pending edit can be retried", ctx do
       assert {:error, :nothing_to_retry} = ImageEditing.retry(ctx.photo, scope: ctx.scope)
+    end
+
+    test "the uploader's extension never picks ImageMagick's coder", ctx do
+      # `.mvg` / `.msl` select coders with no magic bytes; the stored ext is
+      # the uploader's filename, so neither temp copy may carry it.
+      {:ok, rendered} = ApplyImageEditJob.render(%{ctx.photo | ext: "mvg"}, %{"rotate" => 90})
+
+      try do
+        assert Path.extname(rendered.path) == ".jpg"
+      after
+        File.rm(rendered.path)
+      end
+
+      assert ApplyImageEditJob.output_extension("image/png") == ".png"
+      assert ApplyImageEditJob.output_extension("image/svg+xml") == ""
+      assert ApplyImageEditJob.output_extension(nil) == ""
     end
 
     test "edited bytes the owner already has as another file still publish", ctx do

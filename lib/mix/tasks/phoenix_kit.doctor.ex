@@ -169,7 +169,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         run_check("Update Mode", fn -> check_update_mode() end),
         run_check("daisyUI Version", fn -> check_daisyui() end),
         run_check("User Dashboard (deprecated)", fn -> check_user_dashboard_deprecation() end),
-        run_check("Sitemap Discoverability", fn -> check_sitemap_serving() end),
+        run_check("Sitemap Discoverability", fn -> check_sitemap_serving(prefix) end),
         run_check("Crawler Visibility", fn -> check_crawler_visibility(prefix) end),
         run_check("Demo Auth Pages", fn -> check_demo_routes() end),
         run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end),
@@ -611,11 +611,17 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
            "reached different Postgres backends. DDL migrations need " <>
            "@disable_ddl_transaction true." <> notifier_hint(notifier)}
 
+      # The probe can prove pooling, never rule it out: on an idle pool
+      # PgBouncer hands the same server connection back (LIFO), so both
+      # statements can land on one backend under transaction pooling too.
+      # A config that looks pooled keeps the advice.
       :not_detected when config_verdict == :maybe_pooled ->
-        {:pass,
-         "No transaction pooling detected (#{where}), though the config looks like a " <>
-           "pooler — a direct connection on a non-standard port, or session pooling. " <>
-           "LISTEN/NOTIFY works in both."}
+        {:warn,
+         "The config looks like a pooler (#{where}), but no transaction pooling was " <>
+           "detected — a direct connection on a non-standard port, session pooling, or " <>
+           "a transaction pooler that reused one backend for the probe (an idle " <>
+           "PgBouncer does). If it is PgBouncer in transaction mode, DDL migrations need " <>
+           "@disable_ddl_transaction true." <> notifier_hint(notifier)}
 
       :not_detected ->
         {:pass, "No transaction pooling detected (#{where})."}
@@ -2543,7 +2549,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # Plug.Static runs before the router, host routes declared before
   # `phoenix_kit_routes()` bind first, and PhoenixKit is last. A host that
   # reported "the sitemap 404s" had simply never been told any of that.
-  defp check_sitemap_serving do
+  defp check_sitemap_serving(prefix) do
     serving =
       case {static_sitemap_file(), sitemap_route_owner()} do
         {path, _} when is_binary(path) ->
@@ -2565,7 +2571,10 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       duplicate_root_route_findings(router_routes()) ++
         List.wrap(
           sitemap_base_url_finding(
-            PhoenixKit.Settings.get_setting("site_url", ""),
+            # Not `Settings.get_setting/2`: update_mode (set in run/1)
+            # short-circuits it to the default, so every install read as
+            # "site_url is not set".
+            configured_site_url(prefix) || "",
             Sitemap.endpoint_base_url()
           )
         )

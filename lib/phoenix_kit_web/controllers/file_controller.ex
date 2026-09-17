@@ -125,14 +125,17 @@ defmodule PhoenixKitWeb.FileController do
 
   # Any hex prefix of 8+ characters names the bytes (older links carry an
   # 8-character `v`); the canonical form is `URLSigner.version/1`'s 16.
-  defp check_version(instance, :exact, requested) do
-    requested = requested |> to_string() |> String.downcase()
+  defp check_version(instance, :exact, requested) when is_binary(requested) do
+    requested = String.downcase(requested)
 
     if byte_size(requested) >= 8 and requested =~ ~r/\A[0-9a-f]+\z/ and
          String.starts_with?(String.downcase(instance.checksum || ""), requested),
        do: :ok,
        else: {:stale_version, instance}
   end
+
+  # `?v[a]=b` arrives as a map: not a version of anything, so stale.
+  defp check_version(instance, :exact, _requested), do: {:stale_version, instance}
 
   @doc false
   # How long a response may be kept:
