@@ -2850,33 +2850,87 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   @doc """
-  Deletes file data from all storage buckets for all variants.
+  Deletes the stored objects of a file's instances from every bucket —
+  except an object another file's instance row still references (a
+  cross-user deduplicated copy, an edited image's backup), which stays.
+  The rows themselves are left alone; see `delete_file_completely/1`.
   """
   def delete_file_data(%PhoenixKit.Modules.Storage.File{} = file) do
-    instances = list_file_instances(file.uuid)
+    case list_file_instances(file.uuid) do
+      [] ->
+        {:error, "No file instances found"}
 
-    if instances == [] do
-      {:error, "No file instances found"}
-    else
-      results =
-        Enum.map(instances, fn instance ->
-          case Manager.delete_file(instance.file_name) do
-            :ok ->
-              :ok
-
-            error ->
-              Logger.warning(
-                "Failed to delete variant #{instance.variant_name}: #{inspect(error)}"
-              )
-
-              error
-          end
-        end)
-
-      if Enum.any?(results, &(&1 == :ok)),
-        do: :ok,
-        else: {:error, "Failed to delete from all buckets"}
+      instances ->
+        instances
+        |> Enum.map(& &1.file_name)
+        |> unreferenced_keys(exclude_file_uuids: [file.uuid])
+        |> delete_stored_objects()
     end
+  end
+
+  @doc false
+  # Of `keys`, those no instance row references — optionally ignoring the rows
+  # of `:exclude_file_uuids` (files about to go). Call it in the transaction
+  # that removes the rows, after the removal, under `lock_storage_paths/1`.
+  def unreferenced_keys(keys, opts \\ []) do
+    keys = keys |> Enum.reject(&is_nil/1) |> Enum.uniq()
+    excluded = Keyword.get(opts, :exclude_file_uuids, [])
+
+    if keys == [] do
+      []
+    else
+      referenced =
+        from(fi in FileInstance,
+          where: fi.file_name in ^keys and fi.file_uuid not in ^excluded,
+          distinct: true,
+          select: fi.file_name
+        )
+        |> repo().all()
+        |> MapSet.new()
+
+      Enum.reject(keys, &MapSet.member?(referenced, &1))
+    end
+  end
+
+  @doc false
+  # Serialises everything that adds or removes references to the objects
+  # under these storage directories (deletion, a cross-user clone, an image
+  # edit's swap) for the rest of the current transaction. Without it a clone
+  # could reference a key in the moment between "nobody references it" and
+  # the object's deletion.
+  def lock_storage_paths(paths) do
+    paths
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.each(fn path ->
+      repo().query!(
+        "SELECT pg_advisory_xact_lock(hashtext('phoenix_kit_storage_path:' || $1))",
+        [path],
+        log: false
+      )
+    end)
+  end
+
+  @doc false
+  # Deletes stored objects from every bucket. Best-effort: a failure is logged
+  # and the rest still go. `:ok` when every key went (or there were none).
+  def delete_stored_objects(keys) do
+    results =
+      Enum.map(keys, fn key ->
+        case Manager.delete_file(key) do
+          :ok ->
+            :ok
+
+          error ->
+            Logger.warning("Storage: could not delete #{key}: #{inspect(error)}")
+            error
+        end
+      end)
+
+    if Enum.all?(results, &(&1 == :ok)),
+      do: :ok,
+      else: {:error, "Failed to delete some objects"}
   end
 
   # ===== TRASH =====
@@ -3003,24 +3057,43 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def delete_file_completely(%PhoenixKit.Modules.Storage.File{} = file) do
-    if other_files_share_path?(file) do
-      # Other files share the same storage — only delete the DB record, keep physical files
-      Logger.info(
-        "Storage: skipping physical deletion for #{file.uuid} (shared path: #{file.file_path})"
-      )
-    else
-      # Last reference — safe to delete physical files
-      case delete_file_data(file) do
-        :ok ->
-          Logger.info("Storage: physical files deleted for #{file.uuid}")
+    # The row goes first (instances, locations and system-managed children —
+    # an edited image's backup, tile chunks — cascade with it); then every
+    # object those rows referenced that no remaining row still references.
+    # Deciding per key, rather than skipping the whole file when any other
+    # file shares its directory, is what lets an edited image and its backup
+    # (same directory, different keys) delete their own bytes, and keeps a
+    # deduplicated copy's shared keys.
+    result =
+      repo().transaction(fn ->
+        family = [file | list_system_children(file.uuid)]
+        lock_storage_paths(Enum.map(family, & &1.file_path))
 
-        {:error, reason} ->
-          Logger.warning("Storage: partial physical deletion for #{file.uuid}: #{reason}")
-      end
+        keys =
+          from(fi in FileInstance,
+            where: fi.file_uuid in ^Enum.map(family, & &1.uuid),
+            select: fi.file_name
+          )
+          |> repo().all()
+
+        case delete_file(file) do
+          {:ok, deleted} -> {deleted, unreferenced_keys(keys)}
+          {:error, changeset} -> repo().rollback(changeset)
+        end
+      end)
+
+    case result do
+      {:ok, {deleted, keys}} ->
+        case delete_stored_objects(keys) do
+          :ok -> Logger.info("Storage: #{length(keys)} objects deleted for #{file.uuid}")
+          {:error, reason} -> Logger.warning("Storage: #{file.uuid}: #{reason}")
+        end
+
+        {:ok, deleted}
+
+      {:error, _} = error ->
+        error
     end
-
-    # Delete DB record (CASCADE handles instances + locations)
-    delete_file(file)
   end
 
   def delete_file_completely(file_uuid) when is_binary(file_uuid) do
@@ -3320,13 +3393,30 @@ defmodule PhoenixKit.Modules.Storage do
             Logger.info("=== CROSS-USER DUPLICATE DETECTED ===")
             Logger.info("Donor file: #{donor_file.uuid} (user: #{donor_file.user_uuid})")
 
-            clone_file_for_user(
-              donor_file,
-              user_uuid,
-              file_checksum,
-              ext,
-              original_filename
-            )
+            case clone_file_for_user(
+                   donor_file,
+                   user_uuid,
+                   file_checksum,
+                   ext,
+                   original_filename
+                 ) do
+              # The donor went (or changed) before it could be shared: store
+              # this upload's own bytes instead.
+              {:error, :donor_changed} ->
+                store_new_file_in_buckets(
+                  source_path,
+                  file_type,
+                  user_uuid,
+                  file_checksum,
+                  user_file_checksum,
+                  ext,
+                  original_filename,
+                  opts
+                )
+
+              result ->
+                result
+            end
 
           nil ->
             Logger.info("New file detected (no existing hash match). Proceeding with storage.")
@@ -3447,10 +3537,16 @@ defmodule PhoenixKit.Modules.Storage do
 
   # ===== CROSS-USER DEDUPLICATION =====
 
-  # Find any active file with the given checksum (regardless of user) for cross-user dedup
+  # Find any active file with the given checksum (regardless of user) for
+  # cross-user dedup. Never a system-managed file (an edited image's hidden
+  # backup, a tile chunk) and never a file whose edit is still rendering.
   defp get_active_file_by_checksum(file_checksum) do
     PhoenixKit.Modules.Storage.File
-    |> where([f], f.file_checksum == ^file_checksum and f.status == "active")
+    |> where(
+      [f],
+      f.file_checksum == ^file_checksum and f.status == "active" and
+        f.system_managed == false and is_nil(f.edit_state)
+    )
     |> limit(1)
     |> repo().one()
   end
@@ -3475,15 +3571,34 @@ defmodule PhoenixKit.Modules.Storage do
       user_uuid: user_uuid
     }
 
-    case create_file(file_attrs) do
-      {:ok, new_file} ->
-        clone_file_instances(donor_file.uuid, new_file.uuid)
-        Logger.info("Cross-user clone created: #{new_file.uuid} from donor #{donor_file.uuid}")
+    # Under the donor's path lock, so the keys being copied cannot be deleted
+    # (a delete, an edit's swap) between reading and referencing them. The
+    # donor is re-read inside: gone or changed means no clone.
+    repo().transaction(fn ->
+      lock_storage_paths([donor_file.file_path])
+
+      with %PhoenixKit.Modules.Storage.File{} = donor <-
+             get_active_file_by_checksum(file_checksum),
+           true <- donor.uuid == donor_file.uuid,
+           {:ok, new_file} <- create_file(file_attrs) do
+        clone_file_instances(donor.uuid, new_file.uuid)
+        Logger.info("Cross-user clone created: #{new_file.uuid} from donor #{donor.uuid}")
+        {new_file, :duplicate}
+      else
+        {:error, changeset} -> repo().rollback(changeset)
+        _ -> repo().rollback(:donor_changed)
+      end
+    end)
+    |> case do
+      {:ok, {new_file, :duplicate}} ->
         {:ok, new_file, :duplicate}
 
-      {:error, changeset} ->
+      {:error, %Ecto.Changeset{} = changeset} ->
         Logger.error("Failed to clone file for user: #{inspect(changeset.errors)}")
         {:error, changeset}
+
+      {:error, :donor_changed} ->
+        {:error, :donor_changed}
     end
   end
 
@@ -3542,15 +3657,14 @@ defmodule PhoenixKit.Modules.Storage do
     end)
   end
 
-  # Check if other File records share the same storage path. Returns
-  # false when this file has no path — nothing to share, and Ecto
-  # forbids `column == nil` for safety so we short-circuit explicitly.
-  defp other_files_share_path?(%{file_path: nil}), do: false
-
-  defp other_files_share_path?(file) do
-    PhoenixKit.Modules.Storage.File
-    |> where([f], f.file_path == ^file.file_path and f.uuid != ^file.uuid)
-    |> repo().exists?()
+  @doc false
+  # The system-managed files hanging off `file_uuid`: an edited image's
+  # unedited backup and its tile chunks.
+  def list_system_children(file_uuid) do
+    from(f in PhoenixKit.Modules.Storage.File,
+      where: f.parent_file_uuid == ^file_uuid and f.system_managed == true
+    )
+    |> repo().all()
   end
 
   # ===== HELPER FUNCTIONS =====
