@@ -5079,7 +5079,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.14.0/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.14.1/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 
