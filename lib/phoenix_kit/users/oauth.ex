@@ -33,6 +33,7 @@ if Code.ensure_loaded?(Ueberauth) do
         with {:ok, user, _status} <-
                find_or_create_user(oauth_data, track_geolocation, ip_address),
              {:ok, _provider} <- link_oauth_provider(user, oauth_data),
+             {:ok, user} <- maybe_fill_google_email(user, oauth_data),
              {:ok, user} <- maybe_save_oauth_avatar(user, oauth_data),
              :ok <- maybe_process_referral_code(user, referral_code) do
           user
@@ -249,6 +250,30 @@ if Code.ensure_loaded?(Ueberauth) do
     end
 
     defp maybe_save_oauth_avatar(user, _oauth_data), do: {:ok, user}
+
+    # A Google sign-in proves the address, so `google_email` starts filled
+    # rather than waiting for the user to type what we already know. Only
+    # while it is empty: a value set by hand is the user's own answer to
+    # "where do we share with you", and a second Google account signing in
+    # must not silently redirect their shares.
+    defp maybe_fill_google_email(%User{google_email: current} = user, %{
+           provider: "google",
+           email: email
+         })
+         when is_binary(email) and email != "" do
+      if is_binary(current) and String.trim(current) != "" do
+        {:ok, user}
+      else
+        case Auth.update_user_profile(user, %{google_email: email}) do
+          {:ok, updated} -> {:ok, updated}
+          # Never fail a sign-in over a convenience prefill — a provider
+          # address longer than the column, say. The user can still type one.
+          {:error, %Ecto.Changeset{}} -> {:ok, user}
+        end
+      end
+    end
+
+    defp maybe_fill_google_email(user, _oauth_data), do: {:ok, user}
 
     @doc """
     Links an OAuth provider to a user account.

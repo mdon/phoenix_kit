@@ -1,3 +1,32 @@
+## 2.29.0 - 2026-09-17
+
+### Added
+
+- **A user's Google address** (`google_email` on `phoenix_kit_users`, V196).
+  Sharing something with a user through Google — a Drive file, a calendar
+  invite — needs the address their Google account answers to, which is not
+  always the address they registered with.
+  - `PhoenixKit.Users.Auth.google_email/1` resolves it: the stored address,
+    else the account email when that is itself `@gmail.com` /
+    `@googlemail.com`, else `nil`. Nothing else is guessed — a share sent to
+    an address with no Google account behind it is a share the user never
+    receives.
+  - Editable by the user on their settings page and by an admin on the user
+    form, and filled in automatically the first time the user signs in with
+    Google (never overwriting a value already there).
+  - V196 backfills it from existing linked Google sign-ins, so those users
+    start filled instead of waiting for their next sign-in.
+  - It is not an identity: optional, not unique, and nothing authenticates
+    against it. `email` stays the identity.
+
+### Fixed
+
+- **Three translations were wrong in all seven locales.** A catalog merge had
+  copied a near neighbour's translation onto new strings: "Channel" read as
+  "Cancel" (`Отмена`, `Abbrechen`, `Annuler`, …) and "Could not save the
+  linked chats" had lost the "linked chats" half. Fuzzy entries are served,
+  so these shipped silently. (#822 follow-up)
+
 ## 2.28.2 - 2026-09-17
 
 ### Changed

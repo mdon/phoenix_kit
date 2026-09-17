@@ -763,7 +763,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
 
         # Build a changeset from old→new to detect what changed
         # Dynamically compare all profile fields instead of hardcoding
-        profile_fields = ~w(email username first_name last_name user_timezone)a
+        profile_fields = ~w(email google_email username first_name last_name user_timezone)a
 
         new_values =
           profile_fields
@@ -1039,6 +1039,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
     |> assign(:current_account_type, account_type)
     |> assign(:form_data, %{
       "email" => user.email || "",
+      "google_email" => user.google_email || "",
       "username" => user.username || "",
       "first_name" => user.first_name || "",
       "last_name" => user.last_name || "",

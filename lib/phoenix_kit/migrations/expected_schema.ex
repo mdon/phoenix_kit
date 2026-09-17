@@ -175,6 +175,21 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # V195; `pos` follows the table's real ordinal positions after V135's 22.
   # `chain_hash` restamped over the shipped file set.
   #
+  # V196 (2026-09-17, a user's Google address) DECLARES one object here by
+  # hand, the V165/V166/V170/V171 class: `column:phoenix_kit_users.
+  # google_email` (varchar(160), nullable). The migration's other statement is
+  # a one-off backfill UPDATE out of `phoenix_kit_user_oauth_providers` —
+  # row DATA, which the catalog cannot see and the manifest does not track,
+  # the same class as V182's. Shape read from a test database migrated
+  # through V196 (`information_schema.columns`), not typed from the
+  # migration; `pos` continues the table's append order after V191's 22
+  # (the differ excludes `pos` from comparison, but two columns sharing one
+  # number would still read as a transcription error). `chain_hash`
+  # restamped over the shipped file set. `verify.exs --scenario s7,s8` needs
+  # a pre-squash `generate_baseline.exs` regeneration this session has no
+  # access to; the real-database integration suite re-ran clean against a DB
+  # migrated through V196, which is the property s7/s8 exist to prove.
+  #
   # V194 (2026-09-17, settings history) declares NO object here, and cannot:
   # it is a pure data migration — an UPDATE on `phoenix_kit_activities` that
   # withholds the values of `setting.changed` entries recorded for integration
@@ -379,7 +394,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "bd3d1b985c9729558831eff78e7827f81f996e9c52d2bf0ce5d439b418d33ef4"
+  @chain_hash "ffaf948951cc31217a7541b8072d7619750090b91ae1a8132a6fcc9d5150ca2b"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -44503,6 +44518,20 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         class: :column,
         revisions: [
           {92, %{default: nil, type: "character varying(255)", pos: 20, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_users.google_email",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_users", column: "google_email", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_users ADD COLUMN IF NOT EXISTS \"google_email\" character varying(160)",
+        since: 196,
+        class: :column,
+        revisions: [
+          {196, %{default: nil, type: "character varying(160)", pos: 23, not_null: false}}
         ],
         presence: :required,
         backfill: nil

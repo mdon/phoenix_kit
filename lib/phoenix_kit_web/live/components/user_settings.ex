@@ -1088,6 +1088,23 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                 <% end %>
               </div>
 
+              <%!-- Google address. Separate from the sign-in email on purpose: --%>
+              <%!-- it is where we SHARE (a Drive file, a calendar invite), not --%>
+              <%!-- an identity, so it is optional and nothing authenticates    --%>
+              <%!-- against it. Left empty, a Gmail sign-in address is used.    --%>
+              <div>
+                <.input
+                  field={@profile_form[:google_email]}
+                  type="email"
+                  label={gettext("Google Email")}
+                />
+                <div class="text-xs text-base-content/60 mt-1">
+                  {gettext(
+                    "Used when something is shared with you through Google. Leave empty to use your account email."
+                  )}
+                </div>
+              </div>
+
               <:actions>
                 <div class="ml-auto">
                   <.button phx-disable-with="Updating..." class="btn-primary">

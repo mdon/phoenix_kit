@@ -1955,6 +1955,61 @@ defmodule PhoenixKit.Users.Auth do
   defdelegate list_roles(), to: PhoenixKit.Users.Roles
 
   @doc """
+  The address to reach this user at on Google, or `nil`.
+
+  Sharing something through Google (a Drive file, a calendar invite) needs the
+  address the user's Google account answers to, which is not always the one
+  they registered with. In order:
+
+    1. `google_email`, set by the user, by an admin, or filled in from a
+       linked Google sign-in.
+    2. `email`, when it is itself a Google-hosted address — a user who signed
+       up with their Gmail address has already told us where to share, and
+       making them retype it into a second field is the kind of thing nobody
+       does until it is too late.
+
+  Nothing else is guessed: any other address may or may not have a Google
+  account behind it, and a share sent to one that does not is a share the
+  user never receives.
+
+  ## Examples
+
+      iex> google_email(%User{google_email: "work@example.com", email: "a@b.com"})
+      "work@example.com"
+
+      iex> google_email(%User{google_email: nil, email: "person@gmail.com"})
+      "person@gmail.com"
+
+      iex> google_email(%User{google_email: nil, email: "person@example.com"})
+      nil
+  """
+  @spec google_email(User.t()) :: String.t() | nil
+  def google_email(%User{} = user) do
+    case presence(user.google_email) do
+      nil -> user.email |> presence() |> google_hosted() |> then(&(&1 && String.downcase(&1)))
+      address -> address
+    end
+  end
+
+  @google_domains ~w(gmail.com googlemail.com)
+
+  defp google_hosted(nil), do: nil
+
+  defp google_hosted(email) do
+    domain = email |> String.split("@") |> List.last() |> String.downcase()
+    if domain in @google_domains, do: email
+  end
+
+  defp presence(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp presence(_value), do: nil
+
+  @doc """
   Updates a user's profile information.
 
   ## Examples
@@ -2209,7 +2264,14 @@ defmodule PhoenixKit.Users.Auth do
   # security-relevant whitelist drift, and the drift is silent: adding a field
   # here and forgetting the other copy re-opens the bypass for that one field.
   # `test/integration/users/user_form_authority_test.exs` pins them together.
-  @updatable_profile_fields [:first_name, :last_name, :email, :username, :user_timezone]
+  @updatable_profile_fields [
+    :first_name,
+    :last_name,
+    :email,
+    :google_email,
+    :username,
+    :user_timezone
+  ]
 
   @doc """
   The schema fields `update_user_fields/2` routes OUT of `custom_fields` and
@@ -2227,7 +2289,7 @@ defmodule PhoenixKit.Users.Auth do
   attributes into schema fields and custom fields, updating both appropriately.
 
   ## Schema Fields
-  - first_name, last_name, email, username, user_timezone
+  - first_name, last_name, email, google_email, username, user_timezone
 
   ## Custom Fields
   - Any other keys are treated as custom fields

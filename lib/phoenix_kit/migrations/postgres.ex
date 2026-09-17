@@ -7,7 +7,14 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V195 - Image editing ⚡ LATEST
+  ### V196 - A user's Google address ⚡ LATEST
+
+  Adds `google_email` to `phoenix_kit_users` — the address to share a Drive
+  file or a calendar invite with, which is not always the address the user
+  registered under — and backfills it from any linked Google sign-in.
+  Additive only.
+
+  ### V195 - Image editing
 
   Adds `edits`, `edit_revision`, `edit_state`, `original_file_uuid` and
   `edited_from_uuid` to `phoenix_kit_files` (an edited image keeps its uuid;
@@ -792,7 +799,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 195
+  @current_version 196
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

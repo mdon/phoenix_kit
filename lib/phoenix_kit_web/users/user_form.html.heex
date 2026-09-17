@@ -263,6 +263,22 @@
                 options={@timezone_options}
               />
             </div>
+
+            <%!-- Google Email. Where things are SHARED with this user through
+                  Google, which need not be the address they sign in with. It
+                  is not an identity: optional, not unique, and nothing
+                  authenticates against it. --%>
+            <div class="fieldset w-full">
+              <.input
+                field={form[:google_email]}
+                type="email"
+                label={gettext("Google Email")}
+                placeholder={gettext("Optional")}
+              />
+              <div class="text-xs text-base-content/60 mt-1">
+                {gettext("Filled in automatically when the user signs in with Google.")}
+              </div>
+            </div>
           </div>
 
           <%!-- Password Change Section (Edit mode, Admin/Owner only, and never

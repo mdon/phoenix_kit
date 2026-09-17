@@ -36,6 +36,7 @@ defmodule PhoenixKit.Users.Auth.User do
   @type t :: %__MODULE__{
           uuid: UUIDv7.t() | nil,
           email: String.t(),
+          google_email: String.t() | nil,
           username: String.t() | nil,
           password: String.t() | nil,
           hashed_password: String.t(),
@@ -62,6 +63,7 @@ defmodule PhoenixKit.Users.Auth.User do
 
   schema "phoenix_kit_users" do
     field :email, :string
+    field :google_email, :string
     field :username, :string
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
@@ -158,9 +160,11 @@ defmodule PhoenixKit.Users.Auth.User do
       :custom_fields,
       :account_type,
       :organization_name,
-      :user_timezone
+      :user_timezone,
+      :google_email
     ])
     |> validate_email(opts)
+    |> validate_google_email()
     |> validate_username(opts)
     |> validate_password(opts)
     |> validate_names()
@@ -223,6 +227,28 @@ defmodule PhoenixKit.Users.Auth.User do
     |> validate_length(:email, max: 160)
     |> maybe_validate_unique_email(opts)
   end
+
+  # The Google address is optional and is never an identity: nothing
+  # authenticates against it, so it is neither required nor unique (a team
+  # shares one inbox often enough). An empty string from a cleared form input
+  # is stored as nil, so "unset" has one representation rather than two.
+  defp validate_google_email(changeset) do
+    changeset
+    |> update_change(:google_email, &normalize_google_email/1)
+    |> validate_format(:google_email, ~r/^[^\s]+@[^\s]+$/,
+      message: "must have the @ sign and no spaces"
+    )
+    |> validate_length(:google_email, max: 160)
+  end
+
+  defp normalize_google_email(value) when is_binary(value) do
+    case value |> String.trim() |> String.downcase() do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_google_email(value), do: value
 
   defp validate_password(changeset, opts) do
     changeset
@@ -472,6 +498,7 @@ defmodule PhoenixKit.Users.Auth.User do
       :first_name,
       :last_name,
       :email,
+      :google_email,
       :username,
       :user_timezone,
       :custom_fields,
@@ -479,6 +506,7 @@ defmodule PhoenixKit.Users.Auth.User do
     ])
     |> validate_names()
     |> validate_email(opts)
+    |> validate_google_email()
     |> validate_username(opts)
     |> validate_user_timezone()
     |> validate_custom_fields()
