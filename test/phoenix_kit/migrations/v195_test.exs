@@ -8,6 +8,7 @@ defmodule PhoenixKit.Migrations.Postgres.V195Test do
 
   alias PhoenixKit.Migrations.Postgres.V195
   alias PhoenixKit.Test.Repo
+  alias PhoenixKit.Users.Auth
 
   @columns ~w(edits edit_revision edit_state original_file_uuid edited_from_uuid)
 
@@ -61,7 +62,7 @@ defmodule PhoenixKit.Migrations.Postgres.V195Test do
 
   test "a file's edit revision starts at 0, and its references null out on delete" do
     {:ok, user} =
-      PhoenixKit.Users.Auth.register_user(%{
+      Auth.register_user(%{
         "email" => "v195-#{System.unique_integer([:positive])}@example.com",
         "password" => "ValidPassword123!"
       })

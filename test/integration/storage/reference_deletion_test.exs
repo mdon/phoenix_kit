@@ -12,6 +12,7 @@ defmodule PhoenixKit.Modules.Storage.ReferenceDeletionTest do
   use PhoenixKit.DataCase, async: false
 
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.Bucket
   alias PhoenixKit.Modules.Storage.Manager
   alias PhoenixKit.Users.Auth
 
@@ -21,6 +22,10 @@ defmodule PhoenixKit.Modules.Storage.ReferenceDeletionTest do
     :persistent_term.erase(@buckets_cache)
     n = System.unique_integer([:positive])
     root = Path.join(System.tmp_dir!(), "pk_ref_delete_#{n}")
+
+    # Only this test's bucket: the seeded default one lives in the project
+    # tree and outlasts the test.
+    Repo.update_all(Bucket, set: [enabled: false])
 
     {:ok, _bucket} =
       Storage.create_bucket(%{
@@ -129,6 +134,18 @@ defmodule PhoenixKit.Modules.Storage.ReferenceDeletionTest do
     assert {:ok, _} = Storage.delete_file_completely(parent)
     refute exists?(child_key)
     refute Storage.get_file(child.uuid)
+  end
+
+  test "delete_stored_objects/1 decides again when it deletes", ctx do
+    file = upload!(ctx.alice, "kept #{ctx.n}")
+    [key] = keys(file)
+
+    # A caller whose "nobody references it" is out of date by now.
+    assert :ok = Storage.delete_stored_objects([key])
+    assert exists?(key)
+
+    assert :ok = Storage.delete_stored_objects([key], exclude_file_uuids: [file.uuid])
+    refute exists?(key)
   end
 
   test "delete_file_data/1 keeps a key another file references", ctx do

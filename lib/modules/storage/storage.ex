@@ -65,6 +65,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.FileLocation
   alias PhoenixKit.Modules.Storage.Folder
   alias PhoenixKit.Modules.Storage.FolderLink
+  alias PhoenixKit.Modules.Storage.ImageEditing
   alias PhoenixKit.Modules.Storage.Manager
   alias PhoenixKit.Modules.Storage.ProcessFileJob
   alias PhoenixKit.Modules.Storage.ProviderRegistry
@@ -2071,8 +2072,16 @@ defmodule PhoenixKit.Modules.Storage do
     # SELECT is the cheap path of the double-checked-locking pattern that
     # `FileController.serve_tile/2` uses (mutex + re-check + insert).
     case existing_system_file(parent_file_uuid, key) do
+      # The row outlived its object (a deletion raced a late write): write
+      # the object again, or the chunk would stay missing for good — callers
+      # decide to generate by the object's absence.
       {:ok, file, instance} ->
-        {:ok, %{file: file, instance: instance}}
+        if Manager.file_exists?(key) do
+          {:ok, %{file: file, instance: instance}}
+        else
+          with {:ok, _} <- Manager.store_file(content_path, path_prefix: key),
+               do: {:ok, %{file: file, instance: instance}}
+        end
 
       :not_found ->
         do_store_system_file(content_path, key, parent_file_uuid, mime_type, file_type, opts)
@@ -2115,6 +2124,13 @@ defmodule PhoenixKit.Modules.Storage do
          },
          {:ok, instance} <- insert_or_fetch_system_instance(instance_attrs, file.uuid) do
       {:ok, %{file: file, instance: instance}}
+    else
+      # The object may be stored with no row for it (the parent went
+      # meanwhile, an insert failed): delete it unless something references
+      # the key after all.
+      error ->
+        _ = delete_stored_objects([key])
+        error
     end
   end
 
@@ -2809,11 +2825,28 @@ defmodule PhoenixKit.Modules.Storage do
   Will try buckets in priority order until the file is found.
   """
   def retrieve_file(file_uuid) do
+    case retrieve_original(file_uuid) do
+      {:ok, path, file, _instance} -> {:ok, path, file}
+      error -> error
+    end
+  end
+
+  @doc """
+  Like `retrieve_file/1`, and also returns the `"original"` instance the
+  bytes were read from: `{:ok, temp_path, file, instance}`.
+
+  An image edit can replace a file's original at any moment, and the file
+  row and the instance are two reads. Something derived from the bytes (a
+  variant, the dimensions) belongs to the file only while
+  `instance.file_name` is still its original — check that when recording
+  the result (`original_key?/2`).
+  """
+  def retrieve_original(file_uuid) do
     case get_file(file_uuid) do
       %PhoenixKit.Modules.Storage.File{} = file ->
         # Look up the original variant path from file_instances table
         case get_file_instance_by_name(file_uuid, "original") do
-          %FileInstance{file_name: file_path} ->
+          %FileInstance{file_name: file_path} = instance ->
             # Keep a media extension: ImageMagick identifies some formats
             # (ICO among them) by extension alone, so an extensionless copy
             # fails every variant with "no decode delegate". Non-media
@@ -2823,7 +2856,7 @@ defmodule PhoenixKit.Modules.Storage do
             case Manager.retrieve_file(file_path,
                    destination_path: destination_path
                  ) do
-              {:ok, _path} -> {:ok, destination_path, file}
+              {:ok, _path} -> {:ok, destination_path, file, instance}
               error -> error
             end
 
@@ -2834,6 +2867,17 @@ defmodule PhoenixKit.Modules.Storage do
       nil ->
         {:error, "File not found"}
     end
+  end
+
+  @doc false
+  # Whether `key` is still the object `file_uuid`'s original instance points
+  # at. Call it in a transaction holding the file row (`FOR SHARE` or
+  # stronger), which an image edit's swap needs `FOR UPDATE`.
+  def original_key?(file_uuid, key) do
+    from(fi in FileInstance,
+      where: fi.file_uuid == ^file_uuid and fi.variant_name == "original" and fi.file_name == ^key
+    )
+    |> repo().exists?()
   end
 
   @doc """
@@ -2863,8 +2907,7 @@ defmodule PhoenixKit.Modules.Storage do
       instances ->
         instances
         |> Enum.map(& &1.file_name)
-        |> unreferenced_keys(exclude_file_uuids: [file.uuid])
-        |> delete_stored_objects()
+        |> delete_stored_objects(exclude_file_uuids: [file.uuid])
     end
   end
 
@@ -2913,24 +2956,62 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   @doc false
-  # Deletes stored objects from every bucket. Best-effort: a failure is logged
-  # and the rest still go. `:ok` when every key went (or there were none).
-  def delete_stored_objects(keys) do
-    results =
-      Enum.map(keys, fn key ->
-        case Manager.delete_file(key) do
-          :ok ->
-            :ok
+  # Deletes the objects at `keys` from every bucket — each only if no instance
+  # row references it (ignoring the rows of `:exclude_file_uuids`). The check
+  # and the deletion happen together under the key's directory lock, because
+  # keys are content-addressed and can be written again: a job that stores
+  # the same bytes and publishes a row for them takes the same lock and
+  # checks the object still exists, so it either sees the deletion or keeps
+  # the key referenced.
+  #
+  # Callers pass the keys whose rows they removed, after their transaction
+  # committed. Best-effort: a failure is logged and the rest still go. `:ok`
+  # when every unreferenced key went (or there were none).
+  def delete_stored_objects(keys, opts \\ []) do
+    excluded = Keyword.get(opts, :exclude_file_uuids, [])
 
-          error ->
-            Logger.warning("Storage: could not delete #{key}: #{inspect(error)}")
-            error
-        end
-      end)
+    results =
+      keys
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+      |> Enum.group_by(&Path.dirname/1)
+      |> Enum.flat_map(fn {dir, dir_keys} -> delete_unreferenced(dir, dir_keys, excluded) end)
 
     if Enum.all?(results, &(&1 == :ok)),
       do: :ok,
       else: {:error, "Failed to delete some objects"}
+  end
+
+  defp delete_unreferenced(dir, keys, excluded) do
+    repo().transaction(
+      fn ->
+        lock_storage_paths([dir])
+
+        keys
+        |> unreferenced_keys(exclude_file_uuids: excluded)
+        |> Enum.map(&delete_stored_object/1)
+      end,
+      timeout: :infinity
+    )
+    |> case do
+      {:ok, results} ->
+        results
+
+      {:error, reason} ->
+        Logger.warning("Storage: could not delete objects under #{dir}: #{inspect(reason)}")
+        [{:error, reason}]
+    end
+  end
+
+  defp delete_stored_object(key) do
+    case Manager.delete_file(key) do
+      :ok ->
+        :ok
+
+      error ->
+        Logger.warning("Storage: could not delete #{key}: #{inspect(error)}")
+        error
+    end
   end
 
   # ===== TRASH =====
@@ -3066,6 +3147,18 @@ defmodule PhoenixKit.Modules.Storage do
     # deduplicated copy's shared keys.
     result =
       repo().transaction(fn ->
+        # The row before the directories, the order an image edit's swap
+        # takes them in.
+        from(f in PhoenixKit.Modules.Storage.File,
+          where: f.uuid == ^file.uuid,
+          lock: "FOR UPDATE"
+        )
+        |> repo().one()
+        |> case do
+          nil -> repo().rollback(:not_found)
+          _ -> :ok
+        end
+
         family = [file | list_system_children(file.uuid)]
         lock_storage_paths(Enum.map(family, & &1.file_path))
 
@@ -3105,12 +3198,27 @@ defmodule PhoenixKit.Modules.Storage do
 
   @doc """
   Gets a public URL for a file.
+
+  `nil` for a system-managed file (an edited image's hidden unedited
+  original is never handed out). While an image edit is rendering or has
+  failed, the signed route is returned even for a public bucket: it answers
+  a placeholder, where the bucket would serve the bytes the edit replaces.
   """
-  def get_public_url(%PhoenixKit.Modules.Storage.File{} = file) do
-    # Look up the actual file path from file_instances where "original" variant is stored
-    case get_file_instance_by_name(file.uuid, "original") do
-      %PhoenixKit.Modules.Storage.FileInstance{file_name: file_path} ->
-        Manager.public_url(file_path) || signed_file_url(file.uuid, "original")
+  def get_public_url(%PhoenixKit.Modules.Storage.File{} = file),
+    do: public_instance_url(file, "original")
+
+  defp public_instance_url(%PhoenixKit.Modules.Storage.File{system_managed: true}, _variant),
+    do: nil
+
+  defp public_instance_url(%PhoenixKit.Modules.Storage.File{} = file, variant_name) do
+    case get_file_instance_by_name(file.uuid, variant_name) do
+      %FileInstance{} = instance ->
+        if ImageEditing.edit_in_progress?(file) do
+          signed_file_url(file.uuid, variant_name, nil)
+        else
+          Manager.public_url(instance.file_name) ||
+            signed_file_url(file.uuid, variant_name, instance)
+        end
 
       nil ->
         nil
@@ -3135,14 +3243,8 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def get_public_url_by_variant(%PhoenixKit.Modules.Storage.File{} = file, variant_name) do
-    case get_file_instance_by_name(file.uuid, variant_name) do
-      %PhoenixKit.Modules.Storage.FileInstance{file_name: file_path} ->
-        Manager.public_url(file_path) || signed_file_url(file.uuid, variant_name)
-
-      nil ->
-        # Fallback to original if variant doesn't exist
-        get_public_url(file)
-    end
+    # Falls back to the original when the variant doesn't exist.
+    public_instance_url(file, variant_name) || get_public_url(file)
   end
 
   @doc """
@@ -3210,7 +3312,7 @@ defmodule PhoenixKit.Modules.Storage do
         mime_type: fi.mime_type,
         width: fi.width,
         height: fi.height,
-        url: URLSigner.signed_url(file_uuid, fi.variant_name, locale: :none)
+        url: URLSigner.signed_url(file_uuid, fi.variant_name, locale: :none, version: fi)
       }
     end)
   end
@@ -3237,14 +3339,14 @@ defmodule PhoenixKit.Modules.Storage do
           mime_type: fi.mime_type,
           width: fi.width,
           height: fi.height,
-          url: URLSigner.signed_url(fi.file_uuid, fi.variant_name, locale: :none)
+          url: URLSigner.signed_url(fi.file_uuid, fi.variant_name, locale: :none, version: fi)
         }
       end)
     end
   end
 
-  defp signed_file_url(file_uuid, variant_name) do
-    URLSigner.signed_url(file_uuid, variant_name, locale: :none)
+  defp signed_file_url(file_uuid, variant_name, instance) do
+    URLSigner.signed_url(file_uuid, variant_name, locale: :none, version: instance)
   rescue
     _ -> nil
   end

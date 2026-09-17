@@ -30,6 +30,8 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
     max_attempts: 3,
     unique: [period: 300, keys: [:file_uuid], states: @unique_states]
 
+  import Ecto.Query, only: [from: 2]
+
   require Logger
 
   alias PhoenixKit.Modules.Storage
@@ -102,9 +104,9 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   defp process_image(file) do
     Logger.info("ProcessFileJob: process_image/1 called for file_uuid=#{file.uuid}")
 
-    with {:ok, temp_path} <- retrieve_and_log_file(file.uuid),
+    with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid),
          {:ok, metadata} <- extract_and_log_image_metadata(temp_path),
-         :ok <- update_and_log_metadata(file, metadata),
+         :ok <- update_and_log_metadata(file, source, metadata),
          :ok <- log_dimensions_info(),
          {:ok, variants} <- generate_and_log_variants(file) do
       File.rm(temp_path)
@@ -117,10 +119,10 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   end
 
   defp retrieve_and_log_file(file_uuid) do
-    case Storage.retrieve_file(file_uuid) do
-      {:ok, temp_path, _file} ->
+    case Storage.retrieve_original(file_uuid) do
+      {:ok, temp_path, _file, instance} ->
         Logger.info("ProcessFileJob: Retrieved file to temp_path=#{temp_path}")
-        {:ok, temp_path}
+        {:ok, temp_path, instance.file_name}
 
       error ->
         error
@@ -134,8 +136,8 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
     {:ok, metadata}
   end
 
-  defp update_and_log_metadata(file, metadata) do
-    case update_file_with_metadata(file, metadata) do
+  defp update_and_log_metadata(file, source, metadata) do
+    case update_file_with_metadata(file, source, metadata) do
       :ok = success ->
         Logger.info("ProcessFileJob: Updated file with metadata")
         success
@@ -163,9 +165,9 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   end
 
   defp process_video(file) do
-    with {:ok, temp_path, _file} <- Storage.retrieve_file(file.uuid),
+    with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid),
          {:ok, metadata} <- extract_video_metadata(temp_path),
-         :ok <- update_file_with_metadata(file, metadata) do
+         :ok <- update_file_with_metadata(file, source, metadata) do
       # Generate variants
       case VariantGenerator.generate_variants(file) do
         {:ok, variants} ->
@@ -183,9 +185,9 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
     if file.mime_type == "application/pdf" do
       process_pdf(file)
     else
-      with {:ok, temp_path, _file} <- Storage.retrieve_file(file.uuid),
+      with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid),
            {:ok, metadata} <- extract_document_metadata(temp_path, file.mime_type),
-           :ok <- update_file_with_metadata(file, metadata) do
+           :ok <- update_file_with_metadata(file, source, metadata) do
         File.rm(temp_path)
         Logger.info("ProcessFileJob: Processed document file_uuid=#{file.uuid}")
         {:ok, []}
@@ -194,9 +196,14 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   end
 
   defp process_pdf(file) do
-    with {:ok, temp_path} <- retrieve_and_log_file(file.uuid),
+    with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid),
          {:ok, metadata} <- extract_pdf_metadata(temp_path),
-         :ok <- update_and_log_metadata(file, PdfProcessor.file_attrs(file.metadata, metadata)),
+         :ok <-
+           update_and_log_metadata(
+             file,
+             source,
+             PdfProcessor.file_attrs(file.metadata, metadata)
+           ),
          {:ok, variants} <- generate_and_log_variants(file) do
       File.rm(temp_path)
       {:ok, variants}
@@ -213,9 +220,12 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
     {:ok, metadata}
   end
 
+  # The dimensions as displayed: after the EXIF orientation, which browsers,
+  # the tile generator and image edits all apply. A phone photo stored
+  # sideways is recorded upright.
   defp extract_image_metadata(file_path) do
-    case ImageProcessor.extract_dimensions(file_path) do
-      {:ok, {width, height}} ->
+    case ImageProcessor.oriented_info(file_path) do
+      {:ok, {width, height, _frames}} ->
         {
           :ok,
           %{
@@ -296,15 +306,47 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
     {:ok, %{}}
   end
 
-  defp update_file_with_metadata(file, metadata) do
+  # The metadata describes the original this run downloaded (`source`, its
+  # key). An image edit can swap that original meanwhile; writing the old
+  # dimensions over the edited file's would be wrong, so the update only
+  # happens while `source` is still the file's original (keys are
+  # content-addressed: the same key is the same bytes).
+  @doc false
+  def update_file_with_metadata(file, source, metadata) do
     attrs = Map.merge(%{status: "active"}, metadata)
+    repo = PhoenixKit.RepoHelper.repo()
 
-    case Storage.update_file(file, attrs) do
-      {:ok, _updated_file} ->
+    repo.transaction(fn ->
+      current =
+        repo.one(
+          from(f in PhoenixKit.Modules.Storage.File,
+            where: f.uuid == ^file.uuid,
+            lock: "FOR UPDATE"
+          )
+        )
+
+      cond do
+        is_nil(current) -> :gone
+        not Storage.original_key?(file.uuid, source) -> :changed
+        true -> Storage.update_file(current, attrs)
+      end
+    end)
+    |> case do
+      {:ok, {:ok, _updated_file}} ->
         :ok
 
-      {:error, reason} ->
+      {:ok, :changed} ->
+        Logger.info("ProcessFileJob: #{file.uuid} changed while processing; metadata left as is")
+        :ok
+
+      {:ok, :gone} ->
+        {:error, :file_not_found}
+
+      {:ok, {:error, reason}} ->
         Logger.error("Failed to update file metadata: #{inspect(reason)}")
+        {:error, reason}
+
+      {:error, reason} ->
         {:error, reason}
     end
   end
