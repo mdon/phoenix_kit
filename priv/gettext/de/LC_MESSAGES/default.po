@@ -2005,8 +2005,8 @@ msgstr "Typ"
 msgid "Unconfirmed"
 msgstr "Unbestätigt"
 
-#: lib/phoenix_kit/users/auth/user_notifier.ex:285
-#: lib/phoenix_kit/users/auth/user_notifier.ex:286
+#: lib/phoenix_kit/users/auth/user_notifier.ex:295
+#: lib/phoenix_kit/users/auth/user_notifier.ex:333
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:64
 #: lib/phoenix_kit_web/components/core/time_display.ex:183
 #: lib/phoenix_kit_web/components/language_switcher.ex:832
@@ -13706,53 +13706,48 @@ msgstr "Ein Administrator hat eine Notiz von Ihrem Konto entfernt."
 msgid "An administrator signed in to your account for support."
 msgstr "Ein Administrator hat sich zur Unterstützung in Ihrem Konto angemeldet."
 
-#: lib/phoenix_kit/users/auth/user_notifier.ex:251
+#: lib/phoenix_kit/users/auth/user_notifier.ex:254
 #, elixir-autogen, elixir-format
 msgid "Complete your registration"
 msgstr "Schließen Sie Ihre Registrierung ab"
 
-#: lib/phoenix_kit/users/auth/user_notifier.ex:123
+#: lib/phoenix_kit/users/auth/user_notifier.ex:126
 #: lib/phoenix_kit_web/users/confirmation.ex:18
 #, elixir-autogen, elixir-format
 msgid "Confirm your account"
 msgstr "Bestätigen Sie Ihr Konto"
 
-#: lib/phoenix_kit/users/auth/user_notifier.ex:177
+#: lib/phoenix_kit/users/auth/user_notifier.ex:180
 #, elixir-autogen, elixir-format
 msgid "Confirm your email change"
 msgstr "Bestätigen Sie die Änderung Ihrer E-Mail-Adresse"
 
-#: lib/phoenix_kit/users/auth/user_notifier.ex:297
-#, elixir-autogen, elixir-format
-msgid "Hi {{user_email}},\n\nWe noticed a new login to your account:\n\nTime: {{login_time}}\nIP address: {{ip_address}}\nLocation: {{location}}\nDevice: {{browser_os}}\n\nIf this was you, no action is needed.\n\nIf you don't recognize this activity, secure your account here:\n\n{{security_url}}\n"
-msgstr "Hallo {{user_email}},\n\nwir haben eine neue Anmeldung bei Ihrem Konto festgestellt:\n\nZeit: {{login_time}}\nIP-Adresse: {{ip_address}}\nStandort: {{location}}\nGerät: {{browser_os}}\n\nWenn Sie das waren, brauchen Sie nichts zu tun.\n\nWenn Sie diese Aktivität nicht erkennen, sichern Sie hier Ihr Konto:\n\n{{security_url}}\n"
-
-#: lib/phoenix_kit/users/auth/user_notifier.ex:253
+#: lib/phoenix_kit/users/auth/user_notifier.ex:256
 #, elixir-autogen, elixir-format
 msgid "Hi {{user_email}},\n\nWelcome! To complete your registration, please visit the URL below:\n\n{{registration_url}}\n\nThis link will expire in 30 minutes for your security.\n\nIf you didn't request this registration, please ignore this email.\n"
 msgstr "Hallo {{user_email}},\n\nWillkommen! Um Ihre Registrierung abzuschließen, besuchen Sie bitte die folgende URL:\n\n{{registration_url}}\n\nDieser Link läuft aus Sicherheitsgründen in 30 Minuten ab.\n\nWenn Sie diese Registrierung nicht angefordert haben, ignorieren Sie diese E-Mail bitte.\n"
 
-#: lib/phoenix_kit/users/auth/user_notifier.ex:179
+#: lib/phoenix_kit/users/auth/user_notifier.ex:182
 #, elixir-autogen, elixir-format
 msgid "Hi {{user_email}},\n\nYou can change your email by visiting the URL below:\n\n{{update_url}}\n\nIf you didn't request this change, please ignore this.\n"
 msgstr "Hallo {{user_email}},\n\nSie können Ihre E-Mail-Adresse über die folgende URL ändern:\n\n{{update_url}}\n\nWenn Sie diese Änderung nicht angefordert haben, ignorieren Sie diese Nachricht bitte.\n"
 
-#: lib/phoenix_kit/users/auth/user_notifier.ex:125
+#: lib/phoenix_kit/users/auth/user_notifier.ex:128
 #, elixir-autogen, elixir-format
 msgid "Hi {{user_email}},\n\nYou can confirm your account by visiting the URL below:\n\n{{confirmation_url}}\n\nIf you didn't create an account with us, please ignore this.\n"
 msgstr "Hallo {{user_email}},\n\nSie können Ihr Konto über die folgende URL bestätigen:\n\n{{confirmation_url}}\n\nWenn Sie bei uns kein Konto erstellt haben, ignorieren Sie diese Nachricht bitte.\n"
 
-#: lib/phoenix_kit/users/auth/user_notifier.ex:152
+#: lib/phoenix_kit/users/auth/user_notifier.ex:155
 #, elixir-autogen, elixir-format
 msgid "Hi {{user_email}},\n\nYou can reset your password by visiting the URL below:\n\n{{reset_url}}\n\nIf you didn't request this change, please ignore this.\n"
 msgstr "Hallo {{user_email}},\n\nSie können Ihr Passwort über die folgende URL zurücksetzen:\n\n{{reset_url}}\n\nWenn Sie diese Änderung nicht angefordert haben, ignorieren Sie diese Nachricht bitte.\n"
 
-#: lib/phoenix_kit/users/auth/user_notifier.ex:213
+#: lib/phoenix_kit/users/auth/user_notifier.ex:216
 #, elixir-autogen, elixir-format
 msgid "Hi {{user_email}},\n\n{{organization_name}} has invited you to join their organization.\n\nTo accept the invitation, register an account by visiting the link below:\n\n{{registration_url}}\n\nThis invitation link will expire in 7 days.\n\nIf you did not expect this invitation, you can safely ignore this email.\n"
 msgstr "Hallo {{user_email}},\n\n{{organization_name}} hat Sie eingeladen, der Organisation beizutreten.\n\nUm die Einladung anzunehmen, registrieren Sie ein Konto über den folgenden Link:\n\n{{registration_url}}\n\nDieser Einladungslink läuft in 7 Tagen ab.\n\nWenn Sie diese Einladung nicht erwartet haben, können Sie diese E-Mail gefahrlos ignorieren.\n"
 
-#: lib/phoenix_kit/users/auth/user_notifier.ex:295
+#: lib/phoenix_kit/users/auth/user_notifier.ex:305
 #, elixir-autogen, elixir-format
 msgid "New login to your account"
 msgstr "Neue Anmeldung bei Ihrem Konto"
@@ -13762,7 +13757,7 @@ msgstr "Neue Anmeldung bei Ihrem Konto"
 msgid "New notification."
 msgstr "Neue Benachrichtigung."
 
-#: lib/phoenix_kit/users/auth/user_notifier.ex:150
+#: lib/phoenix_kit/users/auth/user_notifier.ex:153
 #, elixir-autogen, elixir-format
 msgid "Reset your password"
 msgstr "Setzen Sie Ihr Passwort zurück"
@@ -13797,7 +13792,7 @@ msgstr "Sie scheinen sich in %{zone} zu befinden, was nicht Ihrer gespeicherten 
 msgid "You have a new notification."
 msgstr "Sie haben eine neue Benachrichtigung."
 
-#: lib/phoenix_kit/users/auth/user_notifier.ex:211
+#: lib/phoenix_kit/users/auth/user_notifier.ex:214
 #, elixir-autogen, elixir-format
 msgid "You've been invited to join {{organization_name}}"
 msgstr "Sie wurden eingeladen, {{organization_name}} beizutreten"
@@ -15276,3 +15271,13 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Title & description"
 msgstr "Titel und Beschreibung"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:331
+#, elixir-autogen, elixir-format
+msgid "%{location} (approximate)"
+msgstr "%{location} (ungefähr)"
+
+#: lib/phoenix_kit/users/auth/user_notifier.ex:307
+#, elixir-autogen, elixir-format
+msgid "Hi {{user_email}},\n\nWe noticed a new login to your account from an unrecognized device:\n\nTime: {{login_time}}\nIP address: {{ip_address}}\nLocation: {{location}}\nDevice: {{browser_os}}\n\nIf this was you, no action is needed.\n\nIf you don't recognize this activity, secure your account here:\n\n{{security_url}}\n"
+msgstr "Hallo {{user_email}},\n\nwir haben eine neue Anmeldung bei Ihrem Konto von einem unbekannten Gerät festgestellt:\n\nZeit: {{login_time}}\nIP-Adresse: {{ip_address}}\nStandort: {{location}}\nGerät: {{browser_os}}\n\nWenn Sie das waren, brauchen Sie nichts zu tun.\n\nWenn Sie diese Aktivität nicht erkennen, sichern Sie hier Ihr Konto:\n\n{{security_url}}\n"

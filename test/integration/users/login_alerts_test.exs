@@ -75,6 +75,52 @@ defmodule PhoenixKit.Integration.Users.LoginAlertsTest do
       assert_email_sent(fn email -> assert email.subject =~ "New login" end)
     end
 
+    test "the alert names the unrecognized device and qualifies the location" do
+      user = create_user()
+
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac))
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@firefox_linux))
+
+      assert_email_sent(fn email ->
+        assert email.text_body =~ "from an unrecognized device"
+
+        # Whether geolocation resolves here depends on a live lookup, so the
+        # invariant is asserted instead of one of the two outcomes: a resolved
+        # place is always marked approximate, and "Unknown" never is.
+        assert email.text_body =~ ~r/^Location: (Unknown|.+ \(approximate\))$/m
+      end)
+    end
+
+    test "an unresolvable location degrades to Unknown without the qualifier" do
+      user = create_user()
+      local = {127, 0, 0, 1}
+
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac, local))
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@firefox_linux, local))
+
+      assert_email_sent(fn email ->
+        refute email.text_body =~ "(approximate)"
+        assert email.text_body =~ "Location: Unknown"
+      end)
+    end
+
+    # The line exists so the reader can answer "was that me?". Nobody can do
+    # that against UTC, so it renders in the recipient's own timezone and names
+    # it -- CEST in summer, CET in winter.
+    test "the alert timestamps the login in the recipient's timezone" do
+      user = create_user()
+      {:ok, user} = Auth.update_user_profile(user, %{"user_timezone" => "Europe/Paris"})
+
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@chrome_mac))
+      assert :ok = LoginAlerts.check(user, conn_with_ua(@firefox_linux))
+
+      assert_email_sent(fn email ->
+        assert [_, time_line] = Regex.run(~r/^Time: (.+)$/m, email.text_body)
+        refute time_line =~ "UTC"
+        assert time_line =~ ~r/\bCES?T$/
+      end)
+    end
+
     test "a repeat login from the same device does not create a duplicate row" do
       user = create_user()
       conn = conn_with_ua(@chrome_mac)

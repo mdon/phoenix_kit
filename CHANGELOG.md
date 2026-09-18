@@ -36,6 +36,24 @@
   `Gettext.Compiler` does. `strip_meta: true` still keeps `source_line` on
   the message, so the dummy `line: 1` was unnecessary.
 
+- **The new-login alert email timestamps the sign-in in the recipient's own
+  timezone.** It rendered `2026-09-18 16:23 UTC` for every reader, which is
+  the one thing nobody can check an unfamiliar sign-in against. It now uses
+  the recipient's `user_timezone` (else the site's `time_zone`), formatted
+  with the site's date/time settings and named — `2026-09-18 18:23 CEST`, or
+  `UTC+05:30` where the preference is a legacy numeric offset rather than an
+  IANA zone. DST is resolved for the instant shown, so the same account reads
+  `CEST` in July and `CET` in January.
+- **That email also says the device was unrecognized, and marks the location
+  approximate.** "We noticed a new login to your account" became "…from an
+  unrecognized device", and a resolved place now renders as
+  `Paris, France (approximate)` — IP geolocation is city-accurate at best, and
+  an unqualified city invites a reader to dismiss a real alert because it
+  looks wrong. An unresolved location still degrades to a bare `Unknown`.
+- The alert's `variables` are now built inside the recipient's locale, like
+  the body they are substituted into. `Unknown` previously rendered in
+  whatever locale the signing-in request happened to be served in.
+
 ### i18n
 
 - **`mix gettext.extract --check-up-to-date` passes again.** The media
@@ -51,6 +69,12 @@
   *Tytuł i opis*, *Название и описание*) while `&` is kept only inside a
   third-party product's literal menu path. `grep -rc fuzzy` is 0 again across
   every translated catalogue.
+- The new-login alert body and the new `%{location} (approximate)` string
+  translated by hand in all seven locales, following each catalogue's own
+  address form and device wording (de *von einem unbekannten Gerät*, fr
+  *depuis un appareil non reconnu*, pl *z nierozpoznanego urządzenia*). The
+  body's msgid change fuzzy-matched onto its own previous translation, which
+  was corrected rather than accepted.
 
 ## 2.30.0 - 2026-09-18
 

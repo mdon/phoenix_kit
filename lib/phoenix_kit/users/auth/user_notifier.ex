@@ -31,7 +31,10 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
   alias PhoenixKit.Email.Content
   alias PhoenixKit.Email.Provider
   alias PhoenixKit.Mailer
+  alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.RecipientLocale
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKit.Utils.TimeZone
 
   # Every templated auth email resolves identically and differs only in its
   # name, its variables and its default copy — so the resolution, the usage
@@ -278,17 +281,24 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
   def deliver_new_login_alert(user, attrs) do
     browser_os = [attrs[:browser], attrs[:os]] |> Enum.filter(& &1) |> Enum.join(" on ")
 
-    variables = %{
-      "user_email" => user.email,
-      "login_time" => Calendar.strftime(attrs.first_seen_at, "%Y-%m-%d %H:%M UTC"),
-      "ip_address" => attrs.ip_address,
-      "location" => attrs[:location] || gettext("Unknown"),
-      "browser_os" => (browser_os == "" && gettext("Unknown")) || browser_os,
-      # The one email that reaches a genuinely compromised account was, until
-      # now, the one with no way to act on it: it said "change your password
-      # immediately" and gave the reader nothing to click.
-      "security_url" => Routes.base_url() <> Routes.user_settings_path()
-    }
+    # The winning content layer is rendered in the recipient's locale, so the
+    # strings built here have to be too — otherwise a German reader gets
+    # "Unknown" in whichever locale the signing-in request happened to be
+    # served in.
+    variables =
+      RecipientLocale.in_locale(RecipientLocale.for_rendering(user), fn ->
+        %{
+          "user_email" => user.email,
+          "login_time" => login_time(user, attrs.first_seen_at),
+          "ip_address" => attrs.ip_address,
+          "location" => location_line(attrs[:location]),
+          "browser_os" => (browser_os == "" && gettext("Unknown")) || browser_os,
+          # The one email that reaches a genuinely compromised account was, until
+          # now, the one with no way to act on it: it said "change your password
+          # immediately" and gave the reader nothing to click.
+          "security_url" => Routes.base_url() <> Routes.user_settings_path()
+        }
+      end)
 
     deliver_templated(user, user.email, "new_login_alert", variables, fn ->
       %{
@@ -297,7 +307,7 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
           gettext("""
           Hi {{user_email}},
 
-          We noticed a new login to your account:
+          We noticed a new login to your account from an unrecognized device:
 
           Time: {{login_time}}
           IP address: {{ip_address}}
@@ -313,4 +323,43 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
       }
     end)
   end
+
+  # IP geolocation is city-accurate at best and routinely a hundred kilometres
+  # out. Saying so is the difference between a reader dismissing a genuine
+  # alert because the city looks wrong and a reader checking the device.
+  defp location_line(location) when is_binary(location) and location != "",
+    do: gettext("%{location} (approximate)", location: location)
+
+  defp location_line(_location), do: gettext("Unknown")
+
+  # The line exists so the reader can answer "was that me?", which nobody can
+  # do against UTC. Rendered in their own timezone (their preference, else the
+  # site's) and named, so the number is not ambiguous.
+  #
+  # Date and time are formatted separately because
+  # `Utils.Date.format_datetime_with_user_timezone/2` returns the date ALONE --
+  # it ends in `format_datetime/2`, which drops to `NaiveDateTime.to_date/1`.
+  # This is the same pairing the admin lists use.
+  defp login_time(user, at) do
+    date = UtilsDate.format_date_with_user_timezone(at, user)
+    time = UtilsDate.format_time_with_user_timezone(at, user)
+
+    "#{date} #{time} #{zone_suffix(at, UtilsDate.get_user_timezone(user))}"
+  end
+
+  # An IANA zone knows its own abbreviation for the instant being shown ("CEST"
+  # in summer, "CET" in winter); a legacy numeric offset does not, so it falls
+  # back to the "UTC+05:00" label. Never the raw `zone_abbr` for the numeric
+  # case: `TimeZone.shift/2` adds seconds there and leaves the struct saying
+  # "UTC", which would label a shifted clock as UTC.
+  defp zone_suffix(%DateTime{} = at, zone) do
+    if TimeZone.identifier?(zone) do
+      %DateTime{zone_abbr: abbr} = TimeZone.shift(at, zone)
+      abbr
+    else
+      TimeZone.label(zone)
+    end
+  end
+
+  defp zone_suffix(_at, zone), do: TimeZone.label(zone)
 end
