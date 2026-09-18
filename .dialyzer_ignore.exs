@@ -168,21 +168,12 @@
   # Integrations — URI authority is opaque, cond guard false positive
   {"lib/phoenix_kit_web/live/settings/integration_form.ex", :opaque_guard},
 
-  # Gettext backend — `use Gettext.Backend` generates plural-resolution code
-  # that passes Expo's opaque `Expo.PluralForms` struct into
-  # `Gettext.Plural.plural/2`. Dialyzer flags the generated call as peeking
-  # into the opaque type (call_without_opaque at gettext.ex:1, the module
-  # line). It's a cross-library spec mismatch between gettext and expo, not a
-  # runtime bug — the module body is just `use Gettext.Backend`, no user code
-  # touches PluralForms. Already on the latest gettext 1.0.2 / expo 1.1.1, so
-  # there's no upgrade that resolves it.
-  {"lib/phoenix_kit_web/gettext.ex", :call_without_opaque},
-  # Same class, different library: `Task.Supervisor.async_nolink/2` hands back a
-  # `%Task{}` whose fields dialyzer knows structurally, and `Task.yield/2`
-  # declares `Task.t()` opaque — so the call is flagged for peeking into the
-  # opacity it never actually inspects. Not a runtime bug: the struct is passed
-  # straight back to the module that owns it. Surfaced here by the dep upgrades
-  # in 867bc5b2, which rebuilt the PLT.
+  # `Task.Supervisor.async_nolink/2` hands back a `%Task{}` whose fields
+  # dialyzer knows structurally, and `Task.yield/2` declares `Task.t()`
+  # opaque — so the call is flagged for peeking into the opacity it never
+  # actually inspects. Not a runtime bug: the struct is passed straight
+  # back to the module that owns it. Surfaced here by the dep upgrades in
+  # 867bc5b2, which rebuilt the PLT.
   {"lib/phoenix_kit/users/qr_login.ex", :call_without_opaque},
   # `MDEx.safe_html/2`'s typespec declares `escape: [atom()]`, but the
   # implementation reads `escape` as a KEYWORD list —

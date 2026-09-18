@@ -5,7 +5,7 @@ defmodule PhoenixKitWeb.Gettext do
   By using [Gettext](https://hexdocs.pm/gettext),
   your module gains a set of macros for translations, for example:
 
-      import PhoenixKitWeb.Gettext
+      use Gettext, backend: PhoenixKitWeb.Gettext
 
       # Simple translation
       gettext("Here is the string to translate")
@@ -19,12 +19,169 @@ defmodule PhoenixKitWeb.Gettext do
       dgettext("errors", "Here is the error message to translate")
 
   See the [Gettext Docs](https://hexdocs.pm/gettext) for detailed usage.
+
+  This backend does **not** `use Gettext.Backend`. That macro compiles each
+  message into a function clause, and ~2.7k messages × 7 translated locales
+  is superlinear in the Erlang compiler (a clean `mix compile --force` spent
+  ~13s on this file even after `split_module_by: [:locale]`, tripping the
+  ">10s" notice). Translations are parsed from `priv/gettext` at compile
+  time into a nested map, embedded as a compressed binary, and looked up
+  with `Map.get/2`. Callers still go through `Gettext.dgettext/3` and friends;
+  only the storage changes.
   """
 
-  # One module per locale, compiled in parallel. Unified, ~2.7k messages x
-  # 8 locales became clauses of one giant function, which the compiler
-  # handles superlinearly: a clean `mix compile --force` took 69s, 58s of
-  # it on this file. Split: 20s. Elixir may still print "taking more than
-  # 10s" for this file on a clean build; that is an informational notice.
-  use Gettext.Backend, otp_app: :phoenix_kit, split_module_by: [:locale]
+  @behaviour Gettext.Backend
+
+  require Logger
+
+  alias PhoenixKitWeb.Gettext.Compiler
+
+  @otp_app :phoenix_kit
+  @priv "priv/gettext"
+  @interpolation Gettext.Interpolation.Default
+  @default_domain "default"
+
+  @opts [
+          otp_app: @otp_app,
+          priv: @priv,
+          interpolation: @interpolation,
+          default_domain: @default_domain
+        ]
+        |> Keyword.merge(Application.compile_env(@otp_app, __MODULE__, []))
+
+  @snapshot Compiler.snapshot(@opts)
+  @catalog_bin @snapshot.binary
+  @known_locales @snapshot.known_locales
+  @po_hash @snapshot.hash
+
+  for path <- @snapshot.po_paths do
+    @external_resource path
+  end
+
+  @doc false
+  def __mix_recompile__? do
+    @po_hash != Compiler.hash(@opts)
+  end
+
+  @doc false
+  def __gettext__(:priv), do: @priv
+  def __gettext__(:otp_app), do: @otp_app
+  def __gettext__(:known_locales), do: @known_locales
+  def __gettext__(:default_domain), do: @default_domain
+  def __gettext__(:interpolation), do: @interpolation
+
+  def __gettext__(:default_locale) do
+    Keyword.get(@opts, :default_locale) || Application.fetch_env!(:gettext, :default_locale)
+  end
+
+  if Gettext.Extractor.extracting?() do
+    Gettext.ExtractorAgent.add_backend(__MODULE__)
+  end
+
+  @impl Gettext.Backend
+  def lgettext(locale, domain, msgctxt \\ nil, msgid, bindings)
+
+  def lgettext(locale, domain, msgctxt, msgid, bindings) do
+    case lookup(locale, domain, msgctxt, msgid) do
+      {:singular, interpolatable} ->
+        @interpolation.runtime_interpolate(interpolatable, bindings)
+
+      {:plural, _msgid_plural, %{0 => interpolatable}, _file} ->
+        @interpolation.runtime_interpolate(interpolatable, bindings)
+
+      _ ->
+        handle_missing_translation(locale, domain, msgctxt, msgid, bindings)
+    end
+  end
+
+  @impl Gettext.Backend
+  def lngettext(locale, domain, msgctxt \\ nil, msgid, msgid_plural, n, bindings)
+
+  def lngettext(locale, domain, msgctxt, msgid, msgid_plural, n, bindings) do
+    case lookup(locale, domain, msgctxt, msgid) do
+      {:plural, ^msgid_plural, forms, file} ->
+        interpolate_plural(locale, forms, n, bindings, file)
+
+      _ ->
+        handle_missing_plural_translation(
+          locale,
+          domain,
+          msgctxt,
+          msgid,
+          msgid_plural,
+          n,
+          bindings
+        )
+    end
+  end
+
+  @impl Gettext.Backend
+  def handle_missing_bindings(exception, incomplete) do
+    _ = Logger.error(Exception.message(exception))
+    incomplete
+  end
+
+  @impl Gettext.Backend
+  def handle_missing_translation(_locale, domain, _msgctxt, msgid, bindings) do
+    Gettext.Compiler.warn_if_domain_contains_slashes(domain)
+
+    with {:ok, interpolated} <- @interpolation.runtime_interpolate(msgid, bindings),
+         do: {:default, interpolated}
+  end
+
+  @impl Gettext.Backend
+  def handle_missing_plural_translation(
+        _locale,
+        domain,
+        _msgctxt,
+        msgid,
+        msgid_plural,
+        n,
+        bindings
+      ) do
+    Gettext.Compiler.warn_if_domain_contains_slashes(domain)
+    string = if n == 1, do: msgid, else: msgid_plural
+    bindings = Map.put(bindings, :count, n)
+
+    with {:ok, interpolated} <- @interpolation.runtime_interpolate(string, bindings),
+         do: {:default, interpolated}
+  end
+
+  defp lookup(locale, domain, msgctxt, msgid) do
+    catalog()
+    |> Map.get(locale, %{})
+    |> Map.get(domain, %{})
+    |> Map.get({msgctxt, msgid}, :miss)
+  end
+
+  defp interpolate_plural(locale, forms, n, bindings, file) do
+    form = Gettext.Plural.plural(locale, n)
+    bindings = Map.put(bindings, :count, n)
+
+    case forms do
+      %{^form => interpolatable} ->
+        @interpolation.runtime_interpolate(interpolatable, bindings)
+
+      %{} ->
+        raise Gettext.PluralFormError,
+          form: form,
+          locale: locale,
+          file: file,
+          line: 1
+    end
+  end
+
+  defp catalog do
+    key = {__MODULE__, :catalog}
+
+    case :persistent_term.get(key, :"$miss") do
+      :"$miss" ->
+        cat = :erlang.binary_to_term(@catalog_bin)
+        :persistent_term.put(key, cat)
+        cat
+
+      cat ->
+        cat
+    end
+  end
 end

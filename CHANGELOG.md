@@ -1,3 +1,17 @@
+## 2.30.1 - 2026-09-18
+
+### Changed
+
+- **`PhoenixKitWeb.Gettext` no longer compiles translations as function clauses.**
+  `split_module_by: [:locale]` brought a clean compile of this file from ~58s
+  to ~13s, but 13s still trips Elixir's ">10s" notice: each locale module is
+  ~2.7k binary-matching clauses, which the Erlang compiler handles
+  superlinearly, and wall-clock is the slowest of those modules. The backend
+  now parses `priv/gettext` into a nested map at compile time and embeds it
+  as a compressed binary (~0.3s for the file). Lookups go through `Map.get/2`
+  and runtime interpolation; `Gettext.dgettext/3` and the extract-surface
+  (`__gettext__/1`, `__mix_recompile__?`) are unchanged.
+
 ## 2.30.0 - 2026-09-18
 
 ### Added
