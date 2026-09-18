@@ -1,9 +1,9 @@
 # Failed sign-in attempts — record them, and show them to the two people who care
 
 **Created:** 2026-09-18
-**Status:** Phase 1 BUILT on `main` 2026-09-18 (V197 + `LoginAttempts` +
-the write hook + retention). Phases 2 and 3 not started. Maintainer answers to
-the open questions are recorded at the end.
+**Status:** BUILT on `main` 2026-09-18, all three phases, released as 2.31.0.
+One item deferred with reasons (see "Deferred" at the end). Maintainer answers
+to the open questions are recorded at the end.
 **Scope:** phoenix_kit (core).
 **Related:** `PhoenixKit.Users.LoginAlerts` and its moduledoc (the new-device
 alert this builds beside), `dev_docs/guides/2026-07-28-login-and-registration.md`.
@@ -239,3 +239,41 @@ retention.
   missing object nor an `:extra_object`. `dev_docs/squash/restamp_chain_hash.exs`
   refuses to vouch for a schema-moving change, and s7/s8 are still P2 stubs,
   so this is the available proof.
+
+## Deferred: the admin notification
+
+Phase 3 listed "optionally a `security`-type notification to admins". Not
+built, and the reason is not time.
+
+`Notifications.Types`' `"security"` key is a **per-recipient** preference about
+things happening to *that reader's own* account (`user.new_login_detected`,
+`session.account_added`, `session.impersonated`). Telling admins about other
+people's accounts is a different thing wearing the same word, and the existing
+fan-out cannot carry it: `Notifications.maybe_create_from_activity/1` fires
+when `target_uuid != actor_uuid`, which for a failed login means the victim —
+not an administrator. There is no `notify_admins` helper anywhere in
+`PhoenixKit.Notifications`.
+
+Building it means a new mechanism and a new set of decisions: which
+administrators (every Owner? every holder of the users permission? an opt-in?),
+what stops it flooding during an attack, and whether it needs its own
+preference key so an admin can decline. Those are worth answering deliberately
+rather than inferring, and the admin panel added in Phase 3 already gives an
+administrator the visibility. Left as its own piece of work.
+
+## As built — differences from the phase descriptions
+
+- **Phase 2's "since your last successful sign-in"** became a fixed 24-hour
+  window. Core keeps no last-successful-sign-in timestamp, and the fixed window
+  answers the reader's actual question ("does this look like the end of an
+  attack?") without inventing state to maintain.
+- **The alert cooldown lives in `custom_fields`**, written with
+  `Auth.merge_user_custom_fields/3` and `ensure_definitions: false`. The
+  activity feed was the other candidate and was rejected: the cap would then
+  depend on a module that `LoginAlerts` already guards with
+  `Code.ensure_loaded?/1`, and a missing module would turn the cap off rather
+  than the feature.
+- **The optional email paragraph carries its own trailing blank line** rather
+  than being a separate template line, so the flat template collapses cleanly
+  at zero instead of leaving a gap. That is what made it possible to keep the
+  whole body as one msgid.

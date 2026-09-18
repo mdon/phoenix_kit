@@ -32,6 +32,28 @@
     (default 90). Daily `PhoenixKit.Users.LoginAttemptsPruneWorker`, added to
     the generated crontab AND to the backfill list, so an existing host gets it
     on `mix phoenix_kit.update` instead of never pruning.
+- **The new-login alert email reports recent failures.** "There were also 12
+  failed sign-in attempts on your account in the last 24 hours." This is the
+  line that separates "my new laptop" from "someone finally guessed it" — the
+  email already reached the right person at the right moment and said nothing
+  about it. Omitted entirely when the count is zero, rather than printing a 0.
+- **A burst of failures warns the account holder.**
+  `failed_login_alert_enabled` (default **off** — it sends mail) plus
+  `failed_login_alert_threshold` (default 10 failures within an hour). Capped
+  to one alert per account per 24 hours, so a sustained attack cannot be turned
+  into a mail flood against the person being attacked; the cooldown stamp is
+  written *before* the send, so a send that raises still burns it.
+- **The account holder's own settings page lists recent failed attempts**,
+  under Active Sessions — the two answer the same question from opposite
+  sides. Described by device and network, never by the stored identifier.
+  Hidden entirely when there is nothing to show.
+- **`/admin/users/sessions` gained a failed sign-in panel** — attempts,
+  distinct networks and distinct targeted accounts over the last 24 hours, plus
+  the heaviest buckets. Attempts vs buckets is the distinction that matters:
+  a large attempt count over few buckets is one concentrated attack, the
+  reverse is a spray. The attacker-controlled identifier is shown here (it is
+  what makes "someone is hammering `admin@`" visible) and is escaped by HEEx;
+  a regression test asserts a `<script>` identifier renders as text.
 
 ### Fixed
 
@@ -113,6 +135,17 @@
   *Tytuł i opis*, *Название и описание*) while `&` is kept only inside a
   third-party product's literal menu path. `grep -rc fuzzy` is 0 again across
   every translated catalogue.
+- The failed-sign-in copy — 14 new msgids, including two `ngettext` entries —
+  translated by hand in all seven locales, with the three-form plurals written
+  out for `pl` and `ru`.
+- **A fuzzy carryover silently deleted `{{failed_attempts}}` from the
+  new-login body in all seven catalogues.** The count would have rendered in
+  English and vanished in every other language, with nothing failing. The
+  placeholder was restored structurally (anchored to `{{browser_os}}`, not to
+  each locale's wording) and a test now asserts the substitution survives
+  translation. Two other carryovers were rewritten: `%{count} attempt` had
+  arrived as ru *событие* ("event") and `Last seen` as *Последняя генерация*
+  ("last generation").
 - The new-login alert body and the new `%{location} (approximate)` string
   translated by hand in all seven locales, following each catalogue's own
   address form and device wording (de *von einem unbekannten Gerät*, fr

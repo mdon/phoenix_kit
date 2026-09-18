@@ -53,7 +53,9 @@ defmodule PhoenixKit.Users.LoginAttempts do
 
   alias PhoenixKit.RepoHelper
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.Auth.UserNotifier
   alias PhoenixKit.Users.LoginAttempt
   alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.SessionFingerprint
@@ -62,6 +64,13 @@ defmodule PhoenixKit.Users.LoginAttempts do
   # The same cap `PhoenixKitWeb.Users.Session` already applies before echoing
   # the identifier back into a flash, and the column width in V197.
   @identifier_max 160
+
+  # The alert window, the default burst size, and how long one alert silences
+  # the next for that account.
+  @alert_window_hours 1
+  @default_threshold 10
+  @alert_cooldown_seconds 24 * 3600
+  @alert_stamp_key "phoenix_kit_failed_login_alert_at"
 
   @doc """
   Whether failed sign-ins are recorded (setting `login_attempt_logging_enabled`,
@@ -87,7 +96,10 @@ defmodule PhoenixKit.Users.LoginAttempts do
   """
   @spec record(Plug.Conn.t(), String.t() | nil, String.t(), keyword()) :: :ok
   def record(conn, identifier, outcome, opts \\ []) do
-    if enabled?(), do: do_record(conn, identifier, outcome, opts)
+    if enabled?() do
+      conn |> do_record(identifier, outcome, opts) |> maybe_alert()
+    end
+
     :ok
   rescue
     error ->
@@ -132,7 +144,7 @@ defmodule PhoenixKit.Users.LoginAttempts do
       conflict_target: [:identifier, :ip_network, :outcome, :bucket_start]
     )
 
-    :ok
+    attrs.user_uuid
   end
 
   # The caller knows the account only on the inactive branch. Everywhere else
@@ -154,6 +166,96 @@ defmodule PhoenixKit.Users.LoginAttempts do
         select: u.uuid,
         limit: 1
       )
+    )
+  end
+
+  @doc """
+  Whether a burst of failures warns the account holder
+  (`failed_login_alert_enabled`, default `false`).
+
+  Defaults OFF because it sends mail, matching `new_login_alert_enabled`.
+  """
+  @spec alerts_enabled?() :: boolean()
+  def alerts_enabled?, do: Settings.get_boolean_setting("failed_login_alert_enabled", false)
+
+  @doc "Failures inside #{@alert_window_hours}h that trigger an alert (default #{@default_threshold})."
+  @spec alert_threshold() :: pos_integer()
+  def alert_threshold do
+    case Settings.get_setting("failed_login_alert_threshold", "#{@default_threshold}") do
+      value when is_binary(value) ->
+        case Integer.parse(value) do
+          {n, _} when n > 0 -> n
+          _ -> @default_threshold
+        end
+
+      _ ->
+        @default_threshold
+    end
+  rescue
+    _ -> @default_threshold
+  catch
+    :exit, _ -> @default_threshold
+  end
+
+  # Nothing to warn about for an identifier that matches no account, and
+  # nothing to warn anyone with when the feature is off.
+  defp maybe_alert(nil), do: :ok
+
+  defp maybe_alert(user_uuid) do
+    if alerts_enabled?(), do: do_alert(user_uuid)
+    :ok
+  end
+
+  defp do_alert(user_uuid) do
+    window_start = DateTime.add(DateTime.utc_now(), -@alert_window_hours * 3600, :second)
+    count = count_for_user_since(user_uuid, window_start)
+
+    if count >= alert_threshold() do
+      user = RepoHelper.repo().get(User, user_uuid)
+
+      # The cap is the point: an attacker who keeps going must not be able to
+      # turn this into a mail flood against the person they are attacking.
+      if user && alert_due?(user) do
+        stamp_alert(user)
+
+        UserNotifier.deliver_failed_login_alert(user, %{
+          count: count,
+          window_hours: @alert_window_hours
+        })
+      end
+    end
+
+    :ok
+  end
+
+  defp alert_due?(%User{custom_fields: fields}) do
+    case Map.get(fields || %{}, @alert_stamp_key) do
+      stamp when is_binary(stamp) ->
+        case DateTime.from_iso8601(stamp) do
+          {:ok, at, _} ->
+            DateTime.diff(DateTime.utc_now(), at, :second) >= @alert_cooldown_seconds
+
+          _ ->
+            true
+        end
+
+      _ ->
+        true
+    end
+  end
+
+  # Stamped BEFORE the send, not after: a send that raises must still burn the
+  # cooldown, or every subsequent failure retries it.
+  #
+  # `merge_user_custom_fields/3` and never a whole-map replace — a replace
+  # built from a struct held in memory restores every other key's old value.
+  # `ensure_definitions: false` because this is internal state, not a field
+  # anyone should see in the custom-fields admin.
+  defp stamp_alert(user) do
+    Auth.merge_user_custom_fields(
+      user,
+      %{@alert_stamp_key => DateTime.to_iso8601(DateTime.utc_now())},
+      ensure_definitions: false
     )
   end
 

@@ -55,6 +55,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.AvatarCrop
   alias PhoenixKit.Users.CustomFields
+  alias PhoenixKit.Users.LoginAttempts
   alias PhoenixKit.Users.OAuth
   alias PhoenixKit.Users.OAuthAvailability
   alias PhoenixKit.Users.Sessions
@@ -185,6 +186,13 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     socket =
       assign_new(socket, :sessions, fn ->
         load_sessions(socket.assigns.user, socket.assigns.current_session_token)
+      end)
+
+    socket =
+      assign_new(socket, :recent_login_attempts, fn ->
+        if :sessions in sections,
+          do: LoginAttempts.recent_for_user(socket.assigns.user, limit: 5),
+          else: []
       end)
 
     socket =
@@ -697,6 +705,15 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       true -> true
       false -> false
       _ -> type.default
+    end
+  end
+
+  # Never the stored `identifier`: it is attacker-controlled, and on this page
+  # it would only ever be the reader's own address anyway.
+  defp failed_attempt_source(attempt) do
+    case Enum.reject([attempt.browser, attempt.os], &(is_nil(&1) or &1 == "")) do
+      [] -> gettext("from an unrecognized device")
+      parts -> gettext("from %{device}", device: Enum.join(parts, " on "))
     end
   end
 
@@ -1806,6 +1823,48 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
               >
                 {gettext("Sign out other sessions")}
               </button>
+            </div>
+          </div>
+        <% end %>
+
+        <%!-- Failed sign-ins. Sits under Active Sessions because the two
+             answer the same question from opposite sides: who got in, and who
+             tried and did not. Only rendered when there is something to show
+             — an empty "no failed attempts" panel is noise on every visit. --%>
+        <%= if :sessions in @sections and @recent_login_attempts != [] do %>
+          <div class="divider"></div>
+          <div>
+            <h2 class="text-lg font-semibold flex items-center gap-2 mb-1">
+              <.icon name="hero-shield-exclamation" class="w-5 h-5 text-warning" />
+              {gettext("Failed sign-in attempts")}
+            </h2>
+            <p class="text-sm text-base-content/60 mb-4">
+              {gettext("Sign-ins to your account that did not succeed. Nobody got in.")}
+            </p>
+
+            <div class="space-y-2">
+              <div
+                :for={attempt <- @recent_login_attempts}
+                class="flex items-center justify-between gap-3 rounded-lg border border-base-300 px-3 py-2"
+              >
+                <div class="min-w-0">
+                  <div class="font-medium text-sm">
+                    {ngettext("%{count} attempt", "%{count} attempts", attempt.attempt_count,
+                      count: attempt.attempt_count
+                    )}
+                    <span class="text-base-content/60 font-normal">
+                      {failed_attempt_source(attempt)}
+                    </span>
+                  </div>
+                  <div class="text-xs text-base-content/60 truncate">
+                    {attempt.ip_address}
+                  </div>
+                </div>
+                <div class="text-xs text-base-content/60 whitespace-nowrap">
+                  {UtilsDate.format_date_with_user_timezone(attempt.last_at, @user)}
+                  {UtilsDate.format_time_with_user_timezone(attempt.last_at, @user)}
+                </div>
+              </div>
             </div>
           </div>
         <% end %>

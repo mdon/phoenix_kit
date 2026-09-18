@@ -183,6 +183,8 @@ defmodule PhoenixKit.Settings do
     new_login_alert_enabled
     login_attempt_logging_enabled
     login_attempt_retention_days
+    failed_login_alert_enabled
+    failed_login_alert_threshold
     mentions_enabled
     mentions_redact_titles
     new_user_default_role
@@ -308,6 +310,11 @@ defmodule PhoenixKit.Settings do
       # already thrown the evidence away.
       "login_attempt_logging_enabled" => "true",
       "login_attempt_retention_days" => "90",
+      # Warning the account holder that they are being hammered. Defaults OFF
+      # because it sends mail, matching new_login_alert_enabled. The threshold
+      # is failures within one hour; one alert silences the next for 24h.
+      "failed_login_alert_enabled" => "false",
+      "failed_login_alert_threshold" => "10",
       # Cross-module @ mentions and # record links. On by default: the
       # feature is inert until someone actually types a trigger, and
       # everything it stores degrades to plain text when it is off.

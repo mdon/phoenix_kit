@@ -60,6 +60,81 @@
       </PhoenixKitWeb.Components.Core.StatCard.stat_card>
     </div>
 
+    <%!-- Failed sign-ins. The other half of the same question this page
+         already answers: who got in, and who tried and did not. Hidden
+         entirely when there is nothing, so a quiet install sees no panel. --%>
+    <div :if={@failed_stats.attempts > 0} class="card bg-base-100 shadow-sm mb-6">
+      <div class="card-body p-4">
+        <div class="flex items-center justify-between gap-3 mb-1">
+          <h3 class="text-sm font-semibold text-base-content/70 flex items-center gap-2">
+            <.icon name="hero-shield-exclamation" class="w-4 h-4 text-warning" />
+            {gettext("Failed sign-ins")}
+          </h3>
+          <span class="text-xs text-base-content/60">
+            {gettext("last %{hours}h", hours: @failed_window_hours)}
+          </span>
+        </div>
+
+        <%!-- attempts vs buckets is the distinction that matters: one row is
+             an hour of one identifier from one network, so a big attempts
+             number over few buckets is one concentrated attack, and the
+             reverse is a spray. --%>
+        <div class="text-sm text-base-content/70 mb-3">
+          {gettext(
+            "%{attempts} attempts across %{networks} network(s), against %{accounts} known account(s)",
+            attempts: @failed_stats.attempts,
+            networks: @failed_stats.networks,
+            accounts: @failed_stats.accounts
+          )}
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>{gettext("Attempts")}</th>
+                <th>{gettext("Account")}</th>
+                <th>{gettext("Tried")}</th>
+                <th>{gettext("Network")}</th>
+                <th>{gettext("Device")}</th>
+                <th>{gettext("Last seen")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr :for={attempt <- @failed_attempts}>
+                <td class="font-semibold">{attempt.attempt_count}</td>
+                <td>
+                  <span :if={attempt.user} class="text-sm">{attempt.user.email}</span>
+                  <span :if={is_nil(attempt.user)} class="text-xs text-base-content/50">
+                    {gettext("no such account")}
+                  </span>
+                </td>
+                <%!-- Attacker-controlled text. HEEx escapes it; nothing here
+                     may ever mark it raw. --%>
+                <td class="text-xs text-base-content/60 max-w-xs truncate">
+                  {attempt.identifier}
+                </td>
+                <td class="text-xs text-base-content/60">{attempt.ip_network}</td>
+                <td class="text-xs text-base-content/60">
+                  {Enum.join(Enum.reject([attempt.browser, attempt.os], &is_nil/1), " on ")}
+                </td>
+                <td class="text-xs text-base-content/60 whitespace-nowrap">
+                  {UtilsDate.format_date_with_user_timezone(
+                    attempt.last_at,
+                    @phoenix_kit_current_user
+                  )}
+                  {UtilsDate.format_time_with_user_timezone(
+                    attempt.last_at,
+                    @phoenix_kit_current_user
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <%!-- Device breakdown (active sessions by OS / browser) --%>
     <div
       :if={@stats.by_os != [] or @stats.by_browser != []}

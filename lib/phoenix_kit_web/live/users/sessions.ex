@@ -40,7 +40,12 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.{Auth, Sessions}
+  alias PhoenixKit.Users.LoginAttempts
   alias PhoenixKit.Utils.Date, as: UtilsDate
+
+  # The page is "what is happening to sign-ins right now", so the failed-attempt
+  # panel matches: a day, not the 90-day retention.
+  @failed_window_hours 24
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -253,9 +258,13 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
 
   defp load_stats(socket) do
     stats = Sessions.get_session_stats()
+    since = DateTime.add(DateTime.utc_now(), -@failed_window_hours * 3600, :second)
 
     socket
     |> assign(:stats, stats)
+    |> assign(:failed_stats, LoginAttempts.stats(since))
+    |> assign(:failed_attempts, LoginAttempts.top_since(since, limit: 10))
+    |> assign(:failed_window_hours, @failed_window_hours)
   end
 
   ## Live Event Handlers for Sessions

@@ -31,6 +31,7 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
   alias PhoenixKit.Email.Content
   alias PhoenixKit.Email.Provider
   alias PhoenixKit.Mailer
+  alias PhoenixKit.Users.LoginAttempts
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.RecipientLocale
   alias PhoenixKit.Utils.Routes
@@ -293,6 +294,11 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
           "ip_address" => attrs.ip_address,
           "location" => location_line(attrs[:location]),
           "browser_os" => (browser_os == "" && gettext("Unknown")) || browser_os,
+          # The line that separates "my new laptop" from "someone finally
+          # guessed it". Empty (not "0") when there is nothing to report, and
+          # it carries its own trailing blank line so the paragraph collapses
+          # cleanly instead of leaving a gap.
+          "failed_attempts" => failed_attempts_note(user),
           # The one email that reaches a genuinely compromised account was, until
           # now, the one with no way to act on it: it said "change your password
           # immediately" and gave the reader nothing to click.
@@ -314,7 +320,7 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
           Location: {{location}}
           Device: {{browser_os}}
 
-          If this was you, no action is needed.
+          {{failed_attempts}}If this was you, no action is needed.
 
           If you don't recognize this activity, secure your account here:
 
@@ -322,6 +328,68 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
           """)
       }
     end)
+  end
+
+  @doc """
+  Warns `user` that their account is being hammered.
+
+  Sent when failures cross `failed_login_alert_threshold` inside an hour, at
+  most once a day per account — `PhoenixKit.Users.LoginAttempts` owns both
+  gates. Unlike the new-device alert, nothing here means a sign-in SUCCEEDED;
+  the point is to reach the reader while it is still only attempts.
+  """
+  def deliver_failed_login_alert(user, attrs) do
+    variables =
+      RecipientLocale.in_locale(RecipientLocale.for_rendering(user), fn ->
+        %{
+          "user_email" => user.email,
+          "attempt_count" => Integer.to_string(attrs.count),
+          "window_hours" => Integer.to_string(attrs.window_hours),
+          "security_url" => Routes.base_url() <> Routes.user_settings_path()
+        }
+      end)
+
+    deliver_templated(user, user.email, "failed_login_alert", variables, fn ->
+      %{
+        subject: gettext("Failed sign-in attempts on your account"),
+        text:
+          gettext("""
+          Hi {{user_email}},
+
+          Someone has been trying to sign in to your account and failing.
+
+          Failed attempts: {{attempt_count}}
+          In the last: {{window_hours}} hour(s)
+
+          Nobody has signed in. You do not need to do anything if you recognize
+          this as your own mistyped password.
+
+          If you do not, your password may be being guessed. Change it to
+          something you do not use anywhere else:
+
+          {{security_url}}
+          """)
+      }
+    end)
+  end
+
+  # 24 hours, not "since your last successful sign-in": the latter needs a
+  # timestamp core does not keep, and the fixed window answers the question the
+  # reader actually has — does this sign-in look like the end of an attack?
+  defp failed_attempts_note(user) do
+    since = DateTime.add(DateTime.utc_now(), -86_400, :second)
+
+    case LoginAttempts.count_for_user_since(user, since) do
+      0 ->
+        ""
+
+      count ->
+        ngettext(
+          "There was also %{count} failed sign-in attempt on your account in the last 24 hours.",
+          "There were also %{count} failed sign-in attempts on your account in the last 24 hours.",
+          count
+        ) <> "\n\n"
+    end
   end
 
   # IP geolocation is city-accurate at best and routinely a hundred kilometres

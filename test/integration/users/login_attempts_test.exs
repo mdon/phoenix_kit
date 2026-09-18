@@ -8,8 +8,11 @@ defmodule PhoenixKit.Integration.Users.LoginAttemptsTest do
   """
   use PhoenixKitWeb.ConnCase, async: false
 
+  import Swoosh.TestAssertions
+
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.LoginAlerts
   alias PhoenixKit.Users.LoginAttempt
   alias PhoenixKit.Users.LoginAttempts
   alias PhoenixKit.Utils.Routes
@@ -227,6 +230,259 @@ defmodule PhoenixKit.Integration.Users.LoginAttemptsTest do
       on_exit(fn -> Settings.update_setting("login_attempt_retention_days", "90") end)
 
       assert LoginAttempts.retention_days() == 90
+    end
+  end
+
+  describe "warning the account holder" do
+    setup do
+      {:ok, _} = Settings.update_setting("failed_login_alert_enabled", "true")
+      {:ok, _} = Settings.update_setting("failed_login_alert_threshold", "5")
+
+      on_exit(fn ->
+        Settings.update_setting("failed_login_alert_enabled", "false")
+        Settings.update_setting("failed_login_alert_threshold", "10")
+      end)
+
+      :ok
+    end
+
+    test "stays quiet below the threshold" do
+      user = create_user()
+      ip = unique_ip()
+
+      for _ <- 1..4, do: LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials")
+
+      refute_email_sent()
+    end
+
+    test "warns once the threshold is crossed" do
+      user = create_user()
+      ip = unique_ip()
+
+      for _ <- 1..5, do: LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials")
+
+      assert_email_sent(fn email ->
+        assert email.subject =~ "Failed sign-in"
+        assert email.to == [{"", user.email}]
+        assert email.text_body =~ "Failed attempts: 5"
+      end)
+    end
+
+    test "a sustained attack cannot turn the warning into a mail flood" do
+      user = create_user()
+      ip = unique_ip()
+
+      # Twenty more failures past the threshold. The 24h cooldown means the
+      # attacker gets to send the victim exactly one email, not twenty.
+      for _ <- 1..25, do: LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials")
+
+      assert_email_sent(fn email -> assert email.subject =~ "Failed sign-in" end)
+      refute_email_sent()
+    end
+
+    test "the cooldown stamp does not clobber other custom_fields" do
+      user = create_user()
+      {:ok, _} = Auth.merge_user_custom_fields(user, %{"keep_me" => "yes"})
+
+      ip = unique_ip()
+      for _ <- 1..5, do: LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials")
+
+      reloaded = Repo.get(PhoenixKit.Users.Auth.User, user.uuid)
+      assert reloaded.custom_fields["keep_me"] == "yes"
+      assert is_binary(reloaded.custom_fields["phoenix_kit_failed_login_alert_at"])
+    end
+
+    test "an unknown address warns nobody" do
+      ip = unique_ip()
+
+      for _ <- 1..10 do
+        LoginAttempts.record(conn_at(ip), "nobody@example.com", "invalid_credentials")
+      end
+
+      refute_email_sent()
+    end
+
+    test "stays quiet when the alert is switched off" do
+      {:ok, _} = Settings.update_setting("failed_login_alert_enabled", "false")
+
+      user = create_user()
+      ip = unique_ip()
+      for _ <- 1..10, do: LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials")
+
+      refute_email_sent()
+    end
+  end
+
+  describe "the new-device email carries the failure count" do
+    setup do
+      {:ok, _} = Settings.update_setting("new_login_alert_enabled", "true")
+      on_exit(fn -> Settings.update_setting("new_login_alert_enabled", "false") end)
+      :ok
+    end
+
+    test "reports recent failures alongside the successful sign-in" do
+      user = create_user()
+      ip = unique_ip()
+
+      for _ <- 1..3, do: LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials")
+
+      # First device is the account's own registration login and stays silent;
+      # the second is the one that alerts.
+      LoginAlerts.check(user, conn_at(ip, "Mozilla/5.0 (Macintosh) Chrome/120.0"))
+      LoginAlerts.check(user, conn_at(ip, "Mozilla/5.0 (X11; Linux) Firefox/120.0"))
+
+      assert_email_sent(fn email ->
+        assert email.text_body =~ "3 failed sign-in attempts"
+        assert email.text_body =~ "If this was you, no action is needed."
+      end)
+    end
+
+    test "the failure count survives translation" do
+      # A fuzzy carryover silently dropped {{failed_attempts}} from all seven
+      # catalogues once already. Without the placeholder the count renders in
+      # English and vanishes everywhere else.
+      user = create_user()
+      # Written directly: `update_user_locale_preference/2` validates against
+      # the install's enabled languages, and this test cares about the
+      # catalogue, not the language picker.
+      {:ok, user} =
+        Auth.merge_user_custom_fields(user, %{"preferred_locale" => "de"},
+          ensure_definitions: false
+        )
+
+      ip = unique_ip()
+
+      for _ <- 1..3, do: LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials")
+
+      LoginAlerts.check(user, conn_at(ip, "Mozilla/5.0 (Macintosh) Chrome/120.0"))
+      LoginAlerts.check(user, conn_at(ip, "Mozilla/5.0 (X11; Linux) Firefox/120.0"))
+
+      assert_email_sent(fn email ->
+        refute email.text_body =~ "{{failed_attempts}}"
+        assert email.text_body =~ "3"
+      end)
+    end
+
+    test "says nothing about failures when there were none" do
+      user = create_user()
+      ip = unique_ip()
+
+      LoginAlerts.check(user, conn_at(ip, "Mozilla/5.0 (Macintosh) Chrome/120.0"))
+      LoginAlerts.check(user, conn_at(ip, "Mozilla/5.0 (X11; Linux) Firefox/120.0"))
+
+      assert_email_sent(fn email ->
+        refute email.text_body =~ "failed sign-in attempt"
+        # The optional paragraph collapses rather than leaving a gap.
+        assert email.text_body =~ "\n\nIf this was you, no action is needed."
+      end)
+    end
+  end
+
+  describe "the account holder's own settings page" do
+    test "lists recent failed attempts", %{conn: conn} do
+      user = create_user()
+      {:ok, _} = Auth.admin_confirm_user(user)
+      ip = unique_ip()
+
+      for _ <- 1..4 do
+        LoginAttempts.record(
+          conn_at(ip, "Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0"),
+          user.email,
+          "invalid_credentials"
+        )
+      end
+
+      {:ok, _view, html} = live(log_in_user(conn, user), Routes.path("/profile/settings"))
+
+      assert html =~ "Failed sign-in attempts"
+      assert html =~ "4 attempts"
+      assert html =~ "Firefox on Linux"
+      # The reader is told nobody got in — the whole point of showing it.
+      assert html =~ "Nobody got in."
+    end
+
+    test "shows nothing when the account has never been targeted", %{conn: conn} do
+      user = create_user()
+      {:ok, _} = Auth.admin_confirm_user(user)
+
+      {:ok, _view, html} = live(log_in_user(conn, user), Routes.path("/profile/settings"))
+
+      refute html =~ "Failed sign-in attempts"
+    end
+
+    test "describes the source by device, never by the identifier", %{conn: conn} do
+      user = create_user()
+      {:ok, _} = Auth.admin_confirm_user(user)
+
+      # No user-agent header, so there is no browser or OS to name. The row
+      # falls back to a generic description rather than reaching for the
+      # stored identifier, which is attacker-controlled text.
+      bare =
+        Phoenix.ConnTest.build_conn() |> Map.put(:remote_ip, unique_ip())
+
+      LoginAttempts.record(bare, user.email, "invalid_credentials")
+
+      {:ok, _view, html} = live(log_in_user(conn, user), Routes.path("/profile/settings"))
+
+      assert html =~ "Failed sign-in attempts"
+      assert html =~ "from an unrecognized device"
+    end
+  end
+
+  describe "the admin sessions page" do
+    setup %{conn: conn} do
+      {admin, _token} = create_admin_user()
+      {:ok, conn: log_in_user(conn, admin)}
+    end
+
+    test "surfaces recent failed sign-ins", %{conn: conn} do
+      victim = create_user()
+      ip = unique_ip()
+
+      for _ <- 1..12 do
+        LoginAttempts.record(
+          conn_at(ip, "Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0"),
+          victim.email,
+          "invalid_credentials"
+        )
+      end
+
+      {:ok, _view, html} = live(conn, Routes.path("/admin/users/sessions"))
+
+      assert html =~ "Failed sign-ins"
+      assert html =~ "12"
+      assert html =~ victim.email
+      assert html =~ "Firefox on Linux"
+    end
+
+    test "names attempts that matched no account as such", %{conn: conn} do
+      LoginAttempts.record(conn_at(unique_ip()), "nobody@example.com", "invalid_credentials")
+
+      {:ok, _view, html} = live(conn, Routes.path("/admin/users/sessions"))
+
+      assert html =~ "no such account"
+      assert html =~ "nobody@example.com"
+    end
+
+    test "escapes the attacker-controlled identifier", %{conn: conn} do
+      LoginAttempts.record(
+        conn_at(unique_ip()),
+        "<script>alert(1)</script>@evil.test",
+        "invalid_credentials"
+      )
+
+      {:ok, _view, html} = live(conn, Routes.path("/admin/users/sessions"))
+
+      # The identifier is the one field a login form lets a stranger write
+      # into an admin page. It renders escaped, never as markup.
+      refute html =~ "<script>alert(1)</script>"
+      assert html =~ "&lt;script&gt;alert(1)&lt;/script&gt;"
+    end
+
+    test "hides the panel entirely on a quiet install", %{conn: conn} do
+      {:ok, _view, html} = live(conn, Routes.path("/admin/users/sessions"))
+
+      refute html =~ "Failed sign-ins"
     end
   end
 
