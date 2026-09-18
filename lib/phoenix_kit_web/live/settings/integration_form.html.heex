@@ -119,16 +119,15 @@
                 }
                 class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs items-center"
               >
-                <%!-- Shown whenever the last check had something to say. "ok" means it
-                      had nothing, and a connected-with-note is a caveat, not a failure. --%>
+                <%!-- Shown whenever the last check had something standing to say.
+                      "ok" means it had nothing; a figure that goes stale is never
+                      stored (PhoenixKit.Integrations.Probe.note/0). --%>
+                <% {note_class, note_icon} = validation_note_style(@data["status"]) %>
                 <span
                   :if={@data["validation_status"] not in [nil, "", "ok"]}
-                  class={[
-                    "inline-flex items-center gap-1",
-                    if(@data["status"] == "error", do: "text-error", else: "text-warning")
-                  ]}
+                  class={["inline-flex items-center gap-1", note_class]}
                 >
-                  <.icon name="hero-exclamation-triangle" class="w-3 h-3" />
+                  <.icon name={note_icon} class="w-3 h-3" />
                   {@data["validation_status"]}
                 </span>
                 <span

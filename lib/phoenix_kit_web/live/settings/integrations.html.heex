@@ -147,12 +147,10 @@
                 <% {badge_class, badge_text} = integration_status_badge(conn.data["status"]) %>
                 <div>
                   <span class={"badge badge-sm #{badge_class}"}>{badge_text}</span>
+                  <% {note_class, _icon} = validation_note_style(conn.data["status"]) %>
                   <span
                     :if={conn.data["validation_status"] not in [nil, "", "ok"]}
-                    class={[
-                      "text-xs block mt-0.5",
-                      if(conn.data["status"] == "error", do: "text-error", else: "text-warning")
-                    ]}
+                    class={["text-xs block mt-0.5", note_class]}
                   >
                     {conn.data["validation_status"]}
                   </span>
