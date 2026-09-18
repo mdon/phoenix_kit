@@ -97,7 +97,7 @@ defmodule PhoenixKitWeb.Gettext do
       {:singular, interpolatable} ->
         @interpolation.runtime_interpolate(interpolatable, bindings)
 
-      {:plural, _msgid_plural, %{0 => interpolatable}, _file} ->
+      {:plural, _msgid_plural, %{0 => interpolatable}, _source} ->
         @interpolation.runtime_interpolate(interpolatable, bindings)
 
       _ ->
@@ -110,8 +110,8 @@ defmodule PhoenixKitWeb.Gettext do
 
   def lngettext(locale, domain, msgctxt, msgid, msgid_plural, n, bindings) do
     case lookup(locale, domain, msgctxt, msgid) do
-      {:plural, ^msgid_plural, forms, file} ->
-        interpolate_plural(locale, domain, forms, n, bindings, file)
+      {:plural, ^msgid_plural, forms, source} ->
+        interpolate_plural(locale, domain, forms, n, bindings, source)
 
       _ ->
         handle_missing_plural_translation(
@@ -165,7 +165,7 @@ defmodule PhoenixKitWeb.Gettext do
     |> Map.get({msgctxt, msgid}, :miss)
   end
 
-  defp interpolate_plural(locale, domain, forms, n, bindings, file) do
+  defp interpolate_plural(locale, domain, forms, n, bindings, {file, line}) do
     # `plural_info` carries the file's own `Plural-Forms:` header when it has
     # one, so a translator-authored rule wins over Gettext's built-in table --
     # and `@plural_mod` honours `config :gettext, :plural_forms`.
@@ -181,7 +181,7 @@ defmodule PhoenixKitWeb.Gettext do
           form: form,
           locale: locale,
           file: file,
-          line: 1
+          line: line
     end
   end
 

@@ -9,6 +9,8 @@ defmodule PhoenixKitWeb.Gettext.Compiler do
   # PO files into a nested map and embedding it as a compressed binary
   # compiles in a few hundred milliseconds; lookups are `Map.get/2`.
 
+  require Logger
+
   alias Expo.Message
   alias Expo.PO
 
@@ -18,7 +20,8 @@ defmodule PhoenixKitWeb.Gettext.Compiler do
 
   @type entry ::
           {:singular, interpolatable}
-          | {:plural, String.t(), %{non_neg_integer() => interpolatable}, String.t()}
+          | {:plural, String.t(), %{non_neg_integer() => interpolatable},
+             {String.t(), pos_integer()}}
 
   @type catalog :: %{String.t() => %{String.t() => %{{String.t() | nil, String.t()} => entry}}}
 
@@ -91,29 +94,31 @@ defmodule PhoenixKitWeb.Gettext.Compiler do
     Enum.reduce(files, {%{}, %{}}, fn %{locale: locale, domain: domain, path: path},
                                       {catalog, plural_infos} ->
       messages_struct = PO.parse_file!(path, strip_meta: true)
-      entries = load_entries(messages_struct, path, interpolation)
+
+      # Same resolution Gettext.Compiler uses: the file's `Plural-Forms:`
+      # header when it has one, otherwise the bare locale.
+      plural_info = Gettext.Plural.plural_info(locale, messages_struct, plural_mod)
+      nplurals = plural_mod.nplurals(plural_info)
+
+      entries = load_entries(messages_struct, path, interpolation, locale, nplurals)
 
       catalog =
         Map.update(catalog, locale, %{domain => entries}, fn domains ->
           Map.put(domains, domain, entries)
         end)
 
-      # Same resolution Gettext.Compiler uses: the file's `Plural-Forms:`
-      # header when it has one, otherwise the bare locale.
-      plural_info = Gettext.Plural.plural_info(locale, messages_struct, plural_mod)
-
       {catalog, Map.put(plural_infos, {locale, domain}, plural_info)}
     end)
   end
 
-  defp load_entries(%Expo.Messages{messages: messages}, path, interpolation) do
+  defp load_entries(%Expo.Messages{messages: messages}, path, interpolation, locale, nplurals) do
     messages
     |> Enum.filter(&match?(%{obsolete: false}, &1))
-    |> Enum.flat_map(&entry(&1, interpolation, path))
+    |> Enum.flat_map(&entry(&1, interpolation, path, locale, nplurals))
     |> Map.new()
   end
 
-  defp entry(%Message.Singular{} = message, interpolation, _path) do
+  defp entry(%Message.Singular{} = message, interpolation, _path, _locale, _nplurals) do
     msgid = IO.iodata_to_binary(message.msgid)
     msgstr = IO.iodata_to_binary(message.msgstr)
     msgctxt = message.msgctxt && IO.iodata_to_binary(message.msgctxt)
@@ -127,10 +132,13 @@ defmodule PhoenixKitWeb.Gettext.Compiler do
     end
   end
 
-  defp entry(%Message.Plural{} = message, interpolation, path) do
+  defp entry(%Message.Plural{} = message, interpolation, path, locale, nplurals) do
+    warn_if_missing_plural_forms(locale, nplurals, message, path)
+
     msgid = IO.iodata_to_binary(message.msgid)
     msgid_plural = IO.iodata_to_binary(message.msgid_plural)
     msgctxt = message.msgctxt && IO.iodata_to_binary(message.msgctxt)
+    line = Message.source_line_number(message, :msgid) || 1
 
     msgstr =
       Map.new(message.msgstr, fn {form, str} -> {form, IO.iodata_to_binary(str)} end)
@@ -139,7 +147,22 @@ defmodule PhoenixKitWeb.Gettext.Compiler do
       []
     else
       forms = Map.new(msgstr, fn {form, str} -> {form, interpolation.to_interpolatable(str)} end)
-      [{{msgctxt, msgid}, {:plural, msgid_plural, forms, path}}]
+      [{{msgctxt, msgid}, {:plural, msgid_plural, forms, {path, line}}}]
     end
+  end
+
+  defp warn_if_missing_plural_forms(locale, nplurals, message, file) do
+    Enum.each(0..(nplurals - 1), fn form ->
+      unless Map.has_key?(message.msgstr, form) do
+        line = Message.source_line_number(message, :msgid) || 1
+
+        Logger.error([
+          "#{file}:#{line}: message is missing plural form ",
+          Integer.to_string(form),
+          " which is required by the locale ",
+          inspect(locale)
+        ])
+      end
+    end)
   end
 end

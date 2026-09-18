@@ -2,8 +2,9 @@ defmodule PhoenixKit.Application do
   @moduledoc """
   OTP Application module for PhoenixKit.
 
-  Note: PhoenixKit.Supervisor is started by the parent application,
-  not by this module. This is an empty application callback.
+  `PhoenixKit.Supervisor` is started by the parent application, not here.
+  This callback still runs on boot: it warms the Gettext catalogue into
+  `:persistent_term` so the first translation does not pay the decode.
   """
   use Application
 
@@ -19,8 +20,7 @@ defmodule PhoenixKit.Application do
     ApplyImageEditJob.attach_telemetry()
     PhoenixKitWeb.Gettext.warm_catalog()
 
-    # PhoenixKit.Supervisor is started by parent app in its supervision tree
-    # This is just a placeholder to satisfy OTP application callback
+    # PhoenixKit.Supervisor is started by the parent app in its tree.
     Supervisor.start_link([], strategy: :one_for_one, name: PhoenixKit.AppSupervisor)
   end
 

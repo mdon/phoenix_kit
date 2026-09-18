@@ -1,3 +1,19 @@
+defmodule PhoenixKitWeb.GettextTest.StubPlural do
+  @moduledoc false
+  @behaviour Gettext.Plural
+
+  # Distinctive `plural_info` so a test can tell this module was used
+  # instead of `Gettext.Plural` (which returns the locale or `{locale, forms}`).
+  @impl true
+  def init(%{locale: locale}), do: {:stub, locale}
+
+  @impl true
+  def nplurals({:stub, _locale}), do: 2
+
+  @impl true
+  def plural({:stub, _locale}, _n), do: 7
+end
+
 defmodule PhoenixKitWeb.GettextTest do
   @moduledoc """
   The backend stores translations in a compact lookup table instead of one
@@ -8,6 +24,7 @@ defmodule PhoenixKitWeb.GettextTest do
   use ExUnit.Case, async: true
 
   alias PhoenixKitWeb.Gettext.Compiler
+  alias PhoenixKitWeb.GettextTest.StubPlural
 
   @backend PhoenixKitWeb.Gettext
 
@@ -69,9 +86,34 @@ defmodule PhoenixKitWeb.GettextTest do
 
     test "honours the plural module it is handed" do
       %{plural_infos: %{{"de", "default"} => info}} =
-        Compiler.snapshot(priv: @fixture_priv, plural_forms: Gettext.Plural)
+        Compiler.snapshot(
+          priv: @fixture_priv,
+          plural_forms: StubPlural
+        )
 
-      assert Gettext.Plural.plural(info, 2) == 0
+      assert info == {:stub, "de"}
+      assert StubPlural.plural(info, 2) == 7
+    end
+
+    test "plural entries carry the PO source line, not a dummy 1" do
+      snapshot = Compiler.snapshot(priv: @fixture_priv)
+      catalog = :erlang.binary_to_term(snapshot.binary)
+
+      {:plural, _msgid_plural, _forms, {path, line}} =
+        catalog["de"]["default"][{nil, "%{count} thing"}]
+
+      assert path =~ "default.po"
+      assert line == 12
+    end
+
+    test "shipped catalogues with a Plural-Forms header store header-derived info" do
+      snapshot = Compiler.snapshot(priv: "priv/gettext")
+      info = snapshot.plural_infos[{"pl", "default"}]
+
+      refute is_binary(info)
+      assert Gettext.Plural.plural(info, 1) == Gettext.Plural.plural("pl", 1)
+      assert Gettext.Plural.plural(info, 2) == Gettext.Plural.plural("pl", 2)
+      assert Gettext.Plural.plural(info, 5) == Gettext.Plural.plural("pl", 5)
     end
   end
 

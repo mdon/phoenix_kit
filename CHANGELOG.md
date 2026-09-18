@@ -31,6 +31,10 @@
   `PhoenixKit.Application.start/2`. Decoding the embedded catalogue costs ~20ms
   and `:persistent_term.put/2` scans every process; leaving it to the first
   `gettext` call put both on a random request instead of on boot.
+- **Plural `Gettext.PluralFormError` now reports the PO source line**, and a
+  missing plural form is logged at compile time the same way
+  `Gettext.Compiler` does. `strip_meta: true` still keeps `source_line` on
+  the message, so the dummy `line: 1` was unnecessary.
 
 ## 2.30.0 - 2026-09-18
 
