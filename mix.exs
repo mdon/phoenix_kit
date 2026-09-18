@@ -247,11 +247,11 @@ defmodule PhoenixKit.MixProject do
       # tools (0.14.0). 0.15 is where a thickness stopped meaning document
       # pixels and started meaning a weight against the canvas, so an older
       # Etcher renders a host's saved line params at a different weight on
-      # every image — a floor, not a preference. An older Etcher compiles with an undeclared-attr
-      # warning and silently drops them — and a host whose lock already holds
-      # an older etcher keeps it through `mix deps.update phoenix_kit` if the
-      # floor still admits it. Raise the floor whenever core starts consuming
-      # a newer Etcher API.
+      # every image — a floor, not a preference. An older Etcher compiles
+      # with an undeclared-attr warning and silently drops them — and a host
+      # whose lock already holds an older etcher keeps it through
+      # `mix deps.update phoenix_kit` if the floor still admits it. Raise the
+      # floor whenever core starts consuming a newer Etcher API.
       #
       # Etcher 0.14's out-of-bounds pan/zoom features engage on fresco
       # ≥ 0.12 (isInfiniteCanvas / getZoomFloor on the outer handles) and

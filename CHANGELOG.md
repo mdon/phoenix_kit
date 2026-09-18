@@ -59,6 +59,17 @@
 - **Authorization settings for the new keys**, on `/admin/settings/authorization`.
   `failed_login_alert_enabled` defaults off because it sends mail; without a
   control it was unreachable except by writing the settings table directly.
+- **"Annotation tools" on `/profile/settings`: one button that puts the drawing
+  tools back to how they ship** (PR #832). A person's annotation settings live
+  in two places, and clearing one without the other leaves them half-fixed —
+  the palette and ink the Etcher toolbar saves are on the user row
+  (`etcher_colors`, `etcher_line_params`), while the background dots, connector
+  anchors, toolbar layout, style-panel state and per-tool colours are Etcher's
+  own `etcher:prefs` answers in the browser. The reset clears the row
+  server-side and pushes `phoenix_kit:etcher-reset` on the same socket, which
+  the new `EtcherReset` hook answers by removing the browser's copy. The
+  annotations themselves are untouched. Rendered last on the page: a reset is
+  what you reach for when something is wrong, not part of the daily settings.
 
 ### Fixed
 
@@ -94,6 +105,22 @@
   deactivated account — no longer counts against the limit.
 
 ### Changed
+
+- **The Etcher floor is `~> 0.15.0`** (PR #833), with the jsDelivr pin in
+  `phoenix_kit.js` moved to `v0.15.0` to match. 0.15 is where a thickness
+  stopped meaning document pixels and started meaning a weight against a
+  1000-pixel reference canvas, so an older Etcher renders a host's saved
+  `etcher_line_params` at a different weight on every image — a floor, not a
+  preference. The weight range is still 1–40, which is exactly what
+  `MediaCanvasViewer`'s sanitizer clamps to, so a saved value keeps its meaning
+  end to end and no host data needs migrating.
+- Post-merge review of #832: the `EtcherReset` hook had landed *under* the
+  `FolderDropUpload` banner in `phoenix_kit.js`, leaving that banner labelling
+  the wrong hook; the reset's comment claimed a delete of an unsaved key
+  answers `:not_found`, when `jsonb - key` is simply a no-op and `:not_found`
+  means the user row is gone; and the hook shipped without a `test/js` case,
+  which now covers the event name, the storage key (pinned against Etcher's own
+  `_prefsKey`) and a storage that refuses to write.
 
 - **`PhoenixKitWeb.Gettext` no longer compiles translations as function clauses.**
   `split_module_by: [:locale]` brought a clean compile of this file from ~58s
@@ -148,6 +175,17 @@
   whatever locale the signing-in request happened to be served in.
 
 ### i18n
+
+- **The annotation-reset copy — six new msgids — translated by hand in all
+  seven locales**, grounded in each catalogue's own terms for *annotation* and
+  *toolbar* (de *Anmerkung* / *Werkzeugleiste*, pl *adnotacja* / *pasek
+  narzędzi*, ru *аннотация* / *панель инструментов*) and in its address form.
+- **`Could not read the current figures` had never been extracted either**, and
+  the merge that caught it carried **"Could not reach the storage endpoint"**
+  onto it in all seven locales — a wrong sentence, served, where an empty
+  msgstr would at least have fallen back to correct English. Rewritten by hand
+  in all seven. `grep -rc fuzzy` is 0 across every translated catalogue and
+  `--check-up-to-date` passes.
 
 - **`mix gettext.extract --check-up-to-date` passes again.** The media
   viewer's `"Title & description"` heading (added in 2.30.0, from

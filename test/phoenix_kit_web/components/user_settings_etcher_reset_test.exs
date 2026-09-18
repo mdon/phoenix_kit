@@ -77,8 +77,8 @@ defmodule PhoenixKitWeb.Live.Components.UserSettingsEtcherResetTest do
       {:noreply, _} = reset(user)
       fresh = Auth.get_user_by_email(user.email)
 
-      # Second time: the keys are already gone. `delete_user_custom_field`
-      # answers :not_found for those, which must read as "already reset".
+      # Second time: the keys are already gone, so each delete is a no-op
+      # write. A second reset must still read as done rather than erroring.
       {:noreply, socket} = reset(fresh)
       assert socket.assigns.etcher_reset_message =~ "reset"
     end

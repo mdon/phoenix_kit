@@ -5598,10 +5598,6 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ============================================================================
-  // FolderDropUpload Hook — drag files from device to upload into current folder
-  // ============================================================================
-
-  // ============================================================================
   // EtcherReset — the browser half of "reset annotation settings"
   // ============================================================================
   //
@@ -5633,6 +5629,10 @@ if (typeof window.Chart === "undefined") {
       });
     }
   };
+
+  // ============================================================================
+  // FolderDropUpload Hook — drag files from device to upload into current folder
+  // ============================================================================
 
   window.PhoenixKitHooks.FolderDropUpload = {
     mounted: function() {

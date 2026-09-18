@@ -608,9 +608,11 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   # rides the same socket, so the browser clears its copy in the same
   # round trip that cleared the row.
   def handle_event("reset_etcher_settings", _params, socket) do
-    # Both keys, whether or not they were ever written: a delete of a key
-    # that was never saved answers :not_found, which is simply "already
-    # reset" — the common case for someone who only ever touched the panel.
+    # Both keys, whether or not they were ever written: `jsonb - key` is a
+    # no-op when the key was never there, so the common case (someone who
+    # only ever touched the panel) costs a write and changes nothing. The
+    # row is what `:not_found` is about — a deleted account mid-click — and
+    # there is nothing left to reset there either, so it reads as done.
     updated =
       Enum.reduce(@etcher_user_keys, socket.assigns.user, fn key, current ->
         case Auth.delete_user_custom_field(current, key) do
