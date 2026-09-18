@@ -169,10 +169,11 @@ defmodule PhoenixKit.Users.Auth do
         # Return user if password is valid, regardless of is_active status
         # The session controller will handle inactive status check separately
         if User.valid_password?(user, password) do
-          # Successful login
+          # Successful login. Deliberately does NOT touch the rate-limit
+          # bucket — that counts brute-force attempts, and this was not one.
           {:ok, user}
         else
-          # Invalid credentials - rate limit counter incremented
+          RateLimiter.record_failed_login(email, ip_address)
           {:error, :invalid_credentials}
         end
 
@@ -231,6 +232,7 @@ defmodule PhoenixKit.Users.Auth do
         if User.valid_password?(user, password) do
           {:ok, user}
         else
+          RateLimiter.record_failed_login(email_or_username, ip_address)
           {:error, :invalid_credentials}
         end
 

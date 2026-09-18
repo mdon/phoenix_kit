@@ -41,6 +41,9 @@ defmodule PhoenixKit.Users.RateLimiter do
 
   ## Security Features
 
+  - **Login buckets count FAILURES only**: `check_login_rate_limit/2` peeks,
+    `record_failed_login/2` fills. The check runs before the password is
+    verified, so incrementing there counted successful logins as attempts.
   - **Email-based rate limiting**: Prevents targeted attacks on specific accounts
   - **IP-based rate limiting**: Prevents distributed attacks from single sources
     (an IPv6 address counts by its `/64` — see `PhoenixKit.Utils.IpAddress.network/1`)
@@ -190,7 +193,12 @@ defmodule PhoenixKit.Users.RateLimiter do
     limit = Keyword.get(config, :login_limit)
     window = Keyword.get(config, :login_window_ms)
 
-    case check_rate_limit(email_key, window, limit) do
+    # PEEK, never hit. This used to increment, and it runs BEFORE the password
+    # is checked — so a successful login consumed the same bucket a brute-force
+    # attempt does, and five ordinary logins in a minute locked the account out.
+    # The bucket is filled by `record_failed_login/2` instead, on the failure
+    # branch where it belongs.
+    case peek_rate_limit(email_key, window, limit) do
       :ok ->
         # Also check IP-based rate limit if IP is provided
         if ip_address do
@@ -199,7 +207,7 @@ defmodule PhoenixKit.Users.RateLimiter do
           # Allow slightly higher limit for IP (to avoid false positives in shared networks)
           ip_limit = limit * 3
 
-          case check_rate_limit(ip_key, window, ip_limit) do
+          case peek_rate_limit(ip_key, window, ip_limit) do
             :ok ->
               :ok
 
@@ -215,6 +223,32 @@ defmodule PhoenixKit.Users.RateLimiter do
         log_rate_limit_violation("login", "email:#{email}", limit, window)
         error
     end
+  end
+
+  @doc """
+  Counts one FAILED login against the email and IP buckets.
+
+  Split out from `check_login_rate_limit/2` so that only failures fill the
+  bucket. The check runs before the password is verified and therefore cannot
+  know the outcome; calling `hit` there counted successful logins too, which
+  meant five ordinary sign-ins inside the window locked the account out of the
+  sixth.
+
+  Call it on the failure branch only. A correct password — even for a
+  deactivated account — is not a brute-force attempt.
+  """
+  @spec record_failed_login(String.t(), String.t() | nil) :: :ok
+  def record_failed_login(email, ip_address \\ nil) when is_binary(email) do
+    config = get_config()
+    window = Keyword.get(config, :login_window_ms)
+
+    Backend.inc("auth:login:email:#{normalize_email(email)}", window)
+
+    if ip_address do
+      Backend.inc("auth:login:ip:#{IpAddress.network(ip_address)}", window)
+    end
+
+    :ok
   end
 
   @doc """
@@ -674,6 +708,17 @@ defmodule PhoenixKit.Users.RateLimiter do
         )
 
         error
+    end
+  end
+
+  # Read-only counterpart of `check_rate_limit/3`: reports whether the bucket is
+  # already full WITHOUT adding to it, so a caller that cannot yet know whether
+  # the request should count does not prejudge it.
+  defp peek_rate_limit(key, window_ms, limit) do
+    if Backend.get(key, window_ms) >= limit do
+      {:error, :rate_limit_exceeded}
+    else
+      :ok
     end
   end
 

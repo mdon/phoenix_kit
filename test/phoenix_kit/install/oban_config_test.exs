@@ -610,10 +610,28 @@ defmodule PhoenixKit.Install.ObanConfigTest do
       updated = ObanConfig.ensure_worker_cron_entries(content, "my_app")
 
       assert updated =~ "PhoenixKit.Users.Referrals.PruneWorker"
+      assert updated =~ "PhoenixKit.Users.LoginAttemptsPruneWorker"
       assert {:ok, _} = Code.string_to_quoted(updated)
     end
 
-    test "is idempotent — an entry already present is not duplicated" do
+    test "is idempotent — entries already present are not duplicated" do
+      content = """
+      config :my_app, Oban,
+        plugins: [
+          {Oban.Plugins.Cron,
+           crontab: [
+             {"30 4 * * *", PhoenixKit.Users.Referrals.PruneWorker},
+             {"45 4 * * *", PhoenixKit.Users.LoginAttemptsPruneWorker}
+           ]}
+        ]
+      """
+
+      assert ObanConfig.ensure_worker_cron_entries(content, "my_app") == content
+    end
+
+    test "backfills only the entry a host is missing" do
+      # A host installed between the two workers shipping: it has the older
+      # entry and must gain the newer one without the older being duplicated.
       content = """
       config :my_app, Oban,
         plugins: [
@@ -624,7 +642,12 @@ defmodule PhoenixKit.Install.ObanConfigTest do
         ]
       """
 
-      assert ObanConfig.ensure_worker_cron_entries(content, "my_app") == content
+      updated = ObanConfig.ensure_worker_cron_entries(content, "my_app")
+
+      assert updated =~ "PhoenixKit.Users.LoginAttemptsPruneWorker"
+
+      assert length(String.split(updated, "PhoenixKit.Users.Referrals.PruneWorker")) == 2
+      assert {:ok, _} = Code.string_to_quoted(updated)
     end
 
     test "leaves content unchanged when no crontab block can be found" do

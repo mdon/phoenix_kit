@@ -33,6 +33,17 @@
     the generated crontab AND to the backfill list, so an existing host gets it
     on `mix phoenix_kit.update` instead of never pruning.
 
+### Fixed
+
+- **The login rate limiter counted successful sign-ins.**
+  `check_login_rate_limit/2` runs *before* the password is verified, and it
+  incremented the bucket — so five ordinary logins inside the window locked the
+  account out of the sixth, and the bucket a brute-force attempt fills was the
+  same one legitimate use drained. The check now peeks; the new
+  `RateLimiter.record_failed_login/2` fills the bucket, on the failure branch
+  where the outcome is actually known. A correct password — even for a
+  deactivated account — no longer counts against the limit.
+
 ### Changed
 
 - **`PhoenixKitWeb.Gettext` no longer compiles translations as function clauses.**

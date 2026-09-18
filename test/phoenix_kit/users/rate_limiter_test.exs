@@ -22,25 +22,38 @@ defmodule PhoenixKit.Users.RateLimiterTest do
     {:ok, unique_id: unique_id}
   end
 
-  describe "check_login_rate_limit/2" do
-    test "allows requests within rate limit", %{unique_id: id} do
-      email = "user_#{id}@example.com"
+  describe "check_login_rate_limit/2 and record_failed_login/2" do
+    # The check runs BEFORE the password is verified, so it cannot know whether
+    # the request should count. It peeks; only `record_failed_login/2` fills
+    # the bucket.
+    test "the check alone never consumes the bucket", %{unique_id: id} do
+      email = "peek_#{id}@example.com"
 
-      # First 5 attempts should succeed
-      for _ <- 1..5 do
+      for _ <- 1..50 do
         assert :ok = RateLimiter.check_login_rate_limit(email)
       end
     end
 
-    test "blocks requests after exceeding rate limit", %{unique_id: id} do
-      email = "blocked_#{id}@example.com"
+    test "successful logins do not lock the account out", %{unique_id: id} do
+      email = "success_#{id}@example.com"
 
-      # Exhaust the rate limit (default: 5 attempts)
-      for _ <- 1..5 do
+      # Ten sign-ins inside one window, every one of them correct. Before the
+      # split this locked the account out at the sixth.
+      for _ <- 1..10 do
         assert :ok = RateLimiter.check_login_rate_limit(email)
       end
 
-      # 6th attempt should be blocked
+      assert :ok = RateLimiter.check_login_rate_limit(email)
+    end
+
+    test "blocks after the limit is reached in FAILURES", %{unique_id: id} do
+      email = "blocked_#{id}@example.com"
+
+      for _ <- 1..5 do
+        assert :ok = RateLimiter.check_login_rate_limit(email)
+        RateLimiter.record_failed_login(email)
+      end
+
       assert {:error, :rate_limit_exceeded} = RateLimiter.check_login_rate_limit(email)
     end
 
@@ -48,14 +61,9 @@ defmodule PhoenixKit.Users.RateLimiterTest do
       email1 = "user1_#{id}@example.com"
       email2 = "user2_#{id}@example.com"
 
-      # Exhaust rate limit for email1
-      for _ <- 1..5 do
-        assert :ok = RateLimiter.check_login_rate_limit(email1)
-      end
+      for _ <- 1..5, do: RateLimiter.record_failed_login(email1)
 
       assert {:error, :rate_limit_exceeded} = RateLimiter.check_login_rate_limit(email1)
-
-      # email2 should still be allowed
       assert :ok = RateLimiter.check_login_rate_limit(email2)
     end
 
@@ -63,8 +71,18 @@ defmodule PhoenixKit.Users.RateLimiterTest do
       email = "user_#{id}@example.com"
       ip = "192.168.1.#{rem(id, 255)}"
 
-      # Should succeed with IP
       assert :ok = RateLimiter.check_login_rate_limit(email, ip)
+    end
+
+    test "the IP bucket blocks a spray across many addresses", %{unique_id: id} do
+      ip = "198.51.100.#{rem(id, 255)}"
+
+      # The IP limit is login_limit * 3, and each address is its own email
+      # bucket — so only the IP bucket can catch this shape.
+      for n <- 1..15, do: RateLimiter.record_failed_login("spray_#{id}_#{n}@example.com", ip)
+
+      assert {:error, :rate_limit_exceeded} =
+               RateLimiter.check_login_rate_limit("spray_#{id}_fresh@example.com", ip)
     end
 
     test "normalizes email addresses", %{unique_id: id} do
@@ -72,16 +90,13 @@ defmodule PhoenixKit.Users.RateLimiterTest do
       email_upper = "NORM_#{id}@EXAMPLE.COM"
       email_mixed = "NoRm_#{id}@ExAmPlE.cOm"
 
-      # All variations should count toward same limit
-      assert :ok = RateLimiter.check_login_rate_limit(email_lower)
-      assert :ok = RateLimiter.check_login_rate_limit(email_upper)
-      assert :ok = RateLimiter.check_login_rate_limit(email_mixed)
+      # All case variations count toward the same bucket, on both halves.
+      RateLimiter.record_failed_login(email_lower)
+      RateLimiter.record_failed_login(email_upper)
+      RateLimiter.record_failed_login(email_mixed)
+      RateLimiter.record_failed_login(email_lower)
+      RateLimiter.record_failed_login(email_upper)
 
-      # Continue to exhaust limit with different case variations
-      assert :ok = RateLimiter.check_login_rate_limit(email_lower)
-      assert :ok = RateLimiter.check_login_rate_limit(email_upper)
-
-      # Should be blocked now (5 attempts reached)
       assert {:error, :rate_limit_exceeded} = RateLimiter.check_login_rate_limit(email_mixed)
     end
   end
@@ -267,6 +282,10 @@ defmodule PhoenixKit.Users.RateLimiterTest do
                    "login6_#{id}_#{n}@e.com",
                    "2001:db8:#{net}:1::#{n}"
                  )
+
+        # Each address is its own /128 but the bucket is the /64, so these
+        # fifteen failures share one counter.
+        RateLimiter.record_failed_login("login6_#{id}_#{n}@e.com", "2001:db8:#{net}:1::#{n}")
       end
 
       assert {:error, :rate_limit_exceeded} =
@@ -314,15 +333,15 @@ defmodule PhoenixKit.Users.RateLimiterTest do
       # Initially should have 5 attempts remaining (default limit)
       assert 5 = RateLimiter.get_remaining_attempts(:login, email)
 
-      # After one attempt, should have 4 remaining
-      RateLimiter.check_login_rate_limit(email)
+      # Only FAILURES consume the login bucket, so that is what counts down.
+      RateLimiter.record_failed_login(email)
       assert 4 = RateLimiter.get_remaining_attempts(:login, email)
 
-      # After 5 attempts, should have 0 remaining
-      for _ <- 1..4 do
-        RateLimiter.check_login_rate_limit(email)
-      end
+      for _ <- 1..4, do: RateLimiter.record_failed_login(email)
+      assert 0 = RateLimiter.get_remaining_attempts(:login, email)
 
+      # A check on its own moves nothing.
+      RateLimiter.check_login_rate_limit(email)
       assert 0 = RateLimiter.get_remaining_attempts(:login, email)
     end
 
