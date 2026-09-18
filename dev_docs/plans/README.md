@@ -15,3 +15,4 @@ Implementation plans and refactor summaries. These documents were created **befo
 | `2026-02-16-language-struct-refactor.md` | Summary of the Language struct refactor — what changed and impact on consumers | Executed |
 | `2026-02-17-datetime-standardization-plan.md` | Step-by-step plan for standardizing all datetime types to `:utc_datetime` + `UtilsDate.utc_now()` | Executed (100%) |
 | `2026-02-23-v62-uuid-column-rename-plan.md` | Plan for V62 migration: rename 35 UUID-typed FK columns from `_id` to `_uuid` suffix across 25 tables | Executed |
+| `2026-09-18-failed-login-visibility.md` | Scope for recording failed sign-in attempts and surfacing them to the targeted account and the site owner | Scope only — not built |
