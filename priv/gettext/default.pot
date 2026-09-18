@@ -15245,3 +15245,24 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "there and press Test Connection. A group needs that command — bots cannot read ordinary group messages."
 msgstr ""
+
+#: lib/phoenix_kit_web/components/media_browser.ex:3049
+#, elixir-autogen, elixir-format
+msgid "Featured image"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/media_browser.ex:3187
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1647
+#: lib/phoenix_kit_web/components/media_browser.html.heex:2322
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:421
+#, elixir-autogen, elixir-format
+msgid "Set as featured"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/media_browser.ex:3186
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1646
+#: lib/phoenix_kit_web/components/media_browser.html.heex:2321
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:420
+#, elixir-autogen, elixir-format
+msgid "Unset featured"
+msgstr ""

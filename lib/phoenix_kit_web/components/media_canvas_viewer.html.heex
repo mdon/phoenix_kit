@@ -399,6 +399,27 @@
             >
               <.icon name="hero-adjustments-horizontal" class="w-4 h-4" /> {gettext("Edit image")}
             </button>
+            <%!-- See MediaBrowser's `:featured` attr. This component owns no
+                  pointer of its own — the click goes straight to the parent
+                  LiveComponent (`:parent_id`), same routing as close/prev/next. --%>
+            <button
+              :if={@featured && f.file_type == "image"}
+              type="button"
+              phx-click={
+                if @featured.uuid == f.file_uuid, do: "unset_featured", else: "set_featured"
+              }
+              phx-target={"##{@parent_id}"}
+              phx-value-file-uuid={f.file_uuid}
+              class="btn btn-ghost btn-sm gap-2"
+            >
+              <.icon
+                name={if @featured.uuid == f.file_uuid, do: "hero-star-solid", else: "hero-star"}
+                class="w-4 h-4"
+              />
+              {if @featured.uuid == f.file_uuid,
+                do: gettext("Unset featured"),
+                else: gettext("Set as featured")}
+            </button>
             <%!-- Admin-context hosts pass details_path — full-page detail view --%>
             <%!-- with the metadata editor, variants, and storage locations.    --%>
             <.link

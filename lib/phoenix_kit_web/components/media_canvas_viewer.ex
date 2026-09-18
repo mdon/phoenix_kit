@@ -69,6 +69,13 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       "Open details page" button navigating to this path. Admin-context
       hosts (`MediaBrowser` with `admin={true}`) pass the file's
       `/admin/media/:uuid` page; public hosts leave it off.
+    * `:featured` (default `nil`) — mirrors `MediaBrowser`'s own
+      `:featured` attr (`nil` = off, or `%{uuid: uuid | nil}`). When set
+      and the open file is an image, the sidebar shows a "Set as
+      featured" / "Unset featured" button that posts `"set_featured"` /
+      `"unset_featured"` straight to `:parent_id` (same `phx-target`
+      routing the close/prev/next buttons use) — this component does
+      not own the pointer and has no event handler of its own for it.
   """
 
   use PhoenixKitWeb, :live_component
@@ -144,6 +151,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      |> assign(:sidebar_collapsed, false)
      |> assign(:details_path, nil)
      |> assign(:edit_target, nil)
+     |> assign(:featured, nil)
      |> assign(:media_meta_status_token, 0)}
   end
 
@@ -234,6 +242,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       |> assign(:persist_rotation, assigns[:persist_rotation] || false)
       |> assign(:details_path, assigns[:details_path])
       |> assign(:edit_target, assigns[:edit_target])
+      |> assign(:featured, assigns[:featured])
       |> assign_new(:media_meta, fn -> %{title: "", description: ""} end)
       |> assign_new(:media_details_open, fn -> false end)
       |> assign_new(:media_meta_status, fn -> nil end)
