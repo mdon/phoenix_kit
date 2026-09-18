@@ -704,6 +704,7 @@ msgstr "Haga clic en cualquier icono de marca o cruz para activar o desactivar u
 #: lib/modules/sitemap/web/settings.html.heex:850
 #: lib/phoenix_kit/mentions/live.ex:269
 #: lib/phoenix_kit_web/components/core/column_settings.ex:144
+#: lib/phoenix_kit_web/components/core/preview_card.ex:115
 #: lib/phoenix_kit_web/components/image_editor.ex:628
 #: lib/phoenix_kit_web/components/media_browser.html.heex:387
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:36
@@ -1129,6 +1130,7 @@ msgstr "Módulos de funciones"
 #: lib/modules/storage/web/settings.html.heex:140
 #: lib/modules/storage/web/settings.html.heex:156
 #: lib/phoenix_kit/users/auth.ex:3238
+#: lib/phoenix_kit_web/components/core/preview_card.ex:268
 #, elixir-autogen, elixir-format
 msgid "Files"
 msgstr "Archivos"
@@ -1434,6 +1436,12 @@ msgstr "Aceptar"
 #, elixir-autogen, elixir-format
 msgid "Only the Owner can edit Admin permissions"
 msgstr "Solo el propietario puede editar los permisos de administrador"
+
+#: lib/phoenix_kit_web/components/core/preview_card.ex:289
+#: lib/phoenix_kit_web/components/core/preview_card.ex:312
+#, elixir-autogen, elixir-format
+msgid "Open"
+msgstr ""
 
 #: lib/phoenix_kit_web/users/user_form.html.heex:244
 #: lib/phoenix_kit_web/users/user_form.html.heex:276
@@ -6395,6 +6403,7 @@ msgstr[1] "¿Mover %{count} archivos a la papelera?"
 msgid "New folder"
 msgstr "Nueva carpeta"
 
+#: lib/phoenix_kit_web/components/core/preview_card.ex:206
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2353
 #, elixir-autogen, elixir-format
 msgid "Next"
@@ -6483,6 +6492,11 @@ msgstr "Seleccionar todo"
 #, elixir-autogen, elixir-format
 msgid "Show folders"
 msgstr "Mostrar carpetas"
+
+#: lib/phoenix_kit_web/components/core/preview_card.ex:225
+#, elixir-autogen, elixir-format
+msgid "Show image %{number}"
+msgstr ""
 
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:425
 #, elixir-autogen, elixir-format
@@ -7118,11 +7132,18 @@ msgstr "Imágenes, vídeos o documentos"
 msgid "No media files found"
 msgstr "No se encontraron archivos de medios"
 
+#: lib/phoenix_kit_web/components/core/preview_card.ex:102
+#: lib/phoenix_kit_web/components/core/preview_card.ex:153
 #: lib/phoenix_kit_web/components/media_gallery.html.heex:67
 #: lib/phoenix_kit_web/live/settings/website_access.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Preview"
 msgstr "Vista previa"
+
+#: lib/phoenix_kit_web/components/core/preview_card.ex:197
+#, elixir-autogen, elixir-format
+msgid "Previous"
+msgstr ""
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:226
 #: lib/phoenix_kit_web/live/users/media_selector.html.heex:91
