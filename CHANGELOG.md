@@ -36,6 +36,22 @@
   `Gettext.Compiler` does. `strip_meta: true` still keeps `source_line` on
   the message, so the dummy `line: 1` was unnecessary.
 
+### i18n
+
+- **`mix gettext.extract --check-up-to-date` passes again.** The media
+  viewer's `"Title & description"` heading (added in 2.30.0, from
+  `media_canvas_viewer.html.heex`) had never been extracted, so it was in no
+  `.pot` and no catalogue and rendered as English everywhere. The extract that
+  caught it fuzzy-matched it onto **"Edit description"** in all seven
+  translated locales — de *Beschreibung bearbeiten*, ru *Изменить описание* —
+  and Gettext serves fuzzy entries, so that wording would have shipped.
+  Rewritten by hand in all seven, following the catalogues' own convention of
+  spelling out a UI `&` (*Titel und Beschreibung*, *Título y descripción*,
+  *Pealkiri ja kirjeldus*, *Titre et description*, *Titolo e descrizione*,
+  *Tytuł i opis*, *Название и описание*) while `&` is kept only inside a
+  third-party product's literal menu path. `grep -rc fuzzy` is 0 again across
+  every translated catalogue.
+
 ## 2.30.0 - 2026-09-18
 
 ### Added
