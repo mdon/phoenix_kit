@@ -33,6 +33,8 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  import PhoenixKitWeb.Components.Core.IntegrationsUI, only: [validation_note_style: 1]
+
   alias PhoenixKit.Config
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Providers

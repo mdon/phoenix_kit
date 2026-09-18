@@ -69,7 +69,8 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
       # proof that the key can send: a signature valid for the WRONG AWS account lands
       # here too. So it passes with the caveat attached, and the caveat reaches the
       # operator rather than the log.
-      assert {:ok, note} = Validators.interpret_ses_error(aws_error("AccessDenied"))
+      # A standing fact about these credentials, so it is stored with them.
+      assert {:ok, %{fact: note}} = Validators.interpret_ses_error(aws_error("AccessDenied"))
       assert note =~ "not authorised"
       assert note =~ "sending was not verified"
 
@@ -359,7 +360,11 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
     end
   end
 
-  describe "aws_note/3 assembles the enrichment note additively" do
+  # The identity and the granted APIs are FACTS — they stay true until the
+  # credentials change — so they are what gets stored. The send quota is a
+  # reading and travels separately; see the note type on
+  # `PhoenixKit.Integrations.Probe`.
+  describe "aws_note/2 assembles the standing fact additively" do
     test "lists only GRANTED management APIs — a send-only key shows no denied dashes" do
       perms = %{
         ses: %{"ListConfigurationSets" => :denied},
@@ -367,7 +372,7 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
         sns: %{"ListTopics" => :denied}
       }
 
-      assert Validators.aws_note("Account 1", perms, nil) == "Account 1"
+      assert Validators.aws_note("Account 1", perms) == "Account 1"
     end
 
     test "grants surface by service name" do
@@ -377,23 +382,22 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
         sns: %{"ListTopics" => :denied}
       }
 
-      note = Validators.aws_note("Account 1", perms, "Quota: 1/200")
-      assert note =~ "SES, SQS"
-      refute note =~ "SNS"
-      assert note =~ "Quota: 1/200"
+      fact = Validators.aws_note("Account 1", perms)
+      assert fact =~ "Account 1"
+      assert fact =~ "SES, SQS"
+      refute fact =~ "SNS"
     end
 
     test "nothing to say means nil, so the verdict stays a bare :ok" do
-      assert Validators.aws_note(nil, nil, nil) == nil
+      assert Validators.aws_note(nil, nil) == nil
     end
 
-    test "a missing permissions sweep keeps identity and quota" do
-      assert Validators.aws_note("Account 1", nil, "Q") == "Account 1 · Q"
+    test "a missing permissions sweep keeps the identity" do
+      assert Validators.aws_note("Account 1", nil) == "Account 1"
     end
 
     test "a partial permissions map is read, not crashed on" do
-      assert Validators.aws_note(nil, %{ses: %{"ListConfigurationSets" => :granted}}, nil) =~
-               "SES"
+      assert Validators.aws_note(nil, %{ses: %{"ListConfigurationSets" => :granted}}) =~ "SES"
     end
   end
 
@@ -683,7 +687,7 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
       end
 
       creds = %{"login" => "you@example.com", "password" => "api-secret"}
-      assert {:ok, "Balance: $1.00"} = Validators.dataforseo(creds, plug: plug)
+      assert {:ok, %{reading: "Balance: $1.00"}} = Validators.dataforseo(creds, plug: plug)
     end
 
     test "a wrong password is an error that points at the API password" do
@@ -760,7 +764,7 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
           "balance" => 12.3456
         })
 
-      assert {:ok, "Balance: $12.35"} = Validators.interpret_dataforseo(200, body)
+      assert {:ok, %{reading: "Balance: $12.35"}} = Validators.interpret_dataforseo(200, body)
     end
 
     test "an empty balance still connects, and says what it means" do
@@ -769,7 +773,7 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
           "balance" => 0
         })
 
-      assert {:ok, note} = Validators.interpret_dataforseo(200, body)
+      assert {:ok, %{reading: note}} = Validators.interpret_dataforseo(200, body)
       assert note =~ "$0.00"
       assert note =~ "add funds"
     end
@@ -777,21 +781,22 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
     test "the warning follows the amount shown, not the raw number" do
       for {balance, shown} <- [{0.004, "$0.00"}, {-0.004, "$0.00"}, {-5, "$-5.00"}] do
         body = with_balance(balance)
-        assert {:ok, note} = Validators.interpret_dataforseo(200, body)
+        assert {:ok, %{reading: note}} = Validators.interpret_dataforseo(200, body)
         assert note =~ shown, "#{balance}: #{note}"
         assert note =~ "add funds", "#{balance}: #{note}"
       end
 
-      assert {:ok, "Balance: $0.01"} = Validators.interpret_dataforseo(200, with_balance(0.005))
+      assert {:ok, %{reading: "Balance: $0.01"}} =
+               Validators.interpret_dataforseo(200, with_balance(0.005))
     end
 
     test "a balance no float can hold is shown, not crashed on" do
       # `:erlang.float_to_binary/2` refuses 1.0e300, and an integer this large
       # cannot become a float at all.
-      assert {:ok, "Balance: $" <> _} =
+      assert {:ok, %{reading: "Balance: $" <> _}} =
                Validators.interpret_dataforseo(200, with_balance(1.0e300))
 
-      assert {:ok, "Balance: $1" <> rest} =
+      assert {:ok, %{reading: "Balance: $1" <> rest}} =
                Validators.interpret_dataforseo(200, with_balance(Integer.pow(10, 400)))
 
       # Past Decimal's 28-digit context the cents are dropped; the digits stay.
@@ -884,7 +889,7 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
         Req.Test.json(conn, @serpapi_ok)
       end
 
-      assert {:ok, "Free Plan · searches left: 238"} =
+      assert {:ok, %{fact: "Free Plan", reading: "Searches left: 238"}} =
                Validators.serpapi(%{"api_key" => "serp-key"}, plug: plug)
     end
 
@@ -966,13 +971,14 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
     test "a used-up plan still connects, and says so" do
       body = %{@serpapi_ok | "this_month_usage" => 250, "total_searches_left" => 0}
 
-      assert {:ok, "Free Plan · no searches left"} = Validators.interpret_serpapi(200, body)
+      assert {:ok, %{fact: "Free Plan", reading: "No searches left"}} =
+               Validators.interpret_serpapi(200, body)
     end
 
     test "large counts are grouped" do
       body = %{@serpapi_ok | "plan_name" => "Big Data Plan", "total_searches_left" => 29_500}
 
-      assert {:ok, "Big Data Plan · searches left: 29,500"} =
+      assert {:ok, %{fact: "Big Data Plan", reading: "Searches left: 29,500"}} =
                Validators.interpret_serpapi(200, body)
     end
 
@@ -981,17 +987,24 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
     end
 
     test "the searches left are reported with or without a plan name" do
-      assert {:ok, "No searches left"} =
+      assert {:ok, %{reading: "No searches left"}} =
                Validators.interpret_serpapi(200, %{"total_searches_left" => 0})
 
-      assert {:ok, "Searches left: 1,500"} =
+      assert {:ok, %{reading: "Searches left: 1,500"}} =
                Validators.interpret_serpapi(200, %{"total_searches_left" => 1_500})
 
-      assert {:ok, "Free Plan"} = Validators.interpret_serpapi(200, %{"plan_name" => "Free Plan"})
-
-      # A blank plan name is no plan name.
-      assert {:ok, "Searches left: 3"} =
+      # A blank plan name is no plan name, so there is no fact to keep.
+      assert {:ok, %{reading: "Searches left: 3"} = note} =
                Validators.interpret_serpapi(200, %{"plan_name" => "", "total_searches_left" => 3})
+
+      refute Map.has_key?(note, :fact)
+
+      # A plan with no count is the plan name alone, and it is a fact: it
+      # stays true, so it is worth keeping on the connection.
+      assert {:ok, %{fact: "Free Plan"} = note} =
+               Validators.interpret_serpapi(200, %{"plan_name" => "Free Plan"})
+
+      refute Map.has_key?(note, :reading)
 
       assert :ok = Validators.interpret_serpapi(200, %{"plan_name" => ""})
     end
@@ -999,11 +1012,17 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
     test "an account that is not active says so first" do
       body = %{@serpapi_ok | "account_status" => "Suspended"}
 
-      assert {:ok, "Account status: Suspended · Free Plan · searches left: 238"} =
-               Validators.interpret_serpapi(200, body)
+      # The status is a fact — it stays true until SerpApi says otherwise — and
+      # the searches left are a reading.
+      assert {:ok,
+              %{
+                fact: "Account status: Suspended · Free Plan",
+                reading: "Searches left: 238"
+              }} = Validators.interpret_serpapi(200, body)
 
-      # Case aside, "Active" is the documented healthy value.
-      assert {:ok, "Free Plan · searches left: 238"} =
+      # Case aside, "Active" is the documented healthy value, so the status
+      # drops out of the fact and the plan is all that is left of it.
+      assert {:ok, %{fact: "Free Plan", reading: "Searches left: 238"}} =
                Validators.interpret_serpapi(200, %{@serpapi_ok | "account_status" => "active"})
     end
 
@@ -1026,8 +1045,8 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
       end
 
       # An explicit null or false is no error.
-      assert {:ok, _} = Validators.interpret_serpapi(200, Map.put(@serpapi_ok, "error", nil))
-      assert {:ok, _} = Validators.interpret_serpapi(200, Map.put(@serpapi_ok, "error", false))
+      assert {:ok, %{}} = Validators.interpret_serpapi(200, Map.put(@serpapi_ok, "error", nil))
+      assert {:ok, %{}} = Validators.interpret_serpapi(200, Map.put(@serpapi_ok, "error", false))
     end
 
     test "answers without a SerpApi body fall back to the HTTP status" do

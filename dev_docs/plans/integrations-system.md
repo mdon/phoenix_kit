@@ -629,7 +629,7 @@ The endpoints themselves stay as-is — they define model, temperature, max_toke
 ### Phase 4: Polish
 
 16. **"Used by" tracking** — Show which modules use each integration on the settings page (computed from `required_integrations/0`, no storage needed)
-17. **Connection health checks** — Periodic validation that tokens/keys still work (result stored in the integration's JSON blob as `last_validated_at` / `validation_status`)
+17. **Connection health checks** — Periodic validation that tokens/keys still work (`last_validated_at` and, when the check has a standing fact to report, `validation_status`, in the integration's JSON blob — a figure that decays, like a balance, is never stored: see `t:PhoenixKit.Integrations.Probe.note/0` and `PhoenixKit.Integrations.reading/2`)
 
 ### Phase 5: Usage Logging (Future)
 
