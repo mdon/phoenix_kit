@@ -179,7 +179,7 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCardTest do
       html =
         render_component(
           &PreviewCard.preview_card_body/1,
-          base_assigns(%{files: files()}) |> Map.drop([:id, :show])
+          base_assigns(%{files: files()}) |> Map.drop([:id, :show, :target])
         )
 
       assert html =~ "img-1"

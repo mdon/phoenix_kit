@@ -63,8 +63,13 @@ defmodule PhoenixKit.Modules.Storage do
   - `config :phoenix_kit, :file_reference_sources, [...]` — a list of
     `{module, function}` / `{module, function, args}` entries, each
     returning a list of `Ecto.Query.dynamic/2` expressions over the file
-    binding `f`; every expression is appended to the orphan query with
-    `NOT EXISTS`, the same shape core's own catalogue and shop checks use.
+    binding `f`. Every expression is ANDed onto the orphan query's
+    `where` verbatim, so **each one must itself be the negative test** —
+    a `NOT EXISTS (...)` fragment, the same shape core's own catalogue
+    and shop checks use (see the example below). Core does not wrap or
+    negate anything: a positively-phrased `EXISTS (...)` expression
+    inverts the meaning and marks exactly the referenced files as the
+    orphans.
     A plain `{table, column}` tuple is shorthand for a native column
     reference, and `{table, :jsonb_key, key}` for a `data->>'key'` pointer.
     A source whose table does not exist, or whose function raises, is
@@ -2581,10 +2586,11 @@ defmodule PhoenixKit.Modules.Storage do
   #   end
   #
   # Each entry is `{module, function}` / `{module, function, args}`, called
-  # for a list of `Ecto.Query.dynamic/2` expressions appended with
-  # `NOT EXISTS`. A plain `{table, column}` tuple is shorthand for a native
-  # column reference and `{table, :jsonb_key, key}` for a `data->>'key'`
-  # pointer.
+  # for a list of `Ecto.Query.dynamic/2` expressions that are ANDed onto the
+  # orphan query verbatim — each one is expected to BE a `NOT EXISTS` test,
+  # nothing here negates it. A plain `{table, column}` tuple is shorthand for
+  # a native column reference and `{table, :jsonb_key, key}` for a
+  # `data->>'key'` pointer; those two build their own `NOT EXISTS`.
   defp file_reference_sources do
     Application.get_env(:phoenix_kit, :file_reference_sources, [])
   end

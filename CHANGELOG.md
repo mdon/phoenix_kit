@@ -1,3 +1,77 @@
+## 2.30.0 - 2026-09-18
+
+### Added
+
+- **`PhoenixKitWeb.Components.Core.PreviewCard`** (#827) — the catalogue's
+  product card, generalised into core. `preview_card/1` renders a modal whose
+  media area is ONE continuous swipeable carousel (images first, then attached
+  files; a PDF inline from `sm` up, anything else as a tile with an Open
+  action), a jump strip under it, the resource's filled fields and a compact
+  file list. Slide switching is entirely client-side scroll-snap — the only
+  server event left is the close. `preview_card_body/1` is the same content
+  without the modal shell, for embedding the preview inline. The component is
+  pure render: every DB-backed value (`images`, `files`, `fields`, `title`) is
+  resolved by the caller, so it needs no database. The catalogue delegates to it
+  in a follow-up once this releases.
+- **`config :phoenix_kit, :file_reference_sources`** (#828) — orphan detection
+  knew only about the references core itself ships with, so a host whose own
+  tables point at files was one cleanup run away from losing them. A host can
+  now register `{module, function}` / `{module, function, args}` entries
+  returning `NOT EXISTS` dynamics over the file binding, with `{table, column}`
+  and `{table, :jsonb_key, key}` shorthands for the common shapes. Every
+  registered source is honoured by `find_orphaned_files/1`,
+  `count_orphaned_files/1` **and** `file_orphaned?/1` — including the re-check
+  `DeleteOrphanedFileJob` runs before it deletes anything. A source whose table
+  is missing, or whose function raises, is skipped with a warning instead of
+  failing the query.
+- **Optional host-owned featured image in `MediaBrowser`** (#829) — an opt-in
+  `featured` attr (`nil` by default, so every existing consumer is untouched)
+  turns on a "Set as featured" / "Unset featured" action for image files in the
+  grid, list and stack kebabs plus the modal viewer's sidebar, with a star badge
+  on the current pointer. The browser never persists the choice: it relays
+  `{MediaBrowser, id, {:set_featured, uuid | nil}}` to the host and moves its own
+  badge ahead of the host's write, which the host can correct with a later
+  `featured` assign.
+
+### Fixed
+
+- **Email templates stored in the database raised `KeyError` on every send**
+  (#830). `Email.Content.resolve/5`'s two branches answered in different shapes:
+  the database branch mapped `html` from the provider's `html_body` but took
+  `text` from a `:text` key no provider has ever had — core's own
+  `DefaultProvider` answers `%{subject:, html_body:, text_body:}`, and
+  `phoenix_kit_emails` validates exactly those three on every render. On an
+  install with the stock templates seeded that broke registration confirmation,
+  password reset and email change, plus everything
+  `Mailer.send_from_template/…` sends. It surfaced as a guest checkout bouncing
+  the shopper to an empty cart: the confirmation email raised after the order had
+  committed and took the checkout LiveView down with it. The branch is now
+  tested, including a test pinning the fallback branch so a future change cannot
+  quietly swap which shape wins.
+- **A trashed image could still be made the featured one** (#829, post-merge
+  review). The three kebab entries hide the action while the trash listing is up,
+  but the viewer sidebar had no such gate — and a trash tile clicks straight
+  through to the viewer — so a host could persist a pointer to a file already
+  queued for deletion. The sidebar button now reads the file's own status, which
+  also covers a file trashed in another session while the listing is stale.
+
+### Changed
+
+- `preview_card_body/1` no longer takes a required `:target` (#827, post-merge
+  review). The body renders no event of its own — slide switching is
+  client-side, and the Close button lives in the modal's action row — so inline
+  embedders were being made to pass a value that did nothing.
+- The `:file_reference_sources` documentation now states that core ANDs each
+  returned expression onto the orphan query **verbatim** (#828, post-merge
+  review). The prose had promised a `NOT EXISTS` wrapper that the code never
+  applied, contradicting its own example; a host that believed it and returned a
+  positive `EXISTS` would have inverted the query and marked exactly its
+  referenced files as the orphans.
+- `MediaBrowser`'s `:featured` docs now state that a host funnelling every
+  `{MediaBrowser, _, _}` message into `handle_parent_info/2` loses the message to
+  that function's catch-all (#829, post-merge review) — silently, with the star
+  still flipping in the UI, rather than failing in any way the host would notice.
+
 ## 2.29.1 - 2026-09-17
 
 ### Added

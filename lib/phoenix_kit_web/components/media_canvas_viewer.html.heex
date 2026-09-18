@@ -401,9 +401,16 @@
             </button>
             <%!-- See MediaBrowser's `:featured` attr. This component owns no
                   pointer of its own — the click goes straight to the parent
-                  LiveComponent (`:parent_id`), same routing as close/prev/next. --%>
+                  LiveComponent (`:parent_id`), same routing as close/prev/next.
+                  A trashed file is never offered: the browser's three kebabs
+                  gate the same action on `!@filter_trash`, and the viewer opens
+                  on trashed files too (the trash listing's tiles click through
+                  to it), so without this a file on its way out could still be
+                  made the host's featured image. Read defensively — only a host
+                  that opted into `:featured` gets here, and `@featured &&`
+                  short-circuits for everyone else. --%>
             <button
-              :if={@featured && f.file_type == "image"}
+              :if={@featured && f.file_type == "image" && Map.get(f, :status) != "trashed"}
               type="button"
               phx-click={
                 if @featured.uuid == f.file_uuid, do: "unset_featured", else: "set_featured"

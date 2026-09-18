@@ -109,11 +109,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     the same toggle. The browser never persists anything itself:
     choosing or clearing a featured image sends
     `{__MODULE__, id, {:set_featured, uuid | nil}}` to the host
-    process (the same channel `handle_parent_info/2` already delegates
-    to — hosts that route every `{MediaBrowser, _, _}` message through
-    it must match `{:set_featured, _}` first, since
-    `handle_parent_info/2` does not handle it) and optimistically moves
-    the badge locally. The host persists the choice and, if the write is
+    process — the `{MediaBrowser, id, payload}` channel `{:navigate, _}`
+    already uses — and optimistically moves the badge locally.
+    ⚠️ A host that funnels every `{MediaBrowser, _, _}` message into
+    `handle_parent_info/2` **must match `{:set_featured, _}` before it**:
+    that function handles only its own two internal messages and ends in
+    a catch-all, so the choice is swallowed silently — no crash, no log,
+    the star flips in the UI and nothing is ever persisted. The host persists the choice and, if the write is
     rejected or the pointer changes elsewhere, corrects it with a later
     `featured` assign (e.g. via `send_update`).
   """

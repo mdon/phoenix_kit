@@ -102,7 +102,6 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCard do
       <:title>{@title || gettext("Preview")}</:title>
 
       <.preview_card_body
-        target={@target}
         title={@title}
         images={@images}
         fields={@fields}
@@ -122,7 +121,10 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCard do
   @doc """
   The card's content without the modal shell — the "notpopup" form, for
   embedding the same preview inline (a detail pane, a future product
-  page). Same attrs as `preview_card/1` minus the modal ones.
+  page). Same attrs as `preview_card/1` minus the modal ones — and
+  minus `:target`: the body renders no event of its own (slide
+  switching is client-side, the close button lives in the modal's
+  action row), so an inline embedder has nothing to point at.
 
   The media area is ONE continuous swipeable carousel: images first, then
   the attached files (a PDF renders inline, any other file as a tile) — the
@@ -130,7 +132,6 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCard do
   Scroll-snap (daisyUI `carousel`) drives it entirely client-side: native
   swipe on touch, arrow buttons on desktop, no server round-trip per slide.
   """
-  attr(:target, :any, required: true)
   attr(:title, :string, default: nil)
   attr(:images, :list, default: [])
   attr(:fields, :list, default: [])

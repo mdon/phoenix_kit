@@ -47,6 +47,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
     file
   end
 
+  defp create_trashed_file!(folder_uuid) do
+    file = create_file!(folder_uuid)
+
+    {:ok, file} =
+      file
+      |> Ecto.Changeset.change(%{
+        status: "trashed",
+        trashed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+      |> Repo.update()
+
+    file
+  end
+
   defp ensure_user! do
     case Process.get(:test_owner_user_uuid) do
       nil ->
@@ -337,6 +351,25 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
 
       assert_receive {:set_featured_received, file_uuid} when file_uuid == file.uuid
       assert html =~ "Unset featured"
+    end
+
+    test "a trashed image offers no toggle, matching the kebabs' !@filter_trash gate" do
+      # The three kebabs hide the action while the trash listing is up, but the
+      # viewer opens on trashed files too (a trash tile clicks straight through
+      # to it) — without its own gate the sidebar would happily make a file on
+      # its way out the host's featured image.
+      folder = create_folder!()
+      file = create_trashed_file!(folder.uuid)
+      view = open_host(folder, %{uuid: nil, label: nil})
+
+      view |> element("[phx-click='toggle_trash_filter']") |> render_click()
+
+      view
+      |> element("[phx-click='click_file'][phx-value-file-uuid='#{file.uuid}']")
+      |> render_click()
+
+      assert has_element?(view, "#mb-viewer-modal")
+      refute has_element?(view, "#mb-viewer-modal [phx-click='set_featured']")
     end
 
     test "the toggle is not offered when the host never opted in" do
