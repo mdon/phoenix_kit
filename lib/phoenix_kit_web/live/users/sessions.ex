@@ -304,6 +304,11 @@ defmodule PhoenixKitWeb.Live.Users.Sessions do
     {:noreply, socket}
   end
 
+  def outcome_label("invalid_credentials"), do: gettext("Wrong password")
+  def outcome_label("rate_limited"), do: gettext("Rate limited")
+  def outcome_label("inactive"), do: gettext("Correct password, deactivated")
+  def outcome_label(other), do: other
+
   @doc """
   Readable "Browser · OS" for a session row, or an "Unknown device" fallback
   for sessions created before the device name was captured (pre-V148).

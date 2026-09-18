@@ -53,9 +53,36 @@
   a large attempt count over few buckets is one concentrated attack, the
   reverse is a spray. The attacker-controlled identifier is shown here (it is
   what makes "someone is hammering `admin@`" visible) and is escaped by HEEx;
-  a regression test asserts a `<script>` identifier renders as text.
+  a regression test asserts a `<script>` identifier renders as text. Each row
+  also names the outcome, so `"inactive"` (correct password, deactivated
+  account) is visible instead of looking like just another wrong password.
+- **Authorization settings for the new keys**, on `/admin/settings/authorization`.
+  `failed_login_alert_enabled` defaults off because it sends mail; without a
+  control it was unreachable except by writing the settings table directly.
 
 ### Fixed
+
+- **A bucket that opened against no account stayed unattached for the rest of
+  the hour** even after that identifier became a real user. `ON CONFLICT`
+  only incremented the count and `last_at`, so the account holder never saw
+  those attempts and the threshold alert undercounted them. The upsert now
+  `COALESCE`s `user_uuid` from the incoming row.
+- **Add-account (the multi-session password form) recorded nothing.** A wrong
+  password, a rate-limited try, and a deactivated account with the right
+  password now write the same three outcomes as the login form.
+- **The threshold alert could fire when the insert had failed**, and a
+  `custom_fields` stamp that failed still sent the email — so every later
+  failure retried it. The alert now runs only after a successful write, and
+  only after the cooldown stamp commits.
+- **The add-account fallback clause was unreachable.** Dialyzer proves
+  `MultiSession.add_account/3` returns only three reasons, so the defensive
+  catch-all could never match — but deleting it would mean a fourth reason
+  added later raises `FunctionClauseError` on the sign-in path. It is a map
+  lookup now, which keeps the fallback reachable and the guarantee intact.
+- **Null bytes in the identifier crashed the insert** (Postgres rejects
+  `\\x00` even though it is valid UTF-8) and truncation used graphemes
+  against a `varchar(160)` that counts codepoints. Both are normalized
+  before write so an attacker-controlled identifier cannot skip recording.
 
 - **The login rate limiter counted successful sign-ins.**
   `check_login_rate_limit/2` runs *before* the password is verified, and it

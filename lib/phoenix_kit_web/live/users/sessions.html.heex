@@ -95,6 +95,7 @@
                 <th>{gettext("Attempts")}</th>
                 <th>{gettext("Account")}</th>
                 <th>{gettext("Tried")}</th>
+                <th>{gettext("Outcome")}</th>
                 <th>{gettext("Network")}</th>
                 <th>{gettext("Device")}</th>
                 <th>{gettext("Last seen")}</th>
@@ -114,6 +115,7 @@
                 <td class="text-xs text-base-content/60 max-w-xs truncate">
                   {attempt.identifier}
                 </td>
+                <td class="text-xs text-base-content/60">{outcome_label(attempt.outcome)}</td>
                 <td class="text-xs text-base-content/60">{attempt.ip_network}</td>
                 <td class="text-xs text-base-content/60">
                   {Enum.join(Enum.reject([attempt.browser, attempt.os], &is_nil/1), " on ")}

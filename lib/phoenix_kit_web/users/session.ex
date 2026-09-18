@@ -383,12 +383,36 @@ defmodule PhoenixKitWeb.Users.Session do
           |> put_flash(:error, gettext("That account is already in your session."))
           |> redirect_back(params)
 
-        {:error, _reason} ->
+        {:error, reason} ->
+          # Same three outcomes as the login form. `:stack_full` and
+          # `:already_in_stack` above are not failed sign-ins — the
+          # credentials checked out.
+          record_failed_sign_in(conn, email_or_username, reason)
+
           conn
           |> put_flash(:error, gettext("Invalid email/username or password."))
           |> redirect_back(params)
       end
     end)
+  end
+
+  # A map rather than function clauses with a catch-all. Dialyzer can prove
+  # `MultiSession.add_account/3` returns only these three reasons and so calls
+  # a fallback CLAUSE unreachable — but deleting the fallback would mean a
+  # fourth reason added later raises FunctionClauseError on the sign-in path,
+  # which is the one thing this subsystem must never do. A map lookup keeps the
+  # fallback reachable and the guarantee intact.
+  @outcome_by_reason %{
+    invalid_credentials: "invalid_credentials",
+    rate_limit_exceeded: "rate_limited",
+    inactive: "inactive"
+  }
+
+  defp record_failed_sign_in(conn, identifier, reason) do
+    case Map.get(@outcome_by_reason, reason) do
+      nil -> :ok
+      outcome -> LoginAttempts.record(conn, identifier, outcome)
+    end
   end
 
   def set_active_account(conn, %{"ref" => ref} = params) do

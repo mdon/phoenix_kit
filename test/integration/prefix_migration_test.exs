@@ -34,6 +34,7 @@ defmodule PhoenixKit.Integration.PrefixMigrationTest do
   alias Ecto.Adapters.SQL.Sandbox
   alias PhoenixKit.Migrations.Postgres
   alias PhoenixKit.Test.Repo
+  alias PhoenixKit.Users.LoginAttempts
 
   @moduletag :integration
   # The full chain is 140+ versions — well past the default 60s.
@@ -208,5 +209,74 @@ defmodule PhoenixKit.Integration.PrefixMigrationTest do
 
     assert fn_restored,
            "Postgres.up did not re-ensure uuid_generate_v7 at the prefix on an upgrade chain"
+
+    assert_login_attempt_upsert_works_in_prefix()
+  end
+
+  # The failed-sign-in bucket upsert (V197) is the only `ON CONFLICT ... DO
+  # UPDATE` in core whose SET clause reads the proposed row through
+  # `EXCLUDED`. `EXCLUDED` is a Postgres keyword, not a relation, so it must
+  # never be schema-qualified — and the `public` path cannot demonstrate that,
+  # because there qualification is a no-op. This runs the REAL statement
+  # (`LoginAttempts.upsert/3`, not a copy) against the prefixed schema.
+  defp assert_login_attempt_upsert_works_in_prefix do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    attrs = %{
+      user_uuid: nil,
+      identifier: "prefix-probe@example.com",
+      ip_address: "203.0.113.7",
+      ip_network: "203.0.113.7",
+      user_agent_hash: String.duplicate("a", 64),
+      browser: "Firefox",
+      os: "Linux",
+      outcome: "invalid_credentials",
+      attempt_count: 1,
+      bucket_start: %{now | minute: 0, second: 0, microsecond: {0, 0}},
+      first_at: now,
+      last_at: now
+    }
+
+    assert {:ok, _} = LoginAttempts.upsert(attrs, now, prefix: @schema)
+
+    # Second hit: the conflict path is what carries the EXCLUDED fragment.
+    assert {:ok, _} = LoginAttempts.upsert(attrs, now, prefix: @schema)
+
+    %{rows: [[count, attached]]} =
+      Repo.query!(
+        """
+        SELECT attempt_count, user_uuid FROM #{@schema}.phoenix_kit_login_attempts
+        WHERE identifier = $1
+        """,
+        ["prefix-probe@example.com"]
+      )
+
+    assert count == 2, "the prefixed upsert did not aggregate"
+    assert is_nil(attached)
+
+    # And COALESCE must take the incoming uuid once the account exists.
+    %{rows: [[user_uuid]]} =
+      Repo.query!(
+        """
+        INSERT INTO #{@schema}.phoenix_kit_users (email, hashed_password, inserted_at, updated_at)
+        VALUES ($1, 'not-a-hash', now(), now()) RETURNING uuid
+        """,
+        ["prefix-probe@example.com"]
+      )
+
+    assert {:ok, _} =
+             LoginAttempts.upsert(%{attrs | user_uuid: user_uuid}, now, prefix: @schema)
+
+    %{rows: [[count, attached]]} =
+      Repo.query!(
+        """
+        SELECT attempt_count, user_uuid FROM #{@schema}.phoenix_kit_login_attempts
+        WHERE identifier = $1
+        """,
+        ["prefix-probe@example.com"]
+      )
+
+    assert count == 3
+    assert attached == user_uuid, "COALESCE(?, EXCLUDED.user_uuid) did not attach under a prefix"
   end
 end

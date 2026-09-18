@@ -113,12 +113,13 @@ defmodule PhoenixKit.Users.LoginAttempts do
 
   defp do_record(conn, identifier, outcome, opts) do
     identifier = normalize_identifier(identifier)
+    user = resolve_user(identifier, opts)
     ip_address = IpAddress.extract_from_conn(conn)
     ua = user_agent_header(conn)
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     attrs = %{
-      user_uuid: resolve_user_uuid(identifier, opts),
+      user_uuid: user && user.uuid,
       identifier: identifier,
       ip_address: ip_address,
       # `network/1` returns nil for an address it cannot parse ("unknown" from
@@ -135,39 +136,71 @@ defmodule PhoenixKit.Users.LoginAttempts do
       last_at: now
     }
 
+    # An invalid changeset (or a constraint the upsert cannot satisfy) must
+    # not still fire the alert: that would warn about a row we did not write.
+    case upsert(attrs, now) do
+      {:ok, _} -> user
+      {:error, _} -> nil
+    end
+  end
+
+  @doc """
+  The bucket upsert, extracted so a test can run the real statement rather
+  than a copy that drifts from it.
+
+  `opts` reaches `Repo.insert/2`; `test/integration/prefix_migration_test.exs`
+  passes `prefix:` to prove the `EXCLUDED` fragment below survives a
+  named-schema install, which the `public` path cannot demonstrate.
+  """
+  @spec upsert(map(), DateTime.t(), keyword()) ::
+          {:ok, LoginAttempt.t()} | {:error, Ecto.Changeset.t()}
+  def upsert(attrs, %DateTime{} = now, opts \\ []) do
     %LoginAttempt{}
     |> LoginAttempt.changeset(attrs)
     |> RepoHelper.repo().insert(
-      # `first_at` is deliberately absent: it must keep saying when this
-      # bucket opened, not when it was last touched.
-      on_conflict: [inc: [attempt_count: 1], set: [last_at: now]],
-      conflict_target: [:identifier, :ip_network, :outcome, :bucket_start]
+      Keyword.merge(
+        [
+          # `first_at` is deliberately absent: it must keep saying when this
+          # bucket opened, not when it was last touched.
+          #
+          # `user_uuid` uses COALESCE so a bucket that opened against an
+          # unknown identifier (the account did not exist yet) attaches once
+          # the account appears, instead of staying "no such account" for the
+          # rest of the hour.
+          #
+          # `EXCLUDED` is a Postgres keyword for the proposed row, NOT a
+          # relation, so it must never be schema-qualified.
+          on_conflict:
+            from(a in LoginAttempt,
+              update: [
+                inc: [attempt_count: 1],
+                set: [
+                  last_at: ^now,
+                  user_uuid: fragment("COALESCE(?, EXCLUDED.user_uuid)", a.user_uuid)
+                ]
+              ]
+            ),
+          conflict_target: [:identifier, :ip_network, :outcome, :bucket_start]
+        ],
+        opts
+      )
     )
-
-    attrs.user_uuid
   end
 
   # The caller knows the account only on the inactive branch. Everywhere else
   # `Auth` collapses "no such user" and "wrong password" into one return value
   # on purpose, so the lookup happens here rather than by widening that API.
-  defp resolve_user_uuid(identifier, opts) do
+  # Same resolver the login form uses, so an identifier with `@` cannot attach
+  # to a username that happens to equal some other account's email.
+  defp resolve_user(identifier, opts) do
     case Keyword.get(opts, :user) do
-      %User{uuid: uuid} -> uuid
-      _ -> lookup_user_uuid(identifier)
+      %User{} = user -> user
+      _ -> lookup_user(identifier)
     end
   end
 
-  defp lookup_user_uuid(""), do: nil
-
-  defp lookup_user_uuid(identifier) do
-    RepoHelper.repo().one(
-      from(u in User,
-        where: u.email == ^identifier or u.username == ^identifier,
-        select: u.uuid,
-        limit: 1
-      )
-    )
-  end
+  defp lookup_user(""), do: nil
+  defp lookup_user(identifier), do: Auth.get_user_by_email_or_username(identifier)
 
   @doc """
   Whether a burst of failures warns the account holder
@@ -201,27 +234,30 @@ defmodule PhoenixKit.Users.LoginAttempts do
   # nothing to warn anyone with when the feature is off.
   defp maybe_alert(nil), do: :ok
 
-  defp maybe_alert(user_uuid) do
-    if alerts_enabled?(), do: do_alert(user_uuid)
+  defp maybe_alert(%User{} = user) do
+    if alerts_enabled?(), do: do_alert(user)
     :ok
   end
 
-  defp do_alert(user_uuid) do
+  defp do_alert(%User{} = user) do
     window_start = DateTime.add(DateTime.utc_now(), -@alert_window_hours * 3600, :second)
-    count = count_for_user_since(user_uuid, window_start)
+    count = count_for_user_since(user, window_start)
 
-    if count >= alert_threshold() do
-      user = RepoHelper.repo().get(User, user_uuid)
+    # The cap is the point: an attacker who keeps going must not be able to
+    # turn this into a mail flood against the person they are attacking.
+    # Stamp MUST succeed before the send: a stamp that fails (user gone,
+    # custom_fields rejected) would otherwise retry on every subsequent
+    # failure and become the flood.
+    if count >= alert_threshold() and alert_due?(user) do
+      case stamp_alert(user) do
+        {:ok, _} ->
+          UserNotifier.deliver_failed_login_alert(user, %{
+            count: count,
+            window_hours: @alert_window_hours
+          })
 
-      # The cap is the point: an attacker who keeps going must not be able to
-      # turn this into a mail flood against the person they are attacking.
-      if user && alert_due?(user) do
-        stamp_alert(user)
-
-        UserNotifier.deliver_failed_login_alert(user, %{
-          count: count,
-          window_hours: @alert_window_hours
-        })
+        _ ->
+          :ok
       end
     end
 
@@ -271,9 +307,21 @@ defmodule PhoenixKit.Users.LoginAttempts do
 
   def normalize_identifier(identifier) when is_binary(identifier) do
     identifier
+    |> String.replace("\0", "")
     |> String.trim()
     |> String.downcase()
-    |> String.slice(0, @identifier_max)
+    |> truncate_identifier()
+  end
+
+  # `varchar(160)` counts Postgres characters (codepoints). `String.slice/2`
+  # counts graphemes, and a grapheme can be several codepoints — 160 emoji
+  # with ZWJ sequences would overflow the column and the insert would raise
+  # rather than record.
+  defp truncate_identifier(identifier) do
+    identifier
+    |> String.codepoints()
+    |> Enum.take(@identifier_max)
+    |> List.to_string()
   end
 
   @doc "The hour `at` falls in — the dedup bucket."
@@ -321,6 +369,10 @@ defmodule PhoenixKit.Users.LoginAttempts do
         limit: ^limit
       )
     )
+  rescue
+    _ -> []
+  catch
+    :exit, _ -> []
   end
 
   @doc """
@@ -373,6 +425,10 @@ defmodule PhoenixKit.Users.LoginAttempts do
         preload: [:user]
       )
     )
+  rescue
+    _ -> []
+  catch
+    :exit, _ -> []
   end
 
   @doc "The configured retention period in days (`login_attempt_retention_days`, default 90)."

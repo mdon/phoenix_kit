@@ -1856,6 +1856,9 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                       {failed_attempt_source(attempt)}
                     </span>
                   </div>
+                  <div :if={attempt.outcome == "inactive"} class="text-xs text-warning">
+                    {gettext("Correct password, account was deactivated.")}
+                  </div>
                   <div class="text-xs text-base-content/60 truncate">
                     {attempt.ip_address}
                   </div>

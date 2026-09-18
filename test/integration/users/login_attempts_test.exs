@@ -113,6 +113,29 @@ defmodule PhoenixKit.Integration.Users.LoginAttemptsTest do
       assert Enum.any?(identifiers, &(String.length(&1) == 160))
     end
 
+    test "null bytes are stripped from the identifier" do
+      # Postgres rejects \\x00 even though it is valid UTF-8; leaving it in
+      # would make the insert raise and the attempt go unrecorded.
+      LoginAttempts.record(conn_at(unique_ip()), "bad\0@example.com", "invalid_credentials")
+
+      assert [%LoginAttempt{identifier: "bad@example.com"}] = attempts()
+    end
+
+    test "a bucket that opened against no account attaches once the account exists" do
+      email = unique_email()
+      ip = unique_ip()
+
+      LoginAttempts.record(conn_at(ip), email, "invalid_credentials")
+      assert [%LoginAttempt{user_uuid: nil, attempt_count: 1}] = attempts()
+
+      user = create_user(%{email: email})
+
+      LoginAttempts.record(conn_at(ip), email, "invalid_credentials")
+
+      assert [%LoginAttempt{user_uuid: user_uuid, attempt_count: 2}] = attempts()
+      assert user_uuid == user.uuid
+    end
+
     test "the browser and OS are captured from the user agent" do
       LoginAttempts.record(
         conn_at(unique_ip(), "Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0"),
@@ -360,6 +383,9 @@ defmodule PhoenixKit.Integration.Users.LoginAttemptsTest do
       assert_email_sent(fn email ->
         refute email.text_body =~ "{{failed_attempts}}"
         assert email.text_body =~ "3"
+        # The substitution has to survive in a translated catalogue, not just
+        # leave a number somewhere in an otherwise-English body.
+        assert email.text_body =~ "fehlgeschlagene Anmeldeversuche"
       end)
     end
 
@@ -453,6 +479,7 @@ defmodule PhoenixKit.Integration.Users.LoginAttemptsTest do
       assert html =~ "12"
       assert html =~ victim.email
       assert html =~ "Firefox on Linux"
+      assert html =~ "Wrong password"
     end
 
     test "names attempts that matched no account as such", %{conn: conn} do
@@ -542,6 +569,69 @@ defmodule PhoenixKit.Integration.Users.LoginAttemptsTest do
       # The most interesting outcome of the three: somebody has the password.
       assert [%LoginAttempt{outcome: "inactive", user_uuid: user_uuid}] = attempts()
       assert user_uuid == user.uuid
+    end
+
+    test "a wrong password on add-account is recorded against the real account", %{conn: conn} do
+      {:ok, _} = Settings.update_setting("multi_session_enabled", "true")
+      on_exit(fn -> Settings.update_setting("multi_session_enabled", "false") end)
+
+      holder = create_user()
+      {:ok, _} = Auth.admin_confirm_user(holder)
+      target = create_user()
+
+      conn =
+        conn
+        |> Map.put(:remote_ip, unique_ip())
+        |> log_in_user(holder)
+
+      post(conn, Routes.path("/users/session/accounts"), %{
+        "user" => %{"email_or_username" => target.email, "password" => "wrong-#{@password}"}
+      })
+
+      assert [%LoginAttempt{outcome: "invalid_credentials", user_uuid: user_uuid}] = attempts()
+      assert user_uuid == target.uuid
+    end
+  end
+
+  describe "the authorization settings page" do
+    setup %{conn: conn} do
+      {admin, _token} = create_admin_user()
+      {:ok, conn: log_in_user(conn, admin)}
+    end
+
+    test "exposes the failed-sign-in toggles", %{conn: conn} do
+      {:ok, _view, html} = live(conn, Routes.path("/admin/settings/authorization"))
+
+      assert html =~ "Record failed sign-ins"
+      assert html =~ "Email users when failed sign-ins on their account cross a threshold"
+      assert html =~ "name=\"settings[failed_login_alert_enabled]\""
+      assert html =~ "name=\"settings[login_attempt_logging_enabled]\""
+    end
+
+    test "saving the form persists the new settings", %{conn: conn} do
+      on_exit(fn ->
+        Settings.update_setting("failed_login_alert_enabled", "false")
+        Settings.update_setting("failed_login_alert_threshold", "10")
+        Settings.update_setting("login_attempt_logging_enabled", "true")
+        Settings.update_setting("login_attempt_retention_days", "90")
+      end)
+
+      {:ok, view, _html} = live(conn, Routes.path("/admin/settings/authorization"))
+
+      view
+      |> form("#authorization_settings_form", %{
+        "settings" => %{
+          "failed_login_alert_enabled" => "true",
+          "failed_login_alert_threshold" => "7",
+          "login_attempt_logging_enabled" => "true",
+          "login_attempt_retention_days" => "30"
+        }
+      })
+      |> render_submit()
+
+      assert Settings.get_setting("failed_login_alert_enabled") == "true"
+      assert Settings.get_setting("failed_login_alert_threshold") == "7"
+      assert Settings.get_setting("login_attempt_retention_days") == "30"
     end
   end
 end

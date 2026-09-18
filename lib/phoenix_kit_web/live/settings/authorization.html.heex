@@ -306,6 +306,29 @@
                 >
                   {gettext("Email users when their account is signed in from a new device")}
                 </.checkbox>
+                <.checkbox
+                  name="settings[failed_login_alert_enabled]"
+                  checked={@settings["failed_login_alert_enabled"] == "true"}
+                  wrapper_class="ml-4 mt-2"
+                >
+                  {gettext("Email users when failed sign-ins on their account cross a threshold")}
+                  <:description>
+                    {gettext(
+                      "At most one email per account per 24 hours, so an attack cannot flood their inbox."
+                    )}
+                  </:description>
+                </.checkbox>
+                <div class="ml-8 mt-2 max-w-xs">
+                  <.input
+                    id="failed-login-alert-threshold"
+                    type="number"
+                    min="1"
+                    max="10000"
+                    name="settings[failed_login_alert_threshold]"
+                    value={@settings["failed_login_alert_threshold"] || "10"}
+                    label={gettext("Failures in one hour that trigger the email")}
+                  />
+                </div>
               </div>
 
               <%!-- OAuth Methods --%>
@@ -697,6 +720,39 @@
                   )}
                 </:description>
               </.checkbox>
+            </div>
+
+            <div class="fieldset w-full mt-6">
+              <label class="label">
+                <span class="fieldset-legend text-base font-medium">
+                  {gettext("Failed sign-ins")}
+                </span>
+                <span class="fieldset-label text-sm text-base-content/60">
+                  {gettext("What is stored when a password sign-in does not succeed")}
+                </span>
+              </label>
+              <.checkbox
+                name="settings[login_attempt_logging_enabled]"
+                checked={@settings["login_attempt_logging_enabled"] == "true"}
+                label={gettext("Record failed sign-ins")}
+              >
+                <:description>
+                  {gettext(
+                    "Aggregated by identifier, network, and hour. Shown on the account holder's settings page and on Active Sessions."
+                  )}
+                </:description>
+              </.checkbox>
+              <div class="mt-3 max-w-xs">
+                <.input
+                  id="login-attempt-retention-days"
+                  type="number"
+                  min="1"
+                  max="3650"
+                  name="settings[login_attempt_retention_days]"
+                  value={@settings["login_attempt_retention_days"] || "90"}
+                  label={gettext("Keep records for (days)")}
+                />
+              </div>
             </div>
           </div>
 
