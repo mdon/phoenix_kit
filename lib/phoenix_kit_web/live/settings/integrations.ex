@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # Imported per-LiveView rather than from `PhoenixKitWeb, :live_view`: a host
   # app that defines its own `row_link/1` would get an ambiguous import the
   # moment core wired this one in project-wide.
+  import PhoenixKitWeb.Components.Core.IntegrationsUI, only: [validation_note_style: 1]
   import PhoenixKitWeb.Components.Core.RowLink, only: [row_link: 1]
 
   alias PhoenixKit.Integrations
@@ -91,7 +92,8 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     {:noreply,
      socket
      |> assign(:validating, nil)
-     |> load_connections()}
+     |> load_connections()
+     |> check_flash(result)}
   end
 
   # ---------------------------------------------------------------------------
@@ -471,4 +473,27 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     do: gettext("derived from secret_key_base")
 
   def fingerprint_tier(_report), do: gettext("unrecognised key state")
+  # A check from the list said nothing at all before: the row was reloaded and
+  # whatever the provider reported was dropped. What it reports is now the only
+  # place a figure appears — a balance, the searches left — since a figure is
+  # never stored (`t:PhoenixKit.Integrations.Probe.note/0`).
+  defp check_flash(socket, result) do
+    case result do
+      :unverified ->
+        put_flash(
+          socket,
+          :warning,
+          gettext("Not tested — this provider has no connection check")
+        )
+
+      {:error, reason} ->
+        put_flash(socket, :error, "#{gettext("Test failed")}: #{reason}")
+
+      _ok ->
+        case Integrations.note_text(result) do
+          nil -> put_flash(socket, :info, gettext("Connection verified"))
+          note -> put_flash(socket, :info, "#{gettext("Connection verified")} — #{note}")
+        end
+    end
+  end
 end

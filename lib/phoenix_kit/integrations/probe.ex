@@ -45,8 +45,26 @@ defmodule PhoenixKit.Integrations.Probe do
   require Logger
 
   @typedoc """
+  What a check has to say beyond pass or fail, split by how long it stays true.
+
+    * `:fact` — a standing property of this connection: the account it belongs
+      to, the bot it is, a permission it lacks. It stays true until the
+      credentials or the account change, so it is stored on the connection and
+      shown with it.
+    * `:reading` — a figure at the moment of the check: a balance, remaining
+      credits, a send quota. It is out of date as soon as anything runs, so it
+      is reported once, to whoever asked for the check, and never stored.
+      Somewhere that wants a current figure asks for a check of its own
+      (`PhoenixKit.Integrations.reading/2`).
+
+  A bare string is read as a `:fact`, which is what validators returned before
+  the two were told apart.
+  """
+  @type note :: %{optional(:fact) => String.t(), optional(:reading) => String.t()}
+
+  @typedoc """
   Talks to the network; answers `:ok`, `{:ok, note}` when it succeeded but has
-  something the operator needs to know, `{:error, message}` when it was
+  something to say as well (see `t:note/0`), `{:error, message}` when it was
   actively rejected, or `{:inconclusive, message}` when the check could not
   reach a yes/no verdict at all (a response neither a pass nor a rejection) —
   distinct from `:error` so a caller can tell "definitely wrong" apart from
@@ -54,7 +72,7 @@ defmodule PhoenixKit.Integrations.Probe do
   """
   @type check ::
           (-> :ok
-              | {:ok, String.t()}
+              | {:ok, String.t() | note()}
               | {:error, String.t()}
               | {:inconclusive, String.t()})
 
@@ -68,7 +86,10 @@ defmodule PhoenixKit.Integrations.Probe do
   check does not outlive it.
   """
   @spec run(check(), timeout()) ::
-          :ok | {:ok, String.t()} | {:error, String.t()} | {:inconclusive, String.t()}
+          :ok
+          | {:ok, String.t() | note()}
+          | {:error, String.t()}
+          | {:inconclusive, String.t()}
   def run(check, deadline \\ deadline()) when is_function(check, 0) do
     parent = self()
     ref = make_ref()

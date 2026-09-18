@@ -29,6 +29,24 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
   def integration_status_badge(_), do: {"badge-ghost", gettext("Not configured")}
 
   @doc """
+  How a stored check note should read, as `{text class, icon}`.
+
+  An error is an error. A connection nothing has tested yet is a caution. But
+  a note on a *connected* connection is a standing fact about it — the account
+  it belongs to, the bot it is, a permission it lacks — and a fact is
+  information, not a warning: a green connection with an orange triangle
+  beside it reads as a problem that isn't there. Readings that go stale are not
+  stored at all (`t:PhoenixKit.Integrations.Probe.note/0`).
+  """
+  @spec validation_note_style(String.t() | nil) :: {String.t(), String.t()}
+  def validation_note_style("error"), do: {"text-error", "hero-exclamation-triangle"}
+
+  def validation_note_style("connected"),
+    do: {"text-base-content/70", "hero-information-circle"}
+
+  def validation_note_style(_status), do: {"text-warning", "hero-exclamation-triangle"}
+
+  @doc """
   Humanizes a UTC ISO8601 timestamp into a relative phrase like
   "2 hours ago" / "3 days ago" / "Apr 28 2026". `nil`/`""` → `nil`; falls
   back to the raw string on parse failure.
@@ -174,14 +192,12 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
               }
               class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs items-center"
             >
+              <% {note_class, note_icon} = validation_note_style(@data["status"]) %>
               <span
                 :if={@data["validation_status"] not in [nil, "", "ok"]}
-                class={[
-                  "inline-flex items-center gap-1",
-                  if(@data["status"] == "error", do: "text-error", else: "text-warning")
-                ]}
+                class={["inline-flex items-center gap-1", note_class]}
               >
-                <.icon name="hero-exclamation-triangle" class="w-3 h-3" />
+                <.icon name={note_icon} class="w-3 h-3" />
                 {@data["validation_status"]}
               </span>
               <span

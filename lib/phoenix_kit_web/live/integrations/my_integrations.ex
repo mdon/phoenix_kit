@@ -15,7 +15,8 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
-  import PhoenixKitWeb.Components.Core.IntegrationsUI, only: [integration_status_badge: 1]
+  import PhoenixKitWeb.Components.Core.IntegrationsUI,
+    only: [integration_status_badge: 1, validation_note_style: 1]
 
   # Imported per-LiveView rather than from `PhoenixKitWeb, :live_view`: a host
   # app that defines its own `row_link/1` would get an ambiguous import the
@@ -85,7 +86,8 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
       Integrations.validate_connection(uuid, socket.assigns.user_uuid, owner: owner(socket))
 
     Integrations.record_validation(uuid, result, owner: owner(socket))
-    {:noreply, socket |> assign(:validating, nil) |> load_connections()}
+
+    {:noreply, socket |> assign(:validating, nil) |> load_connections() |> check_flash(result)}
   end
 
   # Live updates over this user's personal topic.
@@ -241,12 +243,10 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
                     <% {badge_class, badge_text} = integration_status_badge(conn.data["status"]) %>
                     <div>
                       <span class={"badge badge-sm #{badge_class}"}>{badge_text}</span>
+                      <% {note_class, _icon} = validation_note_style(conn.data["status"]) %>
                       <span
                         :if={conn.data["validation_status"] not in [nil, "", "ok"]}
-                        class={[
-                          "text-xs block mt-0.5",
-                          if(conn.data["status"] == "error", do: "text-error", else: "text-warning")
-                        ]}
+                        class={["text-xs block mt-0.5", note_class]}
                       >
                         {conn.data["validation_status"]}
                       </span>
@@ -332,5 +332,27 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
       </div>
     </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
     """
+  end
+
+  # As on the website list: what the check reported is where a figure appears,
+  # because a figure is never stored (`t:PhoenixKit.Integrations.Probe.note/0`).
+  defp check_flash(socket, result) do
+    case result do
+      :unverified ->
+        put_flash(
+          socket,
+          :warning,
+          gettext("Not tested — this provider has no connection check")
+        )
+
+      {:error, reason} ->
+        put_flash(socket, :error, reason)
+
+      _ok ->
+        case Integrations.note_text(result) do
+          nil -> put_flash(socket, :info, gettext("Connection works"))
+          note -> put_flash(socket, :info, note)
+        end
+    end
   end
 end
