@@ -1581,6 +1581,8 @@
                               </div>
                             <% end %>
 
+                            <.featured_badge file={file} featured={@featured} />
+
                             <div class="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded pointer-events-none">
                               {format_file_size(file.size)}
                             </div>
@@ -1622,6 +1624,28 @@
                                 phx-value-file-uuid={file.file_uuid}
                                 icon="hero-adjustments-horizontal"
                                 label={gettext("Edit image")}
+                              />
+                              <%!-- See the moduledoc's `:featured` attr — off
+                                    entirely when the host didn't opt in. --%>
+                              <.table_row_menu_button
+                                :if={@featured && file.file_type == "image" && !@filter_trash}
+                                phx-click={
+                                  if featured?(@featured, file.file_uuid),
+                                    do: "unset_featured",
+                                    else: "set_featured"
+                                }
+                                phx-target={@myself}
+                                phx-value-file-uuid={file.file_uuid}
+                                icon={
+                                  if featured?(@featured, file.file_uuid),
+                                    do: "hero-star-solid",
+                                    else: "hero-star"
+                                }
+                                label={
+                                  if featured?(@featured, file.file_uuid),
+                                    do: gettext("Unset featured"),
+                                    else: gettext("Set as featured")
+                                }
                               />
                               <.table_row_menu_button
                                 :if={file.file_type == "image"}
@@ -1749,6 +1773,7 @@
                                   select_mode={@select_mode}
                                   selected_files={@selected_files}
                                   filter_trash={@filter_trash}
+                                  featured={@featured}
                                   myself={@myself}
                                 />
                               <% end %>
@@ -1807,6 +1832,7 @@
                                   select_mode={@select_mode}
                                   selected_files={@selected_files}
                                   filter_trash={@filter_trash}
+                                  featured={@featured}
                                   myself={@myself}
                                 />
                               <% end %>
@@ -2270,6 +2296,32 @@
                                       icon="hero-adjustments-horizontal"
                                       label={gettext("Edit image")}
                                     />
+                                    <%!-- See the moduledoc's `:featured` attr
+                                          — off entirely when the host didn't
+                                          opt in. --%>
+                                    <.table_row_menu_button
+                                      :if={
+                                        @featured && file.file_type == "image" &&
+                                          !@filter_trash
+                                      }
+                                      phx-click={
+                                        if featured?(@featured, file.file_uuid),
+                                          do: "unset_featured",
+                                          else: "set_featured"
+                                      }
+                                      phx-target={@myself}
+                                      phx-value-file-uuid={file.file_uuid}
+                                      icon={
+                                        if featured?(@featured, file.file_uuid),
+                                          do: "hero-star-solid",
+                                          else: "hero-star"
+                                      }
+                                      label={
+                                        if featured?(@featured, file.file_uuid),
+                                          do: gettext("Unset featured"),
+                                          else: gettext("Set as featured")
+                                      }
+                                    />
                                     <.table_row_menu_button
                                       :if={file.file_type == "image"}
                                       phx-click="rotate_file"
@@ -2716,6 +2768,7 @@
           persist_rotation={true}
           details_path={if @admin, do: Routes.path("/admin/media/#{f.file_uuid}")}
           edit_target={if not @select_mode, do: {__MODULE__, @id}}
+          featured={@featured}
         />
       </div>
       <div class="modal-backdrop" phx-click="close_viewer" phx-target={@myself}></div>

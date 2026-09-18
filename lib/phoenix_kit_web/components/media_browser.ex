@@ -99,6 +99,23 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     rotations made in the viewer persist to the file row. Bulk-select is
     still reachable via the toolbar's Select button — once `select_mode`
     is on, clicks toggle selection instead of opening the modal.
+  - `featured` — `nil` (default, feature off) or `%{uuid: uuid | nil,
+    label: String.t() | nil}` naming the host's own featured-image
+    pointer. `label` is the star badge's tooltip; falls back to gettext
+    "Featured image" when nil/absent. When set, image tiles/rows gain a
+    "Set as featured" / "Unset featured" kebab item (grid, list and
+    stack views), the matching tile carries a `data-role="featured-badge"`
+    star overlay, and the modal viewer's sidebar (for image files) shows
+    the same toggle. The browser never persists anything itself:
+    choosing or clearing a featured image sends
+    `{__MODULE__, id, {:set_featured, uuid | nil}}` to the host
+    process (the same channel `handle_parent_info/2` already delegates
+    to — hosts that route every `{MediaBrowser, _, _}` message through
+    it must match `{:set_featured, _}` first, since
+    `handle_parent_info/2` does not handle it) and optimistically moves
+    the badge locally. The host persists the choice and, if the write is
+    rejected or the pointer changes elsewhere, corrects it with a later
+    `featured` assign (e.g. via `send_update`).
   """
   use PhoenixKitWeb, :live_component
 
@@ -185,6 +202,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # <audio> tag is the consumer remembering to re-check afterwards.
       # nil (default) leaves the toolbar in charge, starting at "all".
       |> assign_new(:only_file_type, fn -> nil end)
+      # `nil` (default) keeps the featured-image UI off entirely. A map
+      # turns it on; `notify_featured/2` rewrites `:uuid` in place on
+      # every toggle so the badge/kebab reflect the choice immediately,
+      # ahead of the host's own write landing.
+      |> assign_new(:featured, fn -> nil end)
       |> assign_new(:viewer_file, fn -> nil end)
       # The list the open viewer's prev/next steps through — the page's
       # files, or an expanded stack's own (see `locate_file/2`).
@@ -2281,6 +2303,21 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  # Featured image — see the moduledoc's `:featured` attr. The browser
+  # never writes anything itself: it tells the host and moves its own
+  # badge/kebab state so the click feels instant even though the host's
+  # persistence (and any `send_update` correction) is still in flight.
+  # No-op when the host never opted in (`:featured` is `nil`) — the kebab
+  # item and viewer button are both gated on it, so this only fires from
+  # a stale client render.
+  def handle_event("set_featured", %{"file-uuid" => file_uuid}, socket) do
+    {:noreply, notify_featured(socket, file_uuid)}
+  end
+
+  def handle_event("unset_featured", _params, socket) do
+    {:noreply, notify_featured(socket, nil)}
+  end
+
   def handle_event("toggle_trash_filter", _params, socket) do
     filter_trash = !socket.assigns.filter_trash
     # Trash is scoped to the current folder's subtree (see trash_scope/1);
@@ -2976,6 +3013,46 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # the same accent their icon does.
   defp drop_outline_color(color), do: folder_color_hex(color) || "oklch(var(--wa))"
 
+  # Relays a featured-image choice to the host and moves the browser's own
+  # `featured.uuid` so the badge/kebab flip immediately — see the
+  # moduledoc's `:featured` attr and the `"set_featured"`/`"unset_featured"`
+  # handle_event clauses above. A no-op when the host never opted in.
+  defp notify_featured(socket, uuid) do
+    case socket.assigns[:featured] do
+      nil ->
+        socket
+
+      featured ->
+        send(self(), {__MODULE__, socket.assigns.id, {:set_featured, uuid}})
+        assign(socket, :featured, %{featured | uuid: uuid})
+    end
+  end
+
+  # Whether `file_uuid` is the host's current featured image. `featured`
+  # is the raw `:featured` attr (nil when the host never opted in).
+  defp featured?(nil, _file_uuid), do: false
+  defp featured?(%{uuid: uuid}, file_uuid), do: uuid == file_uuid
+
+  # Star overlay for the tile currently pointed to by the host's
+  # `:featured` pointer. Shares placement with the video/PDF badges
+  # (top-2 left-2) — safe because those only ever appear on non-image
+  # files, and only images can be featured.
+  attr :file, :map, required: true
+  attr :featured, :any, default: nil
+
+  defp featured_badge(assigns) do
+    ~H"""
+    <div
+      :if={@file.file_type == "image" and featured?(@featured, @file.file_uuid)}
+      data-role="featured-badge"
+      class="absolute top-2 left-2 bg-warning text-warning-content p-1 rounded-full pointer-events-none shadow"
+      title={(@featured && @featured[:label]) || gettext("Featured image")}
+    >
+      <.icon name="hero-star-solid" class="w-3.5 h-3.5" />
+    </div>
+    """
+  end
+
   # A single file thumbnail tile, reused by the "Everything else" grid and each
   # expanded stack. Selection-aware; opens the viewer / detail on click.
   attr :file, :map, required: true
@@ -2987,6 +3064,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # StackExpand JS hook, which makes it fly out of the pile (FLIP) staggered by
   # this index. nil = no animation (grid / "Everything else" reuse).
   attr :index, :integer, default: nil
+  # See the moduledoc's `:featured` attr. `nil` (the default) keeps the
+  # star badge and kebab item off.
+  attr :featured, :any, default: nil
 
   defp file_card(assigns) do
     ~H"""
@@ -3049,6 +3129,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           PDF
         </div>
 
+        <.featured_badge file={@file} featured={@featured} />
+
         <div class="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded pointer-events-none">
           {format_file_size(@file.size)}
         </div>
@@ -3088,6 +3170,22 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           phx-value-file-uuid={@file.file_uuid}
           icon="hero-adjustments-horizontal"
           label={gettext("Edit image")}
+        />
+        <%!-- See the moduledoc's `:featured` attr — off entirely when the
+              host didn't opt in. --%>
+        <.table_row_menu_button
+          :if={@featured && @file.file_type == "image" && !@filter_trash}
+          phx-click={
+            if featured?(@featured, @file.file_uuid), do: "unset_featured", else: "set_featured"
+          }
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+          icon={if featured?(@featured, @file.file_uuid), do: "hero-star-solid", else: "hero-star"}
+          label={
+            if featured?(@featured, @file.file_uuid),
+              do: gettext("Unset featured"),
+              else: gettext("Set as featured")
+          }
         />
         <.table_row_menu_button
           :if={@file.file_type == "image"}
