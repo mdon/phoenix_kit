@@ -97,9 +97,15 @@ defmodule PhoenixKit.Email.Content do
       template ->
         rendered = Provider.current().render_template(template, variables, locale)
 
+        # A provider answers in ITS shape: core's own `DefaultProvider` returns
+        # `%{subject:, html_body:, text_body:}`, and `phoenix_kit_emails`
+        # validates exactly those three keys on every render. Normalising both
+        # bodies here is what lets each consumer read `.text`/`.html` whichever
+        # branch produced the content — reading `rendered.text` raised a
+        # KeyError on every send that found a template in the database.
         %{
           subject: rendered.subject,
-          text: rendered.text,
+          text: rendered.text_body,
           html: rendered.html_body,
           db_template: template
         }
