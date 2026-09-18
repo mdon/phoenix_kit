@@ -73,6 +73,7 @@ defmodule PhoenixKit.Integrations do
   alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.Events
   alias PhoenixKit.Integrations.OAuth
+  alias PhoenixKit.Integrations.Probe
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Integrations.Validators
   alias PhoenixKit.Settings
@@ -971,7 +972,7 @@ defmodule PhoenixKit.Integrations do
   check a connection — see `do_validate/2`), or `{:error, reason}`.
   """
   @spec validate_connection(String.t(), String.t() | nil, keyword()) ::
-          :ok | {:ok, String.t()} | :unverified | {:error, String.t()}
+          :ok | {:ok, Probe.note()} | :unverified | {:error, String.t()}
   def validate_connection(uuid, actor_uuid \\ nil, opts \\ []) when is_binary(uuid) do
     {result, log_provider, log_name} =
       case resolve_uuid(uuid, Keyword.get(opts, :owner, :system)) do
@@ -1011,7 +1012,13 @@ defmodule PhoenixKit.Integrations do
           "integration.validated",
           log_provider,
           log_name,
-          %{"result" => "ok", "note" => note},
+          # The rendered line — fact and reading both — not the note itself,
+          # which activity metadata (a flat string map) has no shape for. A
+          # reading belongs in this row and nowhere else: an activity entry is
+          # a timestamped record of one check, so "the balance was $1.00" is
+          # true of it forever, which is exactly what it is not on the
+          # connection.
+          %{"result" => "ok", "note" => note_text({:ok, note})},
           "manual",
           actor_uuid,
           uuid
@@ -1086,7 +1093,7 @@ defmodule PhoenixKit.Integrations do
   connection at all — see `do_validate/2`.
   """
   @spec validate_credentials(String.t(), map()) ::
-          :ok | {:ok, String.t()} | :unverified | {:error, String.t()}
+          :ok | {:ok, Probe.note()} | :unverified | {:error, String.t()}
   def validate_credentials(provider_key, attrs)
       when is_binary(provider_key) and is_map(attrs) do
     case Providers.get(provider_key) do
@@ -1189,6 +1196,90 @@ defmodule PhoenixKit.Integrations do
   end
 
   @doc """
+  Asks the provider for its current figures and returns them, without storing
+  anything: `{:ok, reading}`, `:none` when this provider reports no figure, or
+  `{:error, message}` when the check failed.
+
+  This is how a page shows something that decays — a DataForSEO balance, the
+  searches left on a SerpApi plan, Brevo's remaining credits. Those are never
+  kept on the connection (see `t:PhoenixKit.Integrations.Probe.note/0`),
+  because a stored figure reads as current however it is stamped; a page that
+  wants one asks for it when it renders.
+
+  It costs a provider request per call, and for some providers the check is
+  not free of side effects (the SMTP check opens a connection to the relay),
+  so call it where a person asked to see the figure — not on every render of
+  a page that merely lists connections.
+
+  ## Examples
+
+      iex> reading(uuid)
+      {:ok, "Balance: $0.92"}
+
+      iex> reading(uuid)
+      :none
+  """
+  @spec reading(String.t(), keyword()) :: {:ok, String.t()} | :none | {:error, String.t()}
+  def reading(uuid, opts \\ []) when is_binary(uuid) do
+    uuid
+    |> validate_connection_without_logging(opts)
+    |> reading_of()
+  rescue
+    # The same shield `validate_connection/3` carries: the callers are
+    # LiveView callbacks, and a database blip or a transport error escaping a
+    # validator must not take the page down for a figure it wanted to show.
+    e in [DBConnection.OwnershipError, Postgrex.Error, Req.TransportError, Ecto.Query.CastError] ->
+      Logger.error("[Integrations] reading error for #{uuid}: #{Exception.message(e)}")
+      {:error, gettext("Could not read the current figures")}
+  end
+
+  @doc """
+  The reading in a check's result, for a caller that ran the check itself:
+  `{:ok, reading}`, `:none` when there is none, or the failure.
+
+  `reading/2` is this applied to a fresh check.
+  """
+  @spec reading_of(term()) :: {:ok, String.t()} | :none | {:error, String.t()}
+  def reading_of({:ok, %{reading: reading}}) when is_binary(reading) and reading != "",
+    do: {:ok, reading}
+
+  def reading_of({:error, reason}), do: {:error, format_validation_reason(reason)}
+  def reading_of(_result), do: :none
+
+  defp validate_connection_without_logging(uuid, opts) do
+    case resolve_uuid(uuid, Keyword.get(opts, :owner, :system)) do
+      {:ok, %{provider: base_provider, data: data}} ->
+        case Providers.get(base_provider) do
+          nil ->
+            {:error, gettext("Unknown provider")}
+
+          provider ->
+            if has_credentials?(data),
+              do: do_validate(provider, data),
+              else: {:error, gettext("Not configured")}
+        end
+
+      {:error, _} ->
+        {:error, gettext("Not configured")}
+    end
+  end
+
+  @doc """
+  A check's note as one line for a person, or `nil` when it has nothing to
+  say: the fact and the reading joined, in that order.
+  """
+  @spec note_text(:ok | {:ok, Probe.note() | String.t()} | term()) :: String.t() | nil
+  def note_text({:ok, %{} = note}) do
+    case [note[:fact], note[:reading]] |> Enum.reject(&(is_nil(&1) or &1 == "")) do
+      [] -> nil
+      parts -> Enum.join(parts, " · ")
+    end
+  end
+
+  def note_text({:ok, note}) when is_binary(note) and note != "", do: note
+  def note_text(_other), do: nil
+
+  @doc """
   Persist the outcome of a connection check (manual or automatic) onto the
   integration record and broadcast a PubSub event when status changes.
 
@@ -1202,9 +1293,10 @@ defmodule PhoenixKit.Integrations do
   actual state change so high-frequency automatic paths (e.g. token
   refresh failing on every API call) don't spam listing-LV reloads.
   """
+
   @spec record_validation(
           String.t(),
-          :ok | {:ok, String.t()} | :unverified | {:error, term()},
+          :ok | {:ok, Probe.note() | String.t()} | :unverified | {:error, term()},
           keyword()
         ) :: :ok
   def record_validation(uuid, result, opts \\ []) when is_binary(uuid) do
@@ -1276,9 +1368,22 @@ defmodule PhoenixKit.Integrations do
   defp validation_fields(:unverified),
     do: {"configured", gettext("Not verified — this provider has no connection check")}
 
-  # A check that succeeded but could not verify everything it would have liked to.
-  # The connection is usable; the note is what the operator must know about it, and
-  # it belongs on screen rather than in a log line nobody reads.
+  # A check that succeeded and had something to say. Only the FACT half is
+  # stored: it stays true until the credentials or the account change, so it
+  # belongs on screen with the connection. A reading — a balance, remaining
+  # credits, a send quota — is out of date as soon as anything runs, and a
+  # stored one reads as current however it is stamped, so it is reported to
+  # whoever asked for the check and forgotten. See `reading/2` for a page that
+  # wants a current figure, and `t:PhoenixKit.Integrations.Probe.note/0`.
+  defp validation_fields({:ok, %{} = note}) do
+    case note[:fact] do
+      fact when is_binary(fact) and fact != "" -> {"connected", fact}
+      _ -> {"connected", "ok"}
+    end
+  end
+
+  # A bare string is a fact, which is what validators returned before the two
+  # were told apart.
   defp validation_fields({:ok, note}) when is_binary(note), do: {"connected", note}
 
   defp validation_fields({:error, reason}),

@@ -131,7 +131,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
     {flash_kind, flash_msg} =
       case Integrations.validate_credentials(provider_key, attrs) do
         :ok -> {:info, gettext("Connection works")}
-        {:ok, note} -> {:info, note}
+        {:ok, note} -> {:info, Integrations.note_text({:ok, note})}
         # Neither a pass nor a failure — this provider has no way to check a
         # connection at all, so nothing ran. :warning, not :info/:error —
         # matches the system form's tone (both are wrong in different ways).
@@ -277,10 +277,17 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
 
     flash =
       case result do
-        :ok -> capture_flash(capture, socket) || {:info, gettext("Connection works")}
-        {:ok, note} -> capture_flash(capture, socket) || {:info, note}
-        :unverified -> {:warning, gettext("Not tested — this provider has no connection check")}
-        {:error, reason} -> {:error, reason}
+        :ok ->
+          capture_flash(capture, socket) || {:info, gettext("Connection works")}
+
+        {:ok, note} ->
+          capture_flash(capture, socket) || {:info, Integrations.note_text({:ok, note})}
+
+        :unverified ->
+          {:warning, gettext("Not tested — this provider has no connection check")}
+
+        {:error, reason} ->
+          {:error, reason}
       end
 
     {:noreply,

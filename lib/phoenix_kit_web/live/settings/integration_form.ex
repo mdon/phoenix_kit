@@ -8,7 +8,8 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
-  import PhoenixKitWeb.Components.Core.IntegrationsUI, only: [setup_field: 1]
+  import PhoenixKitWeb.Components.Core.IntegrationsUI,
+    only: [setup_field: 1, validation_note_style: 1]
 
   require Logger
 
@@ -363,7 +364,10 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
         {:ok, note} ->
           socket
           |> assign(:data, data)
-          |> assign(:success, "#{gettext("Connection verified")} — #{note}")
+          |> assign(
+            :success,
+            "#{gettext("Connection verified")} — #{Integrations.note_text({:ok, note})}"
+          )
           |> assign(:error, nil)
           |> assign(:warning, nil)
 
@@ -478,7 +482,10 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
       {:ok, note} ->
         {:noreply,
          socket
-         |> assign(:success, "#{gettext("Connection verified")} — #{note}")
+         |> assign(
+           :success,
+           "#{gettext("Connection verified")} — #{Integrations.note_text({:ok, note})}"
+         )
          |> assign(:error, nil)
          |> assign(:warning, nil)}
 

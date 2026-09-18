@@ -35,6 +35,34 @@ defmodule PhoenixKit.Integrations.Validators do
 
   @http_timeout 15_000
 
+  @typedoc "See `t:PhoenixKit.Integrations.Probe.note/0`."
+  @type note :: Probe.note()
+
+  @typedoc "A check's verdict, as `PhoenixKit.Integrations` reads it."
+  @type verdict :: :ok | {:ok, note()} | {:error, String.t()}
+
+  # A success with something to say, or a plain `:ok` when there is nothing.
+  # `fact` stays with the connection; `reading` is true only now.
+  defp ok_note(fact, reading) do
+    note =
+      %{}
+      |> put_text(:fact, fact)
+      |> put_text(:reading, reading)
+
+    if note == %{}, do: :ok, else: {:ok, note}
+  end
+
+  defp put_text(note, _key, nil), do: note
+  defp put_text(note, _key, ""), do: note
+  defp put_text(note, key, text) when is_binary(text), do: Map.put(note, key, text)
+
+  defp join_facts(parts) do
+    case parts |> Enum.reject(&(is_nil(&1) or &1 == "")) |> Enum.join(" · ") do
+      "" -> nil
+      text -> text
+    end
+  end
+
   @doc """
   Validates AWS SES credentials against the SES API itself.
 
@@ -48,7 +76,7 @@ defmodule PhoenixKit.Integrations.Validators do
   — while the send path (`Swoosh.Adapters.AmazonSES`) simply interpolates the
   region and works. Validate and send must resolve the same endpoint.
   """
-  @spec aws_ses(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
+  @spec aws_ses(map()) :: verdict()
   def aws_ses(data) do
     region = data["aws_region"]
 
@@ -71,23 +99,24 @@ defmodule PhoenixKit.Integrations.Validators do
         # and permission context, but enrichment failing, exiting, or
         # timing out can never downgrade the verdict itself.
         case Probe.run(fn -> request_send_quota(region, data) end) do
-          :ok -> ok_with_note(region, data, nil)
-          {:ok, quota_note} -> ok_with_note(region, data, quota_note)
+          :ok -> ok_with_note(region, data, %{})
+          {:ok, %{} = note} -> ok_with_note(region, data, note)
           error -> error
         end
     end
   end
 
-  defp ok_with_note(region, data, quota_note) do
-    case enrich_note(region, data, quota_note) do
-      nil -> :ok
-      note -> {:ok, note}
-    end
+  # The quota is a reading; who the credentials belong to, and what they may
+  # do, are facts. Enrichment can only add — see the comment in `aws_ses/1`.
+  defp ok_with_note(region, data, note) do
+    ok_note(join_facts([enrich_fact(region, data), note[:fact]]), note[:reading])
   end
 
-  defp enrich_note(region, data, quota_note) do
-    # The probe contract carries strings, so the note is assembled inside the
-    # closure; :ok = "nothing to add", any probe failure = keep the quota note.
+  # Who the credentials belong to and which management APIs they may call:
+  # standing facts, so they are what gets stored. Assembled inside the probe
+  # closure, whose contract carries the note; `:ok` means "nothing to add",
+  # and a probe that fails, exits or times out adds nothing.
+  defp enrich_fact(region, data) do
     result =
       Probe.run(fn ->
         identity =
@@ -110,16 +139,15 @@ defmodule PhoenixKit.Integrations.Validators do
             _ -> nil
           end
 
-        case aws_note(identity, perms, quota_note) do
+        case aws_note(identity, perms) do
           nil -> :ok
-          note -> {:ok, note}
+          fact -> {:ok, %{fact: fact}}
         end
       end)
 
     case result do
-      {:ok, note} -> note
-      :ok -> nil
-      _ -> quota_note
+      {:ok, %{fact: fact}} -> fact
+      _ -> nil
     end
   end
 
@@ -128,7 +156,7 @@ defmodule PhoenixKit.Integrations.Validators do
   # listed — a least-privilege ses:SendEmail-only key (which the verdict
   # deliberately passes) must not read as "SES denied" here, so denied
   # services are omitted rather than dashed out.
-  def aws_note(identity, perms, quota_note) do
+  def aws_note(identity, perms) do
     granted =
       for {key, label} <- [ses: "SES", sqs: "SQS", sns: "SNS"],
           is_map(perms),
@@ -141,13 +169,7 @@ defmodule PhoenixKit.Integrations.Validators do
         list -> gettext("management API: %{services}", services: Enum.join(list, ", "))
       end
 
-    [identity, services, quota_note]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join(" · ")
-    |> case do
-      "" -> nil
-      note -> note
-    end
+    join_facts([identity, services])
   end
 
   @doc """
@@ -160,7 +182,7 @@ defmodule PhoenixKit.Integrations.Validators do
   completions path can authenticate IN THIS REGION; an AI endpoint must
   point its base URL at the same region for that guarantee to carry over.
   """
-  @spec amazon_bedrock(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
+  @spec amazon_bedrock(map()) :: verdict()
   def amazon_bedrock(data) do
     region = String.trim(data["aws_region"] || "")
     api_key = String.trim(data["api_key"] || "")
@@ -199,7 +221,9 @@ defmodule PhoenixKit.Integrations.Validators do
            retry: false
          ) do
       {:ok, %{status: 200, body: %{"modelSummaries" => models}}} when is_list(models) ->
-        {:ok, bedrock_models_note(length(models), region)}
+        # A fact, not a reading: the catalog is what proves the key works IN
+        # THIS REGION, and nothing spends it.
+        {:ok, %{fact: bedrock_models_note(length(models), region)}}
 
       {:ok, %{status: 200}} ->
         :ok
@@ -260,7 +284,7 @@ defmodule PhoenixKit.Integrations.Validators do
   advertises no `AUTH` verb at all is a different case, and is treated as a pass
   — see the module doc.
   """
-  @spec smtp(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
+  @spec smtp(map()) :: verdict()
   def smtp(data) do
     case SmtpTransport.config(data) do
       {:ok, options} ->
@@ -450,7 +474,7 @@ defmodule PhoenixKit.Integrations.Validators do
       {:ok, %{body: body}} ->
         case format_quota_note(body) do
           nil -> :ok
-          note -> {:ok, note}
+          reading -> {:ok, %{reading: reading}}
         end
 
       {:error, reason} ->
@@ -498,9 +522,12 @@ defmodule PhoenixKit.Integrations.Validators do
       # the log.
       "AccessDenied" <> _ ->
         {:ok,
-         gettext(
-           "Credentials are valid, but not authorised for GetSendQuota — sending was not verified"
-         )}
+         %{
+           fact:
+             gettext(
+               "Credentials are valid, but not authorised for GetSendQuota — sending was not verified"
+             )
+         }}
 
       nil ->
         {:error, gettext("Could not reach AWS SES")}
@@ -576,7 +603,7 @@ defmodule PhoenixKit.Integrations.Validators do
   environment that requires the FIPS endpoint (`s3-fips.<region>.amazonaws.com`)
   rather than the standard one should set it explicitly via `endpoint`.
   """
-  @spec object_storage(map()) :: :ok | {:error, String.t()}
+  @spec object_storage(map()) :: verdict()
   def object_storage(data) do
     if blank?(data["access_key"]) or blank?(data["secret_key"]) do
       {:error, gettext("Incomplete credentials")}
@@ -750,7 +777,7 @@ defmodule PhoenixKit.Integrations.Validators do
   one that tells the operator anything beyond "the key works" — the plan's
   remaining send credits, which is exactly what silently runs out mid-campaign.
   """
-  @spec brevo_api(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
+  @spec brevo_api(map()) :: verdict()
   def brevo_api(data) do
     api_key = data["api_key"]
 
@@ -769,7 +796,7 @@ defmodule PhoenixKit.Integrations.Validators do
       {:ok, %{status: 200, body: body}} ->
         case format_credits_note(body) do
           nil -> :ok
-          note -> {:ok, note}
+          reading -> {:ok, %{reading: reading}}
         end
 
       {:ok, %{status: 401}} ->
@@ -855,7 +882,7 @@ defmodule PhoenixKit.Integrations.Validators do
   cheapest authenticated call, and its reply carries the bot's username — a
   useful confirmation the operator connected the bot they meant to.
   """
-  @spec telegram(map()) :: :ok | {:ok, String.t()} | {:error, String.t()}
+  @spec telegram(map()) :: verdict()
   def telegram(data) do
     token = data["bot_token"]
 
@@ -871,7 +898,7 @@ defmodule PhoenixKit.Integrations.Validators do
       {:ok, %{status: 200, body: body}} ->
         case telegram_username(body) do
           nil -> :ok
-          username -> {:ok, gettext("Connected as @%{username}", username: username)}
+          username -> {:ok, %{fact: gettext("Connected as @%{username}", username: username)}}
         end
 
       # Telegram answers a bad or malformed token with 401/404 on this path.
@@ -907,7 +934,7 @@ defmodule PhoenixKit.Integrations.Validators do
 
   `req_options` is merged into the request (tests pass a `:plug`).
   """
-  @spec dataforseo(map(), keyword()) :: :ok | {:ok, String.t()} | {:error, String.t()}
+  @spec dataforseo(map(), keyword()) :: verdict()
   def dataforseo(data, req_options \\ []) do
     login = data["login"]
     password = data["password"]
@@ -999,10 +1026,15 @@ defmodule PhoenixKit.Integrations.Validators do
 
     amount = Decimal.to_string(cents, :normal)
 
+    # A reading, not a fact: the next search spends it. The page that wants a
+    # current balance asks for a check of its own.
     if Decimal.gt?(cents, 0) do
-      {:ok, gettext("Balance: $%{amount}", amount: amount)}
+      ok_note(nil, gettext("Balance: $%{amount}", amount: amount))
     else
-      {:ok, gettext("Balance: $%{amount} — add funds before running searches", amount: amount)}
+      ok_note(
+        nil,
+        gettext("Balance: $%{amount} — add funds before running searches", amount: amount)
+      )
     end
   end
 
@@ -1066,7 +1098,7 @@ defmodule PhoenixKit.Integrations.Validators do
 
   `req_options` is merged into the request (tests pass a `:plug`).
   """
-  @spec serpapi(map(), keyword()) :: :ok | {:ok, String.t()} | {:error, String.t()}
+  @spec serpapi(map(), keyword()) :: verdict()
   def serpapi(data, req_options \\ []) do
     api_key = data["api_key"]
 
@@ -1138,6 +1170,8 @@ defmodule PhoenixKit.Integrations.Validators do
   # The key worked; the note says what the account can do with it. An
   # account status other than SerpApi's documented "Active" leads the note —
   # the key is valid, but the account may not run searches.
+  # The plan's name, and an account that is not active, are facts — they stay
+  # true until SerpApi says otherwise. The searches left are a reading.
   defp serpapi_account_note(account) do
     status =
       case account["account_status"] do
@@ -1149,28 +1183,24 @@ defmodule PhoenixKit.Integrations.Validators do
           nil
       end
 
-    case Enum.reject([status, serpapi_searches(account)], &is_nil/1) do
-      [] -> :ok
-      parts -> {:ok, Enum.join(parts, " · ")}
-    end
+    plan =
+      case account["plan_name"] do
+        plan when is_binary(plan) and plan != "" -> plan
+        _ -> nil
+      end
+
+    ok_note(join_facts([status, plan]), serpapi_searches(account))
   end
 
   # `total_searches_left` is SerpApi's own count of what the account can still
-  # run; the plan's monthly allowance alone would miss any extra credits.
-  defp serpapi_searches(%{"plan_name" => plan, "total_searches_left" => left})
-       when is_binary(plan) and plan != "" and is_integer(left) do
-    if left > 0,
-      do: gettext("%{plan} · searches left: %{left}", plan: plan, left: Number.format(left)),
-      else: gettext("%{plan} · no searches left", plan: plan)
-  end
-
+  # run; the plan's monthly allowance alone would miss any extra credits. The
+  # plan's name travels as a fact, so it is not repeated here.
   defp serpapi_searches(%{"total_searches_left" => left}) when is_integer(left) do
     if left > 0,
       do: gettext("Searches left: %{left}", left: Number.format(left)),
       else: gettext("No searches left")
   end
 
-  defp serpapi_searches(%{"plan_name" => plan}) when is_binary(plan) and plan != "", do: plan
   defp serpapi_searches(_account), do: nil
 
   # --- shared ---------------------------------------------------------------
