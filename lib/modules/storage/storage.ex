@@ -46,6 +46,48 @@ defmodule PhoenixKit.Modules.Storage do
   `(name, parent_uuid)` unique index means the same name can exist under
   different parents.
 
+  ## Protecting host-owned files
+
+  Orphan detection (`find_orphaned_files/1`, `count_orphaned_files/1`,
+  `file_orphaned?/1`, and the `mix phoenix_kit.cleanup_orphaned_files` /
+  `DeleteOrphanedFileJob` pipeline built on them) only knows about the
+  references core itself ships with. A host whose own tables point at
+  files — an order, a project, any record with an image or attachment
+  column — is one cleanup run away from losing them unless it registers
+  itself through one of two hooks:
+
+  - `config :phoenix_kit, :protected_file_uuids, [...]` — a fixed list, a
+    zero-arity function, or an `{module, function, args}` MFA returning the
+    uuids that must never be treated as orphans. Simple, but the host has
+    to enumerate every referenced uuid on every query.
+  - `config :phoenix_kit, :file_reference_sources, [...]` — a list of
+    `{module, function}` / `{module, function, args}` entries, each
+    returning a list of `Ecto.Query.dynamic/2` expressions over the file
+    binding `f`; every expression is appended to the orphan query with
+    `NOT EXISTS`, the same shape core's own catalogue and shop checks use.
+    A plain `{table, column}` tuple is shorthand for a native column
+    reference, and `{table, :jsonb_key, key}` for a `data->>'key'` pointer.
+    A source whose table does not exist, or whose function raises, is
+    skipped with a `Logger.warning/1` rather than failing the query.
+
+  Example:
+
+      config :phoenix_kit, :file_reference_sources, [
+        {MyApp.Media, :file_reference_sources}
+      ]
+
+      def file_reference_sources do
+        [
+          dynamic(
+            [f],
+            fragment(
+              "NOT EXISTS (SELECT 1 FROM my_app_orders o WHERE o.data->>'featured_image_uuid' = ?::text)",
+              f.uuid
+            )
+          )
+        ]
+      end
+
   ## Module Status
 
   This module is **always enabled** and cannot be disabled. It provides core
@@ -2476,13 +2518,16 @@ defmodule PhoenixKit.Modules.Storage do
        )}
     ]
 
-    Enum.reduce(optional_checks, base, fn {table, condition}, query ->
-      if table in existing do
-        where(query, ^condition)
-      else
-        query
-      end
-    end)
+    query =
+      Enum.reduce(optional_checks, base, fn {table, condition}, query ->
+        if table in existing do
+          where(query, ^condition)
+        else
+          query
+        end
+      end)
+
+    Enum.reduce(file_reference_sources(), query, &apply_reference_source(&2, &1))
   end
 
   defp existing_optional_tables do
@@ -2513,6 +2558,125 @@ defmodule PhoenixKit.Modules.Storage do
       fun when is_function(fun, 0) -> fun.()
       {mod, fun, args} -> apply(mod, fun, args)
     end
+  end
+
+  # Host-registered sources for the orphan-file check, as configured by the
+  # parent app (see the "Protecting host-owned files" section of this
+  # module's moduledoc):
+  #
+  #   config :phoenix_kit, :file_reference_sources, [
+  #     {MyApp.Media, :file_reference_sources}
+  #   ]
+  #
+  #   def file_reference_sources do
+  #     [
+  #       dynamic(
+  #         [f],
+  #         fragment(
+  #           "NOT EXISTS (SELECT 1 FROM my_app_orders o WHERE o.data->>'featured_image_uuid' = ?::text)",
+  #           f.uuid
+  #         )
+  #       )
+  #     ]
+  #   end
+  #
+  # Each entry is `{module, function}` / `{module, function, args}`, called
+  # for a list of `Ecto.Query.dynamic/2` expressions appended with
+  # `NOT EXISTS`. A plain `{table, column}` tuple is shorthand for a native
+  # column reference and `{table, :jsonb_key, key}` for a `data->>'key'`
+  # pointer.
+  defp file_reference_sources do
+    Application.get_env(:phoenix_kit, :file_reference_sources, [])
+  end
+
+  defp apply_reference_source(query, {table, column})
+       when is_binary(table) and (is_binary(column) or is_atom(column)) do
+    if host_table_exists?(table) do
+      where(query, ^shorthand_column_dynamic(table, to_string(column)))
+    else
+      warn_missing_reference_table(table)
+      query
+    end
+  end
+
+  defp apply_reference_source(query, {table, :jsonb_key, key})
+       when is_binary(table) and is_binary(key) do
+    if host_table_exists?(table) do
+      where(query, ^shorthand_jsonb_dynamic(table, key))
+    else
+      warn_missing_reference_table(table)
+      query
+    end
+  end
+
+  defp apply_reference_source(query, {module, fun}) when is_atom(module) and is_atom(fun) do
+    apply_reference_source_mfa(query, module, fun, [])
+  end
+
+  defp apply_reference_source(query, {module, fun, args})
+       when is_atom(module) and is_atom(fun) and is_list(args) do
+    apply_reference_source_mfa(query, module, fun, args)
+  end
+
+  defp apply_reference_source(query, other) do
+    Logger.warning(
+      "phoenix_kit: ignoring invalid :file_reference_sources entry #{inspect(other)}"
+    )
+
+    query
+  end
+
+  defp apply_reference_source_mfa(query, module, fun, args) do
+    dynamics = apply(module, fun, args)
+    Enum.reduce(dynamics, query, fn condition, acc -> where(acc, ^condition) end)
+  rescue
+    error ->
+      Logger.warning(
+        "phoenix_kit: file_reference_sources #{inspect(module)}.#{fun}/#{length(args)} " <>
+          "raised, skipping: #{Exception.message(error)}"
+      )
+
+      query
+  end
+
+  defp warn_missing_reference_table(table) do
+    Logger.warning("phoenix_kit: file_reference_sources table #{table} does not exist, skipping")
+  end
+
+  defp host_table_exists?(table) do
+    %{rows: rows} =
+      repo().query!(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1",
+        [table]
+      )
+
+    rows != []
+  end
+
+  defp shorthand_column_dynamic(table, column) do
+    dynamic(
+      [f],
+      fragment(
+        "NOT EXISTS (SELECT 1 FROM ? WHERE ?.?::text = ?::text)",
+        identifier(^table),
+        identifier(^table),
+        identifier(^column),
+        f.uuid
+      )
+    )
+  end
+
+  defp shorthand_jsonb_dynamic(table, key) do
+    dynamic(
+      [f],
+      fragment(
+        "NOT EXISTS (SELECT 1 FROM ? WHERE (?.data->>?) = ?::text)",
+        identifier(^table),
+        identifier(^table),
+        ^key,
+        f.uuid
+      )
+    )
   end
 
   # ===== FILE INSTANCES =====
