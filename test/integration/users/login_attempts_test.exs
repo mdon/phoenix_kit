@@ -1,0 +1,291 @@
+defmodule PhoenixKit.Integration.Users.LoginAttemptsTest do
+  @moduledoc """
+  Failed sign-ins are recorded, aggregated, and never allowed to break a login.
+
+  The properties that actually matter here are the aggregation key and the
+  things it must NOT do: grow one row per attempt, disclose whether an account
+  exists, or take the login form down when the table is unreachable.
+  """
+  use PhoenixKitWeb.ConnCase, async: false
+
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.LoginAttempt
+  alias PhoenixKit.Users.LoginAttempts
+  alias PhoenixKit.Utils.Routes
+
+  @password "ValidPassword123!"
+
+  defp unique_email, do: "la_#{System.unique_integer([:positive])}@example.com"
+
+  defp unique_ip do
+    n = System.unique_integer([:positive])
+    {127, 2, n |> div(256) |> rem(256), rem(n, 256)}
+  end
+
+  defp create_user(attrs \\ %{}) do
+    {:ok, user} =
+      Auth.register_user(Map.merge(%{email: unique_email(), password: @password}, attrs))
+
+    user
+  end
+
+  defp conn_at(ip, ua \\ "Mozilla/5.0 (Macintosh) Chrome/120.0") do
+    Phoenix.ConnTest.build_conn()
+    |> Map.put(:remote_ip, ip)
+    |> Plug.Conn.put_req_header("user-agent", ua)
+  end
+
+  defp attempts, do: Repo.all(LoginAttempt)
+
+  describe "record/4" do
+    test "attributes an attempt to the account whose address was tried" do
+      user = create_user()
+
+      assert :ok = LoginAttempts.record(conn_at(unique_ip()), user.email, "invalid_credentials")
+
+      assert [%LoginAttempt{user_uuid: user_uuid, outcome: "invalid_credentials"} = row] =
+               attempts()
+
+      assert user_uuid == user.uuid
+      assert row.identifier == user.email
+      assert row.attempt_count == 1
+    end
+
+    test "records an unknown identifier with no account attached" do
+      assert :ok =
+               LoginAttempts.record(
+                 conn_at(unique_ip()),
+                 "nobody@example.com",
+                 "invalid_credentials"
+               )
+
+      assert [%LoginAttempt{user_uuid: nil, identifier: "nobody@example.com"}] = attempts()
+    end
+
+    test "many attempts from one network collapse into one rising row" do
+      user = create_user()
+      ip = unique_ip()
+
+      for _ <- 1..25 do
+        LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials")
+      end
+
+      assert [%LoginAttempt{attempt_count: 25}] = attempts()
+    end
+
+    test "first_at pins when the bucket opened; last_at tracks the newest hit" do
+      ip = unique_ip()
+      LoginAttempts.record(conn_at(ip), "someone@example.com", "invalid_credentials")
+      [first] = attempts()
+
+      LoginAttempts.record(conn_at(ip), "someone@example.com", "invalid_credentials")
+      [second] = attempts()
+
+      assert second.first_at == first.first_at
+      assert DateTime.compare(second.last_at, first.last_at) in [:eq, :gt]
+    end
+
+    test "each outcome and each identifier is its own bucket" do
+      ip = unique_ip()
+
+      LoginAttempts.record(conn_at(ip), "a@example.com", "invalid_credentials")
+      LoginAttempts.record(conn_at(ip), "a@example.com", "rate_limited")
+      LoginAttempts.record(conn_at(ip), "b@example.com", "invalid_credentials")
+
+      assert length(attempts()) == 3
+    end
+
+    test "the identifier is normalized and truncated" do
+      long = String.duplicate("x", 300) <> "@example.com"
+
+      LoginAttempts.record(conn_at(unique_ip()), "  MiXeD@Example.COM  ", "invalid_credentials")
+      LoginAttempts.record(conn_at(unique_ip()), long, "invalid_credentials")
+
+      identifiers = Enum.map(attempts(), & &1.identifier)
+
+      assert "mixed@example.com" in identifiers
+      # The column is varchar(160) and the value is attacker-controlled; an
+      # untruncated insert would raise rather than record.
+      assert Enum.any?(identifiers, &(String.length(&1) == 160))
+    end
+
+    test "the browser and OS are captured from the user agent" do
+      LoginAttempts.record(
+        conn_at(unique_ip(), "Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0"),
+        "someone@example.com",
+        "invalid_credentials"
+      )
+
+      assert [%LoginAttempt{browser: "Firefox", os: "Linux"}] = attempts()
+    end
+
+    test "records nothing when logging is disabled" do
+      {:ok, _} = Settings.update_setting("login_attempt_logging_enabled", "false")
+      on_exit(fn -> Settings.update_setting("login_attempt_logging_enabled", "true") end)
+
+      assert :ok =
+               LoginAttempts.record(conn_at(unique_ip()), "a@example.com", "invalid_credentials")
+
+      assert attempts() == []
+    end
+
+    test "an unusable outcome is swallowed rather than raised at the caller" do
+      # The changeset rejects it, `record/4` reports :ok anyway. A security log
+      # must never be the reason a sign-in fails.
+      assert :ok = LoginAttempts.record(conn_at(unique_ip()), "a@example.com", "nonsense")
+      assert attempts() == []
+    end
+  end
+
+  describe "reading" do
+    test "count_for_user_since/2 sums attempt_count, not rows" do
+      user = create_user()
+      ip = unique_ip()
+
+      for _ <- 1..7, do: LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials")
+      LoginAttempts.record(conn_at(unique_ip()), user.email, "invalid_credentials")
+
+      since = DateTime.add(DateTime.utc_now(), -3600, :second)
+
+      # Two buckets (two networks), eight attempts.
+      assert length(attempts()) == 2
+      assert LoginAttempts.count_for_user_since(user, since) == 8
+    end
+
+    test "count_for_user_since/2 ignores anything older than the window" do
+      user = create_user()
+      LoginAttempts.record(conn_at(unique_ip()), user.email, "invalid_credentials")
+
+      future = DateTime.add(DateTime.utc_now(), 3600, :second)
+      assert LoginAttempts.count_for_user_since(user, future) == 0
+    end
+
+    test "count_for_user_since/2 does not count another account's attempts" do
+      user = create_user()
+      other = create_user()
+
+      LoginAttempts.record(conn_at(unique_ip()), other.email, "invalid_credentials")
+
+      since = DateTime.add(DateTime.utc_now(), -3600, :second)
+      assert LoginAttempts.count_for_user_since(user, since) == 0
+    end
+
+    test "stats/1 separates attempts from buckets" do
+      user = create_user()
+      ip = unique_ip()
+
+      for _ <- 1..5, do: LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials")
+      LoginAttempts.record(conn_at(unique_ip()), "nobody@example.com", "invalid_credentials")
+
+      since = DateTime.add(DateTime.utc_now(), -3600, :second)
+
+      assert %{attempts: 6, buckets: 2, accounts: 1, networks: 2} = LoginAttempts.stats(since)
+    end
+
+    test "top_since/2 orders by weight" do
+      user = create_user()
+      heavy = unique_ip()
+
+      for _ <- 1..9, do: LoginAttempts.record(conn_at(heavy), user.email, "invalid_credentials")
+      LoginAttempts.record(conn_at(unique_ip()), "quiet@example.com", "invalid_credentials")
+
+      since = DateTime.add(DateTime.utc_now(), -3600, :second)
+
+      assert [%LoginAttempt{attempt_count: 9}, %LoginAttempt{attempt_count: 1}] =
+               LoginAttempts.top_since(since)
+    end
+  end
+
+  describe "retention" do
+    test "prune/1 deletes by last_at, keeping a bucket that is still being hit" do
+      LoginAttempts.record(conn_at(unique_ip()), "old@example.com", "invalid_credentials")
+      [row] = attempts()
+
+      long_ago = DateTime.add(DateTime.utc_now(), -100 * 86_400, :second)
+
+      # An old bucket that stopped being hit.
+      Repo.update_all(
+        from(a in LoginAttempt, where: a.uuid == ^row.uuid),
+        set: [first_at: long_ago, last_at: long_ago]
+      )
+
+      # One that opened just as long ago but is still live.
+      LoginAttempts.record(conn_at(unique_ip()), "live@example.com", "invalid_credentials")
+      [_, live] = Enum.sort_by(attempts(), & &1.identifier)
+
+      Repo.update_all(from(a in LoginAttempt, where: a.uuid == ^live.uuid),
+        set: [first_at: long_ago]
+      )
+
+      assert {:ok, 1} = LoginAttempts.prune(90)
+      assert [%LoginAttempt{identifier: "live@example.com"}] = attempts()
+    end
+
+    test "retention_days/0 falls back to 90 for an unusable setting" do
+      {:ok, _} = Settings.update_setting("login_attempt_retention_days", "not-a-number")
+      on_exit(fn -> Settings.update_setting("login_attempt_retention_days", "90") end)
+
+      assert LoginAttempts.retention_days() == 90
+    end
+  end
+
+  describe "the login form records through to the table" do
+    test "a wrong password is recorded against the real account" do
+      user = create_user()
+
+      conn =
+        post(Map.put(build_conn(), :remote_ip, unique_ip()), Routes.path("/users/log-in"), %{
+          "user" => %{"email_or_username" => user.email, "password" => "wrong-#{@password}"}
+        })
+
+      assert redirected_to(conn) =~ "/users/log-in"
+
+      assert [%LoginAttempt{outcome: "invalid_credentials", user_uuid: user_uuid}] = attempts()
+      assert user_uuid == user.uuid
+    end
+
+    test "an unknown address is recorded, and the response is the same one" do
+      real = create_user()
+
+      responses =
+        for identifier <- [real.email, "definitely-not-registered@example.com"] do
+          conn =
+            post(Map.put(build_conn(), :remote_ip, unique_ip()), Routes.path("/users/log-in"), %{
+              "user" => %{"email_or_username" => identifier, "password" => "wrong-#{@password}"}
+            })
+
+          {redirected_to(conn), Phoenix.Flash.get(conn.assigns.flash, :error)}
+        end
+
+      # Both branches record, and neither the destination nor the message
+      # distinguishes a real account from a fictitious one.
+      assert [_identical] = Enum.uniq(responses)
+      assert length(attempts()) == 2
+    end
+
+    test "a successful login records nothing" do
+      user = create_user()
+      {:ok, _} = Auth.admin_confirm_user(user)
+
+      post(Map.put(build_conn(), :remote_ip, unique_ip()), Routes.path("/users/log-in"), %{
+        "user" => %{"email_or_username" => user.email, "password" => @password}
+      })
+
+      assert attempts() == []
+    end
+
+    test "a deactivated account with the CORRECT password is recorded as :inactive" do
+      user = create_user()
+      {:ok, user} = Auth.update_user_status(user, %{is_active: false})
+
+      post(Map.put(build_conn(), :remote_ip, unique_ip()), Routes.path("/users/log-in"), %{
+        "user" => %{"email_or_username" => user.email, "password" => @password}
+      })
+
+      # The most interesting outcome of the three: somebody has the password.
+      assert [%LoginAttempt{outcome: "inactive", user_uuid: user_uuid}] = attempts()
+      assert user_uuid == user.uuid
+    end
+  end
+end

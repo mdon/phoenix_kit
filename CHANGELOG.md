@@ -1,4 +1,37 @@
-## 2.30.1 - 2026-09-18
+## 2.31.0 - 2026-09-18
+
+### Added
+
+- **Failed sign-ins are recorded.** Until now a wrong password produced a flash
+  and nothing else — no row, no activity entry, nothing the targeted account
+  holder or the site owner could ever see. The only trace was Hammer's
+  in-memory rate-limit counter, which is node-local, lost on restart, counts
+  successful logins too, and says nothing at all until a bucket overflows.
+  The case that motivates it: an attacker who guesses right on attempt 400
+  triggers only the new-device email, which is indistinguishable from "I signed
+  in from my new laptop" — the 399 failures before it are what tell those apart.
+  - **V197 migration** — `phoenix_kit_login_attempts`. Rows are aggregated at
+    write time on `(identifier, ip_network, outcome, bucket_start)`, where the
+    bucket is the hour, so a sustained attack against one account from one
+    network collapses to one row per hour with a rising `attempt_count` rather
+    than thousands of rows. The write is a single `INSERT ... ON CONFLICT DO
+    UPDATE` with no preceding read.
+  - `PhoenixKit.Users.LoginAttempts` — `record/4`, `count_for_user_since/2`,
+    `recent_for_user/2`, `stats/1`, `top_since/2`, `prune/1`. Every entry point
+    swallows its own failures with both `rescue` and `catch :exit`: a security
+    log that takes the login form down with it is worse than no security log.
+  - Recorded on all three failing branches of the login form, with the outcome
+    that matters most kept distinct — `"inactive"` means somebody had the
+    correct password for a deactivated account. The HTTP response is unchanged
+    on every branch, and the two that share the deliberately generic "Invalid
+    email/username or password" flash do the same work, so neither the
+    response nor the timing tells a real account from a fictitious one.
+  - Settings `login_attempt_logging_enabled` (default **on**, unlike
+    `new_login_alert_enabled`: it writes one bounded row, sends nothing, and
+    the data is useless retroactively) and `login_attempt_retention_days`
+    (default 90). Daily `PhoenixKit.Users.LoginAttemptsPruneWorker`, added to
+    the generated crontab AND to the backfill list, so an existing host gets it
+    on `mix phoenix_kit.update` instead of never pruning.
 
 ### Changed
 

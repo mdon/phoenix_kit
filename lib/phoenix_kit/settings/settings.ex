@@ -181,6 +181,8 @@ defmodule PhoenixKit.Settings do
     magic_link_registration_enabled
     qr_login_enabled
     new_login_alert_enabled
+    login_attempt_logging_enabled
+    login_attempt_retention_days
     mentions_enabled
     mentions_redact_titles
     new_user_default_role
@@ -300,6 +302,12 @@ defmodule PhoenixKit.Settings do
       "magic_link_registration_enabled" => "true",
       "qr_login_enabled" => "false",
       "new_login_alert_enabled" => "false",
+      # Recording failed sign-ins. Defaults ON, unlike the alert above: it
+      # writes one aggregated row and sends nothing, and the data is useless
+      # retroactively — an install that switches it on after an incident has
+      # already thrown the evidence away.
+      "login_attempt_logging_enabled" => "true",
+      "login_attempt_retention_days" => "90",
       # Cross-module @ mentions and # record links. On by default: the
       # feature is inert until someone actually types a trigger, and
       # everything it stores degrades to plain text when it is off.

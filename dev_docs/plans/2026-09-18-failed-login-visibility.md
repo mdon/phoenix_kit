@@ -1,8 +1,9 @@
 # Failed sign-in attempts — record them, and show them to the two people who care
 
 **Created:** 2026-09-18
-**Status:** SCOPE ONLY — nothing built. Written after an audit of what core
-does with a wrong password today.
+**Status:** Phase 1 BUILT on `main` 2026-09-18 (V197 + `LoginAttempts` +
+the write hook + retention). Phases 2 and 3 not started. Maintainer answers to
+the open questions are recorded at the end.
 **Scope:** phoenix_kit (core).
 **Related:** `PhoenixKit.Users.LoginAlerts` and its moduledoc (the new-device
 alert this builds beside), `dev_docs/guides/2026-07-28-login-and-registration.md`.
@@ -203,3 +204,38 @@ retention.
    "someone is hammering `admin@`, and I want to see that". The argument
    against is above. A middle path is storing a truncated hash, which supports
    "the same unknown identifier, repeatedly" without holding the address.
+
+---
+
+## Maintainer answers (2026-09-18)
+
+1. **All three phases**, not Phase 1 alone.
+2. **Store the identifier verbatim**, overriding the recommendation above.
+   As built it is normalized (trimmed, downcased) and truncated to 160
+   characters — the same cap `Session` already applies before echoing it into
+   a flash, and the column width.
+
+   **Consequence, accepted:** the identifier is part of the dedup key, so the
+   aggregation bound holds per identifier but not across them. An attacker
+   spraying distinct addresses writes one row each. That is bounded by the
+   rate limiter in front of it (`login_limit * 3` per IP network per minute,
+   so roughly 900 rows/hour/network at the default) and by retention, but it
+   is a weaker bound than a no-match placeholder would have given.
+3. **The rate-limiter bug** (`check_login_rate_limit/2` runs before
+   credentials are checked, so five *successful* logins in a minute lock the
+   account out) is fixed on this branch in its own commit.
+
+## Departures from the plan, as built
+
+- **`identifier` is NOT NULL and part of the dedup key**, for the reason in
+  (2) above. The plan's `(user_uuid, ip_network, outcome, bucket_start)` key
+  would not have worked anyway: `user_uuid` is NULL for exactly the rows an
+  attacker generates most of, and NULL never equals NULL in a Postgres unique
+  index, so `ON CONFLICT` would have silently stopped deduplicating them.
+
+- **The manifest entries were generated from the live catalog**, not
+  transcribed, and proven by a `Repair.repair(dry_run: true)` against a
+  freshly migrated database reporting zero findings for the table — neither a
+  missing object nor an `:extra_object`. `dev_docs/squash/restamp_chain_hash.exs`
+  refuses to vouch for a schema-moving change, and s7/s8 are still P2 stubs,
+  so this is the available proof.

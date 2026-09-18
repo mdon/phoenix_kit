@@ -19,6 +19,7 @@ defmodule PhoenixKitWeb.Users.Session do
   alias PhoenixKit.Users.ActiveRole
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Users.LoginAttempts
   alias PhoenixKit.Users.Sessions
   alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Routes
@@ -81,8 +82,11 @@ defmodule PhoenixKitWeb.Users.Session do
     ip_address = IpAddress.extract_from_conn(conn)
 
     case Auth.get_user_by_email_or_username_and_password(email_or_username, password, ip_address) do
-      {:ok, %Auth.User{is_active: false}} ->
-        # Valid credentials but account is inactive
+      {:ok, %Auth.User{is_active: false} = user} ->
+        # Valid credentials but account is inactive. The most interesting of
+        # the three outcomes to record: somebody has the password.
+        LoginAttempts.record(conn, email_or_username, "inactive", user: user)
+
         conn
         |> put_flash(
           :error,
@@ -103,6 +107,8 @@ defmodule PhoenixKitWeb.Users.Session do
 
       {:error, :rate_limit_exceeded} ->
         # Rate limit exceeded - show specific error message
+        LoginAttempts.record(conn, email_or_username, "rate_limited")
+
         conn
         |> put_flash(:error, gettext("Too many login attempts. Please try again later."))
         |> put_flash(:email_or_username, String.slice(email_or_username, 0, 160))
@@ -111,6 +117,9 @@ defmodule PhoenixKitWeb.Users.Session do
       {:error, :invalid_credentials} ->
         # Invalid credentials (wrong email/username or password)
         # In order to prevent user enumeration attacks, don't disclose whether the email/username is registered.
+        # `record/4` does the same work on both branches for the same reason.
+        LoginAttempts.record(conn, email_or_username, "invalid_credentials")
+
         conn
         |> put_flash(:error, gettext("Invalid email/username or password"))
         |> put_flash(:email_or_username, String.slice(email_or_username, 0, 160))

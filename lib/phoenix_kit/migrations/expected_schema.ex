@@ -45,6 +45,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # database. `verify.exs --scenario s7,s8` is what would do that and has not run
   # against this chain.
   #
+  # DECLARED POST-GENERATION (2026-09-18, V197): the 20 objects of
+  # `phoenix_kit_login_attempts` (table, 13 columns, pkey, user FK, 4 indexes).
+  # Not transcribed — emitted from the live catalog after running the chain,
+  # so types, positions, opclasses and the FK action codes are catalog-exact.
+  # Proven rather than assumed: `PhoenixKit.Migrations.Repair.repair(dry_run:
+  # true)` against a database freshly migrated to V197 reports ZERO findings
+  # mentioning the table — neither a missing object nor an `:extra_object`,
+  # which is the pair that would catch a manifest entry that disagrees with
+  # what the chain actually builds. `chain_hash` restamped over the shipped
+  # v*.ex set afterwards. (s7/s8, the harness scenarios that would assert this
+  # generically, are still P2 stubs.)
+  #
   # DECLARED POST-GENERATION (2026-09-15, V192): the annotation kind CHECK
   # gains 'arrow' — one revisions entry on the existing
   # phoenix_kit_annotations_kind_check object plus the matching create
@@ -394,7 +406,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "ffaf948951cc31217a7541b8072d7619750090b91ae1a8132a6fcc9d5150ca2b"
+  @chain_hash "33e96c331454e7b417dc2d8b9faacce831666fb733c1366f949d6de8d49c3b40"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -63012,6 +63024,400 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              foreign_columns: ["uuid"],
              on_delete: "c",
              on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "table:phoenix_kit_login_attempts",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_login_attempts", kind: :table}},
+        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_login_attempts ()",
+        since: 197,
+        class: :table,
+        revisions: [{197, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.uuid",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_login_attempts", column: "uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.user_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_login_attempts", column: "user_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"user_uuid\" uuid",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197, %{default: nil, type: "uuid", pos: 2, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.identifier",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_login_attempts", column: "identifier", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"identifier\" character varying(160) NOT NULL",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197, %{default: nil, type: "character varying(160)", pos: 3, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.ip_address",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_login_attempts", column: "ip_address", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"ip_address\" character varying(45) NOT NULL",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197, %{default: nil, type: "character varying(45)", pos: 4, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.ip_network",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_login_attempts", column: "ip_network", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"ip_network\" character varying(45) NOT NULL",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197, %{default: nil, type: "character varying(45)", pos: 5, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.user_agent_hash",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_login_attempts", column: "user_agent_hash", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"user_agent_hash\" character varying(64)",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197, %{default: nil, type: "character varying(64)", pos: 6, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.browser",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_login_attempts", column: "browser", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"browser\" character varying(100)",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197, %{default: nil, type: "character varying(100)", pos: 7, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.os",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_login_attempts", column: "os", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"os\" character varying(100)",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197, %{default: nil, type: "character varying(100)", pos: 8, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.outcome",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_login_attempts", column: "outcome", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"outcome\" character varying(32) NOT NULL",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197, %{default: nil, type: "character varying(32)", pos: 9, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.attempt_count",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_login_attempts", column: "attempt_count", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"attempt_count\" integer DEFAULT 1 NOT NULL",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197, %{default: "1", type: "integer", pos: 10, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.bucket_start",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_login_attempts", column: "bucket_start", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"bucket_start\" timestamp(0) without time zone NOT NULL",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197, %{default: nil, type: "timestamp(0) without time zone", pos: 11, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.first_at",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_login_attempts", column: "first_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"first_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 12, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_login_attempts.last_at",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_login_attempts", column: "last_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD COLUMN IF NOT EXISTS \"last_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 197,
+        class: :column,
+        revisions: [
+          {197,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 13, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_login_attempts.phoenix_kit_login_attempts_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_login_attempts_pkey",
+             table: "phoenix_kit_login_attempts",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_login_attempts_pkey'\n      AND t.relname = 'phoenix_kit_login_attempts'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD CONSTRAINT phoenix_kit_login_attempts_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
+        since: 197,
+        class: :constraint,
+        revisions: [
+          {197,
+           %{
+             type: "p",
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil,
+             columns: ["uuid"],
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_login_attempts.phoenix_kit_login_attempts_user_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_login_attempts_user_uuid_fkey",
+             table: "phoenix_kit_login_attempts",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_login_attempts_user_uuid_fkey'\n      AND t.relname = 'phoenix_kit_login_attempts'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_login_attempts ADD CONSTRAINT phoenix_kit_login_attempts_user_uuid_fkey FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+        since: 197,
+        class: :constraint,
+        revisions: [
+          {197,
+           %{
+             type: "f",
+             definition:
+               "FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE CASCADE",
+             name_template: nil,
+             columns: ["user_uuid"],
+             foreign_table: "phoenix_kit_users",
+             foreign_columns: ["uuid"],
+             on_delete: "c",
+             on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_login_attempts_dedup_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_login_attempts_dedup_index",
+             table: "phoenix_kit_login_attempts",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_login_attempts_dedup_index ON __SCHEMA__.phoenix_kit_login_attempts USING btree (identifier, ip_network, outcome, bucket_start)",
+        since: 197,
+        class: :index,
+        revisions: [
+          {197,
+           %{
+             table: "phoenix_kit_login_attempts",
+             keys: ["identifier", "ip_network", "outcome", "bucket_start"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_login_attempts_dedup_index ON __SCHEMA__.phoenix_kit_login_attempts USING btree (identifier, ip_network, outcome, bucket_start)",
+             predicate: nil,
+             opclasses: ["text_ops", "text_ops", "text_ops", "timestamp_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_login_attempts_last_at_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_login_attempts_last_at_index",
+             table: "phoenix_kit_login_attempts",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_login_attempts_last_at_index ON __SCHEMA__.phoenix_kit_login_attempts USING btree (last_at)",
+        since: 197,
+        class: :index,
+        revisions: [
+          {197,
+           %{
+             table: "phoenix_kit_login_attempts",
+             keys: ["last_at"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_login_attempts_last_at_index ON __SCHEMA__.phoenix_kit_login_attempts USING btree (last_at)",
+             predicate: nil,
+             opclasses: ["timestamp_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_login_attempts_network_last_at_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_login_attempts_network_last_at_index",
+             table: "phoenix_kit_login_attempts",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_login_attempts_network_last_at_index ON __SCHEMA__.phoenix_kit_login_attempts USING btree (ip_network, last_at)",
+        since: 197,
+        class: :index,
+        revisions: [
+          {197,
+           %{
+             table: "phoenix_kit_login_attempts",
+             keys: ["ip_network", "last_at"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_login_attempts_network_last_at_index ON __SCHEMA__.phoenix_kit_login_attempts USING btree (ip_network, last_at)",
+             predicate: nil,
+             opclasses: ["text_ops", "timestamp_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_login_attempts_user_last_at_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_login_attempts_user_last_at_index",
+             table: "phoenix_kit_login_attempts",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_login_attempts_user_last_at_index ON __SCHEMA__.phoenix_kit_login_attempts USING btree (user_uuid, last_at)",
+        since: 197,
+        class: :index,
+        revisions: [
+          {197,
+           %{
+             table: "phoenix_kit_login_attempts",
+             keys: ["user_uuid", "last_at"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_login_attempts_user_last_at_index ON __SCHEMA__.phoenix_kit_login_attempts USING btree (user_uuid, last_at)",
+             predicate: nil,
+             opclasses: ["uuid_ops", "timestamp_ops"],
+             name_template: nil
            }}
         ],
         presence: :required,

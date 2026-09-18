@@ -255,6 +255,7 @@ if Code.ensure_loaded?(Igniter) do
              {"0 3 * * *", PhoenixKit.Modules.Storage.Workers.PruneTrashJob},
              {"0 4 * * *", PhoenixKit.Notifications.PruneWorker},
              {"30 4 * * *", PhoenixKit.Users.Referrals.PruneWorker},
+             {"45 4 * * *", PhoenixKit.Users.LoginAttemptsPruneWorker},
              {"0 * * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "hourly"}},
              {"0 */12 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "12h"}},
              {"0 6 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "daily"}},
@@ -1140,7 +1141,11 @@ if Code.ensure_loaded?(Igniter) do
     # short-circuits once `ProcessScheduledJobsWorker` is present, so without an
     # explicit backfill a host that installed earlier never gains them.
     @worker_cron_entries [
-      {"30 4 * * *", "PhoenixKit.Users.Referrals.PruneWorker"}
+      {"30 4 * * *", "PhoenixKit.Users.Referrals.PruneWorker"},
+      # Shipped in 2.31.0. Without the backfill an existing host never
+      # prunes failed sign-in buckets and the table grows for the life
+      # of the install.
+      {"45 4 * * *", "PhoenixKit.Users.LoginAttemptsPruneWorker"}
     ]
 
     @doc """
@@ -1661,6 +1666,7 @@ if Code.ensure_loaded?(Igniter) do
                {"0 3 * * *", PhoenixKit.Modules.Storage.Workers.PruneTrashJob},
                {"0 4 * * *", PhoenixKit.Notifications.PruneWorker},
                {"30 4 * * *", PhoenixKit.Users.Referrals.PruneWorker},
+               {"45 4 * * *", PhoenixKit.Users.LoginAttemptsPruneWorker},
                {"0 * * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "hourly"}},
                {"0 */12 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "12h"}},
                {"0 6 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "daily"}},

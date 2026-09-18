@@ -7,7 +7,15 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V196 - A user's Google address ⚡ LATEST
+  ### V197 - Failed sign-in attempts ⚡ LATEST
+
+  Adds `phoenix_kit_login_attempts`: sign-ins that did not succeed, aggregated
+  at write time into one row per (identifier, network, outcome, hour) so a
+  brute-force run cannot grow the table by attacker effort. Feeds the failed
+  attempt count in the new-login alert email and the admin's failed-attempt
+  views. Additive only.
+
+  ### V196 - A user's Google address
 
   Adds `google_email` to `phoenix_kit_users` — the address to share a Drive
   file or a calendar invite with, which is not always the address the user
@@ -799,7 +807,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 196
+  @current_version 197
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
