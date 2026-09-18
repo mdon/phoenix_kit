@@ -3046,9 +3046,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       :if={@file.file_type == "image" and featured?(@featured, @file.file_uuid)}
       data-role="featured-badge"
       class="absolute top-2 left-2 bg-warning text-warning-content p-1 rounded-full pointer-events-none shadow"
-      title={(@featured && @featured[:label]) || gettext("Featured image")}
     >
-      <.icon name="hero-star-solid" class="w-3.5 h-3.5" />
+      <span
+        class="block w-3.5 h-3.5 pointer-events-auto"
+        title={(@featured && @featured[:label]) || gettext("Featured image")}
+      >
+        <.icon name="hero-star-solid" class="w-3.5 h-3.5" />
+      </span>
     </div>
     """
   end

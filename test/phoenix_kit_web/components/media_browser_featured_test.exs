@@ -132,6 +132,33 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
              "the featured tile itself should not also offer Set"
     end
 
+    test "the badge's title tooltip sits on a pointer-events-auto inner element, not the pointer-events-none outer badge" do
+      folder = create_folder!()
+      featured_file = create_file!(folder.uuid)
+
+      html =
+        render_component(MediaBrowser,
+          id: "test-browser",
+          scope_folder_id: folder.uuid,
+          featured: %{uuid: featured_file.uuid, label: "Cover shot"}
+        )
+
+      doc = LazyHTML.from_fragment(html)
+      badge = LazyHTML.query(doc, ~s([data-role="featured-badge"]))
+
+      # The outer badge stays pointer-events-none (so it doesn't block clicks
+      # on the tile underneath) and therefore must not carry the title itself
+      # — a div that never receives pointer events never shows its tooltip.
+      refute LazyHTML.attribute(badge, "class") |> hd() =~ "pointer-events-auto"
+      assert LazyHTML.attribute(badge, "title") == []
+
+      # The title lives on an inner element that opts back into pointer
+      # events, sized to the badge, so hovering the star actually triggers it.
+      tooltip_el = LazyHTML.query(doc, ~s([data-role="featured-badge"] [title]))
+      assert LazyHTML.attribute(tooltip_el, "title") == ["Cover shot"]
+      assert LazyHTML.attribute(tooltip_el, "class") |> hd() =~ "pointer-events-auto"
+    end
+
     test "a non-image file gets neither the badge nor the kebab item" do
       folder = create_folder!()
       n = System.unique_integer([:positive])
