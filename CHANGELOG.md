@@ -11,6 +11,26 @@
   as a compressed binary (~0.3s for the file). Lookups go through `Map.get/2`
   and runtime interpolation; `Gettext.dgettext/3` and the extract-surface
   (`__gettext__/1`, `__mix_recompile__?`) are unchanged.
+- **The backend reads `:priv`, `:interpolation` and `:default_domain` from the
+  merged opts.** They were declared as bare defaults *before*
+  `Application.compile_env(:phoenix_kit, PhoenixKitWeb.Gettext, [])` was folded
+  in, so a host that configured `priv:` got a catalogue built from its own
+  directory while `__gettext__(:priv)` still pointed `mix gettext.extract` and
+  `mix gettext.merge` at `priv/gettext`, and a configured `interpolation:`
+  module was ignored at runtime. `Gettext.Backend.__using__` derives all three
+  from the merge; so does this backend now.
+- **Plural forms come from each PO file's `Plural-Forms:` header again.** The
+  first cut always called `Gettext.Plural.plural(locale, n)`, i.e. Gettext's
+  built-in locale table, which silently ignored both a translator-authored
+  header and `config :gettext, :plural_forms`. The compiler now stores
+  `Gettext.Plural.plural_info/3` per locale/domain alongside the catalogue —
+  the same resolution `Gettext.Compiler` performs. No shipped locale changes
+  behaviour: the five headers we carry agree with the built-in table, and the
+  other three have no header.
+- **`PhoenixKitWeb.Gettext.warm_catalog/0`**, called from
+  `PhoenixKit.Application.start/2`. Decoding the embedded catalogue costs ~20ms
+  and `:persistent_term.put/2` scans every process; leaving it to the first
+  `gettext` call put both on a random request instead of on boot.
 
 ## 2.30.0 - 2026-09-18
 

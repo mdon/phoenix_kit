@@ -17,6 +17,7 @@ defmodule PhoenixKit.Application do
     check_installation()
     Local.remember_start_dir()
     ApplyImageEditJob.attach_telemetry()
+    PhoenixKitWeb.Gettext.warm_catalog()
 
     # PhoenixKit.Supervisor is started by parent app in its supervision tree
     # This is just a placeholder to satisfy OTP application callback

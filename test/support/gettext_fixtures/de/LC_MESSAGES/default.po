@@ -1,0 +1,15 @@
+## Fixture for PhoenixKitWeb.GettextTest.
+##
+## The `Plural-Forms:` header below is deliberately INVERTED relative to
+## German's real rule (`n != 1`), so a backend that resolves plural forms from
+## the header lands on the opposite form from one that falls back to Gettext's
+## built-in locale table. Nothing here is shipped or served.
+msgid ""
+msgstr ""
+"Language: de\n"
+"Plural-Forms: nplurals=2; plural=(n == 1);\n"
+
+msgid "%{count} thing"
+msgid_plural "%{count} things"
+msgstr[0] "form-zero %{count}"
+msgstr[1] "form-one %{count}"

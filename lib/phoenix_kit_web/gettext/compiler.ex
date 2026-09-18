@@ -24,6 +24,7 @@ defmodule PhoenixKitWeb.Gettext.Compiler do
 
   @type snapshot :: %{
           binary: binary(),
+          plural_infos: %{{String.t(), String.t()} => term()},
           known_locales: [String.t()],
           po_paths: [String.t()],
           hash: binary()
@@ -32,11 +33,13 @@ defmodule PhoenixKitWeb.Gettext.Compiler do
   @spec snapshot(keyword()) :: snapshot()
   def snapshot(opts) do
     interpolation = Keyword.get(opts, :interpolation, Gettext.Interpolation.Default)
+    plural_mod = Keyword.get(opts, :plural_forms, Gettext.Plural)
     files = po_files(opts)
-    catalog = build_catalog(files, interpolation)
+    {catalog, plural_infos} = build_catalog(files, interpolation, plural_mod)
 
     %{
       binary: :erlang.term_to_binary(catalog, [:compressed]),
+      plural_infos: plural_infos,
       known_locales: catalog |> Map.keys() |> Enum.sort(),
       po_paths: Enum.map(files, & &1.expanded),
       hash: hash_paths(Enum.map(files, & &1.path))
@@ -84,19 +87,26 @@ defmodule PhoenixKitWeb.Gettext.Compiler do
     {locale, Path.rootname(file, ".po")}
   end
 
-  defp build_catalog(files, interpolation) do
-    Enum.reduce(files, %{}, fn %{locale: locale, domain: domain, path: path}, acc ->
-      entries = load_entries(path, interpolation)
+  defp build_catalog(files, interpolation, plural_mod) do
+    Enum.reduce(files, {%{}, %{}}, fn %{locale: locale, domain: domain, path: path},
+                                      {catalog, plural_infos} ->
+      messages_struct = PO.parse_file!(path, strip_meta: true)
+      entries = load_entries(messages_struct, path, interpolation)
 
-      Map.update(acc, locale, %{domain => entries}, fn domains ->
-        Map.put(domains, domain, entries)
-      end)
+      catalog =
+        Map.update(catalog, locale, %{domain => entries}, fn domains ->
+          Map.put(domains, domain, entries)
+        end)
+
+      # Same resolution Gettext.Compiler uses: the file's `Plural-Forms:`
+      # header when it has one, otherwise the bare locale.
+      plural_info = Gettext.Plural.plural_info(locale, messages_struct, plural_mod)
+
+      {catalog, Map.put(plural_infos, {locale, domain}, plural_info)}
     end)
   end
 
-  defp load_entries(path, interpolation) do
-    %Expo.Messages{messages: messages} = PO.parse_file!(path, strip_meta: true)
-
+  defp load_entries(%Expo.Messages{messages: messages}, path, interpolation) do
     messages
     |> Enum.filter(&match?(%{obsolete: false}, &1))
     |> Enum.flat_map(&entry(&1, interpolation, path))

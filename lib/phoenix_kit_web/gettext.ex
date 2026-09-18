@@ -37,21 +37,32 @@ defmodule PhoenixKitWeb.Gettext do
   alias PhoenixKitWeb.Gettext.Compiler
 
   @otp_app :phoenix_kit
-  @priv "priv/gettext"
-  @interpolation Gettext.Interpolation.Default
-  @default_domain "default"
 
+  # Host config wins over the defaults, exactly like `Gettext.Backend.__using__`.
+  # Every attribute below is derived from the MERGED opts -- reading a default
+  # directly would build the catalog from a configured `:priv` while reporting
+  # the unconfigured one to `mix gettext.extract`.
   @opts [
           otp_app: @otp_app,
-          priv: @priv,
-          interpolation: @interpolation,
-          default_domain: @default_domain
+          priv: "priv/gettext",
+          interpolation: Gettext.Interpolation.Default,
+          default_domain: "default"
         ]
         |> Keyword.merge(Application.compile_env(@otp_app, __MODULE__, []))
+        |> Keyword.put_new(
+          :plural_forms,
+          Application.compile_env(:gettext, :plural_forms, Gettext.Plural)
+        )
+
+  @priv Keyword.fetch!(@opts, :priv)
+  @interpolation Keyword.fetch!(@opts, :interpolation)
+  @default_domain Keyword.fetch!(@opts, :default_domain)
+  @plural_mod Keyword.fetch!(@opts, :plural_forms)
 
   @snapshot Compiler.snapshot(@opts)
   @catalog_bin @snapshot.binary
   @known_locales @snapshot.known_locales
+  @plural_infos @snapshot.plural_infos
   @po_hash @snapshot.hash
 
   for path <- @snapshot.po_paths do
@@ -100,7 +111,7 @@ defmodule PhoenixKitWeb.Gettext do
   def lngettext(locale, domain, msgctxt, msgid, msgid_plural, n, bindings) do
     case lookup(locale, domain, msgctxt, msgid) do
       {:plural, ^msgid_plural, forms, file} ->
-        interpolate_plural(locale, forms, n, bindings, file)
+        interpolate_plural(locale, domain, forms, n, bindings, file)
 
       _ ->
         handle_missing_plural_translation(
@@ -154,8 +165,11 @@ defmodule PhoenixKitWeb.Gettext do
     |> Map.get({msgctxt, msgid}, :miss)
   end
 
-  defp interpolate_plural(locale, forms, n, bindings, file) do
-    form = Gettext.Plural.plural(locale, n)
+  defp interpolate_plural(locale, domain, forms, n, bindings, file) do
+    # `plural_info` carries the file's own `Plural-Forms:` header when it has
+    # one, so a translator-authored rule wins over Gettext's built-in table --
+    # and `@plural_mod` honours `config :gettext, :plural_forms`.
+    form = @plural_mod.plural(Map.get(@plural_infos, {locale, domain}, locale), n)
     bindings = Map.put(bindings, :count, n)
 
     case forms do
@@ -169,6 +183,20 @@ defmodule PhoenixKitWeb.Gettext do
           file: file,
           line: 1
     end
+  end
+
+  @doc """
+  Decodes the embedded catalogue into `:persistent_term` ahead of the first
+  lookup.
+
+  Called from `PhoenixKit.Application.start/2`. The decode costs ~20ms and
+  `:persistent_term.put/2` scans every process, so leaving it to the first
+  `gettext` call puts both on a random request instead of on boot.
+  """
+  @spec warm_catalog() :: :ok
+  def warm_catalog do
+    _ = catalog()
+    :ok
   end
 
   defp catalog do

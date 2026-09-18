@@ -7,7 +7,13 @@ defmodule PhoenixKitWeb.GettextTest do
   """
   use ExUnit.Case, async: true
 
+  alias PhoenixKitWeb.Gettext.Compiler
+
   @backend PhoenixKitWeb.Gettext
+
+  # German's real rule is `n != 1`; this fixture's header inverts it to
+  # `n == 1`, so header-derived and locale-table-derived forms disagree.
+  @fixture_priv "test/support/gettext_fixtures"
 
   setup do
     previous = Gettext.get_locale(@backend)
@@ -32,6 +38,40 @@ defmodule PhoenixKitWeb.GettextTest do
 
     test "unchanged PO files do not request a mix recompile" do
       refute @backend.__mix_recompile__?()
+    end
+
+    test "warming the catalogue is idempotent" do
+      assert @backend.warm_catalog() == :ok
+      assert @backend.warm_catalog() == :ok
+      assert is_map(:persistent_term.get({@backend, :catalog}))
+    end
+  end
+
+  describe "compile-time catalogue" do
+    test "reads :priv from the given opts, not a hardcoded default" do
+      snapshot = Compiler.snapshot(priv: @fixture_priv)
+
+      assert snapshot.known_locales == ["de"]
+      assert Map.has_key?(snapshot.plural_infos, {"de", "default"})
+    end
+
+    test "plural forms come from the PO header, not the built-in locale table" do
+      %{plural_infos: %{{"de", "default"} => info}} = Compiler.snapshot(priv: @fixture_priv)
+
+      # Gettext's built-in German rule (`n != 1`).
+      assert Gettext.Plural.plural("de", 1) == 0
+      assert Gettext.Plural.plural("de", 2) == 1
+
+      # The fixture header (`n == 1`) wins, so the forms swap.
+      assert Gettext.Plural.plural(info, 1) == 1
+      assert Gettext.Plural.plural(info, 2) == 0
+    end
+
+    test "honours the plural module it is handed" do
+      %{plural_infos: %{{"de", "default"} => info}} =
+        Compiler.snapshot(priv: @fixture_priv, plural_forms: Gettext.Plural)
+
+      assert Gettext.Plural.plural(info, 2) == 0
     end
   end
 
@@ -109,6 +149,16 @@ defmodule PhoenixKitWeb.GettextTest do
                "should have %{count} item(s)",
                3
              ) == "должно быть 3 элемента"
+    end
+
+    test "Polish picks all three header-declared forms" do
+      Gettext.put_locale(@backend, "pl")
+
+      forms =
+        for n <- [1, 2, 5],
+            do: Gettext.ngettext(@backend, @msgid, @msgid_plural, n)
+
+      assert [_, _, _] = Enum.uniq(forms)
     end
 
     test "a missing plural msgid interpolates the English fallback" do
