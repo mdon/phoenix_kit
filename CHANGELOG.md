@@ -1,3 +1,52 @@
+## 2.31.1 - 2026-09-19
+
+### Added
+
+- **Breadcrumb level switchers in the admin header** (#835). A ▾ beside a
+  breadcrumb segment that opens a searchable list of the other things on that
+  level and switches to one — GitHub's repository switcher, for any trail: the
+  other catalogues beside this one, the sibling categories beside this
+  category. The header's breadcrumb is core's, so the component lives here and
+  every page, core's own and a module package's, can reach it.
+  - `PhoenixKitWeb.Components.Core.CrumbSwitcher.crumb_switcher/1` — the ▾, the
+    panel (`PopoverPanel`: instant, Escape and a click away close it, a
+    full-screen sheet on a phone), a heading, a search box and the list with the
+    current row ticked. Every row is a real `navigate` or `patch` link, so
+    middle-click and copy-link keep working.
+  - `LayoutWrapper.app_layout` grows a `page_title_switcher` attr and honors a
+    `:switcher` on any `page_crumbs` entry; `layouts/admin.html.heex` threads
+    the new attr so plugin LiveViews can pass one. A page that passes neither
+    renders exactly as before.
+  - Two JS hooks. `ListFilter` filters the list on the client, ignoring case
+    and accents (`kasitoo` finds `Käsitöö`); Enter opens the first match, but
+    not an Enter that confirms an IME composition. It re-filters whenever its
+    list re-renders, because the inline styles it sets are not the sticky kind
+    LiveView re-applies after a patch — morphdom strips them, and an unfiltered
+    list under a query that still reads `kitch` would open the wrong row.
+    `CrumbSwitcher` does the open/close bookkeeping however the panel opened or
+    closed: the search starts empty and takes focus, focus returns to the ▾ on
+    close, `aria-expanded` follows the panel, and Tab stays inside it.
+  - No new strings: the switcher reuses `Search...` and `No results.`, both
+    already translated in all eight locales.
+
+### Changed
+
+- **The catalogue module is named "Catalogues" on the Modules page** (#835).
+  The module took its pages' name, and the Modules page translates each
+  module's `module_name/0` through core's catalogs, which knew only
+  "Catalogue" — so every locale but English showed the new name in English.
+  Both msgids are now registered and translated in all eight locales; the old
+  one stays, because older catalogue releases still send it.
+
+### Fixed
+
+- **Gettext source references for the switcher's reused strings.** #835
+  branched before 2.31.0's extract/merge round-trip, so `Search...` and
+  `No results.` carried no reference to `crumb_switcher.ex` in the `.pot` or
+  any `.po`. Nothing was mistranslated, but the next extract would have mixed a
+  thousand-line reference diff into someone else's work. Round-trip re-run:
+  0 new, 0 removed, 0 fuzzy, reference comments only.
+
 ## 2.31.0 - 2026-09-18
 
 ### Added

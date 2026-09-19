@@ -49,6 +49,20 @@ defmodule PhoenixKitWeb.Components.Core.CrumbSwitcherTest do
     assert length(visible) == 1
   end
 
+  test "picking a row closes the panel from the <li>, never from the link" do
+    # Placement is the whole point: on the link, a `patch` row would leave the
+    # panel open over the page the patch leaves in place, and hiding the link's
+    # own ancestor mid-click is what swallows the navigation.
+    html = render(%{title: "Switch catalogue", items: [%{label: "Kitchen", navigate: "/x"}]})
+    d = doc(html)
+
+    [row] = d |> LazyHTML.query("#sw-list li[data-filter-text]") |> Enum.to_list()
+    assert [click] = LazyHTML.attribute(row, "phx-click")
+    assert click =~ "sw"
+
+    assert d |> LazyHTML.query("#sw-list a[phx-click]") |> Enum.count() == 0
+  end
+
   test "the list is searchable on the client, with a no-results row" do
     html = render(%{title: "Switch category", items: [%{label: "Käsitöö", navigate: "/x"}]})
     d = doc(html)

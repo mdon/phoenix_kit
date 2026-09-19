@@ -1270,12 +1270,12 @@ msgstr "Последнее обновление"
 msgid "Legal Settings"
 msgstr "Настройки юридической информации"
 
-#: lib/phoenix_kit_web/live/modules.ex:381
+#: lib/phoenix_kit_web/live/modules.ex:384
 #, elixir-autogen, elixir-format
 msgid "Legal module disabled"
 msgstr "Модуль Юридический отключён"
 
-#: lib/phoenix_kit_web/live/modules.ex:382
+#: lib/phoenix_kit_web/live/modules.ex:385
 #, elixir-autogen, elixir-format
 msgid "Legal module enabled"
 msgstr "Модуль Юридический включён"
@@ -1543,7 +1543,7 @@ msgstr "Права обновлены для %{role_name}"
 msgid "PhoenixKit Version"
 msgstr "Версия PhoenixKit"
 
-#: lib/phoenix_kit_web/live/modules.ex:368
+#: lib/phoenix_kit_web/live/modules.ex:371
 #, elixir-autogen, elixir-format
 msgid "Please enable Publishing module first"
 msgstr "Сначала включите модуль Публикации"
@@ -2249,7 +2249,7 @@ msgstr "Включить"
 msgid "Expires"
 msgstr "Истекает"
 
-#: lib/phoenix_kit_web/live/modules.ex:400
+#: lib/phoenix_kit_web/live/modules.ex:403
 #, elixir-autogen, elixir-format
 msgid "Failed to %{action} Legal module"
 msgstr "Не удалось %{action} модуль Юридический"
@@ -2970,7 +2970,7 @@ msgid "Leave empty to preserve original format, or specify jpg/png/webp/mp4"
 msgstr "Оставьте пустым для сохранения оригинального формата или укажите jpg/png/webp/mp4"
 
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:73
-#: lib/phoenix_kit_web/live/modules.ex:132
+#: lib/phoenix_kit_web/live/modules.ex:135
 #, elixir-autogen, elixir-format
 msgid "Legal"
 msgstr "Юридическая информация"
@@ -4493,7 +4493,7 @@ msgstr "Локальное хранилище"
 
 #: lib/modules/storage/web/health.html.heex:198
 #: lib/modules/storage/web/health.html.heex:220
-#: lib/phoenix_kit_web/live/modules.ex:133
+#: lib/phoenix_kit_web/live/modules.ex:136
 #, elixir-autogen, elixir-format
 msgid "Locations"
 msgstr "Местоположения"
@@ -5442,6 +5442,7 @@ msgstr "Зарегистрируйте приложение в Microsoft Entra I
 msgid "Removes the integration permanently. Any module pinned to this connection will stop working until repointed."
 msgstr "Удаляет интеграцию навсегда. Любой модуль, привязанный к этому соединению, перестанет работать до переназначения."
 
+#: lib/phoenix_kit_web/components/core/crumb_switcher.ex:48
 #: lib/phoenix_kit_web/components/core/table_default.ex:880
 #, elixir-autogen, elixir-format
 msgid "Search..."
@@ -5512,7 +5513,7 @@ msgstr "Тело сохранено"
 
 #: lib/phoenix_kit/users/auth.ex:3227
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:555
-#: lib/phoenix_kit_web/live/modules.ex:124
+#: lib/phoenix_kit_web/live/modules.ex:127
 #: lib/phoenix_kit_web/live/users/media_detail.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Comments"
@@ -5523,7 +5524,7 @@ msgstr "Комментарии"
 msgid "Completed"
 msgstr "Завершённых"
 
-#: lib/phoenix_kit_web/live/modules.ex:125
+#: lib/phoenix_kit_web/live/modules.ex:128
 #, elixir-autogen, elixir-format
 msgid "Customer Support"
 msgstr "Служба поддержки"
@@ -5912,14 +5913,14 @@ msgstr "Статические"
 
 #: lib/modules/sitemap/web/settings.html.heex:129
 #: lib/modules/sitemap/web/settings.html.heex:215
-#: lib/phoenix_kit_web/live/modules.ex:138
+#: lib/phoenix_kit_web/live/modules.ex:141
 #, elixir-autogen
 msgid "Publishing"
 msgstr "Публикации"
 
 #: lib/modules/sitemap/web/settings.html.heex:136
 #: lib/modules/sitemap/web/settings.html.heex:273
-#: lib/phoenix_kit_web/live/modules.ex:130
+#: lib/phoenix_kit_web/live/modules.ex:133
 #, elixir-autogen
 msgid "Entities"
 msgstr "Сущности"
@@ -5927,7 +5928,7 @@ msgstr "Сущности"
 #: lib/modules/sitemap/web/settings.html.heex:141
 #: lib/modules/sitemap/web/settings.html.heex:321
 #: lib/phoenix_kit/users/auth.ex:3225
-#: lib/phoenix_kit_web/live/modules.ex:136
+#: lib/phoenix_kit_web/live/modules.ex:139
 #, elixir-autogen
 msgid "Posts"
 msgstr "Записи"
@@ -6827,6 +6828,7 @@ msgstr "Введите запрос для поиска GIF."
 
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:58
 #: lib/phoenix_kit_web/components/annotation_composer.ex:644
+#: lib/phoenix_kit_web/components/core/crumb_switcher.ex:121
 #, elixir-autogen, elixir-format
 msgid "No results."
 msgstr "Результатов нет."
@@ -7725,17 +7727,17 @@ msgstr "Авторизация"
 msgid "AI"
 msgstr "AI"
 
-#: lib/phoenix_kit_web/live/modules.ex:147
+#: lib/phoenix_kit_web/live/modules.ex:150
 #, elixir-autogen, elixir-format
 msgid "AI endpoints, prompts, and usage tracking"
 msgstr "AI-точки доступа, промпты и учёт использования"
 
-#: lib/phoenix_kit_web/live/modules.ex:148
+#: lib/phoenix_kit_web/live/modules.ex:151
 #, elixir-autogen, elixir-format
 msgid "AI module for PhoenixKit — endpoints, prompts, completions, and usage tracking"
 msgstr "AI-модуль для PhoenixKit — точки доступа, промпты, завершения и учёт использования"
 
-#: lib/phoenix_kit_web/live/modules.ex:143
+#: lib/phoenix_kit_web/live/modules.ex:146
 #, elixir-autogen, elixir-format
 msgid "Ai"
 msgstr "AI"
@@ -7745,12 +7747,12 @@ msgstr "AI"
 msgid "Billing"
 msgstr "Биллинг"
 
-#: lib/phoenix_kit_web/live/modules.ex:151
+#: lib/phoenix_kit_web/live/modules.ex:154
 #, elixir-autogen, elixir-format
 msgid "Billing module for PhoenixKit — payments, subscriptions, invoices"
 msgstr "Биллинговый модуль для PhoenixKit — платежи, подписки, счета"
 
-#: lib/phoenix_kit_web/live/modules.ex:152
+#: lib/phoenix_kit_web/live/modules.ex:155
 #, elixir-autogen, elixir-format
 msgid "Blog posts, categories, and content publishing"
 msgstr "Записи блога, категории и публикация контента"
@@ -7761,7 +7763,7 @@ msgstr "Записи блога, категории и публикация ко
 msgid "CRM"
 msgstr "CRM"
 
-#: lib/phoenix_kit_web/live/modules.ex:160
+#: lib/phoenix_kit_web/live/modules.ex:163
 #, elixir-autogen, elixir-format
 msgid "CRM module for PhoenixKit — organization accounts, role-scoped user views, and per-user column configuration."
 msgstr "CRM-модуль для PhoenixKit — корпоративные аккаунты, ролевые представления пользователей и настройка колонок на пользователя."
@@ -7776,22 +7778,22 @@ msgstr "Каталог"
 msgid "Catalogues"
 msgstr "Каталоги"
 
-#: lib/phoenix_kit_web/live/modules.ex:153
+#: lib/phoenix_kit_web/live/modules.ex:156
 #, elixir-autogen, elixir-format
 msgid "Catalogue module for PhoenixKit — manufacturers, suppliers, and product catalogues."
 msgstr "Модуль каталога для PhoenixKit — производители, поставщики и товарные каталоги."
 
-#: lib/phoenix_kit_web/live/modules.ex:156
+#: lib/phoenix_kit_web/live/modules.ex:159
 #, elixir-autogen, elixir-format
 msgid "Comment moderation, threading, and reactions across all content types"
 msgstr "Модерация комментариев, ветки и реакции по всем типам контента"
 
-#: lib/phoenix_kit_web/live/modules.ex:157
+#: lib/phoenix_kit_web/live/modules.ex:160
 #, elixir-autogen, elixir-format
 msgid "Comments module for PhoenixKit — polymorphic threading, likes/dislikes, and moderation"
 msgstr "Модуль комментариев для PhoenixKit — полиморфные ветки, лайки/дизлайки и модерация"
 
-#: lib/phoenix_kit_web/live/modules.ex:144
+#: lib/phoenix_kit_web/live/modules.ex:147
 #, elixir-autogen, elixir-format
 msgid "Crm"
 msgstr "CRM"
@@ -7801,142 +7803,142 @@ msgstr "CRM"
 msgid "Current Configuration"
 msgstr "Текущая конфигурация"
 
-#: lib/phoenix_kit_web/live/modules.ex:163
+#: lib/phoenix_kit_web/live/modules.ex:166
 #, elixir-autogen, elixir-format
 msgid "Customer support ticketing module for PhoenixKit"
 msgstr "Модуль тикетов службы поддержки для PhoenixKit"
 
-#: lib/phoenix_kit_web/live/modules.ex:164
+#: lib/phoenix_kit_web/live/modules.ex:167
 #, elixir-autogen, elixir-format
 msgid "Database-backed CMS pages and multi-language content"
 msgstr "CMS-страницы с хранением в БД и многоязычный контент"
 
-#: lib/phoenix_kit_web/live/modules.ex:126
+#: lib/phoenix_kit_web/live/modules.ex:129
 #, elixir-autogen, elixir-format
 msgid "Document Creator"
 msgstr "Конструктор документов"
 
-#: lib/phoenix_kit_web/live/modules.ex:165
+#: lib/phoenix_kit_web/live/modules.ex:168
 #, elixir-autogen, elixir-format
 msgid "Document Creator module for PhoenixKit — document templates and PDF generation via Google Docs"
 msgstr "Модуль конструктора документов для PhoenixKit — шаблоны и генерация PDF через Google Docs"
 
-#: lib/phoenix_kit_web/live/modules.ex:127
+#: lib/phoenix_kit_web/live/modules.ex:130
 #, elixir-autogen, elixir-format
 msgid "E-Commerce"
 msgstr "Электронная коммерция"
 
-#: lib/phoenix_kit_web/live/modules.ex:168
+#: lib/phoenix_kit_web/live/modules.ex:171
 #, elixir-autogen, elixir-format
 msgid "E-commerce module for PhoenixKit — products, categories, cart, checkout"
 msgstr "Модуль электронной коммерции для PhoenixKit — товары, категории, корзина, оформление заказа"
 
-#: lib/phoenix_kit_web/live/modules.ex:128
+#: lib/phoenix_kit_web/live/modules.ex:131
 #, elixir-autogen, elixir-format
 msgid "Ecommerce"
 msgstr "Электронная коммерция"
 
-#: lib/phoenix_kit_web/live/modules.ex:169
+#: lib/phoenix_kit_web/live/modules.ex:172
 #, elixir-autogen, elixir-format
 msgid "Email tracking, analytics, and AWS SES integration for PhoenixKit"
 msgstr "Отслеживание писем, аналитика и интеграция с AWS SES для PhoenixKit"
 
-#: lib/phoenix_kit_web/live/modules.ex:129
+#: lib/phoenix_kit_web/live/modules.ex:132
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr "Электронные письма"
 
-#: lib/phoenix_kit_web/live/modules.ex:170
+#: lib/phoenix_kit_web/live/modules.ex:173
 #, elixir-autogen, elixir-format
 msgid "Entities module for PhoenixKit — dynamic content types with flexible field schemas"
 msgstr "Модуль сущностей для PhoenixKit — динамические типы контента с гибкими схемами полей"
 
-#: lib/phoenix_kit_web/live/modules.ex:201
+#: lib/phoenix_kit_web/live/modules.ex:204
 #, elixir-autogen, elixir-format
 msgid "External module"
 msgstr "Внешний модуль"
 
-#: lib/phoenix_kit_web/live/modules.ex:131
+#: lib/phoenix_kit_web/live/modules.ex:134
 #, elixir-autogen, elixir-format
 msgid "Hello World"
 msgstr "Hello World"
 
-#: lib/phoenix_kit_web/live/modules.ex:173
+#: lib/phoenix_kit_web/live/modules.ex:176
 #, elixir-autogen, elixir-format
 msgid "Hello World demo module for PhoenixKit — use as a template for your own plugins"
 msgstr "Демо-модуль Hello World для PhoenixKit — используйте как шаблон для своих плагинов"
 
-#: lib/phoenix_kit_web/live/modules.ex:176
+#: lib/phoenix_kit_web/live/modules.ex:179
 #, elixir-autogen, elixir-format
 msgid "Legal compliance module for PhoenixKit — GDPR/CCPA legal pages, cookie consent, consent logging"
 msgstr "Модуль юридической информации для PhoenixKit — страницы GDPR/CCPA, согласие на cookies, журнал согласий"
 
-#: lib/phoenix_kit_web/live/modules.ex:179
+#: lib/phoenix_kit_web/live/modules.ex:182
 #, elixir-autogen, elixir-format
 msgid "Locations module for PhoenixKit — manage physical locations with custom types."
 msgstr "Модуль местоположений для PhoenixKit — управление физическими локациями с настраиваемыми типами."
 
-#: lib/phoenix_kit_web/live/modules.ex:134
+#: lib/phoenix_kit_web/live/modules.ex:137
 #, elixir-autogen, elixir-format
 msgid "Newsletters"
 msgstr "Рассылки"
 
-#: lib/phoenix_kit_web/live/modules.ex:182
+#: lib/phoenix_kit_web/live/modules.ex:185
 #, elixir-autogen, elixir-format
 msgid "Newsletters module for PhoenixKit — email broadcasts and subscription management"
 msgstr "Модуль рассылок для PhoenixKit — email-рассылки и управление подписками"
 
-#: lib/phoenix_kit_web/live/modules.ex:185
+#: lib/phoenix_kit_web/live/modules.ex:188
 #, elixir-autogen, elixir-format
 msgid "Peer-to-peer data sync module for PhoenixKit"
 msgstr "Модуль одноранговой синхронизации данных для PhoenixKit"
 
-#: lib/phoenix_kit_web/live/modules.ex:186
+#: lib/phoenix_kit_web/live/modules.ex:189
 #, elixir-autogen, elixir-format
 msgid "Peer-to-peer data synchronization and replication"
 msgstr "Одноранговая синхронизация и репликация данных"
 
-#: lib/phoenix_kit_web/live/modules.ex:187
+#: lib/phoenix_kit_web/live/modules.ex:190
 #, elixir-autogen, elixir-format
 msgid "Posts module for PhoenixKit — blog posts, tags, groups, likes, media, and scheduling"
 msgstr "Модуль записей для PhoenixKit — посты блога, теги, группы, лайки, медиа и планирование"
 
-#: lib/phoenix_kit_web/live/modules.ex:137
+#: lib/phoenix_kit_web/live/modules.ex:140
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr "Проекты"
 
-#: lib/phoenix_kit_web/live/modules.ex:190
+#: lib/phoenix_kit_web/live/modules.ex:193
 #, elixir-autogen, elixir-format
 msgid "Projects module for PhoenixKit — projects, reusable tasks, assignments, and dependencies."
 msgstr "Модуль проектов для PhoenixKit — проекты, повторно используемые задачи, назначения и зависимости."
 
-#: lib/phoenix_kit_web/live/modules.ex:193
+#: lib/phoenix_kit_web/live/modules.ex:196
 #, elixir-autogen, elixir-format
 msgid "Publishing module for PhoenixKit — database-backed CMS with multi-language support"
 msgstr "Модуль публикаций для PhoenixKit — CMS с хранением в БД и многоязычной поддержкой"
 
-#: lib/phoenix_kit_web/live/modules.ex:139
+#: lib/phoenix_kit_web/live/modules.ex:142
 #, elixir-autogen, elixir-format
 msgid "Staff"
 msgstr "Сотрудники"
 
-#: lib/phoenix_kit_web/live/modules.ex:196
+#: lib/phoenix_kit_web/live/modules.ex:199
 #, elixir-autogen, elixir-format
 msgid "Staff module for PhoenixKit — departments, teams, and people."
 msgstr "Модуль сотрудников для PhoenixKit — отделы, команды и люди."
 
-#: lib/phoenix_kit_web/live/modules.ex:140
+#: lib/phoenix_kit_web/live/modules.ex:143
 #, elixir-autogen, elixir-format
 msgid "Sync"
 msgstr "Синхронизация"
 
-#: lib/phoenix_kit_web/live/modules.ex:141
+#: lib/phoenix_kit_web/live/modules.ex:144
 #, elixir-autogen, elixir-format
 msgid "User Connections"
 msgstr "Связи пользователей"
 
-#: lib/phoenix_kit_web/live/modules.ex:197
+#: lib/phoenix_kit_web/live/modules.ex:200
 #, elixir-autogen, elixir-format
 msgid "User connections module for PhoenixKit — follows, mutual connections, and blocking"
 msgstr "Модуль связей пользователей для PhoenixKit — подписки, взаимные связи и блокировки"
@@ -13094,19 +13096,19 @@ msgstr "за последний час"
 msgid "in the last week"
 msgstr "за последнюю неделю"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1207
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1224
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Свернуть"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1198
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1199
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1201
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1215
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1216
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1218
 #, elixir-autogen, elixir-format
 msgid "Collapse the menu to icons"
 msgstr "Свернуть меню до значков"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1200
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1217
 #, elixir-autogen, elixir-format
 msgid "Expand the menu"
 msgstr "Развернуть меню"
@@ -14260,7 +14262,7 @@ msgstr ""
 msgid "Buckets"
 msgstr "Бакеты"
 
-#: lib/phoenix_kit_web/live/modules.ex:135
+#: lib/phoenix_kit_web/live/modules.ex:138
 #, elixir-autogen, elixir-format
 msgid "OG"
 msgstr ""
