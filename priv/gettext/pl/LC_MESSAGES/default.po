@@ -7758,10 +7758,15 @@ msgstr "CRM"
 msgid "CRM module for PhoenixKit — organization accounts, role-scoped user views, and per-user column configuration."
 msgstr "Moduł CRM dla PhoenixKit — konta organizacji, widoki użytkowników zależne od roli i konfiguracja kolumn dla użytkownika."
 
-#: lib/phoenix_kit_web/live/modules.ex:123
+#: lib/phoenix_kit_web/live/modules.ex:125
 #, elixir-autogen, elixir-format
 msgid "Catalogue"
 msgstr "Katalog"
+
+#: lib/phoenix_kit_web/live/modules.ex:126
+#, elixir-autogen, elixir-format
+msgid "Catalogues"
+msgstr "Katalogi"
 
 #: lib/phoenix_kit_web/live/modules.ex:153
 #, elixir-autogen, elixir-format
