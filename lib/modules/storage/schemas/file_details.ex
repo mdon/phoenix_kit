@@ -114,7 +114,10 @@ defmodule PhoenixKit.Modules.Storage.FileDetails do
 
   @doc """
   The text `file` holds in `lang` itself — no fallback to another language,
-  so an editor's tab shows what that language really has.
+  so an editor shows what that language really has. "Itself" includes the
+  same language stored at another precision (`"en"` for `"en-US"`), which a
+  save replaces; it does not include a sibling dialect (`"en-GB"`), which is
+  another language — an editor opened on it would save a copy of it.
 
   Options: `:primary` — the site's primary language (default: the current
   one).
@@ -122,7 +125,7 @@ defmodule PhoenixKit.Modules.Storage.FileDetails do
   @spec from_file(File.t(), String.t() | nil, keyword()) :: t()
   def from_file(%File{} = file, lang \\ nil, opts \\ []) do
     primary = primary(opts)
-    struct(__MODULE__, atomize(own_text(file, lang || primary, primary)))
+    struct(__MODULE__, atomize(own_text(file, lang || primary, primary, :own)))
   end
 
   @doc """
@@ -232,13 +235,14 @@ defmodule PhoenixKit.Modules.Storage.FileDetails do
 
   defp primary(opts), do: Keyword.get_lazy(opts, :primary, &Multilang.primary_language/0)
 
-  # The non-blank text the file holds in `lang` itself, string-keyed.
-  defp own_text(%File{} = file, lang, primary) do
+  # The non-blank text the file holds in `lang`, string-keyed. `:read`
+  # accepts a sibling dialect's entry; `:own` does not (see `from_file/3`).
+  defp own_text(%File{} = file, lang, primary, mode \\ :read) do
     data = languages(file.data)
 
     entry =
       cond do
-        map_size(data) > 0 -> find_entry(data, lang)
+        map_size(data) > 0 -> find_entry(data, lang, mode)
         same_language?(lang, primary) -> file.metadata || %{}
         true -> %{}
       end
@@ -264,7 +268,7 @@ defmodule PhoenixKit.Modules.Storage.FileDetails do
   # register bare base codes ("en") while the locale pipeline resolves URLs
   # to full dialects ("en-US") — or the reverse. An exact miss falls back to
   # the base code, then to the first stored entry sharing the base.
-  defp find_entry(data, lang) do
+  defp find_entry(data, lang, :read) do
     base = DialectMapper.extract_base(lang)
 
     data[lang] || data[base] ||
@@ -273,6 +277,13 @@ defmodule PhoenixKit.Modules.Storage.FileDetails do
       |> Enum.find_value(%{}, fn {key, entry} ->
         if DialectMapper.extract_base(key) == base, do: entry
       end)
+  end
+
+  defp find_entry(data, lang, :own) do
+    data[lang] ||
+      data
+      |> Enum.sort_by(&elem(&1, 0))
+      |> Enum.find_value(%{}, fn {key, entry} -> if same_language?(key, lang), do: entry end)
   end
 
   defp adopt_legacy_text(%File{} = file, primary) do

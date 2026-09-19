@@ -197,7 +197,7 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnail do
   shares its LiveView's) and the site's primary language.
   """
   def alt_opts do
-    {Gettext.get_locale(PhoenixKitWeb.Gettext),
+    {PhoenixKit.Utils.Multilang.current_locale(),
      [primary: PhoenixKit.Utils.Multilang.primary_language()]}
   end
 

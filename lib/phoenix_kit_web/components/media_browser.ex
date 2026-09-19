@@ -2269,11 +2269,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # duplicate another user uploaded first) is theirs to rotate, not ours.
     with %Storage.File{} = file <- Storage.get_file(file_uuid),
          true <- Storage.within_scope?(file.folder_uuid, scope) do
-      current = normalized_rotation(Map.get(file.metadata || %{}, "rotation"))
-      next = Integer.mod(current + delta, 360)
-      merged = Map.put(file.metadata || %{}, "rotation", next)
+      # Turned from the rotation the row holds NOW, and merged into the
+      # metadata it holds now: two quick clicks add up, and a title saved in
+      # between survives.
+      rotate = fn metadata ->
+        current = normalized_rotation(Map.get(metadata, "rotation"))
+        Map.put(metadata, "rotation", Integer.mod(current + delta, 360))
+      end
 
-      case Storage.update_file(file, %{metadata: merged}) do
+      case Storage.update_file_metadata(file, rotate) do
         {:ok, _} ->
           Storage.broadcast_file_thumbnail_updated(file_uuid)
           {:noreply, refresh_processed_file(socket, file_uuid, viewer: false)}

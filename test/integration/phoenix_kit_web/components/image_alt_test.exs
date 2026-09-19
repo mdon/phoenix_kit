@@ -33,6 +33,19 @@ defmodule PhoenixKitWeb.Components.ImageAltTest do
         user_uuid: user.uuid
       })
 
+    # An original instance: without one the file has no URL and `Image`
+    # renders its "not available" box instead of an <img>.
+    Repo.insert!(%Storage.FileInstance{
+      file_uuid: file.uuid,
+      variant_name: "original",
+      file_name: "img_#{n}.jpg",
+      mime_type: "image/jpeg",
+      ext: "jpg",
+      checksum: "sha256:alt-#{n}",
+      size: 1024,
+      processing_status: "completed"
+    })
+
     {:ok, file} = Storage.update_file_details(file, %{"alt" => "Boats in a harbour"})
     %{image: file}
   end
@@ -67,6 +80,22 @@ defmodule PhoenixKitWeb.Components.ImageAltTest do
       assigns = %{attrs: %{"src" => "/logo.png"}}
 
       assert rendered_to_string(~H"<Image.render attributes={@attrs} />") =~ ~s(alt="")
+    end
+
+    test "a Storage image with no alt written: the file's own", %{image: file} do
+      assigns = %{attrs: %{"file_uuid" => file.uuid}}
+      html = rendered_to_string(~H"<Image.render attributes={@attrs} />")
+
+      assert html =~ "<img"
+      assert html =~ ~s(alt="Boats in a harbour")
+    end
+
+    test "a Storage image marked decorative stays decorative", %{image: file} do
+      assigns = %{attrs: %{"file_uuid" => file.uuid, "alt" => ""}}
+      html = rendered_to_string(~H"<Image.render attributes={@attrs} />")
+
+      assert html =~ ~s(alt="")
+      refute html =~ "Boats"
     end
 
     test "an alt the author wrote wins over the file's", %{image: file} do

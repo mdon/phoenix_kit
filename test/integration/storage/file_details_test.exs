@@ -96,6 +96,55 @@ defmodule PhoenixKit.Integration.Storage.FileDetailsTest do
     assert Storage.update_file_details(file, %{"title" => "Harbour"}) == {:error, :not_found}
   end
 
+  describe "update_file_details/3 with :metadata" do
+    test "sets other metadata keys in the same write, but never the text keys" do
+      file = create_file!(%{"rotation" => 90})
+
+      assert {:ok, updated} =
+               Storage.update_file_details(file, %{"title" => "Harbour"},
+                 metadata: %{"tags" => ["sea"], "title" => "Smuggled"},
+                 primary: "en-US"
+               )
+
+      assert updated.metadata == %{
+               "rotation" => 90,
+               "tags" => ["sea"],
+               "title" => "Harbour",
+               "alt" => "",
+               "description" => ""
+             }
+    end
+  end
+
+  describe "update_file_metadata/2" do
+    test "changes the map the row holds now, not the one the caller loaded" do
+      stale = create_file!(%{"title" => "Harbour"})
+      {:ok, _} = Storage.update_file_metadata(stale, &Map.put(&1, "tags", ["sea"]))
+
+      assert {:ok, updated} = Storage.update_file_metadata(stale, &Map.put(&1, "rotation", 90))
+      assert updated.metadata == %{"title" => "Harbour", "tags" => ["sea"], "rotation" => 90}
+    end
+
+    test "leaves the translations alone, and a nil map is an empty one" do
+      file = create_file!(nil)
+      {:ok, _} = Storage.update_file_details(file, %{"alt" => "Boats"}, @en)
+
+      assert {:ok, updated} =
+               Storage.update_file_metadata(file.uuid, &Map.put(&1, "rotation", 90))
+
+      assert updated.data == %{"en-US" => %{"alt" => "Boats"}}
+    end
+
+    test ":unchanged writes nothing; a file that is gone is :not_found" do
+      file = create_file!(%{"rotation" => 90})
+      assert {:ok, same} = Storage.update_file_metadata(file, fn _ -> :unchanged end)
+      assert same.updated_at == file.updated_at
+
+      Repo.delete!(file)
+      assert Storage.update_file_metadata(file, & &1) == {:error, :not_found}
+    end
+  end
+
   describe "translated_alts/3" do
     test "reads many files in one go, in the language asked for" do
       one = create_file!(nil)

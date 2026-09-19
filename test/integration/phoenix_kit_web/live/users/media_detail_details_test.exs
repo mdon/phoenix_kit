@@ -12,6 +12,8 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetailDetailsTest do
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Components.MediaCanvasViewer
+  alias PhoenixKitWeb.Users.Auth
 
   setup %{conn: conn} do
     Settings.update_setting("languages_enabled", "true")
@@ -127,5 +129,57 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetailDetailsTest do
 
     assert html =~ "should be at most 255"
     assert Repo.reload!(file).data == %{}
+  end
+
+  # The viewer sidebar is a LiveComponent nested in other LiveComponents: it
+  # has no `@current_locale`, and the Gettext locale is "en" for both
+  # dialects. It must still save the dialect the page is in.
+  test "the viewer sidebar on an en-GB page saves en-GB, not the other English", %{user: user} do
+    Settings.update_json_setting("languages_config", %{
+      "languages" => [
+        %{
+          "code" => "en-US",
+          "name" => "English (US)",
+          "is_default" => true,
+          "is_enabled" => true
+        },
+        %{
+          "code" => "en-GB",
+          "name" => "English (UK)",
+          "is_default" => false,
+          "is_enabled" => true
+        }
+      ]
+    })
+
+    file = image!(user, data: %{"en-US" => %{"title" => "Harbor"}})
+    Auth.put_gettext_locale("en-GB")
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        id: "mcv-test",
+        file: %{file_uuid: file.uuid},
+        details_path: "/admin/media/x",
+        edit_target: nil,
+        write_scope: nil,
+        media_meta_status: nil,
+        media_meta_status_token: 0
+      }
+    }
+
+    {:noreply, socket} =
+      MediaCanvasViewer.handle_event(
+        "save_media_details",
+        %{"title" => "Harbour"},
+        socket
+      )
+
+    assert socket.assigns.media_meta_status == :saved
+
+    assert Repo.reload!(file).data == %{
+             "en-US" => %{"title" => "Harbor"},
+             "en-GB" => %{"title" => "Harbour"}
+           }
   end
 end

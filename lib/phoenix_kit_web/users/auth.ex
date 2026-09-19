@@ -1196,6 +1196,9 @@ defmodule PhoenixKitWeb.Users.Auth do
 
     Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
     Gettext.put_locale(locale)
+    # The undowngraded dialect, for per-language content (see
+    # `Languages.put_request_locale/1`).
+    Languages.put_request_locale(dialect)
     locale
   end
 

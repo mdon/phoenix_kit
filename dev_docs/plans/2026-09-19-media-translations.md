@@ -125,12 +125,34 @@ language — not a different file per language.
 Single-language installs see no tabs (`Multilang.enabled?/0`); they just gain
 an alt field.
 
+## Review (Grok, 2026-09-19)
+
+`dev_docs/reviews/2026-09-19-media-translations/GROK_REVIEW.md`; what was
+done about it is in `CLAUDE_RESPONSE.md` beside it. It changed three things
+in this design:
+
+- **The page's language is read from the process, as a full dialect.**
+  Gettext's locale is downgraded to a base code, so with `en-US` + `en-GB`
+  co-enabled the viewer saved an `/en-GB/` edit over the `en-US` text.
+  `Auth.put_gettext_locale/1` now records the undowngraded dialect beside it
+  (`Languages.put_request_locale/1`); `Multilang.current_locale/0` reads it,
+  and the viewer, the grids and the image components use that. Passing an
+  assign was not enough: the viewer sits inside LiveComponents that have no
+  `@current_locale` either.
+- **An editor never opens pre-filled with a sibling dialect's text**
+  (`FileDetails.from_file/3` matches the language at any precision, not its
+  siblings); readers still fall back across dialects.
+- **Every read-modify-write of `metadata` goes through
+  `Storage.update_file_metadata/2`** (row held `FOR UPDATE`): the two
+  rotation writes, and the detail page's tags, which now ride in the details
+  save itself (`update_file_details/3`'s `:metadata` option).
+
 ## Known gaps
 
-- Two co-enabled dialects of one language (`en-US` + `en-GB`): a dialect with
-  no entry of its own reads its sibling's text — right for the public read,
-  but the editor tab for `en-GB` then opens pre-filled with the `en-US` text.
-  Same behaviour as `Multilang.get_raw_language_data/2`; revisit if a host
-  runs that configuration.
+- Writing under a bare base code (`"en"`) replaces every dialect of that
+  language (`"en-GB"`, `"en-US"`). Deliberate — a site that enabled `"en"`
+  has no page a leftover dialect entry could be shown on — and the same rule
+  as `Multilang.put_language_data/3`. The editors only ever write an ENABLED
+  code, so two co-enabled dialects never hit it.
 - The "any language" last resort picks the first language by code order —
   deterministic, not meaningful.

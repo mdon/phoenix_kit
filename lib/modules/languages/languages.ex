@@ -613,6 +613,29 @@ defmodule PhoenixKit.Modules.Languages do
     :ok
   end
 
+  @request_locale_key :phoenix_kit_request_locale
+
+  @doc """
+  Records the full dialect the current request or LiveView navigation
+  resolved to (`"en-GB"`), on this process.
+
+  The Gettext locale cannot stand in for it: core ships catalogues under
+  bare base codes, so `"en-GB"` and `"en-US"` both put `"en"` there — and
+  anything that stores or reads per-language CONTENT by that value mixes two
+  co-enabled dialects up. Set next to the Gettext locale
+  (`PhoenixKitWeb.Users.Auth.put_gettext_locale/1`), so it is present
+  wherever that is, LiveComponents included.
+  """
+  @spec put_request_locale(String.t()) :: :ok
+  def put_request_locale(dialect) when is_binary(dialect) do
+    Process.put(@request_locale_key, dialect)
+    :ok
+  end
+
+  @doc "The dialect `put_request_locale/1` recorded on this process, if any."
+  @spec request_locale() :: String.t() | nil
+  def request_locale, do: Process.get(@request_locale_key)
+
   @doc """
   Returns the request/process-scoped default-language override, if any.
   """

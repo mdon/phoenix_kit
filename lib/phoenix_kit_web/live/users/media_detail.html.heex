@@ -260,10 +260,10 @@
                   </div>
 
                   <div>
-                    <span class="font-semibold text-base-content/70">Tags:</span>
+                    <span class="font-semibold text-base-content/70">{gettext("Tags")}:</span>
                     <div class="flex flex-wrap gap-1 mt-1">
                       <%= if Enum.empty?(@file_data.tags) do %>
-                        <span class="text-base-content/50 italic">None</span>
+                        <span class="text-base-content/50 italic">{gettext("None")}</span>
                       <% else %>
                         <%= for tag <- @file_data.tags do %>
                           <span class="badge badge-sm h-auto">{tag}</span>

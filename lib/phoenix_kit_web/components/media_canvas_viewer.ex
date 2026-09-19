@@ -595,7 +595,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # LiveComponent shares its LiveView's process, so the locale the
   # navigation hook put there is the page's — no host has to pass it.
   defp content_language,
-    do: FileDetails.content_language(Gettext.get_locale(PhoenixKitWeb.Gettext))
+    do: FileDetails.content_language(PhoenixKit.Utils.Multilang.current_locale())
 
   # `:media_meta` is what the section SHOWS (this language, falling back
   # like any reader); the form holds the language's OWN text, with the
@@ -668,9 +668,9 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
         if current == rotation or not file_writable?(file, socket.assigns[:write_scope]) do
           assign(socket, :viewer_rotation, rotation)
         else
-          merged = Map.put(file.metadata || %{}, "rotation", rotation)
-
-          case Storage.update_file(file, %{metadata: merged}) do
+          # On the row as it is NOW: a title or tags saved since `file` was
+          # read must survive the rotation.
+          case Storage.update_file_metadata(file, &Map.put(&1, "rotation", rotation)) do
             {:ok, _updated} ->
               # Thumbnails render the saved orientation via a CSS transform
               # (MediaThumbnail.rotation_class/1), so a rotation changes what

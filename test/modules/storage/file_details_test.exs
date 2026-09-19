@@ -79,6 +79,13 @@ defmodule PhoenixKit.Modules.Storage.FileDetailsTest do
       assert FileDetails.content_language("en", @site) == "en-US"
     end
 
+    test "two enabled dialects of one language stay two languages" do
+      site = [languages: ["en-US", "en-GB"], primary: "en-US"]
+
+      assert FileDetails.content_language("en-GB", site) == "en-GB"
+      assert FileDetails.content_language("en-US", site) == "en-US"
+    end
+
     test "a locale that is no enabled language, or none at all, is the primary language" do
       assert FileDetails.content_language("lv", @site) == "en-US"
       assert FileDetails.content_language(nil, @site) == "en-US"
@@ -99,6 +106,20 @@ defmodule PhoenixKit.Modules.Storage.FileDetailsTest do
       assert FileDetails.from_file(legacy, "en-US", @en).title == "Harbour"
       assert FileDetails.from_file(legacy, nil, @en).title == "Harbour"
       assert FileDetails.from_file(legacy, "et", @en).title == nil
+    end
+
+    test "a sibling dialect is another language: its text is not this editor's" do
+      file = file(%{}, %{"en-US" => %{"title" => "Harbor"}})
+
+      assert FileDetails.from_file(file, "en-GB", @en) == %FileDetails{}
+      # …while a reader of en-GB, with nothing of its own, is shown it.
+      assert FileDetails.translated_title(file, "en-GB", @en) == "Harbor"
+    end
+
+    test "the same language at another precision IS this editor's text" do
+      file = file(%{}, %{"en" => %{"title" => "Harbour"}})
+
+      assert FileDetails.from_file(file, "en-US", @en).title == "Harbour"
     end
 
     test "after the primary language changes, the new primary tab is not filled with the old text" do
@@ -177,6 +198,12 @@ defmodule PhoenixKit.Modules.Storage.FileDetailsTest do
       data = %{"en" => %{"title" => "Old"}, "et" => %{"title" => "Sadam"}}
       attrs = FileDetails.file_attrs(file(%{}, data), %FileDetails{title: "New"}, "en-US", @en)
       assert attrs.data == %{"en-US" => %{"title" => "New"}, "et" => %{"title" => "Sadam"}}
+
+      # The bare base code names every dialect of the language: a site that
+      # enabled "en" has no "en-GB" page for a leftover entry to be shown on.
+      data = %{"en-GB" => %{"title" => "Harbour"}, "en-US" => %{"title" => "Harbor"}}
+      attrs = FileDetails.file_attrs(file(%{}, data), %FileDetails{title: "New"}, "en", @en)
+      assert attrs.data == %{"en" => %{"title" => "New"}}
 
       data = %{"en-GB" => %{"title" => "Harbour"}}
       attrs = FileDetails.file_attrs(file(%{}, data), %FileDetails{title: "Harbor"}, "en-US", @en)

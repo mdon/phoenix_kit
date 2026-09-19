@@ -153,7 +153,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   # The title, alt text and description are saved in the language the page
   # is shown in (`@details_lang`) — the admin's language switcher is the
   # content switcher too. Tags are not text to translate; they stay in
-  # `metadata`, merged into the row the details save just returned.
+  # `metadata`, set in the same held write as the text.
   def handle_event("save_metadata", params, socket) do
     tags =
       params
@@ -164,18 +164,19 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
 
     lang = socket.assigns.details_lang
 
-    with {:ok, file} <-
-           Storage.update_file_details(socket.assigns.file, params["details"] || %{}, lang: lang),
-         {:ok, file} <-
-           Storage.update_file(file, %{metadata: Map.put(file.metadata || %{}, "tags", tags)}) do
-      {:noreply,
-       socket
-       |> assign(:file, file)
-       |> assign(:file_data, %{socket.assigns.file_data | tags: tags, metadata: file.metadata})
-       |> assign_details(file)
-       |> assign(:edit_mode, false)
-       |> put_flash(:info, gettext("Details saved"))}
-    else
+    case Storage.update_file_details(socket.assigns.file, params["details"] || %{},
+           lang: lang,
+           metadata: %{"tags" => tags}
+         ) do
+      {:ok, file} ->
+        {:noreply,
+         socket
+         |> assign(:file, file)
+         |> assign(:file_data, %{socket.assigns.file_data | tags: tags, metadata: file.metadata})
+         |> assign_details(file)
+         |> assign(:edit_mode, false)
+         |> put_flash(:info, gettext("Details saved"))}
+
       {:error, %Ecto.Changeset{data: %FileDetails{}} = changeset} ->
         {:noreply, assign(socket, :details_form, to_form(changeset, as: :details))}
 

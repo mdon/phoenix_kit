@@ -39,6 +39,15 @@
   session's. The MediaBrowser grid and both media pickers use the alt text on
   their thumbnails, keeping the file name where a file has none.
 
+- **`PhoenixKit.Utils.Multilang.current_locale/0`** — the language the page
+  being rendered is in, as the full dialect the request resolved to
+  (`Languages.request_locale/0`, recorded wherever the Gettext locale is
+  set), else the Gettext locale. For per-language *content*: Gettext's own
+  locale is downgraded to a base code and cannot tell `en-GB` from `en-US`.
+  Readable from a LiveComponent, which has no `@current_locale`.
+- **`Storage.update_file_metadata/2`** — changes a file's `metadata` from the
+  row as it is now, held `FOR UPDATE`. Both rotation writes use it.
+
 ### Changed
 
 - `<.image_set>`'s `alt` now defaults to `nil` (look the file's alt text up)
@@ -49,7 +58,10 @@
 
 - **Saving a title on the media detail page or in the viewer sidebar no
   longer overwrites the rest of the file's `metadata`** with the copy the
-  page loaded earlier — a rotation saved in between was lost.
+  page loaded earlier — a rotation saved in between was lost. The reverse is
+  fixed too: rotating an image (viewer or grid menu) no longer writes back
+  the `metadata` it read, so a title or tags saved in between survive, and
+  two quick rotate clicks add up.
 
 Fixes from the 2026-09-19 weekly review
 (`dev_docs/pull_requests/2026/weekly-2026-09-19/CLAUDE_REVIEW.md`).

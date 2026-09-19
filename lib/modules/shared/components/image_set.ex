@@ -112,7 +112,7 @@ defmodule PhoenixKit.Modules.Shared.Components.ImageSet do
 
   defp file_alt(%{variants: nil, file_uuid: file_uuid}) do
     if Code.ensure_loaded?(Storage) and function_exported?(Storage, :translated_alt_by_uuid, 2) do
-      Storage.translated_alt_by_uuid(file_uuid, Gettext.get_locale(PhoenixKitWeb.Gettext))
+      Storage.translated_alt_by_uuid(file_uuid, PhoenixKit.Utils.Multilang.current_locale())
     else
       ""
     end

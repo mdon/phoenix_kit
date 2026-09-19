@@ -2336,6 +2336,45 @@ defmodule PhoenixKit.Modules.Storage do
     PhoenixKit.Modules.Storage.File.changeset(file, attrs)
   end
 
+  @doc """
+  Changes a file's `metadata` map from the row as it is NOW.
+
+  `fun` receives the current map and returns the new one, or `:unchanged`.
+  The row is re-read and held (`FOR UPDATE`) around it, so two writers of
+  different keys — a rotation, the tags, the title copy — cannot overwrite
+  each other with the map they each loaded earlier. Every read-modify-write
+  of `metadata` belongs here; `update_file/2` with a `metadata:` built from a
+  struct in hand is the lost update.
+
+  Returns `{:ok, file}`, `{:error, changeset}` or `{:error, :not_found}`.
+  """
+  def update_file_metadata(%PhoenixKit.Modules.Storage.File{uuid: uuid}, fun),
+    do: update_file_metadata(uuid, fun)
+
+  def update_file_metadata(file_uuid, fun) when is_binary(file_uuid) and is_function(fun, 1) do
+    repo().transaction(fn ->
+      row =
+        from(f in PhoenixKit.Modules.Storage.File,
+          where: f.uuid == ^file_uuid,
+          lock: "FOR UPDATE"
+        )
+        |> repo().one()
+
+      with %PhoenixKit.Modules.Storage.File{} <- row,
+           %{} = metadata <- fun.(row.metadata || %{}),
+           {:ok, updated} <-
+             row
+             |> PhoenixKit.Modules.Storage.File.details_changeset(%{metadata: metadata})
+             |> repo().update() do
+        updated
+      else
+        nil -> repo().rollback(:not_found)
+        :unchanged -> row
+        {:error, changeset} -> repo().rollback(changeset)
+      end
+    end)
+  end
+
   # ===== TRANSLATABLE DETAILS (title, alt text, description) =====
 
   @doc """
@@ -2360,7 +2399,12 @@ defmodule PhoenixKit.Modules.Storage do
   that language's text changes — so another language saved at the same
   time, or a rotation or tag saved since `file` was loaded, survives.
 
-  Takes the options of `change_file_details/3`. Returns `{:ok, file}`,
+  Takes the options of `change_file_details/3`, and `:metadata` — other
+  `metadata` keys to set in the same held write (the detail page's tags), so
+  a form that saves both does not need a second, unlocked one. The three
+  text keys cannot be set through it.
+
+  Returns `{:ok, file}`,
   `{:error, changeset}` (a `FileDetails` changeset, for the form) or
   `{:error, :not_found}`.
   """
@@ -2382,7 +2426,9 @@ defmodule PhoenixKit.Modules.Storage do
            {:ok, updated} <-
              row
              |> PhoenixKit.Modules.Storage.File.details_changeset(
-               FileDetails.file_attrs(row, details, opts[:lang], opts)
+               row
+               |> FileDetails.file_attrs(details, opts[:lang], opts)
+               |> Map.update!(:metadata, &Map.merge(&1, extra_metadata(opts)))
              )
              |> repo().update() do
         updated
@@ -2391,6 +2437,13 @@ defmodule PhoenixKit.Modules.Storage do
         {:error, changeset} -> repo().rollback(changeset)
       end
     end)
+  end
+
+  defp extra_metadata(opts) do
+    case opts[:metadata] do
+      %{} = extra -> Map.drop(extra, FileDetails.fields())
+      _ -> %{}
+    end
   end
 
   @doc "A file's title in `locale` — else the primary language's, else any — or `nil`."

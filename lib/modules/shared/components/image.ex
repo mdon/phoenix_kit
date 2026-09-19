@@ -85,7 +85,7 @@ defmodule PhoenixKit.Modules.Shared.Components.Image do
   # the page is rendered in (the locale the request put on this process).
   defp file_alt(src, file_uuid)
        when src in [nil, ""] and is_binary(file_uuid) and file_uuid != "" do
-    Storage.translated_alt_by_uuid(file_uuid, Gettext.get_locale(PhoenixKitWeb.Gettext))
+    Storage.translated_alt_by_uuid(file_uuid, PhoenixKit.Utils.Multilang.current_locale())
   rescue
     _ -> ""
   end

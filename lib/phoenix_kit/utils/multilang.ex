@@ -69,6 +69,25 @@ defmodule PhoenixKit.Utils.Multilang do
     end
   end
 
+  @doc """
+  The language the page being rendered is in, for reading and storing
+  per-language content: the full dialect the request resolved to, else the
+  process's Gettext locale.
+
+  Read it from the process, not from an assign: a LiveComponent has no
+  `@current_locale` unless every host threads one through, and shares its
+  LiveView's process either way. Not the Gettext locale alone — that is
+  downgraded to a base code (`"en"` for both `"en-US"` and `"en-GB"`).
+  """
+  @spec current_locale() :: String.t()
+  def current_locale do
+    if Code.ensure_loaded?(Languages) and function_exported?(Languages, :request_locale, 0) do
+      Languages.request_locale() || Gettext.get_locale(PhoenixKitWeb.Gettext)
+    else
+      Gettext.get_locale(PhoenixKitWeb.Gettext)
+    end
+  end
+
   # ── Data read helpers ─────────────────────────────────────────
 
   @doc """
