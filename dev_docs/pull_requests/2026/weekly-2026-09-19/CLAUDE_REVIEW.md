@@ -7,11 +7,19 @@
 
 ## Outcome (2026-09-19, same day)
 
-Both HIGH bugs and all seventeen MEDIUM bugs are fixed, each with a test; see
-`CHANGELOG.md` → Unreleased. `mix test` 5859 tests, 0 failures; `mix precommit`
-exit 0. Two fixes were confirmed against the broken code first: M5's new
-cycle test fails at the third edit-after-revert without the fix, and the four
-existing fail-open tests for H1 were inverted.
+Both HIGH bugs and all seventeen MEDIUM bugs are fixed; see `CHANGELOG.md` →
+Unreleased. `mix test` 5859 tests, 0 failures; `mix precommit` exit 0.
+
+Every fix has a test except two. **M6** (discard on a raising publish) and
+**M15** (the hook re-reporting a turned source) are untested: the first needs a
+fault injected inside the publish transaction, the second a DOM the Node
+harness does not have. **M14** is tested only as far as the pane ids changing
+with the revision — that LiveView then drops the sticky class is not exercised,
+and none of the web fixes were checked in a browser.
+
+M5 was confirmed against the broken code: its new cycle test fails at the third
+edit-after-revert without the fix. H1's two existing tests asserted the
+fail-open behaviour and were inverted.
 
 Decisions that differ from the suggestion in the finding:
 
