@@ -324,7 +324,7 @@
                       <%= if url do %>
                         <img
                           src={url}
-                          alt={file.filename}
+                          alt={Map.get(file, :alt) || file.filename}
                           class={["object-cover w-full h-full", rotation_class(file)]}
                         />
                       <% else %>

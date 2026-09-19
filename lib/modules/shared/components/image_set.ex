@@ -15,6 +15,16 @@ defmodule PhoenixKit.Modules.Shared.Components.ImageSet do
 
       <.image_set file_uuid="018e3c4a-..." variants={@variants["018e3c4a-..."]} alt="Photo" />
 
+  List pages that pre-load variants should pre-load the alt text too —
+  `Storage.translated_alts/2` reads it for every file in one query.
+
+  ### Alt text
+
+  Leave `alt` out and the image gets the file's own alt text, in the language
+  the page is rendered in. Pass `alt=""` for a decorative image. With
+  pre-loaded `variants` nothing is looked up — the component must not bring
+  back the query per image the caller just avoided — so pass `alt` too.
+
   ### With custom sizes attribute:
 
       <.image_set file_uuid="018e3c4a-..." alt="Photo" sizes="(max-width: 768px) 100vw, 50vw" />
@@ -37,7 +47,10 @@ defmodule PhoenixKit.Modules.Shared.Components.ImageSet do
     default: nil,
     doc: "Pre-loaded variant data from Storage.list_image_set_variants/1"
 
-  attr :alt, :string, default: "", doc: "Alt text for accessibility"
+  attr :alt, :string,
+    default: nil,
+    doc: "Alt text. Left out, it is the file's own alt text in the page's language"
+
   attr :sizes, :string, default: "100vw", doc: "Sizes attribute for responsive images"
   attr :class, :string, default: "", doc: "CSS classes for the img element"
   attr :loading, :string, default: "lazy", doc: "Loading strategy: lazy or eager"
@@ -58,6 +71,7 @@ defmodule PhoenixKit.Modules.Shared.Components.ImageSet do
 
     assigns =
       assigns
+      |> assign(:alt, assigns.alt || file_alt(assigns))
       |> assign(:source_formats, source_formats)
       |> assign(:fallback_variants, fallback_variants)
       |> assign(:fallback_src, fallback_src)
@@ -95,6 +109,18 @@ defmodule PhoenixKit.Modules.Shared.Components.ImageSet do
     <% end %>
     """
   end
+
+  defp file_alt(%{variants: nil, file_uuid: file_uuid}) do
+    if Code.ensure_loaded?(Storage) and function_exported?(Storage, :translated_alt_by_uuid, 2) do
+      Storage.translated_alt_by_uuid(file_uuid, Gettext.get_locale(PhoenixKitWeb.Gettext))
+    else
+      ""
+    end
+  rescue
+    _ -> ""
+  end
+
+  defp file_alt(_assigns), do: ""
 
   defp load_variants(file_uuid) do
     if Code.ensure_loaded?(Storage) and function_exported?(Storage, :list_image_set_variants, 1) do

@@ -50,6 +50,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
   alias PhoenixKit.Utils.Format
   alias PhoenixKit.Utils.Pagination
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Components.Core.MediaThumbnail
 
   import Ecto.Query
 
@@ -354,6 +355,9 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
       end
 
     # Convert to file data maps
+    # The language and the site's primary language, read once for the batch.
+    alt_opts = MediaThumbnail.alt_opts()
+
     files_with_urls =
       Enum.map(files, fn file ->
         instances = Map.get(instances_by_file, file.uuid, [])
@@ -362,12 +366,15 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
         %{
           file_uuid: file.uuid,
           filename: file.original_file_name || file.file_name || "Unknown",
+          # The file's own alt text in the page's language; without one the
+          # thumbnail keeps the file name, which is what this grid lists files by.
+          alt: MediaThumbnail.alt_text(file, alt_opts),
           original_filename: file.original_file_name,
           # Reconciled against the row's own evidence — see
           # `Storage.display_file_type/1`.
           file_type: Storage.display_file_type(file),
           mime_type: file.mime_type,
-          size: file.size || 0,
+          size: file.size,
           status: file.status,
           urls: urls,
           # Saved orientation — thumbnails apply it as a CSS transform, so

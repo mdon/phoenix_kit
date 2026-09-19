@@ -11,7 +11,7 @@ defmodule PhoenixKitWeb.FileController do
   require Logger
 
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{ImageEditing, Manager, TesseraAdapter, URLSigner}
+  alias PhoenixKit.Modules.Storage.{FileDetails, ImageEditing, Manager, TesseraAdapter, URLSigner}
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Utils.Routes
@@ -184,6 +184,12 @@ defmodule PhoenixKitWeb.FileController do
   ## Request
 
       GET /api/files/:file_uuid/info
+      GET /api/files/:file_uuid/info?locale=et
+
+  `locale` picks the language of `title`, `alt` and `description`; a field
+  with no text in it falls back to the primary language's. Without it (or
+  with a value that is not a language code) they are the primary language's.
+  The language is never read from the session.
 
   ## Response
 
@@ -195,6 +201,9 @@ defmodule PhoenixKitWeb.FileController do
         "file_type": "image",
         "size": 1234567,
         "status": "active",
+        "title": "Harbour",
+        "alt": "Boats in a harbour",
+        "description": null,
         "variants": [
           {
             "variant_name": "original",
@@ -207,11 +216,11 @@ defmodule PhoenixKitWeb.FileController do
         ]
       }
   """
-  def info(conn, %{"file_uuid" => file_uuid}) do
+  def info(conn, %{"file_uuid" => file_uuid} = params) do
     with {:ok, user} <- require_user(conn.assigns[:phoenix_kit_current_user]),
          {:ok, file} <- get_servable_file(file_uuid),
          {:ok, file} <- authorize_file_read(file, user) do
-      info_response(conn, file, user)
+      info_response(conn, file, user, params["locale"])
     else
       {:error, :no_user} ->
         conn
@@ -402,7 +411,20 @@ defmodule PhoenixKitWeb.FileController do
     end
   end
 
-  defp info_response(conn, file, user) do
+  @doc false
+  # The file's title / alt text / description for the info response. The
+  # locale is a query parameter: anything that is not shaped like a language
+  # code reads the primary language, the same as none.
+  def info_details(file, locale) do
+    locale =
+      if is_binary(locale) and Regex.match?(~r/\A[a-z]{2,3}(-[A-Za-z0-9]{2,8})*\z/, locale),
+        do: locale
+
+    FileDetails.for_locale(file, locale)
+  end
+
+  defp info_response(conn, file, user, locale) do
+    details = info_details(file, locale)
     file_uuid = file.uuid
     instances = Storage.list_file_instances(file_uuid)
 
@@ -427,6 +449,9 @@ defmodule PhoenixKitWeb.FileController do
       file_type: file.file_type,
       size: file.size,
       status: file.status,
+      title: details.title,
+      alt: details.alt,
+      description: details.description,
       variants: variant_urls,
       edited: ImageEditing.edited?(file),
       edit_state: file.edit_state,

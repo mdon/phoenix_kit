@@ -1,7 +1,7 @@
 # Media translations — a language switcher for a file's title, alt text and description
 
 **Created:** 2026-09-19
-**Status:** Steps 1–3 BUILT on `main` 2026-09-19 (unreleased). Steps 4–5 open.
+**Status:** Steps 1–4 BUILT on `main` 2026-09-19 (unreleased). Step 5 (siblings) open.
 **Scope:** phoenix_kit (core); follow-ups in phoenix_kit_posts and
 phoenix_kit_catalogue.
 **Related:** `PhoenixKit.Utils.Multilang`, `PhoenixKitWeb.Components.MultilangForm`,
@@ -105,14 +105,22 @@ language — not a different file per language.
    the process's Gettext locale — a LiveComponent shares its LiveView's
    process, where the navigation hook put it — so no host (core or sibling)
    passes anything new.
-4. **Consumers:** `FileController.info` gains `title` / `alt` /
-   `description`, resolved from an optional `?locale=`; the shared `Image` /
-   `ImageSet` components fall back to `translated_alt/2` when the caller
-   passes no alt; MediaBrowser grid + pickers show the title/alt in the
-   admin's current locale.
+4. **DONE — consumers.** `FileController.info` returns `title` / `alt` /
+   `description`, resolved from an optional `?locale=` (validated as a
+   language-code shape; never the session). `<.image_set>` and the
+   page-builder `Image` fall back to the file's alt text in the page's
+   Gettext locale when no `alt` is written — `alt=""` stays decorative, and
+   `<.image_set>` with pre-loaded `variants` looks nothing up (it must not
+   bring back the N+1 the caller avoided): list pages use
+   `Storage.translated_alts/3`, one query. System-managed files are never
+   read. MediaBrowser grid + both pickers put the alt text on thumbnails
+   (`MediaThumbnail.alt_text/2`), file name where there is none. The grids
+   still *list* files by file name — showing titles instead is a UI change
+   nobody asked for.
 5. **Siblings:** posts and catalogue swap `alt={file.original_file_name}` for
-   the helper, feature-detected with `function_exported?/3` so the `~> 2.0`
-   core pin stays.
+   `Storage.translated_alts/3` (list pages) or `translated_alt_by_uuid/3`,
+   feature-detected with `function_exported?/3` so the `~> 2.0` core pin
+   stays.
 
 Single-language installs see no tabs (`Multilang.enabled?/0`); they just gain
 an alt field.

@@ -8,6 +8,8 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnail do
 
   use Phoenix.Component
 
+  alias PhoenixKit.Modules.Storage.FileDetails
+
   @doc """
   Resolves the best thumbnail URL for a media file.
 
@@ -188,4 +190,25 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnail do
   end
 
   defp normalize_rotation(_), do: 0
+
+  @doc """
+  What `alt_text/2` needs, read once for a batch of files: the page's
+  language (the locale the request put on this process — a LiveComponent
+  shares its LiveView's) and the site's primary language.
+  """
+  def alt_opts do
+    {Gettext.get_locale(PhoenixKitWeb.Gettext),
+     [primary: PhoenixKit.Utils.Multilang.primary_language()]}
+  end
+
+  @doc """
+  A file row's own alt text in the page's language, or `nil` — the grids
+  then keep the file name, which is what they list files by.
+  """
+  def alt_text(%PhoenixKit.Modules.Storage.File{} = file, {locale, opts}) do
+    case FileDetails.translated_alt(file, locale, opts) do
+      "" -> nil
+      alt -> alt
+    end
+  end
 end

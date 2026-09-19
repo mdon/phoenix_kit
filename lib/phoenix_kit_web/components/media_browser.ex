@@ -152,6 +152,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   alias PhoenixKit.Utils.Format
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.UUID, as: UUIDUtils
+  alias PhoenixKitWeb.Components.Core.MediaThumbnail
 
   # Grid/list view preference is persisted per-user in `custom_fields`
   # ("user meta") so the server renders the correct mode on first paint —
@@ -3150,7 +3151,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           <%= if url do %>
             <img
               src={url}
-              alt={@file.filename}
+              alt={Map.get(@file, :alt) || @file.filename}
               class={[
                 "w-full h-full object-cover pointer-events-none group-hover:opacity-75 transition-opacity",
                 rotation_class(@file)
@@ -3715,6 +3716,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # to the plain thumbnail.
     annotated_enabled? = Storage.AnnotationThumbnail.enabled?()
 
+    # The language and the site's primary language, read once for the batch.
+    alt_opts = MediaThumbnail.alt_opts()
+
     Enum.map(files, fn file ->
       instances = Map.get(instances_by_file, file.uuid, [])
 
@@ -3726,13 +3730,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       %{
         file_uuid: file.uuid,
         filename: file.original_file_name || file.file_name || "Unknown",
+        # The file's own alt text in the page's language; without one the
+        # thumbnail keeps the file name, which is what this grid lists files by.
+        alt: MediaThumbnail.alt_text(file, alt_opts),
         original_filename: file.original_file_name,
         # Reconciled against the row's own mime/filename evidence, so a
         # misclassified row (stored before the write boundary defended this
         # column) degrades to the right rendering instead of a broken <img>.
         file_type: Storage.display_file_type(file),
         mime_type: file.mime_type,
-        size: file.size || 0,
+        size: file.size,
         status: file.status,
         inserted_at: file.inserted_at,
         # Width and height come straight from the File schema columns

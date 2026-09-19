@@ -95,4 +95,42 @@ defmodule PhoenixKit.Integration.Storage.FileDetailsTest do
 
     assert Storage.update_file_details(file, %{"title" => "Harbour"}) == {:error, :not_found}
   end
+
+  describe "translated_alts/3" do
+    test "reads many files in one go, in the language asked for" do
+      one = create_file!(nil)
+      two = create_file!(nil)
+      bare = create_file!(nil)
+      {:ok, _} = Storage.update_file_details(one, %{"alt" => "Boats"}, @en)
+      {:ok, _} = Storage.update_file_details(one, %{"alt" => "Paadid"}, [lang: "et"] ++ @en)
+      {:ok, _} = Storage.update_file_details(two, %{"alt" => "A gull"}, @en)
+
+      assert Storage.translated_alts([one.uuid, two.uuid, bare.uuid], "et", @en) ==
+               %{one.uuid => "Paadid", two.uuid => "A gull", bare.uuid => ""}
+    end
+
+    test "skips what is not a uuid, a missing row and a system-managed file" do
+      parent = create_file!(nil)
+
+      hidden =
+        Repo.insert!(%StorageFile{
+          original_file_name: "tile.jpg",
+          file_name: "tile_#{System.unique_integer([:positive])}.jpg",
+          mime_type: "image/jpeg",
+          file_type: "tile",
+          ext: "jpg",
+          file_checksum: "sha256:tile",
+          user_file_checksum: "user-sha256:tile",
+          size: 10,
+          status: "active",
+          system_managed: true,
+          parent_file_uuid: parent.uuid,
+          metadata: %{"alt" => "Never listed"}
+        })
+
+      assert Storage.translated_alts(["nope", Ecto.UUID.generate(), hidden.uuid], nil, @en) == %{}
+      assert Storage.translated_alt_by_uuid(hidden.uuid, nil, @en) == ""
+      assert Storage.translated_alt_by_uuid("nope") == ""
+    end
+  end
 end

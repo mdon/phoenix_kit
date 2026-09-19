@@ -2402,6 +2402,38 @@ defmodule PhoenixKit.Modules.Storage do
   @doc "A file's description in `locale` — else the primary language's, else any — or `nil`."
   defdelegate translated_description(file, locale \\ nil, opts \\ []), to: FileDetails
 
+  @doc """
+  The alt text of many files at once, for a page that renders a list of
+  images: `%{file_uuid => alt}` in `locale`, one query. A uuid with no row —
+  or naming a system-managed file, which is never listed — is absent; a file
+  with no alt text maps to `""`.
+
+  Takes the `:primary` option of `translated_alt/3`.
+  """
+  def translated_alts(file_uuids, locale \\ nil, opts \\ []) when is_list(file_uuids) do
+    opts = Keyword.put_new_lazy(opts, :primary, &PhoenixKit.Utils.Multilang.primary_language/0)
+
+    uuids =
+      file_uuids
+      |> Enum.filter(&match?({:ok, _}, Ecto.UUID.cast(&1)))
+      |> Enum.uniq()
+
+    from(f in PhoenixKit.Modules.Storage.File,
+      where: f.uuid in ^uuids and f.system_managed == false,
+      select: struct(f, [:uuid, :metadata, :data])
+    )
+    |> repo().all()
+    |> Map.new(&{&1.uuid, FileDetails.translated_alt(&1, locale, opts)})
+  end
+
+  @doc """
+  The alt text of the file `file_uuid` names, in `locale` — `""` when the
+  file has none, does not exist or is system-managed.
+  """
+  def translated_alt_by_uuid(file_uuid, locale \\ nil, opts \\ []) do
+    [file_uuid] |> translated_alts(locale, opts) |> Map.get(file_uuid, "")
+  end
+
   # ===== ORPHAN DETECTION =====
 
   @doc """

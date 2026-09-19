@@ -1540,7 +1540,7 @@
                               <%= if url do %>
                                 <img
                                   src={url}
-                                  alt={file.filename}
+                                  alt={Map.get(file, :alt) || file.filename}
                                   class={[
                                     "w-full h-full object-cover pointer-events-none group-hover:opacity-75 transition-opacity",
                                     rotation_class(file)
@@ -2216,7 +2216,7 @@
                                           "w-full h-full object-cover",
                                           rotation_class(file)
                                         ]}
-                                        alt={file.filename}
+                                        alt={Map.get(file, :alt) || file.filename}
                                       />
                                     <% else %>
                                       <div class="grid place-items-center w-full h-full text-base-content/40">

@@ -154,6 +154,28 @@ defmodule PhoenixKitWeb.StorageApiAuthzTest do
     end
   end
 
+  describe "FileController.info_details/2 — the file's text in the info response" do
+    test "is in the language the locale parameter names, else the primary language's" do
+      file = make_file(plain_user().uuid)
+      {:ok, file} = Storage.update_file_details(file, %{"title" => "Harbour", "alt" => "Boats"})
+      {:ok, file} = Storage.update_file_details(file, %{"title" => "Sadam"}, lang: "et")
+
+      assert FileController.info_details(file, "et") ==
+               %{title: "Sadam", alt: "Boats", description: nil}
+
+      assert FileController.info_details(file, nil).title == "Harbour"
+    end
+
+    test "a locale that is not shaped like a language code reads the primary language" do
+      file = make_file(plain_user().uuid)
+      {:ok, file} = Storage.update_file_details(file, %{"title" => "Harbour"})
+
+      for forged <- ["../../etc", "", String.duplicate("a", 300), ["et"], %{"x" => "y"}] do
+        assert FileController.info_details(file, forged).title == "Harbour"
+      end
+    end
+  end
+
   describe "RateLimiter.check_upload_rate_limit/1" do
     test "allows the first request and is keyed on the account" do
       assert :ok = RateLimiter.check_upload_rate_limit(Ecto.UUID.generate())

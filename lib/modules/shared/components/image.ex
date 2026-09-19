@@ -21,7 +21,9 @@ defmodule PhoenixKit.Modules.Shared.Components.Image do
   - `file_uuid` - PhoenixKit Storage file UUID
   - `file_variant` - Storage variant to use (default: "original")
     - Images: "original", "thumbnail", "small", "medium", "large"
-  - `alt` - Alt text for accessibility (required)
+  - `alt` - Alt text for accessibility. Left out on a `file_uuid` image, it
+    is the file's own alt text in the page's language
+    (`Storage.translated_alt_by_uuid/2`); pass `alt=""` for a decorative image
   - `class` - Additional CSS classes (optional)
   """
   use Phoenix.Component
@@ -37,7 +39,7 @@ defmodule PhoenixKit.Modules.Shared.Components.Image do
     src = Map.get(assigns.attributes, "src")
     file_uuid = Map.get(assigns.attributes, "file_uuid")
     file_variant = Map.get(assigns.attributes, "file_variant", "original")
-    alt = Map.get(assigns.attributes, "alt", "")
+    alt = Map.get(assigns.attributes, "alt")
     custom_class = Map.get(assigns.attributes, "class", "")
 
     # Determine image source
@@ -59,7 +61,7 @@ defmodule PhoenixKit.Modules.Shared.Components.Image do
     assigns =
       assigns
       |> assign(:src, image_src)
-      |> assign(:alt, alt)
+      |> assign(:alt, alt || file_alt(src, file_uuid))
       |> assign(:custom_class, custom_class)
 
     ~H"""
@@ -78,6 +80,17 @@ defmodule PhoenixKit.Modules.Shared.Components.Image do
     <% end %>
     """
   end
+
+  # No `alt` written on the tag: a Storage image has its own, in the language
+  # the page is rendered in (the locale the request put on this process).
+  defp file_alt(src, file_uuid)
+       when src in [nil, ""] and is_binary(file_uuid) and file_uuid != "" do
+    Storage.translated_alt_by_uuid(file_uuid, Gettext.get_locale(PhoenixKitWeb.Gettext))
+  rescue
+    _ -> ""
+  end
+
+  defp file_alt(_src, _file_uuid), do: ""
 
   # Helper function to get file URL from Storage
   defp get_file_url(file_uuid, variant) do

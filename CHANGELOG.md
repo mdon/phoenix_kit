@@ -28,6 +28,22 @@
   (images only). The viewer reads the language from the page's own Gettext
   locale, so hosts embedding it pass nothing new. Eight new strings,
   translated in all seven locales.
+- **The alt text reaches the pages.** `<.image_set>` and the page-builder
+  `Image` component render a Storage file's own alt text, in the language the
+  page is rendered in, when no `alt` is written on them — `alt=""` still marks
+  a decorative image, and `<.image_set>` with pre-loaded `variants` looks
+  nothing up (pass `alt`; `Storage.translated_alts/3` reads it for a whole
+  list in one query, `translated_alt_by_uuid/3` for one). System-managed files
+  are never read. `GET /api/files/:uuid/info` returns `title`, `alt` and
+  `description`, in the language an optional `?locale=` names — never the
+  session's. The MediaBrowser grid and both media pickers use the alt text on
+  their thumbnails, keeping the file name where a file has none.
+
+### Changed
+
+- `<.image_set>`'s `alt` now defaults to `nil` (look the file's alt text up)
+  instead of `""`. A caller that relied on the default to mean "decorative"
+  should write `alt=""`.
 
 ### Fixed
 

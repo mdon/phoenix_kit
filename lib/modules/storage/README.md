@@ -416,6 +416,9 @@ Storage.translated_alt(file, locale)          # "" when none — never the file 
 Storage.translated_title(file, locale)        # nil when none
 Storage.translated_description(file, locale)
 
+Storage.translated_alts(uuids, locale)        # %{uuid => alt}, one query — for list pages
+Storage.translated_alt_by_uuid(uuid, locale)
+
 Storage.change_file_details(file, %{}, lang: "et")              # an editor tab's changeset
 Storage.update_file_details(file, params, lang: "et")           # replaces that language only
 ```
