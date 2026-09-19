@@ -253,6 +253,51 @@ defmodule PhoenixKitWeb.Components.ImageEditorTest do
       refute html =~ ~s(name="edit[redact][0][style]")
     end
 
+    # A number field is empty for a moment while it is retyped, and the form
+    # reports every keystroke. Dropping the area then moved the rows below it
+    # up under the cursor — the next keystrokes resized a different area.
+    test "a field emptied mid-edit keeps its area, and the areas keep their order", ctx do
+      view = open(ctx.photo, user: ctx.owner)
+      render_change(form(view), %{"tool" => "redact", "edit" => %{}})
+
+      areas = %{
+        "0" => %{"x" => "5", "y" => "5", "w" => "30", "h" => "30", "style" => "fill"},
+        "1" => %{"x" => "60", "y" => "60", "w" => "20", "h" => "20", "style" => "blur"}
+      }
+
+      render_change(form(view), %{"tool" => "redact", "edit" => %{"redact" => areas}})
+
+      html =
+        render_change(form(view), %{
+          "tool" => "redact",
+          "edit" => %{"redact" => put_in(areas, ["0", "w"], "")}
+        })
+
+      assert html =~ "left: 5%; top: 5%; width: 30%; height: 30%;"
+      assert html =~ "left: 60%; top: 60%; width: 20%; height: 20%;"
+      assert html =~ ~s(name="edit[redact][1][style]")
+
+      html =
+        render_change(form(view), %{
+          "tool" => "redact",
+          "edit" => %{"redact" => put_in(areas, ["0", "w"], "12")}
+        })
+
+      assert html =~ "left: 5%; top: 5%; width: 12%; height: 30%;"
+    end
+
+    test "a crop field emptied mid-edit keeps the crop", ctx do
+      view = open(ctx.photo, user: ctx.owner)
+      render_change(form(view), %{"edit" => crop_fields(10, 0, 50, 100)})
+
+      html =
+        render_change(form(view), %{
+          "edit" => %{"crop" => %{"x" => "10", "y" => "0", "w" => "", "h" => "100"}}
+        })
+
+      assert html =~ "left: 10%; top: 0%; width: 50%; height: 100%;"
+    end
+
     test "switching tools keeps the other tool's values", ctx do
       view = open(ctx.photo, user: ctx.owner)
       render_change(form(view), %{"edit" => crop_fields(10, 0, 50, 100)})

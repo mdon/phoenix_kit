@@ -99,6 +99,29 @@ defmodule PhoenixKit.Integration.Users.LoginAttemptsTest do
       assert length(attempts()) == 3
     end
 
+    # A refused request is past the limiter's bound, so its identifier cannot
+    # be a free key component: a blocked client naming a fresh address per
+    # request would otherwise write a row per request.
+    test "refused requests naming no account collapse into one row per network" do
+      ip = unique_ip()
+
+      for n <- 1..20 do
+        LoginAttempts.record(conn_at(ip), "spray_#{n}@example.com", "rate_limited")
+      end
+
+      assert [%{identifier: "*", attempt_count: 20, outcome: "rate_limited"}] = attempts()
+    end
+
+    test "a refused request naming a real account keeps its identifier" do
+      user = create_user()
+
+      LoginAttempts.record(conn_at(unique_ip()), user.email, "rate_limited")
+
+      assert [%{identifier: identifier, user_uuid: uuid}] = attempts()
+      assert identifier == user.email
+      assert uuid == user.uuid
+    end
+
     test "the identifier is normalized and truncated" do
       long = String.duplicate("x", 300) <> "@example.com"
 
@@ -301,6 +324,33 @@ defmodule PhoenixKit.Integration.Users.LoginAttemptsTest do
 
       assert_email_sent(fn email -> assert email.subject =~ "Failed sign-in" end)
       refute_email_sent()
+    end
+
+    # Every caller reads "due" from a user struct loaded before anyone stamped,
+    # which is what a parallel burst looks like. The stamp is the gate, so the
+    # same stale struct cannot win it twice.
+    test "a stale user struct cannot send a second warning" do
+      user = create_user()
+      ip = unique_ip()
+
+      for _ <- 1..5, do: LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials")
+      assert_email_sent(fn email -> assert email.subject =~ "Failed sign-in" end)
+
+      # `user` still carries no stamp — exactly what a concurrent request holds.
+      for _ <- 1..3 do
+        LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials", user: user)
+      end
+
+      refute_email_sent()
+    end
+
+    test "the warning does not count as an edit of the account" do
+      user = create_user()
+      ip = unique_ip()
+
+      for _ <- 1..5, do: LoginAttempts.record(conn_at(ip), user.email, "invalid_credentials")
+
+      assert Repo.get!(PhoenixKit.Users.Auth.User, user.uuid).updated_at == user.updated_at
     end
 
     test "the cooldown stamp does not clobber other custom_fields" do

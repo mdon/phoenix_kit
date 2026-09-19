@@ -65,6 +65,15 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       image shows "Edit image", which sends it
       `send_update(module, id: id, open_image_editor: file_uuid)`.
       `MediaBrowser` passes itself.
+    * `:write_scope` (default `nil`) — the host's scope folder uuid. What
+      this component writes onto the FILE row (title/description, a
+      persisted rotation) shows in every folder holding the file, so a
+      scoped host must not write a file that is merely linked into its
+      scope — a content duplicate someone else uploaded first is theirs.
+      With a scope set, those writes need the file's HOME folder inside it
+      (`Storage.within_scope?/2`); the editor is not offered otherwise and
+      a rotation stays view-only. `nil` means unscoped. `MediaBrowser`
+      passes its own scope, the rule its grid rotation already follows.
     * `:details_path` (default `nil`) — when set, the sidebar shows an
       "Open details page" button navigating to this path. Admin-context
       hosts (`MediaBrowser` with `admin={true}`) pass the file's
@@ -151,6 +160,8 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      |> assign(:sidebar_collapsed, false)
      |> assign(:details_path, nil)
      |> assign(:edit_target, nil)
+     |> assign(:write_scope, nil)
+     |> assign(:file_writable, true)
      |> assign(:featured, nil)
      |> assign(:media_meta_status_token, 0)}
   end
@@ -242,6 +253,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       |> assign(:persist_rotation, assigns[:persist_rotation] || false)
       |> assign(:details_path, assigns[:details_path])
       |> assign(:edit_target, assigns[:edit_target])
+      |> assign(:write_scope, assigns[:write_scope])
       |> assign(:featured, assigns[:featured])
       |> assign_new(:media_meta, fn -> %{title: "", description: ""} end)
       |> assign_new(:media_details_open, fn -> false end)
@@ -479,8 +491,8 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # there must survive a title edit. The write re-reads the row rather
   # than trusting the parent-passed map, which carries no metadata at all.
   def handle_event("save_media_details", params, socket) do
-    title = String.trim(params["title"] || "")
-    description = String.trim(params["description"] || "")
+    title = params |> Map.get("title") |> text_param()
+    description = params |> Map.get("description") |> text_param()
 
     updated_meta = fn row ->
       (row.metadata || %{})
@@ -490,6 +502,9 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
     with %{file_uuid: uuid} <- socket.assigns.file,
          %Storage.File{} = row <- Storage.get_file(uuid),
+         # The boundary, on the row as it is NOW: the form is only offered
+         # for a writable file, but a hidden form is not a boundary.
+         true <- Storage.within_scope?(row.folder_uuid, socket.assigns.write_scope),
          {:ok, _} <- Storage.update_file(row, %{metadata: updated_meta.(row)}) do
       token = (socket.assigns[:media_meta_status_token] || 0) + 1
 
@@ -542,8 +557,10 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # negligible next to loading the image + annotations. Missing/garbage →
   # unrotated and blank. Never crashes the viewer.
   defp seed_file_row_state(socket, file_uuid) do
+    row = Storage.get_file(file_uuid)
+
     meta =
-      case Storage.get_file(file_uuid) do
+      case row do
         %{metadata: meta} when is_map(meta) -> meta
         _ -> %{}
       end
@@ -551,6 +568,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     media_meta = media_meta_from(meta)
 
     socket
+    |> assign(:file_writable, file_writable?(row, socket.assigns[:write_scope]))
     |> assign(:viewer_rotation, normalize_rotation(Map.get(meta, "rotation")))
     |> assign(:media_meta, media_meta)
     # Open where there is something to see; an empty section stays folded
@@ -576,6 +594,18 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   defp can_edit_media_meta?(details_path, edit_target),
     do: details_path != nil or edit_target != nil
 
+  # See `:write_scope`. Unscoped hosts pay no query.
+  defp file_writable?(_row, nil), do: true
+
+  defp file_writable?(%Storage.File{folder_uuid: home}, scope),
+    do: Storage.within_scope?(home, scope)
+
+  defp file_writable?(_row, _scope), do: false
+
+  # A form field, or whatever a forged event put in its place.
+  defp text_param(value) when is_binary(value), do: String.trim(value)
+  defp text_param(_value), do: ""
+
   defp media_meta_from(meta) when is_map(meta) do
     %{
       title: String.trim(to_string(Map.get(meta, "title") || "")),
@@ -597,7 +627,9 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       %Storage.File{} = file ->
         current = normalize_rotation(Map.get(file.metadata || %{}, "rotation"))
 
-        if current == rotation do
+        # A file only LINKED into the host's scope is someone else's to
+        # rotate (see `:write_scope`): it turns on screen and nothing is saved.
+        if current == rotation or not file_writable?(file, socket.assigns[:write_scope]) do
           assign(socket, :viewer_rotation, rotation)
         else
           merged = Map.put(file.metadata || %{}, "rotation", rotation)

@@ -26,6 +26,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
             media_details_open: false,
             details_path: "/admin/media/x",
             edit_target: nil,
+            write_scope: nil,
             media_meta_status_token: 0
           },
           assigns
@@ -143,6 +144,69 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
       row = Storage.get_file(file.uuid)
       refute Map.has_key?(row.metadata, "title")
       assert row.metadata["rotation"] == 90
+    end
+
+    # The title lives on the FILE row, so it shows in every folder holding the
+    # file. A scoped host may write a file HOMED in its scope; one merely
+    # linked in from outside — a content duplicate someone else uploaded
+    # first — is theirs.
+    test "a scoped host cannot retitle a file homed outside its scope", %{row: file} do
+      {:ok, scope} = Storage.create_folder(%{name: "scope-#{System.unique_integer([:positive])}"})
+
+      socket =
+        socket_with(%{
+          id: "mcv-test",
+          file: %{file_uuid: file.uuid},
+          media_meta: %{title: "", description: ""},
+          media_meta_status: nil,
+          write_scope: scope.uuid
+        })
+
+      {:noreply, socket} =
+        MediaCanvasViewer.handle_event("save_media_details", %{"title" => "Mine now"}, socket)
+
+      assert socket.assigns.media_meta_status == :error
+      refute Map.has_key?(Storage.get_file(file.uuid).metadata, "title")
+    end
+
+    test "a scoped host may retitle a file homed inside its scope", %{row: file} do
+      {:ok, scope} = Storage.create_folder(%{name: "scope-#{System.unique_integer([:positive])}"})
+      {:ok, _} = Storage.update_file(file, %{folder_uuid: scope.uuid})
+
+      socket =
+        socket_with(%{
+          id: "mcv-test",
+          file: %{file_uuid: file.uuid},
+          media_meta: %{title: "", description: ""},
+          media_meta_status: nil,
+          write_scope: scope.uuid
+        })
+
+      {:noreply, socket} =
+        MediaCanvasViewer.handle_event("save_media_details", %{"title" => "Ours"}, socket)
+
+      assert socket.assigns.media_meta_status == :saved
+      assert Storage.get_file(file.uuid).metadata["title"] == "Ours"
+    end
+
+    test "a forged non-text field is read as empty instead of crashing", %{row: file} do
+      socket =
+        socket_with(%{
+          id: "mcv-test",
+          file: %{file_uuid: file.uuid},
+          media_meta: %{title: "", description: ""},
+          media_meta_status: nil
+        })
+
+      {:noreply, socket} =
+        MediaCanvasViewer.handle_event(
+          "save_media_details",
+          %{"title" => %{"x" => "y"}, "description" => ["z"]},
+          socket
+        )
+
+      assert socket.assigns.media_meta_status == :saved
+      assert Storage.get_file(file.uuid).metadata["title"] == ""
     end
 
     test "an edit_target host may write" do

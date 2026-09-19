@@ -5,7 +5,7 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
   linked, and what counts as a hand-entered chat id.
 
   Split out of the LiveView because this is where the surprising parts live
-  (a locked private chat that must still admit a group, ids whose sign
+  (a group that capture may find but never link on its own, ids whose sign
   carries meaning) and because a form event is a poor place to prove them.
 
   ## Chat kinds
@@ -53,9 +53,11 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
 
   `"single"` locks ONE private chat: the most recent one, and only while no
   private chat is linked yet — a stranger who messaged the bot right after
-  the owner cannot displace it. A **group is never subject to that lock**:
-  it is linked by someone who can post in it and deliberately ran the
-  command there, which is not the case the lock defends against.
+  the owner cannot displace it. A **group is never auto-linked** in this
+  mode: a bot's username is public and anyone may add it to a group of their
+  own and run `/start@bot` there, so "someone ran the command in it" proves
+  nothing about who that someone is. Captured groups come back from
+  `capture/4` as `candidates` for the connection's owner to confirm.
 
   `"multi"` unions everything captured. The empty `newly_added_ids` is what
   lets a caller tell "nothing new was found" from "linked a chat" — the old
@@ -73,8 +75,8 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
     candidates =
       case mode do
         "multi" -> ids(privates) ++ ids(groups)
-        "single" -> lockable_private(existing, privates) ++ ids(groups)
-        _ -> ids(groups)
+        "single" -> lockable_private(existing, privates)
+        _ -> []
       end
 
     added = candidates |> Enum.uniq() |> Enum.reject(&(&1 in existing))
@@ -105,7 +107,9 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
 
   @doc """
   Folds a `getUpdates` peek into everything the connection should store:
-  the linked ids, which of them are new, and the metadata for those ids.
+  the linked ids, which of them are new, the metadata for those ids — and
+  the `candidates`: captured groups that were NOT linked, for the owner to
+  confirm one by one. Candidates are returned, never stored.
 
   Metadata is kept for LINKED chats only, and pruned to them. Recording a
   chat the lock just refused would turn the connection's data into a log of
@@ -114,7 +118,8 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
   @spec capture(String.t(), [String.t()], map(), [map()]) :: %{
           ids: [String.t()],
           added: [String.t()],
-          meta: map()
+          meta: map(),
+          candidates: [map()]
         }
   def capture(mode, existing, existing_meta, chats) do
     {ids, added} = merge(mode, existing, chats)
@@ -126,7 +131,9 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
       end)
       |> prune_meta(ids)
 
-    %{ids: ids, added: added, meta: meta}
+    candidates = Enum.filter(chats, &(group?(&1) and &1["id"] not in ids))
+
+    %{ids: ids, added: added, meta: meta, candidates: candidates}
   end
 
   @doc "Metadata for the given ids only — everything else is dropped."

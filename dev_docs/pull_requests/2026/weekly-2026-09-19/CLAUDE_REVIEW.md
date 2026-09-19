@@ -5,6 +5,34 @@
 
 **Verdict:** no CRITICAL findings. Two HIGH bugs, both data-exposure/data-loss paths that a single misstep triggers, and seventeen MEDIUM bugs. Fix H1 and H2 before the next release.
 
+## Outcome (2026-09-19, same day)
+
+Both HIGH bugs and all seventeen MEDIUM bugs are fixed, each with a test; see
+`CHANGELOG.md` → Unreleased. `mix test` 5859 tests, 0 failures; `mix precommit`
+exit 0. Two fixes were confirmed against the broken code first: M5's new
+cycle test fails at the third edit-after-revert without the fix, and the four
+existing fail-open tests for H1 were inverted.
+
+Decisions that differ from the suggestion in the finding:
+
+- **H2** — captured groups became owner-confirmed candidates, not a per-connection
+  nonce. The nonce is the stronger fix and also closes the private-chat race
+  (a stranger who messages between the owner's `/start` and Test). That race
+  predates this week, is acknowledged in the LiveView's own comment, and is
+  still open.
+- **M2** — the lookup stays (it is what tells a real account from an invented
+  one); only the stored identifier collapses.
+- **M6** — a raise is covered; an Oban timeout **kill** still cannot run the
+  discard. Recording the prepared keys in job `meta` for a sweep is still open.
+- **M8** — added V198 to withhold what the history already stored.
+- **M11** — a guessed starting version makes the generated `down` refuse; the
+  `--no-start` path still reads the version from filenames.
+- **M13** — fixed as described, though the race was never reproduced.
+- **M17** — `persist_rotation` got the same scope check as the title save.
+
+The IMPROVEMENT and NITPICK items below are untouched, except
+`remove_region`'s negative index and the `String.trim` crash in M17.
+
 "Verified" = I re-read the code at HEAD myself. "Reviewer-confirmed" = traced by the area reviewer, not re-read by me. "Plausible" = not traced end to end.
 
 ## BUG - HIGH

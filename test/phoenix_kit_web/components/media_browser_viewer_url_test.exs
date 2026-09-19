@@ -96,6 +96,69 @@ defmodule PhoenixKitWeb.Components.MediaBrowserViewerUrlTest do
            "re-locating would rebind the step list mid-session"
   end
 
+  # A host that wired controlled mode by hand, before `file` existed, hands
+  # back nav params with no such key. Reading that as "close" shut the viewer
+  # on the echo of the very click that opened it.
+  test "nav params with no file key leave the viewer alone" do
+    {:ok, socket} =
+      MediaBrowser.update(
+        %{nav_params: Map.delete(nav(nil), :file)},
+        socket_with(%{viewer_file: @file_a, viewer_siblings: [@file_a]})
+      )
+
+    assert socket.assigns.viewer_file == @file_a
+  end
+
+  # ── Echoes of the component's own steps ──────────────────────────────
+
+  # Held ArrowRight: the component stepped to B, then to C, before B's echo
+  # came back. Applying that echo as a command dragged the viewer back to B.
+  test "the echo of a superseded step does not move the viewer backwards" do
+    socket =
+      socket_with(%{
+        viewer_file: @file_b,
+        viewer_siblings: [@file_a, @file_b],
+        viewer_nav_echoes: ["img-a", "img-b"]
+      })
+
+    {:ok, socket} = MediaBrowser.update(%{nav_params: nav("img-a")}, socket)
+    assert socket.assigns.viewer_file == @file_b
+    assert socket.assigns.viewer_nav_echoes == ["img-b"]
+
+    {:ok, socket} = MediaBrowser.update(%{nav_params: nav("img-b")}, socket)
+    assert socket.assigns.viewer_file == @file_b
+    assert socket.assigns.viewer_nav_echoes == []
+  end
+
+  test "a value the component did not emit still commands the viewer — Back mid-burst" do
+    socket =
+      socket_with(%{
+        viewer_file: @file_b,
+        viewer_siblings: [@file_a, @file_b],
+        viewer_nav_echoes: ["img-a", "img-b"]
+      })
+
+    {:ok, socket} = MediaBrowser.update(%{nav_params: nav(nil)}, socket)
+
+    assert socket.assigns.viewer_file == nil
+    assert socket.assigns.viewer_nav_echoes == []
+  end
+
+  # An echo the host dropped leaves a stale entry. The newest echo is applied
+  # like any outside value, so the stale entry cannot swallow a real command.
+  test "a lone pending echo is applied, not skipped" do
+    socket =
+      socket_with(%{
+        viewer_file: @file_b,
+        viewer_siblings: [@file_a, @file_b],
+        viewer_nav_echoes: ["img-a"]
+      })
+
+    {:ok, socket} = MediaBrowser.update(%{nav_params: nav("img-a")}, socket)
+
+    assert socket.assigns.viewer_file.file_uuid == "img-a"
+  end
+
   # ── Viewer events announce the file so the URL follows ───────────────
 
   defp controlled(assigns),
@@ -128,6 +191,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowserViewerUrlTest do
       )
 
     assert_received {MediaBrowser, "mb", {:navigate, %{file: "img-b"}}}
+  end
+
+  test "each announcement is remembered until its echo returns" do
+    {:noreply, socket} =
+      MediaBrowser.handle_event(
+        "step_viewer",
+        %{"dir" => "next"},
+        controlled(%{viewer_file: @file_a, viewer_siblings: [@file_a, @file_b]})
+      )
+
+    assert socket.assigns.viewer_nav_echoes == ["img-b"]
   end
 
   test "an uncontrolled host hears nothing — local state only, as before" do

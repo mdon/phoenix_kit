@@ -48,6 +48,33 @@ defmodule Mix.Tasks.PhoenixKit.Gen.MigrationTest do
   # (from_version 1), which both risks a stray `create_schema: true` on a
   # prefixed re-generation and rolls a `down` all the way to version 0
   # instead of stopping at the initial install's version 1.
+  # The install migration's filename carries no version, so it scans as 1 —
+  # whatever the install really built. A `down(version: 1)` generated from that
+  # guess would tear PhoenixKit down to the chain's floor on one rollback.
+  describe "migration_content/5 — a guessed starting version" do
+    test "the down refuses instead of rolling back to the guess" do
+      content =
+        Migration.migration_content("MyApp", "phoenix_kit_update_v1_to_v198", 1, 198, "public")
+
+      assert {:ok, _} = Code.string_to_quoted(content)
+      assert content =~ "refusing to roll back"
+      refute content =~ "PhoenixKit.Migrations.down(\n"
+      refute content =~ "version: 1\n"
+    end
+
+    test "a starting version read from an update file still rolls back to it" do
+      content =
+        Migration.migration_content("MyApp", "phoenix_kit_update_v190_to_v198", 190, 198, "auth")
+
+      assert {:ok, _} = Code.string_to_quoted(content)
+
+      assert content =~
+               ~s(PhoenixKit.Migrations.down(\n      prefix: "auth",\n      version: 190\n)
+
+      refute content =~ "refusing to roll back"
+    end
+  end
+
   describe "extract_phoenix_kit_version/1 (scan bug fix)" do
     test "matches the real installer filename: add_phoenix_kit_tables" do
       assert Migration.extract_phoenix_kit_version("20250908_add_phoenix_kit_tables.exs") == [1]

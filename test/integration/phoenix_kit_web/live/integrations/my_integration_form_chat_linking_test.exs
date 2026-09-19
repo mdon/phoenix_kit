@@ -88,6 +88,18 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormChatLinkingTest do
     end
   end
 
+  describe "confirming a group the Test found" do
+    # The event only links a group THIS process captured. A forged event naming
+    # any other chat must not reach `chat_ids`.
+    test "a chat id that was never captured is not linked", %{conn: conn, uuid: uuid, user: user} do
+      {:ok, view, _html} = live(conn, edit_path(uuid))
+
+      render_click(view, "link_candidate", %{"chat_id" => @group_id})
+
+      assert linked_ids(uuid, user) == []
+    end
+  end
+
   describe "unlinking one chat" do
     test "removes only the named chat", %{conn: conn, uuid: uuid, user: user} do
       {:ok, _} =

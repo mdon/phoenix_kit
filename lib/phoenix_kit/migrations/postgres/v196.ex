@@ -16,7 +16,11 @@ defmodule PhoenixKit.Migrations.Postgres.V196 do
   their column starts filled rather than waiting for their next sign-in.
   Only rows whose `provider_email` is present are copied, and only where
   `google_email` is still NULL, so the backfill is re-runnable and never
-  overwrites a hand-entered value. A user with more than one Google link
+  overwrites a hand-entered value. The address is stored the way the
+  changeset stores it — trimmed and lower-cased — and one longer than the
+  column is skipped: `provider_email` is `varchar(255)` and this column is
+  `varchar(160)`, so copying it verbatim would raise "value too long" and
+  strand the host below V196 over a single row. A user with more than one Google link
   (the table allows one row per provider per user, but a repaired install
   may carry duplicates) takes the most recently updated one.
 
@@ -66,11 +70,11 @@ defmodule PhoenixKit.Migrations.Postgres.V196 do
     UPDATE #{p}phoenix_kit_users u
     SET google_email = src.provider_email
     FROM (
-      SELECT DISTINCT ON (user_uuid) user_uuid, provider_email
+      SELECT DISTINCT ON (user_uuid) user_uuid, lower(btrim(provider_email)) AS provider_email
       FROM #{p}phoenix_kit_user_oauth_providers
       WHERE provider = 'google'
         AND provider_email IS NOT NULL
-        AND provider_email <> ''
+        AND char_length(btrim(provider_email)) BETWEEN 1 AND 160
       ORDER BY user_uuid, updated_at DESC
     ) AS src
     WHERE src.user_uuid = u.uuid

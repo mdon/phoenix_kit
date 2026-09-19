@@ -138,6 +138,7 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Migration do
     # the project: that's a fresh install and a non-public schema may
     # genuinely need creating.
     create_schema = from_version == 0 and prefix != "public"
+    down_body = down_body(from_version, prefix)
 
     """
     defmodule #{app_module}.Repo.Migrations.#{module_name} do
@@ -156,14 +157,45 @@ defmodule Mix.Tasks.PhoenixKit.Gen.Migration do
       end
 
       def down do
+    #{down_body}
+      end
+    end
+    """
+  end
+
+  # `from_version` is read off migration FILENAMES, and the installer's own file
+  # (`add_phoenix_kit_tables`) carries no version: it scans as 1 whatever the
+  # install really built, which today is the whole chain. A host installed at
+  # V190 with no update file yet would get `down(version: 1)` here — and one
+  # `mix ecto.rollback` of this single step would tear PhoenixKit down to the
+  # chain's floor, dropping sixty versions of tables with their data instead of
+  # the handful this step added. When the starting version is only that guess,
+  # the generated `down` refuses and says how to roll back on purpose.
+  @install_file_version 1
+
+  defp down_body(@install_file_version, prefix) do
+    """
+        # The version this project was at before this step is not recorded in
+        # its migration filenames (the install migration carries none), so an
+        # automatic rollback has no safe target: guessing would drop most of
+        # PhoenixKit's tables. To roll back deliberately, call
+        # `PhoenixKit.Migrations.down(prefix: "#{prefix}", version: N)` with
+        # the version you mean.
+        raise "PhoenixKit: refusing to roll back — the version before this " <>
+                "update is unknown. See the comment in this migration."\
+    """
+    |> String.trim_trailing("\n")
+  end
+
+  defp down_body(from_version, prefix) do
+    """
         # Rollback PhoenixKit to V#{from_version}
         PhoenixKit.Migrations.down(
           prefix: "#{prefix}",
           version: #{from_version}
-        )
-      end
-    end
+        )\
     """
+    |> String.trim_trailing("\n")
   end
 
   defp generate_timestamp do

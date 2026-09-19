@@ -26,7 +26,9 @@ defmodule PhoenixKit.Users.LoginAttempts do
   in front of it (`login_limit * 3` per IP network per minute, so ~900
   rows/hour/network at the default) and by retention, but it is the price of
   storing the identifier verbatim, which is what makes "someone is hammering
-  `admin@`" visible.
+  `admin@`" visible. Requests the limiter REFUSES are past that bound, so a
+  `"rate_limited"` row keeps its identifier only when it names a real account
+  and is otherwise stored as `"*"` — one row per network per hour.
 
   Write is one statement with no preceding read, so concurrent attempts never
   contend on a row lock.
@@ -71,6 +73,8 @@ defmodule PhoenixKit.Users.LoginAttempts do
   @default_threshold 10
   @alert_cooldown_seconds 24 * 3600
   @alert_stamp_key "phoenix_kit_failed_login_alert_at"
+  # What a refused request's identifier is stored as when it names no account.
+  @collapsed_identifier "*"
 
   @doc """
   Whether failed sign-ins are recorded (setting `login_attempt_logging_enabled`,
@@ -114,6 +118,7 @@ defmodule PhoenixKit.Users.LoginAttempts do
   defp do_record(conn, identifier, outcome, opts) do
     identifier = normalize_identifier(identifier)
     user = resolve_user(identifier, opts)
+    identifier = stored_identifier(identifier, user, outcome)
     ip_address = IpAddress.extract_from_conn(conn)
     ua = user_agent_header(conn)
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -187,6 +192,15 @@ defmodule PhoenixKit.Users.LoginAttempts do
     )
   end
 
+  # A refused request is not bounded by the rate limiter — it IS the limiter
+  # refusing — so its identifier must not be a free dedup-key component: a
+  # blocked client naming a fresh address per request would write a row per
+  # request. One that names a real account keeps it (that is the "someone is
+  # hammering admin@" signal); anything else collapses into one row per
+  # network per hour.
+  defp stored_identifier(_identifier, nil, "rate_limited"), do: @collapsed_identifier
+  defp stored_identifier(identifier, _user, _outcome), do: identifier
+
   # The caller knows the account only on the inactive branch. Everywhere else
   # `Auth` collapses "no such user" and "wrong password" into one return value
   # on purpose, so the lookup happens here rather than by widening that API.
@@ -248,17 +262,16 @@ defmodule PhoenixKit.Users.LoginAttempts do
     # Stamp MUST succeed before the send: a stamp that fails (user gone,
     # custom_fields rejected) would otherwise retry on every subsequent
     # failure and become the flood.
-    if count >= alert_threshold() and alert_due?(user) do
-      case stamp_alert(user) do
-        {:ok, _} ->
-          UserNotifier.deliver_failed_login_alert(user, %{
-            count: count,
-            window_hours: @alert_window_hours
-          })
-
-        _ ->
-          :ok
-      end
+    #
+    # `alert_due?/1` reads a struct loaded before this attempt was written, so
+    # it is only a cheap early-out. The STAMP is the gate: it is one
+    # conditional UPDATE, and of any number of concurrent failures exactly one
+    # wins it.
+    if count >= alert_threshold() and alert_due?(user) and stamp_alert(user) == :stamped do
+      UserNotifier.deliver_failed_login_alert(user, %{
+        count: count,
+        window_hours: @alert_window_hours
+      })
     end
 
     :ok
@@ -283,16 +296,45 @@ defmodule PhoenixKit.Users.LoginAttempts do
   # Stamped BEFORE the send, not after: a send that raises must still burn the
   # cooldown, or every subsequent failure retries it.
   #
-  # `merge_user_custom_fields/3` and never a whole-map replace — a replace
-  # built from a struct held in memory restores every other key's old value.
-  # `ensure_definitions: false` because this is internal state, not a field
-  # anyone should see in the custom-fields admin.
-  defp stamp_alert(user) do
-    Auth.merge_user_custom_fields(
-      user,
-      %{@alert_stamp_key => DateTime.to_iso8601(DateTime.utc_now())},
-      ensure_definitions: false
-    )
+  # Compare-and-set in one statement: the row is stamped only while its stamp
+  # is absent or older than the cooldown, so a parallel burst that all read
+  # "due" from their own stale structs still sends ONE mail. An unconditional
+  # merge here let every one of them through. The stamps are fixed-width UTC
+  # ISO 8601 strings, which order as text.
+  #
+  # A JSONB merge and never a whole-map replace — a replace built from a struct
+  # held in memory restores every other key's old value. `updated_at` is left
+  # alone and nothing is broadcast: an anonymous failed sign-in is not an edit
+  # of the account.
+  defp stamp_alert(%User{uuid: uuid}) do
+    now = DateTime.utc_now()
+    cutoff = now |> DateTime.add(-@alert_cooldown_seconds, :second) |> DateTime.to_iso8601()
+    stamp = %{@alert_stamp_key => DateTime.to_iso8601(now)}
+
+    query =
+      from(u in User,
+        where: u.uuid == ^uuid,
+        where:
+          fragment(
+            "(COALESCE(?, '{}'::jsonb) ->> ?) IS NULL OR (? ->> ?) < ?",
+            u.custom_fields,
+            ^@alert_stamp_key,
+            u.custom_fields,
+            ^@alert_stamp_key,
+            ^cutoff
+          ),
+        update: [
+          set: [
+            custom_fields:
+              fragment("COALESCE(?, '{}'::jsonb) || ?", u.custom_fields, type(^stamp, :map))
+          ]
+        ]
+      )
+
+    case RepoHelper.repo().update_all(query, []) do
+      {1, _} -> :stamped
+      _ -> :not_due
+    end
   end
 
   @doc """

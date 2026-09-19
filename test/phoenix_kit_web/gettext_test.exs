@@ -60,7 +60,28 @@ defmodule PhoenixKitWeb.GettextTest do
     test "warming the catalogue is idempotent" do
       assert @backend.warm_catalog() == :ok
       assert @backend.warm_catalog() == :ok
-      assert is_map(:persistent_term.get({@backend, :catalog}))
+      assert {hash, catalog} = :persistent_term.get({@backend, :catalog})
+      assert is_binary(hash) and is_map(catalog)
+    end
+
+    # The persistent_term key outlives the module. After a `.po` edit the
+    # recompiled module carries a new catalogue, and a term cached by the OLD
+    # module must not keep answering — it did, until the VM restarted.
+    test "a catalogue cached by an earlier compile of the module is replaced" do
+      key = {@backend, :catalog}
+      current = :persistent_term.get(key, nil)
+
+      on_exit(fn -> if current, do: :persistent_term.put(key, current) end)
+
+      :persistent_term.put(key, {"hash of an older compile", %{}})
+
+      assert Gettext.with_locale(@backend, "ru", fn ->
+               Gettext.dgettext(@backend, "default", "Save")
+             end) != "Save"
+
+      assert {hash, catalog} = :persistent_term.get(key)
+      assert hash != "hash of an older compile"
+      assert map_size(catalog) > 0
     end
   end
 

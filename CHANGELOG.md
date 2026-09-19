@@ -1,3 +1,93 @@
+## Unreleased
+
+Fixes from the 2026-09-19 weekly review
+(`dev_docs/pull_requests/2026/weekly-2026-09-19/CLAUDE_REVIEW.md`).
+
+### Fixed
+
+- **A broken host file-reference source no longer makes orphan cleanup delete
+  the host's files.** A `:file_reference_sources` entry whose function raised,
+  whose table was missing, or that was malformed was skipped with a warning —
+  which dropped that source's `NOT EXISTS` guard, so every file only the host
+  referenced read as an orphan and lost its row and its bytes. A source that
+  cannot be built now **fails closed**: a `Logger.error/1` names it and no file
+  is treated as orphaned until it is fixed. The shorthand's table is looked up
+  through the search path, the way the query itself resolves it.
+- **A Telegram group is never linked on its own.** A bot's username is public
+  and anyone can add it to a group of theirs and run `/start@bot`, so in
+  "Only me" mode the next Test linked a stranger's group and delivered the
+  owner's notifications to it. `ChatLink` now hands captured groups back as
+  candidates, held in the LiveView and never stored; the card lists them with a
+  "Link" button and the owner confirms the ones they recognise. Three new
+  strings, translated in all eight locales.
+- **A parallel burst no longer bypasses the login rate limiter.** 2.31.0 made
+  the check read the bucket and count the attempt only after the password
+  verify, so every request in a burst saw an empty bucket. The check takes its
+  slot atomically again, and a successful sign-in hands it back
+  (`RateLimiter.record_successful_login/2`) — so ordinary sign-ins still never
+  lock an account out. The IP bucket is checked first: a client refused for its
+  network no longer spends the slots of the account it names.
+  `record_failed_login/2` is deprecated and does nothing.
+- **Requests the rate limiter refuses can no longer grow
+  `phoenix_kit_login_attempts` without bound.** A refused request naming no
+  account is stored under `"*"` — one row per network per hour — instead of one
+  row per invented identifier.
+- **The failed sign-in alert is sent once under a parallel burst.** The cooldown
+  stamp is a compare-and-set in one statement; concurrent failures that all
+  read "due" from a stale struct no longer each send a mail. The stamp also
+  stopped bumping the account's `updated_at` and broadcasting `user_updated`.
+- **V196 no longer aborts on a Google address longer than 160 characters.** The
+  backfill copied `provider_email` (`varchar(255)`) into `google_email`
+  (`varchar(160)`) verbatim; it now skips an address that does not fit and
+  stores the rest trimmed and lower-cased, as the changeset does.
+- **An image can be edited after any number of reverts.** A revert handed the
+  backup's `unedited_…` keys back to the file and the next edit prefixed them
+  again — 42 characters per cycle, until the key outgrew `varchar(255)` and the
+  file could never be edited again. The prefix is replaced, not stacked.
+- **A publish that raises no longer leaves the render and the private unedited
+  copies in the bucket** under keys no row points at, a fresh set per retry.
+- **Trashing a folder no longer moves a file into a folder that is itself in the
+  trash**, where it stayed `active`, appeared in no trash listing, and was
+  hard-deleted when that folder was emptied. It goes to the trash with its home
+  and comes back with it. A permanent delete that has only a trashed folder to
+  move the file to trashes it with that folder.
+- **The settings history withholds secret-named keys, not only the restricted
+  list.** A module's `…_api_key` or `…_token` written through the ordinary
+  writers was withheld from the change broadcast and then recorded in plain
+  text in a permanent `setting.changed` entry. The history now applies the same
+  name test as `Settings.Events.secret_key?/2`, and **V198** withholds the
+  values already recorded. Data only; `down/1` restores nothing, by design.
+- **Translations follow a recompile.** The compile-time Gettext catalogue was
+  cached in `:persistent_term` under a key that outlived the module, so an
+  edited `.po` kept serving the old strings until the VM restarted. The cached
+  term now carries the hash of the binary it was decoded from.
+- **`mix phoenix_kit.update` no longer adds a second `default:` queue.** A queue
+  whose limit is not a literal (`String.to_integer(System.get_env(…))`, a module
+  attribute), or that shares a line with another, read as missing; the
+  duplicate key parsed, and Oban then refused to boot. `queues: false` written
+  on the `config` line itself is recognised as a web-only node.
+- **`mix phoenix_kit.gen.migration` (and `update --no-start`) no longer writes a
+  `down` that tears PhoenixKit down to the chain's floor.** The install
+  migration's filename carries no version and scans as 1; when that guess is the
+  starting version the generated `down` raises and says how to roll back on
+  purpose.
+- **MediaBrowser, controlled mode:** nav params with no `:file` key leave the
+  viewer alone — a host wired by hand before `file` existed had the viewer close
+  on the echo of the click that opened it — and the echo of a superseded step
+  (held ArrowRight) no longer drags the viewer backwards. The moduledoc now
+  documents the key.
+- **The folder sidebar opens when the server opens it.** The chevron's
+  client-side class change is sticky in LiveView and was re-applied over the
+  server's render, leaving the sidebar collapsed after "New folder" and the UI
+  inverted against the saved preference. `FolderExplorer` takes a `sidebar_rev`
+  the host bumps on a server-side change.
+- **Image editor:** the frame keeps an EXIF-turned source's aspect after a save,
+  retry or revert, and a number field emptied mid-edit keeps its crop or area
+  instead of deleting it and renumbering the ones below under the cursor.
+- **The media viewer's title/description editor and rotation save honour the
+  browser's scope.** `MediaCanvasViewer` takes a `write_scope`; a file merely
+  linked into a scoped browser is no longer retitled or rotated for its owner.
+
 ## 2.31.1 - 2026-09-19
 
 ### Added

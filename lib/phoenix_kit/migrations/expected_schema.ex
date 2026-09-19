@@ -202,6 +202,17 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V198 (2026-09-19, settings history) declares NO object here, and cannot:
+  # like V194 it is a pure data migration — an UPDATE on
+  # `phoenix_kit_activities` that withholds the values of `setting.changed`
+  # entries recorded for secret-NAMED keys (`from`/`to` null,
+  # `restricted: true`), plus the version-marker COMMENT. No table, column,
+  # index or constraint is added, dropped or reshaped, so `chain_hash` is
+  # restamped over the shipped file set. The same restamp covers V196's
+  # backfill, which gained a length guard and the changeset's normalisation
+  # and builds the same column. The real statements run against seeded rows in
+  # test/phoenix_kit/migrations/v198_test.exs and v196_test.exs.
+  #
   # V194 (2026-09-17, settings history) declares NO object here, and cannot:
   # it is a pure data migration — an UPDATE on `phoenix_kit_activities` that
   # withholds the values of `setting.changed` entries recorded for integration
@@ -406,7 +417,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "33e96c331454e7b417dc2d8b9faacce831666fb733c1366f949d6de8d49c3b40"
+  @chain_hash "3edad25d5b7c122ea032b2059242e36c6ede3bc868fd50c8b66d17be4b40d789"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)

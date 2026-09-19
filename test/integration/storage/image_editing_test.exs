@@ -167,6 +167,9 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
     sha
   end
 
+  defp key_lengths(keys),
+    do: Map.new(keys, fn {variant, key} -> {variant, String.length(key)} end)
+
   defp unedited_keys?(keys), do: Enum.all?(Map.values(keys), &ApplyImageEditJob.unedited_key?/1)
 
   defp original_size(file) do
@@ -268,6 +271,26 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
       refute Enum.any?(Map.values(edited_keys), &exists?/1)
       assert Enum.all?(Map.values(keys(file.uuid)), &exists?/1)
       assert {:error, :not_edited} = ImageEditing.revert(file, scope: ctx.scope)
+    end
+
+    # A revert hands the backup's `unedited_…` keys back to the file, so the
+    # next first edit copies from them. Stacking the prefix grew every key by
+    # 42 characters per cycle until the swap overflowed varchar(255).
+    test "edit-after-revert cycles do not grow the backup's keys", ctx do
+      first = edit!(ctx.photo, %{"rotate" => 180}, ctx)
+      lengths = first |> ImageEditing.backup() |> Map.fetch!(:uuid) |> keys() |> key_lengths()
+
+      cycled =
+        Enum.reduce(1..3, first, fn _, file ->
+          assert {:ok, _} = ImageEditing.revert(file, scope: ctx.scope)
+          assert [:ok] = drain()
+          edit!(reload(file), %{"rotate" => 90}, ctx)
+        end)
+
+      backup_keys = cycled |> ImageEditing.backup() |> Map.fetch!(:uuid) |> keys()
+
+      assert unedited_keys?(backup_keys)
+      assert key_lengths(backup_keys) == lengths
     end
 
     test "never stays at the keys it was served under", ctx do

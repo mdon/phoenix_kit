@@ -176,7 +176,7 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
 
     result =
       with {:ok, prepared} <- prepare(file) do
-        case publish(file.uuid, revision, prepared) do
+        case publish_or_discard(file.uuid, revision, prepared) do
           {:ok, outcome} ->
             release_unused_copies(prepared)
             after_publish(file.uuid, revision, outcome)
@@ -195,6 +195,25 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
       {:cancel, reason} -> {:cancel, revision, reason}
       {:error, reason} -> {:error, revision, reason}
     end
+  end
+
+  # `publish/3` discards what `prepare/1` stored on every tuple it returns,
+  # but a RAISE inside its transaction (an `update!`, a failed match, a lost
+  # connection) unwinds past all of that. The render and the private copies of
+  # the unedited bytes would stay in the bucket under keys no row points at —
+  # out of reach of every later cleanup — and each retry would add a fresh
+  # set. `discard/1` re-checks references under the directory lock, so it is
+  # safe whatever the transaction got to before it rolled back.
+  defp publish_or_discard(uuid, revision, prepared) do
+    publish(uuid, revision, prepared)
+  rescue
+    error ->
+      discard(prepared)
+      reraise error, __STACKTRACE__
+  catch
+    kind, reason ->
+      discard(prepared)
+      :erlang.raise(kind, reason, __STACKTRACE__)
   end
 
   @doc false
@@ -289,9 +308,20 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
 
   # Same directory (the directory lock covers it), a name no upload,
   # variant or render produces, and 128 random bits nobody can guess.
-  defp unedited_key(key) do
+  #
+  # A prefix already on the name is REPLACED, not stacked. A revert hands the
+  # backup's `unedited_…` keys back to the file, so the next first edit copies
+  # from them; stacking added 42 characters per edit-after-revert cycle until
+  # the key outgrew `file_instances.file_name` (varchar(255)), the swap raised,
+  # and the file could never be edited again.
+  @doc false
+  def unedited_key(key) do
     token = :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
-    Path.join(Path.dirname(key), "#{@unedited_prefix}#{token}_#{Path.basename(key)}")
+    Path.join(Path.dirname(key), "#{@unedited_prefix}#{token}_#{bare_basename(key)}")
+  end
+
+  defp bare_basename(key) do
+    String.replace(Path.basename(key), ~r/^(?:#{@unedited_prefix}[0-9a-f]{32}_)+/, "")
   end
 
   @doc false

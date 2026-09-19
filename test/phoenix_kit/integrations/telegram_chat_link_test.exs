@@ -59,14 +59,14 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLinkTest do
       assert {["111"], []} = ChatLink.merge("single", ["111"], chats)
     end
 
-    test "still links a group while the private chat stays locked" do
-      # A group is linked by someone who can post in it and deliberately ran the
-      # command there — it is never the "stranger messaged the bot" case that
-      # single mode locks against, so it must not be blocked by the lock.
+    test "never auto-links a group: anyone can add a public bot to their own group" do
+      # `/start@bot` in a group proves someone ran it, not that the connection's
+      # owner did. Auto-linking it would deliver the owner's notifications to a
+      # stranger's group on the next Test.
       chats = [%{"id" => "-1001234567890", "type" => "supergroup", "title" => "Shop"}]
 
-      assert {["111", "-1001234567890"], ["-1001234567890"]} =
-               ChatLink.merge("single", ["111"], chats)
+      assert {["111"], []} = ChatLink.merge("single", ["111"], chats)
+      assert {[], []} = ChatLink.merge("single", [], chats)
     end
   end
 
@@ -109,9 +109,27 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLinkTest do
 
       %{ids: ids, added: added, meta: meta} = ChatLink.capture("single", ["111"], %{}, chats)
 
-      assert ids == ["111", "-500"]
-      assert added == ["-500"]
-      assert Map.keys(meta) == ["-500"]
+      assert ids == ["111"]
+      assert added == []
+      assert meta == %{}
+    end
+
+    test "hands a captured group back as a candidate instead of linking it" do
+      chats = [
+        %{"id" => "999", "type" => "private", "title" => nil},
+        %{"id" => "-500", "type" => "group", "title" => "Shop"}
+      ]
+
+      %{ids: ids, candidates: candidates} = ChatLink.capture("single", ["111"], %{}, chats)
+
+      assert ids == ["111"]
+      assert candidates == [%{"id" => "-500", "type" => "group", "title" => "Shop"}]
+    end
+
+    test "an already-linked group is not offered again" do
+      chats = [%{"id" => "-500", "type" => "group", "title" => "Shop"}]
+
+      assert %{candidates: []} = ChatLink.capture("single", ["111", "-500"], %{}, chats)
     end
 
     test "keeps metadata already known for a still-linked chat" do

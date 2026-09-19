@@ -72,8 +72,11 @@ defmodule PhoenixKit.Modules.Storage do
     orphans.
     A plain `{table, column}` tuple is shorthand for a native column
     reference, and `{table, :jsonb_key, key}` for a `data->>'key'` pointer.
-    A source whose table does not exist, or whose function raises, is
-    skipped with a `Logger.warning/1` rather than failing the query.
+    A source that cannot be built — its table does not exist, its function
+    raises, the entry is malformed — **fails closed**: a `Logger.error/1`
+    names it and no file is treated as orphaned until it is fixed. Skipping
+    it would drop that source's guard and hand cleanup every file only the
+    host references.
 
   Example:
 
@@ -1286,8 +1289,8 @@ defmodule PhoenixKit.Modules.Storage do
       # attachment from every reader outside this folder (2026-09-12).
       from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
       |> repo().all()
-      |> Enum.filter(&linked_outside_subtree?(&1.uuid, subtree_uuids))
-      |> Enum.each(&promote_out_of_subtree(&1, subtree_uuids))
+      |> Enum.filter(&linked_outside_subtree?(&1.uuid, subtree_uuids, :live))
+      |> Enum.each(&promote_out_of_subtree(&1, subtree_uuids, :live))
 
       # Trash every file still homed in the subtree. Files use both
       # `status: "trashed"` and `trashed_at` (the V99 convention) so the
@@ -1393,26 +1396,62 @@ defmodule PhoenixKit.Modules.Storage do
     {:ok, folder}
   end
 
-  # `FolderLink`s for `file_uuid` that point at folders OUTSIDE `subtree_uuids`.
-  defp links_outside_subtree(file_uuid, subtree_uuids) do
-    from(fl in FolderLink,
-      where: fl.file_uuid == ^file_uuid and fl.folder_uuid not in ^subtree_uuids
-    )
-    |> repo().all()
+  # `{link, folder_trashed_at}` for every `FolderLink` of `file_uuid` that
+  # points at a folder OUTSIDE `subtree_uuids` — live folders first, oldest
+  # link first within each.
+  #
+  # `:live` keeps live folders only, which is what TRASHING wants: a file
+  # linked only into an already-trashed folder is not shown anywhere, so it
+  # goes to the trash with its home and comes back when that is restored.
+  # Re-homing it there instead left an `active` file inside a trashed folder —
+  # in no trash listing, not restored with its old home, and hard-deleted the
+  # day the other folder was emptied.
+  defp links_outside_subtree(file_uuid, subtree_uuids, which) do
+    query =
+      from(fl in FolderLink,
+        join: fo in Folder,
+        on: fo.uuid == fl.folder_uuid,
+        where: fl.file_uuid == ^file_uuid and fl.folder_uuid not in ^subtree_uuids,
+        order_by: [asc: not is_nil(fo.trashed_at), asc: fl.inserted_at],
+        select: {fl, fo.trashed_at}
+      )
+
+    query =
+      case which do
+        :live -> where(query, [_fl, fo], is_nil(fo.trashed_at))
+        :any -> query
+      end
+
+    repo().all(query)
   end
 
-  defp linked_outside_subtree?(file_uuid, subtree_uuids),
-    do: links_outside_subtree(file_uuid, subtree_uuids) != []
+  defp linked_outside_subtree?(file_uuid, subtree_uuids, which \\ :any),
+    do: links_outside_subtree(file_uuid, subtree_uuids, which) != []
 
   # Re-home a file to the first folder that links it from outside the deleted
   # subtree (consuming that link), so it survives. Any remaining external links
   # keep pointing at the now-rehomed file; links to subtree folders cascade away
   # when those folders are deleted.
-  defp promote_out_of_subtree(%PhoenixKit.Modules.Storage.File{} = file, subtree_uuids) do
-    case links_outside_subtree(file.uuid, subtree_uuids) do
-      [%FolderLink{folder_uuid: new_home} = link | _] ->
+  #
+  # A PERMANENT delete (`:any`) may have nowhere live to put the file. It then
+  # moves into the trashed folder that links it and takes that folder's trash
+  # stamp, so it shares the folder's fate: restored with it (restore matches on
+  # `trashed_at`), emptied with it.
+  defp promote_out_of_subtree(
+         %PhoenixKit.Modules.Storage.File{} = file,
+         subtree_uuids,
+         which \\ :any
+       ) do
+    case links_outside_subtree(file.uuid, subtree_uuids, which) do
+      [{%FolderLink{folder_uuid: new_home} = link, folder_trashed_at} | _] ->
+        changes =
+          case folder_trashed_at do
+            nil -> [folder_uuid: new_home]
+            at -> [folder_uuid: new_home, status: "trashed", trashed_at: at]
+          end
+
         repo().transaction(fn ->
-          file |> Ecto.Changeset.change(folder_uuid: new_home) |> repo().update!()
+          file |> Ecto.Changeset.change(changes) |> repo().update!()
           repo().delete!(link)
         end)
 
@@ -2600,8 +2639,7 @@ defmodule PhoenixKit.Modules.Storage do
     if host_table_exists?(table) do
       where(query, ^shorthand_column_dynamic(table, to_string(column)))
     else
-      warn_missing_reference_table(table)
-      query
+      reference_source_failed(query, "table #{table} does not exist")
     end
   end
 
@@ -2610,8 +2648,7 @@ defmodule PhoenixKit.Modules.Storage do
     if host_table_exists?(table) do
       where(query, ^shorthand_jsonb_dynamic(table, key))
     else
-      warn_missing_reference_table(table)
-      query
+      reference_source_failed(query, "table #{table} does not exist")
     end
   end
 
@@ -2625,11 +2662,7 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   defp apply_reference_source(query, other) do
-    Logger.warning(
-      "phoenix_kit: ignoring invalid :file_reference_sources entry #{inspect(other)}"
-    )
-
-    query
+    reference_source_failed(query, "invalid entry #{inspect(other)}")
   end
 
   defp apply_reference_source_mfa(query, module, fun, args) do
@@ -2637,26 +2670,40 @@ defmodule PhoenixKit.Modules.Storage do
     Enum.reduce(dynamics, query, fn condition, acc -> where(acc, ^condition) end)
   rescue
     error ->
-      Logger.warning(
-        "phoenix_kit: file_reference_sources #{inspect(module)}.#{fun}/#{length(args)} " <>
-          "raised, skipping: #{Exception.message(error)}"
+      reference_source_failed(
+        query,
+        "#{inspect(module)}.#{fun}/#{length(args)} raised: #{Exception.message(error)}"
       )
-
-      query
+  catch
+    kind, reason ->
+      reference_source_failed(
+        query,
+        "#{inspect(module)}.#{fun}/#{length(args)} #{kind}: #{inspect(reason)}"
+      )
   end
 
-  defp warn_missing_reference_table(table) do
-    Logger.warning("phoenix_kit: file_reference_sources table #{table} does not exist, skipping")
+  # A source that cannot be built FAILS CLOSED: the orphan query matches
+  # nothing until the source is fixed. Skipping it would drop that host's
+  # `NOT EXISTS` guard, and every file only the host references would read as
+  # an orphan — one cleanup run from losing its row and its bytes. A cleanup
+  # that finds nothing is the recoverable side of that choice.
+  defp reference_source_failed(query, reason) do
+    Logger.error(
+      "phoenix_kit: file_reference_sources #{reason} — no file is treated as orphaned " <>
+        "until this source is fixed"
+    )
+
+    where(query, [f], false)
   end
 
+  # Resolved through the search path, the way the shorthand's unqualified
+  # table name resolves when the query runs — a host table in a named schema
+  # on the path counts, one Postgres cannot see does not.
   defp host_table_exists?(table) do
-    %{rows: rows} =
-      repo().query!(
-        "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1",
-        [table]
-      )
+    %{rows: [[exists?]]} =
+      repo().query!("SELECT to_regclass(quote_ident($1)) IS NOT NULL", [table])
 
-    rows != []
+    exists?
   end
 
   defp shorthand_column_dynamic(table, column) do

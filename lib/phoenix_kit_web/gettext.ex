@@ -61,6 +61,7 @@ defmodule PhoenixKitWeb.Gettext do
 
   @snapshot Compiler.snapshot(@opts)
   @catalog_bin @snapshot.binary
+  @catalog_hash :erlang.md5(@snapshot.binary)
   @known_locales @snapshot.known_locales
   @plural_infos @snapshot.plural_infos
   @po_hash @snapshot.hash
@@ -199,16 +200,22 @@ defmodule PhoenixKitWeb.Gettext do
     :ok
   end
 
+  # The term is stored WITH the hash of the binary it was decoded from. The
+  # key outlives the module: a recompile after a `.po` edit (the code
+  # reloader, IEx `recompile`, a hot upgrade) loads a new `@catalog_bin`, and
+  # a term cached under a bare key kept answering with the old strings until
+  # the VM restarted. A mismatch re-decodes and replaces the term — one global
+  # GC, on a recompile only.
   defp catalog do
     key = {__MODULE__, :catalog}
 
     case :persistent_term.get(key, :"$miss") do
-      :"$miss" ->
-        cat = :erlang.binary_to_term(@catalog_bin)
-        :persistent_term.put(key, cat)
+      {@catalog_hash, cat} ->
         cat
 
-      cat ->
+      _stale_or_missing ->
+        cat = :erlang.binary_to_term(@catalog_bin)
+        :persistent_term.put(key, {@catalog_hash, cat})
         cat
     end
   end

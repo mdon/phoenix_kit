@@ -7,7 +7,18 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V197 - Failed sign-in attempts ⚡ LATEST
+  ### V198 - Settings history: secret-named values withheld ⚡ LATEST
+
+  The settings history recognised a secret by the restricted-key list and an
+  integration row's module, so a module's own `…_api_key` or `…_token`
+  written through the ordinary writers was recorded in full. The writer now
+  reads the key's name, the way the change broadcast always did; this version
+  withholds what was already written — `from`/`to` null and
+  `restricted: true` on those `setting.changed` entries, the rest of each
+  entry kept. Data only; `down/1` moves the marker back and restores nothing,
+  by design.
+
+  ### V197 - Failed sign-in attempts
 
   Adds `phoenix_kit_login_attempts`: sign-ins that did not succeed, aggregated
   at write time into one row per (identifier, network, outcome, hour) so a
@@ -807,7 +818,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 197
+  @current_version 198
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

@@ -286,7 +286,7 @@ defmodule PhoenixKitWeb.Components.ImageEditor do
 
   def handle_event("remove_region", %{"index" => index}, socket) do
     case Integer.parse(to_string(index)) do
-      {i, ""} ->
+      {i, ""} when i >= 0 ->
         regions = List.delete_at(regions(socket.assigns.draft), i)
         {:noreply, assign(socket, :draft, Map.put(socket.assigns.draft, "redact", regions))}
 
@@ -387,6 +387,7 @@ defmodule PhoenixKitWeb.Components.ImageEditor do
       params
       |> Map.merge(Map.take(draft, ~w(rotate flip_h flip_v)))
       |> Map.update("crop", nil, &blank_crop/1)
+      |> keep_unreadable_rects(draft)
 
     case ImageEdit.normalize(params) do
       {:ok, nil} -> %{}
@@ -394,6 +395,55 @@ defmodule PhoenixKitWeb.Components.ImageEditor do
       {:error, _} -> draft
     end
   end
+
+  # A number field is EMPTY for a moment while it is being retyped, and the
+  # form reports every keystroke. `ImageEdit.normalize/1` drops a rectangle it
+  # cannot read — right for a saved edit, wrong here: backspacing one area's
+  # width deleted the area, the rows below moved up under the cursor, and the
+  # next keystrokes resized a different area of a destructive redaction. An
+  # area is removed by its remove button only; a rectangle that does not read
+  # right now keeps the one the draft already has.
+  defp keep_unreadable_rects(params, draft) do
+    params
+    |> Map.update("redact", nil, &keep_regions(&1, regions(draft)))
+    |> Map.update("crop", nil, fn crop ->
+      if is_map(crop) and not readable_rect?(crop), do: Map.get(draft, "crop"), else: crop
+    end)
+  end
+
+  # Forms send the list as a map keyed by position.
+  defp keep_regions(%{} = incoming, previous) do
+    incoming
+    |> Enum.sort_by(fn {key, _} -> position(key) end)
+    |> Enum.map(&elem(&1, 1))
+    |> keep_regions(previous)
+  end
+
+  defp keep_regions(incoming, previous) when is_list(incoming) do
+    incoming
+    |> Enum.with_index()
+    |> Enum.map(fn {region, index} ->
+      with false <- readable_rect?(region),
+           %{} = kept <- Enum.at(previous, index) do
+        style = if is_map(region), do: region["style"]
+        if style, do: Map.put(kept, "style", style), else: kept
+      else
+        _ -> region
+      end
+    end)
+  end
+
+  defp keep_regions(other, _previous), do: other
+
+  defp position(key) do
+    case Integer.parse(to_string(key)) do
+      {n, ""} -> n
+      _ -> 0
+    end
+  end
+
+  defp readable_rect?(%{} = rect), do: match?({:ok, _}, drawn_rect(rect))
+  defp readable_rect?(_), do: false
 
   # An untouched crop (the whole frame) is no crop.
   defp blank_crop(%{} = crop) do

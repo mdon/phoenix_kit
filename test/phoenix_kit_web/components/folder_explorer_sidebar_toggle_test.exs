@@ -27,22 +27,22 @@ defmodule PhoenixKitWeb.Components.FolderExplorerSidebarToggleTest do
   test "expanded: both panes are in the DOM, the strip hidden" do
     html = render_explorer(%{sidebar_collapsed: false})
 
-    assert html =~ ~s(id="fx-collapsed")
-    assert html =~ ~s(id="fx-expanded")
+    assert html =~ ~s(id="fx-collapsed-0")
+    assert html =~ ~s(id="fx-expanded-0")
 
     # The strip carries hidden; the expanded wrapper does not.
-    assert [strip] = Regex.run(~r/<div\s+id="fx-collapsed"[^>]*>/, html)
+    assert [strip] = Regex.run(~r/<div\s+id="fx-collapsed-0"[^>]*>/, html)
     assert strip =~ "hidden"
-    assert [pane] = Regex.run(~r/<div\s+id="fx-expanded"[^>]*>/, html)
+    assert [pane] = Regex.run(~r/<div\s+id="fx-expanded-0"[^>]*>/, html)
     refute pane =~ "hidden"
   end
 
   test "collapsed: the same two panes, roles reversed" do
     html = render_explorer(%{sidebar_collapsed: true})
 
-    assert [strip] = Regex.run(~r/<div\s+id="fx-collapsed"[^>]*>/, html)
+    assert [strip] = Regex.run(~r/<div\s+id="fx-collapsed-0"[^>]*>/, html)
     refute strip =~ "hidden"
-    assert [pane] = Regex.run(~r/<div\s+id="fx-expanded"[^>]*>/, html)
+    assert [pane] = Regex.run(~r/<div\s+id="fx-expanded-0"[^>]*>/, html)
     assert pane =~ "hidden"
 
     # The folder tree is still THERE while collapsed — that is what makes
@@ -75,10 +75,23 @@ defmodule PhoenixKitWeb.Components.FolderExplorerSidebarToggleTest do
         targets =
           for ["toggle_class", %{"names" => ["hidden"], "to" => to}] <- decoded, do: to
 
-        assert Enum.sort(targets) == ["#fx-collapsed", "#fx-expanded"]
+        assert Enum.sort(targets) == ["#fx-collapsed-0", "#fx-expanded-0"]
         assert [_, _, ["push", %{"event" => "toggle_sidebar"}]] = decoded
       end
     end
+  end
+
+  # LiveView keeps the chevron's class change sticky — re-applied after every
+  # patch, over whatever the server renders. A server that opens the sidebar on
+  # its own bumps the revision: new ids, new elements, no sticky change left.
+  test "a revision bump gives the panes, and the chevrons' targets, new ids" do
+    html = render_explorer(%{sidebar_collapsed: false, sidebar_rev: 3})
+
+    assert html =~ ~s(id="fx-collapsed-3")
+    assert html =~ ~s(id="fx-expanded-3")
+    refute html =~ ~s(fx-collapsed-0)
+    assert html =~ "#fx-collapsed-3"
+    assert html =~ "#fx-expanded-3"
   end
 
   test "with a component target, the push carries it" do

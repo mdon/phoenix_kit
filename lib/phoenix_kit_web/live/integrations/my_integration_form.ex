@@ -46,6 +46,9 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
        |> assign(:uuid, nil)
        |> assign(:name, nil)
        |> assign(:data, %{})
+       # Groups the last Test found but did not link — held here, never
+       # stored, until the owner confirms one (see `ChatLink`).
+       |> assign(:telegram_candidates, [])
        # `new_name` / `form_values` hold what the operator typed on the /new
        # flow so a pre-save dry-run Test can re-render the form without
        # eating input.
@@ -243,6 +246,32 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
     end
   end
 
+  # Link a group the last Test found. The id is looked up in the candidates
+  # this process captured, so the event cannot name an arbitrary chat.
+  def handle_event("link_candidate", %{"chat_id" => id}, socket) do
+    existing = socket.assigns.data["chat_ids"] || []
+
+    case Enum.find(socket.assigns.telegram_candidates, &(&1["id"] == id)) do
+      %{} = chat when is_binary(id) ->
+        ids = Enum.uniq(existing ++ [id])
+
+        meta =
+          (socket.assigns.data["chat_meta"] || %{})
+          |> Map.put(id, %{"type" => chat["type"], "title" => chat["title"]})
+          |> ChatLink.prune_meta(ids)
+
+        socket
+        |> assign(
+          :telegram_candidates,
+          Enum.reject(socket.assigns.telegram_candidates, &(&1["id"] == id))
+        )
+        |> save_chats(ids, meta, gettext("Chat linked"))
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   # Remove ONE chat. The all-or-nothing `unlink_chats` above cannot express
   # "drop the group, keep my own chat" once more than one is linked.
   def handle_event("unlink_chat", %{"chat_id" => id}, socket) do
@@ -293,6 +322,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
     {:noreply,
      socket
      |> assign(:validating, false)
+     |> assign(:telegram_candidates, capture_candidates(capture))
      |> reload()
      |> then(fn s -> put_flash(s, elem(flash, 0), elem(flash, 1)) end)}
   end
@@ -316,7 +346,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
 
     case Telegram.get_updates(uuid, offset: nil, owner: owner) do
       {:ok, updates} ->
-        %{ids: ids, added: added, meta: meta} =
+        %{ids: ids, added: added, meta: meta, candidates: candidates} =
           ChatLink.capture(
             mode,
             existing,
@@ -333,7 +363,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
           )
         end
 
-        {:captured, added}
+        {:captured, added, candidates}
 
       _ ->
         :unreachable
@@ -345,11 +375,20 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
   # A working token with nothing linked is the state that used to be reported
   # as plain success — and it is precisely the state in which no notification
   # will ever arrive. Say so.
-  defp capture_flash({:captured, [_ | _] = added}, _socket) do
+  defp capture_candidates({:captured, _added, candidates}), do: candidates
+  defp capture_candidates(_capture), do: []
+
+  defp capture_flash({:captured, [_ | _] = added, _candidates}, _socket) do
     {:info, gettext("Linked %{count} chat(s)", count: length(added))}
   end
 
-  defp capture_flash({:captured, []}, socket) do
+  # A group is never linked on its own — anyone can add a public bot to a
+  # group of theirs — so say that one is waiting for a decision.
+  defp capture_flash({:captured, [], [_ | _]}, _socket) do
+    {:info, gettext("Found a group — confirm it below to link it.")}
+  end
+
+  defp capture_flash({:captured, [], []}, socket) do
     if socket.assigns.data["chat_ids"] in [nil, []] do
       {:warning,
        gettext(
@@ -406,8 +445,15 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
   # that list and must keep seeing plain ids. It follows the list on every
   # write — an unlinked chat's title has no business lingering.
   defp save_chat_ids(socket, ids, message) do
-    meta = ChatLink.prune_meta(socket.assigns.data["chat_meta"] || %{}, ids)
+    save_chats(
+      socket,
+      ids,
+      ChatLink.prune_meta(socket.assigns.data["chat_meta"] || %{}, ids),
+      message
+    )
+  end
 
+  defp save_chats(socket, ids, meta, message) do
     case Integrations.save_setup(
            socket.assigns.uuid,
            %{"chat_ids" => ids, "chat_meta" => meta},
@@ -633,6 +679,40 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
                 </li>
               </ul>
 
+              <%!-- Groups the last Test found. Never linked on their own: a
+                   bot's username is public, so a group it was added to need
+                   not be the owner's. --%>
+              <div
+                :if={@telegram_candidates != []}
+                class="rounded-box border border-info/40 p-3 space-y-2"
+              >
+                <p class="text-xs">
+                  {gettext(
+                    "Found by the last Test. Link a group only if you recognise it — anyone can add a bot to a group of their own."
+                  )}
+                </p>
+                <ul class="divide-y divide-base-200">
+                  <li
+                    :for={chat <- @telegram_candidates}
+                    class="flex items-center justify-between gap-3 py-1.5"
+                  >
+                    <span class="text-xs">
+                      <span class="badge badge-ghost badge-sm mr-2">{gettext("Group")}</span>
+                      <span :if={chat["title"]} class="mr-2">{chat["title"]}</span>
+                      <span class="font-mono text-base-content/60">{chat["id"]}</span>
+                    </span>
+                    <button
+                      type="button"
+                      phx-click="link_candidate"
+                      phx-value-chat_id={chat["id"]}
+                      class="btn btn-outline btn-xs"
+                    >
+                      {gettext("Link")}
+                    </button>
+                  </li>
+                </ul>
+              </div>
+
               <%!-- Two ways in, because capture alone cannot reach every chat:
                    it only sees updates still in Telegram's ~24h queue. --%>
               <div class="rounded-box bg-base-200/50 p-3 space-y-2 text-xs">
@@ -648,7 +728,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
                   {gettext("A group:")} {gettext("add the bot to the group, then send")}
                   <span class="font-mono">/start@{bot_username(@data)}</span>
                   {gettext(
-                    "there and press Test Connection. A group needs that command — bots cannot read ordinary group messages."
+                    "there, press Test Connection and confirm the group it finds. A group needs that command — bots cannot read ordinary group messages."
                   )}
                 </p>
               </div>

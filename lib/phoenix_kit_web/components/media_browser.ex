@@ -83,6 +83,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         # push_patch to update URL, handle_params will send_update back
       end
 
+  `params` carries `:file` — the uuid of the file open in the modal viewer, or
+  `nil` when it is closed. Put it in the URL and hand it back in `:nav_params`
+  and a refresh, or the browser's Back button, reopens or closes the viewer.
+  A host that leaves the key out of `:nav_params` altogether keeps the viewer
+  local to the component; only an explicit `file: nil` closes it.
+
   ## Required attributes
 
   - `id` — unique DOM id (required by LiveComponent)
@@ -620,10 +626,40 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # The `file` URL param is the modal viewer's state: a refresh lands back
   # in the viewer on that file instead of at root with the modal gone. The
-  # param is authoritative in both directions — absent closes (that is what
-  # makes the browser's Back button close the viewer it opened).
+  # param is authoritative in both directions — `file: nil` closes (that is
+  # what makes the browser's Back button close the viewer it opened).
+  #
+  # Authoritative only when the host SENDS it. A host that wired controlled
+  # mode by hand before `file` existed hands back nav params with no such key;
+  # reading that as "close" shut the viewer on the echo of the very click that
+  # opened it. No key means the host does not track the viewer, so the viewer
+  # stays local.
   defp sync_viewer_from_params(socket, params) do
-    uuid = params[:file]
+    if Map.has_key?(params, :file) do
+      {socket, echo} = pop_viewer_echo(socket, params[:file])
+      if echo == :superseded, do: socket, else: apply_viewer_param(socket, params[:file])
+    else
+      assign(socket, :viewer_nav_echoes, [])
+    end
+  end
+
+  # Every viewer change this component emits comes back as a nav-params echo.
+  # Held ArrowRight emits B then C before B's echo returns; applying that echo
+  # as a command dragged the viewer back to B (a full remount, and a step
+  # taken in between started from the wrong file) until C's echo fixed it.
+  # An echo of our own emit is skipped while a NEWER emit is still in flight.
+  # The newest one is applied like any outside value — a no-op when nothing
+  # else happened, and the correction when something did. A value we did not
+  # emit (Back/Forward, a hand-edited URL) drops the queue and applies.
+  defp pop_viewer_echo(socket, uuid) do
+    case socket.assigns[:viewer_nav_echoes] || [] do
+      [^uuid, _newer | _] = [_ | rest] -> {assign(socket, :viewer_nav_echoes, rest), :superseded}
+      [^uuid] -> {assign(socket, :viewer_nav_echoes, []), :current}
+      _ -> {assign(socket, :viewer_nav_echoes, []), :external}
+    end
+  end
+
+  defp apply_viewer_param(socket, uuid) do
     current = socket.assigns[:viewer_file]
 
     cond do
@@ -848,6 +884,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       :sidebar_collapsed,
       load_user_sidebar_collapsed(socket.assigns[:phoenix_kit_current_user])
     )
+    |> assign(:sidebar_rev, 0)
     |> assign(
       :expanded_folders,
       load_user_expanded_folders(socket.assigns[:phoenix_kit_current_user])
@@ -1160,7 +1197,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
              |> assign(:new_folder_name, "")
              |> reload_folder_lists()
              |> expand_sidebar_folder(parent_uuid)
-             |> assign(:sidebar_collapsed, false)
+             |> force_sidebar_expanded()
              |> put_flash(:info, gettext("Folder \"%{name}\" created", name: name))}
 
           {:error, :out_of_scope} ->
@@ -2632,6 +2669,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp notify_viewer_nav(socket) do
     if controlled_mode?(socket) do
       viewer = socket.assigns[:viewer_file]
+      emitted = viewer && viewer.file_uuid
+
+      # Bounded: a host that never echoes `file` clears it on its first
+      # nav-params update, but must not grow it until then.
+      echoes = Enum.take((socket.assigns[:viewer_nav_echoes] || []) ++ [emitted], -20)
+      socket = assign(socket, :viewer_nav_echoes, echoes)
 
       send(
         self(),
@@ -2643,12 +2686,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
             page: socket.assigns.current_page,
             filter_orphaned: socket.assigns.filter_orphaned,
             view: socket.assigns.file_view,
-            file: viewer && viewer.file_uuid
+            file: emitted
           }}}
       )
-    end
 
-    socket
+      socket
+    else
+      socket
+    end
   end
 
   defp navigate_to_folder(socket, folder_uuid) when folder_uuid in [nil, ""] do
@@ -3483,6 +3528,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp load_user_expanded_folders(_), do: MapSet.new()
+
+  # The server opening the sidebar on its own (to show a folder it just
+  # created). The revision bump is what makes it show: the chevron's
+  # client-side class change is sticky and would otherwise be re-applied over
+  # this render — see `FolderExplorer`'s `sidebar_rev`.
+  defp force_sidebar_expanded(socket) do
+    if socket.assigns.sidebar_collapsed do
+      socket
+      |> assign(:sidebar_collapsed, false)
+      |> assign(:sidebar_rev, socket.assigns.sidebar_rev + 1)
+    else
+      socket
+    end
+  end
 
   defp load_user_sidebar_collapsed(%{} = user) do
     Auth.get_user_field(user, @media_sidebar_collapsed_key) == true

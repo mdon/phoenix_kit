@@ -419,6 +419,63 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
     end
   end
 
+  describe "trashing a folder whose file is linked only into a trashed folder" do
+    # Re-homing the file into the trashed folder left it `active` there: in no
+    # trash listing, not restored with its old home, and hard-deleted the day
+    # that other folder was emptied.
+    test "the file goes to the trash with its home, and comes back with it" do
+      home = create_folder!(%{name: "home"})
+      other = create_folder!(%{name: "other"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(other.uuid, file.uuid)
+
+      {:ok, _} = Storage.trash_folder(other, nil)
+      {:ok, _} = Storage.trash_folder(home, nil)
+
+      trashed = Repo.get!(StorageFile, file.uuid)
+      assert trashed.folder_uuid == home.uuid
+      assert trashed.status == "trashed"
+
+      {:ok, _} = Storage.restore_folder(Repo.get!(Storage.Folder, home.uuid), nil)
+
+      restored = Repo.get!(StorageFile, file.uuid)
+      assert restored.folder_uuid == home.uuid
+      assert restored.status == "active"
+    end
+
+    test "a live link still re-homes the file instead of trashing it" do
+      home = create_folder!(%{name: "home"})
+      trashed_other = create_folder!(%{name: "trashed other"})
+      live_other = create_folder!(%{name: "live other"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(trashed_other.uuid, file.uuid)
+      {:ok, _} = Storage.create_folder_link(live_other.uuid, file.uuid)
+      {:ok, _} = Storage.trash_folder(trashed_other, nil)
+
+      {:ok, _} = Storage.trash_folder(home, nil)
+
+      rehomed = Repo.get!(StorageFile, file.uuid)
+      assert rehomed.folder_uuid == live_other.uuid
+      assert rehomed.status == "active"
+    end
+
+    test "a permanent delete moves the file into the trashed folder, trashed with it" do
+      home = create_folder!(%{name: "home"})
+      other = create_folder!(%{name: "other"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(other.uuid, file.uuid)
+      {:ok, _} = Storage.trash_folder(other, nil)
+      other = Repo.get!(Storage.Folder, other.uuid)
+
+      {:ok, _} = Storage.delete_folder_completely(home, nil)
+
+      moved = Repo.get!(StorageFile, file.uuid)
+      assert moved.folder_uuid == other.uuid
+      assert moved.status == "trashed"
+      assert moved.trashed_at == other.trashed_at
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # count_orphaned_files/1
   # ---------------------------------------------------------------------------

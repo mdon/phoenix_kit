@@ -8442,17 +8442,22 @@ if (typeof window.Chart === "undefined") {
       this._watchImage();
     },
 
+    // The server resets the recorded size on every reload of the file (a
+    // save, a finished render, a retry, a revert) while morphdom keeps the
+    // same <img> node. Reporting only when the node changed left the frame at
+    // the unturned aspect after any of those: a stretched preview, and crop
+    // and redaction rectangles drawn against the wrong frame. So every update
+    // re-checks a loaded image — `_reportSize` compares against the size the
+    // server currently renders and stays quiet once they agree — and the load
+    // listener stays on for a `src` swapped on the same node.
     _watchImage() {
       var img = this.el.querySelector("img");
-      if (img === this._img) return;
-      if (this._img) this._img.removeEventListener("load", this._onImageLoad);
-      this._img = img;
-      if (!img) return;
-      if (img.complete && img.naturalWidth > 0) {
-        this._reportSize();
-      } else {
-        img.addEventListener("load", this._onImageLoad);
+      if (img !== this._img) {
+        if (this._img) this._img.removeEventListener("load", this._onImageLoad);
+        this._img = img;
+        if (img) img.addEventListener("load", this._onImageLoad);
       }
+      if (img && img.complete && img.naturalWidth > 0) this._reportSize();
     },
 
     _reportSize() {

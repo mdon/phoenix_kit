@@ -374,7 +374,9 @@ if Code.ensure_loaded?(Igniter) do
     def queues_disabled?(content, app_name) do
       case app_oban_block(content, app_name) do
         nil -> false
-        block -> Regex.match?(~r/^\s*queues:\s*(?:false\b|\[\s*\])/m, block)
+        # No start-of-line anchor: `config :app, Oban, repo: R, queues: false`
+        # on one line is the same web-only node.
+        block -> Regex.match?(~r/(?<![A-Za-z0-9_])queues:\s*(?:false\b|\[\s*\])/, block)
       end
     end
 
@@ -450,17 +452,22 @@ if Code.ensure_loaded?(Igniter) do
     # otherwise convince the next run the queue is already there — leaving it
     # broken forever, quietly.
     #
-    # `[` is accepted next to a bare integer because `scheduled_jobs: [limit: 1]`
-    # is the same queue in Oban's keyword form. Missing it would append a second
-    # entry, and a duplicate key is not a compile error: it survives into
-    # `Oban.Config.normalize_queues/1`, and `Oban.Midwife` asserts `{:ok, _}` on
-    # start_queue, so the second start returns `{:error, {:already_started, _}}`
-    # and the host does not boot.
+    # ANY value counts, not only a bare integer or `[`: the limit is the host's
+    # to write, and hosts write `default: String.to_integer(System.get_env(…))`,
+    # a module attribute, a variable. Reading those as "absent" appended a
+    # second entry, and a duplicate key is not a compile error: it survives
+    # into `Oban.Config.normalize_queues/1`, and `Oban.Midwife` asserts
+    # `{:ok, _}` on start_queue, so the second start returns
+    # `{:error, {:already_started, _}}` and the host does not boot. That
+    # mattered less while the list held only PhoenixKit's own queue names; it
+    # now includes `default`, the one queue nearly every host already tunes.
     #
-    # The `^\s*` anchor is what stops `notifications:` from being satisfied by a
-    # host's own `push_notifications: 5` — the siblings' unanchored patterns
-    # read any key *ending* in the queue's name as the queue itself and skipped
-    # the insert, which is the missing-queue failure all over again.
+    # The lookbehind is what stops `notifications:` from being satisfied by a
+    # host's own `push_notifications: 5` — an unanchored pattern reads any key
+    # *ending* in the queue's name as the queue itself and skips the insert,
+    # which is the missing-queue failure all over again. It replaces a
+    # start-of-line anchor, which missed the second entry of
+    # `default: 10, mailers: 20` written on one line.
     #
     # Scoped to THIS app's Oban block: in a config holding several apps' Oban
     # blocks (an umbrella, a host that also runs a second instance), another
@@ -469,7 +476,7 @@ if Code.ensure_loaded?(Igniter) do
     # app.
     defp queue_configured?(content, app_name, queue) do
       Regex.match?(
-        ~r/^\s*#{Regex.escape(queue)}:\s*(?:\d+|\[)/m,
+        ~r/(?<![A-Za-z0-9_])#{Regex.escape(queue)}:\s*\S/,
         app_oban_block(content, app_name) || strip_comment_lines(content)
       )
     end

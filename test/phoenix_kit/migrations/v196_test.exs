@@ -94,6 +94,27 @@ defmodule PhoenixKit.Migrations.Postgres.V196Test do
       assert google_email_of(github) == nil
     end
 
+    # `provider_email` is varchar(255), the column varchar(160): copied
+    # verbatim, one long address aborts the whole migration.
+    test "skips an address longer than the column instead of raising" do
+      long = String.duplicate("a", 170) <> "@example.com"
+      user = user_with_google_link(long)
+
+      Repo.query!("UPDATE public.phoenix_kit_users SET google_email = NULL")
+      run(V196.up_statements("public"))
+
+      assert google_email_of(user) == nil
+    end
+
+    test "stores the address the way the changeset does: trimmed and lower-cased" do
+      user = user_with_google_link("  Linked@Example.COM ")
+
+      Repo.query!("UPDATE public.phoenix_kit_users SET google_email = NULL")
+      run(V196.up_statements("public"))
+
+      assert google_email_of(user) == "linked@example.com"
+    end
+
     test "never overwrites an address already on the row" do
       user = user_with_google_link("linked@example.com")
 

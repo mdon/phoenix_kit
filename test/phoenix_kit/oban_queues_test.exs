@@ -256,6 +256,53 @@ defmodule PhoenixKit.ObanQueuesTest do
       end
     end
 
+    test "the one-line form of a web-only node is recognised too", %{declared: declared} do
+      web_only = "config :my_app, Oban, repo: MyApp.Repo, queues: false\n"
+
+      assert ObanConfig.ensure_declared_queues(web_only, "my_app", declared) == web_only
+      assert_received {:mix_shell, :info, [info]}
+      assert info =~ "runs no queues"
+      refute_received {:mix_shell, :error, _}
+    end
+
+    # The limit is the host's to write. Reading a computed one as "absent"
+    # appended a second `default:` — a duplicate key parses, and then Oban
+    # refuses to start the queue twice and the host does not boot.
+    test "a queue whose limit is not a literal still counts as configured" do
+      declared = [%{name: :default, limit: 10}, %{name: :mailers, limit: 5}]
+
+      for limit <- [
+            ~s|String.to_integer(System.get_env("OBAN_DEFAULT", "10"))|,
+            "@default_limit",
+            "default_limit"
+          ] do
+        content = """
+        config :my_app, Oban,
+          repo: MyApp.Repo,
+          queues: [
+            default: #{limit},
+            mailers: 5
+          ]
+        """
+
+        assert ObanConfig.ensure_declared_queues(content, "my_app", declared) == content
+      end
+    end
+
+    test "two queues written on one line both count as configured" do
+      declared = [%{name: :default, limit: 10}, %{name: :mailers, limit: 5}]
+
+      content = """
+      config :my_app, Oban,
+        repo: MyApp.Repo,
+        queues: [
+          default: 10, mailers: 20
+        ]
+      """
+
+      assert ObanConfig.ensure_declared_queues(content, "my_app", declared) == content
+    end
+
     test "another app's block listing a queue does not count for this app", %{declared: declared} do
       content = """
       config :other_app, Oban,

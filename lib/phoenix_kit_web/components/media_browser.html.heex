@@ -122,6 +122,7 @@
           filter_trash={@filter_trash}
           file_view={@file_view}
           sidebar_collapsed={@sidebar_collapsed}
+          sidebar_rev={@sidebar_rev}
           trash_count={@trash_count}
         />
 
@@ -2768,6 +2769,7 @@
           persist_rotation={true}
           details_path={if @admin, do: Routes.path("/admin/media/#{f.file_uuid}")}
           edit_target={if not @select_mode, do: {__MODULE__, @id}}
+          write_scope={@scope_folder_id}
           featured={@featured}
         />
       </div>

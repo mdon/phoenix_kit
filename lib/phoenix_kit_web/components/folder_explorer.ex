@@ -143,6 +143,19 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   attr :file_view, :string, default: nil
 
   attr :sidebar_collapsed, :boolean, default: false
+
+  attr :sidebar_rev, :integer,
+    default: 0,
+    doc: """
+    Bump it whenever the SERVER changes `sidebar_collapsed` on its own (not in
+    answer to the chevron). The chevron flips the panes client-side, and
+    LiveView keeps a `JS` class change sticky: it is re-applied after every
+    patch, over whatever class the server renders. So a server-side
+    `sidebar_collapsed: false` alone changed nothing on screen, and left the
+    assign and the DOM disagreeing until a reload. The revision is part of the
+    panes' ids, so a bump replaces them and the sticky change goes with them.
+    """
+
   attr :trash_count, :integer, default: 0
 
   attr :show_create, :boolean, default: true
@@ -210,9 +223,12 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
          no width of its own: whichever pane is visible sizes it. --%>
     <div id={@id} class={[@class, "shrink-0 h-full min-h-0"]}>
       <%!-- Collapsed strip --%>
-      <div id={"#{@id}-collapsed"} class={["w-10", !@sidebar_collapsed && "hidden"]}>
+      <div
+        id={"#{@id}-collapsed-#{@sidebar_rev}"}
+        class={["w-10", !@sidebar_collapsed && "hidden"]}
+      >
         <button
-          phx-click={toggle_sidebar_js(@id, @myself)}
+          phx-click={toggle_sidebar_js(@id, @sidebar_rev, @myself)}
           class="btn btn-ghost btn-sm w-full"
           title={gettext("Show folders")}
         >
@@ -221,7 +237,10 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
       </div>
       <%!-- Expanded sidebar (wrapper, so visibility is a plain block-level
            `hidden` toggle that cannot fight the inner pane's `flex`) --%>
-      <div id={"#{@id}-expanded"} class={["h-full min-h-0", @sidebar_collapsed && "hidden"]}>
+      <div
+        id={"#{@id}-expanded-#{@sidebar_rev}"}
+        class={["h-full min-h-0", @sidebar_collapsed && "hidden"]}
+      >
         <div
           class="h-full min-h-0 flex flex-col border-r border-base-200 pr-3 mr-3 overflow-hidden"
           style="width: 240px; max-width: 240px;"
@@ -241,7 +260,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
                 <.icon name="hero-folder-plus" class="w-4 h-4" />
               </button>
               <button
-                phx-click={toggle_sidebar_js(@id, @myself)}
+                phx-click={toggle_sidebar_js(@id, @sidebar_rev, @myself)}
                 class="btn btn-ghost btn-xs"
                 title={gettext("Collapse sidebar")}
               >
@@ -348,11 +367,11 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
   # The optimistic half of the sidebar toggle: swap the two panes in the
   # DOM this instant, then tell the server — which flips the assign,
   # persists the preference, and re-renders to the same picture.
-  defp toggle_sidebar_js(id, myself) do
+  defp toggle_sidebar_js(id, rev, myself) do
     js =
       %JS{}
-      |> JS.toggle_class("hidden", to: "##{id}-collapsed")
-      |> JS.toggle_class("hidden", to: "##{id}-expanded")
+      |> JS.toggle_class("hidden", to: "##{id}-collapsed-#{rev}")
+      |> JS.toggle_class("hidden", to: "##{id}-expanded-#{rev}")
 
     if myself,
       do: JS.push(js, "toggle_sidebar", target: myself),

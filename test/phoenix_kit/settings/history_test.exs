@@ -116,6 +116,28 @@ defmodule PhoenixKit.Settings.HistoryTest do
       refute Repo.all(Entry) |> Enum.any?(&(inspect(&1.metadata) =~ secret))
     end
 
+    # The restricted list only names the keys core knows. A module's key
+    # written through the ordinary writers is recognised by its NAME — the same
+    # test the change broadcast applies.
+    test "a secret-named key outside the restricted list is withheld too" do
+      key = "history_probe_#{System.unique_integer([:positive])}_api_key"
+      refute key in Settings.restricted_setting_keys()
+      secret = "giphy-#{System.unique_integer([:positive])}"
+
+      {:ok, _} = Settings.update_setting(key, secret)
+      {:ok, _} = Settings.update_setting(key, secret <> "-rotated")
+
+      entries = History.list(key)
+      assert length(entries) == 2
+
+      assert Enum.all?(
+               entries,
+               &match?(%{"restricted" => true, "from" => nil, "to" => nil}, &1.metadata)
+             )
+
+      refute Repo.all(Entry) |> Enum.any?(&(inspect(&1.metadata) =~ secret))
+    end
+
     test "an integration connection row records that it changed, never its body" do
       # Integration rows have uuid keys, so the restricted-key list cannot name
       # them, and with integration encryption off their JSON holds live tokens.

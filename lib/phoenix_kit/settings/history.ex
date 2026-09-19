@@ -43,7 +43,7 @@ defmodule PhoenixKit.Settings.History do
   alias PhoenixKit.Activity
   alias PhoenixKit.Activity.Entry
   alias PhoenixKit.RepoHelper
-  alias PhoenixKit.Settings
+  alias PhoenixKit.Settings.Events
   alias PhoenixKit.Settings.Setting
 
   @action "setting.changed"
@@ -220,7 +220,7 @@ defmodule PhoenixKit.Settings.History do
       |> select([s], s.module)
       |> RepoHelper.repo().one()
 
-    Settings.secret_setting?(key, module)
+    Events.secret_key?(key, module)
   rescue
     # Fail closed: an integration row's uuid key is only recognisable by its
     # module, so a lookup that could not answer must not reveal its body.
@@ -229,9 +229,16 @@ defmodule PhoenixKit.Settings.History do
     :exit, _ -> true
   end
 
-  # The restricted keys, and every integration connection row — whose key is a
-  # uuid and whose body holds tokens (see `Settings.secret_setting?/2`).
-  defp secret_row?(%Setting{key: key, module: module}), do: Settings.secret_setting?(key, module)
+  # The restricted keys, every integration connection row — whose key is a
+  # uuid and whose body holds tokens (see `Settings.secret_setting?/2`) — AND
+  # any key whose name marks it as a secret. The same wide test the change
+  # broadcast uses (`Events.secret_key?/2`), on purpose: the restricted list
+  # only knows the keys core knows, so a module's `…_api_key` written through
+  # the ordinary writers was withheld from the broadcast and then stored here
+  # in plaintext — in a row that is never pruned, and that `publish/1` sends
+  # out over the activity feed. Withholding a value costs a reader nothing it
+  # cannot get from the setting itself.
+  defp secret_row?(%Setting{key: key, module: module}), do: Events.secret_key?(key, module)
 
   # A setting's value as history sees it: the JSON encoded when the setting
   # is a JSON one (an empty document is a value too — "{}" — not "nothing"),

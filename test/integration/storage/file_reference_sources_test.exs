@@ -91,14 +91,18 @@ defmodule PhoenixKit.Integration.Storage.FileReferenceSourcesTest do
       assert Storage.file_orphaned?(file.uuid)
     end
 
-    test "a bad source is skipped with a warning instead of crashing", %{user: user} do
+    # Fail closed: skipping a broken source would drop the host's guard and
+    # mark every file only the host references as an orphan.
+    test "a raising source fails closed: nothing is orphaned", %{user: user} do
       unreferenced = make_file(user.uuid)
 
       Application.put_env(:phoenix_kit, :file_reference_sources, [{BadSource, :sources}])
 
       log =
         capture_log(fn ->
-          assert Storage.file_orphaned?(unreferenced.uuid)
+          refute Storage.file_orphaned?(unreferenced.uuid)
+          assert Storage.find_orphaned_files() == []
+          assert Storage.count_orphaned_files() == 0
         end)
 
       assert log =~ "file_reference_sources"
@@ -151,7 +155,7 @@ defmodule PhoenixKit.Integration.Storage.FileReferenceSourcesTest do
       refute Storage.file_orphaned?(file.uuid)
     end
 
-    test "a nonexistent table is skipped with a warning instead of crashing", %{user: user} do
+    test "a nonexistent table fails closed: nothing is orphaned", %{user: user} do
       file = make_file(user.uuid)
 
       Application.put_env(:phoenix_kit, :file_reference_sources, [
@@ -160,11 +164,21 @@ defmodule PhoenixKit.Integration.Storage.FileReferenceSourcesTest do
 
       log =
         capture_log(fn ->
-          assert Storage.file_orphaned?(file.uuid)
+          refute Storage.file_orphaned?(file.uuid)
         end)
 
       assert log =~ "file_reference_sources"
       assert log =~ "table_that_does_not_exist"
+    end
+
+    test "a malformed entry fails closed: nothing is orphaned", %{user: user} do
+      file = make_file(user.uuid)
+
+      Application.put_env(:phoenix_kit, :file_reference_sources, [:not_a_source])
+
+      log = capture_log(fn -> refute Storage.file_orphaned?(file.uuid) end)
+
+      assert log =~ "invalid entry"
     end
   end
 end

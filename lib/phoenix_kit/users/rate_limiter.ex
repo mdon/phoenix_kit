@@ -41,9 +41,12 @@ defmodule PhoenixKit.Users.RateLimiter do
 
   ## Security Features
 
-  - **Login buckets count FAILURES only**: `check_login_rate_limit/2` peeks,
-    `record_failed_login/2` fills. The check runs before the password is
-    verified, so incrementing there counted successful logins as attempts.
+  - **Login buckets count FAILURES only**: `check_login_rate_limit/2` takes a
+    slot atomically BEFORE the password is verified, and
+    `record_successful_login/2` hands it back. Taking it up front is what
+    bounds a parallel burst — a read-then-count-later check lets every request
+    in the burst see an empty bucket. Handing it back is what keeps ordinary
+    sign-ins from locking an account out.
   - **Email-based rate limiting**: Prevents targeted attacks on specific accounts
   - **IP-based rate limiting**: Prevents distributed attacks from single sources
     (an IPv6 address counts by its `/64` — see `PhoenixKit.Utils.IpAddress.network/1`)
@@ -188,68 +191,96 @@ defmodule PhoenixKit.Users.RateLimiter do
     email = normalize_email(email)
     config = get_config()
 
-    # Check email-based rate limit
-    email_key = "auth:login:email:#{email}"
     limit = Keyword.get(config, :login_limit)
     window = Keyword.get(config, :login_window_ms)
 
-    # PEEK, never hit. This used to increment, and it runs BEFORE the password
-    # is checked — so a successful login consumed the same bucket a brute-force
-    # attempt does, and five ordinary logins in a minute locked the account out.
-    # The bucket is filled by `record_failed_login/2` instead, on the failure
-    # branch where it belongs.
-    case peek_rate_limit(email_key, window, limit) do
-      :ok ->
-        # Also check IP-based rate limit if IP is provided
-        if ip_address do
-          ip = IpAddress.network(ip_address)
-          ip_key = "auth:login:ip:#{ip}"
-          # Allow slightly higher limit for IP (to avoid false positives in shared networks)
-          ip_limit = limit * 3
-
-          case peek_rate_limit(ip_key, window, ip_limit) do
-            :ok ->
-              :ok
-
-            {:error, :rate_limit_exceeded} = error ->
-              log_rate_limit_violation("login", "ip:#{ip}", ip_limit, window)
-              error
-          end
-        else
+    # HIT, never peek: the slot is taken atomically, before the password is
+    # verified. A peek here with the count added only after the (slow) verify
+    # let a parallel burst through whole — every request read an empty bucket.
+    # A successful sign-in hands its slot back (`record_successful_login/2`),
+    # so only failures stay counted.
+    #
+    # IP first: a request refused for its network must not also spend a slot
+    # in the bucket of whatever address it named, or one blocked client could
+    # lock out any account it likes.
+    with :ok <- hit_login_ip(ip_address, window, limit) do
+      case check_rate_limit("auth:login:email:#{email}", window, limit) do
+        :ok ->
           :ok
-        end
+
+        {:error, :rate_limit_exceeded} = error ->
+          log_rate_limit_violation("login", "email:#{email}", limit, window)
+          error
+      end
+    end
+  end
+
+  defp hit_login_ip(nil, _window, _limit), do: :ok
+
+  defp hit_login_ip(ip_address, window, limit) do
+    ip = IpAddress.network(ip_address)
+    # Allow slightly higher limit for IP (to avoid false positives in shared networks)
+    ip_limit = limit * 3
+
+    case check_rate_limit("auth:login:ip:#{ip}", window, ip_limit) do
+      :ok ->
+        :ok
 
       {:error, :rate_limit_exceeded} = error ->
-        log_rate_limit_violation("login", "email:#{email}", limit, window)
+        log_rate_limit_violation("login", "ip:#{ip}", ip_limit, window)
         error
     end
   end
 
   @doc """
-  Counts one FAILED login against the email and IP buckets.
+  Hands back the slot `check_login_rate_limit/2` took, after the password
+  turned out to be correct.
 
-  Split out from `check_login_rate_limit/2` so that only failures fill the
-  bucket. The check runs before the password is verified and therefore cannot
-  know the outcome; calling `hit` there counted successful logins too, which
-  meant five ordinary sign-ins inside the window locked the account out of the
+  The check has to count the attempt before the outcome is known — that is
+  what makes it atomic — so a success gives its slot back here. Without this,
+  five ordinary sign-ins inside the window would lock the account out of the
   sixth.
 
-  Call it on the failure branch only. A correct password — even for a
-  deactivated account — is not a brute-force attempt.
+  Call it on the success branch only, with the same arguments the check got.
+  A correct password — even for a deactivated account — is not a brute-force
+  attempt.
   """
-  @spec record_failed_login(String.t(), String.t() | nil) :: :ok
-  def record_failed_login(email, ip_address \\ nil) when is_binary(email) do
-    config = get_config()
-    window = Keyword.get(config, :login_window_ms)
+  @spec record_successful_login(String.t(), String.t() | nil) :: :ok
+  def record_successful_login(email, ip_address \\ nil) when is_binary(email) do
+    window = Keyword.get(get_config(), :login_window_ms)
 
-    Backend.inc("auth:login:email:#{normalize_email(email)}", window)
-
-    if ip_address do
-      Backend.inc("auth:login:ip:#{IpAddress.network(ip_address)}", window)
-    end
+    release_slot("auth:login:email:#{normalize_email(email)}", window)
+    if ip_address, do: release_slot("auth:login:ip:#{IpAddress.network(ip_address)}", window)
 
     :ok
   end
+
+  # One atomic decrement with a floor of zero. Hammer's `inc/3` is specified
+  # for positive increments only, so the counter is reached the way Hammer's
+  # own fixed-window algorithm reaches it (`Hammer.ETS.update_counter/4`, the
+  # `{key, window}` row of the backend's table). The floor matters: a check
+  # made just before the window rolled would otherwise open the new window at
+  # -1 and grant it an extra attempt.
+  #
+  # Never raises into a sign-in that just succeeded. If a Hammer upgrade moves
+  # that layout the slot simply is not handed back — the old "successful
+  # logins are counted" behaviour, which `rate_limiter_test.exs` fails on.
+  defp release_slot(key, window) do
+    now = Hammer.ETS.now()
+    bucket = div(now, window)
+
+    Hammer.ETS.update_counter(Backend, {key, bucket}, {2, -1, 0, 0}, (bucket + 1) * window)
+    :ok
+  rescue
+    error ->
+      Logger.warning("PhoenixKit.RateLimiter: could not release a login slot: #{inspect(error)}")
+      :ok
+  end
+
+  @doc false
+  @deprecated "check_login_rate_limit/2 now counts the attempt itself; call record_successful_login/2 on success instead"
+  @spec record_failed_login(String.t(), String.t() | nil) :: :ok
+  def record_failed_login(email, _ip_address \\ nil) when is_binary(email), do: :ok
 
   @doc """
   Checks whether file uploads are within rate limit, keyed on the uploading
@@ -708,17 +739,6 @@ defmodule PhoenixKit.Users.RateLimiter do
         )
 
         error
-    end
-  end
-
-  # Read-only counterpart of `check_rate_limit/3`: reports whether the bucket is
-  # already full WITHOUT adding to it, so a caller that cannot yet know whether
-  # the request should count does not prejudge it.
-  defp peek_rate_limit(key, window_ms, limit) do
-    if Backend.get(key, window_ms) >= limit do
-      {:error, :rate_limit_exceeded}
-    else
-      :ok
     end
   end
 
