@@ -202,6 +202,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V199 (2026-09-19, media file translations) DECLARES one object here by
+  # hand, the V196 class: `column:phoenix_kit_files.data` (jsonb NOT NULL
+  # DEFAULT '{}'), the multilang structure for a file's translatable title,
+  # alt text and description. Shape read from a test database migrated
+  # through V199 (`information_schema.columns`), not typed from the
+  # migration; `pos` continues the table's append order after V195's 27.
+  # `chain_hash` restamped over the shipped file set. `verify.exs --scenario
+  # s7,s8` needs a pre-squash `generate_baseline.exs` regeneration this
+  # session has no access to; the real-database integration suite re-ran
+  # clean against a DB migrated through V199, which is the property s7/s8
+  # exist to prove.
+  #
   # V198 (2026-09-19, settings history) declares NO object here, and cannot:
   # like V194 it is a pure data migration — an UPDATE on
   # `phoenix_kit_activities` that withholds the values of `setting.changed`
@@ -417,7 +429,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "3edad25d5b7c122ea032b2059242e36c6ede3bc868fd50c8b66d17be4b40d789"
+  @chain_hash "31e400e29da62d2f4b2f109662ed7563d97c34d81f477aa55363eb4c95d30134"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -71826,6 +71838,19 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         ],
         presence: :required,
         backfill: nil
+      },
+      # ── V199: media file translations ──
+      %{
+        id: "column:phoenix_kit_files.data",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_files", column: "data", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"data\" jsonb DEFAULT '{}'::jsonb NOT NULL",
+        since: 199,
+        class: :column,
+        revisions: [{199, %{default: "'{}'::jsonb", type: "jsonb", pos: 28, not_null: true}}],
+        presence: :required,
+        backfill: :default
       },
       # ── V193: AI spend-cap indexes ──
       %{

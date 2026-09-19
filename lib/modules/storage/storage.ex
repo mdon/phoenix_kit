@@ -111,6 +111,7 @@ defmodule PhoenixKit.Modules.Storage do
 
   alias PhoenixKit.Modules.Storage.Bucket
   alias PhoenixKit.Modules.Storage.Dimension
+  alias PhoenixKit.Modules.Storage.FileDetails
   alias PhoenixKit.Modules.Storage.FileInstance
   alias PhoenixKit.Modules.Storage.FileLocation
   alias PhoenixKit.Modules.Storage.Folder
@@ -2334,6 +2335,63 @@ defmodule PhoenixKit.Modules.Storage do
   def change_file(%PhoenixKit.Modules.Storage.File{} = file, attrs \\ %{}) do
     PhoenixKit.Modules.Storage.File.changeset(file, attrs)
   end
+
+  # ===== TRANSLATABLE DETAILS (title, alt text, description) =====
+
+  @doc """
+  Returns a changeset for a file's translatable details — the form data of
+  the media editors. See `PhoenixKit.Modules.Storage.FileDetails`.
+  """
+  def change_file_details(%PhoenixKit.Modules.Storage.File{} = file, attrs \\ %{}) do
+    file |> FileDetails.from_file() |> FileDetails.changeset(attrs)
+  end
+
+  @doc """
+  Saves a file's title, alt text and description, and their translations.
+
+  `attrs` holds the primary-language text under `"title"`, `"alt"` and
+  `"description"`, and optionally the multilang `"data"`; an absent key keeps
+  its current value. The text is merged into the row's `metadata` as it is
+  NOW — the row is re-read and held for the write — so a rotation or a tag
+  saved since `file` was loaded survives.
+
+  Returns `{:ok, file}`, `{:error, changeset}` (a `FileDetails` changeset,
+  for the form) or `{:error, :not_found}`.
+  """
+  def update_file_details(%PhoenixKit.Modules.Storage.File{uuid: uuid}, attrs) do
+    repo().transaction(fn ->
+      row =
+        from(f in PhoenixKit.Modules.Storage.File, where: f.uuid == ^uuid, lock: "FOR UPDATE")
+        |> repo().one()
+
+      with %PhoenixKit.Modules.Storage.File{} <- row,
+           {:ok, details} <-
+             row
+             |> FileDetails.from_file()
+             |> FileDetails.changeset(attrs)
+             |> Ecto.Changeset.apply_action(:update),
+           {:ok, updated} <-
+             row
+             |> PhoenixKit.Modules.Storage.File.details_changeset(
+               FileDetails.file_attrs(row, details)
+             )
+             |> repo().update() do
+        updated
+      else
+        nil -> repo().rollback(:not_found)
+        {:error, changeset} -> repo().rollback(changeset)
+      end
+    end)
+  end
+
+  @doc "A file's title in `locale` (primary-language text when untranslated), or `nil`."
+  defdelegate translated_title(file, locale \\ nil), to: FileDetails
+
+  @doc "A file's alt text in `locale`, ready for an `alt` attribute — `\"\"` when it has none."
+  defdelegate translated_alt(file, locale \\ nil), to: FileDetails
+
+  @doc "A file's description in `locale` (primary-language text when untranslated), or `nil`."
+  defdelegate translated_description(file, locale \\ nil), to: FileDetails
 
   # ===== ORPHAN DETECTION =====
 

@@ -58,7 +58,8 @@ Original file uploads with metadata
 - height (integer, nullable) - Image/video height in pixels
 - duration (integer, nullable) - Video duration in seconds
 - status (string, required) - "processing", "active", "failed"
-- metadata (jsonb, nullable) - EXIF, codec info, etc.
+- metadata (jsonb, nullable) - EXIF, codec info, etc.; also the primary-language "title", "alt", "description"
+- data (jsonb, default {}) - translations of title / alt / description (multilang structure, V199)
 - user_uuid (uuid_v7, FK -> phoenix_kit_users.uuid)
 - inserted_at (timestamp)
 - updated_at (timestamp)
@@ -403,6 +404,29 @@ a 404. The legacy `/tiles/<token>/<uuid>.dzi` resolves to the current version
 and is never cached.
 
 ---
+
+## Title, alt text and description (translatable)
+
+A file's title, alt text and description are read and written through
+`PhoenixKit.Modules.Storage.FileDetails` — never by reaching into `metadata`
+or `data` directly:
+
+```elixir
+Storage.translated_alt(file, locale)          # "" when none — never the file name
+Storage.translated_title(file, locale)        # nil when none
+Storage.translated_description(file, locale)
+
+Storage.change_file_details(file)             # the editors' form changeset
+Storage.update_file_details(file, params)     # merges into the row as it is NOW
+```
+
+The primary-language text stays in `metadata` (`"title"`, `"alt"`,
+`"description"`), next to rotation, tags and the EXIF/PDF keys. The
+translations live in the `data` column as the `PhoenixKit.Utils.Multilang`
+structure (`"_title"`, `"_alt"`, `"_description"` per language); a language
+with no translation of its own falls back to the primary text. `metadata`
+cannot hold that structure itself — it takes over the map it is written to,
+and `metadata["rotation"]` is read at the top level.
 
 ## Editing images
 

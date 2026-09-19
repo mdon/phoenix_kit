@@ -1,5 +1,19 @@
 ## Unreleased
 
+### Added
+
+- **Media files can carry a translated title, alt text and description**
+  (groundwork — the editors and the language switcher follow). V199 adds a
+  `data` column to `phoenix_kit_files` holding the multilang structure; the
+  primary-language text stays in `metadata`, and a file gains an `alt` text,
+  which it never had. `PhoenixKit.Modules.Storage.FileDetails` is the one
+  read and write path: `Storage.translated_title/2`, `translated_alt/2`
+  (`""` when there is none — never the file name) and
+  `translated_description/2` fall back to the primary text for a language
+  with no translation of its own, and `Storage.update_file_details/2` merges
+  into the row as it is now, so a rotation or tag saved in the meantime
+  survives. Plan: `dev_docs/plans/2026-09-19-media-translations.md`.
+
 Fixes from the 2026-09-19 weekly review
 (`dev_docs/pull_requests/2026/weekly-2026-09-19/CLAUDE_REVIEW.md`).
 

@@ -33,7 +33,10 @@ defmodule PhoenixKit.Modules.Storage.File do
   - `height` - Image/video height in pixels (nullable)
   - `duration` - Video duration in seconds (nullable)
   - `status` - Processing status
-  - `metadata` - JSONB with EXIF, codec info, etc.
+  - `metadata` - JSONB with EXIF, codec info, etc. Also holds the
+    primary-language `"title"`, `"alt"` and `"description"`
+  - `data` - JSONB multilang structure with the translations of those three
+    (V199). Read and written through `PhoenixKit.Modules.Storage.FileDetails`
   - `user_uuid` - Owner of the file
 
   ## Examples
@@ -110,6 +113,7 @@ defmodule PhoenixKit.Modules.Storage.File do
           status: String.t(),
           trashed_at: DateTime.t() | nil,
           metadata: map() | nil,
+          data: map(),
           system_managed: boolean(),
           user_uuid: UUIDv7.t() | nil,
           folder_uuid: UUIDv7.t() | nil,
@@ -138,6 +142,11 @@ defmodule PhoenixKit.Modules.Storage.File do
     field :status, :string, default: "processing"
     field :trashed_at, :utc_datetime
     field :metadata, :map
+
+    # Translations of the title, alt text and description (V199): the
+    # `PhoenixKit.Utils.Multilang` structure. The primary-language text stays
+    # in `metadata`; `PhoenixKit.Modules.Storage.FileDetails` owns both.
+    field :data, :map, default: %{}
 
     # `true` for internally-generated media (e.g. Tessera DZI tile pyramids
     # and their per-tile chunks). System-managed rows are excluded from the
@@ -271,6 +280,16 @@ defmodule PhoenixKit.Modules.Storage.File do
     |> unique_constraint([:parent_file_uuid, :file_name],
       name: :phoenix_kit_files_system_dedup_index
     )
+  end
+
+  @doc """
+  Changeset for a file's translatable details: nothing but `metadata` and
+  `data`, as `PhoenixKit.Modules.Storage.FileDetails.file_attrs/2` builds
+  them. Use `PhoenixKit.Modules.Storage.update_file_details/2`, which holds
+  the row while it merges.
+  """
+  def details_changeset(file, attrs) do
+    cast(file, attrs, [:metadata, :data])
   end
 
   # User-uploaded files require `user_uuid` (existing invariant). System-

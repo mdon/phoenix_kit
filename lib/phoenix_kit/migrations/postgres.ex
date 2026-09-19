@@ -7,7 +7,16 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V198 - Settings history: secret-named values withheld ⚡ LATEST
+  ### V199 - Media file translations ⚡ LATEST
+
+  Adds `data` (jsonb, NOT NULL, default `{}`) to `phoenix_kit_files`: the
+  multilang structure for a file's translatable title, alt text and
+  description. The primary-language text stays in `metadata`, which also
+  holds rotation, tags and EXIF/PDF keys read at the top level — the
+  multilang structure takes over the map it is written to, so it needs a
+  column of its own. Additive only.
+
+  ### V198 - Settings history: secret-named values withheld
 
   The settings history recognised a secret by the restricted-key list and an
   integration row's module, so a module's own `…_api_key` or `…_token`
@@ -818,7 +827,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 198
+  @current_version 199
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries
