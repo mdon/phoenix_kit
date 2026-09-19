@@ -62,6 +62,31 @@ defmodule PhoenixKitWeb.Components.Core.CrumbSwitcherTest do
     assert d |> LazyHTML.query("#sw-list li[data-filter-empty].hidden") |> Enum.count() == 1
   end
 
+  test "the hook owns open/close: it knows its panel and its trigger, which starts collapsed" do
+    html = render(%{title: "Switch catalogue", items: []})
+    d = doc(html)
+
+    [wrap] = d |> LazyHTML.query("#sw-switcher") |> Enum.to_list()
+    assert LazyHTML.attribute(wrap, "phx-hook") == ["CrumbSwitcher"]
+    assert LazyHTML.attribute(wrap, "data-panel") == ["sw"]
+
+    [button] = d |> LazyHTML.query("#sw-switcher [data-switcher-trigger]") |> Enum.to_list()
+    assert LazyHTML.attribute(button, "aria-expanded") == ["false"]
+    assert LazyHTML.attribute(button, "aria-controls") == ["sw"]
+
+    # Tab stays inside the open panel.
+    assert d |> LazyHTML.query("#sw #sw-focus #sw-search") |> Enum.count() == 1
+  end
+
+  test "every control has a name, even in a switcher without a title" do
+    html = render(%{title: "Switch catalogue", search_placeholder: "Find…", items: []})
+    assert html =~ ~s(aria-label="Find…")
+
+    untitled = render(%{items: []})
+    assert untitled =~ ~s(aria-label="Search...")
+    refute untitled =~ ~s(aria-label="")
+  end
+
   test "the title labels the button and heads the panel; the placeholder has a default" do
     html = render(%{title: "Switch catalogue", items: []})
 
