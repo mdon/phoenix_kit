@@ -428,6 +428,11 @@ language asked for (or a dialect of it) → the site's current primary language
 → any other language. Resolving many files? Pass `primary:` once instead of
 letting every call read the setting.
 
+The editors (the media detail page, the viewer sidebar) have no language
+tabs: they edit the language the page is shown in
+(`FileDetails.content_language(locale)`), so the admin language switcher is
+the content switcher.
+
 This is deliberately not the `PhoenixKit.Utils.Multilang` structure (diffs
 against an embedded primary): for three fields it buys nothing and ties the
 stored text to a setting that can change.

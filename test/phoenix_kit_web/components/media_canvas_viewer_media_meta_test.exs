@@ -3,9 +3,9 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
   The viewer sidebar's "Title & description" section: the file's own
   words about itself, collapsible behind a chevron, editable in the
   contexts that can already reach the metadata editor (details_path /
-  edit_target hosts). Writes go into the file's metadata JSONB under
-  the same keys the admin detail page's editor uses — merged, never
-  replacing, so rotation/tags survive a title edit.
+  edit_target hosts). Writes go through `Storage.update_file_details/3`,
+  like the admin detail page's editor — one language's text, merged into
+  the row as it is now, so rotation/tags survive a title edit.
   """
 
   use PhoenixKit.DataCase, async: true
@@ -77,7 +77,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
         socket_with(%{
           id: "mcv-test",
           file: %{file_uuid: file.uuid},
-          media_meta: %{title: "", description: ""},
+          media_meta: %{title: "", alt: "", description: ""},
           media_meta_status: nil
         })
 
@@ -88,7 +88,8 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
           socket
         )
 
-      assert socket.assigns.media_meta == %{title: "A title", description: "Words."}
+      assert socket.assigns.media_meta == %{title: "A title", alt: "", description: "Words."}
+      assert socket.assigns.media_meta_own == socket.assigns.media_meta
       assert socket.assigns.media_meta_status == :saved
 
       row = Storage.get_file(file.uuid)
@@ -105,7 +106,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
         socket_with(%{
           id: "mcv-test",
           file: %{file_uuid: file.uuid},
-          media_meta: %{title: "", description: ""},
+          media_meta: %{title: "", alt: "", description: ""},
           media_meta_status: nil
         })
 
@@ -125,7 +126,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
         socket_with(%{
           id: "mcv-test",
           file: %{file_uuid: file.uuid},
-          media_meta: %{title: "", description: ""},
+          media_meta: %{title: "", alt: "", description: ""},
           media_meta_status: nil,
           details_path: nil,
           edit_target: nil
@@ -139,7 +140,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
         )
 
       assert socket.assigns.media_meta_status == nil, "a refusal is silent, not an error pill"
-      assert socket.assigns.media_meta == %{title: "", description: ""}
+      assert socket.assigns.media_meta == %{title: "", alt: "", description: ""}
 
       row = Storage.get_file(file.uuid)
       refute Map.has_key?(row.metadata, "title")
@@ -157,7 +158,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
         socket_with(%{
           id: "mcv-test",
           file: %{file_uuid: file.uuid},
-          media_meta: %{title: "", description: ""},
+          media_meta: %{title: "", alt: "", description: ""},
           media_meta_status: nil,
           write_scope: scope.uuid
         })
@@ -177,7 +178,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
         socket_with(%{
           id: "mcv-test",
           file: %{file_uuid: file.uuid},
-          media_meta: %{title: "", description: ""},
+          media_meta: %{title: "", alt: "", description: ""},
           media_meta_status: nil,
           write_scope: scope.uuid
         })
@@ -194,7 +195,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
         socket_with(%{
           id: "mcv-test",
           file: %{file_uuid: file.uuid},
-          media_meta: %{title: "", description: ""},
+          media_meta: %{title: "", alt: "", description: ""},
           media_meta_status: nil
         })
 
@@ -209,6 +210,37 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
       assert Storage.get_file(file.uuid).metadata["title"] == ""
     end
 
+    test "a translation page saves that language only and shows the primary text where it has none",
+         %{row: file} do
+      {:ok, _} = Storage.update_file_details(file, %{"title" => "Harbour", "alt" => "Boats"})
+      primary = PhoenixKit.Utils.Multilang.primary_language()
+
+      socket =
+        socket_with(%{
+          id: "mcv-test",
+          file: %{file_uuid: file.uuid},
+          media_meta_lang: "et",
+          media_meta_status: nil
+        })
+
+      {:noreply, socket} =
+        MediaCanvasViewer.handle_event("save_media_details", %{"title" => "Sadam"}, socket)
+
+      assert socket.assigns.media_meta == %{title: "Sadam", alt: "Boats", description: ""}
+      assert socket.assigns.media_meta_own == %{title: "Sadam", alt: "", description: ""}
+      assert socket.assigns.media_meta_placeholders.title == "Harbour"
+
+      row = Storage.get_file(file.uuid)
+
+      assert row.data == %{
+               primary => %{"title" => "Harbour", "alt" => "Boats"},
+               "et" => %{"title" => "Sadam"}
+             }
+
+      assert row.metadata["title"] == "Harbour", "the metadata copy is the primary language's"
+      assert row.metadata["rotation"] == 90
+    end
+
     test "an edit_target host may write" do
       file = file!("meta_edit_target", %{})
 
@@ -216,7 +248,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewerMediaMetaTest do
         socket_with(%{
           id: "mcv-test",
           file: %{file_uuid: file.uuid},
-          media_meta: %{title: "", description: ""},
+          media_meta: %{title: "", alt: "", description: ""},
           media_meta_status: nil,
           details_path: nil,
           edit_target: {MediaCanvasViewer, "host-1"}

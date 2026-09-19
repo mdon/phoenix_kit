@@ -14,6 +14,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   alias Phoenix.LiveView.JS
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File
+  alias PhoenixKit.Modules.Storage.FileDetails
   alias PhoenixKit.Modules.Storage.FileInstance
   alias PhoenixKit.Modules.Storage.FileLocation
   alias PhoenixKit.Modules.Storage.ImageEditing
@@ -22,6 +23,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Format
+  alias PhoenixKit.Utils.Multilang
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.ImageEditor
   alias PhoenixKitWeb.Components.MediaCanvasViewer
@@ -148,50 +150,42 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
     {:noreply, assign(socket, :edit_mode, !socket.assigns.edit_mode)}
   end
 
+  # The title, alt text and description are saved in the language the page
+  # is shown in (`@details_lang`) — the admin's language switcher is the
+  # content switcher too. Tags are not text to translate; they stay in
+  # `metadata`, merged into the row the details save just returned.
   def handle_event("save_metadata", params, socket) do
-    %{"title" => title, "description" => description, "tags" => tags_input} = params
-
-    # Parse tags from comma-separated string
     tags =
-      tags_input
+      params
+      |> Map.get("tags", "")
       |> String.split(",")
       |> Enum.map(&String.trim/1)
       |> Enum.filter(&(String.length(&1) > 0))
 
-    # Update metadata
-    updated_metadata =
-      (socket.assigns.file.metadata || %{})
-      |> Map.put("title", title)
-      |> Map.put("description", description)
-      |> Map.put("tags", tags)
+    lang = socket.assigns.details_lang
 
-    case Storage.update_file(socket.assigns.file, %{metadata: updated_metadata}) do
-      {:ok, updated_file} ->
-        # Update file_data with new metadata
-        updated_file_data =
-          socket.assigns.file_data
-          |> Map.put(:title, title)
-          |> Map.put(:description, description)
-          |> Map.put(:tags, tags)
-          |> Map.put(:metadata, updated_metadata)
+    with {:ok, file} <-
+           Storage.update_file_details(socket.assigns.file, params["details"] || %{}, lang: lang),
+         {:ok, file} <-
+           Storage.update_file(file, %{metadata: Map.put(file.metadata || %{}, "tags", tags)}) do
+      {:noreply,
+       socket
+       |> assign(:file, file)
+       |> assign(:file_data, %{socket.assigns.file_data | tags: tags, metadata: file.metadata})
+       |> assign_details(file)
+       |> assign(:edit_mode, false)
+       |> put_flash(:info, gettext("Details saved"))}
+    else
+      {:error, %Ecto.Changeset{data: %FileDetails{}} = changeset} ->
+        {:noreply, assign(socket, :details_form, to_form(changeset, as: :details))}
 
-        socket =
-          socket
-          |> assign(:file, updated_file)
-          |> assign(:file_data, updated_file_data)
-          |> assign(:edit_mode, false)
-          |> put_flash(:info, "Metadata saved successfully!")
-
-        {:noreply, socket}
-
-      {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to save metadata")
-        {:noreply, socket}
+      _ ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to save details"))}
     end
   end
 
   def handle_event("cancel_edit", _params, socket) do
-    {:noreply, assign(socket, :edit_mode, false)}
+    {:noreply, socket |> assign_details(socket.assigns.file) |> assign(:edit_mode, false)}
   end
 
   def handle_event("regenerate_variants", _params, socket) do
@@ -277,7 +271,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
         urls = generate_urls_from_instances(instances, file_uuid, file.mime_type)
         variant_dimensions = build_variant_dimensions(instances)
         locations = load_original_locations(instances, repo)
-        {title, description, tags} = extract_metadata_fields(file.metadata)
+        tags = (file.metadata || %{})["tags"] || []
         user_name = get_user_name(file.user_uuid, repo)
 
         variant_dimensions = put_original_fallbacks(variant_dimensions, file)
@@ -288,13 +282,14 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
             urls,
             variant_dimensions,
             locations,
-            {title, description, tags},
+            tags,
             user_name
           )
 
         socket
         |> assign(:file, file)
         |> assign(:file_data, file_data)
+        |> assign_details(file)
         |> assign(:edit_mode, socket.assigns[:edit_mode] || false)
         |> assign(:image_editable, ImageEditing.editable?(file))
         # The canvas keeps its own state; a new original (an edit) must
@@ -323,12 +318,21 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
     end
   end
 
-  defp extract_metadata_fields(metadata) do
-    metadata = metadata || %{}
-    title = metadata["title"] || ""
-    description = metadata["description"] || ""
-    tags = metadata["tags"] || []
-    {title, description, tags}
+  # `@details` is what the page shows (the current language, falling back
+  # like any reader); the form holds that language's OWN text, and the
+  # primary language's goes in as placeholders — never as values, or an
+  # untouched save would store it as the translation.
+  defp assign_details(socket, file) do
+    opts = [primary: Multilang.primary_language()]
+    lang = FileDetails.content_language(socket.assigns[:current_locale], opts)
+    own = FileDetails.from_file(file, lang, opts)
+
+    socket
+    |> assign(:details_lang, lang)
+    |> assign(:details_lang_name, FileDetails.language_name(lang))
+    |> assign(:details, FileDetails.for_locale(file, lang, opts))
+    |> assign(:details_placeholders, FileDetails.for_locale(file, nil, opts))
+    |> assign(:details_form, to_form(FileDetails.changeset(own, %{}), as: :details))
   end
 
   defp get_user_name(nil, _repo), do: "Unknown"
@@ -347,7 +351,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
          urls,
          variant_dimensions,
          locations,
-         {title, description, tags},
+         tags,
          user_name
        ) do
     %{
@@ -367,8 +371,6 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
       height: file.height,
       urls: urls,
       variant_dimensions: variant_dimensions,
-      title: title,
-      description: description,
       tags: tags,
       metadata: file.metadata || %{},
       inserted_at: file.inserted_at,

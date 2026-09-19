@@ -1,7 +1,7 @@
 # Media translations — a language switcher for a file's title, alt text and description
 
 **Created:** 2026-09-19
-**Status:** Step 1 BUILT on `main` 2026-09-19 (unreleased). Steps 2–5 open.
+**Status:** Steps 1–3 BUILT on `main` 2026-09-19 (unreleased). Steps 4–5 open.
 **Scope:** phoenix_kit (core); follow-ups in phoenix_kit_posts and
 phoenix_kit_catalogue.
 **Related:** `PhoenixKit.Utils.Multilang`, `PhoenixKitWeb.Components.MultilangForm`,
@@ -50,6 +50,7 @@ language — not a different file per language.
 | Translatable metadata, or a file per language? | Translatable metadata |
 | Add an `alt` field? | Yes |
 | Translate folder name/description? | No — admin-only organisation tools |
+| A switcher on the editors? | **No tabs.** The admin language switcher already offers exactly the enabled content languages and the language lives in the URL — the editors edit the language the page is shown in |
 | Per-relation captions (`post_media.caption`, `comment_media.caption`) | Left alone for now; once file-level text works, posts and comments may start using it |
 
 ## Design
@@ -90,17 +91,20 @@ language — not a different file per language.
 ## Steps
 
 1. **DONE — V199 + `FileDetails` + `Storage` API + tests.** No UI.
-2. **Detail page** (`media_detail.ex`, a LiveView): replace the raw form with
-   a `FileDetails` changeset for the current tab's language
-   (`change_file_details(file, %{}, lang: @current_lang)`); on a secondary
-   tab map the posted `lang_<field>` params to plain keys and save with
-   `lang:`; `mount_multilang/1`;
-   `<.multilang_tabs>` + `<.multilang_fields_wrapper>` around title / alt /
-   description **only** — tags and file info stay outside (wrapper scope
-   rule). Form needs a unique `id`. Tags keep their own merge.
-3. **Viewer sidebar** (`media_canvas_viewer.ex`, a LiveComponent):
-   `attach_hook` raises there — wire `"switch_language"` by hand (guide rule
-   3). Add alt. Save through `update_file_details/3`.
+2. **DONE — detail page** (`media_detail.ex`): a `FileDetails` form for the
+   page's language (`FileDetails.content_language(@current_locale)`), saved
+   with `lang:`. No tabs (see Decisions). What tabs would have given is
+   covered by: a badge naming the language + "Switch the page language to
+   translate." (multi-language sites only), and the primary-language text as
+   each empty field's **placeholder** — never its value, or an untouched save
+   would store English under `et`. Alt text is offered for images only. Tags
+   stay in `metadata`. Accepted cost: switching language is a navigation, so
+   unsaved edits in the three fields are lost.
+3. **DONE — viewer sidebar** (`media_canvas_viewer.ex`, a LiveComponent): the
+   same, through the same `update_file_details/3`. It reads the language from
+   the process's Gettext locale — a LiveComponent shares its LiveView's
+   process, where the navigation hook put it — so no host (core or sibling)
+   passes anything new.
 4. **Consumers:** `FileController.info` gains `title` / `alt` /
    `description`, resolved from an optional `?locale=`; the shared `Image` /
    `ImageSet` components fall back to `translated_alt/2` when the caller

@@ -79,6 +79,40 @@ defmodule PhoenixKit.Modules.Storage.FileDetails do
   def fields, do: @fields
 
   @doc """
+  The content language a page shown in `locale` edits and reads: the enabled
+  language that `locale` names — so a URL's bare `"et"` and the hook's
+  `"et-EE"` store under the one code the site has enabled. A locale that is
+  no enabled language (the Gettext default on a site that never enabled it)
+  is the primary language: text must not pile up under a code no page is
+  ever shown in.
+
+  Options: `:languages` — the enabled language codes, `:primary`.
+  """
+  @spec content_language(String.t() | nil, keyword()) :: String.t()
+  def content_language(locale, opts \\ []) do
+    languages = Keyword.get_lazy(opts, :languages, &Multilang.enabled_languages/0)
+
+    cond do
+      not is_binary(locale) -> primary(opts)
+      locale in languages -> locale
+      true -> Enum.find(languages, &same_language?(&1, locale)) || primary(opts)
+    end
+  end
+
+  @doc """
+  The display name of content language `lang` — or `nil` on a site with a
+  single language, where there is nothing to tell the editor.
+  """
+  @spec language_name(String.t()) :: String.t() | nil
+  def language_name(lang) do
+    if Multilang.enabled?() do
+      Enum.find_value(Multilang.build_language_tabs(), lang, fn tab ->
+        if tab.code == lang, do: tab.name
+      end)
+    end
+  end
+
+  @doc """
   The text `file` holds in `lang` itself — no fallback to another language,
   so an editor's tab shows what that language really has.
 

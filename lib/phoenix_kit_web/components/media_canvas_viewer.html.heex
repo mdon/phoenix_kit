@@ -439,8 +439,10 @@
           </div>
 
           <%!-- Title & description — the file's own words about itself,      --%>
-          <%!-- collapsible behind a chevron. Same metadata keys the admin     --%>
-          <%!-- detail page's editor writes, so the two surfaces agree.        --%>
+          <%!-- collapsible behind a chevron. The same text the admin detail   --%>
+          <%!-- page's editor writes (Storage.FileDetails), in the language    --%>
+          <%!-- the page is shown in: the page's language switcher is the      --%>
+          <%!-- content switcher.                                              --%>
           <%!-- Opens itself when there is something to see; editable in the   --%>
           <%!-- contexts that can already reach the metadata editor            --%>
           <%!-- (details_path / edit_target hosts), read-only elsewhere —      --%>
@@ -448,7 +450,7 @@
           <%!-- because an empty section nobody can fill is furniture.         --%>
           <% can_edit_meta = @file_writable and can_edit_media_meta?(@details_path, @edit_target) %>
           <div
-            :if={@media_meta.title != "" or @media_meta.description != "" or can_edit_meta}
+            :if={Enum.any?(Map.values(@media_meta), &(&1 != "")) or can_edit_meta}
             class="border-t border-base-300 pt-2"
           >
             <button
@@ -473,19 +475,48 @@
                   phx-target={@myself}
                   class="mt-2 space-y-2"
                 >
+                  <p :if={@media_meta_lang_name} class="text-xs text-base-content/60">
+                    <span class="badge badge-sm badge-ghost h-auto">
+                      <.icon name="hero-language" class="w-3 h-3" /> {@media_meta_lang_name}
+                    </span>
+                    {gettext("Switch the page language to translate.")}
+                  </p>
                   <input
                     type="text"
                     name="title"
-                    value={@media_meta.title}
-                    placeholder={gettext("Title")}
+                    value={@media_meta_own.title}
+                    aria-label={gettext("Title")}
+                    placeholder={
+                      if @media_meta_placeholders.title != "",
+                        do: @media_meta_placeholders.title,
+                        else: gettext("Title")
+                    }
+                    class="input input-bordered input-sm w-full"
+                  />
+                  <input
+                    :if={f.file_type == "image"}
+                    type="text"
+                    name="alt"
+                    value={@media_meta_own.alt}
+                    aria-label={gettext("Alt text")}
+                    placeholder={
+                      if @media_meta_placeholders.alt != "",
+                        do: @media_meta_placeholders.alt,
+                        else: gettext("Alt text")
+                    }
                     class="input input-bordered input-sm w-full"
                   />
                   <textarea
                     name="description"
-                    placeholder={gettext("Description")}
+                    aria-label={gettext("Description")}
+                    placeholder={
+                      if @media_meta_placeholders.description != "",
+                        do: @media_meta_placeholders.description,
+                        else: gettext("Description")
+                    }
                     rows="3"
                     class="textarea textarea-bordered textarea-sm w-full"
-                  >{@media_meta.description}</textarea>
+                  >{@media_meta_own.description}</textarea>
                   <div class="flex items-center gap-2">
                     <button type="submit" class="btn btn-primary btn-xs">{gettext("Save")}</button>
                     <span :if={@media_meta_status == :saved} class="text-xs text-success">
@@ -500,6 +531,9 @@
                 <div class="mt-2 space-y-1">
                   <p :if={@media_meta.title != ""} class="text-sm font-semibold break-words">
                     {@media_meta.title}
+                  </p>
+                  <p :if={@media_meta.alt != ""} class="text-xs text-base-content/60 break-words">
+                    {gettext("Alt text")}: {@media_meta.alt}
                   </p>
                   <p
                     :if={@media_meta.description != ""}

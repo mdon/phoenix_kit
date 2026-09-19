@@ -70,6 +70,21 @@ defmodule PhoenixKit.Modules.Storage.FileDetailsTest do
     end
   end
 
+  describe "content_language/2" do
+    @site [languages: ["en-US", "et"], primary: "en-US"]
+
+    test "is the enabled language the locale names, at whatever precision" do
+      assert FileDetails.content_language("et", @site) == "et"
+      assert FileDetails.content_language("et-EE", @site) == "et"
+      assert FileDetails.content_language("en", @site) == "en-US"
+    end
+
+    test "a locale that is no enabled language, or none at all, is the primary language" do
+      assert FileDetails.content_language("lv", @site) == "en-US"
+      assert FileDetails.content_language(nil, @site) == "en-US"
+    end
+  end
+
   describe "from_file/3" do
     test "is the language's own text, with no fallback" do
       assert FileDetails.from_file(file(%{}, @data), "et", @en) ==

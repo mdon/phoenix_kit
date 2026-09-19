@@ -1,0 +1,131 @@
+defmodule PhoenixKitWeb.Live.Users.MediaDetailDetailsTest do
+  @moduledoc """
+  The media detail page's title / alt text / description: they are edited
+  in the language the page is shown in — the admin language switcher is the
+  content switcher — and saving one language leaves the rest of the row
+  alone.
+
+  Sync: the enabled languages are a cached, unsandboxed setting.
+  """
+  use PhoenixKitWeb.ConnCase, async: false
+
+  alias PhoenixKit.Modules.Storage.File, as: StorageFile
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
+
+  setup %{conn: conn} do
+    Settings.update_setting("languages_enabled", "true")
+
+    Settings.update_json_setting("languages_config", %{
+      "languages" => [
+        %{"code" => "en", "name" => "English", "is_default" => true, "is_enabled" => true},
+        %{"code" => "et", "name" => "Estonian", "is_default" => false, "is_enabled" => true}
+      ]
+    })
+
+    on_exit(fn -> Settings.update_setting("languages_enabled", "false") end)
+
+    {user, _token} = create_admin_user()
+    %{conn: log_in_user(conn, user), user: user}
+  end
+
+  defp image!(user, attrs) do
+    n = System.unique_integer([:positive])
+
+    Repo.insert!(
+      struct!(
+        %StorageFile{
+          original_file_name: "photo_#{n}.jpg",
+          file_name: "photo_#{n}.jpg",
+          mime_type: "image/jpeg",
+          file_type: "image",
+          ext: "jpg",
+          file_checksum: "sha256:details-lv-#{n}",
+          user_file_checksum: "user-sha256:details-lv-#{n}",
+          size: 1024,
+          status: "active",
+          user_uuid: user.uuid
+        },
+        attrs
+      )
+    )
+  end
+
+  defp save(view, details, tags \\ "") do
+    view |> element("button[phx-click=toggle_edit]") |> render_click()
+
+    view
+    |> form("form[phx-submit=save_metadata]", %{"details" => details, "tags" => tags})
+    |> render_submit()
+  end
+
+  test "the primary-language page saves the primary text, and keeps the rest of metadata", %{
+    conn: conn,
+    user: user
+  } do
+    file = image!(user, metadata: %{"rotation" => 90, "title" => "Old title"})
+    {:ok, view, html} = live(conn, Routes.path("/admin/media/#{file.uuid}"))
+
+    assert html =~ "Old title"
+    assert html =~ "English"
+
+    html = save(view, %{"title" => "Harbour", "alt" => "Boats in a harbour"}, "sea, boats")
+    assert html =~ "Boats in a harbour"
+
+    row = Repo.reload!(file)
+    assert row.data == %{"en" => %{"title" => "Harbour", "alt" => "Boats in a harbour"}}
+    assert row.metadata["rotation"] == 90
+    assert row.metadata["tags"] == ["sea", "boats"]
+    assert row.metadata["title"] == "Harbour"
+  end
+
+  test "the Estonian page edits the Estonian text: English is a placeholder, never a value", %{
+    conn: conn,
+    user: user
+  } do
+    file = image!(user, data: %{"en" => %{"title" => "Harbour", "alt" => "Boats"}})
+    {:ok, view, html} = live(conn, Routes.admin_path("/admin/media/#{file.uuid}", "et"))
+
+    # Shown like any reader sees it: the primary text stands in.
+    assert html =~ "Estonian"
+    assert html =~ "Harbour"
+
+    html = view |> element("button[phx-click=toggle_edit]") |> render_click()
+    assert html =~ ~s(placeholder="Harbour")
+    refute html =~ ~s(value="Harbour")
+
+    view
+    |> form("form[phx-submit=save_metadata]", %{"details" => %{"title" => "Sadam"}})
+    |> render_submit()
+
+    assert Repo.reload!(file).data == %{
+             "en" => %{"title" => "Harbour", "alt" => "Boats"},
+             "et" => %{"title" => "Sadam"}
+           }
+  end
+
+  test "an untouched save on a translation page stores nothing under that language", %{
+    conn: conn,
+    user: user
+  } do
+    file = image!(user, data: %{"en" => %{"title" => "Harbour"}})
+    {:ok, view, _html} = live(conn, Routes.admin_path("/admin/media/#{file.uuid}", "et"))
+
+    save(view, %{})
+
+    assert Repo.reload!(file).data == %{"en" => %{"title" => "Harbour"}}
+  end
+
+  test "a field that is too long re-renders the form with its error and saves nothing", %{
+    conn: conn,
+    user: user
+  } do
+    file = image!(user, [])
+    {:ok, view, _html} = live(conn, Routes.path("/admin/media/#{file.uuid}"))
+
+    html = save(view, %{"title" => String.duplicate("a", 256)})
+
+    assert html =~ "should be at most 255"
+    assert Repo.reload!(file).data == %{}
+  end
+end

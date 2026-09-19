@@ -16,6 +16,24 @@
   or a tag saved in the meantime survives. The `metadata` title and
   description of a file saved earlier are read as its primary-language text
   — no backfill. Plan: `dev_docs/plans/2026-09-19-media-translations.md`.
+- **The media editors edit that text in the language the page is shown in.**
+  The admin language switcher is the content switcher: open
+  `/et/admin/media/:uuid` (or the viewer sidebar on an Estonian page) and the
+  title, alt text and description you save are the Estonian ones. No tabs.
+  A small badge names the language being edited on a multi-language site,
+  and the primary-language text shows as each empty field's placeholder —
+  never as its value, so an untouched save stores nothing. Both editors —
+  the detail page and the viewer sidebar — now save through
+  `Storage.update_file_details/3`, and both gained the **Alt text** field
+  (images only). The viewer reads the language from the page's own Gettext
+  locale, so hosts embedding it pass nothing new. Eight new strings,
+  translated in all seven locales.
+
+### Fixed
+
+- **Saving a title on the media detail page or in the viewer sidebar no
+  longer overwrites the rest of the file's `metadata`** with the copy the
+  page loaded earlier — a rotation saved in between was lost.
 
 Fixes from the 2026-09-19 weekly review
 (`dev_docs/pull_requests/2026/weekly-2026-09-19/CLAUDE_REVIEW.md`).
