@@ -116,27 +116,39 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     effective_dimension = %{dimension | format: format_override}
 
     # Download original file to temp location
-    with {:ok, original_path, source_key} <- retrieve_original_file(file),
-         {:ok, variant_path} <-
-           process_variant(original_path, variant_path, file.mime_type, effective_dimension),
-         {:ok, file_stats} <- get_variant_file_stats(variant_path),
-         {:ok, storage_info} <-
-           store_variant_file(variant_path, variant_name, variant_storage_path, file.uuid),
-         {:ok, instance} <-
-           publish_variant(
-             file,
-             variant_name,
-             variant_storage_path,
-             variant_mime_type,
-             variant_ext,
-             file_stats,
-             storage_info.bucket_ids,
-             source_key
-           ) do
-      cleanup_temp_files([original_path, variant_path])
-      Logger.info("Variant #{variant_name} created successfully in database with locations")
-      {:ok, instance}
-    else
+    result =
+      with {:ok, original_path, source_key} <- retrieve_original_file(file) do
+        # Both temp files go whatever the outcome: a format ImageMagick cannot
+        # decode fails on every attempt, and each request for the missing
+        # variant re-queues the job — a copy left behind per failure fills
+        # the temp dir.
+        try do
+          with {:ok, variant_path} <-
+                 process_variant(original_path, variant_path, file.mime_type, effective_dimension),
+               {:ok, file_stats} <- get_variant_file_stats(variant_path),
+               {:ok, storage_info} <-
+                 store_variant_file(variant_path, variant_name, variant_storage_path, file.uuid) do
+            publish_variant(
+              file,
+              variant_name,
+              variant_storage_path,
+              variant_mime_type,
+              variant_ext,
+              file_stats,
+              storage_info.bucket_ids,
+              source_key
+            )
+          end
+        after
+          cleanup_temp_files([original_path, variant_path])
+        end
+      end
+
+    case result do
+      {:ok, instance} ->
+        Logger.info("Variant #{variant_name} created successfully in database with locations")
+        {:ok, instance}
+
       {:error, :file_locations_failed} = error ->
         Logger.error("Variant #{variant_name} failed: file locations could not be created")
         error
@@ -172,22 +184,23 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     variant_filename = "#{base_name}_#{variant_name}.#{variant_ext}"
     variant_storage_path = "#{file.file_path}/#{variant_filename}"
 
-    with {:ok, file_stats} <- get_variant_file_stats(prepared_path),
-         {:ok, storage_info} <-
-           store_variant_file(prepared_path, variant_name, variant_storage_path, file.uuid),
-         {:ok, instance} <-
-           publish_variant(
-             file,
-             variant_name,
-             variant_storage_path,
-             variant_mime_type,
-             variant_ext,
-             file_stats,
-             storage_info.bucket_ids,
-             Keyword.get(opts, :source_key)
-           ) do
+    try do
+      with {:ok, file_stats} <- get_variant_file_stats(prepared_path),
+           {:ok, storage_info} <-
+             store_variant_file(prepared_path, variant_name, variant_storage_path, file.uuid) do
+        publish_variant(
+          file,
+          variant_name,
+          variant_storage_path,
+          variant_mime_type,
+          variant_ext,
+          file_stats,
+          storage_info.bucket_ids,
+          Keyword.get(opts, :source_key)
+        )
+      end
+    after
       cleanup_temp_files([prepared_path])
-      {:ok, instance}
     end
   end
 

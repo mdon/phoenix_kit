@@ -86,21 +86,30 @@ defmodule PhoenixKit.Modules.Storage.AnnotationThumbnail do
   end
 
   defp generate(file, draw_args) do
-    with {:ok, original_path, file, source} <- Storage.retrieve_original(file.uuid),
-         output <- temp_png(),
-         :ok <- run_convert(original_path, output, draw_args) do
-      # Drop any existing instance first so a fresh one is created with the new
-      # checksum (create_variant_instance returns the existing row otherwise).
-      remove_variant(file)
+    with {:ok, original_path, file, source} <- Storage.retrieve_original(file.uuid) do
+      output = temp_png()
 
-      result =
-        VariantGenerator.store_prepared_variant(file, @variant_name, output, "png", "image/png",
-          source_key: source.file_name
-        )
+      # Both temp files go whatever the outcome — a failed convert used to
+      # leave the downloaded original behind on every refresh.
+      try do
+        with :ok <- run_convert(original_path, output, draw_args) do
+          # Drop any existing instance first so a fresh one is created with the new
+          # checksum (create_variant_instance returns the existing row otherwise).
+          remove_variant(file)
 
-      File.rm(original_path)
-      result
-    else
+          VariantGenerator.store_prepared_variant(file, @variant_name, output, "png", "image/png",
+            source_key: source.file_name
+          )
+        end
+      after
+        File.rm(original_path)
+        File.rm(output)
+      end
+    end
+    |> case do
+      {:ok, _} = ok ->
+        ok
+
       error ->
         Logger.warning("AnnotationThumbnail.generate failed for #{file.uuid}: #{inspect(error)}")
         {:error, :generate_failed}

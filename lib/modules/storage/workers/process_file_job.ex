@@ -104,14 +104,19 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   defp process_image(file) do
     Logger.info("ProcessFileJob: process_image/1 called for file_uuid=#{file.uuid}")
 
-    with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid),
-         {:ok, metadata} <- extract_and_log_image_metadata(temp_path),
-         :ok <- update_and_log_metadata(file, source, metadata),
-         :ok <- log_dimensions_info(),
-         {:ok, variants} <- generate_and_log_variants(file) do
-      File.rm(temp_path)
-      {:ok, variants}
-    else
+    with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid) do
+      with_temp_file(temp_path, fn ->
+        with {:ok, metadata} <- extract_and_log_image_metadata(temp_path),
+             :ok <- update_and_log_metadata(file, source, metadata),
+             :ok <- log_dimensions_info() do
+          generate_and_log_variants(file)
+        end
+      end)
+    end
+    |> case do
+      {:ok, variants} ->
+        {:ok, variants}
+
       {:error, reason} = error ->
         Logger.error("ProcessFileJob: Failed to process image: #{inspect(reason)}")
         error
@@ -165,19 +170,13 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   end
 
   defp process_video(file) do
-    with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid),
-         {:ok, metadata} <- extract_video_metadata(temp_path),
-         :ok <- update_file_with_metadata(file, source, metadata) do
-      # Generate variants
-      case VariantGenerator.generate_variants(file) do
-        {:ok, variants} ->
-          File.rm(temp_path)
-          {:ok, variants}
-
-        {:error, reason} ->
-          File.rm(temp_path)
-          {:error, reason}
-      end
+    with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid) do
+      with_temp_file(temp_path, fn ->
+        with {:ok, metadata} <- extract_video_metadata(temp_path),
+             :ok <- update_file_with_metadata(file, source, metadata) do
+          VariantGenerator.generate_variants(file)
+        end
+      end)
     end
   end
 
@@ -185,33 +184,53 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
     if file.mime_type == "application/pdf" do
       process_pdf(file)
     else
-      with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid),
-           {:ok, metadata} <- extract_document_metadata(temp_path, file.mime_type),
-           :ok <- update_file_with_metadata(file, source, metadata) do
-        File.rm(temp_path)
-        Logger.info("ProcessFileJob: Processed document file_uuid=#{file.uuid}")
-        {:ok, []}
-      end
+      process_plain_document(file)
+    end
+  end
+
+  defp process_plain_document(file) do
+    with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid) do
+      with_temp_file(temp_path, fn ->
+        with {:ok, metadata} <- extract_document_metadata(temp_path, file.mime_type),
+             :ok <- update_file_with_metadata(file, source, metadata) do
+          Logger.info("ProcessFileJob: Processed document file_uuid=#{file.uuid}")
+          {:ok, []}
+        end
+      end)
     end
   end
 
   defp process_pdf(file) do
-    with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid),
-         {:ok, metadata} <- extract_pdf_metadata(temp_path),
-         :ok <-
-           update_and_log_metadata(
-             file,
-             source,
-             PdfProcessor.file_attrs(file.metadata, metadata)
-           ),
-         {:ok, variants} <- generate_and_log_variants(file) do
-      File.rm(temp_path)
-      {:ok, variants}
-    else
+    with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid) do
+      with_temp_file(temp_path, fn ->
+        with {:ok, metadata} <- extract_pdf_metadata(temp_path),
+             :ok <-
+               update_and_log_metadata(
+                 file,
+                 source,
+                 PdfProcessor.file_attrs(file.metadata, metadata)
+               ) do
+          generate_and_log_variants(file)
+        end
+      end)
+    end
+    |> case do
+      {:ok, variants} ->
+        {:ok, variants}
+
       {:error, reason} = error ->
         Logger.error("ProcessFileJob: Failed to process PDF: #{inspect(reason)}")
         error
     end
+  end
+
+  # Runs `fun` and removes the downloaded copy whatever the outcome. A failed
+  # step used to leave it behind, and a file that can never be processed fails
+  # on every attempt of every re-queued job.
+  defp with_temp_file(temp_path, fun) do
+    fun.()
+  after
+    File.rm(temp_path)
   end
 
   defp extract_pdf_metadata(temp_path) do

@@ -1,3 +1,16 @@
+## 2.32.1 - 2026-09-19
+
+### Fixed
+
+- **Failed file processing no longer fills the temp dir.** `ProcessFileJob`,
+  `VariantGenerator` and the annotated thumbnail removed their temp files only
+  when everything succeeded, so a file that cannot be rendered (an SVG on a
+  host whose ImageMagick has no SVG delegate) left a `phoenix_kit_*` copy of
+  its original behind on every attempt — and each request for the missing
+  variant re-queues the job. One host collected over a thousand in two days.
+  The temp files now go whatever the outcome; the private-bucket proxy cleans
+  up the same way.
+
 ## 2.32.0 - 2026-09-19
 
 Migrations: V198 (data only), V199 (`phoenix_kit_files.data`) — run

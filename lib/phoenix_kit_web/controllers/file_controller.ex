@@ -1022,16 +1022,18 @@ defmodule PhoenixKitWeb.FileController do
     temp_path =
       Path.join(System.tmp_dir!(), "phoenix_kit_#{instance.uuid}_#{:rand.uniform(1_000_000)}")
 
-    case Manager.retrieve_file(file_name, destination_path: temp_path) do
-      {:ok, _} ->
-        conn = serve_file(conn, file, instance, temp_path, cache)
-        File.rm(temp_path)
-        conn
+    try do
+      case Manager.retrieve_file(file_name, destination_path: temp_path) do
+        {:ok, _} ->
+          serve_file(conn, file, instance, temp_path, cache)
 
-      {:error, _reason} ->
-        conn
-        |> put_status(:not_found)
-        |> text("File or variant not found")
+        {:error, _reason} ->
+          conn
+          |> put_status(:not_found)
+          |> text("File or variant not found")
+      end
+    after
+      File.rm(temp_path)
     end
   end
 end
