@@ -3856,6 +3856,182 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // ListFilter Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Client-side filter for a short list — the breadcrumb switcher's
+  // (PhoenixKitWeb.Components.Core.CrumbSwitcher), or any list small enough
+  // to render whole. No server round trip per keystroke.
+  //
+  //   <input phx-hook="ListFilter" id="…" data-filter-list="#my-list" />
+  //   <ul id="my-list">
+  //     <li data-filter-text="Kitchen"><a …>Kitchen</a></li>
+  //     <li data-filter-empty class="hidden">No results.</li>
+  //   </ul>
+  //
+  // Case and accents are ignored ("kasitoo" finds "Käsitöö"). Enter opens the
+  // first visible match's link, ArrowDown moves into the list, and focusing
+  // the input selects its text so a reopened switcher starts a new search.
+  // ---------------------------------------------------------------------------
+
+  function listFilterNormalize(s) {
+    return String(s == null ? "" : s)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }
+
+  function listFilterMatches(text, query) {
+    var q = listFilterNormalize(query);
+    return q === "" || listFilterNormalize(text).indexOf(q) !== -1;
+  }
+
+  window.PhoenixKitHooks.ListFilter = {
+    mounted() {
+      this._onInput = () => this.apply();
+      this._onFocus = () => this.el.select();
+      this._onKey = (e) => {
+        // Enter that confirms an IME composition is not a pick.
+        if (e.isComposing || e.keyCode === 229) return;
+        var first = this.visibleItems()[0];
+        var link = first && first.querySelector("a");
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (link) link.click();
+        } else if (e.key === "ArrowDown" && link) {
+          e.preventDefault();
+          link.focus();
+        }
+      };
+      this.el.addEventListener("input", this._onInput);
+      this.el.addEventListener("focus", this._onFocus);
+      this.el.addEventListener("keydown", this._onKey);
+      // A server re-render of the list strips the inline styles this hook
+      // set (morphdom syncs attributes to the server's markup), showing
+      // every row under a query that still reads "kitch" — and Enter would
+      // then open the unfiltered first row. Re-filter whenever the list
+      // changes; disconnect while filtering so our own writes don't loop.
+      this._observer = new MutationObserver(() => this.apply());
+      this.observe();
+    },
+    updated() {
+      this.apply();
+    },
+    destroyed() {
+      this.el.removeEventListener("input", this._onInput);
+      this.el.removeEventListener("focus", this._onFocus);
+      this.el.removeEventListener("keydown", this._onKey);
+      if (this._observer) this._observer.disconnect();
+    },
+    observe() {
+      var list = this.list();
+      if (list && this._observer) {
+        this._observer.observe(list, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ["style", "data-filter-text"]
+        });
+      }
+    },
+    list() {
+      var sel = this.el.dataset.filterList;
+      return sel ? document.querySelector(sel) : null;
+    },
+    visibleItems() {
+      var list = this.list();
+      if (!list) return [];
+      return Array.prototype.filter.call(
+        list.querySelectorAll("[data-filter-text]"),
+        function(item) { return item.style.display !== "none"; }
+      );
+    },
+    apply() {
+      var list = this.list();
+      if (!list) return;
+      if (this._observer) this._observer.disconnect();
+      var query = this.el.value;
+      var shown = 0;
+      list.querySelectorAll("[data-filter-text]").forEach(function(item) {
+        var match = listFilterMatches(item.dataset.filterText, query);
+        var display = match ? "" : "none";
+        if (item.style.display !== display) item.style.display = display;
+        if (match) shown++;
+      });
+      var empty = list.querySelector("[data-filter-empty]");
+      if (empty) empty.classList.toggle("hidden", shown > 0);
+      this.observe();
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // CrumbSwitcher Hook
+  // ---------------------------------------------------------------------------
+  //
+  // The breadcrumb switcher's open/close bookkeeping
+  // (PhoenixKitWeb.Components.Core.CrumbSwitcher). The panel opens and closes
+  // through LiveView JS (PopoverPanel) from several places — the ▾, Escape, a
+  // click away, picking a row — so this watches the panel rather than each
+  // path:
+  //   * opened → the search starts empty (a panel reused across a patch
+  //     would otherwise keep the last level's query) and takes focus;
+  //   * closed → focus returns to the ▾ when it was inside the panel (or
+  //     dropped to the page), never when the user has moved on elsewhere;
+  //   * the ▾'s aria-expanded follows the panel.
+  // Deliberately not done in PopoverPanel's Escape handler: every panel on a
+  // page listens for Escape, so a focus move there would fire for all of them.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.CrumbSwitcher = {
+    mounted() {
+      this._open = false;
+      this._sync = () => this.sync();
+      this._observer = new MutationObserver(this._sync);
+      this._observer.observe(this.el, {
+        attributes: true,
+        subtree: true,
+        attributeFilter: ["style", "class"]
+      });
+      this.sync();
+    },
+    updated() {
+      this.sync();
+    },
+    destroyed() {
+      if (this._observer) this._observer.disconnect();
+    },
+    sync() {
+      var panel = document.getElementById(this.el.dataset.panel);
+      var trigger = this.el.querySelector("[data-switcher-trigger]");
+      if (!panel || !trigger) return;
+      var open = window.getComputedStyle(panel).display !== "none";
+      if (trigger.getAttribute("aria-expanded") !== String(open)) {
+        trigger.setAttribute("aria-expanded", String(open));
+      }
+      if (open && !this._open) this.opened(panel);
+      if (!open && this._open) this.closed(panel, trigger);
+      this._open = open;
+    },
+    opened(panel) {
+      var input = panel.querySelector("[data-filter-list]");
+      if (!input) return;
+      input.value = "";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.focus();
+    },
+    closed(panel, trigger) {
+      var active = document.activeElement;
+      if (!active || active === document.body || panel.contains(active)) trigger.focus();
+    }
+  };
+
+  // Exported for the Node test harness (test/js); harmless in a browser.
+  if (typeof module === "object" && module.exports) {
+    module.exports.listFilterMatches = listFilterMatches;
+  }
+
+  // ---------------------------------------------------------------------------
   // LanguageSwitcherPosition Hook
   // ---------------------------------------------------------------------------
   //

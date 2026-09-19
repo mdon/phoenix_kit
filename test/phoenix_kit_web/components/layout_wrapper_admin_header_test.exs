@@ -255,6 +255,57 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
     assert html =~ "Plumbing"
   end
 
+  test "a crumb's switcher and the title's switcher render beside them" do
+    assigns = %{scope: owner_scope()}
+
+    html =
+      ~H"""
+      <LayoutWrapper.app_layout
+        flash={%{}}
+        socket={nil}
+        current_path="/admin"
+        page_title="Pipes"
+        page_section="Catalogues"
+        page_section_path="/admin/catalogue"
+        page_crumbs={[
+          %{
+            label: "Plumbing",
+            path: "/admin/catalogue/c1",
+            switcher: %{
+              title: "Switch catalogue",
+              items: [%{label: "Plumbing", navigate: "/admin/catalogue/c1", current: true}]
+            }
+          },
+          %{label: "No switcher here", path: "/admin/catalogue/c2"}
+        ]}
+        page_title_switcher={
+          %{
+            title: "Switch category",
+            items: [%{label: "Pipes", patch: "/admin/catalogue/c1?category=p", current: true}]
+          }
+        }
+        project_title="Acme"
+        phoenix_kit_current_scope={@scope}
+      >
+        <span id="pk-test-body">body</span>
+      </LayoutWrapper.app_layout>
+      """
+      |> rendered_to_string()
+
+    # One switcher for the first crumb, none for the second, one for the title.
+    assert html =~ ~s(id="pk-crumb-switcher-0")
+    refute html =~ ~s(id="pk-crumb-switcher-1")
+    assert html =~ ~s(id="pk-title-switcher")
+    assert html =~ ~s(aria-label="Switch catalogue")
+    assert html =~ ~s(aria-label="Switch category")
+  end
+
+  test "no switchers unless asked — the header renders as before" do
+    html = admin_shell(owner_scope())
+    refute html =~ "pk-crumb-switcher"
+    refute html =~ "pk-title-switcher"
+  end
+
   test "the breadcrumb tracks the same gate as the sidebar, not the page" do
     # `show_admin_nav` is one decision: no nav, no burger, no "Admin Panel".
     plain = admin_shell(plain_user_scope())

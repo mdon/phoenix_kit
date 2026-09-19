@@ -120,7 +120,10 @@ defmodule PhoenixKitWeb.Live.Modules do
       gettext_noop("AI"),
       gettext_noop("Billing"),
       gettext_noop("CRM"),
+      # "Catalogue" until catalogue 0.39; "Catalogues" after — the module
+      # took its pages' name so the two stop disagreeing.
       gettext_noop("Catalogue"),
+      gettext_noop("Catalogues"),
       gettext_noop("Comments"),
       gettext_noop("Customer Support"),
       gettext_noop("Document Creator"),

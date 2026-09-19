@@ -39,6 +39,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   import PhoenixKitWeb.Components.Core.PhoenixKitFavicon
   import PhoenixKitWeb.Components.Core.PhoenixKitGlobals
+  import PhoenixKitWeb.Components.Core.CrumbSwitcher, only: [crumb_switcher: 1]
   import PhoenixKitWeb.Components.AdminNav
   import PhoenixKitWeb.Components.Dashboard.AdminSidebar, only: [admin_sidebar: 1]
   import PhoenixKitWeb.Components.InvitationBanner, only: [invitation_banners: 1]
@@ -100,7 +101,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :page_crumbs, :list,
     default: [],
     doc:
-      "Extra breadcrumb crumbs rendered between `page_section` and `page_title`, for pages nested deeper than one level (e.g. catalogue / category drill trails): `[%{label: \"Plumbing\", path: \"/…\"}]`. `path` is a `push_navigate` target; `patch` is a `push_patch` target for same-LiveView drill trails. Both are optional — omitted renders plain text. The last crumb stays visible below `sm` (the trail truncates from the left); earlier crumbs collapse with the section."
+      "Extra breadcrumb crumbs rendered between `page_section` and `page_title`, for pages nested deeper than one level (e.g. catalogue / category drill trails): `[%{label: \"Plumbing\", path: \"/…\"}]`. `path` is a `push_navigate` target; `patch` is a `push_patch` target for same-LiveView drill trails. Both are optional — omitted renders plain text. A crumb may also carry a `:switcher` (see `page_title_switcher`): a ▾ beside it lists the other things on that crumb's level. The last crumb stays visible below `sm` (the trail truncates from the left); earlier crumbs collapse with the section."
+
+  attr :page_title_switcher, :map,
+    default: nil,
+    doc:
+      "A switcher on the page title itself: a ▾ beside it opening a searchable list of the other things on this level — GitHub's repository switcher. Same shape as a crumb's `:switcher` (`%{title:, items: [%{label:, navigate: | patch:, current:}], search_placeholder:}`); see `PhoenixKitWeb.Components.Core.CrumbSwitcher`."
 
   attr :page_action, :map,
     default: nil,
@@ -778,6 +784,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       page_section: assigns[:page_section],
       page_section_path: assigns[:page_section_path],
       page_crumbs: assigns[:page_crumbs] || [],
+      page_title_switcher: assigns[:page_title_switcher],
       page_action: assigns[:page_action],
       # The slots travel here as ordinary keys; `assigns[:action]` is
       # `nil` for every caller that does not pass one, and the render
@@ -1033,9 +1040,19 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         >
                           {crumb.label}
                         </span>
+                        <.crumb_switcher
+                          :if={crumb[:switcher]}
+                          id={"pk-crumb-switcher-#{idx}"}
+                          switcher={crumb.switcher}
+                        />
                         <span class="text-base-content/30">/</span>
                       </span>
                       <span class="font-semibold text-base-content truncate min-w-0">{@page_title}</span>
+                      <.crumb_switcher
+                        :if={@page_title_switcher}
+                        id="pk-title-switcher"
+                        switcher={@page_title_switcher}
+                      />
                       <span
                         :if={@page_subtitle}
                         class="text-sm text-base-content/50 truncate hidden md:inline"
