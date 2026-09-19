@@ -1,10 +1,12 @@
-## Unreleased
+## 2.32.0 - 2026-09-19
+
+Migrations: V198 (data only), V199 (`phoenix_kit_files.data`) — run
+`mix phoenix_kit.update`.
 
 ### Added
 
-- **Media files can carry a title, alt text and description per language**
-  (groundwork — the editors and the language switcher follow). V199 adds a
-  `data` column to `phoenix_kit_files`; a file also gains an `alt` text,
+- **Media files can carry a title, alt text and description per language.**
+  V199 adds a `data` column to `phoenix_kit_files`; a file also gains an `alt` text,
   which it never had. Every language holds its own text and none is marked
   as primary, so changing the site's primary language converts nothing: each
   field resolves when it is read — the language asked for, then the current
@@ -63,10 +65,8 @@
   the `metadata` it read, so a title or tags saved in between survive, and
   two quick rotate clicks add up.
 
-Fixes from the 2026-09-19 weekly review
-(`dev_docs/pull_requests/2026/weekly-2026-09-19/CLAUDE_REVIEW.md`).
-
-### Fixed
+The rest are fixes from the 2026-09-19 weekly review
+(`dev_docs/pull_requests/2026/weekly-2026-09-19/CLAUDE_REVIEW.md`):
 
 - **A broken host file-reference source no longer makes orphan cleanup delete
   the host's files.** A `:file_reference_sources` entry whose function raised,

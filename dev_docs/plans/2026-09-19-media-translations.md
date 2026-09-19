@@ -1,7 +1,7 @@
 # Media translations — a language switcher for a file's title, alt text and description
 
 **Created:** 2026-09-19
-**Status:** Steps 1–4 BUILT on `main` 2026-09-19 (unreleased). Step 5 (siblings) open.
+**Status:** Steps 1–4 BUILT on `main` 2026-09-19, released as 2.32.0. Step 5 (siblings) open.
 **Scope:** phoenix_kit (core); follow-ups in phoenix_kit_posts and
 phoenix_kit_catalogue.
 **Related:** `PhoenixKit.Utils.Multilang`, `PhoenixKitWeb.Components.MultilangForm`,
