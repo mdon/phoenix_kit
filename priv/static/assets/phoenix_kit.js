@@ -3856,6 +3856,97 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // ListFilter Hook
+  // ---------------------------------------------------------------------------
+  //
+  // Client-side filter for a short list — the breadcrumb switcher's
+  // (PhoenixKitWeb.Components.Core.CrumbSwitcher), or any list small enough
+  // to render whole. No server round trip per keystroke.
+  //
+  //   <input phx-hook="ListFilter" id="…" data-filter-list="#my-list" />
+  //   <ul id="my-list">
+  //     <li data-filter-text="Kitchen"><a …>Kitchen</a></li>
+  //     <li data-filter-empty class="hidden">No results.</li>
+  //   </ul>
+  //
+  // Case and accents are ignored ("kasitoo" finds "Käsitöö"). Enter opens the
+  // first visible match's link, ArrowDown moves into the list, and focusing
+  // the input selects its text so a reopened switcher starts a new search.
+  // ---------------------------------------------------------------------------
+
+  function listFilterNormalize(s) {
+    return String(s == null ? "" : s)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }
+
+  function listFilterMatches(text, query) {
+    var q = listFilterNormalize(query);
+    return q === "" || listFilterNormalize(text).indexOf(q) !== -1;
+  }
+
+  window.PhoenixKitHooks.ListFilter = {
+    mounted() {
+      this._onInput = () => this.apply();
+      this._onFocus = () => this.el.select();
+      this._onKey = (e) => {
+        var first = this.visibleItems()[0];
+        var link = first && first.querySelector("a");
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (link) link.click();
+        } else if (e.key === "ArrowDown" && link) {
+          e.preventDefault();
+          link.focus();
+        }
+      };
+      this.el.addEventListener("input", this._onInput);
+      this.el.addEventListener("focus", this._onFocus);
+      this.el.addEventListener("keydown", this._onKey);
+    },
+    updated() {
+      this.apply();
+    },
+    destroyed() {
+      this.el.removeEventListener("input", this._onInput);
+      this.el.removeEventListener("focus", this._onFocus);
+      this.el.removeEventListener("keydown", this._onKey);
+    },
+    list() {
+      var sel = this.el.dataset.filterList;
+      return sel ? document.querySelector(sel) : null;
+    },
+    visibleItems() {
+      var list = this.list();
+      if (!list) return [];
+      return Array.prototype.filter.call(
+        list.querySelectorAll("[data-filter-text]"),
+        function(item) { return item.style.display !== "none"; }
+      );
+    },
+    apply() {
+      var list = this.list();
+      if (!list) return;
+      var query = this.el.value;
+      var shown = 0;
+      list.querySelectorAll("[data-filter-text]").forEach(function(item) {
+        var match = listFilterMatches(item.dataset.filterText, query);
+        item.style.display = match ? "" : "none";
+        if (match) shown++;
+      });
+      var empty = list.querySelector("[data-filter-empty]");
+      if (empty) empty.classList.toggle("hidden", shown > 0);
+    }
+  };
+
+  // Exported for the Node test harness (test/js); harmless in a browser.
+  if (typeof module === "object" && module.exports) {
+    module.exports.listFilterMatches = listFilterMatches;
+  }
+
+  // ---------------------------------------------------------------------------
   // LanguageSwitcherPosition Hook
   // ---------------------------------------------------------------------------
   //

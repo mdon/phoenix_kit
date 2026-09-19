@@ -1,0 +1,74 @@
+defmodule PhoenixKitWeb.Components.Core.CrumbSwitcherTest do
+  @moduledoc """
+  The breadcrumb switcher (GitHub's repository switcher for any trail):
+  a ▾ that opens a searchable list of the things on one level, each a
+  real link, the current one ticked.
+
+  DB-free: plain assigns.
+  """
+  use ExUnit.Case, async: true
+
+  import Phoenix.LiveViewTest, only: [render_component: 2]
+
+  alias PhoenixKitWeb.Components.Core.CrumbSwitcher
+
+  defp render(switcher) do
+    render_component(&CrumbSwitcher.crumb_switcher/1, %{id: "sw", switcher: switcher})
+  end
+
+  defp doc(html), do: LazyHTML.from_fragment(html)
+
+  test "every item is a real link — navigate or patch — and the current one is ticked" do
+    html =
+      render(%{
+        title: "Switch catalogue",
+        items: [
+          %{label: "Kitchen", navigate: "/admin/catalogue/k", current: true},
+          %{label: "Bathroom", navigate: "/admin/catalogue/b"},
+          %{label: "Doors", patch: "/admin/catalogue/k?category=d"}
+        ]
+      })
+
+    links = html |> doc() |> LazyHTML.query("#sw-list a")
+    assert Enum.count(links) == 3
+
+    assert links |> Enum.map(&LazyHTML.attribute(&1, "href")) |> List.flatten() ==
+             ["/admin/catalogue/k", "/admin/catalogue/b", "/admin/catalogue/k?category=d"]
+
+    assert links |> Enum.map(&LazyHTML.attribute(&1, "data-phx-link")) |> List.flatten() ==
+             ["redirect", "redirect", "patch"]
+
+    [current] =
+      html |> doc() |> LazyHTML.query(~s(#sw-list a[aria-current="page"])) |> Enum.to_list()
+
+    assert LazyHTML.text(current) =~ "Kitchen"
+
+    # Only the current row's tick is visible.
+    ticks = html |> doc() |> LazyHTML.query("#sw-list a .hero-check-mini")
+    visible = Enum.reject(ticks, &(LazyHTML.attribute(&1, "class") |> hd() =~ "invisible"))
+    assert length(visible) == 1
+  end
+
+  test "the list is searchable on the client, with a no-results row" do
+    html = render(%{title: "Switch category", items: [%{label: "Käsitöö", navigate: "/x"}]})
+    d = doc(html)
+
+    [input] = d |> LazyHTML.query("#sw-search") |> Enum.to_list()
+    assert LazyHTML.attribute(input, "phx-hook") == ["ListFilter"]
+    assert LazyHTML.attribute(input, "data-filter-list") == ["#sw-list"]
+
+    # The filter text is the label as written; the hook folds case/accents.
+    assert d |> LazyHTML.query(~s(#sw-list li[data-filter-text="Käsitöö"])) |> Enum.count() == 1
+    assert d |> LazyHTML.query("#sw-list li[data-filter-empty].hidden") |> Enum.count() == 1
+  end
+
+  test "the title labels the button and heads the panel; the placeholder has a default" do
+    html = render(%{title: "Switch catalogue", items: []})
+
+    assert html =~ ~s(aria-label="Switch catalogue")
+    assert html =~ ~s(placeholder="Search...")
+
+    custom = render(%{title: "Switch catalogue", search_placeholder: "Find…", items: []})
+    assert custom =~ ~s(placeholder="Find…")
+  end
+end
