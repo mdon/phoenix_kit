@@ -9,12 +9,11 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ### V199 - Media file translations ⚡ LATEST
 
-  Adds `data` (jsonb, NOT NULL, default `{}`) to `phoenix_kit_files`: the
-  multilang structure for a file's translatable title, alt text and
-  description. The primary-language text stays in `metadata`, which also
-  holds rotation, tags and EXIF/PDF keys read at the top level — the
-  multilang structure takes over the map it is written to, so it needs a
-  column of its own. Additive only.
+  Adds `data` (jsonb, NOT NULL, default `{}`) to `phoenix_kit_files`: a
+  file's title, alt text and description per language. Every language holds
+  its own text and none is marked as primary, so changing the site's primary
+  language converts nothing. The `metadata` text of a file saved earlier is
+  read as its primary-language text — no backfill. Additive only.
 
   ### V198 - Settings history: secret-named values withheld
 

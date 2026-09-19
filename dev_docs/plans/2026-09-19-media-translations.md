@@ -28,13 +28,20 @@ language — not a different file per language.
 - Core ships the whole multilang toolkit and has no consumer of it; the
   reference implementation is phoenix_kit_catalogue's `Category`.
 
-## The constraint that shapes the design
+## Two constraints that shape the design
 
-`MultilangForm.merge_translatable_params/4` **owns the map it writes to**: it
-restructures it into `%{"_primary_language" => …, "en-US" => %{…}}`. Pointed
-at `metadata` it would move `rotation`, `tags` and EXIF into the
-primary-language sub-map and break every `metadata["rotation"]` read. So the
-translations get a column of their own.
+1. **`metadata` cannot hold translations.** Anything structured per language
+   written there would sit beside `rotation`, `tags` and EXIF keys that are
+   read at the top level. The text gets a column of its own.
+2. **The stored text must not depend on which language is primary**
+   (maintainer, 2026-09-19). The shared `Utils.Multilang` structure embeds a
+   `_primary_language`, keeps that entry complete and stores every other
+   language as a *diff against it*; a site that changes its primary language
+   then needs `rekey_primary/2` on every record. That diffing pays off for an
+   entity with dozens of fields. For three it buys nothing — and the first
+   cut of step 1, which used it with `metadata["title"]` as the primary
+   text, had a real bug: after a primary change, text typed on the new
+   primary tab was copied over the old primary's entry.
 
 ## Decisions (maintainer, 2026-09-19)
 
@@ -48,21 +55,35 @@ translations get a column of their own.
 ## Design
 
 - **Storage.** V199 adds `data jsonb NOT NULL DEFAULT '{}'` to
-  `phoenix_kit_files` — the Multilang structure, keys `_title`, `_alt`,
-  `_description`. The primary-language text **stays in `metadata`**
-  (`"title"`, `"alt"`, `"description"`): every existing reader keeps working,
-  the PDF processor's fill-if-missing title keeps working, no backfill. The
-  structure's primary entry is a copy, refreshed on every save. Real columns
-  were rejected: nothing sorts or searches on them, and they would be a
-  second source of truth beside `metadata["title"]`.
-- **One read/write path:** `Storage.FileDetails`, an embedded schema with the
-  shape MultilangForm expects (primary text as fields + `:data`).
-  `Storage.change_file_details/2`, `update_file_details/2` (re-reads the row
-  `FOR UPDATE` and merges — fixes the editors' whole-map replace),
-  `translated_title/2`, `translated_alt/2`, `translated_description/2`.
-  Resolution: the language's own translation → dialect/base fallback (via
-  `Multilang.get_raw_language_data/2`) → primary text → `nil`, and for alt
-  `""`. **Never the file name as alt.**
+  `phoenix_kit_files`: `%{"en-US" => %{"title", "alt", "description"},
+  "et" => %{…}}`. Every language holds its own text; nothing marks a
+  primary. Real columns were rejected: nothing sorts or searches on them.
+- **Fallback is decided at read time**, per field: the language asked for
+  (exact → base code → first stored dialect of the base) → the site's
+  *current* primary language → any language → `nil`, and for alt `""`.
+  **Never the file name as alt.** Changing the primary language converts
+  nothing.
+- **Files from before V199** keep their title/description in `metadata`, in
+  no recorded language. Invariant: **`data` empty ⇒ `metadata` is the
+  primary-language text; `data` non-empty ⇒ `data` is the truth.** The first
+  save (in any language) moves the `metadata` text into `data` under the
+  primary language. No backfill migration. After that `metadata` only
+  receives a copy of the primary-language text on a primary-language save —
+  for the PDF processor's fill-if-missing title and the viewer's stored
+  title. A cleared field is copied as `""`, not removed, or the PDF
+  processor would fill it back in.
+- **One read/write path:** `Storage.FileDetails`, an embedded schema holding
+  the three fields *in one language*. `Storage.change_file_details/3`,
+  `update_file_details/3` (`lang:` option; re-reads the row `FOR UPDATE` and
+  replaces that language's entry only — fixes the editors' whole-map replace
+  and makes two admins translating at once safe), `translated_title/3`,
+  `translated_alt/3`, `translated_description/3` (`primary:` option for bulk
+  reads, default `Multilang.primary_language/0`).
+- **Not used:** `MultilangForm.merge_translatable_params/4` and
+  `Multilang.put_language_data/3` — they produce the diffed shape. The
+  *components* still apply: `<.multilang_tabs>`, `<.multilang_fields_wrapper>`
+  and `<.translatable_field>` in its `secondary_name` + `lang_data_key` mode
+  (`lang_data_key="title"`, plain keys).
 - **The language comes from the caller** (the URL's locale) — never from the
   session.
 
@@ -70,13 +91,16 @@ translations get a column of their own.
 
 1. **DONE — V199 + `FileDetails` + `Storage` API + tests.** No UI.
 2. **Detail page** (`media_detail.ex`, a LiveView): replace the raw form with
-   a `FileDetails` changeset + `to_form`; `mount_multilang/1`;
+   a `FileDetails` changeset for the current tab's language
+   (`change_file_details(file, %{}, lang: @current_lang)`); on a secondary
+   tab map the posted `lang_<field>` params to plain keys and save with
+   `lang:`; `mount_multilang/1`;
    `<.multilang_tabs>` + `<.multilang_fields_wrapper>` around title / alt /
    description **only** — tags and file info stay outside (wrapper scope
    rule). Form needs a unique `id`. Tags keep their own merge.
 3. **Viewer sidebar** (`media_canvas_viewer.ex`, a LiveComponent):
    `attach_hook` raises there — wire `"switch_language"` by hand (guide rule
-   3). Add alt. Save through `update_file_details/2`.
+   3). Add alt. Save through `update_file_details/3`.
 4. **Consumers:** `FileController.info` gains `title` / `alt` /
    `description`, resolved from an optional `?locale=`; the shared `Image` /
    `ImageSet` components fall back to `translated_alt/2` when the caller
@@ -91,10 +115,10 @@ an alt field.
 
 ## Known gaps
 
-- A host that changes its primary language leaves `data["_primary_language"]`
-  on the old code. `Multilang.maybe_rekey_data/1` exists for this; wire it in
-  step 2 where the form loads the data.
-- `update_file_details/2` takes `"data"` whole from the form, so two admins
-  translating the same file into different languages at once: last save wins
-  for the translations (the primary text and the rest of `metadata` are
-  merged safely). Same behaviour as catalogue.
+- Two co-enabled dialects of one language (`en-US` + `en-GB`): a dialect with
+  no entry of its own reads its sibling's text — right for the public read,
+  but the editor tab for `en-GB` then opens pre-filled with the `en-US` text.
+  Same behaviour as `Multilang.get_raw_language_data/2`; revisit if a host
+  runs that configuration.
+- The "any language" last resort picks the first language by code order —
+  deterministic, not meaningful.

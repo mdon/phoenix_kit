@@ -58,8 +58,8 @@ Original file uploads with metadata
 - height (integer, nullable) - Image/video height in pixels
 - duration (integer, nullable) - Video duration in seconds
 - status (string, required) - "processing", "active", "failed"
-- metadata (jsonb, nullable) - EXIF, codec info, etc.; also the primary-language "title", "alt", "description"
-- data (jsonb, default {}) - translations of title / alt / description (multilang structure, V199)
+- metadata (jsonb, nullable) - EXIF, codec info, etc.
+- data (jsonb, default {}) - title / alt / description per language (V199)
 - user_uuid (uuid_v7, FK -> phoenix_kit_users.uuid)
 - inserted_at (timestamp)
 - updated_at (timestamp)
@@ -408,25 +408,34 @@ and is never cached.
 ## Title, alt text and description (translatable)
 
 A file's title, alt text and description are read and written through
-`PhoenixKit.Modules.Storage.FileDetails` — never by reaching into `metadata`
-or `data` directly:
+`PhoenixKit.Modules.Storage.FileDetails` — never by reaching into `data` or
+`metadata` directly:
 
 ```elixir
 Storage.translated_alt(file, locale)          # "" when none — never the file name
 Storage.translated_title(file, locale)        # nil when none
 Storage.translated_description(file, locale)
 
-Storage.change_file_details(file)             # the editors' form changeset
-Storage.update_file_details(file, params)     # merges into the row as it is NOW
+Storage.change_file_details(file, %{}, lang: "et")              # an editor tab's changeset
+Storage.update_file_details(file, params, lang: "et")           # replaces that language only
 ```
 
-The primary-language text stays in `metadata` (`"title"`, `"alt"`,
-`"description"`), next to rotation, tags and the EXIF/PDF keys. The
-translations live in the `data` column as the `PhoenixKit.Utils.Multilang`
-structure (`"_title"`, `"_alt"`, `"_description"` per language); a language
-with no translation of its own falls back to the primary text. `metadata`
-cannot hold that structure itself — it takes over the map it is written to,
-and `metadata["rotation"]` is read at the top level.
+The text lives in the `data` column, one entry per language:
+`%{"en-US" => %{"title" => …, "alt" => …}, "et" => %{…}}`. Every language
+holds its own text and **none is marked as primary**, so changing the site's
+primary language converts nothing. Each field resolves when it is read: the
+language asked for (or a dialect of it) → the site's current primary language
+→ any other language. Resolving many files? Pass `primary:` once instead of
+letting every call read the setting.
+
+This is deliberately not the `PhoenixKit.Utils.Multilang` structure (diffs
+against an embedded primary): for three fields it buys nothing and ties the
+stored text to a setting that can change.
+
+A file saved before V199 has its title and description in `metadata`; while
+its `data` is empty that text is read as the primary language's, and the
+first save moves it into `data`. After that `metadata` only receives a copy
+of the primary-language text, for the readers that still look there.
 
 ## Editing images
 

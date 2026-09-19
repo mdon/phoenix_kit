@@ -204,8 +204,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   #
   # V199 (2026-09-19, media file translations) DECLARES one object here by
   # hand, the V196 class: `column:phoenix_kit_files.data` (jsonb NOT NULL
-  # DEFAULT '{}'), the multilang structure for a file's translatable title,
-  # alt text and description. Shape read from a test database migrated
+  # DEFAULT '{}'), a file's title, alt text and description per language. Shape read from a test database migrated
   # through V199 (`information_schema.columns`), not typed from the
   # migration; `pos` continues the table's append order after V195's 27.
   # `chain_hash` restamped over the shipped file set. `verify.exs --scenario
@@ -429,7 +428,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "31e400e29da62d2f4b2f109662ed7563d97c34d81f477aa55363eb4c95d30134"
+  @chain_hash "00b93454483451d0304cd5d8f7f7cf663075195b4dbafa9aec7271f3dfcc0ba3"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)

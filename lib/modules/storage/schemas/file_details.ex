@@ -1,21 +1,25 @@
 defmodule PhoenixKit.Modules.Storage.FileDetails do
   @moduledoc """
-  A media file's translatable details: title, alt text and description.
+  A media file's translatable details — title, alt text and description —
+  **in one language**.
 
-  Not a table. The three live on the file row in two places, and this module
-  is the one read and write path for both:
+  Not a table. The text lives on the file row's `data` column (V199), and
+  this module is the one read and write path for it:
 
-    * the **primary-language** text sits in `metadata` under `"title"`,
-      `"alt"` and `"description"` — where the media UI has always kept the
-      title and description, next to rotation, tags and the EXIF/PDF keys
-    * the **translations** sit in the `data` column (V199) as the
-      `PhoenixKit.Utils.Multilang` structure, keyed `"_title"`, `"_alt"`,
-      `"_description"` per language. Its primary-language entry is a copy of
-      the `metadata` text, refreshed on every save
+      %{
+        "en-US" => %{"title" => "Harbour", "alt" => "Boats in a harbour"},
+        "et" => %{"title" => "Sadam"}
+      }
 
-  `metadata` cannot hold the multilang structure itself: the structure takes
-  over the map it is written to, and `metadata["rotation"]` and friends are
-  read at the top level.
+  Every language holds its own text, independently. **No language is marked
+  as the primary one in the data**, so a site that changes its primary
+  language has nothing to convert: which text stands in for a missing
+  translation is decided when it is read.
+
+  This is deliberately not the `PhoenixKit.Utils.Multilang` structure, which
+  stores every other language as a diff against an embedded primary. That
+  pays off for a record with dozens of fields; for three it buys nothing and
+  ties the stored text to a setting that can change.
 
   ## Reading
 
@@ -23,35 +27,44 @@ defmodule PhoenixKit.Modules.Storage.FileDetails do
       FileDetails.translated_title(file, "et")    # nil when there is none
       FileDetails.for_locale(file, "et")          # all three
 
-  A language with no translation of its own falls back to the primary
-  text. The alt text never falls back to the file name: a file name read
-  aloud helps nobody, and `alt=""` correctly marks the image as undescribed.
+  Each field resolves on its own: the language asked for (or a dialect of
+  it) → the site's current primary language → any other language. The alt
+  text never falls back to the file name: a file name read aloud helps
+  nobody, and `alt=""` correctly marks the image as undescribed.
+
+  The site's primary language is read from `PhoenixKit.Utils.Multilang`; a
+  caller resolving many files passes it once as `primary:`.
+
+  ## Files from before V199
+
+  They hold a title and description in `metadata`, in no recorded language.
+  While a file's `data` is empty that text is its primary-language text. The
+  first save moves it into `data`; from then on `data` is the truth, and
+  `metadata` only receives a copy of the primary-language text for the
+  readers that still look there (the PDF processor's fill-if-missing title,
+  the viewer's stored title).
 
   ## Writing
 
-  The struct is the form's data — it has the shape
-  `PhoenixKitWeb.Components.MultilangForm` expects (the primary text as
-  fields, the translations in `:data`):
+  A save replaces one language's text and nothing else:
 
-      changeset = Storage.change_file_details(file)
-      Storage.update_file_details(file, params)
+      Storage.update_file_details(file, %{"title" => "Sadam"}, lang: "et")
   """
 
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Modules.Storage.File
   alias PhoenixKit.Utils.Multilang
 
   @fields ~w(title alt description)
-  @max_length %{"title" => 255, "alt" => 500, "description" => 5000}
-  @primary_language_key "_primary_language"
+  @field_atoms Enum.map(@fields, &String.to_atom/1)
 
   @type t :: %__MODULE__{
           title: String.t() | nil,
           alt: String.t() | nil,
-          description: String.t() | nil,
-          data: map()
+          description: String.t() | nil
         }
 
   @primary_key false
@@ -59,180 +72,212 @@ defmodule PhoenixKit.Modules.Storage.FileDetails do
     field :title, :string
     field :alt, :string
     field :description, :string
-    field :data, :map, default: %{}
   end
 
-  @doc "The translatable field names, as `MultilangForm.merge_translatable_params/4` takes them."
+  @doc "The translatable field names."
   @spec fields() :: [String.t()]
   def fields, do: @fields
 
-  @doc "The details a file row currently holds."
-  @spec from_file(File.t()) :: t()
-  def from_file(%File{} = file) do
-    metadata = file.metadata || %{}
+  @doc """
+  The text `file` holds in `lang` itself — no fallback to another language,
+  so an editor's tab shows what that language really has.
 
-    %__MODULE__{
-      title: text(metadata["title"]),
-      alt: text(metadata["alt"]),
-      description: text(metadata["description"]),
-      data: file.data || %{}
-    }
+  Options: `:primary` — the site's primary language (default: the current
+  one).
+  """
+  @spec from_file(File.t(), String.t() | nil, keyword()) :: t()
+  def from_file(%File{} = file, lang \\ nil, opts \\ []) do
+    primary = primary(opts)
+    struct(__MODULE__, atomize(own_text(file, lang || primary, primary)))
   end
 
   @doc """
-  Changeset for the details form. `attrs` holds the primary text under
-  `"title"`, `"alt"` and `"description"`, and optionally the multilang
-  `"data"`. A key that is absent keeps its current value.
+  Changeset for one language's text. `attrs` holds `"title"`, `"alt"` and
+  `"description"`; a key that is absent keeps its current value.
   """
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(%__MODULE__{} = details, attrs) do
     details
-    |> cast(attrs, [:title, :alt, :description, :data])
+    |> cast(attrs, @field_atoms)
     |> update_change(:title, &clean/1)
     |> update_change(:alt, &clean/1)
     |> update_change(:description, &clean/1)
-    |> validate_length(:title, max: @max_length["title"])
-    |> validate_length(:alt, max: @max_length["alt"])
-    |> validate_length(:description, max: @max_length["description"])
-    |> update_change(:data, &sanitize_data/1)
-    |> validate_translation_lengths()
-    |> sync_primary_entry()
+    |> validate_length(:title, max: 255)
+    |> validate_length(:alt, max: 500)
+    |> validate_length(:description, max: 5000)
   end
 
   @doc """
-  The `File.details_changeset/2` attrs that store `details` on `file`.
-  The three text keys are merged into the file's current `metadata`; every
-  other key there is kept. A cleared field is stored as `""`, not removed —
-  the PDF processor fills a *missing* `"title"` from the document, and a
-  title the user cleared must stay cleared.
-  """
-  @spec file_attrs(File.t(), t()) :: %{metadata: map(), data: map()}
-  def file_attrs(%File{} = file, %__MODULE__{} = details) do
-    metadata =
-      Enum.reduce(@fields, file.metadata || %{}, fn field, acc ->
-        Map.put(acc, field, Map.fetch!(details, String.to_existing_atom(field)) || "")
-      end)
+  The `File.details_changeset/2` attrs that store `details` as `file`'s text
+  in `lang`.
 
-    %{metadata: metadata, data: details.data || %{}}
+  Only that language's entry in `data` changes (an entry left with no text
+  is removed). A file from before V199 first gets its `metadata` text moved
+  into `data` under the primary language. When `lang` is the primary
+  language, `metadata` receives a copy — a cleared field as `""`, not
+  removed: the PDF processor fills a *missing* `"title"` from the document,
+  and a title the user cleared must stay cleared.
+  """
+  @spec file_attrs(File.t(), t(), String.t() | nil, keyword()) :: %{
+          metadata: map(),
+          data: map()
+        }
+  def file_attrs(%File{} = file, %__MODULE__{} = details, lang \\ nil, opts \\ []) do
+    primary = primary(opts)
+    lang = lang || primary
+    entry = details |> Map.take(@field_atoms) |> stringify()
+
+    data =
+      file
+      |> adopt_legacy_text(primary)
+      |> drop_entry(lang)
+      |> put_entry(lang, entry)
+
+    metadata =
+      if same_language?(lang, primary),
+        do: mirror(file.metadata || %{}, entry),
+        else: file.metadata || %{}
+
+    %{metadata: metadata, data: data}
   end
 
   # ── Reading ───────────────────────────────────────────────────
 
   @doc """
-  One detail of `file` in `locale`: the language's own translation, else the
-  primary-language text, else `nil`. A `nil` locale reads the primary text.
+  One detail of `file` in `locale`: that language's text, else the primary
+  language's, else any language's, else `nil`. A `nil` locale reads the
+  primary language.
+
+  Options: `:primary` — the site's primary language (default: the current
+  one).
   """
-  @spec translated(File.t(), String.t(), String.t() | nil) :: String.t() | nil
-  def translated(%File{} = file, field, locale) when field in @fields do
-    translation(file.data, field, locale) || text((file.metadata || %{})[field])
+  @spec translated(File.t(), String.t(), String.t() | nil, keyword()) :: String.t() | nil
+  def translated(%File{} = file, field, locale \\ nil, opts \\ []) when field in @fields do
+    primary = primary(opts)
+
+    own_text(file, locale || primary, primary)[field] ||
+      own_text(file, primary, primary)[field] ||
+      any_language(file, field)
   end
 
   @doc "The title in `locale`, or `nil`."
-  @spec translated_title(File.t(), String.t() | nil) :: String.t() | nil
-  def translated_title(file, locale \\ nil), do: translated(file, "title", locale)
+  @spec translated_title(File.t(), String.t() | nil, keyword()) :: String.t() | nil
+  def translated_title(file, locale \\ nil, opts \\ []),
+    do: translated(file, "title", locale, opts)
 
   @doc "The description in `locale`, or `nil`."
-  @spec translated_description(File.t(), String.t() | nil) :: String.t() | nil
-  def translated_description(file, locale \\ nil), do: translated(file, "description", locale)
+  @spec translated_description(File.t(), String.t() | nil, keyword()) :: String.t() | nil
+  def translated_description(file, locale \\ nil, opts \\ []),
+    do: translated(file, "description", locale, opts)
 
   @doc """
   The alt text in `locale`, ready for an `alt` attribute: `""` when the file
   has none. Never the file name.
   """
-  @spec translated_alt(File.t(), String.t() | nil) :: String.t()
-  def translated_alt(file, locale \\ nil), do: translated(file, "alt", locale) || ""
+  @spec translated_alt(File.t(), String.t() | nil, keyword()) :: String.t()
+  def translated_alt(file, locale \\ nil, opts \\ []),
+    do: translated(file, "alt", locale, opts) || ""
 
   @doc "All three details of `file` in `locale`."
-  @spec for_locale(File.t(), String.t() | nil) :: %{
+  @spec for_locale(File.t(), String.t() | nil, keyword()) :: %{
           title: String.t() | nil,
           alt: String.t(),
           description: String.t() | nil
         }
-  def for_locale(%File{} = file, locale \\ nil) do
+  def for_locale(%File{} = file, locale \\ nil, opts \\ []) do
+    opts = Keyword.put_new_lazy(opts, :primary, &Multilang.primary_language/0)
+
     %{
-      title: translated_title(file, locale),
-      alt: translated_alt(file, locale),
-      description: translated_description(file, locale)
+      title: translated_title(file, locale, opts),
+      alt: translated_alt(file, locale, opts),
+      description: translated_description(file, locale, opts)
     }
   end
 
-  defp translation(_data, _field, nil), do: nil
+  # ── Internals ─────────────────────────────────────────────────
 
-  defp translation(data, field, locale) when is_binary(locale) do
-    if Multilang.multilang_data?(data) do
-      data |> Multilang.get_raw_language_data(locale) |> Map.get("_" <> field) |> text()
-    end
+  defp primary(opts), do: Keyword.get_lazy(opts, :primary, &Multilang.primary_language/0)
+
+  # The non-blank text the file holds in `lang` itself, string-keyed.
+  defp own_text(%File{} = file, lang, primary) do
+    data = languages(file.data)
+
+    entry =
+      cond do
+        map_size(data) > 0 -> find_entry(data, lang)
+        same_language?(lang, primary) -> file.metadata || %{}
+        true -> %{}
+      end
+
+    for field <- @fields, value = text(entry[field]), into: %{}, do: {field, value}
   end
 
-  defp translation(_data, _field, _locale), do: nil
-
-  # ── Changeset internals ───────────────────────────────────────
-
-  # Only what this module owns survives: the primary-language marker, and
-  # per language the three `_`-prefixed keys as cleaned, non-blank strings.
-  # The map arrives from a form, so anything else in it is not ours to store.
-  defp sanitize_data(data) when is_map(data) do
-    Enum.reduce(data, %{}, fn
-      {@primary_language_key, lang}, acc when is_binary(lang) ->
-        Map.put(acc, @primary_language_key, clean(lang))
-
-      {lang, %{} = entry}, acc when is_binary(lang) ->
-        Map.put(acc, clean(lang), sanitize_entry(entry))
-
-      _other, acc ->
-        acc
-    end)
+  defp any_language(%File{} = file, field) do
+    file.data
+    |> languages()
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.find_value(fn {_lang, entry} -> text(entry[field]) end)
   end
 
-  defp sanitize_data(_), do: %{}
-
-  defp sanitize_entry(entry) do
-    for field <- @fields,
-        value = text(entry["_" <> field]),
-        into: %{},
-        do: {"_" <> field, value}
+  # Only language entries: a map under a string key.
+  defp languages(data) when is_map(data) do
+    for {lang, %{} = entry} <- data, is_binary(lang), into: %{}, do: {lang, entry}
   end
 
-  defp validate_translation_lengths(changeset) do
-    too_long? =
-      changeset
-      |> get_field(:data)
-      |> Kernel.||(%{})
-      |> Enum.any?(fn
-        {_lang, %{} = entry} ->
-          Enum.any?(@fields, fn field ->
-            String.length(entry["_" <> field] || "") > @max_length[field]
-          end)
+  defp languages(_), do: %{}
 
-        _ ->
-          false
+  # Language codes differ per host and over time: the Languages module may
+  # register bare base codes ("en") while the locale pipeline resolves URLs
+  # to full dialects ("en-US") — or the reverse. An exact miss falls back to
+  # the base code, then to the first stored entry sharing the base.
+  defp find_entry(data, lang) do
+    base = DialectMapper.extract_base(lang)
+
+    data[lang] || data[base] ||
+      data
+      |> Enum.sort_by(&elem(&1, 0))
+      |> Enum.find_value(%{}, fn {key, entry} ->
+        if DialectMapper.extract_base(key) == base, do: entry
       end)
-
-    if too_long?,
-      do: add_error(changeset, :data, "a translation is too long"),
-      else: changeset
   end
 
-  # The multilang structure's primary entry is a copy of the primary text;
-  # a save made with multilang off (no "data" in the params) would otherwise
-  # leave it stale, and the primary language would read the old text back.
-  defp sync_primary_entry(changeset) do
-    data = get_field(changeset, :data) || %{}
+  defp adopt_legacy_text(%File{} = file, primary) do
+    data = languages(file.data)
 
-    case data do
-      %{@primary_language_key => primary} when is_binary(primary) ->
-        entry =
-          for field <- @fields,
-              value = text(get_field(changeset, String.to_existing_atom(field))),
-              into: %{},
-              do: {"_" <> field, value}
-
-        put_change(changeset, :data, Map.put(data, primary, entry))
-
-      _ ->
-        changeset
-    end
+    if map_size(data) == 0,
+      do: put_entry(data, primary, own_text(file, primary, primary)),
+      else: data
   end
+
+  # Removes the entry `lang` is about to replace — also when it sits under
+  # the same language at a different precision ("en" while writing "en-US"),
+  # where it would shadow or outlive the fresh write. A genuinely distinct
+  # dialect ("en-GB" while writing "en-US") is another language and stays.
+  defp drop_entry(data, lang) do
+    Map.reject(data, fn {key, _entry} -> same_language?(key, lang) end)
+  end
+
+  defp put_entry(data, lang, entry) do
+    entry = for {field, value} <- entry, text = text(value), into: %{}, do: {field, text}
+    if map_size(entry) == 0, do: data, else: Map.put(data, lang, entry)
+  end
+
+  defp mirror(metadata, entry) do
+    Enum.reduce(@fields, metadata, fn field, acc -> Map.put(acc, field, entry[field] || "") end)
+  end
+
+  # Identical codes, or one is the bare base form of the other.
+  defp same_language?(a, b) when is_binary(a) and is_binary(b) do
+    a == b or a == DialectMapper.extract_base(b) or b == DialectMapper.extract_base(a)
+  end
+
+  defp same_language?(_, _), do: false
+
+  defp atomize(entry),
+    do: Map.new(entry, fn {field, value} -> {String.to_existing_atom(field), value} end)
+
+  defp stringify(entry),
+    do: Map.new(entry, fn {field, value} -> {Atom.to_string(field), value} end)
 
   # Postgres rejects null bytes in text and jsonb.
   defp clean(value) when is_binary(value),

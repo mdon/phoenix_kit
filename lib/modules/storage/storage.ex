@@ -2339,26 +2339,35 @@ defmodule PhoenixKit.Modules.Storage do
   # ===== TRANSLATABLE DETAILS (title, alt text, description) =====
 
   @doc """
-  Returns a changeset for a file's translatable details — the form data of
-  the media editors. See `PhoenixKit.Modules.Storage.FileDetails`.
+  Returns a changeset for a file's title, alt text and description in one
+  language — the form data of the media editors. See
+  `PhoenixKit.Modules.Storage.FileDetails`.
+
+  ## Options
+
+    - `:lang` - the language the text is in (default: the primary language)
+    - `:primary` - the site's primary language (default: the current one)
   """
-  def change_file_details(%PhoenixKit.Modules.Storage.File{} = file, attrs \\ %{}) do
-    file |> FileDetails.from_file() |> FileDetails.changeset(attrs)
+  def change_file_details(%PhoenixKit.Modules.Storage.File{} = file, attrs \\ %{}, opts \\ []) do
+    file |> FileDetails.from_file(opts[:lang], opts) |> FileDetails.changeset(attrs)
   end
 
   @doc """
-  Saves a file's title, alt text and description, and their translations.
+  Saves a file's title, alt text and description in one language.
 
-  `attrs` holds the primary-language text under `"title"`, `"alt"` and
-  `"description"`, and optionally the multilang `"data"`; an absent key keeps
-  its current value. The text is merged into the row's `metadata` as it is
-  NOW — the row is re-read and held for the write — so a rotation or a tag
-  saved since `file` was loaded survives.
+  `attrs` holds `"title"`, `"alt"` and `"description"`; an absent key keeps
+  its current value. The row is re-read and held for the write, and only
+  that language's text changes — so another language saved at the same
+  time, or a rotation or tag saved since `file` was loaded, survives.
 
-  Returns `{:ok, file}`, `{:error, changeset}` (a `FileDetails` changeset,
-  for the form) or `{:error, :not_found}`.
+  Takes the options of `change_file_details/3`. Returns `{:ok, file}`,
+  `{:error, changeset}` (a `FileDetails` changeset, for the form) or
+  `{:error, :not_found}`.
   """
-  def update_file_details(%PhoenixKit.Modules.Storage.File{uuid: uuid}, attrs) do
+  def update_file_details(%PhoenixKit.Modules.Storage.File{uuid: uuid}, attrs, opts \\ []) do
+    # Resolved once, outside the transaction: the default is a settings read.
+    opts = Keyword.put_new_lazy(opts, :primary, &PhoenixKit.Utils.Multilang.primary_language/0)
+
     repo().transaction(fn ->
       row =
         from(f in PhoenixKit.Modules.Storage.File, where: f.uuid == ^uuid, lock: "FOR UPDATE")
@@ -2367,13 +2376,13 @@ defmodule PhoenixKit.Modules.Storage do
       with %PhoenixKit.Modules.Storage.File{} <- row,
            {:ok, details} <-
              row
-             |> FileDetails.from_file()
+             |> FileDetails.from_file(opts[:lang], opts)
              |> FileDetails.changeset(attrs)
              |> Ecto.Changeset.apply_action(:update),
            {:ok, updated} <-
              row
              |> PhoenixKit.Modules.Storage.File.details_changeset(
-               FileDetails.file_attrs(row, details)
+               FileDetails.file_attrs(row, details, opts[:lang], opts)
              )
              |> repo().update() do
         updated
@@ -2384,14 +2393,14 @@ defmodule PhoenixKit.Modules.Storage do
     end)
   end
 
-  @doc "A file's title in `locale` (primary-language text when untranslated), or `nil`."
-  defdelegate translated_title(file, locale \\ nil), to: FileDetails
+  @doc "A file's title in `locale` — else the primary language's, else any — or `nil`."
+  defdelegate translated_title(file, locale \\ nil, opts \\ []), to: FileDetails
 
   @doc "A file's alt text in `locale`, ready for an `alt` attribute — `\"\"` when it has none."
-  defdelegate translated_alt(file, locale \\ nil), to: FileDetails
+  defdelegate translated_alt(file, locale \\ nil, opts \\ []), to: FileDetails
 
-  @doc "A file's description in `locale` (primary-language text when untranslated), or `nil`."
-  defdelegate translated_description(file, locale \\ nil), to: FileDetails
+  @doc "A file's description in `locale` — else the primary language's, else any — or `nil`."
+  defdelegate translated_description(file, locale \\ nil, opts \\ []), to: FileDetails
 
   # ===== ORPHAN DETECTION =====
 

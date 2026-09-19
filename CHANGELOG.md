@@ -2,17 +2,20 @@
 
 ### Added
 
-- **Media files can carry a translated title, alt text and description**
+- **Media files can carry a title, alt text and description per language**
   (groundwork — the editors and the language switcher follow). V199 adds a
-  `data` column to `phoenix_kit_files` holding the multilang structure; the
-  primary-language text stays in `metadata`, and a file gains an `alt` text,
-  which it never had. `PhoenixKit.Modules.Storage.FileDetails` is the one
-  read and write path: `Storage.translated_title/2`, `translated_alt/2`
+  `data` column to `phoenix_kit_files`; a file also gains an `alt` text,
+  which it never had. Every language holds its own text and none is marked
+  as primary, so changing the site's primary language converts nothing: each
+  field resolves when it is read — the language asked for, then the current
+  primary language, then any. `PhoenixKit.Modules.Storage.FileDetails` is the
+  one read and write path: `Storage.translated_title/3`, `translated_alt/3`
   (`""` when there is none — never the file name) and
-  `translated_description/2` fall back to the primary text for a language
-  with no translation of its own, and `Storage.update_file_details/2` merges
-  into the row as it is now, so a rotation or tag saved in the meantime
-  survives. Plan: `dev_docs/plans/2026-09-19-media-translations.md`.
+  `translated_description/3`; `Storage.update_file_details/3` re-reads the
+  row and replaces one language's text only, so another language, a rotation
+  or a tag saved in the meantime survives. The `metadata` title and
+  description of a file saved earlier are read as its primary-language text
+  — no backfill. Plan: `dev_docs/plans/2026-09-19-media-translations.md`.
 
 Fixes from the 2026-09-19 weekly review
 (`dev_docs/pull_requests/2026/weekly-2026-09-19/CLAUDE_REVIEW.md`).

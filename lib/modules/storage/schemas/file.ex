@@ -33,9 +33,8 @@ defmodule PhoenixKit.Modules.Storage.File do
   - `height` - Image/video height in pixels (nullable)
   - `duration` - Video duration in seconds (nullable)
   - `status` - Processing status
-  - `metadata` - JSONB with EXIF, codec info, etc. Also holds the
-    primary-language `"title"`, `"alt"` and `"description"`
-  - `data` - JSONB multilang structure with the translations of those three
+  - `metadata` - JSONB with EXIF, codec info, etc.
+  - `data` - JSONB with the title, alt text and description per language
     (V199). Read and written through `PhoenixKit.Modules.Storage.FileDetails`
   - `user_uuid` - Owner of the file
 
@@ -143,9 +142,9 @@ defmodule PhoenixKit.Modules.Storage.File do
     field :trashed_at, :utc_datetime
     field :metadata, :map
 
-    # Translations of the title, alt text and description (V199): the
-    # `PhoenixKit.Utils.Multilang` structure. The primary-language text stays
-    # in `metadata`; `PhoenixKit.Modules.Storage.FileDetails` owns both.
+    # The title, alt text and description per language (V199) —
+    # `%{"en-US" => %{"title" => …, "alt" => …}, "et" => %{…}}`. Owned by
+    # `PhoenixKit.Modules.Storage.FileDetails`; read it through that.
     field :data, :map, default: %{}
 
     # `true` for internally-generated media (e.g. Tessera DZI tile pyramids
@@ -284,8 +283,8 @@ defmodule PhoenixKit.Modules.Storage.File do
 
   @doc """
   Changeset for a file's translatable details: nothing but `metadata` and
-  `data`, as `PhoenixKit.Modules.Storage.FileDetails.file_attrs/2` builds
-  them. Use `PhoenixKit.Modules.Storage.update_file_details/2`, which holds
+  `data`, as `PhoenixKit.Modules.Storage.FileDetails.file_attrs/4` builds
+  them. Use `PhoenixKit.Modules.Storage.update_file_details/3`, which holds
   the row while it merges.
   """
   def details_changeset(file, attrs) do

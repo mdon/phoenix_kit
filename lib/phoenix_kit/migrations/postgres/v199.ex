@@ -1,20 +1,20 @@
 defmodule PhoenixKit.Migrations.Postgres.V199 do
   @moduledoc """
-  V199: translations of a media file's title, alt text and description.
+  V199: a media file's title, alt text and description, per language.
 
-  A file's title and description live in its `metadata` map, next to
-  rotation, tags and the EXIF/PDF keys that are read at the top level — so
-  the multilang structure, which takes over the whole map it is written to,
-  cannot go there. This version adds a column of its own on
+  A file's title and description lived in its `metadata` map, in whatever
+  language the admin typed, next to rotation, tags and the EXIF/PDF keys;
+  it had no alt text at all. This version adds a column of their own on
   `phoenix_kit_files`:
 
-    * `data` (jsonb, NOT NULL, default `{}`) — the
-      `PhoenixKit.Utils.Multilang` structure for the file's translatable
-      details (`_title`, `_alt`, `_description` per language)
+    * `data` (jsonb, NOT NULL, default `{}`) — the text per language,
+      `%{"en-US" => %{"title" => …, "alt" => …, "description" => …}}`
 
-  The primary-language text stays in `metadata`, where every existing reader
-  finds it; `PhoenixKit.Modules.Storage.FileDetails` is the read and write
-  path for both.
+  Every language holds its own text and none is marked as primary, so a
+  site that changes its primary language has nothing to convert.
+  `PhoenixKit.Modules.Storage.FileDetails` is the read and write path; it
+  reads the `metadata` text of a file saved before this version as its
+  primary-language text, so nothing is backfilled.
 
   Additive only; re-runnable.
   """
@@ -25,7 +25,7 @@ defmodule PhoenixKit.Migrations.Postgres.V199 do
     opts |> Map.get(:prefix, "public") |> up_statements() |> Enum.each(&execute/1)
   end
 
-  @doc "Rolls V199 back: drops the column. Translations are lost; the primary-language text in `metadata` stays."
+  @doc "Rolls V199 back: drops the column. Translations are lost; the copy of the primary-language text in `metadata` stays."
   def down(opts) do
     opts |> Map.get(:prefix, "public") |> down_statements() |> Enum.each(&execute/1)
   end
