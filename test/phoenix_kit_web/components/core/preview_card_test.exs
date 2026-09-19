@@ -95,6 +95,17 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCardTest do
       assert html =~ "pdf"
       assert html =~ "txt"
     end
+
+    test "no media at all renders the placeholder, not a collapsed card" do
+      html = render_card(%{images: [], files: []})
+
+      assert html =~ "hero-photo"
+      assert html =~ "No images"
+    end
+
+    test "one image renders no placeholder" do
+      refute render_card(%{images: [%{uuid: "only", name: "x.jpg"}]}) =~ "No images"
+    end
   end
 
   describe "fields" do
