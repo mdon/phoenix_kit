@@ -247,7 +247,11 @@ defmodule PhoenixKit.MixProject do
       # tools (0.14.0). 0.15 is where a thickness stopped meaning document
       # pixels and started meaning a weight against the canvas, so an older
       # Etcher renders a host's saved line params at a different weight on
-      # every image — a floor, not a preference. An older Etcher compiles
+      # every image — a floor, not a preference. 0.16 adds `tooltip_dock`,
+      # which the media viewer passes as `:panel` to move a shape's actions
+      # off the picture and into the style panel: on an older Etcher that
+      # attr does not exist, so the tooltips land back over the drawing.
+      # An older Etcher compiles
       # with an undeclared-attr warning and silently drops them — and a host
       # whose lock already holds an older etcher keeps it through
       # `mix deps.update phoenix_kit` if the floor still admits it. Raise the
@@ -258,7 +262,7 @@ defmodule PhoenixKit.MixProject do
       # quietly stand down on older — hence the new fresco alternative.
       {:fresco, "~> 0.10.0 or ~> 0.11.0 or ~> 0.12.0"},
       {:tessera, "~> 0.3.0"},
-      {:etcher, "~> 0.15.0"},
+      {:etcher, "~> 0.16.0"},
 
       # QR device-handoff login ("scan to sign in" on the login page).
       #
