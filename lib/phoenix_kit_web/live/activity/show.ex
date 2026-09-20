@@ -43,6 +43,13 @@ defmodule PhoenixKitWeb.Live.Activity.Show do
           |> assign(:page_title, gettext("Activity Detail"))
           |> assign(:project_title, project_title)
           |> assign(:entry, entry)
+          |> then(fn socket ->
+            {changes, rest} = Activity.split_changes(entry.metadata)
+
+            socket
+            |> assign(:changes, changes)
+            |> assign(:rest_metadata, rest)
+          end)
           |> assign(:resource_user, resource_user)
           |> assign(:resource_link, links[{entry.resource_type, entry.resource_uuid}])
           |> assign(:actor_link, links[{"user", entry.actor_uuid}])

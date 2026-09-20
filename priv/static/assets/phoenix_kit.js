@@ -2638,6 +2638,26 @@ if (typeof window.Chart === "undefined") {
   //   data-bulk-show="no-selection"         inverse: shown only when count
   //                                         is 0.
   //
+  //   data-bulk-swap="<css-selector>"       on the ROOT: an element OUTSIDE
+  //                                         this scope, hidden while the
+  //                                         scope holds a selection. For the
+  //                                         page toolbar that sits ABOVE a
+  //                                         list — a `data-bulk-show` inside
+  //                                         the scope cannot reach it, and
+  //                                         revealing the action bar without
+  //                                         hiding something pushes every row
+  //                                         DOWN, so the next click lands on
+  //                                         the wrong checkbox (boss via Max,
+  //                                         2026-09-20: measured at 52px, more
+  //                                         than a row). The bar takes the
+  //                                         toolbar's place instead, and the
+  //                                         rows do not move. Several scopes
+  //                                         on one page may name the same
+  //                                         toolbar: it stays hidden while ANY
+  //                                         of them has a selection, which is
+  //                                         why this restores by re-asking the
+  //                                         others rather than by remembering.
+  //
   //   data-bulk-text-template="…%{count}…"  element's textContent is
   //                                         re-rendered from the template
   //                                         each time the count changes
@@ -2650,6 +2670,41 @@ if (typeof window.Chart === "undefined") {
   // ---------------------------------------------------------------------------
 
   window.PhoenixKitHooks.BulkSelectScope = {
+    // Hides the toolbar this scope replaces while it holds a selection.
+    //
+    // A page can carry several scopes (the catalogue's categories AND its
+    // items) over ONE toolbar, so "should it be hidden" is asked of every
+    // scope naming it, not remembered here: restoring from a private flag
+    // would un-hide the toolbar the moment one list cleared, while the
+    // other still had rows selected and its action bar on screen.
+    _syncSwap(count) {
+      const selector = this.el.dataset.bulkSwap;
+      if (!selector) return;
+
+      let target;
+      try {
+        target = document.querySelector(selector);
+      } catch (_e) {
+        return; // a malformed selector must not take the page down
+      }
+      if (!target) return;
+
+      const claimed = Array.prototype.some.call(
+        document.querySelectorAll("[data-bulk-swap]"),
+        function (scope) {
+          if (scope.dataset.bulkSwap !== selector) return false;
+          // The scope's own live count, read off the DOM rather than from
+          // another hook's private state — this runs for every scope and
+          // must not depend on their update order.
+          return Array.prototype.some.call(
+            scope.querySelectorAll('[data-bulk-role="row"]'),
+            function (row) { return row.checked; }
+          );
+        }
+      );
+
+      target.style.display = claimed || count > 0 ? "none" : "";
+    },
     mounted() {
       this.selected = new Set();
       this._readFromDom();
@@ -2798,6 +2853,8 @@ if (typeof window.Chart === "undefined") {
           mode === "not-single" ? count !== 1 : true;
         el.style.display = visible ? "" : "none";
       });
+
+      this._syncSwap(count);
 
       // Label flip: requires at least the `selected` variant. The
       // `empty` variant is optional — when absent, count <= 1 leaves
