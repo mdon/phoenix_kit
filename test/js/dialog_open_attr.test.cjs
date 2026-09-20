@@ -196,6 +196,37 @@ test("a stacked child relays instead of pushing the parent's close", () => {
   assert.equal(childClosed, true);
 });
 
+test("a child that already pushed its own close is not pushed again by the parent", () => {
+  // Chromium fires `cancel` on every dialog in a grouped chain. When the
+  // child's handler runs first it pushes and stamps; the parent relaying the
+  // same close would double-fire a non-idempotent event (a toggle).
+  const child = {
+    open: true,
+    matches: (s) => s === ":modal",
+    dataset: { closeEvent: "child_close" },
+    attributes: [],
+    close: () => {},
+    _pkStackClosePushedAt: Date.now(),
+  };
+  const d = mountDialog({ children: [child] });
+  d.cancel(cancelEvent());
+  assert.deepEqual(d.pushed, [], "the child's own push stands");
+});
+
+test("a stale stamp on a child does not swallow its close", () => {
+  const child = {
+    open: true,
+    matches: (s) => s === ":modal",
+    dataset: { closeEvent: "child_close" },
+    attributes: [],
+    close: () => {},
+    _pkStackClosePushedAt: Date.now() - 5000,
+  };
+  const d = mountDialog({ children: [child] });
+  d.cancel(cancelEvent());
+  assert.deepEqual(d.pushed, ["child_close"]);
+});
+
 test("a backdrop close still pushes through the close event", () => {
   const d = mountDialog();
   d.close();

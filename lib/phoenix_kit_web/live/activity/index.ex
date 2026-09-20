@@ -294,7 +294,7 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
 
     summary =
       Enum.map_join(shown, ", ", fn {field, change} ->
-        "#{Activity.humanize_metadata_key(field)} #{Activity.humanize_metadata_value(change)}"
+        "#{Activity.humanize_metadata_key(field)} #{summarize_change(change)}"
       end)
 
     # Only the change. The row's identity is already the Subject column —
@@ -306,6 +306,12 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
     |> Enum.reject(&(&1 in [nil, ""]))
     |> Enum.join(" · ")
   end
+
+  # The flag shape carries no value, only the word — translated here for the
+  # same reason the detail page does it: `Activity` has no Gettext backend,
+  # and its own "changed" would reach every locale in English.
+  defp summarize_change(%{"changed" => true}), do: gettext("changed")
+  defp summarize_change(change), do: Activity.humanize_metadata_value(change)
 
   defp more_label(count) when count > 0, do: "+#{count}"
   defp more_label(_count), do: nil

@@ -2122,6 +2122,19 @@ if (typeof window.Chart === "undefined") {
         // picture will actually occupy, and the rotation then lands it
         // square in the column. The flex centring keeps it centred, and
         // the rotation turns about its own centre.
+        //
+        // Shown FIRST, measured second: the stand-in rests at
+        // `display:none`, and a frame inside a hidden element measures
+        // 0 × 0 — so measuring before the reveal skipped the fit on every
+        // open from the grid, which is the case this exists for. The read
+        // forces one layout and nothing paints in between. The box is
+        // cleared before it is measured, so a frame that cannot be
+        // measured falls back to the class-driven size rather than keeping
+        // the previous picture's.
+        shown.style.width = "";
+        shown.style.height = "";
+        el.style.display = "";
+
         var quarter = /rotate-(90|270)/.test(rotationClass || "");
         var frame = shown.parentNode;
         if (quarter && frame && frame.getBoundingClientRect) {
@@ -2130,11 +2143,7 @@ if (typeof window.Chart === "undefined") {
             shown.style.width = fr.height + "px";
             shown.style.height = fr.width + "px";
           }
-        } else {
-          shown.style.width = "";
-          shown.style.height = "";
         }
-        el.style.display = "";
 
         // A trigger that opens nothing — a stale uuid, a server error, a
         // connection that drops between here and there — must not leave a
@@ -3264,8 +3273,10 @@ if (typeof window.Chart === "undefined") {
     // both return early, so no `close` event fires and `_onClose` never pushes
     // the server's close event — the modal vanishes from the screen while the
     // server still believes it is open, and re-opens on the next patch. The
-    // server now renders `open` (see `modal/1`), so this is a belt-and-braces
-    // guard for any caller that builds the dialog itself.
+    // server deliberately never renders `open` (see the note in `modal/1`:
+    // showModal() throws on a dialog that already carries it), so morphdom
+    // strips the attribute on every patch and this guard is the only thing
+    // that puts it back before a close.
     _restoreOpenAttr() {
       if (!this.el.open && isDialogOpenInBrowser(this.el)) {
         this.el.setAttribute("open", "");
@@ -3382,7 +3393,15 @@ if (typeof window.Chart === "undefined") {
           // push — otherwise a non-idempotent close event (a toggle)
           // would fire twice (2026-08-31 external review).
           const closeEv = top.dataset && top.dataset.closeEvent;
-          if (closeEv) {
+          // The child's OWN cancel handler now pushes its close too (see
+          // "Escape on THIS dialog" below). When the grouped chain reaches
+          // the child before this parent, a fresh stamp says that push has
+          // already gone out — pushing again would double-fire a
+          // non-idempotent close event, the very thing the stamp guards.
+          const childPushed =
+            top._pkStackClosePushedAt &&
+            Date.now() - top._pkStackClosePushedAt < 1000;
+          if (closeEv && !childPushed) {
             // Stamped, not flagged: the child's own 'close' handler clears
             // this, but that handler is exactly what was observed not to
             // run here — a boolean would then suppress the child's NEXT

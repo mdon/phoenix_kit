@@ -1,3 +1,52 @@
+## 2.34.0 - 2026-09-20
+
+### Added
+
+- **Activity says what changed.** A module records a field diff under the
+  reserved `"changes"` metadata key (`Activity.changes_key/0`):
+  `%{"changes" => %{"sku" => %{"from" => "T-21", "to" => "T-22"}}}`. The
+  detail page leads with a "What changed" before/after table and the list's
+  Details column shows the change instead of the row's name. Legacy flat
+  `field_from` / `field_to` pairs fold into the same shape, so rows already
+  in the table read the same way. A `%{"uuid" => _, "label" => _}` reference
+  renders as its label; `%{"changed" => true}` records a long value as
+  changed without keeping either copy. New: `Activity.split_changes/1`,
+  `change_side/2`, `humanize_metadata_key/1`.
+- **`bulk_select_scope` takes `swap`** — a CSS selector for a toolbar outside
+  the scope that is hidden while the scope holds a selection, so the action
+  bar takes its place instead of pushing every row down under the pointer.
+  Several scopes may name one toolbar; it stays hidden while any has a
+  selection.
+
+### Changed
+
+- **The media viewer docks a shape's tooltip in the style panel**
+  (`tooltip_dock={:panel}`) — nothing pops up over the photograph. Needs
+  etcher 0.16, so the floor moves to `~> 0.16.0`; the CDN pins move to etcher
+  0.16.0 and fresco 0.12.2.
+
+### Fixed
+
+- **A modal dismissed with Escape or a backdrop click no longer re-opens on
+  the next patch.** Chromium dismisses a server-opened dialog without firing
+  `close`, and `close()` is a no-op once morphdom has stripped `open`; the
+  hook now pushes the close from `cancel` and restores the attribute first.
+  In a stack, a child that already pushed its own close is not pushed a
+  second time by its parent.
+- **A photo rotated a quarter turn no longer opens stretched in the instant
+  stand-in** — the element is fitted to the box it will occupy after the
+  turn. The fit is measured after the stand-in is revealed: measured while
+  hidden, the frame read 0 × 0 and the fit never ran on an open from the grid.
+- **A resource link whose title template resolves to nothing** falls back to
+  `<type> <short-uuid>` instead of rendering an empty link.
+
+### i18n
+
+- "What changed", "Before", "After" and "changed" translated in all seven
+  locales. The merge had fuzzy-matched "changed" onto the imperative
+  "Change"; rewritten by hand. The list's Details column translates the word
+  too, rather than printing the English one.
+
 ## 2.33.0 - 2026-09-20
 
 ### Added

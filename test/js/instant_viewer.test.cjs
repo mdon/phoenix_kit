@@ -71,11 +71,17 @@ function fakeEl(armed, opts) {
     // element (see the rotation test), so the stand-in needs both a style
     // object and a measurable frame to fit against.
     style: {},
-    parentNode: { getBoundingClientRect: () => ({ width: 800, height: 400 }) },
   };
   const sidebar = { style: {} };
   const box = { style: {} };
-  return {
+  // As a browser answers: a frame inside a `display:none` stand-in measures
+  // 0 × 0. A fake that always reports a size passes a hook that measures
+  // before it reveals — which fits nothing on a real page.
+  img.parentNode = {
+    getBoundingClientRect: () =>
+      root.style.display === "none" ? { width: 0, height: 0 } : { width: 800, height: 400 },
+  };
+  const root = {
     img,
     sidebar,
     box,
@@ -87,6 +93,7 @@ function fakeEl(armed, opts) {
     querySelector: (sel) =>
       sel.includes("sidebar") ? sidebar : sel.includes("modal-box") ? box : img,
   };
+  return root;
 }
 
 function cardClick(srcUrl, cls) {
@@ -128,8 +135,8 @@ test("a quarter turn is fitted to the box it will occupy, not the one it starts 
   // the box the picture will actually land in.
   const { hook, listeners } = loadHook();
   const el = fakeEl(true);
-  el.img.parentNode = { getBoundingClientRect: () => ({ width: 800, height: 400 }) };
   hook.mounted.call({ el });
+  assert.strictEqual(el.style.display, "none", "the fit starts from a hidden stand-in");
 
   listeners.document.click.fn(cardClick("/x.jpg", "rotate-90"));
   assert.strictEqual(el.img.style.width, "400px", "the element takes the column's height…");
