@@ -67,6 +67,11 @@ function fakeEl(armed, opts) {
     setAttribute: (k, v) => (img.attrs[k] = v),
     removeAttribute: (k) => delete img.attrs[k],
     dataset: { baseClass: BASE },
+    // A quarter turn is fitted by writing an explicit box onto the
+    // element (see the rotation test), so the stand-in needs both a style
+    // object and a measurable frame to fit against.
+    style: {},
+    parentNode: { getBoundingClientRect: () => ({ width: 800, height: 400 }) },
   };
   const sidebar = { style: {} };
   const box = { style: {} };
@@ -111,6 +116,40 @@ test("listens in the capture phase, ahead of the event it is racing", () => {
   hook.mounted.call({ el: fakeEl(true) });
   assert.strictEqual(listeners.document.click.capture, true,
     "a listener that waited its turn would race the thing it exists to hide");
+});
+
+test("a quarter turn is fitted to the box it will occupy, not the one it starts in", () => {
+  // `object-contain` fits the picture to the element BEFORE the
+  // transform, so rotating a wide element 90° leaves a wide picture
+  // standing on its side: far taller than the column, clipped left and
+  // right, hugely magnified. That is the "strange stretched image" a
+  // rotated photo showed for the length of the open. Sizing the element
+  // to the column's height × width first makes the fit happen against
+  // the box the picture will actually land in.
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  el.img.parentNode = { getBoundingClientRect: () => ({ width: 800, height: 400 }) };
+  hook.mounted.call({ el });
+
+  listeners.document.click.fn(cardClick("/x.jpg", "rotate-90"));
+  assert.strictEqual(el.img.style.width, "400px", "the element takes the column's height…");
+  assert.strictEqual(el.img.style.height, "800px", "…and its width, so the turn lands it square");
+
+  // A half turn needs no swap — the box is the same shape either way.
+  listeners.document.click.fn(cardClick("/y.jpg", "rotate-180"));
+  assert.strictEqual(el.img.style.width, "", "180° keeps the class-driven size");
+  assert.strictEqual(el.img.style.height, "");
+
+  // …and neither does an unrotated one.
+  listeners.document.click.fn(cardClick("/z.jpg", ""));
+  assert.strictEqual(el.img.style.width, "");
+
+  // The reset drops it, or the next open inherits a sideways frame.
+  listeners.document.click.fn(cardClick("/a.jpg", "rotate-270"));
+  assert.strictEqual(el.img.style.width, "400px");
+  listeners.window["pk:viewer-open"].fn(realViewer(true));
+  assert.strictEqual(el.img.style.width, "", "hiding clears the swapped box");
+  assert.strictEqual(el.img.style.height, "");
 });
 
 test("carries the card's rotation, so a sideways photo does not flip twice", () => {

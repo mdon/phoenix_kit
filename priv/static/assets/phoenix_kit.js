@@ -2062,7 +2062,13 @@ if (typeof window.Chart === "undefined") {
         self._stepping = false;
         el.style.display = "none";
         const img = el.querySelector("img");
-        if (img) img.removeAttribute("src");
+        if (img) {
+          img.removeAttribute("src");
+          // Drop the swapped box a rotated stand-in needed, or the next
+          // open inherits a sideways frame.
+          img.style.width = "";
+          img.style.height = "";
+        }
         // Undo the see-through state (below) so the next open starts as a
         // full stand-in again: its own backdrop, an opaque box, a visible
         // skeleton pane.
@@ -2105,6 +2111,29 @@ if (typeof window.Chart === "undefined") {
         shown.setAttribute("src", src);
         shown.className = shown.dataset.baseClass +
           " " + (rotationClass || "");
+
+        // A quarter turn needs the box turned with it. `object-contain`
+        // fits the picture to the element BEFORE the transform, so
+        // rotating a wide element 90° leaves a wide picture standing on
+        // its side: far too tall for the column, clipped left and right,
+        // and enormously magnified — which is exactly the "strange
+        // stretched image" this fixes. Sizing the element to the column's
+        // height × width first means the fit happens against the box the
+        // picture will actually occupy, and the rotation then lands it
+        // square in the column. The flex centring keeps it centred, and
+        // the rotation turns about its own centre.
+        var quarter = /rotate-(90|270)/.test(rotationClass || "");
+        var frame = shown.parentNode;
+        if (quarter && frame && frame.getBoundingClientRect) {
+          var fr = frame.getBoundingClientRect();
+          if (fr.width && fr.height) {
+            shown.style.width = fr.height + "px";
+            shown.style.height = fr.width + "px";
+          }
+        } else {
+          shown.style.width = "";
+          shown.style.height = "";
+        }
         el.style.display = "";
 
         // A trigger that opens nothing — a stale uuid, a server error, a
@@ -5228,7 +5257,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.12.0/priv/static/fresco.js";
+    var FRESCO_CDN = "https://cdn.jsdelivr.net/gh/alexdont/fresco@v0.12.2/priv/static/fresco.js";
     var frescoLoading = false;
     var frescoCallbacks = [];
 
@@ -5386,7 +5415,7 @@ if (typeof window.Chart === "undefined") {
   // ============================================================================
 
   (function() {
-    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.15.0/priv/static/etcher.js";
+    var ETCHER_CDN = "https://cdn.jsdelivr.net/gh/alexdont/etcher@v0.16.0/priv/static/etcher.js";
     var etcherLoading = false;
     var etcherCallbacks = [];
 
