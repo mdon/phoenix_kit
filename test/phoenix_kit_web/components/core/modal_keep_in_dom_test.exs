@@ -44,6 +44,25 @@ defmodule PhoenixKitWeb.Components.Core.ModalKeepInDomTest do
       assert result =~ "Visible"
       assert result =~ "inside"
     end
+
+    # `showModal()` throws InvalidStateError on a dialog that already carries
+    # `open` without being in the top layer, so a server-rendered `open` makes
+    # the hook's showModal() fail and daisyUI shows the box non-modally: out
+    # of the top layer, no focus trap, no close watcher for Escape. It looks
+    # right on screen, which is why this is pinned rather than left to review.
+    test "the server never renders the open attribute — showModal owns it" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.modal show={true} on_close="close">
+          inside
+        </.modal>
+        """)
+
+      assert result =~ ~s(phx-hook="PkDialog" data-show="true")
+      refute result =~ ~s(open data-show=)
+    end
   end
 
   describe "modal/1 with keep_in_dom=true" do
@@ -118,6 +137,20 @@ defmodule PhoenixKitWeb.Components.Core.ModalKeepInDomTest do
 
       assert result =~ ~s(id="my-dialog")
       refute result =~ ~s(id="pk-modal-x")
+    end
+
+    test "show=false renders NO open attribute" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.modal show={false} on_close="x" keep_in_dom>
+          inside
+        </.modal>
+        """)
+
+      refute result =~ ~s(open data-show=)
+      assert result =~ ~s(phx-hook="PkDialog" data-show="false")
     end
 
     test "closeable=false flips the data attr" do

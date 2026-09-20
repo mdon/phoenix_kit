@@ -142,12 +142,53 @@
         </div>
       </div>
 
+      <%!-- Changes — what actually moved, ahead of everything else.
+           A reader opens an event to find out WHAT changed; the identity and
+           operational keys are context for that, not the answer (boss via
+           Max, 2026-09-20, and the design panel's first recommendation).
+           Modules record it under the reserved `changes` key. --%>
+      <div :if={@changes != %{}} class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+          <h3 class="font-semibold text-lg mb-4">{gettext("What changed")}</h3>
+
+          <.table_default size="sm">
+            <.table_default_header>
+              <.table_default_row hover={false}>
+                <.table_default_header_cell class="w-1/3">
+                  {gettext("Field")}
+                </.table_default_header_cell>
+                <.table_default_header_cell>{gettext("Before")}</.table_default_header_cell>
+                <.table_default_header_cell>{gettext("After")}</.table_default_header_cell>
+              </.table_default_row>
+            </.table_default_header>
+            <.table_default_body>
+              <.table_default_row :for={{field, change} <- Enum.sort(@changes)}>
+                <.table_default_cell class="font-medium">
+                  {Activity.humanize_metadata_key(field)}
+                </.table_default_cell>
+                <.table_default_cell class="text-sm break-all text-base-content/70">
+                  {Activity.change_side(change, :from)}
+                </.table_default_cell>
+                <.table_default_cell class="text-sm break-all font-medium">
+                  <%= case Activity.change_side(change, :to) do %>
+                    <% :changed -> %>
+                      {gettext("changed")}
+                    <% value -> %>
+                      {value}
+                  <% end %>
+                </.table_default_cell>
+              </.table_default_row>
+            </.table_default_body>
+          </.table_default>
+        </div>
+      </div>
+
       <%!-- Metadata --%>
       <div class="card bg-base-100 shadow-sm">
         <div class="card-body">
           <h3 class="font-semibold text-lg mb-4">{gettext("Metadata")}</h3>
 
-          <%= if @entry.metadata && map_size(@entry.metadata) > 0 do %>
+          <%= if @rest_metadata != %{} do %>
             <.table_default size="sm">
               <.table_default_header>
                 <.table_default_row hover={false}>
@@ -158,7 +199,7 @@
                 </.table_default_row>
               </.table_default_header>
               <.table_default_body>
-                <.table_default_row :for={{key, value} <- Enum.sort(@entry.metadata)}>
+                <.table_default_row :for={{key, value} <- Enum.sort(@rest_metadata)}>
                   <.table_default_cell class="font-mono text-sm text-base-content/70">
                     {key}
                   </.table_default_cell>

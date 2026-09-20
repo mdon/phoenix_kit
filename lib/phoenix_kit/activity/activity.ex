@@ -402,6 +402,106 @@ defmodule PhoenixKit.Activity do
   def mode_badge_color(_), do: "badge-ghost"
 
   @doc """
+  The reserved metadata key a module records a field diff under.
+
+  `%{"changes" => %{"sku" => %{"from" => "T-21", "to" => "T-22"}}}`. Reserved
+  so identity and change can never collide: before this existed, a module that
+  merged a diff into the metadata's own keys overwrote the very value the
+  entry was named by, and anything calling `to_string/1` on it raised.
+  """
+  def changes_key, do: "changes"
+
+  @doc """
+  Splits an entry's metadata into `{changes, everything_else}`.
+
+  The Activity detail page leads with the changes and keeps the rest as
+  context. A module that records no diff yields an empty changes map, and the
+  page then shows no "What changed" section at all rather than an empty one.
+  """
+  @spec split_changes(map() | nil) :: {map(), map()}
+  def split_changes(metadata) when is_map(metadata) and not is_struct(metadata) do
+    # Only LIFT the reserved key when it holds a diff. A row whose "changes"
+    # is a plain string — a host's own note, or a module that used the word
+    # first — keeps it as ordinary metadata instead of having it deleted on
+    # the way past (codex and zai, 2026-09-20).
+    {changes, rest} =
+      case Map.get(metadata, changes_key()) do
+        %{} = map when map_size(map) > 0 -> {map, Map.delete(metadata, changes_key())}
+        %{} -> {%{}, Map.delete(metadata, changes_key())}
+        _ -> {%{}, metadata}
+      end
+
+    {legacy, rest} = legacy_changes(rest)
+    {Map.merge(legacy, changes), rest}
+  end
+
+  def split_changes(_metadata), do: {%{}, %{}}
+
+  # `log_user_change/4` and older module writers record a diff as two FLAT
+  # keys — `email_from` / `email_to` — rather than the reserved map. Folding
+  # those into the same shape means the "What changed" section works on rows
+  # already in the table, which is most of them, instead of only on whatever
+  # is written from now on. A `_from` with no matching `_to` (or the reverse)
+  # is left in the metadata untouched: it is not a pair, and guessing the
+  # missing side would invent history.
+  defp legacy_changes(metadata) do
+    Enum.reduce(metadata, {%{}, metadata}, fn
+      {key, from}, {changes, rest} ->
+        with true <- is_binary(key),
+             true <- String.ends_with?(key, "_from"),
+             field <- String.replace_suffix(key, "_from", ""),
+             true <- field != "",
+             to_key <- field <> "_to",
+             true <- Map.has_key?(metadata, to_key) do
+          {
+            Map.put(changes, field, %{"from" => from, "to" => Map.get(metadata, to_key)}),
+            rest |> Map.delete(key) |> Map.delete(to_key)
+          }
+        else
+          _ -> {changes, rest}
+        end
+    end)
+  end
+
+  @doc """
+  One side of a change, for a two-column before/after table.
+
+  Handles the shapes a diff can take: a `from`/`to` pair, a reference whose
+  label was snapshotted, and a long value recorded as changed without keeping
+  either copy.
+  """
+  @spec change_side(term(), :from | :to) :: String.t() | :changed
+  # The flag case carries no value to show. `:to` answers `:changed` rather
+  # than a word, because this module has no Gettext backend — core keeps its
+  # translations in the web layer — and a bare English "changed" would have
+  # rendered untranslated on every locale's admin (zai, 2026-09-20). The
+  # template turns the atom into a translated word.
+  def change_side(%{"changed" => true}, :from), do: "…"
+  def change_side(%{"changed" => true}, :to), do: :changed
+
+  def change_side(%{} = change, side) when side in [:from, :to] do
+    change |> Map.get(to_string(side)) |> humanize_metadata_value()
+  end
+
+  def change_side(value, :to), do: humanize_metadata_value(value)
+  def change_side(_value, :from), do: ""
+
+  @doc """
+  A metadata key as a person reads it: `"base_price"` → `"Base price"`.
+  """
+  @spec humanize_metadata_key(String.t() | atom()) :: String.t()
+  def humanize_metadata_key(key) do
+    key
+    |> to_string()
+    |> String.replace("_", " ")
+    |> String.trim()
+    |> case do
+      "" -> ""
+      text -> String.capitalize(String.at(text, 0)) <> String.slice(text, 1..-1//1)
+    end
+  end
+
+  @doc """
   Renders an activity-metadata VALUE as human-readable text, tolerant of the
   shapes host apps store.
 
@@ -415,6 +515,18 @@ defmodule PhoenixKit.Activity do
   """
   def humanize_metadata_value(%{"from" => from, "to" => to}),
     do: "#{humanize_metadata_value(from)} → #{humanize_metadata_value(to)}"
+
+  # A REFERENCE to another record, snapshotted when the row was written:
+  # `%{"uuid" => …, "label" => "Hardware"}`. Reading it back shows the label,
+  # because "moved from Hardware to Frames" is the sentence — the uuid is
+  # there so a reader (or a future link) can still identify the row, and so
+  # the name a deleted record had survives it. Without this clause the
+  # generic map branch below rendered the pair as `label: Hardware, uuid:
+  # 019da…`, which is the uuid wall this exists to remove.
+  def humanize_metadata_value(%{"label" => label}) when is_binary(label), do: label
+
+  # A long value that is recorded as changed without keeping both copies.
+  def humanize_metadata_value(%{"changed" => true}), do: "changed"
 
   def humanize_metadata_value(value) when is_map(value) and not is_struct(value) do
     Enum.map_join(value, ", ", fn {k, v} -> "#{k}: #{humanize_metadata_value(v)}" end)

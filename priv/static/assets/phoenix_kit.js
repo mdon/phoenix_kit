@@ -2638,6 +2638,26 @@ if (typeof window.Chart === "undefined") {
   //   data-bulk-show="no-selection"         inverse: shown only when count
   //                                         is 0.
   //
+  //   data-bulk-swap="<css-selector>"       on the ROOT: an element OUTSIDE
+  //                                         this scope, hidden while the
+  //                                         scope holds a selection. For the
+  //                                         page toolbar that sits ABOVE a
+  //                                         list — a `data-bulk-show` inside
+  //                                         the scope cannot reach it, and
+  //                                         revealing the action bar without
+  //                                         hiding something pushes every row
+  //                                         DOWN, so the next click lands on
+  //                                         the wrong checkbox (boss via Max,
+  //                                         2026-09-20: measured at 52px, more
+  //                                         than a row). The bar takes the
+  //                                         toolbar's place instead, and the
+  //                                         rows do not move. Several scopes
+  //                                         on one page may name the same
+  //                                         toolbar: it stays hidden while ANY
+  //                                         of them has a selection, which is
+  //                                         why this restores by re-asking the
+  //                                         others rather than by remembering.
+  //
   //   data-bulk-text-template="…%{count}…"  element's textContent is
   //                                         re-rendered from the template
   //                                         each time the count changes
@@ -2649,7 +2669,79 @@ if (typeof window.Chart === "undefined") {
   //                                         %{count} interpolation).
   // ---------------------------------------------------------------------------
 
+  // Does any live scope still stand in for this toolbar? Asked of every
+  // scope naming it — a page can have several over one toolbar, and clearing
+  // one must not restore a toolbar another's action bar is still occupying.
+  function anyScopeClaims(selector) {
+    return Array.prototype.some.call(
+      document.querySelectorAll("[data-bulk-swap]"),
+      function (scope) {
+        return scope.dataset.bulkSwap === selector && (scope._pkBulkCount || 0) > 0;
+      }
+    );
+  }
+
+  if (typeof module === "object" && module.exports) {
+    module.exports.anyScopeClaims = anyScopeClaims;
+  }
+
   window.PhoenixKitHooks.BulkSelectScope = {
+    // Hides the toolbar this scope replaces while it holds a selection.
+    //
+    // A page can carry several scopes (the catalogue's categories AND its
+    // items) over ONE toolbar, so "should it be hidden" is asked of every
+    // scope naming it, not remembered here: restoring from a private flag
+    // would un-hide the toolbar the moment one list cleared, while the
+    // other still had rows selected and its action bar on screen.
+    _syncSwap(count) {
+      // Publish this scope's live count on the ELEMENT before reading the
+      // others, so every scope answers from the same place and the result
+      // does not depend on which hook ran last.
+      //
+      // A count, not the row checkboxes. Selection lives in each hook's Set,
+      // and the server re-renders every checkbox UNCHECKED — so a scope that
+      // has just been patched reads as empty from the DOM until its own
+      // `updated()` restores it. A sibling syncing in that window would then
+      // un-hide a toolbar whose action bar is still on screen, and the rows
+      // jump: the exact regression this exists to prevent (grok, zai and
+      // vibe all landed on this independently, 2026-09-20).
+      //
+      // A property rather than an attribute: morphdom rewrites attributes it
+      // rendered and would strip this one on the next patch, which is how the
+      // dialog `open` attribute bit earlier the same night.
+      this.el._pkBulkCount = count;
+
+      const selector = this.el.dataset.bulkSwap;
+      if (!selector) return;
+
+      let target;
+      try {
+        target = document.querySelector(selector);
+      } catch (_e) {
+        return; // a malformed selector must not take the page down
+      }
+      if (!target) return;
+
+      target.style.display = anyScopeClaims(selector) ? "none" : "";
+    },
+    destroyed() {
+      // A scope can be patched away mid-selection (the list empties, a filter
+      // removes it). Its count leaves with it, and the toolbar it was
+      // standing in for has to come back — otherwise the page keeps a hidden
+      // toolbar and no action bar, with nothing left to restore it (codex,
+      // 2026-09-20).
+      this.el._pkBulkCount = 0;
+
+      const selector = this.el.dataset.bulkSwap;
+      if (!selector) return;
+
+      try {
+        const target = document.querySelector(selector);
+        if (target) target.style.display = anyScopeClaims(selector) ? "none" : "";
+      } catch (_e) {
+        // malformed selector — nothing to restore
+      }
+    },
     mounted() {
       this.selected = new Set();
       this._readFromDom();
@@ -2799,6 +2891,8 @@ if (typeof window.Chart === "undefined") {
         el.style.display = visible ? "" : "none";
       });
 
+      this._syncSwap(count);
+
       // Label flip: requires at least the `selected` variant. The
       // `empty` variant is optional — when absent, count <= 1 leaves
       // the server-rendered initial text in place (which is fine,
@@ -2942,6 +3036,10 @@ if (typeof window.Chart === "undefined") {
       // best we can do without the pseudo-class.
       return !!el.open;
     }
+  }
+
+  if (typeof module === "object" && module.exports) {
+    module.exports.isDialogOpenInBrowser = isDialogOpenInBrowser;
   }
 
   // ---------------------------------------------------------------------------
@@ -3132,6 +3230,18 @@ if (typeof window.Chart === "undefined") {
       if (this._guardTripped) return false;
       return this.el.dataset.closeable !== "false";
     },
+    // A dialog in the top layer whose `open` attribute has gone missing still
+    // LOOKS open but behaves as closed: the Escape close steps and `close()`
+    // both return early, so no `close` event fires and `_onClose` never pushes
+    // the server's close event — the modal vanishes from the screen while the
+    // server still believes it is open, and re-opens on the next patch. The
+    // server now renders `open` (see `modal/1`), so this is a belt-and-braces
+    // guard for any caller that builds the dialog itself.
+    _restoreOpenAttr() {
+      if (!this.el.open && isDialogOpenInBrowser(this.el)) {
+        this.el.setAttribute("open", "");
+      }
+    },
     _pushClose() {
       const ev = this.el.dataset.closeEvent;
       if (!ev) return;
@@ -3204,6 +3314,9 @@ if (typeof window.Chart === "undefined") {
 
       self._onCancel = function(e) {
         if (!self._isCloseable()) { e.preventDefault(); return; }
+        // Escape's close steps do nothing without the `open` attribute, and
+        // then no `close` event reaches `_onClose` to push the server's close.
+        self._restoreOpenAttr();
         // A child dialog is stacked open INSIDE this one (the item
         // selector's product-details popup is the shipped case). Esc
         // must close only the TOP popup — but Chromium groups the close
@@ -3251,11 +3364,25 @@ if (typeof window.Chart === "undefined") {
             pushToOwner(self, top, closeEv, phxValuePayload(top));
           }
           top.close();
+          return;
         }
+        // Escape on THIS dialog. `cancel` is the only event we can rely on:
+        // Chromium dismisses a close-watcher dialog — one whose showModal()
+        // ran without user activation, which is every server-driven modal
+        // here — WITHOUT ever firing `close` (measured on a live page,
+        // 2026-09-20: cancel fires with `open` still set, the dialog leaves
+        // the top layer, and no close event is dispatched; the same shape
+        // the stacked note above records). `_onClose` therefore never runs,
+        // the hook never pushes `on_close`, and the server goes on believing
+        // the modal is open — re-opening it on the next patch. Push here,
+        // and stamp the element so a `close` that DOES arrive (an explicit
+        // close() from the backdrop path, or destroyed()) skips the echo.
+        self.el._pkStackClosePushedAt = Date.now();
+        self._pushClose();
       };
-      // 'close' fires for every close path: Esc, our own el.close() in
-      // destroyed(), backdrop click (via _onClick → el.close()), and
-      // form `method="dialog"` submits.
+      // 'close' fires for our own el.close() in destroyed(), the backdrop
+      // click (via _onClick → el.close()) and form `method="dialog"`
+      // submits. It does NOT reliably fire for Escape — see `_onCancel`.
       self._onClose = function() {
         // `_pkStackClosePushedAt` is stamped by a stacked PARENT dialog that
         // already pushed this dialog's close event during a grouped cancel —
@@ -3278,7 +3405,11 @@ if (typeof window.Chart === "undefined") {
       // modal-box on the ::backdrop surface. Children stop propagation
       // naturally because event.target lands on them, not on the dialog.
       self._onClick = function(e) {
-        if (e.target === self.el && self._isCloseable()) self.el.close();
+        if (e.target !== self.el || !self._isCloseable()) return;
+        // Same reason as the Escape path: `close()` is a no-op, and fires no
+        // `close` event, on a top-layer dialog whose `open` attribute is gone.
+        self._restoreOpenAttr();
+        self.el.close();
       };
       this.el.addEventListener("cancel", self._onCancel);
       this.el.addEventListener("close", self._onClose);

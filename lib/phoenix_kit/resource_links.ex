@@ -280,8 +280,16 @@ defmodule PhoenixKit.ResourceLinks do
     "#{resource_type} #{short_id}..."
   end
 
-  defp resolve_title(title_template, _resource_type, uuid, metadata) do
-    apply_title_template(title_template, uuid, metadata)
+  defp resolve_title(title_template, resource_type, uuid, metadata) do
+    # A template resolves to "" when the row was logged without the key it
+    # names (`:metadata.name` on an action that never recorded one), and an
+    # empty label renders as an unreadable, unclickable-looking link. Fall
+    # back to the same "<type> <short-uuid>" a template-less type gets:
+    # a link that says little still beats a link that says nothing.
+    case apply_title_template(title_template, uuid, metadata) do
+      blank when blank in [nil, ""] -> resolve_title(nil, resource_type, uuid, metadata)
+      title -> title
+    end
   end
 
   defp resolve_full_title(nil, resource_type, uuid, _metadata) do

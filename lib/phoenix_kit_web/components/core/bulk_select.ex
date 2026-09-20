@@ -82,6 +82,24 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
   attr :id, :string, required: true
   attr :total_count, :integer, required: true
   attr :class, :string, default: ""
+
+  attr :swap, :string,
+    default: nil,
+    doc: """
+    CSS selector for a toolbar OUTSIDE this scope to hide while the scope
+    holds a selection — the action bar takes its place instead of being
+    added above the rows.
+
+    Revealing the bar without hiding anything pushes every row down, and the
+    next click then lands on the wrong checkbox (boss via Max, 2026-09-20;
+    measured at 52px on the catalogue's category list, more than one row).
+    The controls it replaces — sort, status tabs, columns, the view toggle —
+    are not usable mid-selection anyway.
+
+    Several scopes on a page may name the same toolbar; it stays hidden while
+    any of them has a selection.
+    """
+
   slot :inner_block, required: true
 
   def bulk_select_scope(assigns) do
@@ -91,6 +109,7 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
       class={@class}
       phx-hook="BulkSelectScope"
       data-bulk-total={@total_count}
+      data-bulk-swap={@swap}
     >
       {render_slot(@inner_block)}
     </div>

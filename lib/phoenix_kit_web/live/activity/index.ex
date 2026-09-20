@@ -274,9 +274,43 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
     |> Enum.any?(&(&1 not in [nil, ""]))
   end
 
-  defp summarize_details(metadata) do
-    meta = metadata || %{}
+  # The Details column is where a reader first meets the event, and it should
+  # say what MOVED — the owner started on this list, saw only the row's name,
+  # clicked through, and found no answer (boss via Max, 2026-09-20). A change
+  # therefore leads; identity and operational keys are the fallback for rows
+  # that record none.
+  @summary_change_limit 3
 
+  defp summarize_details(metadata) do
+    case Activity.split_changes(metadata || %{}) do
+      {changes, rest} when map_size(changes) > 0 -> summarize_changes(changes, rest)
+      {_none, rest} -> summarize_plain(rest)
+    end
+  end
+
+  defp summarize_changes(changes, rest) do
+    shown = changes |> Enum.sort() |> Enum.take(@summary_change_limit)
+    hidden = map_size(changes) - length(shown)
+
+    summary =
+      Enum.map_join(shown, ", ", fn {field, change} ->
+        "#{Activity.humanize_metadata_key(field)} #{Activity.humanize_metadata_value(change)}"
+      end)
+
+    # Only the change. The row's identity is already the Subject column —
+    # a titled deep link since the resource templates landed — so repeating
+    # it here just pushes the answer off the end of the line.
+    _ = rest
+
+    [summary, more_label(hidden)]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join(" · ")
+  end
+
+  defp more_label(count) when count > 0, do: "+#{count}"
+  defp more_label(_count), do: nil
+
+  defp summarize_plain(meta) do
     if meta["added"] || meta["removed"] do
       # For role updates, show added/removed summary
       parts = []

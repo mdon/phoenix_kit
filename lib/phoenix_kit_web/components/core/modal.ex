@@ -124,6 +124,18 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
 
     ~H"""
     <%= if @show or @keep_in_dom do %>
+      <%!-- NEVER render `open` here. `showModal()` throws InvalidStateError on
+           a dialog that already carries the attribute without being in the top
+           layer, so a server-rendered `open` makes the hook's showModal() fail
+           and daisyUI shows the box NON-modally instead: no top layer, so
+           ancestor stacking contexts can overlap it again, no focus trap, and
+           no close watcher for Escape (tried on 2026-09-20, caught in Chrome —
+           it looks right and is not a modal). morphdom therefore strips the
+           attribute on every patch while a modal is open, which `PkDialog`
+           restores in `_sync` and, crucially, before it lets Escape or a
+           backdrop click close the dialog — without the attribute those fire
+           no `close` event, the hook never pushes `on_close`, and the server
+           goes on believing the modal is open. --%>
       <dialog
         id={@resolved_id}
         class={if(@placement == :end, do: "modal modal-end", else: "modal")}
