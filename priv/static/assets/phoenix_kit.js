@@ -2944,6 +2944,10 @@ if (typeof window.Chart === "undefined") {
     }
   }
 
+  if (typeof module === "object" && module.exports) {
+    module.exports.isDialogOpenInBrowser = isDialogOpenInBrowser;
+  }
+
   // ---------------------------------------------------------------------------
   // TableLocalSearch Hook
   // ---------------------------------------------------------------------------
@@ -3132,6 +3136,18 @@ if (typeof window.Chart === "undefined") {
       if (this._guardTripped) return false;
       return this.el.dataset.closeable !== "false";
     },
+    // A dialog in the top layer whose `open` attribute has gone missing still
+    // LOOKS open but behaves as closed: the Escape close steps and `close()`
+    // both return early, so no `close` event fires and `_onClose` never pushes
+    // the server's close event — the modal vanishes from the screen while the
+    // server still believes it is open, and re-opens on the next patch. The
+    // server now renders `open` (see `modal/1`), so this is a belt-and-braces
+    // guard for any caller that builds the dialog itself.
+    _restoreOpenAttr() {
+      if (!this.el.open && isDialogOpenInBrowser(this.el)) {
+        this.el.setAttribute("open", "");
+      }
+    },
     _pushClose() {
       const ev = this.el.dataset.closeEvent;
       if (!ev) return;
@@ -3204,6 +3220,9 @@ if (typeof window.Chart === "undefined") {
 
       self._onCancel = function(e) {
         if (!self._isCloseable()) { e.preventDefault(); return; }
+        // Escape's close steps do nothing without the `open` attribute, and
+        // then no `close` event reaches `_onClose` to push the server's close.
+        self._restoreOpenAttr();
         // A child dialog is stacked open INSIDE this one (the item
         // selector's product-details popup is the shipped case). Esc
         // must close only the TOP popup — but Chromium groups the close
@@ -3278,7 +3297,11 @@ if (typeof window.Chart === "undefined") {
       // modal-box on the ::backdrop surface. Children stop propagation
       // naturally because event.target lands on them, not on the dialog.
       self._onClick = function(e) {
-        if (e.target === self.el && self._isCloseable()) self.el.close();
+        if (e.target !== self.el || !self._isCloseable()) return;
+        // Same reason as the Escape path: `close()` is a no-op, and fires no
+        // `close` event, on a top-layer dialog whose `open` attribute is gone.
+        self._restoreOpenAttr();
+        self.el.close();
       };
       this.el.addEventListener("cancel", self._onCancel);
       this.el.addEventListener("close", self._onClose);

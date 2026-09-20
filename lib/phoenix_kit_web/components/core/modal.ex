@@ -124,10 +124,24 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
 
     ~H"""
     <%= if @show or @keep_in_dom do %>
+      <%!-- `open` is rendered by the SERVER so morphdom cannot strip it.
+           `showModal()` sets the attribute itself, but the server template did
+           not carry it, so every LiveView patch while a modal was open removed
+           it again (traced on a live page: `updated()` runs with the dialog
+           still `:modal` and the attribute already gone, then `_sync` puts it
+           back). In that window the dialog sits in the top layer WITHOUT
+           `open`, and both user-dismiss paths need the attribute: the Escape
+           close steps bail, and `close()` is a no-op, so neither fires `close`
+           — the hook never pushes `on_close`, the server goes on believing the
+           modal is open, and the next patch re-opens it (2026-09-20: the
+           catalogue's View card reappeared over a different category). The
+           attribute alone never makes a dialog modal, so `showModal()` still
+           owns the top layer. --%>
       <dialog
         id={@resolved_id}
         class={if(@placement == :end, do: "modal modal-end", else: "modal")}
         phx-hook="PkDialog"
+        open={@show}
         data-show={to_string(@show)}
         data-close-event={@on_close}
         data-closeable={to_string(@closeable)}

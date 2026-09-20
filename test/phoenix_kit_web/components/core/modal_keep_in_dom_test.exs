@@ -44,6 +44,24 @@ defmodule PhoenixKitWeb.Components.Core.ModalKeepInDomTest do
       assert result =~ "Visible"
       assert result =~ "inside"
     end
+
+    # The server owns `open` so a LiveView patch cannot strip it off an open
+    # dialog. Without the attribute, Escape and a backdrop click close the
+    # dialog on screen but fire no `close` event, so `PkDialog` never pushes
+    # `on_close` and the server goes on believing the modal is open — the
+    # dismissed modal then re-opens on the next patch.
+    test "show=true renders the open attribute" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.modal show={true} on_close="close">
+          inside
+        </.modal>
+        """)
+
+      assert result =~ ~s(phx-hook="PkDialog" open data-show="true")
+    end
   end
 
   describe "modal/1 with keep_in_dom=true" do
@@ -118,6 +136,20 @@ defmodule PhoenixKitWeb.Components.Core.ModalKeepInDomTest do
 
       assert result =~ ~s(id="my-dialog")
       refute result =~ ~s(id="pk-modal-x")
+    end
+
+    test "show=false renders NO open attribute" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.modal show={false} on_close="x" keep_in_dom>
+          inside
+        </.modal>
+        """)
+
+      refute result =~ ~s(open data-show=)
+      assert result =~ ~s(phx-hook="PkDialog" data-show="false")
     end
 
     test "closeable=false flips the data attr" do
