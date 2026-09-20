@@ -117,11 +117,18 @@
                 <%!-- (top-3 right-14 above) owns the top-right corner, and    --%>
                 <%!-- Etcher's style-panel chevron landed in the same row.     --%>
                 <%!-- Anchor the panel cluster below it (Etcher 0.13.2).         --%>
+                <%!-- tooltip_dock={:corner} parks hover tooltips in the      --%>
+                <%!-- viewer's bottom-left instead of beside the shape: people --%>
+                <%!-- here are annotating a photograph, and a box over the     --%>
+                <%!-- picture covers the very thing they are looking at.       --%>
+                <%!-- Etcher's own default (beside the shape) is untouched for --%>
+                <%!-- its other consumers.                                     --%>
                 <Etcher.layer
                   fresco_id={"media-zoom-" <> f.file_uuid}
                   colors={@etcher_colors}
                   line_params={@etcher_line_params}
                   panel_offset={%{top: 56}}
+                  tooltip_dock={:corner}
                   connectors={:off}
                   toolbar={@can_annotate}
                   nav_buttons={if @can_annotate, do: nil, else: [:visibility]}
