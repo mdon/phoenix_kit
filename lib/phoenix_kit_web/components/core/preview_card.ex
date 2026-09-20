@@ -212,6 +212,18 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCard do
         </button>
       </div>
 
+      <%!-- Nothing attached: a placeholder, so a card without media keeps
+           the same shape as one with it instead of collapsing to a bare
+           list of fields (the catalogue's View popup, 2026-09-19 — most
+           items have no photo yet). --%>
+      <div
+        :if={@slide_count == 0}
+        class="rounded-lg bg-base-200 h-40 flex flex-col items-center justify-center gap-2 text-base-content/40"
+      >
+        <.icon name="hero-photo" class="w-8 h-8" />
+        <span class="text-xs">{gettext("No images")}</span>
+      </div>
+
       <%!-- Jump strip: a tile per slide (image thumbs, then file tiles).
            The border marks the current slide; the track's onscroll moves
            it as the user swipes. Tile 0 starts active server-side. --%>
