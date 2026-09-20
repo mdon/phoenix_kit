@@ -45,12 +45,12 @@ defmodule PhoenixKitWeb.Components.Core.ModalKeepInDomTest do
       assert result =~ "inside"
     end
 
-    # The server owns `open` so a LiveView patch cannot strip it off an open
-    # dialog. Without the attribute, Escape and a backdrop click close the
-    # dialog on screen but fire no `close` event, so `PkDialog` never pushes
-    # `on_close` and the server goes on believing the modal is open — the
-    # dismissed modal then re-opens on the next patch.
-    test "show=true renders the open attribute" do
+    # `showModal()` throws InvalidStateError on a dialog that already carries
+    # `open` without being in the top layer, so a server-rendered `open` makes
+    # the hook's showModal() fail and daisyUI shows the box non-modally: out
+    # of the top layer, no focus trap, no close watcher for Escape. It looks
+    # right on screen, which is why this is pinned rather than left to review.
+    test "the server never renders the open attribute — showModal owns it" do
       assigns = %{}
 
       result =
@@ -60,7 +60,8 @@ defmodule PhoenixKitWeb.Components.Core.ModalKeepInDomTest do
         </.modal>
         """)
 
-      assert result =~ ~s(phx-hook="PkDialog" open data-show="true")
+      assert result =~ ~s(phx-hook="PkDialog" data-show="true")
+      refute result =~ ~s(open data-show=)
     end
   end
 
