@@ -3270,11 +3270,25 @@ if (typeof window.Chart === "undefined") {
             pushToOwner(self, top, closeEv, phxValuePayload(top));
           }
           top.close();
+          return;
         }
+        // Escape on THIS dialog. `cancel` is the only event we can rely on:
+        // Chromium dismisses a close-watcher dialog — one whose showModal()
+        // ran without user activation, which is every server-driven modal
+        // here — WITHOUT ever firing `close` (measured on a live page,
+        // 2026-09-20: cancel fires with `open` still set, the dialog leaves
+        // the top layer, and no close event is dispatched; the same shape
+        // the stacked note above records). `_onClose` therefore never runs,
+        // the hook never pushes `on_close`, and the server goes on believing
+        // the modal is open — re-opening it on the next patch. Push here,
+        // and stamp the element so a `close` that DOES arrive (an explicit
+        // close() from the backdrop path, or destroyed()) skips the echo.
+        self.el._pkStackClosePushedAt = Date.now();
+        self._pushClose();
       };
-      // 'close' fires for every close path: Esc, our own el.close() in
-      // destroyed(), backdrop click (via _onClick → el.close()), and
-      // form `method="dialog"` submits.
+      // 'close' fires for our own el.close() in destroyed(), the backdrop
+      // click (via _onClick → el.close()) and form `method="dialog"`
+      // submits. It does NOT reliably fire for Escape — see `_onCancel`.
       self._onClose = function() {
         // `_pkStackClosePushedAt` is stamped by a stacked PARENT dialog that
         // already pushed this dialog's close event during a grouped cancel —
