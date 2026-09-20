@@ -1135,7 +1135,7 @@ msgstr "Funktsionaalsed moodulid"
 #: lib/modules/storage/web/settings.html.heex:140
 #: lib/modules/storage/web/settings.html.heex:156
 #: lib/phoenix_kit/users/auth.ex:3240
-#: lib/phoenix_kit_web/components/core/preview_card.ex:269
+#: lib/phoenix_kit_web/components/core/preview_card.ex:281
 #, elixir-autogen, elixir-format
 msgid "Files"
 msgstr "Failid"
@@ -1444,8 +1444,8 @@ msgstr "OK"
 msgid "Only the Owner can edit Admin permissions"
 msgstr "Ainult Omanik saab muuta Administraatori õigusi"
 
-#: lib/phoenix_kit_web/components/core/preview_card.ex:290
-#: lib/phoenix_kit_web/components/core/preview_card.ex:313
+#: lib/phoenix_kit_web/components/core/preview_card.ex:302
+#: lib/phoenix_kit_web/components/core/preview_card.ex:325
 #, elixir-autogen, elixir-format
 msgid "Open"
 msgstr ""
@@ -2087,6 +2087,9 @@ msgstr "Kasutajanimi"
 msgid "Video"
 msgstr "Video"
 
+#: lib/phoenix_kit_web/components/featured_image.html.heex:91
+#: lib/phoenix_kit_web/components/featured_image.html.heex:92
+#: lib/phoenix_kit_web/components/featured_image.html.heex:185
 #: lib/phoenix_kit_web/live/activity/index.html.heex:293
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:733
 #: lib/phoenix_kit_web/live/users/users.html.heex:667
@@ -6509,7 +6512,7 @@ msgstr "Vali kõik"
 msgid "Show folders"
 msgstr "Näita kaustu"
 
-#: lib/phoenix_kit_web/components/core/preview_card.ex:226
+#: lib/phoenix_kit_web/components/core/preview_card.ex:238
 #, elixir-autogen, elixir-format
 msgid "Show image %{number}"
 msgstr ""
@@ -8989,6 +8992,7 @@ msgstr "Taustata"
 msgid "No description — add one"
 msgstr "Kirjeldus puudub — lisa see"
 
+#: lib/phoenix_kit_web/components/core/preview_card.ex:224
 #: lib/phoenix_kit_web/components/media_browser.ex:3017
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1767
 #, elixir-autogen, elixir-format
@@ -9393,6 +9397,9 @@ msgstr "Brauseri vaheleht"
 msgid "Change icon"
 msgstr "Muuda ikooni"
 
+#: lib/phoenix_kit_web/components/featured_image.html.heex:107
+#: lib/phoenix_kit_web/components/featured_image.html.heex:108
+#: lib/phoenix_kit_web/components/featured_image.html.heex:193
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:120
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:186
 #, elixir-autogen, elixir-format
@@ -15272,6 +15279,7 @@ msgstr ""
 msgid "the bot in Telegram, then press Test Connection above."
 msgstr ""
 
+#: lib/phoenix_kit_web/components/featured_image.ex:520
 #: lib/phoenix_kit_web/components/media_browser.ex:3104
 #, elixir-autogen, elixir-format
 msgid "Featured image"

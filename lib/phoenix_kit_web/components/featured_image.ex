@@ -183,8 +183,8 @@ defmodule PhoenixKitWeb.Components.FeaturedImage do
   the user picked. Whether this user may change this entity's image, whether the
   chosen file belongs in this entity's folder, and whether the write goes
   through are all the host's to decide, in the `:set_featured` handler. The
-  component checks only that a chosen file exists, is an image and is not in
-  the trash. The same goes for a staged form: a dangling pointer is only
+  component checks only that a chosen file exists, is an image, is not in the
+  trash and is not a system-managed row (an edited image's hidden original). The same goes for a staged form: a dangling pointer is only
   *drawn* as missing; it stays in the host's state and will be saved as it was
   unless the host validates on write.
 
@@ -483,6 +483,9 @@ defmodule PhoenixKitWeb.Components.FeaturedImage do
 
   defp resolve(_not_a_uuid), do: {:dangling, nil}
 
+  # System-managed rows (tile chunks, an edited image's hidden unedited
+  # original) are never served, and the chosen uuid comes from the client.
+  defp classify(%{system_managed: true}), do: :dangling
   defp classify(%{status: "trashed"}), do: :dangling
   defp classify(%{file_type: type}) when type != "image", do: :dangling
   defp classify(%{status: "active"}), do: :ok

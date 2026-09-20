@@ -1,3 +1,31 @@
+## 2.33.0 - 2026-09-20
+
+### Added
+
+- **`PhoenixKitWeb.Components.FeaturedImage`** — a LiveComponent for one
+  entity's main image (order/product image, logo, avatar): a thumbnail, an
+  always-visible Change / Remove menu that works on touch screens, and the
+  whole media-picker protocol behind it. It is controlled and writes nothing:
+  the host handles `{FeaturedImage, id, {:set_featured, uuid | nil}}`,
+  authorizes, persists and passes the new `uuid` back. `picker_scope` is
+  `{:folder, uuid}`, `:lazy` (folder created on the first click) or `nil`.
+  The picker renders through a portal, so the control is safe inside a host
+  `<.form>`. Guide: "FeaturedImage Component" in the core-components guide.
+- **`table_row_menu` takes `trigger_size`** (`"xs"` default, `"sm"`, `"md"`)
+  for a touch-sized ⋮ trigger. The size class is replaced, not appended —
+  `btn-xs` sorts after `btn-sm` in the built CSS and would win.
+
+### Changed
+
+- **A `preview_card` with no media shows a placeholder** instead of
+  collapsing to a bare list of fields.
+
+### Fixed
+
+- **`FeaturedImage` refuses a system-managed file** (an edited image's hidden
+  unedited original). The picker never lists one, but the chosen uuid comes
+  from the client, and such a row is a live image that is never served.
+
 ## 2.32.1 - 2026-09-19
 
 ### Fixed

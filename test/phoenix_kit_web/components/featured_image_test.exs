@@ -973,12 +973,24 @@ defmodule PhoenixKitWeb.Components.FeaturedImageTest do
       assert mailbox() == []
     end
 
-    test "rejects a trashed, non-image, failed, missing or malformed choice with an error line" do
+    test "rejects a trashed, non-image, failed, system-managed, missing or malformed choice with an error line" do
       {folder, video} = folder_and_file(%{file_type: "video", mime_type: "video/mp4", ext: "mp4"})
       trashed = create_file!(folder.uuid, %{status: "trashed"})
       failed = create_file!(folder.uuid, %{status: "failed"})
 
-      for uuid <- [trashed.uuid, video.uuid, failed.uuid, Ecto.UUID.generate(), "not-a-uuid"] do
+      # An edited image's hidden unedited original: a live image row that is
+      # never served, reachable here only by a client sending its uuid.
+      hidden =
+        create_file!(nil, %{system_managed: true, user_uuid: nil, parent_file_uuid: trashed.uuid})
+
+      for uuid <- [
+            trashed.uuid,
+            video.uuid,
+            failed.uuid,
+            hidden.uuid,
+            Ecto.UUID.generate(),
+            "not-a-uuid"
+          ] do
         socket =
           socket_for(picker_scope: {:folder, folder.uuid})
           |> Phoenix.Component.assign(:show_picker, true)
