@@ -15293,6 +15293,44 @@ msgstr "Määra esiletõstetuks"
 msgid "Unset featured"
 msgstr "Eemalda esiletõstmine"
 
+#: lib/phoenix_kit_web/components/featured_image.html.heex:39
+#: lib/phoenix_kit_web/components/featured_image.html.heex:43
+#: lib/phoenix_kit_web/components/featured_image.html.heex:55
+#: lib/phoenix_kit_web/components/featured_image.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "Choose image"
+msgstr "Vali pilt"
+
+#: lib/phoenix_kit_web/components/featured_image.html.heex:179
+#, elixir-autogen, elixir-format
+msgid "Image actions"
+msgstr "Pildi toimingud"
+
+#: lib/phoenix_kit_web/components/featured_image.html.heex:148
+#: lib/phoenix_kit_web/components/featured_image.html.heex:151
+#: lib/phoenix_kit_web/components/featured_image.html.heex:161
+#: lib/phoenix_kit_web/components/featured_image.html.heex:162
+#: lib/phoenix_kit_web/components/featured_image.html.heex:165
+#, elixir-autogen, elixir-format
+msgid "Image missing"
+msgstr "Pilt puudub"
+
+#: lib/phoenix_kit_web/components/featured_image.html.heex:125
+#: lib/phoenix_kit_web/components/featured_image.html.heex:128
+#, elixir-autogen, elixir-format
+msgid "Processing image…"
+msgstr "Pilti töödeldakse…"
+
+#: lib/phoenix_kit_web/components/featured_image.html.heex:203
+#, elixir-autogen, elixir-format
+msgid "Remove image"
+msgstr "Eemalda pilt"
+
+#: lib/phoenix_kit_web/components/featured_image.ex:367
+#, elixir-autogen, elixir-format
+msgid "The selected file is not an available image"
+msgstr "Valitud fail ei ole saadaolev pilt"
+
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Title & description"
