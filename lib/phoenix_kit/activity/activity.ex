@@ -419,18 +419,20 @@ defmodule PhoenixKit.Activity do
   page then shows no "What changed" section at all rather than an empty one.
   """
   @spec split_changes(map() | nil) :: {map(), map()}
-  def split_changes(metadata) when is_map(metadata) do
-    rest = Map.delete(metadata, changes_key())
-    reserved = Map.get(metadata, changes_key())
-    {legacy, rest} = legacy_changes(rest)
-
-    changes =
-      case reserved do
-        %{} = map -> Map.merge(legacy, map)
-        _ -> legacy
+  def split_changes(metadata) when is_map(metadata) and not is_struct(metadata) do
+    # Only LIFT the reserved key when it holds a diff. A row whose "changes"
+    # is a plain string — a host's own note, or a module that used the word
+    # first — keeps it as ordinary metadata instead of having it deleted on
+    # the way past (codex and zai, 2026-09-20).
+    {changes, rest} =
+      case Map.get(metadata, changes_key()) do
+        %{} = map when map_size(map) > 0 -> {map, Map.delete(metadata, changes_key())}
+        %{} -> {%{}, Map.delete(metadata, changes_key())}
+        _ -> {%{}, metadata}
       end
 
-    {changes, rest}
+    {legacy, rest} = legacy_changes(rest)
+    {Map.merge(legacy, changes), rest}
   end
 
   def split_changes(_metadata), do: {%{}, %{}}
@@ -468,9 +470,14 @@ defmodule PhoenixKit.Activity do
   label was snapshotted, and a long value recorded as changed without keeping
   either copy.
   """
-  @spec change_side(term(), :from | :to) :: String.t()
+  @spec change_side(term(), :from | :to) :: String.t() | :changed
+  # The flag case carries no value to show. `:to` answers `:changed` rather
+  # than a word, because this module has no Gettext backend — core keeps its
+  # translations in the web layer — and a bare English "changed" would have
+  # rendered untranslated on every locale's admin (zai, 2026-09-20). The
+  # template turns the atom into a translated word.
   def change_side(%{"changed" => true}, :from), do: "…"
-  def change_side(%{"changed" => true}, :to), do: gettext_changed()
+  def change_side(%{"changed" => true}, :to), do: :changed
 
   def change_side(%{} = change, side) when side in [:from, :to] do
     change |> Map.get(to_string(side)) |> humanize_metadata_value()
@@ -478,8 +485,6 @@ defmodule PhoenixKit.Activity do
 
   def change_side(value, :to), do: humanize_metadata_value(value)
   def change_side(_value, :from), do: ""
-
-  defp gettext_changed, do: "changed"
 
   @doc """
   A metadata key as a person reads it: `"base_price"` → `"Base price"`.

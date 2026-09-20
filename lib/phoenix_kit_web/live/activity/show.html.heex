@@ -170,7 +170,12 @@
                   {Activity.change_side(change, :from)}
                 </.table_default_cell>
                 <.table_default_cell class="text-sm break-all font-medium">
-                  {Activity.change_side(change, :to)}
+                  <%= case Activity.change_side(change, :to) do %>
+                    <% :changed -> %>
+                      {gettext("changed")}
+                    <% value -> %>
+                      {value}
+                  <% end %>
                 </.table_default_cell>
               </.table_default_row>
             </.table_default_body>

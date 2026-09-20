@@ -2669,6 +2669,22 @@ if (typeof window.Chart === "undefined") {
   //                                         %{count} interpolation).
   // ---------------------------------------------------------------------------
 
+  // Does any live scope still stand in for this toolbar? Asked of every
+  // scope naming it — a page can have several over one toolbar, and clearing
+  // one must not restore a toolbar another's action bar is still occupying.
+  function anyScopeClaims(selector) {
+    return Array.prototype.some.call(
+      document.querySelectorAll("[data-bulk-swap]"),
+      function (scope) {
+        return scope.dataset.bulkSwap === selector && (scope._pkBulkCount || 0) > 0;
+      }
+    );
+  }
+
+  if (typeof module === "object" && module.exports) {
+    module.exports.anyScopeClaims = anyScopeClaims;
+  }
+
   window.PhoenixKitHooks.BulkSelectScope = {
     // Hides the toolbar this scope replaces while it holds a selection.
     //
@@ -2678,6 +2694,23 @@ if (typeof window.Chart === "undefined") {
     // would un-hide the toolbar the moment one list cleared, while the
     // other still had rows selected and its action bar on screen.
     _syncSwap(count) {
+      // Publish this scope's live count on the ELEMENT before reading the
+      // others, so every scope answers from the same place and the result
+      // does not depend on which hook ran last.
+      //
+      // A count, not the row checkboxes. Selection lives in each hook's Set,
+      // and the server re-renders every checkbox UNCHECKED — so a scope that
+      // has just been patched reads as empty from the DOM until its own
+      // `updated()` restores it. A sibling syncing in that window would then
+      // un-hide a toolbar whose action bar is still on screen, and the rows
+      // jump: the exact regression this exists to prevent (grok, zai and
+      // vibe all landed on this independently, 2026-09-20).
+      //
+      // A property rather than an attribute: morphdom rewrites attributes it
+      // rendered and would strip this one on the next patch, which is how the
+      // dialog `open` attribute bit earlier the same night.
+      this.el._pkBulkCount = count;
+
       const selector = this.el.dataset.bulkSwap;
       if (!selector) return;
 
@@ -2689,21 +2722,25 @@ if (typeof window.Chart === "undefined") {
       }
       if (!target) return;
 
-      const claimed = Array.prototype.some.call(
-        document.querySelectorAll("[data-bulk-swap]"),
-        function (scope) {
-          if (scope.dataset.bulkSwap !== selector) return false;
-          // The scope's own live count, read off the DOM rather than from
-          // another hook's private state — this runs for every scope and
-          // must not depend on their update order.
-          return Array.prototype.some.call(
-            scope.querySelectorAll('[data-bulk-role="row"]'),
-            function (row) { return row.checked; }
-          );
-        }
-      );
+      target.style.display = anyScopeClaims(selector) ? "none" : "";
+    },
+    destroyed() {
+      // A scope can be patched away mid-selection (the list empties, a filter
+      // removes it). Its count leaves with it, and the toolbar it was
+      // standing in for has to come back — otherwise the page keeps a hidden
+      // toolbar and no action bar, with nothing left to restore it (codex,
+      // 2026-09-20).
+      this.el._pkBulkCount = 0;
 
-      target.style.display = claimed || count > 0 ? "none" : "";
+      const selector = this.el.dataset.bulkSwap;
+      if (!selector) return;
+
+      try {
+        const target = document.querySelector(selector);
+        if (target) target.style.display = anyScopeClaims(selector) ? "none" : "";
+      } catch (_e) {
+        // malformed selector — nothing to restore
+      }
     },
     mounted() {
       this.selected = new Set();

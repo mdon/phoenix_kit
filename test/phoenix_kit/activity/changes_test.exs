@@ -37,6 +37,18 @@ defmodule PhoenixKit.Activity.ChangesTest do
       assert changes["name"]["from"] == "T-Joint 22mm"
     end
 
+    # A row whose "changes" is not a diff keeps it as ordinary metadata
+    # instead of having it deleted on the way past (codex + zai, 2026-09-20).
+    test "a non-map changes value stays in the metadata" do
+      metadata = %{"changes" => "manual note", "name" => "x"}
+
+      assert Activity.split_changes(metadata) == {%{}, metadata}
+    end
+
+    test "a struct is not mistaken for metadata" do
+      assert Activity.split_changes(~D[2026-09-20]) == {%{}, %{}}
+    end
+
     test "no diff means no changes section" do
       assert Activity.split_changes(%{"name" => "x"}) == {%{}, %{"name" => "x"}}
       assert Activity.split_changes(%{"changes" => %{}}) == {%{}, %{}}
@@ -90,8 +102,12 @@ defmodule PhoenixKit.Activity.ChangesTest do
       assert Activity.change_side(change, :to) == "Frames"
     end
 
-    test "a long value records only that it changed" do
-      assert Activity.change_side(%{"changed" => true}, :to) == "changed"
+    # The atom, not a word: this module has no Gettext backend, and a bare
+    # English "changed" rendered untranslated on every locale (zai). The
+    # template turns it into a translated word.
+    test "a long value answers with the atom the template translates" do
+      assert Activity.change_side(%{"changed" => true}, :to) == :changed
+      assert Activity.change_side(%{"changed" => true}, :from) == "…"
     end
   end
 

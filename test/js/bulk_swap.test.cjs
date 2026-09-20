@@ -83,16 +83,18 @@ global.window = {
 global.localStorage = storage;
 global.sessionStorage = storage;
 
-require("../../priv/static/assets/phoenix_kit.js");
+const { anyScopeClaims } = require("../../priv/static/assets/phoenix_kit.js");
 const BulkSelectScope = global.window.PhoenixKitHooks.BulkSelectScope;
 
-// A scope element whose rows report their own checked state.
-function scope(selector, checkedCount) {
-  const rows = Array.from({ length: 3 }, (_v, i) => ({ checked: i < checkedCount }));
+// A scope element. `count` is the hook's live selection count, published on
+// the element; `checkedRows` is what the DOM happens to show, which can lag
+// behind after a server patch re-renders every checkbox unchecked.
+function scope(selector, count, checkedRows) {
+  const rows = Array.from({ length: 3 }, (_v, i) => ({ checked: i < (checkedRows ?? count) }));
   return {
     dataset: { bulkSwap: selector },
+    _pkBulkCount: count,
     querySelectorAll: (sel) => (sel === '[data-bulk-role="row"]' ? rows : []),
-    rows,
   };
 }
 
@@ -124,8 +126,6 @@ test("clearing the selection restores the toolbar", () => {
 });
 
 test("a second scope's selection keeps the shared toolbar hidden", () => {
-  // The categories list clears while the items list still has rows selected:
-  // its action bar is still on screen, standing in for this toolbar.
   const categories = scope("#toolbar", 0);
   const items = scope("#toolbar", 2);
   const toolbar = setup([categories, items]);
@@ -135,6 +135,21 @@ test("a second scope's selection keeps the shared toolbar hidden", () => {
     toolbar.style.display,
     "none",
     "restoring here would put the toolbar back under the other list's bar"
+  );
+});
+
+// The reason this reads counts and not checkboxes: after a server patch every
+// checkbox renders UNCHECKED until that scope's own updated() restores it.
+test("a sibling whose checkboxes have not been restored yet still counts", () => {
+  const categories = scope("#toolbar", 0);
+  const items = scope("#toolbar", 3, 0); // holds 3, DOM shows none checked
+  const toolbar = setup([categories, items]);
+
+  sync(categories, 0);
+  assert.equal(
+    toolbar.style.display,
+    "none",
+    "reading the DOM here would un-hide the toolbar and make the rows jump"
   );
 });
 
@@ -156,6 +171,40 @@ test("a scope naming a different toolbar does not hold this one hidden", () => {
   assert.equal(toolbar.style.display, "");
 });
 
+test("syncing publishes this scope's own count before asking the others", () => {
+  const only = scope("#toolbar", 0);
+  const toolbar = setup([only]);
+
+  sync(only, 4);
+  assert.equal(only._pkBulkCount, 4);
+  assert.equal(toolbar.style.display, "none");
+});
+
+// A list can be patched away mid-selection. Its count goes with it, and the
+// toolbar it was standing in for has to come back.
+test("a destroyed scope releases the toolbar", () => {
+  const going = scope("#toolbar", 2);
+  const toolbar = setup([going]);
+  sync(going, 2);
+  assert.equal(toolbar.style.display, "none");
+
+  registry.scopes = [];
+  BulkSelectScope.destroyed.call({ el: going });
+  assert.equal(going._pkBulkCount, 0);
+  assert.equal(toolbar.style.display, "");
+});
+
+test("a destroyed scope leaves the toolbar hidden when another still claims it", () => {
+  const going = scope("#toolbar", 1);
+  const staying = scope("#toolbar", 2);
+  const toolbar = setup([going, staying]);
+  sync(going, 1);
+
+  registry.scopes = [staying];
+  BulkSelectScope.destroyed.call({ el: going });
+  assert.equal(toolbar.style.display, "none");
+});
+
 test("a scope with no swap target does nothing at all", () => {
   const toolbar = setup([]);
   sync({ dataset: {} }, 2);
@@ -172,4 +221,10 @@ test("a malformed selector never takes the page down", () => {
   registry.scopes = [];
   registry.targets = {};
   assert.doesNotThrow(() => sync({ dataset: { bulkSwap: "BAD[" } }, 1));
+  assert.doesNotThrow(() => BulkSelectScope.destroyed.call({ el: { dataset: { bulkSwap: "BAD[" } } }));
+});
+
+test("anyScopeClaims ignores a scope that never published a count", () => {
+  registry.scopes = [{ dataset: { bulkSwap: "#toolbar" } }];
+  assert.equal(anyScopeClaims("#toolbar"), false);
 });
