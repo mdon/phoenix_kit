@@ -120,6 +120,19 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     doc:
       "Per-card wrapper class. String or 1-arity fn `(item) -> string`. When fn, called per item."
 
+  attr :card_context_menu, :boolean,
+    default: false,
+    doc: """
+    Flag each CARD `data-row-menu-context`, so a right-click anywhere on it
+    opens the `table_row_menu` rendered in its `card_actions` slot at the
+    pointer (see that component's "Right-click" section).
+
+    Cards only: the table branch's rows come from the caller's inner block,
+    so put the same attribute on your `table_default_row` / `sortable_row`
+    there. Pass `false` to leave the browser's own menu in place — that is
+    how a setting turns the gesture off.
+    """
+
   attr :storage_key, :string, default: nil
   attr :wrapper_class, :string, default: "rounded-lg shadow-md overflow-x-auto overflow-y-clip"
 
@@ -406,6 +419,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
             ]
           }
           data-id={if @on_reorder, do: @item_id_fn.(item)}
+          data-row-menu-context={@card_context_menu}
         >
           <%!-- Optional media region rendered ABOVE the card body. Pass
                `card_media_class` to frame it — a fixed height and a neutral

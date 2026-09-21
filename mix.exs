@@ -355,7 +355,14 @@ defmodule PhoenixKit.MixProject do
       maintainers: ["BeamLab EU"],
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib priv mix.exs README.md LICENSE CHANGELOG.md)
+      files: ~w(lib priv mix.exs README.md LICENSE CHANGELOG.md),
+      # `files` takes whatever is on disk under priv/, gitignored or not, and
+      # the sitemap generator writes into priv/static — so a checkout whose
+      # test suite had run shipped the domain-mode test's
+      # priv/static/sitemaps/domains/site.example.com/sitemap.xml in 2.34.0,
+      # and a fresh install served it at /sitemap.xml until regenerated.
+      # Generated sitemaps are runtime state, never package content.
+      exclude_patterns: [~r"^priv/static/sitemap\.xml$", ~r"^priv/static/sitemaps/"]
     ]
   end
 

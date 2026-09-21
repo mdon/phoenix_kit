@@ -89,6 +89,18 @@ defmodule PhoenixKitWeb.Components.Core.SortSelector do
     doc:
       "DOM id for the inner `<form>`. Defaults to `\"pk-sort-selector-\#{event}\"`. LiveView needs a form id for change recovery — pass an explicit one when two sort selectors on the same page share an `event`, otherwise the ids collide."
 
+  attr :label, :boolean,
+    default: false,
+    doc: """
+    Show a visible "Sort by" label before the control.
+
+    Off by default: the label was dropped once already so the control would
+    match its toolbar siblings' heights, and every existing toolbar is laid
+    out around that. Opt in where a bare dropdown reading "Manual" does not
+    say what it does (boss via Max, 2026-09-21 — the catalogue's screens).
+    The accessible name is on the `<select>` either way.
+    """
+
   attr :manual_field, :any,
     default: nil,
     doc:
@@ -125,11 +137,14 @@ defmodule PhoenixKitWeb.Components.Core.SortSelector do
           @class
         ]}
       >
+        <span :if={@label} class="text-xs text-base-content/60 whitespace-nowrap">
+          {gettext("Sort by")}
+        </span>
         <%!-- daisyUI `join` fuses the field select and direction toggle into
            one widget: shared borders, no gap, single rounded rectangle. --%>
         <div class="join">
-          <%!-- Visual label dropped to match the toolbar siblings' heights;
-             accessible name preserved via `aria-label` on the <select> --%>
+          <%!-- The accessible name lives here whether or not the visual
+             label above is shown. --%>
           <.select
             name="sort_by"
             value={@sort_by_str}

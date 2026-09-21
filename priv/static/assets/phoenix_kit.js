@@ -4757,6 +4757,163 @@ if (typeof window.Chart === "undefined") {
   //     <.table_row_menu_button phx-click="delete" icon="hero-trash" label="Delete" variant="error" />
   //   </.table_row_menu>
   //
+  // RIGHT-CLICK: an element flagged `data-row-menu-context` opens the row
+  // menu rendered INSIDE it at the pointer (see `rowMenuFor` for why it is a
+  // flag, not the menu's id). Not Core.ContextMenu, deliberately —
+  // its one menu element serves every row, so it stamps `phx-value-*` and
+  // cannot carry a per-row `navigate=`. This component already renders one
+  // menu per row, so the items are per-row and correct as they stand; all
+  // that is missing is a second way to open them.
+  //
+  // Where a menu of w x h opens for a pointer at (x, y). Down-right of the
+  // pointer, flipping to the other side of it rather than overflowing, then
+  // clamping for a menu too big to fit either way. Published on `window`
+  // because Core.ContextMenu lives in a separate IIFE in this bundle and
+  // needs the identical rule — two copies of it would drift.
+  var MENU_POINTER_PAD = 8;
+
+  function pointerMenuPosition(x, y, w, h, vw, vh) {
+    var left = x;
+    if (left + w > vw - MENU_POINTER_PAD) left = x - w;
+    left = Math.max(MENU_POINTER_PAD, Math.min(left, vw - w - MENU_POINTER_PAD));
+
+    var top = y;
+    if (top + h > vh - MENU_POINTER_PAD) top = y - h;
+    top = Math.max(MENU_POINTER_PAD, Math.min(top, vh - h - MENU_POINTER_PAD));
+
+    return { left: left, top: top };
+  }
+
+  window.PhoenixKitMenus = window.PhoenixKitMenus || {};
+  window.PhoenixKitMenus.pointerPosition = pointerMenuPosition;
+
+  // One document listener serves every row menu on the page, so a table of a
+  // hundred rows adds one listener, not a hundred.
+  var openRowMenu = null;
+  var rowMenuListening = false;
+
+  // Android fires `contextmenu` for a long press, and the RELEASE then
+  // dispatches a click on whatever the finger was on — the row's link, or
+  // the ⋮ trigger, which would toggle the just-opened menu shut. Eat that one
+  // click, exactly as Core.ContextMenu does after its own long press. Only
+  // after a touch/pen gesture: a mouse right-click is followed by no click.
+  var ROW_SWALLOW_CLICK_MS = 700;
+  var swallowRowClick = false;
+  var swallowRowClickTimer = null;
+  var lastPointerType = "mouse";
+  var lastPointerDownAt = 0;
+
+  function onRowPointerDown(e) {
+    lastPointerType = e.pointerType || "mouse";
+    lastPointerDownAt = Date.now();
+  }
+
+  function armRowClickSwallow() {
+    swallowRowClick = true;
+    // Backstop for a release that dispatches no click at all, which would
+    // otherwise eat the user's next tap — the menu item they came for.
+    if (swallowRowClickTimer) clearTimeout(swallowRowClickTimer);
+    swallowRowClickTimer = setTimeout(function () {
+      swallowRowClickTimer = null;
+      swallowRowClick = false;
+    }, ROW_SWALLOW_CLICK_MS);
+  }
+
+  // Capture phase on `document`, installed before any menu's own
+  // outside-click listener, so it runs first — and stops the others too:
+  // the release lands OUTSIDE the menu, and the outside-click listener would
+  // close it again the instant it opened.
+  function onRowDocClick(e) {
+    if (!swallowRowClick) return;
+    swallowRowClick = false;
+    if (swallowRowClickTimer) {
+      clearTimeout(swallowRowClickTimer);
+      swallowRowClickTimer = null;
+    }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+
+  // Text selected inside the row is a request to copy it. Whole-row
+  // right-click is the owner's call; a selection is the one case where the
+  // browser's menu is plainly what was wanted.
+  function selectionInside(row) {
+    var sel = window.getSelection && window.getSelection();
+    if (!sel || sel.isCollapsed || String(sel).trim() === "") return false;
+    return row.contains(sel.anchorNode) || row.contains(sel.focusNode);
+  }
+
+  // `data-row-menu-context` is a FLAG on the row, not the menu's id: the row
+  // element is usually rendered by a shared table component that never sees
+  // the id its caller built for the menu in the actions slot. So the row says
+  // "right-click me" and the menu is found inside it.
+  //
+  // The hook itself is reached through a PROPERTY on the wrapper, never an
+  // attribute — LiveView's patcher strips attributes the server did not
+  // render.
+  function rowMenuFor(target) {
+    if (!target || !target.closest) return null;
+    // A field keeps the browser's menu: right-clicking the inline rename box
+    // is a request to paste, and taking that away for a row menu the user
+    // can still reach one pixel over would be a straight loss.
+    if (target.closest("input, textarea, select, [contenteditable]:not([contenteditable=false])")) {
+      return null;
+    }
+    var row = target.closest("[data-row-menu-context]");
+    if (!row) return null;
+    if (selectionInside(row)) return null;
+
+    // This row's OWN menu. `closest` above already picked the innermost row,
+    // so a wrapper that belongs to a nested row is that row's business.
+    var wrappers = row.querySelectorAll("[data-row-menu-wrapper]");
+    for (var i = 0; i < wrappers.length; i++) {
+      if (wrappers[i].closest("[data-row-menu-context]") === row) {
+        return wrappers[i]._pkRowMenu || null;
+      }
+    }
+    return null;
+  }
+
+  function onRowContextMenu(e) {
+    var hook = rowMenuFor(e.target);
+
+    // No row here, or its menu is not rendered in this view mode: leave the
+    // browser's own menu alone. Suppressing it everywhere would cost the user
+    // Copy/Inspect on a page that has nothing to offer in its place. Close
+    // ours first so it does not sit under the browser's — unless the
+    // right-click is ON our menu, where a link item's native "Open in new
+    // tab" is exactly what the user is after.
+    if (!hook) {
+      if (openRowMenu && !openRowMenu.menu.contains(e.target)) openRowMenu._close();
+      return;
+    }
+
+    e.preventDefault();
+    if (openRowMenu && openRowMenu !== hook) openRowMenu._close();
+
+    // Only a gesture that began with a finger or pen within the last couple
+    // of seconds — a long press is well under that — arms the swallow. A
+    // keyboard Menu key sends no pointerdown and must not inherit a stale one.
+    if (lastPointerType !== "mouse" && Date.now() - lastPointerDownAt < 2000) {
+      armRowClickSwallow();
+    }
+
+    // The Menu key and Shift+F10 report the pointer at 0,0. Anchor to the ⋮
+    // trigger then, rather than to the viewport's corner.
+    var fromKeyboard = e.clientX === 0 && e.clientY === 0;
+    hook._open(fromKeyboard ? undefined : { x: e.clientX, y: e.clientY });
+  }
+
+  function ensureRowMenuListener() {
+    if (rowMenuListening) return;
+    document.addEventListener("contextmenu", onRowContextMenu);
+    // Registered here, before any menu opens, so it precedes every menu's own
+    // capture-phase outside-click listener.
+    document.addEventListener("click", onRowDocClick, true);
+    document.addEventListener("pointerdown", onRowPointerDown, { capture: true, passive: true });
+    rowMenuListening = true;
+  }
+
   window.PhoenixKitHooks.RowMenu = {
     mounted() {
       this.trigger = this.el.querySelector("[data-row-menu-trigger]");
@@ -4813,21 +4970,44 @@ if (typeof window.Chart === "undefined") {
       // Close when any item is clicked
       this._onMenuClick = () => { this._close(); };
 
+      // A fixed menu does not follow the page. Scrolled, it would sit over a
+      // DIFFERENT row while still acting on its own — so it closes, as
+      // Core.ContextMenu's does.
+      this._onScrollClose = (e) => {
+        if (e && e.target && e.target !== document && this.menu.contains(e.target)) return;
+        this._close();
+      };
+
       this.trigger.addEventListener("click", this._onTriggerClick);
       this.menu.addEventListener("click", this._onMenuClick);
+
+      // How a right-click on the row finds this hook. A property, not an
+      // attribute — see `rowMenuFor`.
+      this.el._pkRowMenu = this;
+      ensureRowMenuListener();
     },
 
     updated() {
       // While open, the menu is portaled to <body>; a server diff to this
-      // row makes morphdom re-create a duplicate inside the wrapper. Drop
-      // it so the portaled menu stays the single source of truth.
+      // row makes morphdom re-create a duplicate inside the wrapper. That
+      // duplicate is the CURRENT truth — an action may have gone ("Retry"
+      // once an extraction succeeds) — so its items move into the menu the
+      // user is looking at before it is dropped. Keeping the pre-patch items
+      // would let a click fire an action the server no longer offers.
       if (this.isOpen) {
         var dup = this.el.querySelector("[data-row-menu-content]");
-        if (dup && dup !== this.menu) dup.remove();
+        if (dup && dup !== this.menu) {
+          var fresh = Array.prototype.slice.call(dup.childNodes);
+          this.menu.replaceChildren.apply(this.menu, fresh);
+          dup.remove();
+        }
       }
+      // morphdom can hand the wrapper back as a fresh node; re-publish.
+      this.el._pkRowMenu = this;
     },
 
-    _open() {
+    // `at` is `{x, y}` for a right-click, absent for the ⋮ trigger.
+    _open(at) {
       // Portal to <body> before measuring. If the menu sits inside a
       // <dialog> or any ancestor that establishes a fixed-positioning
       // containing block, `position: fixed` coords would be interpreted
@@ -4848,39 +5028,57 @@ if (typeof window.Chart === "undefined") {
       var menuWidth = this.menu.offsetWidth || 160;
       var menuHeight = this.menu.offsetHeight || 200;
 
-      // Horizontal: align right edge of menu with right edge of trigger
-      var left = triggerRect.right - menuWidth;
-      if (left < 8) left = triggerRect.left;
-      left = Math.max(8, Math.min(left, vw - menuWidth - 8));
+      var left;
+      var top;
 
-      // Vertical: prefer below, flip above if not enough space
-      var top = triggerRect.bottom + gap;
-      if (top + menuHeight > vh - 8 && triggerRect.top - menuHeight - gap > 8) {
-        top = triggerRect.top - menuHeight - gap;
+      if (at) {
+        // Right-click: the pointer is the anchor, not the ⋮ button — which on
+        // a wide table sits far to the right of where the user clicked.
+        var pos = pointerMenuPosition(at.x, at.y, menuWidth, menuHeight, vw, vh);
+        left = pos.left;
+        top = pos.top;
+      } else {
+        // Horizontal: align right edge of menu with right edge of trigger
+        left = triggerRect.right - menuWidth;
+        if (left < 8) left = triggerRect.left;
+        left = Math.max(8, Math.min(left, vw - menuWidth - 8));
+
+        // Vertical: prefer below, flip above if not enough space
+        top = triggerRect.bottom + gap;
+        if (top + menuHeight > vh - 8 && triggerRect.top - menuHeight - gap > 8) {
+          top = triggerRect.top - menuHeight - gap;
+        }
+        top = Math.max(8, Math.min(top, vh - menuHeight - 8));
       }
-      top = Math.max(8, Math.min(top, vh - menuHeight - 8));
 
       this.menu.style.top = top + "px";
       this.menu.style.left = left + "px";
 
       this.isOpen = true;
+      openRowMenu = this;
       this.trigger.setAttribute("aria-expanded", "true");
 
       document.addEventListener("click", this._onOutsideClick, true);
       document.addEventListener("keydown", this._onKeydown);
+      document.addEventListener("scroll", this._onScrollClose, true);
+      window.addEventListener("resize", this._onScrollClose);
 
-      // Focus first item for keyboard navigation
+      // Focus first item for keyboard navigation. `preventScroll`: a focus
+      // that scrolled the page would fire the scroll-close just registered.
       var first = this.menu.querySelector("[role='menuitem']");
-      if (first) first.focus();
+      if (first) first.focus({ preventScroll: true });
     },
 
     _close() {
       if (!this.isOpen) return;
       this.menu.classList.add("hidden");
       this.isOpen = false;
+      if (openRowMenu === this) openRowMenu = null;
       this.trigger.setAttribute("aria-expanded", "false");
       document.removeEventListener("click", this._onOutsideClick, true);
       document.removeEventListener("keydown", this._onKeydown);
+      document.removeEventListener("scroll", this._onScrollClose, true);
+      window.removeEventListener("resize", this._onScrollClose);
 
       // Restore the menu to its original location so LiveView's diff
       // patching can find it on subsequent updates. Without this the
@@ -4900,6 +5098,9 @@ if (typeof window.Chart === "undefined") {
       this._close();
       this.trigger.removeEventListener("click", this._onTriggerClick);
       this.menu.removeEventListener("click", this._onMenuClick);
+      // A row patched away mid-selection leaves its wrapper behind in some
+      // paths; drop the back-reference so a stale hook is never reopened.
+      if (this.el._pkRowMenu === this) this.el._pkRowMenu = null;
     }
   };
 
@@ -7928,7 +8129,6 @@ if (typeof window.Chart === "undefined") {
   // holding a row also activates it.
   var swallowClick = false;
 
-  var PAD = 8;
   var MOVE_TOLERANCE = 10;
   var NATIVE_MENU_GRACE_MS = 800;
   var SWALLOW_CLICK_MS = 700;
@@ -7942,17 +8142,15 @@ if (typeof window.Chart === "undefined") {
   // Where a menu of w x h opens for a pointer at (x, y) in a vw x vh viewport.
   // Down-right of the pointer by default; flips to the other side of it rather
   // than overflowing, then clamps for a menu too big to fit either way.
-  // Pure — exported for test/js/context_menu.test.cjs.
+  //
+  // One implementation, shared with RowMenu's right-click path
+  // (`window.PhoenixKitMenus.pointerPosition`, defined in the hooks IIFE
+  // above): a right-click menu and a row menu opened by right-click must land
+  // in the same place, and a second copy of this arithmetic would drift.
+  // Still a local name, and still exported, so test/js/context_menu.test.cjs
+  // exercises the shared rule.
   function contextMenuPosition(x, y, w, h, vw, vh) {
-    var left = x;
-    if (left + w > vw - PAD) left = x - w;
-    left = Math.max(PAD, Math.min(left, vw - w - PAD));
-
-    var top = y;
-    if (top + h > vh - PAD) top = y - h;
-    top = Math.max(PAD, Math.min(top, vh - h - PAD));
-
-    return { left: left, top: top };
+    return window.PhoenixKitMenus.pointerPosition(x, y, w, h, vw, vh);
   }
 
   function rowFor(menu, target) {
