@@ -37,7 +37,7 @@ defmodule PhoenixKit.Dashboard.AdminSettingsEntryRedirectTest do
     assert parent.redirect_to_first_subtab == true
   end
 
-  test "General is still the lowest-priority (first) subtab, so an unchanged scope redirects nowhere new" do
+  test "General is the lowest-priority core subtab and shares the parent's path" do
     tabs = AdminTabs.settings_tabs()
     general = Enum.find(tabs, &(&1.id == :admin_settings_general))
 

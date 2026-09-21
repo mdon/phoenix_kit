@@ -40,14 +40,32 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebarSettingsRedirectTest do
   # Mirrors the filtering `PhoenixKit.Dashboard.Registry.get_tabs/1` applies
   # for an :admin, scope-bound query — minus the level/enabled filters, which
   # are not what this issue is about and every tab here is already :admin.
-  defp visible_settings_tabs(scope) do
-    AdminTabs.settings_tabs()
+  defp visible_settings_tabs(scope, extra_tabs \\ []) do
+    (AdminTabs.settings_tabs() ++ extra_tabs)
     |> Enum.filter(&(Tab.permission_granted?(&1, scope) and Tab.visible?(&1, scope)))
     |> Enum.sort_by(& &1.priority)
   end
 
-  defp render_settings_entry(scope, current_path \\ "/admin/nowhere") do
-    tabs = visible_settings_tabs(scope) |> TabHelpers.add_active_state(current_path)
+  # A module settings subtab registered BELOW General's priority — the shape
+  # `phoenix_kit_bookings` ships (`:admin_settings_bookings`, priority 650).
+  defp low_priority_module_subtab do
+    Tab.resolve_path(
+      %Tab{
+        id: :admin_settings_bookings,
+        label: "Bookings",
+        icon: "hero-calendar",
+        path: "settings/bookings",
+        priority: 650,
+        level: :admin,
+        parent: :admin_settings,
+        permission: "bookings"
+      },
+      :admin
+    )
+  end
+
+  defp render_settings_entry(scope, current_path \\ "/admin/nowhere", extra_tabs \\ []) do
+    tabs = visible_settings_tabs(scope, extra_tabs) |> TabHelpers.add_active_state(current_path)
     parent = Enum.find(tabs, &(&1.id == :admin_settings))
 
     render_component(&AdminSidebar.__tab_with_subtabs_for_test__/1,
@@ -64,6 +82,15 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebarSettingsRedirectTest do
   # match `/admin/settings/sitemap`.
   defp href_exact?(html, path) do
     html =~ ~r{href="[^"]*#{Regex.escape(path)}"}
+  end
+
+  # The parent entry's own anchor (the one carrying `data-tab-id="admin_settings"`),
+  # as opposed to the subtab links in the flyout.
+  defp parent_href(html) do
+    case Regex.run(~r{<a href="([^"]*)"[^>]*data-tab-id="admin_settings"}, html) do
+      [_, href] -> href
+      nil -> nil
+    end
   end
 
   describe "a role holding only a module's settings-subtab permission" do
@@ -104,6 +131,28 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebarSettingsRedirectTest do
       html = render_settings_entry(scope(["settings", "sitemap", "media"]))
 
       assert href_exact?(html, "/admin/settings")
+    end
+
+    test "a module subtab with a priority below General does not hijack a settings holder's link" do
+      html =
+        render_settings_entry(scope(["settings", "bookings"]), "/admin/nowhere", [
+          low_priority_module_subtab()
+        ])
+
+      assert parent_href(html) =~ ~r{/admin/settings$}
+    end
+
+    test "the same low-priority module subtab is the target when General is out of reach" do
+      # `sitemap` keeps the parent entry visible (`settings_visible?/1` reads
+      # module keys from the ModuleRegistry, which knows sitemap but not this
+      # synthetic subtab); the redirect itself is decided among the reachable
+      # subtabs, where bookings (650) sorts before sitemap (931).
+      html =
+        render_settings_entry(scope(["bookings", "sitemap"]), "/admin/nowhere", [
+          low_priority_module_subtab()
+        ])
+
+      assert parent_href(html) =~ ~r{/admin/settings/bookings$}
     end
   end
 end
