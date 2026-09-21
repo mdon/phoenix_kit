@@ -12,6 +12,37 @@ defmodule PhoenixKitWeb.Components.Core.TableRowMenu do
 
   Works on mobile and desktop. On mobile the menu is full-width clamped to viewport.
 
+  ## Right-click (opt-in)
+
+  An element flagged `data-row-menu-context` opens the menu rendered INSIDE it
+  at the pointer:
+
+      <.table_default_row data-row-menu-context>
+        …
+        <.table_row_menu id={"item-menu-\#{item.uuid}"}> … </.table_row_menu>
+      </.table_default_row>
+
+  A flag, not the menu's id, because the row element is usually rendered by a
+  shared table component that never sees the id its caller built for the menu
+  in the actions slot — so the row says "right-click me" and the menu is found
+  within it.
+
+  Put it on the whole row, or on one cell to confine the gesture. Nested rows
+  resolve to the innermost one (`Element.closest/1`), and a menu belonging to
+  a nested row is never opened by a right-click on its parent. A right-click
+  that matches nothing — page background, a header, a row whose menu is behind
+  an `:if` and so absent from the DOM — leaves the browser's own menu alone;
+  suppressing it with nothing to show in its place would cost the user Copy
+  and Inspect for no gain. **Omit the attribute to disable the gesture**, which
+  is how a setting turns it off.
+
+  Not `Core.ContextMenu`, deliberately: that component's single menu element
+  serves every row, so it stamps `phx-value-*` onto its items and an item's
+  `navigate`/`href` cannot vary by row. This component already renders one
+  menu per row, so per-row destinations keep working and no item is written
+  twice. Use `Core.ContextMenu` when the rows have no `⋮` menu of their own
+  (a tree, a grid of tiles) — the two cost the same right-click.
+
   ## Components
 
   - `table_row_menu/1` — wrapper with trigger button, accepts items as inner_block
