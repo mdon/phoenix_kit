@@ -123,9 +123,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     reachable from a console* — same reasoning as the `only_file_type`
     lock on `set_file_filter`. The same applies one level down, inside
     the modal viewer's `MediaCanvasViewer`: readonly passes
-    `can_annotate={false}` (Etcher shapes lock), `edit_target={nil}`
-    (title/alt/description save refuses — passing a `details_path` alone
-    is not a boundary there), and `persist_rotation={false}`.
+    `can_annotate={false}` (Etcher shapes lock), `edit_target={nil}` AND
+    `details_path={nil}` (title/alt/description save refuses only when
+    BOTH are nil), and `persist_rotation={false}`.
 
     Typical use: embedding the browser on a page where the viewer should
     only look, not touch —
@@ -222,7 +222,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     {:ok, socket}
   end
 
-  # The viewer's "Edit image" button.
+  # The viewer's "Edit image" button. Unreachable under readonly from the
+  # client (the button itself is already gone — see edit_target in the
+  # heex), but guarded here too for defense-in-depth, same as every other
+  # write path.
+  def update(%{open_image_editor: _uuid}, %{assigns: %{readonly: true}} = socket) do
+    {:ok, socket}
+  end
+
   def update(%{open_image_editor: file_uuid}, socket) do
     {:ok, open_image_editor(socket, file_uuid)}
   end
@@ -414,16 +421,28 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # committed from commit_upload_batch/1 once the batch debounce window closes,
   # so dropping N files produces one page reload instead of N.
   defp process_pending_upload(socket, {path, entry}) do
-    if off_type_upload?(socket, entry) do
-      # A locked browser filters its listing, so an off-type file would be
-      # stored and then be invisible in the very browser that accepted it —
-      # "I uploaded it and it vanished". The parent's `accept: :any` is shared
-      # by every browser on the page and can't express the lock, so the refusal
-      # belongs here, where the component's own assigns are in scope.
-      File.rm(path)
-      put_flash(socket, :error, off_type_upload_error(socket.assigns.only_file_type))
-    else
-      buffer_pending_upload(socket, path, entry)
+    cond do
+      # `pending_upload` is broadcast to every registered MediaBrowser
+      # instance on the page (see handle_parent_info/2), not just the one
+      # whose upload input was used — so a readonly browser co-located with
+      # a writable one (or any host with its own live_file_input elsewhere)
+      # would otherwise get files written into its scope regardless of
+      # `readonly`. The refusal belongs here, same as off_type_upload? below.
+      socket.assigns.readonly ->
+        File.rm(path)
+        log_readonly_blocked(socket, "process_pending_upload")
+
+      off_type_upload?(socket, entry) ->
+        # A locked browser filters its listing, so an off-type file would be
+        # stored and then be invisible in the very browser that accepted it —
+        # "I uploaded it and it vanished". The parent's `accept: :any` is shared
+        # by every browser on the page and can't express the lock, so the refusal
+        # belongs here, where the component's own assigns are in scope.
+        File.rm(path)
+        put_flash(socket, :error, off_type_upload_error(socket.assigns.only_file_type))
+
+      true ->
+        buffer_pending_upload(socket, path, entry)
     end
   end
 
@@ -3384,11 +3403,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # See the moduledoc's `:featured` attr. `nil` (the default) keeps the
   # star badge and kebab item off.
   attr :featured, :any, default: nil
+  attr :readonly, :boolean, default: false
 
   defp file_card(assigns) do
     ~H"""
     <div
-      data-draggable-file={@file.file_uuid}
+      data-draggable-file={if not @readonly, do: @file.file_uuid}
       data-stack-card={@index}
       class={[
         "group relative aspect-square bg-base-300 rounded-lg overflow-hidden hover:shadow-lg transition-shadow",
@@ -3479,7 +3499,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
               the viewer; the thumbnail reorients live. --%>
         <.table_row_menu_button
           :if={
-            @file.file_type == "image" and not @filter_trash and
+            not @readonly and @file.file_type == "image" and not @filter_trash and
               ImageEditing.editable_mime?(@file.mime_type)
           }
           phx-click="open_image_editor"
@@ -3491,7 +3511,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         <%!-- See the moduledoc's `:featured` attr — off entirely when the
               host didn't opt in. --%>
         <.table_row_menu_button
-          :if={@featured && @file.file_type == "image" && !@filter_trash}
+          :if={(not @readonly and @featured) && @file.file_type == "image" && !@filter_trash}
           phx-click={
             if featured?(@featured, @file.file_uuid), do: "unset_featured", else: "set_featured"
           }
@@ -3505,7 +3525,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           }
         />
         <.table_row_menu_button
-          :if={@file.file_type == "image"}
+          :if={not @readonly and @file.file_type == "image"}
           phx-click="rotate_file"
           phx-target={@myself}
           phx-value-file-uuid={@file.file_uuid}
@@ -3514,7 +3534,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           label={gettext("Rotate left")}
         />
         <.table_row_menu_button
-          :if={@file.file_type == "image"}
+          :if={not @readonly and @file.file_type == "image"}
           phx-click="rotate_file"
           phx-target={@myself}
           phx-value-file-uuid={@file.file_uuid}
@@ -3523,6 +3543,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           label={gettext("Rotate right")}
         />
         <.table_row_menu_button
+          :if={not @readonly}
           phx-click="prepare_move_file"
           phx-target={@myself}
           phx-value-file-uuid={@file.file_uuid}
@@ -3530,6 +3551,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           label={gettext("Move")}
         />
         <.table_row_menu_button
+          :if={not @readonly}
           phx-click="delete_file"
           phx-target={@myself}
           phx-value-file-uuid={@file.file_uuid}

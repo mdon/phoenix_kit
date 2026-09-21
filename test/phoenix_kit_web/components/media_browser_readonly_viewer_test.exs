@@ -2,13 +2,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowserReadonlyViewerTest do
   @moduledoc """
   Issue #840's `readonly` attr has to close three holes one level down, in
   the `MediaCanvasViewer` child the modal viewer embeds: `can_annotate`
-  (Etcher shapes), `edit_target` (title/alt/description save — a truthy
-  `details_path` alone is NOT the boundary there, see
-  MediaCanvasViewer's `save_media_details` clause), and `persist_rotation`.
+  (Etcher shapes), `edit_target` AND `details_path` (title/alt/description
+  save — MediaCanvasViewer's `save_media_details` clause only refuses the
+  write when BOTH are nil, so `readonly` nils both, even with `admin: true`
+  where `details_path` would otherwise stay truthy), and `persist_rotation`.
 
-  The Edit-image button is this component's own markup, so it's asserted
-  end to end through a real host LiveView. `can_annotate` and
-  `persist_rotation` are asserted with direct
+  The Edit-image button and the meta-edit form are this component's own
+  markup, so they're asserted end to end through a real host LiveView.
+  `can_annotate`, `persist_rotation`, and (belt-and-braces, alongside the
+  end-to-end markup check) `save_media_details` are asserted with direct
   `MediaCanvasViewer.handle_event/3` calls using the exact assigns a
   readonly `MediaBrowser` hands the child — Etcher's and Fresco's own
   rendered markup belong to those packages, not to this component.
@@ -18,6 +20,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserReadonlyViewerTest do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
+  alias PhoenixKit.Modules.Storage.FileDetails
   alias PhoenixKit.Users.Auth
   alias PhoenixKitWeb.Components.MediaBrowser
   alias PhoenixKitWeb.Components.MediaCanvasViewer
@@ -118,8 +121,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowserReadonlyViewerTest do
     view
   end
 
-  describe "MediaCanvasViewer's edit_target under readonly" do
-    test "Edit image is absent even with admin: true — details_path alone is not the boundary" do
+  describe "MediaCanvasViewer's edit_target and details_path under readonly" do
+    test "Edit image is absent even with admin: true" do
       folder = create_folder!()
       file = create_file!(folder.uuid)
       view = open_host(folder, true, true)
@@ -142,6 +145,46 @@ defmodule PhoenixKitWeb.Components.MediaBrowserReadonlyViewerTest do
       |> render_click()
 
       assert has_element?(view, "[phx-click='edit_image']")
+    end
+
+    test "the meta-edit form (title/alt/description save) is absent even with admin: true" do
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      view = open_host(folder, true, true)
+
+      view
+      |> element("[phx-click='click_file'][phx-value-file-uuid='#{file.uuid}']")
+      |> render_click()
+
+      assert has_element?(view, "#mb-viewer-modal")
+      refute has_element?(view, "#media-meta-form-#{file.uuid}")
+    end
+
+    test "belt-and-braces: save_media_details no-ops once both details_path and edit_target are nil" do
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+
+      # The exact assign shape the readonly + admin: true `.live_component`
+      # call now produces (see media_browser.html.heex) — both nil, closing
+      # the gap where `details_path` alone used to be enough.
+      socket =
+        viewer_socket(%{file_uuid: file.uuid, folder_uuid: folder.uuid}, %{
+          details_path: nil,
+          edit_target: nil
+        })
+
+      {:noreply, _socket} =
+        MediaCanvasViewer.handle_event(
+          "save_media_details",
+          %{"title" => "hacked"},
+          socket
+        )
+
+      reloaded = Storage.get_file(file.uuid)
+      title = FileDetails.from_file(reloaded).title
+
+      refute title == "hacked"
+      assert title in [nil, ""]
     end
   end
 

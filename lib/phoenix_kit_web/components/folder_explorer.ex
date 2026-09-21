@@ -343,7 +343,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
             <button
               phx-click="toggle_trash_filter"
               phx-target={@myself}
-              data-drop-trash={if @enable_drag, do: "true"}
+              data-drop-trash={@enable_drag && "true"}
               class={[
                 "flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors w-full",
                 if(@filter_trash,

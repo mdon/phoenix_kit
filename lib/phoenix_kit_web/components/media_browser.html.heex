@@ -354,7 +354,7 @@
                 <%!-- Action(s), top-right. `z-20` keeps it above the content
                      block (also z-10, but later in the DOM) so a tall header
                      with lots of content can't cover the button's click area. --%>
-                <%= if @current_folder do %>
+                <%= if @current_folder && not @readonly do %>
                   <div class="absolute top-3 right-3 z-40 flex flex-col items-end gap-2">
                     <button
                       type="button"
@@ -715,7 +715,7 @@
                                  shown when actually inside a folder (editable) —
                                  at a scoped root the header is read-only. --%>
                             <button
-                              :if={@current_folder}
+                              :if={@current_folder && not @readonly}
                               type="button"
                               phx-click="start_edit_folder_header"
                               phx-value-folder-uuid={@current_folder.uuid}
@@ -1016,7 +1016,7 @@
                         (@show_search or @search_query != "") && "w-full sm:w-auto"
                       ]}>
                         <%!-- Empty Trash (trash view) --%>
-                        <%= if @filter_trash and @total_count > 0 do %>
+                        <%= if not @readonly and @filter_trash and @total_count > 0 do %>
                           <button
                             phx-click="empty_trash"
                             phx-target={@myself}
@@ -1037,7 +1037,8 @@
                         <% end %>
 
                         <%!-- Delete all orphaned (orphaned view, global root only) --%>
-                        <%= if is_nil(@scope_folder_id) and @filter_orphaned and @total_count > 0 do %>
+                        <%= if not @readonly and is_nil(@scope_folder_id) and @filter_orphaned and
+                               @total_count > 0 do %>
                           <button
                             phx-click="delete_all_orphaned"
                             phx-target={@myself}
@@ -1787,6 +1788,7 @@
                                   filter_trash={@filter_trash}
                                   featured={@featured}
                                   myself={@myself}
+                                  readonly={@readonly}
                                 />
                               <% end %>
                             </div>
@@ -1846,6 +1848,7 @@
                                   filter_trash={@filter_trash}
                                   featured={@featured}
                                   myself={@myself}
+                                  readonly={@readonly}
                                 />
                               <% end %>
                             </div>
@@ -2774,11 +2777,14 @@
         <%!-- persist_rotation is unconditional in normal mode: rotation is --%>
         <%!-- the file's shared orientation, so anyone who can open the    --%>
         <%!-- viewer and rotate saves it for everyone (not admin-only).    --%>
-        <%!-- The Details link stays admin-only — it targets the admin    --%>
-        <%!-- detail page. readonly forces every write path off:          --%>
-        <%!-- can_annotate (Etcher shapes), edit_target (title/alt/desc   --%>
-        <%!-- save — details_path alone is NOT a boundary, see            --%>
-        <%!-- MediaCanvasViewer's save_media_details clause),             --%>
+        <%!-- The Details link is admin-only and also hidden under        --%>
+        <%!-- readonly (it doubles as the meta-edit boundary below) — it  --%>
+        <%!-- targets the admin detail page. readonly forces every write  --%>
+        <%!-- path off:                                                   --%>
+        <%!-- can_annotate (Etcher shapes), edit_target AND details_path  --%>
+        <%!-- (title/alt/desc save — MediaCanvasViewer's                  --%>
+        <%!-- save_media_details clause only refuses when BOTH are nil,   --%>
+        <%!-- so readonly must nil both, not just edit_target),           --%>
         <%!-- persist_rotation, and featured (nil hides the sidebar's own --%>
         <%!-- Set/Unset toggle — the grid/list/stack tile badge is a      --%>
         <%!-- separate, unconditional read of @featured, untouched here). --%>
@@ -2792,7 +2798,9 @@
           has_next={has_next}
           can_annotate={not @readonly}
           persist_rotation={not @readonly}
-          details_path={if @admin, do: Routes.path("/admin/media/#{f.file_uuid}")}
+          details_path={
+            if @admin and not @readonly, do: Routes.path("/admin/media/#{f.file_uuid}")
+          }
           edit_target={if @readonly or @select_mode, do: nil, else: {__MODULE__, @id}}
           write_scope={@scope_folder_id}
           featured={if @readonly, do: nil, else: @featured}
