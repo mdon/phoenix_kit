@@ -920,7 +920,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   <%!-- Project title and Admin label grouped together --%>
                   <div class="flex items-center gap-1 min-w-0">
                     <.link
-                      href="/"
+                      href={Routes.locale_aware_home_path(assigns, @socket)}
                       class={[
                         "font-bold text-base-content hover:opacity-80 transition-opacity truncate",
                         (@page_title && "hidden lg:inline") || "hidden sm:inline"
@@ -978,7 +978,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     </span>
                     <.link
                       :if={@page_title}
-                      href="/"
+                      href={Routes.locale_aware_home_path(assigns, @socket)}
                       title={@project_title}
                       class="lg:hidden font-bold text-base-content/50 hover:text-base-content transition-opacity shrink-0"
                     >

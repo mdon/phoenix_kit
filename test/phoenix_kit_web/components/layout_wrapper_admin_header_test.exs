@@ -16,6 +16,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
   import Phoenix.Component, only: [sigil_H: 2]
   import Phoenix.LiveViewTest, only: [rendered_to_string: 1]
 
+  alias Ecto.Adapters.SQL.Sandbox
+  alias PhoenixKit.Cache
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Permissions
@@ -37,18 +39,21 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
     assigns = %{
       scope: scope,
       show_label: Keyword.get(opts, :show_admin_panel_label),
-      dev_environment: Keyword.get(opts, :dev_environment)
+      dev_environment: Keyword.get(opts, :dev_environment),
+      current_locale: Keyword.get(opts, :current_locale),
+      socket: Keyword.get(opts, :socket)
     }
 
     ~H"""
     <LayoutWrapper.app_layout
       flash={%{}}
-      socket={nil}
+      socket={@socket}
       current_path="/admin"
       page_title="Dashboard"
       project_title="Acme"
       show_admin_panel_label={@show_label}
       dev_environment={@dev_environment}
+      current_locale={@current_locale}
       phoenix_kit_current_scope={@scope}
     >
       <span id="pk-test-body">body</span>
@@ -542,6 +547,149 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
       html = admin_shell(plain_user_scope(), dev_environment: true)
 
       assert html =~ "[dev]"
+    end
+  end
+
+  describe "project title link — locale-aware, probed against the host's own router (issue #843)" do
+    # Both `.link` instances (the full title and the collapsed "…" variant,
+    # which only renders once `page_title` is set — `admin_shell/2` always
+    # passes one) used to hardcode `href="/"`, losing the locale a visitor on
+    # e.g. `/ru/admin/...` was browsing in.
+    #
+    # The fix is NOT `Routes.locale_aware_path/2` (which every other admin
+    # chrome link uses): that builds a path from a CANONICAL one via `path/2`,
+    # which always adds `url_prefix` — under `url_prefix: "/phoenix_kit"`
+    # (this suite's config) it would link the header to `/phoenix_kit/ru`,
+    # core's OWN mount point, not the host's home page. `Routes.home_path/2`
+    # is the fix instead: it targets the HOST's own root (`/ru`, never
+    # `/phoenix_kit/ru`) and only where the host's router actually proves it —
+    # `#685`'s invariant that a link is never handed out unprobed. Falls back
+    # to the bare `/` — the same destination the old hardcoded `href="/"`
+    # always produced — wherever the host has not declared a `/:locale` scope.
+    #
+    # `admin_shell/2`'s default `socket: nil` cannot exercise either branch
+    # (`Routes.routable?/2` fails closed with no router), so these tests pass
+    # an explicit socket carrying a real, compiled test router — the same
+    # `conn_for/socket_for` pattern `SafeDestinationTest` uses.
+    defmodule FakeController do
+      def init(opts), do: opts
+      def call(conn, _opts), do: conn
+    end
+
+    # Stands in for a host that declared a `/:locale` landing — the setup
+    # core's own release notes have been asking multilingual hosts for.
+    defmodule LocaleHomeRouter do
+      use Phoenix.Router
+
+      get "/:locale",
+          PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest.FakeController,
+          :home
+    end
+
+    # Declares nothing at all — the common case, a host with no locale-aware
+    # home route (or none at all).
+    defmodule NoHomeRouter do
+      use Phoenix.Router
+    end
+
+    defp socket_for(router) do
+      %Phoenix.LiveView.Socket{router: router, host_uri: URI.parse("http://localhost")}
+    end
+
+    # A synthetic `%Phoenix.LiveView.Socket{}` carries none of the internal
+    # state `Phoenix.Component.live_render/3` needs, so it can only stand in
+    # for a real socket where nothing in the render tree actually calls
+    # `live_render`. The header's notifications bell does exactly that
+    # whenever a socket AND a `bell_user` are both present — and `owner_scope/0`
+    # carries a real `%User{}`, which is `bell_user` by way of
+    # `phoenix_kit_current_scope.user`. `user: nil` keeps the Owner
+    # permissions these tests need while keeping `bell_user` nil, so the bell
+    # branch (irrelevant here) is skipped regardless of the socket.
+    defp owner_scope_no_bell_user do
+      %Scope{
+        user: nil,
+        authenticated?: true,
+        cached_roles: ["Owner"],
+        cached_permissions: MapSet.new(Permissions.all_module_keys())
+      }
+    end
+
+    # Both title variants (full and collapsed) render one root link each.
+    defp count_href(html, path) do
+      html |> String.split(~s(href="#{path}")) |> length() |> Kernel.-(1)
+    end
+
+    test "links to the host's own localized root when the host routes it" do
+      html =
+        admin_shell(owner_scope_no_bell_user(),
+          current_locale: "ru",
+          socket: socket_for(LocaleHomeRouter)
+        )
+
+      assert count_href(html, "/ru") == 2
+      assert count_href(html, "/") == 0
+    end
+
+    test "the default language on a prefixless-primary site links to the bare root" do
+      # Same primed-cache setup as `PhoenixKit.Utils.UserSettingsPathTest`:
+      # the setting is read through the ETS cache, so prime it in-process
+      # instead of touching the database.
+      if Application.get_env(:phoenix_kit, :test_repo_available, false) do
+        :ok = Sandbox.checkout(PhoenixKit.Test.Repo)
+      end
+
+      start_supervised!({Cache.Registry, []})
+      start_supervised!({Cache, name: :settings})
+      Cache.put(:settings, "default_language_no_prefix", "true")
+
+      html =
+        admin_shell(owner_scope_no_bell_user(),
+          current_locale: "en",
+          socket: socket_for(LocaleHomeRouter)
+        )
+
+      assert count_href(html, "/") == 2
+      assert count_href(html, "/en") == 0
+    end
+
+    test "falls back to the bare root when the host does not route a locale segment" do
+      html =
+        admin_shell(owner_scope_no_bell_user(),
+          current_locale: "ru",
+          socket: socket_for(NoHomeRouter)
+        )
+
+      assert html =~ ~s(href="/")
+      refute html =~ ~s(href="/ru")
+    end
+
+    test "never links into core's own mount point, whichever way the host routes" do
+      for router <- [LocaleHomeRouter, NoHomeRouter] do
+        html =
+          admin_shell(owner_scope_no_bell_user(),
+            current_locale: "ru",
+            socket: socket_for(router)
+          )
+
+        refute html =~ ~s(href="/phoenix_kit/ru")
+        refute html =~ ~s(href="/phoenix_kit")
+      end
+    end
+
+    test "with no locale assign, falls back to the default locale, same probe" do
+      # No `current_locale` passed — `locale_aware_home_path/2` still resolves
+      # it through the default locale, same as every other locale-aware link.
+      html = admin_shell(owner_scope_no_bell_user(), socket: socket_for(LocaleHomeRouter))
+
+      assert html =~ ~s(href="/en")
+      refute html =~ ~s(href="/phoenix_kit")
+    end
+
+    test "with no router at all, falls back to the bare root — no regression from before #843" do
+      html = admin_shell(owner_scope(), current_locale: "ru")
+
+      assert html =~ ~s(href="/")
+      refute html =~ ~s(href="/ru")
     end
   end
 end

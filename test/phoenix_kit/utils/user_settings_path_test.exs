@@ -63,15 +63,60 @@ defmodule PhoenixKit.Utils.UserSettingsPathTest do
     test "the host's path wins" do
       put_setting("user_settings_path", "/account")
 
-      assert Routes.user_settings_path() == "/account"
+      assert Routes.user_settings_path(locale: "ru") == "/ru/account"
     end
 
-    test "the override is used verbatim — no prefix, no locale segment" do
+    test "the override gets the same locale segment path/2 would insert for the default page" do
       put_setting("user_settings_path", "/account")
 
-      # It is the host's own path: core neither prepends its url prefix nor
-      # inserts a locale, so asking for one changes nothing.
-      assert Routes.user_settings_path(locale: "ru") == "/account"
+      assert Routes.user_settings_path(locale: "et") == "/et/account"
+    end
+  end
+
+  describe "locale-aware host overrides (issue #843)" do
+    # `setting_candidate/1` reads through `PhoenixKit.Settings.get_setting_cached/2`;
+    # these tests prime `PhoenixKit.Cache` directly (same setup as
+    # `PhoenixKit.Utils.SafeDestinationSettingsTest`), so the override and the
+    # language settings come from the cache, not the database.
+    test "url_prefix is never added to a host page reached at its own root" do
+      # "/account" is the HOST's own page — it is not mounted under core's
+      # url_prefix, so inserting one here would nest a host page under core's
+      # mount point, e.g. `/phoenix_kit/ru/account`, a path the host never
+      # declared.
+      put_setting("user_settings_path", "/account")
+
+      refute Routes.user_settings_path(locale: "ru") =~ Routes.url_prefix()
+    end
+
+    test "an override pointed back at one of core's own pages localizes exactly like the default" do
+      put_setting("user_settings_path", "/phoenix_kit/profile/settings")
+
+      assert Routes.user_settings_path(locale: "ru") ==
+               Routes.path("/profile/settings", locale: "ru")
+    end
+
+    test "an override that already carries a locale segment is left untouched" do
+      put_setting("user_settings_path", "/en/account")
+
+      assert Routes.user_settings_path(locale: "en") == "/en/account"
+
+      # Even a different requested locale does not replace the existing
+      # segment — this module only ever ADDS a missing locale, never swaps one.
+      assert Routes.user_settings_path(locale: "ru") == "/en/account"
+    end
+
+    test "the default locale on a prefixless-primary site leaves the override untouched" do
+      put_setting("user_settings_path", "/account")
+      put_setting("default_language_no_prefix", "true")
+
+      assert Routes.user_settings_path(locale: "en") == "/account"
+    end
+
+    test "an absolute external URL override is still rejected — falls back to the default, unchanged" do
+      put_setting("user_settings_path", "https://evil.example/settings")
+
+      assert Routes.user_settings_path(locale: "ru") ==
+               Routes.path("/profile/settings", locale: "ru")
     end
   end
 
