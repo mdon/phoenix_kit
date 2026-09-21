@@ -777,6 +777,12 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       # NotificationsBell; nil when the caller didn't thread it
       # through (then the bell simply isn't rendered).
       socket: assigns[:socket],
+      # The project title's home link (#852), resolved ONCE per render and
+      # read as `@home_path` by both title variants. Called inside the
+      # template as `locale_aware_home_path(assigns, @socket)` it probed the
+      # router twice per render, and handing `assigns` to a function in HEEx
+      # turns change tracking off for the expression.
+      home_path: Routes.locale_aware_home_path(assigns, assigns[:socket]),
       phoenix_kit_current_user: assigns[:phoenix_kit_current_user],
       current_path: assigns[:current_path],
       page_title: assigns[:page_title],
@@ -920,7 +926,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                   <%!-- Project title and Admin label grouped together --%>
                   <div class="flex items-center gap-1 min-w-0">
                     <.link
-                      href={Routes.locale_aware_home_path(assigns, @socket)}
+                      href={@home_path}
                       class={[
                         "font-bold text-base-content hover:opacity-80 transition-opacity truncate",
                         (@page_title && "hidden lg:inline") || "hidden sm:inline"
@@ -978,7 +984,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     </span>
                     <.link
                       :if={@page_title}
-                      href={Routes.locale_aware_home_path(assigns, @socket)}
+                      href={@home_path}
                       title={@project_title}
                       class="lg:hidden font-bold text-base-content/50 hover:text-base-content transition-opacity shrink-0"
                     >
