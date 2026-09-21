@@ -202,6 +202,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V200 (2026-09-21, when a photo or video was taken) DECLARES five objects
+  # here by hand, the V199 class: `column:phoenix_kit_files.taken_at`
+  # (timestamptz), `.taken_on` (date), `.taken_at_offset` (integer) and
+  # `.taken_at_source` (varchar(255)), all nullable with no default, and
+  # `index:phoenix_kit_files_capture_date_index`, `(user_uuid, taken_on DESC,
+  # taken_at DESC)` partial over a user's visible, processed images and
+  # videos. Shapes are CATALOG-EXACT, read with `Repair.Probe.snapshot/2`
+  # from a test database migrated through V200 — `pos` 29..32 continues
+  # after V199's 28, and the predicate is Postgres's deparse (`IN (…)` reads
+  # back as `= ANY (ARRAY[…])`), not the migration's text. `chain_hash`
+  # restamped over the shipped file set.
+  #
   # V199 (2026-09-19, media file translations) DECLARES one object here by
   # hand, the V196 class: `column:phoenix_kit_files.data` (jsonb NOT NULL
   # DEFAULT '{}'), a file's title, alt text and description per language. Shape read from a test database migrated
@@ -428,7 +440,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "00b93454483451d0304cd5d8f7f7cf663075195b4dbafa9aec7271f3dfcc0ba3"
+  @chain_hash "4d0d13c6f66a0663999671d6a48cc9612e81ce0f4cfd28bf0402d19f29947f67"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -71832,6 +71844,93 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
                "CREATE INDEX phoenix_kit_file_instances_file_name_index ON __SCHEMA__.phoenix_kit_file_instances USING btree (file_name)",
              predicate: nil,
              opclasses: ["text_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      # ── V200: when a photo or video was taken ──
+      %{
+        id: "column:phoenix_kit_files.taken_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_files", column: "taken_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"taken_at\" timestamp with time zone",
+        since: 200,
+        class: :column,
+        revisions: [
+          {200, %{default: nil, type: "timestamp with time zone", pos: 29, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.taken_on",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_files", column: "taken_on", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"taken_on\" date",
+        since: 200,
+        class: :column,
+        revisions: [{200, %{default: nil, type: "date", pos: 30, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.taken_at_offset",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_files", column: "taken_at_offset", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"taken_at_offset\" integer",
+        since: 200,
+        class: :column,
+        revisions: [{200, %{default: nil, type: "integer", pos: 31, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.taken_at_source",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_files", column: "taken_at_source", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"taken_at_source\" character varying(255)",
+        since: 200,
+        class: :column,
+        revisions: [
+          {200, %{default: nil, type: "character varying(255)", pos: 32, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_files_capture_date_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_files_capture_date_index",
+             table: "phoenix_kit_files",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_files_capture_date_index ON __SCHEMA__.phoenix_kit_files USING btree (user_uuid, taken_on DESC, taken_at DESC) WHERE ((system_managed = false) AND (trashed_at IS NULL) AND (parent_file_uuid IS NULL) AND ((status)::text = 'active'::text) AND ((file_type)::text = ANY ((ARRAY['image'::character varying, 'video'::character varying])::text[])))",
+        since: 200,
+        class: :index,
+        revisions: [
+          {200,
+           %{
+             table: "phoenix_kit_files",
+             keys: ["user_uuid", "taken_on", "taken_at"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_files_capture_date_index ON __SCHEMA__.phoenix_kit_files USING btree (user_uuid, taken_on DESC, taken_at DESC) WHERE ((system_managed = false) AND (trashed_at IS NULL) AND (parent_file_uuid IS NULL) AND ((status)::text = 'active'::text) AND ((file_type)::text = ANY ((ARRAY['image'::character varying, 'video'::character varying])::text[])))",
+             predicate:
+               "((system_managed = false) AND (trashed_at IS NULL) AND (parent_file_uuid IS NULL) AND ((status)::text = 'active'::text) AND ((file_type)::text = ANY ((ARRAY['image'::character varying, 'video'::character varying])::text[])))",
+             opclasses: ["uuid_ops", "date_ops", "timestamptz_ops"],
              name_template: nil
            }}
         ],

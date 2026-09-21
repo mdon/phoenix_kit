@@ -34,6 +34,8 @@ defmodule PhoenixKit.Modules.Storage.File do
   - `duration` - Video duration in seconds (nullable)
   - `status` - Processing status
   - `metadata` - JSONB with EXIF, codec info, etc.
+  - `taken_at`, `taken_on`, `taken_at_offset`, `taken_at_source` - When the
+    photo or video was taken (V200); see `PhoenixKit.Modules.Storage.CaptureDate`
   - `data` - JSONB with the title, alt text and description per language
     (V199). Read and written through `PhoenixKit.Modules.Storage.FileDetails`
   - `user_uuid` - Owner of the file
@@ -92,6 +94,8 @@ defmodule PhoenixKit.Modules.Storage.File do
   use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
+  alias PhoenixKit.Modules.Storage.CaptureDate
+
   @primary_key {:uuid, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
@@ -113,6 +117,10 @@ defmodule PhoenixKit.Modules.Storage.File do
           trashed_at: DateTime.t() | nil,
           metadata: map() | nil,
           data: map(),
+          taken_at: DateTime.t() | nil,
+          taken_on: Date.t() | nil,
+          taken_at_offset: integer() | nil,
+          taken_at_source: String.t() | nil,
           system_managed: boolean(),
           user_uuid: UUIDv7.t() | nil,
           folder_uuid: UUIDv7.t() | nil,
@@ -141,6 +149,16 @@ defmodule PhoenixKit.Modules.Storage.File do
     field :status, :string, default: "processing"
     field :trashed_at, :utc_datetime
     field :metadata, :map
+
+    # When the photo or video was taken (V200). `taken_on` is the LOCAL date,
+    # which is what a library groups by; `taken_at` is UTC. Written only
+    # through `CaptureDate.replace?/2`'s guard — see
+    # `PhoenixKit.Modules.Storage.CaptureDate` for the sources and why a
+    # date is never downgraded.
+    field :taken_at, :utc_datetime
+    field :taken_on, :date
+    field :taken_at_offset, :integer
+    field :taken_at_source, :string
 
     # The title, alt text and description per language (V199) —
     # `%{"en-US" => %{"title" => …, "alt" => …}, "et" => %{…}}`. Owned by
@@ -238,6 +256,10 @@ defmodule PhoenixKit.Modules.Storage.File do
       :status,
       :trashed_at,
       :metadata,
+      :taken_at,
+      :taken_on,
+      :taken_at_offset,
+      :taken_at_source,
       :system_managed,
       :user_uuid,
       :folder_uuid,
@@ -267,6 +289,7 @@ defmodule PhoenixKit.Modules.Storage.File do
     |> validate_number(:width, greater_than: 0)
     |> validate_number(:height, greater_than: 0)
     |> validate_number(:duration, greater_than: 0)
+    |> validate_inclusion(:taken_at_source, CaptureDate.sources())
     |> validate_system_managed_invariants()
     |> foreign_key_constraint(:user_uuid, name: :fk_files_user_uuid)
     |> foreign_key_constraint(:folder_uuid)

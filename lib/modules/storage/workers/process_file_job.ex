@@ -4,7 +4,8 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
 
   This job handles:
   - Generating file variants (thumbnails, resizes)
-  - Extracting metadata (dimensions, duration)
+  - Extracting metadata (dimensions, duration, and when an image or video was
+    taken — see `PhoenixKit.Modules.Storage.CaptureDate`)
   - Updating file status
 
   Unique per `file_uuid` while still pending or running, because the job
@@ -35,6 +36,7 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   require Logger
 
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.CaptureDate
   alias PhoenixKit.Modules.Storage.ImageProcessor
   alias PhoenixKit.Modules.Storage.PdfProcessor
   alias PhoenixKit.Modules.Storage.VariantGenerator
@@ -107,6 +109,7 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
     with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid) do
       with_temp_file(temp_path, fn ->
         with {:ok, metadata} <- extract_and_log_image_metadata(temp_path),
+             metadata = with_capture_date(metadata, temp_path, file),
              :ok <- update_and_log_metadata(file, source, metadata),
              :ok <- log_dimensions_info() do
           generate_and_log_variants(file)
@@ -173,6 +176,7 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
     with {:ok, temp_path, source} <- retrieve_and_log_file(file.uuid) do
       with_temp_file(temp_path, fn ->
         with {:ok, metadata} <- extract_video_metadata(temp_path),
+             metadata = with_capture_date(metadata, temp_path, file),
              :ok <- update_file_with_metadata(file, source, metadata) do
           VariantGenerator.generate_variants(file)
         end
@@ -232,6 +236,18 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   after
     File.rm(temp_path)
   end
+
+  # When the image or video was taken, read from the same bytes as its
+  # dimensions and recorded in the same guarded transaction. An edited image
+  # is skipped: an edit keeps only the ICC profile, so its bytes carry no
+  # EXIF, and reading them would find the file name or the upload time at
+  # best. It keeps the date it was given before the edit, or is dated from its
+  # unedited backup by `Storage.Workers.CaptureDateBackfillJob`.
+  defp with_capture_date(metadata, _path, %{original_file_uuid: backup}) when is_binary(backup),
+    do: metadata
+
+  defp with_capture_date(metadata, path, file),
+    do: Map.merge(metadata, CaptureDate.resolve(path, file))
 
   defp extract_pdf_metadata(temp_path) do
     {:ok, metadata} = PdfProcessor.extract_metadata(temp_path)
@@ -329,7 +345,10 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   # key). An image edit can swap that original meanwhile; writing the old
   # dimensions over the edited file's would be wrong, so the update only
   # happens while `source` is still the file's original (keys are
-  # content-addressed: the same key is the same bytes).
+  # content-addressed: the same key is the same bytes). A capture date is
+  # dropped from the update when it would replace a stronger one
+  # (`CaptureDate.admit/2`) — a re-run must never downgrade an EXIF date to a
+  # file name, nor touch a manual one.
   @doc false
   def update_file_with_metadata(file, source, metadata) do
     attrs = Map.merge(%{status: "active"}, metadata)
@@ -347,7 +366,7 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
       cond do
         is_nil(current) -> :gone
         not Storage.original_key?(file.uuid, source) -> :changed
-        true -> Storage.update_file(current, attrs)
+        true -> Storage.update_file(current, CaptureDate.admit(attrs, current))
       end
     end)
     |> case do

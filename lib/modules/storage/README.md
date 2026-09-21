@@ -60,6 +60,10 @@ Original file uploads with metadata
 - status (string, required) - "processing", "active", "failed"
 - metadata (jsonb, nullable) - EXIF, codec info, etc.
 - data (jsonb, default {}) - title / alt / description per language (V199)
+- taken_at (timestamptz, nullable) - when the photo/video was taken, UTC (V200)
+- taken_on (date, nullable) - the LOCAL date it was taken; what a library groups by (V200)
+- taken_at_offset (integer, nullable) - seconds east of UTC, when known (V200)
+- taken_at_source (string, nullable) - manual / exif / container / filename / inserted_at (V200)
 - user_uuid (uuid_v7, FK -> phoenix_kit_users.uuid)
 - inserted_at (timestamp)
 - updated_at (timestamp)
@@ -70,6 +74,8 @@ Original file uploads with metadata
 - `idx_files_file_type` on `file_type`
 - `idx_files_status` on `status`
 - `idx_files_inserted_at` on `inserted_at`
+- `phoenix_kit_files_capture_date_index` on `(user_uuid, taken_on DESC, taken_at DESC)`,
+  partial over a user's visible, processed images and videos (V200)
 
 **Foreign Keys:**
 - `user_uuid` references `phoenix_kit_users(uuid)` ON DELETE CASCADE
@@ -444,6 +450,54 @@ A file saved before V199 has its title and description in `metadata`; while
 its `data` is empty that text is read as the primary language's, and the
 first save moves it into `data`. After that `metadata` only receives a copy
 of the primary-language text, for the readers that still look there.
+
+## When a photo or video was taken
+
+`PhoenixKit.Modules.Storage.CaptureDate` reads it; four columns hold it
+(V200). `taken_on` is the **local date** and is what to group by: a photo
+taken at 23:00 on 31 July in California is a July photo, although it is
+already 1 August in UTC, so grouping on `taken_at` files it under the wrong
+month. `taken_at` is the UTC instant — exact when the offset is known, the
+local time stored as UTC when it is not (most EXIF has no offset), which
+still orders a library correctly.
+
+Where a date comes from, strongest first (`taken_at_source`):
+
+1. `manual` — set by a person; never replaced automatically
+2. `exif` (images: `DateTimeOriginal`, else `DateTimeDigitized`, with their
+   offset tags) and `container` (video: QuickTime's creation date, which
+   keeps the local time and offset, else `creation_time`, UTC)
+3. `filename` — `IMG_20180701_120000.jpg`, `PXL_20240315_081100123.jpg`,
+   `2018-07-01 12.34.56.jpg`, …
+4. `inserted_at` — the upload time; every file has one, so every image and
+   video resolves to *some* date
+
+A file's modification time is not a source: stored originals live on disk or
+in object storage, where it is the upload time.
+
+**Who writes it.** `ProcessFileJob` dates each new upload from the bytes it
+already downloads for the dimensions, in the same guarded transaction.
+`Storage.Workers.CaptureDateBackfillJob` dates files stored before V200:
+
+```elixir
+CaptureDateBackfillJob.enqueue()        # a pass in the background (file_processing queue)
+CaptureDateBackfillJob.pending_count()  # images and videos still without a date
+```
+
+```bash
+mix phoenix_kit.storage.backfill_capture_dates   # a pass in the foreground, with progress
+```
+
+**Never downgraded.** An image edit keeps only the ICC profile, so an edited
+original has no EXIF, and re-reading it finds the file name or the upload
+time at best. Every automatic writer goes through `CaptureDate.replace?/2`: a
+date is replaced only by one from an equally strong or stronger source, and a
+manual date never. An edited image is dated from its unedited backup
+(`original_file_uuid`) instead of its own bytes.
+
+**Needs** ImageMagick's `identify` for images (already required) and `ffprobe`
+for video. Without `ffprobe` a video falls back to its file name or upload
+time — the same degradation its dimensions and duration already have.
 
 ## Editing images
 
