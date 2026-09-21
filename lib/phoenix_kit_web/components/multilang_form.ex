@@ -134,6 +134,11 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
     * `:auto_switch_language` — when `false`, skips the `"switch_language"`
       event hook so you can handle the event yourself (e.g. to switch
       language immediately without the debounce). Default `true`.
+    * `:open_on` — `:primary` (default) opens on the main language's tab;
+      `:viewing_language` opens on the tab of the language the admin is
+      viewing the page in (`viewing_language/2`), so editing from an
+      Estonian page edits the Estonian text. Pass it for EDIT forms only:
+      a new record's required fields live in the main language.
   """
   def mount_multilang(socket, opts \\ []) do
     multilang_enabled = multilang_enabled?()
@@ -145,7 +150,7 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
     |> Phoenix.Component.assign(
       multilang_enabled: multilang_enabled,
       primary_language: primary_language,
-      current_lang: primary_language,
+      current_lang: opening_language(opts, primary_language, language_tabs),
       language_tabs: language_tabs,
       show_multilang_tabs: multilang_enabled and length(language_tabs) > 1,
       # Kept for backwards compat with consumer templates that still pass
@@ -155,6 +160,43 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
     )
     |> attach_multilang_hooks(opts)
   end
+
+  defp opening_language(opts, primary_language, language_tabs) do
+    with :viewing_language <- Keyword.get(opts, :open_on, :primary),
+         [_ | _] <- language_tabs,
+         lang when is_binary(lang) <-
+           viewing_language(Enum.map(language_tabs, & &1.code), current_locale()) do
+      lang
+    else
+      _ -> primary_language
+    end
+  end
+
+  defp current_locale do
+    PhoenixKit.Utils.Multilang.current_locale()
+  rescue
+    _ -> nil
+  end
+
+  @doc """
+  The language among `codes` that matches `locale`: the exact code, else
+  the first one sharing its base (`"en"` → `"en-US"`, `"et_EE"` →
+  `"et-EE"`), else `nil`. Case-insensitive on the base.
+  """
+  @spec viewing_language([String.t()], String.t() | nil) :: String.t() | nil
+  def viewing_language(_codes, nil), do: nil
+
+  def viewing_language(codes, locale) when is_list(codes) and is_binary(locale) do
+    if locale in codes do
+      locale
+    else
+      base = language_base(locale)
+      Enum.find(codes, &(language_base(&1) == base))
+    end
+  end
+
+  defp language_base(code),
+    do: code |> String.split(["-", "_"]) |> hd() |> String.downcase()
 
   # Attaches the internal hooks. Both are idempotent-by-name within a
   # process — re-running `mount_multilang/2` (e.g. across reconnects) with

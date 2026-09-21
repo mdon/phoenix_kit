@@ -71,9 +71,11 @@ defmodule PhoenixKit.Activity do
       Logger.warning("Activity logging error: #{inspect(e)}")
       {:error, e}
   catch
-    # A dead pool / checkout timeout exits rather than raises.
-    :exit, reason ->
-      Logger.warning("Activity logging error: #{inspect(reason)}")
+    # A dead pool / checkout timeout exits rather than raises, and a throw
+    # must not unwind into the caller either — on a checkout that caller is
+    # the shopper's LiveView.
+    kind, reason when kind in [:exit, :throw] ->
+      Logger.warning("Activity logging error: #{inspect(kind)} #{inspect(reason)}")
       {:error, reason}
   end
 
@@ -86,6 +88,71 @@ defmodule PhoenixKit.Activity do
     end
   rescue
     e -> Logger.warning("Notifications fan-out failed: #{inspect(e)}")
+  end
+
+  @typedoc "What `log/3` and `log_failed/3` take besides the module and the action."
+  @type log_opt ::
+          {:actor_uuid, String.t() | nil}
+          | {:mode, String.t()}
+          | {:resource_type, String.t()}
+          | {:resource_uuid, String.t()}
+          | {:target_uuid, String.t()}
+          | {:metadata, map()}
+          | {:permanent, boolean()}
+
+  @doc """
+  Logs an activity on behalf of a module — the call every module used to
+  wrap in its own `Activity` helper. `module` is the module key
+  (`"catalogue"`, `"crm"`, …), stored on the entry.
+
+  Options: `:actor_uuid`, `:mode` (default `"manual"`), `:resource_type`,
+  `:resource_uuid`, `:target_uuid`, `:metadata` (a map; keep it PII-free)
+  and `:permanent`. Same result and same never-crash guarantee as `log/1`.
+
+      PhoenixKit.Activity.log("crm", "crm.company_updated",
+        actor_uuid: PhoenixKitWeb.Actor.uuid(socket),
+        resource_type: "company",
+        resource_uuid: company.uuid
+      )
+  """
+  @spec log(String.t(), String.t(), [log_opt()]) :: {:ok, Entry.t()} | {:error, term()}
+  def log(module, action, opts \\ [])
+      when is_binary(module) and is_binary(action) and is_list(opts) do
+    %{
+      action: action,
+      module: module,
+      mode: Keyword.get(opts, :mode, "manual"),
+      actor_uuid: Keyword.get(opts, :actor_uuid),
+      resource_type: Keyword.get(opts, :resource_type),
+      resource_uuid: Keyword.get(opts, :resource_uuid),
+      target_uuid: Keyword.get(opts, :target_uuid),
+      metadata: metadata_opt(opts),
+      permanent: Keyword.get(opts, :permanent) == true
+    }
+    |> log()
+  end
+
+  @doc """
+  Logs a user action that did not land — a mutation that returned an
+  error. Same as `log/3` with `"db_pending" => true` in the metadata, so
+  the feed still shows what was attempted and readers can tell it apart
+  from what happened.
+  """
+  @spec log_failed(String.t(), String.t(), [log_opt()]) ::
+          {:ok, Entry.t()} | {:error, term()}
+  def log_failed(module, action, opts \\ []) when is_list(opts) do
+    log(
+      module,
+      action,
+      Keyword.put(opts, :metadata, Map.put(metadata_opt(opts), "db_pending", true))
+    )
+  end
+
+  defp metadata_opt(opts) do
+    case Keyword.get(opts, :metadata) do
+      %{} = metadata -> metadata
+      _ -> %{}
+    end
   end
 
   @doc """
