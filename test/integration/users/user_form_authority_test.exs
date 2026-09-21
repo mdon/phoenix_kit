@@ -173,7 +173,7 @@ defmodule PhoenixKit.Integration.Users.UserFormAuthorityTest do
       owner = owner_user()
       conn = log_in_user(conn, admin_user())
 
-      {:ok, view, _html} = live(conn, Routes.path("/admin/users/edit/#{owner.uuid}"))
+      {:ok, _view, _html} = live(conn, Routes.path("/admin/users/edit/#{owner.uuid}"))
 
       # ONE poisoned field per submission, not all five in one payload.
       #

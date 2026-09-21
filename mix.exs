@@ -522,12 +522,14 @@ defmodule PhoenixKit.MixProject do
   @compile_test_tree_script ~S"""
   files = Path.wildcard("test/**/*_test.exs")
 
-  case Kernel.ParallelCompiler.compile(files) do
+  case Kernel.ParallelCompiler.compile(files, return_diagnostics: true) do
     {:ok, _modules, _warnings} ->
       :ok
 
     {:error, errors, _warnings} ->
-      IO.puts(:stderr, "\n#{length(errors)} test file(s) failed to compile.")
+      # One diagnostic per error, several per broken file: count the files.
+      files = errors |> Enum.map(&Map.get(&1, :file)) |> Enum.uniq() |> length()
+      IO.puts(:stderr, "\n#{files} test file(s) failed to compile.")
       System.halt(1)
   end
   """

@@ -16,7 +16,6 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
   use PhoenixKit.DataCase, async: false
 
   import Phoenix.ConnTest
-  @endpoint PhoenixKit.Test.Endpoint
 
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Settings
