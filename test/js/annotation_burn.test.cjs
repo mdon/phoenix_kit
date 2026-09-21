@@ -59,3 +59,13 @@ test("a session-end during an in-flight burn keeps the plan taken while the over
   assert.match(section, /if \(this\._running\) \{\s*this\._pending = pending;/);
   assert.match(section, /var next = self\._pending;\s*self\._pending = null;\s*if \(next\) self\._start\(next\);/);
 });
+
+// Review of #848: closing the viewer called burnIfChanged whatever the viewer
+// was allowed to do, so a readonly MediaBrowser (can_annotate: false) still
+// composed and POSTed a burn on the way out.
+test("a viewer that cannot draw never burns", () => {
+  const start = section.indexOf("burnIfChanged() {");
+  assert.ok(start !== -1, "could not find burnIfChanged");
+  const body = section.slice(start, section.indexOf("var now = this._signature();", start));
+  assert.match(body, /dataset\.canAnnotate !== "true"\) return;/);
+});

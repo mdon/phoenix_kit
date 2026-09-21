@@ -4154,6 +4154,12 @@ if (typeof window.Chart === "undefined") {
 
     burnIfChanged() {
       if (!this._uuid) return;
+      // A burn re-renders the drawing and stores it: part of an editing
+      // session. A viewer that cannot draw — a readonly MediaBrowser embed,
+      // or any viewer mounted with `can_annotate: false` — must not write on
+      // its way out, and a visitor the endpoint would refuse must not be
+      // shown "Could not update the burned image" for merely closing it.
+      if (this.el.dataset.canAnnotate !== "true") return;
       var now = this._signature();
       // Etcher has not hydrated yet: nothing to compare, and nothing worth
       // rendering from a drawing that is not on screen.
