@@ -240,19 +240,33 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # there mid-page would need re-paging, so it is picked up on the view's
   # next load instead.
   def update(%{file_trashed: file_uuid}, socket) do
-    {:ok, drop_file_unless(socket, file_uuid, socket.assigns[:filter_trash])}
+    {:ok, drop_files_unless(socket, [file_uuid], socket.assigns[:filter_trash])}
+  end
+
+  # The bulk shapes: every file one folder operation swept up, handled as one
+  # update — one pass over each list and one render, not one per file.
+  def update(%{files_trashed: file_uuids}, socket) do
+    {:ok, drop_files_unless(socket, file_uuids, socket.assigns[:filter_trash])}
+  end
+
+  def update(%{files_restored: file_uuids}, socket) do
+    {:ok, drop_files_unless(socket, file_uuids, !socket.assigns[:filter_trash])}
+  end
+
+  def update(%{files_deleted: file_uuids}, socket) do
+    {:ok, remove_files_from_lists(socket, file_uuids)}
   end
 
   # A file was restored out of trash elsewhere. Symmetric to `file_trashed`
   # above: it drops out only if this browser IS showing the Trash view
   # (where it no longer belongs).
   def update(%{file_restored: file_uuid}, socket) do
-    {:ok, drop_file_unless(socket, file_uuid, !socket.assigns[:filter_trash])}
+    {:ok, drop_files_unless(socket, [file_uuid], !socket.assigns[:filter_trash])}
   end
 
   # A file was permanently deleted elsewhere — gone from every view.
   def update(%{file_deleted: file_uuid}, socket) do
-    {:ok, remove_file_from_lists(socket, file_uuid)}
+    {:ok, remove_files_from_lists(socket, [file_uuid])}
   end
 
   def update(assigns, socket) do
@@ -562,21 +576,24 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> then(&if(viewing?, do: assign(&1, :viewer_file, fresh), else: &1))
   end
 
-  # Drops `file_uuid` from every rendered list (see `remove_file_from_lists/2`)
-  # unless `still_visible?` — used for `file_trashed`/`file_restored`, whose
+  # Drops `file_uuids` from every rendered list (see `remove_files_from_lists/2`)
+  # unless `still_visible?` — used for the trashed/restored events, whose
   # effect on this browser depends on whether it is currently showing the
   # Trash view or the active view.
-  defp drop_file_unless(socket, file_uuid, still_visible?) do
-    if still_visible?, do: socket, else: remove_file_from_lists(socket, file_uuid)
+  defp drop_files_unless(socket, file_uuids, still_visible?) do
+    if still_visible?, do: socket, else: remove_files_from_lists(socket, file_uuids)
   end
 
-  # Removes a file that no longer belongs on screen (trashed while viewing
+  # Removes files that no longer belong on screen (trashed while viewing
   # active files, restored while viewing trash, or permanently deleted) from
   # every list the browser paints from — same set `swap_file/4` rewrites,
-  # but rejecting the entry instead of replacing it in place. Closes the
-  # viewer if it was open on this file, since there is nothing left to show.
-  defp remove_file_from_lists(socket, file_uuid) do
-    reject = fn list -> Enum.reject(list, &(&1.file_uuid == file_uuid)) end
+  # but rejecting the entries instead of replacing them in place — and from
+  # the bulk selection, whose counter and "N item(s) deleted" would otherwise
+  # still count a file no longer shown. Closes the viewer if it was open on
+  # one of them, since there is nothing left to show.
+  defp remove_files_from_lists(socket, file_uuids) do
+    gone = MapSet.new(file_uuids)
+    reject = fn list -> Enum.reject(list, &MapSet.member?(gone, &1.file_uuid)) end
 
     socket
     |> assign(:uploaded_files, reject.(socket.assigns.uploaded_files))
@@ -593,10 +610,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       end)
     )
     |> assign(:viewer_siblings, reject.(socket.assigns[:viewer_siblings] || []))
+    |> assign(
+      :selected_files,
+      MapSet.difference(socket.assigns[:selected_files] || MapSet.new(), gone)
+    )
     |> then(fn socket ->
       viewer = socket.assigns[:viewer_file]
 
-      if is_map(viewer) and viewer.file_uuid == file_uuid,
+      if is_map(viewer) and MapSet.member?(gone, viewer.file_uuid),
         do: open_viewer(socket, nil),
         else: socket
     end)
@@ -1123,6 +1144,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
         {:phoenix_kit_file_deleted, file_uuid}, socket ->
           {:halt, forward_to_browsers(socket, file_deleted: file_uuid)}
+
+        {:phoenix_kit_files_trashed, file_uuids}, socket ->
+          {:halt, forward_to_browsers(socket, files_trashed: file_uuids)}
+
+        {:phoenix_kit_files_restored, file_uuids}, socket ->
+          {:halt, forward_to_browsers(socket, files_restored: file_uuids)}
+
+        {:phoenix_kit_files_deleted, file_uuids}, socket ->
+          {:halt, forward_to_browsers(socket, files_deleted: file_uuids)}
 
         _msg, socket ->
           {:cont, socket}

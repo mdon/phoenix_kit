@@ -958,6 +958,52 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
       refute html =~ file.uuid
       refute html =~ "media-browser-viewer-modal"
     end
+
+    # A folder operation announces its files in ONE bulk message; the
+    # browser drops them all in one update rather than one per file.
+    test "a folder trashed elsewhere drops every one of its cards", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      file_a = create_file!(folder.uuid)
+      file_b = create_file!(folder.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+      assert html =~ file_a.uuid and html =~ file_b.uuid
+
+      {:ok, _} = Storage.trash_folder(folder)
+
+      _ = render(view)
+      html = render(view)
+
+      refute html =~ file_a.uuid
+      refute html =~ file_b.uuid
+    end
+
+    test "a file removed elsewhere leaves the bulk selection too", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+      view |> element("[phx-click='toggle_select_mode']") |> render_click()
+
+      html =
+        view
+        |> element("[phx-click='toggle_select'][phx-value-file-uuid='#{file.uuid}']")
+        |> render_click()
+
+      assert html =~ "1 selected"
+
+      {:ok, _} = Storage.trash_file(file)
+
+      _ = render(view)
+      html = render(view)
+
+      # The counter (and "N item(s) deleted") counted a file no longer shown.
+      refute html =~ "1 selected"
+    end
   end
 
   describe "uncontrolled mode (on_navigate: nil)" do

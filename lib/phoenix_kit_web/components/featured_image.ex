@@ -140,13 +140,21 @@ defmodule PhoenixKitWeb.Components.FeaturedImage do
         {:ok, socket}
       end
 
-      def handle_info({event, uuid}, socket)
-          when event in [
-                 :phoenix_kit_file_trashed,
-                 :phoenix_kit_file_restored,
-                 :phoenix_kit_file_deleted
-               ] and uuid == socket.assigns.order.featured_image_uuid do
-        send_update(FeaturedImage, id: "order-featured", refresh: true)
+      @one ~w(phoenix_kit_file_trashed phoenix_kit_file_restored phoenix_kit_file_deleted)a
+      @many ~w(phoenix_kit_files_trashed phoenix_kit_files_restored phoenix_kit_files_deleted)a
+
+      # One file trashed/restored/deleted directly...
+      def handle_info({event, uuid}, socket) when event in @one,
+        do: refresh_if_mine(socket, [uuid])
+
+      # ...or swept up with its folder, announced once for the whole folder.
+      def handle_info({event, uuids}, socket) when event in @many,
+        do: refresh_if_mine(socket, uuids)
+
+      defp refresh_if_mine(socket, uuids) do
+        if socket.assigns.order.featured_image_uuid in uuids,
+          do: send_update(FeaturedImage, id: "order-featured", refresh: true)
+
         {:noreply, socket}
       end
 

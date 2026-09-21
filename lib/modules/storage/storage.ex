@@ -178,6 +178,15 @@ defmodule PhoenixKit.Modules.Storage do
     * `{:phoenix_kit_file_deleted, file_uuid}` — the file was permanently
       deleted (`delete_file_completely/1`). Consumers should drop it
       wherever it is rendered and close an open viewer on it.
+
+    * `{:phoenix_kit_files_trashed | :phoenix_kit_files_restored |
+      :phoenix_kit_files_deleted, [file_uuid]}` — the same three, for every
+      file a FOLDER operation swept up at once (`trash_folder/2`,
+      `restore_folder/2`, `delete_folder_completely/2`), sent once per
+      operation rather than once per file: a folder of thousands of files
+      would otherwise be thousands of messages, and as many re-renders, for
+      every subscriber. A consumer that reacts to one file must match both
+      shapes (`uuid in uuids` for the bulk one).
   """
   def subscribe_to_file_events do
     PhoenixKit.PubSub.Manager.subscribe(@files_topic)
@@ -231,6 +240,34 @@ defmodule PhoenixKit.Modules.Storage do
   def broadcast_file_deleted(file_uuid) when is_binary(file_uuid) do
     PhoenixKit.PubSub.Manager.broadcast(@files_topic, {:phoenix_kit_file_deleted, file_uuid})
   end
+
+  @doc """
+  Broadcasts that the files in `file_uuids` were moved to trash by one folder
+  operation. Nothing is sent for an empty list.
+
+  See `subscribe_to_file_events/0` for the message shape.
+  """
+  def broadcast_files_trashed(file_uuids),
+    do: broadcast_files(:phoenix_kit_files_trashed, file_uuids)
+
+  @doc """
+  Broadcasts that the files in `file_uuids` were taken out of trash by one
+  folder operation. Nothing is sent for an empty list.
+  """
+  def broadcast_files_restored(file_uuids),
+    do: broadcast_files(:phoenix_kit_files_restored, file_uuids)
+
+  @doc """
+  Broadcasts that the files in `file_uuids` were permanently deleted by one
+  folder operation. Nothing is sent for an empty list.
+  """
+  def broadcast_files_deleted(file_uuids),
+    do: broadcast_files(:phoenix_kit_files_deleted, file_uuids)
+
+  defp broadcast_files(_event, []), do: :ok
+
+  defp broadcast_files(event, file_uuids) when is_list(file_uuids),
+    do: PhoenixKit.PubSub.Manager.broadcast(@files_topic, {event, file_uuids})
 
   # ===== BUCKETS =====
 
@@ -1320,8 +1357,12 @@ defmodule PhoenixKit.Modules.Storage do
 
     result =
       repo().transaction(fn ->
-        # Trash every folder in the subtree (including the root).
-        from(f in Folder, where: f.uuid in ^subtree_uuids)
+        # Trash every folder in the subtree (including the root) — except one
+        # already in the trash, which keeps its own stamp. `restore_folder/2`
+        # restores exactly the rows carrying THIS operation's stamp, so a row
+        # trashed on its own earlier must not be re-stamped here, or restoring
+        # the folder would also undo that earlier, unrelated trashing.
+        from(f in Folder, where: f.uuid in ^subtree_uuids and is_nil(f.trashed_at))
         |> repo().update_all(set: [trashed_at: now, updated_at: now])
 
         # A file homed in the subtree but ALSO linked into a folder outside it
@@ -1341,7 +1382,7 @@ defmodule PhoenixKit.Modules.Storage do
         # uuids so callers can broadcast per-file trash events for them too.
         {_count, trashed_uuids} =
           from(f in PhoenixKit.Modules.Storage.File,
-            where: f.folder_uuid in ^subtree_uuids,
+            where: f.folder_uuid in ^subtree_uuids and is_nil(f.trashed_at),
             select: f.uuid
           )
           |> repo().update_all(set: [status: "trashed", trashed_at: now, updated_at: now])
@@ -1351,7 +1392,7 @@ defmodule PhoenixKit.Modules.Storage do
 
     case result do
       {:ok, {:ok, f, trashed_uuids}} ->
-        Enum.each(trashed_uuids, &broadcast_file_trashed/1)
+        broadcast_files_trashed(trashed_uuids)
         {:ok, f}
 
       {:error, reason} ->
@@ -1381,24 +1422,35 @@ defmodule PhoenixKit.Modules.Storage do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     subtree_uuids = folder_subtree_uuids(folder.uuid)
 
+    # Only what THIS folder's trashing trashed comes back: the rows carrying
+    # its own `trashed_at`. Everything in the subtree used to be restored —
+    # a file trashed on its own before or after the folder, and even files
+    # that were never trashed (a broadcast `restored` for each). The stamp is
+    # read inside the transaction, from the row as it is now.
     result =
       repo().transaction(fn ->
-        from(f in Folder, where: f.uuid in ^subtree_uuids)
-        |> repo().update_all(set: [trashed_at: nil, updated_at: now])
+        case repo().one(from(f in Folder, where: f.uuid == ^folder.uuid, select: f.trashed_at)) do
+          nil ->
+            {:ok, folder, []}
 
-        {_count, restored_uuids} =
-          from(f in PhoenixKit.Modules.Storage.File,
-            where: f.folder_uuid in ^subtree_uuids,
-            select: f.uuid
-          )
-          |> repo().update_all(set: [status: "active", trashed_at: nil, updated_at: now])
+          stamp ->
+            from(f in Folder, where: f.uuid in ^subtree_uuids and f.trashed_at == ^stamp)
+            |> repo().update_all(set: [trashed_at: nil, updated_at: now])
 
-        {:ok, folder, restored_uuids}
+            {_count, restored_uuids} =
+              from(f in PhoenixKit.Modules.Storage.File,
+                where: f.folder_uuid in ^subtree_uuids and f.trashed_at == ^stamp,
+                select: f.uuid
+              )
+              |> repo().update_all(set: [status: "active", trashed_at: nil, updated_at: now])
+
+            {:ok, folder, restored_uuids}
+        end
       end)
 
     case result do
       {:ok, {:ok, f, restored_uuids}} ->
-        Enum.each(restored_uuids, &broadcast_file_restored/1)
+        broadcast_files_restored(restored_uuids)
         {:ok, f}
 
       {:error, reason} ->
@@ -1442,8 +1494,25 @@ defmodule PhoenixKit.Modules.Storage do
     {to_promote, to_delete} =
       Enum.split_with(files, &linked_outside_subtree?(&1.uuid, subtree_uuids))
 
-    Enum.each(to_promote, &promote_out_of_subtree(&1, subtree_uuids))
-    Enum.each(to_delete, &delete_file_completely/1)
+    # A promotion with nowhere live to go lands in a trashed folder and is
+    # trashed with it — say so, the same way a trashing does.
+    to_promote
+    |> Enum.map(&promote_out_of_subtree(&1, subtree_uuids))
+    |> Enum.flat_map(fn
+      {:trashed, uuid} -> [uuid]
+      :ok -> []
+    end)
+    |> broadcast_files_trashed()
+
+    # One `files_deleted` for the whole folder, not one event per file.
+    to_delete
+    |> Enum.flat_map(fn file ->
+      case delete_file_and_objects(file) do
+        {:ok, deleted} -> [deleted.uuid]
+        {:error, _} -> []
+      end
+    end)
+    |> broadcast_files_deleted()
 
     # Delete folders from deepest first so parent_uuid foreign keys
     # don't break. `folder_subtree_uuids/1` walks breadth-first; reverse
@@ -1517,7 +1586,7 @@ defmodule PhoenixKit.Modules.Storage do
           repo().delete!(link)
         end)
 
-        :ok
+        if folder_trashed_at, do: {:trashed, file.uuid}, else: :ok
 
       [] ->
         :ok
@@ -3584,6 +3653,26 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def delete_file_completely(%PhoenixKit.Modules.Storage.File{} = file) do
+    case delete_file_and_objects(file) do
+      {:ok, deleted} = ok ->
+        broadcast_file_deleted(deleted.uuid)
+        ok
+
+      error ->
+        error
+    end
+  end
+
+  def delete_file_completely(file_uuid) when is_binary(file_uuid) do
+    case get_file(file_uuid) do
+      nil -> {:error, :not_found}
+      file -> delete_file_completely(file)
+    end
+  end
+
+  # `delete_file_completely/1` without its event, for a caller that deletes
+  # many files and announces them together (`delete_folder_completely/2`).
+  defp delete_file_and_objects(%PhoenixKit.Modules.Storage.File{} = file) do
     # The row goes first (instances, locations and system-managed children —
     # an edited image's backup, tile chunks — cascade with it); then every
     # object those rows referenced that no remaining row still references.
@@ -3628,18 +3717,10 @@ defmodule PhoenixKit.Modules.Storage do
           {:error, reason} -> Logger.warning("Storage: #{file.uuid}: #{reason}")
         end
 
-        broadcast_file_deleted(deleted.uuid)
         {:ok, deleted}
 
       {:error, _} = error ->
         error
-    end
-  end
-
-  def delete_file_completely(file_uuid) when is_binary(file_uuid) do
-    case get_file(file_uuid) do
-      nil -> {:error, :not_found}
-      file -> delete_file_completely(file)
     end
   end
 
