@@ -157,6 +157,12 @@ defmodule PhoenixKitWeb.Components.FeaturedImage do
   the same subscribe/dispatch shape wired through an `attach_hook` instead of
   a plain `handle_info` clause.
 
+  Caveat for a host that also runs `MediaBrowser.setup_uploads/1`: that hook
+  `:halt`s the trashed / restored / deleted events after forwarding them to
+  its browsers, so the `handle_info` clause above never sees them. Attach
+  your own `:handle_info` hook *before* `setup_uploads/1` (hooks run in
+  attach order) and return `{:cont, socket}` from it.
+
   ## Lazy scope
 
   Most hosts create the entity's folder on the first click, not on page load.
