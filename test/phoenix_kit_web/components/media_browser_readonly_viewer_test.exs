@@ -72,8 +72,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowserReadonlyViewerTest do
   end
 
   # ---------------------------------------------------------------------------
-  # edit_target — end to end through a real host, admin: true so
-  # `details_path` is also truthy (proving that alone is not the boundary).
+  # edit_target — end to end through a real host, with admin: true so the
+  # `details_path` gate is exercised too: under readonly the browser now nils
+  # BOTH `details_path` and `edit_target`, which is what closes the viewer's
+  # meta-edit form (`can_edit_media_meta?/2` is details_path OR edit_target).
   # ---------------------------------------------------------------------------
 
   defmodule Host do
@@ -110,6 +112,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowserReadonlyViewerTest do
       />
       """
     end
+  end
+
+  # The viewer LiveComponent's DOM id carries the file uuid plus a suffix;
+  # resolve it from the rendered page so `with_target/2` hits the real
+  # component instead of a hand-built socket.
+  defp viewer_cid(view, file) do
+    [_, cid] = Regex.run(~r/id="(media-canvas-viewer-#{file.uuid}[^"]*)"/, render(view))
+    cid
   end
 
   defp open_host(folder, readonly, admin) do
@@ -157,7 +167,50 @@ defmodule PhoenixKitWeb.Components.MediaBrowserReadonlyViewerTest do
       |> render_click()
 
       assert has_element?(view, "#mb-viewer-modal")
+
+      # The form lives behind the "Title & description" toggle; under
+      # readonly the toggle itself must be gone, so there is no way to open
+      # it. Then drive the save through the live viewer component anyway and
+      # prove the row is untouched — this is the regression guard for the
+      # `details_path` bypass (the viewer's own clause refuses only when
+      # BOTH details_path and edit_target are nil).
+      refute has_element?(view, "[phx-click='toggle_media_details']")
       refute has_element?(view, "#media-meta-form-#{file.uuid}")
+
+      cid = viewer_cid(view, file)
+
+      view
+      |> with_target("##{cid}")
+      |> render_submit("save_media_details", %{
+        "title" => "hacked",
+        "alt" => "h",
+        "description" => "h"
+      })
+
+      details = FileDetails.from_file(Storage.get_file(file.uuid))
+      refute details.title == "hacked"
+      refute details.description == "h"
+    end
+
+    test "normal mode with admin: true still offers the toggle, the form, and a working save" do
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      view = open_host(folder, false, true)
+
+      view
+      |> element("[phx-click='click_file'][phx-value-file-uuid='#{file.uuid}']")
+      |> render_click()
+
+      assert has_element?(view, "[phx-click='toggle_media_details']")
+
+      cid = viewer_cid(view, file)
+      view |> with_target("##{cid}") |> render_click("toggle_media_details", %{})
+
+      assert has_element?(view, "#media-meta-form-#{file.uuid}")
+
+      view |> with_target("##{cid}") |> render_submit("save_media_details", %{"title" => "legit"})
+
+      assert FileDetails.from_file(Storage.get_file(file.uuid)).title == "legit"
     end
 
     test "belt-and-braces: save_media_details no-ops once both details_path and edit_target are nil" do
