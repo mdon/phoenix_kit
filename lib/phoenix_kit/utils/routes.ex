@@ -407,7 +407,13 @@ defmodule PhoenixKit.Utils.Routes do
   """
   @spec home_path(request_context(), String.t() | nil) :: String.t()
   def home_path(context, locale) do
-    candidates = if is_binary(locale), do: ["/" <> locale, "/"], else: ["/"]
+    # The prefixless-primary rule applies here as everywhere else a locale
+    # segment is emitted: the default language on a
+    # `default_language_no_prefix: true` site lives at `/`, not `/en`.
+    candidates =
+      if is_binary(locale) and not (default_locale?(locale) and prefixless_primary?()),
+        do: ["/" <> locale, "/"],
+        else: ["/"]
 
     Enum.find(candidates, &routable?(context, &1)) || List.last(candidates)
   end

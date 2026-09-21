@@ -16,6 +16,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
   import Phoenix.Component, only: [sigil_H: 2]
   import Phoenix.LiveViewTest, only: [rendered_to_string: 1]
 
+  alias Ecto.Adapters.SQL.Sandbox
+  alias PhoenixKit.Cache
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Permissions
@@ -612,6 +614,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
       }
     end
 
+    # Both title variants (full and collapsed) render one root link each.
+    defp count_href(html, path) do
+      html |> String.split(~s(href="#{path}")) |> length() |> Kernel.-(1)
+    end
+
     test "links to the host's own localized root when the host routes it" do
       html =
         admin_shell(owner_scope_no_bell_user(),
@@ -619,7 +626,30 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
           socket: socket_for(LocaleHomeRouter)
         )
 
-      assert html =~ ~s(href="/ru")
+      assert count_href(html, "/ru") == 2
+      assert count_href(html, "/") == 0
+    end
+
+    test "the default language on a prefixless-primary site links to the bare root" do
+      # Same primed-cache setup as `PhoenixKit.Utils.UserSettingsPathTest`:
+      # the setting is read through the ETS cache, so prime it in-process
+      # instead of touching the database.
+      if Application.get_env(:phoenix_kit, :test_repo_available, false) do
+        :ok = Sandbox.checkout(PhoenixKit.Test.Repo)
+      end
+
+      start_supervised!({Cache.Registry, []})
+      start_supervised!({Cache, name: :settings})
+      Cache.put(:settings, "default_language_no_prefix", "true")
+
+      html =
+        admin_shell(owner_scope_no_bell_user(),
+          current_locale: "en",
+          socket: socket_for(LocaleHomeRouter)
+        )
+
+      assert count_href(html, "/") == 2
+      assert count_href(html, "/en") == 0
     end
 
     test "falls back to the bare root when the host does not route a locale segment" do

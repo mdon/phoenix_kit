@@ -74,11 +74,10 @@ defmodule PhoenixKit.Utils.UserSettingsPathTest do
   end
 
   describe "locale-aware host overrides (issue #843)" do
-    # `setting_candidate/1` reads through `PhoenixKit.Settings.get_setting_cached/2`,
-    # which is a no-op nil with no reachable DB (`:update_mode`, set by
-    # `test_helper.exs`) — same defensive setup as
-    # `PhoenixKit.Utils.SafeDestinationSettingsTest`, so this exercises the real
-    # cache-backed read either way.
+    # `setting_candidate/1` reads through `PhoenixKit.Settings.get_setting_cached/2`;
+    # these tests prime `PhoenixKit.Cache` directly (same setup as
+    # `PhoenixKit.Utils.SafeDestinationSettingsTest`), so the override and the
+    # language settings come from the cache, not the database.
     test "url_prefix is never added to a host page reached at its own root" do
       # "/account" is the HOST's own page — it is not mounted under core's
       # url_prefix, so inserting one here would nest a host page under core's
