@@ -251,7 +251,13 @@ defmodule PhoenixKit.MixProject do
       # which the media viewer passes as `:panel` to move a shape's actions
       # off the picture and into the style panel: on an older Etcher that
       # attr does not exist, so the tooltips land back over the drawing.
-      # An older Etcher compiles
+      # 0.17 is where the server-side renderer caught up with the canvas:
+      # `Etcher.Raster` bakes a dimension's heads, every kind's label (sized
+      # against `:canvas_width` / `:canvas_height`, which `AnnotationThumbnail`
+      # passes and 0.16 ignores) and `style.fill`. On 0.16 a baked thumbnail
+      # is a board of anonymous hollow shapes with a bare line where a
+      # measurement should be — a floor, because core passes those opts and
+      # relies on what they do. An older Etcher compiles
       # with an undeclared-attr warning and silently drops them — and a host
       # whose lock already holds an older etcher keeps it through
       # `mix deps.update phoenix_kit` if the floor still admits it. Raise the
@@ -262,7 +268,7 @@ defmodule PhoenixKit.MixProject do
       # quietly stand down on older — hence the new fresco alternative.
       {:fresco, "~> 0.10.0 or ~> 0.11.0 or ~> 0.12.0"},
       {:tessera, "~> 0.3.0"},
-      {:etcher, "~> 0.16.0"},
+      {:etcher, "~> 0.17.0"},
 
       # QR device-handoff login ("scan to sign in" on the login page).
       #
