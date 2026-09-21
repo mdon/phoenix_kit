@@ -870,6 +870,63 @@ defmodule PhoenixKitWeb.Components.FeaturedImageTest do
   end
 
   # ---------------------------------------------------------------------------
+  # `refresh: true` — a settled display re-resolved on demand, for a host
+  # reacting to Storage.subscribe_to_file_events/0 (issue #841). Unlike
+  # `recheck: true` above, this acts however the display is currently settled,
+  # not only while `:processing`.
+  # ---------------------------------------------------------------------------
+
+  describe "refresh — reacting to a file trashed elsewhere" do
+    test "refresh: true re-resolves regardless of the memoized display" do
+      {folder, file} = folder_and_file()
+      attrs = %{uuid: file.uuid, picker_scope: {:folder, folder.uuid}}
+
+      socket = socket_for(attrs)
+      assert socket.assigns.display == :ok
+      assert socket.assigns.display_for == {:memo, file.uuid}
+
+      # Trashed behind the component's back — through the real domain call,
+      # not a bare changeset, so this exercises the same path a live
+      # PubSub-driven refresh would follow.
+      {:ok, _} = Storage.trash_file(file)
+
+      {:ok, refreshed} = FeaturedImage.update(%{id: "fi", refresh: true}, socket)
+      assert refreshed.assigns.display == :dangling
+      assert refreshed.assigns.display_for == {:memo, file.uuid}
+    end
+
+    test "a refresh that arrives while nothing changed is a no-op" do
+      {folder, file} = folder_and_file()
+      socket = socket_for(uuid: file.uuid, picker_scope: {:folder, folder.uuid})
+
+      {:ok, refreshed} = FeaturedImage.update(%{id: "fi", refresh: true}, socket)
+      assert refreshed.assigns.display == :ok
+    end
+
+    test "full round trip: shows -> trashed elsewhere -> placeholder; restored -> shows again" do
+      {folder, file} = folder_and_file()
+      view = open_host(%{id: "fi", uuid: file.uuid, picker_scope: {:folder, folder.uuid}})
+
+      assert has_element?(view, "#fi[data-state=ok]")
+      assert has_element?(view, role("thumb-img"))
+
+      {:ok, file} = Storage.trash_file(file)
+      Phoenix.LiveView.send_update(view.pid, FeaturedImage, id: "fi", refresh: true)
+      render(view)
+
+      assert has_element?(view, "#fi[data-state=dangling]")
+      refute has_element?(view, role("thumb-img"))
+
+      {:ok, _} = Storage.restore_file(file)
+      Phoenix.LiveView.send_update(view.pid, FeaturedImage, id: "fi", refresh: true)
+      render(view)
+
+      assert has_element?(view, "#fi[data-state=ok]")
+      assert has_element?(view, role("thumb-img"))
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Slots
   # ---------------------------------------------------------------------------
 
