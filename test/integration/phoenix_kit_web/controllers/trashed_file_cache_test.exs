@@ -70,7 +70,7 @@ defmodule PhoenixKitWeb.TrashedFileCacheTest do
     user
   end
 
-  defp request(file, user, opts \\ []) do
+  defp request(file, user, opts) do
     instance = Storage.get_file_instance_by_name(file.uuid, "original")
 
     params =
