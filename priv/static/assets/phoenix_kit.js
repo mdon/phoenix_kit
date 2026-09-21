@@ -4757,8 +4757,9 @@ if (typeof window.Chart === "undefined") {
   //     <.table_row_menu_button phx-click="delete" icon="hero-trash" label="Delete" variant="error" />
   //   </.table_row_menu>
   //
-  // RIGHT-CLICK: an element carrying `data-row-menu-context="<menu id>"` opens
-  // THAT row's own menu at the pointer. Not Core.ContextMenu, deliberately —
+  // RIGHT-CLICK: an element flagged `data-row-menu-context` opens the row
+  // menu rendered INSIDE it at the pointer (see `rowMenuFor` for why it is a
+  // flag, not the menu's id). Not Core.ContextMenu, deliberately —
   // its one menu element serves every row, so it stamps `phx-value-*` and
   // cannot carry a per-row `navigate=`. This component already renders one
   // menu per row, so the items are per-row and correct as they stand; all
