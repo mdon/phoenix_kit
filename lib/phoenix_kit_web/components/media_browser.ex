@@ -105,6 +105,37 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     rotations made in the viewer persist to the file row. Bulk-select is
     still reachable via the toolbar's Select button — once `select_mode`
     is on, clicks toggle selection instead of opening the modal.
+  - `readonly` (default `false`) — embed the browser for viewing only.
+    Every write-capable affordance is hidden — the upload zone and
+    drag-drop upload input, the toolbar's Add Media / Select / New folder
+    controls (including the stacks-view "+" tile and the sidebar's own
+    "+"/rename/drag affordances), every folder and file kebab menu item
+    except Download, and every `data-draggable-*` / `data-drop-*` drag
+    attribute. Navigation, search, sorting, the modal viewer, and
+    downloads keep working. When `featured` is also set, the star badge
+    still renders (display only) but the kebab's Set/Unset featured item
+    does not.
+
+    The hidden markup is a courtesy, not the boundary: every mutating
+    `handle_event` clause (upload, rename, move, trash, new folder,
+    bulk-select entry, rotate, featured toggle, open the image editor)
+    refuses outright when `readonly` is set, because *the event is still
+    reachable from a console* — same reasoning as the `only_file_type`
+    lock on `set_file_filter`. The same applies one level down, inside
+    the modal viewer's `MediaCanvasViewer`: readonly passes
+    `can_annotate={false}` (Etcher shapes lock), `edit_target={nil}`
+    (title/alt/description save refuses — passing a `details_path` alone
+    is not a boundary there), and `persist_rotation={false}`.
+
+    Typical use: embedding the browser on a page where the viewer should
+    only look, not touch —
+
+        <.live_component
+          module={PhoenixKitWeb.Components.MediaBrowser}
+          id="order-files-viewonly"
+          scope_folder_id={@order.storage_folder_uuid}
+          readonly
+        />
   - `featured` — `nil` (default, feature off) or `%{uuid: uuid | nil,
     label: String.t() | nil}` naming the host's own featured-image
     pointer. `label` is the star badge's tooltip; falls back to gettext
@@ -202,6 +233,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign(assigns)
       |> assign_new(:scope_folder_id, fn -> nil end)
       |> assign_new(:admin, fn -> false end)
+      # When true, every write path is hidden AND refused server-side —
+      # upload, rename, move, trash, new folder, bulk-select, rotate,
+      # featured toggle, image editor. Navigation, the viewer and downloads
+      # stay live. See the moduledoc's `readonly` attribute.
+      |> assign_new(:readonly, fn -> false end)
       # Restricts the browser to ONE file type for its whole lifetime: the
       # listing is filtered to it, the type-filter control is hidden, and an
       # off-type upload is refused, so there is no way to reach the other
@@ -1147,6 +1183,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Open the New-folder modal, seeding the placeholder with the next default
   # name. Creation itself is deferred to "submit_new_folder" so Cancel adds
   # nothing.
+  def handle_event("open_new_folder_modal", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "open_new_folder_modal")}
+  end
+
   def handle_event("open_new_folder_modal", _params, socket) do
     case folder_creation_block(socket) do
       nil ->
@@ -1164,12 +1205,22 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  def handle_event("new_folder_input", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "new_folder_input")}
+  end
+
   def handle_event("new_folder_input", %{"name" => name}, socket) do
     {:noreply, assign(socket, :new_folder_name, name)}
   end
 
   def handle_event("close_new_folder_modal", _params, socket) do
     {:noreply, assign(socket, :show_new_folder_modal, false)}
+  end
+
+  def handle_event("submit_new_folder", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "submit_new_folder")}
   end
 
   def handle_event("submit_new_folder", %{"name" => name}, socket) do
@@ -1217,6 +1268,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  def handle_event("delete_folder", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "delete_folder")}
+  end
+
   def handle_event("delete_folder", %{"id" => folder_uuid}, socket) do
     folder = Storage.get_folder(folder_uuid)
     scope = scope_folder_id(socket)
@@ -1256,6 +1312,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  def handle_event("move_file_to_folder", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "move_file_to_folder")}
+  end
+
   def handle_event(
         "move_file_to_folder",
         %{"file_uuid" => file_uuid, "folder_uuid" => folder_uuid},
@@ -1287,6 +1348,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # `Storage.update_folder/3`, which enforces the cycle check (can't
   # move a folder into its own descendant). JS pre-empts the
   # drop-on-self case so we don't see it here.
+  def handle_event("move_folder_to_folder", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "move_folder_to_folder")}
+  end
+
   def handle_event(
         "move_folder_to_folder",
         %{"folder_uuid" => folder_uuid, "target_uuid" => target_uuid},
@@ -1327,6 +1393,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # means "put this in the trash", not "permanently destroy". Permanent
   # deletion stays explicit (kebab Delete Permanently when already in
   # trash view, or the Empty Trash button).
+  def handle_event("trash_file", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "trash_file")}
+  end
+
   def handle_event("trash_file", %{"file_uuid" => file_uuid}, socket) do
     scope = scope_folder_id(socket)
     repo = PhoenixKit.Config.get_repo()
@@ -1354,6 +1425,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # and every descendant + file inside the subtree. Always soft-delete
   # — permanent deletion stays explicit (kebab Delete Permanently when
   # already in the trash view, or bulk select + delete).
+  def handle_event("trash_folder", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "trash_folder")}
+  end
+
   def handle_event("trash_folder", %{"folder_uuid" => folder_uuid}, socket) do
     scope = scope_folder_id(socket)
     folder = Storage.get_folder(folder_uuid)
@@ -1639,6 +1715,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     {:noreply, persist_tree_state(socket)}
   end
 
+  def handle_event("start_rename_folder", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "start_rename_folder")}
+  end
+
   def handle_event("start_rename_folder", %{"folder-uuid" => folder_uuid} = params, socket) do
     source = params["source"] || "content"
     folder = Storage.get_folder(folder_uuid)
@@ -1648,6 +1729,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:renaming_folder, folder_uuid)
      |> assign(:renaming_source, source)
      |> assign(:renaming_text, (folder && folder.name) || "")}
+  end
+
+  def handle_event("rename_folder_input", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "rename_folder_input")}
   end
 
   def handle_event("rename_folder_input", %{"name" => name}, socket) do
@@ -1660,6 +1746,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:renaming_folder, nil)
      |> assign(:renaming_source, nil)
      |> assign(:renaming_text, "")}
+  end
+
+  def handle_event("rename_folder", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "rename_folder")}
   end
 
   def handle_event("rename_folder", %{"folder_uuid" => folder_uuid, "name" => name}, socket) do
@@ -1699,6 +1790,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # Folder description edit — opens the inline editor in the current-folder
   # header, seeded with the folder's existing description.
+  def handle_event("start_edit_folder_description", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "start_edit_folder_description")}
+  end
+
   def handle_event("start_edit_folder_description", %{"folder-uuid" => folder_uuid}, socket) do
     folder = loaded_folder(socket, folder_uuid)
 
@@ -1706,6 +1802,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      socket
      |> assign(:editing_folder_description, folder_uuid)
      |> assign(:folder_description_text, (folder && folder.description) || "")}
+  end
+
+  def handle_event("folder_description_input", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "folder_description_input")}
   end
 
   def handle_event("folder_description_input", %{"description" => description}, socket) do
@@ -1717,6 +1818,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      socket
      |> assign(:editing_folder_description, nil)
      |> assign(:folder_description_text, "")}
+  end
+
+  def handle_event("save_folder_description", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "save_folder_description")}
   end
 
   def handle_event(
@@ -1778,6 +1884,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # header you see after opening a folder. Separate from the grid/list
   # card editors above (which only touch the description), so adding a
   # name field here doesn't disturb those.
+  def handle_event("start_edit_folder_header", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "start_edit_folder_header")}
+  end
+
   def handle_event("start_edit_folder_header", %{"folder-uuid" => folder_uuid}, socket) do
     folder = loaded_folder(socket, folder_uuid)
 
@@ -1791,6 +1902,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      # on the toggles, so they may be nil when the editor opens.
      |> assign_folder_image(:folder_cover, folder && folder_image_data(folder.cover_file_uuid))
      |> assign_folder_image(:folder_logo, folder && folder_image_data(folder.logo_file_uuid))}
+  end
+
+  def handle_event("folder_header_input", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "folder_header_input")}
   end
 
   def handle_event("folder_header_input", params, socket) do
@@ -1813,8 +1929,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # Open the media picker (scoped to the open folder) to choose/upload the
   # header background (cover) or the icon (logo).
+  def handle_event("open_cover_picker", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "open_cover_picker")}
+  end
+
   def handle_event("open_cover_picker", _params, socket) do
     {:noreply, socket |> assign(:image_picker_target, "cover") |> assign(:selecting_cover, true)}
+  end
+
+  def handle_event("open_logo_picker", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "open_logo_picker")}
   end
 
   def handle_event("open_logo_picker", _params, socket) do
@@ -1823,8 +1949,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # Clear the folder's cover / logo. The image stays in the folder as a normal
   # asset — only the header reference is removed.
+  def handle_event("remove_folder_cover", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "remove_folder_cover")}
+  end
+
   def handle_event("remove_folder_cover", %{"folder-uuid" => folder_uuid}, socket) do
     update_header_field(socket, folder_uuid, %{cover_file_uuid: nil})
+  end
+
+  def handle_event("remove_folder_logo", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "remove_folder_logo")}
   end
 
   def handle_event("remove_folder_logo", %{"folder-uuid" => folder_uuid}, socket) do
@@ -1832,6 +1968,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # Header size (small / medium / large) — affects the hero height.
+  def handle_event("set_header_size", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "set_header_size")}
+  end
+
   def handle_event("set_header_size", %{"size" => size, "folder-uuid" => folder_uuid}, socket)
       when size in ~w(small medium large) do
     update_header_field(socket, folder_uuid, %{header_size: size})
@@ -1839,6 +1980,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # Ignore an out-of-whitelist header size instead of crashing.
   def handle_event("set_header_size", _params, socket), do: {:noreply, socket}
+
+  def handle_event("toggle_header_option", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "toggle_header_option")}
+  end
 
   # Toggle a header element's visibility (title / icon / creator / date /
   # file_count / description / background).
@@ -1855,6 +2001,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_event("save_folder_header", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "save_folder_header")}
   end
 
   def handle_event(
@@ -1878,6 +2029,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       true ->
         save_folder_header(socket, folder, folder_uuid, scope, trimmed_name, desc_value)
     end
+  end
+
+  def handle_event("change_folder_color", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "change_folder_color")}
   end
 
   def handle_event(
@@ -1923,6 +2079,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     {:noreply, persist_tree_state(socket)}
   end
 
+  def handle_event("toggle_select_mode", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "toggle_select_mode")}
+  end
+
   def handle_event("toggle_select_mode", _params, socket) do
     if socket.assigns.select_mode do
       {:noreply, exit_select_mode(socket)}
@@ -1939,6 +2100,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # Long-press on a card (from the MediaDragDrop JS hook) enters select mode and
   # selects the held item.
+  def handle_event("long_press_select", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "long_press_select")}
+  end
+
   def handle_event("long_press_select", %{"type" => "file", "uuid" => uuid}, socket) do
     {:noreply,
      socket
@@ -1975,6 +2141,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   def handle_event("close_viewer", _params, socket) do
     {:noreply, open_viewer(socket, nil) |> notify_viewer_nav()}
+  end
+
+  def handle_event("open_image_editor", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "open_image_editor")}
   end
 
   def handle_event("open_image_editor", %{"file-uuid" => file_uuid}, socket) do
@@ -2014,6 +2185,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # modal — events fire there, not here. See
   # `lib/phoenix_kit_web/components/media_canvas_viewer.ex`.
 
+  def handle_event("toggle_select_folder", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "toggle_select_folder")}
+  end
+
   def handle_event("toggle_select_folder", %{"folder-uuid" => folder_uuid}, socket) do
     selected = socket.assigns.selected_folders
 
@@ -2025,6 +2201,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     {:noreply, assign(socket, :selected_folders, selected)}
   end
 
+  def handle_event("toggle_select", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "toggle_select")}
+  end
+
   def handle_event("toggle_select", %{"file-uuid" => file_uuid}, socket) do
     selected = socket.assigns.selected_files
 
@@ -2034,6 +2215,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         else: MapSet.put(selected, file_uuid)
 
     {:noreply, assign(socket, :selected_files, selected)}
+  end
+
+  def handle_event("select_all", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "select_all")}
   end
 
   def handle_event("select_all", _params, socket) do
@@ -2064,6 +2250,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:selected_folders, MapSet.new())}
   end
 
+  def handle_event("show_move_modal", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "show_move_modal")}
+  end
+
   def handle_event("show_move_modal", _params, socket) do
     # Bulk move only opens when something is selected. The Move button is
     # disabled with an empty selection; this guards the handler too so a
@@ -2074,6 +2265,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_event("toggle_move_folder", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "toggle_move_folder")}
   end
 
   # Expand/collapse a folder in the Move modal's directory tree.
@@ -2111,6 +2307,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Single-file move from kebab — pre-populates the selection with just
   # this file and opens the move modal. Reuses the bulk
   # `move_selected_to_folder` flow without entering select_mode.
+  def handle_event("prepare_move_file", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "prepare_move_file")}
+  end
+
   def handle_event("prepare_move_file", %{"file-uuid" => file_uuid}, socket) do
     {:noreply,
      socket
@@ -2120,12 +2321,22 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # Single-folder move from kebab — symmetric to `prepare_move_file`.
+  def handle_event("prepare_move_folder", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "prepare_move_folder")}
+  end
+
   def handle_event("prepare_move_folder", %{"folder-uuid" => folder_uuid}, socket) do
     {:noreply,
      socket
      |> assign(:selected_files, MapSet.new())
      |> assign(:selected_folders, MapSet.new([folder_uuid]))
      |> open_move_modal()}
+  end
+
+  def handle_event("move_selected_to_folder", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "move_selected_to_folder")}
   end
 
   def handle_event("move_selected_to_folder", %{"folder-uuid" => folder_uuid}, socket) do
@@ -2165,6 +2376,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      )
      |> reload_folder_lists()
      |> reload_current_page()}
+  end
+
+  def handle_event("delete_selected", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "delete_selected")}
   end
 
   def handle_event("delete_selected", _params, socket) do
@@ -2259,6 +2475,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # reorients its thumbnail via the rotation_class CSS transform (no
   # re-encode, no open viewer needed). Images only; scope-guarded like the
   # other per-file mutations.
+  def handle_event("rotate_file", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "rotate_file")}
+  end
+
   def handle_event("rotate_file", %{"file-uuid" => file_uuid, "dir" => dir}, socket) do
     delta = if dir == "left", do: -90, else: 90
     scope = scope_folder_id(socket)
@@ -2288,6 +2509,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     else
       _ -> {:noreply, socket}
     end
+  end
+
+  def handle_event("delete_file", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "delete_file")}
   end
 
   def handle_event("delete_file", %{"file-uuid" => file_uuid}, socket) do
@@ -2354,8 +2580,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # No-op when the host never opted in (`:featured` is `nil`) — the kebab
   # item and viewer button are both gated on it, so this only fires from
   # a stale client render.
+  def handle_event("set_featured", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "set_featured")}
+  end
+
   def handle_event("set_featured", %{"file-uuid" => file_uuid}, socket) do
     {:noreply, notify_featured(socket, file_uuid)}
+  end
+
+  def handle_event("unset_featured", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "unset_featured")}
   end
 
   def handle_event("unset_featured", _params, socket) do
@@ -2405,6 +2641,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:trash_count, full_trash_count(t_scope))}
   end
 
+  def handle_event("restore_selected", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "restore_selected")}
+  end
+
   def handle_event("restore_selected", _params, socket) do
     scope = scope_folder_id(socket)
     repo = PhoenixKit.Config.get_repo()
@@ -2447,6 +2688,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> put_flash(:info, ngettext("%{count} item restored", "%{count} items restored", total))
      |> reload_folder_lists()
      |> reload_current_page()}
+  end
+
+  def handle_event("empty_trash", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "empty_trash")}
   end
 
   def handle_event("empty_trash", _params, socket) do
@@ -2508,6 +2754,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  def handle_event("delete_all_orphaned", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "delete_all_orphaned")}
+  end
+
   def handle_event("delete_all_orphaned", _params, socket) do
     orphan_uuids = Storage.find_orphaned_files() |> Enum.map(& &1.uuid)
     Storage.queue_file_cleanup(orphan_uuids)
@@ -2524,12 +2775,22 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      )}
   end
 
+  def handle_event("toggle_upload", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "toggle_upload")}
+  end
+
   def handle_event("toggle_upload", _params, socket) do
     {:noreply, assign(socket, :show_upload, !socket.assigns.show_upload)}
   end
 
   def handle_event("toggle_search", _params, socket) do
     {:noreply, assign(socket, :show_search, !socket.assigns.show_search)}
+  end
+
+  def handle_event("show_upload", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "show_upload")}
   end
 
   def handle_event("show_upload", _params, socket) do
@@ -4022,6 +4283,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # trashed siblings invisible to the unique constraint, so
   # `list_folders/2`'s active-only view matches what the DB will
   # accept.
+  # A readonly browser hides every affordance that would trigger one of these
+  # events, but the event is still reachable from a console — server, not
+  # markup, is what a consumer can actually trust — so it's refused here too
+  # (mirrors the `only_file_type` lock on `set_file_filter` above).
+  defp log_readonly_blocked(socket, event) do
+    Logger.warning(
+      "MediaBrowser id=#{socket.assigns.id}: #{event} blocked — component is readonly"
+    )
+
+    socket
+  end
+
   # Returns a flash message when folder creation isn't allowed in the current
   # view (trash / all-files), or nil when it's fine.
   defp folder_creation_block(socket) do
