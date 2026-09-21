@@ -1,3 +1,76 @@
+## 2.37.0 - 2026-09-21
+
+### Added
+
+- **Storage records when a photo or video was taken (V200).** Four columns
+  on `phoenix_kit_files`: `taken_at` (the UTC instant), `taken_on` (the
+  LOCAL date — what a library groups by, so a photo taken late on 31 July in
+  California is a July photo although it is August in UTC), `taken_at_offset`
+  and `taken_at_source`. The date comes from EXIF (`DateTimeOriginal`, else
+  `DateTimeDigitized`, with their offset tags) or a video's container
+  (QuickTime's creation date, else `creation_time`), else a date in the file
+  name (`IMG_20180701_120000.jpg`, `PXL_…`, `2018-07-01 12.34.56.jpg`), else
+  the upload time — so every image and video resolves to one.
+  `PhoenixKit.Modules.Storage.CaptureDate` reads it; `ProcessFileJob`
+  records it for new uploads from the bytes it already downloads, in the same
+  guarded transaction as the dimensions. Adds
+  `phoenix_kit_files_capture_date_index` on
+  `(user_uuid, taken_on DESC, taken_at DESC)`, partial over a user's visible,
+  processed images and videos, so an edited image's hidden backup and tile
+  pyramids cost it nothing.
+- **Dating files stored before V200.**
+  `Storage.Workers.CaptureDateBackfillJob` walks the images and videos with
+  no date in batches (`enqueue/0` for a background pass on the
+  `file_processing` queue, `pending_count/0`), and
+  `mix phoenix_kit.storage.backfill_capture_dates` runs a pass in the
+  foreground with progress. A file whose bytes cannot be read is still dated,
+  from its name or upload time; a pass visits each file once and cannot loop
+  on one.
+
+### Changed
+
+- **A capture date is never downgraded.** An image edit keeps only the ICC
+  profile, so an edited original carries no EXIF; re-processing one used to
+  be harmless and now must not replace its EXIF date with a file name. Every
+  automatic writer goes through `CaptureDate.replace?/2` — a date is replaced
+  only by one from an equally strong or stronger source, and a `manual` date
+  never — and an edited image is dated from its unedited backup
+  (`original_file_uuid`), not its own bytes.
+
+### Fixed
+
+- **A trashed file no longer stays on screen (#847).** Trashing, restoring or
+  permanently deleting a file — directly, or by trashing/restoring its
+  folder — now broadcasts `{:phoenix_kit_file_trashed | _restored | _deleted,
+  uuid}` on `Storage.subscribe_to_file_events/0`'s topic. `MediaBrowser`
+  drops the card and closes a viewer open on it; `FeaturedImage` re-resolves
+  on `send_update(FeaturedImage, id: id, refresh: true)`. A trashed file's
+  variants are refused (404) by `/file/...` except to a holder of the
+  `"media"` permission, whose Trash tab renders its thumbnails through that
+  route — and that response is `private, no-store`, never `public`: the URL
+  is the same for every caller, so a CDN or caching proxy would otherwise
+  have kept the holder's copy and served it to anyone (post-merge review
+  fix).
+- **Admin tab permissions are kept per action (#850).** Two tabs naming the
+  same LiveView on different `live_action`s no longer collide on one cached
+  entry, where a tab's `priority` silently decided which key guarded both
+  routes (a redirect loop for users holding the page's own key). An action
+  with no tab of its own — `:show`/`:edit` of a LiveView whose tab is
+  `:index` — is guarded by the module's tab permission when its tabs all
+  agree on one; before the post-merge review fix it resolved to nothing and
+  locked partial roles out of every record behind the list.
+- **The Settings sidebar entry opens a page its viewer can use (#851).** It
+  was shown to holders of any settings-related permission but always linked
+  to General, gated on `"settings"` alone; it now links to the first
+  settings subtab the viewer can open, and still to General for a
+  `"settings"` holder whatever priority a module gives its own subtab.
+
+**Upgrading:** run `mix phoenix_kit.update` for V200, then date the existing
+library once with `mix phoenix_kit.storage.backfill_capture_dates` (or
+`CaptureDateBackfillJob.enqueue()` from a running node). Video dates need
+`ffprobe`; without it a video is dated from its file name or upload time,
+the same way its dimensions and duration already degrade.
+
 ## 2.36.1 - 2026-09-21
 
 ### Fixed
