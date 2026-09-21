@@ -16,10 +16,11 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnail do
   Size modes:
   - `:small` (default) — tiny cells (list rows, selectors): prefers the baked
     Etcher thumbnail, then the 150px thumbnail
-  - `:card` — large grid/stack cards: prefers the baked Etcher thumbnail (400px),
-    then the 300px `small`, then `medium`; only after those falls back to the
-    light 150px thumbnail, keeping the full-res original (which would force a
-    live vector overlay) as the last resort
+  - `:card` — large grid/stack cards: prefers the client `burned` rendering
+    (markup composed in the browser, fit inside 800px), then the baked Etcher
+    thumbnail (400px), then the 300px `small`, then `medium`; only after those
+    falls back to the light 150px thumbnail, keeping the full-res original
+    (which would force a live vector overlay) as the last resort
   - `:medium` — for gallery/preview: prefers medium/thumbnail variants
 
   ## Attributes
@@ -73,15 +74,16 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnail do
   end
 
   def resolve_url(%{file_type: "image", urls: urls}, :card) do
-    # Large grid/stack cards: the baked Etcher thumbnail (400px) when present
-    # shows the markup at the right quality; otherwise the 300px `small`, then
-    # `medium`. When a file has neither (partial variant generation, a legacy
-    # upload, or admin-disabled dimensions) we still prefer the light 150px
-    # `thumbnail` over the full-res `original` — loading the original forces a
-    # live vector overlay and a heavy payload, so it stays the true last resort.
-    # Keeps the page light.
-    urls["thumbnail_annotated"] || urls["small"] || urls["medium"] || urls["thumbnail"] ||
-      urls["original"]
+    # `burned` is the browser-composed rendering (arrows, labels, measurements
+    # as drawn). It wins over the server bake and over `small`: `small` is the
+    # editor's first paint, and storing the burn there draws every shape twice.
+    # Otherwise the 400px bake, then the 300px `small`, then `medium`. When a
+    # file has neither (partial variant generation, a legacy upload, or
+    # admin-disabled dimensions) we still prefer the light 150px `thumbnail`
+    # over the full-res `original` — loading the original forces a live vector
+    # overlay and a heavy payload, so it stays the true last resort.
+    urls["burned"] || urls["thumbnail_annotated"] || urls["small"] || urls["medium"] ||
+      urls["thumbnail"] || urls["original"]
   end
 
   def resolve_url(%{file_type: "image", urls: urls}, :medium) do

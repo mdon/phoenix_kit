@@ -61,7 +61,7 @@ defmodule PhoenixKit.Modules.Storage.AnnotationThumbnail do
         if enabled?() do
           annotations = Annotations.list_for_file(file_uuid)
 
-          case draw_args(annotations, base_dimension(file)) do
+          case draw_args(annotations, file) do
             [] ->
               remove_variant(file)
               {:ok, :removed}
@@ -137,41 +137,77 @@ defmodule PhoenixKit.Modules.Storage.AnnotationThumbnail do
   # policy (stroke width scaled to the source image so it survives the
   # down-scale). Degrades to no overlay when the installed Etcher predates the
   # server renderer.
-  defp draw_args(annotations, base_dim) do
+  defp draw_args(annotations, file) do
     if Code.ensure_loaded?(Etcher.Raster) do
+      {canvas_w, canvas_h} = canvas_size(file)
+
       annotations
-      # `metadata` rides along for the label text: from etcher 0.12.1,
-      # Raster draws a text/callout annotation's actual words
-      # (`metadata.title`) instead of baking its bounding box — which on a
-      # thumbnail looked like a mystery rectangle where a word should be.
-      # Older Raster ignores the extra key and keeps the box fallback.
-      |> Enum.map(fn a ->
-        %{
-          "kind" => a.kind,
-          "geometry" => a.geometry,
-          "style" => a.style,
-          "metadata" => a.metadata,
-          # The label text lives in its own column here, not inside
-          # `metadata` — leaving it out of the wire shape is why a board of
-          # named shapes baked as a board of anonymous ones, and why a
-          # dimension lost the measurement that is the whole point of it.
-          "title" => a.title
-        }
-      end)
+      |> raster_annotations()
       |> Etcher.Raster.to_draw_args(
-        stroke_width: max(round(base_dim / 200), 3),
-        # Label sizes are stored against a reference canvas, like ink
-        # weights, so Raster needs the picture's own size to scale them onto
-        # it — without this a label bakes at 16px whatever the image, which
-        # on a 5000px photo is invisible by the time it is resized down to a
-        # #{@size}px square. (Etcher 0.17+; older versions ignore it.)
-        canvas_width: base_dim,
-        canvas_height: base_dim
+        stroke_width: max(round(max(canvas_w, canvas_h) / 200), 3),
+        # Label sizes are stored against a reference canvas, like ink weights.
+        # A Raster that scales them needs the picture's own size; Etcher 0.16
+        # sizes a label from its box and ignores these.
+        canvas_width: canvas_w,
+        canvas_height: canvas_h
       )
     else
       []
     end
   end
+
+  @doc false
+  # The wire shape `Etcher.Raster` actually reads. A label's words live in the
+  # `title` column; Raster draws `metadata.title` (the same projection
+  # `load_annotations_for/1` makes for the live overlay). A top-level `"title"`
+  # key is ignored, which is why a named shape used to bake as an empty box.
+  # The column wins over a stale metadata copy. Public so the unit test can
+  # pin the projection Raster consumes.
+  def raster_annotations(annotations) when is_list(annotations) do
+    Enum.map(annotations, &raster_annotation/1)
+  end
+
+  defp raster_annotation(a) do
+    metadata =
+      case a.metadata do
+        %{} = meta -> meta
+        _ -> %{}
+      end
+
+    metadata =
+      case a.title do
+        title when is_binary(title) ->
+          case String.trim(title) do
+            "" -> metadata
+            trimmed -> Map.put(metadata, "title", trimmed)
+          end
+
+        _ ->
+          metadata
+      end
+
+    %{
+      "kind" => a.kind,
+      "geometry" => a.geometry,
+      "style" => a.style,
+      "metadata" => metadata
+    }
+  end
+
+  defp canvas_size(file) do
+    case {positive_dim(file.width), positive_dim(file.height)} do
+      {w, h} when w > 0 and h > 0 ->
+        {w, h}
+
+      _ ->
+        dim = base_dimension(file)
+        {dim, dim}
+    end
+  end
+
+  defp positive_dim(n) when is_integer(n) and n > 0, do: n
+  defp positive_dim(n) when is_float(n) and n > 0, do: round(n)
+  defp positive_dim(_), do: 0
 
   # ── helpers ──────────────────────────────────────────────────────────────
 

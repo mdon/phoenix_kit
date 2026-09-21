@@ -3757,8 +3757,10 @@ if (typeof window.Chart === "undefined") {
     // whatever the viewer happened to have loaded.
     var sourceUrl = img.getAttribute("src");
     var sourceWidth = img.naturalWidth || W;
-    var listEl = (host.parentElement && host.parentElement.querySelector("[data-sources]")) ||
-                 document.querySelector("[data-sources]");
+    // This picture's own ladder. A document-wide lookup would compose
+    // another canvas's source into this file.
+    var column = host.closest("[id^='pk-annotation-actions-']") || host.parentElement;
+    var listEl = column && column.querySelector("[data-sources]");
     if (listEl) {
       try {
         (JSON.parse(listEl.getAttribute("data-sources")) || []).forEach(function(s) {
@@ -3884,10 +3886,11 @@ if (typeof window.Chart === "undefined") {
     });
   }
 
-  function burnUpload(uuid, blob, variants) {
+  function burnUpload(uuid, blob, variants, sourceVersion) {
     var body = new FormData();
     body.append("image", blob, "burn.jpg");
     body.append("variants", variants);
+    if (sourceVersion) body.append("source_version", sourceVersion);
     var csrf = document.querySelector("meta[name='csrf-token']");
     // Same prefix derivation the consent widget uses: PHOENIX_KIT_PREFIX is
     // emitted by the js_sources compiler, and the literal is the fallback
@@ -3912,10 +3915,12 @@ if (typeof window.Chart === "undefined") {
     mounted() {
       var self = this;
       this._uuid = this.el.dataset.fileUuid;
-      this._variants = this.el.dataset.burnVariants || "thumbnail,small,medium,large";
+      // thumbnail = list rows, burned = grid cards. small/medium/large are
+      // the editor's own ladder; burning those draws the shapes twice.
+      this._variants = this.el.dataset.burnVariants || "thumbnail,burned";
       this._host = function() {
-        return self.el.closest("[id^='pk-annotation-actions-']")?.querySelector('[phx-hook="FrescoCanvas"]') ||
-               document.querySelector('[phx-hook="FrescoCanvas"]');
+        var column = self.el.closest("[id^='pk-annotation-actions-']");
+        return column && column.querySelector('[phx-hook="FrescoCanvas"]');
       };
       this._baseline = this._signature();
       this._running = false;
@@ -3967,20 +3972,41 @@ if (typeof window.Chart === "undefined") {
     },
 
     burnIfChanged() {
-      var self = this;
-      if (this._running || !this._uuid) return;
+      if (!this._uuid) return;
       var now = this._signature();
       if (!now || now === this._baseline) return;
 
       var plan = burnCapturePlan(this._host());
       if (!plan) return;
 
+      var pending = {
+        now: now,
+        plan: plan,
+        version: this.el.dataset.sourceVersion || ""
+      };
+
+      // Take the plan NOW. A second session-end while a burn is uploading
+      // used to be remembered as a flag and recaptured when the upload
+      // finished — by which point closing the viewer had already removed
+      // the overlay, so the drawing made in between never landed.
+      if (this._running) {
+        this._pending = pending;
+        return;
+      }
+      this._start(pending);
+    },
+
+    _start(pending) {
+      var self = this;
       this._running = true;
-      this._baseline = now;
+      this._pending = null;
+      this._baseline = pending.now;
       burnNote("Updating the burned image…");
 
-      burnRender(plan)
-        .then(function(blob) { return burnUpload(self._uuid, blob, self._variants); })
+      burnRender(pending.plan)
+        .then(function(blob) {
+          return burnUpload(self._uuid, blob, self._variants, pending.version);
+        })
         .then(function(res) {
           self._refresh(res.written || []);
           burnNote("Burned image updated", 3500);
@@ -3991,7 +4017,12 @@ if (typeof window.Chart === "undefined") {
           burnNote("Could not update the burned image: " + (err && err.message || err), 6000);
           self._baseline = null;
         })
-        .then(function() { self._running = false; });
+        .then(function() {
+          self._running = false;
+          var next = self._pending;
+          self._pending = null;
+          if (next) self._start(next);
+        });
     },
 
     // Every picture on the page showing a variant this replaced. The

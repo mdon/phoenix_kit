@@ -1,7 +1,7 @@
 defmodule PhoenixKitWeb.AnnotationBurnController do
   @moduledoc """
-  Accepts a picture with its annotations already drawn into it, and stores it
-  as one of the file's variants.
+  Accepts a picture with its annotations already drawn into it, and stores
+  that rendering as display variants.
 
   ## Why the client renders it
 
@@ -15,54 +15,73 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   ## What this means for trust
 
   The bytes come from a client, so they are treated as a picture and nothing
-  more: re-encoded through ImageMagick into the variant slot, never served
-  back as uploaded. The caller must be signed in and allowed to edit the
-  file, and the annotation set is not consulted — this endpoint replaces a
-  rendering, it cannot change what the file's annotations ARE.
+  more: re-encoded through `ImageProcessor.sanitize/3` into the variant
+  slot, never served back as uploaded. The caller must be signed in and
+  allowed to edit the file, and the annotation set is not consulted — this
+  endpoint replaces a rendering, it cannot change what the file's
+  annotations ARE.
 
-  ## Current scope
+  ## What gets written
 
   The burn arrives at full resolution and is resized into whichever slots
   the caller names (`thumbnail` by default) in one request — making one is
-  expensive enough that nobody should have to send it twice. `original` is
-  not writable: the picture as uploaded stays the source of truth, and a
-  rendering that overwrote it would make the annotations unremovable.
+  expensive enough that nobody should have to send it twice.
+
+  Writable slots are `thumbnail` (list rows) and `burned` (grid cards, fit
+  inside an 800px box). `small`, `medium`, `large` and `original` are not
+  writable. The editor opens on `small` and climbs `medium` → `large` →
+  `original`, drawing the live shapes on top; a burn stored in any of those
+  would paint every annotation a second time. `original` stays the picture
+  as uploaded for the same reason a rendering must stay removable.
+
+  The client sends `source_version`, the `v` query of the original URL it
+  composed over. When that names an original this file no longer has, the
+  write is refused.
   """
   use PhoenixKitWeb, :controller
 
   require Logger
 
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.ImageProcessor
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Modules.Storage.VariantGenerator
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
 
   # A 5000px burn as JPEG is a few MB; the cap is generous enough for a
   # large board and small enough that nothing silly gets spooled to disk.
   @max_bytes 60 * 1024 * 1024
-  @accepted ~w(image/jpeg image/png)
-  # The slots a burn may be written into. `original` is not among them: the
-  # source of truth stays the picture as it was uploaded, and a rendering
-  # that overwrote it would make the annotations unremovable.
-  @writable ~w(thumbnail small medium large)
+  # The slots a burn may be written into. The viewer's ladder
+  # (`small` / `medium` / `large` / `original`) is deliberately absent.
+  @writable ~w(thumbnail burned)
   @default_variants ~w(thumbnail)
+  # Card-sized burn. List rows keep the configured thumbnail (150px); cards
+  # prefer this over the clean `small` so the markup shows without touching
+  # the rung the editor paints.
+  @burned_edge 800
 
   @doc """
   `POST /api/files/:file_uuid/burn` — multipart, field `image`.
 
-  Answers with the variant that was written and a fresh signed URL for it,
+  Optional `variants` (`thumbnail`, `burned`; default `thumbnail`) and
+  `source_version` (the original URL's `v`).
+
+  Answers with each variant that was written and a fresh signed URL for it,
   so a caller can show the result without guessing the URL or waiting for a
   page reload.
   """
   def create(conn, %{"file_uuid" => file_uuid} = params) do
     with {:ok, user} <- require_user(conn),
          {:ok, file} <- fetch_file(file_uuid),
+         :ok <- ensure_image(file),
          :ok <- authorize(user, file),
          {:ok, upload} <- extract_image(params),
-         :ok <- accept_type(upload),
-         {:ok, source} <- readable_size(upload),
-         {:ok, variants} <- requested_variants(params),
-         {:ok, written} <- write_variants(file, source, variants) do
+         {:ok, upload} <- readable_size(upload),
+         :ok <- accept_magic(upload),
+         {:ok, variants} <- variants_from_params(params),
+         {:ok, source_key} <- bind_original(file, params),
+         {:ok, written} <- write_variants(file, upload, variants, source_key) do
       json(conn, %{written: written})
     else
       {:error, reason} -> fail(conn, reason)
@@ -70,6 +89,65 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   end
 
   def create(conn, _params), do: fail(conn, :no_file)
+
+  @doc false
+  def writable_variants, do: @writable
+
+  @doc false
+  # The file's owner, an Owner/Admin (honouring the active role), or anyone
+  # holding the media module — the same three `ImageEditing` allows to change
+  # the picture. `User.admin?/1` misses both the active role and a media
+  # permission holder, who can already draw on the file.
+  def allowed?(%{user_uuid: owner}, %User{uuid: uuid}, scope) do
+    (is_binary(owner) and owner == uuid) or Scope.system_role?(scope) or
+      Scope.has_module_access?(scope, "media")
+  end
+
+  @doc false
+  def variants_from_params(params) when is_map(params) do
+    asked =
+      case params["variants"] || params["variant"] do
+        list when is_list(list) -> list
+        name when is_binary(name) -> String.split(name, ",", trim: true)
+        _ -> @default_variants
+      end
+      |> Enum.map(fn
+        name when is_binary(name) -> String.trim(name)
+        _ -> ""
+      end)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    cond do
+      asked == [] -> {:ok, @default_variants}
+      Enum.all?(asked, &(&1 in @writable)) -> {:ok, asked}
+      true -> {:error, :bad_variant}
+    end
+  end
+
+  @doc false
+  # JPEG or PNG, by magic. The multipart content-type is the client's claim.
+  def image_magic?(<<0xFF, 0xD8, 0xFF, _::binary>>), do: true
+
+  def image_magic?(<<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, _::binary>>), do: true
+
+  def image_magic?(_), do: false
+
+  @doc false
+  # `expected` is the original's current content version; `given` is what the
+  # client says it drew on. No version on either side means there is nothing
+  # to compare (an unversioned URL). A version that disagrees is a rendering
+  # of a picture this file no longer has.
+  def source_version_ok?(expected, given) do
+    cond do
+      not present?(expected) -> true
+      not present?(given) -> true
+      given == expected -> true
+      true -> false
+    end
+  end
+
+  defp present?(value), do: is_binary(value) and value != ""
 
   # ── the steps ────────────────────────────────────────────────────────────
 
@@ -87,23 +165,16 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
     end
   end
 
-  # Whoever owns the file, or anyone who can reach the admin area — the same
-  # pair who can edit its annotations in the first place. A burn is a
-  # rendering OF those annotations, so the right to make one follows the
-  # right to have drawn them.
+  defp ensure_image(%Storage.File{file_type: "image"}), do: :ok
+  defp ensure_image(%Storage.File{mime_type: "image/" <> _}), do: :ok
+  defp ensure_image(_), do: {:error, :not_image}
+
   defp authorize(%User{} = user, file) do
-    cond do
-      file.user_uuid && file.user_uuid == user.uuid -> :ok
-      User.admin?(user) -> :ok
-      true -> {:error, :forbidden}
-    end
+    if allowed?(file, user, Scope.for_user(user)), do: :ok, else: {:error, :forbidden}
   end
 
   defp extract_image(%{"image" => %Plug.Upload{} = upload}), do: {:ok, upload}
   defp extract_image(_), do: {:error, :no_file}
-
-  defp accept_type(%Plug.Upload{content_type: type}) when type in @accepted, do: :ok
-  defp accept_type(_), do: {:error, :bad_type}
 
   defp readable_size(%Plug.Upload{path: path} = upload) do
     case File.stat(path) do
@@ -113,29 +184,61 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
     end
   end
 
-  # One upload, every size asked for: the burn is expensive to make and a
-  # caller should not have to send it again per slot.
-  defp requested_variants(params) do
-    asked =
-      case params["variants"] || params["variant"] do
-        list when is_list(list) -> list
-        name when is_binary(name) -> String.split(name, ",", trim: true)
-        _ -> @default_variants
-      end
-      |> Enum.map(&String.trim/1)
-      |> Enum.uniq()
-
-    cond do
-      asked == [] -> {:ok, @default_variants}
-      Enum.all?(asked, &(&1 in @writable)) -> {:ok, asked}
-      true -> {:error, :bad_variant}
+  defp accept_magic(%Plug.Upload{path: path}) do
+    with {:ok, header} <- File.open(path, [:read, :binary], &IO.binread(&1, 16)),
+         true <- image_magic?(header) do
+      :ok
+    else
+      false -> {:error, :bad_type}
+      _ -> {:error, :no_file}
     end
   end
 
-  defp write_variants(file, source, variants) do
+  defp bind_original(file, params) do
+    case Storage.get_file_instance_by_name(file.uuid, "original") do
+      %Storage.FileInstance{file_name: key} = instance ->
+        if source_version_ok?(URLSigner.version(instance), params["source_version"]),
+          do: {:ok, key},
+          else: {:error, :stale_source}
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  # Decode the untrusted bytes ONCE, under ImageMagick resource limits and a
+  # pixel budget, into a JPEG no larger than the biggest slot asked for.
+  # Each slot is then a resize of that trusted file.
+  defp write_variants(file, %Plug.Upload{path: path}, variants, source_key) do
+    safe = temp_path("safe")
+
+    try do
+      case prepare_burn(file, path, safe, variants) do
+        :ok -> commit_variants(file, safe, variants, source_key)
+        {:error, reason} -> {:error, reason}
+      end
+    after
+      File.rm(safe)
+    end
+  end
+
+  defp prepare_burn(file, path, safe, variants) do
+    edge = variants |> Enum.map(&variant_long_edge/1) |> Enum.max()
+
+    case ImageProcessor.sanitize(path, safe, max_edge: edge, quality: 90, format: "jpeg") do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("burn sanitize failed for #{file.uuid}: #{inspect(reason)}")
+        {:error, :convert_failed}
+    end
+  end
+
+  defp commit_variants(file, safe, variants, source_key) do
     written =
       Enum.reduce_while(variants, [], fn variant, acc ->
-        case write_variant(file, source, variant) do
+        case write_variant(file, safe, variant, source_key) do
           {:ok, instance} ->
             {:cont,
              [
@@ -155,66 +258,58 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
       end)
 
     case written do
-      {:error, reason} -> {:error, reason}
-      list -> {:ok, Enum.reverse(list)}
+      {:error, reason} ->
+        {:error, reason}
+
+      list ->
+        Storage.broadcast_file_thumbnail_updated(file.uuid)
+        {:ok, Enum.reverse(list)}
     end
   end
 
-  # Re-encoded rather than stored as it arrived: the bytes are a client's,
-  # and passing them through ImageMagick is what makes them a picture this
-  # server vouches for rather than a file it was handed.
-  defp write_variant(file, %Plug.Upload{path: path}, variant) do
-    out = Path.join(System.tmp_dir!(), "pk_burn_#{System.unique_integer([:positive])}.jpg")
+  defp write_variant(file, safe, variant, source_key) do
     {w, h} = variant_box(variant)
+    out = temp_path(variant)
 
-    args = [
-      path,
-      "-auto-orient",
-      "-resize",
-      "#{w}x#{h}>",
-      "-strip",
-      "-quality",
-      "90",
-      "jpg:#{out}"
-    ]
-
-    try do
-      case System.cmd("convert", args, stderr_to_stdout: true) do
-        {_, 0} ->
-          # The key of the original this burn was drawn over. If that
-          # original has been replaced since the browser composed it — a
-          # crop, a rotate, a re-upload — the store rolls the write back
-          # rather than filing a rendering of a picture that no longer
-          # exists.
+    result =
+      case ImageProcessor.resize(safe, out, w, h, quality: 90, format: "jpg") do
+        {:ok, _} ->
           VariantGenerator.store_prepared_variant(file, variant, out, "jpg", "image/jpeg",
-            source_key: original_key(file)
+            source_key: source_key
           )
 
-        {stderr, code} ->
-          Logger.warning("burn convert exited #{code} for #{file.uuid}: #{stderr}")
+        {:error, reason} ->
+          Logger.warning("burn resize failed for #{file.uuid}/#{variant}: #{inspect(reason)}")
           {:error, :convert_failed}
       end
-    after
-      File.rm(out)
-    end
+
+    File.rm(out)
+    result
   end
 
-  defp original_key(file) do
-    case Storage.get_file_instance_by_name(file.uuid, "original") do
-      %Storage.FileInstance{file_name: key} -> key
-      _ -> nil
-    end
+  defp variant_long_edge(variant) do
+    {w, h} = variant_box(variant)
+    max(w, h)
   end
 
-  # The size this slot is configured for, so a burn lands at the dimensions
-  # everything else expects rather than at one hard-coded here.
+  # `burned` is not a configured dimension — it exists so cards can show the
+  # markup without displacing `small`, which the editor uses as its first paint.
+  defp variant_box("burned"), do: {@burned_edge, @burned_edge}
+
   defp variant_box(variant) do
     Storage.list_dimensions()
     |> Enum.find(&(&1.name == variant))
     |> case do
-      %{width: w, height: h} when is_integer(w) and is_integer(h) -> {w, h}
-      _ -> {150, 150}
+      %{width: w, height: h} when is_integer(w) and is_integer(h) and w > 0 and h > 0 ->
+        {w, h}
+
+      _ ->
+        {150, 150}
     end
+  end
+
+  defp temp_path(tag) do
+    Path.join(System.tmp_dir!(), "pk_burn_#{tag}_#{System.unique_integer([:positive])}.jpg")
   end
 
   # ── answers ──────────────────────────────────────────────────────────────
@@ -231,6 +326,9 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
         :not_found ->
           {:not_found, "NOT_FOUND", "No such file"}
 
+        :not_image ->
+          {:bad_request, "NOT_IMAGE", "Only a picture can take a burn"}
+
         :no_file ->
           {:bad_request, "NO_FILE", "Send the picture as `image`"}
 
@@ -242,6 +340,9 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
 
         :too_large ->
           {:request_entity_too_large, "TOO_LARGE", "That is larger than a burn gets"}
+
+        :stale_source ->
+          {:conflict, "STALE", "The picture changed while this was drawn"}
 
         _ ->
           {:internal_server_error, "FAILED", "Could not store the rendering"}

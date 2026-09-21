@@ -50,15 +50,20 @@
           class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-0 lg:p-2 min-h-[40vh] lg:min-h-0"
         >
           <%!-- Keeps a copy of the picture with the annotations drawn into  --%>
-          <%!-- it, so a grid card, a pasted link or a right-click → Copy    --%>
-          <%!-- Image carries the markup. Composes in the browser at the end --%>
-          <%!-- of an editing session (Etcher off, or the viewer closing)    --%>
-          <%!-- and posts it; see the AnnotationBurn hook.                    --%>
+          <%!-- it, so a grid card and a list row carry the markup. Composes --%>
+          <%!-- in the browser at the end of an editing session (Etcher off, --%>
+          <%!-- or the viewer closing) and posts it; see AnnotationBurn.     --%>
+          <%!--                                                              --%>
+          <%!-- Stored as `thumbnail` and `burned`, never small/medium/large: --%>
+          <%!-- those are the rungs this viewer paints, and a burn there     --%>
+          <%!-- would draw every shape a second time under the live overlay. --%>
           <div
-            :if={not @viewer_only}
+            :if={image_file?(f)}
             id={"pk-burn-" <> f.file_uuid}
             phx-hook="AnnotationBurn"
             data-file-uuid={f.file_uuid}
+            data-source-version={original_source_version(f)}
+            data-burn-variants="thumbnail,burned"
             class="hidden"
           />
           <%!-- Chevron positioning sits on a wrapper div, not the button.       --%>

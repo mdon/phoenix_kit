@@ -38,10 +38,32 @@ defmodule PhoenixKitWeb.Components.Core.MediaThumbnailTest do
                :small
              ) == "/t.jpg"
     end
+
+    test "does not use the card-sized burn — list rows stay on the light thumbnail" do
+      assert MediaThumbnail.resolve_url(
+               image(%{"burned" => "/b.jpg", "thumbnail" => "/t.jpg", "small" => "/s.jpg"}),
+               :small
+             ) == "/t.jpg"
+    end
   end
 
   describe "resolve_url/2 — image :card (grid/stack cards)" do
-    test "prefers the baked 400px annotated thumbnail when present" do
+    test "prefers the client burn over the server bake and the clean small" do
+      # `small` is the editor's first paint. The burn must not live there,
+      # so the card reads `burned` and leaves `small` alone.
+      assert MediaThumbnail.resolve_url(
+               image(%{
+                 "burned" => "/b.jpg",
+                 "thumbnail_annotated" => "/a.png",
+                 "small" => "/s.jpg",
+                 "thumbnail" => "/t.jpg",
+                 "original" => "/o.jpg"
+               }),
+               :card
+             ) == "/b.jpg"
+    end
+
+    test "prefers the baked 400px annotated thumbnail when no client burn exists" do
       assert MediaThumbnail.resolve_url(
                image(%{
                  "thumbnail_annotated" => "/a.png",

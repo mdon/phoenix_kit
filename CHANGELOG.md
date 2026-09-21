@@ -1,3 +1,28 @@
+## 2.36.0 - 2026-09-21
+
+### Added
+
+- **Annotations are burned into the picture when an editing session ends.**
+  Turning Etcher off, or closing the viewer, composes the live overlay in
+  the browser and stores that rendering. List rows read it from `thumbnail`;
+  grid cards prefer `burned` (fit inside 800px) over the plain `small`. The
+  editor's own ladder — `small`, `medium`, `large`, `original` — stays the
+  picture as uploaded, so the live shapes are not drawn a second time on
+  the next open. `POST /api/files/:file_uuid/burn` re-encodes the upload
+  through `ImageProcessor.sanitize/3` and refuses a rendering whose
+  `source_version` is no longer the file's original.
+
+### Fixed
+
+- **A baked annotated thumbnail draws the shape's label.** The words live
+  in the `title` column; `Etcher.Raster` reads `metadata.title`. The bake
+  now projects the column the same way the live viewer does, so a named
+  text or callout shape is no longer an empty box.
+- The burn is limited to the file's owner, an Owner/Admin (honouring the
+  active role), or a holder of the media permission — the same people who
+  can edit the picture. A second session-end while an upload is in flight
+  keeps the composition taken while the overlay is still on screen.
+
 ## 2.35.0 - 2026-09-21
 
 ### Added

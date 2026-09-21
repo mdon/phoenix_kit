@@ -1336,6 +1336,32 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     end
   end
 
+  # The burn hook only makes sense on a picture. Videos, PDFs and the icon
+  # fallback have no overlay to compose, and a hook there would still listen
+  # for every Escape on the page.
+  defp image_file?(%{file_type: "image"}), do: true
+  defp image_file?(%{mime_type: "image/" <> _}), do: true
+  defp image_file?(_), do: false
+
+  # The `v` query on the original's signed URL — the content version the
+  # viewer was rendered against. The burn posts it back so a rendering of a
+  # picture that has since been replaced is refused. Absent when the URL
+  # carries no version (the server then has nothing to compare).
+  defp original_source_version(%{urls: urls}) when is_map(urls) do
+    case urls["original"] do
+      url when is_binary(url) ->
+        case URI.parse(url) do
+          %URI{query: query} when is_binary(query) -> URI.decode_query(query)["v"]
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp original_source_version(_), do: nil
+
   # Map an in-memory annotation (from `load_annotations_for/1`) to
   # the Etcher 0.3 wire shape (string-keyed map with uuid/kind/
   # geometry plus optional style/metadata).
