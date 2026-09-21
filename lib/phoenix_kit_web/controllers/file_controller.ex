@@ -177,6 +177,8 @@ defmodule PhoenixKitWeb.FileController do
   # so nothing new opens up; a trashed file's plain owner (no "media" grant)
   # who previously reached it on ownership now 404s here first instead —
   # consistent with trashing making a file otherwise unreachable.
+  @trashed_access_cache :trashed_file_access
+
   def get_servable_file(conn, file_uuid) do
     case Storage.get_file(file_uuid) do
       %{system_managed: true} -> {:error, :not_found}
@@ -195,9 +197,43 @@ defmodule PhoenixKitWeb.FileController do
   end
 
   @doc false
-  def authorize_trashed_read(user) do
-    user |> Scope.for_user() |> Scope.has_module_access?("media")
+  # Built per request, `Scope.for_user/1` is a role query and a permission
+  # load — per image, for a Trash tab rendering every thumbnail through this
+  # route. The answer is cached for a few seconds per user AND active role
+  # (`:trashed_file_access`, started by `PhoenixKit.Supervisor`), which turns
+  # a grid's burst into one lookup. An anonymous caller holds nothing and is
+  # never cached. Without the cache running (update mode, a bare test) the
+  # answer is simply computed — never assumed.
+  def authorize_trashed_read(%{uuid: uuid} = user) when is_binary(uuid) do
+    if trashed_access_cache?() do
+      key = {uuid, Map.get(user, :active_role_uuid)}
+
+      case PhoenixKit.Cache.get(@trashed_access_cache, key, :miss) do
+        :miss ->
+          allowed? = trashed_read_allowed?(user)
+          PhoenixKit.Cache.put(@trashed_access_cache, key, allowed?)
+          allowed?
+
+        allowed? ->
+          allowed?
+      end
+    else
+      trashed_read_allowed?(user)
+    end
   end
+
+  def authorize_trashed_read(user), do: trashed_read_allowed?(user)
+
+  # `Cache.put/4` logs when its cache is not running; the same check the
+  # settings cache uses keeps an update-mode node or a bare test quiet.
+  defp trashed_access_cache? do
+    Registry.whereis_name({PhoenixKit.Cache.Registry, @trashed_access_cache}) != :undefined
+  rescue
+    ArgumentError -> false
+  end
+
+  defp trashed_read_allowed?(user),
+    do: user |> Scope.for_user() |> Scope.has_module_access?("media")
 
   # While an edit renders (or after it failed) the file's old bytes are the
   # very thing the edit may be hiding: answer a neutral placeholder that no

@@ -18,6 +18,7 @@ defmodule PhoenixKitWeb.TrashedFileCacheTest do
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.Roles
   alias PhoenixKitWeb.FileController
@@ -130,6 +131,46 @@ defmodule PhoenixKitWeb.TrashedFileCacheTest do
     assert conn.status == 200
     assert cache_control(conn) == ["public, max-age=31536000, immutable"]
   end
+
+  # Review of #847: every trashed thumbnail rebuilt a scope (a role query and a
+  # permission load). A Trash tab's burst now computes it once per user and
+  # active role, for a few seconds.
+  describe "authorize_trashed_read/1 with the access cache running" do
+    setup do
+      start_supervised!({PhoenixKit.Cache.Registry, []})
+      start_supervised!({PhoenixKit.Cache, name: :trashed_file_access, ttl: 5_000})
+      :ok
+    end
+
+    test "answers from the cache within its lifetime", ctx do
+      assert FileController.authorize_trashed_read(ctx.holder)
+
+      # Revoked after the first answer: the cached one stands until it
+      # expires — which is exactly what makes a thumbnail burst one lookup.
+      role = Roles.get_role_by_name("User")
+      :ok = revoke!(role.uuid, "media")
+
+      assert FileController.authorize_trashed_read(ctx.holder)
+      # A fresh computation already says no.
+      refute ctx.holder |> Repo.reload!() |> Scope.for_user() |> Scope.has_module_access?("media")
+    end
+
+    test "never lends one user's answer to another", ctx do
+      assert FileController.authorize_trashed_read(ctx.holder)
+
+      role = Roles.get_role_by_name("User")
+      :ok = revoke!(role.uuid, "media")
+      stranger = user!("stranger-#{System.unique_integer([:positive])}")
+
+      refute FileController.authorize_trashed_read(stranger)
+    end
+
+    test "an anonymous caller is refused and never cached" do
+      refute FileController.authorize_trashed_read(nil)
+    end
+  end
+
+  defp revoke!(role_uuid, key), do: :ok = Permissions.revoke_permission(role_uuid, key)
 
   describe "cache_mode/3" do
     test "a trashed file is :private whatever the version or freshness" do
