@@ -37,7 +37,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
     assigns = %{
       scope: scope,
       show_label: Keyword.get(opts, :show_admin_panel_label),
-      dev_environment: Keyword.get(opts, :dev_environment)
+      dev_environment: Keyword.get(opts, :dev_environment),
+      current_locale: Keyword.get(opts, :current_locale)
     }
 
     ~H"""
@@ -49,6 +50,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
       project_title="Acme"
       show_admin_panel_label={@show_label}
       dev_environment={@dev_environment}
+      current_locale={@current_locale}
       phoenix_kit_current_scope={@scope}
     >
       <span id="pk-test-body">body</span>
@@ -542,6 +544,31 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
       html = admin_shell(plain_user_scope(), dev_environment: true)
 
       assert html =~ "[dev]"
+    end
+  end
+
+  describe "project title link — locale-aware (issue #843)" do
+    # Both `.link` instances (the full title and the collapsed "…" variant,
+    # which only renders once `page_title` is set — `admin_shell/2` always
+    # passes one) used to hardcode `href="/"`, losing the locale a visitor on
+    # e.g. `/ru/admin/...` was browsing in: clicking it always landed on the
+    # default-language root. `Routes.locale_aware_path/2` is the fix, same
+    # helper the rest of the admin chrome already uses for locale-aware links.
+    test "links to the localized root, not the bare default-language /" do
+      html = admin_shell(owner_scope(), current_locale: "ru")
+
+      assert html =~ ~s(href="/phoenix_kit/ru")
+      refute html =~ ~s(href="/")
+    end
+
+    test "with no locale assign, falls back to the default locale (not a bare host /)" do
+      # No `current_locale` passed — this used to be exactly the hardcoded
+      # `href="/"` case. `locale_aware_path/2` now still resolves it through
+      # the default locale, same as every other locale-aware link.
+      html = admin_shell(owner_scope())
+
+      assert html =~ ~s(href="/phoenix_kit/en")
+      refute html =~ ~s(href="/")
     end
   end
 end

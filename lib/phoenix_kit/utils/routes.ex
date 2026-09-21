@@ -639,9 +639,11 @@ defmodule PhoenixKit.Utils.Routes do
   read — same `usable_candidate?/1` check as `main_page_path/0` and
   `after_login_path` — so a hand-edited DB row cannot turn a menu entry into
   an off-site link, or into `/users/log-out`, silently converting every
-  "Settings" link into a sign-out link. An override is used verbatim — it is
-  the host's own path, so core neither prefixes it nor inserts a locale
-  segment.
+  "Settings" link into a sign-out link. An override names the host's own
+  page as a canonical, unprefixed path (e.g. `/crm/settings`) — the same
+  shape core's own default is written in — and gets the same locale
+  prefixing `path/2` would apply to that default, so a host page moves with
+  the visitor's language exactly like `/profile/settings` does.
 
   ## Options
 
@@ -657,8 +659,11 @@ defmodule PhoenixKit.Utils.Routes do
   @spec user_settings_path(keyword()) :: String.t()
   def user_settings_path(opts \\ []) do
     case setting_candidate("user_settings_path") do
-      nil -> path("/profile/settings", opts)
-      value -> if usable_candidate?(value), do: value, else: path("/profile/settings", opts)
+      nil ->
+        path("/profile/settings", opts)
+
+      value ->
+        if usable_candidate?(value), do: path(value, opts), else: path("/profile/settings", opts)
     end
   end
 
