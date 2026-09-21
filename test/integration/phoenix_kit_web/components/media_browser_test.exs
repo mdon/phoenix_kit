@@ -15,6 +15,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
+  alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.MediaBrowser
@@ -712,6 +713,42 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
   end
 
   # ---------------------------------------------------------------------------
+  # A trashed file's own thumbnail must stay reachable for whoever can view
+  # the Trash tab (issue #841 part 3) — `enrich_files/1` builds it through the
+  # very `/file/:uuid/:variant/:token` route `FileController.show/2` now
+  # gates on `status: "trashed"`.
+  # ---------------------------------------------------------------------------
+
+  describe "trash view thumbnail servability" do
+    test "a trashed file's signed thumbnail route is still authorized for its viewer",
+         %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      create_instance!(file.uuid, "thumbnail")
+      {:ok, file} = Storage.trash_file(file)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+      html = view |> element("[phx-click='toggle_trash_filter']") |> render_click()
+      assert html =~ file.uuid
+
+      # A deliberately wrong token distinguishes "authorized here, rejected
+      # downstream for an unrelated reason" (401 Invalid token) from "blocked
+      # by the trashed-file gate itself" (404) — proving the route is
+      # reachable without needing real bucket bytes for a literal 200.
+      real_url = URLSigner.signed_url(file.uuid, "thumbnail")
+      bogus_url = String.replace(real_url, ~r/[0-9a-f]+\z/, "deadbeef")
+
+      assert get(conn, bogus_url).status == 401
+
+      # Regression: the same URL, unauthenticated, is still blocked entirely
+      # — trashing the file did not accidentally open it to anyone.
+      assert get(build_conn(), bogus_url).status == 404
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Info sidebar collapse — viewer-only mode for small screens, per-user sticky
   # ---------------------------------------------------------------------------
 
@@ -835,6 +872,91 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
       html = render(view)
       assert html =~ ~s(data-canvas-width="800")
       assert html =~ ~s(data-canvas-height="600")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Trash live refresh — Storage.trash_file/restore_file/delete_file_completely
+  # broadcast so an open browser reacts instead of keeping a stale card
+  # (issue #841)
+  # ---------------------------------------------------------------------------
+
+  describe "trash live refresh" do
+    test "file_trashed broadcast drops the card from the active view and closes the viewer",
+         %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      create_instance!(file.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+
+      html =
+        view
+        |> element("[phx-click='click_file'][phx-value-file-uuid='#{file.uuid}']")
+        |> render_click()
+
+      assert html =~ "media-browser-viewer-modal"
+      assert html =~ file.uuid
+
+      {:ok, _} = Storage.trash_file(file)
+
+      # Two round-trips: the hook's send_update can be queued as a separate
+      # mailbox message behind the first render call.
+      _ = render(view)
+      html = render(view)
+
+      refute html =~ file.uuid
+      refute html =~ "media-browser-viewer-modal"
+    end
+
+    test "file_restored broadcast drops the card from an open trash view",
+         %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      {:ok, file} = Storage.trash_file(file)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+      html = view |> element("[phx-click='toggle_trash_filter']") |> render_click()
+
+      assert html =~ file.uuid
+
+      {:ok, _} = Storage.restore_file(file)
+
+      _ = render(view)
+      html = render(view)
+
+      refute html =~ file.uuid
+    end
+
+    test "file_deleted broadcast drops the card everywhere and closes the viewer",
+         %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      create_instance!(file.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+
+      html =
+        view
+        |> element("[phx-click='click_file'][phx-value-file-uuid='#{file.uuid}']")
+        |> render_click()
+
+      assert html =~ "media-browser-viewer-modal"
+      assert html =~ file.uuid
+
+      {:ok, _} = Storage.delete_file_completely(file)
+
+      _ = render(view)
+      html = render(view)
+
+      refute html =~ file.uuid
+      refute html =~ "media-browser-viewer-modal"
     end
   end
 

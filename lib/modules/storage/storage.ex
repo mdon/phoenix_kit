@@ -165,6 +165,19 @@ defmodule PhoenixKit.Modules.Storage do
       transform). Lighter than `file_processed`: consumers should refresh
       thumbnails only, not remount open viewers — the user is usually
       still working in one, and it is what emitted the change.
+
+    * `{:phoenix_kit_file_trashed, file_uuid}` — the file was moved to
+      trash (`trash_file/1`, or a `trash_folder/2` that swept it up).
+      Consumers showing the active (non-trash) view should stop showing
+      it; an open viewer on it should close.
+
+    * `{:phoenix_kit_file_restored, file_uuid}` — the file was taken out
+      of trash (`restore_file/1`, or a `restore_folder/2`). Consumers
+      showing the trash view should stop showing it.
+
+    * `{:phoenix_kit_file_deleted, file_uuid}` — the file was permanently
+      deleted (`delete_file_completely/1`). Consumers should drop it
+      wherever it is rendered and close an open viewer on it.
   """
   def subscribe_to_file_events do
     PhoenixKit.PubSub.Manager.subscribe(@files_topic)
@@ -190,6 +203,33 @@ defmodule PhoenixKit.Modules.Storage do
       @files_topic,
       {:phoenix_kit_file_thumbnail_updated, file_uuid}
     )
+  end
+
+  @doc """
+  Broadcasts that `file_uuid` was moved to trash.
+
+  See `subscribe_to_file_events/0` for the message shape.
+  """
+  def broadcast_file_trashed(file_uuid) when is_binary(file_uuid) do
+    PhoenixKit.PubSub.Manager.broadcast(@files_topic, {:phoenix_kit_file_trashed, file_uuid})
+  end
+
+  @doc """
+  Broadcasts that `file_uuid` was taken out of trash.
+
+  See `subscribe_to_file_events/0` for the message shape.
+  """
+  def broadcast_file_restored(file_uuid) when is_binary(file_uuid) do
+    PhoenixKit.PubSub.Manager.broadcast(@files_topic, {:phoenix_kit_file_restored, file_uuid})
+  end
+
+  @doc """
+  Broadcasts that `file_uuid` was permanently deleted.
+
+  See `subscribe_to_file_events/0` for the message shape.
+  """
+  def broadcast_file_deleted(file_uuid) when is_binary(file_uuid) do
+    PhoenixKit.PubSub.Manager.broadcast(@files_topic, {:phoenix_kit_file_deleted, file_uuid})
   end
 
   # ===== BUCKETS =====
@@ -1278,33 +1318,44 @@ defmodule PhoenixKit.Modules.Storage do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     subtree_uuids = folder_subtree_uuids(folder.uuid)
 
-    repo().transaction(fn ->
-      # Trash every folder in the subtree (including the root).
-      from(f in Folder, where: f.uuid in ^subtree_uuids)
-      |> repo().update_all(set: [trashed_at: now, updated_at: now])
+    result =
+      repo().transaction(fn ->
+        # Trash every folder in the subtree (including the root).
+        from(f in Folder, where: f.uuid in ^subtree_uuids)
+        |> repo().update_all(set: [trashed_at: now, updated_at: now])
 
-      # A file homed in the subtree but ALSO linked into a folder outside it
-      # is shown there too (a product's attachment, say — content de-dup
-      # links the second upload): re-home it there instead of trashing it,
-      # exactly as `delete_folder_completely/2` does. Trashing it hid the
-      # attachment from every reader outside this folder (2026-09-12).
-      from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
-      |> repo().all()
-      |> Enum.filter(&linked_outside_subtree?(&1.uuid, subtree_uuids, :live))
-      |> Enum.each(&promote_out_of_subtree(&1, subtree_uuids, :live))
+        # A file homed in the subtree but ALSO linked into a folder outside it
+        # is shown there too (a product's attachment, say — content de-dup
+        # links the second upload): re-home it there instead of trashing it,
+        # exactly as `delete_folder_completely/2` does. Trashing it hid the
+        # attachment from every reader outside this folder (2026-09-12).
+        from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
+        |> repo().all()
+        |> Enum.filter(&linked_outside_subtree?(&1.uuid, subtree_uuids, :live))
+        |> Enum.each(&promote_out_of_subtree(&1, subtree_uuids, :live))
 
-      # Trash every file still homed in the subtree. Files use both
-      # `status: "trashed"` and `trashed_at` (the V99 convention) so the
-      # existing file-listing filters (`status != "trashed"`) already
-      # hide them without further changes.
-      from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
-      |> repo().update_all(set: [status: "trashed", trashed_at: now, updated_at: now])
+        # Trash every file still homed in the subtree. Files use both
+        # `status: "trashed"` and `trashed_at` (the V99 convention) so the
+        # existing file-listing filters (`status != "trashed"`) already
+        # hide them without further changes. `select` captures the affected
+        # uuids so callers can broadcast per-file trash events for them too.
+        {_count, trashed_uuids} =
+          from(f in PhoenixKit.Modules.Storage.File,
+            where: f.folder_uuid in ^subtree_uuids,
+            select: f.uuid
+          )
+          |> repo().update_all(set: [status: "trashed", trashed_at: now, updated_at: now])
 
-      {:ok, folder}
-    end)
-    |> case do
-      {:ok, {:ok, f}} -> {:ok, f}
-      {:error, reason} -> {:error, reason}
+        {:ok, folder, trashed_uuids}
+      end)
+
+    case result do
+      {:ok, {:ok, f, trashed_uuids}} ->
+        Enum.each(trashed_uuids, &broadcast_file_trashed/1)
+        {:ok, f}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -1330,18 +1381,28 @@ defmodule PhoenixKit.Modules.Storage do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     subtree_uuids = folder_subtree_uuids(folder.uuid)
 
-    repo().transaction(fn ->
-      from(f in Folder, where: f.uuid in ^subtree_uuids)
-      |> repo().update_all(set: [trashed_at: nil, updated_at: now])
+    result =
+      repo().transaction(fn ->
+        from(f in Folder, where: f.uuid in ^subtree_uuids)
+        |> repo().update_all(set: [trashed_at: nil, updated_at: now])
 
-      from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
-      |> repo().update_all(set: [status: "active", trashed_at: nil, updated_at: now])
+        {_count, restored_uuids} =
+          from(f in PhoenixKit.Modules.Storage.File,
+            where: f.folder_uuid in ^subtree_uuids,
+            select: f.uuid
+          )
+          |> repo().update_all(set: [status: "active", trashed_at: nil, updated_at: now])
 
-      {:ok, folder}
-    end)
-    |> case do
-      {:ok, {:ok, f}} -> {:ok, f}
-      {:error, reason} -> {:error, reason}
+        {:ok, folder, restored_uuids}
+      end)
+
+    case result do
+      {:ok, {:ok, f, restored_uuids}} ->
+        Enum.each(restored_uuids, &broadcast_file_restored/1)
+        {:ok, f}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -3393,6 +3454,14 @@ defmodule PhoenixKit.Modules.Storage do
       trashed_at: DateTime.utc_now() |> DateTime.truncate(:second)
     })
     |> repo().update()
+    |> case do
+      {:ok, updated} = result ->
+        broadcast_file_trashed(updated.uuid)
+        result
+
+      error ->
+        error
+    end
   end
 
   def trash_file(file_uuid) when is_binary(file_uuid) do
@@ -3407,6 +3476,14 @@ defmodule PhoenixKit.Modules.Storage do
     file
     |> Ecto.Changeset.change(%{status: "active", trashed_at: nil})
     |> repo().update()
+    |> case do
+      {:ok, updated} = result ->
+        broadcast_file_restored(updated.uuid)
+        result
+
+      error ->
+        error
+    end
   end
 
   def restore_file(file_uuid) when is_binary(file_uuid) do
@@ -3551,6 +3628,7 @@ defmodule PhoenixKit.Modules.Storage do
           {:error, reason} -> Logger.warning("Storage: #{file.uuid}: #{reason}")
         end
 
+        broadcast_file_deleted(deleted.uuid)
         {:ok, deleted}
 
       {:error, _} = error ->

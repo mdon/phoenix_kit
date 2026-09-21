@@ -120,6 +120,43 @@ defmodule PhoenixKitWeb.Components.FeaturedImage do
   recommended**, portals were still being fixed until then (see "The modal
   lives in a portal").
 
+  ## Reacting to a file trashed elsewhere
+
+  The `Storage` lookup behind `display` is memoized per `uuid`
+  (`load_display/1`) — once settled (`:empty`, `:ok`, `:dangling`) it is not
+  looked up again on its own, so a file trashed, restored, or permanently
+  deleted in another tab or browser (see
+  `Storage.subscribe_to_file_events/0`) does not change what is drawn here
+  until the host pokes it:
+
+      send_update(FeaturedImage, id: id, refresh: true)
+
+  A host wires this itself — the component has no `handle_info` of its own —
+  by subscribing on mount and matching the event's uuid against whatever it
+  currently has pointed at this instance:
+
+      def mount(socket) do
+        if connected?(socket), do: Storage.subscribe_to_file_events()
+        {:ok, socket}
+      end
+
+      def handle_info({event, uuid}, socket)
+          when event in [
+                 :phoenix_kit_file_trashed,
+                 :phoenix_kit_file_restored,
+                 :phoenix_kit_file_deleted
+               ] and uuid == socket.assigns.order.featured_image_uuid do
+        send_update(FeaturedImage, id: "order-featured", refresh: true)
+        {:noreply, socket}
+      end
+
+  Unlike `recheck: true` (used internally while a file is still
+  `:processing`), `refresh: true` re-resolves unconditionally — the one to
+  reach for whenever the file's status may have changed regardless of what is
+  currently displayed. See `MediaBrowser.attach_file_event_forwarding/1` for
+  the same subscribe/dispatch shape wired through an `attach_hook` instead of
+  a plain `handle_info` clause.
+
   ## Lazy scope
 
   Most hosts create the entity's folder on the first click, not on page load.
@@ -272,6 +309,14 @@ defmodule PhoenixKitWeb.Components.FeaturedImage do
     else
       {:ok, socket}
     end
+  end
+
+  # Unlike `recheck: true` above (only acts while `display == :processing`),
+  # this re-resolves unconditionally — for when the file's status changed out
+  # from under an already-settled display (trashed, restored, deleted). See
+  # "Reacting to a file trashed elsewhere" in the moduledoc.
+  def update(%{refresh: true}, socket) do
+    {:ok, socket |> assign(:display_for, nil) |> load_display()}
   end
 
   def update(assigns, socket) do

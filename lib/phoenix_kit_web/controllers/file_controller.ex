@@ -48,7 +48,7 @@ defmodule PhoenixKitWeb.FileController do
       "File or variant not found"
   """
   def show(conn, %{"file_uuid" => file_uuid, "variant" => variant, "token" => token} = params) do
-    with {:ok, file} <- get_servable_file(file_uuid),
+    with {:ok, file} <- get_servable_file(conn, file_uuid),
          :ok <- verify_token(file_uuid, variant, token) do
       if ImageEditing.edit_in_progress?(file) do
         serve_edit_placeholder(conn, file)
@@ -152,14 +152,45 @@ defmodule PhoenixKitWeb.FileController do
   def cache_mode(%{edit_revision: revision}, :exact, _) when revision > 0, do: :revalidate
   def cache_mode(_file, :exact, _requested), do: :day
 
+  @doc false
   # A file that must never be served here: an edited image's hidden unedited
-  # backup, a tile chunk (served by the tile routes), or nothing at all.
-  defp get_servable_file(file_uuid) do
+  # backup, a tile chunk (served by the tile routes), or nothing at all. A
+  # trashed file is refused the same way EXCEPT for a caller who holds the
+  # "media" permission — the same gate `/admin/media`'s Trash view sits
+  # behind (`@admin_view_permissions` in `PhoenixKitWeb.Users.Auth`) — since
+  # MediaBrowser renders every thumbnail there, trashed included, through
+  # this very route (`enrich_files/1` → `URLSigner.signed_url/3`,
+  # unconditionally; see `media_browser.ex`). Public (not `defp`), like
+  # `get_file_instance/2` below, so it can be exercised without the rest of
+  # the serving pipeline (issue #841).
+  #
+  # Shared by `show/2`, `info/2` and `unedited/2`, so the exemption applies
+  # to all three alike — for `unedited/2` this only NARROWS who reaches a
+  # trashed file's hidden original: `ImageEditing.can_edit?/2` already grants
+  # a "media" holder unconditional access there regardless of trash status,
+  # so nothing new opens up; a trashed file's plain owner (no "media" grant)
+  # who previously reached it on ownership now 404s here first instead —
+  # consistent with trashing making a file otherwise unreachable.
+  def get_servable_file(conn, file_uuid) do
     case Storage.get_file(file_uuid) do
       %{system_managed: true} -> {:error, :not_found}
       nil -> {:error, :not_found}
+      %{status: "trashed"} = file -> trashed_if_authorized(conn, file)
       file -> {:ok, file}
     end
+  end
+
+  defp trashed_if_authorized(conn, file) do
+    if authorize_trashed_read(conn.assigns[:phoenix_kit_current_user]) do
+      {:ok, file}
+    else
+      {:error, :not_found}
+    end
+  end
+
+  @doc false
+  def authorize_trashed_read(user) do
+    user |> Scope.for_user() |> Scope.has_module_access?("media")
   end
 
   # While an edit renders (or after it failed) the file's old bytes are the
@@ -218,7 +249,7 @@ defmodule PhoenixKitWeb.FileController do
   """
   def info(conn, %{"file_uuid" => file_uuid} = params) do
     with {:ok, user} <- require_user(conn.assigns[:phoenix_kit_current_user]),
-         {:ok, file} <- get_servable_file(file_uuid),
+         {:ok, file} <- get_servable_file(conn, file_uuid),
          {:ok, file} <- authorize_file_read(file, user) do
       info_response(conn, file, user, params["locale"])
     else
@@ -256,7 +287,7 @@ defmodule PhoenixKitWeb.FileController do
   """
   def unedited(conn, %{"file_uuid" => file_uuid} = params) do
     with {:ok, user} <- require_user(conn.assigns[:phoenix_kit_current_user]),
-         {:ok, file} <- get_servable_file(file_uuid),
+         {:ok, file} <- get_servable_file(conn, file_uuid),
          :ok <- authorize_unedited(conn, file, user, params["t"]),
          %{} = backup <- ImageEditing.backup(file) || {:error, :not_found},
          {:ok, instance, disposition} <- unedited_instance(backup, params["variant"]) do
