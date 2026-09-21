@@ -52,9 +52,9 @@ defmodule PhoenixKit.Dashboard.SubPermissionTabTest do
       live_view: {FakeSettingsView, :index}
     })
 
-    assert Permissions.custom_view_permissions()[FakeSettingsView] ==
+    assert Permissions.custom_view_permissions()[{FakeSettingsView, :index}] ==
              "fake_shop.manage_settings",
-           "the view → permission mapping core's admin gate reads was not cached"
+           "the view+action → permission mapping core's admin gate reads was not cached"
 
     refute "fake_shop.manage_settings" in Permissions.custom_keys(),
            "a sub-permission must not be re-registered as a custom key"
