@@ -47,12 +47,20 @@ defmodule PhoenixKitWeb.Users.AuthTest do
       assert Auth.permission_key_for_admin_view(@tabbed_view, :edit) == "reports_manage"
     end
 
-    test "the 1-arity call does not see a tab registered under an action" do
+    test "the 1-arity call sees a module's sole tab permission, and nothing when its tabs disagree" do
       Permissions.cache_custom_view_permission({@tabbed_view, :index}, "reports_view")
 
-      # Only the tuple key was cached, so a module-only lookup (a `nil`
-      # action) misses it. Every reader that gates a real route must pass
-      # the route's action — `Session.reachable_return_to?/3` does.
+      # One tab, one permission: an action-less lookup is guarded by it, as
+      # an untabbed action of the same module (`:show` of an `:index` tab)
+      # must be — otherwise a partial role holding the tab's key could open
+      # the list and none of the records in it (review of #850).
+      assert Auth.permission_key_for_admin_view(@tabbed_view) == "reports_view"
+
+      Permissions.cache_custom_view_permission({@tabbed_view, :edit}, "reports_manage")
+
+      # Two tabs gated differently (#844): a module-only lookup has no safe
+      # answer. Every reader that gates a real route must pass the route's
+      # action — `Session.reachable_return_to?/3` does.
       assert Auth.permission_key_for_admin_view(@tabbed_view) == nil
     end
 
@@ -312,12 +320,13 @@ defmodule PhoenixKitWeb.Users.AuthTest do
       assert Auth.can_access_admin_view?(manager, @tabbed_view, :edit)
     end
 
-    test "omitting the action treats the view as unmapped when only per-action keys are cached" do
+    test "omitting the action treats the view as unmapped when the module's tabs disagree" do
       Permissions.cache_custom_view_permission({@tabbed_view, :index}, "reports_view")
+      Permissions.cache_custom_view_permission({@tabbed_view, :edit}, "reports_manage")
 
-      # No module-only entry was cached — only the {module, :index} key — so
-      # the 2-arity call (no action) does not resolve it. An unmapped view
-      # fails closed for a partial scope, exactly like branch 4 above...
+      # No module-only entry was cached, and the per-action keys disagree, so
+      # the 2-arity call (no action) cannot pick one. An unmapped view fails
+      # closed for a partial scope, exactly like branch 4 above...
       refute Auth.can_access_admin_view?(scope(["Editor"], ["reports_view"]), @tabbed_view)
 
       # ...and stays open only to a full-access scope.

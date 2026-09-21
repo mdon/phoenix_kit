@@ -130,12 +130,18 @@ defmodule PhoenixKit.Dashboard.PerActionViewPermissionTest do
 
   # The login return_to reachability check (`Session.reachable_return_to?/3`)
   # resolves the view AND the action from the router and asks the 3-arity
-  # question. This pins that a route registered as `{Mod, :action}` — the
-  # shape every real admin tab has — is answered by the action-aware lookup
-  # and would be misjudged by the module-only one.
+  # question. This pins that a route registered as `{Mod, :action}` is
+  # answered by the action-aware lookup. The difference is only observable
+  # when the module's tabs DISAGREE: a module whose tabs share one permission
+  # answers the module-only question too (see the untabbed-action tests
+  # below), so this uses the #844 shape.
   test "a routed {Mod, :action} tab is reachable through the action-aware lookup only" do
     Registry.auto_register_custom_permission(
       tab(:reports_index, live_view: {FakeTabbedView, :index}, permission: "reports_view")
+    )
+
+    Registry.auto_register_custom_permission(
+      tab(:reports_edit, live_view: {FakeTabbedView, :edit}, permission: "reports_manage")
     )
 
     viewer = scope(["reports_view"])
@@ -145,5 +151,60 @@ defmodule PhoenixKit.Dashboard.PerActionViewPermissionTest do
 
     assert Auth.can_access_admin_view?(viewer, view, action)
     refute Auth.can_access_admin_view?(viewer, view)
+  end
+
+  describe "an action with no tab of its own (review of #850)" do
+    # One LiveView serving several actions while only one is a tab is the
+    # common admin shape: a tab on `:index`, and `:show` / `:edit` routed to
+    # the same module. Before per-action keys the tab was cached under the
+    # bare module, so those actions were guarded by its permission; they must
+    # still be, or a partial role holding the tab's key can open the list and
+    # none of the records in it.
+
+    test "is guarded by the module's tab permission when that is the only one" do
+      Registry.auto_register_custom_permission(
+        tab(:reports_index, live_view: {FakeTabbedView, :index}, permission: "reports_view")
+      )
+
+      for action <- [:show, :edit, nil] do
+        assert Auth.permission_key_for_admin_view(FakeTabbedView, action) == "reports_view",
+               "action: #{inspect(action)}"
+      end
+
+      viewer = scope(["reports_view"])
+      assert Auth.can_access_admin_view?(viewer, FakeTabbedView, :show)
+      assert Auth.can_access_admin_view?(viewer, FakeTabbedView, :edit)
+
+      refute Auth.can_access_admin_view?(scope(["something_else"]), FakeTabbedView, :show)
+    end
+
+    test "is guarded when several tabs name the module with the same permission" do
+      for {id, action} <- [reports_index: :index, reports_archive: :archive] do
+        Registry.auto_register_custom_permission(
+          tab(id, live_view: {FakeTabbedView, action}, permission: "reports_view")
+        )
+      end
+
+      assert Auth.permission_key_for_admin_view(FakeTabbedView, :show) == "reports_view"
+    end
+
+    test "stays unmapped — fails closed — when the module's tabs disagree (#844)" do
+      Registry.auto_register_custom_permission(
+        tab(:reports_index, live_view: {FakeTabbedView, :index}, permission: "reports_view")
+      )
+
+      Registry.auto_register_custom_permission(
+        tab(:reports_edit, live_view: {FakeTabbedView, :edit}, permission: "reports_manage")
+      )
+
+      # The tabbed actions still resolve exactly.
+      assert Auth.permission_key_for_admin_view(FakeTabbedView, :index) == "reports_view"
+      assert Auth.permission_key_for_admin_view(FakeTabbedView, :edit) == "reports_manage"
+
+      # An action neither tab names has no safe answer.
+      assert Auth.permission_key_for_admin_view(FakeTabbedView, :show) == nil
+      refute Auth.can_access_admin_view?(scope(["reports_view"]), FakeTabbedView, :show)
+      refute Auth.can_access_admin_view?(scope(["reports_manage"]), FakeTabbedView, :show)
+    end
   end
 end

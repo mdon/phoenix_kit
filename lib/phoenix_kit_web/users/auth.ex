@@ -2357,10 +2357,34 @@ defmodule PhoenixKitWeb.Users.Auth do
   # mapping. Populated at Registry init time from :admin_dashboard_tabs
   # config. The exact `{module, action}` key wins when present; a tab
   # registered without an action (or a lookup made without one) falls back to
-  # the bare module key.
+  # the bare module key; and an action with no tab of its own falls back to
+  # the module's tabs when they all agree (`sole_action_permission/2`).
   defp infer_permission_from_custom_tabs(view_module, live_action) do
     custom = Permissions.custom_view_permissions()
-    Map.get(custom, {view_module, live_action}) || Map.get(custom, view_module)
+
+    Map.get(custom, {view_module, live_action}) ||
+      Map.get(custom, view_module) ||
+      sole_action_permission(custom, view_module)
+  end
+
+  # One LiveView commonly serves several actions while only one is a tab: a
+  # tab on `{ReportsLive, :index}`, and `:show` / `:edit` routed to the same
+  # module with no tab of their own. Before per-action keys the tab was cached
+  # under the bare module, so those actions were guarded by its permission;
+  # without this fallback they resolve to nothing, and an unmapped view admits
+  # only a scope holding every permission — a partial role holding the tab's
+  # key could open the list and none of the records in it.
+  #
+  # So when every tab naming this module maps to ONE permission, an untabbed
+  # action is guarded by it. When the module's tabs disagree (#844: a landing
+  # redirector and the page behind it, gated differently) there is no safe
+  # answer for an action neither of them names — it stays unmapped, and fails
+  # closed.
+  defp sole_action_permission(custom, view_module) do
+    case for({{^view_module, _action}, key} <- custom, uniq: true, do: key) do
+      [key] -> key
+      _none_or_conflicting -> nil
+    end
   end
 
   # Infer permission key from `PhoenixKit.Modules.<Name>.Web.*` (core) or from a
