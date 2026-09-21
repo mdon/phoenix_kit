@@ -282,6 +282,9 @@ defmodule PhoenixKitWeb.Integration do
         post "/api/upload", UploadController, :create
         get "/file/:file_uuid/:variant/:token", FileController, :show
         get "/api/files/:file_uuid/info", FileController, :info
+        # The browser hands back the picture with its annotations drawn in;
+        # see AnnotationBurnController for why the client renders it.
+        post "/api/files/:file_uuid/burn", AnnotationBurnController, :create
         get "/api/files/:file_uuid/unedited", FileController, :unedited
         # Token in the path (not query string) so OpenSeadragon's tile-URL
         # derivation preserves it — OSD strips `.dzi?query=...` to build
