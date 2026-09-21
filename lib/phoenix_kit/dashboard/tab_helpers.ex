@@ -56,4 +56,27 @@ defmodule PhoenixKit.Dashboard.TabHelpers do
     end)
     |> Enum.sort_by(& &1.priority)
   end
+
+  @doc """
+  Where a parent tab flagged `redirect_to_first_subtab` should lead.
+
+  `subtabs` are the parent's subtabs the viewer can open, sorted by priority
+  (what `get_subtabs_for/2` returns from a scope-filtered tab list). The
+  parent's own landing subtab — the one sharing the parent's path, e.g.
+  Settings → General — wins whenever it is among them: a module subtab
+  registered with a lower priority must not take the link from a viewer who
+  can open the landing page. Otherwise the first subtab by priority. `nil`
+  when there are no subtabs.
+
+  The one rule for every place that follows the flag: both sidebars, and the
+  admin gate sending a visitor from a landing page they cannot open to one
+  they can.
+  """
+  @spec redirect_target(%{:path => String.t(), optional(atom()) => any()}, [Tab.t()]) ::
+          String.t() | nil
+  def redirect_target(_parent, []), do: nil
+
+  def redirect_target(%{path: parent_path}, [first | _] = subtabs) do
+    if Enum.any?(subtabs, &(&1.path == parent_path)), do: parent_path, else: first.path
+  end
 end

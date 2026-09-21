@@ -58,6 +58,8 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias Phoenix.LiveView
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Admin.Presence
+  alias PhoenixKit.Dashboard.Registry, as: TabRegistry
+  alias PhoenixKit.Dashboard.TabHelpers
   alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Modules.Crawlers
   alias PhoenixKit.Modules.Languages
@@ -77,6 +79,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Utils.SessionFingerprint
   alias PhoenixKit.Utils.UserAgent
   alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate}
+  alias PhoenixKitWeb.Components.Dashboard.AdminSidebar
   alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
   alias PhoenixKitWeb.Users.MultiSession
 
@@ -2138,9 +2141,53 @@ defmodule PhoenixKitWeb.Users.Auth do
       end
 
     case admin_view_permission_check(scope, module_key) do
-      :ok -> {:cont, socket}
-      {:denied, {:module_disabled, key}} -> deny_module_disabled(socket, key)
-      {:denied, _reason} -> deny_admin_access(socket, scope)
+      :ok ->
+        {:cont, socket}
+
+      {:denied, {:module_disabled, key}} ->
+        deny_module_disabled(socket, key)
+
+      {:denied, _reason} ->
+        case settings_landing_redirect(socket, scope) do
+          nil -> deny_admin_access(socket, scope)
+          path -> {:halt, LiveView.redirect(socket, to: Routes.path(path))}
+        end
+    end
+  end
+
+  # Settings → General (`/admin/settings`) is gated on `"settings"` alone, but
+  # the Settings entry is shown to anyone holding any settings subtab's key
+  # (`AdminTabs.settings_visible?/1`). The sidebar already links such a
+  # visitor to a subtab they can open (#851); every OTHER way here — a
+  # settings page's section header, the Sitemap page's button, a bookmark, a
+  # typed URL — still landed on General and was refused. Send them where the
+  # sidebar would, instead of refusing, and without an error: nothing they
+  # asked for was withheld.
+  defp settings_landing_redirect(
+         %{view: PhoenixKitWeb.Live.Settings, assigns: %{live_action: :index}},
+         scope
+       ) do
+    TabRegistry.get_admin_tabs(scope: scope)
+    |> AdminSidebar.reachable_tabs(scope)
+    |> settings_landing_path()
+  end
+
+  defp settings_landing_redirect(_socket, _scope), do: nil
+
+  @settings_landing "/admin/settings"
+
+  @doc false
+  # Where a visitor refused General should go, from the admin tabs they can
+  # reach: the first settings subtab, by the same rule the sidebar follows
+  # (`TabHelpers.redirect_target/2`). `nil` when there is none — or when that
+  # rule names General itself, which the gate has just refused: redirecting
+  # there would loop.
+  def settings_landing_path(reachable_tabs) do
+    subtabs = TabHelpers.get_subtabs_for(:admin_settings, reachable_tabs)
+
+    case TabHelpers.redirect_target(%{path: @settings_landing}, subtabs) do
+      @settings_landing -> nil
+      path -> path
     end
   end
 

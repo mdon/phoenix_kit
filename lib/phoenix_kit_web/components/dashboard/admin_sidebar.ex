@@ -44,7 +44,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
 
   require Logger
 
-  alias PhoenixKit.Dashboard.{Group, Registry, Tab}
+  alias PhoenixKit.Dashboard.{Group, Registry, Tab, TabHelpers}
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKitWeb.Components.Dashboard.TabItem
   alias PhoenixKitWeb.Users.Auth
@@ -460,19 +460,13 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
     end
   end
 
-  # The parent's own landing page — the subtab whose path is the parent's
-  # path (Settings → General) — wins whenever the viewer can open it, so a
-  # module subtab registered with a lower priority than the landing page
-  # (bookings uses 650, General is 911) does not hijack the link for a
-  # viewer who holds the parent's own permission. Only when the landing page
-  # is out of reach does the first reachable subtab by priority take over.
-  defp maybe_redirect_to_first_subtab(
-         %{redirect_to_first_subtab: true, path: parent_path} = tab,
-         [first_subtab | _] = subtabs
-       ) do
-    case Enum.find(subtabs, &(&1.path == parent_path)) do
-      nil -> %{tab | path: first_subtab.path}
-      _landing -> tab
+  # The rule (landing subtab first, else the first reachable by priority)
+  # lives in `TabHelpers.redirect_target/2`, shared with the user sidebar and
+  # the admin gate so the three cannot drift apart again.
+  defp maybe_redirect_to_first_subtab(%{redirect_to_first_subtab: true} = tab, subtabs) do
+    case TabHelpers.redirect_target(tab, subtabs) do
+      nil -> tab
+      path -> %{tab | path: path}
     end
   end
 

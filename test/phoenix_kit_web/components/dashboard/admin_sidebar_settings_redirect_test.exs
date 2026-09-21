@@ -155,4 +155,47 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebarSettingsRedirectTest do
       assert parent_href(html) =~ ~r{/admin/settings/bookings$}
     end
   end
+
+  # Review of #851: the sidebar was the only way into Settings that got the
+  # fix. The rule now lives in one place, and the admin gate uses it to send a
+  # visitor refused General (a section header, a bookmark, a typed URL) to the
+  # subtab the sidebar would have linked.
+  describe "TabHelpers.redirect_target/2 — the one rule" do
+    defp subtab(path, priority),
+      do: %Tab{id: String.to_atom(path), path: path, priority: priority}
+
+    test "the parent's own landing subtab wins when it is reachable" do
+      subtabs = [subtab("/admin/settings/bookings", 650), subtab("/admin/settings", 911)]
+      assert TabHelpers.redirect_target(%{path: "/admin/settings"}, subtabs) == "/admin/settings"
+    end
+
+    test "otherwise the first reachable subtab by priority" do
+      subtabs = [subtab("/admin/settings/bookings", 650), subtab("/admin/settings/sitemap", 940)]
+
+      assert TabHelpers.redirect_target(%{path: "/admin/settings"}, subtabs) ==
+               "/admin/settings/bookings"
+    end
+
+    test "no subtab, no target" do
+      assert TabHelpers.redirect_target(%{path: "/admin/settings"}, []) == nil
+    end
+  end
+
+  describe "Auth.settings_landing_path/1 — where the gate sends a visitor refused General" do
+    alias PhoenixKitWeb.Users.Auth
+
+    test "a sitemap-only visitor goes to the Sitemap settings" do
+      assert Auth.settings_landing_path(visible_settings_tabs(scope(["sitemap"]))) ==
+               "/admin/settings/sitemap"
+    end
+
+    test "a settings holder is never redirected — General is theirs, and the gate refusing it must not loop" do
+      assert Auth.settings_landing_path(visible_settings_tabs(scope(["settings", "sitemap"]))) ==
+               nil
+    end
+
+    test "a visitor with no settings subtab is left to the ordinary refusal" do
+      assert Auth.settings_landing_path(visible_settings_tabs(scope(["users"]))) == nil
+    end
+  end
 end
