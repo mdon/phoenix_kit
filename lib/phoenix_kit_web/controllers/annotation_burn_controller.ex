@@ -56,16 +56,25 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   # (`small` / `medium` / `large` / `original`) is deliberately absent.
   @writable ~w(thumbnail burned)
   @default_variants ~w(thumbnail)
-  # Card-sized burn. List rows keep the configured thumbnail (150px); cards
-  # prefer this over the clean `small` so the markup shows without touching
-  # the rung the editor paints.
-  @burned_edge 800
+  # The burn the viewer OPENS with, so it is sized to be looked at: 1080p-ish
+  # carries the markup legibly on any screen anyone is reading it on, and
+  # costs a fraction of a full-resolution compose. Cards prefer this over the
+  # clean `small` and scale it down; list rows keep the configured thumbnail
+  # (150px). Anyone who wants the picture at its real size still has
+  # `original` — this slot exists to be read and copied, not archived.
+  @burned_edge 1920
+
+  # The longest a fingerprint may be. It is a hash the client computes; a
+  # length cap is all this side needs to know about it.
+  @fingerprint_bytes 128
 
   @doc """
   `POST /api/files/:file_uuid/burn` — multipart, field `image`.
 
-  Optional `variants` (`thumbnail`, `burned`; default `thumbnail`) and
-  `source_version` (the original URL's `v`).
+  Optional `variants` (`thumbnail`, `burned`; default `thumbnail`),
+  `source_version` (the original URL's `v`), and `fingerprint` — what the
+  drawing was when this copy was made, handed back on the next open so a
+  client with an unchanged drawing can skip the compose entirely.
 
   Answers with each variant that was written and a fresh signed URL for it,
   so a caller can show the result without guessing the URL or waiting for a
@@ -82,6 +91,7 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
          {:ok, variants} <- variants_from_params(params),
          {:ok, source_key} <- bind_original(file, params),
          {:ok, written} <- write_variants(file, upload, variants, source_key) do
+      remember_fingerprint(file, params["fingerprint"])
       json(conn, %{written: written})
     else
       {:error, reason} -> fail(conn, reason)
@@ -305,6 +315,41 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
 
       _ ->
         {150, 150}
+    end
+  end
+
+  # What the drawing WAS when this burn was made, as the client saw it.
+  #
+  # The viewer hands it back on the next open, and a client whose drawing
+  # already hashes to it knows there is nothing to render — which is the
+  # difference between burning once per change and burning once per visit.
+  # A burn is seconds of compose and an upload of a few MB, and most visits
+  # to a file change nothing about its markup.
+  #
+  # The client owns the hash: both sides of the comparison are then the same
+  # code reading the same in-memory shapes, rather than two descriptions of a
+  # drawing that have to agree. This side only stores it.
+  defp remember_fingerprint(_file, fingerprint)
+       when not is_binary(fingerprint) or byte_size(fingerprint) > @fingerprint_bytes,
+       do: :ok
+
+  defp remember_fingerprint(file, fingerprint) do
+    metadata =
+      (file.metadata || %{})
+      |> Map.put("burn", %{
+        "fingerprint" => fingerprint,
+        "at" => DateTime.utc_now() |> DateTime.to_iso8601()
+      })
+
+    case Storage.update_file(file, %{metadata: metadata}) do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        # The pictures are stored; only the note about what they were made
+        # from is missing, which costs one needless burn next time.
+        Logger.warning("burn fingerprint not recorded for #{file.uuid}: #{inspect(reason)}")
+        :ok
     end
   end
 
