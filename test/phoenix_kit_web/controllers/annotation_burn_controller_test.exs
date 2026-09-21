@@ -21,6 +21,7 @@ defmodule PhoenixKitWeb.AnnotationBurnControllerTest do
 
       assert "thumbnail" in writable
       assert "burned" in writable
+      assert "burned_large" in writable
       assert MapSet.disjoint?(MapSet.new(writable), MapSet.new(@ladder))
     end
 
@@ -37,6 +38,18 @@ defmodule PhoenixKitWeb.AnnotationBurnControllerTest do
 
       assert Burn.variants_from_params(%{}) == {:ok, ~w(thumbnail)}
       assert Burn.variants_from_params(%{"variants" => ""}) == {:ok, ~w(thumbnail)}
+    end
+
+    test "burned_large is accepted alongside the card-sized burn" do
+      assert Burn.variants_from_params(%{"variants" => "thumbnail,burned,burned_large"}) ==
+               {:ok, ~w(thumbnail burned burned_large)}
+    end
+
+    # Cards read `burned` and a grid paints many of them: it must stay
+    # card-sized. The viewer's copy is `burned_large` (review of #853).
+    test "the card burn stays card-sized; the viewer's copy is the large one" do
+      assert Burn.variant_box("burned") == {800, 800}
+      assert Burn.variant_box("burned_large") == {1920, 1920}
     end
 
     test "a list of names is accepted the same way as a comma string" do

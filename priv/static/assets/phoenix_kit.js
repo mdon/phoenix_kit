@@ -3948,10 +3948,10 @@ if (typeof window.Chart === "undefined") {
     mounted() {
       var self = this;
       this._uuid = this.el.dataset.fileUuid;
-      // thumbnail = list rows, burned = grid cards and the copy this viewer
-      // opens with. small/medium/large are the editor's own ladder; burning
-      // those draws the shapes twice.
-      this._variants = this.el.dataset.burnVariants || "thumbnail,burned";
+      // thumbnail = list rows, burned = grid cards (card-sized),
+      // burned_large = the copy this viewer opens with. small/medium/large
+      // are the editor's own ladder; burning those draws the shapes twice.
+      this._variants = this.el.dataset.burnVariants || "thumbnail,burned,burned_large";
       this._host = function() {
         var column = self.el.closest("[id^='pk-annotation-actions-']");
         return column && column.querySelector('[phx-hook="FrescoCanvas"]');
@@ -4206,15 +4206,17 @@ if (typeof window.Chart === "undefined") {
           self._burned = pending.fingerprint;
           self._refresh(res.written || []);
 
-          // Tell the viewer what was stored, so the burned view it shows
+          // Tell the viewer a burn was stored, so the burned view it shows
           // next is this one. Without it the canvas keeps the URL it
           // mounted with — the previous rendering, until a page reload.
-          var made = (res.written || []).find(function(v) { return v.variant === "burned"; });
+          // Only the slot is named: the viewer reads the stored instance
+          // (URL, size, version) itself rather than trusting these.
+          var written = res.written || [];
+          var made = written.find(function(v) { return v.variant === "burned_large"; }) ||
+                     written.find(function(v) { return v.variant === "burned"; });
           if (made) {
             self.pushEventTo(self.el, "burn_stored", {
-              url: made.url,
-              width: made.width,
-              height: made.height,
+              variant: made.variant,
               fingerprint: pending.fingerprint
             });
           }

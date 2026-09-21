@@ -3,7 +3,8 @@
 // The viewer opens on `small` and climbs `medium` → `large` → `original`,
 // then draws the live shapes on top. Burning those slots draws every
 // annotation a second time the next time the picture is opened. List rows
-// read `thumbnail`; grid cards read `burned`.
+// read `thumbnail`; grid cards read `burned` (card-sized); the viewer opens
+// on `burned_large`.
 //
 //   node --test test/js/annotation_burn.test.cjs
 
@@ -24,15 +25,28 @@ function burnSection() {
 
 const section = burnSection();
 
-test("the default slots are thumbnail and burned, not the viewer ladder", () => {
-  assert.match(section, /dataset\.burnVariants \|\| "thumbnail,burned"/);
-  assert.doesNotMatch(section, /thumbnail,small,medium,large/);
+// Whole slot names, not substrings: `burned_large` is a burn slot, not the
+// ladder's `large`.
+function defaultSlots() {
+  const m = section.match(/dataset\.burnVariants \|\| "([^"]*)"/);
+  assert.ok(m, "could not find the default burnVariants");
+  return m[1].split(",");
+}
+
+test("the default slots are the burn slots, not the viewer ladder", () => {
+  assert.deepStrictEqual(defaultSlots(), ["thumbnail", "burned", "burned_large"]);
   for (const rung of ["small", "medium", "large", "original"]) {
-    assert.doesNotMatch(
-      section,
-      new RegExp("burnVariants \\|\\| \"[^\"]*" + rung)
-    );
+    assert.ok(!defaultSlots().includes(rung), `the default must not burn \`${rung}\``);
   }
+});
+
+test("a stored burn is announced by slot, never by a client-built URL", () => {
+  // The viewer reads the stored instance itself; the hook must not hand it a
+  // URL or size to trust.
+  const push = section.slice(section.indexOf('"burn_stored"'));
+  const payload = push.slice(0, push.indexOf("});"));
+  assert.match(payload, /variant: made\.variant/);
+  assert.doesNotMatch(payload, /url:|width:|height:/);
 });
 
 test("the burn is composed from this picture, and names the original it used", () => {

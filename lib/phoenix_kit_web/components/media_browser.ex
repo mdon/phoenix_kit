@@ -3833,10 +3833,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         # What the file's burned copy was rendered from, so the viewer can
         # tell whether the drawing in front of it has already been burned
         # and skip re-rendering one that has (AnnotationBurn hook).
-        burn_fingerprint: Map.get(Map.get(file.metadata || %{}, "burn", %{}), "fingerprint"),
-        # The burned copy's own extent. It is a different shape from the
-        # picture — it takes in ink drawn past the edges — so the viewer
-        # that opens with it has to lay out ITS dimensions, not the
+        burn_fingerprint: burn_fingerprint(file, instances),
+        # The burned copy the viewer opens with, and its own extent. It is a
+        # different shape from the picture — it takes in ink drawn past the
+        # edges — so the viewer has to lay out ITS dimensions, not the
         # picture's.
         burn_size: burn_size(instances),
         urls: urls,
@@ -4052,14 +4052,33 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   defp original_instance(instances), do: Enum.find(instances, &(&1.variant_name == "original"))
 
-  defp burn_size(instances) do
-    case Enum.find(instances, &(&1.variant_name == "annotated")) do
-      %{width: w, height: h} when is_integer(w) and is_integer(h) and w > 0 and h > 0 ->
-        %{w: w, h: h}
+  # The burn the viewer opens with: `burned_large` (sized to be looked at),
+  # else `burned` (the card-sized one, from a client that asked for no large
+  # copy). `variant` travels with the size so the viewer shows the image these
+  # dimensions describe. These are the names `AnnotationBurnController`
+  # writes; nothing writes an `annotated` variant.
+  @doc false
+  def burn_size(instances) do
+    Enum.find_value(~w(burned_large burned), fn variant ->
+      case Enum.find(instances, &(&1.variant_name == variant)) do
+        %{width: w, height: h} when is_integer(w) and is_integer(h) and w > 0 and h > 0 ->
+          %{variant: variant, w: w, h: h}
 
-      _ ->
-        nil
-    end
+        _ ->
+          nil
+      end
+    end)
+  end
+
+  # The fingerprint of the drawing the stored burn was made from — only
+  # while a burn is actually stored. An image edit deletes every variant, the
+  # burns included, but leaves `metadata["burn"]` behind; handing that back
+  # told the client its (unchanged) drawing was already burned, so no burn was
+  # ever made again until somebody changed the drawing.
+  @doc false
+  def burn_fingerprint(file, instances) do
+    if burn_size(instances),
+      do: get_in(file.metadata || %{}, ["burn", "fingerprint"])
   end
 
   # Builds a parallel map of `%{variant_name => width}` from the same

@@ -27,8 +27,9 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   the caller names (`thumbnail` by default) in one request — making one is
   expensive enough that nobody should have to send it twice.
 
-  Writable slots are `thumbnail` (list rows) and `burned` (grid cards, fit
-  inside an 800px box). `small`, `medium`, `large` and `original` are not
+  Writable slots are `thumbnail` (list rows), `burned` (grid cards, fit
+  inside an 800px box) and `burned_large` (the copy the media viewer opens
+  with, fit inside 1920px). `small`, `medium`, `large` and `original` are not
   writable. The editor opens on `small` and climbs `medium` → `large` →
   `original`, drawing the live shapes on top; a burn stored in any of those
   would paint every annotation a second time. `original` stays the picture
@@ -54,15 +55,19 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   @max_bytes 60 * 1024 * 1024
   # The slots a burn may be written into. The viewer's ladder
   # (`small` / `medium` / `large` / `original`) is deliberately absent.
-  @writable ~w(thumbnail burned)
+  @writable ~w(thumbnail burned burned_large)
   @default_variants ~w(thumbnail)
-  # The burn the viewer OPENS with, so it is sized to be looked at: 1080p-ish
-  # carries the markup legibly on any screen anyone is reading it on, and
-  # costs a fraction of a full-resolution compose. Cards prefer this over the
-  # clean `small` and scale it down; list rows keep the configured thumbnail
-  # (150px). Anyone who wants the picture at its real size still has
-  # `original` — this slot exists to be read and copied, not archived.
-  @burned_edge 1920
+  # Two burns, because the two readers want different things. Cards prefer
+  # `burned` over the clean `small` (300px) and a grid paints many of them, so
+  # it stays card-sized: a 1920px burn there made every annotated card
+  # download and decode ~40x the pixels it shows. `burned_large` is the copy
+  # the viewer OPENS with, sized to be looked at: 1080p-ish carries the markup
+  # legibly on any screen anyone is reading it on, at a fraction of a
+  # full-resolution compose. List rows keep the configured thumbnail (150px).
+  # Anyone who wants the picture at its real size still has `original` —
+  # these slots exist to be read and copied, not archived.
+  @burned_edge 800
+  @burned_large_edge 1920
 
   # The longest a fingerprint may be. It is a hash the client computes; a
   # length cap is all this side needs to know about it.
@@ -71,7 +76,7 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   @doc """
   `POST /api/files/:file_uuid/burn` — multipart, field `image`.
 
-  Optional `variants` (`thumbnail`, `burned`; default `thumbnail`),
+  Optional `variants` (`thumbnail`, `burned`, `burned_large`; default `thumbnail`),
   `source_version` (the original URL's `v`), and `fingerprint` — what the
   drawing was when this copy was made, handed back on the next open so a
   client with an unchanged drawing can skip the compose entirely.
@@ -302,11 +307,14 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
     max(w, h)
   end
 
-  # `burned` is not a configured dimension — it exists so cards can show the
-  # markup without displacing `small`, which the editor uses as its first paint.
-  defp variant_box("burned"), do: {@burned_edge, @burned_edge}
+  # Neither burn is a configured dimension — they exist so cards and the
+  # viewer can show the markup without displacing `small`, which the editor
+  # uses as its first paint.
+  @doc false
+  def variant_box("burned"), do: {@burned_edge, @burned_edge}
+  def variant_box("burned_large"), do: {@burned_large_edge, @burned_large_edge}
 
-  defp variant_box(variant) do
+  def variant_box(variant) do
     Storage.list_dimensions()
     |> Enum.find(&(&1.name == variant))
     |> case do
@@ -329,19 +337,22 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   # The client owns the hash: both sides of the comparison are then the same
   # code reading the same in-memory shapes, rather than two descriptions of a
   # drawing that have to agree. This side only stores it.
-  defp remember_fingerprint(_file, fingerprint)
-       when not is_binary(fingerprint) or byte_size(fingerprint) > @fingerprint_bytes,
-       do: :ok
+  @doc false
+  def remember_fingerprint(_file, fingerprint)
+      when not is_binary(fingerprint) or byte_size(fingerprint) > @fingerprint_bytes,
+      do: :ok
 
-  defp remember_fingerprint(file, fingerprint) do
-    metadata =
-      (file.metadata || %{})
-      |> Map.put("burn", %{
-        "fingerprint" => fingerprint,
-        "at" => DateTime.utc_now() |> DateTime.to_iso8601()
-      })
+  #
+  # Merged into the row as it is NOW (`Storage.update_file_metadata/2`), never
+  # written from the `file` loaded at the top of the request: a burn runs for
+  # seconds, and `metadata` also holds the rotation, the title/description
+  # copy, tags and the EXIF keys. A map built from that stale struct reverted
+  # whatever the user changed meanwhile — typically a rotation or a title,
+  # right after turning the pencil off.
+  def remember_fingerprint(file, fingerprint) do
+    note = %{"fingerprint" => fingerprint, "at" => DateTime.utc_now() |> DateTime.to_iso8601()}
 
-    case Storage.update_file(file, %{metadata: metadata}) do
+    case Storage.update_file_metadata(file, &Map.put(&1, "burn", note)) do
       {:ok, _} ->
         :ok
 

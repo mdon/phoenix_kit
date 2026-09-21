@@ -94,6 +94,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   alias PhoenixKit.Annotations
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.FileDetails
+  alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Format
 
@@ -548,28 +549,27 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # the burned view would show yesterday's rendering until someone reloaded
   # the page. Rebuild it around what was just stored.
   #
-  # The id carries the fingerprint for the same reason it carries the mode:
+  # The id carries a version for the same reason it carries the mode:
   # Fresco's canvas is `phx-update="ignore"`, so an unchanged id means the
   # old image and extent stay exactly where they are.
+  #
+  # The canvas is built from what is STORED for the file this viewer has
+  # open, not from a URL and size the client sends: the client only says a
+  # burn landed and which slot it prefers. The version is the stored bytes'
+  # own (`URLSigner.version/1`), so it changes exactly when a new burn does —
+  # the old `width * height` fallback collided for two burns of one size.
   def handle_event("burn_stored", params, socket) do
-    with url when is_binary(url) <- params["url"],
-         w when is_integer(w) and w > 0 <- params["width"],
-         h when is_integer(h) and h > 0 <- params["height"] do
-      canvas =
-        Fresco.Canvas.new(width: w, height: h)
-        |> Fresco.Canvas.add_image(%{
-          src: url,
-          x: 0,
-          y: 0,
-          width: w,
-          natural_width: w,
-          natural_height: h
-        })
+    with %{file_uuid: uuid} when is_binary(uuid) <- socket.assigns[:file],
+         variant when variant in ~w(burned_large burned) <- params["variant"] || "burned",
+         %{width: w, height: h} = instance
+         when is_integer(w) and w > 0 and is_integer(h) and h > 0 <-
+           Storage.get_file_instance_by_name(uuid, variant) do
+      url = URLSigner.signed_url(uuid, variant, version: instance, locale: :none)
 
       {:noreply,
        socket
-       |> assign(:burn_canvas, canvas)
-       |> assign(:burn_version, params["fingerprint"] || Integer.to_string(w * h))}
+       |> assign(:burn_canvas, burn_canvas(url, w, h))
+       |> assign(:burn_version, URLSigner.version(instance))}
     else
       _ -> {:noreply, socket}
     end
@@ -1319,9 +1319,14 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   end
 
   @doc false
-  # Does this file have a burned copy to open with?
+  # Does this file have a burned copy to open with? `burn_size` names the
+  # variant it describes (`burned_large`, else `burned` — see
+  # `MediaBrowser.burn_size/1`).
   def burned?(file) when is_map(file) do
-    is_binary(file.urls["annotated"]) and is_map(Map.get(file, :burn_size))
+    case Map.get(file, :burn_size) do
+      %{variant: variant} -> is_binary(file.urls[variant])
+      _ -> false
+    end
   end
 
   def burned?(_), do: false
@@ -1338,23 +1343,27 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # that already has the drawing in it, and a second copy of every shape is
   # exactly what that would be.
   defp build_burn_canvas(file) when is_map(file) do
-    src = file.urls["annotated"]
-    %{w: w, h: h} = Map.get(file, :burn_size) || %{w: 0, h: 0}
-
-    if is_binary(src) and src != "" and w > 0 and h > 0 do
-      Fresco.Canvas.new(width: w, height: h)
-      |> Fresco.Canvas.add_image(%{
-        src: src,
-        x: 0,
-        y: 0,
-        width: w,
-        natural_width: w,
-        natural_height: h
-      })
+    with %{variant: variant, w: w, h: h} when w > 0 and h > 0 <- Map.get(file, :burn_size),
+         src when is_binary(src) and src != "" <- file.urls[variant] do
+      burn_canvas(src, w, h)
+    else
+      _ -> nil
     end
   end
 
   defp build_burn_canvas(_file), do: nil
+
+  defp burn_canvas(src, w, h) do
+    Fresco.Canvas.new(width: w, height: h)
+    |> Fresco.Canvas.add_image(%{
+      src: src,
+      x: 0,
+      y: 0,
+      width: w,
+      natural_width: w,
+      natural_height: h
+    })
+  end
 
   defp build_viewer_canvas(nil, _annotations, _locked?), do: nil
 
