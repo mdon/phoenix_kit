@@ -2,7 +2,7 @@
 
 **Author**: @timujinne
 **Reviewer**: Claude
-**Status**: ✅ Merged (`3502c093`), not yet released; the BUG - HIGH below is fixed post-merge, the rest is open
+**Status**: ✅ Merged (`3502c093`), not yet released; every finding below is fixed post-merge
 **Date**: 2026-09-21
 
 ## Goal
@@ -103,6 +103,11 @@ Both are rarer than the paths the PR covers (a reorganizer run; a permanent
 delete that promotes a file into a trashed folder), but each leaves exactly
 the stale card this PR set out to remove.
 
+> **Fixed post-merge.** `promote_out_of_subtree/3` reports a file it trashes,
+> and `delete_folder_completely/2` announces those as trashed; the
+> reorganizer's subtree restore returns what it restored and announces it
+> once the move's transaction has committed — never from inside it.
+
 ### IMPROVEMENT - MEDIUM: folder sweeps fan out one event per file
 
 `trash_folder/2` / `restore_folder/2` broadcast once per affected file. A
@@ -115,6 +120,12 @@ files that is a few thousand full list rewrites per open browser, in a burst.
 A bulk event (`{:phoenix_kit_files_trashed, [uuid]}`) handled as one set
 difference per list would keep the same semantics at one render.
 
+> **Fixed post-merge** so: folder operations send one
+> `{:phoenix_kit_files_trashed | _restored | _deleted, [uuid]}` each
+> (`delete_folder_completely/2` included); single-file operations keep their
+> per-file event. `MediaBrowser` handles a bulk event in one update, and
+> `FeaturedImage`'s moduledoc example matches both shapes.
+
 ### IMPROVEMENT - MEDIUM: every trashed thumbnail costs two uncached permission queries
 
 `authorize_trashed_read/1` builds `Scope.for_user(user)` per request, which
@@ -126,6 +137,12 @@ does. Only trashed files pay it, so this is a Trash-tab cost rather than a
 site-wide one; worth either assigning the scope in that pipeline or caching
 the "media" answer per user for the request burst.
 
+> **Fixed post-merge** the second way: `authorize_trashed_read/1` caches its
+> answer for 5 seconds per user and active role (`:trashed_file_access`, a
+> `PhoenixKit.Cache` started by the supervisor). The TTL bounds how long a
+> revoked "media" keeps admitting trashed thumbnails. Without the cache
+> running (update mode, a bare test) the answer is computed, never assumed.
+
 ### NITPICK: a removed card stays in the bulk selection
 
 `remove_file_from_lists/2` drops the file from every painted list but not
@@ -134,6 +151,8 @@ trashed) in another, the selection counter still counts it, and "Delete
 selected" reports "2 item(s) permanently deleted" while deleting one — the
 status guard skips the restored file correctly, so only the numbers are
 wrong. Dropping the uuid from `selected_files` in the same helper fixes both.
+
+> **Fixed post-merge** exactly so.
 
 ### Pre-existing, noticed in passing
 
@@ -144,3 +163,9 @@ own copy of this logic fixed that by matching on the folder's `trashed_at`
 PR edited that exact query to add `select:`, and now also broadcasts
 `restored` for those files. Worth doing the `trashed_at` match while the
 function is open.
+
+> **Fixed post-merge.** `trash_folder/2` no longer re-stamps a row already in
+> the trash, and `restore_folder/2` restores only the rows carrying the
+> folder's own `trashed_at` — the reorganizer's rule, now `Storage`'s too. A
+> file trashed on its own before or after the folder stays trashed, and a
+> file that was never trashed is no longer announced as restored.

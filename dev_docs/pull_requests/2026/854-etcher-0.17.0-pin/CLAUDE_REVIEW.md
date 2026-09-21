@@ -36,6 +36,10 @@ Nothing in Etcher 0.17.0 requires it (its constraints are the same as
 lock does not reach its hosts — but a PR titled "Update the etcher pin"
 should either say so or leave it out (`mix deps.update etcher` alone).
 
+> **Left as is, deliberately.** It is now recorded here; the full suite
+> passes on 1.1.0, and reverting the lock would be a downgrade for no
+> behavioural reason.
+
 ### Pre-existing, noticed in passing
 
 `ETCHER_CDN` loads `cdn.jsdelivr.net/gh/alexdont/etcher@v0.17.0/…` — a git

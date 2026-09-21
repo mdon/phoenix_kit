@@ -84,6 +84,28 @@
   settings subtab the viewer can open, and still to General for a
   `"settings"` holder whatever priority a module gives its own subtab.
 
+- **A folder operation is announced once, not once per file.** Trashing,
+  restoring or permanently deleting a folder sends one
+  `{:phoenix_kit_files_trashed | _restored | _deleted, [uuid]}` for every
+  file it swept up (single-file operations keep `{:phoenix_kit_file_*,
+  uuid}`); a folder of thousands of files was thousands of messages and
+  re-renders for every open browser. A host reacting to one file must match
+  both shapes — see `FeaturedImage`'s moduledoc. A file a permanent folder
+  delete re-homes into a trashed folder, and the files a media reorganize
+  restores, are now announced too.
+- **Restoring a folder restores only what trashing it trashed.** A file
+  trashed on its own before or after the folder stays in the trash (it was
+  restored along with the folder, and so were files never trashed at all).
+- **Opening a trashed file's thumbnails costs one permission lookup per
+  burst**, not two queries per image: the answer is cached for five seconds
+  per user and active role.
+- **Every way into Settings lands on a page its viewer can open.** A visitor
+  refused Settings → General who can open another settings subtab is taken
+  there — from a settings page's section header, a bookmark or a typed URL,
+  not only from the sidebar. Both sidebars and this redirect follow one rule
+  (`TabHelpers.redirect_target/2`), and the user dashboard's sidebar now also
+  keeps a parent's own landing page when it is reachable.
+
 **Upgrading:** run `mix phoenix_kit.update` for V200, then date the existing
 library once with `mix phoenix_kit.storage.backfill_capture_dates` (or
 `CaptureDateBackfillJob.enqueue()` from a running node). Video dates need

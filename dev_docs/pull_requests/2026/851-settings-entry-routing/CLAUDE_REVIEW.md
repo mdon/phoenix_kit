@@ -2,7 +2,7 @@
 
 **Author**: @timujinne
 **Reviewer**: Claude
-**Status**: ✅ Merged (`ddcd4c38`), not yet released; review only, no fixes applied (no BUG findings)
+**Status**: ✅ Merged (`ddcd4c38`), not yet released; both findings below are fixed post-merge
 **Date**: 2026-09-21
 
 ## Goal
@@ -55,6 +55,13 @@ can open another settings subtab, redirect to that subtab instead of
 refusing. The sidebar change then stays as the cheap path that avoids the
 round trip.
 
+> **Fixed post-merge** in the admin gate rather than in `Live.Settings`: the
+> refusal happens in `on_mount`, before the view's own mount runs. When
+> General (`Live.Settings`, `:index`) is refused and a settings subtab is
+> reachable, the gate redirects there, without an error flash
+> (`Auth.settings_landing_path/1`). It never redirects to General itself, so
+> it cannot loop.
+
 ### NITPICK: two `maybe_redirect_to_first_subtab/2` now disagree, and the flag's doc is stale
 
 `Components.Dashboard.Sidebar` (the user dashboard) has its own
@@ -64,3 +71,7 @@ flag means different things depending on which sidebar renders it, and
 `Tab`'s doc for it (`tab.ex:225`, "Navigate to first subtab when clicking
 parent") describes neither nuance. Either share one implementation or
 document the admin rule on the field.
+
+> **Fixed post-merge.** `TabHelpers.redirect_target/2` is the one rule —
+> both sidebars and the gate above call it — and `Tab`'s doc for the flag
+> describes it.
