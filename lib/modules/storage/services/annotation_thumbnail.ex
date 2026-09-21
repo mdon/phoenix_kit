@@ -150,10 +150,24 @@ defmodule PhoenixKit.Modules.Storage.AnnotationThumbnail do
           "kind" => a.kind,
           "geometry" => a.geometry,
           "style" => a.style,
-          "metadata" => a.metadata
+          "metadata" => a.metadata,
+          # The label text lives in its own column here, not inside
+          # `metadata` — leaving it out of the wire shape is why a board of
+          # named shapes baked as a board of anonymous ones, and why a
+          # dimension lost the measurement that is the whole point of it.
+          "title" => a.title
         }
       end)
-      |> Etcher.Raster.to_draw_args(stroke_width: max(round(base_dim / 200), 3))
+      |> Etcher.Raster.to_draw_args(
+        stroke_width: max(round(base_dim / 200), 3),
+        # Label sizes are stored against a reference canvas, like ink
+        # weights, so Raster needs the picture's own size to scale them onto
+        # it — without this a label bakes at 16px whatever the image, which
+        # on a 5000px photo is invisible by the time it is resized down to a
+        # #{@size}px square. (Etcher 0.17+; older versions ignore it.)
+        canvas_width: base_dim,
+        canvas_height: base_dim
+      )
     else
       []
     end

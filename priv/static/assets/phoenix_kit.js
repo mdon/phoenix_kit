@@ -3672,6 +3672,346 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // AnnotationBurn — keep a copy of the picture with the markup drawn into it
+  //
+  // The variants a file serves are the picture as uploaded. That is the right
+  // thing for an editor and the wrong thing for everywhere else: a grid card,
+  // a link someone pastes into a chat, a right-click → Copy Image all show
+  // the picture WITHOUT the arrows and measurements that are the reason it
+  // was annotated. This burns the annotations in and stores the result over
+  // those variants, so the markup travels with the picture.
+  //
+  // It composes in the BROWSER. The alternative — drawing the shapes again
+  // on the server — means a second renderer that has to agree with the first
+  // about fonts, label plates, spline smoothing and stroke geometry forever,
+  // and every disagreement shows up as a thumbnail that does not match the
+  // drawing. Composing from the live overlay is exact by construction: it is
+  // the same SVG the user was just looking at. (`Etcher.Raster` stays the
+  // server-side path for backfill, where an approximation is the right
+  // trade because nobody has the picture open.)
+  //
+  // When it runs: the end of an editing session, which is either switching
+  // Etcher off or closing the viewer. Both are "I am done with this" and
+  // neither should be blocking, so the burn runs in the background with a
+  // line of text to say it is happening.
+  // ---------------------------------------------------------------------------
+
+  // Properties that carry the look. A serialised SVG cannot see the page's
+  // stylesheet, so whatever is not copied onto the element is lost.
+  var BURN_STYLE_PROPS = [
+    "fill", "fill-opacity", "fill-rule", "stroke", "stroke-width", "stroke-opacity",
+    "stroke-dasharray", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit",
+    "opacity", "color", "font-family", "font-size", "font-weight", "font-style",
+    "letter-spacing", "text-anchor", "dominant-baseline", "paint-order", "visibility",
+    "mix-blend-mode", "filter", "transform", "transform-origin", "display"
+  ];
+
+  // Chrome: things you grab, things that only say "this one is selected",
+  // and things still being drawn. None of it belongs in the picture.
+  var BURN_CHROME = [
+    ".etcher-handle", ".etcher-grab", ".etcher-handle-line", ".etcher-handle-midpoint",
+    ".etcher-handle-edge", ".etcher-connector-hit", ".etcher-connector-dot",
+    ".etcher-title-handle", ".etcher-snap-guide", ".etcher-marquee", ".is-draft",
+    ".etcher-badge"
+  ];
+
+  // Momentary looks, suspended while the styles are read and restored in the
+  // same frame: the ring on whatever the cursor happens to be over should not
+  // set in the picture.
+  var BURN_STATE = ["is-hovered", "is-selected", "is-editing", "is-dragging", "is-close-target"];
+
+  function burnNote(text, ms) {
+    var el = document.getElementById("pk-burn-note");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "pk-burn-note";
+      el.className =
+        "fixed left-1/2 -translate-x-1/2 top-6 z-[9999] px-4 py-2 rounded-lg shadow-lg " +
+        "bg-base-300 text-base-content text-sm";
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    clearTimeout(el._t);
+    if (ms) el._t = setTimeout(function() { el.remove(); }, ms);
+    return el;
+  }
+
+  // Everything the render needs, taken while the overlay is still on screen.
+  // Split from the render so a burn survives the viewer closing underneath
+  // it: by the time anything out here hears about a close, the DOM being
+  // composed is already gone.
+  function burnCapturePlan(host) {
+    if (!host) return null;
+    var handle = window.Fresco && window.Fresco.viewerFor && window.Fresco.viewerFor(host.id);
+    var img = host.querySelector("img[data-fresco-canvas-img]");
+    var svg = host.querySelector(".etcher-overlay svg");
+    if (!handle || !img || !svg) return null;
+
+    var W = parseFloat(img.dataset.canvasWidth) || img.naturalWidth;
+    var H = parseFloat(img.dataset.canvasHeight) || img.naturalHeight;
+    if (!(W > 0 && H > 0)) return null;
+
+    // The widest rung the page knows about — Tessera lists them, signed URLs
+    // and all — so the burn is made from the original rather than from
+    // whatever the viewer happened to have loaded.
+    var sourceUrl = img.getAttribute("src");
+    var sourceWidth = img.naturalWidth || W;
+    var listEl = (host.parentElement && host.parentElement.querySelector("[data-sources]")) ||
+                 document.querySelector("[data-sources]");
+    if (listEl) {
+      try {
+        (JSON.parse(listEl.getAttribute("data-sources")) || []).forEach(function(s) {
+          if (s && s.url && s.width > sourceWidth) { sourceUrl = s.url; sourceWidth = s.width; }
+        });
+      } catch (_) { /* malformed list → the on-screen picture stands */ }
+    }
+    var k = sourceWidth / W;
+
+    // The overlay is laid out in CONTAINER px; recover the affine that put
+    // it there by asking the viewer where two known image points land.
+    var rect = host.getBoundingClientRect();
+    var p0 = handle.imageToScreen({ x: 0, y: 0 });
+    var p1 = handle.imageToScreen({ x: 1000, y: 0 });
+    var s = (p1.x - p0.x) / 1000;
+    if (!(s > 0)) return null;
+    var tx = p0.x - rect.left, ty = p0.y - rect.top;
+
+    // Etcher lets you draw past the edges of the picture, and that ink is as
+    // much a part of the markup as the rest — an arrow pointing in from the
+    // margin, a note written beside the photo. The output is the union of
+    // the picture and everything drawn.
+    var minX = 0, minY = 0, maxX = W, maxY = H;
+    svg.querySelectorAll(".etcher-shape").forEach(function(el) {
+      var r = el.getBoundingClientRect();
+      if (!r.width && !r.height) return;
+      var x0 = (r.left - rect.left - tx) / s, y0 = (r.top - rect.top - ty) / s;
+      var x1 = (r.right - rect.left - tx) / s, y1 = (r.bottom - rect.top - ty) / s;
+      if (x0 < minX) minX = x0;
+      if (y0 < minY) minY = y0;
+      if (x1 > maxX) maxX = x1;
+      if (y1 > maxY) maxY = y1;
+    });
+    minX = Math.floor(minX); minY = Math.floor(minY);
+    maxX = Math.ceil(maxX); maxY = Math.ceil(maxY);
+
+    var suspended = [];
+    svg.querySelectorAll("." + BURN_STATE.join(", .")).forEach(function(el) {
+      var had = BURN_STATE.filter(function(c) { return el.classList.contains(c); });
+      if (had.length) {
+        suspended.push([el, had]);
+        had.forEach(function(c) { el.classList.remove(c); });
+      }
+    });
+
+    var clone = svg.cloneNode(true);
+    var live = [svg].concat(Array.prototype.slice.call(svg.querySelectorAll("*")));
+    var copy = [clone].concat(Array.prototype.slice.call(clone.querySelectorAll("*")));
+    for (var i = 0; i < live.length; i++) {
+      var cs = getComputedStyle(live[i]);
+      var css = "";
+      for (var p = 0; p < BURN_STYLE_PROPS.length; p++) {
+        var v = cs.getPropertyValue(BURN_STYLE_PROPS[p]);
+        if (v && v !== "normal" && v !== "auto") css += BURN_STYLE_PROPS[p] + ":" + v + ";";
+      }
+      copy[i].setAttribute("style", css);
+      copy[i].removeAttribute("class");
+    }
+    suspended.forEach(function(pair) {
+      pair[1].forEach(function(c) { pair[0].classList.add(c); });
+    });
+    BURN_CHROME.forEach(function(sel) {
+      live.forEach(function(el, idx) {
+        if (el.matches && el.matches(sel) && copy[idx] && copy[idx].remove) copy[idx].remove();
+      });
+    });
+
+    var NS = "http://www.w3.org/2000/svg";
+    var out = { w: Math.round((maxX - minX) * k), h: Math.round((maxY - minY) * k) };
+    var g = document.createElementNS(NS, "g");
+    var m = k / s;
+    g.setAttribute(
+      "transform",
+      "matrix(" + m + ",0,0," + m + "," + (-tx * m - minX * k) + "," + (-ty * m - minY * k) + ")"
+    );
+    while (clone.firstChild) g.appendChild(clone.firstChild);
+    clone.appendChild(g);
+    clone.setAttribute("xmlns", NS);
+    clone.setAttribute("width", out.w);
+    clone.setAttribute("height", out.h);
+    clone.setAttribute("viewBox", "0 0 " + out.w + " " + out.h);
+    clone.removeAttribute("style");
+
+    var viewer = host.closest(".fresco-viewer") || host;
+    var bg = getComputedStyle(viewer).backgroundColor;
+
+    return {
+      svgText: new XMLSerializer().serializeToString(clone),
+      sourceUrl: sourceUrl,
+      out: out,
+      picture: { w: W * k, h: H * k, x: -minX * k, y: -minY * k },
+      background: bg && bg !== "rgba(0, 0, 0, 0)" ? bg : "#ffffff"
+    };
+  }
+
+  // No DOM of the viewer's needed from here on — the plan holds everything.
+  function burnRender(plan) {
+    return new Promise(function(resolve, reject) {
+      var picture = new Image();
+      picture.onload = function() {
+        var overlay = new Image();
+        overlay.onload = function() {
+          var canvas = document.createElement("canvas");
+          canvas.width = plan.out.w;
+          canvas.height = plan.out.h;
+          var ctx = canvas.getContext("2d");
+          ctx.imageSmoothingQuality = "high";
+          // JPEG has no alpha: every pixel the picture does not cover would
+          // encode as black without this.
+          ctx.fillStyle = plan.background;
+          ctx.fillRect(0, 0, plan.out.w, plan.out.h);
+          ctx.drawImage(picture, plan.picture.x, plan.picture.y, plan.picture.w, plan.picture.h);
+          ctx.drawImage(overlay, 0, 0, plan.out.w, plan.out.h);
+          canvas.toBlob(function(blob) {
+            blob ? resolve(blob) : reject(new Error("the browser produced no image"));
+          }, "image/jpeg", 0.9);
+        };
+        overlay.onerror = function() { reject(new Error("the markup did not rasterise")); };
+        overlay.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(plan.svgText);
+      };
+      picture.onerror = function() { reject(new Error("the picture did not load")); };
+      picture.src = plan.sourceUrl;
+    });
+  }
+
+  function burnUpload(uuid, blob, variants) {
+    var body = new FormData();
+    body.append("image", blob, "burn.jpg");
+    body.append("variants", variants);
+    var csrf = document.querySelector("meta[name='csrf-token']");
+    // Same prefix derivation the consent widget uses: PHOENIX_KIT_PREFIX is
+    // emitted by the js_sources compiler, and the literal is the fallback
+    // for a host that predates it.
+    var prefix = window.PHOENIX_KIT_PREFIX || "/phoenix_kit";
+    if (prefix === "/") prefix = "";
+
+    return fetch(prefix + "/api/files/" + uuid + "/burn", {
+      method: "POST",
+      body: body,
+      headers: csrf ? { "x-csrf-token": csrf.getAttribute("content") } : {},
+      credentials: "same-origin"
+    }).then(function(res) {
+      return res.json().catch(function() { return {}; }).then(function(json) {
+        if (!res.ok) throw new Error(json.message || res.status + " " + res.statusText);
+        return json;
+      });
+    });
+  }
+
+  window.PhoenixKitHooks.AnnotationBurn = {
+    mounted() {
+      var self = this;
+      this._uuid = this.el.dataset.fileUuid;
+      this._variants = this.el.dataset.burnVariants || "thumbnail,small,medium,large";
+      this._host = function() {
+        return self.el.closest("[id^='pk-annotation-actions-']")?.querySelector('[phx-hook="FrescoCanvas"]') ||
+               document.querySelector('[phx-hook="FrescoCanvas"]');
+      };
+      this._baseline = this._signature();
+      this._running = false;
+
+      // Switching Etcher off ends an editing session.
+      this._onMode = function(e) {
+        if (e.detail && e.detail.annotationMode) {
+          self._baseline = self._signature();
+          return;
+        }
+        self.burnIfChanged();
+      };
+      document.addEventListener("etcher:mode-changed", this._onMode);
+
+      // So does closing the viewer. Caught on the way IN to the close, while
+      // the overlay is still there to compose from.
+      this._onClosing = function(e) {
+        var t = e.target;
+        var closing =
+          (e.type === "keydown" && e.key === "Escape") ||
+          (t && t.closest && (t.closest('[phx-click="close_viewer"]') || t.closest(".modal-backdrop")));
+        if (closing) self.burnIfChanged();
+      };
+      document.addEventListener("pointerdown", this._onClosing, true);
+      document.addEventListener("keydown", this._onClosing, true);
+    },
+
+    destroyed() {
+      document.removeEventListener("etcher:mode-changed", this._onMode);
+      document.removeEventListener("pointerdown", this._onClosing, true);
+      document.removeEventListener("keydown", this._onClosing, true);
+    },
+
+    // What the drawing IS, as far as a burn cares. Compared against the
+    // state the last one was made from, so ending a session in which
+    // nothing was drawn re-renders nothing.
+    _signature() {
+      var host = this._host && this._host();
+      var layer = host && window.Etcher && window.Etcher.layerFor &&
+                  window.Etcher.layerFor(host.id);
+      if (!layer || typeof layer.getShapes !== "function") return null;
+      try {
+        return JSON.stringify((layer.getShapes() || []).map(function(s) {
+          return [s.uuid, s.kind, s.geometry, s.style, s.metadata, s.title];
+        }));
+      } catch (_) {
+        return null;
+      }
+    },
+
+    burnIfChanged() {
+      var self = this;
+      if (this._running || !this._uuid) return;
+      var now = this._signature();
+      if (!now || now === this._baseline) return;
+
+      var plan = burnCapturePlan(this._host());
+      if (!plan) return;
+
+      this._running = true;
+      this._baseline = now;
+      burnNote("Updating the burned image…");
+
+      burnRender(plan)
+        .then(function(blob) { return burnUpload(self._uuid, blob, self._variants); })
+        .then(function(res) {
+          self._refresh(res.written || []);
+          burnNote("Burned image updated", 3500);
+        })
+        .catch(function(err) {
+          // The session is over either way; say so and leave the old
+          // rendering in place rather than a half-written one.
+          burnNote("Could not update the burned image: " + (err && err.message || err), 6000);
+          self._baseline = null;
+        })
+        .then(function() { self._running = false; });
+    },
+
+    // Every picture on the page showing a variant this replaced. The
+    // viewer's own image is left alone: it still has the live shapes drawn
+    // over it, and swapping it for the burned copy would draw them twice.
+    _refresh(written) {
+      var host = this._host && this._host();
+      var uuid = this._uuid;
+      written.forEach(function(v) {
+        var marker = "/file/" + uuid + "/" + v.variant + "/";
+        document.querySelectorAll("img").forEach(function(img) {
+          var src = img.getAttribute("src") || "";
+          if (src.indexOf(marker) !== -1 && !(host && host.contains(img))) {
+            img.setAttribute("src", v.url);
+          }
+        });
+      });
+    }
+  };
+
   // EtcherTooltipActions
   //
   // Routes Etcher's `etcher:tooltip-action` CustomEvent (a tooltip button
