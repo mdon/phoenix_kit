@@ -1250,11 +1250,14 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
         phx-hook="EtcherTooltipActions"
         class="flex-1 relative flex items-center justify-center bg-base-200 overflow-hidden p-0 lg:p-2 min-h-[40vh] lg:min-h-0"
       >
+        <%!-- Light, like the image viewer: a board is drawn on, and the
+              paper does not change colour with the admin's theme. It is
+              also what a burn of it is composed on. --%>
         <Fresco.canvas
           id={"media-zoom-" <> @board.target_uuid}
           canvas={@viewer_canvas}
           class="w-full h-full lg:rounded"
-          theme={:inherit}
+          theme={:light}
           infinite_canvas={true}
         />
         <%!-- panel_offset: same collision as the html.heex embed — the

@@ -134,21 +134,31 @@
               <%!-- layer — the picture plus shapes you can select and edit —  --%>
               <%!-- and that is the only mode Etcher appears in.               --%>
               <%= if @burn_mode and @burn_canvas do %>
+                <%!-- theme={:light}: the burned copy is composed on white,   --%>
+                <%!-- so a dark viewer around it would make switching to the  --%>
+                <%!-- live layer a flash from white to black and back. Both   --%>
+                <%!-- canvases stay light whatever daisyUI theme the admin    --%>
+                <%!-- is wearing — the picture is the subject here, and a     --%>
+                <%!-- drawing surface that changes colour under the markup    --%>
+                <%!-- changes how the markup reads.                           --%>
                 <Fresco.canvas
                   id={"media-burn-" <> f.file_uuid <> "-" <> to_string(@burn_version || "0")}
                   canvas={@burn_canvas}
                   class="w-full h-full lg:rounded"
-                  theme={:inherit}
+                  theme={:light}
                   initial_rotation={@viewer_rotation}
                   persist_rotation={@persist_rotation}
                 />
               <% else %>
                 <%= if @viewer_canvas do %>
+                  <%!-- Light for the same reason as the burn above: the two --%>
+                  <%!-- are the same picture, and the pencil switches between --%>
+                  <%!-- them.                                                 --%>
                   <Fresco.canvas
                     id={"media-zoom-" <> f.file_uuid}
                     canvas={@viewer_canvas}
                     class="w-full h-full lg:rounded"
-                    theme={:inherit}
+                    theme={:light}
                     initial_rotation={@viewer_rotation}
                     persist_rotation={@persist_rotation}
                   />
