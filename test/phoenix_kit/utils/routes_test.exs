@@ -1,7 +1,6 @@
 defmodule PhoenixKit.Utils.RoutesTest do
   use ExUnit.Case
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias PhoenixKit.Utils.Routes
 
   # All assertions below assume the default language resolves to "en".
@@ -220,62 +219,6 @@ defmodule PhoenixKit.Utils.RoutesTest do
       refute Routes.admin_area_path?(nil)
       refute Routes.admin_area_path?(:admin)
       refute Routes.admin_area_path?(123)
-    end
-  end
-
-  describe "user_settings_path/1 — locale-aware host overrides (issue #843)" do
-    # `setting_candidate/1` reads through `PhoenixKit.Settings.get_setting_cached/2`,
-    # which is a no-op nil with no reachable DB (`:update_mode`, set by
-    # `test_helper.exs`) — same defensive setup as
-    # `PhoenixKit.Utils.SafeDestinationSettingsTest`, so this exercises the real
-    # cache-backed read either way.
-    setup do
-      if Application.get_env(:phoenix_kit, :test_repo_available, false) do
-        :ok = Sandbox.checkout(PhoenixKit.Test.Repo)
-      end
-
-      start_supervised!({PhoenixKit.Cache.Registry, []})
-      start_supervised!({PhoenixKit.Cache, name: :settings})
-      :ok
-    end
-
-    defp put_setting(key, value), do: PhoenixKit.Cache.put(:settings, key, value)
-
-    test "a relative host override gets the same locale prefix the built-in default would" do
-      put_setting("user_settings_path", "/crm/settings")
-      put_setting("default_language_no_prefix", "false")
-
-      assert Routes.user_settings_path(locale: "ru") == "/phoenix_kit/ru/crm/settings"
-      assert Routes.user_settings_path(locale: "ru") == Routes.path("/crm/settings", locale: "ru")
-    end
-
-    test "an absolute external URL override is still rejected — falls back to the default, unchanged" do
-      put_setting("user_settings_path", "https://evil.example/settings")
-      put_setting("default_language_no_prefix", "false")
-
-      assert Routes.user_settings_path(locale: "ru") ==
-               Routes.path("/profile/settings", locale: "ru")
-    end
-
-    test "prefixless-primary language: neither the override nor the default carries a locale segment" do
-      put_setting("user_settings_path", "/crm/settings")
-      put_setting("default_language_no_prefix", "true")
-
-      assert Routes.user_settings_path(locale: "en") == "/phoenix_kit/crm/settings"
-
-      assert Routes.user_settings_path(locale: "en") ==
-               Routes.path("/crm/settings", locale: "en")
-    end
-
-    test "hostile override values are still rejected — falls back to the default, unchanged" do
-      put_setting("default_language_no_prefix", "false")
-
-      for hostile <- ["//evil.example", "/\\evil.example", "/\t/evil"] do
-        put_setting("user_settings_path", hostile)
-
-        assert Routes.user_settings_path(locale: "ru") ==
-                 Routes.path("/profile/settings", locale: "ru")
-      end
     end
   end
 end

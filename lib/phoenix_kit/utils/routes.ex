@@ -377,6 +377,41 @@ defmodule PhoenixKit.Utils.Routes do
     end
   end
 
+  @doc """
+  The host's own home page, localized — for a plain navigation link (the
+  admin header's project-title link), not a redirect chain.
+
+  Deliberately NOT `path("/", locale: locale)`. That function's `"/"` is core's
+  OWN mount point — under `url_prefix: "/phoenix_kit"` it is
+  `/phoenix_kit/ru`, which is where CORE lives, not where the host's home page
+  is. `home_candidates/0` above treats it as a candidate for exactly that
+  reason — a multilingual host is free to also declare a route matching core's
+  mount+locale shape — but a plain "go home" link means the host's own root,
+  independent of wherever core happens to be mounted, so the candidate here is
+  built directly from `locale` rather than through `path/2`:
+
+    1. `"/" <> locale` — the host's home page in the visitor's language, e.g.
+       `/ru`. Tried first: a visitor reading the admin area in a non-default
+       language is kept in it.
+    2. `"/"` — the host's unlocalized home. The unconditional fallback, same
+       as the hardcoded `href="/"` every admin page carried before #843 — so a
+       host that never declared a `/:locale` scope sees no regression.
+
+  Neither is emitted unprobed: `routable?/2` gates the first, same rule #685
+  put on every other core-owned link. The second is not re-probed — it is the
+  fallback of last resort, exactly as unconditional as it was before this
+  function existed.
+
+  `context` is the `conn` or `socket` the link is being rendered for;
+  `nil` fails every probe closed and returns `"/"`.
+  """
+  @spec home_path(request_context(), String.t() | nil) :: String.t()
+  def home_path(context, locale) do
+    candidates = if is_binary(locale), do: ["/" <> locale, "/"], else: ["/"]
+
+    Enum.find(candidates, &routable?(context, &1)) || List.last(candidates)
+  end
+
   # The terminal follows AUTHENTICATION, not the admin flag: sending a signed-in
   # visitor to `/users/log-in` would bounce them straight back — that page
   # redirects an authenticated visitor through `post_auth_path/2`, which
@@ -640,15 +675,22 @@ defmodule PhoenixKit.Utils.Routes do
   `after_login_path` — so a hand-edited DB row cannot turn a menu entry into
   an off-site link, or into `/users/log-out`, silently converting every
   "Settings" link into a sign-out link. An override names the host's own
-  page as a canonical, unprefixed path (e.g. `/crm/settings`) — the same
-  shape core's own default is written in — and gets the same locale
-  prefixing `path/2` would apply to that default, so a host page moves with
-  the visitor's language exactly like `/profile/settings` does.
+  page in **served form** — the shape a browser actually requests, e.g.
+  `/crm/settings`, or `/phoenix_kit/profile/settings` for core's own page
+  reached through a mount prefix — and gets only a locale segment inserted
+  into it, via `localize_served_path/2`, so it moves with the visitor's
+  language exactly like `/profile/settings` does. It does NOT go through
+  `path/2`: that function's job is to build a served path FROM a canonical
+  one by adding both the mount prefix and the locale, and an override is
+  already served — running it through `path/2` a second time would add the
+  mount prefix again, in front of a path that may not even be mounted under
+  it (a host page is normally reached at its own root, not underneath
+  `url_prefix`).
 
   ## Options
 
     * `:locale` — locale segment for the built-in path, as `path/2` takes it.
-      Ignored when an override is set.
+      Applied to an override too, via `localize_served_path/2`.
 
   ## Examples
 
@@ -663,8 +705,113 @@ defmodule PhoenixKit.Utils.Routes do
         path("/profile/settings", opts)
 
       value ->
-        if usable_candidate?(value), do: path(value, opts), else: path("/profile/settings", opts)
+        if usable_candidate?(value),
+          do: localize_served_path(value, opts),
+          else: path("/profile/settings", opts)
     end
+  end
+
+  @doc """
+  Inserts a locale segment into an already-served path, without touching
+  `url_prefix`.
+
+  For a path a host administrator typed in — an override setting, not
+  something core builds from a canonical `/foo` via `path/2`. Such a path is
+  already in served form: it might sit under core's mount prefix (an
+  operator pointed the setting back at one of core's own pages) or it might
+  not (the common case — a page the HOST serves at its own root). `path/2`
+  cannot tell those apart; it always adds `url_prefix`, which is correct for
+  a canonical path and wrong for a served one — pointing `user_settings_path`
+  at a host's `/crm/settings` used to come back as
+  `/phoenix_kit/en/crm/settings`, nesting the host's own page under core's
+  mount point.
+
+  This inserts *only* the locale segment, and only where it is safe to:
+
+    * If `served_path` starts with `url_prefix`, the segment goes right after
+      it — the same position `path/2` would put it in for a canonical path,
+      so an override pointed back at one of core's own pages (e.g.
+      `/phoenix_kit/profile/settings`) localizes identically to the default.
+    * Otherwise the segment goes at the very front. `url_prefix` is never
+      added — the path is the host's own, mounted independently of core.
+    * A `served_path` whose relevant leading segment already matches an
+      enabled locale code is returned unchanged, so re-running this on an
+      already-localized override (or switching locales without re-reading
+      the setting) cannot stack segments.
+    * The default locale on a `default_language_no_prefix: true` site is
+      never inserted, matching `path/2`'s own primary-prefixless rule.
+
+  `opts` takes `:locale` exactly as `path/2` does.
+  """
+  @spec localize_served_path(String.t(), keyword()) :: String.t()
+  def localize_served_path(served_path, opts \\ []) when is_binary(served_path) do
+    case resolve_locale(opts) do
+      :none -> served_path
+      locale -> insert_locale_segment(served_path, locale)
+    end
+  end
+
+  defp insert_locale_segment(served_path, locale) do
+    if default_locale?(locale) and prefixless_primary?() do
+      served_path
+    else
+      {prefix, rest} = split_served_prefix(served_path)
+
+      if served_locale_segment?(rest) do
+        served_path
+      else
+        prefix <> locale_prefixed_path("", locale, if(rest == "", do: "/", else: rest))
+      end
+    end
+  end
+
+  # Mirrors `strip_url_prefix/1`, but returns the split pair instead of just
+  # the remainder — `insert_locale_segment/2` needs the prefix back to put it
+  # ahead of the locale segment it inserts.
+  defp split_served_prefix(served_path) do
+    prefix = Config.get_url_prefix()
+
+    cond do
+      prefix in ["", "/"] ->
+        {"", served_path}
+
+      served_path == prefix ->
+        {prefix, ""}
+
+      String.starts_with?(served_path, prefix <> "/") ->
+        {prefix, String.replace_prefix(served_path, prefix, "")}
+
+      true ->
+        {"", served_path}
+    end
+  end
+
+  # Whether the leading segment of a served path (after `url_prefix` has been
+  # split off) is already a locale this site recognises. Deliberately the
+  # narrower ENABLED set, not the wider display set `switchable_locale_codes/1`
+  # checks for the language switcher — an override's existing segment came
+  # from an administrator, not from a link this module itself emitted, so
+  # there is no need to recognise a locale the site does not actually enable.
+  defp served_locale_segment?(rest_path) do
+    case String.split(rest_path, "/", parts: 3) do
+      ["", segment | _] -> segment in enabled_locale_codes_with_base()
+      _ -> false
+    end
+  end
+
+  defp enabled_locale_codes_with_base do
+    codes =
+      if Code.ensure_loaded?(Languages) and
+           function_exported?(Languages, :enabled_locale_codes, 0) do
+        Languages.enabled_locale_codes()
+      else
+        []
+      end
+
+    codes
+    |> Enum.flat_map(fn code -> [code, DialectMapper.extract_base(code)] end)
+    |> Enum.filter(&is_binary/1)
+    |> Enum.uniq()
   end
 
   @doc """
@@ -1235,6 +1382,19 @@ defmodule PhoenixKit.Utils.Routes do
         DialectMapper.extract_base(assigns[:current_locale] || @default_locale)
 
     path(url_path, locale: locale)
+  end
+
+  @doc """
+  `home_path/2` with the locale taken from `assigns` — the same relationship
+  `locale_aware_path/2` has to `path/2`.
+  """
+  @spec locale_aware_home_path(map(), request_context()) :: String.t()
+  def locale_aware_home_path(assigns, context) do
+    locale =
+      assigns[:current_locale_base] ||
+        DialectMapper.extract_base(assigns[:current_locale] || @default_locale)
+
+    home_path(context, locale)
   end
 
   @doc """
