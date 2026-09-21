@@ -336,9 +336,15 @@ defmodule PhoenixKit.Admin.SimplePresence do
   # The class of a `GenServer.call` exit (`:noproc`, `:timeout`, `:killed`,
   # ...) without the request it was carrying — used by the `catch :exit`
   # clauses above, each of which would otherwise log a presence row's
-  # session_id/ip_address/user_agent as part of the raw exit reason.
-  defp exit_class(reason) when is_tuple(reason) and tuple_size(reason) > 0, do: elem(reason, 0)
-  defp exit_class(reason), do: reason
+  # session_id/ip_address/user_agent as part of the raw exit reason. A crash
+  # inside the callback arrives as `{{exception, stacktrace}, call}`; the
+  # stacktrace's top frame carries the BIF args (the ETS key and metadata),
+  # so only the exception module is kept from that shape.
+  defp exit_class({class, _call}) when is_atom(class), do: class
+  defp exit_class({{:shutdown, _}, _call}), do: :shutdown
+  defp exit_class({{%{__struct__: module}, _stacktrace}, _call}), do: module
+  defp exit_class(reason) when is_atom(reason), do: reason
+  defp exit_class(_reason), do: :unknown
 
   defp broadcast_presence_stats do
     stats = get_presence_stats()
