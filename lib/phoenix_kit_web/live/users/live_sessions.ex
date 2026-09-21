@@ -38,16 +38,13 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
   alias PhoenixKit.Admin.{Events, Presence}
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
-  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Date, as: UtilsDate
-  alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Pagination
-  alias PhoenixKit.Utils.Routes
 
   # Refresh every 5 seconds
   @refresh_interval 5_000
 
-  def mount(_params, session, socket) do
+  def mount(_params, _session, socket) do
     # Subscribe to presence events for real-time updates
     if connected?(socket) do
       Events.subscribe_to_presence()
@@ -56,8 +53,9 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
       # Start auto-refresh timer
       schedule_refresh()
 
-      # Track authenticated user session if logged in
-      track_authenticated_session(socket, session)
+      # This page is always mounted through the `:phoenix_kit_ensure_admin`
+      # on_mount hook, which now tracks the visitor's own presence itself
+      # (PhoenixKitWeb.Users.Auth) — no local tracking needed here.
     end
 
     # Get project title from settings
@@ -303,29 +301,5 @@ defmodule PhoenixKitWeb.Live.Users.LiveSessions do
 
   defp schedule_refresh do
     Process.send_after(self(), :refresh, @refresh_interval)
-  end
-
-  defp track_authenticated_session(socket, session) do
-    scope = socket.assigns[:phoenix_kit_current_scope]
-
-    if scope && Scope.authenticated?(scope) do
-      user_email = Scope.user_email(scope)
-
-      # Create a user map for tracking (uuid required by SimplePresence)
-      user = %{uuid: scope.user.uuid, email: user_email}
-      session_id = session["live_socket_id"] || generate_session_id()
-
-      Presence.track_user(user, %{
-        connected_at: UtilsDate.utc_now(),
-        session_id: session_id,
-        ip_address: IpAddress.extract_from_socket(socket),
-        user_agent: get_connect_info(socket, :user_agent),
-        current_page: Routes.path("/admin/users/live_sessions")
-      })
-    end
-  end
-
-  defp generate_session_id do
-    :crypto.strong_rand_bytes(16) |> Base.encode64()
   end
 end

@@ -54,6 +54,9 @@ defmodule PhoenixKitWeb.Router do
       pipe_through :browser
 
       live "/__test/crawlers-no-index-probe", PublicHostAppLive
+      # Dynamic segment: lets a test `push_patch` across two distinct paths
+      # inside one live_session — see PresenceProbeLive's moduledoc.
+      live "/__test/presence-probe/:page", PresenceProbeLive
     end
   end
 

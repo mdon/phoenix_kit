@@ -187,11 +187,20 @@ defmodule PhoenixKitWeb.Live.Dashboard.Overview do
   Presence tracking is the one thing here that happens ONCE per mount rather
   than on every scope change — it reports where the socket is, which a
   permission change does not alter.
+
+  Skipped when `PhoenixKitWeb.Users.Auth`'s scope-mounting on_mount hook
+  already tracked this connected socket (`:phoenix_kit_presence_tracked?`) —
+  true for `/admin` itself, since `:phoenix_kit_ensure_admin` runs before
+  `mount/3`. `Presence.track_user/2` is idempotent by `(user.uuid,
+  session_id)` either way, so this guard is a cheap "skip the redundant
+  monitor + stats broadcast" rather than a correctness requirement — a host
+  route that reaches `assign_overview/3` WITHOUT going through that on_mount
+  hook still gets tracked here.
   """
   @spec assign_overview(Phoenix.LiveView.Socket.t(), map(), String.t()) ::
           Phoenix.LiveView.Socket.t()
   def assign_overview(socket, session, page_path) do
-    if connected?(socket) do
+    if connected?(socket) and !socket.assigns[:phoenix_kit_presence_tracked?] do
       track_authenticated_session(socket, session, page_path)
     end
 
@@ -407,6 +416,10 @@ defmodule PhoenixKitWeb.Live.Dashboard.Overview do
     |> assign(:migration_db, nil)
   end
 
+  # Kept even though PhoenixKitWeb.Users.Auth's scope-mounting hooks now track
+  # presence too: `assign_overview/3` is public API for a HOST route that may
+  # not go through those hooks. See the guard in `assign_overview/3` above for
+  # why this does not double-track when they DO.
   defp track_authenticated_session(socket, session, page_path) do
     scope = socket.assigns[:phoenix_kit_current_scope]
 

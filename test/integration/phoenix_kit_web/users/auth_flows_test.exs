@@ -1359,15 +1359,6 @@ defmodule PhoenixKitWeb.Users.AuthFlowsTest do
   describe "registration account-type policy" do
     alias PhoenixKit.Users.Invitations
 
-    # A CONNECTED mount tracks the anonymous visitor through
-    # `PhoenixKit.Admin.SimplePresence`, which a host app supervises but this
-    # suite does not start. Same arrangement (and reason) as
-    # `auth_seo_mount_test.exs`; the plain `get/2` tests above never reach it.
-    setup do
-      start_supervised!(PhoenixKit.Admin.SimplePresence)
-      :ok
-    end
-
     defp orgs_on(mode) do
       Settings.update_setting("enable_organization_accounts", "true")
       Settings.update_setting("registration_account_type", mode)
