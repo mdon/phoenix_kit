@@ -4997,9 +4997,18 @@ if (typeof window.Chart === "undefined") {
       if (this.isOpen) {
         var dup = this.el.querySelector("[data-row-menu-content]");
         if (dup && dup !== this.menu) {
+          // The swap detaches the focused item, dropping focus to <body>
+          // mid-navigation; put it back on the item in the same slot.
+          var sel = "[role='menuitem']";
+          var idx = Array.from(this.menu.querySelectorAll(sel)).indexOf(document.activeElement);
           var fresh = Array.prototype.slice.call(dup.childNodes);
           this.menu.replaceChildren.apply(this.menu, fresh);
           dup.remove();
+          if (idx >= 0) {
+            var items = this.menu.querySelectorAll(sel);
+            var again = items[Math.min(idx, items.length - 1)];
+            if (again) again.focus({ preventScroll: true });
+          }
         }
       }
       // morphdom can hand the wrapper back as a fresh node; re-publish.

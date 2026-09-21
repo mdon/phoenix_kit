@@ -1,3 +1,42 @@
+## 2.35.0 - 2026-09-21
+
+### Added
+
+- **Right-click a row to open its `⋮` menu at the pointer.** Flag the row
+  `data-row-menu-context` (`<.table_default_row data-row-menu-context>`, or
+  `card_context_menu` on `table_default` for the card view) and the
+  `table_row_menu` rendered inside it opens where the user clicked. Opt-in;
+  omit the attribute to turn it off. A text field, a text selection inside
+  the row, and a row whose menu is not rendered all keep the browser's own
+  menu. The Menu key / Shift+F10 opens it beside the `⋮` trigger, and an
+  Android long press does not also activate the row underneath. Per-row
+  `navigate`/`href` items keep working, which `Core.ContextMenu`'s single
+  shared menu cannot offer.
+- **`sort_selector` takes `label`** — a visible "Sort by" before the control,
+  off by default so existing toolbars keep their height.
+
+### Changed
+
+- **An open row menu closes when the page scrolls or resizes**, instead of
+  staying fixed over a different row while still acting on its own.
+- `Core.ContextMenu` and the row menu share one pointer-placement rule
+  (`window.PhoenixKitMenus.pointerPosition`).
+
+### Fixed
+
+- **Generated sitemaps no longer ship in the Hex package.** `files: ~w(priv …)`
+  takes whatever is on disk, gitignored or not, so 2.34.0 carried a test
+  run's `priv/static/sitemaps/domains/site.example.com/sitemap.xml` and a
+  fresh install served it at `/sitemap.xml` until regenerated.
+  `priv/static/sitemap.xml` and `priv/static/sitemaps/` are now excluded.
+- **A row menu patched while open shows the server's current items** — an
+  action the server stopped offering ("Retry" once an extraction succeeds)
+  could still be clicked from the stale copy. Keyboard focus stays on the
+  item in the same slot across the swap.
+- `bulk_select_scope`'s `swap` doc now states the target must hand `style`
+  to the client (`JS.ignore_attributes(["style"])`), or a patch of the
+  target alone un-hides it.
+
 ## 2.34.0 - 2026-09-20
 
 ### Added

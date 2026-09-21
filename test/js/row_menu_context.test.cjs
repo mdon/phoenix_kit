@@ -445,3 +445,30 @@ test("a patch while open replaces the menu's items with the fresh ones", () => {
   assert.equal(hook.menu, menu, "the portaled menu stays the one on screen");
   hook._close();
 });
+
+test("a patch while open keeps keyboard focus on the item in the same slot", () => {
+  // The swap detaches the focused item; without a refocus the next arrow key
+  // starts over from the top and Tab walks off into the page.
+  const { hook, wrapper, menu } = mountMenu("row-patched-focus");
+  fireContextMenu(contextEvent("row-patched-focus"));
+
+  const focused = [];
+  const item = (name) => ({ focus: () => focused.push(name) });
+  let items = [item("old-edit"), item("old-retry"), item("old-delete")];
+  menu.querySelectorAll = () => items;
+  global.document.activeElement = items[2];
+
+  // "Retry" is gone, so the third slot no longer exists: focus the last one.
+  const freshItems = [item("edit"), item("delete")];
+  const dup = { childNodes: freshItems, remove: noop };
+  wrapper.querySelector = (sel) => (sel === "[data-row-menu-content]" ? dup : null);
+  menu.replaceChildren = (...nodes) => {
+    items = nodes;
+  };
+
+  hook.updated();
+
+  assert.deepEqual(focused, ["delete"]);
+  global.document.activeElement = undefined;
+  hook._close();
+});
