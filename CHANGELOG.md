@@ -1,3 +1,13 @@
+## 2.36.1 - 2026-09-21
+
+### Fixed
+
+- **The media browser's pagination no longer floats over the file list.**
+  The list wrapper still carried `min-h-0` from before the content column
+  became the single scroll area, so it shrank to the visible height and
+  the "1 / N — Next" bar rendered mid-list on top of the rows (and the
+  folder drop target covered only that first screenful).
+
 ## 2.36.0 - 2026-09-21
 
 ### Added
