@@ -98,6 +98,15 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
 
     Several scopes on a page may name the same toolbar; it stays hidden while
     any of them has a selection.
+
+    ⚠️ **The target must hand `style` to the client** —
+    `phx-mounted={JS.ignore_attributes(["style"])}`. The hook hides it with
+    an inline `display: none`, and a target that renders no style from the
+    server has that one stripped by the patcher on its next re-render (a
+    PubSub refresh changing a tab count is enough), putting the toolbar
+    back UNDER the action bar and restoring the very shift this exists to
+    prevent. The hook re-applies on any patch of the SCOPE, which is why
+    the hole only shows when the target is patched alone.
     """
 
   slot :inner_block, required: true
