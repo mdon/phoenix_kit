@@ -35,8 +35,11 @@ defmodule PhoenixKitWeb.Users.Auth do
   which all go through it — also tracks the visitor's presence on a connected,
   authenticated mount, and keeps `current_page` current on every navigation.
   This is what makes any LiveView mounted through PhoenixKit's on_mount chain,
-  admin or host app alike, show up in "Live sessions". Details:
-  `PhoenixKit.Admin.Presence`.
+  admin or host app alike, show up in "Live sessions". The two legacy
+  user-only hooks that do NOT go through the scope mount —
+  `:phoenix_kit_mount_current_user` and `:phoenix_kit_ensure_authenticated` —
+  are not covered; a page that needs presence tracking should use their
+  scope-based equivalents instead. Details: `PhoenixKit.Admin.Presence`.
 
   ## Usage
 
@@ -1133,6 +1136,10 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp set_routing_info(params, url, socket) do
     %{path: path} = URI.parse(url)
+    # Read before the assign below overwrites it — used only to skip a
+    # same-path presence update (a query-string-only patch, e.g. sorting or
+    # searching on the same admin page) further down this pipe.
+    previous_path = socket.assigns[:url_path]
 
     socket =
       socket
@@ -1152,7 +1159,7 @@ defmodule PhoenixKitWeb.Users.Auth do
       # assign for the verification metas would be two more settings reads on
       # every navigation with nothing to read them.
       |> Phoenix.Component.assign_new(:crawlers_no_index, fn -> Crawlers.no_index_enabled?() end)
-      |> maybe_update_presence_current_page(path)
+      |> maybe_update_presence_current_page(path, previous_path)
 
     {:cont, socket}
   end
@@ -1162,11 +1169,16 @@ defmodule PhoenixKitWeb.Users.Auth do
   # now rather than the page they first connected on.
   defp maybe_update_presence_current_page(
          %{assigns: %{phoenix_kit_presence_tracked?: true} = assigns} = socket,
-         path
+         path,
+         previous_path
        ) do
     scope = assigns[:phoenix_kit_current_scope]
 
-    if scope && Scope.authenticated?(scope) do
+    # `handle_params` fires on a query-string-only patch too (sorting,
+    # searching, paginating on the same page) — skip the GenServer call and
+    # the `presence_stats` broadcast it triggers when the path itself did not
+    # change, rather than repeating a no-op update on every such patch.
+    if path != previous_path && scope && Scope.authenticated?(scope) do
       Presence.update_current_page(
         Scope.user_uuid(scope),
         assigns[:phoenix_kit_presence_session_id],
@@ -1177,7 +1189,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     socket
   end
 
-  defp maybe_update_presence_current_page(socket, _path), do: socket
+  defp maybe_update_presence_current_page(socket, _path, _previous_path), do: socket
 
   # Sets the process Gettext locale (backend-specific + global for
   # feature-module backends) from a resolved dialect, downgrading to the
@@ -1525,10 +1537,21 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
   end
 
+  # A SHA-256 digest of the session token, not `Sessions.live_socket_id/1`'s
+  # `"phoenix_kit_sessions:" <> Base.url_encode64(token)` (reversible back to
+  # the raw token by anyone who reads it) or the raw token itself. Presence
+  # rows, their PubSub events, and — before this — the `catch :exit` log line
+  # in `SimplePresence` all carry `session_id`; hashing it means none of them
+  # can leak a working session credential. Still stable per login (same token
+  # in, same digest out), so multi-tab idempotency in `SimplePresence` is
+  # unaffected — just no longer reversible.
   defp presence_session_id(socket) do
     case socket.assigns[:phoenix_kit_session_token] do
-      token when is_binary(token) -> Sessions.live_socket_id(token)
-      _ -> nil
+      token when is_binary(token) ->
+        :crypto.hash(:sha256, token) |> Base.url_encode64(padding: false)
+
+      _ ->
+        nil
     end
   end
 

@@ -9,9 +9,10 @@ defmodule PhoenixKit.Integration.Users.LiveSessionsPresenceTest do
   NOT one of core's own admin LiveViews, since the point is that an ordinary
   page is tracked too.
 
-  Presence is one named GenServer a host app supervises but this suite does
-  not start — each test starts its own (`async: false`, mirrors
-  `live_sessions_pagination_test.exs`).
+  Presence is one named GenServer (a child of `PhoenixKit.Supervisor`, which a
+  host app must add to its own tree — this repo's suite does not) that this
+  suite does not start on its own; each test starts its own copy
+  (`async: false`, mirrors `live_sessions_pagination_test.exs`).
   """
   use PhoenixKitWeb.ConnCase, async: false
 

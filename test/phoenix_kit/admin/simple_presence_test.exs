@@ -7,7 +7,10 @@ defmodule PhoenixKit.Admin.SimplePresenceTest do
   evicted the presence row even though the first tab was still open.
 
   A single named GenServer + named ETS table, not started by
-  `test_helper.exs` (a host app supervises it in production) — every test
+  `test_helper.exs`. In production it is a child of `PhoenixKit.Supervisor`
+  (core's own supervisor) — but a host app must add THAT supervisor to its
+  own tree, and this repo's own test suite doesn't boot it either, so it is
+  not guaranteed running here or at any given LiveView mount. Every test
   starts its own copy, so `async: false` (mirrors
   `live_sessions_pagination_test.exs`).
   """
@@ -173,6 +176,37 @@ defmodule PhoenixKit.Admin.SimplePresenceTest do
 
       assert_receive {:user_session_disconnected, ^uuid, ^session_id}, 500
       assert SimplePresence.list_active_sessions() == []
+    end
+  end
+
+  describe "hourly stale-sweep must not evict a row a live monitor still vouches for" do
+    test "a row older than an hour survives cleanup_old_sessions while its tracking process is alive" do
+      Events.subscribe_to_presence()
+      u = user()
+      session_id = "stale-#{System.unique_integer([:positive])}"
+      # Past the sweep's 1-hour threshold, but the calling (this test) process
+      # is still alive and monitored — the row must survive regardless.
+      old_connected_at =
+        DateTime.utc_now() |> DateTime.add(-3700, :second) |> DateTime.truncate(:second)
+
+      assert :ok =
+               SimplePresence.track_user(u, %{
+                 session_id: session_id,
+                 current_page: nil,
+                 connected_at: old_connected_at
+               })
+
+      assert_receive {:user_session_connected, connected_uuid, _info}, 500
+      assert connected_uuid == u.uuid
+
+      send(Process.whereis(SimplePresence), :cleanup)
+
+      refute_receive {:user_session_disconnected, _, _}, 200
+
+      assert [%{user_uuid: uuid, session_id: ^session_id, connected_at: ^old_connected_at}] =
+               SimplePresence.list_active_sessions()
+
+      assert uuid == u.uuid
     end
   end
 end

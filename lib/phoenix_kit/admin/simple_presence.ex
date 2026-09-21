@@ -10,15 +10,26 @@ defmodule PhoenixKit.Admin.SimplePresence do
   An authenticated visitor is tracked under `user_key(user_uuid, session_id)`
   (`"user:<uuid>:<session_id>"`), an anonymous one under
   `"anonymous:<session_id>"` — one ETS row per `(identity, session)`, not per
-  process. `session_id` is the same value (`PhoenixKit.Users.Sessions.live_socket_id/1`
-  for an authenticated visitor) across every LiveView mount that shares one
-  login or one anonymous browser session, so opening a second tab, or mounting
-  a second LiveView under the same session, tracks the SAME row instead of
-  creating a second one: each `track_*` call adds its calling process's
-  monitor to that row's monitor set rather than replacing the previous tab's.
-  The row is deleted — and a `*_session_disconnected` event broadcast — only
-  once its LAST monitor goes down; closing one tab while another is still
-  open just shrinks the monitor set.
+  process. `session_id` is a stable per-login identifier that is the same
+  across every LiveView mount sharing one login or one anonymous browser
+  session, so opening a second tab, or mounting a second LiveView under the
+  same session, tracks the SAME row instead of creating a second one: each
+  `track_*` call adds its calling process's monitor to that row's monitor set
+  rather than replacing the previous tab's. The row is deleted — and a
+  `*_session_disconnected` event broadcast — only once its LAST monitor goes
+  down; closing one tab while another is still open just shrinks the monitor
+  set.
+
+  For an authenticated visitor tracked through `PhoenixKitWeb.Users.Auth`'s
+  on_mount hooks, `session_id` is a SHA-256 digest of the session token
+  (`Base.url_encode64/2`, not the raw token or the raw `live_socket_id`
+  itself) — stable per login for idempotent keying, but not reversible if it
+  ends up somewhere it shouldn't (a log line, a PubSub event payload). A call
+  site that still passes a raw `session["live_socket_id"]`
+  (`PhoenixKitWeb.Live.Dashboard.Overview`'s own local tracking call, which
+  predates this scheme, and `phoenix_kit_entities`'s own hook, a separate
+  package) produces a DIFFERENT `session_id` for the same login until it is
+  updated to match — a second, otherwise-idempotent row rather than a merge.
 
   `connected_at` is pinned to the row's first appearance: a second tab
   merges its metadata into the existing row without resetting the timestamp.
@@ -94,9 +105,16 @@ defmodule PhoenixKit.Admin.SimplePresence do
     # raising — `rescue` alone does not see it (see AGENTS.md's "Soft-failure
     # paths need rescue AND catch :exit"). Presence is best-effort observability,
     # never a gate a visitor's page should fail behind.
+    #
+    # Logging `reason` itself (not just its class) would log the full
+    # `GenServer.call` request — `{:noproc, {GenServer, :call, [__MODULE__,
+    # {:track, key, metadata}, timeout]}}` — and `metadata`/`key` carry
+    # `session_id`, `ip_address`, `user_agent`. `exit_class/1` keeps only the
+    # class (`:noproc`, `:timeout`, ...) out of that tuple.
     :exit, reason ->
-      Logger.error("Failed to track anonymous session: #{inspect(reason)}")
-      {:error, reason}
+      class = exit_class(reason)
+      Logger.error("Failed to track anonymous session: #{inspect(class)}")
+      {:error, class}
   end
 
   @doc """
@@ -135,9 +153,13 @@ defmodule PhoenixKit.Admin.SimplePresence do
       Logger.error("Failed to track user session: #{inspect(error)}")
       {:error, error}
   catch
+    # See track_anonymous/2 above: `reason` itself carries the request
+    # (`metadata`, including `session_id`/`ip_address`/`user_agent`) — log
+    # only its class.
     :exit, reason ->
-      Logger.error("Failed to track user session: #{inspect(reason)}")
-      {:error, reason}
+      class = exit_class(reason)
+      Logger.error("Failed to track user session: #{inspect(class)}")
+      {:error, class}
   end
 
   @doc """
@@ -154,10 +176,13 @@ defmodule PhoenixKit.Admin.SimplePresence do
     end
   catch
     # Same reasoning as track_user/track_anonymous above: a dead/not-yet-started
-    # SimplePresence must not take an in-flight navigation down with it.
+    # SimplePresence must not take an in-flight navigation down with it, and
+    # `reason` carries the request (`key`, which embeds `session_id`) — log
+    # only its class.
     :exit, reason ->
-      Logger.error("Failed to update presence metadata: #{inspect(reason)}")
-      {:error, reason}
+      class = exit_class(reason)
+      Logger.error("Failed to update presence metadata: #{inspect(class)}")
+      {:error, class}
   end
 
   @doc """
@@ -308,6 +333,13 @@ defmodule PhoenixKit.Admin.SimplePresence do
 
   ## Private Functions
 
+  # The class of a `GenServer.call` exit (`:noproc`, `:timeout`, `:killed`,
+  # ...) without the request it was carrying — used by the `catch :exit`
+  # clauses above, each of which would otherwise log a presence row's
+  # session_id/ip_address/user_agent as part of the raw exit reason.
+  defp exit_class(reason) when is_tuple(reason) and tuple_size(reason) > 0, do: elem(reason, 0)
+  defp exit_class(reason), do: reason
+
   defp broadcast_presence_stats do
     stats = get_presence_stats()
     Events.broadcast_presence_stats_updated(stats)
@@ -346,14 +378,24 @@ defmodule PhoenixKit.Admin.SimplePresence do
   defp broadcast_disconnect(%{type: :authenticated} = metadata),
     do: Events.broadcast_user_session_disconnected(metadata.user_uuid, metadata.session_id)
 
+  # A row's own `:DOWN` handling (`cleanup_session_by_monitor/1`) is now the
+  # reliable way a row disappears — it fires the moment the row's LAST
+  # monitor goes down, whatever `connected_at` says. This sweep exists only
+  # for a row that somehow never got a `:DOWN` it was owed (the tracking
+  # process's monitor firing lost, or a row this ETS table has held onto
+  # across an event this module doesn't otherwise know how to recover from) —
+  # it must NOT also evict a row a live monitor set still vouches for, or an
+  # ordinary session open longer than an hour (a perfectly normal work
+  # session on a host app's own page) would flicker: vanish from "Live
+  # sessions" with a false disconnect, then reappear on its next navigation.
   defp cleanup_old_sessions do
-    # Remove sessions older than 1 hour
     one_hour_ago = DateTime.add(UtilsDate.utc_now(), -3600, :second)
 
     @table_name
     |> :ets.tab2list()
     |> Enum.filter(fn {_key, entry} ->
-      DateTime.compare(entry.metadata.connected_at, one_hour_ago) == :lt
+      MapSet.size(entry.monitors) == 0 and
+        DateTime.compare(entry.metadata.connected_at, one_hour_ago) == :lt
     end)
     |> Enum.each(fn {key, entry} ->
       :ets.delete(@table_name, key)
