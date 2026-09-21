@@ -27,6 +27,14 @@
   from its name or upload time; a pass visits each file once and cannot loop
   on one.
 
+- **`MediaBrowser` has a view-only mode (#848).** `readonly` hides every
+  write affordance (upload, new folder, rename, move, trash, select, rotate,
+  the image editor, drag and drop) and refuses every mutating event
+  server-side; a broadcast upload is refused where it lands. The nested
+  viewer is read-only too — no annotating, rotating or editing details, and
+  (post-merge review fix) no burn when the viewer closes. Navigation,
+  search, sorting, the viewer and downloads keep working.
+
 ### Changed
 
 - **A capture date is never downgraded.** An image edit keeps only the ICC
@@ -99,6 +107,11 @@
 - **Opening a trashed file's thumbnails costs one permission lookup per
   burst**, not two queries per image: the answer is cached for five seconds
   per user and active role.
+- **The admin header and a `user_settings_path` override keep the visitor's
+  language (#852).** The project title links to the host's own `/<locale>`
+  home when its router serves one (else `/`), never to core's mount point;
+  an override page gets the locale segment the default settings page would,
+  and never `url_prefix`.
 - **Every way into Settings lands on a page its viewer can open.** A visitor
   refused Settings → General who can open another settings subtab is taken
   there — from a settings page's section header, a bookmark or a typed URL,
