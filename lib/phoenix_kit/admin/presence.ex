@@ -28,6 +28,12 @@ defmodule PhoenixKit.Admin.Presence do
   })
   ```
 
+  `track_user/2` is idempotent by `(user.uuid, metadata.session_id)` — tracking
+  the same user/session pair again (a second open tab, another LiveView
+  mounted under the same login) merges into the existing presence row instead
+  of creating a duplicate. See `PhoenixKit.Admin.SimplePresence` for the
+  multi-tab monitor-refcounting this relies on.
+
   ## Events Generated
 
   - `{:anonymous_session_connected, session_id, session_info}`
@@ -81,12 +87,33 @@ defmodule PhoenixKit.Admin.Presence do
   end
 
   @doc """
+  Builds the presence key for a user's session — see `SimplePresence.user_key/2`.
+  """
+  def user_key(user_uuid, session_id), do: SimplePresence.user_key(user_uuid, session_id)
+
+  @doc """
   Updates metadata for an existing presence.
 
   Useful for updating current page or other session details.
   """
   def update_metadata(key, metadata_updates) do
     SimplePresence.update_metadata(key, metadata_updates)
+  end
+
+  @doc """
+  Updates the `:current_page` an authenticated user's tracked session reports.
+
+  A no-op on any failure — the session no longer being tracked (a race between
+  navigation and disconnection) or SimplePresence not running at all (see
+  `SimplePresence`'s `catch :exit` on the same gap) must not raise and take an
+  in-flight navigation down with it.
+  """
+  @spec update_current_page(String.t(), String.t() | nil, String.t()) :: :ok
+  def update_current_page(user_uuid, session_id, path) do
+    case SimplePresence.update_metadata(user_key(user_uuid, session_id), %{current_page: path}) do
+      :ok -> :ok
+      {:error, _reason} -> :ok
+    end
   end
 
   @doc """

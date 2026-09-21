@@ -4,6 +4,28 @@ defmodule PhoenixKit.Admin.SimplePresence do
 
   This is a lightweight alternative to Phoenix.Presence that works
   without requiring a full OTP application supervision tree.
+
+  ## Keys and multi-tab tracking
+
+  An authenticated visitor is tracked under `user_key(user_uuid, session_id)`
+  (`"user:<uuid>:<session_id>"`), an anonymous one under
+  `"anonymous:<session_id>"` — one ETS row per `(identity, session)`, not per
+  process. `session_id` is the same value (`PhoenixKit.Users.Sessions.live_socket_id/1`
+  for an authenticated visitor) across every LiveView mount that shares one
+  login or one anonymous browser session, so opening a second tab, or mounting
+  a second LiveView under the same session, tracks the SAME row instead of
+  creating a second one: each `track_*` call adds its calling process's
+  monitor to that row's monitor set rather than replacing the previous tab's.
+  The row is deleted — and a `*_session_disconnected` event broadcast — only
+  once its LAST monitor goes down; closing one tab while another is still
+  open just shrinks the monitor set.
+
+  `connected_at` is pinned to the row's first appearance: a second tab
+  merges its metadata into the existing row without resetting the timestamp.
+
+  This table is local to the BEAM node it runs on — presence does not merge
+  across nodes in a multi-node deployment, so a visitor connected to node A is
+  invisible to a "Live sessions" page served from node B.
   """
 
   use GenServer
@@ -27,6 +49,18 @@ defmodule PhoenixKit.Admin.SimplePresence do
   end
 
   @doc """
+  Builds the idempotent ETS key for a user's presence row.
+
+  `session_id: nil` falls back to one row per user (pre-session-keying
+  behavior) — a caller that tracks a user without a session_id still collides
+  across tabs on that single row.
+  """
+  @spec user_key(String.t(), String.t() | nil) :: String.t()
+  def user_key(user_uuid, session_id)
+  def user_key(user_uuid, nil), do: "user:#{user_uuid}"
+  def user_key(user_uuid, session_id), do: "user:#{user_uuid}:#{session_id}"
+
+  @doc """
   Tracks an anonymous session.
   """
   def track_anonymous(session_id, metadata \\ %{}) do
@@ -39,8 +73,12 @@ defmodule PhoenixKit.Admin.SimplePresence do
       |> Map.put_new(:connected_at, UtilsDate.utc_now())
 
     case GenServer.call(@server_name, {:track, key, metadata}) do
-      :ok ->
+      {:ok, :new} ->
         Events.broadcast_anonymous_session_connected(session_id, metadata)
+        broadcast_presence_stats()
+        :ok
+
+      {:ok, :existing} ->
         broadcast_presence_stats()
         :ok
 
@@ -51,13 +89,26 @@ defmodule PhoenixKit.Admin.SimplePresence do
     error ->
       Logger.error("Failed to track anonymous session: #{inspect(error)}")
       {:error, error}
+  catch
+    # A dead/not-yet-started SimplePresence EXITS the caller rather than
+    # raising — `rescue` alone does not see it (see AGENTS.md's "Soft-failure
+    # paths need rescue AND catch :exit"). Presence is best-effort observability,
+    # never a gate a visitor's page should fail behind.
+    :exit, reason ->
+      Logger.error("Failed to track anonymous session: #{inspect(reason)}")
+      {:error, reason}
   end
 
   @doc """
   Tracks an authenticated user session.
+
+  Idempotent by `(user.uuid, metadata.session_id)` — a second `track_user/2`
+  call for the same user and session (e.g. a second open tab, or another
+  LiveView mounted under the same login) merges into the existing presence
+  row instead of creating a second one or replacing the first tab's monitor.
   """
   def track_user(user, metadata \\ %{}) do
-    key = "user:#{user.uuid}"
+    key = user_key(user.uuid, Map.get(metadata, :session_id))
 
     metadata =
       metadata
@@ -67,8 +118,12 @@ defmodule PhoenixKit.Admin.SimplePresence do
       |> Map.put_new(:connected_at, UtilsDate.utc_now())
 
     case GenServer.call(@server_name, {:track, key, metadata}) do
-      :ok ->
+      {:ok, :new} ->
         Events.broadcast_user_session_connected(user.uuid, metadata)
+        broadcast_presence_stats()
+        :ok
+
+      {:ok, :existing} ->
         broadcast_presence_stats()
         :ok
 
@@ -79,6 +134,10 @@ defmodule PhoenixKit.Admin.SimplePresence do
     error ->
       Logger.error("Failed to track user session: #{inspect(error)}")
       {:error, error}
+  catch
+    :exit, reason ->
+      Logger.error("Failed to track user session: #{inspect(reason)}")
+      {:error, reason}
   end
 
   @doc """
@@ -93,6 +152,12 @@ defmodule PhoenixKit.Admin.SimplePresence do
       error ->
         error
     end
+  catch
+    # Same reasoning as track_user/track_anonymous above: a dead/not-yet-started
+    # SimplePresence must not take an in-flight navigation down with it.
+    :exit, reason ->
+      Logger.error("Failed to update presence metadata: #{inspect(reason)}")
+      {:error, reason}
   end
 
   @doc """
@@ -101,7 +166,7 @@ defmodule PhoenixKit.Admin.SimplePresence do
   def list_active_sessions do
     @table_name
     |> :ets.tab2list()
-    |> Enum.map(fn {_key, metadata} -> metadata end)
+    |> Enum.map(fn {_key, %{metadata: metadata}} -> metadata end)
     |> Enum.sort_by(& &1.connected_at, {:desc, DateTime})
   rescue
     ArgumentError ->
@@ -182,21 +247,41 @@ defmodule PhoenixKit.Admin.SimplePresence do
 
   @impl true
   def handle_call({:track, key, metadata}, {pid, _ref}, state) do
-    # Store session with process monitor
+    # One monitor per tracking call, all folded into the row's monitor set —
+    # the row survives until the LAST of them goes down (see moduledoc).
     monitor_ref = Process.monitor(pid)
-    metadata = Map.put(metadata, :monitor_ref, monitor_ref)
 
-    :ets.insert(@table_name, {key, metadata})
+    status =
+      case :ets.lookup(@table_name, key) do
+        [] ->
+          entry = %{metadata: metadata, monitors: MapSet.new([monitor_ref])}
+          :ets.insert(@table_name, {key, entry})
+          :new
 
-    {:reply, :ok, state}
+        [{^key, existing}] ->
+          merged_metadata =
+            existing.metadata
+            |> Map.merge(metadata)
+            |> Map.put(:connected_at, existing.metadata.connected_at)
+
+          entry = %{
+            metadata: merged_metadata,
+            monitors: MapSet.put(existing.monitors, monitor_ref)
+          }
+
+          :ets.insert(@table_name, {key, entry})
+          :existing
+      end
+
+    {:reply, {:ok, status}, state}
   end
 
   @impl true
   def handle_call({:update, key, metadata_updates}, _from, state) do
     case :ets.lookup(@table_name, key) do
-      [{^key, existing_metadata}] ->
-        updated_metadata = Map.merge(existing_metadata, metadata_updates)
-        :ets.insert(@table_name, {key, updated_metadata})
+      [{^key, existing}] ->
+        updated = %{existing | metadata: Map.merge(existing.metadata, metadata_updates)}
+        :ets.insert(@table_name, {key, updated})
         {:reply, :ok, state}
 
       [] ->
@@ -234,23 +319,20 @@ defmodule PhoenixKit.Admin.SimplePresence do
   end
 
   defp cleanup_session_by_monitor(monitor_ref) do
-    # Find and remove session by monitor reference
+    # Find the row this monitor belongs to (small table — linear scan is fine)
     @table_name
     |> :ets.tab2list()
-    |> Enum.find(fn {_key, metadata} ->
-      Map.get(metadata, :monitor_ref) == monitor_ref
-    end)
+    |> Enum.find(fn {_key, entry} -> MapSet.member?(entry.monitors, monitor_ref) end)
     |> case do
-      {key, metadata} ->
-        :ets.delete(@table_name, key)
+      {key, entry} ->
+        remaining_monitors = MapSet.delete(entry.monitors, monitor_ref)
 
-        # Broadcast disconnect event
-        case metadata.type do
-          :anonymous ->
-            Events.broadcast_anonymous_session_disconnected(metadata.session_id)
-
-          :authenticated ->
-            Events.broadcast_user_session_disconnected(metadata.user_uuid, metadata.session_id)
+        if MapSet.size(remaining_monitors) == 0 do
+          :ets.delete(@table_name, key)
+          broadcast_disconnect(entry.metadata)
+        else
+          # Another tab/mount is still tracking this session — keep the row.
+          :ets.insert(@table_name, {key, %{entry | monitors: remaining_monitors}})
         end
 
       nil ->
@@ -258,26 +340,24 @@ defmodule PhoenixKit.Admin.SimplePresence do
     end
   end
 
+  defp broadcast_disconnect(%{type: :anonymous} = metadata),
+    do: Events.broadcast_anonymous_session_disconnected(metadata.session_id)
+
+  defp broadcast_disconnect(%{type: :authenticated} = metadata),
+    do: Events.broadcast_user_session_disconnected(metadata.user_uuid, metadata.session_id)
+
   defp cleanup_old_sessions do
     # Remove sessions older than 1 hour
     one_hour_ago = DateTime.add(UtilsDate.utc_now(), -3600, :second)
 
     @table_name
     |> :ets.tab2list()
-    |> Enum.filter(fn {_key, metadata} ->
-      DateTime.compare(metadata.connected_at, one_hour_ago) == :lt
+    |> Enum.filter(fn {_key, entry} ->
+      DateTime.compare(entry.metadata.connected_at, one_hour_ago) == :lt
     end)
-    |> Enum.each(fn {key, metadata} ->
+    |> Enum.each(fn {key, entry} ->
       :ets.delete(@table_name, key)
-
-      # Broadcast disconnect event
-      case metadata.type do
-        :anonymous ->
-          Events.broadcast_anonymous_session_disconnected(metadata.session_id)
-
-        :authenticated ->
-          Events.broadcast_user_session_disconnected(metadata.user_uuid, metadata.session_id)
-      end
+      broadcast_disconnect(entry.metadata)
     end)
 
     if not Enum.empty?(:ets.tab2list(@table_name)) do
