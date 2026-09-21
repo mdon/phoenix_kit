@@ -28,7 +28,42 @@ defmodule PhoenixKitWeb.Users.AuthTest do
     :ok
   end
 
-  describe "permission_key_for_admin_view/1" do
+  describe "permission_key_for_admin_view/1 and /2" do
+    # Two tabs naming the SAME module on different actions (#844) — a landing
+    # redirector on one action, the real page on another.
+    @tabbed_view PhoenixKitFakeTabbedViewFixture
+    @legacy_view PhoenixKitFakeLegacyViewFixture
+
+    setup do
+      on_exit(fn -> Permissions.clear_custom_keys() end)
+      :ok
+    end
+
+    test "resolves per-action keys independently (#844)" do
+      Permissions.cache_custom_view_permission({@tabbed_view, :index}, "reports_view")
+      Permissions.cache_custom_view_permission({@tabbed_view, :edit}, "reports_manage")
+
+      assert Auth.permission_key_for_admin_view(@tabbed_view, :index) == "reports_view"
+      assert Auth.permission_key_for_admin_view(@tabbed_view, :edit) == "reports_manage"
+    end
+
+    test "the 1-arity call does not see a tab registered under an action" do
+      Permissions.cache_custom_view_permission({@tabbed_view, :index}, "reports_view")
+
+      # Only the tuple key was cached, so a module-only lookup (a `nil`
+      # action) misses it. Every reader that gates a real route must pass
+      # the route's action — `Session.reachable_return_to?/3` does.
+      assert Auth.permission_key_for_admin_view(@tabbed_view) == nil
+    end
+
+    test "falls back to the module-only entry when no per-action key matches" do
+      Permissions.cache_custom_view_permission(@legacy_view, "legacy_perm")
+
+      assert Auth.permission_key_for_admin_view(@legacy_view, :index) == "legacy_perm"
+      assert Auth.permission_key_for_admin_view(@legacy_view, :whatever) == "legacy_perm"
+      assert Auth.permission_key_for_admin_view(@legacy_view) == "legacy_perm"
+    end
+
     test "returns key from static @admin_view_permissions map" do
       assert Auth.permission_key_for_admin_view(PhoenixKitWeb.Live.Dashboard) ==
                "dashboard"
@@ -68,7 +103,7 @@ defmodule PhoenixKitWeb.Users.AuthTest do
   # DB-free: every scope is built as a literal struct, and every permission key
   # used here is either a core section key (always enabled, no module toggle) or
   # comes from a fake module registered in the in-memory `ModuleRegistry`.
-  describe "can_access_admin_view?/2" do
+  describe "can_access_admin_view?/2 and /3" do
     defmodule FakeViewCalendar do
       def module_key, do: "fake_view_calendar"
       def module_name, do: "Fake View Calendar"
@@ -250,6 +285,43 @@ defmodule PhoenixKitWeb.Users.AuthTest do
         )
 
       refute Auth.can_access_admin_view?(scope(["Admin"], stripped), @unmapped_view)
+    end
+
+    # #844: two tabs naming the SAME module, gated on different actions, must
+    # be enforced independently — a permission held for one action must not
+    # leak access to the other, and vice versa.
+    @tabbed_view PhoenixKitFakeTabbedAdminViewFixture
+
+    test "the optional 3rd arg distinguishes two actions of the same module (#844)" do
+      # `feature_enabled?/1` (the first gate in `admin_view_permission_check/2`)
+      # requires the key to be registered, not just cached against a view —
+      # `auto_grant_admin: false` skips the Admin auto-grant DB round trip,
+      # which this DB-free-by-convention test has no sandbox checkout for.
+      Permissions.register_custom_key("reports_view", auto_grant_admin: false)
+      Permissions.register_custom_key("reports_manage", auto_grant_admin: false)
+      Permissions.cache_custom_view_permission({@tabbed_view, :index}, "reports_view")
+      Permissions.cache_custom_view_permission({@tabbed_view, :edit}, "reports_manage")
+
+      viewer = scope(["Editor"], ["reports_view"])
+      manager = scope(["Editor"], ["reports_manage"])
+
+      assert Auth.can_access_admin_view?(viewer, @tabbed_view, :index)
+      refute Auth.can_access_admin_view?(viewer, @tabbed_view, :edit)
+
+      refute Auth.can_access_admin_view?(manager, @tabbed_view, :index)
+      assert Auth.can_access_admin_view?(manager, @tabbed_view, :edit)
+    end
+
+    test "omitting the action treats the view as unmapped when only per-action keys are cached" do
+      Permissions.cache_custom_view_permission({@tabbed_view, :index}, "reports_view")
+
+      # No module-only entry was cached — only the {module, :index} key — so
+      # the 2-arity call (no action) does not resolve it. An unmapped view
+      # fails closed for a partial scope, exactly like branch 4 above...
+      refute Auth.can_access_admin_view?(scope(["Editor"], ["reports_view"]), @tabbed_view)
+
+      # ...and stays open only to a full-access scope.
+      assert Auth.can_access_admin_view?(owner_scope(), @tabbed_view)
     end
   end
 

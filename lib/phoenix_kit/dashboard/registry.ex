@@ -1115,16 +1115,7 @@ defmodule PhoenixKit.Dashboard.Registry do
       Permissions.auto_grant_to_admin_roles(perm)
     end
 
-    # Cache live_view module → permission mapping regardless of key type
-    if perm != "" do
-      case Map.get(tab_config, :live_view) do
-        {view_module, _action} when is_atom(view_module) ->
-          Permissions.cache_custom_view_permission(view_module, perm)
-
-        _ ->
-          :ok
-      end
-    end
+    cache_view_permission(perm, Map.get(tab_config, :live_view))
   rescue
     error ->
       Logger.warning(
@@ -1135,6 +1126,35 @@ defmodule PhoenixKit.Dashboard.Registry do
   end
 
   def auto_register_custom_permission(_), do: :ok
+
+  # Caches a tab's live_view → permission mapping, regardless of key type.
+  # Keyed by `{view_module, action}` when the tab names one — two tabs naming
+  # the SAME module on different actions (e.g. a landing redirector and the
+  # page it redirects to) must not collide on one shared module-only entry,
+  # which is what let the later registration silently win over the earlier
+  # one regardless of which action a visitor actually opened (#844). A tab
+  # that names no action (host tabs predating this, or a module that never
+  # disambiguates) falls back to the bare module key, unchanged.
+  defp cache_view_permission("", _live_view), do: :ok
+
+  # `{Mod, nil}` is the bare-module shape spelled as a tuple — key it the
+  # same way, or an `:index` lookup would miss both the exact key and the
+  # module-only fallback.
+  defp cache_view_permission(perm, {view_module, nil}) when is_atom(view_module) do
+    cache_view_permission(perm, view_module)
+  end
+
+  defp cache_view_permission(perm, {view_module, action})
+       when is_atom(view_module) and is_atom(action) do
+    Permissions.cache_custom_view_permission({view_module, action}, perm)
+  end
+
+  defp cache_view_permission(perm, view_module)
+       when is_atom(view_module) and not is_nil(view_module) do
+    Permissions.cache_custom_view_permission(view_module, perm)
+  end
+
+  defp cache_view_permission(_perm, _live_view), do: :ok
 
   # Subscribe to entity definition lifecycle events for sidebar cache invalidation.
   # Guarded since the Entities module is optional.

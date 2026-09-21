@@ -70,7 +70,7 @@ defmodule PhoenixKit.Users.Permissions do
       Permissions.register_custom_key("analytics", label: "Analytics", icon: "hero-chart-bar")
       Permissions.unregister_custom_key("analytics")
       Permissions.custom_keys()              # List of registered custom key strings
-      Permissions.custom_view_permissions()   # %{ViewModule => "key"} mapping
+      Permissions.custom_view_permissions()   # %{{ViewModule, action} | ViewModule => "key"}
 
   Custom keys are always treated as "enabled" (no module toggle) and appear
   in the permission matrix UI under a "Custom" group.
@@ -370,17 +370,38 @@ defmodule PhoenixKit.Users.Permissions do
     :ok
   end
 
-  @doc """
-  Caches a LiveView module → permission key mapping for custom admin tabs.
-  Used by the auth system to enforce permissions on custom admin LiveViews
-  without reading Application config on every mount.
+  @typedoc """
+  Key under which a custom view's permission is cached: `{module, live_action}`
+  for a tab that named an action, or a bare `module()` for one that did not
+  (host tabs registered before per-action caching, or a module that never
+  disambiguates by action).
   """
-  @spec cache_custom_view_permission(module(), String.t()) :: :ok
+  @type view_permission_key :: {module(), atom()} | module()
+
+  @doc """
+  Caches a LiveView view → permission key mapping for custom admin tabs.
+
+  `view` is either `{module, live_action}` — two tabs naming the same module
+  on different actions cache independently — or a bare `module()` for a tab
+  registered without an action. Used by the auth system to enforce
+  permissions on custom admin LiveViews without reading Application config on
+  every mount.
+  """
+  @spec cache_custom_view_permission(view_permission_key(), String.t()) :: :ok
+  def cache_custom_view_permission({view_module, live_action}, permission_key)
+      when is_atom(view_module) and is_atom(live_action) and is_binary(permission_key) do
+    do_cache_custom_view_permission({view_module, live_action}, permission_key)
+  end
+
   def cache_custom_view_permission(view_module, permission_key)
       when is_atom(view_module) and is_binary(permission_key) do
+    do_cache_custom_view_permission(view_module, permission_key)
+  end
+
+  defp do_cache_custom_view_permission(view, permission_key) do
     current = :persistent_term.get(@custom_views_pterm, %{})
 
-    case Map.get(current, view_module) do
+    case Map.get(current, view) do
       nil ->
         :ok
 
@@ -389,18 +410,18 @@ defmodule PhoenixKit.Users.Permissions do
 
       old_key ->
         Logger.warning(
-          "[Permissions] View #{inspect(view_module)} permission changed from #{inspect(old_key)} to #{inspect(permission_key)}"
+          "[Permissions] View #{inspect(view)} permission changed from #{inspect(old_key)} to #{inspect(permission_key)}"
         )
     end
 
-    :persistent_term.put(@custom_views_pterm, Map.put(current, view_module, permission_key))
+    :persistent_term.put(@custom_views_pterm, Map.put(current, view, permission_key))
     :ok
   end
 
   @doc """
   Returns the cached custom view → permission mapping.
   """
-  @spec custom_view_permissions() :: %{module() => String.t()}
+  @spec custom_view_permissions() :: %{view_permission_key() => String.t()}
   def custom_view_permissions do
     :persistent_term.get(@custom_views_pterm, %{})
   end

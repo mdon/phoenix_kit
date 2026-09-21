@@ -165,8 +165,8 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
     end
   end
 
-  defp reachable?(%{live_view: {view, _action}}, scope) when is_atom(view),
-    do: Auth.can_access_admin_view?(scope, view)
+  defp reachable?(%{live_view: {view, action}}, scope) when is_atom(view),
+    do: Auth.can_access_admin_view?(scope, view, action)
 
   defp reachable?(%{live_view: view}, scope) when is_atom(view) and not is_nil(view),
     do: Auth.can_access_admin_view?(scope, view)
