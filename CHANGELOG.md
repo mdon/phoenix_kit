@@ -37,6 +37,25 @@
   never — and an edited image is dated from its unedited backup
   (`original_file_uuid`), not its own bytes.
 
+- **The media viewer opens on the burned copy (#853).** The picture with its
+  markup rendered in — the thing people look at and right-click → Copy Image
+  — is what the viewer shows first; the pencil switches to the live,
+  editable layer, and turning it off burns what was drawn. The viewer opens
+  on a new `burned_large` slot (fit inside 1920px); `burned` stays card-sized
+  (800px) because a grid paints many of them. A burn happens once per change
+  of the drawing, not once per visit: the client fingerprints a canonical
+  form of the shapes, the burn endpoint keeps it in `metadata["burn"]` —
+  merged into the row as it is now, so a rotation or title changed while a
+  burn ran is not reverted — and it is handed back only while a burn is
+  stored, so an image edit (which deletes the burns) does not stop the next
+  one. The editor's zoom ladder starts at `small` and tops out at `large`, and
+  the viewer stays light whatever daisyUI theme the admin uses, since the
+  burn is composed on white.
+- **Etcher 0.17.0 is the floor (#854).** `Etcher.Raster` now bakes a
+  dimension's heads, every kind's label (sized against the picture) and
+  `style.fill`; on 0.16 a baked annotated thumbnail was hollow, unlabelled
+  shapes.
+
 ### Fixed
 
 - **A trashed file no longer stays on screen (#847).** Trashing, restoring or
