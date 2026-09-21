@@ -147,6 +147,12 @@ defmodule PhoenixKitWeb.FileController do
   #   * `:day` — an unversioned URL of a file never edited: one day, then a
   #     check. Not `immutable`: a lifetime that long could not be taken back
   #     if the image is edited (or redacted) later.
+  #   * `:private` — a trashed file: never by a shared cache. It is served
+  #     only to a "media" holder (`get_servable_file/2`), but its URL is the
+  #     same for every caller (the token does not name the user), so a
+  #     `public` answer let a CDN or proxy keep the holder's copy and hand it
+  #     to anyone asking for that URL. Checked first, whatever the version.
+  def cache_mode(%{status: "trashed"}, _freshness, _requested), do: :private
   def cache_mode(_file, :pending, _requested), do: :pending
   def cache_mode(_file, :exact, requested) when is_binary(requested), do: :immutable
   def cache_mode(%{edit_revision: revision}, :exact, _) when revision > 0, do: :revalidate
@@ -1018,6 +1024,10 @@ defmodule PhoenixKitWeb.FileController do
     |> put_resp_header("x-variant-status", "pending")
   end
 
+  # A trashed file answered to a "media" holder: see `cache_mode/3`.
+  def put_variant_cache_headers(conn, _instance, :private),
+    do: put_resp_header(conn, "cache-control", "private, no-store")
+
   # `:exact` is the long lifetime a versioned URL gets.
   def put_variant_cache_headers(conn, instance, :exact),
     do: put_variant_cache_headers(conn, instance, :immutable)
@@ -1045,6 +1055,9 @@ defmodule PhoenixKitWeb.FileController do
 
   defp put_redirect_cache_headers(conn, :revalidate),
     do: put_resp_header(conn, "cache-control", "no-store")
+
+  defp put_redirect_cache_headers(conn, :private),
+    do: put_resp_header(conn, "cache-control", "private, no-store")
 
   defp put_redirect_cache_headers(conn, _cache), do: conn
 
