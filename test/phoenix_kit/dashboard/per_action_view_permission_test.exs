@@ -118,4 +118,32 @@ defmodule PhoenixKit.Dashboard.PerActionViewPermissionTest do
     assert Auth.can_access_admin_view?(scope(["legacy_perm"]), FakeNoActionView)
     refute Auth.can_access_admin_view?(scope(["other"]), FakeNoActionView)
   end
+
+  test "a tab spelled `{Mod, nil}` is keyed like a bare module, so an :index lookup still resolves" do
+    Registry.auto_register_custom_permission(
+      tab(:nil_action, live_view: {FakeNoActionView, nil}, permission: "legacy_perm")
+    )
+
+    assert Auth.can_access_admin_view?(scope(["legacy_perm"]), FakeNoActionView, :index)
+    assert Auth.can_access_admin_view?(scope(["legacy_perm"]), FakeNoActionView)
+  end
+
+  # The login return_to reachability check (`Session.reachable_return_to?/3`)
+  # resolves the view AND the action from the router and asks the 3-arity
+  # question. This pins that a route registered as `{Mod, :action}` — the
+  # shape every real admin tab has — is answered by the action-aware lookup
+  # and would be misjudged by the module-only one.
+  test "a routed {Mod, :action} tab is reachable through the action-aware lookup only" do
+    Registry.auto_register_custom_permission(
+      tab(:reports_index, live_view: {FakeTabbedView, :index}, permission: "reports_view")
+    )
+
+    viewer = scope(["reports_view"])
+
+    route = %{phoenix_live_view: {FakeTabbedView, :index, [], %{}}}
+    {view, action, _opts, _meta} = route.phoenix_live_view
+
+    assert Auth.can_access_admin_view?(viewer, view, action)
+    refute Auth.can_access_admin_view?(viewer, view)
+  end
 end

@@ -271,10 +271,10 @@ defmodule PhoenixKitWeb.Users.Session do
   defp reachable_return_to?(conn, scope, path) when is_binary(path) do
     if Routes.admin_area_path?(path) do
       case admin_view_for(conn, path) do
-        {:ok, view} ->
+        {:ok, view, action} ->
           case UserAuth.admin_gate_decision(scope, view) do
             :landing -> true
-            :enforce_view -> UserAuth.can_access_admin_view?(scope, view)
+            :enforce_view -> UserAuth.can_access_admin_view?(scope, view, action)
             :deny -> false
           end
 
@@ -291,8 +291,11 @@ defmodule PhoenixKitWeb.Users.Session do
   defp admin_view_for(conn, path) do
     path_only = path |> String.split(["?", "#"], parts: 2) |> hd()
 
+    # The action travels with the view: admin-tab permissions are keyed by
+    # `{module, live_action}`, so a module-only lookup would miss every tab
+    # registered with an action and fail closed for a partial role.
     case Phoenix.Router.route_info(conn.private.phoenix_router, "GET", path_only, conn.host) do
-      %{phoenix_live_view: {view, _action, _opts, _meta}} when is_atom(view) -> {:ok, view}
+      %{phoenix_live_view: {view, action, _opts, _meta}} when is_atom(view) -> {:ok, view, action}
       _ -> :error
     end
   rescue

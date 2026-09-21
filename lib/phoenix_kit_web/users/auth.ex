@@ -1859,6 +1859,13 @@ defmodule PhoenixKitWeb.Users.Auth do
   effects (including the one-time "unmapped admin view" warning) and asks this
   same decision for the verdict.
 
+  Pass `live_action` whenever you have it. Admin-tab permissions are cached
+  by `{module, live_action}` (a tab registered as `live_view: {Mod, :action}`
+  is only found under that key), so a module-only call answers for a tab
+  registered without an action and reports *unmapped* for one registered
+  with an action — the mount gate always has the action, and so does any
+  caller resolving a route through `Phoenix.Router.route_info/4`.
+
   ## The decision, branch by branch
 
   1. **Admin-area gate** — `Scope.can_access_admin_area?/1` must hold (Owner,
@@ -1871,7 +1878,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   2. **Personal admin views** — the views in `@personal_admin_views` (your own
      notification inbox / preferences) show a user their OWN data rather than
      granting an administrative capability, so branch 1 is the whole gate.
-  3. **Mapped view** — `permission_key_for_admin_view/1` resolved a key:
+  3. **Mapped view** — `permission_key_for_admin_view/2` resolved a key:
      * the module behind the key must be enabled
        (`PhoenixKit.Users.Permissions.feature_enabled?/1`) — a disabled module
        is blocked for EVERYONE, Owner included;

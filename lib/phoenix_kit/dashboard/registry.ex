@@ -1137,6 +1137,13 @@ defmodule PhoenixKit.Dashboard.Registry do
   # disambiguates) falls back to the bare module key, unchanged.
   defp cache_view_permission("", _live_view), do: :ok
 
+  # `{Mod, nil}` is the bare-module shape spelled as a tuple — key it the
+  # same way, or an `:index` lookup would miss both the exact key and the
+  # module-only fallback.
+  defp cache_view_permission(perm, {view_module, nil}) when is_atom(view_module) do
+    cache_view_permission(perm, view_module)
+  end
+
   defp cache_view_permission(perm, {view_module, action})
        when is_atom(view_module) and is_atom(action) do
     Permissions.cache_custom_view_permission({view_module, action}, perm)

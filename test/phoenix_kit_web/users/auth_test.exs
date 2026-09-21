@@ -47,11 +47,12 @@ defmodule PhoenixKitWeb.Users.AuthTest do
       assert Auth.permission_key_for_admin_view(@tabbed_view, :edit) == "reports_manage"
     end
 
-    test "the 1-arity call stays backward compatible (no action given)" do
+    test "the 1-arity call does not see a tab registered under an action" do
       Permissions.cache_custom_view_permission({@tabbed_view, :index}, "reports_view")
 
-      # No module-only entry was cached, only the tuple key, so the 1-arity
-      # call (equivalent to passing a `nil` action) does not match it.
+      # Only the tuple key was cached, so a module-only lookup (a `nil`
+      # action) misses it. Every reader that gates a real route must pass
+      # the route's action — `Session.reachable_return_to?/3` does.
       assert Auth.permission_key_for_admin_view(@tabbed_view) == nil
     end
 
