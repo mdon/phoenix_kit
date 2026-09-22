@@ -58,14 +58,26 @@ defmodule PhoenixKitWeb.FileController do
     else
       {:error, :invalid_token} ->
         conn
+        |> no_store()
         |> put_status(:unauthorized)
         |> text("Invalid or expired token")
 
       {:error, :not_found} ->
         conn
+        |> no_store()
         |> put_status(:not_found)
         |> text("File or variant not found")
     end
+  end
+
+  # A denial of `/file/:uuid/...` must not be cached. The URL is the same for
+  # every caller, and a trashed file is a 404 for everyone except a "media"
+  # holder — a shared cache that stores the 404 (Varnish does, for two
+  # minutes) then serves that denial to the holder.
+  defp no_store(conn) do
+    conn
+    |> put_resp_header("cache-control", "private, no-store")
+    |> put_resp_header("cdn-cache-control", "no-store")
   end
 
   # `requested_version` is the URL's `v`. A versioned URL names content: it
@@ -297,11 +309,13 @@ defmodule PhoenixKitWeb.FileController do
     else
       {:error, :no_user} ->
         conn
+        |> no_store()
         |> put_status(:unauthorized)
         |> json(%{error: "UNAUTHORIZED", message: "Authentication required"})
 
       {:error, :not_found} ->
         conn
+        |> no_store()
         |> put_status(:not_found)
         |> json(%{error: "FILE_NOT_FOUND", message: "File not found"})
     end
@@ -337,11 +351,13 @@ defmodule PhoenixKitWeb.FileController do
     else
       {:error, :no_user} ->
         conn
+        |> no_store()
         |> put_status(:unauthorized)
         |> text("Authentication required")
 
       {:error, :not_found} ->
         conn
+        |> no_store()
         |> put_status(:not_found)
         |> text("File not found")
     end
@@ -568,11 +584,12 @@ defmodule PhoenixKitWeb.FileController do
     with true <- tile_generation_enabled?(),
          {:ok, file_uuid, requested} <- parse_manifest_filename(filename),
          :ok <- verify_tile_token(file_uuid, token),
+         :ok <- ensure_tile_servable(conn, file_uuid),
          {:ok, source} <- tile_source(file_uuid, requested),
          :ok <- ensure_manifest_cached(source),
          {:ok, body} <- read_tile_storage(source.base <> ".dzi") do
       conn
-      |> put_resp_header("cache-control", tile_cache_control(requested))
+      |> put_resp_header("cache-control", tile_cache_control(requested, source))
       |> put_resp_content_type("application/xml")
       |> send_resp(200, body)
     else
@@ -608,13 +625,14 @@ defmodule PhoenixKitWeb.FileController do
          {:ok, file_uuid, requested, tile} <-
            parse_tile_path(files_segment, level, tile_filename),
          :ok <- verify_tile_token(file_uuid, token),
+         :ok <- ensure_tile_servable(conn, file_uuid),
          {:ok, source} <- tile_source(file_uuid, requested),
          {level_int, col, row, ext} = tile,
          key = "#{source.base}_files/#{level_int}/#{col}_#{row}.#{ext}",
          :ok <- ensure_tile_cached(source, tile, key),
          {:ok, body} <- read_tile_storage(key) do
       conn
-      |> put_resp_header("cache-control", tile_cache_control(requested))
+      |> put_resp_header("cache-control", tile_cache_control(requested, source))
       |> put_resp_content_type(content_type_for(ext))
       |> send_resp(200, body)
     else
@@ -644,8 +662,32 @@ defmodule PhoenixKitWeb.FileController do
 
   # A versioned manifest or tile never changes; an unversioned one is the
   # current version of whatever the file holds, so it is never kept.
-  defp tile_cache_control(nil), do: "no-store"
-  defp tile_cache_control(_version), do: "public, max-age=31536000, immutable"
+  # A trashed image's tiles share one URL, the same way `/file/...` does.
+  # The holder's copy must not be a year-long public response, and the 404
+  # everyone else gets must not be cacheable either (`tile_error/2`).
+  defp tile_cache_control(_requested, %{status: "trashed"}), do: "private, no-store"
+  defp tile_cache_control(nil, _source), do: "no-store"
+  defp tile_cache_control(_requested, _source), do: "public, max-age=31536000, immutable"
+
+  # Same gate as `/file/...`: a trashed file's tiles are for a "media" holder.
+  # Checked before any tile is generated, so a stranger cannot cause the work.
+  defp ensure_tile_servable(conn, file_uuid) do
+    case Storage.get_file(file_uuid) do
+      nil ->
+        {:error, :not_found}
+
+      %{system_managed: true} ->
+        {:error, :not_found}
+
+      %{status: "trashed"} ->
+        if authorize_trashed_read(conn.assigns[:phoenix_kit_current_user]),
+          do: :ok,
+          else: {:error, :not_found}
+
+      _file ->
+        :ok
+    end
+  end
 
   # The image tiles are cut from, at the version the URL asks for (`nil`:
   # the current one). Everything a tile needs comes from one consistent
@@ -666,7 +708,8 @@ defmodule PhoenixKitWeb.FileController do
          checksum: original.checksum,
          width: w,
          height: h,
-         base: "#{file_uuid}/#{version}/#{file_uuid}"
+         base: "#{file_uuid}/#{version}/#{file_uuid}",
+         status: file.status
        }}
     else
       nil -> {:error, :not_found}
@@ -874,14 +917,14 @@ defmodule PhoenixKitWeb.FileController do
   defp format_atom("png"), do: :png
 
   defp tile_error(conn, :not_found) do
-    send_resp(conn, 404, "Not found")
+    conn |> no_store() |> send_resp(404, "Not found")
   end
 
   # The token check fails *closed* with 404 (not 401/403) so an attacker
   # probing UUIDs can't distinguish "file exists but token is wrong"
   # from "no such file" — both look identical from outside.
   defp tile_error(conn, :unauthorized) do
-    send_resp(conn, 404, "Not found")
+    conn |> no_store() |> send_resp(404, "Not found")
   end
 
   defp tile_error(conn, :not_an_image) do

@@ -150,14 +150,15 @@ defmodule PhoenixKit.Modules.Storage.Workers.CaptureDateBackfillJob do
     end
   end
 
-  defp write(file, source_uuid, key, attrs) do
+  @doc false
+  def write(file, source_uuid, key, attrs) do
     repo().transaction(fn ->
       current =
         repo().one(from(f in StorageFile, where: f.uuid == ^file.uuid, lock: "FOR UPDATE"))
 
       cond do
         is_nil(current) -> :gone
-        not same_bytes?(current, source_uuid, key) -> :changed
+        wrong_bytes?(current, source_uuid, key) -> :changed
         not CaptureDate.replace?(current.taken_at_source, attrs.taken_at_source) -> :kept
         true -> current |> StorageFile.changeset(attrs) |> repo().update()
       end
@@ -171,14 +172,32 @@ defmodule PhoenixKit.Modules.Storage.Workers.CaptureDateBackfillJob do
   end
 
   # A date derived from bytes is recorded only while those bytes are still
-  # what the file is dated from: its own original (`Storage.original_key?/2`),
-  # or the unedited backup it still points at. A date from the name or the
-  # upload time (`key` nil) read no bytes and needs no check.
-  defp same_bytes?(_current, _source_uuid, nil), do: true
+  # what the file should be dated from.
+  #
+  # A backup that appeared while the bytes were being read (an image edit
+  # mid-pass) means we either failed the download or read the edited
+  # original, which has no EXIF. Writing the filename then would stick:
+  # `pending_query` skips a row that has a date, and `ProcessFileJob` skips
+  # a file that has a backup. Leave `taken_at` nil (`:changed`) so the next
+  # pass reads the backup.
+  #
+  # A nil key is a download that failed and no backup is in play — the name
+  # or the upload time is the date, and there is nothing to re-check.
+  defp wrong_bytes?(current, source_uuid, key) do
+    cond do
+      is_binary(current.original_file_uuid) and current.original_file_uuid != source_uuid ->
+        true
 
-  defp same_bytes?(%{uuid: uuid}, uuid, key), do: Storage.original_key?(uuid, key)
+      is_nil(key) ->
+        false
 
-  defp same_bytes?(current, source_uuid, _key), do: current.original_file_uuid == source_uuid
+      source_uuid == current.uuid ->
+        not Storage.original_key?(current.uuid, key)
+
+      true ->
+        not Storage.original_key?(source_uuid, key)
+    end
+  end
 
   defp next_batch(after_uuid) do
     query = from(f in pending_query(), order_by: f.uuid, limit: @batch_size, select: f.uuid)

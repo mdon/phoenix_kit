@@ -11,6 +11,7 @@ defmodule PhoenixKit.Modules.Storage.CaptureDateIntegrationTest do
   use PhoenixKit.DataCase, async: false
 
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.CaptureDate
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.ProcessFileJob
   alias PhoenixKit.Modules.Storage.Workers.CaptureDateBackfillJob
@@ -133,6 +134,27 @@ defmodule PhoenixKit.Modules.Storage.CaptureDateIntegrationTest do
       assert %{taken_at_source: "exif", taken_on: ~D[2018-07-31]} = reload(edited)
     end
 
+    test "a backup that appears before the write is not dated from the file name", ctx do
+      file = store_jpeg!(ctx, "IMG_20180701_120000.jpg")
+
+      backup =
+        ctx
+        |> store_jpeg!("unedited-original", @exif)
+        |> set!(system_managed: true, parent_file_uuid: file.uuid)
+
+      file = set!(file, original_file_uuid: backup.uuid)
+      attrs = CaptureDate.resolve(nil, file)
+
+      # The pass read this file's own uuid, then the download failed — the
+      # edit that created the backup landed in between. The filename must
+      # not stick; the next record reads the backup.
+      assert CaptureDateBackfillJob.write(file, file.uuid, nil, attrs) == :changed
+      assert reload(file).taken_at == nil
+
+      assert CaptureDateBackfillJob.record(file.uuid) == :ok
+      assert %{taken_at_source: "exif", taken_on: ~D[2018-07-31]} = reload(file)
+    end
+
     test "a file whose bytes are gone is still dated, from its name", ctx do
       file = store_jpeg!(ctx, "IMG_20180701_120000.jpg")
 
@@ -205,6 +227,61 @@ defmodule PhoenixKit.Modules.Storage.CaptureDateIntegrationTest do
                ),
                :count
              ) == 0
+    end
+  end
+
+  describe "paths that do not go through ProcessFileJob" do
+    test "store_file/2 records the date from the bytes it just stored", ctx do
+      path = Path.join(ctx.sources, "attach.jpg")
+      ExifFixture.write_jpeg!(path, @exif)
+      %{size: size} = File.stat!(path)
+
+      assert {:ok, file} =
+               Storage.store_file(path,
+                 filename: "IMG_20180701_120000.jpg",
+                 content_type: "image/jpeg",
+                 size_bytes: size,
+                 user_uuid: ctx.user.uuid
+               )
+
+      assert %{taken_at_source: "exif", taken_on: ~D[2018-07-31]} = reload(file)
+    end
+
+    test "a cross-user copy keeps the donor's capture date", ctx do
+      path = Path.join(ctx.sources, "shared.jpg")
+      ExifFixture.write_jpeg!(path, %{})
+      checksum = :sha256 |> :crypto.hash(File.read!(path)) |> Base.encode16(case: :lower)
+
+      donor =
+        store!(ctx.user, path, "image", "jpg", "holiday.jpg")
+        |> set!(
+          status: "active",
+          taken_at: ~U[2018-08-01 06:04:05Z],
+          taken_on: ~D[2018-07-31],
+          taken_at_offset: -25_200,
+          taken_at_source: "exif"
+        )
+
+      {:ok, other} =
+        Auth.register_user(%{
+          "email" => "capture-date-other-#{System.unique_integer([:positive])}@example.com",
+          "password" => "ValidPassword123!"
+        })
+
+      assert {:ok, clone, :duplicate} =
+               Storage.store_file_in_buckets(
+                 path,
+                 "image",
+                 other.uuid,
+                 checksum,
+                 "jpg",
+                 "holiday.jpg"
+               )
+
+      refute clone.uuid == donor.uuid
+
+      assert %{taken_at_source: "exif", taken_on: ~D[2018-07-31], taken_at_offset: -25_200} =
+               reload(clone)
     end
   end
 

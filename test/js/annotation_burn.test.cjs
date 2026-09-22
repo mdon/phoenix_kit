@@ -69,3 +69,56 @@ test("a viewer that cannot draw never burns", () => {
   const body = section.slice(start, section.indexOf("var now = this._signature();", start));
   assert.match(body, /dataset\.canAnnotate !== "true"\) return;/);
 });
+
+function sliceFn(name) {
+  const start = src.indexOf("function " + name + "(");
+  assert.ok(start !== -1, "could not find " + name);
+  let i = src.indexOf("{", start);
+  let depth = 0;
+  for (; i < src.length; i++) {
+    if (src[i] === "{") depth++;
+    else if (src[i] === "}") {
+      depth--;
+      if (depth === 0) return src.slice(start, i + 1);
+    }
+  }
+  throw new Error("unclosed " + name);
+}
+
+const affine = new Function(
+  sliceFn("burnViewAffine") + "\n" +
+  sliceFn("burnSvgMatrix") + "\n" +
+  "return { burnViewAffine, burnSvgMatrix };"
+)();
+
+test("a quarter turn still produces an affine, and the matrix carries the rotation", () => {
+  // 90°: image +X points down the screen. The old X-only delta was 0 and
+  // burnCapturePlan returned null, so a rotated picture never burned.
+  const rect = { left: 10, top: 20 };
+  const p0 = { x: 50, y: 80 };
+  const ax = affine.burnViewAffine(p0, { x: 50, y: 1080 }, { x: -950, y: 80 }, rect);
+  assert.ok(ax, "a 90° view must still burn");
+  assert.ok(Math.abs(ax.s - 1) < 1e-9);
+  assert.ok(Math.abs(ax.cos) < 1e-9);
+  assert.ok(Math.abs(ax.sin - 1) < 1e-9);
+  assert.deepStrictEqual(
+    affine.burnSvgMatrix(ax, 1, 0, 0).map((n) => Math.round(n * 1e6) / 1e6),
+    [0, -1, 1, 0, -60, 40]
+  );
+});
+
+test("an unrotated view keeps the axis-aligned matrix", () => {
+  const ax = affine.burnViewAffine(
+    { x: 0, y: 0 }, { x: 1000, y: 0 }, { x: 0, y: 1000 }, { left: 0, top: 0 }
+  );
+  assert.deepStrictEqual(
+    affine.burnSvgMatrix(ax, 2, 0, 0).map((n) => n === 0 ? 0 : n),
+    [2, 0, 0, 2, 0, 0]
+  );
+});
+
+test("stepping to the next file burns while the overlay is still mounted", () => {
+  assert.match(section, /phx-click="step_viewer"/);
+  assert.match(section, /e\.key === "ArrowLeft" \|\| e\.key === "ArrowRight"/);
+  assert.match(section, /if \(closing \|\| stepping\) self\.burnIfChanged\(\)/);
+});

@@ -216,20 +216,32 @@ defmodule PhoenixKit.Modules.Storage.CaptureDate do
   end
 
   @doc false
-  # ffprobe prints the `[STREAM]` sections before `[FORMAT]`, so a stream's
-  # `creation_time` is seen before the container's; the first one wins. They
-  # are normally the same instant. QuickTime's creation date is a format tag
-  # under its own key, so it never competes.
+  # ffprobe prints the `[STREAM]` sections before `[FORMAT]`. A plausible
+  # `creation_time` keeps its place (a stream and its container are normally
+  # the same instant, and the first one wins). An unset epoch on the stream
+  # must not hide the container's real instant — `from_creation_time/1`
+  # rejects the epoch and would otherwise have no second candidate.
+  # QuickTime's creation date is a format tag under its own key, so it never
+  # competes.
   def parse_ffprobe_tags(output) do
     output
     |> String.split(["\r\n", "\n"], trim: true)
     |> Enum.reduce(%{}, fn line, acc ->
       case Regex.run(~r/^TAG:([^=]+)=(.*)$/, line) do
-        [_, key, value] -> Map.put_new(acc, key, String.trim(value))
+        [_, key, value] -> put_ffprobe_tag(acc, key, String.trim(value))
         nil -> acc
       end
     end)
   end
+
+  defp put_ffprobe_tag(acc, "creation_time" = key, value) do
+    case Map.get(acc, key) do
+      nil -> Map.put(acc, key, value)
+      current -> if from_creation_time(current), do: acc, else: Map.put(acc, key, value)
+    end
+  end
+
+  defp put_ffprobe_tag(acc, key, value), do: Map.put_new(acc, key, value)
 
   @doc """
   A capture date from container tags: QuickTime's creation date, which keeps

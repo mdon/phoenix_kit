@@ -3691,10 +3691,10 @@ if (typeof window.Chart === "undefined") {
   // server-side path for backfill, where an approximation is the right
   // trade because nobody has the picture open.)
   //
-  // When it runs: the end of an editing session, which is either switching
-  // Etcher off or closing the viewer. Both are "I am done with this" and
-  // neither should be blocking, so the burn runs in the background with a
-  // line of text to say it is happening.
+  // When it runs: the end of an editing session — switching Etcher off,
+  // closing the viewer, or stepping to another file. All three are "I am
+  // done with this" and none should be blocking, so the burn runs in the
+  // background with a line of text to say it is happening.
   // ---------------------------------------------------------------------------
 
   // Properties that carry the look. A serialised SVG cannot see the page's
@@ -3767,6 +3767,48 @@ if (typeof window.Chart === "undefined") {
     return el;
   }
 
+  // The viewer's image→screen mapping, from three image points. An X-only
+  // delta is 0 at 90°/270° and negative at 180°, which used to abandon the
+  // burn; `s` is the (positive) scale and cos/sin are the image +X axis in
+  // screen space. The burned pixels stay in image space — the viewer
+  // reapplies `initial_rotation` when it shows them.
+  function burnViewAffine(p0, px, py, rect) {
+    if (!p0 || !px || !py || !rect) return null;
+    var vx = px.x - p0.x, vy = px.y - p0.y;
+    var s = Math.hypot(vx, vy) / 1000;
+    if (!(s > 0)) return null;
+    return {
+      s: s,
+      cos: vx / (1000 * s),
+      sin: vy / (1000 * s),
+      tx: p0.x - rect.left,
+      ty: p0.y - rect.top
+    };
+  }
+
+  // Container px (the overlay's own space) → image px.
+  function burnContainerToImage(ax, x, y) {
+    var dx = x - ax.tx, dy = y - ax.ty;
+    return {
+      x: (dx * ax.cos + dy * ax.sin) / ax.s,
+      y: (-dx * ax.sin + dy * ax.cos) / ax.s
+    };
+  }
+
+  // SVG matrix mapping container px into the output bitmap (image px × k,
+  // cropped to the union that starts at minX/minY).
+  function burnSvgMatrix(ax, k, minX, minY) {
+    var m = k / ax.s;
+    return [
+      m * ax.cos,
+      -m * ax.sin,
+      m * ax.sin,
+      m * ax.cos,
+      m * (-ax.cos * ax.tx - ax.sin * ax.ty) - minX * k,
+      m * (ax.sin * ax.tx - ax.cos * ax.ty) - minY * k
+    ];
+  }
+
   // Everything the render needs, taken while the overlay is still on screen.
   // Split from the render so a burn survives the viewer closing underneath
   // it: by the time anything out here hears about a close, the DOM being
@@ -3800,14 +3842,17 @@ if (typeof window.Chart === "undefined") {
     }
     var k = sourceWidth / W;
 
-    // The overlay is laid out in CONTAINER px; recover the affine that put
-    // it there by asking the viewer where two known image points land.
+    // The overlay is laid out in CONTAINER px. Three image points recover
+    // the full affine, rotation included — two points on X cannot see a
+    // quarter turn.
     var rect = host.getBoundingClientRect();
-    var p0 = handle.imageToScreen({ x: 0, y: 0 });
-    var p1 = handle.imageToScreen({ x: 1000, y: 0 });
-    var s = (p1.x - p0.x) / 1000;
-    if (!(s > 0)) return null;
-    var tx = p0.x - rect.left, ty = p0.y - rect.top;
+    var ax = burnViewAffine(
+      handle.imageToScreen({ x: 0, y: 0 }),
+      handle.imageToScreen({ x: 1000, y: 0 }),
+      handle.imageToScreen({ x: 0, y: 1000 }),
+      rect
+    );
+    if (!ax) return null;
 
     // Etcher lets you draw past the edges of the picture, and that ink is as
     // much a part of the markup as the rest — an arrow pointing in from the
@@ -3817,12 +3862,14 @@ if (typeof window.Chart === "undefined") {
     svg.querySelectorAll(".etcher-shape").forEach(function(el) {
       var r = el.getBoundingClientRect();
       if (!r.width && !r.height) return;
-      var x0 = (r.left - rect.left - tx) / s, y0 = (r.top - rect.top - ty) / s;
-      var x1 = (r.right - rect.left - tx) / s, y1 = (r.bottom - rect.top - ty) / s;
-      if (x0 < minX) minX = x0;
-      if (y0 < minY) minY = y0;
-      if (x1 > maxX) maxX = x1;
-      if (y1 > maxY) maxY = y1;
+      [[r.left, r.top], [r.right, r.top], [r.right, r.bottom], [r.left, r.bottom]]
+        .forEach(function(corner) {
+          var p = burnContainerToImage(ax, corner[0] - rect.left, corner[1] - rect.top);
+          if (p.x < minX) minX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y > maxY) maxY = p.y;
+        });
     });
     minX = Math.floor(minX); minY = Math.floor(minY);
     maxX = Math.ceil(maxX); maxY = Math.ceil(maxY);
@@ -3861,11 +3908,7 @@ if (typeof window.Chart === "undefined") {
     var NS = "http://www.w3.org/2000/svg";
     var out = { w: Math.round((maxX - minX) * k), h: Math.round((maxY - minY) * k) };
     var g = document.createElementNS(NS, "g");
-    var m = k / s;
-    g.setAttribute(
-      "transform",
-      "matrix(" + m + ",0,0," + m + "," + (-tx * m - minX * k) + "," + (-ty * m - minY * k) + ")"
-    );
+    g.setAttribute("transform", "matrix(" + burnSvgMatrix(ax, k, minX, minY).join(",") + ")");
     while (clone.firstChild) g.appendChild(clone.firstChild);
     clone.appendChild(g);
     clone.setAttribute("xmlns", NS);
@@ -3994,14 +4037,22 @@ if (typeof window.Chart === "undefined") {
       // me the shapes".
       if (this.el.dataset.autoAnnotate === "true") this._armEtcher();
 
-      // So does closing the viewer. Caught on the way IN to the close, while
-      // the overlay is still there to compose from.
+      // So does closing the viewer, and stepping to the neighbour: an arrow
+      // or a chevron remounts the viewer on the next file and tears this
+      // overlay down. Caught on the way IN, while the overlay is still
+      // there to compose from. A keystroke into a field is not a step.
       this._onClosing = function(e) {
         var t = e.target;
+        var typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
+                           t.isContentEditable === true);
+        var stepping = !typing && (
+          (e.type === "keydown" && (e.key === "ArrowLeft" || e.key === "ArrowRight")) ||
+          (e.type === "pointerdown" && t && t.closest && t.closest('[phx-click="step_viewer"]'))
+        );
         var closing =
           (e.type === "keydown" && e.key === "Escape") ||
           (t && t.closest && (t.closest('[phx-click="close_viewer"]') || t.closest(".modal-backdrop")));
-        if (closing) self.burnIfChanged();
+        if (closing || stepping) self.burnIfChanged();
       };
       document.addEventListener("pointerdown", this._onClosing, true);
       document.addEventListener("keydown", this._onClosing, true);

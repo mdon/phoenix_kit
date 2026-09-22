@@ -110,6 +110,7 @@ defmodule PhoenixKitWeb.BurnedCopyTest do
 
       assert viewer.burn_size == %{variant: "burned_large", w: 1920, h: 1080}
       assert MediaCanvasViewer.burned?(viewer)
+      assert MediaBrowser.viewer_open_url(viewer) == viewer.urls["burned_large"]
     end
 
     test "a card-sized `burned` alone is still opened with", %{stored: file} do
@@ -126,6 +127,7 @@ defmodule PhoenixKitWeb.BurnedCopyTest do
 
       assert viewer.burn_size == nil
       refute MediaCanvasViewer.burned?(viewer)
+      assert MediaBrowser.viewer_open_url(viewer) == viewer.urls["small"]
     end
   end
 

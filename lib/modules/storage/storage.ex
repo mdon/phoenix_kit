@@ -110,6 +110,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   alias PhoenixKit.Modules.Storage.Bucket
+  alias PhoenixKit.Modules.Storage.CaptureDate
   alias PhoenixKit.Modules.Storage.Dimension
   alias PhoenixKit.Modules.Storage.FileDetails
   alias PhoenixKit.Modules.Storage.FileInstance
@@ -4210,7 +4211,7 @@ defmodule PhoenixKit.Modules.Storage do
       with %PhoenixKit.Modules.Storage.File{} = donor <-
              get_active_file_by_checksum(file_checksum),
            true <- donor.uuid == donor_file.uuid,
-           {:ok, new_file} <- create_file(file_attrs) do
+           {:ok, new_file} <- create_file(Map.merge(file_attrs, capture_date_copy(donor))) do
         clone_file_instances(donor.uuid, new_file.uuid)
         Logger.info("Cross-user clone created: #{new_file.uuid} from donor #{donor.uuid}")
         {new_file, :duplicate}
@@ -4230,6 +4231,14 @@ defmodule PhoenixKit.Modules.Storage do
       {:error, :donor_changed} ->
         {:error, :donor_changed}
     end
+  end
+
+  # The donor was dated when it became active. The clone shares those bytes
+  # and is inserted already `active`, so it does not pass through
+  # `ProcessFileJob` — copy the date in the same locked read as the rest of
+  # the row, or the copy stays undated after the one-shot backfill.
+  defp capture_date_copy(donor) do
+    Map.take(donor, CaptureDate.fields())
   end
 
   # Copy all FileInstance records from one file to another (same storage paths)
@@ -4706,7 +4715,7 @@ defmodule PhoenixKit.Modules.Storage do
           {:ok, file} ->
             # Create original instance and variants (non-critical operations)
             create_original_instance_and_variants(file, file_checksum, size_bytes)
-            {:ok, file}
+            {:ok, record_new_capture_date(file, source_path, storage_info.destination_path)}
 
           {:error, changeset} ->
             # Clean up stored files if database creation fails
@@ -4751,6 +4760,45 @@ defmodule PhoenixKit.Modules.Storage do
       user_uuid: user_uuid
     }
   end
+
+  # `store_file/2` (comment attachments) inserts the row already `active` and
+  # generates variants inline, so `ProcessFileJob` never dates it. Read the
+  # date from the bytes just stored, and write it only while that key is
+  # still the original.
+  defp record_new_capture_date(%{file_type: type} = file, source_path, key)
+       when type in ["image", "video"] do
+    attrs = CaptureDate.resolve(source_path, file)
+
+    repo().transaction(fn ->
+      current =
+        repo().one(
+          from(f in PhoenixKit.Modules.Storage.File,
+            where: f.uuid == ^file.uuid,
+            lock: "FOR UPDATE"
+          )
+        )
+
+      cond do
+        is_nil(current) ->
+          file
+
+        not original_key?(file.uuid, key) ->
+          file
+
+        true ->
+          case update_file(current, CaptureDate.admit(attrs, current)) do
+            {:ok, updated} -> updated
+            {:error, changeset} -> repo().rollback(changeset)
+          end
+      end
+    end)
+    |> case do
+      {:ok, updated} -> updated
+      _ -> file
+    end
+  end
+
+  defp record_new_capture_date(file, _source_path, _key), do: file
 
   defp create_original_instance_and_variants(file, file_checksum, size_bytes) do
     original_instance_attrs = %{

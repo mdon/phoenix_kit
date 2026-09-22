@@ -2690,11 +2690,10 @@
     <% viewer_idx = Enum.find_index(siblings, &(&1.file_uuid == f.file_uuid)) %>
     <% has_prev = is_integer(viewer_idx) and viewer_idx > 0 %>
     <% has_next = is_integer(viewer_idx) and viewer_idx < length(siblings) - 1 %>
-    <%!-- The neighbours' viewer variants, for ViewerKeydown to warm while --%>
+    <%!-- The neighbours' open variants, for ViewerKeydown to warm while   --%>
     <%!-- the current image is being looked at: an arrow press remounts    --%>
-    <%!-- the viewer on the next file, and its `small` + the `large` rung  --%>
-    <%!-- Tessera jumps to used to start downloading only then — the whole --%>
-    <%!-- wait. Warmed, the remount paints from cache.                     --%>
+    <%!-- the viewer on the next file. A burned file opens on that copy;   --%>
+    <%!-- an unburned one still opens on `small` and climbs to `large`.    --%>
     <% neighbors =
       [
         has_prev && Enum.at(siblings, viewer_idx - 1),
@@ -2703,7 +2702,7 @@
       |> Enum.filter(&(is_map(&1) and &1.file_type == "image")) %>
     <% neighbor_prefetch =
       neighbors
-      |> Enum.flat_map(&[&1.urls["small"], &1.urls["large"]])
+      |> Enum.flat_map(&neighbor_warm_urls/1)
       |> Enum.filter(&is_binary/1)
       |> Enum.join(" ") %>
     <%!-- The rung above `large`. On a viewer column wider than large's    --%>
@@ -2717,8 +2716,11 @@
     <% neighbor_prefetch_hi =
       neighbors
       |> Enum.reject(fn n ->
-        max(Map.get(n, :width) || 0, Map.get(n, :height) || 0) > 4096 and
-          is_binary(n.urls["dzi"]) and n.urls["dzi"] != ""
+        urls = n.urls || %{}
+
+        is_binary(urls["burned_large"]) or is_binary(urls["burned"]) or
+          (max(Map.get(n, :width) || 0, Map.get(n, :height) || 0) > 4096 and
+             is_binary(urls["dzi"]) and urls["dzi"] != "")
       end)
       |> Enum.map(& &1.urls["original"])
       |> Enum.filter(&is_binary/1)
@@ -2733,7 +2735,7 @@
       data-step-prev-src={
         with true <- has_prev,
              %{file_type: "image"} = p <- Enum.at(siblings, viewer_idx - 1) do
-          p.urls["small"]
+          viewer_open_url(p)
         else
           _ -> nil
         end
@@ -2741,7 +2743,7 @@
       data-step-next-src={
         with true <- has_next,
              %{file_type: "image"} = n <- Enum.at(siblings, viewer_idx + 1) do
-          n.urls["small"]
+          viewer_open_url(n)
         else
           _ -> nil
         end

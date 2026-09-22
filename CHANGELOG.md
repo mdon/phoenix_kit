@@ -63,6 +63,15 @@
   dimension's heads, every kind's label (sized against the picture) and
   `style.fill`; on 0.16 a baked annotated thumbnail was hollow, unlabelled
   shapes.
+- **Every connected, authenticated LiveView mounted through a scope hook
+  is tracked in Live sessions (#845).** That covers admin pages, feature
+  modules, a host page using the scope mount, and the public auth session.
+  The row is one per login (`session_id` is a SHA-256 of the session token,
+  not the token itself), shared by every tab of that login, and removed when
+  the last of them closes. It is node-local. A navigation that destroys the
+  LiveView before the next one mounts looks like a disconnect and resets
+  `connected_at` while only one tab is open. Anonymous visitors are not
+  recorded on this path.
 
 ### Fixed
 
@@ -118,6 +127,33 @@
   not only from the sidebar. Both sidebars and this redirect follow one rule
   (`TabHelpers.redirect_target/2`), and the user dashboard's sidebar now also
   keeps a parent's own landing page when it is reachable.
+- **A rotated picture burns.** The burn recovered its scale from the screen
+  X of two image points, which is 0 at a quarter turn and negative at a half
+  turn, so a saved rotation made every burn a silent no-op and the viewer
+  kept opening on the old copy. The mapping is now the full image→screen
+  affine, and the burned pixels stay unrotated (the viewer reapplies the
+  rotation). Stepping to the next or previous file burns on the way out, and
+  the stand-in paints the variant the viewer opens on (`burned_large`, else
+  `burned`, else `small`) instead of flashing the clean `small`.
+- **A readonly viewer does not create annotation comments.** Reply stays on
+  the tooltip of a locked shape; `annotation_reply` is refused when the
+  viewer cannot annotate.
+- **An untabbed action stays unmapped when a LiveView's tabs disagree.**
+  Namespace inference (`PhoenixKit.Modules.Reports.Web` → `"reports"`) and a
+  leftover bare-module cache entry no longer authorize `:show` / `:edit`
+  that neither tab named. Tabs that agree still guard those actions.
+- **A trashed file's refusal is not cacheable, and neither are its tiles.**
+  The 404 from `/file/...`, the file info endpoint and the unedited-original
+  endpoint is `private, no-store`. Deep-zoom manifests and tiles use the same
+  media-holder gate as `/file/...` and, when served, are `private, no-store`
+  rather than a year-long public response.
+- **A capture-date backfill does not lock in the wrong date.** An image edit
+  that lands while a file is being dated leaves `taken_at` empty so the next
+  pass reads the unedited backup, instead of storing the file name. A video
+  whose stream `creation_time` is an unset epoch no longer hides the
+  container's real instant. A cross-user copy keeps the donor's date, and
+  `Storage.store_file/2` (comment attachments) records one from the bytes it
+  stores.
 
 **Upgrading:** run `mix phoenix_kit.update` for V200, then date the existing
 library once with `mix phoenix_kit.storage.backfill_capture_dates` (or

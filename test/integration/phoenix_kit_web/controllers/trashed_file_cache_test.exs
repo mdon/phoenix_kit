@@ -122,6 +122,32 @@ defmodule PhoenixKitWeb.TrashedFileCacheTest do
     assert cache_control(conn) == ["private, no-store"]
   end
 
+  test "a trashed file refused to everyone else is not a cacheable 404", ctx do
+    {:ok, trashed} = Storage.trash_file(ctx.stored)
+    conn = request(trashed, nil, versioned: true)
+
+    assert conn.status == 404
+    assert cache_control(conn) == ["private, no-store"]
+  end
+
+  test "a trashed file's tile manifest is a private 404, not a public tile", ctx do
+    alias PhoenixKit.Settings
+
+    {:ok, _} = Settings.update_setting("storage_tile_generation_enabled", "true")
+    {:ok, trashed} = Storage.trash_file(ctx.stored)
+    token = URLSigner.generate_token(trashed.uuid, "dzi")
+
+    conn =
+      conn(:get, "/")
+      |> FileController.serve_manifest(%{
+        "token" => token,
+        "dzi_filename" => "#{trashed.uuid}.dzi"
+      })
+
+    assert conn.status == 404
+    assert cache_control(conn) == ["private, no-store"]
+  end
+
   test "restoring the file restores its ordinary caching", ctx do
     {:ok, trashed} = Storage.trash_file(ctx.stored)
     {:ok, restored} = Storage.restore_file(trashed)

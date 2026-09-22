@@ -206,5 +206,55 @@ defmodule PhoenixKit.Dashboard.PerActionViewPermissionTest do
       refute Auth.can_access_admin_view?(scope(["reports_view"]), FakeTabbedView, :show)
       refute Auth.can_access_admin_view?(scope(["reports_manage"]), FakeTabbedView, :show)
     end
+
+    test "a bare-module entry does not authorize an untabbed action when the tabs disagree" do
+      Registry.auto_register_custom_permission(
+        tab(:reports_index, live_view: {FakeTabbedView, :index}, permission: "reports_view")
+      )
+
+      Registry.auto_register_custom_permission(
+        tab(:reports_edit, live_view: {FakeTabbedView, :edit}, permission: "reports_manage")
+      )
+
+      Permissions.cache_custom_view_permission(FakeTabbedView, "reports_view")
+
+      assert Auth.permission_key_for_admin_view(FakeTabbedView, :show) == nil
+    end
+
+    test "a namespaced module does not fall through to its inferred key" do
+      # `PhoenixKit.Modules.<Name>.Web.*` infers `"<name>"` when nothing is
+      # cached. A disagreeing pair must stay unmapped instead — the fixture
+      # modules above never reach that branch, so they cannot catch it.
+      view = namespaced_view!()
+
+      Registry.auto_register_custom_permission(
+        tab(:idx, live_view: {view, :index}, permission: "reports_view")
+      )
+
+      Registry.auto_register_custom_permission(
+        tab(:ed, live_view: {view, :edit}, permission: "reports_manage")
+      )
+
+      assert Auth.permission_key_for_admin_view(view, :index) == "reports_view"
+      assert Auth.permission_key_for_admin_view(view, :show) == nil
+      refute Auth.can_access_admin_view?(scope(["reports_fixture"]), view, :show)
+    end
+  end
+
+  defp namespaced_view! do
+    mod = PhoenixKit.Modules.ReportsFixture.Web.Index
+
+    unless Code.ensure_loaded?(mod) do
+      {:module, ^mod, _, _} =
+        Module.create(
+          mod,
+          quote do
+            def __fixture__, do: :ok
+          end,
+          Macro.Env.location(__ENV__)
+        )
+    end
+
+    mod
   end
 end

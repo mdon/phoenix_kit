@@ -455,6 +455,12 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # (or kind), author = the shape's creator when known, `inserted_at`
   # backdated to the shape's creation — then open the body-only reply
   # popup threading under it.
+  #
+  # The tooltip still offers Reply on a readonly shape. The button is UX;
+  # this clause is the boundary, same as `etcher:annotations-changed`.
+  def handle_event("annotation_reply", _params, %{assigns: %{can_annotate: false}} = socket),
+    do: {:noreply, socket}
+
   def handle_event("annotation_reply", %{"uuid" => uuid}, socket) do
     with %{} <- socket.assigns[:current_user],
          %{} = ann <- find_viewer_annotation(socket, uuid),

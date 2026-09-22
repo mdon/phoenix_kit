@@ -114,8 +114,10 @@ test("the modal advertises its neighbours", () => {
     assert.ok(heex.includes(a),
       `the modal advertises ${a} for the step stand-in`);
   }
-  assert.ok(/> 4096 and\s*\n\s*is_binary\(n\.urls\["dzi"\]\)/.test(heex),
+  assert.ok(/> 4096 and\s*\n\s*is_binary\(urls\["dzi"\]\)/.test(heex),
     "an over-4K file WITH tiles never raster-loads its original — excluded");
+  assert.ok(heex.includes("viewer_open_url("),
+    "the step stand-in is the variant the viewer opens on, not always small");
 });
 
 test("a step re-announces the viewer and re-warms — the modal is patched, not remounted", () => {

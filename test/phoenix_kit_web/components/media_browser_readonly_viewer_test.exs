@@ -275,6 +275,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowserReadonlyViewerTest do
                  socket
                )
     end
+
+    test "annotation_reply is refused — Reply stays on a readonly tooltip" do
+      folder = create_folder!()
+      file = create_file!(folder.uuid)
+      socket = viewer_socket(%{file_uuid: file.uuid, folder_uuid: folder.uuid}, %{})
+
+      assert {:noreply, ^socket} =
+               MediaCanvasViewer.handle_event(
+                 "annotation_reply",
+                 %{"uuid" => "shape-1"},
+                 socket
+               )
+    end
   end
 
   describe "MediaCanvasViewer honors persist_rotation: false" do

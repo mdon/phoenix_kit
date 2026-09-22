@@ -147,6 +147,23 @@ defmodule PhoenixKit.Modules.Storage.CaptureDateTest do
                }
     end
 
+    test "an epoch on the stream does not hide the container's creation_time" do
+      output = """
+      TAG:creation_time=1970-01-01T00:00:00.000000Z
+      TAG:creation_time=2024-03-15T23:30:00.000000Z
+      """
+
+      assert CaptureDate.parse_ffprobe_tags(output)["creation_time"] ==
+               "2024-03-15T23:30:00.000000Z"
+
+      assert output |> CaptureDate.parse_ffprobe_tags() |> CaptureDate.from_video_tags() == %{
+               taken_at: ~U[2024-03-15 23:30:00Z],
+               taken_on: ~D[2024-03-15],
+               taken_at_offset: nil,
+               taken_at_source: "container"
+             }
+    end
+
     test "rejects the epochs a container writes when it has no date" do
       assert CaptureDate.from_video_tags(%{"creation_time" => "1970-01-01T00:00:00.000000Z"}) ==
                nil

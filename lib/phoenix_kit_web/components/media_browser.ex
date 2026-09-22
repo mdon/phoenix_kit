@@ -4383,6 +4383,34 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end)
   end
 
+  @doc false
+  # The URL the viewer paints first: `burned_large`, else `burned`, else the
+  # live layer's `small`. A step's stand-in and the neighbour warm use this,
+  # so an arrow press does not flash the markup-free rung while the burn loads.
+  def viewer_open_url(file) when is_map(file) do
+    urls = Map.get(file, :urls) || %{}
+
+    case Map.get(file, :burn_size) do
+      %{variant: variant} when is_binary(variant) -> urls[variant] || urls["small"]
+      _ -> urls["small"]
+    end
+  end
+
+  def viewer_open_url(_), do: nil
+
+  # What to warm for a neighbour. A burned file opens on that copy; an
+  # unburned one still climbs `small` → `large`.
+  defp neighbor_warm_urls(file) when is_map(file) do
+    urls = Map.get(file, :urls) || %{}
+    open = viewer_open_url(file)
+
+    if is_binary(urls["burned_large"]) or is_binary(urls["burned"]) do
+      [open]
+    else
+      [open, urls["large"]]
+    end
+  end
+
   # The fingerprint of the drawing the stored burn was made from — only
   # while a burn is actually stored. An image edit deletes every variant, the
   # burns included, but leaves `metadata["burn"]` behind; handing that back
