@@ -108,6 +108,59 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCardTest do
     end
   end
 
+  describe "images given by URL (:src)" do
+    test "a :src image renders from that URL, not from a signed Storage path" do
+      html =
+        render_card(%{
+          images: [%{src: "https://example.com/page-1-large.png", name: "Page 1"}]
+        })
+
+      assert html =~ ~s(src="https://example.com/page-1-large.png")
+      assert html =~ ~s(alt="Page 1")
+      refute html =~ "/file/"
+    end
+
+    test "the jump strip uses :thumb_src when given, else the :src itself" do
+      html =
+        render_card(%{
+          images: [
+            %{
+              src: "https://example.com/a-large.png",
+              thumb_src: "https://example.com/a-small.png"
+            },
+            %{src: "https://example.com/b-large.png", name: nil}
+          ]
+        })
+
+      [_slides, strip] = String.split(html, "data-pc-strip>", parts: 2)
+      assert strip =~ ~s(src="https://example.com/a-small.png")
+      assert strip =~ ~s(src="https://example.com/b-large.png")
+      refute strip =~ "a-large.png"
+    end
+
+    test "Storage images and URL images mix in one carousel" do
+      html =
+        render_card(%{images: [%{uuid: "img-1", name: "front.jpg"}, %{src: "/doc/thumb.png"}]})
+
+      assert html =~ "img-1"
+      assert html =~ ~s(src="/doc/thumb.png")
+    end
+
+    test "image_url/2 picks :src / :thumb_src, else signs the Storage variant" do
+      assert PreviewCard.image_url(%{src: "https://x/l.png"}, "medium") == "https://x/l.png"
+
+      assert PreviewCard.image_url(
+               %{src: "https://x/l.png", thumb_src: "https://x/s.png"},
+               "thumbnail"
+             ) ==
+               "https://x/s.png"
+
+      assert PreviewCard.image_url(%{src: "https://x/l.png"}, "thumbnail") == "https://x/l.png"
+      assert PreviewCard.image_url(%{uuid: "img-1"}, "medium") =~ "img-1"
+      assert PreviewCard.image_url(%{uuid: "img-1"}, "medium") =~ "medium"
+    end
+  end
+
   describe "fields" do
     test "renders the provided filled fields" do
       html = render_card(%{fields: [{"SKU", "KF-001"}, {"Price", "42.50"}]})

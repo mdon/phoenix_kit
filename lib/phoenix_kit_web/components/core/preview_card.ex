@@ -71,7 +71,10 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCard do
       LiveComponent that handles the close event, or `nil` when the host
       is a LiveView itself.
     * `:title` — card title; falls back to gettext "Preview".
-    * `:images` — ordered list of `%{uuid, name}` (main image first).
+    * `:images` — ordered list of images, main image first. Each is a
+      Storage file `%{uuid, name}`, or a picture that is not one —
+      `%{src, name}` with an optional `:thumb_src` for the jump strip (a
+      host-served page preview, say). See `image_url/2`.
     * `:fields` — list of `{label, value}` for the already-filtered,
       non-empty fields.
     * `:files` — ordered list of `%{uuid, name, size, pdf?}`.
@@ -159,8 +162,8 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCard do
             class="carousel-item w-full justify-center items-center"
           >
             <img
-              src={URLSigner.signed_url(img.uuid, "medium")}
-              alt={img.name || @title || ""}
+              src={image_url(img, "medium")}
+              alt={img[:name] || @title || ""}
               loading={(idx == 0 && "eager") || "lazy"}
               class="w-full h-[50vh] object-contain"
             />
@@ -240,7 +243,7 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCard do
           onclick={jump_js(idx)}
         >
           <img
-            src={URLSigner.signed_url(img.uuid, "thumbnail")}
+            src={image_url(img, "thumbnail")}
             alt=""
             class="w-16 h-16 object-cover"
           />
@@ -307,6 +310,17 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCard do
     </div>
     """
   end
+
+  @doc """
+  The URL an `:images` entry renders from at `variant` (`"medium"` for the
+  slide, `"thumbnail"` for the jump strip): a Storage file's signed URL for
+  that variant, or — for an entry given by URL — its `:src`, with
+  `:thumb_src` taking over for `"thumbnail"` when present.
+  """
+  @spec image_url(map(), String.t()) :: String.t()
+  def image_url(%{thumb_src: thumb}, "thumbnail") when is_binary(thumb), do: thumb
+  def image_url(%{src: src}, _variant) when is_binary(src), do: src
+  def image_url(%{uuid: uuid}, variant), do: URLSigner.signed_url(uuid, variant)
 
   # A non-viewable file as a slide: icon, name, size, and an Open action.
   attr(:file, :map, required: true)
