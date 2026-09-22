@@ -101,4 +101,16 @@ defmodule PhoenixKit.Activity.ModuleLogTest do
     assert {:error, %Ecto.Changeset{}} = Activity.log("crm", "")
     assert {:error, %Ecto.Changeset{}} = Activity.log("crm", String.duplicate("x", 101))
   end
+
+  test "arguments it cannot use are an error, not a raise" do
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:error, :invalid_arguments} = Activity.log("", "crm.x")
+        assert {:error, :invalid_arguments} = Activity.log(nil, "crm.x")
+        assert {:error, :invalid_arguments} = Activity.log("crm", "crm.x", %{metadata: %{}})
+        assert {:error, :invalid_arguments} = Activity.log_failed("", "crm.x")
+      end)
+
+    assert log =~ "Activity not logged"
+  end
 end

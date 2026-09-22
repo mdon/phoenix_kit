@@ -119,7 +119,9 @@ defmodule PhoenixKit.Activity do
   Options: `:actor_uuid`, `:mode` (default `"manual"`), `:resource_type`,
   `:resource_uuid`, `:target_uuid`, `:metadata` (a map, or a keyword or
   pair list; keep it PII-free) and `:permanent` (only `true` keeps the
-  entry from being pruned). Same result and same never-crash guarantee as `log/1`.
+  entry from being pruned). Same result and same never-crash guarantee as `log/1`:
+  a blank module key or a non-list `opts` is `{:error, :invalid_arguments}`,
+  logged, not a raise.
 
       PhoenixKit.Activity.log("crm", "crm.company_updated",
         actor_uuid: PhoenixKitWeb.Actor.uuid(socket),
@@ -129,6 +131,8 @@ defmodule PhoenixKit.Activity do
   """
   @spec log(String.t(), String.t(), [log_opt()]) :: {:ok, Entry.t()} | {:error, term()}
   def log(module, action, opts \\ [])
+
+  def log(module, action, opts)
       when is_binary(module) and module != "" and is_binary(action) and is_list(opts) do
     %{
       action: action,
@@ -144,6 +148,8 @@ defmodule PhoenixKit.Activity do
     |> log()
   end
 
+  def log(module, action, _opts), do: invalid_arguments(module, action)
+
   @doc """
   Logs a user action that did not land — a mutation that returned an
   error. Same as `log/3` with `"db_pending" => true` in the metadata, so
@@ -153,12 +159,26 @@ defmodule PhoenixKit.Activity do
   @spec log_failed(String.t(), String.t(), [log_opt()]) ::
           {:ok, Entry.t()} | {:error, term()}
   def log_failed(module, action, opts \\ [])
+
+  def log_failed(module, action, opts)
       when is_binary(module) and module != "" and is_binary(action) and is_list(opts) do
     log(
       module,
       action,
       Keyword.put(opts, :metadata, Map.put(metadata_opt(opts), "db_pending", true))
     )
+  end
+
+  def log_failed(module, action, _opts), do: invalid_arguments(module, action)
+
+  # The options are left out of the log line: their metadata is the
+  # caller's and may not be fit for a log.
+  defp invalid_arguments(module, action) do
+    Logger.warning(
+      "Activity not logged: a module key and an action are required, got #{inspect(module)} and #{inspect(action)}"
+    )
+
+    {:error, :invalid_arguments}
   end
 
   # A keyword or pair list is taken as the map it spells — it is the
