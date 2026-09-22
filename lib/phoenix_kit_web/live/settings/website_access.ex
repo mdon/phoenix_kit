@@ -23,6 +23,7 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.WebsiteAccess
   alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Redirect}
+  alias PhoenixKitWeb.Actor
   alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
 
   # The features with a switch (allowed addresses has none — it is on when
@@ -467,7 +468,7 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
 
   defp history(socket) do
     [
-      actor_uuid: get_in(socket.assigns, [:phoenix_kit_current_user, Access.key(:uuid)]),
+      actor_uuid: Actor.uuid(socket),
       source: "settings"
     ]
   end

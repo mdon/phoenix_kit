@@ -65,6 +65,7 @@ defmodule PhoenixKitWeb.Live.Dashboard do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.Values
+  alias PhoenixKitWeb.Actor
   alias PhoenixKitWeb.Live.Dashboard.Overview
 
   # Greeting pools for the welcome block. One KEY is drawn per mount — the
@@ -116,7 +117,7 @@ defmodule PhoenixKitWeb.Live.Dashboard do
     |> assign(:home_view, home_view())
     |> assign(:home_dashboard?, home_dashboard?(socket))
     |> assign(:home_session, %{
-      "current_user_uuid" => current_user_uuid(socket),
+      "current_user_uuid" => Actor.uuid(socket),
       "locale" => session["locale"],
       "parent_pid" => self()
     })
@@ -163,13 +164,6 @@ defmodule PhoenixKitWeb.Live.Dashboard do
     _ -> false
   catch
     :exit, _ -> false
-  end
-
-  defp current_user_uuid(socket) do
-    case socket.assigns[:phoenix_kit_current_user] do
-      %{uuid: uuid} -> uuid
-      _ -> nil
-    end
   end
 
   attr :scope, :any,

@@ -30,6 +30,7 @@ defmodule PhoenixKitWeb.Components.MultilangOpenOnTest do
       assert viewing_language(codes, "de-DE") == nil
       assert viewing_language(codes, nil) == nil
       assert viewing_language([], "en") == nil
+      assert viewing_language(["en-US", "en-GB"], "en") == "en-US"
     end
   end
 
@@ -46,6 +47,13 @@ defmodule PhoenixKitWeb.Components.MultilangOpenOnTest do
 
       assert socket.assigns.current_lang == "fr-FR"
       assert socket.assigns.primary_language == "en-US"
+    end
+
+    test "with no request locale — an embedded LiveView — the main tab, whatever Gettext says" do
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "fr")
+      on_exit(fn -> Gettext.put_locale(PhoenixKitWeb.Gettext, "en") end)
+
+      assert mount_multilang(socket(), open_on: :viewing_language).assigns.current_lang == "en-US"
     end
 
     test "the default, :primary, and an unmatched page language keep the main tab" do

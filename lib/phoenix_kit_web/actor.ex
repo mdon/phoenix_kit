@@ -53,14 +53,22 @@ defmodule PhoenixKitWeb.Actor do
   end
 
   @doc """
-  The acting user's first role name (not PII), or `nil` — for audit
-  metadata that wants to say which role acted.
+  The name of the role the user is acting as (not PII), or `nil` — for
+  audit metadata that wants to say which role acted. With the role
+  switcher on, that is the active role, not the always-on roles that ride
+  along with it; otherwise the first role held.
   """
   @spec role(source()) :: String.t() | nil
   def role(%Scope{} = scope) do
-    case Scope.user_roles(scope) do
-      [role | _] when is_binary(role) -> role
-      _ -> nil
+    case Scope.active_role(scope) do
+      %{name: name} when is_binary(name) ->
+        name
+
+      _ ->
+        case Scope.user_roles(scope) do
+          [role | _] when is_binary(role) -> role
+          _ -> nil
+        end
     end
   end
 

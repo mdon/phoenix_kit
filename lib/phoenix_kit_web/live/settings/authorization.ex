@@ -13,6 +13,7 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   alias PhoenixKit.Users.OAuthConfig
   alias PhoenixKit.Utils.CssValue
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Actor
 
   require Logger
 
@@ -62,10 +63,6 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
       |> assign(:branding_scope_folder, nil)
 
     {:ok, socket}
-  end
-
-  defp current_user_uuid(socket) do
-    socket.assigns[:phoenix_kit_current_user] && socket.assigns.phoenix_kit_current_user.uuid
   end
 
   def handle_params(_params, _url, socket) do
@@ -135,7 +132,7 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
      socket
      |> assign(
        :branding_scope_folder,
-       PhoenixKit.UploadsParentFolder.resolve(:branding, current_user_uuid(socket), nil)
+       PhoenixKit.UploadsParentFolder.resolve(:branding, Actor.uuid(socket), nil)
      )
      |> assign(:show_media_selector, true)
      |> assign(:media_selection_target, @media_targets[target])}
@@ -260,7 +257,7 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
     settings_params = preserve_unset_secrets(settings_params, socket.assigns.settings)
 
     case Settings.update_settings(settings_params,
-           actor_uuid: get_in(socket.assigns, [:phoenix_kit_current_user, Access.key(:uuid)]),
+           actor_uuid: Actor.uuid(socket),
            source: "settings"
          ) do
       {:ok, updated_settings} ->

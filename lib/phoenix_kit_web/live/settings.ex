@@ -15,6 +15,7 @@ defmodule PhoenixKitWeb.Live.Settings do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.TimeZone
+  alias PhoenixKitWeb.Actor
 
   require Logger
 
@@ -81,10 +82,6 @@ defmodule PhoenixKitWeb.Live.Settings do
       )
 
     {:ok, socket}
-  end
-
-  defp current_user_uuid(socket) do
-    socket.assigns[:phoenix_kit_current_user] && socket.assigns.phoenix_kit_current_user.uuid
   end
 
   def handle_params(_params, _url, socket) do
@@ -169,7 +166,7 @@ defmodule PhoenixKitWeb.Live.Settings do
      socket
      |> assign(
        :branding_scope_folder,
-       PhoenixKit.UploadsParentFolder.resolve(:branding, current_user_uuid(socket), nil)
+       PhoenixKit.UploadsParentFolder.resolve(:branding, Actor.uuid(socket), nil)
      )
      |> assign(:show_media_selector, true)
      |> assign(:media_selector_target, target)}
@@ -184,7 +181,7 @@ defmodule PhoenixKitWeb.Live.Settings do
   # Who is saving, for the settings history (`PhoenixKit.Settings.History`).
   defp history_opts(socket) do
     [
-      actor_uuid: get_in(socket.assigns, [:phoenix_kit_current_user, Access.key(:uuid)]),
+      actor_uuid: Actor.uuid(socket),
       source: "settings"
     ]
   end

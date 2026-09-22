@@ -49,6 +49,14 @@ defmodule PhoenixKit.Activity.ModuleLogTest do
     assert entry.actor_uuid == nil
   end
 
+  test "metadata given as a keyword or pair list is stored as its map" do
+    {:ok, keyword} = Activity.log("crm", "crm.noted", metadata: [note: "x"])
+    {:ok, pairs} = Activity.log("crm", "crm.noted", metadata: [{"note", "y"}])
+
+    assert stored(keyword).metadata == %{"note" => "x"}
+    assert stored(pairs).metadata == %{"note" => "y"}
+  end
+
   test "an entry is permanent only for permanent: true" do
     {:ok, kept} = Activity.log("crm", "crm.kept", permanent: true)
     {:ok, not_kept} = Activity.log("crm", "crm.not_kept", permanent: "true")
@@ -65,6 +73,28 @@ defmodule PhoenixKit.Activity.ModuleLogTest do
 
     {:ok, bare} = Activity.log_failed("projects", "projects.task_deleted")
     assert stored(bare).metadata == %{"db_pending" => true}
+  end
+
+  test "a failed attempt tells nobody: log_failed/3 fans out no notification", %{user: actor} do
+    target = Fixtures.user_fixture()
+
+    {:ok, _} =
+      Activity.log_failed("projects", "projects.task_assigned",
+        actor_uuid: actor.uuid,
+        target_uuid: target.uuid,
+        metadata: %{"notification_text" => "You were assigned a task"}
+      )
+
+    assert {[], _} = PhoenixKit.Notifications.list_for_user(target.uuid)
+
+    {:ok, _} =
+      Activity.log("projects", "projects.task_assigned",
+        actor_uuid: actor.uuid,
+        target_uuid: target.uuid,
+        metadata: %{"notification_text" => "You were assigned a task"}
+      )
+
+    assert {[_], _} = PhoenixKit.Notifications.list_for_user(target.uuid)
   end
 
   test "an entry the changeset refuses is an error, not a raise" do

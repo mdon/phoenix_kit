@@ -65,6 +65,15 @@ defmodule PhoenixKitWeb.ActorTest do
     assert Actor.opts(%{}) == []
   end
 
+  test "role/1 is the active role while acting as one, not an always-on role" do
+    scope = %{
+      scope(@scoped, ["User", "Editor"])
+      | active_role: %{uuid: "019a0000-0000-7000-8000-000000000003", name: "Editor"}
+    }
+
+    assert Actor.role(scope) == "Editor"
+  end
+
   test "role/1 is the first cached role, or nil" do
     assert Actor.role(%{phoenix_kit_current_scope: scope(@scoped, ["Admin", "Owner"])}) == "Admin"
     assert Actor.role(socket(%{phoenix_kit_current_scope: scope(@scoped)})) == nil

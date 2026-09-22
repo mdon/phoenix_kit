@@ -104,6 +104,7 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
   import PhoenixKitWeb.Components.LanguageSwitcher, only: [language_switcher: 1]
 
   alias Phoenix.LiveView.JS
+  alias PhoenixKit.Modules.Languages
   # PhoenixKit.Utils.Multilang is in an external package — referenced by full name
   # with Code.ensure_loaded?/rescue guards throughout this module.
 
@@ -172,8 +173,12 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
     end
   end
 
+  # Only the language the request was routed in — never Gettext's default.
+  # An embedded LiveView (`live_render`) runs no locale hook, and its
+  # process's Gettext default would open some other language's tab; with
+  # no request locale the form opens on the main language instead.
   defp current_locale do
-    PhoenixKit.Utils.Multilang.current_locale()
+    Languages.request_locale()
   rescue
     _ -> nil
   end
@@ -181,7 +186,9 @@ defmodule PhoenixKitWeb.Components.MultilangForm do
   @doc """
   The language among `codes` that matches `locale`: the exact code, else
   the first one sharing its base (`"en"` → `"en-US"`, `"et_EE"` →
-  `"et-EE"`), else `nil`. Case-insensitive on the base.
+  `"et-EE"`), else `nil`. Case-insensitive on the base. `codes` are in
+  preference order — the language tabs list the main language first, so a
+  base shared by several tabs lands on the main one.
   """
   @spec viewing_language([String.t()], String.t() | nil) :: String.t() | nil
   def viewing_language(_codes, nil), do: nil

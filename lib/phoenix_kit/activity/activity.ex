@@ -59,7 +59,9 @@ defmodule PhoenixKit.Activity do
     case attrs |> entry_changeset() |> repo().insert() do
       {:ok, entry} ->
         broadcast_activity(entry)
-        maybe_notify(entry)
+        # An attempt that did not land (`log_failed/3`) is an audit row, not
+        # news: nobody is told about an action that did not happen.
+        unless attempt?(entry), do: maybe_notify(entry)
         {:ok, entry}
 
       {:error, changeset} ->
@@ -79,15 +81,24 @@ defmodule PhoenixKit.Activity do
       {:error, reason}
   end
 
+  defp attempt?(%Entry{metadata: %{"db_pending" => true}}), do: true
+  defp attempt?(_entry), do: false
+
   # Fan out to per-user notifications. Guarded with `Code.ensure_loaded?` so
   # the core Activity module keeps working if the Notifications module is
   # ever stripped out or not yet compiled during recompile cascades.
+  #
+  # The entry is already committed here, so nothing the fan-out does — a
+  # raise, an exit or a throw — may turn `log/1`'s result into an error.
   defp maybe_notify(entry) do
     if Code.ensure_loaded?(PhoenixKit.Notifications) do
       PhoenixKit.Notifications.maybe_create_from_activity(entry)
     end
   rescue
     e -> Logger.warning("Notifications fan-out failed: #{inspect(e)}")
+  catch
+    kind, reason ->
+      Logger.warning("Notifications fan-out failed: #{inspect(kind)} #{inspect(reason)}")
   end
 
   @typedoc "What `log/3` and `log_failed/3` take besides the module and the action."
@@ -106,8 +117,9 @@ defmodule PhoenixKit.Activity do
   (`"catalogue"`, `"crm"`, …), stored on the entry.
 
   Options: `:actor_uuid`, `:mode` (default `"manual"`), `:resource_type`,
-  `:resource_uuid`, `:target_uuid`, `:metadata` (a map; keep it PII-free)
-  and `:permanent`. Same result and same never-crash guarantee as `log/1`.
+  `:resource_uuid`, `:target_uuid`, `:metadata` (a map, or a keyword or
+  pair list; keep it PII-free) and `:permanent` (only `true` keeps the
+  entry from being pruned). Same result and same never-crash guarantee as `log/1`.
 
       PhoenixKit.Activity.log("crm", "crm.company_updated",
         actor_uuid: PhoenixKitWeb.Actor.uuid(socket),
@@ -117,7 +129,7 @@ defmodule PhoenixKit.Activity do
   """
   @spec log(String.t(), String.t(), [log_opt()]) :: {:ok, Entry.t()} | {:error, term()}
   def log(module, action, opts \\ [])
-      when is_binary(module) and is_binary(action) and is_list(opts) do
+      when is_binary(module) and module != "" and is_binary(action) and is_list(opts) do
     %{
       action: action,
       module: module,
@@ -136,11 +148,12 @@ defmodule PhoenixKit.Activity do
   Logs a user action that did not land — a mutation that returned an
   error. Same as `log/3` with `"db_pending" => true` in the metadata, so
   the feed still shows what was attempted and readers can tell it apart
-  from what happened.
+  from what happened. It notifies nobody, `target_uuid` or not.
   """
   @spec log_failed(String.t(), String.t(), [log_opt()]) ::
           {:ok, Entry.t()} | {:error, term()}
-  def log_failed(module, action, opts \\ []) when is_list(opts) do
+  def log_failed(module, action, opts \\ [])
+      when is_binary(module) and module != "" and is_binary(action) and is_list(opts) do
     log(
       module,
       action,
@@ -148,9 +161,12 @@ defmodule PhoenixKit.Activity do
     )
   end
 
+  # A keyword or pair list is taken as the map it spells — it is the
+  # natural thing to write beside a keyword list of options.
   defp metadata_opt(opts) do
     case Keyword.get(opts, :metadata) do
       %{} = metadata -> metadata
+      [_ | _] = pairs -> if Enum.all?(pairs, &match?({_, _}, &1)), do: Map.new(pairs), else: %{}
       _ -> %{}
     end
   end
@@ -688,14 +704,17 @@ defmodule PhoenixKit.Activity do
   @spec broadcast(Entry.t()) :: :ok
   def broadcast(%Entry{} = entry) do
     broadcast_activity(entry)
-    maybe_notify(entry)
+    unless attempt?(entry), do: maybe_notify(entry)
     :ok
   end
 
+  # Committed already — same rule as `maybe_notify/1`.
   defp broadcast_activity(entry) do
     PubSubManager.broadcast(@pubsub_topic, {:activity_logged, entry})
   rescue
     _ -> :ok
+  catch
+    _kind, _reason -> :ok
   end
 
   defp repo do
