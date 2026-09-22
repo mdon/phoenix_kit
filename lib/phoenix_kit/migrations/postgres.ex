@@ -7,7 +7,15 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V199 - Media file translations ⚡ LATEST
+  ### V200 - View preferences per user ⚡ LATEST
+
+  Adds `phoenix_kit_user_view_prefs`: what one user chose for one view — a
+  table's columns and order, and the view owner's own fields — one row per
+  `(user_uuid, key)`, a field patched with `prefs || new` in the upsert.
+  Replaces the site-wide column settings (now each view's default) and the
+  per-user blobs the catalogue and CRM kept on their own. Additive only.
+
+  ### V199 - Media file translations
 
   Adds `data` (jsonb, NOT NULL, default `{}`) to `phoenix_kit_files`: a
   file's title, alt text and description per language. Every language holds
@@ -826,7 +834,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 199
+  @current_version 200
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

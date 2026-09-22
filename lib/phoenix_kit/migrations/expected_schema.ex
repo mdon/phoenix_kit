@@ -45,6 +45,13 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # database. `verify.exs --scenario s7,s8` is what would do that and has not run
   # against this chain.
   #
+  # DECLARED POST-GENERATION (2026-09-22, V200): the 10 objects of
+  # `phoenix_kit_user_view_prefs` (table, 6 columns, pkey, user FK, the
+  # unique `(user_uuid, key)` index), each read off the catalog of a
+  # database migrated to V200 (information_schema columns, pg_get_constraintdef,
+  # pg_indexes, pg_opclass). Proven like V197's: a dry-run repair against a
+  # freshly migrated database reports nothing about the table.
+  #
   # DECLARED POST-GENERATION (2026-09-18, V197): the 20 objects of
   # `phoenix_kit_login_attempts` (table, 13 columns, pkey, user FK, 4 indexes).
   # Not transcribed — emitted from the live catalog after running the chain,
@@ -428,7 +435,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "00b93454483451d0304cd5d8f7f7cf663075195b4dbafa9aec7271f3dfcc0ba3"
+  @chain_hash "9c2eaec55760c7d45ab94ff34041741a18b7dcf03cfddd875a857bf738545abb"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -71832,6 +71839,195 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
                "CREATE INDEX phoenix_kit_file_instances_file_name_index ON __SCHEMA__.phoenix_kit_file_instances USING btree (file_name)",
              predicate: nil,
              opclasses: ["text_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      # ── V200: view preferences per user ──
+      %{
+        id: "table:phoenix_kit_user_view_prefs",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_user_view_prefs", kind: :table}},
+        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_user_view_prefs ()",
+        since: 200,
+        class: :table,
+        revisions: [{200, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_user_view_prefs.uuid",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_user_view_prefs", column: "uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
+        since: 200,
+        class: :column,
+        revisions: [
+          {200, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_user_view_prefs.user_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_user_view_prefs", column: "user_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD COLUMN IF NOT EXISTS \"user_uuid\" uuid NOT NULL",
+        since: 200,
+        class: :column,
+        revisions: [{200, %{default: nil, type: "uuid", pos: 2, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_user_view_prefs.key",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_user_view_prefs", column: "key", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD COLUMN IF NOT EXISTS \"key\" character varying(255) NOT NULL",
+        since: 200,
+        class: :column,
+        revisions: [
+          {200, %{default: nil, type: "character varying(255)", pos: 3, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_user_view_prefs.prefs",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_user_view_prefs", column: "prefs", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD COLUMN IF NOT EXISTS \"prefs\" jsonb DEFAULT '{}'::jsonb NOT NULL",
+        since: 200,
+        class: :column,
+        revisions: [{200, %{default: "'{}'::jsonb", type: "jsonb", pos: 4, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_user_view_prefs.inserted_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_user_view_prefs", column: "inserted_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp(0) without time zone NOT NULL",
+        since: 200,
+        class: :column,
+        revisions: [
+          {200, %{default: nil, type: "timestamp(0) without time zone", pos: 5, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_user_view_prefs.updated_at",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_user_view_prefs", column: "updated_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp(0) without time zone NOT NULL",
+        since: 200,
+        class: :column,
+        revisions: [
+          {200, %{default: nil, type: "timestamp(0) without time zone", pos: 6, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_user_view_prefs.phoenix_kit_user_view_prefs_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_user_view_prefs_pkey",
+             table: "phoenix_kit_user_view_prefs",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_user_view_prefs_pkey'\n      AND t.relname = 'phoenix_kit_user_view_prefs'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD CONSTRAINT phoenix_kit_user_view_prefs_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
+        since: 200,
+        class: :constraint,
+        revisions: [
+          {200,
+           %{
+             type: "p",
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil,
+             columns: ["uuid"],
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_user_view_prefs.phoenix_kit_user_view_prefs_user_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_user_view_prefs_user_uuid_fkey",
+             table: "phoenix_kit_user_view_prefs",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_user_view_prefs_user_uuid_fkey'\n      AND t.relname = 'phoenix_kit_user_view_prefs'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD CONSTRAINT phoenix_kit_user_view_prefs_user_uuid_fkey FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+        since: 200,
+        class: :constraint,
+        revisions: [
+          {200,
+           %{
+             type: "f",
+             definition:
+               "FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE CASCADE",
+             name_template: nil,
+             columns: ["user_uuid"],
+             foreign_table: "phoenix_kit_users",
+             foreign_columns: ["uuid"],
+             on_delete: "c",
+             on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_user_view_prefs_user_key_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_user_view_prefs_user_key_index",
+             table: "phoenix_kit_user_view_prefs",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_user_view_prefs_user_key_index ON __SCHEMA__.phoenix_kit_user_view_prefs USING btree (user_uuid, key)",
+        since: 200,
+        class: :index,
+        revisions: [
+          {200,
+           %{
+             table: "phoenix_kit_user_view_prefs",
+             keys: ["user_uuid", "key"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_user_view_prefs_user_key_index ON __SCHEMA__.phoenix_kit_user_view_prefs USING btree (user_uuid, key)",
+             predicate: nil,
+             opclasses: ["uuid_ops", "text_ops"],
              name_template: nil
            }}
         ],
