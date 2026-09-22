@@ -125,4 +125,50 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
     assert html =~ "text-error"
     assert html =~ ~s(required)
   end
+
+  test "a zero empties itself on focus and comes back when the field is left empty" do
+    assigns = %{}
+
+    tag =
+      render(~H"""
+      <.decimal_input id="qty" name="qty" value={Decimal.new("0")} />
+      """)
+      |> input_tag()
+
+    # the attribute value is HTML-escaped in the markup (' → &#39;)
+    attr = fn name ->
+      [js] = Regex.run(~r/#{name}="([^"]*)"/, tag, capture: :all_but_first)
+      String.replace(js, "&#39;", "'")
+    end
+
+    onfocus = attr.("onfocus")
+    onblur = attr.("onblur")
+
+    # focus: only a zero-like text is cleared, and it is remembered
+    assert onfocus =~ "this.dataset.pkZero=this.value"
+    assert onfocus =~ "this.value=''"
+    [regex] = Regex.run(~r{^if\(/(.*)/\.test}, onfocus, capture: :all_but_first)
+    js_zero = ~r/#{regex}/
+
+    for zero <- ["0", "0,00", "0.0", " 0 ", "-0", ",0", "00"], do: assert(zero =~ js_zero)
+    for other <- ["", "1", "0,5", "10", "2.5", "0x"], do: refute(other =~ js_zero)
+
+    # blur: the remembered zero returns only when nothing was entered
+    assert onblur =~ "this.value.trim()===''"
+    assert onblur =~ "this.value=this.dataset.pkZero"
+    assert onblur =~ "delete this.dataset.pkZero"
+  end
+
+  test "the unit variant carries the same focus and blur handlers" do
+    assigns = %{}
+
+    tag =
+      render(~H"""
+      <.decimal_input id="w" name="w" value={Decimal.new("0")} unit="kg" />
+      """)
+      |> input_tag()
+
+    assert tag =~ ~s(onfocus=")
+    assert tag =~ ~s(onblur=")
+  end
 end
