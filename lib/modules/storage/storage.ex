@@ -1848,9 +1848,38 @@ defmodule PhoenixKit.Modules.Storage do
   Trashing the record directly from a folder that only LINKED it would
   destroy it for its owner — the same rule the catalogue's own attachment
   removal has always applied.
+
+  The decision is made from the file's row read fresh under a lock, not
+  from `file`: a listing's struct can be stale (the file re-homed since),
+  and a second removal deciding from the old home would trash a file
+  another folder now holds. The lock is also what
+  `ResourceFolders.point_at/6` holds while it checks a folder still has a
+  file.
   """
   def remove_file_from_folder(%PhoenixKit.Modules.Storage.File{} = file, folder_uuid)
       when is_binary(folder_uuid) do
+    repo().transaction(fn ->
+      case repo().one(
+             from(f in PhoenixKit.Modules.Storage.File,
+               where: f.uuid == ^file.uuid,
+               lock: "FOR UPDATE"
+             )
+           ) do
+        nil -> {:error, :not_in_folder}
+        fresh -> remove_locked(fresh, folder_uuid)
+      end
+    end)
+    |> case do
+      {:ok, result} -> result
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def remove_file_from_folder(%PhoenixKit.Modules.Storage.File{} = file, _no_folder) do
+    with {:ok, trashed} <- trash_file(file), do: {:ok, :trashed, trashed}
+  end
+
+  defp remove_locked(file, folder_uuid) do
     cond do
       to_string(file.folder_uuid) == to_string(folder_uuid) ->
         case other_folder_links(file.uuid, folder_uuid) do
@@ -1881,10 +1910,6 @@ defmodule PhoenixKit.Modules.Storage do
       true ->
         {:error, :not_in_folder}
     end
-  end
-
-  def remove_file_from_folder(%PhoenixKit.Modules.Storage.File{} = file, _no_folder) do
-    with {:ok, trashed} <- trash_file(file), do: {:ok, :trashed, trashed}
   end
 
   @doc """
@@ -4021,7 +4046,9 @@ defmodule PhoenixKit.Modules.Storage do
       file_path: donor_file.file_path,
       mime_type: donor_file.mime_type,
       file_type: donor_file.file_type,
-      ext: ext,
+      # An upload with no extension of its own takes the clone's type's,
+      # as a first copy would (`ext` is required).
+      ext: stored_ext(ext, donor_file.mime_type),
       file_checksum: file_checksum,
       user_file_checksum: user_file_checksum,
       size: donor_file.size,

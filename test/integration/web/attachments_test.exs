@@ -135,6 +135,34 @@ defmodule PhoenixKitWeb.AttachmentsTest do
     assert blob.ext == "bin"
   end
 
+  test "a file with no extension another user already stored is shared, not refused", %{
+    user: user,
+    folder: folder,
+    n: n
+  } do
+    {:ok, other} =
+      Auth.register_user(%{
+        "email" => "attachments-other-#{n}@example.com",
+        "password" => "ValidPassword123!"
+      })
+
+    bytes = "shared readme #{n}"
+
+    assert {:ok, first} =
+             store(upload!(bytes), entry("README", "text/plain"), user.uuid, folder.uuid)
+
+    # Processed, as it would be by now outside a test: only an active file is shared.
+    {:ok, first} = first |> Ecto.Changeset.change(status: "active") |> Repo.update()
+
+    assert {:ok, copy} =
+             store(upload!(bytes), entry("README", "text/plain"), other.uuid, folder.uuid)
+
+    refute copy.uuid == first.uuid
+    assert copy.user_uuid == other.uuid
+    assert copy.file_path == first.file_path
+    assert copy.ext == "txt"
+  end
+
   test "the browser's type is stored, not guessed from the name", %{
     user: user,
     folder: folder,

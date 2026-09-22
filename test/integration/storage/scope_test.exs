@@ -885,6 +885,21 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
       refute Storage.folder_link(other.uuid, file.uuid)
     end
 
+    test "a second removal from a stale listing trashes nothing another folder now holds" do
+      home = create_folder!(%{name: "st_home_#{System.unique_integer([:positive])}"})
+      other = create_folder!(%{name: "st_other_#{System.unique_integer([:positive])}"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(other.uuid, file.uuid)
+
+      # Two removals from the home listing, both holding its struct.
+      assert {:ok, :rehomed, _} = Storage.remove_file_from_folder(file, home.uuid)
+      assert {:error, :not_in_folder} = Storage.remove_file_from_folder(file, home.uuid)
+
+      reloaded = Repo.get!(StorageFile, file.uuid)
+      assert reloaded.status == "active"
+      assert reloaded.folder_uuid == other.uuid
+    end
+
     test "removing a file nothing else holds trashes it; outside a folder likewise" do
       home = create_folder!(%{name: "tr_home_#{System.unique_integer([:positive])}"})
       file = create_file!(home.uuid)
