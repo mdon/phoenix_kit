@@ -218,8 +218,15 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
       a = folder!(name())
       b = folder!(name())
       n = name()
-      first = folder!(n, a)
       _second = folder!(n, b)
+
+      # Older by a clear margin: two folders made in the same millisecond
+      # would order by their random UUIDv7 tails.
+      first =
+        folder!(n, a)
+        |> Ecto.Changeset.change(inserted_at: ~U[2026-01-01 00:00:00Z])
+        |> Repo.update!()
+
       assert ResourceFolders.find_named(n, nil, anywhere: true).uuid == first.uuid
 
       trash!(first)
@@ -633,6 +640,37 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
       refute ResourceFolders.holds_file?(c.other.uuid, c.old.uuid)
       refute ResourceFolders.holds_file?(nil, c.old.uuid)
       refute ResourceFolders.holds_file?(c.folder.uuid, "garbage")
+    end
+
+    test "point_at/6 writes the pointer only to a file the folder holds", c do
+      record = file!(nil, %{data: %{"keep" => "me"}})
+      pointer = {:data, "avatar_uuid"}
+      point = &ResourceFolders.point_at(StorageFile, record.uuid, pointer, &1, c.folder.uuid, &2)
+
+      assert point.(c.linked.uuid, only: :images) == :ok
+
+      assert Repo.get!(StorageFile, record.uuid).data == %{
+               "keep" => "me",
+               "avatar_uuid" => c.linked.uuid
+             }
+
+      for refused <- [c.doc.uuid, Ecto.UUID.generate(), "garbage"] do
+        assert point.(refused, only: :images) == {:error, :not_held}
+      end
+
+      trashed = file!(c.folder, %{status: "trashed", file_type: "image"})
+      assert point.(trashed.uuid, []) == {:error, :not_held}
+
+      assert ResourceFolders.point_at(
+               StorageFile,
+               Ecto.UUID.generate(),
+               pointer,
+               c.old.uuid,
+               c.folder.uuid
+             ) ==
+               {:error, :not_found}
+
+      assert Repo.get!(StorageFile, record.uuid).data["avatar_uuid"] == c.linked.uuid
     end
   end
 
