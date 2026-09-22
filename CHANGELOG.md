@@ -1,3 +1,27 @@
+## 2.37.4 - 2026-09-22
+
+### Changed
+
+- **A zero in `<.decimal_input>` clears itself on focus (#859).** A field
+  showing `0` (or `0,00`, `0.0`) empties when it gains focus, so typing `1`
+  gives `1` rather than `10`. Leaving it empty puts the zero back; typed
+  text stays. A host's own `onfocus`/`onblur`/`onkeydown` are chained after
+  the component's inline handlers, not dropped.
+
+### Fixed
+
+- **The cleared zero survives LiveView patches (#859 review).** It was
+  parked in a `data-` attribute, which LiveView strips from a focused input
+  on every re-render, so a `phx-focus` handler or any update during focus
+  left the field empty for good. It now lives in an element property.
+- **Enter in a just-cleared zero field submits the zero, not `""` (#859
+  review).** An `onkeydown` handler restores it before the implicit submit.
+- **A `readonly` zero field is no longer blanked on focus (#859 review).**
+- **Typing then erasing in a cleared zero field tells `phx-change` (#859
+  review).** The restore now dispatches an `input` event, so the server
+  stops holding `""` while the field shows `0`. An untouched focus/blur
+  still fires nothing.
+
 ## 2.37.3 - 2026-09-22
 
 ### Added

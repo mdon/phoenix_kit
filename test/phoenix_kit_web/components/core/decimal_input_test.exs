@@ -126,28 +126,37 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
     assert html =~ ~s(required)
   end
 
+  # An inline handler as the browser reads it: the markup HTML-escapes
+  # the attribute value (' → &#39;, > → &gt;).
+  defp handler(tag, name) do
+    [js] = Regex.run(~r/ #{name}="([^"]*)"/, tag, capture: :all_but_first)
+
+    js
+    |> String.replace("&#39;", "'")
+    |> String.replace("&gt;", ">")
+    |> String.replace("&lt;", "<")
+    |> String.replace("&quot;", "\"")
+    |> String.replace("&amp;", "&")
+  end
+
+  defp zero_tag(extra \\ %{}) do
+    assigns = %{extra: extra}
+
+    render(~H"""
+    <.decimal_input id="qty" name="qty" value={Decimal.new("0")} {@extra} />
+    """)
+    |> input_tag()
+  end
+
   test "a zero empties itself on focus and comes back when the field is left empty" do
-    assigns = %{}
-
-    tag =
-      render(~H"""
-      <.decimal_input id="qty" name="qty" value={Decimal.new("0")} />
-      """)
-      |> input_tag()
-
-    # the attribute value is HTML-escaped in the markup (' → &#39;)
-    attr = fn name ->
-      [js] = Regex.run(~r/#{name}="([^"]*)"/, tag, capture: :all_but_first)
-      String.replace(js, "&#39;", "'")
-    end
-
-    onfocus = attr.("onfocus")
-    onblur = attr.("onblur")
+    tag = zero_tag()
+    onfocus = handler(tag, "onfocus")
+    onblur = handler(tag, "onblur")
 
     # focus: only a zero-like text is cleared, and it is remembered
-    assert onfocus =~ "this.dataset.pkZero=this.value"
+    assert onfocus =~ "this.__pkZero=this.value"
     assert onfocus =~ "this.value=''"
-    [regex] = Regex.run(~r{^if\(/(.*)/\.test}, onfocus, capture: :all_but_first)
+    [regex] = Regex.run(~r{^if\(!this\.readOnly&&/(.*)/\.test}, onfocus, capture: :all_but_first)
     js_zero = ~r/#{regex}/
 
     for zero <- ["0", "0,00", "0.0", " 0 ", "-0", ",0", "00"], do: assert(zero =~ js_zero)
@@ -155,77 +164,119 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
 
     # blur: the remembered zero returns only when nothing was entered
     assert onblur =~ "this.value.trim()===''"
-    assert onblur =~ "this.value=this.dataset.pkZero"
-    assert onblur =~ "delete this.dataset.pkZero"
+    assert onblur =~ "this.value=this.__pkZero"
+    assert onblur =~ "delete this.__pkZero"
   end
 
-  # The handlers themselves, run in node on a stand-in `this` — the
+  # LiveView's patch of a focused input removes every attribute the
+  # server did not render, so a zero parked in `data-*` would be lost on
+  # any re-render while the field is focused and never come back.
+  test "the remembered zero never lives in a data- attribute" do
+    tag = zero_tag()
+
+    for name <- ~w(onfocus onblur onkeydown), do: refute(handler(tag, name) =~ "dataset")
+  end
+
+  # The handlers themselves, run in node on a stand-in element — the
   # attribute strings above only prove the wiring. Skipped without node.
-  test "in a browser-like run: 0 clears on focus and returns on blur, typed text stays" do
-    case System.find_executable("node") do
-      nil ->
-        :ok
+  describe "in a browser-like run" do
+    setup do
+      case System.find_executable("node") do
+        nil -> {:ok, node: nil}
+        node -> {:ok, node: node}
+      end
+    end
 
-      node ->
-        assigns = %{}
+    # Steps: "focus", "blur", {"type", text}, {"key", key}. Returns the
+    # value after focus, the value at the end, and how many input events
+    # the element dispatched on its own.
+    defp run(node, value, steps, opts \\ []) do
+      tag = zero_tag()
+      fun = &Jason.encode!(handler(tag, &1))
 
-        html =
-          render(~H"""
-          <.decimal_input id="qty" name="qty" value={Decimal.new("0")} />
-          """)
+      js_steps =
+        Enum.map_join(steps, "\n", fn
+          "focus" ->
+            "focus.call(el, {}); if (focused === undefined) focused = el.value;"
 
-        attr = fn name ->
-          [js] = Regex.run(~r/#{name}="([^"]*)"/, html, capture: :all_but_first)
-          String.replace(js, "&#39;", "'")
-        end
+          "blur" ->
+            "blur.call(el, {});"
 
-        run = fn value, typed ->
-          script = """
-          const el = {value: #{Jason.encode!(value)}, dataset: {}};
-          const focus = new Function(#{Jason.encode!(attr.("onfocus"))});
-          const blur = new Function(#{Jason.encode!(attr.("onblur"))});
-          focus.call(el); const focused = el.value;
-          if (#{Jason.encode!(typed)} !== null) el.value = #{Jason.encode!(typed)};
-          blur.call(el);
-          process.stdout.write(JSON.stringify([focused, el.value]));
-          """
+          {"key", key} ->
+            "keydown.call(el, {key: #{Jason.encode!(key)}});"
 
-          {out, 0} = System.cmd(node, ["-e", script])
-          Jason.decode!(out)
-        end
+          {"type", text} ->
+            "el.value = #{Jason.encode!(text)}; typing = true; el.dispatchEvent(new Event('input')); typing = false;"
+        end)
 
-        assert run.("0", nil) == ["", "0"]
-        assert run.("0", "8") == ["", "8"]
-        assert run.("0,00", nil) == ["", "0,00"]
-        assert run.("0,00", "15") == ["", "15"]
-        assert run.("2.5", nil) == ["2.5", "2.5"]
-        assert run.("2.5", "3") == ["2.5", "3"]
-        assert run.("", nil) == ["", ""]
+      script = """
+      const el = Object.assign(new EventTarget(), {value: #{Jason.encode!(value)}, readOnly: #{!!opts[:readonly]}});
+      let own = 0, typing = false, focused;
+      el.addEventListener('input', () => { if (!typing) own++ });
+      const focus = new Function('event', #{fun.("onfocus")});
+      const blur = new Function('event', #{fun.("onblur")});
+      const keydown = new Function('event', #{fun.("onkeydown")});
+      #{js_steps}
+      process.stdout.write(JSON.stringify([focused, el.value, own]));
+      """
+
+      {out, 0} = System.cmd(node, ["-e", script])
+      Jason.decode!(out)
+    end
+
+    test "0 clears on focus and returns on blur, typed text stays", %{node: node} do
+      if node do
+        assert run(node, "0", ["focus", "blur"]) == ["", "0", 0]
+        assert run(node, "0", ["focus", {"type", "8"}, "blur"]) == ["", "8", 0]
+        assert run(node, "0,00", ["focus", "blur"]) == ["", "0,00", 0]
+        assert run(node, "0,00", ["focus", {"type", "15"}, "blur"]) == ["", "15", 0]
+        assert run(node, "2.5", ["focus", "blur"]) == ["2.5", "2.5", 0]
+        assert run(node, "2.5", ["focus", {"type", "3"}, "blur"]) == ["2.5", "3", 0]
+        assert run(node, "", ["focus", "blur"]) == ["", "", 0]
+      end
+    end
+
+    test "typed then erased: the zero returns and announces itself once", %{node: node} do
+      if node do
+        steps = ["focus", {"type", "5"}, {"type", ""}, "blur"]
+        assert run(node, "0", steps) == ["", "0", 1]
+
+        # the next untouched focus/blur does not re-announce
+        assert run(node, "0", steps ++ ["focus", "blur"]) == ["", "0", 1]
+      end
+    end
+
+    test "Enter in the emptied field puts the zero back before the submit", %{node: node} do
+      if node do
+        assert run(node, "0", ["focus", {"key", "Enter"}]) == ["", "0", 0]
+        assert run(node, "0", ["focus", {"key", "Enter"}, "blur"]) == ["", "0", 0]
+        assert run(node, "0", ["focus", {"key", "a"}]) == ["", "", 0]
+        assert run(node, "0", ["focus", {"type", "4"}, {"key", "Enter"}]) == ["", "4", 0]
+      end
+    end
+
+    test "a readonly zero is left alone", %{node: node} do
+      if node do
+        assert run(node, "0", ["focus", {"key", "Enter"}, "blur"], readonly: true) ==
+                 ["0", "0", 0]
+      end
     end
   end
 
-  test "a host's own onfocus/onblur run after the component's, in the same attribute" do
-    assigns = %{}
-
+  test "a host's own onfocus/onblur/onkeydown run after the component's, in the same attribute" do
     tag =
-      render(~H"""
-      <.decimal_input
-        id="qty"
-        name="qty"
-        value={Decimal.new("0")}
-        onfocus="HOST_FOCUS()"
-        onblur="HOST_BLUR()"
-      />
-      """)
-      |> input_tag()
+      zero_tag(%{onfocus: "HOST_FOCUS()", onblur: "HOST_BLUR()", onkeydown: "HOST_KEY()"})
 
-    assert length(Regex.scan(~r/ onfocus="/, tag)) == 1
-    assert length(Regex.scan(~r/ onblur="/, tag)) == 1
-    assert tag =~ ~r/onfocus="if\(.*this\.value=&#39;&#39;\};HOST_FOCUS\(\)"/
-    assert tag =~ ~r/onblur="if\(.*delete this\.dataset\.pkZero\};HOST_BLUR\(\)"/
+    for name <- ~w(onfocus onblur onkeydown) do
+      assert length(Regex.scan(~r/ #{name}="/, tag)) == 1
+    end
+
+    assert handler(tag, "onfocus") =~ ~r/this\.value=''\};HOST_FOCUS\(\)$/
+    assert handler(tag, "onblur") =~ ~r/delete this\.__pkZero\};HOST_BLUR\(\)$/
+    assert handler(tag, "onkeydown") =~ ~r/delete this\.__pkZero\};HOST_KEY\(\)$/
   end
 
-  test "the unit variant carries the same focus and blur handlers" do
+  test "the unit variant carries the same focus, blur and keydown handlers" do
     assigns = %{}
 
     tag =
@@ -234,7 +285,6 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
       """)
       |> input_tag()
 
-    assert tag =~ ~s(onfocus=")
-    assert tag =~ ~s(onblur=")
+    for name <- ~w(onfocus onblur onkeydown), do: assert(tag =~ ~s( #{name}="))
   end
 end
