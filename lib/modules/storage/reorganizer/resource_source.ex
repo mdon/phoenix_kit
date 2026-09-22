@@ -39,6 +39,10 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
     * `:pending_prefix` — the name prefix of folders made for unsaved
       records, when the module makes any; stale empty ones are trashed
     * `:noun` — what a record is called in reports (default `"record"`)
+    * `:name_hook` — `false` for a module whose runtime never asks the
+      `:attachments_folder_name` hook (it finds folders by the
+      deterministic name only): the plan then never proposes a host name
+      its uploads would not follow (default `true`)
     * `:extra` — `fun(actor_uuid, opts) -> [action]` for reports only this
       module can make, appended to the plan
 
@@ -125,6 +129,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
           required(:kinds) => [kind_spec()],
           optional(:pending_prefix) => String.t() | nil,
           optional(:noun) => String.t(),
+          optional(:name_hook) => boolean(),
           optional(:extra) => (String.t() | nil, keyword() -> [map()])
         }
 
@@ -184,6 +189,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
       kinds: kinds,
       pending_prefix: Map.get(spec, :pending_prefix),
       noun: Map.get(spec, :noun, "record"),
+      name_hook?: Map.get(spec, :name_hook, true),
       extra: Map.get(spec, :extra, fn _actor, _opts -> [] end),
       pointer?: Enum.any?(kinds, & &1.pointer)
     }
@@ -301,6 +307,8 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
 
   # The host's name for the record's folder, the deterministic one when the
   # host has none to give.
+  defp host_name(%{name_hook?: false}, entry, _actor_uuid), do: {:ok, entry.name}
+
   defp host_name(spec, entry, actor_uuid) do
     case ResourceFolders.name_hook(spec.app, entry.record, actor_uuid) do
       {:ok, nil} ->
@@ -367,8 +375,23 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
       |> Enum.sort_by(& &1.index)
       |> Enum.map(&root_guard/1)
 
-    actions_for(spec, entries, pointer_claims, parent_errors ++ pointer_errors ++ name_errors)
+    spec
+    |> actions_for(
+      entries,
+      pointer_claims,
+      holders(records, by_pointer),
+      parent_errors ++ pointer_errors ++ name_errors
+    )
     |> then(fn {actions, claims} -> {actions, claims, scope_parents} end)
+  end
+
+  # `folder_uuid => [{record_uuid, label}]` for every live record whose
+  # pointer names a live folder — hook or no hook, so a co-owner whose hook
+  # failed still keeps the folder from moving under the other.
+  defp holders(records, by_pointer) do
+    records
+    |> Enum.filter(&(&1.pointer && Map.has_key?(by_pointer, &1.pointer)))
+    |> Enum.group_by(& &1.pointer, &{&1.record.uuid, label(&1)})
   end
 
   # Hooks may read any column, so a candidate reaches them as its full row;
@@ -541,10 +564,10 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
 
   # ── Actions ─────────────────────────────────────────────────────────
 
-  defp actions_for(spec, entries, pointer_claims, hook_errors) do
+  defp actions_for(spec, entries, pointer_claims, holders, hook_errors) do
     {ambiguous, resolved} = Enum.split_with(entries, & &1.ambiguous)
     {with_folder, without_folder} = Enum.split_with(resolved, & &1.folder)
-    {shared, unique} = groups(with_folder, & &1.folder.uuid)
+    {shared, unique} = shared_folders(with_folder, holders)
     movers = Enum.reject(unique, &in_place?/1)
     {converging, _solo} = groups(movers, &target/1)
     converging_indexes = converging |> List.flatten() |> Enum.map(& &1.index) |> set()
@@ -558,7 +581,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
       set(
         Enum.map(unique, & &1.folder.uuid) ++
           Enum.flat_map(ambiguous, fn e -> Enum.map(e.ambiguous, & &1.uuid) end) ++
-          Enum.map(shared, fn [e | _] -> e.folder.uuid end) ++
+          Enum.map(shared, fn {folder, _labels} -> folder.uuid end) ++
           Enum.flat_map(converging, fn group -> Enum.map(group, & &1.folder.uuid) end)
       )
 
@@ -579,6 +602,39 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
         hook_nil_action(spec, Enum.filter(entries, &Map.get(&1, :hook_nil)))
 
     {with_counts(actions), claims}
+  end
+
+  # Folders two or more records own — resolved to by several entries, or
+  # pointed at by a record besides the entry's own — as `{folder, labels}`
+  # in plan order, and the entries on a folder of their own.
+  defp shared_folders(entries, holders) do
+    by_folder = Enum.group_by(entries, & &1.folder.uuid)
+
+    {shared, unique} =
+      Enum.split_with(entries, fn entry ->
+        on_folder = Map.fetch!(by_folder, entry.folder.uuid)
+        own = Enum.map(on_folder, & &1.record.uuid)
+
+        length(on_folder) > 1 or
+          Enum.any?(Map.get(holders, entry.folder.uuid, []), fn {uuid, _} -> uuid not in own end)
+      end)
+
+    groups =
+      shared
+      |> Enum.group_by(& &1.folder.uuid)
+      |> Map.values()
+      |> Enum.sort_by(fn [first | _] -> first.index end)
+      |> Enum.map(fn [first | _] = group ->
+        labels =
+          (Enum.map(group, &{&1.record.uuid, label(&1)}) ++
+             Map.get(holders, first.folder.uuid, []))
+          |> Enum.uniq_by(&elem(&1, 0))
+          |> Enum.map(&elem(&1, 1))
+
+        {first.folder, labels}
+      end)
+
+    {groups, unique}
   end
 
   # Groups of two or more entries sharing a key, in plan order, and the rest.
@@ -631,18 +687,49 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
   defp after_move(%{kind: %{pointer: nil}}), do: nil
   defp after_move(%{pointer: pointer, folder: %Folder{uuid: pointer}}), do: nil
 
-  defp after_move(%{kind: kind, record: %{uuid: uuid}, folder: %Folder{uuid: folder_uuid}}) do
-    fn ->
-      live =
-        from(r in kind.schema, where: r.uuid == ^uuid, lock: "FOR UPDATE", select: r.uuid)
-        |> kind.live.()
-        |> repo().one()
+  defp after_move(%{kind: kind, record: %{uuid: uuid}, pointer: planned} = entry) do
+    folder_uuid = entry.folder.uuid
 
-      if live,
-        do: ResourceFolders.write_pointer(kind.schema, uuid, kind.pointer, folder_uuid),
-        else: {:error, :record_not_live}
+    fn ->
+      # The row is locked on its own — a `live` filter may join other
+      # tables, and FOR UPDATE refuses the nullable side of an outer join —
+      # and its pointer re-read: one written since the plan (an upload, a
+      # form's save) is newer than the plan and is not overwritten.
+      case repo().one(locked_pointer(kind, uuid)) do
+        nil ->
+          {:error, :record_not_live}
+
+        {_uuid, current} ->
+          cond do
+            cast(current) != planned -> {:error, :pointer_changed}
+            not live?(kind, uuid) -> {:error, :record_not_live}
+            true -> ResourceFolders.write_pointer(kind.schema, uuid, kind.pointer, folder_uuid)
+          end
+      end
     end
   end
+
+  defp locked_pointer(%{schema: schema, pointer: {:column, column}}, uuid),
+    do:
+      from(r in schema,
+        where: r.uuid == ^uuid,
+        lock: "FOR UPDATE",
+        select: {r.uuid, field(r, ^column)}
+      )
+
+  defp locked_pointer(%{schema: schema, pointer: {map_field, key}}, uuid),
+    do:
+      from(r in schema,
+        where: r.uuid == ^uuid,
+        lock: "FOR UPDATE",
+        select: {r.uuid, fragment("?->>?", field(r, ^map_field), ^key)}
+      )
+
+  defp live?(kind, uuid),
+    do:
+      from(r in kind.schema, where: r.uuid == ^uuid, select: r.uuid)
+      |> kind.live.()
+      |> repo().exists?()
 
   defp ambiguous_action(spec, entry, pointer_claims) do
     %{
@@ -675,7 +762,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
       "#{spec.noun}'s folder, #{other.uuid} also matches — pick one and remove the other"
   end
 
-  defp shared_action(spec, [%{folder: folder} | _] = group) do
+  defp shared_action(spec, {folder, labels}) do
     %{
       source: spec.source,
       kind: :duplicate,
@@ -683,7 +770,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
       op: :report,
       counts: nil,
       reason:
-        "folder #{folder.uuid} is claimed by more than one #{spec.noun}: #{group_labels(group)}"
+        "folder #{folder.uuid} is claimed by more than one #{spec.noun}: #{Enum.join(labels, ", ")}"
     }
   end
 
@@ -1029,7 +1116,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
     home =
       from(f in StorageFile,
         where: f.folder_uuid in ^uuids,
-        select: {f.folder_uuid, f.original_file_name, f.status}
+        select: {f.folder_uuid, f.uuid, f.original_file_name, f.status}
       )
 
     linked =
@@ -1037,11 +1124,13 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
         join: f in StorageFile,
         on: f.uuid == l.file_uuid,
         where: l.folder_uuid in ^uuids,
-        select: {l.folder_uuid, f.original_file_name, f.status}
+        select: {l.folder_uuid, f.uuid, f.original_file_name, f.status}
       )
 
+    # A file homed in the folder and linked into it too is one file.
     (repo().all(home) ++ repo().all(linked))
-    |> Enum.group_by(&elem(&1, 0), fn {_folder, name, status} -> {name, status} end)
+    |> Enum.uniq_by(fn {folder, file, _name, _status} -> {folder, file} end)
+    |> Enum.group_by(&elem(&1, 0), fn {_folder, _file, name, status} -> {name, status} end)
   end
 
   defp pending_reason(rows) do

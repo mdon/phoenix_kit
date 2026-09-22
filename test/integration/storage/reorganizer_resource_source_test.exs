@@ -49,6 +49,7 @@ defmodule PhoenixKit.Integration.Storage.ReorganizerResourceSourceTest do
     %{
       source: "rs",
       app: @app,
+      name_hook: Keyword.get(opts, :name_hook, true),
       pending_prefix: @pending,
       kinds: [
         %{
@@ -57,7 +58,7 @@ defmodule PhoenixKit.Integration.Storage.ReorganizerResourceSourceTest do
           prefix: @prefix,
           label: :original_file_name,
           pointer: Keyword.get(opts, :pointer, {:data, "files_folder_uuid"}),
-          live: &where(&1, [r], r.status != "trashed")
+          live: Keyword.get(opts, :live, &where(&1, [r], r.status != "trashed"))
         }
       ]
     }
@@ -65,6 +66,13 @@ defmodule PhoenixKit.Integration.Storage.ReorganizerResourceSourceTest do
 
   defp plan(opts \\ []),
     do: ResourceSource.plan(spec(opts), nil, Keyword.take(opts, [:pending_days]))
+
+  # A live filter that joins another table, as CRM's does.
+  defp joined_live(query) do
+    query
+    |> join(:left, [r], f in Folder, as: :home, on: f.uuid == r.folder_uuid)
+    |> where([r, home: f], r.status != "trashed" and (is_nil(f.uuid) or is_nil(f.trashed_at)))
+  end
 
   defp hook(answer) do
     Process.put(:answer, answer)
@@ -198,6 +206,30 @@ defmodule PhoenixKit.Integration.Storage.ReorganizerResourceSourceTest do
       assert [%{on_conflict: :report, after_move: nil}] = of(plan(pointer: nil), :rec, "A")
     end
 
+    test "the back-fill refuses a pointer written since the plan" do
+      target = folder!("Target")
+      a = record!("A")
+      folder!(det(a))
+      hook({:ok, target.uuid})
+      [move] = of(plan(), :rec, "A")
+
+      newer = folder!("Newer")
+      point!(a, newer)
+      assert move.after_move.() == {:error, :pointer_changed}
+      assert Repo.get!(StorageFile, a.uuid).data["files_folder_uuid"] == newer.uuid
+    end
+
+    test "the back-fill works with a live filter that joins another table" do
+      target = folder!("Target")
+      a = record!("A")
+      folder = folder!(det(a))
+      hook({:ok, target.uuid})
+
+      [move] = of(plan(live: &joined_live/1), :rec, "A")
+      assert move.after_move.() == :ok
+      assert Repo.get!(StorageFile, a.uuid).data["files_folder_uuid"] == folder.uuid
+    end
+
     test "the back-fill leaves a record that is no longer live alone" do
       target = folder!("Target")
       a = record!("A")
@@ -254,6 +286,17 @@ defmodule PhoenixKit.Integration.Storage.ReorganizerResourceSourceTest do
       assert log =~ inspect(Hook)
       assert log =~ "RuntimeError"
       refute log =~ "secret-message"
+    end
+
+    test "a module whose runtime never asks the name hook gets no host names" do
+      target = folder!("Target")
+      a = record!("A")
+      folder!(det(a))
+      hook({:ok, target.uuid})
+      names(%{a.uuid => "Host A"})
+
+      assert [%{name: name}] = of(plan(name_hook: false), :rec, "A")
+      assert name == det(a)
     end
 
     test "a failing name hook is a hook_error too, never a silent fallback" do
@@ -392,6 +435,23 @@ defmodule PhoenixKit.Integration.Storage.ReorganizerResourceSourceTest do
       refute Enum.any?(actions, &(&1.op == :move))
     end
 
+    test "a folder two records point at never moves, even when one owner's hook fails" do
+      target = folder!("Target")
+      [a, b] = [record!("A"), record!("B")]
+      folder = folder!("Common")
+      point!(a, folder)
+      point!(b, folder)
+      hook({:ok, target.uuid})
+      Process.put(:answers, %{a.uuid => :raise})
+
+      capture_log(fn ->
+        actions = plan()
+        refute Enum.any?(actions, &(&1.op == :move))
+        assert [dup] = of(actions, :duplicate, "Common")
+        assert dup.reason =~ "A" and dup.reason =~ "B"
+      end)
+    end
+
     test "two moves onto one target are one duplicate, neither moves" do
       target = folder!("Target")
       [a, b] = [record!("A"), record!("B")]
@@ -429,6 +489,16 @@ defmodule PhoenixKit.Integration.Storage.ReorganizerResourceSourceTest do
       hook({:ok, folder!("Target").uuid})
 
       assert of(plan(), :orphan, orphan.name) == []
+    end
+
+    test "a file homed in a pending folder and linked into it is listed once" do
+      hook({:ok, folder!("Target").uuid})
+      pending = folder!(@pending <> Ecto.UUID.generate())
+      file = record!("once.pdf", %{folder_uuid: pending.uuid})
+      {:ok, _} = Storage.create_folder_link(pending.uuid, file.uuid)
+
+      assert [%{reason: "pending folder still has files: once.pdf"}] =
+               of(plan(), :pending, pending.name)
     end
 
     test "a stale empty pending folder is trashed; one with files is reported by name" do

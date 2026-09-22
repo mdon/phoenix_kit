@@ -142,8 +142,15 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.Source do
     reported as orphans, not moved. Archived/inactive-but-not-deleted
     records are still live for the reorganizer — only a deleted/trashed
     record makes its folder an orphan.
+  - **Two records pointing at one folder** keep it where it is — one
+    `:duplicate`, no move — even when one of them drops out of the plan
+    (its hook failed): the co-owners are counted from every live record's
+    pointer, not only the records that reached a move.
   - **Pointer back-fill** happens via `:after_move` when the record has no
-    live pointer to its current folder. `:after_move` writes only the
+    live pointer to its current folder, and only while the pointer is
+    still the one the plan saw: one written since (an upload, a save) is
+    newer and wins — the back-fill answers `{:error, :pointer_changed}`
+    and the move rolls back. `:after_move` writes only the
     owned pointer field directly with a repo update (no context `update_*`,
     no Activity log, no PubSub, no full changeset validation) and must be a
     0-arity function returning `:ok`, `{:ok, _}`, or `{:error, _}` (anything
