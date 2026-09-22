@@ -215,29 +215,55 @@ defmodule PhoenixKitWeb.AttachmentsTest do
     assert Storage.get_file(first.uuid).status == "active"
   end
 
+  test "a trashed copy uploaded to another folder comes back there, not where it was removed", %{
+    user: user,
+    folder: folder,
+    n: n
+  } do
+    {:ok, elsewhere} = Storage.create_folder(%{name: "Elsewhere #{n}"})
+    assert {:ok, first} = store(upload!("moved #{n}"), entry("a.txt"), user.uuid, folder.uuid)
+    {:ok, _} = Storage.trash_file(Storage.get_file(first.uuid))
+
+    assert {:ok, again} = store(upload!("moved #{n}"), entry("a.txt"), user.uuid, elsewhere.uuid)
+    assert again.uuid == first.uuid
+
+    restored = Storage.get_file(first.uuid)
+    assert restored.status == "active"
+    assert restored.folder_uuid == elsewhere.uuid
+    refute Storage.folder_link(folder.uuid, first.uuid)
+  end
+
   test "without a folder the file is stored and left unfiled", %{user: user, n: n} do
     assert {:ok, file} = store(upload!("loose #{n}"), entry("x.txt"), user.uuid, nil)
     assert {:ok, again} = store(upload!("loose #{n}"), entry("y.txt"), user.uuid, nil)
     assert again.uuid == file.uuid
   end
 
-  test "without a folder, a trashed copy of the same bytes comes back live", %{user: user, n: n} do
+  test "without a folder, a trashed copy of the same bytes comes back live", %{
+    user: user,
+    folder: folder,
+    n: n
+  } do
     # A form that files on save (CRM's composer) stages what this returns;
     # a trashed row would stage, then fail to attach, and be lost.
-    assert {:ok, first} = store(upload!("staged #{n}"), entry("a.txt"), user.uuid, nil)
+    assert {:ok, first} = store(upload!("staged #{n}"), entry("a.txt"), user.uuid, folder.uuid)
     {:ok, _} = Storage.trash_file(Storage.get_file(first.uuid))
 
     assert {:ok, again} = store(upload!("staged #{n}"), entry("a.txt"), user.uuid, nil)
     assert again.uuid == first.uuid
     assert again.status == "active"
     assert Storage.get_file(first.uuid).status == "active"
+    # Staged, not back in the folder it was removed from.
+    assert Storage.get_file(first.uuid).folder_uuid == nil
   end
 
   test "nobody signed in stores nothing", %{folder: folder, n: n} do
     assert Attachments.store(upload!("anon #{n}"), entry("x.txt"), nil, folder.uuid) ==
              {:error, :no_user}
 
-    assert Attachments.failed_message("x.txt", :no_user) == Attachments.error_message(:no_user)
+    assert Attachments.error_message(:no_user) == "Sign in to upload files."
+    assert Attachments.failed_message("x.txt", :no_user) =~ "Sign in to upload files."
+    assert Attachments.folder_error_message() == "Could not prepare the files folder."
   end
 
   test "a failure is an error, never a raise", %{user: user, folder: folder} do

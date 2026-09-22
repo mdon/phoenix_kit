@@ -90,10 +90,21 @@ defmodule PhoenixKit.Modules.Storage.Folder do
     |> validate_inclusion(:header_size, ~w(small medium large))
     |> validate_length(:name, min: 1, max: 255)
     |> validate_length(:description, max: 2000)
+    |> validate_not_own_parent()
     |> foreign_key_constraint(:parent_uuid)
     |> foreign_key_constraint(:user_uuid)
     |> unique_constraint([:name, :parent_uuid],
       name: :phoenix_kit_media_folders_name_parent_idx
     )
+  end
+
+  # A folder that is its own parent drops out of every listing, and a walk
+  # of its subtree would never end.
+  defp validate_not_own_parent(changeset) do
+    uuid = get_field(changeset, :uuid)
+
+    if uuid && get_field(changeset, :parent_uuid) == uuid,
+      do: add_error(changeset, :parent_uuid, "cannot be the folder itself"),
+      else: changeset
   end
 end

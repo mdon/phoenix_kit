@@ -268,6 +268,18 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
     end
   end
 
+  defp live_folder_locked(uuid) do
+    case cast(uuid) do
+      nil ->
+        nil
+
+      uuid ->
+        repo().one(
+          from(f in Folder, where: f.uuid == ^uuid and is_nil(f.trashed_at), lock: "FOR SHARE")
+        )
+    end
+  end
+
   @doc "The live folder named `name` directly under `parent_uuid` (`nil` = the root)."
   @spec find_under(String.t(), String.t() | nil) :: Folder.t() | nil
   def find_under(name, parent_uuid) when is_binary(name) do
@@ -451,7 +463,10 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
 
   # A transaction-scoped advisory lock on the name under the parent, so
   # every resolver of one host name queues behind the one claiming it.
-  defp lock_name(parent_uuid, name) do
+  @doc false
+  # Also taken by the reorganizer's pointer back-fill, before it locks the
+  # record: every claim of a host-named folder queues on it.
+  def lock_name(parent_uuid, name) do
     repo().query!("SELECT pg_advisory_xact_lock(hashtext($1))", [
       "pk_resource_folder:#{parent_uuid || "root"}:#{name}"
     ])
@@ -841,7 +856,11 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   end
 
   defp attach_locked(file, folder_uuid) do
-    with %Folder{uuid: folder_uuid} <- live_folder(folder_uuid) || {:error, :folder_unavailable} do
+    # The folder is share-locked as well: a trash of it committing between
+    # this check and the write would leave the file homed in a trashed
+    # folder, in no listing.
+    with %Folder{uuid: folder_uuid} <-
+           live_folder_locked(folder_uuid) || {:error, :folder_unavailable} do
       cond do
         file.status == "trashed" -> {:error, :file_trashed}
         file.folder_uuid == folder_uuid -> {:ok, :already_attached}
@@ -883,7 +902,8 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   def place_stored({:ok, %StorageFile{status: "trashed"} = file, :duplicate}, folder_uuid) do
     safely("restore file", fn ->
       repo().transaction(fn ->
-        with {:ok, restored} <- Storage.restore_file(file),
+        # Into this folder, not the one it was removed from.
+        with {:ok, restored} <- Storage.restore_file_into(file, folder_uuid),
              {:ok, placed} <- place(restored, folder_uuid, false) do
           placed
         else

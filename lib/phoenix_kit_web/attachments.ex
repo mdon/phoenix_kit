@@ -105,7 +105,11 @@ defmodule PhoenixKitWeb.Attachments do
   # Re-uploading a file that was trashed means it is wanted again — as
   # `place_stored/2` does when there is a folder. A form that files on save
   # would otherwise stage the trashed row and then fail to attach it.
-  defp place({:ok, %{status: "trashed"} = file, :duplicate}, nil), do: Storage.restore_file(file)
+  # Into no folder: it is staged, and the folder it was removed from must not
+  # show it again.
+  defp place({:ok, %{status: "trashed"} = file, :duplicate}, nil),
+    do: Storage.restore_file_into(file, nil)
+
   defp place({:ok, file, :duplicate}, nil), do: {:ok, file}
 
   defp place(stored, folder_uuid) when is_binary(folder_uuid),

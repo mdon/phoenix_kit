@@ -219,6 +219,21 @@ defmodule PhoenixKit.Integration.Storage.ReorganizerResourceSourceTest do
       assert Repo.get!(StorageFile, a.uuid).data["files_folder_uuid"] == newer.uuid
     end
 
+    test "the back-fill refuses a folder another record claimed since the plan" do
+      target = folder!("Target")
+      a = record!("A")
+      folder = folder!(det(a))
+      hook({:ok, target.uuid})
+      [move] = of(plan(), :rec, "A")
+
+      # Another record's upload found the folder unclaimed and took it.
+      b = record!("B")
+      point!(b, folder)
+
+      assert move.after_move.() == {:error, :folder_claimed}
+      assert Repo.get!(StorageFile, a.uuid).data["files_folder_uuid"] == nil
+    end
+
     test "the back-fill works with a live filter that joins another table" do
       target = folder!("Target")
       a = record!("A")

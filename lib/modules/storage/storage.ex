@@ -1465,16 +1465,19 @@ defmodule PhoenixKit.Modules.Storage do
   files in nested folders.
   """
   def folder_subtree_uuids(root_uuid) do
-    Stream.unfold([root_uuid], fn
-      [] ->
+    # A folder seen once is not walked again, so a parent loop in the data
+    # (it should never exist) ends the walk instead of hanging it.
+    Stream.unfold({[root_uuid], MapSet.new([root_uuid])}, fn
+      {[], _seen} ->
         nil
 
-      pending ->
+      {pending, seen} ->
         children =
           from(f in Folder, where: f.parent_uuid in ^pending, select: f.uuid)
           |> repo().all()
+          |> Enum.reject(&MapSet.member?(seen, &1))
 
-        {pending, children}
+        {pending, {children, Enum.into(children, seen)}}
     end)
     |> Enum.to_list()
     |> List.flatten()
@@ -1558,9 +1561,22 @@ defmodule PhoenixKit.Modules.Storage do
   def ancestor_of?(_folder_uuid, nil), do: false
 
   def ancestor_of?(folder_uuid, target_uuid) do
-    if to_string(folder_uuid) == to_string(target_uuid),
-      do: get_folder(target_uuid) != nil,
-      else: to_string(folder_uuid) in TreeQuery.ancestor_uuids(Folder, target_uuid)
+    # Compared as cast uuids: the same folder spelled in upper case must not
+    # read as another one.
+    case {Ecto.UUID.cast(folder_uuid), Ecto.UUID.cast(target_uuid)} do
+      {{:ok, same}, {:ok, same}} -> get_folder(same) != nil
+      {{:ok, folder}, {:ok, target}} -> folder in TreeQuery.ancestor_uuids(Folder, target)
+      _ -> false
+    end
+  end
+
+  @doc false
+  # The lock every folder move holds before its cycle check. A caller that
+  # also locks a folder row takes this first, so no two moves wait on each
+  # other in opposite orders.
+  def lock_folder_tree do
+    repo().query!("SELECT pg_advisory_xact_lock(hashtext('phoenix_kit_storage:folder_tree'))")
+    :ok
   end
 
   defp moving?(%Folder{parent_uuid: current}, new_parent),
@@ -1573,7 +1589,7 @@ defmodule PhoenixKit.Modules.Storage do
 
   defp in_folder_tree(true, fun) do
     repo().transaction(fn ->
-      repo().query!("SELECT pg_advisory_xact_lock(hashtext('phoenix_kit_storage:folder_tree'))")
+      lock_folder_tree()
 
       case fun.() do
         {:ok, folder} -> folder
@@ -1949,7 +1965,7 @@ defmodule PhoenixKit.Modules.Storage do
         {:ok, file}
 
       is_nil(file.folder_uuid) ->
-        file |> Ecto.Changeset.change(%{folder_uuid: folder_uuid}) |> repo().update()
+        adopt_or_link(file, folder_uuid)
 
       true ->
         %FolderLink{}
@@ -1958,6 +1974,27 @@ defmodule PhoenixKit.Modules.Storage do
         |> case do
           {:ok, _} -> {:ok, file}
           {:error, changeset} -> {:error, changeset}
+        end
+    end
+  end
+
+  # Adopts a file with no home — only if it still has none: the caller's
+  # struct can be stale, and a file another upload adopted in the meantime
+  # is linked here instead of having its home taken.
+  defp adopt_or_link(file, folder_uuid) do
+    from(f in PhoenixKit.Modules.Storage.File,
+      where: f.uuid == ^file.uuid and is_nil(f.folder_uuid)
+    )
+    |> repo().update_all(set: [folder_uuid: folder_uuid, updated_at: UtilsDate.utc_now()])
+    |> case do
+      {1, _} ->
+        {:ok, %{file | folder_uuid: folder_uuid}}
+
+      {0, _} ->
+        case get_file(file.uuid) do
+          nil -> {:error, :not_found}
+          %{folder_uuid: nil} -> {:error, :not_found}
+          fresh -> attach_file_to_folder(fresh, folder_uuid)
         end
     end
   end
@@ -3447,6 +3484,20 @@ defmodule PhoenixKit.Modules.Storage do
       nil -> {:error, :not_found}
       file -> restore_file(file)
     end
+  end
+
+  @doc """
+  Restores a trashed file into `folder_uuid`, or into no folder (`nil`) —
+  for bytes someone trashed and is now uploading again: they are wanted
+  where they are being uploaded, not back in the folder they were removed
+  from.
+  """
+  @spec restore_file_into(PhoenixKit.Modules.Storage.File.t(), String.t() | nil) ::
+          {:ok, PhoenixKit.Modules.Storage.File.t()} | {:error, Ecto.Changeset.t()}
+  def restore_file_into(%PhoenixKit.Modules.Storage.File{} = file, folder_uuid) do
+    file
+    |> Ecto.Changeset.change(%{status: "active", trashed_at: nil, folder_uuid: folder_uuid})
+    |> repo().update()
   end
 
   @doc "Returns trashed files ordered by trashed_at descending, with pagination and optional scope."

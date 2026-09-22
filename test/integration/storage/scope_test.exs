@@ -898,6 +898,46 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
       assert Repo.get!(Storage.Folder, root.uuid).parent_uuid == nil
     end
 
+    test "a folder cannot be made its own parent, whatever the uuid's case" do
+      folder = create_folder!(%{name: "self_#{System.unique_integer([:positive])}"})
+
+      assert {:error, :cycle} =
+               Storage.update_folder(folder, %{parent_uuid: String.upcase(folder.uuid)})
+
+      assert Repo.get!(Storage.Folder, folder.uuid).parent_uuid == nil
+
+      # Nor through the changeset directly.
+      refute Storage.Folder.changeset(folder, %{parent_uuid: folder.uuid}).valid?
+    end
+
+    test "a subtree walk ends even over a parent loop in the data" do
+      a = create_folder!(%{name: "loop_a_#{System.unique_integer([:positive])}"})
+
+      b =
+        create_folder!(%{
+          name: "loop_b_#{System.unique_integer([:positive])}",
+          parent_uuid: a.uuid
+        })
+
+      Repo.update_all(from(f in Storage.Folder, where: f.uuid == ^a.uuid),
+        set: [parent_uuid: b.uuid]
+      )
+
+      assert Enum.sort(Storage.folder_subtree_uuids(a.uuid)) == Enum.sort([a.uuid, b.uuid])
+    end
+
+    test "attaching a stale homeless file that was adopted since links it, keeping its home" do
+      home = create_folder!(%{name: "adopt_home_#{System.unique_integer([:positive])}"})
+      other = create_folder!(%{name: "adopt_other_#{System.unique_integer([:positive])}"})
+      stale = create_file!(nil)
+
+      assert {:ok, _} = Storage.attach_file_to_folder(stale, home.uuid)
+      assert {:ok, _} = Storage.attach_file_to_folder(stale, other.uuid)
+
+      assert Repo.get!(StorageFile, stale.uuid).folder_uuid == home.uuid
+      assert Storage.folder_link(other.uuid, stale.uuid)
+    end
+
     test "a second removal from a stale listing trashes nothing another folder now holds" do
       home = create_folder!(%{name: "st_home_#{System.unique_integer([:positive])}"})
       other = create_folder!(%{name: "st_other_#{System.unique_integer([:positive])}"})

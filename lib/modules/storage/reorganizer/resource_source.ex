@@ -691,6 +691,12 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
     folder_uuid = entry.folder.uuid
 
     fn ->
+      # The folder's name lock first, as a runtime claim takes it before it
+      # writes a record's pointer: a record whose upload claimed this folder
+      # since the plan is then seen below, and the two never wait on each
+      # other in opposite orders.
+      lock_folder_name(folder_uuid)
+
       # The row is locked on its own — a `live` filter may join other
       # tables, and FOR UPDATE refuses the nullable side of an outer join —
       # and its pointer re-read: one written since the plan (an upload, a
@@ -703,11 +709,25 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer.ResourceSource do
           cond do
             cast(current) != planned -> {:error, :pointer_changed}
             not live?(kind, uuid) -> {:error, :record_not_live}
+            claimed_by_another?(kind, uuid, folder_uuid) -> {:error, :folder_claimed}
             true -> ResourceFolders.write_pointer(kind.schema, uuid, kind.pointer, folder_uuid)
           end
       end
     end
   end
+
+  defp lock_folder_name(folder_uuid) do
+    case repo().get(Folder, folder_uuid) do
+      %Folder{parent_uuid: parent, name: name} -> ResourceFolders.lock_name(parent, name)
+      nil -> :ok
+    end
+  end
+
+  # Another record of this kind claimed the folder after the plan was made
+  # (its upload found it unclaimed): back-filling this one too would have
+  # two records share one folder.
+  defp claimed_by_another?(kind, uuid, folder_uuid),
+    do: ResourceFolders.claimed?(folder_uuid, uuid, [{kind.schema, kind.pointer}])
 
   defp locked_pointer(%{schema: schema, pointer: {:column, column}}, uuid),
     do:

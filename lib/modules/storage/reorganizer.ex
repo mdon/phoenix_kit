@@ -286,7 +286,13 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
     do: Map.merge(action, %{outcome: :reported, reason: "no folder to trash"})
 
   defp do_apply_one(%{op: :move, folder: %Folder{uuid: uuid}} = action) do
-    case repo().transaction(fn -> do_move(lock_folder(uuid), action) end) do
+    # The folder-tree lock before the row lock: `Storage.update_folder/3`
+    # takes it for a move, and a media-browser move of the same folder
+    # takes it first too — the other order deadlocks.
+    case repo().transaction(fn ->
+           Storage.lock_folder_tree()
+           do_move(lock_folder(uuid), action)
+         end) do
       {:ok, result} -> result
       {:error, {:conflict, reason}} -> conflicted(action, reason)
       {:error, reason} -> failed(action, reason)
