@@ -130,6 +130,18 @@ defmodule PhoenixKitWeb.Components.TreePickerTest do
     refute render(view) =~ "Doors"
   end
 
+  test "the picker's own pick handed in again later, after another value, opens its rows" do
+    {view, _html} = open(%{multiple: true, pickable: [:page]}, [])
+
+    view |> element(~s([data-pick-all="a"])) |> render_click()
+    assert_receive {:picked, "picker", ["b", "c"]}
+    refute render(view) =~ "Doors"
+
+    send(view.pid, {:set_value, []})
+    send(view.pid, {:set_value, ["b", "c"]})
+    assert render(view) =~ "Doors"
+  end
+
   test "a row of a type that cannot be picked only opens" do
     {view, _html} = open(%{pickable: [:page]})
     pick(view, "a")

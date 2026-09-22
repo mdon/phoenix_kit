@@ -90,12 +90,20 @@ defmodule PhoenixKitWeb.Components.TreePicker do
   # closed stay closed otherwise.
   defp reopen(socket, before) do
     now = Map.take(socket.assigns, [:tree, :value, :current])
+    sent = socket.assigns[:sent]
+
+    # The echo arrives once: forget the pick then, so the same value handed
+    # in again later (after another one) counts as handed in.
+    socket =
+      if before != %{} and before.value != now.value and now.value == sent,
+        do: assign(socket, :sent, :none),
+        else: socket
 
     cond do
       before == %{} ->
         assign(socket, :open, opened_at(socket.assigns))
 
-      handed_in?(before, now, socket.assigns[:sent]) ->
+      handed_in?(before, now, sent) ->
         update(socket, :open, &MapSet.union(&1, opened_at(socket.assigns)))
 
       true ->
