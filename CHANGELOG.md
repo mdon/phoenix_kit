@@ -1,3 +1,15 @@
+## 2.37.1 - 2026-09-22
+
+### Fixed
+
+- **2.37.0 did not compile on Elixir 1.18 / OTP 28 (#856, #855).**
+  `Storage.CaptureDate` kept its file-name date patterns as a list of `~r`
+  sigils in a module attribute; on OTP 28 a compiled regex carries a
+  reference that Elixir 1.18 cannot escape into a function body, so every
+  host on that toolchain failed with `cannot inject attribute
+  @filename_patterns`. The list is now built in a private function — same
+  patterns, no behaviour change.
+
 ## 2.37.0 - 2026-09-22
 
 ### Added
