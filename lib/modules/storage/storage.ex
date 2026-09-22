@@ -113,6 +113,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Modules.Storage.VariantGenerator
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.TreeQuery
 
   @default_path "priv/uploads"
 
@@ -1162,13 +1163,15 @@ defmodule PhoenixKit.Modules.Storage do
   def update_folder(%Folder{} = folder, attrs, nil) do
     new_parent = attrs[:parent_uuid] || attrs["parent_uuid"]
 
-    if new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) do
-      {:error, :cycle}
-    else
-      folder
-      |> Folder.changeset(attrs)
-      |> repo().update()
-    end
+    in_folder_tree(moving?(folder, new_parent), fn ->
+      if new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) do
+        {:error, :cycle}
+      else
+        folder
+        |> Folder.changeset(attrs)
+        |> repo().update()
+      end
+    end)
   end
 
   def update_folder(%Folder{} = folder, attrs, scope_folder_id) do
@@ -1184,18 +1187,20 @@ defmodule PhoenixKit.Modules.Storage do
       moving_parent? = Map.has_key?(attrs, :parent_uuid) or Map.has_key?(attrs, "parent_uuid")
       new_parent = attrs[:parent_uuid] || attrs["parent_uuid"]
 
-      cond do
-        moving_parent? and not within_scope?(new_parent, scope_folder_id) ->
-          {:error, :out_of_scope}
+      in_folder_tree(moving?(folder, new_parent), fn ->
+        cond do
+          moving_parent? and not within_scope?(new_parent, scope_folder_id) ->
+            {:error, :out_of_scope}
 
-        new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) ->
-          {:error, :cycle}
+          new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) ->
+            {:error, :cycle}
 
-        true ->
-          folder
-          |> Folder.changeset(attrs)
-          |> repo().update()
-      end
+          true ->
+            folder
+            |> Folder.changeset(attrs)
+            |> repo().update()
+        end
+      end)
     else
       {:error, :out_of_scope}
     end
@@ -1544,22 +1549,37 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
-  @doc "Returns true if `folder_uuid` is an ancestor of `target_uuid`."
+  @doc """
+  Returns true if `folder_uuid` is `target_uuid` or one of its ancestors
+  (and `target_uuid` exists). One recursive query, whatever the depth — a
+  walk that gave up after 50 levels let a deeper move make a cycle and
+  put a deep folder outside its own scope.
+  """
   def ancestor_of?(_folder_uuid, nil), do: false
 
   def ancestor_of?(folder_uuid, target_uuid) do
-    ancestor_of?(folder_uuid, target_uuid, 50)
+    if to_string(folder_uuid) == to_string(target_uuid),
+      do: get_folder(target_uuid) != nil,
+      else: to_string(folder_uuid) in TreeQuery.ancestor_uuids(Folder, target_uuid)
   end
 
-  defp ancestor_of?(_folder_uuid, nil, _limit), do: false
-  defp ancestor_of?(_folder_uuid, _target_uuid, 0), do: false
+  defp moving?(%Folder{parent_uuid: current}, new_parent),
+    do: new_parent not in [nil, ""] and to_string(new_parent) != to_string(current)
 
-  defp ancestor_of?(folder_uuid, target_uuid, limit) do
-    case get_folder(target_uuid) do
-      nil -> false
-      %{uuid: ^folder_uuid} -> true
-      target -> ancestor_of?(folder_uuid, target.parent_uuid, limit - 1)
-    end
+  # A move runs under one lock on the whole folder tree, so its cycle check
+  # reads the tree after any other move has committed — two moves at once
+  # in opposite directions otherwise both passed and committed a loop.
+  defp in_folder_tree(false, fun), do: fun.()
+
+  defp in_folder_tree(true, fun) do
+    repo().transaction(fn ->
+      repo().query!("SELECT pg_advisory_xact_lock(hashtext('phoenix_kit_storage:folder_tree'))")
+
+      case fun.() do
+        {:ok, folder} -> folder
+        {:error, reason} -> repo().rollback(reason)
+      end
+    end)
   end
 
   @doc """

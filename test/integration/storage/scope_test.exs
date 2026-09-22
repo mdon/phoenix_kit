@@ -885,6 +885,19 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
       refute Storage.folder_link(other.uuid, file.uuid)
     end
 
+    test "a chain deeper than any fixed walk still refuses a cycle and stays in scope" do
+      root = create_folder!(%{name: "deep_root_#{System.unique_integer([:positive])}"})
+
+      deepest =
+        Enum.reduce(1..55, root, fn i, parent ->
+          create_folder!(%{name: "deep_#{i}", parent_uuid: parent.uuid})
+        end)
+
+      assert Storage.within_scope?(deepest.uuid, root.uuid)
+      assert {:error, :cycle} = Storage.update_folder(root, %{parent_uuid: deepest.uuid})
+      assert Repo.get!(Storage.Folder, root.uuid).parent_uuid == nil
+    end
+
     test "a second removal from a stale listing trashes nothing another folder now holds" do
       home = create_folder!(%{name: "st_home_#{System.unique_integer([:positive])}"})
       other = create_folder!(%{name: "st_other_#{System.unique_integer([:positive])}"})
