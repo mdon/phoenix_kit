@@ -24,6 +24,22 @@ defmodule PhoenixKit.Modules.Storage.DetermineFileTypeTest do
       assert Storage.determine_file_type("application/x-thing") == "other"
     end
 
+    test "office documents and spreadsheets are documents" do
+      # A module's own classifier counted spreadsheets as documents while
+      # this one called them "other", so the same .xlsx landed in a
+      # different filter depending on which form uploaded it.
+      for mime <- [
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          ] do
+        assert Storage.determine_file_type(mime) == "document", mime
+      end
+
+      assert Storage.determine_file_type("application/octet-stream", "budget.xlsx") == "document"
+    end
+
     test "an unknown mime type is 'other', never a crash on nil" do
       assert Storage.determine_file_type(nil) == "other"
       assert Storage.determine_file_type("") == "other"

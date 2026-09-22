@@ -635,7 +635,7 @@ msgstr "Punktloend"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1358
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2480
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2528
-#: lib/phoenix_kit_web/components/tree_picker.ex:202
+#: lib/phoenix_kit_web/components/tree_picker.ex:246
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:352
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:66
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1257
@@ -772,7 +772,7 @@ msgstr "Ühendused"
 msgid "Consent widget settings saved"
 msgstr "Nõusolekuviidiku seaded salvestatud"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:710
+#: lib/phoenix_kit_web/components/multilang_form.ex:711
 #, elixir-autogen, elixir-format
 msgid "Content Language"
 msgstr "Sisu keel"
@@ -1565,7 +1565,7 @@ msgstr "Sihtnumber"
 msgid "Primary"
 msgstr "Peamine"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:734
+#: lib/phoenix_kit_web/components/multilang_form.ex:735
 #, elixir-autogen, elixir-format
 msgid "Primary: %{lang}"
 msgstr "Peamine: %{lang}"
@@ -2272,7 +2272,7 @@ msgstr "Peida"
 msgid "Live Preview"
 msgstr "Reaalajas eelvaade"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:826
+#: lib/phoenix_kit_web/components/multilang_form.ex:827
 #, elixir-autogen, elixir-format
 msgid "Loading language content"
 msgstr "Keele sisu laadimine"
@@ -2351,7 +2351,7 @@ msgstr "Süsteem"
 msgid "Unconfirm"
 msgstr "Tühista kinnitus"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:723
+#: lib/phoenix_kit_web/components/multilang_form.ex:724
 #, elixir-autogen, elixir-format
 msgid "Use the language tabs below to translate this record's content. The primary language (marked with a star) is required. Other languages are optional — any empty fields will fall back to the primary language value."
 msgstr "Kasuta allpool olevaid keelekaarti selle kirje sisu tõlkimiseks. Esmane keel (tärniga tähistatud) on kohustuslik. Muud keeled on valikulised — tühjad väljad kasutavad esmase keele väärtust."
@@ -5453,8 +5453,7 @@ msgstr "Eemaldab integratsiooni jäädavalt. Ükski moodul, mis on selle ühendu
 
 #: lib/phoenix_kit_web/components/core/crumb_switcher.ex:48
 #: lib/phoenix_kit_web/components/core/table_default.ex:894
-#: lib/phoenix_kit_web/components/tree_picker.ex:218
-#: lib/phoenix_kit_web/components/tree_picker.ex:219
+#: lib/phoenix_kit_web/components/tree_picker.ex:77
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr "Otsi..."
@@ -6507,7 +6506,7 @@ msgid "Search files..."
 msgstr "Otsi faile…"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:784
-#: lib/phoenix_kit_web/components/tree_picker.ex:339
+#: lib/phoenix_kit_web/components/tree_picker.ex:382
 #, elixir-autogen, elixir-format
 msgid "Select all"
 msgstr "Vali kõik"
@@ -6564,7 +6563,7 @@ msgid "Upload Media Files"
 msgstr "Laadi meediafailid üles"
 
 #: lib/phoenix_kit_web/components/media_browser.ex:3873
-#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:594
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:622
 #, elixir-autogen, elixir-format
 msgid "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
 msgstr "Üleslaadimine ebaõnnestus: salvestushoidlaid pole konfigureeritud. Konfigureeri vähemalt üks salvestushoidla enne failide üleslaadimist."
@@ -7094,6 +7093,7 @@ msgstr "Kuni %{max} manust"
 msgid "Up to %{max} files, max %{size}MB each"
 msgstr "Kuni %{max} faili, igaüks max %{size} MB"
 
+#: lib/phoenix_kit_web/attachments.ex:112
 #: lib/phoenix_kit_web/components/annotation_composer.ex:406
 #, elixir-autogen, elixir-format
 msgid "Upload error: %{reason}"
@@ -8712,7 +8712,7 @@ msgid "Cannot edit a folder outside the allowed scope"
 msgstr "Kausta ei saa muuta lubatud ulatusest väljaspool"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:529
-#: lib/phoenix_kit_web/components/tree_picker.ex:193
+#: lib/phoenix_kit_web/components/tree_picker.ex:237
 #, elixir-autogen, elixir-format
 msgid "Change"
 msgstr "Muuda"
@@ -12093,7 +12093,7 @@ msgstr "See ühendus salvestab mandaadi. Kogu saatmiskonveier — konfiguratsioo
 
 #: lib/phoenix_kit/mentions/live.ex:207
 #: lib/phoenix_kit_web/components/core/textarea.ex:74
-#: lib/phoenix_kit_web/components/multilang_form.ex:1082
+#: lib/phoenix_kit_web/components/multilang_form.ex:1083
 #, elixir-autogen, elixir-format
 msgid "Type @ to mention someone, # to link a record."
 msgstr "Kirjuta @, et kedagi mainida, ja #, et kirjele viidata."
@@ -13091,7 +13091,7 @@ msgid "in the last week"
 msgstr "viimase nädala jooksul"
 
 #: lib/phoenix_kit_web/components/layout_wrapper.ex:1224
-#: lib/phoenix_kit_web/components/tree_picker.ex:323
+#: lib/phoenix_kit_web/components/tree_picker.ex:366
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Ahenda"
@@ -15623,17 +15623,57 @@ msgstr "Mis muutus"
 msgid "changed"
 msgstr "muudetud"
 
-#: lib/phoenix_kit_web/components/tree_picker.ex:360
+#: lib/phoenix_kit_web/components/tree_picker.ex:403
 #, elixir-autogen, elixir-format
 msgid "Current"
 msgstr "Praegune"
 
-#: lib/phoenix_kit_web/components/tree_picker.ex:323
+#: lib/phoenix_kit_web/components/tree_picker.ex:366
 #, elixir-autogen, elixir-format
 msgid "Expand"
 msgstr "Laienda"
 
-#: lib/phoenix_kit_web/components/tree_picker.ex:227
+#: lib/phoenix_kit_web/components/tree_picker.ex:271
 #, elixir-autogen, elixir-format
 msgid "No matches."
 msgstr "Vasteid pole."
+
+#: lib/phoenix_kit_web/attachments.ex:131
+#, elixir-autogen, elixir-format
+msgid "%{name} is identical to %{existing}, which is already attached — nothing was added."
+msgstr "%{name} on identne juba manustatud failiga %{existing} — midagi ei lisatud."
+
+#: lib/phoenix_kit_web/attachments.ex:139
+#, elixir-autogen, elixir-format
+msgid "Could not prepare the files folder."
+msgstr "Failikausta ei õnnestunud ette valmistada."
+
+#: lib/phoenix_kit_web/attachments.ex:105
+#, elixir-autogen, elixir-format
+msgid "File is too large."
+msgstr "Fail on liiga suur."
+
+#: lib/phoenix_kit_web/attachments.ex:106
+#, elixir-autogen, elixir-format
+msgid "File type not accepted."
+msgstr "Failitüüp pole toetatud."
+
+#: lib/phoenix_kit_web/attachments.ex:108
+#, elixir-autogen, elixir-format
+msgid "Sign in to upload files."
+msgstr "Failide üleslaadimiseks logi sisse."
+
+#: lib/phoenix_kit_web/attachments.ex:109
+#, elixir-autogen, elixir-format
+msgid "The files folder is not available."
+msgstr "Failikaust pole saadaval."
+
+#: lib/phoenix_kit_web/attachments.ex:107
+#, elixir-autogen, elixir-format
+msgid "Too many files."
+msgstr "Liiga palju faile."
+
+#: lib/phoenix_kit_web/attachments.ex:119
+#, elixir-autogen, elixir-format
+msgid "Upload failed for %{name}."
+msgstr "%{name} üleslaadimine ebaõnnestus."

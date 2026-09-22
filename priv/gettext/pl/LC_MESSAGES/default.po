@@ -632,7 +632,7 @@ msgstr "Lista wypunktowana"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1358
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2480
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2528
-#: lib/phoenix_kit_web/components/tree_picker.ex:202
+#: lib/phoenix_kit_web/components/tree_picker.ex:246
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:352
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:66
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1257
@@ -769,7 +769,7 @@ msgstr "Połączenia"
 msgid "Consent widget settings saved"
 msgstr "Ustawienia widgetu zgody zapisane"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:710
+#: lib/phoenix_kit_web/components/multilang_form.ex:711
 #, elixir-autogen, elixir-format
 msgid "Content Language"
 msgstr "Język treści"
@@ -1562,7 +1562,7 @@ msgstr "Kod pocztowy"
 msgid "Primary"
 msgstr "Główny"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:734
+#: lib/phoenix_kit_web/components/multilang_form.ex:735
 #, elixir-autogen, elixir-format
 msgid "Primary: %{lang}"
 msgstr "Główny: %{lang}"
@@ -2268,7 +2268,7 @@ msgstr "Ukryj"
 msgid "Live Preview"
 msgstr "Podgląd na żywo"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:826
+#: lib/phoenix_kit_web/components/multilang_form.ex:827
 #, elixir-autogen, elixir-format
 msgid "Loading language content"
 msgstr "Wczytywanie treści języka"
@@ -2347,7 +2347,7 @@ msgstr "System"
 msgid "Unconfirm"
 msgstr "Anuluj potwierdzenie"
 
-#: lib/phoenix_kit_web/components/multilang_form.ex:723
+#: lib/phoenix_kit_web/components/multilang_form.ex:724
 #, elixir-autogen, elixir-format
 msgid "Use the language tabs below to translate this record's content. The primary language (marked with a star) is required. Other languages are optional — any empty fields will fall back to the primary language value."
 msgstr "Użyj poniższych zakładek języków, aby przetłumaczyć treść tego rekordu. Język główny (oznaczony gwiazdką) jest wymagany. Pozostałe języki są opcjonalne — puste pola przyjmą wartość z języka głównego."
@@ -5448,8 +5448,7 @@ msgstr "Trwale usuwa integrację. Każdy moduł przypisany do tego połączenia 
 
 #: lib/phoenix_kit_web/components/core/crumb_switcher.ex:48
 #: lib/phoenix_kit_web/components/core/table_default.ex:894
-#: lib/phoenix_kit_web/components/tree_picker.ex:218
-#: lib/phoenix_kit_web/components/tree_picker.ex:219
+#: lib/phoenix_kit_web/components/tree_picker.ex:77
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr "Szukaj…"
@@ -6514,7 +6513,7 @@ msgid "Search files..."
 msgstr "Szukaj plików…"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:784
-#: lib/phoenix_kit_web/components/tree_picker.ex:339
+#: lib/phoenix_kit_web/components/tree_picker.ex:382
 #, elixir-autogen, elixir-format
 msgid "Select all"
 msgstr "Zaznacz wszystko"
@@ -6571,7 +6570,7 @@ msgid "Upload Media Files"
 msgstr "Prześlij pliki multimedialne"
 
 #: lib/phoenix_kit_web/components/media_browser.ex:3873
-#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:594
+#: lib/phoenix_kit_web/live/components/media_selector_modal.ex:622
 #, elixir-autogen, elixir-format
 msgid "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
 msgstr "Przesyłanie nie udało się: brak skonfigurowanych zasobników magazynu. Skonfiguruj co najmniej jeden zasobnik przed przesyłaniem plików."
@@ -7110,6 +7109,7 @@ msgstr "Do %{max} załączników"
 msgid "Up to %{max} files, max %{size}MB each"
 msgstr "Do %{max} plików, maks. %{size} MB każdy"
 
+#: lib/phoenix_kit_web/attachments.ex:112
 #: lib/phoenix_kit_web/components/annotation_composer.ex:406
 #, elixir-autogen, elixir-format
 msgid "Upload error: %{reason}"
@@ -8730,7 +8730,7 @@ msgid "Cannot edit a folder outside the allowed scope"
 msgstr "Nie można edytować folderu poza dozwolonym zakresem"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:529
-#: lib/phoenix_kit_web/components/tree_picker.ex:193
+#: lib/phoenix_kit_web/components/tree_picker.ex:237
 #, elixir-autogen, elixir-format
 msgid "Change"
 msgstr "Zmień"
@@ -12112,7 +12112,7 @@ msgstr "To połączenie przechowuje poświadczenie. Cały potok wysyłki — con
 
 #: lib/phoenix_kit/mentions/live.ex:207
 #: lib/phoenix_kit_web/components/core/textarea.ex:74
-#: lib/phoenix_kit_web/components/multilang_form.ex:1082
+#: lib/phoenix_kit_web/components/multilang_form.ex:1083
 #, elixir-autogen, elixir-format
 msgid "Type @ to mention someone, # to link a record."
 msgstr "Wpisz @, aby wspomnieć o kimś, lub #, aby podlinkować rekord."
@@ -13110,7 +13110,7 @@ msgid "in the last week"
 msgstr "w ciągu ostatniego tygodnia"
 
 #: lib/phoenix_kit_web/components/layout_wrapper.ex:1224
-#: lib/phoenix_kit_web/components/tree_picker.ex:323
+#: lib/phoenix_kit_web/components/tree_picker.ex:366
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Zwiń"
@@ -15647,17 +15647,57 @@ msgstr "Co się zmieniło"
 msgid "changed"
 msgstr "zmieniono"
 
-#: lib/phoenix_kit_web/components/tree_picker.ex:360
+#: lib/phoenix_kit_web/components/tree_picker.ex:403
 #, elixir-autogen, elixir-format
 msgid "Current"
 msgstr "Bieżące"
 
-#: lib/phoenix_kit_web/components/tree_picker.ex:323
+#: lib/phoenix_kit_web/components/tree_picker.ex:366
 #, elixir-autogen, elixir-format
 msgid "Expand"
 msgstr "Rozwiń"
 
-#: lib/phoenix_kit_web/components/tree_picker.ex:227
+#: lib/phoenix_kit_web/components/tree_picker.ex:271
 #, elixir-autogen, elixir-format
 msgid "No matches."
 msgstr "Brak wyników."
+
+#: lib/phoenix_kit_web/attachments.ex:131
+#, elixir-autogen, elixir-format
+msgid "%{name} is identical to %{existing}, which is already attached — nothing was added."
+msgstr "%{name} jest identyczny z już załączonym plikiem %{existing} — nic nie dodano."
+
+#: lib/phoenix_kit_web/attachments.ex:139
+#, elixir-autogen, elixir-format
+msgid "Could not prepare the files folder."
+msgstr "Nie udało się przygotować folderu plików."
+
+#: lib/phoenix_kit_web/attachments.ex:105
+#, elixir-autogen, elixir-format
+msgid "File is too large."
+msgstr "Plik jest za duży."
+
+#: lib/phoenix_kit_web/attachments.ex:106
+#, elixir-autogen, elixir-format
+msgid "File type not accepted."
+msgstr "Nieobsługiwany typ pliku."
+
+#: lib/phoenix_kit_web/attachments.ex:108
+#, elixir-autogen, elixir-format
+msgid "Sign in to upload files."
+msgstr "Zaloguj się, aby przesyłać pliki."
+
+#: lib/phoenix_kit_web/attachments.ex:109
+#, elixir-autogen, elixir-format
+msgid "The files folder is not available."
+msgstr "Folder plików jest niedostępny."
+
+#: lib/phoenix_kit_web/attachments.ex:107
+#, elixir-autogen, elixir-format
+msgid "Too many files."
+msgstr "Za dużo plików."
+
+#: lib/phoenix_kit_web/attachments.ex:119
+#, elixir-autogen, elixir-format
+msgid "Upload failed for %{name}."
+msgstr "Nie udało się przesłać %{name}."
