@@ -304,6 +304,16 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
              ])
     end
 
+    test "a pointer stored in upper case still claims the folder" do
+      folder = folder!(name())
+      shouty = String.upcase(folder.uuid)
+      _holder = file!(nil, %{data: %{"files_folder_uuid" => shouty}})
+
+      assert ResourceFolders.claimed?(folder.uuid, nil, [
+               {StorageFile, {:data, "files_folder_uuid"}}
+             ])
+    end
+
     test "fails closed" do
       folder = folder!(name())
 
@@ -761,6 +771,22 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
                {:error, :not_found}
     end
 
+    # Source-order pin: the reorganizer's move holds a folder row and then
+    # writes the files under it. Taking them the other way round here is a
+    # deadlock the sandbox (one connection) can never show.
+    test "attach takes the folder's row before the file's" do
+      source = File.read!("lib/modules/storage/resource_folders.ex")
+      [_, body] = String.split(source, "  def attach(file_or_uuid, folder_uuid)", parts: 2)
+      [body, _] = String.split(body, "\n  def ", parts: 2)
+
+      assert :binary.match(body, "live_folder_locked") |> elem(0) <
+               :binary.match(body, "with_locked_file") |> elem(0)
+    end
+
+    test "no folder holds nothing" do
+      assert ResourceFolders.attach(file!(nil), nil) == {:error, :folder_unavailable}
+    end
+
     test "place_stored restores a trashed duplicate and reports one already here" do
       folder = folder!(name())
       trashed = file!(nil, %{status: "trashed"})
@@ -773,6 +799,20 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
 
       assert {:ok, _} = ResourceFolders.place_stored({:ok, restored}, folder.uuid)
       assert ResourceFolders.place_stored({:error, :too_big}, folder.uuid) == {:error, :too_big}
+    end
+
+    # Two uploads of the same trashed bytes at once: both are handed the
+    # trashed row, and the second must not take the home the first gave it.
+    test "a trashed duplicate restored by someone else meanwhile is linked, not re-homed" do
+      [first, second] = [folder!(name()), folder!(name())]
+      trashed = file!(nil, %{status: "trashed"})
+
+      assert {:ok, _} = ResourceFolders.place_stored({:ok, trashed, :duplicate}, first.uuid)
+      # `trashed` is the stale struct the second upload still holds.
+      assert {:ok, _} = ResourceFolders.place_stored({:ok, trashed, :duplicate}, second.uuid)
+
+      assert Repo.get!(StorageFile, trashed.uuid).folder_uuid == first.uuid
+      assert ResourceFolders.holds_file?(second.uuid, trashed.uuid)
     end
 
     test "attach and detach decide from the file's current row, not a stale struct" do

@@ -3637,14 +3637,33 @@ defmodule PhoenixKit.Modules.Storage do
   Restores a trashed file into `folder_uuid`, or into no folder (`nil`) —
   for bytes someone trashed and is now uploading again: they are wanted
   where they are being uploaded, not back in the folder they were removed
-  from.
+  from. `{:error, :not_trashed}` when the row is not trashed any more:
+  someone else restored it, and it keeps the home they gave it.
   """
   @spec restore_file_into(PhoenixKit.Modules.Storage.File.t(), String.t() | nil) ::
-          {:ok, PhoenixKit.Modules.Storage.File.t()} | {:error, Ecto.Changeset.t()}
+          {:ok, PhoenixKit.Modules.Storage.File.t()} | {:error, :not_trashed}
   def restore_file_into(%PhoenixKit.Modules.Storage.File{} = file, folder_uuid) do
-    file
-    |> Ecto.Changeset.change(%{status: "active", trashed_at: nil, folder_uuid: folder_uuid})
-    |> repo().update()
+    # Only while the row is still trashed: two uploads of the same trashed
+    # bytes both hold the trashed struct, and the second must not take the
+    # home the first just gave it.
+    from(f in PhoenixKit.Modules.Storage.File,
+      where: f.uuid == ^file.uuid and f.status == "trashed"
+    )
+    |> repo().update_all(
+      set: [
+        status: "active",
+        trashed_at: nil,
+        folder_uuid: folder_uuid,
+        updated_at: UtilsDate.utc_now()
+      ]
+    )
+    |> case do
+      {1, _} ->
+        {:ok, %{file | status: "active", trashed_at: nil, folder_uuid: folder_uuid}}
+
+      {0, _} ->
+        {:error, :not_trashed}
+    end
   end
 
   @doc "Returns trashed files ordered by trashed_at descending, with pagination and optional scope."

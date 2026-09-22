@@ -399,8 +399,15 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   defp pointing_at(schema, {:column, column}, folder_uuid),
     do: from(r in schema, where: field(r, ^column) == ^folder_uuid)
 
+  # Compared without case: the pointer is written lower-case, but a legacy
+  # or host-written one spelled otherwise names the same folder and claims
+  # it just as much.
   defp pointing_at(schema, {map_field, key}, folder_uuid) when is_binary(key),
-    do: from(r in schema, where: fragment("?->>?", field(r, ^map_field), ^key) == ^folder_uuid)
+    do:
+      from(r in schema,
+        where:
+          fragment("lower(?->>?)", field(r, ^map_field), ^key) == ^String.downcase(folder_uuid)
+      )
 
   defp except_uuid(query, nil), do: query
   defp except_uuid(query, uuid), do: where(query, [r], r.uuid != ^uuid)
@@ -467,10 +474,15 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   # Also taken by the reorganizer's pointer back-fill, before it locks the
   # record: every claim of a host-named folder queues on it.
   def lock_name(parent_uuid, name) do
-    repo().query!("SELECT pg_advisory_xact_lock(hashtext($1))", [
-      "pk_resource_folder:#{parent_uuid || "root"}:#{name}"
-    ])
+    repo().query!("SELECT pg_advisory_xact_lock(hashtext($1))", [name_lock_key(parent_uuid, name)])
   end
+
+  @doc false
+  # The key `lock_name/2` locks. The parent is cast, so two spellings of
+  # one uuid queue on the same lock rather than passing each other.
+  @spec name_lock_key(String.t() | nil, String.t()) :: String.t()
+  def name_lock_key(parent_uuid, name),
+    do: "pk_resource_folder:#{cast(parent_uuid) || "root"}:#{name}"
 
   defp find_or_create(name, parent_uuid, actor_uuid, opts) do
     lookup = Keyword.get(opts, :lookup, fn -> find_under(name, parent_uuid) end)
@@ -867,30 +879,50 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   home is adopted (`:adopted`), a file homed elsewhere is linked
   (`:linked`), a file already home or linked there is left alone
   (`:already_attached`). A folder that is not live is refused
-  (`{:error, :folder_unavailable}`), and so is a trashed file
-  (`{:error, :file_trashed}`) — either would be listed nowhere. Never
-  raises.
+  (`{:error, :folder_unavailable}`, `nil` included), and so is a trashed
+  file (`{:error, :file_trashed}`) — either would be listed nowhere.
+  Never raises.
+
+  The folder's row is taken before the file's, the order the reorganizer's
+  move takes them in.
   """
-  @spec attach(StorageFile.t() | String.t(), String.t()) ::
+  @spec attach(StorageFile.t() | String.t(), String.t() | nil) ::
           {:ok, :adopted | :linked | :already_attached} | {:error, term()}
   def attach(file_or_uuid, folder_uuid) when is_binary(folder_uuid) do
     safely("attach file", fn ->
-      with_locked_file(file_or_uuid, {:error, :not_found}, &attach_locked(&1, folder_uuid))
+      {:ok, result} =
+        repo().transaction(fn ->
+          # The folder BEFORE the file, and share-locked: a trash of it
+          # committing between this check and the write would leave the
+          # file homed in a trashed folder, in no listing — and the
+          # reorganizer's move holds a folder and then writes the files
+          # under it, so taking them the other way round here would
+          # deadlock against it.
+          case live_folder_locked(folder_uuid) do
+            nil ->
+              {:error, :folder_unavailable}
+
+            %Folder{uuid: folder_uuid} ->
+              with_locked_file(
+                file_or_uuid,
+                {:error, :not_found},
+                &attach_locked(&1, folder_uuid)
+              )
+          end
+        end)
+
+      result
     end)
   end
 
+  def attach(_file_or_uuid, nil), do: {:error, :folder_unavailable}
+
   defp attach_locked(file, folder_uuid) do
-    # The folder is share-locked as well: a trash of it committing between
-    # this check and the write would leave the file homed in a trashed
-    # folder, in no listing.
-    with %Folder{uuid: folder_uuid} <-
-           live_folder_locked(folder_uuid) || {:error, :folder_unavailable} do
-      cond do
-        file.status == "trashed" -> {:error, :file_trashed}
-        file.folder_uuid == folder_uuid -> {:ok, :already_attached}
-        Storage.folder_link(folder_uuid, file.uuid) -> {:ok, :already_attached}
-        true -> attach_new(file, folder_uuid)
-      end
+    cond do
+      file.status == "trashed" -> {:error, :file_trashed}
+      file.folder_uuid == folder_uuid -> {:ok, :already_attached}
+      Storage.folder_link(folder_uuid, file.uuid) -> {:ok, :already_attached}
+      true -> attach_new(file, folder_uuid)
     end
   end
 
@@ -926,8 +958,10 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   def place_stored({:ok, %StorageFile{status: "trashed"} = file, :duplicate}, folder_uuid) do
     safely("restore file", fn ->
       repo().transaction(fn ->
-        # Into this folder, not the one it was removed from.
-        with {:ok, restored} <- Storage.restore_file_into(file, folder_uuid),
+        # Into this folder, not the one it was removed from — unless
+        # someone else restored it first, when it keeps their home and is
+        # linked in here like any other duplicate.
+        with {:ok, restored} <- restored_or_current(file, folder_uuid),
              {:ok, placed} <- place(restored, folder_uuid, false) do
           placed
         else
@@ -941,6 +975,13 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
     do: place(file, folder_uuid, true)
 
   def place_stored({:error, reason}, _folder_uuid), do: {:error, reason}
+
+  defp restored_or_current(file, folder_uuid) do
+    case Storage.restore_file_into(file, folder_uuid) do
+      {:ok, restored} -> {:ok, restored}
+      {:error, :not_trashed} -> {:ok, Storage.get_file(file.uuid) || file}
+    end
+  end
 
   defp place(file, folder_uuid, duplicate?) do
     case attach(file, folder_uuid) do

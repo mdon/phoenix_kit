@@ -107,8 +107,13 @@ defmodule PhoenixKitWeb.Attachments do
   # would otherwise stage the trashed row and then fail to attach it.
   # Into no folder: it is staged, and the folder it was removed from must not
   # show it again.
-  defp place({:ok, %{status: "trashed"} = file, :duplicate}, nil),
-    do: Storage.restore_file_into(file, nil)
+  defp place({:ok, %{status: "trashed"} = file, :duplicate}, nil) do
+    case Storage.restore_file_into(file, nil) do
+      {:ok, file} -> {:ok, file}
+      # Restored by someone else first: it keeps the home they gave it.
+      {:error, :not_trashed} -> {:ok, Storage.get_file(file.uuid) || file}
+    end
+  end
 
   defp place({:ok, file, :duplicate}, nil), do: {:ok, file}
 
