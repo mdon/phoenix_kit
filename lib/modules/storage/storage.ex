@@ -3931,6 +3931,7 @@ defmodule PhoenixKit.Modules.Storage do
     # the media page trusted the column everywhere).
     mime_type = resolve_mime_type(opts[:mime_type], ext)
     file_type = reconcile_file_type(file_type, mime_type, orig_filename)
+    ext = stored_ext(ext, mime_type)
 
     # Create file record
     file_attrs = %{
@@ -4328,6 +4329,18 @@ defmodule PhoenixKit.Modules.Storage do
   # The caller's observed mime wins when it carries information; blank and
   # octet-stream carry none, so they fall through to the extension guess
   # rather than being enshrined on the row.
+  # `ext` is part of every stored key and a required column, so a file whose
+  # name has no extension (a README, a dotfile) takes its type's — or "bin"
+  # — instead of failing the upload.
+  defp stored_ext(ext, mime_type) when ext in [nil, ""] do
+    case MIME.extensions(mime_type) do
+      [ext | _] -> ext
+      [] -> "bin"
+    end
+  end
+
+  defp stored_ext(ext, _mime_type), do: ext
+
   defp resolve_mime_type(mime_type, ext) do
     case mime_type do
       nil -> determine_mime_type(ext)

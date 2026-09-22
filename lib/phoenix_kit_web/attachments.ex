@@ -72,11 +72,19 @@ defmodule PhoenixKitWeb.Attachments do
 
   def store(path, entry, user_uuid, folder_uuid) do
     name = client_name(entry)
+    mime = Map.get(entry, :client_type)
     ext = name |> Path.extname() |> String.trim_leading(".") |> String.downcase()
-    type = Storage.determine_file_type(Map.get(entry, :client_type), name)
+    hash = Auth.calculate_file_hash(path)
 
     path
-    |> Storage.store_file_in_buckets(type, user_uuid, Auth.calculate_file_hash(path), ext, name)
+    |> Storage.store_file_in_buckets(
+      Storage.determine_file_type(mime, name),
+      user_uuid,
+      hash,
+      ext,
+      name,
+      mime_type: mime
+    )
     |> place(folder_uuid)
   rescue
     error ->
@@ -97,12 +105,33 @@ defmodule PhoenixKitWeb.Attachments do
 
   defp place({:error, reason}, _folder_uuid), do: {:error, reason}
 
-  # `client_name` is the browser's and only checked against `:accept`, so a
-  # path in it never reaches storage as a file name.
+  # `client_name` is the browser's and only checked against `:accept`: a path
+  # (either separator), control characters (a NUL fails the insert) and a
+  # bare "." or ".." never reach storage as a file name, and the name fits
+  # the 255-character column with its extension kept.
+  @max_name 255
+
   defp client_name(entry) do
-    case entry |> Map.get(:client_name) |> to_string() |> Path.basename() do
-      "" -> "upload"
-      name -> name
+    name =
+      entry
+      |> Map.get(:client_name)
+      |> to_string()
+      |> String.replace(~r/[\x00-\x1F\x7F]/u, "")
+      |> String.split(["/", "\\"])
+      |> List.last()
+
+    if name in ["", ".", ".."], do: "upload", else: bounded(name)
+  end
+
+  # The column counts code points, not graphemes (an emoji can be several).
+  defp bounded(name) do
+    points = String.codepoints(name)
+
+    if length(points) <= @max_name do
+      name
+    else
+      ext = name |> Path.extname() |> String.codepoints() |> Enum.take(16)
+      Enum.join(Enum.take(points, @max_name - length(ext)) ++ ext)
     end
   end
 

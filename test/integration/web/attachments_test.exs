@@ -96,6 +96,57 @@ defmodule PhoenixKitWeb.AttachmentsTest do
     assert file.file_type == "document"
   end
 
+  test "a browser's odd file names are stored as plain, bounded names", %{
+    user: user,
+    folder: folder,
+    n: n
+  } do
+    long = String.duplicate("a", 400) <> ".pdf"
+
+    for {sent, stored} <- [
+          {"..", "upload"},
+          {".", "upload"},
+          {"a\0b.pdf", "ab.pdf"},
+          {"line\nbreak.pdf", "linebreak.pdf"},
+          {"C:\\Users\\me\\scan.pdf", "scan.pdf"},
+          {long, String.duplicate("a", 251) <> ".pdf"},
+          # Each of these is one grapheme but two code points.
+          {String.duplicate("e\u0301", 300) <> ".pdf",
+           String.duplicate("e\u0301", 125) <> "e" <> ".pdf"}
+        ] do
+      assert {:ok, file} = store(upload!("#{sent} #{n}"), entry(sent), user.uuid, folder.uuid)
+      assert file.original_file_name == stored, inspect(sent)
+    end
+  end
+
+  test "a file with no extension is stored, its extension taken from its type", %{
+    user: user,
+    folder: folder,
+    n: n
+  } do
+    assert {:ok, readme} =
+             store(upload!("readme #{n}"), entry("README", "text/plain"), user.uuid, folder.uuid)
+
+    assert readme.original_file_name == "README"
+    assert readme.ext == "txt"
+    assert readme.mime_type == "text/plain"
+
+    assert {:ok, blob} = store(upload!("blob #{n}"), entry("blob"), user.uuid, folder.uuid)
+    assert blob.ext == "bin"
+  end
+
+  test "the browser's type is stored, not guessed from the name", %{
+    user: user,
+    folder: folder,
+    n: n
+  } do
+    assert {:ok, file} =
+             store(upload!("typed #{n}"), entry("scan.dat", "image/png"), user.uuid, folder.uuid)
+
+    assert file.mime_type == "image/png"
+    assert file.file_type == "image"
+  end
+
   test "the same bytes again are already attached", %{user: user, folder: folder, n: n} do
     assert {:ok, first} = store(upload!("same #{n}"), entry("a.txt"), user.uuid, folder.uuid)
 
