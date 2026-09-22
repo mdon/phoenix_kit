@@ -543,6 +543,34 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
     end
   end
 
+  describe "clear_pointer_if/4" do
+    test "clears a JSONB key only while it still points at the value" do
+      record = file!(nil, %{data: %{"keep" => "me"}})
+      [old, new] = [folder!(name()), folder!(name())]
+      pointer = {:data, "files_folder_uuid"}
+      :ok = ResourceFolders.write_pointer(StorageFile, record.uuid, pointer, new.uuid)
+
+      # Pointed elsewhere since: left alone.
+      assert ResourceFolders.clear_pointer_if(StorageFile, record.uuid, pointer, old.uuid) == :ok
+      assert Repo.get!(StorageFile, record.uuid).data["files_folder_uuid"] == new.uuid
+
+      assert ResourceFolders.clear_pointer_if(StorageFile, record.uuid, pointer, new.uuid) == :ok
+      assert Repo.get!(StorageFile, record.uuid).data == %{"keep" => "me"}
+    end
+
+    test "clears a column only while it still points at the value" do
+      [old, new] = [folder!(name()), folder!(name())]
+      record = file!(new)
+      pointer = {:column, :folder_uuid}
+
+      assert ResourceFolders.clear_pointer_if(StorageFile, record.uuid, pointer, old.uuid) == :ok
+      assert Repo.get!(StorageFile, record.uuid).folder_uuid == new.uuid
+
+      assert ResourceFolders.clear_pointer_if(StorageFile, record.uuid, pointer, new.uuid) == :ok
+      assert Repo.get!(StorageFile, record.uuid).folder_uuid == nil
+    end
+  end
+
   describe "purge_named/1" do
     test "deletes every folder of that name, live or trashed, and only those" do
       elsewhere = folder!(name())

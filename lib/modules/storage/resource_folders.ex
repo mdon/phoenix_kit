@@ -533,6 +533,30 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
     end
   end
 
+  @doc """
+  Removes record `uuid`'s pointer only while it still points at `value` —
+  for clearing a pointer to something just removed without wiping one that
+  another session has pointed elsewhere since. `:ok` either way.
+  """
+  @spec clear_pointer_if(module(), String.t(), pointer(), String.t()) :: :ok
+  def clear_pointer_if(schema, uuid, pointer, value) when is_binary(value) do
+    repo().update_all(
+      from(r in schema,
+        where: r.uuid == ^uuid,
+        where: ^pointing_at(pointer, value),
+        update: ^pointer_update(pointer, nil)
+      ),
+      []
+    )
+
+    :ok
+  end
+
+  defp pointing_at({:column, column}, value), do: dynamic([r], field(r, ^column) == ^value)
+
+  defp pointing_at({map_field, key}, value) when is_binary(key),
+    do: dynamic([r], fragment("?->>?", field(r, ^map_field), ^key) == ^value)
+
   defp pointer_update({:column, column}, folder_uuid), do: [set: [{column, folder_uuid}]]
 
   # `jsonb_set` with a NULL value answers NULL for the whole map, so
