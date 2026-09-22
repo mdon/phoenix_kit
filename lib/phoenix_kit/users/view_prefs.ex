@@ -115,13 +115,16 @@ defmodule PhoenixKit.Users.ViewPrefs do
   end
 
   @doc "Deletes every user's preferences for `key` — for a view that no longer exists."
-  @spec delete_key(String.t()) :: :ok
+  @spec delete_key(String.t()) :: :ok | {:error, term()}
   def delete_key(key) do
     with {:ok, key} <- check_key(key) do
       repo().delete_all(from(p in ViewPref, where: p.key == ^key))
+      :ok
     end
-
-    :ok
+  rescue
+    error -> write_failed(error)
+  catch
+    :exit, reason -> write_failed({:exit, reason})
   end
 
   defp user_uuid(%{uuid: uuid}) when is_binary(uuid), do: uuid
