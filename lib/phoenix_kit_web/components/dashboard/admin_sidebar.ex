@@ -44,7 +44,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
 
   require Logger
 
-  alias PhoenixKit.Dashboard.{Group, Registry, Tab}
+  alias PhoenixKit.Dashboard.{Group, Registry, Tab, TabHelpers}
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKitWeb.Components.Dashboard.TabItem
   alias PhoenixKitWeb.Users.Auth
@@ -165,8 +165,8 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
     end
   end
 
-  defp reachable?(%{live_view: {view, _action}}, scope) when is_atom(view),
-    do: Auth.can_access_admin_view?(scope, view)
+  defp reachable?(%{live_view: {view, action}}, scope) when is_atom(view),
+    do: Auth.can_access_admin_view?(scope, view, action)
 
   defp reachable?(%{live_view: view}, scope) when is_atom(view) and not is_nil(view),
     do: Auth.can_access_admin_view?(scope, view)
@@ -460,10 +460,14 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
     end
   end
 
-  defp maybe_redirect_to_first_subtab(%{redirect_to_first_subtab: true} = tab, [
-         first_subtab | _
-       ]) do
-    %{tab | path: first_subtab.path}
+  # The rule (landing subtab first, else the first reachable by priority)
+  # lives in `TabHelpers.redirect_target/2`, shared with the user sidebar and
+  # the admin gate so the three cannot drift apart again.
+  defp maybe_redirect_to_first_subtab(%{redirect_to_first_subtab: true} = tab, subtabs) do
+    case TabHelpers.redirect_target(tab, subtabs) do
+      nil -> tab
+      path -> %{tab | path: path}
+    end
   end
 
   defp maybe_redirect_to_first_subtab(tab, _subtabs), do: tab

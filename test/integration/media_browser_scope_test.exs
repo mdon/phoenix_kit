@@ -97,7 +97,7 @@ defmodule PhoenixKit.Integration.MediaBrowserScopeTest do
 
     test "returns true when scope UUID points to deleted/nonexistent folder" do
       uuid = fake_uuid()
-      scope_invalid = not is_nil(uuid) and is_nil(Storage.get_folder(uuid))
+      scope_invalid = is_nil(Storage.get_folder(uuid))
       assert scope_invalid
     end
   end
@@ -192,7 +192,7 @@ defmodule PhoenixKit.Integration.MediaBrowserScopeTest do
       # crash with `ArgumentError` on `:erlang.not(nil)` when the
       # folder lookup misses.
       in_scope = folder != nil && Storage.within_scope?(folder.uuid, scope.uuid)
-      scoped_fallback? = not is_nil(folder_uuid) and not in_scope
+      scoped_fallback? = not in_scope
       assert scoped_fallback?
     end
   end

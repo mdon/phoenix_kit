@@ -293,9 +293,18 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
            Storage.lock_folder_tree()
            do_move(lock_folder(uuid), action)
          end) do
-      {:ok, result} -> result
-      {:error, {:conflict, reason}} -> conflicted(action, reason)
-      {:error, reason} -> failed(action, reason)
+      {:ok, result} ->
+        # Announced once the move has committed, never from inside it: a
+        # subscriber reloads the rows, and must see them restored.
+        {restored, result} = Map.pop(result, :restored_file_uuids, [])
+        Storage.broadcast_files_restored(restored)
+        result
+
+      {:error, {:conflict, reason}} ->
+        conflicted(action, reason)
+
+      {:error, reason} ->
+        failed(action, reason)
     end
   end
 
@@ -324,12 +333,13 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
          :ok <- verify_target_parent(Map.get(action, :parent_uuid)),
          attrs = move_attrs(folder, action),
          {:ok, updated, final_attrs} <- perform_update(folder, attrs, action),
-         :ok <- restore_subtree_if_needed(folder),
+         {:ok, restored} <- restore_subtree_if_needed(folder),
          :ok <- run_after_move(action),
          :ok <- verify_counts(updated.uuid, Map.get(action, :counts)) do
       Map.merge(action, %{
         outcome: outcome_for(attrs, final_attrs, action),
-        changes: changes_for(attrs, final_attrs)
+        changes: changes_for(attrs, final_attrs),
+        restored_file_uuids: restored
       })
     else
       {:error, {:conflict, reason}} -> repo().rollback({:conflict, reason})
@@ -358,15 +368,15 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
   # ones this restore un-does; anything trashed at a different time stays
   # trashed (H1).
   #
-  # The reverse case — a row trashed BEFORE the folder — can't be told apart
-  # here: `do_trash_folder/1`'s subtree `update_all` has no
-  # `is_nil(trashed_at)` guard, so it overwrites any earlier `trashed_at`
-  # with the folder's own before this code ever runs. Those rows are
-  # restored along with the folder, which is `Storage`'s own trash/restore
-  # semantics, not something the reorganizer introduces — out of scope here,
-  # tracked against the `Storage.restore_folder/2` follow-up. `trashed_at`
+  # The reverse case — a row trashed BEFORE the folder — is handled at the
+  # other end: `do_trash_folder/1` no longer re-stamps a row that is already
+  # trashed, so it keeps its own `trashed_at` and is not matched here.
+  # `Storage.restore_folder/2` restores by the same rule. `trashed_at`
   # granularity is seconds throughout.
-  defp restore_subtree_if_needed(%Folder{trashed_at: nil}), do: :ok
+  #
+  # Returns the uuids of the files it restored, for the caller to announce
+  # after the transaction commits.
+  defp restore_subtree_if_needed(%Folder{trashed_at: nil}), do: {:ok, []}
 
   defp restore_subtree_if_needed(%Folder{uuid: uuid, trashed_at: trashed_at}) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -375,10 +385,14 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
     from(f in Folder, where: f.uuid in ^subtree_uuids and f.trashed_at == ^trashed_at)
     |> repo().update_all(set: [trashed_at: nil, updated_at: now])
 
-    from(f in StorageFile, where: f.folder_uuid in ^subtree_uuids and f.trashed_at == ^trashed_at)
-    |> repo().update_all(set: [status: "active", trashed_at: nil, updated_at: now])
+    {_count, restored} =
+      from(f in StorageFile,
+        where: f.folder_uuid in ^subtree_uuids and f.trashed_at == ^trashed_at,
+        select: f.uuid
+      )
+      |> repo().update_all(set: [status: "active", trashed_at: nil, updated_at: now])
 
-    :ok
+    {:ok, restored}
   end
 
   # A target parent must exist and be live: a folder can't be moved under one

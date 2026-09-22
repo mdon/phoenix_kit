@@ -222,7 +222,10 @@ defmodule PhoenixKit.Dashboard.Tab do
   - `:subtab_icon_size` - Icon size class for subtabs (e.g., "w-3 h-3", "w-5 h-5")
   - `:subtab_text_size` - Text size class for subtabs (e.g., "text-xs", "text-base")
   - `:subtab_animation` - Animation when subtabs appear: :none, :slide, :fade, :collapse
-  - `:redirect_to_first_subtab` - Navigate to first subtab when clicking parent (default: false)
+  - `:redirect_to_first_subtab` - Navigate to a subtab the viewer can open when clicking the
+    parent: the parent's own landing subtab (the one sharing its path) when reachable, else the
+    first reachable subtab by priority — `PhoenixKit.Dashboard.TabHelpers.redirect_target/2`
+    (default: false)
   - `:highlight_with_subtabs` - Highlight parent when subtab is active (default: false)
   - `:match` - Path matching strategy: :exact, :prefix, :regex, or function (default: :prefix)
   - `:visible` - Boolean or function(scope) -> boolean for non-permission conditional visibility, e.g. feature flags. For access control, use `:permission` instead. When omitted, the tab is visible unless its path carries router parameters (`:uuid`, `*splat`) — those entries are routes, not navigation, and would render their placeholder segments literally in the sidebar. Pass `visible: true` explicitly to force one into the nav anyway.

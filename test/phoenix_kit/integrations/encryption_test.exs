@@ -1413,10 +1413,6 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       assert detail =~ path
     end
 
-    defp store_tag(:absent), do: :absent
-    defp store_tag({tag, _location}), do: tag
-
-    defp put(key, nil), do: Application.delete_env(:phoenix_kit, key)
     defp put(key, value), do: Application.put_env(:phoenix_kit, key, value)
   end
 end

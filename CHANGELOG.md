@@ -1,3 +1,221 @@
+## 2.37.3 - 2026-09-22
+
+### Added
+
+- **The MediaBrowser featured star is a toggle on every image tile (#858).**
+  With `:featured` set, grid and stack tiles carry a star in the top-left
+  corner, styled like the ⋮ trigger: solid on the featured image (a click
+  clears it), outline on the others (a click moves the pointer there). It
+  sits outside the tile's click target, so it never also opens the viewer.
+  In select mode, the trash, or `readonly`, only the featured tile keeps its
+  star, as a plain badge.
+
+### Fixed
+
+- **Burning annotations sized the canvas by chrome and empty leaders
+  (#858).** The burned picture's bounds were taken from each shape's box,
+  and a dimension label group's box reached the overlay's origin through a
+  0×0 leader — in live mode a landscape photo came back portrait, squeezed
+  under a blank block. The bounds now come from the ink the copy keeps:
+  sized leaves only, nothing that is or sits inside chrome (handles, hit
+  areas, a draft still being drawn).
+- **The featured star no longer hides under the select-mode checkbox (#858
+  review).** Both sat in the tile's top-left corner at the same size; in
+  select mode the passive badge now steps right of the checkbox.
+
+## 2.37.2 - 2026-09-22
+
+### Added
+
+- **`PreviewCard` takes images by URL, not only as Storage files (#857).**
+  An `:images` entry may be `%{src, name}`, with an optional `:thumb_src`
+  for the jump strip, alongside the Storage `%{uuid, name}` form — for
+  pictures a host serves itself (a document's page previews). Both kinds mix
+  in one carousel. `PreviewCard.image_url/2` resolves an entry's URL for a
+  variant.
+
+### Fixed
+
+- **`PreviewCard` image entries may be structs again (#857 review).** The
+  alt text read `img[:name]`, which structs do not support; it now uses
+  `Map.get/2`, so `:name` stays optional on maps and structs keep working.
+
+## 2.37.1 - 2026-09-22
+
+### Fixed
+
+- **2.37.0 did not compile on Elixir 1.18 / OTP 28 (#856, #855).**
+  `Storage.CaptureDate` kept its file-name date patterns as a list of `~r`
+  sigils in a module attribute; on OTP 28 a compiled regex carries a
+  reference that Elixir 1.18 cannot escape into a function body, so every
+  host on that toolchain failed with `cannot inject attribute
+  @filename_patterns`. The list is now built in a private function — same
+  patterns, no behaviour change.
+
+## 2.37.0 - 2026-09-22
+
+### Added
+
+- **Storage records when a photo or video was taken (V200).** Four columns
+  on `phoenix_kit_files`: `taken_at` (the UTC instant), `taken_on` (the
+  LOCAL date — what a library groups by, so a photo taken late on 31 July in
+  California is a July photo although it is August in UTC), `taken_at_offset`
+  and `taken_at_source`. The date comes from EXIF (`DateTimeOriginal`, else
+  `DateTimeDigitized`, with their offset tags) or a video's container
+  (QuickTime's creation date, else `creation_time`), else a date in the file
+  name (`IMG_20180701_120000.jpg`, `PXL_…`, `2018-07-01 12.34.56.jpg`), else
+  the upload time — so every image and video resolves to one.
+  `PhoenixKit.Modules.Storage.CaptureDate` reads it; `ProcessFileJob`
+  records it for new uploads from the bytes it already downloads, in the same
+  guarded transaction as the dimensions. Adds
+  `phoenix_kit_files_capture_date_index` on
+  `(user_uuid, taken_on DESC, taken_at DESC)`, partial over a user's visible,
+  processed images and videos, so an edited image's hidden backup and tile
+  pyramids cost it nothing.
+- **Dating files stored before V200.**
+  `Storage.Workers.CaptureDateBackfillJob` walks the images and videos with
+  no date in batches (`enqueue/0` for a background pass on the
+  `file_processing` queue, `pending_count/0`), and
+  `mix phoenix_kit.storage.backfill_capture_dates` runs a pass in the
+  foreground with progress. A file whose bytes cannot be read is still dated,
+  from its name or upload time; a pass visits each file once and cannot loop
+  on one.
+
+- **`MediaBrowser` has a view-only mode (#848).** `readonly` hides every
+  write affordance (upload, new folder, rename, move, trash, select, rotate,
+  the image editor, drag and drop) and refuses every mutating event
+  server-side; a broadcast upload is refused where it lands. The nested
+  viewer is read-only too — no annotating, rotating or editing details, and
+  (post-merge review fix) no burn when the viewer closes. Navigation,
+  search, sorting, the viewer and downloads keep working.
+
+### Changed
+
+- **A capture date is never downgraded.** An image edit keeps only the ICC
+  profile, so an edited original carries no EXIF; re-processing one used to
+  be harmless and now must not replace its EXIF date with a file name. Every
+  automatic writer goes through `CaptureDate.replace?/2` — a date is replaced
+  only by one from an equally strong or stronger source, and a `manual` date
+  never — and an edited image is dated from its unedited backup
+  (`original_file_uuid`), not its own bytes.
+
+- **The media viewer opens on the burned copy (#853).** The picture with its
+  markup rendered in — the thing people look at and right-click → Copy Image
+  — is what the viewer shows first; the pencil switches to the live,
+  editable layer, and turning it off burns what was drawn. The viewer opens
+  on a new `burned_large` slot (fit inside 1920px); `burned` stays card-sized
+  (800px) because a grid paints many of them. A burn happens once per change
+  of the drawing, not once per visit: the client fingerprints a canonical
+  form of the shapes, the burn endpoint keeps it in `metadata["burn"]` —
+  merged into the row as it is now, so a rotation or title changed while a
+  burn ran is not reverted — and it is handed back only while a burn is
+  stored, so an image edit (which deletes the burns) does not stop the next
+  one. The editor's zoom ladder starts at `small` and tops out at `large`, and
+  the viewer stays light whatever daisyUI theme the admin uses, since the
+  burn is composed on white.
+- **Etcher 0.17.0 is the floor (#854).** `Etcher.Raster` now bakes a
+  dimension's heads, every kind's label (sized against the picture) and
+  `style.fill`; on 0.16 a baked annotated thumbnail was hollow, unlabelled
+  shapes.
+- **Every connected, authenticated LiveView mounted through a scope hook
+  is tracked in Live sessions (#845).** That covers admin pages, feature
+  modules, a host page using the scope mount, and the public auth session.
+  The row is one per login (`session_id` is a SHA-256 of the session token,
+  not the token itself), shared by every tab of that login, and removed when
+  the last of them closes. It is node-local. A navigation that destroys the
+  LiveView before the next one mounts looks like a disconnect and resets
+  `connected_at` while only one tab is open. Anonymous visitors are not
+  recorded on this path.
+
+### Fixed
+
+- **A trashed file no longer stays on screen (#847).** Trashing, restoring or
+  permanently deleting a file — directly, or by trashing/restoring its
+  folder — now broadcasts `{:phoenix_kit_file_trashed | _restored | _deleted,
+  uuid}` on `Storage.subscribe_to_file_events/0`'s topic. `MediaBrowser`
+  drops the card and closes a viewer open on it; `FeaturedImage` re-resolves
+  on `send_update(FeaturedImage, id: id, refresh: true)`. A trashed file's
+  variants are refused (404) by `/file/...` except to a holder of the
+  `"media"` permission, whose Trash tab renders its thumbnails through that
+  route — and that response is `private, no-store`, never `public`: the URL
+  is the same for every caller, so a CDN or caching proxy would otherwise
+  have kept the holder's copy and served it to anyone (post-merge review
+  fix).
+- **Admin tab permissions are kept per action (#850).** Two tabs naming the
+  same LiveView on different `live_action`s no longer collide on one cached
+  entry, where a tab's `priority` silently decided which key guarded both
+  routes (a redirect loop for users holding the page's own key). An action
+  with no tab of its own — `:show`/`:edit` of a LiveView whose tab is
+  `:index` — is guarded by the module's tab permission when its tabs all
+  agree on one; before the post-merge review fix it resolved to nothing and
+  locked partial roles out of every record behind the list.
+- **The Settings sidebar entry opens a page its viewer can use (#851).** It
+  was shown to holders of any settings-related permission but always linked
+  to General, gated on `"settings"` alone; it now links to the first
+  settings subtab the viewer can open, and still to General for a
+  `"settings"` holder whatever priority a module gives its own subtab.
+
+- **A folder operation is announced once, not once per file.** Trashing,
+  restoring or permanently deleting a folder sends one
+  `{:phoenix_kit_files_trashed | _restored | _deleted, [uuid]}` for every
+  file it swept up (single-file operations keep `{:phoenix_kit_file_*,
+  uuid}`); a folder of thousands of files was thousands of messages and
+  re-renders for every open browser. A host reacting to one file must match
+  both shapes — see `FeaturedImage`'s moduledoc. A file a permanent folder
+  delete re-homes into a trashed folder, and the files a media reorganize
+  restores, are now announced too.
+- **Restoring a folder restores only what trashing it trashed.** A file
+  trashed on its own before or after the folder stays in the trash (it was
+  restored along with the folder, and so were files never trashed at all).
+- **Opening a trashed file's thumbnails costs one permission lookup per
+  burst**, not two queries per image: the answer is cached for five seconds
+  per user and active role.
+- **The admin header and a `user_settings_path` override keep the visitor's
+  language (#852).** The project title links to the host's own `/<locale>`
+  home when its router serves one (else `/`), never to core's mount point;
+  an override page gets the locale segment the default settings page would,
+  and never `url_prefix`.
+- **Every way into Settings lands on a page its viewer can open.** A visitor
+  refused Settings → General who can open another settings subtab is taken
+  there — from a settings page's section header, a bookmark or a typed URL,
+  not only from the sidebar. Both sidebars and this redirect follow one rule
+  (`TabHelpers.redirect_target/2`), and the user dashboard's sidebar now also
+  keeps a parent's own landing page when it is reachable.
+- **A rotated picture burns.** The burn recovered its scale from the screen
+  X of two image points, which is 0 at a quarter turn and negative at a half
+  turn, so a saved rotation made every burn a silent no-op and the viewer
+  kept opening on the old copy. The mapping is now the full image→screen
+  affine, and the burned pixels stay unrotated (the viewer reapplies the
+  rotation). Stepping to the next or previous file burns on the way out, and
+  the stand-in paints the variant the viewer opens on (`burned_large`, else
+  `burned`, else `small`) instead of flashing the clean `small`.
+- **A readonly viewer does not create annotation comments.** Reply stays on
+  the tooltip of a locked shape; `annotation_reply` is refused when the
+  viewer cannot annotate.
+- **An untabbed action stays unmapped when a LiveView's tabs disagree.**
+  Namespace inference (`PhoenixKit.Modules.Reports.Web` → `"reports"`) no
+  longer authorizes a `:show` / `:edit` that neither tab named. Tabs that
+  agree still guard those actions, and a tab registered for the whole module
+  (no action) still guards every action no other tab names.
+- **A trashed file's refusal is not cacheable, and neither are its tiles.**
+  The 404 from `/file/...`, the file info endpoint and the unedited-original
+  endpoint is `private, no-store`. Deep-zoom manifests and tiles use the same
+  media-holder gate as `/file/...` and, when served, are `private, no-store`
+  rather than a year-long public response.
+- **A capture-date backfill does not lock in the wrong date.** An image edit
+  that lands while a file is being dated leaves `taken_at` empty so the next
+  pass reads the unedited backup, instead of storing the file name. A video
+  whose stream `creation_time` is an unset epoch no longer hides the
+  container's real instant. A cross-user copy keeps the donor's date, and
+  `Storage.store_file/2` (comment attachments) records one from the bytes it
+  stores.
+
+**Upgrading:** run `mix phoenix_kit.update` for V200, then date the existing
+library once with `mix phoenix_kit.storage.backfill_capture_dates` (or
+`CaptureDateBackfillJob.enqueue()` from a running node). Video dates need
+`ffprobe`; without it a video is dated from its file name or upload time,
+the same way its dimensions and duration already degrade.
+
 ## 2.36.1 - 2026-09-21
 
 ### Fixed

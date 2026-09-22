@@ -7,13 +7,25 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V200 - View preferences per user ⚡ LATEST
+  ### V201 - View preferences per user ⚡ LATEST
 
   Adds `phoenix_kit_user_view_prefs`: what one user chose for one view — a
   table's columns and order, and the view owner's own fields — one row per
   `(user_uuid, key)`, a field patched with `prefs || new` in the upsert.
   Replaces the site-wide column settings (now each view's default) and the
   per-user blobs the catalogue and CRM kept on their own. Additive only.
+
+  ### V200 - When a photo or video was taken
+
+  Adds `taken_at` (timestamptz), `taken_on` (date), `taken_at_offset`
+  (integer) and `taken_at_source` (varchar) to `phoenix_kit_files`, and
+  `phoenix_kit_files_capture_date_index` on `(user_uuid, taken_on DESC,
+  taken_at DESC)`, partial over a user's visible, processed images and
+  videos. `taken_on` is the local date, which is what a library groups by: a
+  photo taken late on 31 July in California is a July photo although it is
+  already August in UTC. `ProcessFileJob` fills the columns for new uploads,
+  `Storage.Workers.CaptureDateBackfillJob` for files stored earlier — not the
+  migration, since a date is read from a file's bytes. Additive only.
 
   ### V199 - Media file translations
 
@@ -834,7 +846,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 200
+  @current_version 201
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

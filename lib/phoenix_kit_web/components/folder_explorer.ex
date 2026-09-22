@@ -290,7 +290,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
           <button
             phx-click="navigate_root"
             phx-target={@myself}
-            data-drop-folder="root"
+            data-drop-folder={@enable_drag && "root"}
             class={[
               "flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm transition-colors mb-1 text-left",
               if(@current_folder == nil and @file_view != "all" and not @filter_trash,
@@ -343,7 +343,7 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
             <button
               phx-click="toggle_trash_filter"
               phx-target={@myself}
-              data-drop-trash="true"
+              data-drop-trash={@enable_drag && "true"}
               class={[
                 "flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors w-full",
                 if(@filter_trash,

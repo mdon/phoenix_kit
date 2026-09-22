@@ -58,6 +58,8 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias Phoenix.LiveView
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Admin.Presence
+  alias PhoenixKit.Dashboard.Registry, as: TabRegistry
+  alias PhoenixKit.Dashboard.TabHelpers
   alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Modules.Crawlers
   alias PhoenixKit.Modules.Languages
@@ -77,6 +79,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Utils.SessionFingerprint
   alias PhoenixKit.Utils.UserAgent
   alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate}
+  alias PhoenixKitWeb.Components.Dashboard.AdminSidebar
   alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
   alias PhoenixKitWeb.Users.MultiSession
 
@@ -1970,6 +1973,13 @@ defmodule PhoenixKitWeb.Users.Auth do
   effects (including the one-time "unmapped admin view" warning) and asks this
   same decision for the verdict.
 
+  Pass `live_action` whenever you have it. Admin-tab permissions are cached
+  by `{module, live_action}` (a tab registered as `live_view: {Mod, :action}`
+  is only found under that key), so a module-only call answers for a tab
+  registered without an action and reports *unmapped* for one registered
+  with an action — the mount gate always has the action, and so does any
+  caller resolving a route through `Phoenix.Router.route_info/4`.
+
   ## The decision, branch by branch
 
   1. **Admin-area gate** — `Scope.can_access_admin_area?/1` must hold (Owner,
@@ -1982,7 +1992,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   2. **Personal admin views** — the views in `@personal_admin_views` (your own
      notification inbox / preferences) show a user their OWN data rather than
      granting an administrative capability, so branch 1 is the whole gate.
-  3. **Mapped view** — `permission_key_for_admin_view/1` resolved a key:
+  3. **Mapped view** — `permission_key_for_admin_view/2` resolved a key:
      * the module behind the key must be enabled
        (`PhoenixKit.Users.Permissions.feature_enabled?/1`) — a disabled module
        is blocked for EVERYONE, Owner included;
@@ -2028,8 +2038,9 @@ defmodule PhoenixKitWeb.Users.Auth do
           Auth.can_access_admin_view?(scope, PhoenixKitWeb.Live.Users.Users)
       )
   """
-  @spec can_access_admin_view?(Scope.t() | nil, module()) :: boolean()
-  def can_access_admin_view?(scope, view_module) when is_atom(view_module) do
+  @spec can_access_admin_view?(Scope.t() | nil, module(), atom() | nil) :: boolean()
+  def can_access_admin_view?(scope, view_module, live_action \\ nil)
+      when is_atom(view_module) do
     cond do
       not Scope.can_access_admin_area?(scope) ->
         false
@@ -2038,7 +2049,10 @@ defmodule PhoenixKitWeb.Users.Auth do
         true
 
       true ->
-        admin_view_permission_check(scope, permission_key_for_admin_view(view_module)) == :ok
+        admin_view_permission_check(
+          scope,
+          permission_key_for_admin_view(view_module, live_action)
+        ) == :ok
     end
   end
 
@@ -2113,7 +2127,8 @@ defmodule PhoenixKitWeb.Users.Auth do
   # here — it comes from `admin_view_permission_check/2`, the single
   # implementation both callers share.
   defp enforce_mapped_admin_view_permission(socket, scope) do
-    module_key = permission_key_for_admin_view(socket.view)
+    module_key =
+      permission_key_for_admin_view(socket.view, socket.assigns[:live_action])
 
     socket =
       case module_key do
@@ -2126,9 +2141,53 @@ defmodule PhoenixKitWeb.Users.Auth do
       end
 
     case admin_view_permission_check(scope, module_key) do
-      :ok -> {:cont, socket}
-      {:denied, {:module_disabled, key}} -> deny_module_disabled(socket, key)
-      {:denied, _reason} -> deny_admin_access(socket, scope)
+      :ok ->
+        {:cont, socket}
+
+      {:denied, {:module_disabled, key}} ->
+        deny_module_disabled(socket, key)
+
+      {:denied, _reason} ->
+        case settings_landing_redirect(socket, scope) do
+          nil -> deny_admin_access(socket, scope)
+          path -> {:halt, LiveView.redirect(socket, to: Routes.path(path))}
+        end
+    end
+  end
+
+  # Settings → General (`/admin/settings`) is gated on `"settings"` alone, but
+  # the Settings entry is shown to anyone holding any settings subtab's key
+  # (`AdminTabs.settings_visible?/1`). The sidebar already links such a
+  # visitor to a subtab they can open (#851); every OTHER way here — a
+  # settings page's section header, the Sitemap page's button, a bookmark, a
+  # typed URL — still landed on General and was refused. Send them where the
+  # sidebar would, instead of refusing, and without an error: nothing they
+  # asked for was withheld.
+  defp settings_landing_redirect(
+         %{view: PhoenixKitWeb.Live.Settings, assigns: %{live_action: :index}},
+         scope
+       ) do
+    TabRegistry.get_admin_tabs(scope: scope)
+    |> AdminSidebar.reachable_tabs(scope)
+    |> settings_landing_path()
+  end
+
+  defp settings_landing_redirect(_socket, _scope), do: nil
+
+  @settings_landing "/admin/settings"
+
+  @doc false
+  # Where a visitor refused General should go, from the admin tabs they can
+  # reach: the first settings subtab, by the same rule the sidebar follows
+  # (`TabHelpers.redirect_target/2`). `nil` when there is none — or when that
+  # rule names General itself, which the gate has just refused: redirecting
+  # there would loop.
+  def settings_landing_path(reachable_tabs) do
+    subtabs = TabHelpers.get_subtabs_for(:admin_settings, reachable_tabs)
+
+    case TabHelpers.redirect_target(%{path: @settings_landing}, subtabs) do
+      @settings_landing -> nil
+      path -> path
     end
   end
 
@@ -2305,13 +2364,18 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Activity.Show => "dashboard"
   }
 
-  # Resolve a LiveView module to its permission key.
+  # Resolve a LiveView module (optionally scoped to a live_action) to its
+  # permission key.
   #
   # Resolution order (first non-nil wins):
   #
   #   1. `@admin_view_permissions` static map — core admin views.
-  #   2. `infer_permission_from_custom_tabs/1` — modules that registered
-  #      admin tabs with a `live_view:` field.
+  #   2. `infer_permission_from_custom_tabs/2` — modules that registered
+  #      admin tabs with a `live_view:` field. A tab naming
+  #      `{module, action}` caches under that exact key, so two tabs
+  #      sharing a module but gated on different actions resolve
+  #      independently instead of one overwriting the other (#844); a
+  #      tab that named no action falls back to the bare module key.
   #   3. `PhoenixKit.Modules.<X>.Web.*` namespace inference — internal
   #      modules under the core namespace.
   #   4. Plugin top-level namespace via `ModuleRegistry` — external
@@ -2325,22 +2389,54 @@ defmodule PhoenixKitWeb.Users.Auth do
   # exercise the resolution layers directly without LiveView mounting
   # machinery. Not part of the public API.
   @doc false
-  def permission_key_for_admin_view(view_module) do
+  def permission_key_for_admin_view(view_module, live_action \\ nil) do
     case Map.get(@admin_view_permissions, view_module) do
       nil ->
-        infer_permission_from_custom_tabs(view_module) ||
-          infer_permission_key_from_module(view_module)
+        case infer_permission_from_custom_tabs(view_module, live_action) do
+          {:ok, key} -> key
+          # Tabs name this module and disagree. Namespace inference would
+          # hand an untabbed action the module's own key (`PhoenixKit.Modules.
+          # Reports.Web` → `"reports"`), which anyone holding either tab
+          # already has. Stay unmapped so the view fails closed.
+          :unmapped -> nil
+          :miss -> infer_permission_key_from_module(view_module)
+        end
 
       key ->
         key
     end
   end
 
-  # Looks up permission key from cached custom view → permission mapping.
-  # This mapping is populated at Registry init time from :admin_dashboard_tabs config.
-  defp infer_permission_from_custom_tabs(view_module) do
-    Permissions.custom_view_permissions()
-    |> Map.get(view_module)
+  # Looks up the permission key from the cached custom view → permission
+  # mapping. Populated at Registry init time from :admin_dashboard_tabs
+  # config.
+  #
+  #   * the exact `{module, action}` key, when a tab named that action
+  #   * the bare module key, when a tab named the module without an action —
+  #     that tab claims every action no other tab names, its own landing
+  #     action included
+  #   * the module's one tab permission, when every action-specific tab
+  #     agrees — an untabbed `:show` / `:edit` is guarded by it
+  #   * `:unmapped` when those tabs disagree (#844: a landing redirector and
+  #     the page behind it, gated differently): no safe answer for an action
+  #     neither names, so it fails closed
+  #   * `:miss` when nothing is cached, so the caller may infer from the
+  #     module's namespace
+  defp infer_permission_from_custom_tabs(view_module, live_action) do
+    custom = Permissions.custom_view_permissions()
+
+    with :error <- Map.fetch(custom, {view_module, live_action}),
+         :error <- Map.fetch(custom, view_module) do
+      case action_permission_keys(custom, view_module) do
+        [key] -> {:ok, key}
+        [_ | _] -> :unmapped
+        [] -> :miss
+      end
+    end
+  end
+
+  defp action_permission_keys(custom, view_module) do
+    for {{^view_module, action}, key} <- custom, is_atom(action), uniq: true, do: key
   end
 
   # Infer permission key from `PhoenixKit.Modules.<Name>.Web.*` (core) or from a

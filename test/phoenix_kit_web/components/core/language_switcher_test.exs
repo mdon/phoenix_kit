@@ -176,14 +176,12 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcherTest do
   end
 
   describe "single-vs-multi-dialect label dedup" do
-    @moduledoc """
-    `build_dialect_list/1` strips the country qualifier from each
-    rendered name when only one dialect of that base language is
-    configured. As soon as a second dialect of the *same* base shows
-    up, both English entries reacquire the qualifier so the user can
-    distinguish them. Other languages with only one dialect stay
-    bare.
-    """
+    # `build_dialect_list/1` strips the country qualifier from each
+    # rendered name when only one dialect of that base language is
+    # configured. As soon as a second dialect of the *same* base shows
+    # up, both English entries reacquire the qualifier so the user can
+    # distinguish them. Other languages with only one dialect stay
+    # bare.
 
     test "single dialect per language → bare language names render" do
       assigns = %{
@@ -305,16 +303,14 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcherTest do
   end
 
   describe "ai_translate — per-language sparkle + bulk action" do
-    @moduledoc """
-    The `:ai_translate` opt-in attr surfaces a sparkle button next to
-    missing-language items and a bulk CTA below the list. The
-    component emits `phx-click={ai_translate.event}` — host handlers
-    enqueue the actual translation worker.
-
-    `nil` (default) → no AI UI; today's behavior. `:enabled, false`
-    → same. Anything else → component reads `:missing` /
-    `:in_flight` / `:completed` to decide what to render.
-    """
+    # The `:ai_translate` opt-in attr surfaces a sparkle button next to
+    # missing-language items and a bulk CTA below the list. The
+    # component emits `phx-click={ai_translate.event}` — host handlers
+    # enqueue the actual translation worker.
+    #
+    # `nil` (default) → no AI UI; today's behavior. `:enabled, false`
+    # → same. Anything else → component reads `:missing` /
+    # `:in_flight` / `:completed` to decide what to render.
 
     defp three_languages do
       [
@@ -498,7 +494,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcherTest do
             %{enabled: true, event: "   ", missing: ["fr"]},
             %{enabled: true, event: nil, missing: ["fr"]}
           ] do
-        ai = cfg
+        assigns = Map.put(assigns, :ai, cfg)
 
         html =
           rendered_to_string(~H"""
@@ -506,7 +502,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcherTest do
             current_locale="en"
             languages={@languages}
             current_path="/blog/post"
-            ai_translate={ai}
+            ai_translate={@ai}
           />
           """)
 

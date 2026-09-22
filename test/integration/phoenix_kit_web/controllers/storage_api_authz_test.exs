@@ -8,7 +8,10 @@ defmodule PhoenixKitWeb.StorageApiAuthzTest do
   """
   use PhoenixKit.DataCase, async: true
 
+  import Plug.Test, only: [conn: 2]
+
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Permissions
@@ -49,6 +52,19 @@ defmodule PhoenixKitWeb.StorageApiAuthzTest do
     Repo.get!(Auth.User, user.uuid)
   end
 
+  # A user with the blanket superadmin ("*") grant — Owner-equivalent for
+  # every module-access check, `has_module_access?/2` included, without
+  # depending on this shared test database's actual Owner (assigning the
+  # Owner role directly is refused — `Roles.assign_role/2` protects it — and
+  # "first user becomes Owner" only holds for a database with no prior
+  # Owner, which this shared `phoenix_kit_test` does not guarantee).
+  defp superadmin_user do
+    user = plain_user()
+    user_role = Roles.get_role_by_name("User")
+    {:ok, _} = Permissions.grant_permission(user_role.uuid, Permissions.superadmin_key())
+    Repo.get!(Auth.User, user.uuid)
+  end
+
   defp make_file(owner_uuid) do
     checksum = "cs_#{System.unique_integer([:positive])}"
 
@@ -67,6 +83,25 @@ defmodule PhoenixKitWeb.StorageApiAuthzTest do
       })
 
     file
+  end
+
+  defp trashed_file(owner_uuid) do
+    {:ok, file} = owner_uuid |> make_file() |> Storage.trash_file()
+    file
+  end
+
+  defp system_managed_file(owner_uuid) do
+    {:ok, file} =
+      owner_uuid
+      |> make_file()
+      |> Ecto.Changeset.change(system_managed: true, status: "trashed")
+      |> Repo.update()
+
+    file
+  end
+
+  defp conn_for(user) do
+    conn(:get, "/") |> Plug.Conn.assign(:phoenix_kit_current_user, user)
   end
 
   describe "UploadController.resolve_upload_user/2 — the anonymous-write hole" do
@@ -151,6 +186,141 @@ defmodule PhoenixKitWeb.StorageApiAuthzTest do
       assert Scope.can_access_admin_area?(Scope.for_user(holder))
       refute Scope.system_role?(Scope.for_user(holder))
       assert {:error, :not_found} = FileController.authorize_file_read(file, holder)
+    end
+  end
+
+  describe "FileController.get_servable_file/2 — the trashed-file read guard (issue #841)" do
+    test "an active file is servable for anyone, unchanged" do
+      owner = plain_user()
+      file = make_file(owner.uuid)
+
+      for user <- [nil, owner, plain_user(), permission_holder_user(), admin_user()] do
+        assert {:ok, got} = FileController.get_servable_file(conn_for(user), file.uuid)
+        assert got.uuid == file.uuid
+      end
+    end
+
+    test "a trashed file is not found for an anonymous caller" do
+      owner = plain_user()
+      file = trashed_file(owner.uuid)
+
+      assert {:error, :not_found} = FileController.get_servable_file(conn_for(nil), file.uuid)
+    end
+
+    test "a trashed file is not found for its own owner without the media permission" do
+      owner = plain_user()
+      file = trashed_file(owner.uuid)
+
+      assert {:error, :not_found} = FileController.get_servable_file(conn_for(owner), file.uuid)
+    end
+
+    test "a trashed file is not found for an unrelated plain user" do
+      owner = plain_user()
+      stranger = plain_user()
+      file = trashed_file(owner.uuid)
+
+      assert {:error, :not_found} =
+               FileController.get_servable_file(conn_for(stranger), file.uuid)
+    end
+
+    test "a trashed file IS servable for a 'media' permission holder — the Trash tab needs it" do
+      owner = plain_user()
+      holder = permission_holder_user()
+      file = trashed_file(owner.uuid)
+
+      assert {:ok, got} = FileController.get_servable_file(conn_for(holder), file.uuid)
+      assert got.uuid == file.uuid
+    end
+
+    test "a trashed file IS servable for an Admin" do
+      owner = plain_user()
+      admin = admin_user()
+      file = trashed_file(owner.uuid)
+
+      assert {:ok, got} = FileController.get_servable_file(conn_for(admin), file.uuid)
+      assert got.uuid == file.uuid
+    end
+
+    test "a trashed file IS servable for a superadmin ('*') grant — Owner-equivalent" do
+      owner = plain_user()
+      admin = superadmin_user()
+      file = trashed_file(owner.uuid)
+
+      assert {:ok, got} = FileController.get_servable_file(conn_for(admin), file.uuid)
+      assert got.uuid == file.uuid
+    end
+
+    test "a system-managed file is never servable, even trashed, even for an Admin" do
+      owner = plain_user()
+      admin = admin_user()
+      file = system_managed_file(owner.uuid)
+
+      assert {:error, :not_found} = FileController.get_servable_file(conn_for(admin), file.uuid)
+    end
+
+    test "a missing file is not found, same as before" do
+      assert {:error, :not_found} =
+               FileController.get_servable_file(conn_for(nil), Ecto.UUID.generate())
+    end
+  end
+
+  describe "FileController.authorize_trashed_read/1" do
+    test "false for nil (anonymous)" do
+      refute FileController.authorize_trashed_read(nil)
+    end
+
+    test "false for a plain user, true for a 'media' holder, an Admin, and a superadmin grant" do
+      refute FileController.authorize_trashed_read(plain_user())
+      assert FileController.authorize_trashed_read(permission_holder_user())
+      assert FileController.authorize_trashed_read(admin_user())
+      assert FileController.authorize_trashed_read(superadmin_user())
+    end
+  end
+
+  describe "FileController.show/2 — trashed file end-to-end (issue #841)" do
+    test "404s for an anonymous caller even with a syntactically valid token" do
+      owner = plain_user()
+      file = trashed_file(owner.uuid)
+      token = URLSigner.generate_token(file.uuid, "original")
+
+      conn =
+        FileController.show(conn_for(nil), %{
+          "file_uuid" => file.uuid,
+          "variant" => "original",
+          "token" => token
+        })
+
+      assert conn.status == 404
+    end
+
+    test "404s for a plain (non-owner, non-media) caller even with a valid token" do
+      owner = plain_user()
+      stranger = plain_user()
+      file = trashed_file(owner.uuid)
+      token = URLSigner.generate_token(file.uuid, "original")
+
+      conn =
+        FileController.show(conn_for(stranger), %{
+          "file_uuid" => file.uuid,
+          "variant" => "original",
+          "token" => token
+        })
+
+      assert conn.status == 404
+    end
+
+    test "an active (non-trashed) file's serving is unaffected: token failure still 401, not 404" do
+      owner = plain_user()
+      file = make_file(owner.uuid)
+
+      conn =
+        FileController.show(conn_for(nil), %{
+          "file_uuid" => file.uuid,
+          "variant" => "original",
+          "token" => "not-a-real-token"
+        })
+
+      assert conn.status == 401
     end
   end
 

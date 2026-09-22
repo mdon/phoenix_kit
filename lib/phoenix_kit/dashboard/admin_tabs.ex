@@ -223,6 +223,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
           match: :exact,
           group: :admin_system,
           subtab_display: :when_active,
+          redirect_to_first_subtab: true,
           highlight_with_subtabs: false,
           visible: &__MODULE__.settings_visible?/1,
           gettext_backend: PhoenixKitWeb.Gettext

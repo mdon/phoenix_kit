@@ -15,10 +15,6 @@ defmodule PhoenixKitWeb.Components.MediaViewerTest do
   """
   use ExUnit.Case, async: true
 
-  # `render_component` macro reads @endpoint at compile time.
-  # The endpoint is started once in test_helper.exs (no DB required).
-  @endpoint PhoenixKitWeb.Endpoint
-
   import Phoenix.LiveViewTest, except: [render: 1]
 
   alias PhoenixKitWeb.Components.MediaViewer

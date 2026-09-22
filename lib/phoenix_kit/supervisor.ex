@@ -67,6 +67,17 @@ defmodule PhoenixKit.Supervisor do
          warmer: &PhoenixKit.Settings.warm_cache_data/0},
         id: :settings_cache
       ),
+      # Whether a user may see a TRASHED file's variants
+      # (`FileController.authorize_trashed_read/1`), for a few seconds. A Trash
+      # tab renders every thumbnail through `/file/...`, and building the answer
+      # is a role query plus a permission load per image — the cache turns a
+      # grid's burst into one. The TTL bounds how long a revoked "media"
+      # permission keeps admitting trashed thumbnails; the page already
+      # rendered, and the browser's own image cache, outlast it anyway.
+      Supervisor.child_spec(
+        {PhoenixKit.Cache, name: :trashed_file_access, ttl: :timer.seconds(5)},
+        id: :trashed_file_access_cache
+      ),
       # Dashboard tab registry for user dashboard navigation.
       # Starts after settings_cache so module enabled? checks hit cache rather than DB.
       PhoenixKit.Dashboard.Registry,

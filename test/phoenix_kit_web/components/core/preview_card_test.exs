@@ -1,3 +1,8 @@
+defmodule PreviewCardTestImage do
+  @moduledoc false
+  defstruct [:uuid, :name]
+end
+
 defmodule PhoenixKitWeb.Components.Core.PreviewCardTest do
   @moduledoc """
   Render-shape tests for `preview_card/1` and `preview_card_body/1`,
@@ -105,6 +110,69 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCardTest do
 
     test "one image renders no placeholder" do
       refute render_card(%{images: [%{uuid: "only", name: "x.jpg"}]}) =~ "No images"
+    end
+  end
+
+  describe "images given by URL (:src)" do
+    test "a :src image renders from that URL, not from a signed Storage path" do
+      html =
+        render_card(%{
+          images: [%{src: "https://example.com/page-1-large.png", name: "Page 1"}]
+        })
+
+      assert html =~ ~s(src="https://example.com/page-1-large.png")
+      assert html =~ ~s(alt="Page 1")
+      refute html =~ "/file/"
+    end
+
+    test "the jump strip uses :thumb_src when given, else the :src itself" do
+      html =
+        render_card(%{
+          images: [
+            %{
+              src: "https://example.com/a-large.png",
+              thumb_src: "https://example.com/a-small.png"
+            },
+            %{src: "https://example.com/b-large.png", name: nil}
+          ]
+        })
+
+      [_slides, strip] = String.split(html, "data-pc-strip>", parts: 2)
+      assert strip =~ ~s(src="https://example.com/a-small.png")
+      assert strip =~ ~s(src="https://example.com/b-large.png")
+      refute strip =~ "a-large.png"
+    end
+
+    test "Storage images and URL images mix in one carousel" do
+      html =
+        render_card(%{images: [%{uuid: "img-1", name: "front.jpg"}, %{src: "/doc/thumb.png"}]})
+
+      assert html =~ "img-1"
+      assert html =~ ~s(src="/doc/thumb.png")
+    end
+
+    test "an image entry may be a struct (no Access), and :name is optional" do
+      html = render_card(%{images: [%{src: "/p.png"}]})
+      assert html =~ ~s(src="/p.png")
+      assert html =~ ~s(alt="Oak Panel")
+
+      html = render_card(%{images: [%PreviewCardTestImage{uuid: "img-9", name: "s.jpg"}]})
+      assert html =~ "img-9"
+      assert html =~ ~s(alt="s.jpg")
+    end
+
+    test "image_url/2 picks :src / :thumb_src, else signs the Storage variant" do
+      assert PreviewCard.image_url(%{src: "https://x/l.png"}, "medium") == "https://x/l.png"
+
+      assert PreviewCard.image_url(
+               %{src: "https://x/l.png", thumb_src: "https://x/s.png"},
+               "thumbnail"
+             ) ==
+               "https://x/s.png"
+
+      assert PreviewCard.image_url(%{src: "https://x/l.png"}, "thumbnail") == "https://x/l.png"
+      assert PreviewCard.image_url(%{uuid: "img-1"}, "medium") =~ "img-1"
+      assert PreviewCard.image_url(%{uuid: "img-1"}, "medium") =~ "medium"
     end
   end
 

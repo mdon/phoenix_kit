@@ -38,7 +38,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.Sidebar do
 
   use Phoenix.Component
 
-  alias PhoenixKit.Dashboard.{Group, Presence, Registry, Tab}
+  alias PhoenixKit.Dashboard.{Group, Presence, Registry, Tab, TabHelpers}
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.Dashboard.TabItem
 
@@ -649,8 +649,13 @@ defmodule PhoenixKitWeb.Components.Dashboard.Sidebar do
   end
 
   # If redirect_to_first_subtab is enabled, replace the tab's path with the first subtab's path
-  defp maybe_redirect_to_first_subtab(%{redirect_to_first_subtab: true} = tab, [first_subtab | _]) do
-    %{tab | path: first_subtab.path}
+  # Same rule as the admin sidebar (`TabHelpers.redirect_target/2`): the
+  # parent's own landing subtab when reachable, else the first by priority.
+  defp maybe_redirect_to_first_subtab(%{redirect_to_first_subtab: true} = tab, subtabs) do
+    case TabHelpers.redirect_target(tab, subtabs) do
+      nil -> tab
+      path -> %{tab | path: path}
+    end
   end
 
   defp maybe_redirect_to_first_subtab(tab, _subtabs), do: tab

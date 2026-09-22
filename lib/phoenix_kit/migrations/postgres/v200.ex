@@ -1,80 +1,81 @@
 defmodule PhoenixKit.Migrations.Postgres.V200 do
   @moduledoc """
-  V200: A user's view preferences, per view.
+  V200: when a photo or video was taken.
 
-  `phoenix_kit_user_view_prefs` holds what one admin chose for one view — a
-  table's columns and their order, and whatever else the view's owner keeps
-  there (a sort, filters) — one row per `(user_uuid, key)`. `key` names the
-  view (`"users"`, `"catalogue.detail_items"`); `prefs` is a JSON object of
-  top-level fields, each written whole.
+  Storage recorded a file's dimensions and duration at ingest but never when
+  it was taken — no EXIF date was read, so nothing could order or group a
+  library by it. This version adds four columns on `phoenix_kit_files`:
 
-  Until now the Users table and the website-access table kept ONE column
-  list for the whole site in a setting, the catalogue kept its per-user
-  choices inside `phoenix_kit_users.custom_fields` (written as a whole map
-  from whatever copy of the user the page held), and CRM kept them in a
-  table of its own. A row per view is written without touching the user's
-  row, and a field is patched with `prefs || new` in the upsert itself, so
-  two tabs changing different fields both keep their change.
+    * `taken_at` (timestamptz) — the moment, UTC
+    * `taken_on` (date) — the local calendar date, which is what a library
+      groups by
+    * `taken_at_offset` (integer) — seconds east of UTC, when known
+    * `taken_at_source` (varchar) — `manual`, `exif`, `container`,
+      `filename` or `inserted_at`
 
-  `PhoenixKit.Users.ViewPrefs` is the read and write path. The FK is
-  `ON DELETE CASCADE`: deleting a user takes their preferences with them.
-  The unique index is the upsert's conflict target and, leading with
-  `user_uuid`, also serves the FK.
+  and `phoenix_kit_files_capture_date_index` on
+  `(user_uuid, taken_on DESC, taken_at DESC)`, partial over the files a media
+  library shows: a user's own, visible, processed images and videos. It is
+  partial so an edited image's hidden backup and a Tessera tile pyramid —
+  thousands of `system_managed` rows per image — cost the index nothing.
+
+  `PhoenixKit.Modules.Storage.CaptureDate` explains the columns.
+  `ProcessFileJob` fills them for new uploads and
+  `Storage.Workers.CaptureDateBackfillJob` for files stored earlier; nothing
+  is backfilled here, because a date comes from a file's bytes, which a
+  migration cannot read.
 
   Additive only; re-runnable.
   """
 
   use Ecto.Migration
 
-  alias PhoenixKit.Migrations.Postgres.Helpers
-
   def up(opts) do
-    prefix = Map.get(opts, :prefix, "public")
-    p = prefix_str(prefix)
-
-    create_if_not_exists table(:phoenix_kit_user_view_prefs,
-                           primary_key: false,
-                           prefix: prefix
-                         ) do
-      add(:uuid, :uuid, primary_key: true, default: fragment(Helpers.uuid_v7_call(prefix)))
-
-      add(
-        :user_uuid,
-        references(:phoenix_kit_users,
-          column: :uuid,
-          type: :uuid,
-          on_delete: :delete_all,
-          prefix: prefix
-        ),
-        null: false
-      )
-
-      add(:key, :string, size: 255, null: false)
-      add(:prefs, :map, null: false, default: %{})
-
-      timestamps(type: :utc_datetime)
-    end
-
-    # Index name stays bare on CREATE — it is qualified only on DROP (see
-    # dev_docs/guides/2026-07-27-prefix-safe-migrations.md).
-    create_if_not_exists(
-      unique_index(:phoenix_kit_user_view_prefs, [:user_uuid, :key],
-        prefix: prefix,
-        name: "phoenix_kit_user_view_prefs_user_key_index"
-      )
-    )
-
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '200'")
+    opts |> Map.get(:prefix, "public") |> up_statements() |> Enum.each(&execute/1)
   end
 
-  @doc "Rolls V200 back: drops the table. Every saved view preference is lost."
+  @doc "Rolls V200 back: drops the index and the four columns. Recorded dates are lost."
   def down(opts) do
-    prefix = Map.get(opts, :prefix, "public")
+    opts |> Map.get(:prefix, "public") |> down_statements() |> Enum.each(&execute/1)
+  end
+
+  @doc false
+  # The exact statements `up/1` runs, for the migration test. `prefix` is the
+  # bare schema name. The index name stays bare on CREATE (it is created in
+  # its table's schema) and is qualified only on DROP.
+  def up_statements(prefix) do
     p = prefix_str(prefix)
 
-    drop_if_exists(table(:phoenix_kit_user_view_prefs, prefix: prefix))
+    [
+      "ALTER TABLE #{p}phoenix_kit_files ADD COLUMN IF NOT EXISTS taken_at timestamp with time zone",
+      "ALTER TABLE #{p}phoenix_kit_files ADD COLUMN IF NOT EXISTS taken_on date",
+      "ALTER TABLE #{p}phoenix_kit_files ADD COLUMN IF NOT EXISTS taken_at_offset integer",
+      "ALTER TABLE #{p}phoenix_kit_files ADD COLUMN IF NOT EXISTS taken_at_source character varying(255)",
+      """
+      CREATE INDEX IF NOT EXISTS phoenix_kit_files_capture_date_index
+      ON #{p}phoenix_kit_files (user_uuid, taken_on DESC, taken_at DESC)
+      WHERE system_managed = false
+        AND trashed_at IS NULL
+        AND parent_file_uuid IS NULL
+        AND status = 'active'
+        AND file_type IN ('image', 'video')
+      """,
+      "COMMENT ON TABLE #{p}phoenix_kit IS '200'"
+    ]
+  end
 
-    execute("COMMENT ON TABLE #{p}phoenix_kit IS '199'")
+  @doc false
+  def down_statements(prefix) do
+    p = prefix_str(prefix)
+
+    [
+      "DROP INDEX IF EXISTS #{p}phoenix_kit_files_capture_date_index",
+      "ALTER TABLE #{p}phoenix_kit_files DROP COLUMN IF EXISTS taken_at_source",
+      "ALTER TABLE #{p}phoenix_kit_files DROP COLUMN IF EXISTS taken_at_offset",
+      "ALTER TABLE #{p}phoenix_kit_files DROP COLUMN IF EXISTS taken_on",
+      "ALTER TABLE #{p}phoenix_kit_files DROP COLUMN IF EXISTS taken_at",
+      "COMMENT ON TABLE #{p}phoenix_kit IS '199'"
+    ]
   end
 
   defp prefix_str("public"), do: "public."

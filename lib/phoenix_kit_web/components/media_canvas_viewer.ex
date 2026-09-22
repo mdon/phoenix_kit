@@ -94,6 +94,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   alias PhoenixKit.Annotations
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.FileDetails
+  alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Format
 
@@ -147,6 +148,14 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     {:ok,
      socket
      |> assign(:viewer_canvas, nil)
+     # Opens showing the burned copy when there is one: a picture with its
+     # markup in it is what someone came to look at, and it is the thing
+     # they can right-click and send on. The eye switches to the live
+     # layer, which is the one you can edit.
+     |> assign(:burn_mode, true)
+     |> assign(:burn_canvas, nil)
+     |> assign(:auto_annotate, false)
+     |> assign(:burn_version, nil)
      |> assign(:viewer_annotations, [])
      |> assign(:replying_annotation_uuid, nil)
      |> assign(:reply_parent_uuid, nil)
@@ -277,6 +286,8 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
           socket
           |> assign(:viewer_annotations, annotations)
           |> assign(:viewer_canvas, build_viewer_canvas(file, annotations, locked?(socket)))
+          |> assign(:burn_canvas, build_burn_canvas(file))
+          |> assign(:burn_version, Map.get(file, :burn_fingerprint))
           # Seed everything that lives on the file's own DB row — the saved
           # rotation (so the image paints already-rotated on open, no flash
           # of unrotated → rotated) and the title/description metadata the
@@ -444,6 +455,12 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # (or kind), author = the shape's creator when known, `inserted_at`
   # backdated to the shape's creation — then open the body-only reply
   # popup threading under it.
+  #
+  # The tooltip still offers Reply on a readonly shape. The button is UX;
+  # this clause is the boundary, same as `etcher:annotations-changed`.
+  def handle_event("annotation_reply", _params, %{assigns: %{can_annotate: false}} = socket),
+    do: {:noreply, socket}
+
   def handle_event("annotation_reply", %{"uuid" => uuid}, socket) do
     with %{} <- socket.assigns[:current_user],
          %{} = ann <- find_viewer_annotation(socket, uuid),
@@ -525,6 +542,54 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     else
       _ -> {:noreply, assign(socket, :media_meta_status, :error)}
     end
+  end
+
+  # The eye: burned copy ⇄ the live layer over the picture.
+  #
+  # Switching flips the id of the canvas below it, which is what makes
+  # LiveView tear the old one down and mount the new one — Fresco's canvas
+  # is `phx-update="ignore"`, so a patch would leave the previous image and
+  # extent in place.
+  # A burn just landed. The canvas built at mount points at the copy that
+  # existed THEN — a signed URL carrying the old checksum — so switching to
+  # the burned view would show yesterday's rendering until someone reloaded
+  # the page. Rebuild it around what was just stored.
+  #
+  # The id carries a version for the same reason it carries the mode:
+  # Fresco's canvas is `phx-update="ignore"`, so an unchanged id means the
+  # old image and extent stay exactly where they are.
+  #
+  # The canvas is built from what is STORED for the file this viewer has
+  # open, not from a URL and size the client sends: the client only says a
+  # burn landed and which slot it prefers. The version is the stored bytes'
+  # own (`URLSigner.version/1`), so it changes exactly when a new burn does —
+  # the old `width * height` fallback collided for two burns of one size.
+  def handle_event("burn_stored", params, socket) do
+    with %{file_uuid: uuid} when is_binary(uuid) <- socket.assigns[:file],
+         variant when variant in ~w(burned_large burned) <- params["variant"] || "burned",
+         %{width: w, height: h} = instance
+         when is_integer(w) and w > 0 and is_integer(h) and h > 0 <-
+           Storage.get_file_instance_by_name(uuid, variant) do
+      url = URLSigner.signed_url(uuid, variant, version: instance, locale: :none)
+
+      {:noreply,
+       socket
+       |> assign(:burn_canvas, burn_canvas(url, w, h))
+       |> assign(:burn_version, URLSigner.version(instance))}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_burn_mode", params, socket) do
+    to_live? = socket.assigns[:burn_mode]
+
+    {:noreply,
+     socket
+     |> assign(:burn_mode, not to_live?)
+     # Pressed the pencil rather than the eye: the live layer is what it
+     # needs, but what was asked for was to draw.
+     |> assign(:auto_annotate, to_live? and params["annotate"] == true)}
   end
 
   def handle_event("toggle_viewer_sidebar", _params, socket) do
@@ -1191,11 +1256,14 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
         phx-hook="EtcherTooltipActions"
         class="flex-1 relative flex items-center justify-center bg-base-200 overflow-hidden p-0 lg:p-2 min-h-[40vh] lg:min-h-0"
       >
+        <%!-- Light, like the image viewer: a board is drawn on, and the
+              paper does not change colour with the admin's theme. It is
+              also what a burn of it is composed on. --%>
         <Fresco.canvas
           id={"media-zoom-" <> @board.target_uuid}
           canvas={@viewer_canvas}
           class="w-full h-full lg:rounded"
-          theme={:inherit}
+          theme={:light}
           infinite_canvas={true}
         />
         <%!-- panel_offset: same collision as the html.heex embed — the
@@ -1253,6 +1321,53 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     |> Fresco.Canvas.put_extension("etcher", %{
       "version" => "1",
       "annotations" => Enum.map(annotations, &etcher_annotation_for_wire(&1, locked?))
+    })
+  end
+
+  @doc false
+  # Does this file have a burned copy to open with? `burn_size` names the
+  # variant it describes (`burned_large`, else `burned` — see
+  # `MediaBrowser.burn_size/1`).
+  def burned?(file) when is_map(file) do
+    case Map.get(file, :burn_size) do
+      %{variant: variant} -> is_binary(file.urls[variant])
+      _ -> false
+    end
+  end
+
+  def burned?(_), do: false
+
+  # The canvas the viewer opens with: the picture with its markup already
+  # in it, as one flat image and nothing else.
+  #
+  # Its own extent, not the picture's. A burn takes in ink drawn past the
+  # picture's edges, so it is a different shape — laid out at the picture's
+  # dimensions it would be squeezed, and the markup would sit somewhere it
+  # was never drawn.
+  #
+  # No `etcher` extension on it: there is nothing to draw over a picture
+  # that already has the drawing in it, and a second copy of every shape is
+  # exactly what that would be.
+  defp build_burn_canvas(file) when is_map(file) do
+    with %{variant: variant, w: w, h: h} when w > 0 and h > 0 <- Map.get(file, :burn_size),
+         src when is_binary(src) and src != "" <- file.urls[variant] do
+      burn_canvas(src, w, h)
+    else
+      _ -> nil
+    end
+  end
+
+  defp build_burn_canvas(_file), do: nil
+
+  defp burn_canvas(src, w, h) do
+    Fresco.Canvas.new(width: w, height: h)
+    |> Fresco.Canvas.add_image(%{
+      src: src,
+      x: 0,
+      y: 0,
+      width: w,
+      natural_width: w,
+      natural_height: h
     })
   end
 

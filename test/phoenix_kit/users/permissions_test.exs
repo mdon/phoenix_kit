@@ -1,6 +1,8 @@
 defmodule PhoenixKit.Users.PermissionsTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Permissions
@@ -483,6 +485,54 @@ defmodule PhoenixKit.Users.PermissionsTest do
       perms = Permissions.custom_view_permissions()
       assert perms[MyApp.Live1] == "users"
       assert perms[MyApp.Live2] == "billing"
+    end
+
+    test "two actions of the same module cache independently (#844)" do
+      Permissions.cache_custom_view_permission({MyApp.TabbedLive, :index}, "reports_view")
+      Permissions.cache_custom_view_permission({MyApp.TabbedLive, :edit}, "reports_manage")
+
+      perms = Permissions.custom_view_permissions()
+      assert perms[{MyApp.TabbedLive, :index}] == "reports_view"
+      assert perms[{MyApp.TabbedLive, :edit}] == "reports_manage"
+    end
+
+    test "registration order does not decide which action survives (#844)" do
+      Permissions.cache_custom_view_permission({MyApp.TabbedLive, :edit}, "reports_manage")
+      Permissions.cache_custom_view_permission({MyApp.TabbedLive, :index}, "reports_view")
+
+      perms = Permissions.custom_view_permissions()
+      assert perms[{MyApp.TabbedLive, :index}] == "reports_view"
+      assert perms[{MyApp.TabbedLive, :edit}] == "reports_manage"
+    end
+
+    test "supports a bare module key for hosts registering without an action" do
+      Permissions.cache_custom_view_permission(MyApp.NoActionLive, "reports")
+      assert Permissions.custom_view_permissions()[MyApp.NoActionLive] == "reports"
+    end
+
+    test "warns when the same {module, action} key changes permission" do
+      Permissions.cache_custom_view_permission({MyApp.TabbedLive, :index}, "reports_view")
+
+      log =
+        capture_log([level: :warning], fn ->
+          Permissions.cache_custom_view_permission({MyApp.TabbedLive, :index}, "reports_admin")
+        end)
+
+      assert log =~ "permission changed"
+
+      assert Permissions.custom_view_permissions()[{MyApp.TabbedLive, :index}] ==
+               "reports_admin"
+    end
+
+    test "does not warn when re-registering the same {module, action} key with the same permission" do
+      Permissions.cache_custom_view_permission({MyApp.TabbedLive, :index}, "reports_view")
+
+      log =
+        capture_log([level: :warning], fn ->
+          Permissions.cache_custom_view_permission({MyApp.TabbedLive, :index}, "reports_view")
+        end)
+
+      refute log =~ "permission changed"
     end
   end
 

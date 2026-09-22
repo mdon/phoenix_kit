@@ -146,8 +146,8 @@ defmodule PhoenixKit.Modules.Storage.AnnotationThumbnail do
       |> Etcher.Raster.to_draw_args(
         stroke_width: max(round(max(canvas_w, canvas_h) / 200), 3),
         # Label sizes are stored against a reference canvas, like ink weights.
-        # A Raster that scales them needs the picture's own size; Etcher 0.16
-        # sizes a label from its box and ignores these.
+        # A Raster that scales them needs the picture's own size; these are
+        # honoured from Etcher 0.17, which is the floor.
         canvas_width: canvas_w,
         canvas_height: canvas_h
       )

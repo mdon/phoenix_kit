@@ -45,13 +45,6 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # database. `verify.exs --scenario s7,s8` is what would do that and has not run
   # against this chain.
   #
-  # DECLARED POST-GENERATION (2026-09-22, V200): the 10 objects of
-  # `phoenix_kit_user_view_prefs` (table, 6 columns, pkey, user FK, the
-  # unique `(user_uuid, key)` index), each read off the catalog of a
-  # database migrated to V200 (information_schema columns, pg_get_constraintdef,
-  # pg_indexes, pg_opclass). Proven like V197's: a dry-run repair against a
-  # freshly migrated database reports nothing about the table.
-  #
   # DECLARED POST-GENERATION (2026-09-18, V197): the 20 objects of
   # `phoenix_kit_login_attempts` (table, 13 columns, pkey, user FK, 4 indexes).
   # Not transcribed — emitted from the live catalog after running the chain,
@@ -208,6 +201,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # a pre-squash `generate_baseline.exs` regeneration this session has no
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
+  #
+  # V200 (2026-09-21, when a photo or video was taken) DECLARES five objects
+  # here by hand, the V199 class: `column:phoenix_kit_files.taken_at`
+  # (timestamptz), `.taken_on` (date), `.taken_at_offset` (integer) and
+  # `.taken_at_source` (varchar(255)), all nullable with no default, and
+  # `index:phoenix_kit_files_capture_date_index`, `(user_uuid, taken_on DESC,
+  # taken_at DESC)` partial over a user's visible, processed images and
+  # videos. Shapes are CATALOG-EXACT, read with `Repair.Probe.snapshot/2`
+  # from a test database migrated through V200 — `pos` 29..32 continues
+  # after V199's 28, and the predicate is Postgres's deparse (`IN (…)` reads
+  # back as `= ANY (ARRAY[…])`), not the migration's text. `chain_hash`
+  # restamped over the shipped file set.
   #
   # V199 (2026-09-19, media file translations) DECLARES one object here by
   # hand, the V196 class: `column:phoenix_kit_files.data` (jsonb NOT NULL
@@ -435,7 +440,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "9c2eaec55760c7d45ab94ff34041741a18b7dcf03cfddd875a857bf738545abb"
+  @chain_hash "021446ede2f1c14d39c6fa8de20d20f6dde68bdf65aadbc5d0e8bfe96286d6ae"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -71845,15 +71850,15 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         presence: :required,
         backfill: nil
       },
-      # ── V200: view preferences per user ──
+      # ── V201: view preferences per user ──
       %{
         id: "table:phoenix_kit_user_view_prefs",
         owner: :core,
         check: {:catalog, %{name: "phoenix_kit_user_view_prefs", kind: :table}},
         create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_user_view_prefs ()",
-        since: 200,
+        since: 201,
         class: :table,
-        revisions: [{200, %{}}],
+        revisions: [{201, %{}}],
         presence: :required,
         backfill: nil
       },
@@ -71863,10 +71868,10 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         check: {:catalog, %{table: "phoenix_kit_user_view_prefs", column: "uuid", kind: :column}},
         create:
           "ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
-        since: 200,
+        since: 201,
         class: :column,
         revisions: [
-          {200, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
+          {201, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
         ],
         presence: :required,
         backfill: :default
@@ -71878,9 +71883,9 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           {:catalog, %{table: "phoenix_kit_user_view_prefs", column: "user_uuid", kind: :column}},
         create:
           "ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD COLUMN IF NOT EXISTS \"user_uuid\" uuid NOT NULL",
-        since: 200,
+        since: 201,
         class: :column,
-        revisions: [{200, %{default: nil, type: "uuid", pos: 2, not_null: true}}],
+        revisions: [{201, %{default: nil, type: "uuid", pos: 2, not_null: true}}],
         presence: :required,
         backfill: nil
       },
@@ -71890,10 +71895,10 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         check: {:catalog, %{table: "phoenix_kit_user_view_prefs", column: "key", kind: :column}},
         create:
           "ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD COLUMN IF NOT EXISTS \"key\" character varying(255) NOT NULL",
-        since: 200,
+        since: 201,
         class: :column,
         revisions: [
-          {200, %{default: nil, type: "character varying(255)", pos: 3, not_null: true}}
+          {201, %{default: nil, type: "character varying(255)", pos: 3, not_null: true}}
         ],
         presence: :required,
         backfill: nil
@@ -71905,9 +71910,9 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           {:catalog, %{table: "phoenix_kit_user_view_prefs", column: "prefs", kind: :column}},
         create:
           "ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD COLUMN IF NOT EXISTS \"prefs\" jsonb DEFAULT '{}'::jsonb NOT NULL",
-        since: 200,
+        since: 201,
         class: :column,
-        revisions: [{200, %{default: "'{}'::jsonb", type: "jsonb", pos: 4, not_null: true}}],
+        revisions: [{201, %{default: "'{}'::jsonb", type: "jsonb", pos: 4, not_null: true}}],
         presence: :required,
         backfill: :default
       },
@@ -71919,10 +71924,10 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
            %{table: "phoenix_kit_user_view_prefs", column: "inserted_at", kind: :column}},
         create:
           "ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp(0) without time zone NOT NULL",
-        since: 200,
+        since: 201,
         class: :column,
         revisions: [
-          {200, %{default: nil, type: "timestamp(0) without time zone", pos: 5, not_null: true}}
+          {201, %{default: nil, type: "timestamp(0) without time zone", pos: 5, not_null: true}}
         ],
         presence: :required,
         backfill: nil
@@ -71934,10 +71939,10 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           {:catalog, %{table: "phoenix_kit_user_view_prefs", column: "updated_at", kind: :column}},
         create:
           "ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp(0) without time zone NOT NULL",
-        since: 200,
+        since: 201,
         class: :column,
         revisions: [
-          {200, %{default: nil, type: "timestamp(0) without time zone", pos: 6, not_null: true}}
+          {201, %{default: nil, type: "timestamp(0) without time zone", pos: 6, not_null: true}}
         ],
         presence: :required,
         backfill: nil
@@ -71954,10 +71959,10 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
            }},
         create:
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_user_view_prefs_pkey'\n      AND t.relname = 'phoenix_kit_user_view_prefs'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD CONSTRAINT phoenix_kit_user_view_prefs_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
-        since: 200,
+        since: 201,
         class: :constraint,
         revisions: [
-          {200,
+          {201,
            %{
              type: "p",
              definition: "PRIMARY KEY (uuid)",
@@ -71984,10 +71989,10 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
            }},
         create:
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_user_view_prefs_user_uuid_fkey'\n      AND t.relname = 'phoenix_kit_user_view_prefs'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_user_view_prefs ADD CONSTRAINT phoenix_kit_user_view_prefs_user_uuid_fkey FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
-        since: 200,
+        since: 201,
         class: :constraint,
         revisions: [
-          {200,
+          {201,
            %{
              type: "f",
              definition:
@@ -72015,10 +72020,10 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
            }},
         create:
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_user_view_prefs_user_key_index ON __SCHEMA__.phoenix_kit_user_view_prefs USING btree (user_uuid, key)",
-        since: 200,
+        since: 201,
         class: :index,
         revisions: [
-          {200,
+          {201,
            %{
              table: "phoenix_kit_user_view_prefs",
              keys: ["user_uuid", "key"],
@@ -72028,6 +72033,93 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
                "CREATE UNIQUE INDEX phoenix_kit_user_view_prefs_user_key_index ON __SCHEMA__.phoenix_kit_user_view_prefs USING btree (user_uuid, key)",
              predicate: nil,
              opclasses: ["uuid_ops", "text_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      # ── V200: when a photo or video was taken ──
+      %{
+        id: "column:phoenix_kit_files.taken_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_files", column: "taken_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"taken_at\" timestamp with time zone",
+        since: 200,
+        class: :column,
+        revisions: [
+          {200, %{default: nil, type: "timestamp with time zone", pos: 29, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.taken_on",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_files", column: "taken_on", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"taken_on\" date",
+        since: 200,
+        class: :column,
+        revisions: [{200, %{default: nil, type: "date", pos: 30, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.taken_at_offset",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_files", column: "taken_at_offset", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"taken_at_offset\" integer",
+        since: 200,
+        class: :column,
+        revisions: [{200, %{default: nil, type: "integer", pos: 31, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.taken_at_source",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_files", column: "taken_at_source", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"taken_at_source\" character varying(255)",
+        since: 200,
+        class: :column,
+        revisions: [
+          {200, %{default: nil, type: "character varying(255)", pos: 32, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_files_capture_date_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_files_capture_date_index",
+             table: "phoenix_kit_files",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_files_capture_date_index ON __SCHEMA__.phoenix_kit_files USING btree (user_uuid, taken_on DESC, taken_at DESC) WHERE ((system_managed = false) AND (trashed_at IS NULL) AND (parent_file_uuid IS NULL) AND ((status)::text = 'active'::text) AND ((file_type)::text = ANY ((ARRAY['image'::character varying, 'video'::character varying])::text[])))",
+        since: 200,
+        class: :index,
+        revisions: [
+          {200,
+           %{
+             table: "phoenix_kit_files",
+             keys: ["user_uuid", "taken_on", "taken_at"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_files_capture_date_index ON __SCHEMA__.phoenix_kit_files USING btree (user_uuid, taken_on DESC, taken_at DESC) WHERE ((system_managed = false) AND (trashed_at IS NULL) AND (parent_file_uuid IS NULL) AND ((status)::text = 'active'::text) AND ((file_type)::text = ANY ((ARRAY['image'::character varying, 'video'::character varying])::text[])))",
+             predicate:
+               "((system_managed = false) AND (trashed_at IS NULL) AND (parent_file_uuid IS NULL) AND ((status)::text = 'active'::text) AND ((file_type)::text = ANY ((ARRAY['image'::character varying, 'video'::character varying])::text[])))",
+             opclasses: ["uuid_ops", "date_ops", "timestamptz_ops"],
              name_template: nil
            }}
         ],
