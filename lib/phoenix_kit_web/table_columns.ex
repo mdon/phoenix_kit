@@ -23,7 +23,9 @@ defmodule PhoenixKitWeb.TableColumns do
     * A user who has not chosen sees the site's default when there is one
       (`site_default`), else `defaults`. Reset takes the user's choice back
       out, so they follow that default again — it does not save a copy of it.
-    * An empty list is a choice: every optional column hidden.
+    * An empty list is a choice: every optional column hidden — unless the
+      spec keeps a `:min`: a choice or site default with fewer columns than
+      that is not used, and the next default in line shows instead.
     * Ids no longer in `columns` (a custom field deleted, an extension
       switched off) are skipped when reading and never rewritten by a read;
       when none of a non-empty choice is left, the default shows until the
@@ -80,10 +82,13 @@ defmodule PhoenixKitWeb.TableColumns do
   """
   @spec resolve(term(), spec()) :: [String.t()]
   def resolve(stored, spec) when is_list(stored) do
-    case known(stored, spec) do
-      [] when stored != [] -> default(spec)
-      shown -> shown
-    end
+    shown = known(stored, spec)
+
+    # A choice with nothing left that the table offers, or fewer columns
+    # than the spec keeps, is no usable choice.
+    if (shown == [] and stored != []) or below_min?(shown, spec),
+      do: default(spec),
+      else: shown
   end
 
   def resolve(_stored, spec), do: default(spec)
@@ -98,11 +103,16 @@ defmodule PhoenixKitWeb.TableColumns do
     builtin = known(Map.get(spec, :defaults) || ids(spec), spec)
 
     case site_default(spec) do
-      [] -> []
-      site when is_list(site) -> with([] <- known(site, spec), do: builtin)
-      _ -> builtin
+      site when is_list(site) ->
+        shown = known(site, spec)
+        if (shown == [] and site != []) or below_min?(shown, spec), do: builtin, else: shown
+
+      _ ->
+        builtin
     end
   end
+
+  defp below_min?(shown, spec), do: length(shown) < Map.get(spec, :min, 0)
 
   defp site_default(spec) do
     case Map.get(spec, :site_default) do
