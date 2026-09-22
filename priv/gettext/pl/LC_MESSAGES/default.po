@@ -7109,7 +7109,7 @@ msgstr "Do %{max} załączników"
 msgid "Up to %{max} files, max %{size}MB each"
 msgstr "Do %{max} plików, maks. %{size} MB każdy"
 
-#: lib/phoenix_kit_web/attachments.ex:112
+#: lib/phoenix_kit_web/attachments.ex:146
 #: lib/phoenix_kit_web/components/annotation_composer.ex:406
 #, elixir-autogen, elixir-format
 msgid "Upload error: %{reason}"
@@ -15662,42 +15662,37 @@ msgstr "Rozwiń"
 msgid "No matches."
 msgstr "Brak wyników."
 
-#: lib/phoenix_kit_web/attachments.ex:131
+#: lib/phoenix_kit_web/attachments.ex:165
 #, elixir-autogen, elixir-format
 msgid "%{name} is identical to %{existing}, which is already attached — nothing was added."
 msgstr "%{name} jest identyczny z już załączonym plikiem %{existing} — nic nie dodano."
 
-#: lib/phoenix_kit_web/attachments.ex:139
+#: lib/phoenix_kit_web/attachments.ex:173
 #, elixir-autogen, elixir-format
 msgid "Could not prepare the files folder."
 msgstr "Nie udało się przygotować folderu plików."
 
-#: lib/phoenix_kit_web/attachments.ex:105
+#: lib/phoenix_kit_web/attachments.ex:140
 #, elixir-autogen, elixir-format
 msgid "File is too large."
 msgstr "Plik jest za duży."
 
-#: lib/phoenix_kit_web/attachments.ex:106
+#: lib/phoenix_kit_web/attachments.ex:141
 #, elixir-autogen, elixir-format
 msgid "File type not accepted."
-msgstr "Nieobsługiwany typ pliku."
+msgstr "Niedozwolony typ pliku."
 
-#: lib/phoenix_kit_web/attachments.ex:108
+#: lib/phoenix_kit_web/attachments.ex:143
 #, elixir-autogen, elixir-format
 msgid "Sign in to upload files."
 msgstr "Zaloguj się, aby przesyłać pliki."
 
-#: lib/phoenix_kit_web/attachments.ex:109
-#, elixir-autogen, elixir-format
-msgid "The files folder is not available."
-msgstr "Folder plików jest niedostępny."
-
-#: lib/phoenix_kit_web/attachments.ex:107
+#: lib/phoenix_kit_web/attachments.ex:142
 #, elixir-autogen, elixir-format
 msgid "Too many files."
-msgstr "Za dużo plików."
+msgstr "Zbyt wiele plików."
 
-#: lib/phoenix_kit_web/attachments.ex:119
+#: lib/phoenix_kit_web/attachments.ex:153
 #, elixir-autogen, elixir-format
 msgid "Upload failed for %{name}."
 msgstr "Nie udało się przesłać %{name}."

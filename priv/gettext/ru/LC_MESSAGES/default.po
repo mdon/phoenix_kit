@@ -7117,7 +7117,7 @@ msgstr "До %{max} вложений"
 msgid "Up to %{max} files, max %{size}MB each"
 msgstr "До %{max} файлов, каждый до %{size} МБ"
 
-#: lib/phoenix_kit_web/attachments.ex:112
+#: lib/phoenix_kit_web/attachments.ex:146
 #: lib/phoenix_kit_web/components/annotation_composer.ex:406
 #, elixir-autogen, elixir-format
 msgid "Upload error: %{reason}"
@@ -15674,42 +15674,37 @@ msgstr "Развернуть"
 msgid "No matches."
 msgstr "Нет совпадений."
 
-#: lib/phoenix_kit_web/attachments.ex:131
+#: lib/phoenix_kit_web/attachments.ex:165
 #, elixir-autogen, elixir-format
 msgid "%{name} is identical to %{existing}, which is already attached — nothing was added."
 msgstr "%{name} совпадает с уже прикреплённым файлом %{existing} — ничего не добавлено."
 
-#: lib/phoenix_kit_web/attachments.ex:139
+#: lib/phoenix_kit_web/attachments.ex:173
 #, elixir-autogen, elixir-format
 msgid "Could not prepare the files folder."
 msgstr "Не удалось подготовить папку файлов."
 
-#: lib/phoenix_kit_web/attachments.ex:105
+#: lib/phoenix_kit_web/attachments.ex:140
 #, elixir-autogen, elixir-format
 msgid "File is too large."
 msgstr "Файл слишком большой."
 
-#: lib/phoenix_kit_web/attachments.ex:106
+#: lib/phoenix_kit_web/attachments.ex:141
 #, elixir-autogen, elixir-format
 msgid "File type not accepted."
-msgstr "Тип файла не поддерживается."
+msgstr "Недопустимый тип файла."
 
-#: lib/phoenix_kit_web/attachments.ex:108
+#: lib/phoenix_kit_web/attachments.ex:143
 #, elixir-autogen, elixir-format
 msgid "Sign in to upload files."
 msgstr "Войдите, чтобы загружать файлы."
 
-#: lib/phoenix_kit_web/attachments.ex:109
-#, elixir-autogen, elixir-format
-msgid "The files folder is not available."
-msgstr "Папка файлов недоступна."
-
-#: lib/phoenix_kit_web/attachments.ex:107
+#: lib/phoenix_kit_web/attachments.ex:142
 #, elixir-autogen, elixir-format
 msgid "Too many files."
 msgstr "Слишком много файлов."
 
-#: lib/phoenix_kit_web/attachments.ex:119
+#: lib/phoenix_kit_web/attachments.ex:153
 #, elixir-autogen, elixir-format
 msgid "Upload failed for %{name}."
 msgstr "Не удалось загрузить %{name}."

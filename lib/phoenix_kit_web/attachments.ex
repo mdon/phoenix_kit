@@ -141,7 +141,6 @@ defmodule PhoenixKitWeb.Attachments do
   def error_message(:not_accepted), do: gettext("File type not accepted.")
   def error_message(:too_many_files), do: gettext("Too many files.")
   def error_message(:no_user), do: gettext("Sign in to upload files.")
-  def error_message(:folder_unavailable), do: gettext("The files folder is not available.")
 
   def error_message(other),
     do: gettext("Upload error: %{reason}", reason: ResourceFolders.describe_failure(other))
