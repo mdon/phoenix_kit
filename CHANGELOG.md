@@ -1,3 +1,28 @@
+## 2.37.3 - 2026-09-22
+
+### Added
+
+- **The MediaBrowser featured star is a toggle on every image tile (#858).**
+  With `:featured` set, grid and stack tiles carry a star in the top-left
+  corner, styled like the ⋮ trigger: solid on the featured image (a click
+  clears it), outline on the others (a click moves the pointer there). It
+  sits outside the tile's click target, so it never also opens the viewer.
+  In select mode, the trash, or `readonly`, only the featured tile keeps its
+  star, as a plain badge.
+
+### Fixed
+
+- **Burning annotations sized the canvas by chrome and empty leaders
+  (#858).** The burned picture's bounds were taken from each shape's box,
+  and a dimension label group's box reached the overlay's origin through a
+  0×0 leader — in live mode a landscape photo came back portrait, squeezed
+  under a blank block. The bounds now come from the ink the copy keeps:
+  sized leaves only, nothing that is or sits inside chrome (handles, hit
+  areas, a draft still being drawn).
+- **The featured star no longer hides under the select-mode checkbox (#858
+  review).** Both sat in the tile's top-left corner at the same size; in
+  select mode the passive badge now steps right of the checkbox.
+
 ## 2.37.2 - 2026-09-22
 
 ### Added

@@ -527,6 +527,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
                )
 
         assert_passive_star_only(view)
+
+        # The checkbox owns the corner in select mode (`top-1 left-1 z-10`,
+        # the star's size) — the badge steps right of it, not under it.
+        assert has_element?(view, ~s(div[data-role="featured-badge"].left-7))
+        refute has_element?(view, ~s(div[data-role="featured-badge"].left-1\\.5))
       end
 
       test "the trash listing shows a trashed featured image's star as a passive badge" do
@@ -540,6 +545,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
         assert_view_mode(view, @view_mode)
         assert has_element?(view, ~s([phx-value-file-uuid="#{other.uuid}"]))
         assert_passive_star_only(view)
+        assert has_element?(view, ~s(div[data-role="featured-badge"].left-1\\.5))
       end
     end
   end

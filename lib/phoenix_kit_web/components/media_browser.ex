@@ -3479,10 +3479,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # tile's `click_file` target, like the kebab, so a click on the star
   # never also opens the viewer. Shares placement with the video/PDF badges
   # — safe because those only ever appear on non-image files, and only
-  # images can be featured.
+  # images can be featured. In select mode the corner belongs to the
+  # selection checkbox (`top-1 left-1 z-10`, the same size as the star), so
+  # the passive badge steps right of it instead of hiding underneath.
   attr :file, :map, required: true
   attr :featured, :any, default: nil
   attr :interactive, :boolean, default: false
+  attr :select_mode, :boolean, default: false
   attr :myself, :any, default: nil
 
   defp featured_badge(assigns) do
@@ -3510,7 +3513,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     <div
       :if={not @interactive and @on and @file.file_type == "image"}
       data-role="featured-badge"
-      class="absolute top-1.5 left-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-black/40 text-white pointer-events-none"
+      class={[
+        "absolute top-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-black/40 text-white pointer-events-none",
+        if(@select_mode, do: "left-7", else: "left-1.5")
+      ]}
     >
       <span
         class="block pointer-events-auto"
@@ -3608,6 +3614,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         file={@file}
         featured={@featured}
         interactive={not @readonly and not @select_mode and not @filter_trash}
+        select_mode={@select_mode}
         myself={@myself}
       />
 
