@@ -42,8 +42,13 @@ defmodule PhoenixKitWeb.TableColumns do
 
   `handle_event/5` updates the assign and saves for the signed-in user
   (`PhoenixKitWeb.Actor`); with nobody signed in the change lasts for the
-  page. A modal with several tables (`sections`) sends a `"section"` param
-  — pick the spec by it and pass that.
+  page. A LiveComponent has only the assigns its parent passed, so it needs
+  `phoenix_kit_current_scope` (or `phoenix_kit_current_user`) handed in, or
+  its choices are never saved.
+
+  A modal with several tables (`sections`) sends a `"section"` param with
+  add, remove and reorder — pick the spec by it and pass that. Reset carries
+  no section: it resets every table the modal shows, so handle it apart.
   """
 
   require Logger

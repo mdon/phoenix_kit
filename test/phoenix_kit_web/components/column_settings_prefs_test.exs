@@ -107,6 +107,12 @@ defmodule PhoenixKitWeb.Components.ColumnSettingsPrefsTest do
     assert shown(view, "people") == "email"
     assert html =~ "Standard fields"
     assert html =~ "Custom fields"
+    # The drag hook reads the section from the list it reorders; without it
+    # a sectioned host cannot tell which table a drag belongs to.
+    assert has_element?(
+             view,
+             ~s(#pk-column-settings-modal-people-selected[data-sortable-scope-section="people"])
+           )
 
     view |> element(~s(button[phx-value-column_id="custom_team"])) |> render_click()
     view |> element(~s(button[phx-value-column_id="role"])) |> render_click()

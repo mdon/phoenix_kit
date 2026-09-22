@@ -42,7 +42,9 @@ defmodule PhoenixKitWeb.Components.TreePicker do
     * `search_placeholder` — the search box's hint (default "Search...")
     * `disabled` — field mode only: shows the path, offers no Change and
       posts nothing, like a disabled `<select>`
-    * `name` — renders hidden inputs so a surrounding form posts the value
+    * `name` — renders hidden inputs so a surrounding form posts the value.
+      With `multiple`, give it a list name (`"item[tags][]"`); an empty
+      pick posts nothing, so read a missing key as `[]`
     * `post` — what a hidden input posts for an id: `:id` (default; the
       `"root"` row posts `""`, "no parent") or a function of the id
 
