@@ -62,7 +62,7 @@ defmodule PhoenixKitWeb.Components.TreePicker do
 
   @impl true
   def update(assigns, socket) do
-    first? = not Map.has_key?(socket.assigns, :tree)
+    before = Map.take(socket.assigns, [:tree, :value, :current])
 
     socket =
       socket
@@ -79,10 +79,41 @@ defmodule PhoenixKitWeb.Components.TreePicker do
       |> assign_new(:post, fn -> :id end)
       |> assign_new(:disabled, fn -> false end)
 
-    socket = if first?, do: assign(socket, :open, opened_at(socket.assigns)), else: socket
-
-    {:ok, refilter(socket)}
+    {:ok, socket |> reopen(before) |> assign_under() |> refilter()}
   end
+
+  # The rows that show what is picked open on the first render, and again
+  # whenever the parent hands in another value, current row or a refreshed
+  # tree — a row picked elsewhere, or a tree that arrived late, must not sit
+  # under a closed parent. The echo of this picker's own pick is not such a
+  # change (picking a whole branch must not pop it open), and rows the admin
+  # closed stay closed otherwise.
+  defp reopen(socket, before) do
+    now = Map.take(socket.assigns, [:tree, :value, :current])
+
+    cond do
+      before == %{} ->
+        assign(socket, :open, opened_at(socket.assigns))
+
+      handed_in?(before, now, socket.assigns[:sent]) ->
+        update(socket, :open, &MapSet.union(&1, opened_at(socket.assigns)))
+
+      true ->
+        socket
+    end
+  end
+
+  defp handed_in?(before, now, sent) do
+    before.tree != now.tree or before.current != now.current or
+      (before.value != now.value and now.value != sent)
+  end
+
+  # Multiple mode: every branch's pickable rows, worked out once per tree
+  # rather than walked again for each row on every render.
+  defp assign_under(%{assigns: %{multiple: true}} = socket),
+    do: assign(socket, :under, Tree.pickable_under(socket.assigns.tree, socket.assigns.pickable))
+
+  defp assign_under(socket), do: assign(socket, :under, %{})
 
   # The rows above what is picked (or where the record is now) start open,
   # so the admin sees it in place; so does the current row itself, whose
@@ -126,7 +157,7 @@ defmodule PhoenixKitWeb.Components.TreePicker do
         if socket.assigns.multiple, do: toggle(List.wrap(socket.assigns.value), id), else: id
 
       send(self(), {__MODULE__, socket.assigns.id, value})
-      {:noreply, assign(socket, :panel?, false)}
+      {:noreply, assign(socket, panel?: false, sent: value)}
     else
       {:noreply, socket}
     end
@@ -142,14 +173,18 @@ defmodule PhoenixKitWeb.Components.TreePicker do
       %{children: children} ->
         under = Tree.ids_of(children, pickable)
         value = List.wrap(socket.assigns.value)
+        picked = MapSet.new(value)
 
         value =
-          if Enum.all?(under, &(&1 in value)),
-            do: value -- under,
-            else: Enum.uniq(value ++ under)
+          if Enum.all?(under, &MapSet.member?(picked, &1)) do
+            drop = MapSet.new(under)
+            Enum.reject(value, &MapSet.member?(drop, &1))
+          else
+            value ++ Enum.reject(under, &MapSet.member?(picked, &1))
+          end
 
         send(self(), {__MODULE__, socket.assigns.id, value})
-        {:noreply, socket}
+        {:noreply, assign(socket, :sent, value)}
 
       nil ->
         {:noreply, socket}
@@ -174,7 +209,8 @@ defmodule PhoenixKitWeb.Components.TreePicker do
       assign(assigns,
         shown_open: if(searching?(assigns), do: assigns.search_open, else: assigns.open),
         tree_visible?: not assigns.field or (assigns.panel? and not assigns.disabled),
-        path: path(assigns)
+        path: path(assigns),
+        picked: MapSet.new(List.wrap(assigns.value))
       )
 
     ~H"""
@@ -239,11 +275,11 @@ defmodule PhoenixKitWeb.Components.TreePicker do
               :for={node <- @shown}
               node={node}
               open={@shown_open}
-              value={@value}
+              picked={@picked}
               current={@current}
               pickable={@pickable}
               multiple={@multiple}
-              tree={@tree}
+              under={@under}
               myself={@myself}
             />
           </ul>
@@ -291,24 +327,23 @@ defmodule PhoenixKitWeb.Components.TreePicker do
 
   attr :node, :map, required: true
   attr :open, :any, required: true
-  attr :value, :any, required: true
+  attr :picked, :any, required: true
   attr :current, :string, default: nil
   attr :pickable, :any, required: true
   attr :multiple, :boolean, required: true
-  attr :tree, :list, required: true
+  attr :under, :map, required: true
   attr :myself, :any, required: true
 
   defp tree_row(assigns) do
     node = assigns.node
-    picked = List.wrap(assigns.value)
 
     assigns =
       assign(assigns,
         expanded?: MapSet.member?(assigns.open, node.id),
         branch?: node.children != [],
         pickable?: Tree.of_type?(node, assigns.pickable),
-        selected?: node.id in picked,
-        branch_check: branch_check(assigns, picked)
+        selected?: MapSet.member?(assigns.picked, node.id),
+        branch_check: branch_check(assigns)
       )
 
     ~H"""
@@ -374,11 +409,11 @@ defmodule PhoenixKitWeb.Components.TreePicker do
           :for={child <- @node.children}
           node={child}
           open={@open}
-          value={@value}
+          picked={@picked}
           current={@current}
           pickable={@pickable}
           multiple={@multiple}
-          tree={@tree}
+          under={@under}
           myself={@myself}
         />
       </ul>
@@ -389,26 +424,21 @@ defmodule PhoenixKitWeb.Components.TreePicker do
   # A branch's box in multiple mode: :all / :some / :none of the pickable
   # rows under it (in the whole tree, not only what a search shows), or
   # nil when there are none.
-  defp branch_check(%{multiple: true, node: node} = assigns, picked) do
-    if Tree.of_type?(node, assigns.pickable) do
-      nil
-    else
-      full = Tree.find(assigns.tree, node.id) || node
-      check_state(Tree.ids_of(full.children, assigns.pickable), picked)
+  defp branch_check(%{multiple: true, node: node, under: under, picked: picked}) do
+    case Map.get(under, node.id, []) do
+      [] ->
+        nil
+
+      ids ->
+        case Enum.count(ids, &MapSet.member?(picked, &1)) do
+          0 -> :none
+          count when count == length(ids) -> :all
+          _ -> :some
+        end
     end
   end
 
-  defp branch_check(_assigns, _picked), do: nil
-
-  defp check_state([], _picked), do: nil
-
-  defp check_state(under, picked) do
-    case Enum.count(under, &(&1 in picked)) do
-      0 -> :none
-      count when count == length(under) -> :all
-      _ -> :some
-    end
-  end
+  defp branch_check(_assigns), do: nil
 
   attr :state, :atom, required: true
 

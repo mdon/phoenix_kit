@@ -205,15 +205,18 @@ defmodule PhoenixKit.Utils.Tree do
     end
   end
 
-  defp filter_level(nodes, needle), do: Enum.reduce(nodes, {[], []}, &filter_node(&1, needle, &2))
+  defp filter_level(nodes, needle) do
+    {kept, open} = Enum.reduce(nodes, {[], []}, &filter_node(&1, needle, &2))
+    {Enum.reverse(kept), open}
+  end
 
   defp filter_node(node, needle, {kept, open}) do
     if String.contains?(fold(node.name), needle) do
-      {kept ++ [node], open}
+      {[node | kept], open}
     else
       case filter_level(node.children, needle) do
         {[], _} -> {kept, open}
-        {children, below} -> {kept ++ [%{node | children: children}], [node.id | open] ++ below}
+        {children, below} -> {[%{node | children: children} | kept], [node.id | below] ++ open}
       end
     end
   end
@@ -227,6 +230,30 @@ defmodule PhoenixKit.Utils.Tree do
   end
 
   defp fold(_text), do: ""
+
+  @doc """
+  For every row that is not one of `types`, the ids of the rows under it
+  that are — in one pass, for a picker whose branch boxes check a whole
+  branch.
+  """
+  @spec pickable_under([tree_node()], [atom()] | :all) :: %{String.t() => [String.t()]}
+  def pickable_under(tree, types) do
+    {map, _ids} = under_level(tree, types, %{})
+    map
+  end
+
+  defp under_level(nodes, types, map) do
+    {map, groups} =
+      Enum.reduce(nodes, {map, []}, fn node, {map, groups} ->
+        {map, below} = under_level(node.children, types, map)
+
+        if of_type?(node, types),
+          do: {map, [[node.id | below] | groups]},
+          else: {Map.put(map, node.id, below), [below | groups]}
+      end)
+
+    {map, groups |> Enum.reverse() |> Enum.concat()}
+  end
 
   @doc "Every id in the tree whose row is one of `types` (`:all` for every row)."
   @spec ids_of([tree_node()], [atom()] | :all) :: [String.t()]

@@ -9,7 +9,8 @@ defmodule PhoenixKit.Utils.TreeQuery do
   it has already seen and a corrupt parent cycle ends the recursion instead
   of looping.
 
-  Uuids come back as strings, in no particular order.
+  Uuids come back as strings, in no particular order. An argument that is
+  not a uuid names no row (`[]`), rather than raising.
 
       TreeQuery.subtree_uuids(Category, [category.uuid])
       TreeQuery.ancestor_uuids(Space, space.uuid, parent: :parent_space_uuid)
@@ -32,6 +33,13 @@ defmodule PhoenixKit.Utils.TreeQuery do
   def subtree_uuids(_schema, [], _opts), do: []
 
   def subtree_uuids(schema, roots, opts) when is_atom(schema) and is_list(roots) do
+    case Enum.flat_map(roots, &cast_uuid/1) do
+      [] -> []
+      roots -> subtree(schema, roots, opts)
+    end
+  end
+
+  defp subtree(schema, roots, opts) do
     parent = Keyword.get(opts, :parent, :parent_uuid)
 
     initial =
@@ -56,12 +64,23 @@ defmodule PhoenixKit.Utils.TreeQuery do
 
   @doc "Every row below `uuid`, not `uuid` itself. `[]` for a leaf."
   @spec descendant_uuids(module(), String.t(), keyword()) :: [String.t()]
-  def descendant_uuids(schema, uuid, opts \\ []) when is_binary(uuid),
-    do: subtree_uuids(schema, [uuid], opts) -- [uuid]
+  def descendant_uuids(schema, uuid, opts \\ []) do
+    case cast_uuid(uuid) do
+      [uuid] -> subtree_uuids(schema, [uuid], opts) -- [uuid]
+      [] -> []
+    end
+  end
 
   @doc "Every row above `uuid`, up to the top — not `uuid` itself."
   @spec ancestor_uuids(module(), String.t(), keyword()) :: [String.t()]
-  def ancestor_uuids(schema, uuid, opts \\ []) when is_atom(schema) and is_binary(uuid) do
+  def ancestor_uuids(schema, uuid, opts \\ []) when is_atom(schema) do
+    case cast_uuid(uuid) do
+      [uuid] -> ancestors(schema, uuid, opts)
+      [] -> []
+    end
+  end
+
+  defp ancestors(schema, uuid, opts) do
     parent = Keyword.get(opts, :parent, :parent_uuid)
 
     initial =
@@ -84,6 +103,18 @@ defmodule PhoenixKit.Utils.TreeQuery do
     |> Enum.map(&load_uuid/1)
     |> List.delete(uuid)
   end
+
+  # Anything that is not a uuid names no row: a sentinel id ("root", "")
+  # or a stray string is left out instead of raising a cast error.
+  # A raw 16-byte uuid is taken too, in its text form.
+  defp cast_uuid(value) when is_binary(value) do
+    case Ecto.UUID.cast(value) do
+      {:ok, uuid} -> [uuid]
+      :error -> []
+    end
+  end
+
+  defp cast_uuid(_value), do: []
 
   defp repo(opts), do: Keyword.get_lazy(opts, :repo, &PhoenixKit.RepoHelper.repo/0)
 

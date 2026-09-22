@@ -34,6 +34,8 @@ defmodule PhoenixKitWeb.Components.TreePickerTest do
       {:noreply, assign(socket, :value, value)}
     end
 
+    def handle_info({:set_value, value}, socket), do: {:noreply, assign(socket, :value, value)}
+
     def handle_event("changed", params, socket) do
       send(socket.assigns.test_pid, {:form_change, params})
       {:noreply, socket}
@@ -110,6 +112,22 @@ defmodule PhoenixKitWeb.Components.TreePickerTest do
   test "a picked row's ancestors start open" do
     {_view, html} = open(%{}, "c")
     assert html =~ "Hinges"
+  end
+
+  test "a value the parent hands in later opens the rows above it" do
+    {view, html} = open()
+    refute html =~ "Hinges"
+
+    send(view.pid, {:set_value, "c"})
+    assert render(view) =~ "Hinges"
+  end
+
+  test "the picker's own pick opens nothing: a whole branch stays closed" do
+    {view, _html} = open(%{multiple: true, pickable: [:page]}, [])
+
+    view |> element(~s([data-pick-all="a"])) |> render_click()
+    assert_receive {:picked, "picker", ["b", "c"]}
+    refute render(view) =~ "Doors"
   end
 
   test "a row of a type that cannot be picked only opens" do

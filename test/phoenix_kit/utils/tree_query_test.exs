@@ -48,6 +48,19 @@ defmodule PhoenixKit.Utils.TreeQueryTest do
     assert TreeQuery.ancestor_uuids(Folder, ctx.a.uuid) == []
   end
 
+  test "an argument that is not a uuid names no row; a raw uuid is taken", ctx do
+    assert TreeQuery.subtree_uuids(Folder, ["root", "", "not-a-uuid"]) == []
+    assert TreeQuery.descendant_uuids(Folder, "root") == []
+    assert TreeQuery.ancestor_uuids(Folder, "") == []
+
+    raw = Ecto.UUID.dump!(ctx.b.uuid)
+
+    assert Enum.sort(TreeQuery.subtree_uuids(Folder, [raw, "root"])) ==
+             Enum.sort([ctx.b.uuid, ctx.c.uuid])
+
+    assert TreeQuery.descendant_uuids(Folder, raw) == [ctx.c.uuid]
+  end
+
   test "a parent cycle ends instead of looping", ctx do
     Repo.update_all(from(f in Folder, where: f.uuid == ^ctx.a.uuid),
       set: [parent_uuid: ctx.c.uuid]

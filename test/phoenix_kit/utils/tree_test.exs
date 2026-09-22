@@ -91,9 +91,26 @@ defmodule PhoenixKit.Utils.TreeTest do
       assert {[%{id: "k", children: [%{id: "l"}]}], []} = Tree.filter(tree, "KASITOO")
     end
 
+    test "matches keep their siblings' order" do
+      tree =
+        Tree.from_flat([
+          rec("x", nil, "Oak one"),
+          rec("y", nil, "Pine"),
+          rec("z", nil, "Oak two")
+        ])
+
+      {shown, _open} = Tree.filter(tree, "oak")
+
+      assert Enum.map(shown, & &1.id) == ["x", "z"]
+    end
+
     test "a blank query returns the tree and opens nothing" do
       assert Tree.filter(tree(), "  ") == {tree(), []}
     end
+  end
+
+  test "pickable_under/2 maps every other row to the pickable rows below it" do
+    assert Tree.pickable_under(tree(), [:child]) == %{"a" => ["b", "c", "d"], "e" => []}
   end
 
   test "ids_of/2 and map_nodes/2" do
