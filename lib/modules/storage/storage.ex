@@ -17,28 +17,16 @@ defmodule PhoenixKit.Modules.Storage do
 
   ## Folder conventions for modules
 
-  Modules that create one folder per object (catalogue items, warehouse
-  documents, CRM records, machines, …) should:
-
-  - offer a host hook `config :my_module, :attachments_parent_folder, {Mod, :fun}`
-    called as `fun(kind, actor_uuid, subject)` — `kind` an atom naming the
-    resource, `subject` the owning record (or a context map for uploads that
-    belong to another record, e.g. `%{resource_type: "order", resource_uuid: uuid}`)
-    — returning `{:ok, parent_folder_uuid}` or `nil` (= storage root, the
-    default when unconfigured). Call `fun/2` (`kind, actor_uuid`) when the
-    host exports only that arity; check `Code.ensure_loaded?/1` before
-    `function_exported?/3`;
-  - optionally offer `config :my_module, :attachments_folder_name, {Mod, :fun}`
-    called as `fun(subject, actor_uuid)` returning `{:ok, name}` or `nil`, so
-    a host may give folders human names; the deterministic
-    `<module>-<kind>-<uuid>` name stays the fallback;
-  - resolve an object's folder by a stored uuid pointer first, then by the
-    host name under the parent, then by the deterministic name under the
-    parent, then by the deterministic name at the root — never assume
-    `parent_uuid IS NULL`; purge/delete and bulk listings use the same
-    resolution;
-  - leave moving/renaming existing folders to the host (adoption is a host
-    concern), and never create folders for people's own use.
+  Modules that keep one folder per record (catalogue items, warehouse
+  documents, CRM records, machines, …) build on
+  `PhoenixKit.Modules.Storage.ResourceFolders`, which holds the convention:
+  the `:attachments_parent_folder` / `:attachments_folder_name` host hooks
+  (`fun(kind, actor_uuid, subject)`, with the `fun/2` fallback), the lookup
+  order (stored pointer → host name under the parent → deterministic
+  `<module>-<kind>-<uuid>` name under the parent, at the root, anywhere),
+  race-safe find-or-create, and attaching, listing and detaching files.
+  Moving or renaming existing folders stays with the host (adoption is a
+  host concern), and nothing creates folders for people's own use.
 
   Hosts typically group containers (`Warehouse/Supplier orders`, `CRM/Contacts`)
   and may re-parent a container that was created elsewhere; `update_folder/3`

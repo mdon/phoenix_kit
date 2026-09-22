@@ -13,6 +13,8 @@ defmodule PhoenixKit.Modules.Storage.Folder do
   @primary_key {:uuid, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
+  @type t :: %__MODULE__{}
+
   @folder_colors ~w(default red orange amber yellow lime green emerald teal cyan sky blue violet purple fuchsia pink rose)
 
   schema "phoenix_kit_media_folders" do
