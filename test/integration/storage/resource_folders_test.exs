@@ -636,6 +636,32 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
     end
   end
 
+  describe "pointers" do
+    test "pointer_value/2 reads a map key or a column, and only a uuid" do
+      uuid = Ecto.UUID.generate()
+
+      assert ResourceFolders.pointer_value(
+               %{metadata: %{"avatar_uuid" => uuid}},
+               {:metadata, "avatar_uuid"}
+             ) == uuid
+
+      assert ResourceFolders.pointer_value(%{metadata: nil}, {:metadata, "avatar_uuid"}) == nil
+      assert ResourceFolders.pointer_value(%{data: %{"x" => "garbage"}}, {:data, "x"}) == nil
+      assert ResourceFolders.pointer_value(%{folder_uuid: uuid}, {:column, :folder_uuid}) == uuid
+    end
+
+    test "pointed_file/2 answers only a live file" do
+      live = file!(nil)
+      trashed = file!(nil, %{status: "trashed"})
+      pointer = {:data, "p"}
+
+      assert ResourceFolders.pointed_file(%{data: %{"p" => live.uuid}}, pointer).uuid == live.uuid
+      assert ResourceFolders.pointed_file(%{data: %{"p" => trashed.uuid}}, pointer) == nil
+      assert ResourceFolders.pointed_file(%{data: %{"p" => Ecto.UUID.generate()}}, pointer) == nil
+      assert ResourceFolders.pointed_file(%{data: %{}}, pointer) == nil
+    end
+  end
+
   describe "attach/2, place_stored/2, detach/2" do
     test "attach adopts, links, and reports what is already there" do
       folder = folder!(name())

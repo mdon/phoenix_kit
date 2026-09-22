@@ -735,6 +735,34 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   end
 
   @doc """
+  The file uuid `record` stores through `pointer` (`t:pointer/0`) — an
+  avatar in `metadata`, a featured image in `data` — or `nil` when it has
+  none or holds something that is not a uuid.
+  """
+  @spec pointer_value(map(), pointer()) :: String.t() | nil
+  def pointer_value(record, {:column, column}), do: record |> Map.get(column) |> cast()
+
+  def pointer_value(record, {map_field, key}) when is_binary(key) do
+    case Map.get(record, map_field) do
+      %{} = map -> map |> Map.get(key) |> cast()
+      _ -> nil
+    end
+  end
+
+  @doc """
+  The live file `record` points at through `pointer`, or `nil` — a missing,
+  trashed or system-managed file is not shown as anyone's avatar or
+  featured image.
+  """
+  @spec pointed_file(map(), pointer()) :: StorageFile.t() | nil
+  def pointed_file(record, pointer) do
+    case pointer_value(record, pointer) do
+      nil -> nil
+      uuid -> from(f in StorageFile, where: f.uuid == ^uuid) |> live_files() |> repo().one()
+    end
+  end
+
+  @doc """
   Whether live file `file_uuid` is in `folder_uuid` — the check that
   authorizes pointing a record at one of its own files (an avatar, a
   featured image). Takes `:only` like `list_files/2`.
