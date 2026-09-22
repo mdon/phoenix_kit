@@ -348,6 +348,27 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
                ResourceFolders.ensure(host, parent.uuid, nil, lookup: not_mine)
     end
 
+    test "a taken host name falls back without a refused insert, so a transaction survives" do
+      parent = folder!(name())
+      [host, det] = [name(), name()]
+      _theirs = folder!(host, parent)
+
+      assert {:ok, {:ok, mine}} =
+               Repo.transaction(fn ->
+                 result =
+                   ResourceFolders.ensure(host, parent.uuid, nil,
+                     lookup: fn -> nil end,
+                     fallback_name: det
+                   )
+
+                 # Still usable: a refused insert would have aborted it.
+                 assert ResourceFolders.find_under(det, parent.uuid)
+                 result
+               end)
+
+      assert mine.name == det
+    end
+
     test "never raises" do
       log =
         capture_log(fn ->
@@ -372,11 +393,30 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
       _theirs = folder!(host, parent)
       pending = folder!("pending-" <> name(), parent)
 
-      capture_log(fn ->
-        ResourceFolders.name_pending(pending.uuid, "pending-", host, name() <> "-fb")
-      end)
+      fallback = name() <> "-fb"
 
-      assert Repo.get!(Folder, pending.uuid).name =~ "-fb"
+      assert ResourceFolders.name_pending(pending.uuid, "pending-", host, fallback_name: fallback) ==
+               :ok
+
+      assert Repo.get!(Folder, pending.uuid).name == fallback
+    end
+
+    test "moves the folder only when told where" do
+      parent = folder!(name())
+      pending = folder!("pending-" <> name())
+
+      assert ResourceFolders.name_pending(pending.uuid, "pending-", name(), move_to: parent.uuid) ==
+               :ok
+
+      assert Repo.get!(Folder, pending.uuid).parent_uuid == parent.uuid
+
+      nested = folder!("pending-" <> name(), parent)
+      assert ResourceFolders.name_pending(nested.uuid, "pending-", name(), move_to: nil) == :ok
+      assert Repo.get!(Folder, nested.uuid).parent_uuid == nil
+
+      kept = folder!("pending-" <> name(), parent)
+      assert ResourceFolders.name_pending(kept.uuid, "pending-", name()) == :ok
+      assert Repo.get!(Folder, kept.uuid).parent_uuid == parent.uuid
     end
 
     test "leaves a folder that is not pending alone" do
@@ -454,6 +494,20 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
 
       assert uuids(ResourceFolders.files_by_folder([c.folder.uuid], only: :images)[c.folder.uuid]) ==
                uuids([c.linked, c.old])
+    end
+
+    test "count_by_folder/2 counts what list_files/2 lists", c do
+      empty = folder!(name())
+      # A link into the file's own home folder: listed once, counted once.
+      link!(c.folder, c.old)
+
+      counts = ResourceFolders.count_by_folder([c.folder.uuid, c.other.uuid, empty.uuid])
+      assert counts[c.folder.uuid] == length(ResourceFolders.list_files(c.folder.uuid))
+      assert counts[c.other.uuid] == length(ResourceFolders.list_files(c.other.uuid))
+      refute Map.has_key?(counts, empty.uuid)
+
+      assert ResourceFolders.count_by_folder([c.folder.uuid], only: :non_images) ==
+               %{c.folder.uuid => 1}
     end
 
     test "holds_file?/3 authorizes only the folder's own live files", c do

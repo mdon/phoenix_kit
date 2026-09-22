@@ -394,20 +394,28 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
       (default: the live `name` directly under `parent_uuid`). It runs
       before creating and again after a create is refused, so a caller
       that resolves through `resolve/1` passes that here.
-    * `:fallback_name` — when core refuses `name` (another record's
-      folder has it under this parent, or it is not a valid name), create
-      this one instead: the uuid-bearing deterministic name, which cannot
-      collide.
+    * `:fallback_name` — when `name` is taken under this parent by a
+      folder `:lookup` does not adopt (another record's), or core refuses
+      it, create this one instead: the uuid-bearing deterministic name,
+      which cannot collide. A name known to be taken is not tried at all,
+      so a refused insert does not abort an enclosing transaction.
   """
   @spec ensure(String.t(), String.t() | nil, String.t() | nil, keyword()) ::
           {:ok, Folder.t()} | {:error, term()}
   def ensure(name, parent_uuid, actor_uuid, opts \\ []) when is_binary(name) do
     lookup = Keyword.get(opts, :lookup, fn -> find_under(name, parent_uuid) end)
 
+    fallback = Keyword.get(opts, :fallback_name)
+
     safely("ensure folder", fn ->
       case lookup.() do
-        %Folder{} = folder -> {:ok, folder}
-        nil -> create(name, parent_uuid, actor_uuid, lookup, Keyword.get(opts, :fallback_name))
+        %Folder{} = folder ->
+          {:ok, folder}
+
+        nil ->
+          if fallback?(name, fallback) and find_under(name, parent_uuid),
+            do: ensure(fallback, parent_uuid, actor_uuid),
+            else: create(name, parent_uuid, actor_uuid, lookup, fallback)
       end
     end)
   end
@@ -423,7 +431,7 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
             {:ok, folder}
 
           nil ->
-            if name_refused?(changeset) and is_binary(fallback) and fallback != name,
+            if name_refused?(changeset) and fallback?(name, fallback),
               do: ensure(fallback, parent_uuid, actor_uuid),
               else: {:error, changeset}
         end
@@ -435,22 +443,30 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
 
   defp name_refused?(%Ecto.Changeset{errors: errors}), do: Keyword.has_key?(errors, :name)
 
+  defp fallback?(name, fallback), do: is_binary(fallback) and fallback != name
+
   @doc """
   Names a pending folder — one created for a record before it was saved,
-  its name starting with `prefix` — after its record: `name`, or
-  `fallback_name` when core refuses `name`. Only the name changes: the
-  folder stays under the parent it was created in (an explicit parent in
-  an update is a move). A folder that is not pending is left alone.
-  Always `:ok`; a failure is logged.
+  its name starting with `prefix` — after its record. A folder that is
+  not pending is left alone. Always `:ok`; a failure is logged.
+
+  ## Options
+
+    * `:fallback_name` — used when core refuses `name` (taken under the
+      folder's parent)
+    * `:move_to` — also move the folder under this parent (`nil` = the
+      root), for a module whose parent depends on the saved record. Pass
+      only a definite answer (`parent_hook/4`'s `{:ok, parent}`), never
+      the root a failed hook fell back to. Without it only the name
+      changes: an explicit parent in an update is a move.
   """
-  @spec name_pending(String.t() | nil, String.t(), String.t(), String.t() | nil) :: :ok
-  def name_pending(folder_uuid, prefix, name, fallback_name \\ nil)
-      when is_binary(prefix) and is_binary(name) do
+  @spec name_pending(String.t() | nil, String.t(), String.t(), keyword()) :: :ok
+  def name_pending(folder_uuid, prefix, name, opts \\ [])
+      when is_binary(prefix) and is_binary(name) and is_list(opts) do
     with %Folder{name: current} = folder <-
            safely("load pending folder", fn -> live_folder(folder_uuid) end),
          true <- String.starts_with?(current, prefix),
-         {:error, reason} <-
-           safely("name pending folder", fn -> rename(folder, name, fallback_name) end) do
+         {:error, reason} <- safely("name pending folder", fn -> rename(folder, name, opts) end) do
       Logger.warning("Pending folder #{folder.uuid} was not named: #{describe_failure(reason)}")
       :ok
     else
@@ -458,11 +474,14 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
     end
   end
 
-  defp rename(folder, name, fallback) do
-    case Storage.update_folder(folder, %{name: name}) do
+  defp rename(folder, name, opts) do
+    fallback = Keyword.get(opts, :fallback_name)
+    move = if Keyword.has_key?(opts, :move_to), do: %{parent_uuid: opts[:move_to]}, else: %{}
+
+    case Storage.update_folder(folder, Map.put(move, :name, name)) do
       {:error, %Ecto.Changeset{} = changeset} = error ->
-        if name_refused?(changeset) and is_binary(fallback) and fallback != name,
-          do: Storage.update_folder(folder, %{name: fallback}),
+        if name_refused?(changeset) and fallback?(name, fallback),
+          do: Storage.update_folder(folder, Map.put(move, :name, fallback)),
           else: error
 
       result ->
@@ -561,6 +580,48 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
     |> Map.new(fn {folder_uuid, files} ->
       {folder_uuid, sort_files(files, Keyword.get(opts, :order, :newest))}
+    end)
+  end
+
+  @doc """
+  How many live files each of `folder_uuids` holds, in two grouped
+  queries: `%{folder_uuid => count}`, an empty folder left out. Takes
+  `:only` like `list_files/2`; counts exactly what `list_files/2` lists
+  (a file linked into its own home folder once).
+  """
+  @spec count_by_folder([String.t()], keyword()) :: %{String.t() => pos_integer()}
+  def count_by_folder(folder_uuids, opts \\ [])
+  def count_by_folder([], _opts), do: %{}
+
+  def count_by_folder(folder_uuids, opts) when is_list(folder_uuids) do
+    uuids = folder_uuids |> Enum.map(&cast/1) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+    kind = Keyword.get(opts, :only, :all)
+
+    home =
+      from(f in StorageFile,
+        where: f.folder_uuid in ^uuids,
+        group_by: f.folder_uuid,
+        select: {f.folder_uuid, count(f.uuid)}
+      )
+      |> live_files()
+      |> only(kind)
+
+    # A link naming the file's own home is read once by `files_query/1`'s
+    # `home OR linked`, so it is not counted twice here either.
+    linked =
+      from(f in StorageFile,
+        join: fl in FolderLink,
+        on: fl.file_uuid == f.uuid,
+        where: fl.folder_uuid in ^uuids,
+        where: is_nil(f.folder_uuid) or f.folder_uuid != fl.folder_uuid,
+        group_by: fl.folder_uuid,
+        select: {fl.folder_uuid, count(f.uuid)}
+      )
+      |> live_files()
+      |> only(kind)
+
+    Enum.reduce(repo().all(home) ++ repo().all(linked), %{}, fn {folder, n}, acc ->
+      Map.update(acc, folder, n, &(&1 + n))
     end)
   end
 
