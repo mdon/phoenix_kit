@@ -26,6 +26,11 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
   the zero back — nothing was entered, nothing changes. Typing anything
   keeps what was typed. Both steps are inline handlers on the control
   (`onfocus`/`onblur`), so they need no hook and work in any host app.
+  A host's own `onfocus`/`onblur` are kept: they run right after the
+  component's, in the same attribute (a second attribute of the same
+  name would be dropped by the browser). `phx-focus` fires on `focusin`,
+  after the clear, so it sees the emptied field; `phx-blur` fires on
+  `focusout`, after the restore, so it sees the zero again.
   """
 
   use Phoenix.Component
@@ -113,11 +118,18 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
   @on_blur "if(this.dataset.pkZero!=null){if(this.value.trim()==='')this.value=this.dataset.pkZero;delete this.dataset.pkZero}"
 
   def decimal_input(assigns) do
+    # A host's onfocus/onblur ride along after ours; they must not also
+    # be spread from @rest, or the tag would carry the attribute twice
+    # and the browser would keep only the first.
+    {host_focus, rest} = Map.pop(assigns.rest, :onfocus)
+    {host_blur, rest} = Map.pop(rest, :onblur)
+
     assigns =
       assigns
       |> assign(:text, Number.format_decimal(assigns.value))
-      |> assign(:on_focus, @on_focus)
-      |> assign(:on_blur, @on_blur)
+      |> assign(:rest, rest)
+      |> assign(:on_focus, chain(@on_focus, host_focus))
+      |> assign(:on_blur, chain(@on_blur, host_blur))
 
     ~H"""
     <div phx-feedback-for={@name} class={@wrapper_class}>
@@ -171,4 +183,7 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
     </div>
     """
   end
+
+  defp chain(ours, host) when is_binary(host) and host != "", do: ours <> ";" <> host
+  defp chain(ours, _), do: ours
 end
