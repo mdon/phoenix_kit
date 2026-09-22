@@ -80,6 +80,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
     end
   end
 
+  defp user_with_view_mode!(mode) do
+    user = Auth.get_user(ensure_user!())
+
+    {:ok, updated} =
+      Auth.update_user_custom_fields(
+        user,
+        Map.put(user.custom_fields || %{}, "media_view_mode", mode),
+        ensure_definitions: false
+      )
+
+    updated
+  end
+
   # ---------------------------------------------------------------------------
   # (a)/(b) Render — grid view
   # ---------------------------------------------------------------------------
@@ -97,6 +110,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
         )
 
       refute html =~ ~s(data-role="featured-badge")
+      refute html =~ ~s(data-role="featured-toggle")
       refute html =~ "set_featured"
       refute html =~ "unset_featured"
       refute html =~ "Set as featured"
@@ -146,9 +160,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
              "the featured tile itself should not also offer Set"
     end
 
-    test "the badge's title tooltip sits on a pointer-events-auto inner element, not the pointer-events-none outer badge" do
+    test "every image tile gets a star toggle: solid Unset on the featured one, outline Set on the rest" do
       folder = create_folder!()
       featured_file = create_file!(folder.uuid)
+      other_file = create_file!(folder.uuid)
 
       html =
         render_component(MediaBrowser,
@@ -158,7 +173,115 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
         )
 
       doc = LazyHTML.from_fragment(html)
-      badge = LazyHTML.query(doc, ~s([data-role="featured-badge"]))
+
+      badge =
+        LazyHTML.query(
+          doc,
+          ~s(button[data-role="featured-badge"][phx-click="unset_featured"][phx-value-file-uuid="#{featured_file.uuid}"])
+        )
+
+      refute Enum.empty?(badge), "the featured tile's star should be a button that clears it"
+      assert LazyHTML.attribute(badge, "aria-pressed") == ["true"]
+      # The label names what the star marks; the accessible name says what a click does.
+      assert LazyHTML.attribute(badge, "title") == ["Cover shot"]
+      assert LazyHTML.attribute(badge, "aria-label") == ["Unset featured"]
+      refute Enum.empty?(LazyHTML.query(badge, ".hero-star-solid"))
+
+      toggle =
+        LazyHTML.query(
+          doc,
+          ~s(button[data-role="featured-toggle"][phx-click="set_featured"][phx-value-file-uuid="#{other_file.uuid}"])
+        )
+
+      refute Enum.empty?(toggle), "every other image tile's star should move the pointer there"
+      assert LazyHTML.attribute(toggle, "aria-pressed") == ["false"]
+      assert LazyHTML.attribute(toggle, "aria-label") == ["Set as featured"]
+      refute Enum.empty?(LazyHTML.query(toggle, ".hero-star"))
+
+      assert length(Enum.to_list(LazyHTML.query(doc, ~s([data-role="featured-badge"])))) == 1
+    end
+
+    test "the star sits outside the tile's click_file target, so a click on it never opens the viewer" do
+      folder = create_folder!()
+      featured_file = create_file!(folder.uuid)
+      _other_file = create_file!(folder.uuid)
+
+      html =
+        render_component(MediaBrowser,
+          id: "test-browser",
+          scope_folder_id: folder.uuid,
+          featured: %{uuid: featured_file.uuid, label: nil}
+        )
+
+      doc = LazyHTML.from_fragment(html)
+
+      refute Enum.empty?(LazyHTML.query(doc, ~s([data-role="featured-toggle"])))
+
+      assert Enum.empty?(
+               LazyHTML.query(
+                 doc,
+                 ~s([phx-click="click_file"] [data-role="featured-badge"], [phx-click="click_file"] [data-role="featured-toggle"])
+               )
+             )
+    end
+
+    test "the stacks view's file cards carry the same star toggle" do
+      folder = create_folder!()
+      featured_file = create_file!(folder.uuid)
+      other_file = create_file!(folder.uuid)
+
+      html =
+        render_component(MediaBrowser,
+          id: "test-browser",
+          scope_folder_id: folder.uuid,
+          featured: %{uuid: featured_file.uuid, label: nil},
+          phoenix_kit_current_user: user_with_view_mode!("stacks")
+        )
+
+      # Sanity: actually rendered in stacks mode (file_card/1), not the grid.
+      assert html =~ ~s(id="pk-stacks-test-browser")
+
+      doc = LazyHTML.from_fragment(html)
+
+      refute Enum.empty?(
+               LazyHTML.query(
+                 doc,
+                 ~s(button[data-role="featured-badge"][phx-click="unset_featured"][phx-value-file-uuid="#{featured_file.uuid}"])
+               )
+             )
+
+      refute Enum.empty?(
+               LazyHTML.query(
+                 doc,
+                 ~s(button[data-role="featured-toggle"][phx-click="set_featured"][phx-value-file-uuid="#{other_file.uuid}"])
+               )
+             )
+
+      assert Enum.empty?(
+               LazyHTML.query(doc, ~s([phx-click="click_file"] [data-role="featured-toggle"]))
+             )
+    end
+
+    test "readonly: only the featured tile keeps its star, as a plain badge with the tooltip on a pointer-events-auto inner element" do
+      folder = create_folder!()
+      featured_file = create_file!(folder.uuid)
+      _other_file = create_file!(folder.uuid)
+
+      html =
+        render_component(MediaBrowser,
+          id: "test-browser",
+          scope_folder_id: folder.uuid,
+          readonly: true,
+          featured: %{uuid: featured_file.uuid, label: "Cover shot"}
+        )
+
+      doc = LazyHTML.from_fragment(html)
+
+      assert Enum.empty?(LazyHTML.query(doc, ~s([data-role="featured-toggle"])))
+      assert Enum.empty?(LazyHTML.query(doc, ~s(button[data-role="featured-badge"])))
+
+      badge = LazyHTML.query(doc, ~s(div[data-role="featured-badge"]))
+      refute Enum.empty?(badge)
 
       # The outer badge stays pointer-events-none (so it doesn't block clicks
       # on the tile underneath) and therefore must not carry the title itself
@@ -167,7 +290,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
       assert LazyHTML.attribute(badge, "title") == []
 
       # The title lives on an inner element that opts back into pointer
-      # events, sized to the badge, so hovering the star actually triggers it.
+      # events, so hovering the star actually triggers it.
       tooltip_el = LazyHTML.query(doc, ~s([data-role="featured-badge"] [title]))
       assert LazyHTML.attribute(tooltip_el, "title") == ["Cover shot"]
       assert LazyHTML.attribute(tooltip_el, "class") |> hd() =~ "pointer-events-auto"
@@ -202,6 +325,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
       doc = LazyHTML.from_fragment(html)
 
       assert Enum.empty?(LazyHTML.query(doc, ~s([data-role="featured-badge"])))
+      assert Enum.empty?(LazyHTML.query(doc, ~s([data-role="featured-toggle"])))
 
       assert Enum.empty?(
                LazyHTML.query(
@@ -291,6 +415,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
        |> MediaBrowser.setup_uploads()
        |> set_assign(:folder_uuid, session["folder_uuid"])
        |> set_assign(:featured, session["featured"])
+       |> set_assign(:current_user, session["current_user"])
        |> set_assign(:test_pid, session["test_pid"])}
     end
 
@@ -314,22 +439,109 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
         id="mb"
         scope_folder_id={@folder_uuid}
         featured={@featured}
+        phoenix_kit_current_user={@current_user}
       />
       """
     end
   end
 
-  defp open_host(folder, featured) do
+  defp open_host(folder, featured, current_user \\ nil) do
     {:ok, view, _html} =
       live_isolated(Phoenix.ConnTest.build_conn(), Host,
         session: %{
           "folder_uuid" => folder.uuid,
           "featured" => featured,
+          "current_user" => current_user,
           "test_pid" => self()
         }
       )
 
     view
+  end
+
+  describe "tile star toggle" do
+    test "a click on another tile's star moves the pointer there; a click on the solid star clears it" do
+      folder = create_folder!()
+      first = create_file!(folder.uuid)
+      second = create_file!(folder.uuid)
+      view = open_host(folder, %{uuid: first.uuid, label: nil})
+
+      view
+      |> element(~s(button[data-role="featured-toggle"][phx-value-file-uuid="#{second.uuid}"]))
+      |> render_click()
+
+      assert_receive {:set_featured_received, uuid}
+      assert uuid == second.uuid
+
+      assert has_element?(
+               view,
+               ~s(button[data-role="featured-badge"][phx-value-file-uuid="#{second.uuid}"])
+             )
+
+      assert has_element?(
+               view,
+               ~s(button[data-role="featured-toggle"][phx-value-file-uuid="#{first.uuid}"])
+             )
+
+      view
+      |> element(~s(button[data-role="featured-badge"][phx-value-file-uuid="#{second.uuid}"]))
+      |> render_click()
+
+      assert_receive {:set_featured_received, nil}
+      refute has_element?(view, ~s([data-role="featured-badge"]))
+    end
+  end
+
+  # Select mode and the trash keep the old display-only star: the featured
+  # tile shows a passive badge, and no tile offers the toggle. Both views —
+  # the grid (heex) and the stacks view's file_card/1 — gate it separately.
+  defp assert_passive_star_only(view) do
+    refute has_element?(view, ~s([data-role="featured-toggle"]))
+    refute has_element?(view, ~s(button[data-role="featured-badge"]))
+    assert has_element?(view, ~s(div[data-role="featured-badge"]))
+  end
+
+  defp host_user("grid"), do: nil
+  defp host_user("stacks"), do: user_with_view_mode!("stacks")
+
+  defp assert_view_mode(view, "stacks"), do: assert(has_element?(view, "#pk-stacks-mb"))
+  defp assert_view_mode(view, "grid"), do: refute(has_element?(view, "#pk-stacks-mb"))
+
+  for view_mode <- ["grid", "stacks"] do
+    describe "tile star in select mode and the trash (#{view_mode} view)" do
+      @view_mode view_mode
+
+      test "select mode turns the toggle into the featured tile's passive badge" do
+        folder = create_folder!()
+        featured = create_file!(folder.uuid)
+        _other = create_file!(folder.uuid)
+        view = open_host(folder, %{uuid: featured.uuid, label: nil}, host_user(@view_mode))
+        assert_view_mode(view, @view_mode)
+        assert has_element?(view, ~s([data-role="featured-toggle"]))
+
+        view |> with_target("#mb") |> render_click("toggle_select_mode", %{})
+
+        assert has_element?(
+                 view,
+                 ~s(input[phx-click="toggle_select"][phx-value-file-uuid="#{featured.uuid}"])
+               )
+
+        assert_passive_star_only(view)
+      end
+
+      test "the trash listing shows a trashed featured image's star as a passive badge" do
+        folder = create_folder!()
+        featured = create_trashed_file!(folder.uuid)
+        other = create_trashed_file!(folder.uuid)
+        view = open_host(folder, %{uuid: featured.uuid, label: nil}, host_user(@view_mode))
+
+        view |> element("[phx-click='toggle_trash_filter']") |> render_click()
+
+        assert_view_mode(view, @view_mode)
+        assert has_element?(view, ~s([phx-value-file-uuid="#{other.uuid}"]))
+        assert_passive_star_only(view)
+      end
+    end
   end
 
   describe "viewer sidebar toggle" do

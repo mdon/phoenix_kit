@@ -122,3 +122,86 @@ test("stepping to the next file burns while the overlay is still mounted", () =>
   assert.match(section, /e\.key === "ArrowLeft" \|\| e\.key === "ArrowRight"/);
   assert.match(section, /if \(closing \|\| stepping\) self\.burnIfChanged\(\)/);
 });
+
+// The canvas is the picture plus the ink the copy keeps. Measured by shape
+// groups, a dimension's label group reached up to the overlay's origin (its
+// 0×0 leader sits there), and burning in live mode returned a landscape photo
+// as a portrait, squeezed under a blank band as tall as the viewer's margin.
+// Chrome — handles, a shape still being drawn — is cut from the copy, so it
+// must not stretch the canvas either.
+const bounds = new Function(
+  "BURN_CHROME",
+  sliceFn("burnIsChrome") + "\n" +
+  sliceFn("burnInkBounds") + "\n" +
+  "return { burnIsChrome, burnInkBounds };"
+)([".etcher-handle", ".is-draft"]);
+
+// A stand-in element: `classes` is its own class list plus its ancestors'.
+function fakeEl(box, classes, hasChildren) {
+  return {
+    firstElementChild: hasChildren ? {} : null,
+    closest: (sel) => classes.includes(sel.slice(1)) ? {} : null,
+    getBoundingClientRect: () => ({
+      left: box[0], top: box[1], right: box[2], bottom: box[3],
+      width: box[2] - box[0], height: box[3] - box[1]
+    })
+  };
+}
+
+const same = (x, y) => ({ x, y });
+
+test("a label group reaching the overlay's origin through an empty leader does not stretch the canvas", () => {
+  // Viewer 783×649 over a 783×427 picture: the overlay's origin is 111px above it.
+  const toImage = (x, y) => ({ x, y: y - 111 });
+  const labelGroup = fakeEl([0, 0, 522, 535], ["etcher-shape"], true);
+  const emptyLeader = fakeEl([0, 0, 0, 0], ["etcher-shape"]);
+  const labelText = fakeEl([400, 300, 460, 330], ["etcher-shape"]);
+  assert.deepStrictEqual(
+    bounds.burnInkBounds([labelGroup, emptyLeader, labelText], toImage, 783, 427),
+    { minX: 0, minY: 0, maxX: 783, maxY: 427 }
+  );
+});
+
+test("a shape still being drawn does not stretch the canvas", () => {
+  const draftAbove = fakeEl([100, -1200, 300, -1100], ["etcher-shape", "is-draft"]);
+  assert.deepStrictEqual(
+    bounds.burnInkBounds([draftAbove], same, 1408, 768),
+    { minX: 0, minY: 0, maxX: 1408, maxY: 768 }
+  );
+});
+
+test("handles inside a shape do not stretch the canvas, and a group is measured by its leaves", () => {
+  const group = fakeEl([-500, -500, 2000, 2000], ["etcher-shape"], true);
+  const handle = fakeEl([1400, 760, 1500, 900], ["etcher-handle", "etcher-shape"]);
+  const stroke = fakeEl([10, 10, 200, 20], ["etcher-shape"]);
+  assert.deepStrictEqual(
+    bounds.burnInkBounds([group, handle, stroke], same, 1408, 768),
+    { minX: 0, minY: 0, maxX: 1408, maxY: 768 }
+  );
+});
+
+test("ink drawn past the edge of the picture still widens the canvas", () => {
+  const arrowInFromTheMargin = fakeEl([-80, 300, 40, 320], ["etcher-shape"]);
+  const noteBelow = fakeEl([200, 760, 400, 840], ["etcher-shape"]);
+  assert.deepStrictEqual(
+    bounds.burnInkBounds([arrowInFromTheMargin, noteBelow], same, 1408, 768),
+    { minX: -80, minY: 0, maxX: 1408, maxY: 840 }
+  );
+});
+
+test("a straight line — one side 0, the other not — is ink and widens the canvas", () => {
+  // Only a true point (0×0) is skipped: a vertical dimension line has no
+  // width and a horizontal one no height, and both are drawn.
+  const verticalLineAbove = fakeEl([300, -200, 300, -40], ["etcher-shape"]);
+  const horizontalLineRight = fakeEl([1450, 500, 1600, 500], ["etcher-shape"]);
+  assert.deepStrictEqual(
+    bounds.burnInkBounds([verticalLineAbove, horizontalLineRight], same, 1408, 768),
+    { minX: 0, minY: -200, maxX: 1600, maxY: 768 }
+  );
+});
+
+test("burnCapturePlan sizes the canvas with burnInkBounds over shapes and their descendants", () => {
+  const plan = sliceFn("burnCapturePlan");
+  assert.match(plan, /burnInkBounds\(\s*svg\.querySelectorAll\("\.etcher-shape, \.etcher-shape \*"\)/);
+  assert.doesNotMatch(plan, /svg\.querySelectorAll\("\.etcher-shape"\)\.forEach/);
+});

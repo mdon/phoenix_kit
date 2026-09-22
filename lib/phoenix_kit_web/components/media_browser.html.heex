@@ -1587,12 +1587,17 @@
                               </div>
                             <% end %>
 
-                            <.featured_badge file={file} featured={@featured} />
-
                             <div class="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded pointer-events-none">
                               {format_file_size(file.size)}
                             </div>
                           </div>
+
+                          <.featured_badge
+                            file={file}
+                            featured={@featured}
+                            interactive={not @readonly and not @select_mode and not @filter_trash}
+                            myself={@myself}
+                          />
                           <%!--
                           Per-file kebab menu. Sibling of the click target so
                           its buttons don't fire `click_file`. Mirrors the

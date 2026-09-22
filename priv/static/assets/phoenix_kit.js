@@ -3795,6 +3795,48 @@ if (typeof window.Chart === "undefined") {
     };
   }
 
+  // Whether `el` is chrome or sits inside chrome — what the copy below cuts.
+  function burnIsChrome(el) {
+    for (var i = 0; i < BURN_CHROME.length; i++) {
+      if (el.closest && el.closest(BURN_CHROME[i])) return true;
+    }
+    return false;
+  }
+
+  // The box the burned picture spans, in image px: the W×H picture plus
+  // every piece of ink the copy keeps. `els` are the overlay's shapes and
+  // their descendants; `toImage(x, y)` maps a client point into image px.
+  //
+  // Only leaves with a size are measured, and nothing that is, or sits
+  // inside, chrome. A group's own box is the union of its children's, empty
+  // ones included: a dimension's label group (`.etcher-title-group`) keeps
+  // a 0×0 leader at the overlay's origin, so the group reached up to the
+  // viewer's top-left corner. Burning in live mode stretched the canvas by
+  // the whole margin above the picture — the taller the viewer, the bigger
+  // — and a landscape photo came back portrait, squeezed into its bottom
+  // third under a blank block. Chrome (handles, hit areas, a shape still
+  // being drawn — Escape burns before Etcher drops a draft, this hook
+  // listens in the capture phase) is cut from the copy, so it must not
+  // size the canvas either.
+  function burnInkBounds(els, toImage, W, H) {
+    var b = { minX: 0, minY: 0, maxX: W, maxY: H };
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.firstElementChild || burnIsChrome(el)) continue;
+      var r = el.getBoundingClientRect();
+      if (!r.width && !r.height) continue;
+      [[r.left, r.top], [r.right, r.top], [r.right, r.bottom], [r.left, r.bottom]]
+        .forEach(function(corner) {
+          var p = toImage(corner[0], corner[1]);
+          if (p.x < b.minX) b.minX = p.x;
+          if (p.y < b.minY) b.minY = p.y;
+          if (p.x > b.maxX) b.maxX = p.x;
+          if (p.y > b.maxY) b.maxY = p.y;
+        });
+    }
+    return b;
+  }
+
   // SVG matrix mapping container px into the output bitmap (image px × k,
   // cropped to the union that starts at minX/minY).
   function burnSvgMatrix(ax, k, minX, minY) {
@@ -3858,21 +3900,13 @@ if (typeof window.Chart === "undefined") {
     // much a part of the markup as the rest — an arrow pointing in from the
     // margin, a note written beside the photo. The output is the union of
     // the picture and everything drawn.
-    var minX = 0, minY = 0, maxX = W, maxY = H;
-    svg.querySelectorAll(".etcher-shape").forEach(function(el) {
-      var r = el.getBoundingClientRect();
-      if (!r.width && !r.height) return;
-      [[r.left, r.top], [r.right, r.top], [r.right, r.bottom], [r.left, r.bottom]]
-        .forEach(function(corner) {
-          var p = burnContainerToImage(ax, corner[0] - rect.left, corner[1] - rect.top);
-          if (p.x < minX) minX = p.x;
-          if (p.y < minY) minY = p.y;
-          if (p.x > maxX) maxX = p.x;
-          if (p.y > maxY) maxY = p.y;
-        });
-    });
-    minX = Math.floor(minX); minY = Math.floor(minY);
-    maxX = Math.ceil(maxX); maxY = Math.ceil(maxY);
+    var ink = burnInkBounds(
+      svg.querySelectorAll(".etcher-shape, .etcher-shape *"),
+      function(x, y) { return burnContainerToImage(ax, x - rect.left, y - rect.top); },
+      W, H
+    );
+    var minX = Math.floor(ink.minX), minY = Math.floor(ink.minY);
+    var maxX = Math.ceil(ink.maxX), maxY = Math.ceil(ink.maxY);
 
     var suspended = [];
     svg.querySelectorAll("." + BURN_STATE.join(", .")).forEach(function(el) {

@@ -112,9 +112,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     "+"/rename/drag affordances), every folder and file kebab menu item
     except Download, and every `data-draggable-*` / `data-drop-*` drag
     attribute. Navigation, search, sorting, the modal viewer, and
-    downloads keep working. When `featured` is also set, the star badge
-    still renders (display only) but the kebab's Set/Unset featured item
-    does not.
+    downloads keep working. When `featured` is also set, the featured
+    tile's star still renders (display only) but the other tiles' star
+    toggles and the kebab's Set/Unset featured item do not.
 
     The hidden markup is a courtesy, not the boundary: every mutating
     `handle_event` clause (upload, rename, move, trash, new folder,
@@ -141,9 +141,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     pointer. `label` is the star badge's tooltip; falls back to gettext
     "Featured image" when nil/absent. When set, image tiles/rows gain a
     "Set as featured" / "Unset featured" kebab item (grid, list and
-    stack views), the matching tile carries a `data-role="featured-badge"`
-    star overlay, and the modal viewer's sidebar (for image files) shows
-    the same toggle. The browser never persists anything itself:
+    stack views) and a star toggle in the top-left corner of every image
+    tile (grid and stack views): a solid star on the matching tile
+    (`data-role="featured-badge"`, a click clears it), an outline star on
+    the others (`data-role="featured-toggle"`, a click moves the pointer
+    there). In select mode, the trash, or `readonly`, only the matching
+    tile shows its star, as a plain badge. The modal viewer's sidebar (for
+    image files) shows the same toggle. The browser never persists anything itself:
     choosing or clearing a featured image sends
     `{__MODULE__, id, {:set_featured, uuid | nil}}` to the host
     process — the `{MediaBrowser, id, payload}` channel `{:navigate, _}`
@@ -3465,25 +3469,54 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp featured?(nil, _file_uuid), do: false
   defp featured?(%{uuid: uuid}, file_uuid), do: uuid == file_uuid
 
-  # Star overlay for the tile currently pointed to by the host's
-  # `:featured` pointer. Shares placement with the video/PDF badges
-  # (top-2 left-2) — safe because those only ever appear on non-image
-  # files, and only images can be featured.
+  # Star in the top-left corner of an image tile when the host opted into
+  # `:featured` — styled like the tile's ⋮ trigger (white glyph on a
+  # translucent black circle). Interactive, it is a toggle on every image
+  # tile: solid on the featured one (click → `unset_featured`), outline on
+  # the rest (click → `set_featured`, moving the pointer there). Not
+  # interactive (read-only, select mode, trash), only the featured tile
+  # keeps its star, as a plain badge. Callers render it as a sibling of the
+  # tile's `click_file` target, like the kebab, so a click on the star
+  # never also opens the viewer. Shares placement with the video/PDF badges
+  # — safe because those only ever appear on non-image files, and only
+  # images can be featured.
   attr :file, :map, required: true
   attr :featured, :any, default: nil
+  attr :interactive, :boolean, default: false
+  attr :myself, :any, default: nil
 
   defp featured_badge(assigns) do
+    assigns = assign(assigns, :on, featured?(assigns.featured, assigns.file.file_uuid))
+
     ~H"""
+    <button
+      :if={@interactive and @featured != nil and @file.file_type == "image"}
+      type="button"
+      data-role={if @on, do: "featured-badge", else: "featured-toggle"}
+      phx-click={if @on, do: "unset_featured", else: "set_featured"}
+      phx-target={@myself}
+      phx-value-file-uuid={@file.file_uuid}
+      aria-pressed={to_string(@on)}
+      aria-label={if @on, do: gettext("Unset featured"), else: gettext("Set as featured")}
+      title={
+        if @on,
+          do: @featured[:label] || gettext("Featured image"),
+          else: gettext("Set as featured")
+      }
+      class="absolute top-1.5 left-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors cursor-pointer"
+    >
+      <.icon name={if @on, do: "hero-star-solid", else: "hero-star"} class="w-3 h-3 block" />
+    </button>
     <div
-      :if={@file.file_type == "image" and featured?(@featured, @file.file_uuid)}
+      :if={not @interactive and @on and @file.file_type == "image"}
       data-role="featured-badge"
-      class="absolute top-2 left-2 bg-warning text-warning-content p-1 rounded-full pointer-events-none shadow"
+      class="absolute top-1.5 left-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-black/40 text-white pointer-events-none"
     >
       <span
-        class="block w-3.5 h-3.5 pointer-events-auto"
-        title={(@featured && @featured[:label]) || gettext("Featured image")}
+        class="block pointer-events-auto"
+        title={@featured[:label] || gettext("Featured image")}
       >
-        <.icon name="hero-star-solid" class="w-3.5 h-3.5" />
+        <.icon name="hero-star-solid" class="w-3 h-3 block" />
       </span>
     </div>
     """
@@ -3566,12 +3599,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           PDF
         </div>
 
-        <.featured_badge file={@file} featured={@featured} />
-
         <div class="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded pointer-events-none">
           {format_file_size(@file.size)}
         </div>
       </div>
+
+      <.featured_badge
+        file={@file}
+        featured={@featured}
+        interactive={not @readonly and not @select_mode and not @filter_trash}
+        myself={@myself}
+      />
 
       <%!--
       Per-file kebab menu. Sibling of the click target so its buttons don't
