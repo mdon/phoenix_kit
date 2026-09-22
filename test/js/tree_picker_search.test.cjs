@@ -2,7 +2,9 @@
 
 // Unit tests for `treePickerEnter` in priv/static/assets/phoenix_kit.js — the
 // predicate behind TreePickerSearch's Enter (search at once, never submit the
-// surrounding form, and leave an input method's composing Enter alone).
+// surrounding form, and leave an input method's composing Enter alone) — and
+// for the hook itself: the picker often sits inside a host form, so what is
+// typed in its search box must never reach that form's phx-change or submit.
 //
 // Run: mix test.js  (node --test needs the explicit file on Node 25)
 
@@ -73,4 +75,75 @@ test("an input method's composing Enter is left to confirm the composition", () 
 test("other keys are typing, not a search", () => {
   assert.equal(treePickerEnter({ key: "a" }), false);
   assert.equal(treePickerEnter(null), false);
+});
+
+// ── The hook: what it does with each event ──
+
+const hookDef = global.window.PhoenixKitHooks.TreePickerSearch;
+
+// The hook on a fake input: records its listeners and what it pushes.
+function mountHook(value = "oak") {
+  const listeners = {};
+  const pushed = [];
+
+  const hook = Object.assign(Object.create(hookDef), {
+    el: {
+      value,
+      addEventListener: (type, fn) => (listeners[type] = fn),
+      removeEventListener: noop,
+    },
+    pushEventTo: (_el, event, payload) => pushed.push([event, payload]),
+  });
+
+  hook.mounted();
+  return { hook, listeners, pushed };
+}
+
+function event(attrs = {}) {
+  const e = { stopped: false, prevented: false, isComposing: false };
+  e.stopPropagation = () => (e.stopped = true);
+  e.preventDefault = () => (e.prevented = true);
+  return Object.assign(e, attrs);
+}
+
+test("typing never reaches a surrounding form", () => {
+  const { hook, listeners } = mountHook();
+  const input = event();
+  listeners.input(input);
+  assert.equal(input.stopped, true);
+
+  const change = event();
+  listeners.change(change);
+  assert.equal(change.stopped, true);
+  hook.destroyed();
+});
+
+test("Enter searches at once and submits nothing", () => {
+  const { listeners, pushed } = mountHook("oak");
+  const enter = event({ key: "Enter" });
+  listeners.keydown(enter);
+
+  assert.equal(enter.prevented, true);
+  assert.equal(enter.stopped, true);
+  assert.deepEqual(pushed, [["search", { value: "oak" }]]);
+});
+
+test("Enter while an input method composes is left to the composition", () => {
+  const { listeners, pushed } = mountHook();
+  const enter = event({ key: "Enter", isComposing: true });
+  listeners.keydown(enter);
+
+  assert.equal(enter.prevented, false);
+  assert.equal(enter.stopped, false);
+  assert.deepEqual(pushed, []);
+});
+
+test("other keys are not touched", () => {
+  const { listeners, pushed } = mountHook();
+  const key = event({ key: "a" });
+  listeners.keydown(key);
+
+  assert.equal(key.prevented, false);
+  assert.equal(key.stopped, false);
+  assert.deepEqual(pushed, []);
 });
