@@ -136,6 +136,16 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
       app = app()
       Application.put_env(app, :attachments_parent_folder, {Hooks, :parent})
 
+      log =
+        capture_log(fn ->
+          ResourceFolders.parent_uuid(app, :item, nil, {:answer, {:ok, "secret-not-a-uuid"}})
+          ResourceFolders.parent_uuid(app, :item, nil, {:answer, :not_an_answer})
+        end)
+
+      assert log =~ "{:ok, a string that is not a uuid}"
+      assert log =~ ":not_an_answer"
+      refute log =~ "secret"
+
       for subject <- [:raise, :exit, :throw] do
         log =
           capture_log(fn ->

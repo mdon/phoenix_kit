@@ -170,7 +170,7 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   @spec describe_failure(term()) :: String.t()
   def describe_failure({:bad_config, _value}), do: "the config is not a {module, function} pair"
   def describe_failure({:not_exported, {mod, fun}}), do: "#{inspect(mod)}.#{fun} is not exported"
-  def describe_failure({:bad_answer, _answer}), do: "the hook answered something else"
+  def describe_failure({:bad_answer, answer}), do: "the hook answered " <> answer_shape(answer)
   def describe_failure({:exit, reason}), do: "exited: " <> exit_shape(reason)
   def describe_failure({:throw, _value}), do: "threw"
   def describe_failure(%{__exception__: true, __struct__: mod}), do: "raised #{inspect(mod)}"
@@ -181,6 +181,18 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
 
   def describe_failure(reason) when is_tuple(reason), do: shape(reason)
   def describe_failure(_reason), do: "failed"
+
+  # Atoms are code and safe to show; strings, maps and structs are data.
+  defp answer_shape(answer) when is_atom(answer), do: inspect(answer)
+  defp answer_shape({:ok, value}) when is_binary(value), do: "{:ok, a string that is not a uuid}"
+  defp answer_shape({:ok, value}), do: "{:ok, #{answer_shape(value)}}"
+  defp answer_shape({tag, _value}) when is_atom(tag), do: "{#{inspect(tag)}, …}"
+  defp answer_shape(value) when is_binary(value), do: "a string"
+  defp answer_shape(%{__struct__: mod}), do: "a #{inspect(mod)}"
+  defp answer_shape(value) when is_map(value), do: "a map"
+  defp answer_shape(value) when is_list(value), do: "a list"
+  defp answer_shape(value) when is_tuple(value), do: "a #{tuple_size(value)}-tuple"
+  defp answer_shape(_value), do: "something else"
 
   defp exit_shape({:timeout, {GenServer, :call, _args}}), do: "GenServer.call timeout"
   defp exit_shape({:noproc, {GenServer, :call, _args}}), do: "GenServer.call to a dead process"
