@@ -85,16 +85,22 @@ defmodule PhoenixKit.Modules.Storage.CaptureDate do
   # Each pattern captures year, month, day and optionally hour, minute, second.
   # The year must look like one (19xx/20xx) so a run of digits in a name is not
   # mistaken for a date.
-  @filename_patterns [
-    # IMG_20180701_120000, VID_…, PXL_20240315_081100123, Screenshot_20240315-081100
-    ~r/(?<!\d)((?:19|20)\d{2})(\d{2})(\d{2})[_\-](\d{2})(\d{2})(\d{2})(?:\d{1,3})?(?!\d)/,
-    # 2018-07-01 12.34.56 and macOS "… 2024-03-15 at 08.11.00"
-    ~r/(?<!\d)((?:19|20)\d{2})-(\d{2})-(\d{2})(?: at |[ _T])(\d{2})[.:\-](\d{2})[.:\-](\d{2})(?!\d)/,
-    # IMG-20240315-WA0001 (WhatsApp): a date, no time
-    ~r/(?<!\d)((?:19|20)\d{2})(\d{2})(\d{2})-WA\d+/,
-    # a bare 2018-07-01: a date, no time
-    ~r/(?<!\d)((?:19|20)\d{2})-(\d{2})-(\d{2})(?!\d)/
-  ]
+  # A compiled `~r` carries a runtime reference on OTP 28, so a list of them
+  # cannot live in a module attribute that a function body reads — Elixir
+  # refuses to escape it at compile time. Building the list in a function
+  # keeps the sigils (and their comments) and compiles everywhere.
+  defp filename_patterns do
+    [
+      # IMG_20180701_120000, VID_…, PXL_20240315_081100123, Screenshot_20240315-081100
+      ~r/(?<!\d)((?:19|20)\d{2})(\d{2})(\d{2})[_\-](\d{2})(\d{2})(\d{2})(?:\d{1,3})?(?!\d)/,
+      # 2018-07-01 12.34.56 and macOS "… 2024-03-15 at 08.11.00"
+      ~r/(?<!\d)((?:19|20)\d{2})-(\d{2})-(\d{2})(?: at |[ _T])(\d{2})[.:\-](\d{2})[.:\-](\d{2})(?!\d)/,
+      # IMG-20240315-WA0001 (WhatsApp): a date, no time
+      ~r/(?<!\d)((?:19|20)\d{2})(\d{2})(\d{2})-WA\d+/,
+      # a bare 2018-07-01: a date, no time
+      ~r/(?<!\d)((?:19|20)\d{2})-(\d{2})-(\d{2})(?!\d)/
+    ]
+  end
 
   @doc "The four columns a capture date occupies on `phoenix_kit_files`."
   @spec fields() :: [atom()]
@@ -299,7 +305,7 @@ defmodule PhoenixKit.Modules.Storage.CaptureDate do
   def from_filename(name) do
     base = Path.basename(name)
 
-    Enum.find_value(@filename_patterns, fn pattern ->
+    Enum.find_value(filename_patterns(), fn pattern ->
       case Regex.run(pattern, base, capture: :all_but_first) do
         nil -> nil
         parts -> filename_date(parts)
