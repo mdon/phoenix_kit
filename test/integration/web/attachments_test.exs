@@ -147,6 +147,23 @@ defmodule PhoenixKitWeb.AttachmentsTest do
     assert file.file_type == "image"
   end
 
+  test "a browser type that is not a mime type is ignored, not stored", %{
+    user: user,
+    folder: folder,
+    n: n
+  } do
+    for {sent, stored} <- [
+          {String.duplicate("x", 300) <> "/pdf", "application/pdf"},
+          {"not a type", "application/pdf"},
+          {"application/pdf; charset=binary", "application/pdf"}
+        ] do
+      assert {:ok, file} =
+               store(upload!("#{sent} #{n}"), entry("doc.pdf", sent), user.uuid, folder.uuid)
+
+      assert file.mime_type == stored, inspect(sent)
+    end
+  end
+
   test "the same bytes again are already attached", %{user: user, folder: folder, n: n} do
     assert {:ok, first} = store(upload!("same #{n}"), entry("a.txt"), user.uuid, folder.uuid)
 

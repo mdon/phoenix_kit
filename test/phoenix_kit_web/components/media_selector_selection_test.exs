@@ -24,7 +24,8 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorSelectionTest do
          test_pid: session["test_pid"],
          scope: session["scope"],
          mode: String.to_existing_atom(session["mode"] || "single"),
-         lock: session["lock"] || false
+         lock: session["lock"] || false,
+         browse: Map.get(session, "browse", true)
        )}
     end
 
@@ -39,6 +40,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorSelectionTest do
         scope_folder_id={@scope}
         file_type_filter={:image}
         lock_file_type={@lock}
+        browse={@browse}
         phoenix_kit_current_user={nil}
       />
       """
@@ -81,7 +83,8 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorSelectionTest do
         "test_pid" => self(),
         "scope" => scope && scope.uuid,
         "mode" => to_string(Keyword.get(opts, :mode, :single)),
-        "lock" => Keyword.get(opts, :lock, false)
+        "lock" => Keyword.get(opts, :lock, false),
+        "browse" => Keyword.get(opts, :browse, true)
       }
     )
   end
@@ -166,6 +169,24 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorSelectionTest do
     forge(view, inside, trashed.uuid)
     refute_receive {:picked, _}, 100
     forge(view, inside, video.uuid)
+    refute_receive {:picked, _}, 100
+  end
+
+  test "an upload-only picker lists nothing, so it picks nothing it was sent", %{
+    conn: conn,
+    scope: scope
+  } do
+    inside = file!(scope)
+    {:ok, view, _html} = open(conn, scope, browse: false)
+
+    view
+    |> with_target("#media-selector-modal-backdrop-picker")
+    |> render_hook("toggle_selection", %{"file-uuid" => inside.uuid})
+
+    # Nothing was selected, so there is nothing to confirm.
+    assert has_element?(view, ~s(button[phx-click="confirm_selection"][disabled]))
+
+    forge_double_click(view, inside.uuid)
     refute_receive {:picked, _}, 100
   end
 end

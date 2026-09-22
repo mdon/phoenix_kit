@@ -99,9 +99,10 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   require Logger
 
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{File, FileInstance, FolderLink, URLSigner}
+  alias PhoenixKit.Modules.Storage.{File, FileInstance, Folder, FolderLink, URLSigner}
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Format
+  alias PhoenixKit.Utils.TreeQuery
   alias PhoenixKitWeb.Components.Core.MediaThumbnail
 
   import Ecto.Query
@@ -519,7 +520,10 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   # The host points a record at whatever comes back (an avatar, a featured
   # image), so a uuid the browser sends is taken only when this picker could
   # have listed that file: live, inside the scope folder, the user's own when
-  # restricted, of the locked type — whatever page or search is showing.
+  # restricted, of the locked type — whatever page or search is showing. An
+  # upload-only picker lists nothing; its uploads select themselves.
+  defp selectable?(%{assigns: %{browse: false}}, _file_uuid), do: false
+
   defp selectable?(socket, file_uuid) do
     case Ecto.UUID.cast(file_uuid) do
       {:ok, uuid} when byte_size(file_uuid) == 36 ->
@@ -802,7 +806,9 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   # scoped to (e.g.) an order's folder also surfaces images uploaded into
   # its sub-order subfolders.
   defp scope_files_by_folder(query, folder_uuid) do
-    folder_uuids = Storage.folder_subtree_uuids(folder_uuid)
+    # One recursive query, however deep the tree (the order-keeping
+    # `Storage.folder_subtree_uuids/1` costs one per level).
+    folder_uuids = TreeQuery.subtree_uuids(Folder, [folder_uuid])
 
     linked_subq =
       from(fl in FolderLink,

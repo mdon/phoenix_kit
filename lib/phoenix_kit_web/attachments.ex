@@ -64,7 +64,8 @@ defmodule PhoenixKitWeb.Attachments do
   storage, and the type comes from `Storage.determine_file_type/2`.
   `nil` for the folder stores the file without placing it (a form that
   files it on save); a trashed duplicate is restored then too, so the
-  file returned is always live. Never raises.
+  file returned is always live. Never raises — call it outside a
+  transaction, which a database error would abort.
   """
   @spec store(String.t(), map(), String.t() | nil, String.t() | nil) ::
           {:ok, Storage.File.t()} | {:already_attached, Storage.File.t()} | {:error, term()}
@@ -72,7 +73,7 @@ defmodule PhoenixKitWeb.Attachments do
 
   def store(path, entry, user_uuid, folder_uuid) do
     name = client_name(entry)
-    mime = Map.get(entry, :client_type)
+    mime = client_type(entry)
     ext = name |> Path.extname() |> String.trim_leading(".") |> String.downcase()
     hash = Auth.calculate_file_hash(path)
 
@@ -90,6 +91,13 @@ defmodule PhoenixKitWeb.Attachments do
     error ->
       Logger.warning("Storing an upload failed: #{ResourceFolders.describe_failure(error)}")
       {:error, error}
+  catch
+    :exit, reason ->
+      Logger.warning(
+        "Storing an upload failed: #{ResourceFolders.describe_failure({:exit, reason})}"
+      )
+
+      {:error, {:exit, reason}}
   end
 
   defp place({:ok, file}, nil), do: {:ok, file}
@@ -121,6 +129,23 @@ defmodule PhoenixKitWeb.Attachments do
       |> List.last()
 
     if name in ["", ".", ".."], do: "upload", else: bounded(name)
+  end
+
+  # Also the browser's: kept only when it reads as a mime type (parameters
+  # dropped), so a long or garbage one cannot fail the insert — storage then
+  # guesses from the name instead.
+  @mime ~r/\A[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\z/i
+
+  defp client_type(entry) do
+    type =
+      entry
+      |> Map.get(:client_type)
+      |> to_string()
+      |> String.split(";")
+      |> hd()
+      |> String.trim()
+
+    if Regex.match?(@mime, type), do: type
   end
 
   # The column counts code points, not graphemes (an emoji can be several).

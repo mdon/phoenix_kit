@@ -782,6 +782,30 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
     end
   end
 
+  @doc """
+  Points record `uuid` of `schema` at `file_uuid` through `pointer` (an
+  avatar, a featured image) only when `folder_uuid` holds that live file
+  (`holds_file?/3`, taking its `:only`) — the write a forged file uuid must
+  not get past. The file's row is locked for the check and the write, the
+  same lock `attach/2` and `detach/2` take, so the file cannot leave the
+  folder in between; the write is `write_pointer/4`'s, one key, so a stale
+  copy of the record cannot overwrite its other keys.
+
+  `:ok`, `{:error, :not_held}`, `{:error, :not_found}` for no such record,
+  or `{:error, reason}`; never raises.
+  """
+  @spec point_at(module(), String.t(), pointer(), String.t(), String.t() | nil, keyword()) ::
+          :ok | {:error, :not_held | :not_found | term()}
+  def point_at(schema, uuid, pointer, file_uuid, folder_uuid, opts \\ []) do
+    safely("point at file", fn ->
+      with_locked_file(file_uuid, {:error, :not_held}, fn file ->
+        if holds_file?(folder_uuid, file.uuid, opts),
+          do: write_pointer(schema, uuid, pointer, file.uuid),
+          else: {:error, :not_held}
+      end)
+    end)
+  end
+
   defp live_files(query),
     do: where(query, [f], f.status != "trashed" and f.system_managed == false)
 
