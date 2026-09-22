@@ -1,3 +1,20 @@
+## 2.37.2 - 2026-09-22
+
+### Added
+
+- **`PreviewCard` takes images by URL, not only as Storage files (#857).**
+  An `:images` entry may be `%{src, name}`, with an optional `:thumb_src`
+  for the jump strip, alongside the Storage `%{uuid, name}` form — for
+  pictures a host serves itself (a document's page previews). Both kinds mix
+  in one carousel. `PreviewCard.image_url/2` resolves an entry's URL for a
+  variant.
+
+### Fixed
+
+- **`PreviewCard` image entries may be structs again (#857 review).** The
+  alt text read `img[:name]`, which structs do not support; it now uses
+  `Map.get/2`, so `:name` stays optional on maps and structs keep working.
+
 ## 2.37.1 - 2026-09-22
 
 ### Fixed

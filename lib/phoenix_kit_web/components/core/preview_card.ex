@@ -163,7 +163,7 @@ defmodule PhoenixKitWeb.Components.Core.PreviewCard do
           >
             <img
               src={image_url(img, "medium")}
-              alt={img[:name] || @title || ""}
+              alt={Map.get(img, :name) || @title || ""}
               loading={(idx == 0 && "eager") || "lazy"}
               class="w-full h-[50vh] object-contain"
             />
