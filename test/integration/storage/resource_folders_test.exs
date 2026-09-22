@@ -666,6 +666,34 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
       assert ResourceFolders.place_stored({:error, :too_big}, folder.uuid) == {:error, :too_big}
     end
 
+    test "attach and detach decide from the file's current row, not a stale struct" do
+      [a, b, c] = [folder!(name()), folder!(name()), folder!(name())]
+
+      loose = file!(nil)
+      assert ResourceFolders.attach(loose.uuid, a.uuid) == {:ok, :adopted}
+      # `loose` still says it has no home; attaching it elsewhere must link, not move it.
+      assert ResourceFolders.attach(loose, b.uuid) == {:ok, :linked}
+      assert Repo.get!(StorageFile, loose.uuid).folder_uuid == a.uuid
+
+      shared = file!(c)
+      link!(b, shared)
+      assert ResourceFolders.detach(shared, c.uuid) == {:ok, :rehomed}
+      # A second removal still holding the old struct: the file lives in b now.
+      assert ResourceFolders.detach(shared, c.uuid) == {:ok, :absent}
+      assert %{status: "active", folder_uuid: home} = Repo.get!(StorageFile, shared.uuid)
+      assert home == b.uuid
+    end
+
+    test "a restored duplicate whose attach fails goes back to the trash" do
+      trashed_target = trash!(folder!(name()))
+      file = file!(nil, %{status: "trashed"})
+
+      assert ResourceFolders.place_stored({:ok, file, :duplicate}, trashed_target.uuid) ==
+               {:error, :folder_unavailable}
+
+      assert Repo.get!(StorageFile, file.uuid).status == "trashed"
+    end
+
     test "detach unlinks, re-homes, trashes — and never touches a file not here" do
       folder = folder!(name())
       other = folder!(name())

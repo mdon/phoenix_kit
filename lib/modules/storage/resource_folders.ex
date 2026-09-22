@@ -681,7 +681,8 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   @doc """
   How many live files each of `folder_uuids` holds, in two grouped
   queries: `%{folder_uuid => count}`, an empty folder left out. Takes
-  `:only` like `list_files/2`; counts exactly what `list_files/2` lists
+  `:only` like `list_files/2`; counts exactly what `files_query/1` holds
+  (`list_files/2` lists the same set, up to its `:limit`)
   (a file linked into its own home folder once).
   """
   @spec count_by_folder([String.t()], keyword()) :: %{String.t() => pos_integer()}
@@ -768,16 +769,19 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
           {:ok, :adopted | :linked | :already_attached} | {:error, term()}
   def attach(file_or_uuid, folder_uuid) when is_binary(folder_uuid) do
     safely("attach file", fn ->
-      with %StorageFile{} = file <- load_file(file_or_uuid) || {:error, :not_found},
-           %Folder{uuid: folder_uuid} <- live_folder(folder_uuid) || {:error, :folder_unavailable} do
-        cond do
-          file.status == "trashed" -> {:error, :file_trashed}
-          file.folder_uuid == folder_uuid -> {:ok, :already_attached}
-          Storage.folder_link(folder_uuid, file.uuid) -> {:ok, :already_attached}
-          true -> attach_new(file, folder_uuid)
-        end
-      end
+      with_locked_file(file_or_uuid, {:error, :not_found}, &attach_locked(&1, folder_uuid))
     end)
+  end
+
+  defp attach_locked(file, folder_uuid) do
+    with %Folder{uuid: folder_uuid} <- live_folder(folder_uuid) || {:error, :folder_unavailable} do
+      cond do
+        file.status == "trashed" -> {:error, :file_trashed}
+        file.folder_uuid == folder_uuid -> {:ok, :already_attached}
+        Storage.folder_link(folder_uuid, file.uuid) -> {:ok, :already_attached}
+        true -> attach_new(file, folder_uuid)
+      end
+    end
   end
 
   defp attach_new(file, folder_uuid) do
@@ -806,11 +810,20 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
           {:ok, StorageFile.t()} | {:already_attached, StorageFile.t()} | {:error, term()}
   def place_stored({:ok, %StorageFile{} = file}, folder_uuid), do: place(file, folder_uuid, false)
 
+  # Restored and attached together: a restore whose attach then fails
+  # would leave the file active in its old (trashed) home, in no listing
+  # and not in the file trash either.
   def place_stored({:ok, %StorageFile{status: "trashed"} = file, :duplicate}, folder_uuid) do
-    case safely("restore file", fn -> Storage.restore_file(file) end) do
-      {:ok, restored} -> place(restored, folder_uuid, false)
-      {:error, reason} -> {:error, reason}
-    end
+    safely("restore file", fn ->
+      repo().transaction(fn ->
+        with {:ok, restored} <- Storage.restore_file(file),
+             {:ok, placed} <- place(restored, folder_uuid, false) do
+          placed
+        else
+          {:error, reason} -> repo().rollback(reason)
+        end
+      end)
+    end)
   end
 
   def place_stored({:ok, %StorageFile{} = file, :duplicate}, folder_uuid),
@@ -841,24 +854,42 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
 
   def detach(file_or_uuid, folder_uuid) when is_binary(folder_uuid) do
     safely("detach file", fn ->
-      with %StorageFile{} = file <- load_file(file_or_uuid) || {:ok, :absent} do
+      with_locked_file(file_or_uuid, {:ok, :absent}, fn file ->
         case Storage.remove_file_from_folder(file, folder_uuid) do
           {:ok, outcome, _file} -> {:ok, outcome}
           {:error, :not_in_folder} -> {:ok, :absent}
           {:error, reason} -> {:error, reason}
         end
-      end
+      end)
     end)
   end
 
-  defp load_file(%StorageFile{} = file), do: file
+  # The file's row, read fresh and locked for the rest of the transaction:
+  # a caller's struct can be stale (the file re-homed since), and deciding
+  # from it — two removals at once, the second still seeing the old home —
+  # trashed a file another folder still held. A logical refusal writes
+  # nothing, so it is returned as is rather than rolled back (which would
+  # abort a caller's own transaction).
+  defp with_locked_file(file_or_uuid, missing, fun) do
+    case cast(file_uuid(file_or_uuid)) do
+      nil ->
+        missing
 
-  defp load_file(uuid) do
-    case cast(uuid) do
-      nil -> nil
-      uuid -> Storage.get_file(uuid)
+      uuid ->
+        {:ok, result} =
+          repo().transaction(fn ->
+            case repo().one(from(f in StorageFile, where: f.uuid == ^uuid, lock: "FOR UPDATE")) do
+              nil -> missing
+              file -> fun.(file)
+            end
+          end)
+
+        result
     end
   end
+
+  defp file_uuid(%StorageFile{uuid: uuid}), do: uuid
+  defp file_uuid(uuid), do: uuid
 
   # ── Helpers ─────────────────────────────────────────────────────────
 
