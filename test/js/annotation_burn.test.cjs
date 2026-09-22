@@ -189,6 +189,17 @@ test("ink drawn past the edge of the picture still widens the canvas", () => {
   );
 });
 
+test("a straight line — one side 0, the other not — is ink and widens the canvas", () => {
+  // Only a true point (0×0) is skipped: a vertical dimension line has no
+  // width and a horizontal one no height, and both are drawn.
+  const verticalLineAbove = fakeEl([300, -200, 300, -40], ["etcher-shape"]);
+  const horizontalLineRight = fakeEl([1450, 500, 1600, 500], ["etcher-shape"]);
+  assert.deepStrictEqual(
+    bounds.burnInkBounds([verticalLineAbove, horizontalLineRight], same, 1408, 768),
+    { minX: 0, minY: -200, maxX: 1600, maxY: 768 }
+  );
+});
+
 test("burnCapturePlan sizes the canvas with burnInkBounds over shapes and their descendants", () => {
   const plan = sliceFn("burnCapturePlan");
   assert.match(plan, /burnInkBounds\(\s*svg\.querySelectorAll\("\.etcher-shape, \.etcher-shape \*"\)/);

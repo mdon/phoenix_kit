@@ -415,6 +415,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
        |> MediaBrowser.setup_uploads()
        |> set_assign(:folder_uuid, session["folder_uuid"])
        |> set_assign(:featured, session["featured"])
+       |> set_assign(:current_user, session["current_user"])
        |> set_assign(:test_pid, session["test_pid"])}
     end
 
@@ -438,17 +439,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
         id="mb"
         scope_folder_id={@folder_uuid}
         featured={@featured}
+        phoenix_kit_current_user={@current_user}
       />
       """
     end
   end
 
-  defp open_host(folder, featured) do
+  defp open_host(folder, featured, current_user \\ nil) do
     {:ok, view, _html} =
       live_isolated(Phoenix.ConnTest.build_conn(), Host,
         session: %{
           "folder_uuid" => folder.uuid,
           "featured" => featured,
+          "current_user" => current_user,
           "test_pid" => self()
         }
       )
@@ -486,6 +489,58 @@ defmodule PhoenixKitWeb.Components.MediaBrowserFeaturedTest do
 
       assert_receive {:set_featured_received, nil}
       refute has_element?(view, ~s([data-role="featured-badge"]))
+    end
+  end
+
+  # Select mode and the trash keep the old display-only star: the featured
+  # tile shows a passive badge, and no tile offers the toggle. Both views —
+  # the grid (heex) and the stacks view's file_card/1 — gate it separately.
+  defp assert_passive_star_only(view) do
+    refute has_element?(view, ~s([data-role="featured-toggle"]))
+    refute has_element?(view, ~s(button[data-role="featured-badge"]))
+    assert has_element?(view, ~s(div[data-role="featured-badge"]))
+  end
+
+  defp host_user("grid"), do: nil
+  defp host_user("stacks"), do: user_with_view_mode!("stacks")
+
+  defp assert_view_mode(view, "stacks"), do: assert(has_element?(view, "#pk-stacks-mb"))
+  defp assert_view_mode(view, "grid"), do: refute(has_element?(view, "#pk-stacks-mb"))
+
+  for view_mode <- ["grid", "stacks"] do
+    describe "tile star in select mode and the trash (#{view_mode} view)" do
+      @view_mode view_mode
+
+      test "select mode turns the toggle into the featured tile's passive badge" do
+        folder = create_folder!()
+        featured = create_file!(folder.uuid)
+        _other = create_file!(folder.uuid)
+        view = open_host(folder, %{uuid: featured.uuid, label: nil}, host_user(@view_mode))
+        assert_view_mode(view, @view_mode)
+        assert has_element?(view, ~s([data-role="featured-toggle"]))
+
+        view |> with_target("#mb") |> render_click("toggle_select_mode", %{})
+
+        assert has_element?(
+                 view,
+                 ~s(input[phx-click="toggle_select"][phx-value-file-uuid="#{featured.uuid}"])
+               )
+
+        assert_passive_star_only(view)
+      end
+
+      test "the trash listing shows a trashed featured image's star as a passive badge" do
+        folder = create_folder!()
+        featured = create_trashed_file!(folder.uuid)
+        other = create_trashed_file!(folder.uuid)
+        view = open_host(folder, %{uuid: featured.uuid, label: nil}, host_user(@view_mode))
+
+        view |> element("[phx-click='toggle_trash_filter']") |> render_click()
+
+        assert_view_mode(view, @view_mode)
+        assert has_element?(view, ~s([phx-value-file-uuid="#{other.uuid}"]))
+        assert_passive_star_only(view)
+      end
     end
   end
 
