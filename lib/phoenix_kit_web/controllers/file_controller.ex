@@ -101,10 +101,19 @@ defmodule PhoenixKitWeb.FileController do
           # redirect itself must not be cached, or the client keeps following
           # it to the full-size image after the variant exists; nor may an
           # unversioned one for an edited file, whose object key changes with
-          # every edit. (The object's own headers are the bucket's business.)
-          conn
-          |> put_redirect_cache_headers(cache)
-          |> redirect(external: url)
+          # every edit.
+          #
+          # Only for a type this app serves inline anyway. The bucket answers
+          # with its own headers, so anything else — an uploaded HTML page,
+          # an SVG, a script — would render on the bucket's origin instead of
+          # downloading; those go through the app, which says `attachment`.
+          if disposition_for(instance.mime_type) == "inline" do
+            conn
+            |> put_redirect_cache_headers(cache)
+            |> redirect(external: url)
+          else
+            proxy_remote_file(conn, file, instance, instance.file_name, cache)
+          end
 
         {:proxy, file_name} ->
           proxy_remote_file(conn, file, instance, file_name, cache)

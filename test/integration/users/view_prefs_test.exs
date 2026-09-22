@@ -74,6 +74,10 @@ defmodule PhoenixKit.Integration.Users.ViewPrefsTest do
     assert ViewPrefs.put(user, "users", %{"filters" => String.duplicate("x", 20_000)}) ==
              {:error, :too_large}
 
+    # A shape the guards cannot match is answered too, never raised.
+    assert ViewPrefs.put(user, "users", "columns") == {:error, :invalid_arguments}
+    assert ViewPrefs.delete_fields(user, "users", "columns") == {:error, :invalid_arguments}
+
     assert ViewPrefs.get(user, "users") == %{}
   end
 

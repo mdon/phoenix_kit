@@ -21,4 +21,17 @@ defmodule PhoenixKitWeb.FileDispositionTest do
       assert FileController.disposition_for(type) == "attachment", inspect(type)
     end
   end
+
+  # Source-order pin: a public bucket answers with its OWN headers, so a
+  # type this app would never show in place must not be handed out as a
+  # bucket URL — it goes through the app, which says `attachment`.
+  # Reaching the branch needs a public bucket, which a unit test has not.
+  test "a bucket URL is handed out only for a type served inline" do
+    source = File.read!("lib/phoenix_kit_web/controllers/file_controller.ex")
+    [_, branch] = String.split(source, "{:redirect, url} ->", parts: 2)
+    [branch, _] = String.split(branch, "{:proxy,", parts: 2)
+
+    assert branch =~ ~s|disposition_for(instance.mime_type) == "inline"|
+    assert branch =~ "proxy_remote_file"
+  end
 end

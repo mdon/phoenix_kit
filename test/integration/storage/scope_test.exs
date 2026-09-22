@@ -885,6 +885,43 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
       refute Storage.folder_link(other.uuid, file.uuid)
     end
 
+    test "a trashed folder's link is not a home to re-home into" do
+      home = create_folder!(%{name: "rh2_home_#{System.unique_integer([:positive])}"})
+      gone = create_folder!(%{name: "rh2_gone_#{System.unique_integer([:positive])}"})
+      live = create_folder!(%{name: "rh2_live_#{System.unique_integer([:positive])}"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(gone.uuid, file.uuid)
+      {:ok, _} = Storage.create_folder_link(live.uuid, file.uuid)
+      {:ok, _} = Storage.trash_folder(gone)
+
+      assert {:ok, :rehomed, rehomed} = Storage.remove_file_from_folder(file, home.uuid)
+      assert rehomed.folder_uuid == live.uuid
+    end
+
+    test "a folder cannot be moved under a trashed one" do
+      gone = create_folder!(%{name: "mv_gone_#{System.unique_integer([:positive])}"})
+      mover = create_folder!(%{name: "mv_live_#{System.unique_integer([:positive])}"})
+      {:ok, _} = Storage.trash_folder(gone)
+
+      assert Storage.update_folder(mover, %{parent_uuid: gone.uuid}) ==
+               {:error, :folder_unavailable}
+
+      assert Storage.get_folder(mover.uuid).parent_uuid == nil
+
+      # Renaming it is still fine: only the move is refused.
+      assert {:ok, renamed} = Storage.update_folder(mover, %{name: "mv_renamed"})
+      assert renamed.name == "mv_renamed"
+    end
+
+    test "no attach surface puts a file in a trashed folder" do
+      gone = create_folder!(%{name: "att_gone_#{System.unique_integer([:positive])}"})
+      loose = create_file!(nil)
+      {:ok, _} = Storage.trash_folder(gone)
+
+      assert Storage.attach_file_to_folder(loose, gone.uuid) == {:error, :folder_unavailable}
+      assert Repo.get!(StorageFile, loose.uuid).folder_uuid == nil
+    end
+
     test "a chain deeper than any fixed walk still refuses a cycle and stays in scope" do
       root = create_folder!(%{name: "deep_root_#{System.unique_integer([:positive])}"})
 

@@ -59,6 +59,8 @@ defmodule PhoenixKit.Users.ViewPrefs do
   leaving the others as stored. Answers the preferences as they now are.
   """
   @spec put(user(), String.t(), map()) :: {:ok, map()} | {:error, term()}
+  def put(_user, _key, fields) when not is_map(fields), do: invalid(:fields, fields)
+
   def put(user, key, fields) when is_map(fields) do
     with {:ok, uuid} <- fetch_uuid(user),
          {:ok, key} <- check_key(key),
@@ -91,6 +93,9 @@ defmodule PhoenixKit.Users.ViewPrefs do
   are (`%{}` when the user had none).
   """
   @spec delete_fields(user(), String.t(), [String.t()]) :: {:ok, map()} | {:error, term()}
+  def delete_fields(_user, _key, fields) when not is_list(fields),
+    do: invalid(:fields, fields)
+
   def delete_fields(user, key, fields) when is_list(fields) do
     with {:ok, uuid} <- fetch_uuid(user),
          {:ok, key} <- check_key(key) do
@@ -125,6 +130,12 @@ defmodule PhoenixKit.Users.ViewPrefs do
     error -> write_failed(error)
   catch
     :exit, reason -> write_failed({:exit, reason})
+  end
+
+  # Nothing here raises, the caller's mistakes included.
+  defp invalid(what, value) do
+    Logger.warning("View preferences: #{what} must not be #{inspect(value)}")
+    {:error, :invalid_arguments}
   end
 
   defp user_uuid(%{uuid: uuid}) when is_binary(uuid), do: uuid

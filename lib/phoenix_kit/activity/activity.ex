@@ -134,6 +134,19 @@ defmodule PhoenixKit.Activity do
 
   def log(module, action, opts)
       when is_binary(module) and module != "" and is_binary(action) and is_list(opts) do
+    # Whitespace is blank, and a keyword list that is improper (or holds
+    # something that is not a pair) raises inside `Keyword.get/3` — both
+    # are the caller's mistake, answered rather than raised.
+    if String.trim(module) == "" or not Keyword.keyword?(opts) do
+      invalid_arguments(module, action)
+    else
+      log_opts(module, action, opts)
+    end
+  end
+
+  def log(module, action, _opts), do: invalid_arguments(module, action)
+
+  defp log_opts(module, action, opts) do
     %{
       action: action,
       module: module,
@@ -148,8 +161,6 @@ defmodule PhoenixKit.Activity do
     |> log()
   end
 
-  def log(module, action, _opts), do: invalid_arguments(module, action)
-
   @doc """
   Logs a user action that did not land — a mutation that returned an
   error. Same as `log/3` with `"db_pending" => true` in the metadata, so
@@ -162,11 +173,15 @@ defmodule PhoenixKit.Activity do
 
   def log_failed(module, action, opts)
       when is_binary(module) and module != "" and is_binary(action) and is_list(opts) do
-    log(
-      module,
-      action,
-      Keyword.put(opts, :metadata, Map.put(metadata_opt(opts), "db_pending", true))
-    )
+    if Keyword.keyword?(opts) do
+      log(
+        module,
+        action,
+        Keyword.put(opts, :metadata, Map.put(metadata_opt(opts), "db_pending", true))
+      )
+    else
+      invalid_arguments(module, action)
+    end
   end
 
   def log_failed(module, action, _opts), do: invalid_arguments(module, action)
@@ -186,9 +201,17 @@ defmodule PhoenixKit.Activity do
   defp metadata_opt(opts) do
     case Keyword.get(opts, :metadata) do
       %{} = metadata -> metadata
-      [_ | _] = pairs -> if Enum.all?(pairs, &match?({_, _}, &1)), do: Map.new(pairs), else: %{}
+      [_ | _] = pairs -> pairs_to_map(pairs)
       _ -> %{}
     end
+  end
+
+  # An improper list, or one holding something that is not a pair, is not
+  # metadata — and must not raise out of a call that never raises.
+  defp pairs_to_map(pairs) do
+    Map.new(pairs)
+  rescue
+    _ -> %{}
   end
 
   @doc """

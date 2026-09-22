@@ -205,9 +205,14 @@ defmodule PhoenixKitWeb.Components.TreePickerTest do
     refute html =~ ~s(id="picker-change")
     refute html =~ ~s(name="page[parent_uuid]")
 
-    # A crafted open is refused too.
+    # A crafted open is refused too — and so are crafted picks, which
+    # would otherwise move a value the page shows as fixed.
     html = view |> with_target("#picker") |> render_hook("open_panel", %{})
     refute html =~ ~s(id="picker-search")
+
+    view |> with_target("#picker") |> render_hook("pick", %{"id" => "a"})
+    view |> with_target("#picker") |> render_hook("pick_all", %{"id" => "a"})
+    refute_receive {:picked, _, _}
   end
 
   test "the current row carries a badge" do

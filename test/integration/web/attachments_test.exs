@@ -192,6 +192,17 @@ defmodule PhoenixKitWeb.AttachmentsTest do
     end
   end
 
+  # The browser may shout it; storage classifies by a lower-case prefix,
+  # so an upper-case type used to be stored as "other" with a "bin" name.
+  test "a browser type in upper case is the same type", %{user: user, folder: folder, n: n} do
+    assert {:ok, file} =
+             store(upload!("shouty #{n}"), entry("photo", "IMAGE/PNG"), user.uuid, folder.uuid)
+
+    assert file.mime_type == "image/png"
+    assert file.file_type == "image"
+    assert file.ext == "png"
+  end
+
   test "the same bytes again are already attached", %{user: user, folder: folder, n: n} do
     assert {:ok, first} = store(upload!("same #{n}"), entry("a.txt"), user.uuid, folder.uuid)
 

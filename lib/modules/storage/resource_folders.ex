@@ -566,8 +566,14 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
 
   defp pointing_at({:column, column}, value), do: dynamic([r], field(r, ^column) == ^value)
 
+  # Without case, as the claim check compares: a pointer spelled otherwise
+  # names the same folder and must clear too.
   defp pointing_at({map_field, key}, value) when is_binary(key),
-    do: dynamic([r], fragment("?->>?", field(r, ^map_field), ^key) == ^value)
+    do:
+      dynamic(
+        [r],
+        fragment("lower(?->>?)", field(r, ^map_field), ^key) == ^String.downcase(value)
+      )
 
   defp pointer_update({:column, column}, folder_uuid), do: [set: [{column, folder_uuid}]]
 

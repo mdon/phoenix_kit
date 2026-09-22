@@ -1242,46 +1242,56 @@ defmodule PhoenixKit.Modules.Storage do
     new_parent = attrs[:parent_uuid] || attrs["parent_uuid"]
 
     in_folder_tree(moving?(folder, new_parent), fn ->
-      if new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) do
-        {:error, :cycle}
-      else
-        folder
-        |> Folder.changeset(attrs)
-        |> repo().update()
+      cond do
+        new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) ->
+          {:error, :cycle}
+
+        moving_into_trash?(folder, new_parent) ->
+          {:error, :folder_unavailable}
+
+        true ->
+          folder
+          |> Folder.changeset(attrs)
+          |> repo().update()
       end
     end)
   end
 
   def update_folder(%Folder{} = folder, attrs, scope_folder_id) do
-    if within_scope?(folder.uuid, scope_folder_id) do
-      # Distinguish "attrs omits parent_uuid entirely" (rename/recolor —
-      # no move attempted) from "attrs has parent_uuid: nil" (an explicit
-      # move to the system root). The previous `new_parent &&` short-circuit
-      # treated both the same, letting a caller silently reparent a folder
-      # out of the scope subtree by passing `%{parent_uuid: nil}`. Now any
-      # explicit parent_uuid in attrs runs the scope check, and
-      # `within_scope?(nil, scope)` is false when scope is set, so a
-      # move-to-true-root attempt fails with `:out_of_scope`.
-      moving_parent? = Map.has_key?(attrs, :parent_uuid) or Map.has_key?(attrs, "parent_uuid")
-      new_parent = attrs[:parent_uuid] || attrs["parent_uuid"]
+    # Distinguish "attrs omits parent_uuid entirely" (rename/recolor —
+    # no move attempted) from "attrs has parent_uuid: nil" (an explicit
+    # move to the system root). The previous `new_parent &&` short-circuit
+    # treated both the same, letting a caller silently reparent a folder
+    # out of the scope subtree by passing `%{parent_uuid: nil}`. Now any
+    # explicit parent_uuid in attrs runs the scope check, and
+    # `within_scope?(nil, scope)` is false when scope is set, so a
+    # move-to-true-root attempt fails with `:out_of_scope`.
+    moving_parent? = Map.has_key?(attrs, :parent_uuid) or Map.has_key?(attrs, "parent_uuid")
+    new_parent = attrs[:parent_uuid] || attrs["parent_uuid"]
 
-      in_folder_tree(moving?(folder, new_parent), fn ->
-        cond do
-          moving_parent? and not within_scope?(new_parent, scope_folder_id) ->
-            {:error, :out_of_scope}
+    # A scoped update runs under the tree lock even when it is only a
+    # rename: the scope is about where the folder SITS, and a move
+    # committing between the check and the write would take it outside.
+    in_folder_tree(moving?(folder, new_parent) or not is_nil(scope_folder_id), fn ->
+      cond do
+        not within_scope?(folder.uuid, scope_folder_id) ->
+          {:error, :out_of_scope}
 
-          new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) ->
-            {:error, :cycle}
+        moving_parent? and not within_scope?(new_parent, scope_folder_id) ->
+          {:error, :out_of_scope}
 
-          true ->
-            folder
-            |> Folder.changeset(attrs)
-            |> repo().update()
-        end
-      end)
-    else
-      {:error, :out_of_scope}
-    end
+        new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) ->
+          {:error, :cycle}
+
+        moving_into_trash?(folder, new_parent) ->
+          {:error, :folder_unavailable}
+
+        true ->
+          folder
+          |> Folder.changeset(attrs)
+          |> repo().update()
+      end
+    end)
   end
 
   @doc """
@@ -1347,10 +1357,14 @@ defmodule PhoenixKit.Modules.Storage do
 
   defp do_trash_folder(%Folder{} = folder) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
-    subtree_uuids = folder_subtree_uuids(folder.uuid)
 
     result =
       repo().transaction(fn ->
+        # Under the tree lock, and the subtree read inside it: a move
+        # committing between the read and the trash would otherwise leave
+        # the folder it moved live under a trashed parent, listed nowhere.
+        lock_folder_tree()
+        subtree_uuids = folder_subtree_uuids(folder.uuid)
         # Trash every folder in the subtree (including the root) — except one
         # already in the trash, which keeps its own stamp. `restore_folder/2`
         # restores exactly the rows carrying THIS operation's stamp, so a row
@@ -1710,6 +1724,18 @@ defmodule PhoenixKit.Modules.Storage do
     :ok
   end
 
+  # A live folder under a trashed one is in no listing: the move is
+  # refused rather than hiding it.
+  defp moving_into_trash?(%Folder{parent_uuid: current}, new_parent)
+       when is_binary(new_parent) and new_parent != current do
+    case get_folder(new_parent) do
+      %Folder{trashed_at: nil} -> false
+      _ -> true
+    end
+  end
+
+  defp moving_into_trash?(_folder, _new_parent), do: false
+
   defp moving?(%Folder{parent_uuid: current}, new_parent),
     do: new_parent not in [nil, ""] and to_string(new_parent) != to_string(current)
 
@@ -2053,20 +2079,8 @@ defmodule PhoenixKit.Modules.Storage do
           [] ->
             with {:ok, trashed} <- trash_file(file), do: {:ok, :trashed, trashed}
 
-          [%FolderLink{} = link | _] ->
-            repo().transaction(fn ->
-              {:ok, rehomed} =
-                file
-                |> Ecto.Changeset.change(%{folder_uuid: link.folder_uuid})
-                |> repo().update()
-
-              {:ok, _} = repo().delete(link)
-              rehomed
-            end)
-            |> case do
-              {:ok, rehomed} -> {:ok, :rehomed, rehomed}
-              {:error, reason} -> {:error, reason}
-            end
+          links ->
+            rehome_into_first_live(file, links)
         end
 
       link = folder_link(folder_uuid, file.uuid) ->
@@ -2076,6 +2090,37 @@ defmodule PhoenixKit.Modules.Storage do
       # rather than trash a file this folder never held.
       true ->
         {:error, :not_in_folder}
+    end
+  end
+
+  # The candidates were read without locking their folders, so one can be
+  # mid-trash: the home is written, then the folder is read again, and a
+  # folder trashed meanwhile rolls the rehome back and the next candidate
+  # is tried. (Locking the folder here instead would take it AFTER the
+  # file's row — the opposite of the order folder moves take, which is a
+  # deadlock.) Nothing left to rehome into: the file is trashed.
+  defp rehome_into_first_live(file, []) do
+    with {:ok, trashed} <- trash_file(file), do: {:ok, :trashed, trashed}
+  end
+
+  defp rehome_into_first_live(file, [%FolderLink{} = link | rest]) do
+    repo().transaction(fn ->
+      {:ok, rehomed} =
+        file
+        |> Ecto.Changeset.change(%{folder_uuid: link.folder_uuid})
+        |> repo().update()
+
+      {:ok, _} = repo().delete(link)
+
+      case get_folder(link.folder_uuid) do
+        %Folder{trashed_at: nil} -> rehomed
+        _ -> repo().rollback(:folder_trashed)
+      end
+    end)
+    |> case do
+      {:ok, rehomed} -> {:ok, :rehomed, rehomed}
+      {:error, :folder_trashed} -> rehome_into_first_live(file, rest)
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -2092,6 +2137,11 @@ defmodule PhoenixKit.Modules.Storage do
   def attach_file_to_folder(%PhoenixKit.Modules.Storage.File{} = file, folder_uuid)
       when is_binary(folder_uuid) do
     cond do
+      # Not into a trashed folder, whichever surface asks: the file would
+      # be active and listed nowhere.
+      not live_folder?(folder_uuid) ->
+        {:error, :folder_unavailable}
+
       to_string(file.folder_uuid) == to_string(folder_uuid) ->
         {:ok, file}
 
@@ -2106,6 +2156,13 @@ defmodule PhoenixKit.Modules.Storage do
           {:ok, _} -> {:ok, file}
           {:error, changeset} -> {:error, changeset}
         end
+    end
+  end
+
+  defp live_folder?(folder_uuid) do
+    case get_folder(folder_uuid) do
+      %Folder{trashed_at: nil} -> true
+      _ -> false
     end
   end
 

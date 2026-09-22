@@ -109,6 +109,14 @@ defmodule PhoenixKit.Activity.ModuleLogTest do
         assert {:error, :invalid_arguments} = Activity.log(nil, "crm.x")
         assert {:error, :invalid_arguments} = Activity.log("crm", "crm.x", %{metadata: %{}})
         assert {:error, :invalid_arguments} = Activity.log_failed("", "crm.x")
+
+        # A module key of only spaces is blank too, and an option list
+        # that is not a keyword list would raise inside `Keyword.get/3`.
+        assert {:error, :invalid_arguments} = Activity.log("   ", "crm.x")
+        assert {:error, :invalid_arguments} = Activity.log("crm", "crm.x", [{:mode, "m"} | :tail])
+
+        assert {:error, :invalid_arguments} =
+                 Activity.log_failed("crm", "crm.x", [{:mode, "m"} | :tail])
       end)
 
     assert log =~ "Activity not logged"

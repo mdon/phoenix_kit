@@ -158,6 +158,12 @@ defmodule PhoenixKitWeb.Components.TreePicker do
     {:noreply, assign(socket, key, set)}
   end
 
+  # A disabled picker shows a path and posts nothing; a crafted event must
+  # not move it either.
+  def handle_event(event, _params, %{assigns: %{disabled: true}} = socket)
+      when event in ~w(pick pick_all),
+      do: {:noreply, socket}
+
   # Only a row the tree offers, of a pickable type, is taken.
   def handle_event("pick", %{"id" => id}, socket) when is_binary(id) do
     %{tree: tree, pickable: pickable} = socket.assigns

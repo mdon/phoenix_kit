@@ -141,8 +141,9 @@ defmodule PhoenixKitWeb.Attachments do
   end
 
   # Also the browser's: kept only when it reads as a mime type (parameters
-  # dropped), so a long or garbage one cannot fail the insert — storage then
-  # guesses from the name instead.
+  # dropped, case folded — `IMAGE/PNG` is the same type, and storage
+  # classifies by a lower-case prefix), so a long or garbage one cannot
+  # fail the insert — storage then guesses from the name instead.
   @mime ~r/\A[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\z/i
 
   defp client_type(entry) do
@@ -153,6 +154,7 @@ defmodule PhoenixKitWeb.Attachments do
       |> String.split(";")
       |> hd()
       |> String.trim()
+      |> String.downcase()
 
     if Regex.match?(@mime, type), do: type
   end

@@ -105,7 +105,7 @@ defmodule PhoenixKitWeb.TableColumns do
   """
   @spec default(spec()) :: [String.t()]
   def default(spec) do
-    builtin = known(Map.get(spec, :defaults) || ids(spec), spec)
+    builtin = builtin_default(spec)
 
     case site_default(spec) do
       site when is_list(site) ->
@@ -115,6 +115,14 @@ defmodule PhoenixKitWeb.TableColumns do
       _ ->
         builtin
     end
+  end
+
+  # A spec whose own `defaults` are below its minimum has no usable
+  # default — the table would draw fewer columns than it promises — so
+  # every column stands in, as it does when there are no defaults at all.
+  defp builtin_default(spec) do
+    shown = known(Map.get(spec, :defaults) || ids(spec), spec)
+    if below_min?(shown, spec), do: known(ids(spec), spec), else: shown
   end
 
   defp below_min?(shown, spec), do: length(shown) < Map.get(spec, :min, 0)

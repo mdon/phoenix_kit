@@ -47,6 +47,11 @@ defmodule PhoenixKitWeb.TableColumnsTest do
       assert TableColumns.resolve(~w(c), spec(keep_one)) == ~w(c)
     end
 
+    test "a spec's own defaults below its minimum fall back to every column" do
+      assert TableColumns.resolve(nil, spec(%{defaults: [], min: 1})) == ~w(a b c d)
+      assert TableColumns.default(spec(%{defaults: [], min: 1})) == ~w(a b c d)
+    end
+
     test "the site's default wins over the spec's, when it still names a column" do
       assert TableColumns.resolve(nil, spec(%{site_default: fn -> ~w(d c) end})) == ~w(d c)
       assert TableColumns.resolve(nil, spec(%{site_default: fn -> ~w(gone) end})) == ~w(a b)
