@@ -17,7 +17,8 @@ defmodule PhoenixKit.Users.ViewPrefs do
   gives meaning only to the `"columns"` field.
 
   A user is a `%{uuid: _}` or a uuid; `nil` (nobody signed in) reads as no
-  preferences and writes `{:error, :no_user}`. Reads never raise.
+  preferences and writes `{:error, :no_user}`. Nothing here raises: a read
+  that fails is no preferences, a write that fails answers `{:error, _}`.
   """
 
   import Ecto.Query
@@ -79,7 +80,9 @@ defmodule PhoenixKit.Users.ViewPrefs do
       {:ok, prefs}
     end
   rescue
-    error in Postgrex.Error -> write_failed(error)
+    error -> write_failed(error)
+  catch
+    :exit, reason -> write_failed({:exit, reason})
   end
 
   @doc """
@@ -106,7 +109,9 @@ defmodule PhoenixKit.Users.ViewPrefs do
       end
     end
   rescue
-    error in Postgrex.Error -> write_failed(error)
+    error -> write_failed(error)
+  catch
+    :exit, reason -> write_failed({:exit, reason})
   end
 
   @doc "Deletes every user's preferences for `key` — for a view that no longer exists."
@@ -152,12 +157,24 @@ defmodule PhoenixKit.Users.ViewPrefs do
     _ in [Jason.EncodeError, Protocol.UndefinedError] -> {:error, :invalid_fields}
   end
 
-  # An unknown user is the one database error a caller can cause.
+  # An unknown user is the one database error a caller can cause; anything
+  # else (a lost connection, a pool exit) is answered, never raised — a
+  # preference that did not save must not take the page down.
   defp write_failed(%Postgrex.Error{postgres: %{code: :foreign_key_violation}}),
     do: {:error, :no_user}
 
-  defp write_failed(error) do
-    Logger.warning("[ViewPrefs] write failed: #{inspect(error.postgres[:code])}")
+  defp write_failed(%Postgrex.Error{postgres: %{code: code}} = error) do
+    Logger.warning("[ViewPrefs] write failed: #{inspect(code)}")
+    {:error, error}
+  end
+
+  defp write_failed({:exit, _reason} = error) do
+    Logger.warning("[ViewPrefs] write failed: exit")
+    {:error, error}
+  end
+
+  defp write_failed(%{__struct__: mod} = error) do
+    Logger.warning("[ViewPrefs] write failed: #{inspect(mod)}")
     {:error, error}
   end
 

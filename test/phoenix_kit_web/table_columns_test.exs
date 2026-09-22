@@ -33,6 +33,10 @@ defmodule PhoenixKitWeb.TableColumnsTest do
       assert TableColumns.resolve(~w(gone also_gone), spec()) == ~w(a b)
     end
 
+    test "an empty site default is a choice too: no optional columns" do
+      assert TableColumns.resolve(nil, spec(%{site_default: fn -> [] end})) == []
+    end
+
     test "the site's default wins over the spec's, when it still names a column" do
       assert TableColumns.resolve(nil, spec(%{site_default: fn -> ~w(d c) end})) == ~w(d c)
       assert TableColumns.resolve(nil, spec(%{site_default: fn -> ~w(gone) end})) == ~w(a b)

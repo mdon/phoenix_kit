@@ -89,21 +89,25 @@ defmodule PhoenixKitWeb.TableColumns do
   def resolve(_stored, spec), do: default(spec)
 
   @doc """
-  What a user who has not chosen sees: the site's default when it names
-  any column still offered, else the spec's `defaults` (all columns when
-  there are none).
+  What a user who has not chosen sees: the site's default, read by the
+  same rules as a user's choice (an empty one is a choice), else the
+  spec's `defaults` (all columns when there are none).
   """
   @spec default(spec()) :: [String.t()]
   def default(spec) do
-    site =
-      case Map.get(spec, :site_default) do
-        fun when is_function(fun, 0) -> fun.()
-        _ -> nil
-      end
+    builtin = known(Map.get(spec, :defaults) || ids(spec), spec)
 
-    case is_list(site) && known(site, spec) do
-      [_ | _] = shown -> shown
-      _ -> known(Map.get(spec, :defaults) || ids(spec), spec)
+    case site_default(spec) do
+      [] -> []
+      site when is_list(site) -> with([] <- known(site, spec), do: builtin)
+      _ -> builtin
+    end
+  end
+
+  defp site_default(spec) do
+    case Map.get(spec, :site_default) do
+      fun when is_function(fun, 0) -> fun.()
+      _ -> nil
     end
   end
 
