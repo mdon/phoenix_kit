@@ -125,4 +125,116 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
     assert html =~ "text-error"
     assert html =~ ~s(required)
   end
+
+  test "a zero empties itself on focus and comes back when the field is left empty" do
+    assigns = %{}
+
+    tag =
+      render(~H"""
+      <.decimal_input id="qty" name="qty" value={Decimal.new("0")} />
+      """)
+      |> input_tag()
+
+    # the attribute value is HTML-escaped in the markup (' → &#39;)
+    attr = fn name ->
+      [js] = Regex.run(~r/#{name}="([^"]*)"/, tag, capture: :all_but_first)
+      String.replace(js, "&#39;", "'")
+    end
+
+    onfocus = attr.("onfocus")
+    onblur = attr.("onblur")
+
+    # focus: only a zero-like text is cleared, and it is remembered
+    assert onfocus =~ "this.dataset.pkZero=this.value"
+    assert onfocus =~ "this.value=''"
+    [regex] = Regex.run(~r{^if\(/(.*)/\.test}, onfocus, capture: :all_but_first)
+    js_zero = ~r/#{regex}/
+
+    for zero <- ["0", "0,00", "0.0", " 0 ", "-0", ",0", "00"], do: assert(zero =~ js_zero)
+    for other <- ["", "1", "0,5", "10", "2.5", "0x"], do: refute(other =~ js_zero)
+
+    # blur: the remembered zero returns only when nothing was entered
+    assert onblur =~ "this.value.trim()===''"
+    assert onblur =~ "this.value=this.dataset.pkZero"
+    assert onblur =~ "delete this.dataset.pkZero"
+  end
+
+  # The handlers themselves, run in node on a stand-in `this` — the
+  # attribute strings above only prove the wiring. Skipped without node.
+  test "in a browser-like run: 0 clears on focus and returns on blur, typed text stays" do
+    case System.find_executable("node") do
+      nil ->
+        :ok
+
+      node ->
+        assigns = %{}
+
+        html =
+          render(~H"""
+          <.decimal_input id="qty" name="qty" value={Decimal.new("0")} />
+          """)
+
+        attr = fn name ->
+          [js] = Regex.run(~r/#{name}="([^"]*)"/, html, capture: :all_but_first)
+          String.replace(js, "&#39;", "'")
+        end
+
+        run = fn value, typed ->
+          script = """
+          const el = {value: #{Jason.encode!(value)}, dataset: {}};
+          const focus = new Function(#{Jason.encode!(attr.("onfocus"))});
+          const blur = new Function(#{Jason.encode!(attr.("onblur"))});
+          focus.call(el); const focused = el.value;
+          if (#{Jason.encode!(typed)} !== null) el.value = #{Jason.encode!(typed)};
+          blur.call(el);
+          process.stdout.write(JSON.stringify([focused, el.value]));
+          """
+
+          {out, 0} = System.cmd(node, ["-e", script])
+          Jason.decode!(out)
+        end
+
+        assert run.("0", nil) == ["", "0"]
+        assert run.("0", "8") == ["", "8"]
+        assert run.("0,00", nil) == ["", "0,00"]
+        assert run.("0,00", "15") == ["", "15"]
+        assert run.("2.5", nil) == ["2.5", "2.5"]
+        assert run.("2.5", "3") == ["2.5", "3"]
+        assert run.("", nil) == ["", ""]
+    end
+  end
+
+  test "a host's own onfocus/onblur run after the component's, in the same attribute" do
+    assigns = %{}
+
+    tag =
+      render(~H"""
+      <.decimal_input
+        id="qty"
+        name="qty"
+        value={Decimal.new("0")}
+        onfocus="HOST_FOCUS()"
+        onblur="HOST_BLUR()"
+      />
+      """)
+      |> input_tag()
+
+    assert length(Regex.scan(~r/ onfocus="/, tag)) == 1
+    assert length(Regex.scan(~r/ onblur="/, tag)) == 1
+    assert tag =~ ~r/onfocus="if\(.*this\.value=&#39;&#39;\};HOST_FOCUS\(\)"/
+    assert tag =~ ~r/onblur="if\(.*delete this\.dataset\.pkZero\};HOST_BLUR\(\)"/
+  end
+
+  test "the unit variant carries the same focus and blur handlers" do
+    assigns = %{}
+
+    tag =
+      render(~H"""
+      <.decimal_input id="w" name="w" value={Decimal.new("0")} unit="kg" />
+      """)
+      |> input_tag()
+
+    assert tag =~ ~s(onfocus=")
+    assert tag =~ ~s(onblur=")
+  end
 end

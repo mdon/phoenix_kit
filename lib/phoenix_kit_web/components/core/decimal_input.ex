@@ -19,6 +19,18 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
   `name`/`value`, `label`, gettext-translated `errors`, `class` on the
   control and `wrapper_class` on the `phx-feedback-for` wrapper, the
   required marker, and daisyUI 5 styling.
+
+  A zero clears itself on focus: a field showing `0` (or `0,00`, `0.0`)
+  empties when it gains focus, so typing `1` gives `1` and not `10` (the
+  caret used to land after the zero). Leaving the field still empty puts
+  the zero back — nothing was entered, nothing changes. Typing anything
+  keeps what was typed. Both steps are inline handlers on the control
+  (`onfocus`/`onblur`), so they need no hook and work in any host app.
+  A host's own `onfocus`/`onblur` are kept: they run right after the
+  component's, in the same attribute (a second attribute of the same
+  name would be dropped by the browser). `phx-focus` fires on `focusin`,
+  after the clear, so it sees the emptied field; `phx-blur` fires on
+  `focusout`, after the restore, so it sees the zero again.
   """
 
   use Phoenix.Component
@@ -98,8 +110,26 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
     |> decimal_input()
   end
 
+  # A zero-like text: optional sign, zeros, optional decimal zeros.
+  @zero_test "/^\\s*[-+]?(?:0+(?:[.,]0*)?|[.,]0+)\\s*$/.test(this.value)"
+
+  @on_focus "if(#{@zero_test}){this.dataset.pkZero=this.value;this.value=''}"
+
+  @on_blur "if(this.dataset.pkZero!=null){if(this.value.trim()==='')this.value=this.dataset.pkZero;delete this.dataset.pkZero}"
+
   def decimal_input(assigns) do
-    assigns = assign(assigns, :text, Number.format_decimal(assigns.value))
+    # A host's onfocus/onblur ride along after ours; they must not also
+    # be spread from @rest, or the tag would carry the attribute twice
+    # and the browser would keep only the first.
+    {host_focus, rest} = Map.pop(assigns.rest, :onfocus)
+    {host_blur, rest} = Map.pop(rest, :onblur)
+
+    assigns =
+      assigns
+      |> assign(:text, Number.format_decimal(assigns.value))
+      |> assign(:rest, rest)
+      |> assign(:on_focus, chain(@on_focus, host_focus))
+      |> assign(:on_blur, chain(@on_blur, host_blur))
 
     ~H"""
     <div phx-feedback-for={@name} class={@wrapper_class}>
@@ -126,6 +156,8 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
           id={@id}
           value={@text}
           class="grow min-w-0"
+          onfocus={@on_focus}
+          onblur={@on_blur}
           {@rest}
         />
         <span class="opacity-60 select-none" aria-hidden="true">{@unit}</span>
@@ -143,10 +175,15 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
           @errors != [] && "input-error",
           @class
         ]}
+        onfocus={@on_focus}
+        onblur={@on_blur}
         {@rest}
       />
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
   end
+
+  defp chain(ours, host) when is_binary(host) and host != "", do: ours <> ";" <> host
+  defp chain(ours, _), do: ours
 end
