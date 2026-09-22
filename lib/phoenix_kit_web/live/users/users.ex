@@ -43,6 +43,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Users.{CustomFields, Roles, TableColumns}
   alias PhoenixKit.Utils.CountryData
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKitWeb.TableColumns, as: ColumnPrefs
   alias PhoenixKitWeb.Users.MultiSession
 
   @max_cell_length 20
@@ -78,15 +79,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
         }
       )
 
-    # Get columns and clean up any deleted custom fields
-    selected_columns = TableColumns.get_user_table_columns()
-    valid_columns = get_valid_columns(selected_columns)
-
-    # If we filtered out any deleted columns, save the cleaned list
-    if length(valid_columns) != length(selected_columns) do
-      TableColumns.update_user_table_columns(valid_columns)
-    end
-
     # :page, :per_page, :search_query, :filter_role and :filter_account_type
     # are assigned from the query string by UrlState before mount/3 runs —
     # re-assigning them here would overwrite a shared link's state with the
@@ -118,8 +110,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
       |> assign(:page_title, gettext("Users"))
       |> assign(:project_title, project_title)
       |> assign(:date_time_settings, date_time_settings)
-      |> assign(:selected_columns, valid_columns)
-      |> assign(:available_columns, TableColumns.get_available_columns())
+      |> assign_columns()
       |> load_stats()
 
     {:ok, socket}
@@ -425,178 +416,21 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     handle_toggle_user_confirmation(%{"user_uuid" => user_uuid}, socket)
   end
 
-  # Column management events
-  def handle_event("show_column_modal", _params, socket) do
-    # Initialize temporary selected columns when opening modal
-    current_columns = socket.assigns.selected_columns
+  # Columns: each admin's own, saved as they change (the live modal has no
+  # Apply step). The site-wide `user_table_columns` setting is the default
+  # for an admin who has not chosen.
+  def handle_event("show_column_modal", _params, socket),
+    do: {:noreply, assign(socket, :show_column_modal, true)}
 
+  def handle_event("hide_column_modal", _params, socket),
+    do: {:noreply, assign(socket, :show_column_modal, false)}
+
+  def handle_event(event, params, socket)
+      when event in ~w(add_column remove_column reorder_columns reset_columns) do
     socket =
-      socket
-      |> assign(:show_column_modal, true)
-      |> assign(:temp_selected_columns, current_columns)
+      ColumnPrefs.handle_event(event, params, socket, socket.assigns.column_spec, :columns)
 
-    {:noreply, socket}
-  end
-
-  def handle_event("hide_column_modal", _params, socket) do
-    # Clear temporary state when closing modal
-    socket =
-      socket
-      |> assign(:show_column_modal, false)
-      |> assign(:temp_selected_columns, nil)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("update_table_columns", %{"column_order" => column_order_string}, socket) do
-    # Parse the column order string from the form
-    column_order =
-      column_order_string
-      |> String.split(",", trim: true)
-      |> Enum.filter(&(&1 != ""))
-
-    # Update the temporary state with the new order and save
-    socket =
-      socket
-      |> assign(:temp_selected_columns, column_order)
-      |> save_and_close_modal()
-
-    {:noreply, socket}
-  end
-
-  def handle_event("update_table_columns", _params, socket) do
-    # Fallback for when column_order is not provided (e.g., form submission without reordering)
-    socket =
-      socket
-      |> save_and_close_modal()
-
-    {:noreply, socket}
-  end
-
-  def handle_event("reset_to_defaults", _params, socket) do
-    default_columns = TableColumns.get_default_columns()
-
-    # Update temporary state with default columns (all standard fields), don't save yet
-    socket =
-      socket
-      |> assign(:temp_selected_columns, default_columns)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("add_column", %{"column_id" => column_id}, socket) do
-    temp_selected = socket.assigns.temp_selected_columns || []
-    new_selected = temp_selected ++ [column_id]
-
-    socket =
-      socket
-      |> assign(:temp_selected_columns, new_selected)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("remove_column", %{"column_id" => column_id}, socket) do
-    temp_selected = socket.assigns.temp_selected_columns || []
-    new_selected = Enum.reject(temp_selected, &(&1 == column_id))
-
-    socket =
-      socket
-      |> assign(:temp_selected_columns, new_selected)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("reorder_selected_columns", params, socket) do
-    # Get the order from various possible param formats
-    new_order =
-      case params do
-        # SortableGrid component format
-        %{"ordered_ids" => order} when is_list(order) ->
-          order
-
-        %{"reorder_order" => order_string} when is_binary(order_string) ->
-          # Parse comma-separated string from reorder input
-          order_string
-          |> String.split(",", trim: true)
-          |> Enum.filter(&(&1 != ""))
-
-        %{"order" => order} when is_list(order) ->
-          order
-
-        %{"column_order" => order_string} when is_binary(order_string) ->
-          # Parse comma-separated string from hidden input
-          order_string
-          |> String.split(",", trim: true)
-          |> Enum.filter(&(&1 != ""))
-
-        _ ->
-          []
-      end
-
-    if new_order == [] do
-      {:noreply, socket}
-    else
-      # Update the temporary state with the new order
-      temp_selected = socket.assigns.temp_selected_columns || []
-
-      # Filter and reorder only valid columns from the new order (exclude actions)
-      valid_new_order =
-        Enum.filter(new_order, fn column_id ->
-          column_id in temp_selected and column_id != "actions"
-        end)
-
-      # Add any missing columns from the end of the original list (except actions)
-      missing_columns =
-        Enum.reject(temp_selected, fn column_id ->
-          column_id in valid_new_order or column_id == "actions"
-        end)
-
-      # Combine: reordered columns + missing columns + actions at end
-      final_order = valid_new_order ++ missing_columns ++ ["actions"]
-
-      socket =
-        socket
-        |> assign(:temp_selected_columns, final_order)
-
-      {:noreply, socket}
-    end
-  end
-
-  # Helper function to save the current temporary state and close the modal
-  defp save_and_close_modal(socket) do
-    temp_selected = socket.assigns.temp_selected_columns || []
-
-    case TableColumns.update_user_table_columns(temp_selected) do
-      {:ok, _setting} ->
-        # Get the properly ordered columns back from TableColumns
-        ordered_columns = TableColumns.get_user_table_columns()
-
-        socket
-        |> put_flash(:info, gettext("Table columns updated successfully"))
-        |> assign(:selected_columns, ordered_columns)
-        |> assign(:temp_selected_columns, nil)
-        |> assign(:show_column_modal, false)
-
-      {:error, _reason} ->
-        socket
-        |> put_flash(:error, gettext("Failed to update table columns"))
-        |> assign(:show_column_modal, false)
-    end
-  end
-
-  # Helper function for template
-  def get_available_fields_count(available_columns, selected_columns) do
-    standard_available =
-      available_columns.standard
-      |> Map.keys()
-      |> Enum.reject(&(&1 in selected_columns or &1 == "actions"))
-
-    custom_available =
-      available_columns.custom
-      |> Map.keys()
-      |> Enum.reject(&(&1 in selected_columns))
-
-    length(standard_available) + length(custom_available)
+    {:noreply, assign(socket, :selected_columns, socket.assigns.columns ++ ["actions"])}
   end
 
   # Keep the original handlers private for internal use
@@ -1044,11 +878,6 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   def mobile_col_class("email"), do: ""
   def mobile_col_class(_), do: "hidden md:table-cell"
 
-  # Get valid columns only (filters out deleted custom fields)
-  def get_valid_columns(columns) do
-    Enum.filter(columns, &should_render_column?/1)
-  end
-
   # Text truncation helper - limits display to max_length characters with ellipsis
   defp truncate_text(nil, _max_length), do: "-"
   defp truncate_text("", _max_length), do: "-"
@@ -1389,49 +1218,21 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     {:noreply, socket}
   end
 
-  def handle_info({:custom_field_deleted, field_key}, socket) do
-    # When a custom field is deleted, refresh available columns and clean up selected columns
-    column_id = "custom_#{field_key}"
+  # A custom field added, changed or deleted changes what the table offers;
+  # the admin's saved choice is read again, never rewritten here (a deleted
+  # field's column simply stops showing).
+  def handle_info({:custom_field_deleted, _field_key}, socket),
+    do: {:noreply, assign_columns(socket)}
 
-    # Get fresh available columns (deleted field won't be included)
-    available_columns = TableColumns.get_available_columns()
+  def handle_info(:custom_fields_changed, socket), do: {:noreply, assign_columns(socket)}
 
-    # Remove the deleted field from selected columns if present
-    selected_columns = socket.assigns.selected_columns
-    new_selected_columns = Enum.reject(selected_columns, &(&1 == column_id))
+  defp assign_columns(socket) do
+    spec = TableColumns.columns_spec()
+    columns = ColumnPrefs.load(socket.assigns[:phoenix_kit_current_user], spec)
 
-    # Only update if the column was actually removed
-    socket =
-      if length(new_selected_columns) != length(selected_columns) do
-        # Save the cleaned column list
-        case TableColumns.update_user_table_columns(new_selected_columns) do
-          {:ok, _} ->
-            socket
-            |> assign(:selected_columns, new_selected_columns)
-            |> assign(:available_columns, available_columns)
-
-          {:error, _} ->
-            # If save fails, at least update the UI
-            socket
-            |> assign(:selected_columns, new_selected_columns)
-            |> assign(:available_columns, available_columns)
-        end
-      else
-        # Field wasn't in selected columns, just refresh available columns
-        assign(socket, :available_columns, available_columns)
-      end
-
-    {:noreply, socket}
-  end
-
-  def handle_info(:custom_fields_changed, socket) do
-    # Refresh available columns when fields are added/updated/reordered
-    available_columns = TableColumns.get_available_columns()
-
-    socket =
-      socket
-      |> assign(:available_columns, available_columns)
-
-    {:noreply, socket}
+    socket
+    |> assign(:column_spec, spec)
+    |> assign(:columns, columns)
+    |> assign(:selected_columns, columns ++ ["actions"])
   end
 end

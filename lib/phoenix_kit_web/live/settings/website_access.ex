@@ -25,15 +25,15 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
   alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Redirect}
   alias PhoenixKitWeb.Actor
   alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
+  alias PhoenixKitWeb.TableColumns, as: ColumnPrefs
 
   # The features with a switch (allowed addresses has none — it is on when
   # the list is not empty).
   @features ~w(gate redirect maintenance no_index)
 
-  # The tries table's columns; the admin picks which show (core's column
-  # settings modal), the choice is kept as a site setting like the Users
-  # table's.
-  @attempt_columns ~w(when result typed address browser)
+  # The tries table's columns: each admin picks their own (core's column
+  # settings modal, `PhoenixKitWeb.TableColumns`); this site setting is the
+  # default for an admin who has not chosen.
   @attempt_columns_key "website_access_attempt_columns"
 
   def mount(_params, _session, socket) do
@@ -62,7 +62,7 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
       )
       |> assign(:show_password, false)
       |> assign(:show_column_modal, false)
-      |> assign(:attempt_columns, load_attempt_columns())
+      |> assign(:attempt_columns, ColumnPrefs.load(Actor.uuid(socket), attempt_columns_spec()))
       |> assign(:site_zone, Settings.get_setting_cached("time_zone", "0"))
       |> assign(:active_tab, "gate")
       |> assign_state()
@@ -174,35 +174,11 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
   def handle_event("hide_column_modal", _params, socket),
     do: {:noreply, assign(socket, :show_column_modal, false)}
 
-  def handle_event("add_column", %{"column_id" => id}, socket) when id in @attempt_columns do
-    {:noreply, save_attempt_columns(socket, Enum.uniq(socket.assigns.attempt_columns ++ [id]))}
+  def handle_event(event, params, socket)
+      when event in ~w(add_column remove_column reorder_columns reset_columns) do
+    {:noreply,
+     ColumnPrefs.handle_event(event, params, socket, attempt_columns_spec(), :attempt_columns)}
   end
-
-  def handle_event("add_column", _params, socket), do: {:noreply, socket}
-
-  def handle_event("remove_column", %{"column_id" => id}, socket) when is_binary(id) do
-    # The last column stays: a table with no columns is no table.
-    case List.delete(socket.assigns.attempt_columns, id) do
-      [] -> {:noreply, socket}
-      columns -> {:noreply, save_attempt_columns(socket, columns)}
-    end
-  end
-
-  def handle_event("remove_column", _params, socket), do: {:noreply, socket}
-
-  def handle_event("reorder_columns", %{"ordered_ids" => ids}, socket) when is_list(ids) do
-    # Unknown ids are dropped, duplicates folded, and an order that names
-    # no column at all is ignored — same rule as removing the last column.
-    case ids |> Enum.filter(&(&1 in @attempt_columns)) |> Enum.uniq() do
-      [] -> {:noreply, socket}
-      columns -> {:noreply, save_attempt_columns(socket, columns)}
-    end
-  end
-
-  def handle_event("reorder_columns", _params, socket), do: {:noreply, socket}
-
-  def handle_event("reset_columns", _params, socket),
-    do: {:noreply, save_attempt_columns(socket, @attempt_columns)}
 
   def handle_event("clear_attempts", _params, socket) do
     Gate.clear_attempts()
@@ -397,29 +373,22 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
     end
   end
 
-  defp load_attempt_columns do
-    case Settings.get_setting(@attempt_columns_key) do
-      nil ->
-        @attempt_columns
-
-      json ->
-        case Jason.decode(json) do
-          {:ok, list} when is_list(list) ->
-            case list |> Enum.filter(&(&1 in @attempt_columns)) |> Enum.uniq() do
-              [] -> @attempt_columns
-              columns -> columns
-            end
-
-          _ ->
-            @attempt_columns
-        end
-    end
+  # A table with no columns is no table, so the last one stays.
+  defp attempt_columns_spec do
+    %{
+      key: "website_access.attempts",
+      columns: attempt_column_options(),
+      site_default: &site_attempt_columns/0,
+      min: 1
+    }
   end
 
-  defp save_attempt_columns(socket, columns) do
-    case Settings.update_setting(@attempt_columns_key, Jason.encode!(columns), history(socket)) do
-      {:ok, _} -> assign(socket, :attempt_columns, columns)
-      {:error, reason} -> put_flash(socket, :error, error_text(reason))
+  defp site_attempt_columns do
+    with json when is_binary(json) <- Settings.get_setting(@attempt_columns_key),
+         {:ok, list} when is_list(list) <- Jason.decode(json) do
+      list
+    else
+      _ -> nil
     end
   end
 
