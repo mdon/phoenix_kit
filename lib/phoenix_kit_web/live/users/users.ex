@@ -62,6 +62,8 @@ defmodule PhoenixKitWeb.Live.Users.Users do
     if connected?(socket) do
       Events.subscribe_to_users()
       Events.subscribe_to_stats()
+      # A custom field added or deleted changes the columns offered.
+      CustomFields.Events.subscribe()
     end
 
     # Get project title from settings

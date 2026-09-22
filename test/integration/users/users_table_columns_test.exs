@@ -8,7 +8,7 @@ defmodule PhoenixKitWeb.Integration.Users.UsersTableColumnsTest do
 
   import Phoenix.LiveViewTest
 
-  alias PhoenixKit.Users.{TableColumns, ViewPrefs}
+  alias PhoenixKit.Users.{CustomFields, TableColumns, ViewPrefs}
   alias PhoenixKit.Utils.Routes
 
   defp headers(view) do
@@ -68,5 +68,19 @@ defmodule PhoenixKitWeb.Integration.Users.UsersTableColumnsTest do
 
     render_click(view, "add_column", %{"column_id" => "hashed_password"})
     assert ViewPrefs.get(admin, "users") == %{}
+  end
+
+  test "a custom field added while the page is open is offered at once", %{conn: conn} do
+    {admin, _} = create_admin_user()
+    {:ok, view, _html} = open(conn, admin)
+    key = "sweep_#{System.unique_integer([:positive])}"
+
+    {:ok, _} =
+      CustomFields.add_field_definition(%{"key" => key, "label" => "Shoe size", "type" => "text"})
+
+    CustomFields.Events.broadcast_fields_changed()
+
+    html = view |> element(~s(button[phx-click="show_column_modal"])) |> render_click()
+    assert html =~ "Shoe size"
   end
 end
