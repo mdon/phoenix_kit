@@ -577,6 +577,13 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
                uuids([c.old, c.linked])
 
       assert uuids(ResourceFolders.list_files(c.folder.uuid, only: :non_images)) == [c.doc.uuid]
+
+      assert uuids(ResourceFolders.list_files(c.folder.uuid, only: {:type, "document"})) ==
+               [c.doc.uuid]
+
+      assert uuids(ResourceFolders.list_files(c.folder.uuid, only: {:not_type, "document"})) ==
+               uuids([c.linked, c.old])
+
       assert length(ResourceFolders.list_files(c.folder.uuid, limit: 1)) == 1
       assert ResourceFolders.list_files(nil) == []
 

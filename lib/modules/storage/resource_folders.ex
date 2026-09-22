@@ -625,7 +625,8 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
 
   ## Options
 
-    * `:only` — `:images`, `:non_images` or `:all` (default)
+    * `:only` — `:images`, `:non_images`, `{:type, file_type}`,
+      `{:not_type, file_type}` or `:all` (default)
     * `:order` — `:newest` first (default) or `:oldest` first
     * `:limit` — at most this many (default #{@list_limit})
   """
@@ -744,9 +745,11 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   defp live_files(query),
     do: where(query, [f], f.status != "trashed" and f.system_managed == false)
 
-  defp only(query, :images), do: where(query, [f], f.file_type == "image")
-  defp only(query, :non_images), do: where(query, [f], f.file_type != "image")
+  defp only(query, :images), do: only(query, {:type, "image"})
+  defp only(query, :non_images), do: only(query, {:not_type, "image"})
   defp only(query, :all), do: query
+  defp only(query, {:type, type}), do: where(query, [f], f.file_type == ^type)
+  defp only(query, {:not_type, type}), do: where(query, [f], f.file_type != ^type)
 
   defp ordered(query, :oldest), do: order_by(query, [f], asc: f.inserted_at, asc: f.uuid)
   defp ordered(query, :newest), do: order_by(query, [f], desc: f.inserted_at, desc: f.uuid)
