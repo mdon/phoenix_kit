@@ -3423,15 +3423,26 @@ defmodule PhoenixKitWeb.Users.Auth do
     end
   end
 
-  # Rebuild the request path with the mis-captured locale segment removed,
-  # preserving both the mount prefix and any enclosing `forward` mount.
+  # Rebuild the request path with the locale segment replaced by
+  # `replacement_segments`, preserving both the mount prefix and any
+  # enclosing `forward` mount. `replacement_segments` is a list of RAW
+  # path segments spliced in where the locale segment was — `[]` strips
+  # it entirely, `["en"]` swaps it for a base code.
   #
   # `conn.request_path` includes the PhoenixKit mount prefix
   # ("/phoenix_kit/admin/shop"), while `locale` is the segment that
-  # follows it — so the prefix has to be skipped before dropping the
+  # follows it — so the prefix has to be skipped before touching the
   # segment, and re-attached afterwards. Returns `:error` when the path
   # does not have the expected `<prefix>/<locale>/...` shape, so callers
   # can decline to redirect rather than bounce the request at itself.
+  #
+  # The match is positional: the locale must sit at EXACTLY
+  # `length(prefix_segments)` in `path_info`, i.e. the segment
+  # immediately after the configured `PhoenixKit.Config.get_url_prefix()`
+  # — not merely present somewhere later in the path. A locale scope
+  # declared elsewhere in the router (bypassing the configured mount)
+  # makes this return `:error`, so callers stop redirecting rather than
+  # mismatch a coincidental substring further down the path.
   #
   # Two subtleties, both of which produced wrong URLs when this was first
   # written against `path_info` alone:
@@ -3450,9 +3461,14 @@ defmodule PhoenixKitWeb.Users.Auth do
   #     but leaves `conn.path_info` encoded. So `/phoenix_kit/%61pi/shop`
   #     binds `path_params["locale"] == "api"` while `path_info` still
   #     holds `"%61pi"`, and a raw comparison silently misses. Compare
-  #     decoded segments; emit the RAW ones, so the redirect target keeps
-  #     whatever encoding the client sent.
-  defp strip_locale_segment(conn, locale) when is_binary(locale) do
+  #     decoded segments, but emit `rest` — everything after the locale
+  #     — RAW, so the redirect target keeps whatever encoding the client
+  #     sent there. The prefix portion of the output is the CONFIGURED
+  #     `prefix_segments`, not a raw slice of the input — an encoded
+  #     mount-prefix segment comes out normalized to its canonical form,
+  #     which is what keeps the target canonical and unable to loop.
+  defp locale_segment_path(conn, locale, replacement_segments)
+       when is_binary(locale) and is_list(replacement_segments) do
     prefix_segments =
       PhoenixKit.Config.get_url_prefix()
       |> to_string()
@@ -3463,13 +3479,21 @@ defmodule PhoenixKitWeb.Users.Auth do
 
     with {^prefix_segments, [^locale | _]} <- Enum.split(decoded, prefix_length),
          {_prefix, [_locale | rest]} <- Enum.split(conn.path_info, prefix_length) do
-      {:ok, "/" <> Enum.join(conn.script_name ++ prefix_segments ++ rest, "/")}
+      path =
+        conn.script_name ++ prefix_segments ++ replacement_segments ++ rest
+
+      {:ok, "/" <> Enum.join(path, "/")}
     else
       _ -> :error
     end
   end
 
-  defp strip_locale_segment(_conn, _locale), do: :error
+  defp locale_segment_path(_conn, _locale, _replacement_segments), do: :error
+
+  # Strip the mis-captured locale segment entirely — see
+  # `locale_segment_path/3` for the mount-prefix and percent-encoding
+  # subtleties this delegates to.
+  defp strip_locale_segment(conn, locale), do: locale_segment_path(conn, locale, [])
 
   # Characters `Phoenix.Controller.redirect/2` refuses in a local target.
   # Mirrored here because the list is private to Phoenix and a query string
@@ -3630,25 +3654,34 @@ defmodule PhoenixKitWeb.Users.Auth do
   # If canonicalisation for SEO is wanted, express it with a
   # `<link rel="canonical">` — not with a cached permanent redirect.
   defp redirect_default_locale_to_clean_url(conn, locale) do
-    # Remove /en/ from path: /phoenix_kit/en/admin → /phoenix_kit/admin
-    clean_path =
-      conn.request_path
-      |> String.replace("/#{locale}/", "/", global: false)
-      |> then(fn path ->
-        # Handle case where locale is at end of path: /phoenix_kit/en → /phoenix_kit
-        if String.ends_with?(conn.request_path, "/#{locale}") do
-          String.replace_suffix(path, "/#{locale}", "")
-        else
-          path
-        end
-      end)
+    case locale_segment_path(conn, locale, []) do
+      {:ok, clean_path} when clean_path != conn.request_path ->
+        conn
+        |> Phoenix.Controller.redirect(to: with_query_string(clean_path, conn))
+        |> halt()
 
-    # Ensure we have a valid path (not empty)
-    clean_path = if clean_path == "", do: "/", else: clean_path
+      _ ->
+        # The locale segment could not be located in the path (or removing
+        # it would not have changed anything, e.g. it only matched because
+        # of stale percent-encoding). Never redirect to an unchanged path —
+        # see `assign_default_locale/1`.
+        assign_default_locale(conn)
+    end
+  end
+
+  # Assign the default locale onto the conn without redirecting. Used by the
+  # locale redirect functions when the "corrected" path would be identical
+  # to (or no cleaner than) the one just requested — redirecting there would
+  # bounce the browser back to itself and loop forever.
+  defp assign_default_locale(conn) do
+    default_base = Routes.get_default_admin_locale()
+    default_dialect = resolve_active_dialect(default_base)
+
+    put_gettext_locale(default_dialect)
 
     conn
-    |> Phoenix.Controller.redirect(to: with_query_string(clean_path, conn))
-    |> halt()
+    |> assign(:current_locale_base, default_base)
+    |> assign(:current_locale, default_dialect)
   end
 
   @doc """
@@ -3684,45 +3717,44 @@ defmodule PhoenixKitWeb.Users.Auth do
   the browser, so the server has nothing to copy. The client re-applies
   its own fragment to the `Location` it follows.
 
+  ## When it does not redirect
+
+  If the dialect segment can't be located in the path, or replacing it
+  would leave the path unchanged (e.g. stale percent-encoding), this
+  does NOT redirect — that would just bounce the browser back to the
+  URL it already requested. Instead it assigns the default locale onto
+  the conn and lets the request continue un-halted, the same fallback
+  `process_as_default_locale/1` takes on its own `:error` branch.
+
   ## Notes
 
-  - Halts conn pipeline (no further processing)
-  - Logged for monitoring migration patterns
+  - Halts conn pipeline when it redirects (no further processing);
+    otherwise the conn continues un-halted — see "When it does not
+    redirect" above
+  - Logged for monitoring migration patterns, only when it redirects
   """
   def redirect_to_base_locale(conn, full_dialect) do
     base_code = DialectMapper.extract_base(full_dialect)
 
-    # Replace first occurrence of full dialect with base code
-    # Handles: /phoenix_kit/en-US/admin → /phoenix_kit/en/admin
-    corrected_path =
-      String.replace(
-        conn.request_path,
-        "/#{full_dialect}/",
-        "/#{base_code}/",
-        global: false
-      )
+    case locale_segment_path(conn, full_dialect, [base_code]) do
+      {:ok, corrected_path} when corrected_path != conn.request_path ->
+        # Log redirect for monitoring (helps track migration patterns)
+        Logger.info("""
+        [PhoenixKit Locale] Redirecting full dialect URL to base code
+        - Full dialect: #{full_dialect}
+        - Base code: #{base_code}
+        - Original path: #{conn.request_path}
+        - Corrected path: #{corrected_path}
+        """)
 
-    # Handle case where dialect is at end of path
-    # Handles: /phoenix_kit/en-US → /phoenix_kit/en
-    corrected_path =
-      if String.ends_with?(conn.request_path, "/#{full_dialect}") do
-        String.replace_suffix(corrected_path, "/#{full_dialect}", "/#{base_code}")
-      else
-        corrected_path
-      end
+        conn
+        |> Phoenix.Controller.redirect(to: with_query_string(corrected_path, conn))
+        |> halt()
 
-    # Log redirect for monitoring (helps track migration patterns)
-    Logger.info("""
-    [PhoenixKit Locale] Redirecting full dialect URL to base code
-    - Full dialect: #{full_dialect}
-    - Base code: #{base_code}
-    - Original path: #{conn.request_path}
-    - Corrected path: #{corrected_path}
-    """)
-
-    conn
-    |> Phoenix.Controller.redirect(to: with_query_string(corrected_path, conn))
-    |> halt()
+      _ ->
+        # See `assign_default_locale/1` — never redirect to an unchanged path.
+        assign_default_locale(conn)
+    end
   end
 
   @doc """
@@ -3736,44 +3768,47 @@ defmodule PhoenixKitWeb.Users.Auth do
   - With the setting OFF (default) → swap the invalid segment for the
     primary base code so the canonical prefixed shape is preserved
     (e.g. `/phoenix_kit/xx/admin` → `/phoenix_kit/en/admin`).
+
+  ## When it does not redirect
+
+  If the invalid locale segment can't be located in the path, or the
+  replacement above would leave the path unchanged (e.g. stale
+  percent-encoding, or an "invalid" locale that already equals the
+  replacement), this does NOT redirect — that would just bounce the
+  browser back to the URL it already requested. Instead it assigns the
+  default locale onto the conn and lets the request continue un-halted,
+  the same fallback `process_as_default_locale/1` takes on its own
+  `:error` branch.
   """
   def redirect_invalid_locale(conn, invalid_locale) do
     # Get the default language
     default_base = Routes.get_default_admin_locale()
 
-    # Single read of the setting — the two replacement variants always
-    # flip together (prefixless ↔ prefixed), so evaluating the flag
-    # twice would just risk torn reads if a concurrent setting flip
-    # landed between the two calls.
-    {replacement_segment, replacement_suffix} =
-      if prefixless_primary?(),
-        do: {"/", ""},
-        else: {"/#{default_base}/", "/#{default_base}"}
+    # Single read of the setting — the replacement always follows it
+    # (prefixless ↔ prefixed), so evaluating the flag twice would just
+    # risk a torn read if a concurrent setting flip landed in between.
+    replacement = if prefixless_primary?(), do: [], else: [default_base]
 
-    corrected_path =
-      conn.request_path
-      |> String.replace("/#{invalid_locale}/", replacement_segment, global: false)
-      |> then(fn path ->
-        if String.ends_with?(conn.request_path, "/#{invalid_locale}") do
-          String.replace_suffix(path, "/#{invalid_locale}", replacement_suffix)
-        else
-          path
-        end
-      end)
+    case locale_segment_path(conn, invalid_locale, replacement) do
+      {:ok, corrected_path} when corrected_path != conn.request_path ->
+        # Log the invalid locale attempt for debugging
+        Logger.warning("""
+        [PhoenixKit Locale] Invalid locale requested, redirecting to default
+        - Invalid locale: #{invalid_locale}
+        - Default base: #{default_base}
+        - Original path: #{conn.request_path}
+        - Corrected path: #{corrected_path}
+        """)
 
-    # Log the invalid locale attempt for debugging
-    Logger.warning("""
-    [PhoenixKit Locale] Invalid locale requested, redirecting to default
-    - Invalid locale: #{invalid_locale}
-    - Default base: #{default_base}
-    - Original path: #{conn.request_path}
-    - Corrected path: #{corrected_path}
-    """)
+        # Redirect to the corrected URL
+        conn
+        |> redirect(to: with_query_string(corrected_path, conn))
+        |> halt()
 
-    # Redirect to the corrected URL
-    conn
-    |> redirect(to: corrected_path)
-    |> halt()
+      _ ->
+        # See `assign_default_locale/1` — never redirect to an unchanged path.
+        assign_default_locale(conn)
+    end
   end
 
   defp extract_session_id_from_live_socket_id(live_socket_id) do

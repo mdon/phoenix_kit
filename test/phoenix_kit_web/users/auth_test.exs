@@ -672,5 +672,24 @@ defmodule PhoenixKitWeb.Users.AuthTest do
 
       assert location(conn) == "/phoenix_kit/en/search"
     end
+
+    test "a percent-encoded dialect segment does not redirect to itself" do
+      # `conn.request_path`/`path_info` stay percent-encoded, but
+      # `full_dialect` (like `path_params["locale"]` in production) is
+      # the decoded value. A plain `String.replace` against the decoded
+      # dialect would miss the encoded "%65n-US" entirely and redirect
+      # back to the same URL — the same bug class as #849, just on an
+      # all-ASCII segment.
+      request_path = "/phoenix_kit/%65n-US/users/log-in"
+
+      conn =
+        request_path
+        |> dialect_conn()
+        |> Auth.redirect_to_base_locale("en-US")
+
+      assert conn.halted
+      refute location(conn) == request_path
+      assert location(conn) == "/phoenix_kit/en/users/log-in"
+    end
   end
 end
