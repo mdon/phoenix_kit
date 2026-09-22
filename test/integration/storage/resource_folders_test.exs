@@ -115,6 +115,10 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
       assert {:error, {:bad_answer, _}} =
                ResourceFolders.parent_hook(app, :item, nil, {:answer, {:ok, "not-a-uuid"}})
 
+      # Sixteen bytes: `Ecto.UUID.cast/1` would take it as a raw uuid.
+      assert {:error, {:bad_answer, _}} =
+               ResourceFolders.parent_hook(app, :item, nil, {:answer, {:ok, "folder-uuid-1234"}})
+
       assert {:error, {:bad_answer, _}} =
                ResourceFolders.parent_hook(app, :item, nil, {:answer, :root})
 
@@ -179,6 +183,7 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
       assert ResourceFolders.find_under(n, parent.uuid).uuid == live.uuid
       assert ResourceFolders.find_under(n, nil) == nil
       assert ResourceFolders.find_under(n, "root") == nil
+      assert ResourceFolders.live_folder(binary_part(Ecto.UUID.dump!(live.uuid), 0, 16)) == nil
     end
 
     test "find_named/3 prefers the parent, then the root, then (anywhere) elsewhere" do

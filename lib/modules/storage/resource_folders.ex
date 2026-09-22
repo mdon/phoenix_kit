@@ -221,9 +221,9 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   defp parent_answer({:answer, {:ok, nil}}), do: {:ok, nil}
 
   defp parent_answer({:answer, {:ok, uuid} = answer}) when is_binary(uuid) do
-    case Ecto.UUID.cast(uuid) do
-      {:ok, uuid} -> {:ok, uuid}
-      :error -> {:error, {:bad_answer, answer}}
+    case cast(uuid) do
+      nil -> {:error, {:bad_answer, answer}}
+      uuid -> {:ok, uuid}
     end
   end
 
@@ -727,7 +727,9 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
     end
   end
 
-  defp cast(value) when is_binary(value) do
+  # The text form only: `Ecto.UUID.cast/1` also takes any 16-byte binary
+  # as a raw uuid, which would turn a 16-character folder name into one.
+  defp cast(<<_::binary-size(36)>> = value) do
     case Ecto.UUID.cast(value) do
       {:ok, uuid} -> uuid
       :error -> nil
