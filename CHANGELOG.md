@@ -139,9 +139,10 @@
   the tooltip of a locked shape; `annotation_reply` is refused when the
   viewer cannot annotate.
 - **An untabbed action stays unmapped when a LiveView's tabs disagree.**
-  Namespace inference (`PhoenixKit.Modules.Reports.Web` → `"reports"`) and a
-  leftover bare-module cache entry no longer authorize `:show` / `:edit`
-  that neither tab named. Tabs that agree still guard those actions.
+  Namespace inference (`PhoenixKit.Modules.Reports.Web` → `"reports"`) no
+  longer authorizes a `:show` / `:edit` that neither tab named. Tabs that
+  agree still guard those actions, and a tab registered for the whole module
+  (no action) still guards every action no other tab names.
 - **A trashed file's refusal is not cacheable, and neither are its tiles.**
   The 404 from `/file/...`, the file info endpoint and the unedited-original
   endpoint is `private, no-store`. Deep-zoom manifests and tiles use the same

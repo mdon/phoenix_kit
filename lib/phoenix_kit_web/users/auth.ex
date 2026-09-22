@@ -2412,39 +2412,31 @@ defmodule PhoenixKitWeb.Users.Auth do
   # config.
   #
   #   * the exact `{module, action}` key, when a tab named that action
+  #   * the bare module key, when a tab named the module without an action —
+  #     that tab claims every action no other tab names, its own landing
+  #     action included
   #   * the module's one tab permission, when every action-specific tab
   #     agrees — an untabbed `:show` / `:edit` is guarded by it
-  #   * `:unmapped` when those tabs disagree, even if a bare-module entry
-  #     is also cached (a legacy registration must not authorize the action
-  #     neither tab named)
-  #   * the bare module key, only when no action-specific tab exists
+  #   * `:unmapped` when those tabs disagree (#844: a landing redirector and
+  #     the page behind it, gated differently): no safe answer for an action
+  #     neither names, so it fails closed
   #   * `:miss` when nothing is cached, so the caller may infer from the
   #     module's namespace
   defp infer_permission_from_custom_tabs(view_module, live_action) do
     custom = Permissions.custom_view_permissions()
 
-    case Map.get(custom, {view_module, live_action}) do
-      key when is_binary(key) ->
-        {:ok, key}
-
-      _ ->
-        case action_permission_keys(custom, view_module) do
-          [key] -> {:ok, key}
-          [_ | _] -> :unmapped
-          [] -> bare_module_permission(custom, view_module)
-        end
+    with :error <- Map.fetch(custom, {view_module, live_action}),
+         :error <- Map.fetch(custom, view_module) do
+      case action_permission_keys(custom, view_module) do
+        [key] -> {:ok, key}
+        [_ | _] -> :unmapped
+        [] -> :miss
+      end
     end
   end
 
   defp action_permission_keys(custom, view_module) do
     for {{^view_module, action}, key} <- custom, is_atom(action), uniq: true, do: key
-  end
-
-  defp bare_module_permission(custom, view_module) do
-    case Map.get(custom, view_module) do
-      key when is_binary(key) -> {:ok, key}
-      _ -> :miss
-    end
   end
 
   # Infer permission key from `PhoenixKit.Modules.<Name>.Web.*` (core) or from a

@@ -207,18 +207,26 @@ defmodule PhoenixKit.Dashboard.PerActionViewPermissionTest do
       refute Auth.can_access_admin_view?(scope(["reports_manage"]), FakeTabbedView, :show)
     end
 
-    test "a bare-module entry does not authorize an untabbed action when the tabs disagree" do
+    test "a module-wide tab guards the actions no other tab names" do
+      # A tab registered without an action claims the module. An `:edit` tab
+      # with its own key must not take over the module-wide tab's landing
+      # page, nor the untabbed actions — the regression this pins handed
+      # `:index` and `:show` to `"reports_manage"`.
       Registry.auto_register_custom_permission(
-        tab(:reports_index, live_view: {FakeTabbedView, :index}, permission: "reports_view")
+        tab(:reports, live_view: FakeTabbedView, permission: "reports_view")
       )
 
       Registry.auto_register_custom_permission(
         tab(:reports_edit, live_view: {FakeTabbedView, :edit}, permission: "reports_manage")
       )
 
-      Permissions.cache_custom_view_permission(FakeTabbedView, "reports_view")
+      assert Auth.permission_key_for_admin_view(FakeTabbedView, :index) == "reports_view"
+      assert Auth.permission_key_for_admin_view(FakeTabbedView, :show) == "reports_view"
+      assert Auth.permission_key_for_admin_view(FakeTabbedView, nil) == "reports_view"
+      assert Auth.permission_key_for_admin_view(FakeTabbedView, :edit) == "reports_manage"
 
-      assert Auth.permission_key_for_admin_view(FakeTabbedView, :show) == nil
+      assert Auth.can_access_admin_view?(scope(["reports_view"]), FakeTabbedView, :index)
+      refute Auth.can_access_admin_view?(scope(["reports_manage"]), FakeTabbedView, :index)
     end
 
     test "a namespaced module does not fall through to its inferred key" do
