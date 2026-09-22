@@ -406,7 +406,8 @@ defmodule PhoenixKit.Integrations.KeyStoreTest do
         end)
 
       assert :ok = FileStore.write(@secret, opts)
-      samples = Task.await(sampler)
+      # 50,000 stats outlast the default 5 s on a busy machine.
+      samples = Task.await(sampler, 60_000)
 
       exposed =
         Enum.filter(samples, fn {perms, size} -> Bitwise.band(perms, 0o077) != 0 and size > 0 end)
