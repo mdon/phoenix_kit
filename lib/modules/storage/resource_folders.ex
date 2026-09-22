@@ -397,31 +397,71 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
     * `:fallback_name` — when `name` is taken under this parent by a
       folder `:lookup` does not adopt (another record's), or core refuses
       it, create this one instead: the uuid-bearing deterministic name,
-      which cannot collide. A name known to be taken is not tried at all,
-      so a refused insert does not abort an enclosing transaction.
+      which cannot collide. A name known to be taken is not tried at all.
+    * `:claim` — a 1-arity function recording the folder as the record's
+      (writing its pointer, `write_pointer/4`), answering `:ok`,
+      `{:ok, _}` or `{:error, _}`. With it, the lookup, the create and
+      the claim run in one transaction under a lock on `{parent, name}`:
+      a folder found by a name that carries no uuid is claimed before
+      anyone else can look for it, so two same-named records resolving
+      at once never share one folder. A claim that fails rolls the create
+      back.
   """
   @spec ensure(String.t(), String.t() | nil, String.t() | nil, keyword()) ::
           {:ok, Folder.t()} | {:error, term()}
   def ensure(name, parent_uuid, actor_uuid, opts \\ []) when is_binary(name) do
-    lookup = Keyword.get(opts, :lookup, fn -> find_under(name, parent_uuid) end)
+    case Keyword.get(opts, :claim) do
+      nil ->
+        safely("ensure folder", fn -> find_or_create(name, parent_uuid, actor_uuid, opts) end)
 
-    fallback = Keyword.get(opts, :fallback_name)
+      claim when is_function(claim, 1) ->
+        safely("ensure folder", fn -> claimed(name, parent_uuid, actor_uuid, opts, claim) end)
+    end
+  end
 
-    safely("ensure folder", fn ->
-      case lookup.() do
-        %Folder{} = folder ->
-          {:ok, folder}
+  defp claimed(name, parent_uuid, actor_uuid, opts, claim) do
+    repo().transaction(fn ->
+      lock_name(parent_uuid, name)
 
-        nil ->
-          if fallback?(name, fallback) and find_under(name, parent_uuid),
-            do: ensure(fallback, parent_uuid, actor_uuid),
-            else: create(name, parent_uuid, actor_uuid, lookup, fallback)
+      with {:ok, folder} <- find_or_create(name, parent_uuid, actor_uuid, opts),
+           :ok <- claim_result(claim.(folder)) do
+        folder
+      else
+        {:error, reason} -> repo().rollback(reason)
       end
     end)
   end
 
+  defp claim_result(:ok), do: :ok
+  defp claim_result({:ok, _}), do: :ok
+  defp claim_result({:error, _reason} = error), do: error
+  defp claim_result(other), do: {:error, {:bad_claim, other}}
+
+  # A transaction-scoped advisory lock on the name under the parent, so
+  # every resolver of one host name queues behind the one claiming it.
+  defp lock_name(parent_uuid, name) do
+    repo().query!("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      "pk_resource_folder:#{parent_uuid || "root"}:#{name}"
+    ])
+  end
+
+  defp find_or_create(name, parent_uuid, actor_uuid, opts) do
+    lookup = Keyword.get(opts, :lookup, fn -> find_under(name, parent_uuid) end)
+    fallback = Keyword.get(opts, :fallback_name)
+
+    case lookup.() do
+      %Folder{} = folder ->
+        {:ok, folder}
+
+      nil ->
+        if fallback?(name, fallback) and find_under(name, parent_uuid),
+          do: find_or_create(fallback, parent_uuid, actor_uuid, []),
+          else: create(name, parent_uuid, actor_uuid, lookup, fallback)
+    end
+  end
+
   defp create(name, parent_uuid, actor_uuid, lookup, fallback) do
-    case Storage.create_folder(%{name: name, parent_uuid: parent_uuid, user_uuid: actor_uuid}) do
+    case insert_folder(%{name: name, parent_uuid: parent_uuid, user_uuid: actor_uuid}) do
       {:ok, folder} ->
         {:ok, folder}
 
@@ -432,13 +472,68 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
 
           nil ->
             if name_refused?(changeset) and fallback?(name, fallback),
-              do: ensure(fallback, parent_uuid, actor_uuid),
+              do: find_or_create(fallback, parent_uuid, actor_uuid, []),
               else: {:error, changeset}
         end
-
-      {:error, reason} ->
-        {:error, reason}
     end
+  end
+
+  # Inside a transaction a refused insert would abort it, so the insert
+  # gets a savepoint of its own there.
+  defp insert_folder(attrs) do
+    opts = if repo().in_transaction?(), do: [mode: :savepoint], else: []
+    %Folder{} |> Folder.changeset(attrs) |> repo().insert(opts)
+  end
+
+  @doc """
+  Points record `uuid` of `schema` at `folder_uuid` through `pointer`
+  (`t:pointer/0`) — one UPDATE of that key or column only, no changeset,
+  no callbacks, the rest of the row untouched; `nil` removes the pointer.
+  `{:error, :not_found}` when no such record exists.
+  """
+  @spec write_pointer(module(), String.t(), pointer(), String.t() | nil) ::
+          :ok | {:error, :not_found}
+  def write_pointer(schema, uuid, pointer, folder_uuid) do
+    case repo().update_all(
+           from(r in schema,
+             where: r.uuid == ^uuid,
+             update: ^pointer_update(pointer, folder_uuid)
+           ),
+           []
+         ) do
+      {0, _} -> {:error, :not_found}
+      {_n, _} -> :ok
+    end
+  end
+
+  defp pointer_update({:column, column}, folder_uuid), do: [set: [{column, folder_uuid}]]
+
+  # `jsonb_set` with a NULL value answers NULL for the whole map, so
+  # clearing a pointer removes its key instead.
+  defp pointer_update({map_field, key}, nil) when is_binary(key) do
+    [
+      set: [
+        {map_field,
+         dynamic([r], fragment("coalesce(?, '{}'::jsonb) - ?", field(r, ^map_field), ^key))}
+      ]
+    ]
+  end
+
+  defp pointer_update({map_field, key}, folder_uuid) when is_binary(key) do
+    [
+      set: [
+        {map_field,
+         dynamic(
+           [r],
+           fragment(
+             "jsonb_set(coalesce(?, '{}'::jsonb), ARRAY[?]::text[], to_jsonb(?::text))",
+             field(r, ^map_field),
+             ^key,
+             ^folder_uuid
+           )
+         )}
+      ]
+    ]
   end
 
   defp name_refused?(%Ecto.Changeset{errors: errors}), do: Keyword.has_key?(errors, :name)
@@ -665,8 +760,9 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   home is adopted (`:adopted`), a file homed elsewhere is linked
   (`:linked`), a file already home or linked there is left alone
   (`:already_attached`). A folder that is not live is refused
-  (`{:error, :folder_unavailable}`) — a file put there would be listed
-  nowhere. Never raises.
+  (`{:error, :folder_unavailable}`), and so is a trashed file
+  (`{:error, :file_trashed}`) — either would be listed nowhere. Never
+  raises.
   """
   @spec attach(StorageFile.t() | String.t(), String.t()) ::
           {:ok, :adopted | :linked | :already_attached} | {:error, term()}
@@ -675,6 +771,7 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
       with %StorageFile{} = file <- load_file(file_or_uuid) || {:error, :not_found},
            %Folder{uuid: folder_uuid} <- live_folder(folder_uuid) || {:error, :folder_unavailable} do
         cond do
+          file.status == "trashed" -> {:error, :file_trashed}
           file.folder_uuid == folder_uuid -> {:ok, :already_attached}
           Storage.folder_link(folder_uuid, file.uuid) -> {:ok, :already_attached}
           true -> attach_new(file, folder_uuid)

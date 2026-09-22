@@ -369,6 +369,65 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
       assert mine.name == det
     end
 
+    test "a refused insert inside a transaction leaves the transaction usable" do
+      parent = folder!(name())
+      n = name()
+      _taken = folder!(n, parent)
+
+      assert {:ok, :still_usable} =
+               Repo.transaction(fn ->
+                 assert {:error, %Ecto.Changeset{}} =
+                          ResourceFolders.ensure(n, parent.uuid, nil, lookup: fn -> nil end)
+
+                 assert ResourceFolders.find_under(n, parent.uuid)
+                 :still_usable
+               end)
+    end
+
+    test "with :claim, the folder is recorded as the record's before anyone else looks" do
+      parent = folder!(name())
+      host = name()
+      pointer = {:data, "files_folder_uuid"}
+      pointers = [{StorageFile, pointer}]
+      [a, b] = [file!(nil), file!(nil)]
+
+      ensure_for = fn record ->
+        ResourceFolders.ensure(host, parent.uuid, nil,
+          lookup: fn ->
+            ResourceFolders.resolve(
+              parent: parent.uuid,
+              host_name: host,
+              name: "det-" <> record.uuid,
+              claimed?: &ResourceFolders.claimed?(&1.uuid, record.uuid, pointers)
+            )
+          end,
+          fallback_name: "det-" <> record.uuid,
+          claim: &ResourceFolders.write_pointer(StorageFile, record.uuid, pointer, &1.uuid)
+        )
+      end
+
+      assert {:ok, %Folder{name: ^host} = theirs} = ensure_for.(a)
+      assert Repo.get!(StorageFile, a.uuid).data["files_folder_uuid"] == theirs.uuid
+
+      assert {:ok, mine} = ensure_for.(b)
+      assert mine.name == "det-" <> b.uuid
+      assert Repo.get!(StorageFile, b.uuid).data["files_folder_uuid"] == mine.uuid
+
+      # The same record again (another tab) converges on its own folder.
+      assert ensure_for.(a) == {:ok, theirs}
+    end
+
+    test "a claim that fails rolls the create back" do
+      n = name()
+
+      capture_log(fn ->
+        assert {:error, :nope} =
+                 ResourceFolders.ensure(n, nil, nil, claim: fn _ -> {:error, :nope} end)
+      end)
+
+      refute ResourceFolders.find_under(n, nil)
+    end
+
     test "never raises" do
       log =
         capture_log(fn ->
@@ -424,6 +483,46 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
       assert ResourceFolders.name_pending(folder.uuid, "pending-", name()) == :ok
       assert Repo.get!(Folder, folder.uuid).name == folder.name
       assert ResourceFolders.name_pending(nil, "pending-", name()) == :ok
+    end
+  end
+
+  describe "write_pointer/4" do
+    test "sets and clears a JSONB key, leaving the rest of the map" do
+      record = file!(nil, %{data: %{"keep" => "me"}})
+      folder = folder!(name())
+      pointer = {:data, "files_folder_uuid"}
+
+      assert ResourceFolders.write_pointer(StorageFile, record.uuid, pointer, folder.uuid) == :ok
+
+      assert Repo.get!(StorageFile, record.uuid).data == %{
+               "keep" => "me",
+               "files_folder_uuid" => folder.uuid
+             }
+
+      assert ResourceFolders.write_pointer(StorageFile, record.uuid, pointer, nil) == :ok
+      assert Repo.get!(StorageFile, record.uuid).data == %{"keep" => "me"}
+    end
+
+    test "sets a column, and reports a record that is not there" do
+      record = file!(nil)
+      folder = folder!(name())
+
+      assert ResourceFolders.write_pointer(
+               StorageFile,
+               record.uuid,
+               {:column, :folder_uuid},
+               folder.uuid
+             ) == :ok
+
+      assert Repo.get!(StorageFile, record.uuid).folder_uuid == folder.uuid
+
+      assert ResourceFolders.write_pointer(
+               StorageFile,
+               Ecto.UUID.generate(),
+               {:column, :folder_uuid},
+               nil
+             ) ==
+               {:error, :not_found}
     end
   end
 
@@ -534,6 +633,12 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
       assert ResourceFolders.attach(homed, folder.uuid) == {:ok, :linked}
       assert Repo.get!(StorageFile, homed.uuid).folder_uuid == other.uuid
       assert ResourceFolders.attach(homed, folder.uuid) == {:ok, :already_attached}
+    end
+
+    test "attach refuses a trashed file" do
+      folder = folder!(name())
+      trashed = file!(nil, %{status: "trashed"})
+      assert ResourceFolders.attach(trashed, folder.uuid) == {:error, :file_trashed}
     end
 
     test "attach refuses a folder that is not live, and a missing file" do
