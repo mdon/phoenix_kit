@@ -168,6 +168,9 @@ defmodule PhoenixKitWeb.FileEditingServingTest do
       assert conn.status == 200
       assert header(conn, "cache-control") == ["public, max-age=86400"]
       assert header(conn, "etag") == [~s("#{instance(ctx.photo).checksum}")]
+      # The browser must not second-guess the stored type; an image shows in place.
+      assert header(conn, "x-content-type-options") == ["nosniff"]
+      assert [~s(inline; filename=") <> _] = header(conn, "content-disposition")
     end
 
     test "a URL naming the current bytes keeps for good", ctx do
