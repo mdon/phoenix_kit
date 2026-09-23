@@ -137,9 +137,8 @@ defmodule PhoenixKit.Integration.Storage.TrashBroadcastTest do
       assert {:ok, _} = Storage.trash_folder(root)
 
       # Pinned to this test's own uuids: other async tests broadcast on the
-      # same global topic.
-      assert_receive {:phoenix_kit_files_trashed, uuids} when is_list(uuids)
-      assert Enum.sort(uuids) == expected
+      # same global topic, so a batch that is not this one is skipped.
+      assert receive_batch(expected) == expected
       for uuid <- expected, do: refute_received({:phoenix_kit_file_trashed, ^uuid})
     end
 
@@ -239,6 +238,17 @@ defmodule PhoenixKit.Integration.Storage.TrashBroadcastTest do
 
   # Trashes `file` as `trash_file/1` would, but at a chosen moment, so a test
   # can tell its stamp from a folder operation's.
+  # The first `:phoenix_kit_files_trashed` batch holding exactly `expected`
+  # (sorted), skipping other tests' batches on the shared topic.
+  defp receive_batch(expected) do
+    receive do
+      {:phoenix_kit_files_trashed, uuids} when is_list(uuids) ->
+        if Enum.sort(uuids) == expected, do: expected, else: receive_batch(expected)
+    after
+      1_000 -> flunk("no :phoenix_kit_files_trashed batch for #{inspect(expected)}")
+    end
+  end
+
   defp trash_at!(file, at) do
     {1, _} =
       Repo.update_all(from(f in StorageFile, where: f.uuid == ^file.uuid),

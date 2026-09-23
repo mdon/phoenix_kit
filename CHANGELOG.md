@@ -20,9 +20,11 @@
   folder and folder link now belongs to a library, and everything that
   exists is in one system library, Media. A writer that names no library,
   in core or in a module, keeps landing in Media, so nothing changes until
-  a second library is created. An Owner or Admin can create more system
-  libraries on `/admin/media`. The library switcher appears once there are
-  two. Media stays at `/admin/media`, and every other library gets a URL
+  a second library is created. Libraries are managed in a new **Settings →
+  Media → Libraries** tab: create, rename and delete an empty one, with
+  each library's file and folder counts and size. The Media page shows a
+  library switcher only once there are two or more; with one, it says
+  nothing about libraries. Media stays at `/admin/media`, and every other library gets a URL
   named after it (`/admin/media/library/brand-assets`). Each library keeps
   its own folders, and folder names are unique per
   library. New files in a library are stored under its own object-key

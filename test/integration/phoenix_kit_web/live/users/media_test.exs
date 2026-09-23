@@ -309,23 +309,23 @@ defmodule PhoenixKitWeb.Live.Users.MediaTest do
 
     defp library_path(library), do: Routes.path("/admin/media/library/#{library.slug}")
 
-    test "with only Media there is no switcher, and an admin can create a library", %{conn: conn} do
+    test "with only Media the page says nothing about libraries", %{conn: conn} do
       {user, _token} = create_admin_user()
       conn = log_in_user(conn, user)
 
-      {:ok, view, html} = live(conn, @media_path)
+      {:ok, _view, html} = live(conn, @media_path)
 
       refute html =~ "media-library-switcher"
-      assert html =~ "New library"
+      refute html =~ "New library"
+    end
 
-      view |> element("button", "New library") |> render_click()
-      name = "Brand #{System.unique_integer([:positive])}"
-      view |> form("#media-new-library-form", %{name: name}) |> render_submit()
+    test "a second library brings the switcher", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      {:ok, _} = Libraries.create_system_library(%{name: "Two #{System.unique_integer()}"})
+      conn = log_in_user(conn, user)
 
-      library = Enum.find(Libraries.list_system_libraries(), &(&1.name == name))
-      assert library.slug == Libraries.get_system_library_by_slug(library.slug).slug
-      assert_patch(view, library_path(library))
-      assert render(view) =~ "media-library-switcher"
+      {:ok, _view, html} = live(conn, @media_path)
+      assert html =~ "media-library-switcher"
     end
 
     test "/library/<slug> opens that library, and folder navigation stays on it", %{conn: conn} do

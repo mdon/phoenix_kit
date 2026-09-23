@@ -68,6 +68,7 @@
       variant={:border}
       tabs={[
         %{id: "buckets", label: gettext("Buckets"), icon: "hero-inbox-stack"},
+        %{id: "libraries", label: gettext("Libraries"), icon: "hero-rectangle-stack"},
         %{id: "configuration", label: gettext("Configuration"), icon: "hero-cog-6-tooth"},
         %{id: "quick_actions", label: gettext("Quick Actions"), icon: "hero-bolt"}
       ]}
@@ -316,6 +317,13 @@
           <% end %>
         </div>
       </div>
+    </div>
+
+    <div id="media-tab-libraries" class={@active_tab != "libraries" && "hidden"}>
+      <.live_component
+        module={PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent}
+        id="media-libraries"
+      />
     </div>
 
     <div id="media-tab-configuration" class={@active_tab != "configuration" && "hidden"}>

@@ -10,78 +10,26 @@
 >
   <div class="flex flex-col w-full h-[calc(100dvh-4rem)]">
     <%!-- The library switcher: only once there is more than one system
-         library (an Owner/Admin sees "New library" from the start). --%>
-    <div
-      :if={
-        (is_list(@libraries) and length(@libraries) > 1) or
-          PhoenixKit.Users.Auth.Scope.system_role?(assigns[:phoenix_kit_current_scope])
-      }
-      class="flex flex-wrap items-center gap-2 px-4 pb-2"
+         library. With one, the page says nothing about libraries. --%>
+    <form
+      :if={is_list(@libraries) and length(@libraries) > 1}
+      id="media-library-switcher"
+      phx-change="switch_library"
+      class="flex items-center gap-2 px-4 pb-2"
     >
-      <form
-        :if={is_list(@libraries) and length(@libraries) > 1}
-        id="media-library-switcher"
-        phx-change="switch_library"
-        class="flex items-center gap-2"
-      >
-        <label for="media-library-select" class="text-sm text-base-content/70">
-          {gettext("Library")}
-        </label>
-        <select id="media-library-select" name="library" class="select select-sm">
-          <option
-            :for={library <- @libraries}
-            value={library.slug || ""}
-            selected={@library && library.uuid == @library.uuid}
-          >
-            {library.name}
-          </option>
-        </select>
-      </form>
-
-      <%= if PhoenixKit.Users.Auth.Scope.system_role?(assigns[:phoenix_kit_current_scope]) do %>
-        <form
-          :if={@creating_library}
-          id="media-new-library-form"
-          phx-submit="create_library"
-          class="flex items-center gap-2"
+      <label for="media-library-select" class="text-sm text-base-content/70">
+        {gettext("Library")}
+      </label>
+      <select id="media-library-select" name="library" class="select select-sm">
+        <option
+          :for={library <- @libraries}
+          value={library.slug || ""}
+          selected={@library && library.uuid == @library.uuid}
         >
-          <input
-            type="text"
-            name="name"
-            id="media-new-library-name"
-            class="input input-sm"
-            placeholder={gettext("Library name")}
-            maxlength="255"
-            required
-            autofocus
-          />
-          <button type="submit" class="btn btn-sm btn-primary">{gettext("Create")}</button>
-          <button type="button" class="btn btn-sm btn-ghost" phx-click="cancel_new_library">
-            {gettext("Cancel")}
-          </button>
-        </form>
-        <button
-          :if={not @creating_library}
-          type="button"
-          class="btn btn-sm btn-ghost"
-          phx-click="new_library"
-        >
-          <.icon name="hero-plus" class="w-4 h-4" /> {gettext("New library")}
-        </button>
-        <button
-          :if={
-            (@library && not @library.is_default) and is_list(@libraries) and
-              length(@libraries) > 1
-          }
-          type="button"
-          class="btn btn-sm btn-ghost text-error"
-          phx-click="delete_library"
-          data-confirm={gettext("Delete this library? Only an empty library can be deleted.")}
-        >
-          <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Delete library")}
-        </button>
-      <% end %>
-    </div>
+          {library.name}
+        </option>
+      </select>
+    </form>
 
     <.live_component
       module={PhoenixKitWeb.Components.MediaBrowser}

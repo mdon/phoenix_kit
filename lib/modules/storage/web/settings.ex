@@ -434,6 +434,14 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     end
   end
 
+  # The Libraries tab's messages (`LibrariesComponent`).
+  def handle_info(
+        {PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent, {:flash, kind, message}},
+        socket
+      ) do
+    {:noreply, put_flash(socket, kind, message)}
+  end
+
   defp get_current_path(_socket, _session) do
     # For Storage settings page
     Routes.path("/admin/settings/media")

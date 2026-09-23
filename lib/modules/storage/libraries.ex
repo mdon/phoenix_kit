@@ -66,6 +66,58 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   @doc """
+  `list_system_libraries/0` with what each one holds: `files` (live,
+  visible files — not trashed, not system-managed tiles or edit backups),
+  `bytes` (their total size) and `folders` (live folders). Two grouped
+  queries, whatever the number of libraries.
+  """
+  @spec list_system_libraries_with_stats() :: [
+          %{
+            library: Library.t(),
+            files: non_neg_integer(),
+            bytes: non_neg_integer(),
+            folders: non_neg_integer()
+          }
+        ]
+  def list_system_libraries_with_stats do
+    libraries = list_system_libraries()
+    uuids = Enum.map(libraries, & &1.uuid)
+
+    files =
+      from(f in StorageFile,
+        where: f.library_uuid in ^uuids and f.system_managed == false and f.status != "trashed",
+        group_by: f.library_uuid,
+        select: {f.library_uuid, {count(f.uuid), coalesce(sum(f.size), 0)}}
+      )
+      |> repo().all()
+      |> Map.new()
+
+    folders =
+      from(f in Folder,
+        where: f.library_uuid in ^uuids and is_nil(f.trashed_at),
+        group_by: f.library_uuid,
+        select: {f.library_uuid, count(f.uuid)}
+      )
+      |> repo().all()
+      |> Map.new()
+
+    Enum.map(libraries, fn library ->
+      {count, bytes} = Map.get(files, library.uuid, {0, 0})
+
+      %{
+        library: library,
+        files: count,
+        bytes: to_integer(bytes),
+        folders: Map.get(folders, library.uuid, 0)
+      }
+    end)
+  end
+
+  defp to_integer(%Decimal{} = d), do: Decimal.to_integer(d)
+  defp to_integer(n) when is_integer(n), do: n
+  defp to_integer(_), do: 0
+
+  @doc """
   The live system library with this uuid, or nil — what a URL-supplied
   library id is checked against before anything is listed or stored in it.
   """
