@@ -421,31 +421,9 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
     # `url_prefix` is cached in `:persistent_term` (same as `admin_path`
     # in `PhoenixKit.Utils.AdminSegmentTest`), so it's flipped through
     # the public `PhoenixKit.Config.clear_url_prefix_cache/0` API rather
-    # than poking the cache directly — `with_url_prefix/2` below mirrors
-    # that file's `with_segment/2` helper.
-
-    defp with_url_prefix(value, fun) do
-      previous = Application.fetch_env(:phoenix_kit, :url_prefix)
-      Application.put_env(:phoenix_kit, :url_prefix, value)
-      Config.clear_url_prefix_cache()
-
-      try do
-        fun.()
-      after
-        case previous do
-          {:ok, prior} -> Application.put_env(:phoenix_kit, :url_prefix, prior)
-          :error -> Application.delete_env(:phoenix_kit, :url_prefix)
-        end
-
-        Config.clear_url_prefix_cache()
-      end
-    end
-
-    defp locale_conn(path, locale) do
-      build_conn(:get, path)
-      |> Plug.Conn.fetch_query_params()
-      |> Map.put(:path_params, %{"locale" => locale})
-    end
+    # than poking the cache directly — `with_url_prefix/2` (module level,
+    # alongside `build_invalid_locale_conn/1`) mirrors that file's
+    # `with_segment/2` helper.
 
     test "the literal #849 URL redirects away instead of looping (setting OFF)" do
       with_url_prefix("/", fn ->
@@ -482,6 +460,18 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
 
         assert conn.halted
         assert redirected_to(conn) == "/"
+      end)
+    end
+
+    test "a locale-only root path swaps to the default base, not strips (setting OFF)" do
+      with_url_prefix("/", fn ->
+        request_path = "/" <> URI.encode("дордол")
+        conn = locale_conn(request_path, "дордол")
+
+        conn = Auth.redirect_invalid_locale(conn, "дордол")
+
+        assert conn.halted
+        assert redirected_to(conn) == "/en"
       end)
     end
 
@@ -537,5 +527,28 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
   defp build_invalid_locale_conn(path) do
     build_conn(:get, path)
     |> Plug.Conn.fetch_query_params()
+  end
+
+  defp with_url_prefix(value, fun) do
+    previous = Application.fetch_env(:phoenix_kit, :url_prefix)
+    Application.put_env(:phoenix_kit, :url_prefix, value)
+    Config.clear_url_prefix_cache()
+
+    try do
+      fun.()
+    after
+      case previous do
+        {:ok, prior} -> Application.put_env(:phoenix_kit, :url_prefix, prior)
+        :error -> Application.delete_env(:phoenix_kit, :url_prefix)
+      end
+
+      Config.clear_url_prefix_cache()
+    end
+  end
+
+  defp locale_conn(path, locale) do
+    build_conn(:get, path)
+    |> Plug.Conn.fetch_query_params()
+    |> Map.put(:path_params, %{"locale" => locale})
   end
 end

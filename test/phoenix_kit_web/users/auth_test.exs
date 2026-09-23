@@ -692,4 +692,132 @@ defmodule PhoenixKitWeb.Users.AuthTest do
       assert location(conn) == "/phoenix_kit/en/users/log-in"
     end
   end
+
+  describe "redirect_to_base_locale/2 declines rather than crashes on a hostile segment" do
+    # `extract_base/1` (lib/modules/languages/dialect_mapper.ex) copies a
+    # piece of its input verbatim into `base_code`, and `full_dialect` here
+    # is the DECODED URL segment `process_locale/1` hands it with no other
+    # validation (any segment containing "-" reaches this function). A
+    # crafted segment can therefore make `base_code` carry "/", "\", a
+    # control character, or land empty — spliced unchecked into the
+    # redirect target, each of those reaches `Phoenix.Controller.redirect/2`
+    # (or, for a leading "//", is rejected by its own local-path check) and
+    # RAISES instead of declining, turning an anonymous GET into a 500.
+    # `locale_segment_path/3`'s `safe_path_segment?/1` guard now rejects
+    # these before they're ever joined into a path, so this function falls
+    # through to `assign_default_locale/1` — no redirect, no crash — same
+    # as any other unrecognized shape.
+
+    import Phoenix.ConnTest, only: [build_conn: 3]
+
+    defp hostile_conn(path) do
+      build_conn(:get, path, nil) |> Plug.Conn.fetch_query_params()
+    end
+
+    defp with_url_prefix(value, fun) do
+      previous = Application.fetch_env(:phoenix_kit, :url_prefix)
+      Application.put_env(:phoenix_kit, :url_prefix, value)
+      PhoenixKit.Config.clear_url_prefix_cache()
+
+      try do
+        fun.()
+      after
+        case previous do
+          {:ok, prior} -> Application.put_env(:phoenix_kit, :url_prefix, prior)
+          :error -> Application.delete_env(:phoenix_kit, :url_prefix)
+        end
+
+        PhoenixKit.Config.clear_url_prefix_cache()
+      end
+    end
+
+    test "a base_code containing '//' does not raise at root url_prefix" do
+      # decoded locale "//evil.com-x" → extract_base → "//evil.com". Before
+      # the guard, `Enum.join(["//evil.com", "shop"], "/")` prefixed with
+      # "/" produced "///evil.com/shop" — Phoenix's own leading-"//" check
+      # in `Phoenix.Controller.redirect/2` raises ArgumentError on that,
+      # and it only starts the string at root `url_prefix` (a mount
+      # prefix segment like "phoenix_kit" pushes it off byte offset 0).
+      with_url_prefix("/", fn ->
+        conn =
+          "/%2F%2Fevil.com-x/shop"
+          |> hostile_conn()
+          |> Auth.redirect_to_base_locale("//evil.com-x")
+
+        refute conn.halted
+        assert conn.assigns.current_locale_base == "en"
+      end)
+    end
+
+    test "a base_code containing '//' does not raise under a named url_prefix either" do
+      # Same payload as above, but under the default "/phoenix_kit" prefix
+      # used everywhere else in this file: the guard applies uniformly
+      # regardless of where the locale segment lands in the path.
+      conn =
+        "/phoenix_kit/%2F%2Fevil.com-x/shop"
+        |> hostile_conn()
+        |> Auth.redirect_to_base_locale("//evil.com-x")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    test "a base_code containing a backslash does not raise" do
+      # decoded locale "\\evil.com-x" (two literal backslashes) →
+      # extract_base → a segment containing "\". Before the guard, the
+      # joined path contained "\" and `Phoenix.Controller.redirect/2`
+      # raises ArgumentError ("unsafe characters detected for local
+      # redirect") on that unconditionally — not anchored to path
+      # position, so this crashes under either url_prefix.
+      conn =
+        "/phoenix_kit/%5C%5Cevil.com-x/shop"
+        |> hostile_conn()
+        |> Auth.redirect_to_base_locale("\\\\evil.com-x")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    test "a base_code containing a control character does not raise" do
+      # decoded locale "\nevil-x" (leading newline) → extract_base →
+      # "\nevil". Before the guard, the joined path contained "\n", which
+      # `Phoenix.Controller.redirect/2`'s own local-path validation
+      # (`Phoenix.URL.classify_local_path/1`) also rejects with
+      # `ArgumentError` — again not position-anchored.
+      conn =
+        "/phoenix_kit/%0Aevil-x/shop"
+        |> hostile_conn()
+        |> Auth.redirect_to_base_locale("\nevil-x")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    test "a base_code that extracts empty does not raise at root url_prefix" do
+      # decoded locale "-x" → `String.split("-")` → ["", "x"] →
+      # `List.first/1` → "" — an empty `base_code`. Before the guard,
+      # `Enum.join(["", "shop"], "/")` prefixed with "/" produced
+      # "//shop", the same leading-"//" crash as the first test, and same
+      # positional caveat: only manifests at root `url_prefix`.
+      with_url_prefix("/", fn ->
+        conn =
+          "/-x/shop"
+          |> hostile_conn()
+          |> Auth.redirect_to_base_locale("-x")
+
+        refute conn.halted
+        assert conn.assigns.current_locale_base == "en"
+      end)
+    end
+
+    test "a base_code that extracts empty does not raise under a named url_prefix either" do
+      conn =
+        "/phoenix_kit/-x/shop"
+        |> hostile_conn()
+        |> Auth.redirect_to_base_locale("-x")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+  end
 end
