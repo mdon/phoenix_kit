@@ -3022,11 +3022,20 @@ defmodule PhoenixKit.Modules.Storage do
       # columns — a plain join would miss them entirely, and a
       # live catalogue item, category, or catalogue-record image would
       # look orphaned and get queued for deletion by DeleteOrphanedFileJob.
+      #
+      # `media_order` is expanded into its elements and matched by equality,
+      # never tested per file with `data->'media_order' @> …`: `@>` against
+      # the file can't be hashed, so Postgres ran it for every file × every
+      # row, unpacking each row's whole `data` every time — 8 s for 3k files
+      # and 700 items on a live shop, on every media page load and folder
+      # click. Expanded, the rows are read once and hash-anti-joined (0.15 s).
+      # The CASE keeps a non-array `media_order` from raising, and only a
+      # top-level string element matches — the same answer `@>` gave.
       {"phoenix_kit_cat_items",
        dynamic(
          [f],
          fragment(
-           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_items ci WHERE ci.data->>'featured_image_uuid' = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_items ci WHERE ci.data->'media_order' @> to_jsonb(ARRAY[?::text])) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_items ci WHERE ci.data->'ecommerce'->>'file_uuid' = ?::text)",
+           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_items ci WHERE ci.data->>'featured_image_uuid' = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_items ci CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(ci.data->'media_order') = 'array' THEN ci.data->'media_order' ELSE '[]'::jsonb END) AS mo(file_uuid) WHERE mo.file_uuid = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_items ci WHERE ci.data->'ecommerce'->>'file_uuid' = ?::text)",
            f.uuid,
            f.uuid,
            f.uuid
@@ -3036,7 +3045,7 @@ defmodule PhoenixKit.Modules.Storage do
        dynamic(
          [f],
          fragment(
-           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->>'featured_image_uuid' = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->'media_order' @> to_jsonb(ARRAY[?::text])) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->'ecommerce'->>'image_uuid' = ?::text)",
+           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->>'featured_image_uuid' = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(cc.data->'media_order') = 'array' THEN cc.data->'media_order' ELSE '[]'::jsonb END) AS mo(file_uuid) WHERE mo.file_uuid = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_categories cc WHERE cc.data->'ecommerce'->>'image_uuid' = ?::text)",
            f.uuid,
            f.uuid,
            f.uuid
@@ -3046,7 +3055,7 @@ defmodule PhoenixKit.Modules.Storage do
        dynamic(
          [f],
          fragment(
-           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_catalogues ct WHERE ct.data->>'featured_image_uuid' = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_catalogues ct WHERE ct.data->'media_order' @> to_jsonb(ARRAY[?::text]))",
+           "NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_catalogues ct WHERE ct.data->>'featured_image_uuid' = ?::text) AND NOT EXISTS (SELECT 1 FROM phoenix_kit_cat_catalogues ct CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(ct.data->'media_order') = 'array' THEN ct.data->'media_order' ELSE '[]'::jsonb END) AS mo(file_uuid) WHERE mo.file_uuid = ?::text)",
            f.uuid,
            f.uuid
          )

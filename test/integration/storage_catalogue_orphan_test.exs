@@ -189,6 +189,38 @@ defmodule PhoenixKit.Integration.StorageCatalogueOrphanTest do
     end
   end
 
+  # The media_order checks read each row's list once and hash-join the file
+  # uuids against it, instead of testing every file against every row with
+  # `@>` (8 s for 3k files x 700 items on a live shop). Expanding the list
+  # must not trip over a value that is not an array, nor over elements that
+  # are not strings — the old `@>` form simply didn't match those.
+  describe "media_order of any shape" do
+    test "a media_order that is not an array neither breaks the check nor protects",
+         %{user: user} do
+      file = make_file(user.uuid)
+      catalogue_uuid = insert_catalogue!(%{"media_order" => file.uuid})
+      insert_category!(catalogue_uuid, %{"media_order" => %{"0" => file.uuid}})
+      insert_item!(%{"media_order" => file.uuid})
+      insert_item!(%{"media_order" => nil})
+
+      assert Storage.file_orphaned?(file.uuid)
+      assert Storage.count_orphaned_files() >= 1
+    end
+
+    test "only a top-level string element protects a file", %{user: user} do
+      file = make_file(user.uuid)
+      catalogue_uuid = insert_catalogue!(%{"media_order" => [nil, 7, [file.uuid]]})
+      insert_category!(catalogue_uuid, %{"media_order" => [%{"uuid" => file.uuid}]})
+      insert_item!(%{"media_order" => [nil, 42, %{"uuid" => file.uuid}, [file.uuid]]})
+
+      assert Storage.file_orphaned?(file.uuid)
+
+      insert_item!(%{"media_order" => [nil, 42, file.uuid]})
+
+      refute Storage.file_orphaned?(file.uuid)
+    end
+  end
+
   describe "phoenix_kit_cat_pdfs" do
     test "file_uuid keeps a file from being orphaned", %{user: user} do
       file = make_file(user.uuid)
