@@ -556,7 +556,12 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
               "background-color: #{folder_color_hex(folder_color(@node.folder)) || "oklch(var(--p))"}25"
         }
       >
-        <%!-- Chevron (expand/collapse) --%>
+        <%!--
+          Chevron (expand/collapse). While its click waits on the server
+          (`.phx-click-loading` on this button) the chevron turns into a
+          spinner. The `>` variant keys on the button itself, not on the row
+          around it, so opening the folder spins the row's icon only.
+        --%>
         <%= if @expandable? do %>
           <button
             phx-click={@on_toggle}
@@ -566,8 +571,9 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
           >
             <.icon
               name={if @is_expanded, do: "hero-chevron-down-mini", else: "hero-chevron-right-mini"}
-              class="w-4 h-4 text-base-content/40"
+              class="w-4 h-4 text-base-content/40 [.phx-click-loading>&]:hidden"
             />
+            <span class="hidden [.phx-click-loading>&]:inline-block loading loading-spinner loading-xs text-base-content/40"></span>
           </button>
         <% else %>
           <span class="w-5"></span>
@@ -609,7 +615,12 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
             />
           </form>
         <% else %>
-          <%!-- Folder button (uncontrolled: phx-click instead of .link navigate) --%>
+          <%!--
+            Folder button (uncontrolled: phx-click instead of .link navigate).
+            Opening a folder replies only once the new listing has rendered,
+            so the icon turns into a spinner for as long as that takes —
+            whether the click landed on this button or on the row around it.
+          --%>
           <button
             phx-click={@on_navigate}
             phx-target={@myself}
@@ -621,8 +632,9 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
             <span style={folder_icon_style(folder_color(@node.folder), @is_active)}>
               <.icon
                 name={if @is_expanded, do: "hero-folder-open", else: "hero-folder"}
-                class="w-4 h-4 shrink-0"
+                class="w-4 h-4 shrink-0 [.phx-click-loading_&]:hidden"
               />
+              <span class="hidden [.phx-click-loading_&]:inline-block loading loading-spinner loading-xs shrink-0"></span>
             </span>
             <span
               class={[
