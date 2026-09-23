@@ -266,7 +266,17 @@ defmodule PhoenixKit.MixProject do
       # Etcher 0.14's out-of-bounds pan/zoom features engage on fresco
       # ≥ 0.12 (isInfiniteCanvas / getZoomFloor on the outer handles) and
       # quietly stand down on older — hence the new fresco alternative.
-      {:fresco, "~> 0.10.0 or ~> 0.11.0 or ~> 0.12.0"},
+      #
+      # 0.13 reads a wheel event as the three gestures it can be — a notch
+      # zooms, two fingers on a trackpad move the view, a pinch zooms —
+      # and, the part that makes it a floor for anyone on a laptop, it
+      # converts deltas that arrive in LINES (plenty of mice, and Firefox)
+      # into the pixels every rate is priced in. On 0.12 that hardware
+      # bought 0.9% of zoom a notch instead of 20%, and moved the picture
+      # six pixels when it panned — a viewer that reads as broken rather
+      # than as slow. Older fresco is still admitted for hosts that pin
+      # one; they keep the old reading.
+      {:fresco, "~> 0.10.0 or ~> 0.11.0 or ~> 0.12.0 or ~> 0.13.0"},
       {:tessera, "~> 0.3.0"},
       {:etcher, "~> 0.17.0"},
 
