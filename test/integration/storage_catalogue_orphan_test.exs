@@ -204,7 +204,7 @@ defmodule PhoenixKit.Integration.StorageCatalogueOrphanTest do
       insert_item!(%{"media_order" => nil})
 
       assert Storage.file_orphaned?(file.uuid)
-      assert Storage.count_orphaned_files() >= 1
+      assert file.uuid in Enum.map(Storage.find_orphaned_files(), & &1.uuid)
     end
 
     test "only a top-level string element protects a file", %{user: user} do

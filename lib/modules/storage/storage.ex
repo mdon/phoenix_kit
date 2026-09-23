@@ -3030,7 +3030,10 @@ defmodule PhoenixKit.Modules.Storage do
       # and 700 items on a live shop, on every media page load and folder
       # click. Expanded, the rows are read once and hash-anti-joined (0.15 s).
       # The CASE keeps a non-array `media_order` from raising, and only a
-      # top-level string element matches — the same answer `@>` gave.
+      # top-level string element matches — the same answer `@>` gave. The
+      # single-file check (`file_orphaned?/1`, run by DeleteOrphanedFileJob)
+      # pays for this: it expands every row too, ~5 ms instead of ~2.6 ms at
+      # 700 items — a background job, against 8 s on every media page.
       {"phoenix_kit_cat_items",
        dynamic(
          [f],
