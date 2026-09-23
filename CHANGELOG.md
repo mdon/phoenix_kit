@@ -77,6 +77,10 @@
   event now fires after the change commits.
 - **`ResourceFolders.purge_named/1` refuses a folder name with no uuid in
   it (#860 review),** instead of deleting every folder with that name.
+- **The upload summary in the media browser shows again.** The "N files
+  uploaded" message was set on the browser component, where the page never
+  displayed it. Uploading, into a second library, a file you already have in
+  another one now says so instead of reporting a missing storage bucket.
 - **A file name with a quote, a line break or non-ASCII characters no
   longer breaks the download header (#860 review).** A line break used to
   cause a 500.

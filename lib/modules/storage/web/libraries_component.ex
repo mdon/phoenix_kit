@@ -239,11 +239,8 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
                     :if={not library.is_default}
                     type="button"
                     class="btn btn-xs btn-ghost text-error"
-                    disabled={row.files > 0 or row.folders > 0}
-                    title={
-                      if row.files > 0 or row.folders > 0,
-                        do: gettext("Only an empty library can be deleted.")
-                    }
+                    disabled={row.holds}
+                    title={if row.holds, do: gettext("Only an empty library can be deleted.")}
                     phx-click="delete"
                     phx-value-uuid={library.uuid}
                     phx-target={@myself}

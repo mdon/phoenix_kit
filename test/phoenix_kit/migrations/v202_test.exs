@@ -169,6 +169,57 @@ defmodule PhoenixKit.Migrations.Postgres.V202Test do
              )
   end
 
+  test "a re-run does not give two libraries the same slug" do
+    # `Foo` and `Foo!` both slugify to `foo`; `Foo-2` slugifies to the
+    # disambiguator the second `foo` would otherwise take. A single ranked
+    # update wrote `foo-2` twice and the unique index aborted the migration.
+    query("""
+    INSERT INTO public.phoenix_kit_storage_libraries (name, kind, visibility)
+    VALUES ('Foo', 'system', 'site'), ('Foo!', 'system', 'site'), ('Foo-2', 'system', 'site')
+    """)
+
+    long_a = String.duplicate("a", 70)
+    long_b = String.duplicate("a", 58) <> "zzz"
+
+    query(
+      """
+      INSERT INTO public.phoenix_kit_storage_libraries (name, kind, visibility)
+      VALUES ($1, 'system', 'site'), ($2, 'system', 'site')
+      """,
+      [long_a, long_b]
+    )
+
+    run(V202.up_statements("public"))
+
+    # Which suffix lands on which row depends on uuid order. What must
+    # hold is that the update finishes and the three slugs differ: the
+    # old ranked update wrote `foo-2` twice and the unique index aborted.
+    foo_slugs =
+      query("""
+      SELECT slug FROM public.phoenix_kit_storage_libraries
+      WHERE name IN ('Foo', 'Foo!', 'Foo-2')
+      """)
+      |> Enum.map(fn [slug] -> slug end)
+
+    assert length(foo_slugs) == 3
+    assert Enum.uniq(foo_slugs) == foo_slugs
+    assert "foo" in foo_slugs
+    assert Enum.all?(foo_slugs, &String.starts_with?(&1, "foo"))
+
+    slugs =
+      query(
+        """
+        SELECT slug FROM public.phoenix_kit_storage_libraries
+        WHERE name IN ($1, $2) ORDER BY slug
+        """,
+        [long_a, long_b]
+      )
+
+    assert length(slugs) == 2
+    assert Enum.uniq(slugs) == slugs
+    assert Enum.all?(slugs, fn [slug] -> String.starts_with?(slug, String.duplicate("a", 58)) end)
+  end
+
   test "a writer that names no library lands in Media" do
     file = file!(user!())
     assert library_of("phoenix_kit_files", file) == @media

@@ -1383,6 +1383,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   end
 
   defp apply_burn_refresh(socket, file) do
+    current = socket.assigns[:burn_version]
     stamp = burn_stamp(file)
 
     cond do
@@ -1393,7 +1394,12 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
       # Already showing it. The id below is what remounts the canvas, and
       # remounting it for the same picture is a flash for nothing.
-      stamp == socket.assigns[:burn_version] ->
+      #
+      # The two writers name that picture differently: this poke prefers
+      # the drawing's fingerprint, and `burn_stored` (the editor that just
+      # closed on THIS viewer) records the bytes' checksum. Either one
+      # matching means it is the burn already on screen.
+      stamp == current or showing_burn?(current, file) ->
         socket
 
       true ->
@@ -1409,26 +1415,39 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     end
   end
 
+  defp showing_burn?(current, file) when is_binary(current) and current != "" do
+    current in burn_ids(file)
+  end
+
+  defp showing_burn?(_current, _file), do: false
+
+  defp burn_ids(file) do
+    Enum.filter([burn_fingerprint_id(file), burn_url_version(file)], &is_binary/1)
+  end
+
   # What makes one burned copy a different one, for the canvas id that
   # decides whether Fresco remounts. The fingerprint is what the drawing
   # WAS, which is the honest answer when it is recorded; the URL's own
   # version (the stored bytes' checksum) stands in when it is not, so a
   # file burned before fingerprints were kept still refreshes.
-  defp burn_stamp(file) do
+  defp burn_stamp(file), do: burn_fingerprint_id(file) || burn_url_version(file)
+
+  defp burn_fingerprint_id(file) do
     case Map.get(file, :burn_fingerprint) do
-      fp when is_binary(fp) and fp != "" ->
-        fp
+      fp when is_binary(fp) and fp != "" -> fp
+      _ -> nil
+    end
+  end
 
-      _ ->
-        # `burn_size` names the variant the viewer opens with
-        # (`burned_large`, else `burned`), so the stand-in reads that
-        # one's URL rather than assuming which slot is in play.
-        variant = Map.get(Map.get(file, :burn_size) || %{}, :variant)
+  # `burn_size` names the variant the viewer opens with (`burned_large`,
+  # else `burned`), so the stand-in reads that one's URL rather than
+  # assuming which slot is in play.
+  defp burn_url_version(file) do
+    variant = Map.get(Map.get(file, :burn_size) || %{}, :variant)
 
-        case Regex.run(~r/[?&]v=([a-f0-9]+)/, (variant && file.urls[variant]) || "") do
-          [_, v] -> v
-          _ -> nil
-        end
+    case Regex.run(~r/[?&]v=([a-f0-9]+)/, (variant && file.urls[variant]) || "") do
+      [_, v] -> v
+      _ -> nil
     end
   end
 

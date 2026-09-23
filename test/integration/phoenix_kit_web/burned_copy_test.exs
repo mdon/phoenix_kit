@@ -200,4 +200,59 @@ defmodule PhoenixKitWeb.BurnedCopyTest do
       end
     end
   end
+
+  describe "a poke while the burned copy is showing" do
+    defp viewer_socket(assigns) do
+      %Phoenix.LiveView.Socket{assigns: Map.merge(%{__changed__: %{}}, assigns)}
+    end
+
+    defp poked_file(fingerprint, version) do
+      %{
+        burn_fingerprint: fingerprint,
+        burn_size: %{variant: "burned_large", w: 20, h: 10},
+        urls: %{"burned_large" => "/file/x/burned_large/tok?v=#{version}"}
+      }
+    end
+
+    test "the burn this viewer just stored is not built again" do
+      # `burn_stored` records the checksum; the poke names the fingerprint.
+      # Treating those as different remounts the canvas for the same picture.
+      version = "0123456789abcdef"
+      socket = viewer_socket(%{burn_mode: true, burn_version: version, burn_canvas: :current})
+
+      {:ok, updated} =
+        MediaCanvasViewer.update(%{burn_refreshed: poked_file("fp-new", version)}, socket)
+
+      assert updated.assigns.burn_canvas == :current
+      assert updated.assigns.burn_version == version
+    end
+
+    test "a newer burn from someone else replaces the canvas" do
+      socket =
+        viewer_socket(%{burn_mode: true, burn_version: "old-fingerprint", burn_canvas: :current})
+
+      {:ok, updated} =
+        MediaCanvasViewer.update(
+          %{burn_refreshed: poked_file("new-fingerprint", "fedcba9876543210")},
+          socket
+        )
+
+      assert updated.assigns.burn_version == "new-fingerprint"
+      assert updated.assigns.burn_canvas != :current
+    end
+
+    test "an open editor keeps the drawing on screen" do
+      socket =
+        viewer_socket(%{burn_mode: false, burn_version: "old-fingerprint", burn_canvas: :current})
+
+      {:ok, updated} =
+        MediaCanvasViewer.update(
+          %{burn_refreshed: poked_file("new-fingerprint", "fedcba9876543210")},
+          socket
+        )
+
+      assert updated.assigns.burn_canvas == :current
+      assert updated.assigns.burn_version == "old-fingerprint"
+    end
+  end
 end

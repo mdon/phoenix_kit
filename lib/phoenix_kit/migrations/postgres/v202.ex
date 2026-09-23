@@ -138,29 +138,68 @@ defmodule PhoenixKit.Migrations.Postgres.V202 do
       # bare `/admin/media`.
       "ALTER TABLE #{p}phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS slug character varying(64)",
       # Slugs for libraries created before the column existed (an earlier
-      # build of this version): the name, lower-cased and hyphenated, with
-      # `-2`, `-3` … on a clash.
+      # build of this version). Same shape as `Library.slugify/1` for ASCII
+      # names: lower-cased, hyphenated, cut at 58. Taken one at a time so a
+      # disambiguating `-2` cannot collide with a name that already
+      # slugifies to that (`Foo` / `Foo!` / `Foo-2`), and two long names
+      # that only differ past the cut still get different slugs. One pass
+      # that ranked the full string and then truncated could write the
+      # same slug twice and abort the update.
       """
-      WITH base AS (
-        SELECT uuid, owner_uuid,
-               COALESCE(
-                 NULLIF(trim(both '-' from lower(regexp_replace(name, '[^a-zA-Z0-9]+', '-', 'g'))), ''),
-                 'library'
-               ) AS s
-        FROM #{p}phoenix_kit_storage_libraries
-        WHERE slug IS NULL AND NOT is_default
-      ),
-      ranked AS (
-        SELECT uuid, s,
-               row_number() OVER (
-                 PARTITION BY COALESCE(owner_uuid, '#{@nil_uuid}'::uuid), s ORDER BY uuid
-               ) AS rn
-        FROM base
-      )
-      UPDATE #{p}phoenix_kit_storage_libraries l
-      SET slug = left(r.s, 58) || CASE WHEN r.rn > 1 THEN '-' || r.rn ELSE '' END
-      FROM ranked r
-      WHERE l.uuid = r.uuid
+      DO $$
+      DECLARE
+        rec record;
+        base text;
+        candidate text;
+        n int;
+        owner uuid;
+      BEGIN
+        FOR rec IN
+          SELECT uuid, owner_uuid, name
+          FROM #{p}phoenix_kit_storage_libraries
+          WHERE slug IS NULL AND NOT is_default
+          ORDER BY uuid
+        LOOP
+          base := COALESCE(
+            NULLIF(
+              trim(both '-' from left(
+                trim(both '-' from lower(regexp_replace(rec.name, '[^a-zA-Z0-9]+', '-', 'g'))),
+                58
+              )),
+              ''
+            ),
+            'library'
+          );
+          owner := COALESCE(rec.owner_uuid, '#{@nil_uuid}'::uuid);
+          n := 1;
+
+          LOOP
+            IF n = 1 THEN
+              candidate := base;
+            ELSE
+              candidate := base || '-' || n::text;
+            END IF;
+
+            EXIT WHEN NOT EXISTS (
+              SELECT 1
+              FROM #{p}phoenix_kit_storage_libraries l
+              WHERE l.slug = candidate
+                AND COALESCE(l.owner_uuid, '#{@nil_uuid}'::uuid) = owner
+            );
+
+            n := n + 1;
+
+            IF n > 500 THEN
+              RAISE EXCEPTION 'could not assign a unique slug to library %', rec.uuid;
+            END IF;
+          END LOOP;
+
+          UPDATE #{p}phoenix_kit_storage_libraries
+          SET slug = candidate
+          WHERE uuid = rec.uuid;
+        END LOOP;
+      END
+      $$
       """,
       """
       CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_storage_libraries_owner_slug_index

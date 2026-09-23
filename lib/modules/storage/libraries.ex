@@ -68,7 +68,9 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   @doc """
   `list_system_libraries/0` with what each one holds: `files` (live,
   visible files — not trashed, not system-managed tiles or edit backups),
-  `bytes` (their total size) and `folders` (live folders). Two grouped
+  `bytes` (their total size), `folders` (live folders) and `holds` (any
+  file or folder at all, trash and system-managed rows included — what
+  `delete_library/1` refuses). The live counts and `holds` are separate
   queries, whatever the number of libraries.
   """
   @spec list_system_libraries_with_stats() :: [
@@ -76,7 +78,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
             library: Library.t(),
             files: non_neg_integer(),
             bytes: non_neg_integer(),
-            folders: non_neg_integer()
+            folders: non_neg_integer(),
+            holds: boolean()
           }
         ]
   def list_system_libraries_with_stats do
@@ -101,6 +104,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       |> repo().all()
       |> Map.new()
 
+    held = libraries_holding(uuids)
+
     Enum.map(libraries, fn library ->
       {count, bytes} = Map.get(files, library.uuid, {0, 0})
 
@@ -108,9 +113,35 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
         library: library,
         files: count,
         bytes: to_integer(bytes),
-        folders: Map.get(folders, library.uuid, 0)
+        folders: Map.get(folders, library.uuid, 0),
+        holds: library.uuid in held
       }
     end)
+  end
+
+  # Libraries that still have a row `delete_library/1` will refuse on.
+  # The live counts above hide trash and system-managed children, which
+  # would otherwise offer Delete on a library the database will not drop.
+  defp libraries_holding([]), do: []
+
+  defp libraries_holding(uuids) do
+    file_uuids =
+      from(f in StorageFile,
+        where: f.library_uuid in ^uuids,
+        group_by: f.library_uuid,
+        select: f.library_uuid
+      )
+      |> repo().all()
+
+    folder_uuids =
+      from(f in Folder,
+        where: f.library_uuid in ^uuids,
+        group_by: f.library_uuid,
+        select: f.library_uuid
+      )
+      |> repo().all()
+
+    Enum.uniq(file_uuids ++ folder_uuids)
   end
 
   defp to_integer(%Decimal{} = d), do: Decimal.to_integer(d)

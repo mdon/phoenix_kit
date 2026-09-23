@@ -96,4 +96,30 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.SettingsLibrariesTest do
     view |> with_target("#media-libraries") |> render_click("delete", %{"uuid" => busy.uuid})
     assert Libraries.get_library(busy.uuid)
   end
+
+  test "a library whose only folder is in the trash is not offered for deletion", %{conn: conn} do
+    {:ok, library} = Libraries.create_system_library(%{name: name()})
+
+    {:ok, folder} =
+      Storage.create_folder(%{
+        name: "gone-#{System.unique_integer([:positive])}",
+        library_uuid: library.uuid
+      })
+
+    assert {:ok, _} = Storage.trash_folder(folder)
+
+    {view, _html} = admin_view(conn)
+
+    # Live counts are zero — trash is not listed — but the row is still there,
+    # and delete_library/1 refuses it.
+    row = view |> element("#media-libraries-#{library.uuid}") |> render()
+    assert row =~ ">0<"
+
+    assert view
+           |> element("#media-libraries-#{library.uuid} button[disabled]", "Delete")
+           |> has_element?()
+
+    view |> with_target("#media-libraries") |> render_click("delete", %{"uuid" => library.uuid})
+    assert Libraries.get_library(library.uuid)
+  end
 end

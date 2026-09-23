@@ -699,8 +699,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign(:pending_batch, [])
       |> assign(:batch_scheduled, false)
       |> reload_current_page()
-      |> put_flash(flash_type, flash_msg)
+      |> parent_flash(flash_type, flash_msg)
     end
+  end
+
+  # A component's `put_flash` never reaches the page layout. The parent
+  # LiveView puts this one (`handle_parent_info/2`).
+  defp parent_flash(socket, kind, message) do
+    send(self(), {__MODULE__, socket.assigns.id, {:flash, kind, message}})
+    socket
   end
 
   # Sets the open folder's cover (background) or logo (icon) — per
@@ -1290,6 +1297,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   def handle_parent_info({__MODULE__, :register_component, id}, socket) do
     ids = MapSet.put(socket.assigns[:media_browser_ids] || MapSet.new(), id)
     {:noreply, assign(socket, :media_browser_ids, ids)}
+  end
+
+  def handle_parent_info({__MODULE__, _id, {:flash, kind, message}}, socket)
+      when kind in [:info, :error, :warning] and is_binary(message) do
+    {:noreply, put_flash(socket, kind, message)}
   end
 
   def handle_parent_info({__MODULE__, :process_pending_upload, {path, entry}}, socket) do
@@ -4353,6 +4365,34 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp build_upload_flash_message(uploaded_files) do
+    {skipped, rest} =
+      Enum.split_with(uploaded_files, &match?({:postpone, :in_other_library}, &1))
+
+    cond do
+      skipped != [] and rest == [] ->
+        {:warning, other_library_message(length(skipped))}
+
+      skipped != [] ->
+        {type, message} = upload_flash(rest)
+        {type, message <> " " <> other_library_message(length(skipped))}
+
+      true ->
+        upload_flash(rest)
+    end
+  end
+
+  # Dedup is still per uploader across every library, and a second library
+  # refuses a file it does not hold. That refusal is not a missing bucket —
+  # saying so sent people to Settings to fix storage that was fine.
+  defp other_library_message(count) do
+    ngettext(
+      "%{count} file is already in another library, so it was not added here.",
+      "%{count} files are already in another library, so they were not added here.",
+      count
+    )
+  end
+
+  defp upload_flash(uploaded_files) do
     error_count = Enum.count(uploaded_files, &match?({:postpone, _}, &1))
     successful_uploads = Enum.reject(uploaded_files, &match?({:postpone, _}, &1))
 
