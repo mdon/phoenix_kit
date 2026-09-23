@@ -88,6 +88,31 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
   end
 
   @impl true
+  def signed_download_url(bucket, file_path, opts) do
+    case resolve_credentials(bucket) do
+      {key, secret} when is_binary(key) and key != "" and is_binary(secret) and secret != "" ->
+        query_params =
+          [
+            {"response-content-disposition", Keyword.get(opts, :disposition)},
+            {"response-content-type", Keyword.get(opts, :content_type)}
+          ]
+          |> Enum.reject(fn {_name, value} -> value in [nil, ""] end)
+
+        :s3
+        |> ExAws.Config.new(aws_config(bucket))
+        |> ExAws.S3.presigned_url(:get, bucket.bucket_name, file_path,
+          expires_in: Keyword.get(opts, :expires_in, 3600),
+          query_params: query_params
+        )
+
+      _ ->
+        {:error, :no_credentials}
+    end
+  rescue
+    error -> {:error, "Error signing S3 download URL: #{Exception.message(error)}"}
+  end
+
+  @impl true
   def test_connection(bucket) do
     case ExAws.S3.list_objects(bucket.bucket_name, max_keys: 1)
          |> ExAws.request(aws_config(bucket)) do

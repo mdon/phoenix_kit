@@ -1,3 +1,61 @@
+## Unreleased
+
+### Added
+
+- **Shared toolkits for modules (#860).** `PhoenixKit.Activity.log/3` (a
+  module key, an action and options; it never raises) and
+  `PhoenixKitWeb.Actor` (who is acting: the scope first, then the current
+  user). `PhoenixKitWeb.Components.TreePicker` with `Utils.Tree` and
+  `Utils.TreeQuery`. Per-record media folders (`Storage.ResourceFolders`,
+  and the reorganizer's `ResourceSource`). The upload toolkit
+  `PhoenixKitWeb.Attachments`. Per-user table columns (`Users.ViewPrefs`,
+  `PhoenixKitWeb.TableColumns`). Modules that call `Activity.log/3` or
+  `Actor` must feature-detect them while they keep the open `~> 2.0` core
+  pin.
+- **Migration V201:** `phoenix_kit_user_view_prefs`, one row per user and
+  view.
+- Edit forms can open on the language the page is being viewed in
+  (`open_on: :viewing_language`).
+
+### Changed
+
+- **The column settings on the Users and website-access tables are saved
+  per user (#860).** The old site-wide `user_table_columns` /
+  `website_access_attempt_columns` values become the starting default for
+  everyone. No screen edits them any more; delete those two settings rows
+  to go back to the built-in columns. Modules that kept per-user columns in
+  `custom_fields` move their own data when they adopt `TableColumns`.
+- **A stored file is shown in place only if it is an image, video, audio,
+  PDF or plain text (#860).** Everything else downloads, and every response
+  carries `nosniff`. On a public bucket such a download is a one-hour
+  signed bucket URL that makes the bucket answer `attachment` (#860
+  review). The bytes still come from the bucket, not the app, but these
+  downloads skip `cdn_url`. Media is unchanged.
+
+### Fixed
+
+- **Folder moves, trash and uploads (#860):**
+  - Two concurrent moves can no longer commit a folder cycle, and a move
+    can no longer deadlock with the reorganizer.
+  - Trashing a folder is consistent with a concurrent move.
+  - A re-uploaded trashed file no longer returns to the folder it was
+    removed from.
+- **Removing a file from a folder no longer crashes when a linked folder
+  is trashed at the same moment (#860 review),** and the "file trashed"
+  event now fires after the change commits.
+- **`ResourceFolders.purge_named/1` refuses a folder name with no uuid in
+  it (#860 review),** instead of deleting every folder with that name.
+- **A file name with a quote, a line break or non-ASCII characters no
+  longer breaks the download header (#860 review).** A line break used to
+  cause a 500.
+
+### Migration notes
+
+- A database that ran an early build of the #860 branch, when its
+  migration was numbered V200, reads as version 200 without the
+  capture-date columns. Set its marker back with
+  `COMMENT ON TABLE phoenix_kit IS '199'` and let V200 and V201 run.
+
 ## 2.37.5 - 2026-09-23
 
 ### Fixed

@@ -108,4 +108,32 @@ defmodule PhoenixKit.Modules.Storage.Provider do
   """
   @callback test_connection(bucket :: PhoenixKit.Modules.Storage.Bucket.t()) ::
               :ok | {:error, term()}
+
+  @doc """
+  A short-lived URL that downloads `file_path` straight from the bucket,
+  answered with the response headers given in `opts` instead of the
+  object's stored ones — so a file the app would never show in place (an
+  uploaded HTML page, an SVG) downloads from the bucket rather than
+  rendering on the bucket's origin.
+
+  ## Options
+
+  - `:disposition` - the `Content-Disposition` the bucket must answer with
+  - `:content_type` - the `Content-Type` the bucket must answer with
+  - `:expires_in` - seconds the URL stays valid
+
+  ## Returns
+
+  - `{:ok, url}` - a signed URL
+  - `{:error, reason}` - no URL could be signed; the caller proxies instead
+
+  Optional: a provider without it is proxied for such files.
+  """
+  @callback signed_download_url(
+              bucket :: PhoenixKit.Modules.Storage.Bucket.t(),
+              file_path :: String.t(),
+              opts :: keyword()
+            ) :: {:ok, String.t()} | {:error, term()}
+
+  @optional_callbacks signed_download_url: 3
 end

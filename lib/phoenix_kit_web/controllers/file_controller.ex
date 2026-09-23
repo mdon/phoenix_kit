@@ -89,7 +89,7 @@ defmodule PhoenixKitWeb.FileController do
   defp serve_variant(conn, file, variant, requested_version) do
     with {:ok, instance, freshness} <- get_file_instance(file.uuid, variant),
          :ok <- check_version(instance, freshness, requested_version),
-         result <- get_file_access(instance) do
+         result <- get_file_access(file, instance) do
       cache = cache_mode(file, freshness, requested_version)
 
       case result do
@@ -106,7 +106,8 @@ defmodule PhoenixKitWeb.FileController do
           # Only for a type this app serves inline anyway. The bucket answers
           # with its own headers, so anything else — an uploaded HTML page,
           # an SVG, a script — would render on the bucket's origin instead of
-          # downloading; those go through the app, which says `attachment`.
+          # downloading. Those are asked for with `:download` and come back as
+          # `:signed_redirect` (or `:proxy`), so this is only a backstop.
           if disposition_for(instance.mime_type) == "inline" do
             conn
             |> put_redirect_cache_headers(cache)
@@ -114,6 +115,15 @@ defmodule PhoenixKitWeb.FileController do
           else
             proxy_remote_file(conn, file, instance, instance.file_name, cache)
           end
+
+        {:signed_redirect, url} ->
+          # A signed URL that makes the bucket answer `attachment`: the bytes
+          # come straight from the bucket, not through the app. It expires,
+          # so the redirect itself is never cached — a cached 302 would
+          # outlive its signature.
+          conn
+          |> put_resp_header("cache-control", "private, no-store")
+          |> redirect(external: url)
 
         {:proxy, file_name} ->
           proxy_remote_file(conn, file, instance, file_name, cache)
@@ -1036,16 +1046,31 @@ defmodule PhoenixKitWeb.FileController do
 
   # Get file access info with retry logic for bucket cache race conditions
   # Returns {:local, path} | {:redirect, url} | {:proxy, file_name} | {:error, reason}
-  defp get_file_access(instance) do
-    get_file_access_with_retry(instance, 5)
+  # A file this app would never show in place asks the bucket for the same
+  # headers the app itself would send, so a public bucket cannot render it.
+  defp get_file_access(file, instance) do
+    opts =
+      if disposition_for(instance.mime_type) == "inline",
+        do: [],
+        else: [
+          download: [
+            disposition: content_disposition(file, instance),
+            content_type: content_type(instance)
+          ]
+        ]
+
+    get_file_access_with_retry(instance, opts, 5)
   end
 
-  defp get_file_access_with_retry(instance, retries) do
-    case Manager.get_file_access(instance.file_name) do
+  defp get_file_access_with_retry(instance, opts, retries) do
+    case Manager.get_file_access(instance.file_name, opts) do
       {:local, _} = result ->
         result
 
       {:redirect, _} = result ->
+        result
+
+      {:signed_redirect, _} = result ->
         result
 
       {:proxy, _} = result ->
@@ -1058,7 +1083,7 @@ defmodule PhoenixKitWeb.FileController do
         )
 
         Process.sleep(100)
-        get_file_access_with_retry(instance, retries - 1)
+        get_file_access_with_retry(instance, opts, retries - 1)
 
       error ->
         error
@@ -1116,11 +1141,34 @@ defmodule PhoenixKitWeb.FileController do
   defp put_content_headers(conn, file, instance) do
     conn
     |> put_resp_header("x-content-type-options", "nosniff")
-    |> put_resp_header(
-      "content-disposition",
-      ~s(#{disposition_for(instance.mime_type)}; filename="#{file.original_file_name}")
-    )
+    |> put_resp_header("content-disposition", content_disposition(file, instance))
     |> put_resp_content_type(instance.mime_type)
+  end
+
+  defp content_type(%{mime_type: type}) when is_binary(type) and type != "", do: type
+  defp content_type(_instance), do: "application/octet-stream"
+
+  @doc false
+  # The `Content-Disposition` a file is answered with — by the app, or by a
+  # bucket through a signed URL. The name is the uploader's, so it is never
+  # spliced in raw: a `"` would end the parameter early, a CR/LF makes Plug
+  # raise, and a non-ASCII byte is not valid in a header. The quoted
+  # `filename` is an ASCII stand-in; `filename*` (RFC 6266 / 5987) carries
+  # the real name, which every current browser prefers.
+  def content_disposition(file, instance) do
+    name =
+      case file.original_file_name do
+        name when is_binary(name) and name != "" -> name
+        _ -> Path.basename(to_string(instance.file_name))
+      end
+
+    fallback =
+      name
+      |> String.replace(~r/[^\x20-\x7E]|["\\]/u, "_")
+
+    encoded = URI.encode(name, &URI.char_unreserved?/1)
+
+    ~s(#{disposition_for(instance.mime_type)}; filename="#{fallback}"; filename*=UTF-8''#{encoded})
   end
 
   @doc false

@@ -358,43 +358,67 @@ defmodule PhoenixKit.Modules.Storage.Manager do
 
   - `{:local, path}` - File is local, serve directly from filesystem
   - `{:redirect, url}` - Redirect to public URL (for public buckets)
+  - `{:signed_redirect, url}` - Redirect to a short-lived signed URL (a
+    public bucket, with `:download` given)
   - `{:proxy, file_name}` - Download and proxy through server (for private buckets)
   - `{:error, :not_found}` - File not found in any bucket
+
+  ## Options
+
+  - `:download` - response headers (`:disposition`, `:content_type`) for a
+    file that must download rather than render. A public bucket's plain
+    object URL answers with the object's stored headers, so for such a file
+    a public bucket hands out a signed URL that overrides them
+    (`c:PhoenixKit.Modules.Storage.Provider.signed_download_url/3`), or is
+    proxied when its provider cannot sign one.
   """
-  def get_file_access(file_name) do
+  def get_file_access(file_name, opts \\ []) do
     case get_local_file_path(file_name) do
       {:ok, path} ->
         {:local, path}
 
       {:error, :not_local} ->
-        get_remote_file_access(file_name)
+        get_remote_file_access(file_name, Keyword.get(opts, :download))
     end
   end
 
-  defp get_remote_file_access(file_name) do
+  defp get_remote_file_access(file_name, download) do
     buckets = get_enabled_buckets() |> Enum.sort_by(& &1.priority)
 
     Enum.find_value(buckets, {:error, :not_found}, fn bucket ->
-      check_bucket_for_file(bucket, file_name)
+      check_bucket_for_file(bucket, file_name, download)
     end)
   end
 
-  defp check_bucket_for_file(%{provider: "local"}, _file_name), do: nil
+  defp check_bucket_for_file(%{provider: "local"}, _file_name, _download), do: nil
 
-  defp check_bucket_for_file(bucket, file_name) do
+  defp check_bucket_for_file(bucket, file_name, download) do
     provider = get_provider_for_bucket(bucket)
 
     if provider.file_exists?(bucket, file_name) do
-      get_bucket_access_type(bucket, file_name, provider)
+      bucket_access(bucket, file_name, provider, download)
     end
   end
 
-  defp get_bucket_access_type(%{access_type: "private"}, file_name, _provider) do
+  @doc false
+  # How a remote bucket that holds `file_name` serves it. Public and
+  # `@doc false` only so the decision is testable without a live bucket.
+  def bucket_access(%{access_type: "private"}, file_name, _provider, _download) do
     {:proxy, file_name}
   end
 
-  defp get_bucket_access_type(bucket, file_name, provider) do
-    # "public" or nil (default)
+  # "public" or nil (default), for a file that must download.
+  def bucket_access(bucket, file_name, provider, download) when is_list(download) do
+    with true <- Code.ensure_loaded?(provider),
+         true <- function_exported?(provider, :signed_download_url, 3),
+         {:ok, url} <- provider.signed_download_url(bucket, file_name, download) do
+      {:signed_redirect, url}
+    else
+      _ -> {:proxy, file_name}
+    end
+  end
+
+  def bucket_access(bucket, file_name, provider, nil) do
     case provider.public_url(bucket, file_name) do
       nil -> nil
       url -> {:redirect, url}

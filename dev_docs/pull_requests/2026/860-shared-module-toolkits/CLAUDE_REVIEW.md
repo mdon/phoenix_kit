@@ -85,23 +85,48 @@ with that name, along with its files.
 nothing is deleted. The existing test now uses a name with a uuid in it,
 and a new test covers the refusal.
 
-### IMPROVEMENT - MEDIUM — not fixed: public buckets now proxy every non-inline type through the app
+### IMPROVEMENT - MEDIUM — public buckets proxied every non-inline type through the app (fixed after merge)
 
-`FileController` used to redirect every public-bucket request. It now
-redirects only the inline types. Everything else goes through
+`FileController` used to redirect every public-bucket request. The PR
+redirected only the inline types. Everything else went through
 `proxy_remote_file/5`: zip, docx and csv as well as HTML and SVG. The file
-is downloaded to a temp file and then sent, on every request, with no
-range support and no CDN. The security reason covers the types that
-render: an HTML or SVG upload would otherwise render on the bucket's
-origin. Plain binary downloads gain nothing from the proxy and cost
-bandwidth and disk.
+was downloaded to a temp file and then sent, on every request, with no
+range support and no CDN. The security reason was right: an HTML or SVG
+upload redirected to the bucket's own URL renders on the bucket's origin.
+But the cost landed on every download.
 
-**Not changed:** it is a trade-off for the maintainer. The alternatives
-are to narrow the proxy to the render-capable types (a denylist, weaker
-than today's allowlist), or to redirect to a presigned URL with
-`response-content-disposition=attachment` where the adapter supports it.
-Hosts that serve large downloads from a public bucket should be told in
-the release CHANGELOG.
+**Fix (discussed with the maintainer):**
+
+- A file that must download is redirected to a **short-lived signed URL**
+  (1 hour). The signature makes the bucket answer with the app's own
+  headers: `response-content-disposition=attachment…` and
+  `response-content-type`, whatever the object has stored. So the bytes
+  come straight from the bucket again, as before the PR, and HTML or SVG
+  still download instead of rendering.
+- The provider callback is `Provider.signed_download_url/3` (optional); S3
+  and every S3-compatible provider implement it through
+  `ExAws.S3.presigned_url/5`.
+- `Manager.get_file_access/2` takes a `:download` option and returns
+  `{:signed_redirect, url}`. The decision is `Manager.bucket_access/4`,
+  tested without a live bucket. The proxy stays only as a fallback, for a
+  provider that cannot sign or a bucket with no usable credentials.
+- The signed 302 is sent `private, no-store`, because a cached redirect
+  would outlive its signature.
+- `Content-Disposition` is now built by one function for the app and the
+  bucket alike (`FileController.content_disposition/2`). It has an ASCII
+  `filename` stand-in plus RFC 6266 `filename*`, so the uploader's name can
+  no longer break the header with a `"`, CR/LF (Plug raised → 500) or raw
+  non-ASCII bytes.
+
+Trade-offs, on record:
+
+- A signed download URL goes to the bucket's S3 endpoint, not `cdn_url`,
+  so non-inline downloads skip the CDN. Media, which is inline, still
+  redirects to the CDN.
+- A signed URL is valid for an hour to anyone holding it. The app URL
+  behind it is already a permanent capability URL, so this adds no access.
+- The bucket must accept signed requests with the bucket's stored keys.
+  They are the keys uploads already use.
 
 ### IMPROVEMENT - MEDIUM — docs told modules to call new APIs unguarded
 
@@ -150,7 +175,9 @@ change is the Spanish fix above.
 - A database that ran an earlier build of this branch while its migration
   was still numbered V200 has to reset its version marker to 199 (see the
   PR description).
-- The public-bucket proxying change described above.
+- Non-media downloads from a public bucket now go through a one-hour signed
+  bucket URL instead of the plain object URL (no CDN for those; media is
+  unchanged).
 
 ## Not checked here (noted, predates this PR)
 

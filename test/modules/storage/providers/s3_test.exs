@@ -85,4 +85,52 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3ResolveCredentialsTest do
       assert S3.resolve_credentials(bucket) == {nil, nil}
     end
   end
+
+  describe "signed_download_url/3" do
+    @opts [disposition: ~s(attachment; filename="a b.html"), content_type: "text/html"]
+
+    test "signs a path-style URL on a custom endpoint that overrides the response headers" do
+      bucket = %Bucket{
+        name: "r2",
+        bucket_name: "media",
+        region: "auto",
+        endpoint: "acct.r2.cloudflarestorage.com",
+        access_key_id: "AKIAEXAMPLE",
+        secret_access_key: "raw-plaintext"
+      }
+
+      assert {:ok, url} = S3.signed_download_url(bucket, "ab/cd/abcd_original.html", @opts)
+
+      uri = URI.parse(url)
+      query = URI.decode_query(uri.query)
+
+      assert uri.scheme == "https"
+      assert uri.host == "acct.r2.cloudflarestorage.com"
+      assert uri.path == "/media/ab/cd/abcd_original.html"
+      assert query["response-content-disposition"] == ~s(attachment; filename="a b.html")
+      assert query["response-content-type"] == "text/html"
+      assert query["X-Amz-Expires"] == "3600"
+      assert query["X-Amz-Signature"] =~ ~r/^[0-9a-f]{64}$/
+    end
+
+    test "an AWS bucket signs against its regional host" do
+      bucket = %Bucket{
+        name: "aws",
+        bucket_name: "media",
+        region: "eu-central-1",
+        access_key_id: "AKIAEXAMPLE",
+        secret_access_key: "raw-plaintext"
+      }
+
+      assert {:ok, url} = S3.signed_download_url(bucket, "k.zip", expires_in: 60)
+      assert URI.parse(url).host =~ "eu-central-1"
+      assert URI.decode_query(URI.parse(url).query)["X-Amz-Expires"] == "60"
+    end
+
+    test "without usable credentials there is no URL, so the caller proxies" do
+      bucket = %Bucket{name: "b", bucket_name: "media", access_key_id: "AKIAEXAMPLE"}
+
+      assert S3.signed_download_url(bucket, "k.zip", @opts) == {:error, :no_credentials}
+    end
+  end
 end
