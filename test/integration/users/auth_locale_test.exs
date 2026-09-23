@@ -99,6 +99,20 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
     end
   end
 
+  describe "redirect_to_base_locale/2 — Plug.forward mount" do
+    test "stays inside a Plug.forward mount when redirecting" do
+      conn =
+        build_invalid_locale_conn("/tenant/phoenix_kit/en-US/admin/users")
+        |> Map.put(:script_name, ["tenant"])
+        |> Map.put(:path_info, ["phoenix_kit", "en-US", "admin", "users"])
+
+      conn = Auth.redirect_to_base_locale(conn, "en-US")
+
+      assert conn.halted
+      assert redirected_to(conn) == "/tenant/phoenix_kit/en/admin/users"
+    end
+  end
+
   describe "redirect_invalid_locale/2 with setting ON" do
     setup do
       Languages.set_default_language_no_prefix(true)
@@ -517,6 +531,41 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
         conn = locale_conn("/en/shop", "en")
 
         conn = Auth.redirect_invalid_locale(conn, "en")
+
+        refute conn.halted
+        assert conn.assigns.current_locale_base == "en"
+      end)
+    end
+
+    # Pre-existing landmine, not introduced by the #849 fix: `rest` (every
+    # path segment AFTER the locale, spliced RAW into the redirect target
+    # by design, to preserve whatever encoding the client sent there) was
+    # never validated at all. A perfectly ordinary invalid locale ("zz")
+    # with a hostile LATER segment reproduces the same literal "/%09"
+    # substring `Phoenix.Controller.redirect/2` refuses — nothing about
+    # `replacement_segments`/`safe_path_segment?/1` touches this, since
+    # `rest` never passes through that guard. Only the final-joined-path
+    # check (`unsafe_redirect_target?/1`) catches it.
+    test "a hostile segment in `rest` does not raise even with an ordinary invalid locale" do
+      with_url_prefix("/", fn ->
+        conn = locale_conn("/zz/%09evil/shop", "zz")
+
+        conn = Auth.redirect_invalid_locale(conn, "zz")
+
+        refute conn.halted
+        assert conn.assigns.current_locale_base == "en"
+      end)
+    end
+
+    test "redirect_to_base_locale/2 also declines rather than crashes on a hostile `rest` segment" do
+      with_url_prefix("/", fn ->
+        # "en-US" is itself a perfectly fine, enabled dialect (base "en") —
+        # `replacement_segments` is `["en"]`, which sails through
+        # `safe_path_segment?/1` untouched. The hostile content sits
+        # entirely in `rest`, same as the test above.
+        conn = locale_conn("/en-US/%09evil/shop", "en-US")
+
+        conn = Auth.redirect_to_base_locale(conn, "en-US")
 
         refute conn.halted
         assert conn.assigns.current_locale_base == "en"

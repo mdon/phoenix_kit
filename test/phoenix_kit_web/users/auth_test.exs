@@ -819,5 +819,114 @@ defmodule PhoenixKitWeb.Users.AuthTest do
       refute conn.halted
       assert conn.assigns.current_locale_base == "en"
     end
+
+    # The MAJOR-1 regression (#849 follow-up): a decoded locale segment that
+    # only SPELLS a percent-encoded control character as literal text — e.g.
+    # the raw path segment "%2509-x" decodes ONCE (Phoenix router matching)
+    # to "%09-x" (five printable ASCII characters: %, 0, 9, -, x — not an
+    # actual tab byte). `extract_base/1` then yields "%09", which the OLD
+    # blocklist-based `safe_path_segment?/1` waved through (no "/", no "\",
+    # no control byte) — it had no opinion about "%" at all. Spliced into
+    # the joined path next to a "/" separator, that reproduces the literal
+    # substring "/%09" that `Phoenix.Controller.redirect/2`'s own local-path
+    # validation refuses, raising `ArgumentError` on an anonymous GET.
+
+    test "%2509 as base_code (decodes to literal '%09-x', not a control byte) does not raise at root url_prefix" do
+      with_url_prefix("/", fn ->
+        conn =
+          "/%2509-x/shop"
+          |> hostile_conn()
+          |> Auth.redirect_to_base_locale("%09-x")
+
+        refute conn.halted
+        assert conn.assigns.current_locale_base == "en"
+      end)
+    end
+
+    test "%2509 as base_code does not raise under a named url_prefix either" do
+      conn =
+        "/phoenix_kit/%2509-x/shop"
+        |> hostile_conn()
+        |> Auth.redirect_to_base_locale("%09-x")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    test "%250A as base_code (decodes to literal '%0A-x') does not raise" do
+      conn =
+        "/phoenix_kit/%250A-x/shop"
+        |> hostile_conn()
+        |> Auth.redirect_to_base_locale("%0A-x")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    test "%250D as base_code (decodes to literal '%0D-x') does not raise" do
+      conn =
+        "/phoenix_kit/%250D-x/shop"
+        |> hostile_conn()
+        |> Auth.redirect_to_base_locale("%0D-x")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    # The allowlist rewrite of `safe_path_segment?/1` rejects anything
+    # outside `[a-zA-Z0-9_-]`, not just the specific characters the old
+    # blocklist happened to name. One representative case per category the
+    # review called out, each crafted via `extract_base/1` the same way as
+    # the tests above.
+
+    test "a base_code containing '?' does not raise" do
+      conn =
+        "/phoenix_kit/a%3Fb-x/shop"
+        |> hostile_conn()
+        |> Auth.redirect_to_base_locale("a?b-x")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    test "a base_code containing '#' does not raise" do
+      conn =
+        "/phoenix_kit/a%23b-x/shop"
+        |> hostile_conn()
+        |> Auth.redirect_to_base_locale("a#b-x")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    test "a base_code containing a space does not raise" do
+      conn =
+        "/phoenix_kit/a%20b-x/shop"
+        |> hostile_conn()
+        |> Auth.redirect_to_base_locale("a b-x")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    test "a base_code containing raw non-ASCII UTF-8 does not raise" do
+      conn =
+        "/phoenix_kit/caf%C3%A9-x/shop"
+        |> hostile_conn()
+        |> Auth.redirect_to_base_locale("café-x")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    test "a base_code that is '..' does not raise" do
+      conn =
+        "/phoenix_kit/..-x/shop"
+        |> hostile_conn()
+        |> Auth.redirect_to_base_locale("..-x")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
   end
 end
