@@ -32,6 +32,10 @@
 
 ### Changed
 
+- **fresco 0.13 (#866)**, with etcher 0.17.1 and tessera 0.3.8. On a mouse
+  or in Firefox, the scroll wheel now zooms and pans the image viewer at the
+  intended speed. On 0.12 it barely moved.
+
 - **The column settings on the Users and website-access tables are saved
   per user (#860).** The old site-wide `user_table_columns` /
   `website_access_attempt_columns` values become the starting default for
@@ -47,6 +51,17 @@
 
 ### Fixed
 
+- **The media page no longer takes seconds to load, or to open a folder,
+  on sites with many catalogue items (#864).** The orphan count checked
+  every file against every catalogue row with a JSON containment test.
+  It now expands `media_order` and matches by equality: 8 s → 0.15 s on a
+  live shop. While a folder click waits, the sidebar icon shows a spinner.
+- **Rubbing out the last shape on an annotated image now updates its
+  burned copy (#865).** Before, the burned copy kept the markup that had
+  been erased. Closing the editor no longer burns and uploads the same
+  drawing twice. A viewer open on the same picture elsewhere now switches
+  to a new burned copy when one is stored, but not while its own editor
+  is open.
 - **Folder moves, trash and uploads (#860):**
   - Two concurrent moves can no longer commit a folder cycle, and a move
     can no longer deadlock with the reorganizer.

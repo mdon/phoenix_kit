@@ -541,16 +541,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  # A background job finished for `file_uuid` — fresh dimensions, variants,
-  # status, or a rebaked annotated thumbnail just landed. If the file is on
-  # the current page or open in the modal viewer, swap in a freshly-enriched
-  # map so thumbnails and the correctly-proportioned canvas appear without a
-  # manual reload. (The viewer's canvas-viewer LC id encodes dims + variant
-  # count, so the swap remounts it with the real canvas instead of the
-  # 1000x1000 placeholder.) `viewer: false` limits the swap to the grid row —
-  # used for thumbnail-only updates, where remounting an open viewer would
-  # kick the annotator out mid-edit. Files not in view are skipped — their
-  # next load reads fresh rows anyway.
   # Hand the open viewer the file as it is NOW, when it is the file that
   # changed. Re-read rather than reusing the grid's copy: the grid may not
   # be rendering this row at all (a viewer opened from a search, a deep
@@ -568,6 +558,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  # A background job finished for `file_uuid` — fresh dimensions, variants,
+  # status, or a rebaked annotated thumbnail just landed. If the file is on
+  # the current page or open in the modal viewer, swap in a freshly-enriched
+  # map so thumbnails and the correctly-proportioned canvas appear without a
+  # manual reload. (The viewer's canvas-viewer LC id encodes dims + variant
+  # count, so the swap remounts it with the real canvas instead of the
+  # 1000x1000 placeholder.) `viewer: false` limits the swap to the grid row —
+  # used for thumbnail-only updates, where remounting an open viewer would
+  # kick the annotator out mid-edit. Files not in view are skipped — their
+  # next load reads fresh rows anyway.
   defp refresh_processed_file(socket, file_uuid, opts \\ []) do
     viewer = socket.assigns[:viewer_file]
 
