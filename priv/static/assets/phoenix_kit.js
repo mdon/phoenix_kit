@@ -4041,6 +4041,7 @@ if (typeof window.Chart === "undefined") {
       this._burned = this.el.dataset.burnFingerprint || null;
       this._running = false;
       this._pending = null;
+      this._inFlight = null;
 
       this._allowCopy();
 
@@ -4246,11 +4247,21 @@ if (typeof window.Chart === "undefined") {
       // shown "Could not update the burned image" for merely closing it.
       if (this.el.dataset.canAnnotate !== "true") return;
       var now = this._signature();
-      // Etcher has not hydrated yet: nothing to compare, and nothing worth
-      // rendering from a drawing that is not on screen.
-      if (!now) return;
+      // `null` is "Etcher has not hydrated yet": nothing to compare, and
+      // nothing worth rendering from a drawing that is not on screen.
+      //
+      // An EMPTY board is `""`, which is a different answer to a different
+      // question — and a falsy one, so testing truthiness here swallowed
+      // it. That is what made rubbing out the last shape the one edit a
+      // burn never noticed: the copy on file kept the markup, the card
+      // kept showing it, and the fix was to draw something else. The rule
+      // below is the one that decides what an empty board means; it could
+      // not be reached from here.
+      if (now == null) return;
 
       // Nothing drawn and nothing burned — a picture opened and closed.
+      // A picture whose last shape was just rubbed out has a burn on file
+      // and does not match this, so it goes on to render the clean one.
       if (now === "" && !this._burned) return;
 
       var fingerprint = burnHash(now);
@@ -4258,6 +4269,13 @@ if (typeof window.Chart === "undefined") {
       // would cost a full-resolution compose and an upload to produce the
       // same bytes.
       if (fingerprint === this._burned) return;
+      // …and so was the one on the wire. Turning Etcher off ends the
+      // session once, but the canvas swap that follows tears the layer
+      // down, and a teardown turns the mode off again — a second
+      // session-end for the same drawing, arriving before the first
+      // upload has answered and while `_burned` still names the old copy.
+      // It composed and uploaded the whole picture a second time.
+      if (fingerprint === this._inFlight) return;
 
       var plan = burnCapturePlan(this._host());
       if (!plan) return;
@@ -4283,6 +4301,7 @@ if (typeof window.Chart === "undefined") {
       var self = this;
       this._running = true;
       this._pending = null;
+      this._inFlight = pending.fingerprint;
       burnNote("Updating the burned image…");
 
       burnRender(pending.plan)
@@ -4321,6 +4340,7 @@ if (typeof window.Chart === "undefined") {
         })
         .then(function() {
           self._running = false;
+          self._inFlight = null;
           var next = self._pending;
           self._pending = null;
           if (next) self._start(next);

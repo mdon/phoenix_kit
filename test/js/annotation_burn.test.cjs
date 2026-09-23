@@ -205,3 +205,119 @@ test("burnCapturePlan sizes the canvas with burnInkBounds over shapes and their 
   assert.match(plan, /burnInkBounds\(\s*svg\.querySelectorAll\("\.etcher-shape, \.etcher-shape \*"\)/);
   assert.doesNotMatch(plan, /svg\.querySelectorAll\("\.etcher-shape"\)\.forEach/);
 });
+
+// ── what counts as a change ───────────────────────────────────────────────
+//
+// Reported from the field: draw on a clean picture and it burns; come
+// back, rub the shape out, leave, and nothing is burned at all — the copy
+// on file keeps the markup and the card keeps showing it. An empty board
+// signs as `""`, which is falsy, and the guard for "Etcher has not
+// hydrated yet" tested truthiness — so the one edit that empties a board
+// was read as the layer not being there, and the rule that decides what
+// an empty board means could never be reached.
+
+function lift(head, tail) {
+  const start = src.indexOf(head);
+  assert.ok(start !== -1, `could not find ${head}`);
+  const end = src.indexOf(tail, start);
+  assert.ok(end > start, `could not find the end of ${head}`);
+  return src.slice(start, end + tail.length);
+}
+
+// The method under test, with the two module-scope helpers it reaches for:
+// the real hash (so an empty board's fingerprint is the real one) and a
+// stub plan, because there is no picture here to compose.
+function burnHook(state) {
+  const planned = { taken: 0 };
+  // eslint-disable-next-line no-unused-vars
+  const burnCapturePlan = () => { planned.taken += 1; return { stub: true }; };
+  // eslint-disable-next-line no-unused-vars
+  const burnHashSrc = lift("  function burnHash(str) {", "\n  }");
+  eval(burnHashSrc);
+
+  const body = lift("    burnIfChanged() {", "\n    },");
+  // `burnIfChanged() { … },` → `function () { … }`
+  const fn = eval("(function " + body.slice("    burnIfChanged".length, -1) + ")");
+
+  const started = [];
+  const hook = Object.assign({
+    _uuid: "file-1",
+    _burned: null,
+    _running: false,
+    _pending: null,
+    // `canAnnotate` because a viewer that cannot draw never burns (//848);
+    // these cases are all about a viewer that can.
+    el: { dataset: { sourceVersion: "v1", canAnnotate: "true" } },
+    _host() { return { stub: "canvas" }; },
+    _signature() { return state.signature; },
+    _start(pending) { started.push(pending); },
+    burnIfChanged: fn
+  }, state.hook || {});
+
+  hook.burnIfChanged();
+  return { started, planned };
+}
+
+test("rubbing out the last shape is a change, and burns a clean copy", () => {
+  const { started } = burnHook({ signature: "", hook: { _burned: "a1b2c3" } });
+
+  assert.strictEqual(started.length, 1,
+    "an empty board with a burn on file must render the clean picture");
+  assert.match(started[0].fingerprint, /^[0-9a-f]+$/,
+    "and the empty board gets a real fingerprint of its own, so the next " +
+    "visit knows the stored copy is already clean");
+  assert.notStrictEqual(started[0].fingerprint, "a1b2c3");
+});
+
+test("a picture with no markup, opened and closed, burns nothing", () => {
+  const { started, planned } = burnHook({ signature: "", hook: { _burned: null } });
+
+  assert.strictEqual(started.length, 0);
+  assert.strictEqual(planned.taken, 0, "and it does not even compose one");
+});
+
+test("a board that has not hydrated yet is not an empty board", () => {
+  // `null` from `_signature` means the layer is not there to ask. Burning
+  // on it would render a picture whose shapes have not loaded.
+  assert.strictEqual(burnHook({ signature: null, hook: { _burned: "a1" } }).started.length, 0);
+});
+
+test("a drawing that matches the copy on file is left alone", () => {
+  const sig = "[\"u1\",\"rect\"]";
+  const { started } = burnHook({ signature: sig, hook: { _burned: null } });
+  const fingerprint = started[0].fingerprint;
+
+  assert.strictEqual(
+    burnHook({ signature: sig, hook: { _burned: fingerprint } }).started.length, 0,
+    "same drawing, same fingerprint, nothing to do");
+  assert.strictEqual(
+    burnHook({ signature: sig + "more", hook: { _burned: fingerprint } }).started.length, 1,
+    "…and a drawing that differs by anything at all is burned");
+});
+
+test("the same drawing is not burned twice over one session end", () => {
+  // Turning Etcher off ends the session once, but the canvas swap that
+  // follows tears the layer down, and a teardown turns the mode off
+  // again. That second end arrives before the upload has answered, while
+  // `_burned` still names the old copy — and it composed and uploaded the
+  // whole picture a second time.
+  const sig = "[\"u1\",\"rect\"]";
+  const first = burnHook({ signature: sig, hook: { _burned: null } });
+  assert.strictEqual(first.started.length, 1);
+
+  const again = burnHook({
+    signature: sig,
+    hook: { _burned: null, _running: true, _inFlight: first.started[0].fingerprint }
+  });
+  assert.strictEqual(again.started.length, 0, "the one on the wire counts as done");
+  assert.strictEqual(again.planned.taken, 0, "and nothing is composed for it");
+
+  // A drawing that changed WHILE a burn was uploading is still queued —
+  // that is what the queue is for.
+  const changed = burnHook({
+    signature: sig + "more",
+    hook: { _burned: null, _running: true, _inFlight: first.started[0].fingerprint,
+            _start(p) { this.queued = p; } }
+  });
+  assert.strictEqual(changed.planned.taken, 1, "it takes the plan while the overlay is there");
+});

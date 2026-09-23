@@ -344,12 +344,21 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         notify_image_editor(socket, assigns.file_processed)
         {:ok, refresh_processed_file(socket, assigns.file_processed)}
 
-      # Annotated thumbnail (re)baked — refresh the grid row only. The open
-      # viewer must NOT be swapped: the annotator is usually still working
-      # in it, and a viewer_file swap changes the canvas-viewer LC id
-      # (it encodes the variant count), remounting the canvas mid-edit.
+      # Annotated thumbnail (re)baked, or a burn stored — refresh the grid
+      # row only. The open viewer must NOT be swapped: the annotator is
+      # usually still working in it, and a viewer_file swap changes the
+      # canvas-viewer LC id (it encodes the variant count), remounting the
+      # canvas mid-edit.
+      #
+      # The canvas component is poked separately, because a BURN is the one
+      # thing an open viewer should follow: someone on another device just
+      # replaced the picture it is showing. It decides whether to take it —
+      # only that component knows whether the editor is open (see
+      # `MediaCanvasViewer.update/2`, `burn_refreshed`).
       Map.has_key?(assigns, :thumbnail_updated) ->
-        {:ok, refresh_processed_file(socket, assigns.thumbnail_updated, viewer: false)}
+        socket = refresh_processed_file(socket, assigns.thumbnail_updated, viewer: false)
+        poke_viewer_burn(socket, assigns.thumbnail_updated)
+        {:ok, socket}
 
       # The header-image picker (MediaSelectorModal) reports back here via
       # `notify: {__MODULE__, id}`: a confirmed selection sets the cover or logo
@@ -542,6 +551,23 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # used for thumbnail-only updates, where remounting an open viewer would
   # kick the annotator out mid-edit. Files not in view are skipped — their
   # next load reads fresh rows anyway.
+  # Hand the open viewer the file as it is NOW, when it is the file that
+  # changed. Re-read rather than reusing the grid's copy: the grid may not
+  # be rendering this row at all (a viewer opened from a search, a deep
+  # link), and `fresh_file/3` returns nothing in that case.
+  defp poke_viewer_burn(socket, file_uuid) do
+    with %{file_uuid: ^file_uuid} = viewer <- socket.assigns[:viewer_file],
+         %Storage.File{} = file <- Storage.get_file(file_uuid),
+         fresh when is_map(fresh) <- enrich_files([file]) |> List.first() do
+      send_update(PhoenixKitWeb.Components.MediaCanvasViewer,
+        id: viewer_component_id(viewer),
+        burn_refreshed: fresh
+      )
+    else
+      _ -> :ok
+    end
+  end
+
   defp refresh_processed_file(socket, file_uuid, opts \\ []) do
     viewer = socket.assigns[:viewer_file]
 

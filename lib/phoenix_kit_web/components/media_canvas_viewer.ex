@@ -192,6 +192,17 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
     {:ok, refresh_annotations(socket)}
   end
 
+  # A burn landed for the file this viewer is showing — from a second
+  # device, or from the editor that just closed here. Only this component
+  # knows whether it may be taken: in burn mode the canvas IS the picture
+  # and swapping it for a newer one is the whole point; with the editor
+  # open the shapes on screen are the user's own, and replacing the board
+  # under them is not a refresh, it is an interruption. The parent pokes
+  # unconditionally and leaves the judgement here.
+  def update(%{burn_refreshed: file}, socket) when is_map(file) do
+    {:ok, apply_burn_refresh(socket, file)}
+  end
+
   def update(%{action: :annotation_composer_cancelled}, socket) do
     # Nothing to roll back: shapes are never held hostage by the reply
     # popup. (If Reply had just lazily created the master comment, it
@@ -1369,6 +1380,56 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       natural_width: w,
       natural_height: h
     })
+  end
+
+  defp apply_burn_refresh(socket, file) do
+    stamp = burn_stamp(file)
+
+    cond do
+      # Editing. The burn on file is behind what is on screen anyway —
+      # this session will render its own on the way out.
+      not socket.assigns[:burn_mode] ->
+        socket
+
+      # Already showing it. The id below is what remounts the canvas, and
+      # remounting it for the same picture is a flash for nothing.
+      stamp == socket.assigns[:burn_version] ->
+        socket
+
+      true ->
+        case build_burn_canvas(file) do
+          nil ->
+            socket
+
+          canvas ->
+            socket
+            |> assign(:burn_canvas, canvas)
+            |> assign(:burn_version, stamp)
+        end
+    end
+  end
+
+  # What makes one burned copy a different one, for the canvas id that
+  # decides whether Fresco remounts. The fingerprint is what the drawing
+  # WAS, which is the honest answer when it is recorded; the URL's own
+  # version (the stored bytes' checksum) stands in when it is not, so a
+  # file burned before fingerprints were kept still refreshes.
+  defp burn_stamp(file) do
+    case Map.get(file, :burn_fingerprint) do
+      fp when is_binary(fp) and fp != "" ->
+        fp
+
+      _ ->
+        # `burn_size` names the variant the viewer opens with
+        # (`burned_large`, else `burned`), so the stand-in reads that
+        # one's URL rather than assuming which slot is in play.
+        variant = Map.get(Map.get(file, :burn_size) || %{}, :variant)
+
+        case Regex.run(~r/[?&]v=([a-f0-9]+)/, (variant && file.urls[variant]) || "") do
+          [_, v] -> v
+          _ -> nil
+        end
+    end
   end
 
   defp build_viewer_canvas(nil, _annotations, _locked?), do: nil
