@@ -1,4 +1,4 @@
-## Unreleased
+## 2.38.0 - 2026-09-23
 
 ### Added
 
@@ -91,6 +91,12 @@
   once, without blocking writes. The three new indexes on
   `phoenix_kit_files` are plain builds, so uploads wait while they build;
   on a very large media table, run the update in a quiet window.
+
+- A database that ran an unreleased build of V202 (a git dependency on
+  `main` before the library URL slugs landed) has no
+  `phoenix_kit_storage_libraries.slug` column. Set its marker back with
+  `COMMENT ON TABLE phoenix_kit IS '201'` and run the update: V202 is
+  re-runnable, adds the column and gives existing libraries their slugs.
 
 - A database that ran an early build of the #860 branch, when its
   migration was numbered V200, reads as version 200 without the
