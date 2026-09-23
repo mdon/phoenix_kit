@@ -125,6 +125,7 @@ defmodule PhoenixKit.Modules.Storage.File do
           user_uuid: UUIDv7.t() | nil,
           folder_uuid: UUIDv7.t() | nil,
           parent_file_uuid: UUIDv7.t() | nil,
+          library_uuid: UUIDv7.t() | nil,
           user: PhoenixKit.Users.Auth.User.t() | Ecto.Association.NotLoaded.t(),
           parent_file: t() | Ecto.Association.NotLoaded.t() | nil,
           instances:
@@ -209,6 +210,17 @@ defmodule PhoenixKit.Modules.Storage.File do
       references: :uuid,
       type: UUIDv7
 
+    # The library the file belongs to (V202). The column defaults to Media, so
+    # a writer that names no library lands there; `read_after_writes` reads
+    # the default back into the returned struct.
+    field :library_uuid, UUIDv7, read_after_writes: true
+
+    belongs_to :library, PhoenixKit.Modules.Storage.Library,
+      foreign_key: :library_uuid,
+      references: :uuid,
+      type: UUIDv7,
+      define_field: false
+
     has_many :instances, PhoenixKit.Modules.Storage.FileInstance, foreign_key: :file_uuid
     has_many :folder_links, PhoenixKit.Modules.Storage.FolderLink, foreign_key: :file_uuid
 
@@ -263,7 +275,8 @@ defmodule PhoenixKit.Modules.Storage.File do
       :system_managed,
       :user_uuid,
       :folder_uuid,
-      :parent_file_uuid
+      :parent_file_uuid,
+      :library_uuid
     ])
     |> validate_required([
       :original_file_name,
@@ -294,6 +307,7 @@ defmodule PhoenixKit.Modules.Storage.File do
     |> foreign_key_constraint(:user_uuid, name: :fk_files_user_uuid)
     |> foreign_key_constraint(:folder_uuid)
     |> foreign_key_constraint(:parent_file_uuid)
+    |> foreign_key_constraint(:library_uuid, name: :phoenix_kit_files_library_uuid_fkey)
     # V113's `phoenix_kit_files_system_dedup_index` keeps concurrent
     # lazy-generators for the same Tessera tile from inserting duplicate
     # rows. Naming the constraint here lets `Storage.store_system_file/3`

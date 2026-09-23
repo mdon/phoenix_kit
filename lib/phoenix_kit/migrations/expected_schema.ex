@@ -202,6 +202,20 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V202 (2026-09-23, storage libraries, the partition) DECLARES 32 objects
+  # here and RESHAPES one. New: `table:phoenix_kit_storage_libraries` with
+  # its 11 columns, 5 constraints (pkey, owner FK, kind/visibility/owner
+  # checks) and 4 indexes; the Media seed row (fixed uuid
+  # `00000000-0000-7000-8000-000000000001`); `library_uuid` on files, media
+  # folders and folder links (NOT NULL, DEFAULT Media's uuid) with their
+  # three FKs to libraries and the folder link's `(file_uuid, library_uuid)`
+  # FK; and three indexes on files. Reshaped: a `{202, ...}` revision on
+  # `index:phoenix_kit_media_folders_name_parent_idx`, which gains a leading
+  # `library_uuid`, and its `create` follows the newest revision. Shapes are
+  # CATALOG-EXACT, emitted from `Repair.Probe.snapshot/2` on a test database
+  # migrated through V202, not typed from the migration. `chain_hash`
+  # restamped over the shipped file set.
+  #
   # V200 (2026-09-21, when a photo or video was taken) DECLARES five objects
   # here by hand, the V199 class: `column:phoenix_kit_files.taken_at`
   # (timestamptz), `.taken_on` (date), `.taken_at_offset` (integer) and
@@ -440,7 +454,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "021446ede2f1c14d39c6fa8de20d20f6dde68bdf65aadbc5d0e8bfe96286d6ae"
+  @chain_hash "fee328d9862c21a46ec5ff215bd31639309f993244fc47e2924ab02e01f72bf5"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -45576,7 +45590,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :index
            }},
         create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_media_folders_name_parent_idx ON __SCHEMA__.phoenix_kit_media_folders USING btree (name, COALESCE(parent_uuid, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE (trashed_at IS NULL)",
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_media_folders_name_parent_idx ON __SCHEMA__.phoenix_kit_media_folders USING btree (library_uuid, name, COALESCE(parent_uuid, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE (trashed_at IS NULL)",
         since: 95,
         class: :index,
         revisions: [
@@ -45602,6 +45616,24 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
                "CREATE UNIQUE INDEX phoenix_kit_media_folders_name_parent_idx ON __SCHEMA__.phoenix_kit_media_folders USING btree (name, COALESCE(parent_uuid, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE (trashed_at IS NULL)",
              predicate: "(trashed_at IS NULL)",
              opclasses: ["text_ops", "uuid_ops"],
+             name_template: nil
+           }},
+          # V202: folder names are unique per library and parent. Appended,
+          # never edited in place (see `index:phoenix_kit_posts_slug_index`).
+          {202,
+           %{
+             table: "phoenix_kit_media_folders",
+             keys: [
+               "library_uuid",
+               "name",
+               "COALESCE(parent_uuid, '00000000-0000-0000-0000-000000000000'::uuid)"
+             ],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_media_folders_name_parent_idx ON __SCHEMA__.phoenix_kit_media_folders USING btree (library_uuid, name, COALESCE(parent_uuid, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE (trashed_at IS NULL)",
+             predicate: "(trashed_at IS NULL)",
+             opclasses: ["uuid_ops", "text_ops", "uuid_ops"],
              name_template: nil
            }}
         ],
@@ -72197,6 +72229,790 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              predicate: "((status)::text = 'success'::text)",
              opclasses: ["uuid_ops", "timestamptz_ops"],
              name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      # ── V202: storage libraries, the partition ──
+      %{
+        id: "table:phoenix_kit_storage_libraries",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_storage_libraries", kind: :table}},
+        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_storage_libraries ()",
+        since: 202,
+        class: :table,
+        revisions: [{202, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_storage_libraries", column: "uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
+        since: 202,
+        class: :column,
+        revisions: [
+          {202, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.name",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_storage_libraries", column: "name", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"name\" character varying(255)",
+        since: 202,
+        class: :column,
+        revisions: [
+          {202, %{default: nil, type: "character varying(255)", pos: 2, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.kind",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_storage_libraries", column: "kind", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"kind\" character varying(20) DEFAULT 'system'::character varying NOT NULL",
+        since: 202,
+        class: :column,
+        revisions: [
+          {202,
+           %{
+             default: "'system'::character varying",
+             type: "character varying(20)",
+             pos: 3,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.owner_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_libraries", column: "owner_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"owner_uuid\" uuid",
+        since: 202,
+        class: :column,
+        revisions: [{202, %{default: nil, type: "uuid", pos: 4, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.visibility",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_libraries", column: "visibility", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"visibility\" character varying(20) DEFAULT 'site'::character varying NOT NULL",
+        since: 202,
+        class: :column,
+        revisions: [
+          {202,
+           %{
+             default: "'site'::character varying",
+             type: "character varying(20)",
+             pos: 5,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.key_prefix",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_libraries", column: "key_prefix", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"key_prefix\" character varying(64)",
+        since: 202,
+        class: :column,
+        revisions: [
+          {202, %{default: nil, type: "character varying(64)", pos: 6, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.settings",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_storage_libraries", column: "settings", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"settings\" jsonb DEFAULT '{}'::jsonb NOT NULL",
+        since: 202,
+        class: :column,
+        revisions: [{202, %{default: "'{}'::jsonb", type: "jsonb", pos: 7, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.is_default",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_libraries", column: "is_default", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"is_default\" boolean DEFAULT false NOT NULL",
+        since: 202,
+        class: :column,
+        revisions: [{202, %{default: "false", type: "boolean", pos: 8, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.trashed_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_libraries", column: "trashed_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"trashed_at\" timestamp with time zone",
+        since: 202,
+        class: :column,
+        revisions: [
+          {202, %{default: nil, type: "timestamp with time zone", pos: 9, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.inserted_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_libraries", column: "inserted_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 202,
+        class: :column,
+        revisions: [
+          {202,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 10, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.updated_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_libraries", column: "updated_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 202,
+        class: :column,
+        revisions: [
+          {202,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 11, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "constraint:phoenix_kit_storage_libraries.phoenix_kit_storage_libraries_kind_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_libraries_kind_check",
+             table: "phoenix_kit_storage_libraries",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_libraries_kind_check'\n      AND t.relname = 'phoenix_kit_storage_libraries'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD CONSTRAINT phoenix_kit_storage_libraries_kind_check CHECK (((kind)::text = ANY ((ARRAY['system'::character varying, 'user'::character varying])::text[])));\n  END IF;\nEND\n$$",
+        since: 202,
+        class: :constraint,
+        revisions: [
+          {202,
+           %{
+             type: "c",
+             columns: ["kind"],
+             definition:
+               "CHECK (((kind)::text = ANY ((ARRAY['system'::character varying, 'user'::character varying])::text[])))",
+             name_template: nil,
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_storage_libraries.phoenix_kit_storage_libraries_owner_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_libraries_owner_check",
+             table: "phoenix_kit_storage_libraries",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_libraries_owner_check'\n      AND t.relname = 'phoenix_kit_storage_libraries'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD CONSTRAINT phoenix_kit_storage_libraries_owner_check CHECK (((((kind)::text = 'system'::text) AND (owner_uuid IS NULL)) OR (((kind)::text = 'user'::text) AND (owner_uuid IS NOT NULL))));\n  END IF;\nEND\n$$",
+        since: 202,
+        class: :constraint,
+        revisions: [
+          {202,
+           %{
+             type: "c",
+             columns: ["kind", "owner_uuid"],
+             definition:
+               "CHECK (((((kind)::text = 'system'::text) AND (owner_uuid IS NULL)) OR (((kind)::text = 'user'::text) AND (owner_uuid IS NOT NULL))))",
+             name_template: nil,
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_libraries.phoenix_kit_storage_libraries_owner_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_libraries_owner_uuid_fkey",
+             table: "phoenix_kit_storage_libraries",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_libraries_owner_uuid_fkey'\n      AND t.relname = 'phoenix_kit_storage_libraries'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD CONSTRAINT phoenix_kit_storage_libraries_owner_uuid_fkey FOREIGN KEY (owner_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE RESTRICT;\n  END IF;\nEND\n$$",
+        since: 202,
+        class: :constraint,
+        revisions: [
+          {202,
+           %{
+             type: "f",
+             columns: ["owner_uuid"],
+             definition:
+               "FOREIGN KEY (owner_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE RESTRICT",
+             name_template: nil,
+             foreign_table: "phoenix_kit_users",
+             foreign_columns: ["uuid"],
+             on_delete: "r",
+             on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_storage_libraries.phoenix_kit_storage_libraries_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_libraries_pkey",
+             table: "phoenix_kit_storage_libraries",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_libraries_pkey'\n      AND t.relname = 'phoenix_kit_storage_libraries'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD CONSTRAINT phoenix_kit_storage_libraries_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
+        since: 202,
+        class: :constraint,
+        revisions: [
+          {202,
+           %{
+             type: "p",
+             columns: ["uuid"],
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil,
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_libraries.phoenix_kit_storage_libraries_visibility_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_libraries_visibility_check",
+             table: "phoenix_kit_storage_libraries",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_libraries_visibility_check'\n      AND t.relname = 'phoenix_kit_storage_libraries'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD CONSTRAINT phoenix_kit_storage_libraries_visibility_check CHECK (((visibility)::text = ANY ((ARRAY['site'::character varying, 'private'::character varying])::text[])));\n  END IF;\nEND\n$$",
+        since: 202,
+        class: :constraint,
+        revisions: [
+          {202,
+           %{
+             type: "c",
+             columns: ["visibility"],
+             definition:
+               "CHECK (((visibility)::text = ANY ((ARRAY['site'::character varying, 'private'::character varying])::text[])))",
+             name_template: nil,
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_storage_libraries_default_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_libraries_default_index",
+             table: "phoenix_kit_storage_libraries",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_storage_libraries_default_index ON __SCHEMA__.phoenix_kit_storage_libraries USING btree (COALESCE(owner_uuid, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE is_default",
+        since: 202,
+        class: :index,
+        revisions: [
+          {202,
+           %{
+             table: "phoenix_kit_storage_libraries",
+             keys: ["COALESCE(owner_uuid, '00000000-0000-0000-0000-000000000000'::uuid)"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_storage_libraries_default_index ON __SCHEMA__.phoenix_kit_storage_libraries USING btree (COALESCE(owner_uuid, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE is_default",
+             name_template: nil,
+             opclasses: ["uuid_ops"],
+             predicate: "is_default"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_storage_libraries_key_prefix_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_libraries_key_prefix_index",
+             table: "phoenix_kit_storage_libraries",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_storage_libraries_key_prefix_index ON __SCHEMA__.phoenix_kit_storage_libraries USING btree (key_prefix) WHERE (key_prefix IS NOT NULL)",
+        since: 202,
+        class: :index,
+        revisions: [
+          {202,
+           %{
+             table: "phoenix_kit_storage_libraries",
+             keys: ["key_prefix"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_storage_libraries_key_prefix_index ON __SCHEMA__.phoenix_kit_storage_libraries USING btree (key_prefix) WHERE (key_prefix IS NOT NULL)",
+             name_template: nil,
+             opclasses: ["text_ops"],
+             predicate: "(key_prefix IS NOT NULL)"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_storage_libraries_owner_name_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_libraries_owner_name_index",
+             table: "phoenix_kit_storage_libraries",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_storage_libraries_owner_name_index ON __SCHEMA__.phoenix_kit_storage_libraries USING btree (COALESCE(owner_uuid, '00000000-0000-0000-0000-000000000000'::uuid), lower((name)::text)) WHERE (trashed_at IS NULL)",
+        since: 202,
+        class: :index,
+        revisions: [
+          {202,
+           %{
+             table: "phoenix_kit_storage_libraries",
+             keys: [
+               "COALESCE(owner_uuid, '00000000-0000-0000-0000-000000000000'::uuid)",
+               "lower(name::text)"
+             ],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_storage_libraries_owner_name_index ON __SCHEMA__.phoenix_kit_storage_libraries USING btree (COALESCE(owner_uuid, '00000000-0000-0000-0000-000000000000'::uuid), lower((name)::text)) WHERE (trashed_at IS NULL)",
+             name_template: nil,
+             opclasses: ["uuid_ops", "text_ops"],
+             predicate: "(trashed_at IS NULL)"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_storage_libraries_owner_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_libraries_owner_uuid_index",
+             table: "phoenix_kit_storage_libraries",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_storage_libraries_owner_uuid_index ON __SCHEMA__.phoenix_kit_storage_libraries USING btree (owner_uuid)",
+        since: 202,
+        class: :index,
+        revisions: [
+          {202,
+           %{
+             table: "phoenix_kit_storage_libraries",
+             keys: ["owner_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_storage_libraries_owner_uuid_index ON __SCHEMA__.phoenix_kit_storage_libraries USING btree (owner_uuid)",
+             name_template: nil,
+             opclasses: ["uuid_ops"],
+             predicate: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "seed:phoenix_kit_storage_libraries:00000000-0000-7000-8000-000000000001",
+        owner: :core,
+        check:
+          "SELECT EXISTS (SELECT 1 FROM __SCHEMA__.phoenix_kit_storage_libraries WHERE \"uuid\" = '00000000-0000-7000-8000-000000000001')",
+        create:
+          "INSERT INTO __SCHEMA__.phoenix_kit_storage_libraries (\"uuid\", \"name\", \"kind\", \"visibility\", \"is_default\", \"inserted_at\", \"updated_at\")\nVALUES ('00000000-0000-7000-8000-000000000001', 'Media', 'system', 'site', TRUE, NOW(), NOW())\nON CONFLICT (\"uuid\") DO NOTHING",
+        since: 202,
+        class: :seed,
+        revisions: [
+          {202,
+           %{
+             values: %{
+               "is_default" => true,
+               "kind" => "system",
+               "name" => "Media",
+               "uuid" => "00000000-0000-7000-8000-000000000001",
+               "visibility" => "site"
+             },
+             key_value: "00000000-0000-7000-8000-000000000001",
+             key_column: "uuid"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.library_uuid",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_files", column: "library_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"library_uuid\" uuid DEFAULT '00000000-0000-7000-8000-000000000001'::uuid NOT NULL",
+        since: 202,
+        class: :column,
+        revisions: [
+          {202,
+           %{
+             default: "'00000000-0000-7000-8000-000000000001'::uuid",
+             type: "uuid",
+             pos: 33,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_media_folders.library_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_media_folders", column: "library_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_media_folders ADD COLUMN IF NOT EXISTS \"library_uuid\" uuid DEFAULT '00000000-0000-7000-8000-000000000001'::uuid NOT NULL",
+        since: 202,
+        class: :column,
+        revisions: [
+          {202,
+           %{
+             default: "'00000000-0000-7000-8000-000000000001'::uuid",
+             type: "uuid",
+             pos: 20,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_media_folder_links.library_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_media_folder_links", column: "library_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_media_folder_links ADD COLUMN IF NOT EXISTS \"library_uuid\" uuid DEFAULT '00000000-0000-7000-8000-000000000001'::uuid NOT NULL",
+        since: 202,
+        class: :column,
+        revisions: [
+          {202,
+           %{
+             default: "'00000000-0000-7000-8000-000000000001'::uuid",
+             type: "uuid",
+             pos: 5,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "constraint:phoenix_kit_files.phoenix_kit_files_library_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_files_library_uuid_fkey",
+             table: "phoenix_kit_files",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_files_library_uuid_fkey'\n      AND t.relname = 'phoenix_kit_files'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_files ADD CONSTRAINT phoenix_kit_files_library_uuid_fkey FOREIGN KEY (library_uuid) REFERENCES __SCHEMA__.phoenix_kit_storage_libraries(uuid) ON DELETE RESTRICT;\n  END IF;\nEND\n$$",
+        since: 202,
+        class: :constraint,
+        revisions: [
+          {202,
+           %{
+             type: "f",
+             columns: ["library_uuid"],
+             definition:
+               "FOREIGN KEY (library_uuid) REFERENCES __SCHEMA__.phoenix_kit_storage_libraries(uuid) ON DELETE RESTRICT",
+             name_template: nil,
+             foreign_table: "phoenix_kit_storage_libraries",
+             foreign_columns: ["uuid"],
+             on_delete: "r",
+             on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_media_folders.phoenix_kit_media_folders_library_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_media_folders_library_uuid_fkey",
+             table: "phoenix_kit_media_folders",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_media_folders_library_uuid_fkey'\n      AND t.relname = 'phoenix_kit_media_folders'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_media_folders ADD CONSTRAINT phoenix_kit_media_folders_library_uuid_fkey FOREIGN KEY (library_uuid) REFERENCES __SCHEMA__.phoenix_kit_storage_libraries(uuid) ON DELETE RESTRICT;\n  END IF;\nEND\n$$",
+        since: 202,
+        class: :constraint,
+        revisions: [
+          {202,
+           %{
+             type: "f",
+             columns: ["library_uuid"],
+             definition:
+               "FOREIGN KEY (library_uuid) REFERENCES __SCHEMA__.phoenix_kit_storage_libraries(uuid) ON DELETE RESTRICT",
+             name_template: nil,
+             foreign_table: "phoenix_kit_storage_libraries",
+             foreign_columns: ["uuid"],
+             on_delete: "r",
+             on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_media_folder_links.phoenix_kit_media_folder_links_library_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_media_folder_links_library_uuid_fkey",
+             table: "phoenix_kit_media_folder_links",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_media_folder_links_library_uuid_fkey'\n      AND t.relname = 'phoenix_kit_media_folder_links'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_media_folder_links ADD CONSTRAINT phoenix_kit_media_folder_links_library_uuid_fkey FOREIGN KEY (library_uuid) REFERENCES __SCHEMA__.phoenix_kit_storage_libraries(uuid) ON DELETE RESTRICT;\n  END IF;\nEND\n$$",
+        since: 202,
+        class: :constraint,
+        revisions: [
+          {202,
+           %{
+             type: "f",
+             columns: ["library_uuid"],
+             definition:
+               "FOREIGN KEY (library_uuid) REFERENCES __SCHEMA__.phoenix_kit_storage_libraries(uuid) ON DELETE RESTRICT",
+             name_template: nil,
+             foreign_table: "phoenix_kit_storage_libraries",
+             foreign_columns: ["uuid"],
+             on_delete: "r",
+             on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_media_folder_links.phoenix_kit_media_folder_links_file_library_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_media_folder_links_file_library_fkey",
+             table: "phoenix_kit_media_folder_links",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_media_folder_links_file_library_fkey'\n      AND t.relname = 'phoenix_kit_media_folder_links'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_media_folder_links ADD CONSTRAINT phoenix_kit_media_folder_links_file_library_fkey FOREIGN KEY (file_uuid, library_uuid) REFERENCES __SCHEMA__.phoenix_kit_files(uuid, library_uuid) ON UPDATE CASCADE ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+        since: 202,
+        class: :constraint,
+        revisions: [
+          {202,
+           %{
+             type: "f",
+             columns: ["file_uuid", "library_uuid"],
+             definition:
+               "FOREIGN KEY (file_uuid, library_uuid) REFERENCES __SCHEMA__.phoenix_kit_files(uuid, library_uuid) ON UPDATE CASCADE ON DELETE CASCADE",
+             name_template: nil,
+             foreign_table: "phoenix_kit_files",
+             foreign_columns: ["uuid", "library_uuid"],
+             on_delete: "c",
+             on_update: "c"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_files_library_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_files_library_uuid_index",
+             table: "phoenix_kit_files",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_files_library_uuid_index ON __SCHEMA__.phoenix_kit_files USING btree (library_uuid)",
+        since: 202,
+        class: :index,
+        revisions: [
+          {202,
+           %{
+             table: "phoenix_kit_files",
+             keys: ["library_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_files_library_uuid_index ON __SCHEMA__.phoenix_kit_files USING btree (library_uuid)",
+             name_template: nil,
+             opclasses: ["uuid_ops"],
+             predicate: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_files_uuid_library_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_files_uuid_library_uuid_index",
+             table: "phoenix_kit_files",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_files_uuid_library_uuid_index ON __SCHEMA__.phoenix_kit_files USING btree (uuid, library_uuid)",
+        since: 202,
+        class: :index,
+        revisions: [
+          {202,
+           %{
+             table: "phoenix_kit_files",
+             keys: ["uuid", "library_uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_files_uuid_library_uuid_index ON __SCHEMA__.phoenix_kit_files USING btree (uuid, library_uuid)",
+             name_template: nil,
+             opclasses: ["uuid_ops", "uuid_ops"],
+             predicate: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_files_library_capture_date_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_files_library_capture_date_index",
+             table: "phoenix_kit_files",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_files_library_capture_date_index ON __SCHEMA__.phoenix_kit_files USING btree (library_uuid, taken_on DESC, taken_at DESC) WHERE ((system_managed = false) AND (trashed_at IS NULL) AND (parent_file_uuid IS NULL) AND ((status)::text = 'active'::text) AND ((file_type)::text = ANY ((ARRAY['image'::character varying, 'video'::character varying])::text[])))",
+        since: 202,
+        class: :index,
+        revisions: [
+          {202,
+           %{
+             table: "phoenix_kit_files",
+             keys: ["library_uuid", "taken_on", "taken_at"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_files_library_capture_date_index ON __SCHEMA__.phoenix_kit_files USING btree (library_uuid, taken_on DESC, taken_at DESC) WHERE ((system_managed = false) AND (trashed_at IS NULL) AND (parent_file_uuid IS NULL) AND ((status)::text = 'active'::text) AND ((file_type)::text = ANY ((ARRAY['image'::character varying, 'video'::character varying])::text[])))",
+             name_template: nil,
+             opclasses: ["uuid_ops", "date_ops", "timestamptz_ops"],
+             predicate:
+               "((system_managed = false) AND (trashed_at IS NULL) AND (parent_file_uuid IS NULL) AND ((status)::text = 'active'::text) AND ((file_type)::text = ANY ((ARRAY['image'::character varying, 'video'::character varying])::text[])))"
            }}
         ],
         presence: :required,

@@ -690,25 +690,13 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   defp maybe_set_folder(%File{folder_uuid: current}, new) when current == new,
     do: :already_in_folder
 
-  defp maybe_set_folder(%File{folder_uuid: nil} = file, folder_uuid) do
-    repo = PhoenixKit.Config.get_repo()
-
+  # Adopt a file with no home, link one homed elsewhere — the one attach
+  # rule (`Storage.attach_file_to_folder/2`), which also refuses a trashed
+  # folder or one in another library.
+  defp maybe_set_folder(%File{} = file, folder_uuid) do
     file
-    |> Ecto.Changeset.change(%{folder_uuid: folder_uuid})
-    |> repo.update()
+    |> Storage.attach_file_to_folder(folder_uuid)
     |> warn_on_folder_error(file.uuid, folder_uuid)
-  end
-
-  defp maybe_set_folder(%File{uuid: file_uuid}, folder_uuid) do
-    repo = PhoenixKit.Config.get_repo()
-
-    # `:nothing` + the (folder_uuid, file_uuid) unique index makes this
-    # idempotent — re-uploading the same file to the same linked folder
-    # is a no-op rather than an error.
-    %FolderLink{}
-    |> FolderLink.changeset(%{folder_uuid: folder_uuid, file_uuid: file_uuid})
-    |> repo.insert(on_conflict: :nothing, conflict_target: [:folder_uuid, :file_uuid])
-    |> warn_on_folder_error(file_uuid, folder_uuid)
   end
 
   defp warn_on_folder_error({:ok, _} = result, _file_uuid, _folder_uuid), do: result

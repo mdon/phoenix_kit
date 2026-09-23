@@ -16,6 +16,19 @@
   view.
 - Edit forms can open on the language the page is being viewed in
   (`open_on: :viewing_language`).
+- **Storage libraries, phase 1 (migration V202).** Every file, media
+  folder and folder link now belongs to a library, and everything that
+  exists is in one system library, Media. A writer that names no library,
+  in core or in a module, keeps landing in Media, so nothing changes until
+  a second library is created. An Owner or Admin can create more system
+  libraries on `/admin/media`. The library switcher appears once there are
+  two. Each library keeps its own folders, and folder names are unique per
+  library. New files in a library are stored under its own object-key
+  prefix. Files and folders cannot cross from one library to another. New
+  API: `PhoenixKit.Modules.Storage.Libraries`, a `library_uuid:` option on
+  `Storage.store_file_in_buckets/7`, and a `library_uuid:` filter on the
+  root-level listing, search, orphan and trash functions (`empty_trash/2`
+  included). Plan: `dev_docs/plans/2026-09-22-storage-libraries.md`.
 
 ### Changed
 
@@ -50,6 +63,15 @@
   cause a 500.
 
 ### Migration notes
+
+- **V202** adds `phoenix_kit_storage_libraries` and a NOT NULL
+  `library_uuid` on `phoenix_kit_files`, `phoenix_kit_media_folders` and
+  `phoenix_kit_media_folder_links`. The column's default is Media's fixed
+  uuid (`00000000-0000-7000-8000-000000000001`), so existing rows are not
+  rewritten. Validating the NOT NULL and the foreign keys scans each table
+  once, without blocking writes. The three new indexes on
+  `phoenix_kit_files` are plain builds, so uploads wait while they build;
+  on a very large media table, run the update in a quiet window.
 
 - A database that ran an early build of the #860 branch, when its
   migration was numbered V200, reads as version 200 without the

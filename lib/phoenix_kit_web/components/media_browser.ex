@@ -274,10 +274,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def update(assigns, socket) do
+    shown_library = socket.assigns[:library_uuid]
+
     socket =
       socket
       |> assign(assigns)
       |> assign_new(:scope_folder_id, fn -> nil end)
+      # The storage library shown (`Storage.Libraries`); nil = every library.
+      |> assign_new(:library_uuid, fn -> nil end)
       |> assign_new(:admin, fn -> false end)
       # When true, every write path is hidden AND refused server-side —
       # upload, rename, move, trash, new folder, bulk-select, rotate,
@@ -308,6 +312,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign_new(:fill_height, fn -> false end)
       |> assign_new(:upload_in_flight, fn -> false end)
       |> close_upload_on_start()
+
+    socket = maybe_switch_library(socket, shown_library)
 
     cond do
       not Map.has_key?(socket.assigns, :uploaded_files) ->
@@ -858,7 +864,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     per_page = socket.assigns.per_page
 
     {current_folder, breadcrumbs, folders, scoped_fallback?} =
-      resolve_folder(params[:folder], scope)
+      resolve_folder(params[:folder], scope, lib_opts(socket))
 
     actual_uuid = current_folder && current_folder.uuid
 
@@ -877,7 +883,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     orphaned_count =
       if filter_orphaned,
         do: total_count,
-        else: Storage.count_orphaned_files(scope)
+        else: Storage.count_orphaned_files(scope, lib_opts(socket))
 
     socket
     |> assign(:current_folder, current_folder)
@@ -905,7 +911,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       :folders,
       cond do
         file_view == "all" or filter_orphaned -> []
-        q != "" -> Storage.search_folders(q, actual_uuid, scope)
+        q != "" -> Storage.search_folders(q, actual_uuid, scope, lib_opts(socket))
         true -> folders
       end
     )
@@ -918,7 +924,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # Badge counts the trash of the folder being navigated to (its subtree),
     # matching the scope the Trash view will use — read from the local
     # `current_folder`, since the pre-pipe socket still holds the old one.
-    |> assign(:trash_count, full_trash_count(folder_or_scope(current_folder, scope)))
+    |> assign(
+      :trash_count,
+      full_trash_count(folder_or_scope(current_folder, scope), lib_opts(socket))
+    )
     |> assign(:uploaded_files, files)
     |> assign(:total_count, total_count)
     |> assign(:total_pages, Pagination.total_pages(total_count, per_page))
@@ -932,26 +941,34 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> reset_stacks()
   end
 
-  defp resolve_folder(folder_uuid, scope) do
+  defp resolve_folder(folder_uuid, scope, lib) do
     if folder_uuid in [nil, ""] do
-      {nil, [], Storage.list_folders(nil, scope), false}
+      {nil, [], Storage.list_folders(nil, scope, lib), false}
     else
       folder = Storage.get_folder(folder_uuid)
 
-      if folder && Storage.within_scope?(folder.uuid, scope) do
+      if folder && Storage.within_scope?(folder.uuid, scope) && in_shown_library?(folder, lib) do
         bc = Storage.folder_breadcrumbs(folder.uuid, scope)
-        flds = Storage.list_folders(folder.uuid, scope)
+        flds = Storage.list_folders(folder.uuid, scope, lib)
         {folder, bc, flds, false}
       else
-        # Folder not found or outside scope — fall back to scope root.
-        {nil, [], Storage.list_folders(nil, scope), not is_nil(folder_uuid)}
+        # Folder not found, outside scope, or in another library than the one
+        # shown — fall back to scope root.
+        {nil, [], Storage.list_folders(nil, scope, lib), not is_nil(folder_uuid)}
       end
     end
   end
 
+  # A folder (or file) of another library is not opened in, or shown by,
+  # this one. With no library named, every library is shown.
+  defp in_shown_library?(_folder_or_file, []), do: true
+
+  defp in_shown_library?(folder_or_file, library_uuid: library_uuid),
+    do: to_string(folder_or_file.library_uuid) == to_string(library_uuid)
+
   defp load_nav_files(scope, page, per_page, q, actual_uuid, filter_orphaned, file_view, extra) do
     cond do
-      filter_orphaned -> load_orphaned_files(page, per_page)
+      filter_orphaned -> load_orphaned_files(page, per_page, Keyword.take(extra, [:library_uuid]))
       file_view == "all" -> load_all_view_files(scope, page, per_page, q, extra)
       true -> load_scoped_files(scope, page, per_page, actual_uuid, q, extra)
     end
@@ -971,7 +988,26 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     [
       sort: socket.assigns[:sort_by] || "newest",
       file_type: socket.assigns[:file_type_filter] || "all"
-    ]
+    ] ++ lib_opts(socket)
+  end
+
+  # Another library than the one on screen: nothing listed belongs to it —
+  # start over at its root. Not on the first mount, which initialises anyway.
+  defp maybe_switch_library(socket, shown_library) do
+    if Map.has_key?(socket.assigns, :uploaded_files) and
+         socket.assigns.library_uuid != shown_library,
+       do: socket |> init_socket() |> apply_nav_listing(%{}),
+       else: socket
+  end
+
+  # The storage library this browser shows, as listing options. nil (the
+  # default, and every host that names none) is every library — exactly the
+  # listing that existed before libraries.
+  defp lib_opts(socket) do
+    case socket.assigns[:library_uuid] do
+      nil -> []
+      library_uuid -> [library_uuid: library_uuid]
+    end
   end
 
   defp init_socket(socket) do
@@ -1004,11 +1040,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:upload_drain_scheduled, false)
     |> assign(:filter_orphaned, false)
     |> assign(:filter_trash, false)
-    |> assign(:trash_count, full_trash_count(scope_folder_id(socket)))
+    |> assign(:trash_count, full_trash_count(scope_folder_id(socket), lib_opts(socket)))
     |> assign(:file_view, nil)
     |> assign(
       :orphaned_count,
-      if(scope_invalid, do: 0, else: Storage.count_orphaned_files(scope))
+      if(scope_invalid, do: 0, else: Storage.count_orphaned_files(scope, lib_opts(socket)))
     )
     |> assign(:current_folder, nil)
     # Seed the header media from the scope folder (effective root) so the
@@ -1020,8 +1056,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:selecting_cover, false)
     |> assign(:image_picker_target, "cover")
     |> assign(:breadcrumbs, [])
-    |> assign(:folders, if(scope_invalid, do: [], else: Storage.list_folders(nil, scope)))
-    |> assign(:folder_tree, if(scope_invalid, do: [], else: Storage.list_folder_tree(scope)))
+    |> assign(
+      :folders,
+      if(scope_invalid, do: [], else: Storage.list_folders(nil, scope, lib_opts(socket)))
+    )
+    |> assign(
+      :folder_tree,
+      if(scope_invalid, do: [], else: Storage.list_folder_tree(scope, lib_opts(socket)))
+    )
     |> assign(
       :sidebar_collapsed,
       load_user_sidebar_collapsed(socket.assigns[:phoenix_kit_current_user])
@@ -1321,7 +1363,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
          socket
          |> assign(:show_new_folder_modal, true)
          |> assign(:new_folder_name, "")
-         |> assign(:new_folder_placeholder, next_untitled_name(parent_uuid, scope))}
+         |> assign(
+           :new_folder_placeholder,
+           next_untitled_name(parent_uuid, scope, lib_opts(socket))
+         )}
 
       msg ->
         {:noreply, put_flash(socket, :error, msg)}
@@ -1356,14 +1401,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         # Blank → fall back to the placeholder default ("untitled"/"untitled N").
         name =
           case String.trim(name) do
-            "" -> next_untitled_name(parent_uuid, scope)
+            "" -> next_untitled_name(parent_uuid, scope, lib_opts(socket))
             trimmed -> trimmed
           end
 
         socket = assign(socket, :show_new_folder_modal, false)
 
         case Storage.create_folder(
-               %{name: name, parent_uuid: parent_uuid, user_uuid: user && user.uuid},
+               %{name: name, parent_uuid: parent_uuid, user_uuid: user && user.uuid}
+               |> Map.merge(Map.new(lib_opts(socket))),
                scope
              ) do
           {:ok, _folder} ->
@@ -1611,8 +1657,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       folders =
         cond do
           file_view == "all" -> []
-          query != "" -> Storage.search_folders(query, folder_uuid, scope)
-          true -> Storage.list_folders(folder_uuid, scope)
+          query != "" -> Storage.search_folders(query, folder_uuid, scope, lib_opts(socket))
+          true -> Storage.list_folders(folder_uuid, scope, lib_opts(socket))
         end
 
       {:noreply,
@@ -1666,7 +1712,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       folders =
         if file_view == "all",
           do: [],
-          else: Storage.list_folders(folder_uuid, scope)
+          else: Storage.list_folders(folder_uuid, scope, lib_opts(socket))
 
       {:noreply,
        socket
@@ -1891,8 +1937,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
            |> assign(:renaming_folder, nil)
            |> assign(:renaming_source, nil)
            |> assign(:renaming_text, "")
-           |> assign(:folders, Storage.list_folders(parent_uuid, scope))
-           |> assign(:folder_tree, Storage.list_folder_tree(scope))
+           |> assign(:folders, Storage.list_folders(parent_uuid, scope, lib_opts(socket)))
+           |> assign(:folder_tree, Storage.list_folder_tree(scope, lib_opts(socket)))
            |> refresh_header_folder(folder_uuid, updated)}
 
         {:error, :out_of_scope} ->
@@ -1971,8 +2017,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
             # Reload the listing so the grid card / list row reflects the new
             # description immediately (they render from `@folders`, not the
             # tree), plus the tree.
-            |> assign(:folders, Storage.list_folders(parent_uuid, scope))
-            |> assign(:folder_tree, Storage.list_folder_tree(scope))
+            |> assign(:folders, Storage.list_folders(parent_uuid, scope, lib_opts(socket)))
+            |> assign(:folder_tree, Storage.list_folder_tree(scope, lib_opts(socket)))
 
           # Refresh the header's folder if we're editing the one we're inside.
           socket =
@@ -2175,8 +2221,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
           {:noreply,
            socket
-           |> assign(:folders, Storage.list_folders(parent_uuid, scope))
-           |> assign(:folder_tree, Storage.list_folder_tree(scope))}
+           |> assign(:folders, Storage.list_folders(parent_uuid, scope, lib_opts(socket)))
+           |> assign(:folder_tree, Storage.list_folder_tree(scope, lib_opts(socket)))}
 
         {:error, :out_of_scope} ->
           {:noreply,
@@ -2729,7 +2775,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     {files, total_count} =
       if filter_trash do
-        load_trashed_files(t_scope, 1, socket.assigns.per_page)
+        load_trashed_files(t_scope, 1, socket.assigns.per_page, lib_opts(socket))
       else
         scope = scope_folder_id(socket)
         folder_uuid = current_folder_uuid(socket)
@@ -2743,8 +2789,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # cards on screen in the normal view.
     folders =
       if filter_trash,
-        do: Storage.list_trashed_folders(t_scope),
-        else: Storage.list_folders(current_folder_uuid(socket), scope_folder_id(socket))
+        do: Storage.list_trashed_folders(t_scope, lib_opts(socket)),
+        else:
+          Storage.list_folders(
+            current_folder_uuid(socket),
+            scope_folder_id(socket),
+            lib_opts(socket)
+          )
 
     {:noreply,
      socket
@@ -2761,7 +2812,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      # would be permanently destroyed.
      |> assign(:selected_files, MapSet.new())
      |> assign(:selected_folders, MapSet.new())
-     |> assign(:trash_count, full_trash_count(t_scope))}
+     |> assign(:trash_count, full_trash_count(t_scope, lib_opts(socket)))}
   end
 
   def handle_event("restore_selected", _params, socket)
@@ -2821,7 +2872,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   def handle_event("empty_trash", _params, socket) do
     # Scoped to the folder you're viewing the Trash of — emptying a folder's
     # trash must not purge sibling roots' trashed files.
-    {:ok, count} = Storage.empty_trash(trash_scope(socket))
+    {:ok, count} = Storage.empty_trash(trash_scope(socket), lib_opts(socket))
 
     {:noreply,
      socket
@@ -2856,7 +2907,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
       {files, total_count} =
         if filter_orphaned do
-          load_orphaned_files(1, per_page)
+          load_orphaned_files(1, per_page, lib_opts(socket))
         else
           load_scoped_files(scope, 1, per_page, folder_uuid, search, list_extra(socket))
         end
@@ -2864,7 +2915,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       orphaned_count =
         if filter_orphaned,
           do: total_count,
-          else: Storage.count_orphaned_files(scope_folder_id(socket))
+          else: Storage.count_orphaned_files(scope_folder_id(socket), lib_opts(socket))
 
       {:noreply,
        socket
@@ -2883,7 +2934,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   def handle_event("delete_all_orphaned", _params, socket) do
-    orphan_uuids = Storage.find_orphaned_files() |> Enum.map(& &1.uuid)
+    orphan_uuids = Storage.find_orphaned_files(lib_opts(socket)) |> Enum.map(& &1.uuid)
     Storage.queue_file_cleanup(orphan_uuids)
 
     {:noreply,
@@ -3101,7 +3152,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> assign(:filter_orphaned, false)
        |> assign(:current_folder, nil)
        |> assign(:breadcrumbs, [])
-       |> assign(:folders, Storage.list_folders(nil, scope))
+       |> assign(:folders, Storage.list_folders(nil, scope, lib_opts(socket)))
        |> assign(:search_query, "")
        |> assign(:uploaded_files, files)
        |> assign(:current_page, 1)
@@ -3135,7 +3186,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         end
 
       breadcrumbs = Storage.folder_breadcrumbs(actual_uuid, scope)
-      folders = Storage.list_folders(actual_uuid, scope)
+      folders = Storage.list_folders(actual_uuid, scope, lib_opts(socket))
       per_page = socket.assigns.per_page
 
       {files, total_count} =
@@ -3171,14 +3222,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     folders =
       cond do
-        filter_trash -> Storage.list_trashed_folders(trash_scope(socket))
+        filter_trash -> Storage.list_trashed_folders(trash_scope(socket), lib_opts(socket))
         file_view == "all" -> []
-        true -> Storage.list_folders(parent_uuid, scope)
+        true -> Storage.list_folders(parent_uuid, scope, lib_opts(socket))
       end
 
     socket
     |> assign(:folders, folders)
-    |> assign(:folder_tree, Storage.list_folder_tree(scope))
+    |> assign(:folder_tree, Storage.list_folder_tree(scope, lib_opts(socket)))
   end
 
   # Keep the hero header (and the open Edit-header panel) in sync when the
@@ -3212,8 +3263,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Combined trash count for the sidebar badge — files + folders.
   # Used wherever `:trash_count` is assigned so the badge reflects the
   # whole trash bucket, not just files.
-  defp full_trash_count(scope) do
-    Storage.count_trashed_files(scope) + Storage.count_trashed_folders(scope)
+  defp full_trash_count(scope, lib) do
+    Storage.count_trashed_files(scope, lib) + Storage.count_trashed_folders(scope, lib)
   end
 
   defp reload_current_page(socket) do
@@ -3228,10 +3279,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     {files, total_count} =
       cond do
-        socket.assigns[:filter_trash] -> load_trashed_files(trash_scope(socket), page, per_page)
-        socket.assigns.filter_orphaned -> load_orphaned_files(page, per_page)
-        file_view == "all" -> load_all_view_files(scope, page, per_page, search, extra)
-        true -> load_scoped_files(scope, page, per_page, folder_uuid, search, extra)
+        socket.assigns[:filter_trash] ->
+          load_trashed_files(trash_scope(socket), page, per_page, lib_opts(socket))
+
+        socket.assigns.filter_orphaned ->
+          load_orphaned_files(page, per_page, lib_opts(socket))
+
+        file_view == "all" ->
+          load_all_view_files(scope, page, per_page, search, extra)
+
+        true ->
+          load_scoped_files(scope, page, per_page, folder_uuid, search, extra)
       end
 
     total_pages = Pagination.total_pages(total_count, per_page)
@@ -3249,7 +3307,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign(:uploaded_files, files)
       |> assign(:total_count, total_count)
       |> assign(:total_pages, total_pages)
-      |> assign(:trash_count, full_trash_count(trash_scope(socket)))
+      |> assign(:trash_count, full_trash_count(trash_scope(socket), lib_opts(socket)))
       |> assign_stacks()
     end
   end
@@ -3893,8 +3951,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           |> reset_folder_header_edit()
           # Reload the listing + tree so any grid card / list row / sidebar
           # entry for this folder reflects the new name and description.
-          |> assign(:folders, Storage.list_folders(parent_uuid, scope))
-          |> assign(:folder_tree, Storage.list_folder_tree(scope))
+          |> assign(:folders, Storage.list_folders(parent_uuid, scope, lib_opts(socket)))
+          |> assign(:folder_tree, Storage.list_folder_tree(scope, lib_opts(socket)))
 
         # Refresh the header's folder + breadcrumbs when editing the folder
         # we're currently inside, so the title, description and breadcrumb
@@ -4080,17 +4138,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # map and omitted `folder_path`, which the list-view Path column
   # reads unconditionally — opening the trash or orphan view in list
   # mode crashed with `KeyError`.
-  defp load_trashed_files(scope, page, per_page) do
+  defp load_trashed_files(scope, page, per_page, lib) do
     offset = (page - 1) * per_page
-    total_count = Storage.count_trashed_files(scope)
-    files = Storage.list_trashed_files(scope, limit: per_page, offset: offset)
+    total_count = Storage.count_trashed_files(scope, lib)
+    files = Storage.list_trashed_files(scope, [limit: per_page, offset: offset] ++ lib)
     {enrich_files(files), total_count}
   end
 
-  defp load_orphaned_files(page, per_page) do
+  defp load_orphaned_files(page, per_page, lib) do
     offset = (page - 1) * per_page
-    total_count = Storage.count_orphaned_files()
-    files = Storage.find_orphaned_files(limit: per_page, offset: offset)
+    total_count = Storage.count_orphaned_files(nil, lib)
+    files = Storage.find_orphaned_files([limit: per_page, offset: offset] ++ lib)
     {enrich_files(files), total_count}
   end
 
@@ -4227,11 +4285,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
            file_hash,
            ext,
            entry.client_name,
-           mime_type: mime_type
+           [mime_type: mime_type] ++ lib_opts(socket)
          ) do
+      # Dedup is still per uploader across the whole install: the same bytes
+      # this person already stored in another library come back as that
+      # file, which this library cannot show or hold.
       {:ok, file, :duplicate} ->
-        maybe_set_folder(file, socket)
-        build_upload_result(file, entry, file_type, mime_type, file_size, true)
+        if in_shown_library?(file, lib_opts(socket)) do
+          maybe_set_folder(file, socket)
+          build_upload_result(file, entry, file_type, mime_type, file_size, true)
+        else
+          {:postpone, :in_other_library}
+        end
 
       {:ok, file} ->
         maybe_set_folder(file, socket)
@@ -4543,12 +4608,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  defp next_untitled_name(parent_uuid, scope) do
+  defp next_untitled_name(parent_uuid, scope, lib) do
     base = gettext("untitled")
 
     existing =
       parent_uuid
-      |> Storage.list_folders(scope)
+      |> Storage.list_folders(scope, lib)
       |> Enum.map(& &1.name)
       |> MapSet.new()
 

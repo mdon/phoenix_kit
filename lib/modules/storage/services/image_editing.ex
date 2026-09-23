@@ -46,6 +46,7 @@ defmodule PhoenixKit.Modules.Storage.ImageEditing do
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.FileInstance
   alias PhoenixKit.Modules.Storage.ImageEdit
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
 
@@ -378,12 +379,10 @@ defmodule PhoenixKit.Modules.Storage.ImageEditing do
     end
   end
 
-  defp allowed?(%StorageFile{} = file, %Scope{} = scope) do
-    uuid = Scope.user_uuid(scope)
-
-    (not is_nil(uuid) and uuid == file.user_uuid) or Scope.system_role?(scope) or
-      Scope.has_module_access?(scope, "media")
-  end
+  # The uploader, an Owner/Admin, or the "media" permission on a file in a
+  # system library — `Libraries.can?/3`'s `:edit`.
+  defp allowed?(%StorageFile{} = file, %Scope{} = scope),
+    do: Libraries.can?(scope, file, :edit)
 
   defp allowed?(_file, _scope), do: false
 

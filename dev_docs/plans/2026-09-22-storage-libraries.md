@@ -8,8 +8,54 @@ location-truth moved ahead of storage profiles. Four gaps were added
 (G11–G14), and G3 and G8 were corrected. Later the same day, **variant sets**
 (per-library image and video sizes, §3.4, G15–G19) were added to V204, so they
 ship in the same release as storage profiles.
-**Status:** PROPOSAL, not started. The maintainer answered all open questions on
-2026-09-23 (§10), and the plan body reflects the answers.
+**Status:** Phase 1 IMPLEMENTED (2026-09-23) as **V202**, not V201: PR #860
+took V201 for per-user view preferences, so every phase below shifts by one
+(V202 partition, V203 private serving + user libraries, V204 location-truth,
+V205 profiles + variant sets, V206 user-owned storage). The version numbers in
+the body are the plan's original ones. See "Phase 1 as built" below for what
+shipped and where it differs from §9. The maintainer answered all open
+questions on 2026-09-23 (§10), and the plan body reflects the answers.
+
+### Phase 1 as built (V202)
+
+- `phoenix_kit_storage_libraries` + the Media seed under a **fixed uuid**
+  (`00000000-0000-7000-8000-000000000001`, `Storage.Libraries.media_uuid/0`).
+  `library_uuid` on files, folders and folder links is NOT NULL with a column
+  **DEFAULT of Media's uuid**: existing rows need no rewrite, and every writer
+  that names no library (core's and ~10 modules') keeps landing in Media. The
+  constant default is what the schema manifest can declare.
+- Folder names unique per `(library_uuid, parent)`; folder links reference
+  `(file_uuid, library_uuid)`; a library-keyed capture-date index.
+- `key_prefix` for new libraries (`lib-<12 hex>`); Media keeps NULL, so its
+  keys keep today's per-uploader layout.
+- Code keeps libraries apart: a subfolder takes its parent's library, and a
+  file cannot be homed in, linked into, or moved to another library's folder
+  (`{:error, :other_library}`).
+- `/admin/media` gains a system-library switcher (`?library=`), shown only
+  once a second library exists; Owner/Admin create libraries and delete empty
+  ones. With only Media the browser gets no library and lists exactly what it
+  did before.
+- `Storage.Libraries.can?/3` replaces the three per-file checks, **keeping
+  today's rules**: `:read` is the uploader or Owner/Admin — NOT the `"media"`
+  key (the file-info endpoint deliberately withholds it, issue #687) — and
+  `:edit` adds the `"media"` key for system libraries.
+
+Deferred from §9's V201 list, deliberately:
+
+- **The uploader FK → `SET NULL` and the relaxed CHECK.** It changes what
+  deleting a user does (their files would stay, uploader-less, instead of
+  going with them), which is visible and GDPR-relevant; it ships with user
+  libraries, which need it.
+- **Dropping V200's user-keyed capture-date index.** The manifest has no way
+  to say "removed in version N", so it stays until a phase can retire it
+  cleanly. Nothing queries it.
+- Indexes are plain builds, not `CONCURRENTLY` — the chain's convention (see
+  V193), not the plan's §9 mechanics.
+
+Known phase-1 limit: dedup is still per uploader site-wide, so uploading into
+library B bytes the same person already has in Media returns the Media file;
+the MediaBrowser refuses that upload in B rather than showing a file B does
+not hold.
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.
 **Related:** `PhoenixKit.Modules.Storage.CaptureDate` and V200 (the capture-date

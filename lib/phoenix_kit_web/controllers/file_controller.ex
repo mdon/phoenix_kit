@@ -11,7 +11,16 @@ defmodule PhoenixKitWeb.FileController do
   require Logger
 
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{FileDetails, ImageEditing, Manager, TesseraAdapter, URLSigner}
+
+  alias PhoenixKit.Modules.Storage.{
+    FileDetails,
+    ImageEditing,
+    Libraries,
+    Manager,
+    TesseraAdapter,
+    URLSigner
+  }
+
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Utils.Routes
@@ -513,8 +522,8 @@ defmodule PhoenixKitWeb.FileController do
   @spec authorize_file_read(term(), User.t()) :: {:ok, map()} | {:error, :not_found}
   def authorize_file_read(nil, _user), do: {:error, :not_found}
 
-  def authorize_file_read(%{user_uuid: owner} = file, %User{uuid: uuid} = user) do
-    if owner == uuid or Scope.system_role?(Scope.for_user(user)) do
+  def authorize_file_read(%{} = file, %User{} = user) do
+    if Libraries.can?(Scope.for_user(user), file, :read) do
       {:ok, file}
     else
       {:error, :not_found}

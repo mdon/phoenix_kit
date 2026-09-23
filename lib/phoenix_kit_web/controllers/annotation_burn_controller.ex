@@ -45,6 +45,7 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.ImageProcessor
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Modules.Storage.VariantGenerator
   alias PhoenixKit.Users.Auth.Scope
@@ -113,9 +114,9 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   # holding the media module — the same three `ImageEditing` allows to change
   # the picture. `User.admin?/1` misses both the active role and a media
   # permission holder, who can already draw on the file.
-  def allowed?(%{user_uuid: owner}, %User{uuid: uuid}, scope) do
-    (is_binary(owner) and owner == uuid) or Scope.system_role?(scope) or
-      Scope.has_module_access?(scope, "media")
+  def allowed?(%{user_uuid: owner} = file, %User{uuid: uuid}, scope) do
+    (is_binary(owner) and owner == uuid) or
+      Libraries.can?(scope, file, :edit)
   end
 
   @doc false

@@ -48,6 +48,14 @@ defmodule PhoenixKit.Modules.Storage.Folder do
       foreign_key: :user_uuid,
       references: :uuid
 
+    # The library the folder belongs to (V202; defaults to Media in the column).
+    field :library_uuid, UUIDv7, read_after_writes: true
+
+    belongs_to :library, PhoenixKit.Modules.Storage.Library,
+      foreign_key: :library_uuid,
+      references: :uuid,
+      define_field: false
+
     has_many :children, __MODULE__,
       foreign_key: :parent_uuid,
       references: :uuid
@@ -72,6 +80,7 @@ defmodule PhoenixKit.Modules.Storage.Folder do
       :description,
       :parent_uuid,
       :user_uuid,
+      :library_uuid,
       :color,
       :trashed_at,
       :cover_file_uuid,
@@ -93,6 +102,9 @@ defmodule PhoenixKit.Modules.Storage.Folder do
     |> validate_not_own_parent()
     |> foreign_key_constraint(:parent_uuid)
     |> foreign_key_constraint(:user_uuid)
+    |> foreign_key_constraint(:library_uuid,
+      name: :phoenix_kit_media_folders_library_uuid_fkey
+    )
     |> unique_constraint([:name, :parent_uuid],
       name: :phoenix_kit_media_folders_name_parent_idx
     )

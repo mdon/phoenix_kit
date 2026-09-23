@@ -451,6 +451,36 @@ its `data` is empty that text is read as the primary language's, and the
 first save moves it into `data`. After that `metadata` only receives a copy
 of the primary-language text, for the readers that still look there.
 
+## Libraries
+
+Every file, media folder and folder link belongs to one **library**
+(`library_uuid`, V202), a partition of the file store. Everything that existed
+before V202 is in **Media**, the default system library, which has a fixed uuid
+(`Storage.Libraries.media_uuid/0`). Media is also the column default, so any
+writer that names no library, core's or a module's, lands there. An Owner or
+Admin can add system libraries on `/admin/media`; the switcher there appears once
+a second one exists.
+
+- **Store into a library:** `Storage.store_file_in_buckets(..., library_uuid: uuid)`.
+  A library with a `key_prefix` keys new objects under it
+  (`{key_prefix}/{hash[0..1]}/{hash}/…`); Media has none and keeps the
+  per-uploader layout (`{user_uuid[0..1]}/{hash[0..1]}/{hash}/…`).
+- **Folders:** a root folder takes the library its attrs name (default Media),
+  and a subfolder always takes its parent's. Folder names are unique per library
+  and parent.
+- **Nothing crosses libraries:** attaching, linking or moving a file into
+  another library's folder, or moving a folder under another library's parent,
+  returns `{:error, :other_library}`. A folder link carries its file's library,
+  and the database refuses one that does not.
+- **Listing one library:** the root-level listing, search, orphan and trash
+  functions take `library_uuid:`. Without it they list every library, exactly
+  as before.
+- **Access:** `Storage.Libraries.can?(scope, file, :read | :edit)`. It is the
+  single per-file check, with the same rules as before libraries.
+- **Not yet:** dedup is still per uploader across all libraries. User
+  libraries, members, private serving and per-library storage are the next
+  phases of `dev_docs/plans/2026-09-22-storage-libraries.md`.
+
 ## When a photo or video was taken
 
 `PhoenixKit.Modules.Storage.CaptureDate` reads it; four columns hold it

@@ -646,7 +646,8 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
           "rotation" => get_in(file.metadata || %{}, ["rotation"])
         },
         system_managed: true,
-        parent_file_uuid: file.uuid
+        parent_file_uuid: file.uuid,
+        library_uuid: file.library_uuid
       })
       |> repo().insert()
 
@@ -804,7 +805,8 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
           rendered.sha256,
           file.ext,
           name,
-          mime_type: file.mime_type
+          mime_type: file.mime_type,
+          library_uuid: file.library_uuid
         )
 
       File.rm(rendered.path)

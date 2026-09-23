@@ -299,4 +299,80 @@ defmodule PhoenixKitWeb.Live.Users.MediaTest do
       assert_patch(view, @media_path)
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # Storage libraries (V202)
+  # ---------------------------------------------------------------------------
+
+  describe "libraries" do
+    alias PhoenixKit.Modules.Storage.Libraries
+
+    test "with only Media there is no switcher, and an admin can create a library", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      conn = log_in_user(conn, user)
+
+      {:ok, view, html} = live(conn, @media_path)
+
+      refute html =~ "media-library-switcher"
+      assert html =~ "New library"
+
+      view |> element("button", "New library") |> render_click()
+      name = "Brand #{System.unique_integer([:positive])}"
+      view |> form("#media-new-library-form", %{name: name}) |> render_submit()
+
+      library = Enum.find(Libraries.list_system_libraries(), &(&1.name == name))
+      assert library
+      assert_patch(view, @media_path <> "?library=#{library.uuid}")
+      assert render(view) =~ "media-library-switcher"
+    end
+
+    test "?library= opens that library, and folder navigation keeps it", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      {:ok, library} = Libraries.create_system_library(%{name: "L #{System.unique_integer()}"})
+      {:ok, folder} = Storage.create_folder(%{name: "in-lib", library_uuid: library.uuid})
+      conn = log_in_user(conn, user)
+
+      {:ok, view, html} = live(conn, @media_path <> "?library=#{library.uuid}")
+      assert html =~ "media-library-switcher"
+
+      send(
+        view.pid,
+        {PhoenixKitWeb.Components.MediaBrowser, "media-browser",
+         {:navigate, %{folder: folder.uuid, q: "", page: 1, filter_orphaned: false}}}
+      )
+
+      assert_patch(
+        view,
+        @media_path <>
+          "?" <> URI.encode_query(%{"folder" => folder.uuid, "library" => library.uuid})
+      )
+    end
+
+    test "switching library patches to its root", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      {:ok, library} = Libraries.create_system_library(%{name: "S #{System.unique_integer()}"})
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path)
+
+      view
+      |> form("#media-library-switcher", %{library: library.uuid})
+      |> render_change()
+
+      assert_patch(view, @media_path <> "?library=#{library.uuid}")
+    end
+
+    test "a folder of another library is not opened by its URL", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      {:ok, library} = Libraries.create_system_library(%{name: "O #{System.unique_integer()}"})
+      media_folder = create_folder!(%{name: "media-only-#{System.unique_integer([:positive])}"})
+      conn = log_in_user(conn, user)
+
+      {:ok, _view, html} =
+        live(conn, @media_path <> "?library=#{library.uuid}&folder=#{media_folder.uuid}")
+
+      # Neither opened (its name would head the page) nor listed.
+      refute html =~ media_folder.name
+    end
+  end
 end

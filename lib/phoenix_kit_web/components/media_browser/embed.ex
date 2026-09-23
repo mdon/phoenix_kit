@@ -74,7 +74,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
   Single-browser-per-page is assumed: the query keys (`folder`, `q`,
   `page`, `orphaned`, `view`, `file`) are not namespaced per component, so two
   url-synced browsers on one page would fight over them. Give only one
-  the `url_sync` option in that case.
+  the `url_sync` option in that case. Any OTHER query param in the URL is
+  the host's and is kept as it is when the browser navigates (the admin
+  media page's `library`).
 
   ⚠ **`url_sync: true` makes the host LiveView un-embeddable.** It cannot
   itself be mounted with `live_render/3` afterwards. The `push_patch` this
@@ -170,7 +172,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
     socket
     |> Phoenix.LiveView.attach_hook(:phoenix_kit_mb_url_sync_params, :handle_params, fn
       params, uri, socket ->
-        socket = Phoenix.Component.assign(socket, :__phoenix_kit_mb_path__, URI.parse(uri).path)
+        uri = URI.parse(uri)
+
+        socket =
+          socket
+          |> Phoenix.Component.assign(:__phoenix_kit_mb_path__, uri.path)
+          |> Phoenix.Component.assign(:__phoenix_kit_mb_extra_query__, foreign_query(uri.query))
+
         nav = parse_nav_params(params)
 
         if Phoenix.LiveView.connected?(socket) and nav != socket.assigns[:__phoenix_kit_mb_nav__] do
@@ -182,7 +190,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
     end)
     |> Phoenix.LiveView.attach_hook(:phoenix_kit_mb_url_sync_info, :handle_info, fn
       {MediaBrowser, ^component_id, {:navigate, nav}}, socket ->
-        qs = build_nav_query(nav)
+        # The host's own query params (the admin media page's `library`)
+        # ride along; the browser owns only its nav keys.
+        qs =
+          Map.merge(socket.assigns[:__phoenix_kit_mb_extra_query__] || %{}, build_nav_query(nav))
+
         base = socket.assigns[:__phoenix_kit_mb_path__] || "/"
         url = if qs == %{}, do: base, else: base <> "?" <> URI.encode_query(qs)
         {:halt, Phoenix.LiveView.push_patch(socket, to: url)}
@@ -191,6 +203,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Embed do
         {:cont, socket}
     end)
   end
+
+  @nav_keys ~w(folder q page orphaned view file)
+
+  # The query params in the URL that are not the browser's own, kept across
+  # its navigation so a host's params (a page-level filter, a tab) survive a
+  # folder change.
+  defp foreign_query(nil), do: %{}
+  defp foreign_query(query), do: query |> URI.decode_query() |> Map.drop(@nav_keys)
 
   # ── Shared URL <-> nav-params helpers (public so a host with its own
   # handle_params can reuse the exact parse/build the macro uses) ──────

@@ -7,7 +7,19 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V201 - View preferences per user ⚡ LATEST
+  ### V202 - Storage libraries (the partition) ⚡ LATEST
+
+  Adds `phoenix_kit_storage_libraries` and seeds one system library, Media
+  (fixed uuid `00000000-0000-7000-8000-000000000001`), and `library_uuid`
+  (NOT NULL, default Media, `ON DELETE RESTRICT`) on files, media folders
+  and folder links. A folder link's `(file_uuid, library_uuid)` references
+  its file's, so a link cannot cross libraries; folder names become unique
+  per library and parent; a capture-date index keyed by library is added.
+  Everything that exists lands in Media, and every writer that names no
+  library keeps landing there, so nothing changes until a second library is
+  created. Phase 1 of `dev_docs/plans/2026-09-22-storage-libraries.md`.
+
+  ### V201 - View preferences per user
 
   Adds `phoenix_kit_user_view_prefs`: what one user chose for one view — a
   table's columns and order, and the view owner's own fields — one row per
@@ -846,7 +858,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 201
+  @current_version 202
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

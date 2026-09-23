@@ -106,6 +106,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.Folder
   alias PhoenixKit.Modules.Storage.FolderLink
   alias PhoenixKit.Modules.Storage.ImageEditing
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.Manager
   alias PhoenixKit.Modules.Storage.ProcessFileJob
   alias PhoenixKit.Modules.Storage.ProviderRegistry
@@ -1110,8 +1111,8 @@ defmodule PhoenixKit.Modules.Storage do
   Returns folder tree rooted at scope_folder_id (exclusive of scope itself).
   For nil scope, returns the real-root tree.
   """
-  def list_folder_tree(scope_folder_id \\ nil) do
-    all_folders = list_all_folders()
+  def list_folder_tree(scope_folder_id \\ nil, opts \\ []) do
+    all_folders = list_all_folders() |> in_library(opts[:library_uuid])
     by_parent = Enum.group_by(all_folders, & &1.parent_uuid)
 
     if scope_folder_id do
@@ -1126,18 +1127,22 @@ defmodule PhoenixKit.Modules.Storage do
 
   When parent_uuid is nil and scope_folder_id is set, returns children of
   scope_folder_id instead of real root.
-  """
-  def list_folders(parent_uuid \\ nil, scope_folder_id \\ nil)
 
-  def list_folders(nil, nil) do
+  `opts[:library_uuid]` narrows the real root to one storage library (a
+  folder's children are always in its library).
+  """
+  def list_folders(parent_uuid \\ nil, scope_folder_id \\ nil, opts \\ [])
+
+  def list_folders(nil, nil, opts) do
     from(f in Folder,
       where: is_nil(f.parent_uuid) and is_nil(f.trashed_at),
       order_by: [asc: f.name]
     )
+    |> where_library(opts[:library_uuid])
     |> repo().all()
   end
 
-  def list_folders(nil, scope_folder_id) do
+  def list_folders(nil, scope_folder_id, _opts) do
     from(f in Folder,
       where: f.parent_uuid == ^scope_folder_id and is_nil(f.trashed_at),
       order_by: [asc: f.name]
@@ -1145,7 +1150,7 @@ defmodule PhoenixKit.Modules.Storage do
     |> repo().all()
   end
 
-  def list_folders(parent_uuid, _scope_folder_id) do
+  def list_folders(parent_uuid, _scope_folder_id, _opts) do
     from(f in Folder,
       where: f.parent_uuid == ^parent_uuid and is_nil(f.trashed_at),
       order_by: [asc: f.name]
@@ -1163,11 +1168,11 @@ defmodule PhoenixKit.Modules.Storage do
 
   Returns `[]` for a blank search.
   """
-  def search_folders(search, folder_uuid \\ nil, scope_folder_id \\ nil)
+  def search_folders(search, folder_uuid \\ nil, scope_folder_id \\ nil, opts \\ [])
 
-  def search_folders(search, _folder_uuid, _scope) when search in [nil, ""], do: []
+  def search_folders(search, _folder_uuid, _scope, _opts) when search in [nil, ""], do: []
 
-  def search_folders(search, folder_uuid, scope_folder_id) do
+  def search_folders(search, folder_uuid, scope_folder_id, opts) do
     base =
       cond do
         folder_uuid not in [nil, ""] ->
@@ -1184,6 +1189,7 @@ defmodule PhoenixKit.Modules.Storage do
 
     base
     |> where([f], is_nil(f.trashed_at))
+    |> where_library(opts[:library_uuid])
     |> where([f], ilike(f.name, ^"%#{search}%"))
     |> order_by([f], asc: f.name)
     |> repo().all()
@@ -1203,9 +1209,7 @@ defmodule PhoenixKit.Modules.Storage do
   def create_folder(attrs, scope_folder_id \\ nil)
 
   def create_folder(attrs, nil) do
-    %Folder{}
-    |> Folder.changeset(attrs)
-    |> repo().insert()
+    insert_folder(attrs)
   end
 
   def create_folder(attrs, scope_folder_id) do
@@ -1213,15 +1217,50 @@ defmodule PhoenixKit.Modules.Storage do
 
     cond do
       is_nil(parent_uuid) ->
-        attrs = Map.put(attrs, :parent_uuid, scope_folder_id)
-        %Folder{} |> Folder.changeset(attrs) |> repo().insert()
+        attrs |> put_attr(:parent_uuid, scope_folder_id) |> insert_folder()
 
       within_scope?(parent_uuid, scope_folder_id) ->
-        %Folder{} |> Folder.changeset(attrs) |> repo().insert()
+        insert_folder(attrs)
 
       true ->
         {:error, :out_of_scope}
     end
+  end
+
+  # A subfolder is in its parent's library, whatever `attrs` says; a root
+  # folder is in the library `attrs` names, or Media.
+  defp insert_folder(attrs) do
+    attrs =
+      case attrs[:parent_uuid] || attrs["parent_uuid"] do
+        nil ->
+          attrs
+
+        parent_uuid ->
+          case repo().one(
+                 from(f in Folder, where: f.uuid == ^parent_uuid, select: f.library_uuid)
+               ) do
+            nil -> attrs
+            library_uuid -> put_attr(attrs, :library_uuid, library_uuid)
+          end
+      end
+
+    %Folder{} |> Folder.changeset(attrs) |> repo().insert()
+  end
+
+  # Sets `key` in an attrs map whichever key style it uses (Ecto refuses a
+  # map that mixes atom and string keys).
+  defp put_attr(attrs, key, value) do
+    if Enum.any?(Map.keys(attrs), &is_binary/1),
+      do: attrs |> Map.delete(key) |> Map.put(to_string(key), value),
+      else: attrs |> Map.delete(to_string(key)) |> Map.put(key, value)
+  end
+
+  defp folder_in_library?(folder_uuid, library_uuid) do
+    folder_library =
+      repo().one(from(f in Folder, where: f.uuid == ^folder_uuid, select: f.library_uuid))
+
+    to_string(folder_library) ==
+      to_string(library_uuid || Libraries.media_uuid())
   end
 
   @doc """
@@ -1242,17 +1281,9 @@ defmodule PhoenixKit.Modules.Storage do
     new_parent = attrs[:parent_uuid] || attrs["parent_uuid"]
 
     in_folder_tree(moving?(folder, new_parent), fn ->
-      cond do
-        new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) ->
-          {:error, :cycle}
-
-        moving_into_trash?(folder, new_parent) ->
-          {:error, :folder_unavailable}
-
-        true ->
-          folder
-          |> Folder.changeset(attrs)
-          |> repo().update()
+      case move_refusal(folder, new_parent) do
+        nil -> write_folder(folder, attrs)
+        refusal -> refusal
       end
     end)
   end
@@ -1280,18 +1311,38 @@ defmodule PhoenixKit.Modules.Storage do
         moving_parent? and not within_scope?(new_parent, scope_folder_id) ->
           {:error, :out_of_scope}
 
-        new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) ->
-          {:error, :cycle}
-
-        moving_into_trash?(folder, new_parent) ->
-          {:error, :folder_unavailable}
+        refusal = move_refusal(folder, new_parent) ->
+          refusal
 
         true ->
-          folder
-          |> Folder.changeset(attrs)
-          |> repo().update()
+          write_folder(folder, attrs)
       end
     end)
+  end
+
+  # Why a folder may not move under `new_parent` (nil for no move): a cycle,
+  # a trashed parent, or a parent in another library. nil when it may.
+  defp move_refusal(folder, new_parent) do
+    cond do
+      new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) ->
+        {:error, :cycle}
+
+      moving_into_trash?(folder, new_parent) ->
+        {:error, :folder_unavailable}
+
+      new_parent && not folder_in_library?(new_parent, folder.library_uuid) ->
+        {:error, :other_library}
+
+      true ->
+        nil
+    end
+  end
+
+  # A folder's library is fixed: an update never moves it to another one.
+  defp write_folder(folder, attrs) do
+    folder
+    |> Folder.changeset(Map.drop(attrs, [:library_uuid, "library_uuid"]))
+    |> repo().update()
   end
 
   @doc """
@@ -1640,13 +1691,15 @@ defmodule PhoenixKit.Modules.Storage do
       offset: ^offset
     )
     |> scope_trashed_folders(scope_folder_id)
+    |> where_library(opts[:library_uuid])
     |> repo().all()
   end
 
-  @doc "Counts trashed folders (with optional scope)."
-  def count_trashed_folders(scope_folder_id \\ nil) do
+  @doc "Counts trashed folders (with optional scope and `:library_uuid`)."
+  def count_trashed_folders(scope_folder_id \\ nil, opts \\ []) do
     from(f in Folder, where: not is_nil(f.trashed_at), select: count(f.uuid))
     |> scope_trashed_folders(scope_folder_id)
+    |> where_library(opts[:library_uuid])
     |> repo().one()
     |> Kernel.||(0)
   end
@@ -1803,6 +1856,7 @@ defmodule PhoenixKit.Modules.Storage do
       `include_orphaned: true` is ignored when `scope_folder_id` is non-nil (orphans are always outside any scope).
     - `:page` — page number (default 1).
     - `:per_page` — page size (default 20).
+    - `:library_uuid` — only files in this storage library.
 
   ## Returns
     `{files, total_count}` or `{:error, :out_of_scope}`.
@@ -1831,6 +1885,7 @@ defmodule PhoenixKit.Modules.Storage do
         |> where([f], f.status != "trashed")
         |> exclude_system_managed()
         |> maybe_filter_file_type(file_type)
+        |> where_library(opts[:library_uuid])
 
       total = repo().aggregate(query, :count, :uuid)
 
@@ -1963,14 +2018,9 @@ defmodule PhoenixKit.Modules.Storage do
   def move_file_to_folder(file_uuid, target_folder_uuid, scope_folder_id \\ nil)
 
   def move_file_to_folder(file_uuid, target_folder_uuid, nil) do
-    file = repo().get(PhoenixKit.Modules.Storage.File, file_uuid)
-
-    if file do
-      file
-      |> Ecto.Changeset.change(%{folder_uuid: target_folder_uuid})
-      |> repo().update()
-    else
-      {:error, :not_found}
+    case repo().get(PhoenixKit.Modules.Storage.File, file_uuid) do
+      nil -> {:error, :not_found}
+      file -> set_home(file, target_folder_uuid)
     end
   end
 
@@ -1988,9 +2038,18 @@ defmodule PhoenixKit.Modules.Storage do
         {:error, :out_of_scope}
 
       true ->
-        file
-        |> Ecto.Changeset.change(%{folder_uuid: target_folder_uuid})
-        |> repo().update()
+        set_home(file, target_folder_uuid)
+    end
+  end
+
+  # A file's home is a folder of its own library (or none).
+  defp set_home(file, target_folder_uuid) do
+    if is_nil(target_folder_uuid) or same_library?(file, target_folder_uuid) do
+      file
+      |> Ecto.Changeset.change(%{folder_uuid: target_folder_uuid})
+      |> repo().update()
+    else
+      {:error, :other_library}
     end
   end
 
@@ -2156,6 +2215,10 @@ defmodule PhoenixKit.Modules.Storage do
       not live_folder?(folder_uuid) ->
         {:error, :folder_unavailable}
 
+      # A folder holds only its own library's files.
+      not same_library?(file, folder_uuid) ->
+        {:error, :other_library}
+
       to_string(file.folder_uuid) == to_string(folder_uuid) ->
         {:ok, file}
 
@@ -2164,13 +2227,30 @@ defmodule PhoenixKit.Modules.Storage do
 
       true ->
         %FolderLink{}
-        |> FolderLink.changeset(%{folder_uuid: folder_uuid, file_uuid: file.uuid})
+        |> FolderLink.changeset(link_attrs(folder_uuid, file))
         |> repo().insert(on_conflict: :nothing)
         |> case do
           {:ok, _} -> {:ok, file}
           {:error, changeset} -> {:error, changeset}
         end
     end
+  end
+
+  # A link carries its file's library (the composite FK insists).
+  defp link_attrs(folder_uuid, file) do
+    put_library(%{folder_uuid: folder_uuid, file_uuid: file.uuid}, file.library_uuid)
+  end
+
+  # Whether `folder_uuid` is in `file`'s library. A file struct built before
+  # V202 (no `library_uuid`) is Media's.
+  defp same_library?(file, folder_uuid) do
+    folder_library =
+      repo().one(from(f in Folder, where: f.uuid == ^folder_uuid, select: f.library_uuid))
+
+    file_library =
+      Map.get(file, :library_uuid) || Libraries.media_uuid()
+
+    to_string(folder_library) == to_string(file_library)
   end
 
   defp live_folder?(folder_uuid) do
@@ -2250,9 +2330,10 @@ defmodule PhoenixKit.Modules.Storage do
   def create_folder_link(folder_uuid, file_uuid, scope_folder_id \\ nil)
 
   def create_folder_link(folder_uuid, file_uuid, nil) do
-    %FolderLink{}
-    |> FolderLink.changeset(%{folder_uuid: folder_uuid, file_uuid: file_uuid})
-    |> repo().insert()
+    case repo().get(PhoenixKit.Modules.Storage.File, file_uuid) do
+      nil -> {:error, :not_found}
+      file -> insert_folder_link(folder_uuid, file)
+    end
   end
 
   def create_folder_link(folder_uuid, file_uuid, scope_folder_id) do
@@ -2269,9 +2350,17 @@ defmodule PhoenixKit.Modules.Storage do
         {:error, :out_of_scope}
 
       true ->
-        %FolderLink{}
-        |> FolderLink.changeset(%{folder_uuid: folder_uuid, file_uuid: file_uuid})
-        |> repo().insert()
+        insert_folder_link(folder_uuid, file)
+    end
+  end
+
+  defp insert_folder_link(folder_uuid, file) do
+    if same_library?(file, folder_uuid) do
+      %FolderLink{}
+      |> FolderLink.changeset(link_attrs(folder_uuid, file))
+      |> repo().insert()
+    else
+      {:error, :other_library}
     end
   end
 
@@ -2305,6 +2394,18 @@ defmodule PhoenixKit.Modules.Storage do
     |> maybe_limit(opts[:limit])
     |> maybe_offset(opts[:offset])
     |> repo().all()
+  end
+
+  # Narrows a file or folder query to one storage library; nil leaves it
+  # unfiltered (every library — what every caller that names none gets).
+  defp where_library(query, nil), do: query
+  defp where_library(query, library_uuid), do: where(query, [r], r.library_uuid == ^library_uuid)
+
+  defp in_library(folders, nil), do: folders
+
+  defp in_library(folders, library_uuid) do
+    library_uuid = to_string(library_uuid)
+    Enum.filter(folders, &(to_string(&1.library_uuid) == library_uuid))
   end
 
   # Filters out system-managed File rows (Tessera tile chunks + manifests)
@@ -2468,6 +2569,7 @@ defmodule PhoenixKit.Modules.Storage do
            system_managed: true,
            parent_file_uuid: parent_file_uuid
          },
+         file_attrs = put_library(file_attrs, parent_library_uuid(parent_file_uuid)),
          {:ok, file} <- insert_or_fetch_system_file(file_attrs, parent_file_uuid, key),
          instance_attrs = %{
            variant_name: "original",
@@ -2491,6 +2593,16 @@ defmodule PhoenixKit.Modules.Storage do
         _ = delete_stored_objects([key])
         error
     end
+  end
+
+  # A system child (a tile, a manifest) lives in its parent's library.
+  defp parent_library_uuid(parent_file_uuid) do
+    repo().one(
+      from(f in PhoenixKit.Modules.Storage.File,
+        where: f.uuid == ^parent_file_uuid,
+        select: f.library_uuid
+      )
+    )
   end
 
   defp existing_system_file(parent_file_uuid, file_name) do
@@ -2772,6 +2884,7 @@ defmodule PhoenixKit.Modules.Storage do
   """
   def find_orphaned_files(opts \\ []) do
     orphaned_files_query()
+    |> where_library(opts[:library_uuid])
     |> order_by([f], desc: f.inserted_at)
     |> maybe_limit(opts[:limit])
     |> maybe_offset(opts[:offset])
@@ -2784,12 +2897,13 @@ defmodule PhoenixKit.Modules.Storage do
   When scope_folder_id is set, returns 0 because orphaned files (folder_uuid IS NULL)
   are always outside any non-nil scope.
   """
-  def count_orphaned_files(scope_folder_id \\ nil)
+  def count_orphaned_files(scope_folder_id \\ nil, opts \\ [])
 
-  def count_orphaned_files(scope_folder_id) when not is_nil(scope_folder_id), do: 0
+  def count_orphaned_files(scope_folder_id, _opts) when not is_nil(scope_folder_id), do: 0
 
-  def count_orphaned_files(nil) do
+  def count_orphaned_files(nil, opts) do
     orphaned_files_query()
+    |> where_library(opts[:library_uuid])
     |> repo().aggregate(:count, :uuid)
   end
 
@@ -3746,6 +3860,7 @@ defmodule PhoenixKit.Modules.Storage do
   def list_trashed_files(scope \\ nil, opts \\ []) do
     query =
       build_trashed_query(scope)
+      |> where_library(opts[:library_uuid])
       |> order_by([f], desc: f.trashed_at)
 
     query = if opts[:limit], do: limit(query, ^opts[:limit]), else: query
@@ -3753,9 +3868,10 @@ defmodule PhoenixKit.Modules.Storage do
     repo().all(query)
   end
 
-  @doc "Returns the count of trashed files, optionally scoped."
-  def count_trashed_files(scope \\ nil) do
+  @doc "Returns the count of trashed files, optionally scoped (and `:library_uuid`)."
+  def count_trashed_files(scope \\ nil, opts \\ []) do
     build_trashed_query(scope)
+    |> where_library(opts[:library_uuid])
     |> repo().aggregate(:count, :uuid)
   end
 
@@ -3790,9 +3906,12 @@ defmodule PhoenixKit.Modules.Storage do
     |> recursive_ctes(true)
   end
 
-  @doc "Permanently deletes all trashed files, optionally scoped."
-  def empty_trash(scope \\ nil) do
-    trashed = list_trashed_files(scope)
+  @doc """
+  Permanently deletes all trashed files, optionally scoped — to a folder's
+  subtree, and with `library_uuid:` to one storage library.
+  """
+  def empty_trash(scope \\ nil, opts \\ []) do
+    trashed = list_trashed_files(scope, Keyword.take(opts, [:library_uuid]))
     Enum.each(trashed, &delete_file_completely/1)
     {:ok, length(trashed)}
   end
@@ -4089,6 +4208,13 @@ defmodule PhoenixKit.Modules.Storage do
       back to guessing from the extension — which is how every mp3 in the
       wild ended up as `application/octet-stream`. A blank or octet-stream
       value is treated as absent.
+    * `:library_uuid` — the storage library the new file goes into
+      (`PhoenixKit.Modules.Storage.Libraries`); omitted means Media. A
+      library with a `key_prefix` keys the file's objects under it
+      (`{key_prefix}/{hash[0..1]}/{full_hash}/…`) instead of the uploader's
+      prefix. A duplicate the same uploader already has is returned as it
+      is, in whatever library it is in — compare `library_uuid` if that
+      matters to you.
 
   Whatever `file_type` the caller claims is cross-checked against the mime
   evidence before the row is written (see `determine_file_type/2`) — a
@@ -4208,7 +4334,8 @@ defmodule PhoenixKit.Modules.Storage do
                    user_uuid,
                    file_checksum,
                    ext,
-                   original_filename
+                   original_filename,
+                   opts
                  ) do
               # The donor went (or changed) before it could be shared: store
               # this upload's own bytes instead.
@@ -4265,10 +4392,13 @@ defmodule PhoenixKit.Modules.Storage do
     # Generate UUIDv7 for file UUID
     file_uuid = UUIDv7.generate()
 
-    # Build hierarchical path - organized by user_prefix/hash_prefix/md5_hash
-    user_prefix = String.slice(to_string(user_uuid), 0, 2)
+    # Build hierarchical path - organized by key_prefix/hash_prefix/md5_hash,
+    # where the key prefix is the library's own when it has one and the
+    # uploader's first two characters otherwise (the historical layout).
+    library_uuid = opts[:library_uuid]
+    key_prefix = library_key_prefix(library_uuid) || String.slice(to_string(user_uuid), 0, 2)
     hash_prefix = String.slice(md5_hash, 0, 2)
-    file_path = "#{user_prefix}/#{hash_prefix}/#{md5_hash}"
+    file_path = "#{key_prefix}/#{hash_prefix}/#{md5_hash}"
 
     # Use provided original filename or fall back to source basename
     orig_filename = original_filename || Path.basename(source_path)
@@ -4299,6 +4429,8 @@ defmodule PhoenixKit.Modules.Storage do
       status: "processing",
       user_uuid: user_uuid
     }
+
+    file_attrs = put_library(file_attrs, library_uuid)
 
     case create_file(file_attrs) do
       {:ok, file} ->
@@ -4362,8 +4494,26 @@ defmodule PhoenixKit.Modules.Storage do
     |> repo().one()
   end
 
+  # The object-key prefix of a library that has one; nil keeps the
+  # historical per-uploader layout (Media, and no library given).
+  defp library_key_prefix(nil), do: nil
+
+  defp library_key_prefix(library_uuid) do
+    case Libraries.get_library(library_uuid) do
+      %{key_prefix: prefix} when is_binary(prefix) and prefix != "" -> prefix
+      _ -> nil
+    end
+  end
+
+  # Names the library only when one is given: a nil `library_uuid` is left
+  # out of the insert, so the column default (Media) applies.
+  defp put_library(attrs, nil), do: attrs
+  defp put_library(attrs, library_uuid), do: Map.put(attrs, :library_uuid, library_uuid)
+
   # Create a new File record for a different user, reusing the same storage path
-  defp clone_file_for_user(donor_file, user_uuid, file_checksum, ext, original_filename) do
+  # (the donor's objects, whatever library it is in). The clone goes into the
+  # library the upload asked for.
+  defp clone_file_for_user(donor_file, user_uuid, file_checksum, ext, original_filename, opts) do
     user_file_checksum = calculate_user_file_checksum(user_uuid, file_checksum)
 
     file_attrs = %{
@@ -4383,6 +4533,8 @@ defmodule PhoenixKit.Modules.Storage do
       status: "active",
       user_uuid: user_uuid
     }
+
+    file_attrs = put_library(file_attrs, opts[:library_uuid])
 
     # Under the donor's path lock, so the keys being copied cannot be deleted
     # (a delete, an edit's swap) between reading and referencing them. The
