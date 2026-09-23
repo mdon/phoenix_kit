@@ -282,7 +282,9 @@ defmodule PhoenixKitWeb.Integration.Users.ActiveRoleSwitchTest do
       session_user = Auth.get_user_by_session_token(token)
       assert {:ok, _role} = ActiveRole.switch(session_user, token, seller.uuid)
 
-      {_path, flash} = assert_redirect(lv)
+      # The redirect follows a broadcast; the default 100 ms is too short
+      # on a busy machine.
+      {_path, flash} = assert_redirect(lv, 2_000)
       assert flash["error"] =~ "role you switched to"
     end
 

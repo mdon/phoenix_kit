@@ -59,7 +59,9 @@ defmodule PhoenixKit.Activity do
     case attrs |> entry_changeset() |> repo().insert() do
       {:ok, entry} ->
         broadcast_activity(entry)
-        maybe_notify(entry)
+        # An attempt that did not land (`log_failed/3`) is an audit row, not
+        # news: nobody is told about an action that did not happen.
+        unless attempt?(entry), do: maybe_notify(entry)
         {:ok, entry}
 
       {:error, changeset} ->
@@ -71,21 +73,145 @@ defmodule PhoenixKit.Activity do
       Logger.warning("Activity logging error: #{inspect(e)}")
       {:error, e}
   catch
-    # A dead pool / checkout timeout exits rather than raises.
-    :exit, reason ->
-      Logger.warning("Activity logging error: #{inspect(reason)}")
+    # A dead pool / checkout timeout exits rather than raises, and a throw
+    # must not unwind into the caller either — on a checkout that caller is
+    # the shopper's LiveView.
+    kind, reason when kind in [:exit, :throw] ->
+      Logger.warning("Activity logging error: #{inspect(kind)} #{inspect(reason)}")
       {:error, reason}
   end
+
+  defp attempt?(%Entry{metadata: %{"db_pending" => true}}), do: true
+  defp attempt?(_entry), do: false
 
   # Fan out to per-user notifications. Guarded with `Code.ensure_loaded?` so
   # the core Activity module keeps working if the Notifications module is
   # ever stripped out or not yet compiled during recompile cascades.
+  #
+  # The entry is already committed here, so nothing the fan-out does — a
+  # raise, an exit or a throw — may turn `log/1`'s result into an error.
   defp maybe_notify(entry) do
     if Code.ensure_loaded?(PhoenixKit.Notifications) do
       PhoenixKit.Notifications.maybe_create_from_activity(entry)
     end
   rescue
     e -> Logger.warning("Notifications fan-out failed: #{inspect(e)}")
+  catch
+    kind, reason ->
+      Logger.warning("Notifications fan-out failed: #{inspect(kind)} #{inspect(reason)}")
+  end
+
+  @typedoc "What `log/3` and `log_failed/3` take besides the module and the action."
+  @type log_opt ::
+          {:actor_uuid, String.t() | nil}
+          | {:mode, String.t()}
+          | {:resource_type, String.t()}
+          | {:resource_uuid, String.t()}
+          | {:target_uuid, String.t()}
+          | {:metadata, map()}
+          | {:permanent, boolean()}
+
+  @doc """
+  Logs an activity on behalf of a module — the call every module used to
+  wrap in its own `Activity` helper. `module` is the module key
+  (`"catalogue"`, `"crm"`, …), stored on the entry.
+
+  Options: `:actor_uuid`, `:mode` (default `"manual"`), `:resource_type`,
+  `:resource_uuid`, `:target_uuid`, `:metadata` (a map, or a keyword or
+  pair list; keep it PII-free) and `:permanent` (only `true` keeps the
+  entry from being pruned). Same result and same never-crash guarantee as `log/1`:
+  a blank module key or a non-list `opts` is `{:error, :invalid_arguments}`,
+  logged, not a raise.
+
+      PhoenixKit.Activity.log("crm", "crm.company_updated",
+        actor_uuid: PhoenixKitWeb.Actor.uuid(socket),
+        resource_type: "company",
+        resource_uuid: company.uuid
+      )
+  """
+  @spec log(String.t(), String.t(), [log_opt()]) :: {:ok, Entry.t()} | {:error, term()}
+  def log(module, action, opts \\ [])
+
+  def log(module, action, opts)
+      when is_binary(module) and module != "" and is_binary(action) and is_list(opts) do
+    # Whitespace is blank, and a keyword list that is improper (or holds
+    # something that is not a pair) raises inside `Keyword.get/3` — both
+    # are the caller's mistake, answered rather than raised.
+    if String.trim(module) == "" or not Keyword.keyword?(opts) do
+      invalid_arguments(module, action)
+    else
+      log_opts(module, action, opts)
+    end
+  end
+
+  def log(module, action, _opts), do: invalid_arguments(module, action)
+
+  defp log_opts(module, action, opts) do
+    %{
+      action: action,
+      module: module,
+      mode: Keyword.get(opts, :mode, "manual"),
+      actor_uuid: Keyword.get(opts, :actor_uuid),
+      resource_type: Keyword.get(opts, :resource_type),
+      resource_uuid: Keyword.get(opts, :resource_uuid),
+      target_uuid: Keyword.get(opts, :target_uuid),
+      metadata: metadata_opt(opts),
+      permanent: Keyword.get(opts, :permanent) == true
+    }
+    |> log()
+  end
+
+  @doc """
+  Logs a user action that did not land — a mutation that returned an
+  error. Same as `log/3` with `"db_pending" => true` in the metadata, so
+  the feed still shows what was attempted and readers can tell it apart
+  from what happened. It notifies nobody, `target_uuid` or not.
+  """
+  @spec log_failed(String.t(), String.t(), [log_opt()]) ::
+          {:ok, Entry.t()} | {:error, term()}
+  def log_failed(module, action, opts \\ [])
+
+  def log_failed(module, action, opts)
+      when is_binary(module) and module != "" and is_binary(action) and is_list(opts) do
+    if Keyword.keyword?(opts) do
+      log(
+        module,
+        action,
+        Keyword.put(opts, :metadata, Map.put(metadata_opt(opts), "db_pending", true))
+      )
+    else
+      invalid_arguments(module, action)
+    end
+  end
+
+  def log_failed(module, action, _opts), do: invalid_arguments(module, action)
+
+  # The options are left out of the log line: their metadata is the
+  # caller's and may not be fit for a log.
+  defp invalid_arguments(module, action) do
+    Logger.warning(
+      "Activity not logged: a module key and an action are required, got #{inspect(module)} and #{inspect(action)}"
+    )
+
+    {:error, :invalid_arguments}
+  end
+
+  # A keyword or pair list is taken as the map it spells — it is the
+  # natural thing to write beside a keyword list of options.
+  defp metadata_opt(opts) do
+    case Keyword.get(opts, :metadata) do
+      %{} = metadata -> metadata
+      [_ | _] = pairs -> pairs_to_map(pairs)
+      _ -> %{}
+    end
+  end
+
+  # An improper list, or one holding something that is not a pair, is not
+  # metadata — and must not raise out of a call that never raises.
+  defp pairs_to_map(pairs) do
+    Map.new(pairs)
+  rescue
+    _ -> %{}
   end
 
   @doc """
@@ -621,14 +747,17 @@ defmodule PhoenixKit.Activity do
   @spec broadcast(Entry.t()) :: :ok
   def broadcast(%Entry{} = entry) do
     broadcast_activity(entry)
-    maybe_notify(entry)
+    unless attempt?(entry), do: maybe_notify(entry)
     :ok
   end
 
+  # Committed already — same rule as `maybe_notify/1`.
   defp broadcast_activity(entry) do
     PubSubManager.broadcast(@pubsub_topic, {:activity_logged, entry})
   rescue
     _ -> :ok
+  catch
+    _kind, _reason -> :ok
   end
 
   defp repo do

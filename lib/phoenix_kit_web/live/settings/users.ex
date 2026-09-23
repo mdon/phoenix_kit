@@ -16,6 +16,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   alias PhoenixKit.Users.Role
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Actor
 
   def mount(_params, _session, socket) do
     # Set locale for LiveView process
@@ -105,7 +106,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
     socket = assign(socket, :saving, true)
 
     case Settings.update_settings(settings_params,
-           actor_uuid: get_in(socket.assigns, [:phoenix_kit_current_user, Access.key(:uuid)]),
+           actor_uuid: Actor.uuid(socket),
            source: "settings"
          ) do
       {:ok, updated_settings} ->

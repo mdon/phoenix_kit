@@ -99,9 +99,10 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   require Logger
 
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{File, FileInstance, FolderLink, URLSigner}
+  alias PhoenixKit.Modules.Storage.{File, FileInstance, Folder, FolderLink, URLSigner}
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Format
+  alias PhoenixKit.Utils.TreeQuery
   alias PhoenixKitWeb.Components.Core.MediaThumbnail
 
   import Ecto.Query
@@ -363,38 +364,10 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
 
   def handle_event("toggle_selection", %{"file-uuid" => file_uuid}, socket) do
     selected_uuids = socket.assigns.selected_uuids
-    mode = socket.assigns.mode
 
-    Logger.debug(
-      "MediaSelectorModal toggle_selection: mode=#{inspect(mode)}, file_uuid=#{file_uuid}"
-    )
-
-    # `update/2` normalizes :mode, so only the two atoms reach here. Appending
-    # (not set-insertion) keeps the user's pick order — see update/2.
-    {new_selected_uuids, limit_hit} =
-      case mode do
-        :multiple ->
-          cond do
-            file_uuid in selected_uuids ->
-              {List.delete(selected_uuids, file_uuid), false}
-
-            selection_at_cap?(selected_uuids, socket.assigns.max_select) ->
-              # At the cap: reject the add and surface the limit instead of
-              # letting the consumer silently truncate on confirm.
-              {selected_uuids, true}
-
-            true ->
-              {selected_uuids ++ [file_uuid], false}
-          end
-
-        :single ->
-          {[file_uuid], false}
-      end
-
-    {:noreply,
-     socket
-     |> assign(:selected_uuids, new_selected_uuids)
-     |> assign(:limit_hit, limit_hit)}
+    if file_uuid in selected_uuids or selectable?(socket, file_uuid),
+      do: {:noreply, toggle(socket, file_uuid)},
+      else: {:noreply, socket}
   end
 
   def handle_event("confirm_selection", _params, socket) do
@@ -405,15 +378,13 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   # gesture, file-dialog style. Multiple mode ignores it — a double-click
   # there is just an emphatic toggle, not "I'm done".
   def handle_event("quick_confirm", %{"file-uuid" => file_uuid}, socket) do
-    case socket.assigns.mode do
-      :single ->
-        {:noreply,
-         socket
-         |> assign(:selected_uuids, [file_uuid])
-         |> confirm_selection()}
-
-      _ ->
-        {:noreply, socket}
+    if socket.assigns.mode == :single and selectable?(socket, file_uuid) do
+      {:noreply,
+       socket
+       |> assign(:selected_uuids, [file_uuid])
+       |> confirm_selection()}
+    else
+      {:noreply, socket}
     end
   end
 
@@ -507,6 +478,67 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
       |> assign(:total_pages, total_pages)
 
     {:noreply, socket}
+  end
+
+  # Adds or removes one file — a remove always, an add only for a file this
+  # picker lists (`selectable?/2`, checked by the caller).
+  defp toggle(socket, file_uuid) do
+    selected_uuids = socket.assigns.selected_uuids
+    mode = socket.assigns.mode
+
+    Logger.debug(
+      "MediaSelectorModal toggle_selection: mode=#{inspect(mode)}, file_uuid=#{file_uuid}"
+    )
+
+    # `update/2` normalizes :mode, so only the two atoms reach here. Appending
+    # (not set-insertion) keeps the user's pick order — see update/2.
+    {new_selected_uuids, limit_hit} =
+      case mode do
+        :multiple ->
+          cond do
+            file_uuid in selected_uuids ->
+              {List.delete(selected_uuids, file_uuid), false}
+
+            selection_at_cap?(selected_uuids, socket.assigns.max_select) ->
+              # At the cap: reject the add and surface the limit instead of
+              # letting the consumer silently truncate on confirm.
+              {selected_uuids, true}
+
+            true ->
+              {selected_uuids ++ [file_uuid], false}
+          end
+
+        :single ->
+          {[file_uuid], false}
+      end
+
+    socket
+    |> assign(:selected_uuids, new_selected_uuids)
+    |> assign(:limit_hit, limit_hit)
+  end
+
+  # The host points a record at whatever comes back (an avatar, a featured
+  # image), so a uuid the browser sends is taken only when this picker could
+  # have listed that file: live, inside the scope folder, the user's own when
+  # restricted, of the locked type — whatever page or search is showing. An
+  # upload-only picker lists nothing; its uploads select themselves.
+  defp selectable?(%{assigns: %{browse: false}}, _file_uuid), do: false
+
+  defp selectable?(socket, file_uuid) do
+    case Ecto.UUID.cast(file_uuid) do
+      {:ok, uuid} when byte_size(file_uuid) == 36 ->
+        from(f in File, where: f.uuid == ^uuid)
+        |> where([f], f.status != "trashed" and f.system_managed == false)
+        |> scope_files_by_user(socket.assigns[:user_uuid])
+        |> scope_files_by_folder(socket.assigns[:scope_folder_id])
+        |> scope_files_by_type(
+          if socket.assigns[:lock_file_type], do: socket.assigns.file_type_filter, else: :all
+        )
+        |> PhoenixKit.Config.get_repo().exists?()
+
+      _ ->
+        false
+    end
   end
 
   defp confirm_selection(socket) do
@@ -774,7 +806,9 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
   # scoped to (e.g.) an order's folder also surfaces images uploaded into
   # its sub-order subfolders.
   defp scope_files_by_folder(query, folder_uuid) do
-    folder_uuids = Storage.folder_subtree_uuids(folder_uuid)
+    # One recursive query, however deep the tree (the order-keeping
+    # `Storage.folder_subtree_uuids/1` costs one per level).
+    folder_uuids = TreeQuery.subtree_uuids(Folder, [folder_uuid])
 
     linked_subq =
       from(fl in FolderLink,

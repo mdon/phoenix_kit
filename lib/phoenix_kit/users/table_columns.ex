@@ -1,11 +1,16 @@
 defmodule PhoenixKit.Users.TableColumns do
   @moduledoc """
-  Table column configuration for user management dashboard.
+  The Users table's columns: the standard user fields plus the enabled
+  custom fields, with their metadata.
 
-  Provides dynamic column selection including standard user fields and custom fields
-  from the V17 custom fields system. Manages column metadata, ordering, and persistence
-  through the settings system.
+  Each admin picks their own through `PhoenixKitWeb.TableColumns`
+  (`columns_spec/0`, view key `"users"`). The `user_table_columns` setting
+  this module also reads and writes is the site's default — what an admin
+  who has not chosen sees — not anyone's current choice. The Actions
+  column is always last and is not one of the columns an admin picks.
   """
+
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.User
@@ -37,6 +42,50 @@ defmodule PhoenixKit.Users.TableColumns do
     }
   end
 
+  # The standard columns in the order the column picker offers them.
+  @standard_order ~w(email username full_name role status registered location last_confirmed)
+
+  @doc """
+  The spec `PhoenixKitWeb.TableColumns` needs for the Users table: every
+  standard and custom column (Actions is not one — it is always last), the
+  built-in defaults, and the site's default from `user_table_columns`.
+  """
+  @spec columns_spec() :: map()
+  def columns_spec do
+    available = get_available_columns()
+
+    standard =
+      for id <- @standard_order, meta = available.standard[id] do
+        %{id: id, label: meta.label, group: gettext("Standard fields")}
+      end
+
+    custom =
+      for {id, meta} <- Enum.sort_by(available.custom, fn {id, _} -> id end) do
+        %{id: id, label: meta.label, group: gettext("Custom fields")}
+      end
+
+    %{
+      key: "users",
+      columns: standard ++ custom,
+      defaults: List.delete(get_default_columns(), "actions"),
+      site_default: &site_columns/0
+    }
+  end
+
+  @doc """
+  The site's default columns (without Actions), or `nil` when the site has
+  not set one.
+  """
+  @spec site_columns() :: [String.t()] | nil
+  def site_columns do
+    with json when is_binary(json) and json != "" <- Settings.get_setting("user_table_columns"),
+         {:ok, columns} when is_list(columns) <- JSON.decode(json) do
+      List.delete(columns, "actions")
+    else
+      _ -> nil
+    end
+  end
+
   @doc """
   Gets the default column configuration.
 
@@ -64,10 +113,9 @@ defmodule PhoenixKit.Users.TableColumns do
   end
 
   @doc """
-  Gets the current user table columns from settings.
-
-  Returns the user's saved column preference, or the default configuration
-  if no preference is saved.
+  The site's default columns, Actions included, falling back to the
+  built-in default when the site has none. An admin's own choice is read
+  through `PhoenixKitWeb.TableColumns` (`columns_spec/0`).
 
   ## Examples
 
@@ -96,10 +144,8 @@ defmodule PhoenixKit.Users.TableColumns do
   end
 
   @doc """
-  Updates the user table columns in settings.
-
-  Saves the user's column preference to the settings table for persistence
-  across page reloads and sessions.
+  Sets the site's default columns — what an admin who has not chosen their
+  own sees. Actions is kept, last.
 
   ## Examples
 
@@ -217,50 +263,50 @@ defmodule PhoenixKit.Users.TableColumns do
   defp get_standard_columns do
     %{
       "email" => %{
-        label: "Email",
+        label: gettext("Email"),
         field: "email",
         required: false,
         type: :email
       },
       "username" => %{
-        label: "Username",
+        label: gettext("Username"),
         field: "username",
         required: false,
         type: :string
       },
       "full_name" => %{
-        label: "Full Name",
+        label: gettext("Full Name"),
         field: "first_name",
         required: false,
         type: :composite,
         formatter: &format_full_name/1
       },
       "role" => %{
-        label: "Role",
+        label: gettext("Role"),
         field: "roles",
         required: false,
         type: :roles
       },
       "status" => %{
-        label: "Status",
+        label: gettext("Status"),
         field: "is_active",
         required: false,
         type: :status
       },
       "registered" => %{
-        label: "Registered",
+        label: gettext("Registered"),
         field: "inserted_at",
         required: false,
         type: :datetime
       },
       "location" => %{
-        label: "Location",
+        label: gettext("Location"),
         field: "registration_country",
         required: false,
         type: :location
       },
       "last_confirmed" => %{
-        label: "Last Confirmed",
+        label: gettext("Last Confirmed"),
         field: "confirmed_at",
         required: false,
         type: :datetime

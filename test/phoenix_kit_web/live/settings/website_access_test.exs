@@ -5,6 +5,7 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
   alias PhoenixKit.Modules.Crawlers
   alias PhoenixKit.Modules.Maintenance
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.ViewPrefs
   alias PhoenixKit.Utils.Date, as: DateUtils
   alias PhoenixKit.WebsiteAccess
   alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Redirect}
@@ -163,8 +164,10 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
       assert html =~ "my-other-password"
     end
 
-    test "the tries table's columns can be hidden, reordered and reset, and the choice is kept",
-         %{conn: conn} do
+    test "the tries table's columns are each admin's own, kept as they change", %{
+      conn: conn,
+      user: user
+    } do
       {:ok, _} = Gate.set_password("Secret42")
       Gate.attempt("SECRET42", address: "203.0.113.7")
       {:ok, view, html} = live(conn, @page)
@@ -173,40 +176,40 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
       view |> element(~s(button[phx-click="show_column_modal"])) |> render_click()
       html = render_click(view, "remove_column", %{"column_id" => "typed"})
       refute html =~ "SECRET42"
-      assert Settings.get_setting("website_access_attempt_columns") =~ "address"
-      refute Settings.get_setting("website_access_attempt_columns") =~ "typed"
+
+      # The admin's own choice, not the site's.
+      assert ViewPrefs.get(user, "website_access.attempts")["columns"] ==
+               ~w(when result address browser)
+
+      assert Settings.get_setting("website_access_attempt_columns") == nil
 
       {:ok, _view2, html2} = live(conn, @page)
       refute html2 =~ "SECRET42", "the choice survives a reload"
 
+      # Another admin still sees the default.
+      {other, _} = create_admin_user()
+      {:ok, _other_view, other_html} = live(log_in_user(build_conn(), other), @page)
+      assert other_html =~ "SECRET42"
+
       html =
         render_click(view, "reorder_columns", %{"ordered_ids" => ["address", "when", "bogus"]})
 
-      assert Settings.get_setting("website_access_attempt_columns") == ~s(["address","when"])
+      assert ViewPrefs.get(user, "website_access.attempts")["columns"] ==
+               ~w(address when result browser)
+
       assert html =~ "203.0.113.7"
 
       html = render_click(view, "reset_columns", %{})
       assert html =~ "SECRET42"
+      assert ViewPrefs.get(user, "website_access.attempts") == %{}
 
-      # the last column cannot be removed; a stored empty or duplicated list loads sane
+      # the last column cannot be removed
       for col <- ~w(when result typed address) do
         render_click(view, "remove_column", %{"column_id" => col})
       end
 
       html = render_click(view, "remove_column", %{"column_id" => "browser"})
       assert html =~ "Browser"
-      Settings.update_setting("website_access_attempt_columns", ~s(["when","when","bogus"]))
-      {:ok, _view3, html3} = live(conn, @page)
-      assert html3 =~ ~r/attempt-[0-9a-f-]+/
-      Settings.update_setting("website_access_attempt_columns", "[]")
-      {:ok, _view4, html4} = live(conn, @page)
-      assert html4 =~ "SECRET42", "an empty list falls back to every column"
-
-      # a reorder naming no column is ignored, like removing the last one
-      render_click(view, "reset_columns", %{})
-      html = render_click(view, "reorder_columns", %{"ordered_ids" => ["bogus"]})
-      assert html =~ "SECRET42"
-      assert Settings.get_setting("website_access_attempt_columns") =~ "typed"
 
       # ill-shaped column events are ignored, not a crash
       for {event, params} <- [
@@ -215,8 +218,23 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccessTest do
             {"remove_column", %{}},
             {"reorder_columns", %{"ordered_ids" => "when"}}
           ] do
-        assert render_click(view, event, params) =~ "SECRET42"
+        assert render_click(view, event, params) =~ "Browser"
       end
+    end
+
+    test "the site's setting is the default for an admin who has not chosen", %{conn: conn} do
+      {:ok, _} = Gate.set_password("Secret42")
+      Gate.attempt("SECRET42", address: "203.0.113.7")
+
+      Settings.update_setting("website_access_attempt_columns", ~s(["address","when","bogus"]))
+      {:ok, _view, html} = live(conn, @page)
+      assert html =~ "203.0.113.7"
+      refute html =~ "SECRET42"
+
+      # A site default that names no column still offered shows every column.
+      Settings.update_setting("website_access_attempt_columns", ~s(["bogus"]))
+      {:ok, _view, html} = live(conn, @page)
+      assert html =~ "SECRET42"
     end
 
     test "a forged toggle for the feature without a switch is refused, not a crash", %{conn: conn} do

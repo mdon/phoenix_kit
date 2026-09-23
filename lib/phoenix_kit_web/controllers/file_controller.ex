@@ -36,7 +36,9 @@ defmodule PhoenixKitWeb.FileController do
     - `Cache-Control: public, max-age=31536000, immutable` (1 year)
     - `ETag: "md5-hash"`
     - `Content-Type: <mime-type>`
-    - `Content-Disposition: inline; filename="..."`
+    - `Content-Disposition: inline; filename="..."` for images, PDFs, plain
+      text, video and audio; `attachment` for any other type
+    - `X-Content-Type-Options: nosniff`
 
   Not Modified (304):
   - Returned when request includes `If-None-Match` matching the file ETag
@@ -99,10 +101,19 @@ defmodule PhoenixKitWeb.FileController do
           # redirect itself must not be cached, or the client keeps following
           # it to the full-size image after the variant exists; nor may an
           # unversioned one for an edited file, whose object key changes with
-          # every edit. (The object's own headers are the bucket's business.)
-          conn
-          |> put_redirect_cache_headers(cache)
-          |> redirect(external: url)
+          # every edit.
+          #
+          # Only for a type this app serves inline anyway. The bucket answers
+          # with its own headers, so anything else — an uploaded HTML page,
+          # an SVG, a script — would render on the bucket's origin instead of
+          # downloading; those go through the app, which says `attachment`.
+          if disposition_for(instance.mime_type) == "inline" do
+            conn
+            |> put_redirect_cache_headers(cache)
+            |> redirect(external: url)
+          else
+            proxy_remote_file(conn, file, instance, instance.file_name, cache)
+          end
 
         {:proxy, file_name} ->
           proxy_remote_file(conn, file, instance, file_name, cache)
@@ -1065,11 +1076,7 @@ defmodule PhoenixKitWeb.FileController do
   defp serve_file(conn, file, instance, file_path, :pending) do
     conn
     |> put_variant_cache_headers(instance, :pending)
-    |> put_resp_header(
-      "content-disposition",
-      ~s(inline; filename="#{file.original_file_name}")
-    )
-    |> put_resp_content_type(instance.mime_type)
+    |> put_content_headers(file, instance)
     |> send_file(200, file_path)
   end
 
@@ -1083,13 +1090,37 @@ defmodule PhoenixKitWeb.FileController do
     else
       conn
       |> put_variant_cache_headers(instance, cache)
-      |> put_resp_header(
-        "content-disposition",
-        ~s(inline; filename="#{file.original_file_name}")
-      )
-      |> put_resp_content_type(instance.mime_type)
+      |> put_content_headers(file, instance)
       |> send_file(200, file_path)
     end
+  end
+
+  # The type is the uploader's (a browser's claim), and the file is served
+  # from the app's own origin. So the browser is told not to second-guess
+  # it (`nosniff`), and only a type it cannot run is shown in place: an
+  # HTML or SVG page — or anything else — opened from its link downloads
+  # instead of running its scripts as the app. `<img>`, `<video>` and
+  # `<audio>` ignore the disposition, so embedded media still shows.
+  @inline_types ~w(image/png image/jpeg image/gif image/webp image/avif image/bmp
+                   image/x-icon image/vnd.microsoft.icon image/tiff application/pdf text/plain)
+
+  @doc false
+  def disposition_for(mime_type) do
+    type = mime_type |> to_string() |> String.downcase()
+
+    if type in @inline_types or String.starts_with?(type, ["video/", "audio/"]),
+      do: "inline",
+      else: "attachment"
+  end
+
+  defp put_content_headers(conn, file, instance) do
+    conn
+    |> put_resp_header("x-content-type-options", "nosniff")
+    |> put_resp_header(
+      "content-disposition",
+      ~s(#{disposition_for(instance.mime_type)}; filename="#{file.original_file_name}")
+    )
+    |> put_resp_content_type(instance.mime_type)
   end
 
   @doc false

@@ -19,6 +19,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Actor
 
   def mount(_params, _session, socket) do
     if connected?(socket), do: Events.subscribe()
@@ -169,7 +170,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
     provider_key = socket.assigns.selected_provider
     name = String.trim(name)
 
-    case Integrations.add_connection(provider_key, name, actor_uuid(socket), owner: :system) do
+    case Integrations.add_connection(provider_key, name, Actor.uuid(socket), owner: :system) do
       {:ok, %{uuid: uuid}} ->
         save_and_redirect(uuid, provider_key, name, params, socket)
 
@@ -205,7 +206,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
     uuid = socket.assigns.uuid
 
     # Keep the setup credentials (client_id/secret) but remove tokens
-    Integrations.disconnect(uuid, actor_uuid(socket))
+    Integrations.disconnect(uuid, Actor.uuid(socket))
 
     # Reload data from the (now-disconnected) row
     data =
@@ -294,7 +295,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   # ---------------------------------------------------------------------------
 
   def handle_event("delete_connection", _params, socket) do
-    case Integrations.remove_connection(socket.assigns.uuid, actor_uuid(socket)) do
+    case Integrations.remove_connection(socket.assigns.uuid, Actor.uuid(socket)) do
       :ok ->
         {:noreply,
          socket
@@ -311,7 +312,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   # ---------------------------------------------------------------------------
 
   def handle_event("rename_connection", %{"name" => new_name}, socket) do
-    case Integrations.rename_connection(socket.assigns.uuid, new_name, actor_uuid(socket)) do
+    case Integrations.rename_connection(socket.assigns.uuid, new_name, Actor.uuid(socket)) do
       {:ok, data} ->
         # URL is uuid-based, so a rename doesn't change the route — just
         # update local assigns and surface a success flash. The list page
@@ -340,7 +341,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
 
   def handle_info(:do_test_connection, socket) do
     uuid = socket.assigns.uuid
-    actor = actor_uuid(socket)
+    actor = Actor.uuid(socket)
     result = Integrations.validate_connection(uuid, actor)
     Integrations.record_validation(uuid, result)
 
@@ -425,7 +426,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
           socket.assigns[:redirect_uri] ||
             build_redirect_uri(socket, uuid)
 
-        case Integrations.exchange_code(uuid, code, redirect_uri, actor_uuid(socket)) do
+        case Integrations.exchange_code(uuid, code, redirect_uri, Actor.uuid(socket)) do
           {:ok, _data} ->
             push_navigate(socket, to: clean_path)
 
@@ -512,7 +513,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
     provider_key = socket.assigns.selected_provider
     new_name = String.trim(params["name"])
 
-    case Integrations.rename_connection(uuid, new_name, actor_uuid(socket)) do
+    case Integrations.rename_connection(uuid, new_name, Actor.uuid(socket)) do
       {:ok, data} ->
         socket =
           socket
@@ -539,7 +540,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   defp save_and_redirect(uuid, provider_key, name, params, socket) do
     attrs = extract_setup_attrs(provider_key, params)
 
-    case Integrations.save_setup(uuid, attrs, actor_uuid(socket)) do
+    case Integrations.save_setup(uuid, attrs, Actor.uuid(socket)) do
       {:ok, data} ->
         edit_path = Routes.path("/admin/settings/integrations/#{uuid}")
 
@@ -562,7 +563,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   defp save_setup_fields(uuid, provider_key, params, socket) do
     attrs = extract_setup_attrs(provider_key, params)
 
-    case Integrations.save_setup(uuid, attrs, actor_uuid(socket)) do
+    case Integrations.save_setup(uuid, attrs, Actor.uuid(socket)) do
       {:ok, data} ->
         socket =
           socket
@@ -694,13 +695,6 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
       )
 
       "http://localhost:4000#{path}"
-    end
-  end
-
-  defp actor_uuid(socket) do
-    case socket.assigns[:phoenix_kit_current_scope] do
-      %{user: %{uuid: uuid}} -> uuid
-      _ -> nil
     end
   end
 

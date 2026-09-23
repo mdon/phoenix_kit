@@ -4818,6 +4818,61 @@ if (typeof window.Chart === "undefined") {
   };
 
   // ---------------------------------------------------------------------------
+  // TreePickerSearch Hook
+  // ---------------------------------------------------------------------------
+  //
+  // The search box of PhoenixKitWeb.Components.TreePicker. The query goes to
+  // the component from here, not through a form's phx-change: the picker
+  // often sits inside a host form, whose own phx-change and submit must not
+  // see what is typed here. Typing is debounced; Enter searches at once
+  // (except while an input method is still composing, where Enter confirms
+  // the composition).
+  //
+  //   <input phx-hook="TreePickerSearch" phx-target={@myself} id="…" />
+  // ---------------------------------------------------------------------------
+
+  function treePickerEnter(e) {
+    return !!e && e.key === "Enter" && !e.isComposing;
+  }
+
+  window.PhoenixKitHooks.TreePickerSearch = {
+    mounted() {
+      this._onInput = (e) => {
+        e.stopPropagation();
+        if (!e.isComposing) this.queue();
+      };
+      this._onChange = (e) => e.stopPropagation();
+      this._onKey = (e) => {
+        if (treePickerEnter(e)) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.push();
+        }
+      };
+      this._onComposed = () => this.queue();
+      this.el.addEventListener("input", this._onInput);
+      this.el.addEventListener("change", this._onChange);
+      this.el.addEventListener("keydown", this._onKey);
+      this.el.addEventListener("compositionend", this._onComposed);
+    },
+    queue() {
+      clearTimeout(this._timer);
+      this._timer = setTimeout(() => this.push(), 200);
+    },
+    push() {
+      clearTimeout(this._timer);
+      this.pushEventTo(this.el, "search", { value: this.el.value });
+    },
+    destroyed() {
+      clearTimeout(this._timer);
+    }
+  };
+
+  if (typeof module === "object" && module.exports) {
+    module.exports.treePickerEnter = treePickerEnter;
+  }
+
+  // ---------------------------------------------------------------------------
   // CrumbSwitcher Hook
   // ---------------------------------------------------------------------------
   //

@@ -60,6 +60,7 @@ defmodule PhoenixKit.Mentions.Live do
   alias Phoenix.HTML.Form
   alias PhoenixKit.Mentions
   alias PhoenixKit.Mentions.AccessRequests
+  alias PhoenixKitWeb.Actor
 
   @doc false
   def submit(socket, params) do
@@ -108,7 +109,7 @@ defmodule PhoenixKit.Mentions.Live do
     results =
       Mentions.search(kind, query,
         scope: socket.assigns[:phoenix_kit_current_scope],
-        user_uuid: current_user_uuid(socket)
+        user_uuid: Actor.uuid(socket)
       )
       |> Enum.map(fn r ->
         kind = if r[:kind] == :user, do: :user, else: :resource
@@ -150,10 +151,6 @@ defmodule PhoenixKit.Mentions.Live do
           :error -> nil
         end
     end
-  end
-
-  defp current_user_uuid(socket) do
-    get_in(socket.assigns, [:phoenix_kit_current_scope, Access.key(:user), Access.key(:uuid)])
   end
 
   attr :field, Phoenix.HTML.FormField, default: nil

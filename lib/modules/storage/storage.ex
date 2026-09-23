@@ -17,28 +17,16 @@ defmodule PhoenixKit.Modules.Storage do
 
   ## Folder conventions for modules
 
-  Modules that create one folder per object (catalogue items, warehouse
-  documents, CRM records, machines, …) should:
-
-  - offer a host hook `config :my_module, :attachments_parent_folder, {Mod, :fun}`
-    called as `fun(kind, actor_uuid, subject)` — `kind` an atom naming the
-    resource, `subject` the owning record (or a context map for uploads that
-    belong to another record, e.g. `%{resource_type: "order", resource_uuid: uuid}`)
-    — returning `{:ok, parent_folder_uuid}` or `nil` (= storage root, the
-    default when unconfigured). Call `fun/2` (`kind, actor_uuid`) when the
-    host exports only that arity; check `Code.ensure_loaded?/1` before
-    `function_exported?/3`;
-  - optionally offer `config :my_module, :attachments_folder_name, {Mod, :fun}`
-    called as `fun(subject, actor_uuid)` returning `{:ok, name}` or `nil`, so
-    a host may give folders human names; the deterministic
-    `<module>-<kind>-<uuid>` name stays the fallback;
-  - resolve an object's folder by a stored uuid pointer first, then by the
-    host name under the parent, then by the deterministic name under the
-    parent, then by the deterministic name at the root — never assume
-    `parent_uuid IS NULL`; purge/delete and bulk listings use the same
-    resolution;
-  - leave moving/renaming existing folders to the host (adoption is a host
-    concern), and never create folders for people's own use.
+  Modules that keep one folder per record (catalogue items, warehouse
+  documents, CRM records, machines, …) build on
+  `PhoenixKit.Modules.Storage.ResourceFolders`, which holds the convention:
+  the `:attachments_parent_folder` / `:attachments_folder_name` host hooks
+  (`fun(kind, actor_uuid, subject)`, with the `fun/2` fallback), the lookup
+  order (stored pointer → host name under the parent → deterministic
+  `<module>-<kind>-<uuid>` name under the parent, at the root, anywhere),
+  race-safe find-or-create, and attaching, listing and detaching files.
+  Moving or renaming existing folders stays with the host (adoption is a
+  host concern), and nothing creates folders for people's own use.
 
   Hosts typically group containers (`Warehouse/Supplier orders`, `CRM/Contacts`)
   and may re-parent a container that was created elsewhere; `update_folder/3`
@@ -126,6 +114,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Modules.Storage.VariantGenerator
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.TreeQuery
 
   @default_path "priv/uploads"
 
@@ -1252,43 +1241,57 @@ defmodule PhoenixKit.Modules.Storage do
   def update_folder(%Folder{} = folder, attrs, nil) do
     new_parent = attrs[:parent_uuid] || attrs["parent_uuid"]
 
-    if new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) do
-      {:error, :cycle}
-    else
-      folder
-      |> Folder.changeset(attrs)
-      |> repo().update()
-    end
-  end
-
-  def update_folder(%Folder{} = folder, attrs, scope_folder_id) do
-    if within_scope?(folder.uuid, scope_folder_id) do
-      # Distinguish "attrs omits parent_uuid entirely" (rename/recolor —
-      # no move attempted) from "attrs has parent_uuid: nil" (an explicit
-      # move to the system root). The previous `new_parent &&` short-circuit
-      # treated both the same, letting a caller silently reparent a folder
-      # out of the scope subtree by passing `%{parent_uuid: nil}`. Now any
-      # explicit parent_uuid in attrs runs the scope check, and
-      # `within_scope?(nil, scope)` is false when scope is set, so a
-      # move-to-true-root attempt fails with `:out_of_scope`.
-      moving_parent? = Map.has_key?(attrs, :parent_uuid) or Map.has_key?(attrs, "parent_uuid")
-      new_parent = attrs[:parent_uuid] || attrs["parent_uuid"]
-
+    in_folder_tree(moving?(folder, new_parent), fn ->
       cond do
-        moving_parent? and not within_scope?(new_parent, scope_folder_id) ->
-          {:error, :out_of_scope}
-
         new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) ->
           {:error, :cycle}
+
+        moving_into_trash?(folder, new_parent) ->
+          {:error, :folder_unavailable}
 
         true ->
           folder
           |> Folder.changeset(attrs)
           |> repo().update()
       end
-    else
-      {:error, :out_of_scope}
-    end
+    end)
+  end
+
+  def update_folder(%Folder{} = folder, attrs, scope_folder_id) do
+    # Distinguish "attrs omits parent_uuid entirely" (rename/recolor —
+    # no move attempted) from "attrs has parent_uuid: nil" (an explicit
+    # move to the system root). The previous `new_parent &&` short-circuit
+    # treated both the same, letting a caller silently reparent a folder
+    # out of the scope subtree by passing `%{parent_uuid: nil}`. Now any
+    # explicit parent_uuid in attrs runs the scope check, and
+    # `within_scope?(nil, scope)` is false when scope is set, so a
+    # move-to-true-root attempt fails with `:out_of_scope`.
+    moving_parent? = Map.has_key?(attrs, :parent_uuid) or Map.has_key?(attrs, "parent_uuid")
+    new_parent = attrs[:parent_uuid] || attrs["parent_uuid"]
+
+    # A scoped update runs under the tree lock even when it is only a
+    # rename: the scope is about where the folder SITS, and a move
+    # committing between the check and the write would take it outside.
+    in_folder_tree(moving?(folder, new_parent) or not is_nil(scope_folder_id), fn ->
+      cond do
+        not within_scope?(folder.uuid, scope_folder_id) ->
+          {:error, :out_of_scope}
+
+        moving_parent? and not within_scope?(new_parent, scope_folder_id) ->
+          {:error, :out_of_scope}
+
+        new_parent && new_parent != folder.parent_uuid && ancestor_of?(folder.uuid, new_parent) ->
+          {:error, :cycle}
+
+        moving_into_trash?(folder, new_parent) ->
+          {:error, :folder_unavailable}
+
+        true ->
+          folder
+          |> Folder.changeset(attrs)
+          |> repo().update()
+      end
+    end)
   end
 
   @doc """
@@ -1354,10 +1357,14 @@ defmodule PhoenixKit.Modules.Storage do
 
   defp do_trash_folder(%Folder{} = folder) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
-    subtree_uuids = folder_subtree_uuids(folder.uuid)
 
     result =
       repo().transaction(fn ->
+        # Under the tree lock, and the subtree read inside it: a move
+        # committing between the read and the trash would otherwise leave
+        # the folder it moved live under a trashed parent, listed nowhere.
+        lock_folder_tree()
+        subtree_uuids = folder_subtree_uuids(folder.uuid)
         # Trash every folder in the subtree (including the root) — except one
         # already in the trash, which keeps its own stamp. `restore_folder/2`
         # restores exactly the rows carrying THIS operation's stamp, so a row
@@ -1603,16 +1610,19 @@ defmodule PhoenixKit.Modules.Storage do
   files in nested folders.
   """
   def folder_subtree_uuids(root_uuid) do
-    Stream.unfold([root_uuid], fn
-      [] ->
+    # A folder seen once is not walked again, so a parent loop in the data
+    # (it should never exist) ends the walk instead of hanging it.
+    Stream.unfold({[root_uuid], MapSet.new([root_uuid])}, fn
+      {[], _seen} ->
         nil
 
-      pending ->
+      {pending, seen} ->
         children =
           from(f in Folder, where: f.parent_uuid in ^pending, select: f.uuid)
           |> repo().all()
+          |> Enum.reject(&MapSet.member?(seen, &1))
 
-        {pending, children}
+        {pending, {children, Enum.into(children, seen)}}
     end)
     |> Enum.to_list()
     |> List.flatten()
@@ -1687,22 +1697,62 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
-  @doc "Returns true if `folder_uuid` is an ancestor of `target_uuid`."
+  @doc """
+  Returns true if `folder_uuid` is `target_uuid` or one of its ancestors
+  (and `target_uuid` exists). One recursive query, whatever the depth — a
+  walk that gave up after 50 levels let a deeper move make a cycle and
+  put a deep folder outside its own scope.
+  """
   def ancestor_of?(_folder_uuid, nil), do: false
 
   def ancestor_of?(folder_uuid, target_uuid) do
-    ancestor_of?(folder_uuid, target_uuid, 50)
+    # Compared as cast uuids: the same folder spelled in upper case must not
+    # read as another one.
+    case {Ecto.UUID.cast(folder_uuid), Ecto.UUID.cast(target_uuid)} do
+      {{:ok, same}, {:ok, same}} -> get_folder(same) != nil
+      {{:ok, folder}, {:ok, target}} -> folder in TreeQuery.ancestor_uuids(Folder, target)
+      _ -> false
+    end
   end
 
-  defp ancestor_of?(_folder_uuid, nil, _limit), do: false
-  defp ancestor_of?(_folder_uuid, _target_uuid, 0), do: false
+  @doc false
+  # The lock every folder move holds before its cycle check. A caller that
+  # also locks a folder row takes this first, so no two moves wait on each
+  # other in opposite orders.
+  def lock_folder_tree do
+    repo().query!("SELECT pg_advisory_xact_lock(hashtext('phoenix_kit_storage:folder_tree'))")
+    :ok
+  end
 
-  defp ancestor_of?(folder_uuid, target_uuid, limit) do
-    case get_folder(target_uuid) do
-      nil -> false
-      %{uuid: ^folder_uuid} -> true
-      target -> ancestor_of?(folder_uuid, target.parent_uuid, limit - 1)
+  # A live folder under a trashed one is in no listing: the move is
+  # refused rather than hiding it.
+  defp moving_into_trash?(%Folder{parent_uuid: current}, new_parent)
+       when is_binary(new_parent) and new_parent != current do
+    case get_folder(new_parent) do
+      %Folder{trashed_at: nil} -> false
+      _ -> true
     end
+  end
+
+  defp moving_into_trash?(_folder, _new_parent), do: false
+
+  defp moving?(%Folder{parent_uuid: current}, new_parent),
+    do: new_parent not in [nil, ""] and to_string(new_parent) != to_string(current)
+
+  # A move runs under one lock on the whole folder tree, so its cycle check
+  # reads the tree after any other move has committed — two moves at once
+  # in opposite directions otherwise both passed and committed a loop.
+  defp in_folder_tree(false, fun), do: fun.()
+
+  defp in_folder_tree(true, fun) do
+    repo().transaction(fn ->
+      lock_folder_tree()
+
+      case fun.() do
+        {:ok, folder} -> folder
+        {:error, reason} -> repo().rollback(reason)
+      end
+    end)
   end
 
   @doc """
@@ -1991,29 +2041,46 @@ defmodule PhoenixKit.Modules.Storage do
   Trashing the record directly from a folder that only LINKED it would
   destroy it for its owner — the same rule the catalogue's own attachment
   removal has always applied.
+
+  The decision is made from the file's row read fresh under a lock, not
+  from `file`: a listing's struct can be stale (the file re-homed since),
+  and a second removal deciding from the old home would trash a file
+  another folder now holds. The lock is also what
+  `ResourceFolders.point_at/6` holds while it checks a folder still has a
+  file.
   """
   def remove_file_from_folder(%PhoenixKit.Modules.Storage.File{} = file, folder_uuid)
       when is_binary(folder_uuid) do
+    repo().transaction(fn ->
+      case repo().one(
+             from(f in PhoenixKit.Modules.Storage.File,
+               where: f.uuid == ^file.uuid,
+               lock: "FOR UPDATE"
+             )
+           ) do
+        nil -> {:error, :not_in_folder}
+        fresh -> remove_locked(fresh, folder_uuid)
+      end
+    end)
+    |> case do
+      {:ok, result} -> result
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def remove_file_from_folder(%PhoenixKit.Modules.Storage.File{} = file, _no_folder) do
+    with {:ok, trashed} <- trash_file(file), do: {:ok, :trashed, trashed}
+  end
+
+  defp remove_locked(file, folder_uuid) do
     cond do
       to_string(file.folder_uuid) == to_string(folder_uuid) ->
         case other_folder_links(file.uuid, folder_uuid) do
           [] ->
             with {:ok, trashed} <- trash_file(file), do: {:ok, :trashed, trashed}
 
-          [%FolderLink{} = link | _] ->
-            repo().transaction(fn ->
-              {:ok, rehomed} =
-                file
-                |> Ecto.Changeset.change(%{folder_uuid: link.folder_uuid})
-                |> repo().update()
-
-              {:ok, _} = repo().delete(link)
-              rehomed
-            end)
-            |> case do
-              {:ok, rehomed} -> {:ok, :rehomed, rehomed}
-              {:error, reason} -> {:error, reason}
-            end
+          links ->
+            rehome_into_first_live(file, links)
         end
 
       link = folder_link(folder_uuid, file.uuid) ->
@@ -2026,8 +2093,35 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
-  def remove_file_from_folder(%PhoenixKit.Modules.Storage.File{} = file, _no_folder) do
+  # The candidates were read without locking their folders, so one can be
+  # mid-trash: the home is written, then the folder is read again, and a
+  # folder trashed meanwhile rolls the rehome back and the next candidate
+  # is tried. (Locking the folder here instead would take it AFTER the
+  # file's row — the opposite of the order folder moves take, which is a
+  # deadlock.) Nothing left to rehome into: the file is trashed.
+  defp rehome_into_first_live(file, []) do
     with {:ok, trashed} <- trash_file(file), do: {:ok, :trashed, trashed}
+  end
+
+  defp rehome_into_first_live(file, [%FolderLink{} = link | rest]) do
+    repo().transaction(fn ->
+      {:ok, rehomed} =
+        file
+        |> Ecto.Changeset.change(%{folder_uuid: link.folder_uuid})
+        |> repo().update()
+
+      {:ok, _} = repo().delete(link)
+
+      case get_folder(link.folder_uuid) do
+        %Folder{trashed_at: nil} -> rehomed
+        _ -> repo().rollback(:folder_trashed)
+      end
+    end)
+    |> case do
+      {:ok, rehomed} -> {:ok, :rehomed, rehomed}
+      {:error, :folder_trashed} -> rehome_into_first_live(file, rest)
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   @doc """
@@ -2043,11 +2137,16 @@ defmodule PhoenixKit.Modules.Storage do
   def attach_file_to_folder(%PhoenixKit.Modules.Storage.File{} = file, folder_uuid)
       when is_binary(folder_uuid) do
     cond do
+      # Not into a trashed folder, whichever surface asks: the file would
+      # be active and listed nowhere.
+      not live_folder?(folder_uuid) ->
+        {:error, :folder_unavailable}
+
       to_string(file.folder_uuid) == to_string(folder_uuid) ->
         {:ok, file}
 
       is_nil(file.folder_uuid) ->
-        file |> Ecto.Changeset.change(%{folder_uuid: folder_uuid}) |> repo().update()
+        adopt_or_link(file, folder_uuid)
 
       true ->
         %FolderLink{}
@@ -2056,6 +2155,34 @@ defmodule PhoenixKit.Modules.Storage do
         |> case do
           {:ok, _} -> {:ok, file}
           {:error, changeset} -> {:error, changeset}
+        end
+    end
+  end
+
+  defp live_folder?(folder_uuid) do
+    case get_folder(folder_uuid) do
+      %Folder{trashed_at: nil} -> true
+      _ -> false
+    end
+  end
+
+  # Adopts a file with no home — only if it still has none: the caller's
+  # struct can be stale, and a file another upload adopted in the meantime
+  # is linked here instead of having its home taken.
+  defp adopt_or_link(file, folder_uuid) do
+    from(f in PhoenixKit.Modules.Storage.File,
+      where: f.uuid == ^file.uuid and is_nil(f.folder_uuid)
+    )
+    |> repo().update_all(set: [folder_uuid: folder_uuid, updated_at: UtilsDate.utc_now()])
+    |> case do
+      {1, _} ->
+        {:ok, %{file | folder_uuid: folder_uuid}}
+
+      {0, _} ->
+        case get_file(file.uuid) do
+          nil -> {:error, :not_found}
+          %{folder_uuid: nil} -> {:error, :not_found}
+          fresh -> attach_file_to_folder(fresh, folder_uuid)
         end
     end
   end
@@ -3563,6 +3690,39 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
+  @doc """
+  Restores a trashed file into `folder_uuid`, or into no folder (`nil`) —
+  for bytes someone trashed and is now uploading again: they are wanted
+  where they are being uploaded, not back in the folder they were removed
+  from. `{:error, :not_trashed}` when the row is not trashed any more:
+  someone else restored it, and it keeps the home they gave it.
+  """
+  @spec restore_file_into(PhoenixKit.Modules.Storage.File.t(), String.t() | nil) ::
+          {:ok, PhoenixKit.Modules.Storage.File.t()} | {:error, :not_trashed}
+  def restore_file_into(%PhoenixKit.Modules.Storage.File{} = file, folder_uuid) do
+    # Only while the row is still trashed: two uploads of the same trashed
+    # bytes both hold the trashed struct, and the second must not take the
+    # home the first just gave it.
+    from(f in PhoenixKit.Modules.Storage.File,
+      where: f.uuid == ^file.uuid and f.status == "trashed"
+    )
+    |> repo().update_all(
+      set: [
+        status: "active",
+        trashed_at: nil,
+        folder_uuid: folder_uuid,
+        updated_at: UtilsDate.utc_now()
+      ]
+    )
+    |> case do
+      {1, _} ->
+        {:ok, %{file | status: "active", trashed_at: nil, folder_uuid: folder_uuid}}
+
+      {0, _} ->
+        {:error, :not_trashed}
+    end
+  end
+
   @doc "Returns trashed files ordered by trashed_at descending, with pagination and optional scope."
   def list_trashed_files(scope \\ nil, opts \\ []) do
     query =
@@ -4103,6 +4263,7 @@ defmodule PhoenixKit.Modules.Storage do
     # the media page trusted the column everywhere).
     mime_type = resolve_mime_type(opts[:mime_type], ext)
     file_type = reconcile_file_type(file_type, mime_type, orig_filename)
+    ext = stored_ext(ext, mime_type)
 
     # Create file record
     file_attrs = %{
@@ -4192,7 +4353,9 @@ defmodule PhoenixKit.Modules.Storage do
       file_path: donor_file.file_path,
       mime_type: donor_file.mime_type,
       file_type: donor_file.file_type,
-      ext: ext,
+      # An upload with no extension of its own takes the clone's type's,
+      # as a first copy would (`ext` is required).
+      ext: stored_ext(ext, donor_file.mime_type),
       file_checksum: file_checksum,
       user_file_checksum: user_file_checksum,
       size: donor_file.size,
@@ -4508,6 +4671,18 @@ defmodule PhoenixKit.Modules.Storage do
   # The caller's observed mime wins when it carries information; blank and
   # octet-stream carry none, so they fall through to the extension guess
   # rather than being enshrined on the row.
+  # `ext` is part of every stored key and a required column, so a file whose
+  # name has no extension (a README, a dotfile) takes its type's — or "bin"
+  # — instead of failing the upload.
+  defp stored_ext(ext, mime_type) when ext in [nil, ""] do
+    case MIME.extensions(mime_type) do
+      [ext | _] -> ext
+      [] -> "bin"
+    end
+  end
+
+  defp stored_ext(ext, _mime_type), do: ext
+
   defp resolve_mime_type(mime_type, ext) do
     case mime_type do
       nil -> determine_mime_type(ext)
@@ -4903,7 +5078,9 @@ defmodule PhoenixKit.Modules.Storage do
 
       mime_type in [
         "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ] ->
         "document"
 

@@ -32,7 +32,16 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettings do
   display order. Labels may be strings or 0-arity functions (evaluated at
   render, so gettext labels stay lazy). Ids in `selected` that are not in
   `columns` are ignored, so consumers with unmanaged always-on columns
-  (a Name column outside the editor) can pass their full list.
+  (a Name column outside the editor) can pass their full list. A column's
+  optional `group` heads the Available list for consecutive columns of
+  that group (standard fields, then custom fields).
+
+  A page with several tables passes `sections` instead — one block each,
+  titled when there is more than one — and add/remove/reorder then carry
+  `"section" => id`; Reset carries none and means every section.
+
+  `PhoenixKitWeb.TableColumns` implements the events and keeps each user's
+  choice; a consumer that uses it needs only the open/close events.
 
   Shown rows use the `sortable-item` class the SortableGrid hook actually
   reads (`draggable`, item-count, `ordered_ids`). A custom class is
@@ -50,10 +59,16 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettings do
   attr :id, :string, default: "pk-column-settings-modal"
 
   attr :columns, :list,
-    required: true,
-    doc: "Every configurable column: %{id: String.t(), label: String.t() | (-> String.t())}"
+    default: nil,
+    doc:
+      "Every configurable column: %{id: String.t(), label: String.t() | (-> String.t())}, optionally `group:` (a heading for the Available list, string or 0-arity fn)."
 
-  attr :selected, :list, required: true, doc: "Shown column ids, in display order."
+  attr :selected, :list, default: nil, doc: "Shown column ids, in display order."
+
+  attr :sections, :list,
+    default: nil,
+    doc:
+      "Several tables in one modal, instead of `columns`/`selected`: [%{id: String.t(), title: String.t(), columns: [...], selected: [...]}]. Add, remove and reorder carry `\"section\" => id`; Reset carries none and resets them all."
 
   attr :target, :any,
     default: nil,
@@ -61,70 +76,92 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettings do
       "Optional LiveComponent CSS selector (e.g. `#my-table`). Set on every `phx-click` and on `data-sortable-target` so a LiveComponent consumer receives add/remove/reorder/reset/close."
 
   def column_settings_modal(assigns) do
-    map = Map.new(assigns.columns, &{&1.id, &1})
+    sections =
+      (assigns.sections ||
+         [
+           %{
+             id: nil,
+             title: nil,
+             columns: assigns.columns || [],
+             selected: assigns.selected || []
+           }
+         ])
+      |> Enum.map(&section/1)
 
-    assigns =
-      assigns
-      |> assign(:map, map)
-      |> assign(:shown, Enum.filter(assigns.selected, &Map.has_key?(map, &1)))
-      |> assign(:hidden, Enum.reject(assigns.columns, &(&1.id in assigns.selected)))
+    assigns = assign(assigns, :section_list, sections)
 
     ~H"""
     <.modal :if={@show} id={@id} show on_close="hide_column_modal" max_width="lg">
       <:title>{gettext("Columns")}</:title>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <p class="text-xs uppercase text-base-content/50 mb-2">{gettext("Shown")}</p>
-          <ul
-            id={@id <> "-selected"}
-            phx-hook="SortableGrid"
-            data-sortable="true"
-            data-sortable-event="reorder_columns"
-            data-sortable-items=".sortable-item"
-            data-sortable-handle=".pk-drag-handle"
-            data-sortable-target={@target}
-            class="space-y-1"
-          >
-            <li
-              :for={id <- @shown}
-              data-id={id}
-              class="sortable-item flex items-center gap-2 px-2 py-1 rounded bg-base-200"
-            >
-              <.icon
-                name="hero-bars-3"
-                class="w-4 h-4 pk-drag-handle cursor-grab text-base-content/40"
-              />
-              <span class="flex-1 text-sm">{column_label(@map[id])}</span>
-              <button
-                type="button"
-                phx-click="remove_column"
-                phx-target={@target}
-                phx-value-column_id={id}
-                class="btn btn-ghost btn-xs btn-square text-error cursor-pointer"
-                title={gettext("Remove")}
+      <div class="space-y-6">
+        <section :for={s <- @section_list}>
+          <h4 :if={length(@section_list) > 1} class="text-sm font-semibold mb-2">{s.title}</h4>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-xs uppercase text-base-content/50 mb-2">{gettext("Shown")}</p>
+              <p :if={s.shown == []} class="text-sm text-base-content/50 px-2 py-1">
+                {gettext("No columns shown.")}
+              </p>
+              <ul
+                id={section_dom_id(@id, s.id) <> "-selected"}
+                phx-hook="SortableGrid"
+                data-sortable="true"
+                data-sortable-event="reorder_columns"
+                data-sortable-items=".sortable-item"
+                data-sortable-handle=".pk-drag-handle"
+                data-sortable-target={@target}
+                data-sortable-scope-section={s.id}
+                class="space-y-1"
               >
-                <.icon name="hero-x-mark" class="w-4 h-4" />
-              </button>
-            </li>
-          </ul>
-        </div>
-        <div>
-          <p class="text-xs uppercase text-base-content/50 mb-2">{gettext("Available")}</p>
-          <ul class="space-y-1">
-            <li :for={c <- @hidden}>
-              <button
-                type="button"
-                phx-click="add_column"
-                phx-target={@target}
-                phx-value-column_id={c.id}
-                class="flex items-center gap-2 w-full text-left text-sm px-2 py-1 rounded hover:bg-base-200 cursor-pointer transition-colors"
-              >
-                <.icon name="hero-plus" class="w-4 h-4 text-base-content/40" />
-                <span>{column_label(c)}</span>
-              </button>
-            </li>
-          </ul>
-        </div>
+                <li
+                  :for={id <- s.shown}
+                  data-id={id}
+                  class="sortable-item flex items-center gap-2 px-2 py-1 rounded bg-base-200"
+                >
+                  <.icon
+                    name="hero-bars-3"
+                    class="w-4 h-4 pk-drag-handle cursor-grab text-base-content/40"
+                  />
+                  <span class="flex-1 text-sm">{column_label(s.map[id])}</span>
+                  <button
+                    type="button"
+                    phx-click="remove_column"
+                    phx-target={@target}
+                    phx-value-column_id={id}
+                    phx-value-section={s.id}
+                    class="btn btn-ghost btn-xs btn-square text-error cursor-pointer"
+                    title={gettext("Remove")}
+                  >
+                    <.icon name="hero-x-mark" class="w-4 h-4" />
+                  </button>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <p class="text-xs uppercase text-base-content/50 mb-2">{gettext("Available")}</p>
+              <div :for={{group, columns} <- s.hidden} class="mb-2 last:mb-0">
+                <p :if={group} class="text-xs font-semibold text-base-content/60 px-2 mb-1">
+                  {group}
+                </p>
+                <ul class="space-y-1">
+                  <li :for={c <- columns}>
+                    <button
+                      type="button"
+                      phx-click="add_column"
+                      phx-target={@target}
+                      phx-value-column_id={c.id}
+                      phx-value-section={s.id}
+                      class="flex items-center gap-2 w-full text-left text-sm px-2 py-1 rounded hover:bg-base-200 cursor-pointer transition-colors"
+                    >
+                      <.icon name="hero-plus" class="w-4 h-4 text-base-content/40" />
+                      <span>{column_label(c)}</span>
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
       <:actions>
         <button
@@ -147,6 +184,28 @@ defmodule PhoenixKitWeb.Components.Core.ColumnSettings do
     </.modal>
     """
   end
+
+  # Shown ids that are offered, in order; the rest of the offer as
+  # `{group heading | nil, columns}`, one per run of consecutive columns.
+  defp section(%{columns: columns, selected: selected} = s) do
+    map = Map.new(columns, &{&1.id, &1})
+    shown = Enum.filter(selected, &Map.has_key?(map, &1))
+
+    hidden =
+      columns
+      |> Enum.reject(&(&1.id in shown))
+      |> Enum.chunk_by(&group_label/1)
+      |> Enum.map(fn [first | _] = chunk -> {group_label(first), chunk} end)
+
+    %{id: Map.get(s, :id), title: Map.get(s, :title), map: map, shown: shown, hidden: hidden}
+  end
+
+  defp section_dom_id(id, nil), do: id
+  defp section_dom_id(id, section), do: id <> "-" <> to_string(section)
+
+  defp group_label(%{group: group}) when is_function(group, 0), do: group.()
+  defp group_label(%{group: group}) when is_binary(group), do: group
+  defp group_label(_), do: nil
 
   defp column_label(%{label: label}) when is_function(label, 0), do: label.()
   defp column_label(%{label: label}), do: label

@@ -885,6 +885,111 @@ defmodule PhoenixKit.Integration.Storage.ScopeTest do
       refute Storage.folder_link(other.uuid, file.uuid)
     end
 
+    test "a trashed folder's link is not a home to re-home into" do
+      home = create_folder!(%{name: "rh2_home_#{System.unique_integer([:positive])}"})
+      gone = create_folder!(%{name: "rh2_gone_#{System.unique_integer([:positive])}"})
+      live = create_folder!(%{name: "rh2_live_#{System.unique_integer([:positive])}"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(gone.uuid, file.uuid)
+      {:ok, _} = Storage.create_folder_link(live.uuid, file.uuid)
+      {:ok, _} = Storage.trash_folder(gone)
+
+      assert {:ok, :rehomed, rehomed} = Storage.remove_file_from_folder(file, home.uuid)
+      assert rehomed.folder_uuid == live.uuid
+    end
+
+    test "a folder cannot be moved under a trashed one" do
+      gone = create_folder!(%{name: "mv_gone_#{System.unique_integer([:positive])}"})
+      mover = create_folder!(%{name: "mv_live_#{System.unique_integer([:positive])}"})
+      {:ok, _} = Storage.trash_folder(gone)
+
+      assert Storage.update_folder(mover, %{parent_uuid: gone.uuid}) ==
+               {:error, :folder_unavailable}
+
+      assert Storage.get_folder(mover.uuid).parent_uuid == nil
+
+      # Renaming it is still fine: only the move is refused.
+      assert {:ok, renamed} = Storage.update_folder(mover, %{name: "mv_renamed"})
+      assert renamed.name == "mv_renamed"
+    end
+
+    test "no attach surface puts a file in a trashed folder" do
+      gone = create_folder!(%{name: "att_gone_#{System.unique_integer([:positive])}"})
+      loose = create_file!(nil)
+      {:ok, _} = Storage.trash_folder(gone)
+
+      assert Storage.attach_file_to_folder(loose, gone.uuid) == {:error, :folder_unavailable}
+      assert Repo.get!(StorageFile, loose.uuid).folder_uuid == nil
+    end
+
+    test "a chain deeper than any fixed walk still refuses a cycle and stays in scope" do
+      root = create_folder!(%{name: "deep_root_#{System.unique_integer([:positive])}"})
+
+      deepest =
+        Enum.reduce(1..55, root, fn i, parent ->
+          create_folder!(%{name: "deep_#{i}", parent_uuid: parent.uuid})
+        end)
+
+      assert Storage.within_scope?(deepest.uuid, root.uuid)
+      assert {:error, :cycle} = Storage.update_folder(root, %{parent_uuid: deepest.uuid})
+      assert Repo.get!(Storage.Folder, root.uuid).parent_uuid == nil
+    end
+
+    test "a folder cannot be made its own parent, whatever the uuid's case" do
+      folder = create_folder!(%{name: "self_#{System.unique_integer([:positive])}"})
+
+      assert {:error, :cycle} =
+               Storage.update_folder(folder, %{parent_uuid: String.upcase(folder.uuid)})
+
+      assert Repo.get!(Storage.Folder, folder.uuid).parent_uuid == nil
+
+      # Nor through the changeset directly.
+      refute Storage.Folder.changeset(folder, %{parent_uuid: folder.uuid}).valid?
+    end
+
+    test "a subtree walk ends even over a parent loop in the data" do
+      a = create_folder!(%{name: "loop_a_#{System.unique_integer([:positive])}"})
+
+      b =
+        create_folder!(%{
+          name: "loop_b_#{System.unique_integer([:positive])}",
+          parent_uuid: a.uuid
+        })
+
+      Repo.update_all(from(f in Storage.Folder, where: f.uuid == ^a.uuid),
+        set: [parent_uuid: b.uuid]
+      )
+
+      assert Enum.sort(Storage.folder_subtree_uuids(a.uuid)) == Enum.sort([a.uuid, b.uuid])
+    end
+
+    test "attaching a stale homeless file that was adopted since links it, keeping its home" do
+      home = create_folder!(%{name: "adopt_home_#{System.unique_integer([:positive])}"})
+      other = create_folder!(%{name: "adopt_other_#{System.unique_integer([:positive])}"})
+      stale = create_file!(nil)
+
+      assert {:ok, _} = Storage.attach_file_to_folder(stale, home.uuid)
+      assert {:ok, _} = Storage.attach_file_to_folder(stale, other.uuid)
+
+      assert Repo.get!(StorageFile, stale.uuid).folder_uuid == home.uuid
+      assert Storage.folder_link(other.uuid, stale.uuid)
+    end
+
+    test "a second removal from a stale listing trashes nothing another folder now holds" do
+      home = create_folder!(%{name: "st_home_#{System.unique_integer([:positive])}"})
+      other = create_folder!(%{name: "st_other_#{System.unique_integer([:positive])}"})
+      file = create_file!(home.uuid)
+      {:ok, _} = Storage.create_folder_link(other.uuid, file.uuid)
+
+      # Two removals from the home listing, both holding its struct.
+      assert {:ok, :rehomed, _} = Storage.remove_file_from_folder(file, home.uuid)
+      assert {:error, :not_in_folder} = Storage.remove_file_from_folder(file, home.uuid)
+
+      reloaded = Repo.get!(StorageFile, file.uuid)
+      assert reloaded.status == "active"
+      assert reloaded.folder_uuid == other.uuid
+    end
+
     test "removing a file nothing else holds trashes it; outside a folder likewise" do
       home = create_folder!(%{name: "tr_home_#{System.unique_integer([:positive])}"})
       file = create_file!(home.uuid)

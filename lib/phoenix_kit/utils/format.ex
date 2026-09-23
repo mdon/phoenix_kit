@@ -62,6 +62,27 @@ defmodule PhoenixKit.Utils.Format do
 
   def bytes(_, opts), do: Keyword.get(opts, :unknown, "Unknown")
 
+  @doc """
+  The heroicon name for a stored file, by its Storage `file_type` (and PDF
+  by MIME type) — what every module's file list shows beside a name.
+
+      iex> PhoenixKit.Utils.Format.file_icon(%{file_type: "image"})
+      "hero-photo"
+
+      iex> PhoenixKit.Utils.Format.file_icon(%{file_type: "document", mime_type: "application/pdf"})
+      "hero-document-text"
+
+      iex> PhoenixKit.Utils.Format.file_icon(nil)
+      "hero-document"
+  """
+  @spec file_icon(map() | nil) :: String.t()
+  def file_icon(%{file_type: "image"}), do: "hero-photo"
+  def file_icon(%{file_type: "video"}), do: "hero-film"
+  def file_icon(%{file_type: "audio"}), do: "hero-musical-note"
+  def file_icon(%{file_type: "archive"}), do: "hero-archive-box"
+  def file_icon(%{mime_type: "application/pdf"}), do: "hero-document-text"
+  def file_icon(_), do: "hero-document"
+
   defp unit_thresholds(1000), do: {1_000, 1_000_000, 1_000_000_000}
   defp unit_thresholds(_), do: {1024, 1_048_576, 1_073_741_824}
 end

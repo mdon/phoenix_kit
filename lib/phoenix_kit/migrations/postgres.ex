@@ -7,7 +7,15 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V200 - When a photo or video was taken ⚡ LATEST
+  ### V201 - View preferences per user ⚡ LATEST
+
+  Adds `phoenix_kit_user_view_prefs`: what one user chose for one view — a
+  table's columns and order, and the view owner's own fields — one row per
+  `(user_uuid, key)`, a field patched with `prefs || new` in the upsert.
+  Replaces the site-wide column settings (now each view's default) and the
+  per-user blobs the catalogue and CRM kept on their own. Additive only.
+
+  ### V200 - When a photo or video was taken
 
   Adds `taken_at` (timestamptz), `taken_on` (date), `taken_at_offset`
   (integer) and `taken_at_source` (varchar) to `phoenix_kit_files`, and
@@ -838,7 +846,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 200
+  @current_version 201
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

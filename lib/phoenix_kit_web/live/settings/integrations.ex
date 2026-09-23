@@ -21,6 +21,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Actor
 
   def mount(_params, _session, socket) do
     if connected?(socket), do: Events.subscribe()
@@ -54,7 +55,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # ---------------------------------------------------------------------------
 
   def handle_event("disconnect", %{"uuid" => uuid}, socket) do
-    Integrations.disconnect(uuid, actor_uuid(socket), owner: :system)
+    Integrations.disconnect(uuid, Actor.uuid(socket), owner: :system)
 
     {:noreply,
      socket
@@ -68,7 +69,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   end
 
   def handle_event("remove_connection", %{"uuid" => uuid}, socket) do
-    case Integrations.remove_connection(uuid, actor_uuid(socket), owner: :system) do
+    case Integrations.remove_connection(uuid, Actor.uuid(socket), owner: :system) do
       :ok ->
         {:noreply,
          socket
@@ -85,7 +86,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   # ---------------------------------------------------------------------------
 
   def handle_info({:do_validate, uuid}, socket) do
-    actor = actor_uuid(socket)
+    actor = Actor.uuid(socket)
     result = Integrations.validate_connection(uuid, actor, owner: :system)
     Integrations.record_validation(uuid, result, owner: :system)
 
@@ -194,13 +195,6 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   defp join_with_and(list) do
     {init, [last]} = Enum.split(list, -1)
     Enum.join(init, ", ") <> " " <> gettext("and") <> " " <> last
-  end
-
-  defp actor_uuid(socket) do
-    case socket.assigns[:phoenix_kit_current_scope] do
-      %{user: %{uuid: uuid}} -> uuid
-      _ -> nil
-    end
   end
 
   defp get_current_path(locale) do
