@@ -1,3 +1,23 @@
+## 2.37.5 - 2026-09-23
+
+### Fixed
+
+- **A non-ASCII first path segment no longer loops the browser forever
+  (#861, fixes #849).** `/дордол` and similar URLs got a redirect back to
+  the same URL: the locale redirects searched the percent-encoded request
+  path for the decoded locale, found nothing, and redirected to the path
+  unchanged. All three locale redirects (invalid locale, full dialect →
+  base, default locale → clean URL) now swap the segment right after the
+  mount prefix, never redirect to an unchanged path, and keep the query
+  string. A crafted dialect segment that would build an unsafe target
+  (`//evil.com-x`, a backslash, a control character) now renders under the
+  default locale instead of raising a 500.
+- **A dialect URL that can't be redirected keeps its language only if that
+  language is enabled (#861 review).** Such a request rendered under any
+  base the URL named, including an unknown `zz` or a disabled `fr`. It now
+  keeps the base only if it is a predefined, enabled language, the same
+  rule a bare `/fr/...` URL follows, and otherwise uses the default.
+
 ## 2.37.4 - 2026-09-22
 
 ### Changed

@@ -524,6 +524,35 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
     end
   end
 
+  describe "redirect_to_base_locale/2 — no-redirect fallback locale" do
+    # When the dialect segment is not where the url_prefix says (so no
+    # redirect can be built), the request renders un-halted. It may keep
+    # the requested language only when that base would have been accepted
+    # as a bare `/<base>/...` segment — predefined AND enabled. The setup
+    # above enables en + es only.
+
+    test "keeps an enabled base" do
+      conn = build_invalid_locale_conn("/shop/es-MX") |> Auth.redirect_to_base_locale("es-MX")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "es"
+    end
+
+    test "falls back to the default for a predefined but disabled base" do
+      conn = build_invalid_locale_conn("/shop/fr-CA") |> Auth.redirect_to_base_locale("fr-CA")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    test "falls back to the default for an unknown base" do
+      conn = build_invalid_locale_conn("/shop/zz-QQ") |> Auth.redirect_to_base_locale("zz-QQ")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+  end
+
   defp build_invalid_locale_conn(path) do
     build_conn(:get, path)
     |> Plug.Conn.fetch_query_params()

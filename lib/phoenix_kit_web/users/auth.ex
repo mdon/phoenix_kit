@@ -3708,9 +3708,10 @@ defmodule PhoenixKitWeb.Users.Auth do
   # specific base than the site default to fall back to — currently only
   # `redirect_to_base_locale/2`'s decline branch, falling back to the
   # requested dialect's base rather than losing the requested language
-  # entirely. Callers must have already checked `safe_path_segment?/1` on
-  # `base_code`: this assigns it verbatim to `current_locale_base`, which
-  # downstream code (Gettext, link-builders) reads back.
+  # entirely. Callers must have already checked that `base_code` is a
+  # predefined, enabled base: this assigns it verbatim to
+  # `current_locale_base`, which downstream code (Gettext, link-builders)
+  # reads back.
   defp assign_resolved_base_locale(conn, base_code) do
     full_dialect = resolve_active_dialect(base_code)
 
@@ -3763,11 +3764,10 @@ defmodule PhoenixKitWeb.Users.Auth do
   active locale onto the conn and lets the request continue un-halted,
   so `/fr-CA/page` still renders in French even when no redirect could
   be built — mirroring the non-redirecting else-branch of
-  `process_valid_locale/2`. The one exception is a `base_code` that is
-  not safe to assign (see `locale_segment_path/3`'s `safe_path_segment?/1`
-  — the same check that just rejected it as a redirect target): that
-  falls back further, to the full site default, via
-  `assign_default_locale/1`.
+  `process_valid_locale/2`. That only applies to a `base_code` that is a
+  predefined, enabled language (the gate a bare `/fr/page` has to pass);
+  any other base — unknown, disabled, or not even a safe path segment —
+  falls back to the full site default via `assign_default_locale/1`.
 
   ## Notes
 
@@ -3798,11 +3798,13 @@ defmodule PhoenixKitWeb.Users.Auth do
         # See `assign_default_locale/1` — never redirect to an unchanged path.
         # Prefer the requested base locale over the site default (see
         # moduledoc "When it does not redirect"), but only when `base_code`
-        # is itself safe to assign — it is the same attacker-controlled
-        # string `locale_segment_path/3` just validated (or rejected) as a
-        # redirect target, and assigning a rejected one here would just
-        # move the injection point from the URL into conn assigns.
-        if safe_path_segment?(base_code) do
+        # would have been accepted had it arrived as a bare base segment:
+        # a predefined AND enabled language — the same gate
+        # `process_locale/1` puts in front of `process_valid_locale/2`.
+        # Path-safety alone is not enough: `"zz-QQ"` (unknown) or `"fr-CA"`
+        # with French disabled would otherwise render under a locale the
+        # plain `/zz/...` / `/fr/...` URL is redirected away from.
+        if DialectMapper.valid_base_code?(base_code) and locale_allowed?(base_code) do
           assign_resolved_base_locale(conn, base_code)
         else
           assign_default_locale(conn)
