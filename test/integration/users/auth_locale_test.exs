@@ -17,6 +17,7 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
 
   import Phoenix.ConnTest
 
+  alias PhoenixKit.Config
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Settings
   alias PhoenixKitWeb.Users.Auth
@@ -61,6 +62,41 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
 
       assert redirected_to(conn) == "/phoenix_kit/en"
     end
+
+    test "handles a non-ASCII invalid locale at the end of the path" do
+      conn = build_invalid_locale_conn("/phoenix_kit/" <> URI.encode("дордол"))
+
+      conn = Auth.redirect_invalid_locale(conn, "дордол")
+
+      assert conn.halted
+      assert redirected_to(conn) == "/phoenix_kit/en"
+    end
+
+    test "carries the query string across the redirect" do
+      conn = build_invalid_locale_conn("/phoenix_kit/xx/admin/users?return_to=%2Fadmin%2Fx")
+
+      conn = Auth.redirect_invalid_locale(conn, "xx")
+
+      assert conn.halted
+      assert redirected_to(conn) == "/phoenix_kit/en/admin/users?return_to=%2Fadmin%2Fx"
+    end
+
+    test "stays inside a Plug.forward mount when redirecting" do
+      # `conn.path_info` is router-relative; a router reached through
+      # `Plug.forward` (e.g. a `/tenant` mount) carries the mount
+      # segments in `conn.script_name` instead, and `request_path`
+      # still carries the full incoming path. Build both by hand the
+      # way `Plug.forward` would leave them.
+      conn =
+        build_invalid_locale_conn("/tenant/phoenix_kit/xx/admin/users")
+        |> Map.put(:script_name, ["tenant"])
+        |> Map.put(:path_info, ["phoenix_kit", "xx", "admin", "users"])
+
+      conn = Auth.redirect_invalid_locale(conn, "xx")
+
+      assert conn.halted
+      assert redirected_to(conn) == "/tenant/phoenix_kit/en/admin/users"
+    end
   end
 
   describe "redirect_invalid_locale/2 with setting ON" do
@@ -86,6 +122,75 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
       # With setting ON, the invalid trailing segment is stripped
       # entirely, leaving the bare PhoenixKit URL prefix.
       assert redirected_to(conn) == "/phoenix_kit"
+    end
+
+    test "handles a non-ASCII invalid locale at the end of the path (strips to bare prefix)" do
+      conn = build_invalid_locale_conn("/phoenix_kit/" <> URI.encode("дордол"))
+
+      conn = Auth.redirect_invalid_locale(conn, "дордол")
+
+      assert conn.halted
+      assert redirected_to(conn) == "/phoenix_kit"
+    end
+  end
+
+  describe "redirect_invalid_locale/2 — non-ASCII locale segment (#849)" do
+    test "never redirects to itself for a percent-encoded non-ASCII locale" do
+      # `conn.request_path`/`path_info` are percent-encoded, but the
+      # `locale` argument (like `conn.path_params["locale"]` in
+      # production) is the DECODED value Phoenix router binding
+      # actually produces. The old `String.replace`-based
+      # implementation matched the raw Cyrillic against the still
+      # encoded request path, never found it, and redirected to the
+      # unchanged original path — a browser-visible "too many
+      # redirects" loop (verified against the pre-fix implementation:
+      # `String.replace/3` leaves the encoded path untouched, so
+      # `corrected_path == conn.request_path`).
+      raw_locale = "дордол"
+      request_path = "/" <> URI.encode(raw_locale) <> "/shop"
+
+      conn =
+        build_conn(:get, request_path)
+        |> Plug.Conn.fetch_query_params()
+        |> Map.put(:path_params, %{"locale" => raw_locale})
+
+      conn = Auth.redirect_invalid_locale(conn, raw_locale)
+
+      # This bare top-level path carries no `/phoenix_kit` prefix, so
+      # `locale_segment_path/3` cannot locate the locale segment and
+      # returns :error — the plug declines to redirect (which would
+      # have bounced the browser back to itself) and falls through to
+      # the default locale instead. The custom message keeps the
+      # pre-fix failure diagnostic: against the old code this conn IS
+      # halted, redirected straight back to `request_path`.
+      refute conn.halted,
+             "declined redirect expected; got a redirect to #{if conn.halted, do: redirected_to(conn)}"
+
+      assert conn.assigns.current_locale_base == "en"
+    end
+  end
+
+  describe "validate_and_set_locale/2 — percent-encoded default-locale segment (setting ON)" do
+    setup do
+      Languages.set_default_language_no_prefix(true)
+      :ok
+    end
+
+    test "an encoded ASCII locale still triggers the canonical clean-URL redirect" do
+      # Percent-encoding an entirely ASCII locale segment reproduces the
+      # same class of bug as the non-ASCII case: `/phoenix_kit/%65n/shop`
+      # binds `path_params["locale"] == "en"` but `conn.request_path`
+      # still holds the encoded "%65n", so a plain `String.replace`
+      # against the decoded locale is a no-op and would have looped.
+      conn =
+        build_conn(:get, "/phoenix_kit/%65n/shop")
+        |> Plug.Conn.fetch_query_params()
+        |> Map.put(:path_params, %{"locale" => "en"})
+
+      conn = Auth.validate_and_set_locale(conn, [])
+
+      assert conn.halted
+      assert redirected_to(conn) == "/phoenix_kit/shop"
     end
   end
 
@@ -303,8 +408,147 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
     end
   end
 
+  describe "redirect_invalid_locale/2 and redirect_to_base_locale/2 — ROOT url_prefix" do
+    # Every test above runs under `url_prefix: "/phoenix_kit"`
+    # (`config/config.exs`), but BOTH live apps mount PhoenixKit at the
+    # ROOT ("/"): hydroforce configures `url_prefix: "/"`, decor
+    # `url_prefix: ""` (normalized to "/" — see `compute_url_prefix/0`).
+    # That is the configuration #849 was actually reported against, and
+    # it exercises a distinct branch of `locale_segment_path/3`:
+    # `prefix_segments == []`, so the locale has to sit at `path_info`
+    # index 0 rather than after a named prefix segment.
+    #
+    # `url_prefix` is cached in `:persistent_term` (same as `admin_path`
+    # in `PhoenixKit.Utils.AdminSegmentTest`), so it's flipped through
+    # the public `PhoenixKit.Config.clear_url_prefix_cache/0` API rather
+    # than poking the cache directly — `with_url_prefix/2` (module level,
+    # alongside `build_invalid_locale_conn/1`) mirrors that file's
+    # `with_segment/2` helper.
+
+    test "the literal #849 URL redirects away instead of looping (setting OFF)" do
+      with_url_prefix("/", fn ->
+        request_path = "/" <> URI.encode("дордол") <> "/shop"
+        conn = locale_conn(request_path, "дордол")
+
+        conn = Auth.redirect_invalid_locale(conn, "дордол")
+
+        assert conn.halted
+        assert redirected_to(conn) == "/en/shop"
+      end)
+    end
+
+    test "the literal #849 URL redirects away instead of looping (setting ON)" do
+      with_url_prefix("/", fn ->
+        Languages.set_default_language_no_prefix(true)
+        request_path = "/" <> URI.encode("дордол") <> "/shop"
+        conn = locale_conn(request_path, "дордол")
+
+        conn = Auth.redirect_invalid_locale(conn, "дордол")
+
+        assert conn.halted
+        assert redirected_to(conn) == "/shop"
+      end)
+    end
+
+    test "a locale-only root path strips to '/', not an empty string" do
+      with_url_prefix("/", fn ->
+        Languages.set_default_language_no_prefix(true)
+        request_path = "/" <> URI.encode("дордол")
+        conn = locale_conn(request_path, "дордол")
+
+        conn = Auth.redirect_invalid_locale(conn, "дордол")
+
+        assert conn.halted
+        assert redirected_to(conn) == "/"
+      end)
+    end
+
+    test "a locale-only root path swaps to the default base, not strips (setting OFF)" do
+      with_url_prefix("/", fn ->
+        request_path = "/" <> URI.encode("дордол")
+        conn = locale_conn(request_path, "дордол")
+
+        conn = Auth.redirect_invalid_locale(conn, "дордол")
+
+        assert conn.halted
+        assert redirected_to(conn) == "/en"
+      end)
+    end
+
+    test "a dialect redirect at root drops the prefix, not just the dialect" do
+      with_url_prefix("/", fn ->
+        conn = locale_conn("/en-US/blog", "en-US")
+
+        conn = Auth.redirect_to_base_locale(conn, "en-US")
+
+        assert conn.halted
+        assert redirected_to(conn) == "/en/blog"
+      end)
+    end
+
+    test "a locale at a non-first path index is not matched (positional, not substring)" do
+      with_url_prefix("/", fn ->
+        # `/shop/xx` binds `locale` at index 1, not 0. Using an invalid
+        # locale that DIFFERS from the default base ("en") makes this
+        # fixture actually discriminate: a substring implementation
+        # would still find "/xx" in the path and redirect to
+        # "/shop/en", while the positional match at index 0 finds
+        # "shop" there instead of "xx" and declines. (A same-as-default
+        # locale like "en" would make the replacement equal the
+        # original segment, so even a substring implementation would
+        # produce an unchanged path and this test would pass either
+        # way — it would prove the guardrail, not positionality.)
+        conn = locale_conn("/shop/xx", "xx")
+
+        conn = Auth.redirect_invalid_locale(conn, "xx")
+
+        refute conn.halted
+        assert conn.assigns.current_locale_base == "en"
+      end)
+    end
+
+    test "declines to redirect when the :ok branch itself produces an unchanged path" do
+      with_url_prefix("/", fn ->
+        # Setting OFF → the replacement segment for an "invalid" locale
+        # IS the default base code. Calling this with `invalid_locale ==
+        # default_base` makes `locale_segment_path/3` succeed (`:ok`)
+        # with a path identical to the request — the guardrail has to
+        # catch this branch too, not just the helper's `:error` branch.
+        conn = locale_conn("/en/shop", "en")
+
+        conn = Auth.redirect_invalid_locale(conn, "en")
+
+        refute conn.halted
+        assert conn.assigns.current_locale_base == "en"
+      end)
+    end
+  end
+
   defp build_invalid_locale_conn(path) do
     build_conn(:get, path)
     |> Plug.Conn.fetch_query_params()
+  end
+
+  defp with_url_prefix(value, fun) do
+    previous = Application.fetch_env(:phoenix_kit, :url_prefix)
+    Application.put_env(:phoenix_kit, :url_prefix, value)
+    Config.clear_url_prefix_cache()
+
+    try do
+      fun.()
+    after
+      case previous do
+        {:ok, prior} -> Application.put_env(:phoenix_kit, :url_prefix, prior)
+        :error -> Application.delete_env(:phoenix_kit, :url_prefix)
+      end
+
+      Config.clear_url_prefix_cache()
+    end
+  end
+
+  defp locale_conn(path, locale) do
+    build_conn(:get, path)
+    |> Plug.Conn.fetch_query_params()
+    |> Map.put(:path_params, %{"locale" => locale})
   end
 end
