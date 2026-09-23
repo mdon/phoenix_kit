@@ -45,7 +45,7 @@ defmodule PhoenixKit.Integration.Storage.ReorganizerResourceSourceTest do
     :ok
   end
 
-  defp spec(opts \\ []) do
+  defp spec(opts) do
     %{
       source: "rs",
       app: @app,
