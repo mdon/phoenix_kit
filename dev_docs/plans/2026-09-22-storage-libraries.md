@@ -5,7 +5,9 @@
 (`dev_docs/reviews/2026-09-23-storage-libraries/`). The phases went from three
 to five. V201 is smaller. Private serving moved ahead of user libraries, and
 location-truth moved ahead of storage profiles. Four gaps were added
-(G11–G14), and G3 and G8 were corrected.
+(G11–G14), and G3 and G8 were corrected. Later the same day, **variant sets**
+(per-library image and video sizes, §3.4, G15–G19) were added to V204, so they
+ship in the same release as storage profiles.
 **Status:** PROPOSAL, not started. Open questions for the maintainer are at the end.
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.
@@ -181,6 +183,7 @@ phoenix_kit_storage_libraries                                       -- V201
   trashed_at            timestamptz NULL
   timestamps
   + storage_profile_uuid NULL → storage_profiles                   -- V204; NULL = the Default profile
+  + variant_set_uuid     NULL → variant_sets                       -- V204; NULL = the Default variant set
 
 phoenix_kit_storage_library_members                                 -- V202
   library_uuid     → libraries ON DELETE CASCADE
@@ -188,6 +191,7 @@ phoenix_kit_storage_library_members                                 -- V202
   role             varchar            -- "owner" | "manager" | "contributor" | "viewer"
   PK (library_uuid, user_uuid)
 
+phoenix_kit_file_instances + spec_hash                                                (V204, G16)
 phoenix_kit_files          + library_uuid NOT NULL → libraries ON DELETE RESTRICT   (V201; children inherit the parent's)
                            + UNIQUE (uuid, library_uuid)                             (V201; target of the folder-link FK)
                            + placed_profile_uuid, placed_revision                    (V204, G6)
@@ -290,7 +294,49 @@ Module-specific settings (for example `phoenix_kit_photos`' face grouping opt-in
 and location visibility) live in the module's own tables, keyed by
 `library_uuid`. They do not go in core's jsonb. Core validates only its own keys.
 
-## 4. The Default profile and upgrading existing installs (V204)
+### 3.4 Variant sets: which derived files a library gets (V204)
+
+A storage profile says *where* bytes live. A **variant set** says *which*
+derived files exist: sizes, formats, quality, crop, alternative formats,
+video transcodes and tiles. A library points at one of each, and they change
+independently. A business library on company S3 can use the site's normal
+thumbnails, and a photo library on the default storage can need sizes a blog
+never does. Folding sizes into the profile would multiply profiles by every
+combination.
+
+```
+phoenix_kit_variant_sets
+  uuid, name
+  is_default           exactly one; built from today's phoenix_kit_storage_dimensions rows (§4)
+  selectable           user libraries may choose it
+  generate_video       boolean   -- replaces storage_auto_generate_variants for video transcodes
+  generate_tiles       boolean   -- replaces storage_tile_generation_enabled
+  revision             integer, bumped on any change to the set or its dimensions (G16)
+  timestamps
+
+phoenix_kit_storage_dimensions     + variant_set_uuid NOT NULL → variant_sets ON DELETE CASCADE
+                           name unique per set, not site-wide   (G18)
+```
+
+Rules:
+
+- **Sets are defined by admins only.** User libraries choose from sets marked
+  `selectable`. Variants cost the server's CPU even when the bytes land on a
+  user's own bucket, so a user-defined set (eight AVIF sizes plus 1080p
+  transcodes of every upload) would be a denial-of-service lever. This is
+  deliberately unlike storage profiles, where users bring their own buckets.
+- **Standard slots are a contract.** A variant's name is part of every file
+  URL (`/file/:uuid/:variant/:token`). About 30 files in core use literal
+  names, and `ImageSet` prefers `"medium"` (`image_set.ex:179`). Every set must
+  define `thumbnail`, `small`, `medium`, `large` and `video_thumbnail`. A set
+  may change their size, format, quality and crop, but not drop or rename
+  them. Custom names (for example `grid_2x`) come on top.
+- **Ask by purpose, not by name** (G19). A consumer that cares about pixels
+  calls `Storage.variant_for(file, min_width: 300, aspect: :preserve)`, which
+  resolves against the file's library's set. An admin can make `small` a
+  square crop in one set and not in another, so a name alone promises nothing.
+
+## 4. The Default profile, the Default variant set, and upgrading existing installs (V204)
 
 V204 creates one system profile, `Default`, with `is_default = true`:
 
@@ -313,6 +359,24 @@ stale, exactly the ones today's health page would flag.
 Every library with a NULL profile resolves to `Default`. Changing the global
 settings UI then means editing the Default profile, and
 `storage_redundancy_copies` stays only as a read-through alias for one release.
+
+The same migration creates the **Default variant set**:
+
+- every existing `phoenix_kit_storage_dimensions` row moves into it
+  (`variant_set_uuid` is set, and the global name uniqueness becomes
+  per-set uniqueness);
+- `generate_video` and `generate_tiles` are copied from
+  `storage_auto_generate_variants` and `storage_tile_generation_enabled`, which
+  then become read-through aliases for one release;
+- if an install has deleted or renamed a standard slot, the migration does
+  **not** invent one. It reports the missing slot through `mix phoenix_kit.doctor`
+  and the settings page. Serving falls back per G17 until an admin fixes it;
+- every existing instance is stamped with the `spec_hash` of the dimension
+  that currently has its name (G16). An instance whose recorded pixels do not
+  match that spec is left stale for the reconciler, which is exactly the
+  "admin edited a size" backlog that exists silently today.
+
+Nothing is regenerated by the migration itself.
 
 ## 5. Gaps in core storage that this plan closes
 
@@ -450,6 +514,40 @@ libraries.* Files in a non-`site` library must not be reachable by a
 permanent 4-character token, and must never be answered with a redirect to a
 public object URL. See §6.7.
 
+The variant gaps below also exist today, independent of libraries. They land
+with variant sets in V204.
+
+**G15. Editing a size changes nothing already stored.** `update_dimension/2`
+and `delete_dimension/1` only write the row (`storage.ex:1065, 1083`). Files
+keep the old pixels under the same name. A deleted size leaves its variant
+files in storage forever. A new size exists only for new uploads. The only
+regeneration is a per-file button on the media detail page
+(`media_detail.ex:192`). With sets, a change bumps the set's `revision`, and
+the reconciler (§6.3) generates what is missing, regenerates what is stale,
+and deletes what was removed, per G11.
+
+**G16. An instance does not record which spec produced it.** It has only
+`variant_name` and its own pixels, so stale variants cannot be found without
+re-deriving every one. Each generated instance stores a `spec_hash` over
+width, height, crop, format, quality and alternative formats. An instance is
+stale when its hash differs from the current dimension with that name in its
+library's set.
+
+**G17. A missing variant is served as the original.** `FileController` serves
+the original and queues generation (`file_controller.ex:970-1016`). In a grid
+of 10k photos, a new or renamed thumbnail size means thousands of full
+originals sent as thumbnails. The fallback becomes the nearest existing
+**smaller** variant, then a placeholder, and never the original for a
+thumbnail-class request. Generation is still queued.
+
+**G18. Dimension names are unique site-wide** (`phoenix_kit_storage_dimensions_name_index`, `v135.ex:2498`). Inside sets they are unique
+per set, so two sets can each define `thumbnail` at a different size.
+
+**G19. Consumers pick variants by name.** See §3.4: `variant_for/2` resolves
+by purpose against the library's set. Core call sites that need a size rather
+than a slot (grids, previews, the photos timeline) move to it. Call sites that
+genuinely mean a slot (`thumbnail` in a list row) keep the name.
+
 ## 6. Behaviour changes
 
 ### 6.1 Placement follows the library's profile (V204)
@@ -490,11 +588,19 @@ and profile changes.
 
 ### 6.3 Moving bytes: one reconciler (V204)
 
-A single job makes each file's locations match its library's profile: copy,
-verify, then unlink, and delete objects per G11 (G4, G5, G6). It runs:
+A single job makes each file match its library's **profile and variant set**:
 
-- when a file moves to another library, or a library to another profile;
-- when a profile or its buckets change (the revision bump);
+- **locations:** copy, verify, then unlink, and delete objects per G11 (G4, G5,
+  G6);
+- **variants:** generate missing ones, regenerate stale ones (G16), and delete
+  ones the set no longer has, per G11 (G15).
+
+Generation goes through the existing `file_processing` queue, so CPU use stays
+bounded by that queue's concurrency. The job runs:
+
+- when a file moves to another library, or a library to another profile or
+  variant set;
+- when a profile, a variant set, or their rows change (the revision bumps);
 - after an upload that stored fewer copies than the profile wants;
 - on a schedule, as today's health sync does.
 
@@ -520,7 +626,8 @@ only.
   target library.
 - **Cross-user cloning stays within one library and one profile.** The donor
   must be in the target library, or in a library that resolves to the same
-  **system** profile. Otherwise the file is stored fresh. A clone must never
+  **system** profile **and the same variant set** (a clone copies the donor's
+  variant instances). Otherwise the file is stored fresh. A clone must never
   make one library depend on another library's buckets.
 
 ### 6.5 Access checks become library checks (V201 rule, V202 members)
@@ -631,7 +738,11 @@ narrower permission (Owner and Admin roles only, per `Scope.system_role?`), and
 it is **logged**. Whether admins may open user libraries at all is an open
 question (§10).
 
-### `/admin/settings/media`: system buckets and profiles only (V204–V205)
+### `/admin/settings/media`: system buckets, profiles and variant sets (V204–V205)
+
+The variant sets editor replaces today's single dimensions list: one tab per
+set, the standard slots pinned at the top, and a "regenerate" action that
+bumps the revision instead of doing nothing (G15). Only admins see it.
 
 The bucket list and the profiles editor show **system** buckets and profiles
 only. User-owned buckets and profiles are managed by their owners under the
@@ -682,11 +793,13 @@ library at this point, since the scope is `{:library, uuid}` either way.
 - The writers that skip locations fixed, and the bucket cache invalidated.
 - One checksum algorithm (G12).
 
-**V204: storage profiles and placement.**
+**V204: storage profiles, variant sets and placement.** One release, one
+migration, so the reconciler is built once for both.
 
 - Profiles and the Default profile (§4); G1–G6, G9, and the G10 columns.
-- The reconciler (§6.3).
-- The profiles editor.
+- Variant sets and the Default variant set (§3.4, §4); G15–G19.
+- The reconciler, for locations and variants (§6.3).
+- The profiles editor and the variant sets editor.
 
 **V205: user-owned storage.** Everything in §7, plus quotas (G9).
 
@@ -734,7 +847,10 @@ installs with large `phoenix_kit_files` tables:
    (simple, and the page re-mints it on render), or presigned-only serving?
    Also, how long should the expiry be for a photo grid that stays open for
    hours?
-5. **One word in the UI.** Is it "library" everywhere, or "vault" in Fotki's
+5. **Standard slots.** Are `thumbnail`, `small`, `medium`, `large` and
+   `video_thumbnail` the right required set? Should `small` be guaranteed
+   aspect-preserving, since grids depend on it?
+6. **One word in the UI.** Is it "library" everywhere, or "vault" in Fotki's
    copy? Core should use "library" either way.
 
 ## 11. Existing bugs found while researching this (independent of the plan)
