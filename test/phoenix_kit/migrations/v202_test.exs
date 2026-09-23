@@ -148,6 +148,27 @@ defmodule PhoenixKit.Migrations.Postgres.V202Test do
     assert marker() == "202"
   end
 
+  test "a re-run gives a library that predates the slug column a slug from its name" do
+    query("""
+    INSERT INTO public.phoenix_kit_storage_libraries (name, kind, visibility)
+    VALUES ('Brand Assets', 'system', 'site'), ('brand   assets!', 'system', 'site')
+    """)
+
+    run(V202.up_statements("public"))
+
+    assert [["brand-assets"], ["brand-assets-2"]] =
+             query("""
+             SELECT slug FROM public.phoenix_kit_storage_libraries
+             WHERE name IN ('Brand Assets', 'brand   assets!') ORDER BY slug
+             """)
+
+    assert [[nil]] =
+             query(
+               "SELECT slug FROM public.phoenix_kit_storage_libraries WHERE uuid = $1::text::uuid",
+               [@media]
+             )
+  end
+
   test "a writer that names no library lands in Media" do
     file = file!(user!())
     assert library_of("phoenix_kit_files", file) == @media

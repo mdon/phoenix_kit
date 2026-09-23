@@ -30,7 +30,7 @@
         <select id="media-library-select" name="library" class="select select-sm">
           <option
             :for={library <- @libraries}
-            value={library.uuid}
+            value={library.slug || ""}
             selected={@library && library.uuid == @library.uuid}
           >
             {library.name}

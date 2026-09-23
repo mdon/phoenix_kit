@@ -22,7 +22,9 @@
   in core or in a module, keeps landing in Media, so nothing changes until
   a second library is created. An Owner or Admin can create more system
   libraries on `/admin/media`. The library switcher appears once there are
-  two. Each library keeps its own folders, and folder names are unique per
+  two. Media stays at `/admin/media`, and every other library gets a URL
+  named after it (`/admin/media/library/brand-assets`). Each library keeps
+  its own folders, and folder names are unique per
   library. New files in a library are stored under its own object-key
   prefix. Files and folders cannot cross from one library to another. New
   API: `PhoenixKit.Modules.Storage.Libraries`, a `library_uuid:` option on

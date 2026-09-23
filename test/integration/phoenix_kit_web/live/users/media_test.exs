@@ -307,6 +307,8 @@ defmodule PhoenixKitWeb.Live.Users.MediaTest do
   describe "libraries" do
     alias PhoenixKit.Modules.Storage.Libraries
 
+    defp library_path(library), do: Routes.path("/admin/media/library/#{library.slug}")
+
     test "with only Media there is no switcher, and an admin can create a library", %{conn: conn} do
       {user, _token} = create_admin_user()
       conn = log_in_user(conn, user)
@@ -321,18 +323,18 @@ defmodule PhoenixKitWeb.Live.Users.MediaTest do
       view |> form("#media-new-library-form", %{name: name}) |> render_submit()
 
       library = Enum.find(Libraries.list_system_libraries(), &(&1.name == name))
-      assert library
-      assert_patch(view, @media_path <> "?library=#{library.uuid}")
+      assert library.slug == Libraries.get_system_library_by_slug(library.slug).slug
+      assert_patch(view, library_path(library))
       assert render(view) =~ "media-library-switcher"
     end
 
-    test "?library= opens that library, and folder navigation keeps it", %{conn: conn} do
+    test "/library/<slug> opens that library, and folder navigation stays on it", %{conn: conn} do
       {user, _token} = create_admin_user()
       {:ok, library} = Libraries.create_system_library(%{name: "L #{System.unique_integer()}"})
       {:ok, folder} = Storage.create_folder(%{name: "in-lib", library_uuid: library.uuid})
       conn = log_in_user(conn, user)
 
-      {:ok, view, html} = live(conn, @media_path <> "?library=#{library.uuid}")
+      {:ok, view, html} = live(conn, library_path(library))
       assert html =~ "media-library-switcher"
 
       send(
@@ -341,25 +343,37 @@ defmodule PhoenixKitWeb.Live.Users.MediaTest do
          {:navigate, %{folder: folder.uuid, q: "", page: 1, filter_orphaned: false}}}
       )
 
-      assert_patch(
-        view,
-        @media_path <>
-          "?" <> URI.encode_query(%{"folder" => folder.uuid, "library" => library.uuid})
-      )
+      assert_patch(view, library_path(library) <> "?folder=#{folder.uuid}")
     end
 
-    test "switching library patches to its root", %{conn: conn} do
+    test "switching library patches to its path, and back to the bare page for Media", %{
+      conn: conn
+    } do
       {user, _token} = create_admin_user()
       {:ok, library} = Libraries.create_system_library(%{name: "S #{System.unique_integer()}"})
       conn = log_in_user(conn, user)
 
       {:ok, view, _html} = live(conn, @media_path)
 
-      view
-      |> form("#media-library-switcher", %{library: library.uuid})
-      |> render_change()
+      view |> form("#media-library-switcher", %{library: library.slug}) |> render_change()
+      assert_patch(view, library_path(library))
 
-      assert_patch(view, @media_path <> "?library=#{library.uuid}")
+      view |> form("#media-library-switcher", %{library: ""}) |> render_change()
+      assert_patch(view, @media_path)
+    end
+
+    test "a slug that names no library goes back to the default, it is not shown as Media", %{
+      conn: conn
+    } do
+      {user, _token} = create_admin_user()
+      conn = log_in_user(conn, user)
+
+      assert {:error, {kind, %{to: to, flash: flash}}} =
+               live(conn, Routes.path("/admin/media/library/no-such-library"))
+
+      assert kind in [:redirect, :live_redirect]
+      assert to == @media_path
+      assert flash["error"] == "Library not found"
     end
 
     test "a folder of another library is not opened by its URL", %{conn: conn} do
@@ -368,11 +382,28 @@ defmodule PhoenixKitWeb.Live.Users.MediaTest do
       media_folder = create_folder!(%{name: "media-only-#{System.unique_integer([:positive])}"})
       conn = log_in_user(conn, user)
 
-      {:ok, _view, html} =
-        live(conn, @media_path <> "?library=#{library.uuid}&folder=#{media_folder.uuid}")
+      {:ok, _view, html} = live(conn, library_path(library) <> "?folder=#{media_folder.uuid}")
 
       # Neither opened (its name would head the page) nor listed.
       refute html =~ media_folder.name
+    end
+
+    test "a library path and a file's detail page route to different views" do
+      view_for = fn path ->
+        %{phoenix_live_view: {view, _action, _opts, _meta}} =
+          Phoenix.Router.route_info(PhoenixKitWeb.Router, "GET", path, "localhost")
+
+        view
+      end
+
+      assert view_for.(Routes.path("/admin/media/library/brand")) ==
+               PhoenixKitWeb.Live.Users.Media
+
+      assert view_for.(Routes.path("/admin/media/#{Ecto.UUID.generate()}")) ==
+               PhoenixKitWeb.Live.Users.MediaDetail
+
+      assert view_for.(Routes.path("/admin/media/selector")) ==
+               PhoenixKitWeb.Live.Users.MediaSelector
     end
   end
 end

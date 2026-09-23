@@ -555,6 +555,10 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/notifications", Live.Notifications.Inbox, :index
       live "/admin/notifications/settings", Live.Notifications.Settings, :edit
       live "/admin/media", Live.Users.Media, :index
+      # A storage library other than the default (Media, the bare path above).
+      # A fixed `library` segment, so a slug can never be mistaken for a file
+      # uuid or for `selector`.
+      live "/admin/media/library/:library_slug", Live.Users.Media, :library
       live "/admin/media/selector", Live.Users.MediaSelector, :index
       live "/admin/media/:file_uuid", Live.Users.MediaDetail, :show
       live "/admin/settings", Live.Settings, :index

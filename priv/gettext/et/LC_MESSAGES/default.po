@@ -5705,7 +5705,7 @@ msgstr "nõuab, et"
 #: lib/modules/storage/web/settings.html.heex:4
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:160
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:318
-#: lib/phoenix_kit_web/live/users/media.ex:45
+#: lib/phoenix_kit_web/live/users/media.ex:46
 #: lib/phoenix_kit_web/live/users/media.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Media"
@@ -6165,21 +6165,21 @@ msgstr "Saidikaardi lähtekood"
 msgid "Open in Browser"
 msgstr "Ava brauseris"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2858
+#: lib/phoenix_kit_web/components/media_browser.ex:2908
 #, elixir-autogen, elixir-format
 msgid "%{count} file permanently deleted"
 msgid_plural "%{count} files permanently deleted"
 msgstr[0] "%{count} fail jäädavalt kustutatud"
 msgstr[1] "%{count} faili jäädavalt kustutatud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2525
+#: lib/phoenix_kit_web/components/media_browser.ex:2570
 #, elixir-autogen, elixir-format
 msgid "%{count} item moved"
 msgid_plural "%{count} items moved"
 msgstr[0] "%{count} element liigutatud"
 msgstr[1] "%{count} elementi liigutatud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2920
+#: lib/phoenix_kit_web/components/media_browser.ex:2970
 #, elixir-autogen, elixir-format
 msgid "%{count} orphaned file queued for deletion"
 msgid_plural "%{count} orphaned files queued for deletion"
@@ -6227,35 +6227,35 @@ msgstr "Kogu meedia"
 msgid "All file types supported"
 msgstr "Toetatud on kõik failitüübid"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4363
+#: lib/phoenix_kit_web/components/media_browser.ex:4420
 #, elixir-autogen, elixir-format
 msgid "Already have %{count} duplicate file. No new files were added."
 msgid_plural "Already have %{count} duplicate files. No new files were added."
 msgstr[0] "Juba olemas %{count} duplikaatfail. Uusi faile ei lisatud."
 msgstr[1] "Juba olemas %{count} duplikaatfaili. Uusi faile ei lisatud."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2210
+#: lib/phoenix_kit_web/components/media_browser.ex:2255
 #, elixir-autogen, elixir-format
 msgid "Cannot change folder outside the allowed scope"
 msgstr "Kausta ei saa muuta lubatud ulatusest väljaspool"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1407
+#: lib/phoenix_kit_web/components/media_browser.ex:1452
 #, elixir-autogen, elixir-format
 msgid "Cannot create folder outside the allowed scope"
 msgstr "Kausta ei saa luua lubatud ulatusest väljaspool"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1451
+#: lib/phoenix_kit_web/components/media_browser.ex:1496
 #, elixir-autogen, elixir-format
 msgid "Cannot delete folder outside the allowed scope"
 msgstr "Kausta ei saa kustutada lubatud ulatusest väljaspool"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1489
-#: lib/phoenix_kit_web/components/media_browser.ex:1563
+#: lib/phoenix_kit_web/components/media_browser.ex:1534
+#: lib/phoenix_kit_web/components/media_browser.ex:1608
 #, elixir-autogen, elixir-format
 msgid "Cannot move file outside the allowed scope"
 msgstr "Faili ei saa liigutada lubatud ulatusest väljaspool"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1927
+#: lib/phoenix_kit_web/components/media_browser.ex:1972
 #, elixir-autogen, elixir-format
 msgid "Cannot rename folder outside the allowed scope"
 msgstr "Kausta ei saa ümber nimetada lubatud ulatusest väljaspool"
@@ -6316,7 +6316,7 @@ msgid "Deleted files will appear here"
 msgstr "Kustutatud failid ilmuvad siia"
 
 #: lib/phoenix_kit_web/components/image_editor.ex:1005
-#: lib/phoenix_kit_web/components/media_browser.ex:3668
+#: lib/phoenix_kit_web/components/media_browser.ex:3725
 #: lib/phoenix_kit_web/components/media_browser.html.heex:815
 #: lib/phoenix_kit_web/components/media_browser.html.heex:818
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1624
@@ -6336,40 +6336,40 @@ msgstr "Lohista failid siia või klõpsa „Lisa meedia“, et üles laadida"
 msgid "Empty Trash"
 msgstr "Tühjenda prügikast"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2213
+#: lib/phoenix_kit_web/components/media_browser.ex:2258
 #, elixir-autogen, elixir-format
 msgid "Failed to change color"
 msgstr "Värvi muutmine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1410
+#: lib/phoenix_kit_web/components/media_browser.ex:1455
 #, elixir-autogen, elixir-format
 msgid "Failed to create folder"
 msgstr "Kausta loomine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1492
-#: lib/phoenix_kit_web/components/media_browser.ex:3360
+#: lib/phoenix_kit_web/components/media_browser.ex:1537
+#: lib/phoenix_kit_web/components/media_browser.ex:3417
 #, elixir-autogen, elixir-format
 msgid "Failed to move file"
 msgstr "Faili liigutamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1930
+#: lib/phoenix_kit_web/components/media_browser.ex:1975
 #, elixir-autogen, elixir-format
 msgid "Failed to rename folder"
 msgstr "Kausta ümbernimetamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1485
+#: lib/phoenix_kit_web/components/media_browser.ex:1530
 #, elixir-autogen, elixir-format
 msgid "File moved"
 msgstr "Fail liigutatud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:935
+#: lib/phoenix_kit_web/components/media_browser.ex:962
 #, elixir-autogen, elixir-format
 msgid "Folder not accessible — showing root"
 msgstr "Kaust pole ligipääsetav — näitan juurkausta"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1461
-#: lib/phoenix_kit_web/components/media_browser.ex:1516
-#: lib/phoenix_kit_web/components/media_browser.ex:1589
+#: lib/phoenix_kit_web/components/media_browser.ex:1506
+#: lib/phoenix_kit_web/components/media_browser.ex:1561
+#: lib/phoenix_kit_web/components/media_browser.ex:1634
 #, elixir-autogen, elixir-format
 msgid "Folder not found"
 msgstr "Kausta ei leitud"
@@ -6400,7 +6400,7 @@ msgstr "Halda kasutajate meediat ja üleslaadimisi"
 msgid "More actions"
 msgstr "Veel toiminguid"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3723
+#: lib/phoenix_kit_web/components/media_browser.ex:3780
 #: lib/phoenix_kit_web/components/media_browser.html.heex:805
 #: lib/phoenix_kit_web/components/media_browser.html.heex:808
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1478
@@ -6411,7 +6411,7 @@ msgstr "Veel toiminguid"
 msgid "Move"
 msgstr "Liiguta"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4652
+#: lib/phoenix_kit_web/components/media_browser.ex:4709
 #, elixir-autogen, elixir-format
 msgid "Move %{count} file to trash?"
 msgid_plural "Move %{count} files to trash?"
@@ -6463,7 +6463,7 @@ msgstr "Sidumata failid"
 msgid "Path"
 msgstr "Tee"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4628
+#: lib/phoenix_kit_web/components/media_browser.ex:4685
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{count} file? This cannot be undone."
 msgid_plural "Permanently delete %{count} files? This cannot be undone."
@@ -6487,7 +6487,7 @@ msgstr "Eelmine"
 msgid "Previous (←)"
 msgstr "Eelmine (←)"
 
-#: lib/phoenix_kit_web/components/folder_explorer.ex:649
+#: lib/phoenix_kit_web/components/folder_explorer.ex:661
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1432
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2121
 #, elixir-autogen, elixir-format
@@ -6563,18 +6563,18 @@ msgstr "Laadi meedia üles"
 msgid "Upload Media Files"
 msgstr "Laadi meediafailid üles"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4344
+#: lib/phoenix_kit_web/components/media_browser.ex:4401
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:626
 #, elixir-autogen, elixir-format
 msgid "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
 msgstr "Üleslaadimine ebaõnnestus: salvestushoidlaid pole konfigureeritud. Konfigureeri vähemalt üks salvestushoidla enne failide üleslaadimist."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4330
+#: lib/phoenix_kit_web/components/media_browser.ex:4387
 #, elixir-autogen, elixir-format
 msgid "Upload processed"
 msgstr "Üleslaadimine töödeldud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4372
+#: lib/phoenix_kit_web/components/media_browser.ex:4429
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{count} new file processed"
 msgid_plural "Upload successful! %{count} new files processed"
@@ -6591,15 +6591,15 @@ msgstr "Üles laaditud:"
 msgid "Your browser does not support the video tag."
 msgstr "Teie brauser ei toeta video-elementi."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4351
+#: lib/phoenix_kit_web/components/media_browser.ex:4408
 #, elixir-autogen, elixir-format
 msgid "%{count} failed"
 msgid_plural "%{count} failed"
 msgstr[0] "%{count} ebaõnnestus"
 msgstr[1] "%{count} ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4611
-#: lib/phoenix_kit_web/components/media_browser.ex:4635
+#: lib/phoenix_kit_web/components/media_browser.ex:4668
+#: lib/phoenix_kit_web/components/media_browser.ex:4692
 #: lib/phoenix_kit_web/components/media_browser.html.heex:757
 #, elixir-autogen, elixir-format
 msgid "%{count} file"
@@ -6607,29 +6607,29 @@ msgid_plural "%{count} files"
 msgstr[0] "%{count} fail"
 msgstr[1] "%{count} faili"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4350
+#: lib/phoenix_kit_web/components/media_browser.ex:4407
 #, elixir-autogen, elixir-format
 msgid "%{count} file uploaded"
 msgid_plural "%{count} files uploaded"
 msgstr[0] "%{count} fail üles laaditud"
 msgstr[1] "%{count} faili üles laaditud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4383
+#: lib/phoenix_kit_web/components/media_browser.ex:4440
 #, elixir-autogen, elixir-format
 msgid "%{count} file was already uploaded"
 msgid_plural "%{count} files were already uploaded"
 msgstr[0] "%{count} fail oli juba üles laaditud"
 msgstr[1] "%{count} faili oli juba üles laaditud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4612
-#: lib/phoenix_kit_web/components/media_browser.ex:4636
+#: lib/phoenix_kit_web/components/media_browser.ex:4669
+#: lib/phoenix_kit_web/components/media_browser.ex:4693
 #, elixir-autogen, elixir-format
 msgid "%{count} folder"
 msgid_plural "%{count} folders"
 msgstr[0] "%{count} kaust"
 msgstr[1] "%{count} kausta"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4380
+#: lib/phoenix_kit_web/components/media_browser.ex:4437
 #, elixir-autogen, elixir-format
 msgid "%{count} new file added"
 msgid_plural "%{count} new files added"
@@ -6642,12 +6642,12 @@ msgstr[1] "lisatud %{count} uut faili"
 msgid "FILE"
 msgstr "FAIL"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4354
+#: lib/phoenix_kit_web/components/media_browser.ex:4411
 #, elixir-autogen, elixir-format
 msgid "Partially successful: %{uploaded}, %{failed} due to missing storage buckets."
 msgstr "Osaliselt edukas: %{uploaded}, %{failed} puuduvate salvestushoidlate tõttu."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4390
+#: lib/phoenix_kit_web/components/media_browser.ex:4447
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{added}. %{duplicates}."
 msgstr "Üleslaadimine edukas! %{added}. %{duplicates}."
@@ -6859,13 +6859,13 @@ msgstr "Vasta"
 msgid "Are you sure you want to delete this comment?"
 msgstr "Kas oled kindel, et soovid selle kommentaari kustutada?"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1865
-#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1866
+#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1926
+#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1927
 #, elixir-autogen, elixir-format
 msgid "%b %d, %Y"
 msgstr "%d %b %Y"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2838
+#: lib/phoenix_kit_web/components/media_browser.ex:2888
 #, elixir-autogen, elixir-format
 msgid "%{count} item restored"
 msgid_plural "%{count} items restored"
@@ -6892,24 +6892,24 @@ msgstr "Manused on keelatud"
 msgid "Auth failed"
 msgstr "Autentimine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4573
+#: lib/phoenix_kit_web/components/media_browser.ex:4630
 #, elixir-autogen, elixir-format
 msgid "Cannot create folders in the all-files view"
 msgstr "Kaustu ei saa luua kõigi failide vaates"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4570
+#: lib/phoenix_kit_web/components/media_browser.ex:4627
 #, elixir-autogen, elixir-format
 msgid "Cannot create folders in trash"
 msgstr "Prügikastis ei saa kaustu luua"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1533
+#: lib/phoenix_kit_web/components/media_browser.ex:1578
 #, elixir-autogen, elixir-format
 msgid "Cannot move a folder into its own descendant"
 msgstr "Kausta ei saa teisaldada oma alamkausta"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1529
-#: lib/phoenix_kit_web/components/media_browser.ex:1593
-#: lib/phoenix_kit_web/components/media_browser.ex:1606
+#: lib/phoenix_kit_web/components/media_browser.ex:1574
+#: lib/phoenix_kit_web/components/media_browser.ex:1638
+#: lib/phoenix_kit_web/components/media_browser.ex:1651
 #, elixir-autogen, elixir-format
 msgid "Cannot move folder outside the allowed scope"
 msgstr "Kausta ei saa teisaldada lubatud ulatusest väljaspool"
@@ -6925,7 +6925,7 @@ msgstr "Kommentaari postitamine ebaõnnestus"
 msgid "Deep Zoom Tile Generation"
 msgstr "Sügava suumi plaadigeneratsioon"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3740
+#: lib/phoenix_kit_web/components/media_browser.ex:3797
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1708
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2392
 #, elixir-autogen, elixir-format
@@ -6943,12 +6943,12 @@ msgstr "Kustutamine…"
 msgid "Disconnecting…"
 msgstr "Lahtiühendamine…"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1536
+#: lib/phoenix_kit_web/components/media_browser.ex:1581
 #, elixir-autogen, elixir-format
 msgid "Failed to move folder"
 msgstr "Kausta teisaldamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1609
+#: lib/phoenix_kit_web/components/media_browser.ex:1654
 #, elixir-autogen, elixir-format
 msgid "Failed to move folder to trash"
 msgstr "Kausta prügikasti teisaldamine ebaõnnestus"
@@ -6958,23 +6958,23 @@ msgstr "Kausta prügikasti teisaldamine ebaõnnestus"
 msgid "File / Image"
 msgstr "Fail / Pilt"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3358
+#: lib/phoenix_kit_web/components/media_browser.ex:3415
 #, elixir-autogen, elixir-format
 msgid "File moved to trash"
 msgstr "Fail teisaldati prügikasti"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3359
+#: lib/phoenix_kit_web/components/media_browser.ex:3416
 #, elixir-autogen, elixir-format
 msgid "File removed from this folder"
 msgstr "Fail eemaldati sellest kaustast"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1559
+#: lib/phoenix_kit_web/components/media_browser.ex:1604
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "File not found"
 msgstr "Faili ei leitud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2687
+#: lib/phoenix_kit_web/components/media_browser.ex:2732
 #, elixir-autogen, elixir-format
 msgid "File permanently deleted"
 msgstr "Fail jäädavalt kustutatud"
@@ -6995,23 +6995,23 @@ msgstr "Failtüüp pole lubatud"
 msgid "Folder"
 msgstr "Kaust"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1403
+#: lib/phoenix_kit_web/components/media_browser.ex:1448
 #, elixir-autogen, elixir-format
 msgid "Folder \"%{name}\" created"
 msgstr "Kaust \"%{name}\" loodud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1523
+#: lib/phoenix_kit_web/components/media_browser.ex:1568
 #, elixir-autogen, elixir-format
 msgid "Folder moved"
 msgstr "Kaust teisaldatud"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1446
-#: lib/phoenix_kit_web/components/media_browser.ex:1600
+#: lib/phoenix_kit_web/components/media_browser.ex:1491
+#: lib/phoenix_kit_web/components/media_browser.ex:1645
 #, elixir-autogen, elixir-format
 msgid "Folder moved to trash"
 msgstr "Kaust teisaldatud prügikasti"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1445
+#: lib/phoenix_kit_web/components/media_browser.ex:1490
 #, elixir-autogen, elixir-format
 msgid "Folder permanently deleted"
 msgstr "Kaust jäädavalt kustutatud"
@@ -7033,14 +7033,14 @@ msgid_plural "Move %{count} items to folder"
 msgstr[0] "Teisalda %{count} üksus kausta"
 msgstr[1] "Teisalda %{count} üksust kausta"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3741
+#: lib/phoenix_kit_web/components/media_browser.ex:3798
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1709
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2393
 #, elixir-autogen, elixir-format
 msgid "Move to Trash"
 msgstr "Teisalda prügikasti"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3733
+#: lib/phoenix_kit_web/components/media_browser.ex:3790
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1700
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2384
 #, elixir-autogen, elixir-format
@@ -7115,7 +7115,7 @@ msgstr "Kirjuta märkus selle annotatsiooni kohta..."
 msgid "e.g. Main, Personal, My Company Drive"
 msgstr "nt Peamine, Isiklik, Minu ettevõtte draiv"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4581
+#: lib/phoenix_kit_web/components/media_browser.ex:4638
 #, elixir-autogen, elixir-format
 msgid "untitled"
 msgstr "pealkirjata"
@@ -8553,19 +8553,19 @@ msgstr "või lohista failid siia"
 msgid "Manage available languages for your application"
 msgstr "Halda rakenduse saadaolevaid keeli"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:502
+#: lib/phoenix_kit_web/components/media_browser.ex:509
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:355
 #, elixir-autogen, elixir-format
 msgid "Only image files can be added here."
 msgstr "Siia saab lisada ainult pildifaile."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:503
+#: lib/phoenix_kit_web/components/media_browser.ex:510
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:356
 #, elixir-autogen, elixir-format
 msgid "Only video files can be added here."
 msgstr "Siia saab lisada ainult videofaile."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:505
+#: lib/phoenix_kit_web/components/media_browser.ex:512
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:358
 #, elixir-autogen, elixir-format
 msgid "Only the allowed file types can be added here."
@@ -8646,8 +8646,8 @@ msgstr "Küpseta Etcheri märgistuskujundid (ristkülikud, markerijooned jne) fa
 msgid "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
 msgstr "Sirvi faile, mis pole enam ühegi kirjega seotud (orvuks jäänud meedia), et neid üle vaadata või kustutada."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2018
-#: lib/phoenix_kit_web/components/media_browser.ex:3943
+#: lib/phoenix_kit_web/components/media_browser.ex:2063
+#: lib/phoenix_kit_web/components/media_browser.ex:4000
 #, elixir-autogen, elixir-format
 msgid "Cannot edit a folder outside the allowed scope"
 msgstr "Kausta ei saa muuta lubatud ulatusest väljaspool"
@@ -8767,22 +8767,22 @@ msgstr "Kõik muu"
 msgid "Exit selection"
 msgstr "Välju valikust"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2022
+#: lib/phoenix_kit_web/components/media_browser.ex:2067
 #, elixir-autogen, elixir-format
 msgid "Failed to save folder description"
 msgstr "Kausta kirjelduse salvestamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3946
+#: lib/phoenix_kit_web/components/media_browser.ex:4003
 #, elixir-autogen, elixir-format
 msgid "Failed to save folder header"
 msgstr "Kausta päise salvestamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:703
+#: lib/phoenix_kit_web/components/media_browser.ex:727
 #, elixir-autogen, elixir-format
 msgid "Failed to set the image"
 msgstr "Pildi määramine ebaõnnestus"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:743
+#: lib/phoenix_kit_web/components/media_browser.ex:767
 #, elixir-autogen, elixir-format
 msgid "Failed to update the header"
 msgstr "Päise uuendamine ebaõnnestus"
@@ -8802,7 +8802,7 @@ msgstr "Leia sidumata failid"
 msgid "Folder name"
 msgstr "Kausta nimi"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2177
+#: lib/phoenix_kit_web/components/media_browser.ex:2222
 #, elixir-autogen, elixir-format
 msgid "Folder name can't be blank"
 msgstr "Kausta nimi ei tohi olla tühi"
@@ -8941,7 +8941,7 @@ msgid "No description — add one"
 msgstr "Kirjeldus puudub — lisa see"
 
 #: lib/phoenix_kit_web/components/core/preview_card.ex:227
-#: lib/phoenix_kit_web/components/media_browser.ex:3428
+#: lib/phoenix_kit_web/components/media_browser.ex:3485
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1785
 #, elixir-autogen, elixir-format
 msgid "No images"
@@ -10170,14 +10170,14 @@ msgstr "Pööre salvestatud"
 msgid "Show details"
 msgstr "Näita üksikasju"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4645
+#: lib/phoenix_kit_web/components/media_browser.ex:4702
 #, elixir-autogen, elixir-format
 msgid "Move %{count} folder and all its contents to trash?"
 msgid_plural "Move %{count} folders and all their contents to trash?"
 msgstr[0] "Kas liigutada %{count} kaust ja kogu selle sisu prügikasti?"
 msgstr[1] "Kas liigutada %{count} kausta ja kogu nende sisu prügikasti?"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4638
+#: lib/phoenix_kit_web/components/media_browser.ex:4695
 #, elixir-autogen, elixir-format
 msgid "Move %{files} and %{folders} (including all folder contents) to trash?"
 msgstr "Kas liigutada %{files} ja %{folders} (koos kogu kaustade sisuga) prügikasti?"
@@ -10188,14 +10188,14 @@ msgstr "Kas liigutada %{files} ja %{folders} (koos kogu kaustade sisuga) prügik
 msgid "Move '%{name}' and all its contents to trash?"
 msgstr "Kas liigutada '%{name}' ja kogu selle sisu prügikasti?"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4621
+#: lib/phoenix_kit_web/components/media_browser.ex:4678
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{count} folder and all its contents? This cannot be undone."
 msgid_plural "Permanently delete %{count} folders and all their contents? This cannot be undone."
 msgstr[0] "Kas kustutada jäädavalt %{count} kaust ja kogu selle sisu? Seda ei saa tagasi võtta."
 msgstr[1] "Kas kustutada jäädavalt %{count} kausta ja kogu nende sisu? Seda ei saa tagasi võtta."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4614
+#: lib/phoenix_kit_web/components/media_browser.ex:4671
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{files} and %{folders} (including all folder contents)? This cannot be undone."
 msgstr "Kas kustutada jäädavalt %{files} ja %{folders} (koos kogu kaustade sisuga)? Seda ei saa tagasi võtta."
@@ -10537,7 +10537,7 @@ msgstr "Telegramiga ei saanud ühendust"
 msgid "Could not reach the SMTP server"
 msgstr "SMTP-serveriga ei saanud ühendust"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2657
+#: lib/phoenix_kit_web/components/media_browser.ex:2702
 #, elixir-autogen, elixir-format
 msgid "Could not rotate the image."
 msgstr "Pilti ei saanud pöörata."
@@ -11081,14 +11081,14 @@ msgstr "Nõua e-posti kinnitamist enne rakenduse kasutamist"
 msgid "Restore"
 msgstr "Taasta"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3706
+#: lib/phoenix_kit_web/components/media_browser.ex:3763
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1673
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2357
 #, elixir-autogen, elixir-format
 msgid "Rotate left"
 msgstr "Pööra vasakule"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3715
+#: lib/phoenix_kit_web/components/media_browser.ex:3772
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1682
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2366
 #, elixir-autogen, elixir-format
@@ -11461,7 +11461,7 @@ msgstr "Helifailid"
 msgid "Click on an audio file to select it"
 msgstr "Klõpsa helifailil, et see valida"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:504
+#: lib/phoenix_kit_web/components/media_browser.ex:511
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:357
 #, elixir-autogen, elixir-format
 msgid "Only audio files can be added here."
@@ -14594,7 +14594,7 @@ msgid "Edit failed"
 msgstr "Muutmine ebaõnnestus"
 
 #: lib/phoenix_kit_web/components/image_editor.ex:672
-#: lib/phoenix_kit_web/components/media_browser.ex:3681
+#: lib/phoenix_kit_web/components/media_browser.ex:3738
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1639
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2322
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:482
@@ -15231,15 +15231,15 @@ msgid "the bot in Telegram, then press Test Connection above."
 msgstr ""
 
 #: lib/phoenix_kit_web/components/featured_image.ex:579
-#: lib/phoenix_kit_web/components/media_browser.ex:3533
-#: lib/phoenix_kit_web/components/media_browser.ex:3550
+#: lib/phoenix_kit_web/components/media_browser.ex:3590
+#: lib/phoenix_kit_web/components/media_browser.ex:3607
 #, elixir-autogen, elixir-format
 msgid "Featured image"
 msgstr "Esiletõstetud pilt"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3530
-#: lib/phoenix_kit_web/components/media_browser.ex:3534
-#: lib/phoenix_kit_web/components/media_browser.ex:3696
+#: lib/phoenix_kit_web/components/media_browser.ex:3587
+#: lib/phoenix_kit_web/components/media_browser.ex:3591
+#: lib/phoenix_kit_web/components/media_browser.ex:3753
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1663
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2347
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:510
@@ -15247,8 +15247,8 @@ msgstr "Esiletõstetud pilt"
 msgid "Set as featured"
 msgstr "Määra esiletõstetuks"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3530
-#: lib/phoenix_kit_web/components/media_browser.ex:3695
+#: lib/phoenix_kit_web/components/media_browser.ex:3587
+#: lib/phoenix_kit_web/components/media_browser.ex:3752
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1662
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2346
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:509
@@ -15650,12 +15650,12 @@ msgstr "Standardväljad"
 msgid "Create"
 msgstr "Loo"
 
-#: lib/phoenix_kit_web/live/users/media.html.heex:78
+#: lib/phoenix_kit_web/live/users/media.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Delete library"
 msgstr "Kustuta kogu"
 
-#: lib/phoenix_kit_web/live/users/media.html.heex:76
+#: lib/phoenix_kit_web/live/users/media.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Delete this library? Only an empty library can be deleted."
 msgstr "Kas kustutada see kogu? Kustutada saab ainult tühja kogu."
@@ -15665,17 +15665,17 @@ msgstr "Kas kustutada see kogu? Kustutada saab ainult tühja kogu."
 msgid "Library"
 msgstr "Kogu"
 
-#: lib/phoenix_kit_web/live/users/media.ex:84
+#: lib/phoenix_kit_web/live/users/media.ex:102
 #, elixir-autogen, elixir-format
 msgid "Library \"%{name}\" created"
 msgstr "Kogu „%{name}“ loodud"
 
-#: lib/phoenix_kit_web/live/users/media.ex:104
+#: lib/phoenix_kit_web/live/users/media.ex:122
 #, elixir-autogen, elixir-format
 msgid "Library deleted"
 msgstr "Kogu kustutatud"
 
-#: lib/phoenix_kit_web/live/users/media.ex:157
+#: lib/phoenix_kit_web/live/users/media.ex:174
 #: lib/phoenix_kit_web/live/users/media.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Library name"
@@ -15686,7 +15686,12 @@ msgstr "Kogu nimi"
 msgid "New library"
 msgstr "Uus kogu"
 
-#: lib/phoenix_kit_web/live/users/media.ex:112
+#: lib/phoenix_kit_web/live/users/media.ex:130
 #, elixir-autogen, elixir-format
 msgid "Only an empty library can be deleted, and never the default one."
 msgstr "Kustutada saab ainult tühja kogu, mitte kunagi vaikekogu."
+
+#: lib/phoenix_kit_web/live/users/media.ex:71
+#, elixir-autogen, elixir-format
+msgid "Library not found"
+msgstr "Kogu ei leitud"

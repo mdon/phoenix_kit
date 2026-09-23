@@ -202,10 +202,11 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
-  # V202 (2026-09-23, storage libraries, the partition) DECLARES 32 objects
+  # V202 (2026-09-23, storage libraries, the partition) DECLARES 34 objects
   # here and RESHAPES one. New: `table:phoenix_kit_storage_libraries` with
-  # its 11 columns, 5 constraints (pkey, owner FK, kind/visibility/owner
-  # checks) and 4 indexes; the Media seed row (fixed uuid
+  # its 12 columns (`slug` last: it is added by its own ALTER, so a database
+  # that ran an earlier build of V202 gets it at the same position), 5
+  # constraints (pkey, owner FK, kind/visibility/owner checks) and 5 indexes; the Media seed row (fixed uuid
   # `00000000-0000-7000-8000-000000000001`); `library_uuid` on files, media
   # folders and folder links (NOT NULL, DEFAULT Media's uuid) with their
   # three FKs to libraries and the folder link's `(file_uuid, library_uuid)`
@@ -454,7 +455,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "fee328d9862c21a46ec5ff215bd31639309f993244fc47e2924ab02e01f72bf5"
+  @chain_hash "9793f01b41553162ae0ad43be107fc2c1413bf604abe3d5729eaf0d4ac0fc174"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -73013,6 +73014,52 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              opclasses: ["uuid_ops", "date_ops", "timestamptz_ops"],
              predicate:
                "((system_managed = false) AND (trashed_at IS NULL) AND (parent_file_uuid IS NULL) AND ((status)::text = 'active'::text) AND ((file_type)::text = ANY ((ARRAY['image'::character varying, 'video'::character varying])::text[])))"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.slug",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_storage_libraries", column: "slug", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"slug\" character varying(64)",
+        since: 202,
+        class: :column,
+        revisions: [
+          {202, %{default: nil, type: "character varying(64)", pos: 12, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_storage_libraries_owner_slug_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_libraries_owner_slug_index",
+             table: "phoenix_kit_storage_libraries",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_storage_libraries_owner_slug_index ON __SCHEMA__.phoenix_kit_storage_libraries USING btree (COALESCE(owner_uuid, '00000000-0000-0000-0000-000000000000'::uuid), slug) WHERE (slug IS NOT NULL)",
+        since: 202,
+        class: :index,
+        revisions: [
+          {202,
+           %{
+             table: "phoenix_kit_storage_libraries",
+             keys: ["COALESCE(owner_uuid, '00000000-0000-0000-0000-000000000000'::uuid)", "slug"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_storage_libraries_owner_slug_index ON __SCHEMA__.phoenix_kit_storage_libraries USING btree (COALESCE(owner_uuid, '00000000-0000-0000-0000-000000000000'::uuid), slug) WHERE (slug IS NOT NULL)",
+             name_template: nil,
+             opclasses: ["uuid_ops", "text_ops"],
+             predicate: "(slug IS NOT NULL)"
            }}
         ],
         presence: :required,

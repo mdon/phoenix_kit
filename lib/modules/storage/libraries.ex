@@ -78,14 +78,56 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   @doc """
-  Creates a system library. `attrs` takes a `"name"` (or `:name`); the
-  object-key prefix is generated unless one is given.
+  The live system library whose URL slug is `slug`, or nil. The default
+  library has no slug (it is the bare `/admin/media`).
+  """
+  @spec get_system_library_by_slug(term()) :: Library.t() | nil
+  def get_system_library_by_slug(slug) when is_binary(slug) do
+    repo().one(
+      from(l in Library,
+        where: l.kind == "system" and is_nil(l.trashed_at) and l.slug == ^slug
+      )
+    )
+  end
+
+  def get_system_library_by_slug(_slug), do: nil
+
+  @doc """
+  Creates a system library. `attrs` takes a `"name"` (or `:name`). The URL
+  slug comes from the name (`"Brand Assets"` → `"brand-assets"`, then
+  `"brand-assets-2"` … while one is taken) and the object-key prefix is
+  generated, unless either is given.
   """
   @spec create_system_library(map()) :: {:ok, Library.t()} | {:error, Ecto.Changeset.t()}
   def create_system_library(attrs) do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
     attrs = Map.put_new_lazy(attrs, "key_prefix", &generate_key_prefix/0)
 
+    case attrs do
+      %{"slug" => _} -> insert_system_library(attrs)
+      _ -> insert_with_free_slug(attrs, Library.slugify(to_string(attrs["name"])), 1)
+    end
+  end
+
+  # Tries `base`, `base-2`, `base-3` … until the slug is free. Any other
+  # error (a taken name, a blank one) is returned as it is.
+  defp insert_with_free_slug(attrs, base, n) do
+    slug = if n == 1, do: base, else: "#{base}-#{n}"
+
+    case insert_system_library(Map.put(attrs, "slug", slug)) do
+      {:error, %Ecto.Changeset{errors: errors} = changeset} ->
+        if Keyword.has_key?(errors, :slug) and not name_error?(changeset) and n < 100,
+          do: insert_with_free_slug(attrs, base, n + 1),
+          else: {:error, changeset}
+
+      result ->
+        result
+    end
+  end
+
+  defp name_error?(%Ecto.Changeset{errors: errors}), do: Keyword.has_key?(errors, :name)
+
+  defp insert_system_library(attrs) do
     %Library{}
     |> Library.create_system_changeset(attrs)
     |> repo().insert()

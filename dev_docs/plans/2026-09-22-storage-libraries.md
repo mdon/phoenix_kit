@@ -31,8 +31,12 @@ questions on 2026-09-23 (§10), and the plan body reflects the answers.
 - Code keeps libraries apart: a subfolder takes its parent's library, and a
   file cannot be homed in, linked into, or moved to another library's folder
   (`{:error, :other_library}`).
-- `/admin/media` gains a system-library switcher (`?library=`), shown only
-  once a second library exists; Owner/Admin create libraries and delete empty
+- `/admin/media` gains a system-library switcher, shown only once a second
+  library exists. Media stays at the bare `/admin/media`; any other library
+  is `/admin/media/library/<slug>` (`libraries.slug`, from the name,
+  `-2`/`-3` on a clash, kept across renames; the fixed `library` segment
+  keeps a slug from colliding with `/admin/media/<file uuid>` and
+  `/selector`); Owner/Admin create libraries and delete empty
   ones. With only Media the browser gets no library and lists exactly what it
   did before.
 - `Storage.Libraries.can?/3` replaces the three per-file checks, **keeping

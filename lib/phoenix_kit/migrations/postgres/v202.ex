@@ -11,7 +11,9 @@ defmodule PhoenixKit.Migrations.Postgres.V202 do
     * `phoenix_kit_storage_libraries` — `kind` (`system` | `user`),
       `owner_uuid` (NULL for a system library), `visibility` (`site` |
       `private`), `key_prefix` (object-key prefix for NEW files; NULL keeps
-      today's layout), `settings`, `is_default`, `trashed_at`. One row is
+      today's layout), `slug` (the library's URL name,
+      `/admin/media/library/<slug>`; unique per owner, NULL for the default),
+      `settings`, `is_default`, `trashed_at`. One row is
       seeded: Media, the default system library, under the fixed uuid
       `00000000-0000-7000-8000-000000000001` (`Storage.Libraries.media_uuid/0`).
     * `library_uuid` on `phoenix_kit_files`, `phoenix_kit_media_folders` and
@@ -128,6 +130,43 @@ defmodule PhoenixKit.Migrations.Postgres.V202 do
         (uuid, name, kind, visibility, is_default, inserted_at, updated_at)
       VALUES ('#{@media_uuid}', 'Media', 'system', 'site', true, NOW(), NOW())
       ON CONFLICT (uuid) DO NOTHING
+      """,
+      # The URL name of a library (`/admin/media/library/<slug>`). Added by
+      # its own ALTER, not in the CREATE above, so a database that ran an
+      # earlier build of this version gets the same column in the same
+      # position as a fresh one. The default library has none: it is the
+      # bare `/admin/media`.
+      "ALTER TABLE #{p}phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS slug character varying(64)",
+      # Slugs for libraries created before the column existed (an earlier
+      # build of this version): the name, lower-cased and hyphenated, with
+      # `-2`, `-3` … on a clash.
+      """
+      WITH base AS (
+        SELECT uuid, owner_uuid,
+               COALESCE(
+                 NULLIF(trim(both '-' from lower(regexp_replace(name, '[^a-zA-Z0-9]+', '-', 'g'))), ''),
+                 'library'
+               ) AS s
+        FROM #{p}phoenix_kit_storage_libraries
+        WHERE slug IS NULL AND NOT is_default
+      ),
+      ranked AS (
+        SELECT uuid, s,
+               row_number() OVER (
+                 PARTITION BY COALESCE(owner_uuid, '#{@nil_uuid}'::uuid), s ORDER BY uuid
+               ) AS rn
+        FROM base
+      )
+      UPDATE #{p}phoenix_kit_storage_libraries l
+      SET slug = left(r.s, 58) || CASE WHEN r.rn > 1 THEN '-' || r.rn ELSE '' END
+      FROM ranked r
+      WHERE l.uuid = r.uuid
+      """,
+      """
+      CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_storage_libraries_owner_slug_index
+      ON #{p}phoenix_kit_storage_libraries
+        (COALESCE(owner_uuid, '#{@nil_uuid}'::uuid), slug)
+      WHERE slug IS NOT NULL
       """
     ] ++
       library_column(p, prefix, "phoenix_kit_files", "phoenix_kit_files_library_uuid_fkey") ++

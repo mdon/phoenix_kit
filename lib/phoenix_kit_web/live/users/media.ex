@@ -15,8 +15,9 @@ defmodule PhoenixKitWeb.Live.Users.Media do
   ## Libraries
 
   The page shows one **system library** at a time
-  (`PhoenixKit.Modules.Storage.Libraries`), picked by the `library` query
-  param. While Media is the only one, no switcher is shown and the browser
+  (`PhoenixKit.Modules.Storage.Libraries`): the default one (Media) at the
+  bare `/admin/media`, any other at `/admin/media/library/<slug>`. While
+  Media is the only one, no switcher is shown and the browser
   is given no library at all — it lists exactly what it listed before
   libraries existed. An Owner or Admin can create another system library
   here, and delete one that holds nothing.
@@ -57,11 +58,28 @@ defmodule PhoenixKitWeb.Live.Users.Media do
   # (each one is a patch through here); a create or delete reloads them.
   def handle_params(params, _uri, socket) do
     socket = if socket.assigns.libraries, do: socket, else: load_libraries(socket)
-    {:noreply, select_library(socket, params["library"])}
+
+    case select_library(socket, params["library_slug"]) do
+      {:ok, socket} ->
+        {:noreply, socket}
+
+      # A slug that names no live library is not quietly shown as Media — an
+      # upload there would land somewhere the visitor did not ask for.
+      :not_found ->
+        {:noreply,
+         socket
+         |> put_flash(:error, gettext("Library not found"))
+         |> push_patch(to: library_path(nil))}
+    end
   end
 
-  def handle_event("switch_library", %{"library" => uuid}, socket) do
-    {:noreply, push_patch(socket, to: library_path(socket, uuid))}
+  # Only a library the page listed: the slug arrives from the client and ends
+  # up in a path.
+  def handle_event("switch_library", %{"library" => slug}, socket) do
+    case Enum.find(socket.assigns.libraries || [], &((&1.slug || "") == slug)) do
+      nil -> {:noreply, socket}
+      library -> {:noreply, push_patch(socket, to: library_path(library.slug))}
+    end
   end
 
   def handle_event("new_library", _params, socket) do
@@ -82,7 +100,7 @@ defmodule PhoenixKitWeb.Live.Users.Media do
        |> assign(:creating_library, false)
        |> load_libraries()
        |> put_flash(:info, gettext("Library \"%{name}\" created", name: library.name))
-       |> push_patch(to: library_path(socket, library.uuid))}
+       |> push_patch(to: library_path(library.slug))}
     else
       false ->
         {:noreply, socket}
@@ -102,7 +120,7 @@ defmodule PhoenixKitWeb.Live.Users.Media do
        socket
        |> load_libraries()
        |> put_flash(:info, gettext("Library deleted"))
-       |> push_patch(to: library_path(socket, nil))}
+       |> push_patch(to: library_path(nil))}
     else
       {:error, _reason} ->
         {:noreply,
@@ -119,27 +137,26 @@ defmodule PhoenixKitWeb.Live.Users.Media do
 
   defp load_libraries(socket), do: assign(socket, :libraries, Libraries.list_system_libraries())
 
-  # An unknown, trashed or non-system uuid in the URL shows the default.
-  defp select_library(socket, requested) do
+  # The bare page is the default library; `/library/<slug>` another live
+  # system library. A slug that names none is `:not_found`.
+  defp select_library(socket, slug) when slug in [nil, ""] do
     libraries = socket.assigns.libraries
 
-    library =
-      Enum.find(libraries, &(&1.uuid == requested)) ||
-        Enum.find(libraries, & &1.is_default) || List.first(libraries)
+    {:ok,
+     assign(socket, :library, Enum.find(libraries, & &1.is_default) || List.first(libraries))}
+  end
 
-    assign(socket, :library, library)
+  defp select_library(socket, slug) do
+    case Enum.find(socket.assigns.libraries, &(&1.slug == slug)) do
+      nil -> :not_found
+      library -> {:ok, assign(socket, :library, library)}
+    end
   end
 
   # Switching library opens it at its root: no folder, search or page from
-  # the other one carries over. The path is the live one (the browser's URL
-  # sync records it), so a locale segment or a renamed admin segment stays
-  # as the visitor has it.
-  defp library_path(socket, nil), do: base_path(socket)
-
-  defp library_path(socket, uuid),
-    do: base_path(socket) <> "?" <> URI.encode_query(%{"library" => uuid})
-
-  defp base_path(socket), do: socket.assigns[:__phoenix_kit_mb_path__] || socket.assigns.url_path
+  # the other one carries over. The default library is the bare page.
+  defp library_path(slug) when slug in [nil, ""], do: Routes.path("/admin/media")
+  defp library_path(slug), do: Routes.path("/admin/media/library/#{slug}")
 
   # Creating and deleting a system library is for an Owner or Admin; the
   # "media" permission browses and manages files, not the partitions.

@@ -32,6 +32,7 @@ defmodule PhoenixKit.Modules.Storage.Library do
           owner_uuid: UUIDv7.t() | nil,
           visibility: String.t(),
           key_prefix: String.t() | nil,
+          slug: String.t() | nil,
           settings: map(),
           is_default: boolean(),
           trashed_at: DateTime.t() | nil,
@@ -44,6 +45,10 @@ defmodule PhoenixKit.Modules.Storage.Library do
     field :kind, :string, default: "system"
     field :visibility, :string, default: "site"
     field :key_prefix, :string
+    # The URL name (`/admin/media/library/<slug>`); nil for the default
+    # library, which is the bare `/admin/media`. Kept when the library is
+    # renamed, so its links keep working.
+    field :slug, :string
     field :settings, :map, default: %{}
     field :is_default, :boolean, default: false
     field :trashed_at, :utc_datetime
@@ -55,16 +60,41 @@ defmodule PhoenixKit.Modules.Storage.Library do
     timestamps(type: :utc_datetime)
   end
 
-  @doc "A new system library: a name and an object-key prefix."
+  @doc "A new system library: a name, a URL slug and an object-key prefix."
   def create_system_changeset(library, attrs) do
     library
-    |> cast(attrs, [:name, :key_prefix])
+    |> cast(attrs, [:name, :key_prefix, :slug])
     |> put_change(:kind, "system")
     |> put_change(:visibility, "site")
     |> validate_name()
-    |> validate_required([:key_prefix])
+    |> validate_required([:key_prefix, :slug])
     |> validate_format(:key_prefix, ~r/\A[a-z0-9][a-z0-9_-]{0,63}\z/)
+    |> validate_format(:slug, ~r/\A[a-z0-9]+(?:-[a-z0-9]+)*\z/)
+    |> validate_length(:slug, max: 64)
     |> unique_constraint(:key_prefix, name: :phoenix_kit_storage_libraries_key_prefix_index)
+    |> unique_constraint(:slug, name: :phoenix_kit_storage_libraries_owner_slug_index)
+  end
+
+  @doc """
+  The slug a name gives: lower-case letters and digits, hyphen-separated
+  (`"Brand Assets 2026"` → `"brand-assets-2026"`). Letters outside ASCII
+  are dropped with their accents where they have one; a name with nothing
+  left is `"library"`.
+  """
+  @spec slugify(String.t()) :: String.t()
+  def slugify(name) do
+    name
+    |> String.normalize(:nfd)
+    |> String.replace(~r/\p{Mn}/u, "")
+    |> String.downcase()
+    |> String.replace(~r/[^a-z0-9]+/, "-")
+    |> String.trim("-")
+    |> String.slice(0, 58)
+    |> String.trim("-")
+    |> case do
+      "" -> "library"
+      slug -> slug
+    end
   end
 
   @doc "Renames a library. Its kind, owner and key prefix never change here."

@@ -106,10 +106,30 @@ defmodule PhoenixKit.Modules.Storage.LibrariesTest do
       assert changeset.errors[:name]
     end
 
+    test "a new library's URL slug comes from its name, suffixed while taken" do
+      tag = System.unique_integer([:positive])
+      first = library!("Brand Assets #{tag}")
+      assert first.slug == "brand-assets-#{tag}"
+
+      second = library!("brand assets! #{tag}")
+      assert second.slug == "brand-assets-#{tag}-2"
+
+      assert Libraries.get_system_library_by_slug(first.slug).uuid == first.uuid
+      refute Libraries.get_system_library_by_slug("no-such-#{tag}")
+      refute Libraries.get_system_library_by_slug(nil)
+    end
+
+    test "slugify keeps ASCII letters and digits, drops accents, and never returns empty" do
+      assert Library.slugify("  Café  Déjà-vu 2026 ") == "cafe-deja-vu-2026"
+      assert Library.slugify("Фото") == "library"
+      assert Library.slugify("---") == "library"
+    end
+
     test "renaming keeps kind and prefix" do
       library = library!()
       assert {:ok, renamed} = Libraries.rename_library(library, "Renamed #{library.uuid}")
       assert renamed.key_prefix == library.key_prefix
+      assert renamed.slug == library.slug
       assert renamed.kind == "system"
     end
 

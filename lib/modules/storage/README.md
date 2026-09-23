@@ -459,7 +459,9 @@ before V202 is in **Media**, the default system library, which has a fixed uuid
 (`Storage.Libraries.media_uuid/0`). Media is also the column default, so any
 writer that names no library, core's or a module's, lands there. An Owner or
 Admin can add system libraries on `/admin/media`; the switcher there appears once
-a second one exists.
+a second one exists. Media is the bare `/admin/media`; any other library is
+`/admin/media/library/<slug>`, where the slug comes from its name and is kept
+when it is renamed (`Libraries.get_system_library_by_slug/1`).
 
 - **Store into a library:** `Storage.store_file_in_buckets(..., library_uuid: uuid)`.
   A library with a `key_prefix` keys new objects under it
