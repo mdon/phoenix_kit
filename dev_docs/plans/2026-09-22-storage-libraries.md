@@ -8,7 +8,8 @@ location-truth moved ahead of storage profiles. Four gaps were added
 (G11–G14), and G3 and G8 were corrected. Later the same day, **variant sets**
 (per-library image and video sizes, §3.4, G15–G19) were added to V204, so they
 ship in the same release as storage profiles.
-**Status:** PROPOSAL, not started. Open questions for the maintainer are at the end.
+**Status:** PROPOSAL, not started. The maintainer answered all open questions on
+2026-09-23 (§10), and the plan body reflects the answers.
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.
 **Related:** `PhoenixKit.Modules.Storage.CaptureDate` and V200 (the capture-date
@@ -329,8 +330,12 @@ Rules:
   URL (`/file/:uuid/:variant/:token`). About 30 files in core use literal
   names, and `ImageSet` prefers `"medium"` (`image_set.ex:179`). Every set must
   define `thumbnail`, `small`, `medium`, `large` and `video_thumbnail`. A set
-  may change their size, format, quality and crop, but not drop or rename
-  them. Custom names (for example `grid_2x`) come on top.
+  may change their size, format and quality, but not drop or rename them.
+  Custom names (for example `grid_2x`) come on top. *Decided (§10.5):*
+  `small`, `medium` and `large` must keep the aspect ratio
+  (`maintain_aspect_ratio = true`, enforced by the dimension changeset for
+  those slots), because grids and justified layouts depend on it. Only
+  `thumbnail` may be cropped, for example square for list rows and avatars.
 - **Ask by purpose, not by name** (G19). A consumer that cares about pixels
   calls `Storage.variant_for(file, min_width: 300, aspect: :preserve)`, which
   resolves against the file's library's set. An admin can make `small` a
@@ -667,10 +672,16 @@ token, and non-private buckets redirect to a public object URL (§2). That is
 acceptable for a site's own media, but not for a person's photos. For files in
 a library with `visibility = "private"`:
 
-- file URLs carry an **expiring** signed token, bound to the file, the variant
-  and an expiry, with a real HMAC rather than a 4-character MD5 prefix. The
-  page that renders the file mints it after an access check (§6.5).
-  `show/2` rejects the legacy token for these files;
+- *Decided (§10.4):* file URLs carry a **time-window token**. It is an HMAC
+  (keyed from `secret_key_base`) over the file uuid, the variant and a window
+  end, where the expiry is rounded **up** to a fixed window (default 12 hours,
+  a setting). Within one window the same image has the same URL, so browser
+  and CDN caches keep working. Near a window boundary the minter uses the next
+  window, so a URL is never handed out with only minutes left. The page that
+  renders the file mints the URL after an access check (§6.5), and a LiveView
+  re-mints on render and reconnect. `show/2` rejects the legacy 4-character
+  token for these files, and answers an expired token with 403, never with the
+  file;
 - serving **never** redirects to `public_url`. It streams from local, proxies,
   or (once implemented) redirects to a short-lived **presigned** object URL
   (the documented `"signed"` access type);
@@ -733,10 +744,12 @@ requests all land with the admin. So this list shows:
 - owner, members, profile, file count, size, health and trash state;
 - actions: suspend uploads, trash, change quota, move to another profile.
 
-It does **not** browse contents. Opening a user library's files is a separate,
-narrower permission (Owner and Admin roles only, per `Scope.system_role?`), and
-it is **logged**. Whether admins may open user libraries at all is an open
-question (§10).
+It does **not** browse contents. *Decided (§10.3):* opening a user library's
+files needs the Owner or Admin role (`Scope.system_role?`), and every opening
+writes an entry through `PhoenixKit.AuditLog.create_log_entry/1` (its `action`
+is a plain string, so `"storage.library_opened"` needs no migration). The
+entry records who, which library, when, the IP address and the user agent.
+The `"media"` key alone never grants it.
 
 ### `/admin/settings/media`: system buckets, profiles and variant sets (V204–V205)
 
@@ -779,6 +792,12 @@ library at this point, since the scope is `{:library, uuid}` either way.
   never after them.
 - `library_members`, user library CRUD, a default library per user, and upload
   routing to it.
+- *Decided (§10.2):* user libraries are **off by default**. The setting
+  `storage_user_libraries_enabled` (default `false`) turns them on per
+  install. The permission key `storage.create_library` (a sub-permission of
+  `"storage"`) decides which roles may create them. The setting
+  `storage_user_library_limit` caps how many a user may own. Membership in
+  someone else's library needs no permission key; the library's role decides.
 - The dedup key swap (§6.4).
 - `/admin/storage/libraries` (§8).
 - Placement is still the global pool. User libraries live on the system
@@ -830,28 +849,28 @@ installs with large `phoenix_kit_files` tables:
   is an Oban job started by the release, never a migration step.
 - Each version must be re-runnable, like V200.
 
-## 10. Open questions for the maintainer
+## 10. Maintainer decisions (2026-09-23)
 
-1. **Default library for existing files.** One system "Media" library (this
-   plan), or split existing files into each uploader's personal library? One
-   library preserves today's behaviour. A split is what a photos user would
-   expect, but it changes what `/admin/media` shows. With V201 as it now
-   stands, a split could only happen in V202 or later, when user libraries and
-   private serving exist.
-2. **Who may create user libraries?** Everyone, a role key, or a setting? Is
-   there a per-user limit?
-3. **May admins open user libraries?** This plan proposes metadata for
-   admins, and logged content access for Owner and Admin only. The
-   alternative is no content access at all, with takedown by file uuid only.
-4. **Token format for private files.** A signed `Phoenix.Token` with an expiry
-   (simple, and the page re-mints it on render), or presigned-only serving?
-   Also, how long should the expiry be for a photo grid that stays open for
-   hours?
-5. **Standard slots.** Are `thumbnail`, `small`, `medium`, `large` and
-   `video_thumbnail` the right required set? Should `small` be guaranteed
-   aspect-preserving, since grids depend on it?
-6. **One word in the UI.** Is it "library" everywhere, or "vault" in Fotki's
-   copy? Core should use "library" either way.
+All questions were answered by the maintainer, one at a time.
+
+1. **Existing files go into one system library, "Media".** Access and
+   `/admin/media` stay exactly as they are today. Users move files into
+   personal libraries themselves once V202 exists. (§9, V201.)
+2. **User libraries are off by default:** a setting turns them on, a role key
+   (`storage.create_library`) decides who may create them, and a setting caps
+   how many each user may own. Existing PhoenixKit sites do not suddenly offer
+   a feature they never planned for. (§9, V202.)
+3. **Admins may open a user library's contents only with the Owner or Admin
+   role, and every opening is audit-logged.** Everyone else sees metadata only.
+   (§8.)
+4. **Private files use time-window tokens:** an HMAC over the file, the variant
+   and an expiry rounded up to a window (12 hours by default), so URLs stay
+   stable and cacheable within a window. (§6.7.)
+5. **Five standard slots** (`thumbnail`, `small`, `medium`, `large`,
+   `video_thumbnail`) in every variant set. `small`, `medium` and `large`
+   always keep the aspect ratio; only `thumbnail` may crop. (§3.4.)
+6. **"Library" everywhere:** core, `phoenix_kit_photos` and Fotki all use
+   one word, in the code and in the UI.
 
 ## 11. Existing bugs found while researching this (independent of the plan)
 
