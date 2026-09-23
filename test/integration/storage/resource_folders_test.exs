@@ -584,7 +584,7 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
   describe "purge_named/1" do
     test "deletes every folder of that name, live or trashed, and only those" do
       elsewhere = folder!(name())
-      n = name()
+      n = "record #{Ecto.UUID.generate()}"
       live = folder!(n)
       trashed = trash!(folder!(n, elsewhere))
       bystander = folder!(name())
@@ -598,6 +598,14 @@ defmodule PhoenixKit.Integration.Storage.ResourceFoldersTest do
       refute Repo.get(Folder, trashed.uuid)
       assert Repo.get(Folder, bystander.uuid)
       assert Repo.get!(StorageFile, shared.uuid).folder_uuid == bystander.uuid
+    end
+
+    test "refuses a name with no uuid in it, deleting nothing" do
+      n = name()
+      folder = folder!(n)
+
+      assert ResourceFolders.purge_named(n) == :ok
+      assert Repo.get(Folder, folder.uuid)
     end
   end
 

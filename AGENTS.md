@@ -144,7 +144,7 @@ Track business-level actions via `PhoenixKit.Activity.log/1` (`action: "resource
 
 - ⚠️ Notifications fan out via `Notifications.maybe_create_from_activity/1` when `target_uuid != actor_uuid` — **never insert `phoenix_kit_notifications` rows directly**. Kill switch: `notifications_enabled`.
 - ⚠️ `DigestWorker` runs ONLY from cron, so `mix phoenix_kit.update` must **backfill those entries into existing hosts** (`ObanConfig.ensure_digest_cron_entries/2`) — a digest cadence suppresses the per-event inbox row, so a missing entry drops the notification entirely.
-- **External modules** — call `PhoenixKit.Activity.log/3` (module key, action, options; never raises, so no guard or rescue) and read the actor with `PhoenixKitWeb.Actor`, never from assigns by hand.
+- **External modules** — call `PhoenixKit.Activity.log/3` (module key, action, options; never raises, so no guard or rescue) and read the actor with `PhoenixKitWeb.Actor`, never from assigns by hand. ⚠️ Both are absent from core ≤ 2.37.5 and modules stay on the open `~> 2.0` pin, so feature-detect (`function_exported?(PhoenixKit.Activity, :log, 3)` after `Code.ensure_loaded?/1`; same for `PhoenixKitWeb.Actor`) and keep the old path as the fallback until the module's floor is raised.
 - **Cleanup:** `activity_retention_days` / `notifications_retention_days` (default 90); daily PruneWorkers via Oban.
 
 ## External Module Packages

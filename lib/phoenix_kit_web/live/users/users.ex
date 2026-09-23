@@ -43,6 +43,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
   alias PhoenixKit.Users.{CustomFields, Roles, TableColumns}
   alias PhoenixKit.Utils.CountryData
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKitWeb.Actor
   alias PhoenixKitWeb.TableColumns, as: ColumnPrefs
   alias PhoenixKitWeb.Users.MultiSession
 
@@ -1230,7 +1231,7 @@ defmodule PhoenixKitWeb.Live.Users.Users do
 
   defp assign_columns(socket) do
     spec = TableColumns.columns_spec()
-    columns = ColumnPrefs.load(socket.assigns[:phoenix_kit_current_user], spec)
+    columns = ColumnPrefs.load(Actor.uuid(socket), spec)
 
     socket
     |> assign(:column_spec, spec)

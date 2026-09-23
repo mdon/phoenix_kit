@@ -659,14 +659,24 @@ defmodule PhoenixKit.Modules.Storage.ResourceFolders do
   folder name embeds its uuid. A file some other folder links keeps
   living there (`Storage.delete_folder_completely/1`). Always `:ok`; a
   failure is logged.
+
+  A name with no uuid in it is refused (logged, nothing deleted): it is
+  matched across every folder in the install, so a plain name such as
+  `"Invoices"` would take people's own folders of that name with it.
   """
   @spec purge_named(String.t()) :: :ok
   def purge_named(name) when is_binary(name) do
-    safely("purge folders", fn ->
-      from(f in Folder, where: f.name == ^name, order_by: [asc: f.inserted_at])
-      |> repo().all()
-      |> Enum.each(&Storage.delete_folder_completely/1)
-    end)
+    if name =~ ~r/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i do
+      safely("purge folders", fn ->
+        from(f in Folder, where: f.name == ^name, order_by: [asc: f.inserted_at])
+        |> repo().all()
+        |> Enum.each(&Storage.delete_folder_completely/1)
+      end)
+    else
+      Logger.warning(
+        "[ResourceFolders] purge_named refused a name with no uuid: #{inspect(name)}"
+      )
+    end
 
     :ok
   end

@@ -2063,8 +2063,17 @@ defmodule PhoenixKit.Modules.Storage do
       end
     end)
     |> case do
-      {:ok, result} -> result
-      {:error, reason} -> {:error, reason}
+      # Announced only once committed: a subscriber reloads the row and
+      # must see it trashed.
+      {:ok, {:ok, :trashed, trashed} = result} ->
+        broadcast_file_trashed(trashed.uuid)
+        result
+
+      {:ok, result} ->
+        result
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -2077,7 +2086,7 @@ defmodule PhoenixKit.Modules.Storage do
       to_string(file.folder_uuid) == to_string(folder_uuid) ->
         case other_folder_links(file.uuid, folder_uuid) do
           [] ->
-            with {:ok, trashed} <- trash_file(file), do: {:ok, :trashed, trashed}
+            with {:ok, trashed} <- mark_trashed(file), do: {:ok, :trashed, trashed}
 
           links ->
             rehome_into_first_live(file, links)
@@ -2094,33 +2103,38 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   # The candidates were read without locking their folders, so one can be
-  # mid-trash: the home is written, then the folder is read again, and a
-  # folder trashed meanwhile rolls the rehome back and the next candidate
-  # is tried. (Locking the folder here instead would take it AFTER the
-  # file's row — the opposite of the order folder moves take, which is a
-  # deadlock.) Nothing left to rehome into: the file is trashed.
+  # mid-trash: each folder is checked before the file is homed there, and a
+  # trashed one is skipped for the next candidate. (Locking the folder here
+  # instead would take it AFTER the file's row — the opposite of the order
+  # folder moves take, which is a deadlock.) This narrows the race rather
+  # than closing it: a folder trashed between the check and this commit can
+  # still end up holding the file live, since `trash_folder/1`'s file sweep
+  # reads the file's old home. The earlier write-then-check form had the
+  # same window.
+  #
+  # Runs inside `remove_file_from_folder/2`'s transaction, so no transaction
+  # of its own: a nested rollback would poison the outer one, and every
+  # later query in it would raise. Nothing left to rehome into: the file is
+  # trashed.
   defp rehome_into_first_live(file, []) do
-    with {:ok, trashed} <- trash_file(file), do: {:ok, :trashed, trashed}
+    with {:ok, trashed} <- mark_trashed(file), do: {:ok, :trashed, trashed}
   end
 
   defp rehome_into_first_live(file, [%FolderLink{} = link | rest]) do
-    repo().transaction(fn ->
-      {:ok, rehomed} =
-        file
-        |> Ecto.Changeset.change(%{folder_uuid: link.folder_uuid})
-        |> repo().update()
+    case get_folder(link.folder_uuid) do
+      %Folder{trashed_at: nil} ->
+        with {:ok, rehomed} <-
+               file
+               |> Ecto.Changeset.change(%{folder_uuid: link.folder_uuid})
+               |> repo().update(),
+             {:ok, _} <- repo().delete(link) do
+          {:ok, :rehomed, rehomed}
+        else
+          {:error, reason} -> repo().rollback(reason)
+        end
 
-      {:ok, _} = repo().delete(link)
-
-      case get_folder(link.folder_uuid) do
-        %Folder{trashed_at: nil} -> rehomed
-        _ -> repo().rollback(:folder_trashed)
-      end
-    end)
-    |> case do
-      {:ok, rehomed} -> {:ok, :rehomed, rehomed}
-      {:error, :folder_trashed} -> rehome_into_first_live(file, rest)
-      {:error, reason} -> {:error, reason}
+      _ ->
+        rehome_into_first_live(file, rest)
     end
   end
 
@@ -3645,13 +3659,7 @@ defmodule PhoenixKit.Modules.Storage do
 
   @doc "Moves a file to trash (soft-delete). Sets status to 'trashed' and records timestamp."
   def trash_file(%PhoenixKit.Modules.Storage.File{} = file) do
-    file
-    |> Ecto.Changeset.change(%{
-      status: "trashed",
-      trashed_at: DateTime.utc_now() |> DateTime.truncate(:second)
-    })
-    |> repo().update()
-    |> case do
+    case mark_trashed(file) do
       {:ok, updated} = result ->
         broadcast_file_trashed(updated.uuid)
         result
@@ -3666,6 +3674,17 @@ defmodule PhoenixKit.Modules.Storage do
       nil -> {:error, :not_found}
       file -> trash_file(file)
     end
+  end
+
+  # The trash write without the announcement, for a caller inside a
+  # transaction that broadcasts once it commits.
+  defp mark_trashed(file) do
+    file
+    |> Ecto.Changeset.change(%{
+      status: "trashed",
+      trashed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> repo().update()
   end
 
   @doc "Restores a trashed file back to active status."
@@ -4668,9 +4687,6 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
-  # The caller's observed mime wins when it carries information; blank and
-  # octet-stream carry none, so they fall through to the extension guess
-  # rather than being enshrined on the row.
   # `ext` is part of every stored key and a required column, so a file whose
   # name has no extension (a README, a dotfile) takes its type's — or "bin"
   # — instead of failing the upload.
@@ -4683,6 +4699,9 @@ defmodule PhoenixKit.Modules.Storage do
 
   defp stored_ext(ext, _mime_type), do: ext
 
+  # The caller's observed mime wins when it carries information; blank and
+  # octet-stream carry none, so they fall through to the extension guess
+  # rather than being enshrined on the row.
   defp resolve_mime_type(mime_type, ext) do
     case mime_type do
       nil -> determine_mime_type(ext)
