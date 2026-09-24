@@ -137,6 +137,41 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
              """)
   end
 
+  # The contrast `bare` exists for: the default layouts fill their width
+  # (the plain control itself, or the unit variant's <label>), and the
+  # unit variant's inner control grows inside that label.
+  test "the default layouts keep their own classes on the control and the unit label" do
+    assigns = %{}
+
+    plain =
+      render(~H"""
+      <.decimal_input id="q" name="value" value="1" />
+      """)
+      |> input_tag()
+
+    assert plain =~ ~s(class="input w-full transition-colors focus:input-primary)
+
+    unit =
+      render(~H"""
+      <.decimal_input
+        id="q"
+        name="value"
+        value="1"
+        unit="kg"
+        errors={["is invalid"]}
+        placeholder="0"
+      />
+      """)
+
+    [label] = Regex.run(~r/<label class="input[^"]*"/, unit)
+    assert label =~ "w-full"
+    assert label =~ "input-error"
+
+    inner = input_tag(unit)
+    assert inner =~ ~s(class="grow min-w-0")
+    assert inner =~ ~s(placeholder="0")
+  end
+
   describe "bare" do
     # A host that sets the control inside its own group — a daisyUI `join`
     # with a unit button, a table cell — gets the <input> alone: the
