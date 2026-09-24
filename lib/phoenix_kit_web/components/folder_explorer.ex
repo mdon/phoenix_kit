@@ -306,8 +306,13 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
 
           <%!-- Folder Tree --%>
           <%!-- Scrolls both ways: deep folders extend past the 240px width and
-               keep their full names (no truncation); scroll right to read them. --%>
-          <ul class="space-y-0.5 w-full min-h-0 flex-1 overflow-auto pr-1">
+               keep their full names (no truncation); scroll right to read them.
+
+               [scrollbar-gutter:stable]: navigating expands and collapses
+               nodes, so the list crosses its own scroll threshold constantly.
+               Without a reserved gutter the 15px bar appears and disappears
+               and every row — icon included — jumps sideways with it. --%>
+          <ul class="space-y-0.5 w-full min-h-0 flex-1 overflow-auto pr-1 [scrollbar-gutter:stable]">
             <%= for node <- @folder_tree do %>
               <.folder_tree_node
                 node={node}
@@ -561,19 +566,30 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
           (`.phx-click-loading` on this button) the chevron turns into a
           spinner. The `>` variant keys on the button itself, not on the row
           around it, so opening the folder spins the row's icon only.
+
+          Chevron and spinner are stacked in the same 16px box rather than
+          swapped in the flow: trading one for the other used to resize the
+          box (the icon is w-4, daisyUI's `loading-xs` 14px) and slide the
+          rest of the row sideways and back on every click.
+
+          The spinner only fades in after 300ms of waiting. `delay-300`
+          applies while `.phx-click-loading` is on and NOT when it comes off,
+          so a reply that beats the delay never starts the fade and shows
+          nothing at all — no blink on a fast click — while a slow one still
+          says "working". Same treatment on the folder icon below.
         --%>
         <%= if @expandable? do %>
           <button
             phx-click={@on_toggle}
             phx-target={@myself}
             phx-value-folder-uuid={@node.folder.uuid}
-            class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5"
+            class="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5 relative"
           >
             <.icon
               name={if @is_expanded, do: "hero-chevron-down-mini", else: "hero-chevron-right-mini"}
-              class="w-4 h-4 text-base-content/40 [.phx-click-loading>&]:hidden"
+              class="absolute inset-0 m-auto w-4 h-4 text-base-content/40 transition-opacity duration-100 [.phx-click-loading>&]:opacity-0 [.phx-click-loading>&]:delay-300"
             />
-            <span class="hidden [.phx-click-loading>&]:inline-block loading loading-spinner loading-xs text-base-content/40"></span>
+            <span class="absolute inset-0 m-auto loading loading-spinner w-4 h-4 text-base-content/40 opacity-0 transition-opacity duration-100 [.phx-click-loading>&]:opacity-100 [.phx-click-loading>&]:delay-300"></span>
           </button>
         <% else %>
           <span class="w-5"></span>
@@ -629,12 +645,16 @@ defmodule PhoenixKitWeb.Components.FolderExplorer do
             data-draggable-folder={@enable_drag && @node.folder.uuid}
             class="flex items-center gap-1.5 flex-1 text-sm text-left"
           >
-            <span style={folder_icon_style(folder_color(@node.folder), @is_active)}>
+            <%!-- Stacked, and delayed by 300ms — see the chevron above. --%>
+            <span
+              class="relative block w-4 h-4 shrink-0"
+              style={folder_icon_style(folder_color(@node.folder), @is_active)}
+            >
               <.icon
                 name={if @is_expanded, do: "hero-folder-open", else: "hero-folder"}
-                class="w-4 h-4 shrink-0 [.phx-click-loading_&]:hidden"
+                class="absolute inset-0 w-4 h-4 transition-opacity duration-100 [.phx-click-loading_&]:opacity-0 [.phx-click-loading_&]:delay-300"
               />
-              <span class="hidden [.phx-click-loading_&]:inline-block loading loading-spinner loading-xs shrink-0"></span>
+              <span class="absolute inset-0 loading loading-spinner w-4 h-4 opacity-0 transition-opacity duration-100 [.phx-click-loading_&]:opacity-100 [.phx-click-loading_&]:delay-300"></span>
             </span>
             <span
               class={[
