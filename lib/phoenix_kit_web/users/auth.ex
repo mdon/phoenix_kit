@@ -3557,11 +3557,13 @@ defmodule PhoenixKitWeb.Users.Auth do
   # request — `rest` is client content, not something this module
   # constructs) silently escapes the mount prefix client-side. Also rejects
   # a segment that only SPELLS `.`/`..` as literal percent-encoded text
-  # (`%2E`/`%2e`, singly or doubly) — the same "decoded text reproduces a
+  # (`%2E`/`%2e`, for one dot or both — a browser's URL parser treats
+  # those as dot-segments too) — the same "decoded text reproduces a
   # dangerous form one decode pass later" class as the `%09` bug this module
   # already guards against, just for dot-segments instead of control
   # characters: decode each segment one more time and check the result too,
-  # not just its raw form.
+  # not just its raw form. Exactly one extra pass: a double-encoded `%252E`
+  # is not a dot-segment to a browser, so it is left alone.
   defp unsafe_redirect_target?(path) do
     String.starts_with?(path, "//") or
       String.contains?(path, @unsafe_redirect_chars) or
