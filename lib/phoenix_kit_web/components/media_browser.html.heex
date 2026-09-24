@@ -147,9 +147,19 @@
                  breadcrumbs, folder hero header, toolbar, and the file grid
                  all scroll together (the grid wrapper below is NOT its own
                  scroll region). The list view's sticky column header pins to
-                 the top of this scrollport once the header scrolls past. --%>
+                 the top of this scrollport once the header scrolls past.
+
+                 [scrollbar-gutter:stable]: this column is its own scroll
+                 region, so its scrollbar is its own — and its height crosses
+                 the scroll threshold on almost every folder click (a folder's
+                 hero header is ~50px taller than the flat "All Media" one).
+                 Without a reserved gutter the bar appears or disappears on
+                 each navigation and everything inside it — breadcrumb, hero
+                 header, toolbar, grid — jumps 15px sideways. Same narrow case
+                 as `.drawer-side` in layout_wrapper: an inner scroller, not
+                 the root gutter daisyUI owns. --%>
             <div
-              class="px-2 pb-2 min-h-0 flex-1 flex flex-col overflow-auto"
+              class="px-2 pb-2 min-h-0 flex-1 flex flex-col overflow-auto [scrollbar-gutter:stable]"
               id={if @has_buckets, do: "folder-drop-upload"}
               phx-hook={if @has_buckets and not @readonly, do: "FolderDropUpload"}
               phx-target={if @has_buckets, do: @myself}
