@@ -853,7 +853,7 @@ defmodule PhoenixKitWeb.Users.AuthTest do
       assert conn.assigns.current_locale_base == "en"
     end
 
-    test "%250A as base_code (decodes to literal '%0A-x') does not raise" do
+    test "%250A as base_code (decodes to literal '%0A-x') declines rather than redirecting to a malformed target" do
       conn =
         "/phoenix_kit/%250A-x/shop"
         |> hostile_conn()
@@ -863,7 +863,7 @@ defmodule PhoenixKitWeb.Users.AuthTest do
       assert conn.assigns.current_locale_base == "en"
     end
 
-    test "%250D as base_code (decodes to literal '%0D-x') does not raise" do
+    test "%250D as base_code (decodes to literal '%0D-x') declines rather than redirecting to a malformed target" do
       conn =
         "/phoenix_kit/%250D-x/shop"
         |> hostile_conn()
@@ -878,8 +878,17 @@ defmodule PhoenixKitWeb.Users.AuthTest do
     # blocklist happened to name. One representative case per category the
     # review called out, each crafted via `extract_base/1` the same way as
     # the tests above.
+    #
+    # None of `?`/`#`/space/UTF-8/`..` trip Phoenix's own local-path
+    # validation (`unsafe_redirect_target?/1` mirrors that list exactly, and
+    # none of these characters are in it) — pre-fix, each of these produced
+    # a *malformed-but-successful* 302 (e.g. Location `/phoenix_kit/a?b/shop`,
+    # which a browser reads as path `/phoenix_kit/a` plus query `b/shop`),
+    # not a crash. Only the allowlist catches this class; test names below
+    # say "declines rather than redirecting to a malformed target", not
+    # "does not raise", to describe the actual pre-fix failure mode.
 
-    test "a base_code containing '?' does not raise" do
+    test "a base_code containing '?' declines rather than redirecting to a malformed target" do
       conn =
         "/phoenix_kit/a%3Fb-x/shop"
         |> hostile_conn()
@@ -889,7 +898,7 @@ defmodule PhoenixKitWeb.Users.AuthTest do
       assert conn.assigns.current_locale_base == "en"
     end
 
-    test "a base_code containing '#' does not raise" do
+    test "a base_code containing '#' declines rather than redirecting to a malformed target" do
       conn =
         "/phoenix_kit/a%23b-x/shop"
         |> hostile_conn()
@@ -899,7 +908,7 @@ defmodule PhoenixKitWeb.Users.AuthTest do
       assert conn.assigns.current_locale_base == "en"
     end
 
-    test "a base_code containing a space does not raise" do
+    test "a base_code containing a space declines rather than redirecting to a malformed target" do
       conn =
         "/phoenix_kit/a%20b-x/shop"
         |> hostile_conn()
@@ -909,7 +918,7 @@ defmodule PhoenixKitWeb.Users.AuthTest do
       assert conn.assigns.current_locale_base == "en"
     end
 
-    test "a base_code containing raw non-ASCII UTF-8 does not raise" do
+    test "a base_code containing raw non-ASCII UTF-8 declines rather than redirecting to a malformed target" do
       conn =
         "/phoenix_kit/caf%C3%A9-x/shop"
         |> hostile_conn()
@@ -919,7 +928,7 @@ defmodule PhoenixKitWeb.Users.AuthTest do
       assert conn.assigns.current_locale_base == "en"
     end
 
-    test "a base_code that is '..' does not raise" do
+    test "a base_code that is '..' declines rather than redirecting to a malformed target" do
       conn =
         "/phoenix_kit/..-x/shop"
         |> hostile_conn()

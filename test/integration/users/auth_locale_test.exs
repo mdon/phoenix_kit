@@ -97,6 +97,43 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
       assert conn.halted
       assert redirected_to(conn) == "/tenant/phoenix_kit/en/admin/users"
     end
+
+    test "a dot-segment in `rest` does not silently escape the mount prefix" do
+      # `/phoenix_kit/zz/../../shop` is an entirely ordinary invalid-locale
+      # request ("zz" is the only thing wrong with it) — `rest` is
+      # client-supplied path content, `["..", "..", "shop"]`. Not caught by
+      # Phoenix's own local-path validation at all (dot-segments aren't on
+      # its char list), but a browser resolves them per RFC 3986 §5.2.4
+      # before navigating: swapping "zz" for "en" would rebuild
+      # "/phoenix_kit/en/../../shop", which a browser collapses to "/shop"
+      # — outside "/phoenix_kit" entirely. `unsafe_redirect_target?/1`'s
+      # dot-segment check declines this rather than redirecting there.
+      conn = build_invalid_locale_conn("/phoenix_kit/zz/../../shop")
+
+      conn = Auth.redirect_invalid_locale(conn, "zz")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
+
+    test "a single-percent-encoded '%2E%2E' segment in `rest` is also treated as a dot-segment" do
+      # `conn.path_info` stays exactly as the client sent it for content
+      # this module doesn't touch — a literal "%2E%2E" segment survives
+      # into `rest` completely unmodified (Phoenix only decodes the segment
+      # bound to the `:locale` route parameter, never the rest of
+      # `path_info`). Undecoded, "%2E%2E" is six harmless printable
+      # characters; a browser (or any downstream consumer that decodes the
+      # `Location` header before resolving dot-segments) would read it as
+      # "..". `dot_segment?/1` decodes each segment one more time before
+      # comparing, the same "check what it would become" technique this
+      # module already uses for the `%09`-as-text bug.
+      conn = build_invalid_locale_conn("/phoenix_kit/zz/%2E%2E/shop")
+
+      conn = Auth.redirect_invalid_locale(conn, "zz")
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
+    end
   end
 
   describe "redirect_to_base_locale/2 — Plug.forward mount" do
@@ -206,6 +243,28 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
       assert conn.halted
       assert redirected_to(conn) == "/phoenix_kit/shop"
     end
+
+    test "a hostile segment in `rest` does not raise through redirect_default_locale_to_clean_url/2" do
+      # This function reaches `locale_segment_path/3` via a different
+      # caller than `redirect_invalid_locale/2`/`redirect_to_base_locale/2`,
+      # but the same pre-existing `rest`-based landmine applies: "en" itself
+      # is the ordinary, canonical primary locale (nothing hostile about the
+      # locale segment being rewritten), the hostile content sits entirely
+      # in a LATER segment. Root `url_prefix` — the actual production
+      # configuration — is what makes the literal "/%09" substring land at
+      # the very front of the rebuilt path.
+      with_url_prefix("/", fn ->
+        conn =
+          build_conn(:get, "/en/%09evil/shop")
+          |> Plug.Conn.fetch_query_params()
+          |> Map.put(:path_params, %{"locale" => "en"})
+
+        conn = Auth.validate_and_set_locale(conn, [])
+
+        refute conn.halted
+        assert conn.assigns.current_locale_base == "en"
+      end)
+    end
   end
 
   describe "validate_and_set_locale/2 — primary-locale canonical redirect" do
@@ -300,6 +359,23 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
       assert conn.halted
       assert conn.status == 307
       assert redirected_to(conn, 307) == "/phoenix_kit/shop?page=2"
+    end
+
+    test "a hostile segment in `rest` does not raise on the reserved-segment 307 path" do
+      # `process_as_default_locale/1` goes through `strip_locale_segment/2`
+      # (a thin wrapper over `locale_segment_path/3`) — the same
+      # `rest`-based landmine as the other three functions applies here
+      # too, under the default NAMED `url_prefix` this file otherwise uses
+      # throughout.
+      conn =
+        build_conn(:get, "/phoenix_kit/api/%09evil/shop")
+        |> Plug.Conn.fetch_query_params()
+        |> Map.put(:path_params, %{"locale" => "api"})
+
+      conn = Auth.validate_and_set_locale(conn, [])
+
+      refute conn.halted
+      assert conn.assigns.current_locale_base == "en"
     end
 
     test "a segment that is not where the prefix says renders instead of looping" do
