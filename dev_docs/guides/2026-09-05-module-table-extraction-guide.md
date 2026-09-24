@@ -59,18 +59,42 @@ stronger claim than "exists" — "exists, and its shape matches what I
 expect" — if it chooses to call them. This is opt-in machinery: a module
 that never calls it behaves exactly as before.
 
-The recommended pattern is to verify shape **before** writing the marker,
-and on drift, **decline the marker and raise** with the diff rendered into
-the message — never silently skip, and never auto-repair. Auto-fixing DDL
-during unattended adoption (at app boot, no operator watching) carries the
-same silent-mutation risk this mechanism exists to close, just inverted: a
-column silently widened back is a smaller but structurally identical
-mistake to a column silently narrowed. `mix phoenix_kit.repair` cannot
-substitute for a manual fix here either way — it is additive-only (it can
-add a missing column or index, never alter an existing one's type,
-nullability, or definition) and has no notion of module ownership, so a
-module-adopted table's drift is always a manual `ALTER`/re-declare, never
-something to point an operator at repair for.
+The recommended pattern is to verify shape **before** writing the marker.
+`PhoenixKit.Migrations.Adoption` itself is mode-agnostic — it only reports
+drift, never reacts to it — but the reaction is a decided, shared contract
+across core and `phoenix_kit_legal`'s own adoption step (issue legal#23):
+
+  * **By default** — decline the marker and **raise**, with the diff
+    rendered via `format_drift/1` into the message. Never silently skip,
+    never auto-repair.
+  * **Under an explicit, per-host operator opt-in** (a config toggle the
+    module itself reads — the key is the module's own choice) — render
+    the SAME diff via `format_drift/1` into an `:error`-level log line
+    instead, **write the marker anyway**, and let the migration succeed
+    so the chain's version advances. The migration must not fail in this
+    mode: `mix phoenix_kit.update` regenerates a module's migration file
+    on every run, so one that never completes would be regenerated and
+    re-attempted forever. The drift stays visible in the log (and to
+    `mix phoenix_kit.repair`/`doctor` afterward, which still cannot fix
+    it but can still report it) — `:warn` accepts the drift, it does not
+    hide it.
+
+This is a reviewed, explicit, per-host decision — never a default, never
+something a module flips on for itself — for the hosts where the drift is
+already known and understood and adoption otherwise could never complete.
+
+Auto-fixing DDL during unattended adoption (at app boot, no operator
+watching) carries the same silent-mutation risk this mechanism exists to
+close, just inverted: a column silently widened back is a smaller but
+structurally identical mistake to a column silently narrowed. That is
+still ruled out — the operator override above only changes whether the
+marker gets written over a known, accepted drift, never the table's actual
+DDL. `mix phoenix_kit.repair` cannot substitute for a manual fix either
+way — it is additive-only (it can add a missing column or index, never
+alter an existing one's type, nullability, or definition) and has no
+notion of module ownership, so a module-adopted table's drift is always a
+manual `ALTER`/re-declare, or the `:warn` override above, never something
+to point an operator at repair for.
 
 A real module coordinator implements `up(opts \\ [])` and issues its DDL
 through `Ecto.Migration.execute/1`, which only *queues* the command on the
@@ -86,12 +110,8 @@ def up(opts \\ []) do
   flush()
 
   case PhoenixKit.Migrations.Adoption.verify_shape(repo, prefix, checks) do
-    :ok ->
-      :ok
-
-    {:drift, diffs} ->
-      raise "table shape does not match what this module expects:\n" <>
-              PhoenixKit.Migrations.Adoption.format_drift(diffs)
+    :ok -> :ok
+    {:drift, diffs} -> handle_drift(diffs)
   end
 
   case PhoenixKit.Migrations.Adoption.marker_conflict(repo, prefix, table, @marker_prefix) do
@@ -102,22 +122,26 @@ def up(opts \\ []) do
       raise "table already carries an unrelated marker: #{inspect(existing)}"
   end
 end
+
+# Default: decline and raise. Under an explicit, per-host operator
+# opt-in, log the same diff at :error and return normally instead — up/1
+# then proceeds to write the marker anyway.
+defp handle_drift(diffs) do
+  diff_text = PhoenixKit.Migrations.Adoption.format_drift(diffs)
+
+  case Application.get_env(:my_app, :adoption_shape_check, :raise) do
+    :warn -> Logger.error("adopting over known shape drift:\n\n#{diff_text}")
+    _ -> raise "table shape does not match what this module expects:\n\n#{diff_text}"
+  end
+end
 ```
 
 Full worked example, including the `checks` vocabulary (the same
 per-class shape maps `PhoenixKit.Migrations.ExpectedSchema` already uses
 internally, and how to build one from a real manifest entry rather than
-hand-copying manifest source text) and why decline-and-raise rather than
-auto-fix: `PhoenixKit.Migrations.Adoption`'s moduledoc, which this section
-mirrors in short form.
-
-A documented, deliberate *operator override* — some explicit way to say "I
-have reviewed this drift and accept it, adopt anyway" rather than only
-ever decline-and-raise — is a natural next step beyond what
-`PhoenixKit.Migrations.Adoption` offers today. `phoenix_kit_legal`'s own
-adoption step has an equivalent need. That mechanism is intentionally not
-designed or implemented yet — build against decline-and-raise until a
-design lands.
+hand-copying manifest source text) and the full reasoning behind
+decline-and-raise vs. the `:warn` override above: `PhoenixKit.Migrations.
+Adoption`'s moduledoc, which this section mirrors in short form.
 
 ## Inventory: which core-baseline tables are already module-owned
 
