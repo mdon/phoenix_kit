@@ -6,7 +6,9 @@ defmodule PhoenixKit.Modules.Storage.Library do
   **System** libraries are site-wide and managed by admins; everything that
   existed before V202 lives in the default one, **Media**
   (`PhoenixKit.Modules.Storage.Libraries.media_uuid/0`). **User** libraries
-  (a later phase) belong to a user.
+  (V203) belong to a user, are `private`, and may have members
+  (`PhoenixKit.Modules.Storage.LibraryMember`). A trashed user library may
+  outlive its owner (`owner_uuid` NULL) until it is purged.
 
   `key_prefix` is the first segment of the object key for files stored in the
   library from now on. `nil` keeps the historical layout, which is what Media
@@ -73,6 +75,25 @@ defmodule PhoenixKit.Modules.Storage.Library do
     |> validate_length(:slug, max: 64)
     |> unique_constraint(:key_prefix, name: :phoenix_kit_storage_libraries_key_prefix_index)
     |> unique_constraint(:slug, name: :phoenix_kit_storage_libraries_owner_slug_index)
+  end
+
+  @doc """
+  A new user library: a name, its owner, a URL slug (unique among the
+  owner's libraries) and an object-key prefix. Always `private`.
+  """
+  def create_user_changeset(library, attrs) do
+    library
+    |> cast(attrs, [:name, :owner_uuid, :key_prefix, :slug, :is_default])
+    |> put_change(:kind, "user")
+    |> put_change(:visibility, "private")
+    |> validate_name()
+    |> validate_required([:owner_uuid, :key_prefix, :slug])
+    |> validate_format(:key_prefix, ~r/\A[a-z0-9][a-z0-9_-]{0,63}\z/)
+    |> validate_format(:slug, ~r/\A[a-z0-9]+(?:-[a-z0-9]+)*\z/)
+    |> validate_length(:slug, max: 64)
+    |> unique_constraint(:key_prefix, name: :phoenix_kit_storage_libraries_key_prefix_index)
+    |> unique_constraint(:slug, name: :phoenix_kit_storage_libraries_owner_slug_index)
+    |> unique_constraint(:is_default, name: :phoenix_kit_storage_libraries_default_index)
   end
 
   @doc """

@@ -7,7 +7,20 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V202 - Storage libraries (the partition) ⚡ LATEST
+  ### V203 - Storage libraries (user libraries) ⚡ LATEST
+
+  Adds `phoenix_kit_storage_library_members` (a user library's other
+  users, as `manager`, `contributor` or `viewer`). Deleting a user no
+  longer deletes the files they uploaded: the uploader FK and the media
+  folder creator FK move to `ON DELETE SET NULL`, and the files CHECK
+  accepts a file with a library. The library owner FK moves to `SET NULL`,
+  and its check lets a user library lose its owner only once it is
+  trashed, so a user's own libraries are trashed before the user goes.
+  Repeats V202's idempotent slug statements for databases that ran an
+  early build of V202 (#871). Phase 2 of
+  `dev_docs/plans/2026-09-22-storage-libraries.md`.
+
+  ### V202 - Storage libraries (the partition)
 
   Adds `phoenix_kit_storage_libraries` and seeds one system library, Media
   (fixed uuid `00000000-0000-7000-8000-000000000001`), and `library_uuid`
@@ -858,7 +871,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 202
+  @current_version 203
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

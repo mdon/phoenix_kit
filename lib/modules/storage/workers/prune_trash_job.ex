@@ -3,6 +3,8 @@ defmodule PhoenixKit.Modules.Storage.Workers.PruneTrashJob do
   Oban worker that permanently deletes trashed files older than the configured retention period.
 
   Runs daily via cron. Retention is configured via the `trash_retention_days` setting (default: 30).
+  It also queues the purge of user libraries trashed longer ago than that,
+  and of those whose owner is gone (`Libraries.queue_expired_purges/1`).
   """
 
   use Oban.Worker, queue: :file_processing, max_attempts: 3
@@ -10,10 +12,16 @@ defmodule PhoenixKit.Modules.Storage.Workers.PruneTrashJob do
   require Logger
 
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.Libraries
 
   @impl Oban.Worker
   def perform(_job) do
     days = Storage.trash_retention_days()
+
+    case Libraries.queue_expired_purges(days) do
+      0 -> :ok
+      count -> Logger.info("PruneTrashJob: queued the purge of #{count} trashed libraries")
+    end
 
     case Storage.prune_trash(days) do
       {:ok, 0} ->

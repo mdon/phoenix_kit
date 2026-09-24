@@ -7,7 +7,7 @@ defmodule PhoenixKit.Migrations.Postgres.V202Test do
   """
   use PhoenixKit.DataCase, async: false
 
-  alias PhoenixKit.Migrations.Postgres.V202
+  alias PhoenixKit.Migrations.Postgres.{V202, V203}
   alias PhoenixKit.Test.Repo
 
   @media V202.media_uuid()
@@ -100,6 +100,9 @@ defmodule PhoenixKit.Migrations.Postgres.V202Test do
   end
 
   test "down removes the partition; up puts what exists into Media and stamps the marker" do
+    # V203's members table references the libraries, so it goes first. The
+    # test runs in the sandbox transaction, which puts both back.
+    run(V203.down_statements("public"))
     run(V202.down_statements("public"))
     assert library_columns() == []
     refute folder_index() =~ "library_uuid"

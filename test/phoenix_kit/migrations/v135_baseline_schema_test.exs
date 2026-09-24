@@ -351,22 +351,34 @@ defmodule PhoenixKit.Migrations.Postgres.V135BaselineSchemaTest do
       assert constraint_exists?("phoenix_kit_files_user_or_parent_check")
     end
 
-    test "row with both user_uuid and parent_file_uuid NULL is rejected" do
-      # Bypass the changeset; this test exists specifically to verify the
-      # DB enforces the invariant when raw SQL bypasses Elixir validation.
-      assert_raise Postgrex.Error, ~r/phoenix_kit_files_user_or_parent_check/, fn ->
+    # V203 widened the rule: a file with a library (every file, since V202)
+    # passes, so deleting its uploader (FK `SET NULL`) keeps the row. What
+    # stays enforced is that the rule is still there and names all three.
+    test "a row with no uploader and no parent passes on its library (V203)" do
+      %{rows: [[definition]]} =
         Repo.query!("""
-        INSERT INTO phoenix_kit_files (
-          uuid, original_file_name, file_name, file_path, mime_type,
-          file_type, ext, file_checksum, user_file_checksum, size,
-          status, system_managed, inserted_at, updated_at
-        ) VALUES (
-          uuid_generate_v7(), 'orphan.bin', 'orphan.bin', '/', 'application/octet-stream',
-          'other', '.bin', 'x', 'x', 1,
-          'active', false, NOW(), NOW()
-        )
+        SELECT pg_get_constraintdef(c.oid) FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        WHERE c.conname = 'phoenix_kit_files_user_or_parent_check'
+          AND t.relname = 'phoenix_kit_files' AND n.nspname = 'public'
         """)
-      end
+
+      assert definition =~ "user_uuid IS NOT NULL"
+      assert definition =~ "parent_file_uuid IS NOT NULL"
+      assert definition =~ "library_uuid IS NOT NULL"
+
+      Repo.query!("""
+      INSERT INTO phoenix_kit_files (
+        uuid, original_file_name, file_name, file_path, mime_type,
+        file_type, ext, file_checksum, user_file_checksum, size,
+        status, system_managed, inserted_at, updated_at
+      ) VALUES (
+        uuid_generate_v7(), 'orphan.bin', 'orphan.bin', '/', 'application/octet-stream',
+        'other', '.bin', 'x', 'x', 1,
+        'active', false, NOW(), NOW()
+      )
+      """)
     end
   end
 

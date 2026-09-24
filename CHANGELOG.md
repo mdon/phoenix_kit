@@ -1,6 +1,31 @@
 ## Unreleased
 
+### Added
+
+- **Storage libraries, phase 2 (migration V203): user libraries.** When an
+  install turns them on (`storage_user_libraries_enabled`, off by default),
+  a user with the `storage` permission uses the libraries they own or are
+  a member of, and one with the new `storage.create_library` sub-permission
+  creates them, up to `storage_user_library_limit` (default 10). A user
+  library is private and has members: manager, contributor or viewer. The
+  first one a user creates is their default. Trashing one frees its name
+  at once; its files are purged, bytes included, after the trash retention
+  period. New API on `Storage.Libraries`: `create_user_library/2`,
+  `list_user_libraries/1`, `get_user_library/2`, members
+  (`add_member/4`, `update_member_role/4`, `remove_member/3`),
+  `trash_library/2`, `set_default_library/2`, `allows?/2`.
+- **Dedup is per library.** The same person may keep the same file in
+  Media and in a library of their own; within one library it is still
+  stored once. Files in Media keep the key they had.
+
 ### Changed
+
+- **Deleting a user no longer deletes the files they uploaded.** Their
+  uploads in the site's libraries and in other people's stay, with no
+  uploader. The libraries they own are trashed and purged. Before, the
+  file rows went with the user and their bytes were left behind in the
+  buckets. Deleting a user who had ever created a media folder no longer
+  fails either.
 
 - **Profile settings are split into tabs, one URL per tab:**
   `/profile/settings/account`, `/security`, `/sessions`, `/notifications`
@@ -9,6 +34,18 @@
   until now the last section of one long page, are their own tab for
   holders of the `integrations` permission. Embedding the `UserSettings`
   component is unchanged.
+
+### Migration notes
+
+- **V203** adds `phoenix_kit_storage_library_members` and replaces five
+  constraints in place: the uploader FK on `phoenix_kit_files` and the
+  creator FK on `phoenix_kit_media_folders` become `ON DELETE SET NULL`,
+  the files CHECK accepts a file with a library, and the library owner FK
+  becomes `SET NULL` with a check that lets only a trashed user library
+  lose its owner. Each is added `NOT VALID` and validated in its own
+  statement, so the scans do not block writes. It also repeats V202's slug
+  statements, which a database that ran an early build of V202 needs
+  (#871); elsewhere they change nothing.
 
 ## 2.38.1 - 2026-09-24
 

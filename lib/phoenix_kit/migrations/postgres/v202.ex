@@ -130,7 +130,87 @@ defmodule PhoenixKit.Migrations.Postgres.V202 do
         (uuid, name, kind, visibility, is_default, inserted_at, updated_at)
       VALUES ('#{@media_uuid}', 'Media', 'system', 'site', true, NOW(), NOW())
       ON CONFLICT (uuid) DO NOTHING
-      """,
+      """
+    ] ++
+      slug_statements(prefix) ++
+      library_column(p, prefix, "phoenix_kit_files", "phoenix_kit_files_library_uuid_fkey") ++
+      library_column(
+        p,
+        prefix,
+        "phoenix_kit_media_folders",
+        "phoenix_kit_media_folders_library_uuid_fkey"
+      ) ++
+      library_column(
+        p,
+        prefix,
+        "phoenix_kit_media_folder_links",
+        "phoenix_kit_media_folder_links_library_uuid_fkey"
+      ) ++
+      [
+        """
+        CREATE INDEX IF NOT EXISTS phoenix_kit_files_library_uuid_index
+        ON #{p}phoenix_kit_files (library_uuid)
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_files_uuid_library_uuid_index
+        ON #{p}phoenix_kit_files (uuid, library_uuid)
+        """,
+        # A link names its file's library: moving a file to another library
+        # carries its links along (ON UPDATE CASCADE) or fails the move.
+        add_constraint(
+          p,
+          prefix,
+          "phoenix_kit_media_folder_links",
+          "phoenix_kit_media_folder_links_file_library_fkey",
+          "FOREIGN KEY (file_uuid, library_uuid) REFERENCES #{p}phoenix_kit_files(uuid, library_uuid) ON UPDATE CASCADE ON DELETE CASCADE"
+        ),
+        "ALTER TABLE #{p}phoenix_kit_media_folder_links VALIDATE CONSTRAINT phoenix_kit_media_folder_links_file_library_fkey",
+        # Folder names: unique per (library, parent) instead of per parent.
+        # Rebuilt only while it still has the old shape, so a re-run does not
+        # rebuild it again.
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM pg_indexes
+            WHERE schemaname = '#{prefix}'
+              AND indexname = 'phoenix_kit_media_folders_name_parent_idx'
+              AND indexdef NOT LIKE '%library_uuid%'
+          ) THEN
+            DROP INDEX #{p}phoenix_kit_media_folders_name_parent_idx;
+          END IF;
+        END
+        $$
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_media_folders_name_parent_idx
+        ON #{p}phoenix_kit_media_folders
+          (library_uuid, name, COALESCE(parent_uuid, '#{@nil_uuid}'::uuid))
+        WHERE trashed_at IS NULL
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS phoenix_kit_files_library_capture_date_index
+        ON #{p}phoenix_kit_files (library_uuid, taken_on DESC, taken_at DESC)
+        WHERE system_managed = false
+          AND trashed_at IS NULL
+          AND parent_file_uuid IS NULL
+          AND status = 'active'
+          AND file_type IN ('image', 'video')
+        """,
+        "COMMENT ON TABLE #{p}phoenix_kit IS '202'"
+      ]
+  end
+
+  @doc false
+  # The library slug: its column, the backfill for libraries that have none,
+  # and its unique index. Idempotent, and run again by V203 (#871): a
+  # database that ran a build of this version from before the slug existed
+  # (a git dependency on `main`, 2026-09-23 13:01–22:12 UTC) is marked 202
+  # without the column, and would otherwise never get it.
+  def slug_statements(prefix) do
+    p = prefix_str(prefix)
+
+    [
       # The URL name of a library (`/admin/media/library/<slug>`). Added by
       # its own ALTER, not in the CREATE above, so a database that ran an
       # earlier build of this version gets the same column in the same
@@ -207,73 +287,7 @@ defmodule PhoenixKit.Migrations.Postgres.V202 do
         (COALESCE(owner_uuid, '#{@nil_uuid}'::uuid), slug)
       WHERE slug IS NOT NULL
       """
-    ] ++
-      library_column(p, prefix, "phoenix_kit_files", "phoenix_kit_files_library_uuid_fkey") ++
-      library_column(
-        p,
-        prefix,
-        "phoenix_kit_media_folders",
-        "phoenix_kit_media_folders_library_uuid_fkey"
-      ) ++
-      library_column(
-        p,
-        prefix,
-        "phoenix_kit_media_folder_links",
-        "phoenix_kit_media_folder_links_library_uuid_fkey"
-      ) ++
-      [
-        """
-        CREATE INDEX IF NOT EXISTS phoenix_kit_files_library_uuid_index
-        ON #{p}phoenix_kit_files (library_uuid)
-        """,
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_files_uuid_library_uuid_index
-        ON #{p}phoenix_kit_files (uuid, library_uuid)
-        """,
-        # A link names its file's library: moving a file to another library
-        # carries its links along (ON UPDATE CASCADE) or fails the move.
-        add_constraint(
-          p,
-          prefix,
-          "phoenix_kit_media_folder_links",
-          "phoenix_kit_media_folder_links_file_library_fkey",
-          "FOREIGN KEY (file_uuid, library_uuid) REFERENCES #{p}phoenix_kit_files(uuid, library_uuid) ON UPDATE CASCADE ON DELETE CASCADE"
-        ),
-        "ALTER TABLE #{p}phoenix_kit_media_folder_links VALIDATE CONSTRAINT phoenix_kit_media_folder_links_file_library_fkey",
-        # Folder names: unique per (library, parent) instead of per parent.
-        # Rebuilt only while it still has the old shape, so a re-run does not
-        # rebuild it again.
-        """
-        DO $$
-        BEGIN
-          IF EXISTS (
-            SELECT 1 FROM pg_indexes
-            WHERE schemaname = '#{prefix}'
-              AND indexname = 'phoenix_kit_media_folders_name_parent_idx'
-              AND indexdef NOT LIKE '%library_uuid%'
-          ) THEN
-            DROP INDEX #{p}phoenix_kit_media_folders_name_parent_idx;
-          END IF;
-        END
-        $$
-        """,
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_media_folders_name_parent_idx
-        ON #{p}phoenix_kit_media_folders
-          (library_uuid, name, COALESCE(parent_uuid, '#{@nil_uuid}'::uuid))
-        WHERE trashed_at IS NULL
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS phoenix_kit_files_library_capture_date_index
-        ON #{p}phoenix_kit_files (library_uuid, taken_on DESC, taken_at DESC)
-        WHERE system_managed = false
-          AND trashed_at IS NULL
-          AND parent_file_uuid IS NULL
-          AND status = 'active'
-          AND file_type IN ('image', 'video')
-        """,
-        "COMMENT ON TABLE #{p}phoenix_kit IS '202'"
-      ]
+    ]
   end
 
   @doc false

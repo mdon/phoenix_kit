@@ -464,7 +464,8 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
     # The owner may already have these exact bytes as another file; that
     # file keeps the checksum (an upload of them resolves to it), and this
     # one gets a value no upload can match.
-    user_checksum = Storage.calculate_user_file_checksum(file.user_uuid, rendered.sha256)
+    user_checksum =
+      Storage.calculate_user_file_checksum(file.user_uuid, rendered.sha256, file.library_uuid)
 
     user_checksum =
       if duplicate?(file, backup_uuid, user_checksum),
@@ -555,7 +556,12 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
 
     # The unedited content's checksum is the file's again — unless the owner
     # has since uploaded the same bytes as another file, which now holds it.
-    user_checksum = Storage.calculate_user_file_checksum(file.user_uuid, backup.file_checksum)
+    user_checksum =
+      Storage.calculate_user_file_checksum(
+        file.user_uuid,
+        backup.file_checksum,
+        file.library_uuid
+      )
 
     user_checksum =
       if duplicate?(file, backup.uuid, user_checksum),

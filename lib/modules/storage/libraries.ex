@@ -12,25 +12,53 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   More system libraries can be created by an admin (`create_system_library/1`).
   Each keeps its own folders (folder names are unique per library and
   parent) and gives the files stored in it an object-key prefix of its own
-  (`key_prefix`). User libraries, members and per-library storage are later
-  phases of `dev_docs/plans/2026-09-22-storage-libraries.md`.
+  (`key_prefix`).
 
-  ## What a library does NOT change yet
+  ## User libraries (V203)
 
-  Dedup is still per uploader across the whole install: uploading, into one
-  library, bytes the same person already stored in another returns the file
-  that exists — in the library it is in. `Storage.store_file_in_buckets/5`
-  reports that as `{:ok, file, :duplicate}` like any other duplicate; callers
-  that care (`MediaBrowser`) compare the libraries.
+  When the install turns them on (`user_libraries_enabled?/0`), a user with
+  the `"storage"` permission uses the libraries they own or are a member of
+  (`list_user_libraries/1`), and one with `"storage.create_library"` creates
+  them (`create_user_library/2`, up to `user_library_limit/0`). A user
+  library is `private` and has an owner and members
+  (`PhoenixKit.Modules.Storage.LibraryMember`: manager, contributor,
+  viewer; `allows?/2` says who does what). Trashing one frees its name at
+  once and purges it, bytes included, after the trash retention period;
+  deleting a user trashes the libraries they own first
+  (`trash_owned_libraries/1`).
+
+  Dedup is one copy per uploader per library: the same person may keep the
+  same bytes in Media and in a library of their own
+  (`Storage.calculate_user_file_checksum/3`).
+
+  Per-library storage (profiles, variant sets, user-owned buckets) is a
+  later phase of `dev_docs/plans/2026-09-22-storage-libraries.md`.
   """
 
   import Ecto.Query
 
+  require Logger
+
+  alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
-  alias PhoenixKit.Modules.Storage.{Folder, Library}
-  alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Modules.Storage.{Folder, Library, LibraryMember}
+  alias PhoenixKit.Modules.Storage.Workers.PurgeLibraryJob
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.{Scope, User}
 
   @media_uuid "00000000-0000-7000-8000-000000000001"
+
+  @typedoc "A library with what it holds (`list_system_libraries_with_stats/0`)."
+  @type stats :: %{
+          library: Library.t(),
+          files: non_neg_integer(),
+          bytes: non_neg_integer(),
+          folders: non_neg_integer(),
+          holds: boolean()
+        }
+
+  @typedoc "What someone is to a library: its owner, a member's role, or nothing."
+  @type role :: :owner | :manager | :contributor | :viewer | nil
 
   @doc """
   The uuid of Media, the default system library every existing file, folder
@@ -73,17 +101,10 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   `delete_library/1` refuses). The live counts and `holds` are separate
   queries, whatever the number of libraries.
   """
-  @spec list_system_libraries_with_stats() :: [
-          %{
-            library: Library.t(),
-            files: non_neg_integer(),
-            bytes: non_neg_integer(),
-            folders: non_neg_integer(),
-            holds: boolean()
-          }
-        ]
-  def list_system_libraries_with_stats do
-    libraries = list_system_libraries()
+  @spec list_system_libraries_with_stats() :: [stats()]
+  def list_system_libraries_with_stats, do: with_stats(list_system_libraries())
+
+  defp with_stats(libraries) do
     uuids = Enum.map(libraries, & &1.uuid)
 
     files =
@@ -188,19 +209,19 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
     case attrs do
       %{"slug" => _} -> insert_system_library(attrs)
-      _ -> insert_with_free_slug(attrs, Library.slugify(to_string(attrs["name"])), 1)
+      _ -> insert_with_free_slug(attrs, Library.slugify(to_string(attrs["name"] || "")), 1)
     end
   end
 
   # Tries `base`, `base-2`, `base-3` … until the slug is free. Any other
   # error (a taken name, a blank one) is returned as it is.
-  defp insert_with_free_slug(attrs, base, n) do
+  defp insert_with_free_slug(attrs, base, n, insert \\ &insert_system_library/1) do
     slug = if n == 1, do: base, else: "#{base}-#{n}"
 
-    case insert_system_library(Map.put(attrs, "slug", slug)) do
+    case insert.(Map.put(attrs, "slug", slug)) do
       {:error, %Ecto.Changeset{errors: errors} = changeset} ->
         if Keyword.has_key?(errors, :slug) and not name_error?(changeset) and n < 100,
-          do: insert_with_free_slug(attrs, base, n + 1),
+          do: insert_with_free_slug(attrs, base, n + 1, insert),
           else: {:error, changeset}
 
       result ->
@@ -263,28 +284,611 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   Whether `scope` may do `action` to `file`. One predicate for every
   per-file check, so they stop drifting apart:
 
-    * `:read` — the file's info and signed URLs: its uploader, or an
-      Owner/Admin (`Scope.system_role?/1`). Deliberately NOT the `"media"`
-      permission: a single permission must not open every other user's
-      file metadata (issue #687).
+    * `:read` — the file's info and signed URLs: its uploader, an
+      Owner/Admin (`Scope.system_role?/1`), or — for a file in a user
+      library — that library's owner or any of its members. Deliberately
+      NOT the `"media"` permission: a single permission must not open every
+      other user's file metadata (issue #687).
     * `:edit` — change the picture (image editing, annotation burn-in, the
-      unedited original): the uploader, an Owner/Admin, or a holder of the
-      `"media"` permission when the file is in a system library.
+      unedited original): the uploader, an Owner/Admin, a holder of the
+      `"media"` permission when the file is in a system library, or the
+      owner or a manager of the user library it is in.
 
   Anything else, and a scope without a user, is refused.
   """
   @spec can?(Scope.t() | nil, map(), :read | :edit) :: boolean()
   def can?(%Scope{} = scope, %{} = file, action) when action in [:read, :edit] do
+    library_uuid = Map.get(file, :library_uuid) || @media_uuid
+
     uploader?(scope, file) or Scope.system_role?(scope) or
-      (action == :edit and Scope.has_module_access?(scope, "media") and
-         system_library?(Map.get(file, :library_uuid) || @media_uuid))
+      library_grants?(scope, library_uuid, action)
   end
 
   def can?(_scope, _file, _action), do: false
 
+  defp library_grants?(scope, library_uuid, action) do
+    library = if media?(library_uuid), do: :media, else: get_library(library_uuid)
+    grants?(scope, library, action)
+  end
+
+  defp grants?(scope, :media, action),
+    do: action == :edit and Scope.has_module_access?(scope, "media")
+
+  defp grants?(scope, %Library{kind: "system"}, action), do: grants?(scope, :media, action)
+
+  defp grants?(scope, %Library{kind: "user", trashed_at: nil} = library, action) do
+    role = role(library, Scope.user_uuid(scope))
+    if action == :read, do: role != nil, else: role in [:owner, :manager]
+  end
+
+  defp grants?(_scope, _library, _action), do: false
+
   defp uploader?(scope, file) do
     uuid = Scope.user_uuid(scope)
     is_binary(uuid) and to_string(Map.get(file, :user_uuid)) == uuid
+  end
+
+  # ============================================================================
+  # User libraries (V203)
+  # ============================================================================
+
+  @doc """
+  Whether user libraries are on for this install (the
+  `storage_user_libraries_enabled` setting, off by default). Existing sites
+  do not start offering a feature they never planned for.
+  """
+  @spec user_libraries_enabled?() :: boolean()
+  def user_libraries_enabled?,
+    do: Settings.get_boolean_setting("storage_user_libraries_enabled", false)
+
+  @doc "How many live libraries one user may own (`storage_user_library_limit`, default 10)."
+  @spec user_library_limit() :: non_neg_integer()
+  def user_library_limit,
+    do: max(Settings.get_integer_setting("storage_user_library_limit", 10), 0)
+
+  @doc """
+  Whether `scope` may take part in user libraries at all — use the ones they
+  own or are a member of, at `/admin/libraries`: user libraries are on, and
+  the scope holds the `"storage"` permission.
+  """
+  @spec may_use_libraries?(Scope.t() | nil) :: boolean()
+  def may_use_libraries?(%Scope{} = scope) do
+    user_libraries_enabled?() and Scope.has_module_access?(scope, "storage")
+  end
+
+  def may_use_libraries?(_scope), do: false
+
+  @doc """
+  Whether `scope` may create user libraries: `may_use_libraries?/1`, and the
+  `"storage.create_library"` permission.
+  """
+  @spec may_create_library?(Scope.t() | nil) :: boolean()
+  def may_create_library?(%Scope{} = scope) do
+    may_use_libraries?(scope) and Scope.can?(scope, "storage.create_library")
+  end
+
+  def may_create_library?(_scope), do: false
+
+  @doc """
+  What `user_uuid` is to `library`: `:owner`, a member's role, or nil. A
+  trashed library has no one.
+  """
+  @spec role(Library.t(), term()) :: role()
+  def role(%Library{trashed_at: trashed}, _user_uuid) when not is_nil(trashed), do: nil
+
+  def role(%Library{owner_uuid: owner}, user_uuid)
+      when is_binary(user_uuid) and not is_nil(owner) and owner == user_uuid,
+      do: :owner
+
+  def role(%Library{kind: "user", uuid: uuid}, user_uuid) when is_binary(user_uuid) do
+    case repo().one(
+           from(m in LibraryMember,
+             where: m.library_uuid == ^uuid and m.user_uuid == ^user_uuid,
+             select: m.role
+           )
+         ) do
+      nil -> nil
+      role -> String.to_existing_atom(role)
+    end
+  end
+
+  def role(_library, _user_uuid), do: nil
+
+  @doc """
+  Whether `role` may do `action` in a user library:
+
+    * `:read` — see its files: everyone
+    * `:upload` — add files: owner, manager, contributor
+    * `:edit_any` — change or trash anyone's files: owner, manager
+    * `:members` — add, change and remove members: owner, manager
+    * `:rename` — owner, manager
+    * `:own` — trash the library, make it the default: owner only
+  """
+  @spec allows?(role(), atom()) :: boolean()
+  def allows?(nil, _action), do: false
+  def allows?(:owner, _action), do: true
+  def allows?(_role, :read), do: true
+  def allows?(role, :upload), do: role in [:manager, :contributor]
+  def allows?(:manager, action) when action in [:edit_any, :members, :rename], do: true
+  def allows?(_role, _action), do: false
+
+  @doc """
+  The live user libraries `user_uuid` owns or is a member of, with what
+  they are to each: the ones they own first (their default first), then
+  the rest, by name.
+  """
+  @spec list_user_libraries(term()) :: [%{library: Library.t(), role: role()}]
+  def list_user_libraries(user_uuid) when is_binary(user_uuid) do
+    owned =
+      from(l in Library,
+        where: l.kind == "user" and l.owner_uuid == ^user_uuid and is_nil(l.trashed_at),
+        order_by: [desc: l.is_default, asc: fragment("lower(?)", l.name)]
+      )
+      |> repo().all()
+      |> Enum.map(&%{library: &1, role: :owner})
+
+    member =
+      from(l in Library,
+        join: m in LibraryMember,
+        on: m.library_uuid == l.uuid,
+        where: m.user_uuid == ^user_uuid and l.kind == "user" and is_nil(l.trashed_at),
+        order_by: fragment("lower(?)", l.name),
+        select: {l, m.role}
+      )
+      |> repo().all()
+      |> Enum.map(fn {library, role} ->
+        %{library: library, role: String.to_existing_atom(role)}
+      end)
+
+    owned ++ member
+  end
+
+  def list_user_libraries(_user_uuid), do: []
+
+  @doc """
+  A live user library `scope` may see, by its uuid or — for one of their
+  own — its slug, with what they are to it. Nil otherwise, whatever the
+  reason (missing, trashed, not theirs), so a URL gives nothing away.
+  """
+  @spec get_user_library(Scope.t() | nil, term()) :: %{library: Library.t(), role: role()} | nil
+  def get_user_library(%Scope{} = scope, id) when is_binary(id) do
+    user_uuid = Scope.user_uuid(scope)
+
+    library =
+      case Ecto.UUID.cast(id) do
+        {:ok, uuid} ->
+          get_library(uuid)
+
+        :error when is_binary(user_uuid) ->
+          repo().one(
+            from(l in Library,
+              where:
+                l.kind == "user" and l.owner_uuid == ^user_uuid and l.slug == ^id and
+                  is_nil(l.trashed_at)
+            )
+          )
+
+        :error ->
+          nil
+      end
+
+    with %Library{kind: "user", trashed_at: nil} <- library,
+         role when not is_nil(role) <- role(library, user_uuid) do
+      %{library: library, role: role}
+    else
+      _ -> nil
+    end
+  end
+
+  def get_user_library(_scope, _id), do: nil
+
+  @doc """
+  How a user library is named in a URL for `user_uuid`: its slug when it is
+  theirs, its uuid when it is shared with them (slugs are only unique among
+  one owner's libraries).
+  """
+  @spec url_id(Library.t(), term()) :: String.t()
+  def url_id(%Library{owner_uuid: owner, slug: slug}, user_uuid)
+      when is_binary(slug) and owner == user_uuid,
+      do: slug
+
+  def url_id(%Library{uuid: uuid}, _user_uuid), do: to_string(uuid)
+
+  @doc """
+  Creates a user library owned by `scope`'s user. `attrs` takes a `"name"`.
+  The first live library a user has becomes their default. Refused with
+  `:not_allowed` without `may_create_library?/1`, and `:limit_reached` at
+  `user_library_limit/0` live libraries.
+  """
+  @spec create_user_library(Scope.t() | nil, map()) ::
+          {:ok, Library.t()} | {:error, :not_allowed | :limit_reached | Ecto.Changeset.t()}
+  def create_user_library(scope, attrs) do
+    with true <- may_create_library?(scope) || {:error, :not_allowed},
+         user_uuid when is_binary(user_uuid) <- Scope.user_uuid(scope) || {:error, :not_allowed} do
+      attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
+      repo().transaction(fn ->
+        # One creation per user at a time, so two tabs cannot both pass the
+        # limit check.
+        lock_user(user_uuid)
+        owned = count_owned(user_uuid)
+
+        if owned >= user_library_limit(),
+          do: repo().rollback(:limit_reached),
+          else: insert_owned(attrs, user_uuid, owned == 0)
+      end)
+    end
+  end
+
+  defp insert_owned(attrs, user_uuid, first?) do
+    attrs =
+      attrs
+      |> Map.put("owner_uuid", user_uuid)
+      |> Map.put("is_default", first?)
+      |> Map.put_new_lazy("key_prefix", &generate_key_prefix/0)
+
+    base = Library.slugify(to_string(attrs["name"] || ""))
+
+    case insert_with_free_slug(attrs, base, 1, &insert_user_library/1) do
+      {:ok, library} -> library
+      {:error, changeset} -> repo().rollback(changeset)
+    end
+  end
+
+  defp insert_user_library(attrs) do
+    # A savepoint per attempt: a taken slug aborts only its own insert.
+    repo().transaction(fn ->
+      case %Library{} |> Library.create_user_changeset(attrs) |> repo().insert() do
+        {:ok, library} -> library
+        {:error, changeset} -> repo().rollback(changeset)
+      end
+    end)
+  end
+
+  defp lock_user(user_uuid) do
+    repo().query!("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      "phoenix_kit_user_libraries:" <> user_uuid
+    ])
+  end
+
+  defp count_owned(user_uuid) do
+    repo().aggregate(
+      from(l in Library,
+        where: l.kind == "user" and l.owner_uuid == ^user_uuid and is_nil(l.trashed_at)
+      ),
+      :count
+    )
+  end
+
+  @doc "Renames a user library, for its owner or a manager."
+  @spec rename_user_library(Scope.t() | nil, Library.t(), String.t()) ::
+          {:ok, Library.t()} | {:error, :not_allowed | Ecto.Changeset.t()}
+  def rename_user_library(scope, %Library{kind: "user"} = library, name) do
+    if allows?(scope_role(scope, library), :rename),
+      do: rename_library(library, name),
+      else: {:error, :not_allowed}
+  end
+
+  def rename_user_library(_scope, _library, _name), do: {:error, :not_allowed}
+
+  @doc "Makes a user library its owner's default, for the owner."
+  @spec set_default_library(Scope.t() | nil, Library.t()) ::
+          {:ok, Library.t()} | {:error, :not_allowed}
+  def set_default_library(scope, %Library{kind: "user", owner_uuid: owner} = library) do
+    if scope_role(scope, library) == :owner do
+      repo().transaction(fn ->
+        repo().update_all(
+          from(l in Library, where: l.kind == "user" and l.owner_uuid == ^owner and l.is_default),
+          set: [is_default: false]
+        )
+
+        library |> Ecto.Changeset.change(is_default: true) |> repo().update!()
+      end)
+    else
+      {:error, :not_allowed}
+    end
+  end
+
+  def set_default_library(_scope, _library), do: {:error, :not_allowed}
+
+  @doc """
+  The user's default library, or nil (they have none yet).
+  """
+  @spec default_user_library(term()) :: Library.t() | nil
+  def default_user_library(user_uuid) when is_binary(user_uuid) do
+    repo().one(
+      from(l in Library,
+        where:
+          l.kind == "user" and l.owner_uuid == ^user_uuid and l.is_default and
+            is_nil(l.trashed_at)
+      )
+    )
+  end
+
+  def default_user_library(_user_uuid), do: nil
+
+  @doc """
+  Trashes a user library, for its owner. Its members lose it at once; its
+  files are purged, bytes included, after the trash retention period
+  (`Storage.trash_retention_days/0`). Its name and URL are free again right
+  away. When it was the default, the owner's next library by name becomes
+  the default.
+  """
+  @spec trash_library(Scope.t() | nil, Library.t()) ::
+          {:ok, Library.t()} | {:error, :not_allowed}
+  def trash_library(scope, %Library{kind: "user"} = library) do
+    if scope_role(scope, library) == :owner,
+      do: do_trash(library),
+      else: {:error, :not_allowed}
+  end
+
+  def trash_library(_scope, _library), do: {:error, :not_allowed}
+
+  defp do_trash(%Library{} = library) do
+    repo().transaction(fn ->
+      trashed =
+        library
+        # The slug and the default flag are unique per owner among ALL rows,
+        # trashed ones included; a trashed library holds neither, so a new
+        # one can take them and the owner's deletion can null `owner_uuid`
+        # without colliding with a system library's.
+        |> Ecto.Changeset.change(
+          trashed_at: DateTime.truncate(DateTime.utc_now(), :second),
+          slug: nil,
+          is_default: false
+        )
+        |> repo().update!()
+
+      if library.is_default and library.owner_uuid, do: promote_default(library.owner_uuid)
+      trashed
+    end)
+  end
+
+  defp promote_default(owner_uuid) do
+    case repo().one(
+           from(l in Library,
+             where: l.kind == "user" and l.owner_uuid == ^owner_uuid and is_nil(l.trashed_at),
+             order_by: fragment("lower(?)", l.name),
+             limit: 1
+           )
+         ) do
+      nil -> :ok
+      next -> next |> Ecto.Changeset.change(is_default: true) |> repo().update!()
+    end
+  end
+
+  @doc """
+  Trashes every live library `user_uuid` owns and queues their purge — the
+  step `Auth.delete_user/2` takes before deleting the user. The database
+  refuses to delete a user whose live library still names them (V203), so
+  this cannot be skipped. Returns how many were trashed.
+  """
+  @spec trash_owned_libraries(term()) :: {:ok, non_neg_integer()}
+  def trash_owned_libraries(user_uuid) when is_binary(user_uuid) do
+    # All at once: no default is passed on, since every one of them goes.
+    {_count, uuids} =
+      from(l in Library,
+        where: l.kind == "user" and l.owner_uuid == ^user_uuid and is_nil(l.trashed_at),
+        select: l.uuid
+      )
+      |> repo().update_all(
+        set: [
+          trashed_at: DateTime.truncate(DateTime.utc_now(), :second),
+          slug: nil,
+          is_default: false
+        ]
+      )
+
+    Enum.each(uuids, &enqueue_purge/1)
+    {:ok, length(uuids)}
+  end
+
+  def trash_owned_libraries(_user_uuid), do: {:ok, 0}
+
+  # ----------------------------------------------------------------------------
+  # Members
+  # ----------------------------------------------------------------------------
+
+  @doc "A user library's members with their users, by email."
+  @spec list_members(Library.t()) :: [LibraryMember.t()]
+  def list_members(%Library{uuid: uuid}) do
+    from(m in LibraryMember,
+      join: u in assoc(m, :user),
+      where: m.library_uuid == ^uuid,
+      order_by: u.email,
+      preload: [user: u]
+    )
+    |> repo().all()
+  end
+
+  @doc """
+  Adds the user with `email` to a user library as `role`, for its owner or
+  a manager. `:no_such_user` when nobody has that email, `:owner` when it is
+  the owner's own.
+  """
+  @spec add_member(Scope.t() | nil, Library.t(), String.t(), String.t()) ::
+          {:ok, LibraryMember.t()}
+          | {:error, :not_allowed | :no_such_user | :owner | Ecto.Changeset.t()}
+  def add_member(scope, %Library{kind: "user"} = library, email, role) when is_binary(email) do
+    with true <- allows?(scope_role(scope, library), :members) || {:error, :not_allowed},
+         %User{} = user <-
+           repo().one(from(u in User, where: u.email == ^String.trim(email))) ||
+             {:error, :no_such_user},
+         true <- user.uuid != library.owner_uuid || {:error, :owner} do
+      %LibraryMember{}
+      |> LibraryMember.changeset(%{library_uuid: library.uuid, user_uuid: user.uuid, role: role})
+      |> repo().insert()
+    end
+  end
+
+  def add_member(_scope, _library, _email, _role), do: {:error, :not_allowed}
+
+  @doc "Changes a member's role, for the library's owner or a manager."
+  @spec update_member_role(Scope.t() | nil, Library.t(), term(), String.t()) ::
+          {:ok, LibraryMember.t()} | {:error, :not_allowed | :not_found | Ecto.Changeset.t()}
+  def update_member_role(scope, %Library{kind: "user"} = library, user_uuid, role) do
+    with true <- allows?(scope_role(scope, library), :members) || {:error, :not_allowed},
+         %LibraryMember{} = member <- get_member(library, user_uuid) || {:error, :not_found} do
+      member |> LibraryMember.role_changeset(%{role: role}) |> repo().update()
+    end
+  end
+
+  def update_member_role(_scope, _library, _user_uuid, _role), do: {:error, :not_allowed}
+
+  @doc """
+  Removes a member, for the library's owner or a manager, or the member
+  themselves (leaving).
+  """
+  @spec remove_member(Scope.t() | nil, Library.t(), term()) ::
+          :ok | {:error, :not_allowed | :not_found}
+  def remove_member(scope, %Library{kind: "user"} = library, user_uuid) do
+    self? = Scope.user_uuid(scope) == to_string(user_uuid)
+
+    with true <-
+           (self? or allows?(scope_role(scope, library), :members)) || {:error, :not_allowed},
+         %LibraryMember{} = member <- get_member(library, user_uuid) || {:error, :not_found} do
+      repo().delete!(member)
+      :ok
+    end
+  end
+
+  def remove_member(_scope, _library, _user_uuid), do: {:error, :not_allowed}
+
+  defp get_member(%Library{uuid: uuid}, user_uuid) do
+    case Ecto.UUID.cast(user_uuid) do
+      {:ok, user_uuid} ->
+        repo().get_by(LibraryMember, library_uuid: uuid, user_uuid: user_uuid)
+
+      :error ->
+        nil
+    end
+  end
+
+  defp scope_role(%Scope{} = scope, library), do: role(library, Scope.user_uuid(scope))
+  defp scope_role(_scope, _library), do: nil
+
+  # ----------------------------------------------------------------------------
+  # Admin metadata and purging
+  # ----------------------------------------------------------------------------
+
+  @doc """
+  Every user library, trashed ones included, with its owner, member count
+  and what it holds — what `/admin/storage/libraries` lists. Metadata only:
+  nothing here opens a library's files.
+  """
+  @spec list_user_libraries_for_admin() :: [map()]
+  def list_user_libraries_for_admin do
+    libraries =
+      from(l in Library,
+        where: l.kind == "user",
+        order_by: [asc: not is_nil(l.trashed_at), asc: fragment("lower(?)", l.name)],
+        preload: [:owner]
+      )
+      |> repo().all()
+
+    uuids = Enum.map(libraries, & &1.uuid)
+
+    members =
+      from(m in LibraryMember,
+        where: m.library_uuid in ^uuids,
+        group_by: m.library_uuid,
+        select: {m.library_uuid, count(m.user_uuid)}
+      )
+      |> repo().all()
+      |> Map.new()
+
+    libraries
+    |> with_stats()
+    |> Enum.map(&Map.put(&1, :members, Map.get(members, &1.library.uuid, 0)))
+  end
+
+  @doc """
+  Purges a trashed library: every file in it (trashed and system-managed
+  ones included) through the normal delete path, which deletes the bytes
+  no other file still names; then its folders; then the library row (its
+  members go with it). A live library is refused.
+  """
+  @spec purge_library(Library.t() | term()) :: :ok | {:error, :not_trashed | :not_found}
+  def purge_library(%Library{trashed_at: nil}), do: {:error, :not_trashed}
+
+  def purge_library(%Library{uuid: uuid} = library) do
+    # Parents first: a parent's delete takes its system-managed children
+    # (tiles, edit backups) with it.
+    from(f in StorageFile,
+      where: f.library_uuid == ^uuid,
+      order_by: [asc: not is_nil(f.parent_file_uuid)],
+      select: f.uuid
+    )
+    |> repo().all()
+    |> Enum.each(fn file_uuid ->
+      case repo().get(StorageFile, file_uuid) do
+        nil -> :ok
+        file -> Storage.delete_file_completely(file)
+      end
+    end)
+
+    # Folders go deepest first, so no parent is deleted under a child.
+    from(f in Folder, where: f.library_uuid == ^uuid)
+    |> repo().all()
+    |> Enum.sort_by(&folder_depth/1, :desc)
+    |> Enum.each(fn folder -> repo().delete!(folder) end)
+
+    repo().delete!(library)
+    :ok
+  rescue
+    error ->
+      Logger.error("Storage: purging library #{uuid} failed: #{Exception.message(error)}")
+      reraise error, __STACKTRACE__
+  end
+
+  def purge_library(uuid) do
+    case get_library(uuid) do
+      nil -> {:error, :not_found}
+      library -> purge_library(library)
+    end
+  end
+
+  defp folder_depth(%Folder{} = folder), do: folder_depth(folder, 0)
+
+  defp folder_depth(%Folder{parent_uuid: nil}, depth), do: depth
+
+  defp folder_depth(%Folder{parent_uuid: parent}, depth) when depth < 100 do
+    case repo().get(Folder, parent) do
+      nil -> depth
+      folder -> folder_depth(folder, depth + 1)
+    end
+  end
+
+  defp folder_depth(_folder, depth), do: depth
+
+  @doc """
+  Queues the purge of every user library trashed more than `days` ago, and
+  of every one whose owner is gone. Run by the daily trash prune.
+  """
+  @spec queue_expired_purges(non_neg_integer()) :: non_neg_integer()
+  def queue_expired_purges(days) do
+    cutoff = DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
+
+    from(l in Library,
+      where:
+        l.kind == "user" and not is_nil(l.trashed_at) and
+          (l.trashed_at < ^cutoff or is_nil(l.owner_uuid)),
+      select: l.uuid
+    )
+    |> repo().all()
+    |> Enum.map(&enqueue_purge/1)
+    |> length()
+  end
+
+  defp enqueue_purge(library_uuid) do
+    %{"library_uuid" => to_string(library_uuid)}
+    |> PurgeLibraryJob.new()
+    |> Oban.insert()
+  rescue
+    # No Oban (update mode, a bare test): the daily prune picks it up.
+    _ -> :ok
+  catch
+    :exit, _ -> :ok
   end
 
   defp generate_key_prefix do

@@ -202,6 +202,26 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V203 (2026-09-24, storage libraries, user libraries) DECLARES 10 objects
+  # here and RESHAPES five. New: `table:phoenix_kit_storage_library_members`
+  # with its 5 columns, its pkey `(library_uuid, user_uuid)`, the role CHECK,
+  # its two FKs (library and user, both `ON DELETE CASCADE`) and the
+  # `user_uuid` index. Reshaped, each with an APPENDED `{203, ...}` revision
+  # and its `create` following it: `fk_files_user_uuid` and
+  # `phoenix_kit_media_folders_user_uuid_fkey` (now `ON DELETE SET NULL`),
+  # `phoenix_kit_files_user_or_parent_check` (a file with a library passes),
+  # `phoenix_kit_storage_libraries_owner_uuid_fkey` (`SET NULL`, was
+  # `RESTRICT`) and `phoenix_kit_storage_libraries_owner_check` (a trashed
+  # user library may have no owner). Nothing is removed: per-library dedup
+  # folds the library into `user_file_checksum` instead of swapping the
+  # unique index, because the manifest cannot declare a removal (a dropped
+  # object it still lists would be reported missing and rebuilt by repair).
+  # Shapes are CATALOG-EXACT, emitted from `Repair.Probe.snapshot/2` on a
+  # test database migrated through V203, not typed from the migration.
+  # `chain_hash` restamped over the shipped file set (which also covers
+  # V202's slug statements moving into `V202.slug_statements/1`, the same
+  # statements in the same order).
+  #
   # V202 (2026-09-23, storage libraries, the partition) DECLARES 34 objects
   # here and RESHAPES one. New: `table:phoenix_kit_storage_libraries` with
   # its 12 columns (`slug` last: it is added by its own ALTER, so a database
@@ -455,7 +475,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "b96144c1fe3e788f58325da4b43715ad6e6bed3de94dd4401a8ffcfa92dd94bf"
+  @chain_hash "f8c893ac5d62379fcf66f874585a600c6179274206498395eb22c028d9bb083f"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -34218,7 +34238,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         check:
           {:catalog, %{name: "fk_files_user_uuid", table: "phoenix_kit_files", kind: :constraint}},
         create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'fk_files_user_uuid'\n      AND t.relname = 'phoenix_kit_files'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_files ADD CONSTRAINT fk_files_user_uuid FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'fk_files_user_uuid'\n      AND t.relname = 'phoenix_kit_files'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_files ADD CONSTRAINT fk_files_user_uuid FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL;\n  END IF;\nEND\n$$",
         since: 56,
         class: :constraint,
         revisions: [
@@ -34233,6 +34253,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              foreign_columns: ["uuid"],
              on_delete: "c",
              on_update: "a"
+           }},
+          {203,
+           %{
+             type: "f",
+             columns: ["user_uuid"],
+             on_delete: "n",
+             definition:
+               "FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL",
+             on_update: "a",
+             name_template: nil,
+             foreign_columns: ["uuid"],
+             foreign_table: "phoenix_kit_users"
            }}
         ],
         presence: :required,
@@ -45900,7 +45932,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :constraint
            }},
         create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_media_folders_user_uuid_fkey'\n      AND t.relname = 'phoenix_kit_media_folders'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_media_folders ADD CONSTRAINT phoenix_kit_media_folders_user_uuid_fkey FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid);\n  END IF;\nEND\n$$",
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_media_folders_user_uuid_fkey'\n      AND t.relname = 'phoenix_kit_media_folders'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_media_folders ADD CONSTRAINT phoenix_kit_media_folders_user_uuid_fkey FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL;\n  END IF;\nEND\n$$",
         since: 95,
         class: :constraint,
         revisions: [
@@ -45914,6 +45946,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              foreign_columns: ["uuid"],
              on_delete: "a",
              on_update: "a"
+           }},
+          {203,
+           %{
+             type: "f",
+             columns: ["user_uuid"],
+             on_delete: "n",
+             definition:
+               "FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL",
+             on_update: "a",
+             name_template: nil,
+             foreign_columns: ["uuid"],
+             foreign_table: "phoenix_kit_users"
            }}
         ],
         presence: :required,
@@ -51829,7 +51873,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :constraint
            }},
         create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_files_user_or_parent_check'\n      AND t.relname = 'phoenix_kit_files'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_files ADD CONSTRAINT phoenix_kit_files_user_or_parent_check CHECK (((user_uuid IS NOT NULL) OR (parent_file_uuid IS NOT NULL)));\n  END IF;\nEND\n$$",
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_files_user_or_parent_check'\n      AND t.relname = 'phoenix_kit_files'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_files ADD CONSTRAINT phoenix_kit_files_user_or_parent_check CHECK (((user_uuid IS NOT NULL) OR (parent_file_uuid IS NOT NULL) OR (library_uuid IS NOT NULL)));\n  END IF;\nEND\n$$",
         since: 113,
         class: :constraint,
         revisions: [
@@ -51843,6 +51887,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              foreign_columns: nil,
              on_delete: nil,
              on_update: nil
+           }},
+          {203,
+           %{
+             type: "c",
+             columns: ["user_uuid", "parent_file_uuid", "library_uuid"],
+             on_delete: nil,
+             definition:
+               "CHECK (((user_uuid IS NOT NULL) OR (parent_file_uuid IS NOT NULL) OR (library_uuid IS NOT NULL)))",
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
            }}
         ],
         presence: :required,
@@ -72469,7 +72525,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :constraint
            }},
         create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_libraries_owner_check'\n      AND t.relname = 'phoenix_kit_storage_libraries'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD CONSTRAINT phoenix_kit_storage_libraries_owner_check CHECK (((((kind)::text = 'system'::text) AND (owner_uuid IS NULL)) OR (((kind)::text = 'user'::text) AND (owner_uuid IS NOT NULL))));\n  END IF;\nEND\n$$",
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_libraries_owner_check'\n      AND t.relname = 'phoenix_kit_storage_libraries'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD CONSTRAINT phoenix_kit_storage_libraries_owner_check CHECK (((((kind)::text = 'system'::text) AND (owner_uuid IS NULL)) OR (((kind)::text = 'user'::text) AND ((owner_uuid IS NOT NULL) OR (trashed_at IS NOT NULL)))));\n  END IF;\nEND\n$$",
         since: 202,
         class: :constraint,
         revisions: [
@@ -72484,6 +72540,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              foreign_columns: nil,
              on_delete: nil,
              on_update: nil
+           }},
+          {203,
+           %{
+             type: "c",
+             columns: ["kind", "owner_uuid", "trashed_at"],
+             on_delete: nil,
+             definition:
+               "CHECK (((((kind)::text = 'system'::text) AND (owner_uuid IS NULL)) OR (((kind)::text = 'user'::text) AND ((owner_uuid IS NOT NULL) OR (trashed_at IS NOT NULL)))))",
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
            }}
         ],
         presence: :required,
@@ -72501,7 +72569,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :constraint
            }},
         create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_libraries_owner_uuid_fkey'\n      AND t.relname = 'phoenix_kit_storage_libraries'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD CONSTRAINT phoenix_kit_storage_libraries_owner_uuid_fkey FOREIGN KEY (owner_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE RESTRICT;\n  END IF;\nEND\n$$",
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_libraries_owner_uuid_fkey'\n      AND t.relname = 'phoenix_kit_storage_libraries'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD CONSTRAINT phoenix_kit_storage_libraries_owner_uuid_fkey FOREIGN KEY (owner_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL;\n  END IF;\nEND\n$$",
         since: 202,
         class: :constraint,
         revisions: [
@@ -72516,6 +72584,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              foreign_columns: ["uuid"],
              on_delete: "r",
              on_update: "a"
+           }},
+          {203,
+           %{
+             type: "f",
+             columns: ["owner_uuid"],
+             on_delete: "n",
+             definition:
+               "FOREIGN KEY (owner_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL",
+             on_update: "a",
+             name_template: nil,
+             foreign_columns: ["uuid"],
+             foreign_table: "phoenix_kit_users"
            }}
         ],
         presence: :required,
@@ -73060,6 +73140,259 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              name_template: nil,
              opclasses: ["uuid_ops", "text_ops"],
              predicate: "(slug IS NOT NULL)"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "table:phoenix_kit_storage_library_members",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_storage_library_members", kind: :table}},
+        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_storage_library_members ()",
+        since: 203,
+        class: :table,
+        revisions: [{203, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_library_members.library_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_library_members", column: "library_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_library_members ADD COLUMN IF NOT EXISTS \"library_uuid\" uuid",
+        since: 203,
+        class: :column,
+        revisions: [{203, %{default: nil, type: "uuid", pos: 1, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_library_members.user_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_library_members", column: "user_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_library_members ADD COLUMN IF NOT EXISTS \"user_uuid\" uuid",
+        since: 203,
+        class: :column,
+        revisions: [{203, %{default: nil, type: "uuid", pos: 2, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_library_members.role",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_library_members", column: "role", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_library_members ADD COLUMN IF NOT EXISTS \"role\" character varying(20) DEFAULT 'viewer'::character varying NOT NULL",
+        since: 203,
+        class: :column,
+        revisions: [
+          {203,
+           %{
+             default: "'viewer'::character varying",
+             type: "character varying(20)",
+             pos: 3,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_library_members.inserted_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_library_members", column: "inserted_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_library_members ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 203,
+        class: :column,
+        revisions: [
+          {203,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 4, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_library_members.updated_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_library_members", column: "updated_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_library_members ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 203,
+        class: :column,
+        revisions: [
+          {203,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 5, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_library_members.phoenix_kit_storage_library_members_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_library_members_pkey",
+             table: "phoenix_kit_storage_library_members",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_library_members_pkey'\n      AND t.relname = 'phoenix_kit_storage_library_members'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_library_members ADD CONSTRAINT phoenix_kit_storage_library_members_pkey PRIMARY KEY (library_uuid, user_uuid);\n  END IF;\nEND\n$$",
+        since: 203,
+        class: :constraint,
+        revisions: [
+          {203,
+           %{
+             type: "p",
+             columns: ["library_uuid", "user_uuid"],
+             on_delete: nil,
+             definition: "PRIMARY KEY (library_uuid, user_uuid)",
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_library_members.phoenix_kit_storage_library_members_role_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_library_members_role_check",
+             table: "phoenix_kit_storage_library_members",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_library_members_role_check'\n      AND t.relname = 'phoenix_kit_storage_library_members'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_library_members ADD CONSTRAINT phoenix_kit_storage_library_members_role_check CHECK (((role)::text = ANY ((ARRAY['manager'::character varying, 'contributor'::character varying, 'viewer'::character varying])::text[])));\n  END IF;\nEND\n$$",
+        since: 203,
+        class: :constraint,
+        revisions: [
+          {203,
+           %{
+             type: "c",
+             columns: ["role"],
+             on_delete: nil,
+             definition:
+               "CHECK (((role)::text = ANY ((ARRAY['manager'::character varying, 'contributor'::character varying, 'viewer'::character varying])::text[])))",
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_library_members.phoenix_kit_storage_library_members_library_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_library_members_library_uuid_fkey",
+             table: "phoenix_kit_storage_library_members",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_library_members_library_uuid_fkey'\n      AND t.relname = 'phoenix_kit_storage_library_members'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_library_members ADD CONSTRAINT phoenix_kit_storage_library_members_library_uuid_fkey FOREIGN KEY (library_uuid) REFERENCES __SCHEMA__.phoenix_kit_storage_libraries(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+        since: 203,
+        class: :constraint,
+        revisions: [
+          {203,
+           %{
+             type: "f",
+             columns: ["library_uuid"],
+             on_delete: "c",
+             definition:
+               "FOREIGN KEY (library_uuid) REFERENCES __SCHEMA__.phoenix_kit_storage_libraries(uuid) ON DELETE CASCADE",
+             on_update: "a",
+             name_template: nil,
+             foreign_columns: ["uuid"],
+             foreign_table: "phoenix_kit_storage_libraries"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_library_members.phoenix_kit_storage_library_members_user_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_library_members_user_uuid_fkey",
+             table: "phoenix_kit_storage_library_members",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_library_members_user_uuid_fkey'\n      AND t.relname = 'phoenix_kit_storage_library_members'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_library_members ADD CONSTRAINT phoenix_kit_storage_library_members_user_uuid_fkey FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+        since: 203,
+        class: :constraint,
+        revisions: [
+          {203,
+           %{
+             type: "f",
+             columns: ["user_uuid"],
+             on_delete: "c",
+             definition:
+               "FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE CASCADE",
+             on_update: "a",
+             name_template: nil,
+             foreign_columns: ["uuid"],
+             foreign_table: "phoenix_kit_users"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_storage_library_members_user_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_library_members_user_uuid_index",
+             table: "phoenix_kit_storage_library_members",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_storage_library_members_user_uuid_index ON __SCHEMA__.phoenix_kit_storage_library_members USING btree (user_uuid)",
+        since: 203,
+        class: :index,
+        revisions: [
+          {203,
+           %{
+             table: "phoenix_kit_storage_library_members",
+             keys: ["user_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_storage_library_members_user_uuid_index ON __SCHEMA__.phoenix_kit_storage_library_members USING btree (user_uuid)",
+             name_template: nil,
+             opclasses: ["uuid_ops"],
+             predicate: nil
            }}
         ],
         presence: :required,

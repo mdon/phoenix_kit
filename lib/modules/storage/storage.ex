@@ -2451,11 +2451,26 @@ defmodule PhoenixKit.Modules.Storage do
     - user_uuid: The user UUID
     - file_checksum: The SHA256 checksum of the file content
 
+    - library_uuid: The library the file is in (optional; nil or Media's
+      uuid is Media)
+
   ## Returns
     String representing the SHA256 checksum of "user_uuid + file_checksum"
+    for a file in Media, and of the uploader, the library and the checksum
+    for a file in any other library.
+
+  This is the dedup key, and the unique index on it is what holds one copy
+  per uploader: a file in Media keeps the key every file has had since
+  before libraries existed, and a file in another library folds its library
+  in, so the same person may keep the same bytes in Media and in a library
+  of their own — one copy in each, never two in one.
   """
-  def calculate_user_file_checksum(user_uuid, file_checksum) do
-    "#{user_uuid}#{file_checksum}"
+  def calculate_user_file_checksum(user_uuid, file_checksum, library_uuid \\ nil) do
+    if is_nil(library_uuid) or Libraries.media?(library_uuid) do
+      "#{user_uuid}#{file_checksum}"
+    else
+      "#{user_uuid}:library:#{library_uuid}:#{file_checksum}"
+    end
     |> then(fn data -> :crypto.hash(:sha256, data) end)
     |> Base.encode16(case: :lower)
   end
@@ -3429,7 +3444,16 @@ defmodule PhoenixKit.Modules.Storage do
       key: "storage",
       label: "Storage",
       icon: "hero-circle-stack",
-      description: "Distributed file storage with multi-location redundancy"
+      description:
+        "Distributed file storage with multi-location redundancy. Holders use the " <>
+          "storage libraries they own or are a member of, when user libraries are on.",
+      sub_permissions: [
+        %{
+          key: "create_library",
+          label: "Create libraries",
+          description: "Create storage libraries of their own (up to the per-user limit)"
+        }
+      ]
     }
   end
 
@@ -4277,8 +4301,9 @@ defmodule PhoenixKit.Modules.Storage do
          original_filename,
          opts
        ) do
-    # Calculate user-specific hash for duplicate detection
-    user_file_checksum = calculate_user_file_checksum(user_uuid, file_checksum)
+    # The dedup key: one copy per uploader per library.
+    user_file_checksum =
+      calculate_user_file_checksum(user_uuid, file_checksum, opts[:library_uuid])
 
     # Check if this user already uploaded this file
     case get_file_by_user_checksum(user_file_checksum) do
@@ -4526,7 +4551,8 @@ defmodule PhoenixKit.Modules.Storage do
   # (the donor's objects, whatever library it is in). The clone goes into the
   # library the upload asked for.
   defp clone_file_for_user(donor_file, user_uuid, file_checksum, ext, original_filename, opts) do
-    user_file_checksum = calculate_user_file_checksum(user_uuid, file_checksum)
+    user_file_checksum =
+      calculate_user_file_checksum(user_uuid, file_checksum, opts[:library_uuid])
 
     file_attrs = %{
       file_name: donor_file.file_name,

@@ -72,6 +72,7 @@ defmodule PhoenixKit.Users.Auth do
 
   alias PhoenixKit.Admin.Events
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Users.Auth.{User, UserNotifier, UserToken}
   alias PhoenixKit.Users.{CustomFields, RateLimiter, Role, Roles, Sessions}
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -3618,6 +3619,11 @@ defmodule PhoenixKit.Users.Auth do
     # cleaned up explicitly or they'd orphan the user's encrypted credentials.
     delete_user_personal_integrations(user.uuid)
 
+    # Trash the storage libraries the user owns (their files are purged by
+    # a job). The database refuses to delete a user whose live library
+    # still names them, so this step cannot be skipped (V203).
+    {:ok, _count} = Libraries.trash_owned_libraries(user.uuid)
+
     :ok
   end
 
@@ -3833,26 +3839,14 @@ defmodule PhoenixKit.Users.Auth do
     _ -> 0
   end
 
-  # Anonymize files - remove ownership
+  # The files the user uploaded stay where they are, with no uploader: in
+  # the site's libraries and in other people's (the FK is `SET NULL` since
+  # V203, which does the same on the row delete; this counts them). Their
+  # own libraries were trashed in `delete_cascade_data/1`.
   defp anonymize_user_files(user_uuid) do
-    module = Module.concat([PhoenixKit, Modules, Storage, File])
-
-    if Code.ensure_loaded?(module) and function_exported?(module, :__schema__, 1) do
-      dynamic_query = dynamic([f], f.user_uuid == ^user_uuid)
-
-      from(f in module, where: ^dynamic_query)
-      |> Repo.repo().update_all(
-        set: [
-          user_uuid: nil,
-          anonymized_at: UtilsDate.utc_now()
-        ]
-      )
-      |> elem(0)
-    else
-      0
-    end
-  rescue
-    _ -> 0
+    from(f in PhoenixKit.Modules.Storage.File, where: f.user_uuid == ^user_uuid)
+    |> Repo.repo().update_all(set: [user_uuid: nil])
+    |> elem(0)
   end
 
   # Log user deletion for audit purposes
