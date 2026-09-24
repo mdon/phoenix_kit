@@ -148,6 +148,15 @@ defmodule PhoenixKitWeb.PrivateFileServingTest do
     assert URLSigner.verify_private_token(file.uuid, "original", token) == :ok
   end
 
+  test "a download link whose version moved on stays a download (#872)", %{media_file: file} do
+    token = URLSigner.generate_token(file.uuid, "original")
+    conn = show(file, token, %{"v" => "0000000000000000", "dl" => "1"})
+
+    assert conn.status == 302
+    [location] = Plug.Conn.get_resp_header(conn, "location")
+    assert location =~ ~r/[?&]dl=1(&|$)/
+  end
+
   describe "Storage.authorized_url/4" do
     test "the owner gets a working window URL; a stranger nothing", ctx do
       owner = Repo.get!(Auth.User, ctx.owner.uuid)

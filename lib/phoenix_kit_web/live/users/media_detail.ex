@@ -395,18 +395,144 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
       dims =
         if instance.width && instance.height, do: {instance.width, instance.height}, else: nil
 
-      Map.put(acc, instance.variant_name, %{dimensions: dims, size: instance.size})
+      Map.put(acc, instance.variant_name, %{
+        dimensions: dims,
+        size: instance.size,
+        # What the stored bytes ARE. A signed URL has no extension in its
+        # path — it ends in a token — so a download named from the URL
+        # arrives with none, and the picture a browser saves is a file the
+        # desktop cannot open by double-clicking.
+        ext: instance.ext
+      })
     end)
   end
 
+  @doc false
+  # The download list, in two groups: the picture at its sizes, and the
+  # copies with the annotations drawn in.
+  #
+  # The slot names are internal — `burned`, `burned_large`,
+  # `thumbnail_annotated` — and listed raw they were indistinguishable from
+  # the picture's own rungs, which is what made "download in a different
+  # quality" untrustworthy: nothing on the row said whether the markup was
+  # in it. The names are not changed anywhere; only what a reader is shown.
+  #
+  # Left out on purpose: `dzi` is a tile manifest, not a picture, and
+  # `thumbnail_annotated` is the square crop the grid's cards use — a
+  # download nobody asked for, and cropped, which no one would expect from
+  # a list of sizes. `annotated` is a slot this feature no longer writes;
+  # the rows that still hold one are a rendering frozen at whatever the
+  # drawing was when the naming changed, so offering it would hand someone
+  # a stale picture.
+  #
+  # Every other variant — a size an admin added under Settings → Media →
+  # Dimensions, a video's — follows the standard sizes in the picture's
+  # group, by name, as the page listed them before the grouping.
+  @picture_order ~w(original large medium small thumbnail)
+  @burn_order ~w(burned_large burned)
+  @not_downloads ~w(dzi thumbnail_annotated annotated)
+
+  def download_groups(urls, dims) do
+    others =
+      urls
+      |> Map.keys()
+      |> Enum.reject(&(&1 in @picture_order or &1 in @burn_order or &1 in @not_downloads))
+      |> Enum.sort()
+
+    [
+      {:picture, gettext("The picture"), collect(urls, dims, @picture_order ++ others)},
+      {:annotated, gettext("Annotated"), collect(urls, dims, @burn_order)}
+    ]
+    |> Enum.reject(fn {_key, _title, rows} -> rows == [] end)
+  end
+
+  defp collect(urls, dims, order) do
+    order
+    |> Enum.filter(&Map.has_key?(urls, &1))
+    |> Enum.map(fn name ->
+      info = Map.get(dims, name, %{dimensions: nil, size: nil, ext: nil})
+
+      %{
+        variant: name,
+        url: urls[name],
+        label: variant_label(name),
+        dimensions: info.dimensions,
+        size: info.size,
+        ext: Map.get(info, :ext),
+        primary: name == "original"
+      }
+    end)
+  end
+
+  # What a row is called: the size, and nothing else. The heading above the
+  # group says whether the markup is in it, so repeating that on every row
+  # only made the label long enough to wrap onto a second line in a sidebar
+  # this narrow — which is how a list of sizes stops being readable at a
+  # glance, the thing the grouping was for.
+  defp variant_label("original"), do: gettext("Original")
+  defp variant_label("large"), do: gettext("Large")
+  defp variant_label("medium"), do: gettext("Medium")
+  defp variant_label("small"), do: gettext("Small")
+  defp variant_label("thumbnail"), do: gettext("Thumbnail")
+  defp variant_label("burned_large"), do: gettext("Large")
+  defp variant_label("burned"), do: gettext("Medium")
+
+  defp variant_label(name),
+    do: name |> String.replace("_", " ") |> String.capitalize()
+
+  @doc false
+  # The numbers beside a row. `:compact` is what always fits — the pixel
+  # size, which is what a download is chosen by; `:full` is both, for the
+  # title, so the weight is a hover away at any width.
+  def row_meta(row, :compact) do
+    case row.dimensions do
+      {w, h} -> "#{w}x#{h}"
+      _ -> if row.size, do: format_file_size(row.size), else: ""
+    end
+  end
+
+  def row_meta(row, :full) do
+    [
+      case row.dimensions do
+        {w, h} -> "#{w}x#{h}"
+        _ -> nil
+      end,
+      if(row.size, do: format_file_size(row.size))
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" · ")
+  end
+
+  @doc false
+  # `?dl=1` asks the file controller to answer `attachment` rather than the
+  # `inline` every <img> on the site wants. It is what makes the click a
+  # download on an install that serves through a bucket, where the response
+  # is a redirect and the link's own `download` attribute is dropped.
+  def download_url(url) do
+    separator = if String.contains?(url, "?"), do: "&", else: "?"
+    url <> separator <> "dl=1"
+  end
+
+  @doc false
+  # What the browser saves it as — the same rule the server answers with, so
+  # a link and the bytes behind it agree on the name. See
+  # `Storage.download_name/3`: the attribute alone cannot be trusted,
+  # because a response that redirects to a bucket drops it.
+  defdelegate download_name(file_name, variant, ext), to: Storage
+
   # Fill in original variant info from the main file record when the instance lacks it
   defp put_original_fallbacks(variant_dimensions, file) do
-    original = Map.get(variant_dimensions, "original", %{dimensions: nil, size: nil})
+    original = Map.get(variant_dimensions, "original", %{dimensions: nil, size: nil, ext: nil})
 
     dims = original.dimensions || if(file.width && file.height, do: {file.width, file.height})
     size = original.size || file.size
 
-    Map.put(variant_dimensions, "original", %{original | dimensions: dims, size: size})
+    Map.put(variant_dimensions, "original", %{
+      original
+      | dimensions: dims,
+        size: size,
+        ext: Map.get(original, :ext) || Path.extname(file.file_name || "")
+    })
   end
 
   # Generate URLs from pre-loaded instances (no database query needed)

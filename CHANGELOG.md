@@ -45,6 +45,20 @@
   holders of the `integrations` permission. Embedding the `UserSettings`
   component is unchanged.
 
+### Fixed
+
+- **A downloaded copy is named for what it is (#872).** Downloading three
+  sizes of one picture used to save `photo.jpg`, `photo (1).jpg` and
+  `photo (2).jpg`. Now each gets its own name, with the extension of the
+  stored bytes: `photo-original.jpg`, `photo-large.jpg`,
+  `photo-large-annotated.jpg`, and so on (`Storage.download_name/3`). The
+  details page's download links add `?dl=1`, which makes the response an
+  `attachment`, also when a bucket answers for it, so the click saves the
+  file instead of opening it in a tab. Its list shows the picture's sizes
+  and the annotated copies in separate groups, with every other variant
+  after the standard sizes (review fix). A download link whose image was
+  edited in the meantime stays a download (review fix).
+
 ### Migration notes
 
 - **V203** adds `phoenix_kit_storage_library_members` and replaces five
