@@ -1469,6 +1469,7 @@ msgstr "Facultatif, jusqu'à 500 caractères."
 msgid "Options"
 msgstr "Options"
 
+#: lib/phoenix_kit_web/components/oauth_buttons.ex:61
 #: lib/phoenix_kit_web/users/login.html.heex:95
 #: lib/phoenix_kit_web/users/registration.html.heex:203
 #, elixir-autogen, elixir-format
@@ -14102,93 +14103,93 @@ msgstr "Zoom"
 #: lib/phoenix_kit_web/components/core/pagination.ex:297
 #, elixir-autogen, elixir-format
 msgid "Auto"
-msgstr ""
+msgstr "Automatique"
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Change Email"
-msgstr ""
+msgstr "Modifier l'e-mail"
 
 #: lib/phoenix_kit_web/users/confirm_email_change.ex:26
 #: lib/phoenix_kit_web/users/confirm_email_change.html.heex:13
 #, elixir-autogen, elixir-format
 msgid "Confirm Email Change"
-msgstr ""
+msgstr "Confirmer le changement d'e-mail"
 
 #: lib/phoenix_kit_web/users/confirm_email_change.html.heex:20
 #, elixir-autogen, elixir-format
 msgid "Confirm email change"
-msgstr ""
+msgstr "Confirmer le changement d'e-mail"
 
 #: lib/phoenix_kit_web/users/confirm_email_change.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Confirm your new email"
-msgstr ""
+msgstr "Confirmez votre nouvelle adresse e-mail"
 
 #: lib/phoenix_kit_web/users/confirm_email_change.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Confirming also completes your account confirmation."
-msgstr ""
+msgstr "La confirmation finalise également la confirmation de votre compte."
 
 #: lib/phoenix_kit_web/users/confirm_email_change.ex:48
 #, elixir-autogen, elixir-format
 msgid "Email changed and confirmed. Welcome!"
-msgstr ""
+msgstr "E-mail modifié et confirmé. Bienvenue !"
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "New email"
-msgstr ""
+msgstr "Nouvelle adresse e-mail"
 
 #: lib/phoenix_kit_web/components/core/pagination.ex:120
 #, elixir-autogen, elixir-format
 msgid "No %{noun}"
-msgstr ""
+msgstr "Pas de %{noun}"
 
 #: lib/phoenix_kit_web/components/core/pagination.ex:283
 #, elixir-autogen, elixir-format
 msgid "Rows per page"
-msgstr ""
+msgstr "Lignes par page"
 
 #: lib/phoenix_kit_web/components/core/pagination.ex:129
 #, elixir-autogen, elixir-format
 msgid "Showing %{from} to %{to} %{noun}"
-msgstr ""
+msgstr "Affichage de %{from} à %{to} %{noun}"
 
 #: lib/phoenix_kit_web/components/core/pagination.ex:122
 #, elixir-autogen, elixir-format
 msgid "Showing %{from} to %{to} of %{total} %{noun}"
-msgstr ""
+msgstr "Affichage de %{from} à %{to} sur %{total} %{noun}"
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Update email & resend confirmation"
-msgstr ""
+msgstr "Mettre à jour l'e-mail et renvoyer la confirmation"
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Updating..."
-msgstr ""
+msgstr "Mise à jour en cours..."
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.ex:195
 #, elixir-autogen, elixir-format
 msgid "We've sent a confirmation link to %{email}. Click it to finish updating your email — that also confirms your account."
-msgstr ""
+msgstr "Nous avons envoyé un lien de confirmation à %{email}. Cliquez dessus pour terminer la mise à jour de votre e-mail — cela confirme également votre compte."
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.ex:276
 #, elixir-autogen, elixir-format
 msgid "We've sent a new confirmation link to %{email}."
-msgstr ""
+msgstr "Nous avons envoyé un nouveau lien de confirmation à %{email}."
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Wrong email? Change it"
-msgstr ""
+msgstr "Mauvaise adresse e-mail ? La modifier"
 
 #: lib/phoenix_kit_web/components/core/pagination.ex:114
 #, elixir-autogen, elixir-format
 msgid "results"
-msgstr ""
+msgstr "résultats"
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:459
 #, elixir-autogen, elixir-format
@@ -14333,7 +14334,7 @@ msgstr ""
 #: lib/phoenix_kit_web/users/confirmation_instructions.ex:300
 #, elixir-autogen, elixir-format
 msgid "We couldn't send that email just now — please try again in a moment."
-msgstr ""
+msgstr "Nous n'avons pas pu envoyer cet e-mail à l'instant — veuillez réessayer dans un instant."
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:795
 #, elixir-autogen, elixir-format
@@ -14348,12 +14349,12 @@ msgstr ""
 #: lib/phoenix_kit_web/users/confirmation_instructions.ex:284
 #, elixir-autogen, elixir-format
 msgid "You've asked for this a few times already — please wait a few minutes and try again."
-msgstr ""
+msgstr "Vous avez déjà demandé cela plusieurs fois — veuillez patienter quelques minutes puis réessayer."
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.ex:291
 #, elixir-autogen, elixir-format
 msgid "Your email is already confirmed."
-msgstr ""
+msgstr "Votre adresse e-mail est déjà confirmée."
 
 #: lib/phoenix_kit_web/components/core/role_switcher.ex:106
 #, elixir-autogen, elixir-format
@@ -15719,3 +15720,18 @@ msgid "%{count} file is already in another library, so it was not added here."
 msgid_plural "%{count} files are already in another library, so they were not added here."
 msgstr[0] "%{count} fichier est déjà dans une autre bibliothèque ; il n'a pas été ajouté ici."
 msgstr[1] "%{count} fichiers sont déjà dans une autre bibliothèque ; ils n'ont pas été ajoutés ici."
+
+#: lib/phoenix_kit_web/components/oauth_buttons.ex:93
+#, elixir-autogen, elixir-format
+msgid "Continue with Facebook"
+msgstr "Continuer avec Facebook"
+
+#: lib/phoenix_kit_web/components/oauth_buttons.ex:83
+#, elixir-autogen, elixir-format
+msgid "Continue with GitHub"
+msgstr "Continuer avec GitHub"
+
+#: lib/phoenix_kit_web/components/oauth_buttons.ex:73
+#, elixir-autogen, elixir-format
+msgid "Continue with Google"
+msgstr "Continuer avec Google"
