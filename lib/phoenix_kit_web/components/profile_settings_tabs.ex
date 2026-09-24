@@ -13,6 +13,11 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
     * `integrations` — your own service connections, for holders of the
       opt-in `integrations` permission. Its own LiveView at
       `/profile/settings/integrations`.
+    * `media` — your storage libraries and their members
+      (`PhoenixKitWeb.Live.Components.LibrarySettings`), while user
+      libraries are on and you hold the `"storage"` permission. The
+      end-user surface for them is `phoenix_kit_photos`; this tab is where
+      they are set up.
 
   `/profile/settings` opens the first tab. Every section of
   `PhoenixKitWeb.Live.Components.UserSettings.default_sections/0` is on
@@ -20,6 +25,7 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
   """
   use PhoenixKitWeb, :html
 
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Notifications.Types, as: NotificationTypes
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
@@ -32,7 +38,7 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
     "notifications" => [:notifications]
   }
 
-  @order ~w(account security sessions notifications integrations)
+  @order ~w(account security sessions notifications integrations media)
 
   @doc "The tab `/profile/settings` opens on."
   @spec default_tab() :: String.t()
@@ -44,6 +50,10 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
   """
   @spec sections(String.t()) :: [atom()] | nil
   def sections(tab), do: Map.get(@sections, tab)
+
+  @doc "Whether `ProfileSettings` renders the tab itself (every tab but integrations)."
+  @spec rendered_here?(String.t()) :: boolean()
+  def rendered_here?(tab), do: Map.has_key?(@sections, tab) or tab == "media"
 
   @doc "Every section some tab shows."
   @spec all_sections() :: [atom()]
@@ -57,6 +67,8 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
 
   defp visible?("integrations", scope),
     do: not is_nil(scope) and Scope.has_module_access?(scope, "integrations")
+
+  defp visible?("media", scope), do: Libraries.may_use_libraries?(scope)
 
   defp visible?(_tab, _scope), do: true
 
@@ -86,7 +98,7 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
   # navigates back into `ProfileSettings`.
   defp tab(id, active) do
     link =
-      if id != "integrations" and Map.has_key?(@sections, active),
+      if id != "integrations" and rendered_here?(active),
         do: [patch: path(id)],
         else: [navigate: path(id)]
 
@@ -98,10 +110,12 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
   defp tab_label("sessions"), do: gettext("Sessions")
   defp tab_label("notifications"), do: gettext("Notifications")
   defp tab_label("integrations"), do: gettext("Integrations")
+  defp tab_label("media"), do: gettext("Media")
 
   defp tab_icon("account"), do: "hero-user-circle"
   defp tab_icon("security"), do: "hero-lock-closed"
   defp tab_icon("sessions"), do: "hero-computer-desktop"
   defp tab_icon("notifications"), do: "hero-bell"
   defp tab_icon("integrations"), do: "hero-link"
+  defp tab_icon("media"), do: "hero-rectangle-stack"
 end

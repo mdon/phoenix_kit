@@ -71,13 +71,13 @@ defmodule PhoenixKitWeb.Live.Users.ProfileSettings do
   @impl true
   def handle_params(params, _uri, socket) do
     tab = params["tab"] || ProfileSettingsTabs.default_tab()
-    sections = ProfileSettingsTabs.sections(tab)
 
-    if sections && tab in ProfileSettingsTabs.tab_ids(socket.assigns[:phoenix_kit_current_scope]) do
+    if ProfileSettingsTabs.rendered_here?(tab) and
+         tab in ProfileSettingsTabs.tab_ids(socket.assigns[:phoenix_kit_current_scope]) do
       {:noreply,
        socket
        |> assign(:tab, tab)
-       |> assign(:sections, sections)
+       |> assign(:sections, ProfileSettingsTabs.sections(tab) || [])
        |> assign(:url_path, ProfileSettingsTabs.path(tab))}
     else
       {:noreply,

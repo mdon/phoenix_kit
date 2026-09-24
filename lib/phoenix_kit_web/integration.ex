@@ -561,6 +561,9 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/media/library/:library_slug", Live.Users.Media, :library
       live "/admin/media/selector", Live.Users.MediaSelector, :index
       live "/admin/media/:file_uuid", Live.Users.MediaDetail, :show
+      # The user's own storage libraries (V203), for holders of "storage".
+      live "/admin/libraries", Live.Users.Libraries, :index
+      live "/admin/libraries/:library_id", Live.Users.Libraries, :show
       live "/admin/settings", Live.Settings, :index
       live "/admin/settings/users", Live.Settings.Users, :index
       live "/admin/settings/authorization", Live.Settings.Authorization, :index

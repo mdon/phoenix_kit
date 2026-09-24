@@ -1380,6 +1380,31 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Event handlers
   # ──────────────────────────────────────────────────────────────
 
+  # A browser that shows one library acts only on that library's files and
+  # folders. The listings are filtered already; this is the boundary for
+  # what an event NAMES, since any uuid can be sent from a console: a file
+  # or folder of another library in an event's params refuses the event,
+  # before any handler below sees it. Without it a member of a user library
+  # could trash, rename or move a Media file by its uuid (`within_scope?/2`
+  # is true for everything when there is no scope folder).
+  def handle_event(event, params, socket)
+      when is_binary(socket.assigns.library_uuid) and
+             not is_map_key(socket.private, :library_checked) do
+    if foreign_reference?(params, socket.assigns.library_uuid) do
+      Logger.warning(
+        "MediaBrowser id=#{socket.assigns.id}: #{event} refused — it names a file or " <>
+          "folder outside library #{socket.assigns.library_uuid}"
+      )
+
+      {:noreply, put_flash(socket, :error, gettext("That is not in this library"))}
+    else
+      socket = %{socket | private: Map.put(socket.private, :library_checked, true)}
+
+      {:noreply, socket} = handle_event(event, params, socket)
+      {:noreply, unchecked(socket)}
+    end
+  end
+
   # Finder/Explorer-style instant folder creation. Click the "+" button
   # in any toolbar and a folder appears named "untitled" (or
   # "untitled 1", "untitled 2", ... if that's taken). The new folder
@@ -4669,6 +4694,45 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # events, but the event is still reachable from a console — server, not
   # markup, is what a consumer can actually trust — so it's refused here too
   # (mirrors the `only_file_type` lock on `set_file_filter` above).
+  defp unchecked(socket), do: %{socket | private: Map.delete(socket.private, :library_checked)}
+
+  # Whether any uuid in `params` (at any depth) is a file or folder of a
+  # library other than `library_uuid`. A uuid that is neither (a variant, a
+  # stale id) is not this check's business; the handler deals with it.
+  @doc false
+  def foreign_reference?(params, library_uuid) do
+    case param_uuids(params, []) |> Enum.uniq() do
+      [] ->
+        false
+
+      uuids ->
+        repo = PhoenixKit.Config.get_repo()
+
+        repo.exists?(
+          from(f in Storage.File, where: f.uuid in ^uuids and f.library_uuid != ^library_uuid)
+        ) or
+          repo.exists?(
+            from(f in Storage.Folder,
+              where: f.uuid in ^uuids and f.library_uuid != ^library_uuid
+            )
+          )
+    end
+  end
+
+  defp param_uuids(%{} = map, acc),
+    do: Enum.reduce(map, acc, fn {_k, v}, acc -> param_uuids(v, acc) end)
+
+  defp param_uuids(list, acc) when is_list(list), do: Enum.reduce(list, acc, &param_uuids/2)
+
+  defp param_uuids(value, acc) when is_binary(value) do
+    case Ecto.UUID.cast(value) do
+      {:ok, uuid} -> [uuid | acc]
+      :error -> acc
+    end
+  end
+
+  defp param_uuids(_value, acc), do: acc
+
   defp log_readonly_blocked(socket, event) do
     Logger.warning(
       "MediaBrowser id=#{socket.assigns.id}: #{event} blocked — component is readonly"

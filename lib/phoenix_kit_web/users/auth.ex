@@ -1904,6 +1904,10 @@ defmodule PhoenixKitWeb.Users.Auth do
     # "dashboard" access, so landing them here — not "/" — is their first
     # reachable admin page.
     {"notifications", "/admin/notifications"},
+    # A user granted only "storage" uses their own storage libraries. While
+    # user libraries are off that page sends them to their profile settings,
+    # never back to /admin, so this cannot loop.
+    {"storage", "/admin/libraries"},
     # The personal "integrations" key has no /admin page anymore ("My
     # Integrations" moved to /profile/settings/integrations) — a holder of
     # only that key falls through to the skip_admin default below instead.
@@ -2313,6 +2317,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Users.Media => "media",
     PhoenixKitWeb.Live.Users.MediaDetail => "media",
     PhoenixKitWeb.Live.Users.MediaSelector => "media",
+    PhoenixKitWeb.Live.Users.Libraries => "storage",
     PhoenixKitWeb.Live.Settings => "settings",
     PhoenixKitWeb.Live.Settings.Users => "settings",
     PhoenixKitWeb.Live.Settings.Organization => "settings",

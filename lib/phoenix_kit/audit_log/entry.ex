@@ -39,7 +39,9 @@ defmodule PhoenixKit.AuditLog.Entry do
     "user_locked",
     "user_unlocked",
     "role_assigned",
-    "role_revoked"
+    "role_revoked",
+    # An Owner/Admin opened a user's storage library (V203).
+    "storage.library_opened"
   ]
 
   @primary_key {:uuid, UUIDv7, autogenerate: true}

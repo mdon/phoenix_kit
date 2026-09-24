@@ -1,0 +1,172 @@
+defmodule PhoenixKitWeb.Live.Users.Libraries do
+  @moduledoc """
+  A user's storage libraries (V203): `/admin/libraries` lists the ones they
+  own or are a member of, and `/admin/libraries/<slug or uuid>` browses one
+  with `PhoenixKitWeb.Components.MediaBrowser`.
+
+  Gated by the `"storage"` permission, and only while user libraries are on
+  (`Storage.Libraries.may_use_libraries?/1`). A library is named in the URL
+  by its slug when it is the viewer's own and by its uuid when it is shared
+  with them (`Libraries.url_id/2`). A viewer gets the browser read-only.
+  Creating, renaming, members and the default library are managed on the
+  profile's Media tab (`/profile/settings/media`).
+
+  ## Owner and Admin
+
+  An Owner or Admin who is not a member can open a user library by its uuid
+  (from `/admin/storage/libraries`). Every such opening is written to the
+  audit log (`"storage.library_opened"`: who, which library, when, the IP
+  address and the user agent). The `"storage"` permission alone never opens
+  someone else's library.
+  """
+  use PhoenixKitWeb, :live_view
+  use PhoenixKitWeb.Components.MediaBrowser.Embed, url_sync: [id: "library-browser"]
+
+  require Logger
+
+  alias PhoenixKit.AuditLog
+  alias PhoenixKit.Modules.Storage.{Libraries, Library}
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Utils.IpAddress
+  alias PhoenixKit.Utils.Routes
+
+  def mount(params, _session, socket) do
+    {:ok,
+     socket
+     |> assign(:page_title, gettext("Libraries"))
+     |> assign(:project_title, Settings.get_project_title())
+     |> assign(:current_locale, params["locale"] || socket.assigns[:current_locale])
+     |> assign(:url_path, Routes.path("/admin/libraries"))
+     |> assign(:libraries, nil)
+     |> assign(:library, nil)
+     |> assign(:role, nil)
+     # Read here: connect info is only available while mounting.
+     |> assign(:client_ip, IpAddress.extract_from_socket(socket))
+     |> assign(:user_agent, user_agent(socket))}
+  end
+
+  def handle_params(params, _uri, socket) do
+    scope = socket.assigns[:phoenix_kit_current_scope]
+
+    if Libraries.may_use_libraries?(scope) or Scope.system_role?(scope) do
+      socket =
+        if socket.assigns.libraries,
+          do: socket,
+          else: assign(socket, :libraries, Libraries.list_user_libraries(Scope.user_uuid(scope)))
+
+      {:noreply, open(socket, scope, params["library_id"])}
+    else
+      {:noreply,
+       socket
+       |> put_flash(:error, gettext("Libraries are not available"))
+       # Not /admin: a user whose only permission is "storage" is sent from
+       # there to here, so while libraries are off that would loop.
+       |> push_navigate(to: Routes.path("/profile/settings"))}
+    end
+  end
+
+  def handle_event("switch_library", %{"library" => id}, socket) do
+    case Enum.find(socket.assigns.libraries || [], &(url_id(&1.library, socket) == id)) do
+      nil -> {:noreply, socket}
+      %{library: library} -> {:noreply, push_patch(socket, to: library_path(library, socket))}
+    end
+  end
+
+  defp open(socket, _scope, nil) do
+    socket
+    |> assign(:library, nil)
+    |> assign(:role, nil)
+    |> assign(:url_path, Routes.path("/admin/libraries"))
+  end
+
+  # The same library again (a folder patch inside it): nothing to reload,
+  # nothing to log again.
+  defp open(%{assigns: %{library: %Library{} = library}} = socket, _scope, id)
+       when is_binary(id) and (id == library.slug or id == library.uuid),
+       do: socket
+
+  defp open(socket, scope, id) do
+    case Libraries.get_user_library(scope, id) do
+      %{library: library, role: role} ->
+        shown(socket, library, role)
+
+      nil ->
+        case admin_opening(scope, id) do
+          %Library{} = library ->
+            log_admin_opening(socket, scope, library)
+            shown(socket, library, :admin)
+
+          nil ->
+            socket
+            |> put_flash(:error, gettext("Library not found"))
+            |> push_patch(to: Routes.path("/admin/libraries"))
+        end
+    end
+  end
+
+  defp shown(socket, library, role) do
+    socket
+    |> assign(:library, library)
+    |> assign(:role, role)
+    |> assign(:page_title, library.name)
+    |> assign(:url_path, library_path(library, socket))
+  end
+
+  # An Owner/Admin opening someone else's live user library, by uuid only.
+  defp admin_opening(scope, id) do
+    with true <- Scope.system_role?(scope),
+         {:ok, uuid} <- Ecto.UUID.cast(id),
+         %Library{kind: "user", trashed_at: nil} = library <- Libraries.get_library(uuid) do
+      library
+    else
+      _ -> nil
+    end
+  end
+
+  defp log_admin_opening(socket, scope, library) do
+    if connected?(socket) do
+      AuditLog.create_log_entry(%{
+        admin_user_uuid: Scope.user_uuid(scope),
+        target_user_uuid: library.owner_uuid,
+        action: "storage.library_opened",
+        ip_address: socket.assigns.client_ip,
+        user_agent: socket.assigns.user_agent,
+        metadata: %{"library_uuid" => library.uuid, "library_name" => library.name}
+      })
+    end
+  rescue
+    error -> Logger.error("Libraries: audit entry failed: #{Exception.message(error)}")
+  end
+
+  defp user_agent(socket) do
+    if connected?(socket), do: get_connect_info(socket, :user_agent)
+  rescue
+    _ -> nil
+  end
+
+  defp url_id(library, socket),
+    do: Libraries.url_id(library, Scope.user_uuid(socket.assigns[:phoenix_kit_current_scope]))
+
+  @doc false
+  # The path of a library for the viewer (`user_uuid`, or a socket carrying
+  # the scope).
+  def library_path(library, %Phoenix.LiveView.Socket{} = socket),
+    do: Routes.path("/admin/libraries/#{url_id(library, socket)}")
+
+  def library_path(library, user_uuid),
+    do: Routes.path("/admin/libraries/#{Libraries.url_id(library, user_uuid)}")
+
+  @doc false
+  def role_label(:owner), do: gettext("Owner")
+  def role_label(:manager), do: gettext("Manager")
+  def role_label(:contributor), do: gettext("Contributor")
+  def role_label(:viewer), do: gettext("Viewer")
+  def role_label(:admin), do: gettext("Opened as admin")
+  def role_label(_role), do: ""
+
+  @doc false
+  # Only a viewer looks without touching; an Owner/Admin who opened it can
+  # act on it (a takedown is the reason to open one).
+  def readonly?(role), do: role == :viewer
+end

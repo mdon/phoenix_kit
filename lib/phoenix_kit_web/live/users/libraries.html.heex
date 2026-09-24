@@ -1,0 +1,93 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  socket={@socket}
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title={@page_title}
+  page_subtitle={
+    if @library,
+      do: role_label(@role),
+      else: gettext("The libraries you own or are a member of")
+  }
+  current_path={@url_path}
+  project_title={@project_title}
+  current_locale={@current_locale}
+>
+  <%= if @library do %>
+    <div class="flex flex-col w-full h-[calc(100dvh-4rem)]">
+      <div class="flex flex-wrap items-center gap-2 px-4 pb-2">
+        <.pk_link navigate="/admin/libraries" class="btn btn-ghost btn-sm">
+          <.icon name="hero-arrow-left" class="w-4 h-4" /> {gettext("Libraries")}
+        </.pk_link>
+        <form
+          :if={is_list(@libraries) and length(@libraries) > 1 and @role != :admin}
+          id="library-switcher"
+          phx-change="switch_library"
+        >
+          <label for="library-switcher-select" class="sr-only">{gettext("Library")}</label>
+          <select id="library-switcher-select" name="library" class="select select-sm">
+            <option
+              :for={%{library: library} <- @libraries}
+              value={Libraries.url_id(library, @phoenix_kit_current_user.uuid)}
+              selected={library.uuid == @library.uuid}
+            >
+              {library.name}
+            </option>
+          </select>
+        </form>
+      </div>
+
+      <.live_component
+        module={PhoenixKitWeb.Components.MediaBrowser}
+        id="library-browser"
+        library_uuid={@library.uuid}
+        phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
+        readonly={readonly?(@role)}
+        fill_height={true}
+        on_navigate={:navigate}
+        initial_params={@initial_params}
+        parent_uploads={@uploads}
+      />
+    </div>
+  <% else %>
+    <div class="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-4">
+      <div class="flex items-center justify-end">
+        <.pk_link navigate="/profile/settings/media" class="btn btn-sm btn-outline">
+          <.icon name="hero-cog-6-tooth" class="w-4 h-4" /> {gettext("Manage libraries")}
+        </.pk_link>
+      </div>
+
+      <div
+        :if={@libraries == []}
+        id="libraries-empty"
+        class="text-center text-base-content/60 py-12"
+      >
+        {gettext("You have no libraries yet.")}
+      </div>
+
+      <div id="libraries-list" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <.link
+          :for={%{library: library, role: role} <- @libraries || []}
+          id={"library-#{library.uuid}"}
+          patch={library_path(library, @phoenix_kit_current_user.uuid)}
+          class="card bg-base-100 border border-base-300 hover:border-primary transition-colors"
+        >
+          <div class="card-body p-4 gap-1">
+            <div class="flex items-center gap-2">
+              <.icon name="hero-rectangle-stack" class="w-5 h-5 text-primary shrink-0" />
+              <span class="font-semibold truncate">{library.name}</span>
+            </div>
+            <div class="flex flex-wrap gap-1">
+              <span class="badge badge-ghost badge-sm">{role_label(role)}</span>
+              <span
+                :if={library.is_default and role == :owner}
+                class="badge badge-primary badge-sm"
+              >
+                {gettext("Default")}
+              </span>
+            </div>
+          </div>
+        </.link>
+      </div>
+    </div>
+  <% end %>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>

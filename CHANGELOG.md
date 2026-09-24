@@ -14,6 +14,16 @@
   `list_user_libraries/1`, `get_user_library/2`, members
   (`add_member/4`, `update_member_role/4`, `remove_member/3`),
   `trash_library/2`, `set_default_library/2`, `allows?/2`.
+- **Where user libraries are managed and used.** Settings → Media →
+  Libraries gains a **User libraries** card: turn them on, set how many
+  each user may own and how long a private link lasts, and see every user
+  library as metadata (owner, members, files, size, trash). Users manage
+  their libraries and members on a new **Media** tab of their profile
+  settings (`/profile/settings/media`). `/admin/libraries` lists and
+  browses them, for holders of `storage`. It is meant for moderation and
+  testing; `phoenix_kit_photos` is the end-user surface. An Owner or Admin
+  may open any user's library there; every opening is written to the audit
+  log (`storage.library_opened`).
 - **Private serving for user libraries.** A file in a private library is
   served only with a time-window token: an HMAC over the file, the variant
   and an expiry rounded up to a window (`storage_private_url_window_hours`,

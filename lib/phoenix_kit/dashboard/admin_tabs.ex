@@ -13,6 +13,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
 
   alias PhoenixKit.Dashboard.{Group, Tab}
   alias PhoenixKit.ModuleRegistry
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Users.Auth.Scope
 
   # Builder helper to reduce repetition across admin subtab definitions.
@@ -165,6 +166,20 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         permission: "media",
         match: :prefix,
         group: :admin_main,
+        gettext_backend: PhoenixKitWeb.Gettext
+      },
+      # The user's own storage libraries, while user libraries are on.
+      %Tab{
+        id: :admin_libraries,
+        label: gettext_noop("Libraries"),
+        icon: "hero-rectangle-stack",
+        path: "libraries",
+        priority: 310,
+        level: :admin,
+        permission: "storage",
+        match: :prefix,
+        group: :admin_main,
+        visible: &Libraries.may_use_libraries?/1,
         gettext_backend: PhoenixKitWeb.Gettext
       }
     ]
