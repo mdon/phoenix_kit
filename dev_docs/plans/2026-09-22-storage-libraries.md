@@ -969,6 +969,40 @@ All questions were answered by the maintainer, one at a time.
 6. **"Library" everywhere:** core, `phoenix_kit_photos` and Fotki all use
    one word, in the code and in the UI.
 
+### Decisions for V203 (2026-09-24)
+
+7. **User-facing settings move to a tabbed profile page, one URL per tab:**
+   `/profile/settings/{account,security,sessions,notifications,integrations,media}`.
+   A tab shows only when it applies. `/profile/settings` opens the first
+   tab, and `/profile/settings/integrations` keeps its URL. Personal
+   integrations used to be the last section of one long page, shown only to
+   holders of the opt-in `integrations` key, which is why they were hard to
+   find.
+8. **The profile's Media tab holds settings only:** the user's libraries,
+   members and default library. It appears only when user libraries are
+   enabled for the install and the user may have them. **Browsing and
+   uploading is in the admin area, not `/dashboard`** (`/dashboard` is being
+   phased out; signed-in users and admins share `/admin`, whose segment is
+   renameable, so code writes canonical `/admin/...`): `/admin/libraries`
+   lists the user's own libraries and the ones they are a member of, and
+   `/admin/libraries/<slug>` is the MediaBrowser over one of them. The
+   permission that lets a role have user libraries opens the admin area to
+   it, like any other key. `/admin/media` stays the system libraries.
+9. **User-owned storage (V206) is set on the same Media tab**, and only if
+   the host allows it. It is a personal `object_storage` integration used
+   either as the library's **only** storage (a profile with that one
+   bucket as `primary`) or as a **backup** copy (`backup` role next to the
+   system buckets). This needs V205's profiles, so it stays last.
+10. **Deleting a user trashes the libraries they own.** A job then purges
+    them, bytes included, through the normal delete path. Their uploads in
+    system libraries or in other people's libraries stay, with no uploader
+    (FK `SET NULL`).
+11. **V203 is built completely and released once.** It holds private
+    serving, members, user libraries, the profile tabs, `/admin/libraries`,
+    the dedup key swap, the uploader FK, the slug repeat (#871) and the
+    admin metadata page. The maintainer tests it on dev before it is
+    published.
+
 ## 11. Existing bugs found while researching this (independent of the plan)
 
 - `list_files(bucket_uuid: …)` filters on `f.bucket_uuid`, which does not exist

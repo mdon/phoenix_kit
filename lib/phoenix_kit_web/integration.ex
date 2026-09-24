@@ -727,6 +727,10 @@ defmodule PhoenixKitWeb.Integration do
       live "/profile/settings/integrations/new", Live.Integrations.MyIntegrationForm, :new
       live "/profile/settings/integrations/:uuid", Live.Integrations.MyIntegrationForm, :edit
 
+      # The other tabs of the settings page (`ProfileSettingsTabs`). After
+      # the integrations routes, so `integrations` is never taken for a tab.
+      live "/profile/settings/:tab", Live.Users.ProfileSettings, :edit
+
       # Core dashboard routes (conditional on config)
       if unquote(PhoenixKit.Config.user_dashboard_enabled?()) do
         live "/dashboard", Live.Dashboard.Index, :index

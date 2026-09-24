@@ -150,6 +150,10 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
       current_locale={assigns[:current_locale]}
     >
       <div class="px-4 py-6">
+        <PhoenixKitWeb.Components.ProfileSettingsTabs.profile_tabs
+          active="integrations"
+          scope={assigns[:phoenix_kit_current_scope]}
+        />
         <%!-- Connections table --%>
         <div :if={@connections != []}>
           <.table_default

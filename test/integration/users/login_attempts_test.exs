@@ -468,7 +468,8 @@ defmodule PhoenixKit.Integration.Users.LoginAttemptsTest do
         )
       end
 
-      {:ok, _view, html} = live(log_in_user(conn, user), Routes.path("/profile/settings"))
+      {:ok, _view, html} =
+        live(log_in_user(conn, user), Routes.path("/profile/settings/sessions"))
 
       assert html =~ "Failed sign-in attempts"
       assert html =~ "4 attempts"
@@ -481,7 +482,8 @@ defmodule PhoenixKit.Integration.Users.LoginAttemptsTest do
       user = create_user()
       {:ok, _} = Auth.admin_confirm_user(user)
 
-      {:ok, _view, html} = live(log_in_user(conn, user), Routes.path("/profile/settings"))
+      {:ok, _view, html} =
+        live(log_in_user(conn, user), Routes.path("/profile/settings/sessions"))
 
       refute html =~ "Failed sign-in attempts"
     end
@@ -498,7 +500,8 @@ defmodule PhoenixKit.Integration.Users.LoginAttemptsTest do
 
       LoginAttempts.record(bare, user.email, "invalid_credentials")
 
-      {:ok, _view, html} = live(log_in_user(conn, user), Routes.path("/profile/settings"))
+      {:ok, _view, html} =
+        live(log_in_user(conn, user), Routes.path("/profile/settings/sessions"))
 
       assert html =~ "Failed sign-in attempts"
       assert html =~ "from an unrecognized device"

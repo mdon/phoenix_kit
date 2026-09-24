@@ -7,9 +7,10 @@ defmodule PhoenixKitWeb.Live.Users.ProfileSettings do
   `PhoenixKitWeb.Live.Components.UserSettings` LiveComponent (the same one
   parent apps can embed standalone).
 
-  Served at `/profile/settings`, in both the locale-prefixed and prefixless
-  shapes the `locale_scope` macro emits. Replaces `/dashboard/settings`,
-  which still routes but redirects here.
+  Served at `/profile/settings/<tab>` (`PhoenixKitWeb.Components.ProfileSettingsTabs`),
+  in both the locale-prefixed and prefixless shapes the `locale_scope` macro
+  emits; the bare `/profile/settings` opens the first tab. Replaces
+  `/dashboard/settings`, which still routes but redirects here.
 
   Why a page of its own rather than another dashboard tab: the user dashboard
   is optional — a host can compile it out with `user_dashboard_enabled` — so
@@ -26,10 +27,9 @@ defmodule PhoenixKitWeb.Live.Users.ProfileSettings do
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
-  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
 
-  alias PhoenixKitWeb.Live.Components.UserSettings
+  alias PhoenixKitWeb.Components.ProfileSettingsTabs
 
   # Landing from the confirmation link in a change-email message. The token is
   # spent here and the result carried into the page as a message, then the URL
@@ -55,29 +55,34 @@ defmodule PhoenixKitWeb.Live.Users.ProfileSettings do
 
   @impl true
   def mount(_params, session, socket) do
-    scope = socket.assigns[:phoenix_kit_current_scope]
-
-    # `integrations` is the independent personal-connections permission — see
-    # UserSettings.default_sections/0 for why it's opt-in rather than always
-    # on. Everyone else gets the component's own default list unchanged.
-    sections =
-      if scope && Scope.has_module_access?(scope, "integrations") do
-        UserSettings.default_sections() ++ [:integrations]
-      else
-        UserSettings.default_sections()
-      end
-
     {:ok,
      socket
      |> assign(:page_title, gettext("Profile Settings"))
      |> assign(:project_title, Settings.get_project_title())
-     |> assign(:url_path, Routes.path("/profile/settings"))
-     |> assign(:sections, sections)
      # Raw session token of this browser — lets the Active Sessions section
      # mark the current device and keep it signed in on "sign out others".
      |> assign(:current_session_token, session["user_token"])
      |> assign_new(:email_success_message, fn -> nil end)
      |> assign_new(:email_error_message, fn -> nil end)}
+  end
+
+  # The tab comes from the URL. One that is not offered here (unknown, or
+  # the integrations tab, which is a LiveView of its own) goes to the first.
+  @impl true
+  def handle_params(params, _uri, socket) do
+    tab = params["tab"] || ProfileSettingsTabs.default_tab()
+    sections = ProfileSettingsTabs.sections(tab)
+
+    if sections && tab in ProfileSettingsTabs.tab_ids(socket.assigns[:phoenix_kit_current_scope]) do
+      {:noreply,
+       socket
+       |> assign(:tab, tab)
+       |> assign(:sections, sections)
+       |> assign(:url_path, ProfileSettingsTabs.path(tab))}
+    else
+      {:noreply,
+       push_patch(socket, to: ProfileSettingsTabs.path(ProfileSettingsTabs.default_tab()))}
+    end
   end
 
   # Broadcast by the account context whenever this user's row changes (here or

@@ -9,11 +9,17 @@
   current_locale={assigns[:current_locale]}
 >
   <div class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+    <PhoenixKitWeb.Components.ProfileSettingsTabs.profile_tabs
+      active={@tab}
+      scope={assigns[:phoenix_kit_current_scope]}
+    />
+    <%!-- One component per tab: its sections load their data once, on mount. --%>
     <.live_component
       module={PhoenixKitWeb.Live.Components.UserSettings}
-      id="profile-user-settings"
+      id={"profile-user-settings-#{@tab}"}
       user={@phoenix_kit_current_user}
       sections={@sections}
+      return_to={@url_path}
       current_session_token={@current_session_token}
       email_success_message={@email_success_message}
       email_error_message={@email_error_message}

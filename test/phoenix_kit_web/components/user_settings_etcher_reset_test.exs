@@ -98,3 +98,21 @@ defmodule PhoenixKitWeb.Live.Components.UserSettingsEtcherSectionTest do
              "section nobody can reach"
   end
 end
+
+defmodule PhoenixKitWeb.Components.ProfileSettingsTabsSectionsTest do
+  @moduledoc "Every default section is on exactly one profile settings tab."
+
+  use ExUnit.Case, async: true
+
+  alias PhoenixKitWeb.Components.ProfileSettingsTabs
+  alias PhoenixKitWeb.Live.Components.UserSettings
+
+  test "no default section is left off the tabs, and none is on two" do
+    on_tabs = ProfileSettingsTabs.all_sections()
+
+    assert Enum.sort(on_tabs) == Enum.sort(UserSettings.default_sections()),
+           "a section on no tab is one nobody can reach"
+
+    assert on_tabs == Enum.uniq(on_tabs)
+  end
+end

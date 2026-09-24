@@ -1,3 +1,15 @@
+## Unreleased
+
+### Changed
+
+- **Profile settings are split into tabs, one URL per tab:**
+  `/profile/settings/account`, `/security`, `/sessions`, `/notifications`
+  and `/integrations`. A tab shows only when it has something for the
+  user; the bare `/profile/settings` opens Account. Personal integrations,
+  until now the last section of one long page, are their own tab for
+  holders of the `integrations` permission. Embedding the `UserSettings`
+  component is unchanged.
+
 ## 2.38.1 - 2026-09-24
 
 ### Added
