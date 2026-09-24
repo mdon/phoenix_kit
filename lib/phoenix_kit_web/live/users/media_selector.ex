@@ -44,7 +44,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
   require Logger
 
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{File, FileInstance, Folder, URLSigner}
+  alias PhoenixKit.Modules.Storage.{File, FileInstance, Folder, Libraries, URLSigner}
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Format
@@ -358,10 +358,19 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
     # The language and the site's primary language, read once for the batch.
     alt_opts = MediaThumbnail.alt_opts()
 
+    # Files in a private library get time-window URLs; one query for all.
+    private = files |> Enum.map(& &1.library_uuid) |> Libraries.private_among()
+
     files_with_urls =
       Enum.map(files, fn file ->
         instances = Map.get(instances_by_file, file.uuid, [])
-        urls = generate_urls_from_instances(instances, file.uuid)
+
+        urls =
+          generate_urls_from_instances(
+            instances,
+            file.uuid,
+            to_string(file.library_uuid) in private
+          )
 
         %{
           file_uuid: file.uuid,
@@ -388,9 +397,14 @@ defmodule PhoenixKitWeb.Live.Users.MediaSelector do
     {files_with_urls, total_count}
   end
 
-  defp generate_urls_from_instances(instances, file_uuid) do
+  defp generate_urls_from_instances(instances, file_uuid, private?) do
     Enum.reduce(instances, %{}, fn instance, acc ->
-      url = URLSigner.signed_url(file_uuid, instance.variant_name, version: instance)
+      url =
+        URLSigner.signed_url(file_uuid, instance.variant_name,
+          version: instance,
+          private: private?
+        )
+
       Map.put(acc, instance.variant_name, url)
     end)
   end

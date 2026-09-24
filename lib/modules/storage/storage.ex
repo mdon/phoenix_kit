@@ -4208,6 +4208,29 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
+  @doc """
+  The URL of `file`'s `variant` for `scope`, or nil when `scope` may not
+  see the file (`Libraries.can?(scope, file, :read)`). A file in a private
+  library gets a time-window URL (`URLSigner.signed_url/3`'s `:private`);
+  any other the permanent one. Options go to `URLSigner.signed_url/3`
+  (`:version`, `:locale`).
+
+  This is how a module shows a file from a user library: the other URL
+  helpers here (`get_public_url*`, `list_image_set_variants*`) mint the
+  permanent token, which the file route refuses for a private file.
+  """
+  @spec authorized_url(PhoenixKit.Users.Auth.Scope.t() | nil, map(), String.t(), keyword()) ::
+          String.t() | nil
+  def authorized_url(scope, %{uuid: uuid} = file, variant, opts \\ []) when is_binary(variant) do
+    if Libraries.can?(scope, file, :read) do
+      URLSigner.signed_url(
+        to_string(uuid),
+        variant,
+        Keyword.put(opts, :private, Libraries.private_file?(file))
+      )
+    end
+  end
+
   defp signed_file_url(file_uuid, variant_name, instance) do
     URLSigner.signed_url(file_uuid, variant_name, locale: :none, version: instance)
   rescue

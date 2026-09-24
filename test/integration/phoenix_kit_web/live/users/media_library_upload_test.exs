@@ -1,8 +1,9 @@
 defmodule PhoenixKitWeb.Live.Users.MediaLibraryUploadTest do
   @moduledoc """
   Uploading, into a second library, bytes this person already stored in
-  Media. Dedup still returns the Media file; the page must say that,
-  rather than that storage has no buckets.
+  Media. Dedup is per library since V203, so the second library gets its
+  own copy — the page reports an ordinary upload, never a missing bucket
+  or a file that stayed somewhere else.
   """
   use PhoenixKitWeb.ConnCase, async: false
 
@@ -39,7 +40,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaLibraryUploadTest do
     :ok
   end
 
-  test "a duplicate that lives in another library is not reported as a missing bucket", %{
+  test "bytes already in Media are stored again in the other library", %{
     conn: conn
   } do
     {user, _token} = create_admin_user()
@@ -73,8 +74,17 @@ defmodule PhoenixKitWeb.Live.Users.MediaLibraryUploadTest do
     Process.sleep(800)
     html = render(view)
 
-    assert html =~ "another library"
+    refute html =~ "another library"
     refute html =~ "storage bucket"
     assert Storage.get_file(existing.uuid).library_uuid == Libraries.media_uuid()
+
+    assert [copy] =
+             Repo.all(
+               from(f in Storage.File,
+                 where: f.library_uuid == ^library.uuid and f.file_checksum == ^hash
+               )
+             )
+
+    assert copy.uuid != existing.uuid
   end
 end

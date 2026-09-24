@@ -18,6 +18,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   alias PhoenixKit.Modules.Storage.FileInstance
   alias PhoenixKit.Modules.Storage.FileLocation
   alias PhoenixKit.Modules.Storage.ImageEditing
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Modules.Storage.VariantGenerator
   alias PhoenixKit.Settings
@@ -269,7 +270,15 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
 
       file ->
         instances = load_file_instances(file_uuid, repo)
-        urls = generate_urls_from_instances(instances, file_uuid, file.mime_type)
+
+        urls =
+          generate_urls_from_instances(
+            instances,
+            file_uuid,
+            file.mime_type,
+            Libraries.private_file?(file)
+          )
+
         variant_dimensions = build_variant_dimensions(instances)
         locations = load_original_locations(instances, repo)
         tags = (file.metadata || %{})["tags"] || []
@@ -401,14 +410,20 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   end
 
   # Generate URLs from pre-loaded instances (no database query needed)
-  defp generate_urls_from_instances(instances, file_uuid, mime_type) do
+  defp generate_urls_from_instances(instances, file_uuid, mime_type, private?) do
     instances
     |> Enum.reduce(%{}, fn instance, acc ->
-      url = URLSigner.signed_url(file_uuid, instance.variant_name, version: instance)
+      url =
+        URLSigner.signed_url(file_uuid, instance.variant_name,
+          version: instance,
+          private: private?
+        )
+
       Map.put(acc, instance.variant_name, url)
     end)
     |> URLSigner.put_dzi_url(file_uuid, mime_type,
-      version: Enum.find(instances, &(&1.variant_name == "original"))
+      version: Enum.find(instances, &(&1.variant_name == "original")),
+      private: private?
     )
   end
 

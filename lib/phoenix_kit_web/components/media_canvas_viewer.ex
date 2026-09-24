@@ -94,6 +94,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   alias PhoenixKit.Annotations
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.FileDetails
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Format
@@ -581,7 +582,12 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
          %{width: w, height: h} = instance
          when is_integer(w) and w > 0 and is_integer(h) and h > 0 <-
            Storage.get_file_instance_by_name(uuid, variant) do
-      url = URLSigner.signed_url(uuid, variant, version: instance, locale: :none)
+      url =
+        URLSigner.signed_url(uuid, variant,
+          version: instance,
+          locale: :none,
+          private: Libraries.private_file?(Storage.get_file(uuid) || %{})
+        )
 
       {:noreply,
        socket

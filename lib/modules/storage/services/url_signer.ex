@@ -48,6 +48,17 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
 
   A relative URL path with prefix: `{url_prefix}/file/{file_uuid}/{instance_name}/{token}`
 
+  ## Options
+
+  - `:version` - the served instance (or its checksum): see `version/1`
+  - `:locale` - passed to `Routes.path/2` (default `:none`)
+  - `:private` - `true` for a file in a private library
+    (`PhoenixKit.Modules.Storage.Libraries.private?/1`): the URL carries a
+    time-window token instead of the permanent one, and stops working when
+    its window ends. The file route refuses a private file's permanent
+    token. Mint these only after checking that the viewer may see the file
+    (`Storage.authorized_url/4` does both).
+
   ## Examples
 
       iex> PhoenixKit.Modules.Storage.URLSigner.signed_url("018e3c4a-9f6b-7890", "thumbnail")
@@ -55,7 +66,7 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
   """
   def signed_url(file_uuid, instance_name, opts \\ [])
       when is_binary(file_uuid) and is_binary(instance_name) do
-    token = generate_token(file_uuid, instance_name)
+    token = url_token(file_uuid, instance_name, opts)
     file_path = "/file/#{file_uuid}/#{instance_name}/#{token}"
     locale_option = Keyword.get(opts, :locale, :none)
     path = Routes.path(file_path, locale: locale_option)
@@ -84,6 +95,105 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
     do: checksum |> binary_part(0, 16) |> String.downcase()
 
   def version(_), do: nil
+
+  # A private library's file gets a time-window token; everything else keeps
+  # the permanent one.
+  defp url_token(file_uuid, instance_name, opts) do
+    if Keyword.get(opts, :private, false),
+      do: private_token(file_uuid, instance_name, window_end(System.os_time(:second))),
+      else: generate_token(file_uuid, instance_name)
+  end
+
+  # ============================================================================
+  # Time-window tokens, for files in a private library (V203)
+  # ============================================================================
+  #
+  # `w<expiry in base 36>-<HMAC>`: an HMAC-SHA256 (keyed from
+  # `secret_key_base`) over the file uuid, the variant and the expiry. The
+  # expiry is rounded UP to a fixed window (`private_url_window_seconds/0`),
+  # so within one window the same image has the same URL and browser caches
+  # keep working; and it is taken at least a quarter of a window ahead, so a
+  # URL is never handed out with only minutes left. A legacy token is four
+  # hex digits and never starts with `w`.
+
+  @doc """
+  Whether `token` has the time-window shape (it may still be wrong or
+  expired: see `verify_private_token/4`).
+  """
+  @spec private_token?(term()) :: boolean()
+  def private_token?("w" <> rest), do: String.contains?(rest, "-")
+  def private_token?(_token), do: false
+
+  @doc """
+  The time-window token for a file instance, expiring at `expires_at` (unix
+  seconds). Without a `secret_key_base` there is nothing to key it with, and
+  the token is one no check accepts.
+  """
+  @spec private_token(String.t(), String.t(), integer()) :: String.t()
+  def private_token(file_uuid, instance_name, expires_at) when is_integer(expires_at) do
+    case private_mac(file_uuid, instance_name, expires_at) do
+      nil -> "w0-"
+      mac -> "w" <> Integer.to_string(expires_at, 36) <> "-" <> mac
+    end
+  end
+
+  @doc """
+  Checks a time-window token: `:ok`, `:expired` (a real token whose window
+  has passed), or `:invalid`.
+  """
+  @spec verify_private_token(String.t(), String.t(), String.t(), integer()) ::
+          :ok | :expired | :invalid
+  def verify_private_token(file_uuid, instance_name, token, now \\ System.os_time(:second))
+
+  def verify_private_token(file_uuid, instance_name, "w" <> rest, now)
+      when is_binary(file_uuid) and is_binary(instance_name) do
+    with [encoded, mac] <- String.split(rest, "-", parts: 2),
+         {expires_at, ""} <- Integer.parse(encoded, 36),
+         expected when is_binary(expected) <- private_mac(file_uuid, instance_name, expires_at),
+         true <- Plug.Crypto.secure_compare(expected, mac) do
+      if expires_at > now, do: :ok, else: :expired
+    else
+      _ -> :invalid
+    end
+  end
+
+  def verify_private_token(_file_uuid, _instance_name, _token, _now), do: :invalid
+
+  @doc """
+  How long one private URL window is, in seconds: the
+  `storage_private_url_window_hours` setting (default 12, at least 1).
+  """
+  @spec private_url_window_seconds() :: pos_integer()
+  def private_url_window_seconds do
+    hours = Settings.get_integer_setting("storage_private_url_window_hours", 12)
+    max(hours, 1) * 3600
+  end
+
+  @doc """
+  The expiry a URL minted at `now` gets: `now` plus at least a quarter of a
+  window, rounded up to the end of that window.
+  """
+  @spec window_end(integer(), pos_integer()) :: integer()
+  def window_end(now, window \\ private_url_window_seconds()) do
+    (div(now + div(window, 4), window) + 1) * window
+  end
+
+  defp private_mac(file_uuid, instance_name, expires_at) do
+    case get_secret_key_base() do
+      secret when is_binary(secret) and secret != "" ->
+        :hmac
+        |> :crypto.mac(
+          :sha256,
+          secret,
+          "phoenix_kit_file:#{file_uuid}:#{instance_name}:#{expires_at}"
+        )
+        |> binary_part(0, 16)
+        |> Base.url_encode64(padding: false)
+
+      _ ->
+        nil
+    end
+  end
 
   @doc """
   Verify a token is valid for the given file and instance.
@@ -180,7 +290,7 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
       when is_map(urls) and is_binary(file_uuid) do
     if is_binary(mime_type) and String.starts_with?(mime_type, "image/") and
          tile_generation_enabled?() do
-      token = generate_token(file_uuid, "dzi")
+      token = url_token(file_uuid, "dzi", opts)
 
       stem =
         case version(Keyword.get(opts, :version)) do

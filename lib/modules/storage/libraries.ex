@@ -281,6 +281,58 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   @doc """
+  Whether files in a library are private (`visibility: "private"`, every
+  user library): their URLs carry a time-window token and are never
+  answered with a redirect to a public object URL. Media is answered
+  without a query; anything that is not a library is not private.
+  """
+  @spec private?(term()) :: boolean()
+  def private?(nil), do: false
+
+  def private?(uuid) do
+    if media?(uuid) do
+      false
+    else
+      case Ecto.UUID.cast(uuid) do
+        {:ok, uuid} ->
+          repo().exists?(from(l in Library, where: l.uuid == ^uuid and l.visibility == "private"))
+
+        :error ->
+          false
+      end
+    end
+  end
+
+  @doc """
+  Which of `library_uuids` are private, in one query — for a page that
+  builds URLs for many files at once.
+  """
+  @spec private_among([term()]) :: [String.t()]
+  def private_among(library_uuids) do
+    uuids =
+      library_uuids
+      |> Enum.reject(&(is_nil(&1) or media?(&1)))
+      |> Enum.map(&to_string/1)
+      |> Enum.uniq()
+
+    if uuids == [] do
+      []
+    else
+      from(l in Library,
+        where: l.uuid in ^uuids and l.visibility == "private",
+        select: l.uuid
+      )
+      |> repo().all()
+      |> Enum.map(&to_string/1)
+    end
+  end
+
+  @doc "Whether `file` (anything with a `library_uuid`) is in a private library."
+  @spec private_file?(map()) :: boolean()
+  def private_file?(%{library_uuid: library_uuid}), do: private?(library_uuid)
+  def private_file?(_file), do: false
+
+  @doc """
   Whether `scope` may do `action` to `file`. One predicate for every
   per-file check, so they stop drifting apart:
 

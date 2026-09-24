@@ -60,7 +60,7 @@ defmodule PhoenixKitWeb.FileController do
   """
   def show(conn, %{"file_uuid" => file_uuid, "variant" => variant, "token" => token} = params) do
     with {:ok, file} <- get_servable_file(conn, file_uuid),
-         :ok <- verify_token(file_uuid, variant, token) do
+         :ok <- verify_file_token(file, variant, token) do
       if ImageEditing.edit_in_progress?(file) do
         serve_edit_placeholder(conn, file)
       else
@@ -72,6 +72,14 @@ defmodule PhoenixKitWeb.FileController do
         |> no_store()
         |> put_status(:unauthorized)
         |> text("Invalid or expired token")
+
+      # A private file's URL whose window has passed: never the file. The
+      # page that showed it mints a new URL when it renders again.
+      {:error, :expired_token} ->
+        conn
+        |> no_store()
+        |> put_status(:forbidden)
+        |> text("This link has expired")
 
       {:error, :not_found} ->
         conn
@@ -96,10 +104,12 @@ defmodule PhoenixKitWeb.FileController do
   # holds now; any other version is redirected to the current one, never
   # answered with different bytes under the same URL.
   defp serve_variant(conn, file, variant, requested_version) do
+    private? = Libraries.private_file?(file)
+
     with {:ok, instance, freshness} <- get_file_instance(file.uuid, variant),
          :ok <- check_version(instance, freshness, requested_version),
-         result <- get_file_access(file, instance) do
-      cache = cache_mode(file, freshness, requested_version)
+         result <- file |> get_file_access(instance) |> keep_private(private?) do
+      cache = if private?, do: :private_file, else: cache_mode(file, freshness, requested_version)
 
       case result do
         {:local, file_path} ->
@@ -134,6 +144,9 @@ defmodule PhoenixKitWeb.FileController do
           |> put_resp_header("cache-control", "private, no-store")
           |> redirect(external: url)
 
+        {:proxy, :private} ->
+          proxy_remote_file(conn, file, instance, instance.file_name, cache)
+
         {:proxy, file_name} ->
           proxy_remote_file(conn, file, instance, file_name, cache)
 
@@ -149,7 +162,12 @@ defmodule PhoenixKitWeb.FileController do
       end
     else
       {:stale_version, instance} ->
-        current = URLSigner.signed_url(file.uuid, variant, version: instance, locale: :none)
+        current =
+          URLSigner.signed_url(file.uuid, variant,
+            version: instance,
+            locale: :none,
+            private: private?
+          )
 
         conn
         |> put_resp_header("cache-control", "no-store")
@@ -161,6 +179,12 @@ defmodule PhoenixKitWeb.FileController do
         |> text("File or variant not found")
     end
   end
+
+  # A private file is never answered with a redirect to a public object
+  # URL, which anyone could keep and pass on: it is proxied instead. A
+  # signed redirect (short-lived, made for this request) is fine.
+  defp keep_private({:redirect, _url}, true), do: {:proxy, :private}
+  defp keep_private(result, _private?), do: result
 
   defp check_version(_instance, _freshness, nil), do: :ok
   defp check_version(_instance, :pending, _requested), do: :ok
@@ -546,10 +570,15 @@ defmodule PhoenixKitWeb.FileController do
     details = info_details(file, locale)
     file_uuid = file.uuid
     instances = Storage.list_file_instances(file_uuid)
+    private? = Libraries.private_file?(file)
 
     variant_urls =
       Enum.map(instances, fn instance ->
-        url = URLSigner.signed_url(file_uuid, instance.variant_name, version: instance)
+        url =
+          URLSigner.signed_url(file_uuid, instance.variant_name,
+            version: instance,
+            private: private?
+          )
 
         %{
           variant_name: instance.variant_name,
@@ -613,8 +642,7 @@ defmodule PhoenixKitWeb.FileController do
   def serve_manifest(conn, %{"token" => token, "dzi_filename" => filename}) do
     with true <- tile_generation_enabled?(),
          {:ok, file_uuid, requested} <- parse_manifest_filename(filename),
-         :ok <- verify_tile_token(file_uuid, token),
-         :ok <- ensure_tile_servable(conn, file_uuid),
+         :ok <- ensure_tile_servable(conn, file_uuid, token),
          {:ok, source} <- tile_source(file_uuid, requested),
          :ok <- ensure_manifest_cached(source),
          {:ok, body} <- read_tile_storage(source.base <> ".dzi") do
@@ -654,8 +682,7 @@ defmodule PhoenixKitWeb.FileController do
     with true <- tile_generation_enabled?(),
          {:ok, file_uuid, requested, tile} <-
            parse_tile_path(files_segment, level, tile_filename),
-         :ok <- verify_tile_token(file_uuid, token),
-         :ok <- ensure_tile_servable(conn, file_uuid),
+         :ok <- ensure_tile_servable(conn, file_uuid, token),
          {:ok, source} <- tile_source(file_uuid, requested),
          {level_int, col, row, ext} = tile,
          key = "#{source.base}_files/#{level_int}/#{col}_#{row}.#{ext}",
@@ -678,12 +705,16 @@ defmodule PhoenixKitWeb.FileController do
   # `verify_token/3`); the "dzi" variant name is distinct from the
   # storage variants ("original" / "small" / "medium" / "large") so a
   # leaked file-serving token doesn't grant tile access and vice versa.
-  defp verify_tile_token(file_uuid, token) do
-    if URLSigner.verify_token(file_uuid, "dzi", token) do
-      :ok
-    else
-      {:error, :unauthorized}
-    end
+  #
+  # A file in a private library takes only a time-window token, like
+  # `/file/...`.
+  defp verify_tile_token(file, token) do
+    valid? =
+      if Libraries.private_file?(file),
+        do: URLSigner.verify_private_token(file.uuid, "dzi", token) == :ok,
+        else: URLSigner.verify_token(file.uuid, "dzi", token)
+
+    if valid?, do: :ok, else: {:error, :unauthorized}
   end
 
   defp tile_generation_enabled? do
@@ -701,21 +732,22 @@ defmodule PhoenixKitWeb.FileController do
 
   # Same gate as `/file/...`: a trashed file's tiles are for a "media" holder.
   # Checked before any tile is generated, so a stranger cannot cause the work.
-  defp ensure_tile_servable(conn, file_uuid) do
+  defp ensure_tile_servable(conn, file_uuid, token) do
     case Storage.get_file(file_uuid) do
-      nil ->
-        {:error, :not_found}
+      # As before any file was private: the token is checked first, so a
+      # wrong one is a 401 whether or not the file exists.
+      missing when is_nil(missing) or missing.system_managed ->
+        if URLSigner.verify_token(file_uuid, "dzi", token),
+          do: {:error, :not_found},
+          else: {:error, :unauthorized}
 
-      %{system_managed: true} ->
-        {:error, :not_found}
-
-      %{status: "trashed"} ->
-        if authorize_trashed_read(conn.assigns[:phoenix_kit_current_user]),
-          do: :ok,
-          else: {:error, :not_found}
-
-      _file ->
-        :ok
+      file ->
+        with :ok <- verify_tile_token(file, token) do
+          if file.status == "trashed" and
+               not authorize_trashed_read(conn.assigns[:phoenix_kit_current_user]),
+             do: {:error, :not_found},
+             else: :ok
+        end
     end
   end
 
@@ -1045,11 +1077,19 @@ defmodule PhoenixKitWeb.FileController do
       :error
   end
 
-  defp verify_token(file_uuid, variant, token) do
-    if URLSigner.verify_token(file_uuid, variant, token) do
-      :ok
+  # A file in a private library takes only a time-window token (its
+  # permanent one is refused); every other file only the permanent one.
+  defp verify_file_token(file, variant, token) do
+    if Libraries.private_file?(file) do
+      case URLSigner.verify_private_token(file.uuid, variant, token) do
+        :ok -> :ok
+        :expired -> {:error, :expired_token}
+        :invalid -> {:error, :invalid_token}
+      end
     else
-      {:error, :invalid_token}
+      if URLSigner.verify_token(file.uuid, variant, token),
+        do: :ok,
+        else: {:error, :invalid_token}
     end
   end
 
@@ -1195,6 +1235,14 @@ defmodule PhoenixKitWeb.FileController do
   def put_variant_cache_headers(conn, _instance, :private),
     do: put_resp_header(conn, "cache-control", "private, no-store")
 
+  # A file in a private library: the browser may keep it, a shared cache
+  # never (the response is one person's photo, whatever the URL).
+  def put_variant_cache_headers(conn, instance, :private_file) do
+    conn
+    |> put_resp_header("cache-control", "private, max-age=3600")
+    |> put_resp_header("etag", ~s("#{instance.checksum}"))
+  end
+
   # `:exact` is the long lifetime a versioned URL gets.
   def put_variant_cache_headers(conn, instance, :exact),
     do: put_variant_cache_headers(conn, instance, :immutable)
@@ -1223,7 +1271,7 @@ defmodule PhoenixKitWeb.FileController do
   defp put_redirect_cache_headers(conn, :revalidate),
     do: put_resp_header(conn, "cache-control", "no-store")
 
-  defp put_redirect_cache_headers(conn, :private),
+  defp put_redirect_cache_headers(conn, mode) when mode in [:private, :private_file],
     do: put_resp_header(conn, "cache-control", "private, no-store")
 
   defp put_redirect_cache_headers(conn, _cache), do: conn

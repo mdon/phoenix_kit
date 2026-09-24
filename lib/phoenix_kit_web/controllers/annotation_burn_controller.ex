@@ -263,7 +263,12 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
                  width: instance.width,
                  height: instance.height,
                  size: instance.size,
-                 url: URLSigner.signed_url(file.uuid, variant, version: instance, locale: :none)
+                 url:
+                   URLSigner.signed_url(file.uuid, variant,
+                     version: instance,
+                     locale: :none,
+                     private: Libraries.private_file?(file)
+                   )
                }
                | acc
              ]}

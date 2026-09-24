@@ -14,6 +14,16 @@
   `list_user_libraries/1`, `get_user_library/2`, members
   (`add_member/4`, `update_member_role/4`, `remove_member/3`),
   `trash_library/2`, `set_default_library/2`, `allows?/2`.
+- **Private serving for user libraries.** A file in a private library is
+  served only with a time-window token: an HMAC over the file, the variant
+  and an expiry rounded up to a window (`storage_private_url_window_hours`,
+  default 12), so a URL stays the same, and cacheable in the browser,
+  within its window. Its permanent token is refused, an expired one is a
+  403, a public bucket is proxied instead of redirected to, and the
+  response is `private` (never kept by a shared cache). Core's media pages
+  mint these URLs themselves; a module showing a user library's file calls
+  the new `Storage.authorized_url/4`, which checks access first. Files in
+  Media are served exactly as before.
 - **Dedup is per library.** The same person may keep the same file in
   Media and in a library of their own; within one library it is still
   stored once. Files in Media keep the key they had.

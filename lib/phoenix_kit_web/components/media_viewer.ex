@@ -36,6 +36,7 @@ defmodule PhoenixKitWeb.Components.MediaViewer do
   require Logger
 
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.URLSigner
 
   @impl true
@@ -117,10 +118,15 @@ defmodule PhoenixKitWeb.Components.MediaViewer do
         instances = safe(fn -> Storage.list_file_instances(file_uuid) end, [])
         original = Enum.find(instances, &(&1.variant_name == "original"))
 
+        private? = Libraries.private_file?(file)
+
         urls =
           file_uuid
-          |> signed_urls(instances)
-          |> URLSigner.put_dzi_url(file_uuid, file.mime_type, version: original)
+          |> signed_urls(instances, private?)
+          |> URLSigner.put_dzi_url(file_uuid, file.mime_type,
+            version: original,
+            private: private?
+          )
 
         %{
           file_uuid: file.uuid,
@@ -136,10 +142,15 @@ defmodule PhoenixKitWeb.Components.MediaViewer do
     end
   end
 
-  defp signed_urls(file_uuid, instances) do
+  defp signed_urls(file_uuid, instances, private?) do
     Enum.reduce(instances, %{}, fn instance, acc ->
       case safe(
-             fn -> URLSigner.signed_url(file_uuid, instance.variant_name, version: instance) end,
+             fn ->
+               URLSigner.signed_url(file_uuid, instance.variant_name,
+                 version: instance,
+                 private: private?
+               )
+             end,
              nil
            ) do
         nil -> acc

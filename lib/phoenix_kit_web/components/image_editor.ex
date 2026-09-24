@@ -51,6 +51,7 @@ defmodule PhoenixKitWeb.Components.ImageEditor do
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.ImageEdit
   alias PhoenixKit.Modules.Storage.ImageEditing
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKitWeb.FileController
@@ -184,7 +185,10 @@ defmodule PhoenixKitWeb.Components.ImageEditor do
           Storage.get_file_instance_by_name(file.uuid, "original")
 
       instance &&
-        URLSigner.signed_url(file.uuid, instance.variant_name, version: instance)
+        URLSigner.signed_url(file.uuid, instance.variant_name,
+          version: instance,
+          private: Libraries.private_file?(file)
+        )
     end
   end
 

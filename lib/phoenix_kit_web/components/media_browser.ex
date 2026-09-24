@@ -179,6 +179,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.FileInstance
   alias PhoenixKit.Modules.Storage.ImageEditing
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
@@ -4247,11 +4248,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # The language and the site's primary language, read once for the batch.
     alt_opts = MediaThumbnail.alt_opts()
 
+    # Files in a private library get time-window URLs; one query for all.
+    private = files |> Enum.map(& &1.library_uuid) |> Libraries.private_among()
+
     Enum.map(files, fn file ->
       instances = Map.get(instances_by_file, file.uuid, [])
 
       urls =
-        generate_urls_from_instances(instances, file.uuid, file.mime_type, annotated_enabled?)
+        generate_urls_from_instances(instances, file.uuid, file.mime_type,
+          annotated_enabled?: annotated_enabled?,
+          private: to_string(file.library_uuid) in private
+        )
 
       variant_widths = generate_widths_from_instances(instances)
 
@@ -4519,7 +4526,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Style / icon helpers
   # ──────────────────────────────────────────────────────────────
 
-  defp generate_urls_from_instances(instances, file_uuid, mime_type, annotated_enabled?) do
+  defp generate_urls_from_instances(instances, file_uuid, mime_type, opts) do
+    annotated_enabled? = Keyword.fetch!(opts, :annotated_enabled?)
+    private? = Keyword.fetch!(opts, :private)
+
     # For images, `put_dzi_url/3` adds a `"dzi"` manifest URL when tile
     # generation is enabled (shared with the detail page + lightbox so all
     # viewers wire deep zoom identically). Manifest + tiles are generated
@@ -4533,10 +4543,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # adds the variant's checksum, so a re-baked `thumbnail_annotated` or an
     # edited image gets a new URL instead of a stale cached one.
     |> Enum.reduce(%{}, fn instance, acc ->
-      url = URLSigner.signed_url(file_uuid, instance.variant_name, version: instance)
+      url =
+        URLSigner.signed_url(file_uuid, instance.variant_name,
+          version: instance,
+          private: private?
+        )
+
       Map.put(acc, instance.variant_name, url)
     end)
-    |> URLSigner.put_dzi_url(file_uuid, mime_type, version: original_instance(instances))
+    |> URLSigner.put_dzi_url(file_uuid, mime_type,
+      version: original_instance(instances),
+      private: private?
+    )
   end
 
   defp original_instance(instances), do: Enum.find(instances, &(&1.variant_name == "original"))
