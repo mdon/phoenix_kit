@@ -14144,7 +14144,7 @@ msgstr "Nouvelle adresse e-mail"
 #: lib/phoenix_kit_web/components/core/pagination.ex:120
 #, elixir-autogen, elixir-format
 msgid "No %{noun}"
-msgstr "Aucun %{noun}"
+msgstr "Pas de %{noun}"
 
 #: lib/phoenix_kit_web/components/core/pagination.ex:283
 #, elixir-autogen, elixir-format

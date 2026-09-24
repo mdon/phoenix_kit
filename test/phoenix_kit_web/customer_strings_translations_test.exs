@@ -69,5 +69,20 @@ defmodule PhoenixKitWeb.CustomerStringsTranslationsTest do
                Gettext.gettext(@backend, "Rows per page")
              end) == "Lignes par page"
     end
+
+    # `%{noun}` is always bound to the PLURAL noun (`@noun_plural`, default
+    # "results" -> "résultats"/"Ergebnisse"), so the translation must agree
+    # in number with a plural — not read like "Aucun résultats".
+    test "German: 'No %{noun}' agrees with the plural noun callers pass" do
+      assert Gettext.with_locale(@backend, "de", fn ->
+               Gettext.gettext(@backend, "No %{noun}", noun: Gettext.gettext(@backend, "results"))
+             end) == "Keine Ergebnisse"
+    end
+
+    test "French: 'No %{noun}' agrees with the plural noun callers pass" do
+      assert Gettext.with_locale(@backend, "fr", fn ->
+               Gettext.gettext(@backend, "No %{noun}", noun: Gettext.gettext(@backend, "results"))
+             end) == "Pas de résultats"
+    end
   end
 end
