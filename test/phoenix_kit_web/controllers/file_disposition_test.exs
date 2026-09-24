@@ -45,11 +45,17 @@ defmodule PhoenixKitWeb.FileDispositionTest do
     assert branch =~ ~s|"cache-control", "private, no-store"|
   end
 
-  describe "content_disposition/2" do
-    defp disposition(name, mime \\ "application/zip") do
+  describe "content_disposition/3" do
+    defp disposition(name, mime \\ "application/zip", opts \\ []) do
       FileController.content_disposition(
         %{original_file_name: name},
-        %{mime_type: mime, file_name: "ab/cd/abcd_original.zip"}
+        %{
+          mime_type: mime,
+          file_name: "ab/cd/abcd_original.zip",
+          variant_name: Keyword.get(opts, :variant),
+          ext: Keyword.get(opts, :ext)
+        },
+        Keyword.get(opts, :force_attachment, false)
       )
     end
 
@@ -80,6 +86,44 @@ defmodule PhoenixKitWeb.FileDispositionTest do
 
     test "no original name falls back to the stored key's basename" do
       assert disposition(nil) =~ ~s(filename="abcd_original.zip")
+    end
+
+    test "each variant is named for the copy it is, not just the picture" do
+      # Every variant used to answer with the uploader's own filename, so a
+      # browser saving three of them wrote `photo.jpg`, `photo (1).jpg`,
+      # `photo (2).jpg` — the numbers are the desktop disambiguating names
+      # the server made identical, and none of them says which resolution.
+      for {variant, expected} <- [
+            {"original", "photo-original.jpg"},
+            {"large", "photo-large.jpg"},
+            {"medium", "photo-medium.jpg"},
+            {"burned_large", "photo-large-annotated.jpg"},
+            {"burned", "photo-medium-annotated.jpg"}
+          ] do
+        assert disposition("photo.jpg", "image/jpeg", variant: variant, ext: "jpg") =~
+                 ~s(filename="#{expected}"),
+               variant
+      end
+    end
+
+    test "the extension comes from the stored copy, not the picture's name" do
+      # A burn is a JPEG even where the picture it was drawn on is a PNG.
+      assert disposition("shot.png", "image/jpeg", variant: "burned", ext: "jpg") =~
+               ~s(filename="shot-medium-annotated.jpg")
+    end
+
+    test "a download asks for attachment even where the type shows in place" do
+      # `?dl=1`. An image is answered `inline` for every <img> on the site,
+      # which is wrong for a link someone clicked to SAVE — and on an
+      # install that redirects to a bucket, the link's own `download`
+      # attribute is dropped, so this header is the only thing left.
+      assert disposition("photo.jpg", "image/jpeg", variant: "large", ext: "jpg") =~ ~r/^inline; /
+
+      assert disposition("photo.jpg", "image/jpeg",
+               variant: "large",
+               ext: "jpg",
+               force_attachment: true
+             ) =~ ~r/^attachment; /
     end
   end
 end

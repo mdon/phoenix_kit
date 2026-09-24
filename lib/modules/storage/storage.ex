@@ -125,6 +125,45 @@ defmodule PhoenixKit.Modules.Storage do
   # ===== MODULE STATUS =====
 
   @doc """
+  What a downloaded copy of `file` should be called, for `variant`.
+
+  Every variant of a picture used to answer with the uploader's own
+  filename, so a browser saving three of them ended up with `photo.jpg`,
+  `photo (1).jpg`, `photo (2).jpg` — three files whose only difference was
+  a number the desktop assigned, and nothing to say which was which.
+
+  The name says which copy it is: `photo-large.jpg`, `photo-original.jpg`,
+  and for the copies with the annotations drawn in,
+  `photo-large-annotated.jpg`. `ext` comes from the stored instance rather
+  than from the URL — a signed URL ends in a token, and a burn is a JPEG
+  even where the picture it was drawn on is a PNG.
+  """
+  @spec download_name(String.t() | nil, String.t() | nil, String.t() | nil) :: String.t()
+  def download_name(file_name, variant, ext) do
+    base =
+      (file_name || "download")
+      |> Path.basename()
+      |> Path.rootname()
+
+    ext =
+      case ext do
+        "." <> _ = dotted -> dotted
+        e when is_binary(e) and e != "" -> "." <> e
+        _ -> Path.extname(file_name || "")
+      end
+
+    base <> download_suffix(variant) <> ext
+  end
+
+  # The burn slots are named by what they are — a size, with the markup in
+  # it — rather than by the slot that holds them.
+  defp download_suffix("burned"), do: "-medium-annotated"
+  defp download_suffix("burned_large"), do: "-large-annotated"
+  defp download_suffix("thumbnail_annotated"), do: "-thumbnail-annotated"
+  defp download_suffix(variant) when is_binary(variant) and variant != "", do: "-" <> variant
+  defp download_suffix(_), do: ""
+
+  @doc """
   Checks if the Storage module is enabled.
 
   This module is always enabled and cannot be disabled.

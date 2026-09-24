@@ -64,7 +64,7 @@ defmodule PhoenixKitWeb.FileController do
       if ImageEditing.edit_in_progress?(file) do
         serve_edit_placeholder(conn, file)
       else
-        serve_variant(conn, file, variant, params["v"])
+        serve_variant(conn, file, variant, params["v"], download?(params))
       end
     else
       {:error, :invalid_token} ->
@@ -95,15 +95,23 @@ defmodule PhoenixKitWeb.FileController do
   # is served (and cached for good) only while it names the bytes the variant
   # holds now; any other version is redirected to the current one, never
   # answered with different bytes under the same URL.
-  defp serve_variant(conn, file, variant, requested_version) do
+  # `?dl=1` — the details page's download links. Images are answered
+  # `inline` by default, which is right for every <img> on the site and
+  # wrong for a link someone clicked to SAVE: a response that redirects to
+  # a bucket carries its own disposition, and an inline one opens the
+  # picture in a tab instead of downloading it. The link's `download`
+  # attribute cannot help there — a browser drops it across origins.
+  defp download?(params), do: params["dl"] in ["1", "true"]
+
+  defp serve_variant(conn, file, variant, requested_version, download?) do
     with {:ok, instance, freshness} <- get_file_instance(file.uuid, variant),
          :ok <- check_version(instance, freshness, requested_version),
-         result <- get_file_access(file, instance) do
+         result <- get_file_access(file, instance, download?) do
       cache = cache_mode(file, freshness, requested_version)
 
       case result do
         {:local, file_path} ->
-          serve_file(conn, file, instance, file_path, cache)
+          serve_file(conn, file, instance, file_path, cache, download?)
 
         {:redirect, url} ->
           # A pending variant redirects to the ORIGINAL's storage URL. The
@@ -122,7 +130,7 @@ defmodule PhoenixKitWeb.FileController do
             |> put_redirect_cache_headers(cache)
             |> redirect(external: url)
           else
-            proxy_remote_file(conn, file, instance, instance.file_name, cache)
+            proxy_remote_file(conn, file, instance, instance.file_name, cache, download?)
           end
 
         {:signed_redirect, url} ->
@@ -135,7 +143,7 @@ defmodule PhoenixKitWeb.FileController do
           |> redirect(external: url)
 
         {:proxy, file_name} ->
-          proxy_remote_file(conn, file, instance, file_name, cache)
+          proxy_remote_file(conn, file, instance, file_name, cache, download?)
 
         {:error, :not_found} ->
           conn
@@ -1057,13 +1065,13 @@ defmodule PhoenixKitWeb.FileController do
   # Returns {:local, path} | {:redirect, url} | {:proxy, file_name} | {:error, reason}
   # A file this app would never show in place asks the bucket for the same
   # headers the app itself would send, so a public bucket cannot render it.
-  defp get_file_access(file, instance) do
+  defp get_file_access(file, instance, download?) do
     opts =
-      if disposition_for(instance.mime_type) == "inline",
+      if disposition_for(instance.mime_type) == "inline" and not download?,
         do: [],
         else: [
           download: [
-            disposition: content_disposition(file, instance),
+            disposition: content_disposition(file, instance, download?),
             content_type: content_type(instance)
           ]
         ]
@@ -1107,14 +1115,14 @@ defmodule PhoenixKitWeb.FileController do
   # bytes for this URL, and the URL is permanent. Sending the original's ETag
   # would be worse still — a later conditional request for the real variant
   # would match it and get a 304 for an image the client never received.
-  defp serve_file(conn, file, instance, file_path, :pending) do
+  defp serve_file(conn, file, instance, file_path, :pending, download?) do
     conn
     |> put_variant_cache_headers(instance, :pending)
-    |> put_content_headers(file, instance)
+    |> put_content_headers(file, instance, download?)
     |> send_file(200, file_path)
   end
 
-  defp serve_file(conn, file, instance, file_path, cache) do
+  defp serve_file(conn, file, instance, file_path, cache, download?) do
     etag = ~s("#{instance.checksum}")
 
     if etag in Plug.Conn.get_req_header(conn, "if-none-match") do
@@ -1124,7 +1132,7 @@ defmodule PhoenixKitWeb.FileController do
     else
       conn
       |> put_variant_cache_headers(instance, cache)
-      |> put_content_headers(file, instance)
+      |> put_content_headers(file, instance, download?)
       |> send_file(200, file_path)
     end
   end
@@ -1147,10 +1155,10 @@ defmodule PhoenixKitWeb.FileController do
       else: "attachment"
   end
 
-  defp put_content_headers(conn, file, instance) do
+  defp put_content_headers(conn, file, instance, download?) do
     conn
     |> put_resp_header("x-content-type-options", "nosniff")
-    |> put_resp_header("content-disposition", content_disposition(file, instance))
+    |> put_resp_header("content-disposition", content_disposition(file, instance, download?))
     |> put_resp_content_type(instance.mime_type)
   end
 
@@ -1164,12 +1172,27 @@ defmodule PhoenixKitWeb.FileController do
   # raise, and a non-ASCII byte is not valid in a header. The quoted
   # `filename` is an ASCII stand-in; `filename*` (RFC 6266 / 5987) carries
   # the real name, which every current browser prefers.
-  def content_disposition(file, instance) do
-    name =
+  def content_disposition(file, instance, force_attachment? \\ false) do
+    uploaded =
       case file.original_file_name do
         name when is_binary(name) and name != "" -> name
         _ -> Path.basename(to_string(instance.file_name))
       end
+
+    # Which COPY this is, not just which picture. Every variant used to
+    # answer with the uploader's own filename, so a browser saving three of
+    # them wrote `photo.jpg`, `photo (1).jpg`, `photo (2).jpg` — the numbers
+    # are the desktop disambiguating names the server made identical, and
+    # nothing in them says which resolution, or whether the annotations are
+    # in it. A link's `download` attribute cannot fix this: it is ignored
+    # the moment a response redirects to a bucket, which is every install
+    # serving from one.
+    name =
+      Storage.download_name(
+        uploaded,
+        Map.get(instance, :variant_name),
+        Map.get(instance, :ext)
+      )
 
     fallback =
       name
@@ -1177,7 +1200,10 @@ defmodule PhoenixKitWeb.FileController do
 
     encoded = URI.encode(name, &URI.char_unreserved?/1)
 
-    ~s(#{disposition_for(instance.mime_type)}; filename="#{fallback}"; filename*=UTF-8''#{encoded})
+    disposition =
+      if force_attachment?, do: "attachment", else: disposition_for(instance.mime_type)
+
+    ~s(#{disposition}; filename="#{fallback}"; filename*=UTF-8''#{encoded})
   end
 
   @doc false
@@ -1229,14 +1255,14 @@ defmodule PhoenixKitWeb.FileController do
   defp put_redirect_cache_headers(conn, _cache), do: conn
 
   # Proxy a remote file through the server (for private buckets)
-  defp proxy_remote_file(conn, file, instance, file_name, cache) do
+  defp proxy_remote_file(conn, file, instance, file_name, cache, download?) do
     temp_path =
       Path.join(System.tmp_dir!(), "phoenix_kit_#{instance.uuid}_#{:rand.uniform(1_000_000)}")
 
     try do
       case Manager.retrieve_file(file_name, destination_path: temp_path) do
         {:ok, _} ->
-          serve_file(conn, file, instance, temp_path, cache)
+          serve_file(conn, file, instance, temp_path, cache, download?)
 
         {:error, _reason} ->
           conn

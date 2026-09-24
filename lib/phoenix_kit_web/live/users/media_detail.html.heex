@@ -408,40 +408,58 @@
                     <.icon name="hero-arrow-path" class="w-3 h-3" /> Regenerate
                   </button>
                 </div>
-                <div class="flex flex-col gap-2">
-                  <%!-- Sort variants with original first --%>
-                  <% variant_order = ["original", "large", "medium", "small", "thumbnail"] %>
-                  <% sorted_variants =
-                    @file_data.urls
-                    |> Enum.sort_by(fn {name, _url} ->
-                      Enum.find_index(variant_order, &(&1 == name)) || 999
-                    end) %>
-
-                  <%= for {variant, url} <- sorted_variants do %>
+                <%!-- Two groups, because a list of sizes with no word about --%>
+                <%!-- the markup cannot be read: the burn slots are the same   --%>
+                <%!-- picture with the annotations drawn into it, and they sit --%>
+                <%!-- at their own sizes (a burn takes in ink drawn past the   --%>
+                <%!-- picture's edges, so it is a different shape).            --%>
+                <div class="flex flex-col gap-4">
+                  <div
+                    :for={
+                      {key, title, rows} <-
+                        download_groups(@file_data.urls, @file_data.variant_dimensions)
+                    }
+                    class="flex flex-col gap-2"
+                  >
+                    <div
+                      :if={key == :annotated}
+                      class="text-xs font-semibold uppercase tracking-wide opacity-60"
+                    >
+                      {title}
+                    </div>
                     <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      :for={row <- rows}
+                      href={download_url(row.url)}
+                      download={download_name(@file_data.filename, row.variant, row.ext)}
                       class={[
-                        "btn btn-sm gap-2 justify-start",
-                        variant == "original" && "btn-primary",
-                        variant != "original" && "btn-outline"
+                        "btn btn-sm gap-2 justify-start flex-nowrap",
+                        row.primary && "btn-primary",
+                        not row.primary && "btn-outline"
                       ]}
                     >
-                      <.icon name="hero-arrow-down-tray" class="w-4 h-4" />
-                      <span class="flex-1 text-left">{String.capitalize(variant)}</span>
-                      <%= if info = @file_data.variant_dimensions[variant] do %>
-                        <span class="text-xs opacity-60">
-                          <%= if info.dimensions do %>
-                            {elem(info.dimensions, 0)}x{elem(info.dimensions, 1)}
-                          <% end %>
-                          <%= if info.size do %>
-                            · {format_file_size(info.size)}
-                          <% end %>
+                      <%!-- No `target`: with both set, a browser is free to --%>
+                      <%!-- open the tab instead of saving, and a download    --%>
+                      <%!-- that opens a tab is the complaint this began as.  --%>
+                      <.icon name="hero-arrow-down-tray" class="w-4 h-4 shrink-0" />
+                      <span class="flex-1 text-left truncate">{row.label}</span>
+                      <%!-- This card lives in a column that is ~220px wide on --%>
+                      <%!-- a 1280 screen, where a row carrying both numbers   --%>
+                      <%!-- ran off the end of its own button. The pixels are  --%>
+                      <%!-- what a size is chosen by, so they stay; the weight --%>
+                      <%!-- joins them once there is room, and the title       --%>
+                      <%!-- carries both at every width.                       --%>
+                      <span
+                        :if={row.dimensions || row.size}
+                        class="text-xs opacity-60 whitespace-nowrap shrink-0"
+                        title={row_meta(row, :full)}
+                      >
+                        {row_meta(row, :compact)}
+                        <span :if={row.size} class="hidden 2xl:inline">
+                          · {format_file_size(row.size)}
                         </span>
-                      <% end %>
+                      </span>
                     </a>
-                  <% end %>
+                  </div>
                 </div>
               </div>
             </div>
