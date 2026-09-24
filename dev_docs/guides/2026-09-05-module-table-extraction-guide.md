@@ -40,6 +40,53 @@ example `phoenix_kit_shop_products` once the shop reads products from
 <date>: …'` by the host app, never dropped by anyone in this cycle; the
 squash of Phase 2 decides their fate.
 
+## What the adoption marker means today — and how a module can strengthen that
+
+The `COMMENT ON TABLE ... IS '<ns>_schema:<N>'` marker has always meant
+**"this table's objects exist"** — nothing more. Every adoption statement is
+`CREATE ... IF NOT EXISTS` / `ADD COLUMN ... IF NOT EXISTS`, which checks
+presence, never shape: a column narrowed by hand outside any migration (a
+money column quietly changed from `numeric(15,2)` to `numeric(10,2)`, say)
+survives adoption completely silently — the marker gets written, the
+narrower type is never noticed. That has always been the marker's historical
+meaning for every module listed in the inventory below, and stays that way
+for any module that doesn't opt into the mechanism described here — this is
+not a breaking change to what the marker promises.
+
+`PhoenixKit.Migrations.Adoption.verify_shape/3` and
+`.marker_conflict/4` now exist so a module's adoption step *can* make a
+stronger claim than "exists" — "exists, and its shape matches what I
+expect" — if it chooses to call them. This is opt-in machinery: a module
+that never calls it behaves exactly as before.
+
+The recommended pattern is to verify shape **before** writing the marker,
+and on drift, **decline the marker and raise** with the diff rendered into
+the message — never silently skip, and never auto-repair. Auto-fixing DDL
+during unattended adoption (at app boot, no operator watching) carries the
+same silent-mutation risk this mechanism exists to close, just inverted: a
+column silently widened back is a smaller but structurally identical
+mistake to a column silently narrowed. `mix phoenix_kit.repair` already
+exists as the deliberate, operator-invoked tool for actual repair — keeping
+adoption's shape check detection-only keeps each tool doing the one job it
+is suited for.
+
+```elixir
+case PhoenixKit.Migrations.Adoption.verify_shape(repo, prefix, checks) do
+  :ok -> :ok
+  {:drift, diffs} -> raise "table shape does not match what this module expects: #{inspect(diffs)}"
+end
+
+case PhoenixKit.Migrations.Adoption.marker_conflict(repo, prefix, table, @marker_prefix) do
+  :ok -> repo.query!("COMMENT ON TABLE #{prefix}.#{table} IS '#{@marker_prefix}#{version}'")
+  {:conflict, existing} -> raise "table already carries an unrelated marker: #{inspect(existing)}"
+end
+```
+
+Full worked example, including the `checks` vocabulary (the same
+per-class shape maps `PhoenixKit.Migrations.ExpectedSchema` already uses
+internally) and why decline-and-raise rather than auto-fix:
+`PhoenixKit.Migrations.Adoption`'s moduledoc.
+
 ## Inventory: which core-baseline tables are already module-owned
 
 Each module below is at Phase 0 (adopted, `down/1` only unstamps) or
