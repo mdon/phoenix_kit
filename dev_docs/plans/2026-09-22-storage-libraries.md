@@ -893,6 +893,12 @@ library at this point, since the scope is `{:library, uuid}` either way.
   retire V200's user-keyed capture-date index once the manifest can express a
   removal, or in the same step. V202 already added
   `phoenix_kit_files_library_capture_date_index`.
+- *Promised when PR #871 was closed (2026-09-24):* V203 **repeats V202's
+  idempotent slug statements**: `ADD COLUMN IF NOT EXISTS slug`, the
+  `WHERE slug IS NULL` backfill, and `CREATE UNIQUE INDEX IF NOT EXISTS`
+  on the owner/slug index. V202 was on `main` without `slug` from
+  2026-09-23 13:01 to 22:12 UTC. That build never reached Hex, but a
+  database that ran it (a git dependency) never gets the column otherwise.
 
 **V203: location-truth.**
 
