@@ -114,6 +114,186 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
     assert html =~ ~s(phx-blur="commit")
   end
 
+  test "the default layout renders one control, whether bare is omitted or false" do
+    assigns = %{}
+
+    for html <- [
+          render(~H"""
+          <.decimal_input id="q" name="value" value="0" />
+          """),
+          render(~H"""
+          <.decimal_input id="q" name="value" value="0" unit="kg" />
+          """)
+        ] do
+      assert length(Regex.scan(~r/<input/, html)) == 1
+      assert html =~ ~r/\A<div phx-feedback-for="value"/
+    end
+
+    assert render(~H"""
+           <.decimal_input id="q" name="value" value="0" label="Qty" bare={false} />
+           """) ==
+             render(~H"""
+             <.decimal_input id="q" name="value" value="0" label="Qty" />
+             """)
+  end
+
+  # The contrast `bare` exists for: the default layouts fill their width
+  # (the plain control itself, or the unit variant's <label>), and the
+  # unit variant's inner control grows inside that label.
+  test "the default layouts keep their own classes on the control and the unit label" do
+    assigns = %{}
+
+    plain =
+      render(~H"""
+      <.decimal_input id="q" name="value" value="1" />
+      """)
+      |> input_tag()
+
+    assert plain =~ ~s(class="input w-full transition-colors focus:input-primary)
+
+    unit =
+      render(~H"""
+      <.decimal_input
+        id="q"
+        name="value"
+        value="1"
+        unit="kg"
+        errors={["is invalid"]}
+        placeholder="0"
+      />
+      """)
+
+    [label] = Regex.run(~r/<label class="input[^"]*"/, unit)
+    assert label =~ "w-full"
+    assert label =~ "input-error"
+
+    inner = input_tag(unit)
+    assert inner =~ ~s(class="grow min-w-0")
+    assert inner =~ ~s(placeholder="0")
+  end
+
+  describe "bare" do
+    # A host that sets the control inside its own group — a daisyUI `join`
+    # with a unit button, a table cell — gets the <input> alone: the
+    # wrapper <div> would sit between `.join` and its `.join-item`.
+    test "renders the control alone: no wrapper, label, unit or error list" do
+      assigns = %{}
+
+      html =
+        render(~H"""
+        <.decimal_input
+          bare
+          id="q"
+          name="value"
+          value="0"
+          label="Quantity"
+          unit="kg"
+          errors={["is invalid"]}
+          wrapper_class="mb-4"
+          class="join-item w-20 text-center"
+        />
+        """)
+
+      assert html =~ ~r/\A<input [^>]*\/?>\z/
+      assert html =~ ~s(id="q")
+      refute html =~ "<div"
+      refute html =~ "<label"
+      refute html =~ "Quantity"
+      refute html =~ "kg"
+      refute html =~ "is invalid"
+      refute html =~ "mb-4"
+    end
+
+    test "keeps what makes it a decimal control: text, decimal keyboard, no autofill" do
+      assigns = %{}
+
+      tag =
+        render(~H"""
+        <.decimal_input bare id="q" name="value" value={Decimal.new("2.50")} />
+        """)
+        |> input_tag()
+
+      assert tag =~ ~s(type="text")
+      assert tag =~ ~s(inputmode="decimal")
+      assert tag =~ ~s(autocomplete="off")
+      assert tag =~ ~s(value="2.5")
+    end
+
+    test "the host's classes go on the control, with no full width to fight them" do
+      assigns = %{}
+
+      tag =
+        render(~H"""
+        <.decimal_input bare id="q" name="value" value="1" class="join-item w-20" />
+        """)
+        |> input_tag()
+
+      assert tag =~ "input "
+      assert tag =~ "join-item w-20"
+      refute tag =~ "w-full"
+      refute tag =~ "input-error"
+    end
+
+    test "a bound field supplies name, id, value and errors to the bare control too" do
+      changeset =
+        {%{}, %{qty: :decimal}}
+        |> Ecto.Changeset.cast(%{"qty" => "abc"}, [:qty])
+        |> Map.put(:action, :validate)
+
+      assigns = %{form: to_form(changeset, as: "row")}
+
+      html =
+        render(~H"""
+        <.decimal_input bare field={@form[:qty]} label="Quantity" />
+        """)
+
+      assert html =~ ~r/\A<input [^>]*\/?>\z/
+      assert html =~ ~s(name="row[qty]")
+      assert html =~ ~s(id="row_qty")
+      assert html =~ ~s(value="abc")
+      assert html =~ "input-error"
+      refute html =~ "is invalid"
+    end
+
+    test "errors still mark the control" do
+      assigns = %{}
+
+      tag =
+        render(~H"""
+        <.decimal_input bare id="q" name="value" value="x" errors={["is invalid"]} />
+        """)
+        |> input_tag()
+
+      assert tag =~ "input-error"
+    end
+
+    test "the zero handlers and the host's own, chained, and phx attributes all stay" do
+      assigns = %{}
+
+      tag =
+        render(~H"""
+        <.decimal_input
+          bare
+          id="q"
+          name="value"
+          value="0"
+          onfocus="hostFocus()"
+          phx-blur="qty_commit"
+          phx-value-uuid="u-1"
+          aria-label="Quantity"
+        />
+        """)
+        |> input_tag()
+
+      assert tag =~ ~r/onfocus="[^"]*__pkZero[^"]*;hostFocus\(\)"/
+      assert tag =~ ~s( onblur=")
+      assert tag =~ ~s( onkeydown=")
+      assert tag =~ ~s(phx-blur="qty_commit")
+      assert tag =~ ~s(phx-value-uuid="u-1")
+      assert tag =~ ~s(aria-label="Quantity")
+    end
+  end
+
   test "required renders the marker next to the label" do
     assigns = %{}
 
