@@ -96,13 +96,33 @@ defmodule PhoenixKit.Migrations.Adoption do
   `PhoenixKit.Migrations.ExpectedSchema.Object.materialize/2` performs;
   `objects/1` applies its own equivalent internally, so there is no need to
   call `materialize/2` again on what it returns). `Object.newest_shape/1`
-  is normally the right shape to declare in `checks` for a table you are
-  adopting NOW — the tip of core's chain, independent of any specific
-  database's version comment; `Object.shape_at/2` exists for the rarer case
-  of pinning to an older, still-valid revision on purpose. Skip any object
-  whose `presence` is `:legacy_optional` — spec §3.7's bimodal drift, where
-  either state is normal on an old install, is not a shape a module's own
-  fresh adoption should assert as required.
+  is the right shape to declare in `checks` for a table you are adopting
+  NOW — but ONLY for an object your own module has never itself touched.
+  Skip any object whose `presence` is `:legacy_optional` — spec §3.7's
+  bimodal drift, where either state is normal on an old install, is not a
+  shape a module's own fresh adoption should assert as required.
+
+  ### `Object.newest_shape/1` is core's OWN idea of the shape — not
+  necessarily what your module actually declares today
+
+  If your module's own migration chain has already changed an object
+  beyond what it inherited from core, `expected` for THAT object must come
+  from YOUR module's own DDL/declared shape, not from core's manifest —
+  core's `Object.newest_shape/1` still describes core's baseline, which may
+  no longer be what's actually on the table. This is not hypothetical:
+  `phoenix_kit_billing`'s own V5 migration does
+  `ALTER TABLE ... ALTER COLUMN user_uuid DROP NOT NULL` on both
+  `phoenix_kit_invoices` and `phoenix_kit_transactions` — a deliberate,
+  intentional widening — while core's manifest still declares `user_uuid`
+  `NOT NULL` for both (core has not yet gone through the Phase 1 process,
+  `@excluded_exact` + a manifest regeneration, for this specific change —
+  see the extraction guide). A module using `Object.newest_shape/1`
+  unmodified for `user_uuid` on either table would get a false drift on
+  every single adoption run, forever, until core catches up. `shape_at/2`
+  exists for the rarer case of deliberately pinning to an older, still-valid
+  revision of an object your module has NOT modified; neither function is
+  the right tool for an object your OWN module has changed — declare that
+  `expected` by hand, from what your own DDL actually creates.
 
   `verify_shape/3` takes one `Probe.snapshot/2` of the target server, then
   runs every check against it and collects **every** drifted object in one
@@ -115,16 +135,37 @@ defmodule PhoenixKit.Migrations.Adoption do
 
   ### Never raises, even on a malformed `checks` entry
 
-  `verify_shape/3` validates each `checks` entry's `class`/`expected` pair
-  itself, before ever handing it to `Differ.compare/3` — an unrecognized
-  `class` atom, or an `expected` map missing a field that class needs (a
-  `FunctionClauseError` and a `KeyError` respectively, straight out of
-  `Differ`, if this validation did not exist), is reported as drift with an
-  `"invalid check: ..."` reason instead. Because this module is
-  **stability-committed** for external callers (see above), a caller
-  mistake in its own `checks` list must surface as a clear signal inside
-  the normal `{:drift, diffs}` result, not a cryptic internal crash from a
-  module the caller does not own — and not a silent `:ok` either.
+  `verify_shape/3` validates every `checks` entry completely before it
+  ever reaches `Probe.lookup/2` or `Differ.compare/3` — neither of those
+  was built to reject a bad input gracefully. All of the following are
+  reported as drift, with an `"invalid check: ..."` reason, instead of
+  crashing or silently passing:
+
+    * the entry isn't a map, or is missing `:class`/`:check`/`:expected`
+      (would otherwise be a `FunctionClauseError` at the call site);
+    * `class` isn't a recognized class atom (`FunctionClauseError` from
+      `Differ.compare/3`);
+    * `check`'s own `kind` doesn't match the declared `class` — e.g.
+      `class: :index` on a check that actually names a `:column`
+      (`KeyError` from `Differ.compare/3` reading an index-shaped field
+      off a column-shaped observed map), or, more dangerously,
+      `class: :table` on a check that names a `:column`: `Differ.compare(
+      :table, _, _)` always returns `:match` regardless of content, so
+      THIS specific mismatch doesn't crash at all — it silently reports a
+      genuinely narrowed column as clean. Cross-checking `class` against
+      `check`'s `kind` closes that hole, not just the crashing ones;
+    * `expected` isn't a map at all (`BadMapError` from `Map.has_key?/2`);
+    * `expected` is a map but is missing a field that `class` needs
+      (`KeyError` from `Differ.compare/3`'s own field reads).
+
+  Because this module is **stability-committed** for external callers
+  (see above), a caller mistake in its own `checks` list must surface as a
+  clear signal inside the normal `{:drift, diffs}` result, not a cryptic
+  internal crash from a module the caller does not own — and never a
+  silent `:ok` either, which is the more dangerous failure mode of the
+  two. This promise is specific to `verify_shape/3`; `marker_conflict/5`
+  makes no equivalent "never raises" claim (its documented `{:error, _}`
+  return covers real query/existence failures, not caller input errors).
 
   ### `~deparse~`-marked reasons are full-severity drift here, unlike in `mix phoenix_kit.repair`
 
@@ -151,7 +192,7 @@ defmodule PhoenixKit.Migrations.Adoption do
   ## The recommended pattern: verify, then decline-and-raise on drift — or,
   under an explicit operator opt-in, warn and adopt anyway
 
-  `verify_shape/3` and `marker_conflict/4` themselves never raise (see
+  `verify_shape/3` and `marker_conflict/5` themselves never raise (see
   above) and never *write* to the database — `verify_shape/3` does run a
   real, read-only `Probe.snapshot/2` of the target server (which briefly
   sets `search_path = ''` on the connection for the duration of the
@@ -179,15 +220,23 @@ defmodule PhoenixKit.Migrations.Adoption do
       version advance. The migration must NOT fail in `:warn` mode:
       `mix phoenix_kit.update` regenerates a module's migration file on
       every run it is invoked for, and a migration that never completes
-      would be regenerated and re-attempted forever. The drift itself
-      stays visible afterward — in the `:error`-level log line, and to
-      `mix phoenix_kit.repair`/`doctor` on any subsequent run (which still
-      cannot fix it, but can still report it exists) — `:warn` accepts the
-      drift, it does not hide it.
+      would be regenerated and re-attempted forever. `:warn` accepts the
+      drift, it does not hide it — but the `:error`-level log line at the
+      moment of adoption is the durable record of that, not a promise that
+      a LATER `mix phoenix_kit.repair`/`doctor` run will independently
+      rediscover the same drift: `Differ` itself excludes the
+      `not_null: true, default: nil` shape from comparison entirely (the
+      same exemption this module separately compensates for — see below —
+      repair has no such compensation, so it would never have seen that
+      specific drift either), and any object a module has since gone
+      through Phase 1 for (`@excluded_exact`, core's manifest regenerated
+      to match the module's new shape) simply stops being asserted by core
+      at all, at which point repair/doctor cannot see it as a mismatch by
+      design, not by omission.
 
   This is an explicit, reviewed, per-host operator decision — never a
   default, never something a module flips on for itself. It exists for the
-  same reason `marker_conflict/4`'s `overwritable:` option exists: some
+  same reason `marker_conflict/5`'s `overwritable:` option exists: some
   hosts have a legitimate, already-understood reason their shape does not
   match, and the alternative to a deliberate override is adoption never
   completing on that host at all.
@@ -209,6 +258,7 @@ defmodule PhoenixKit.Migrations.Adoption do
 
       defmodule MyModule.Migrations do
         use Ecto.Migration
+        require Logger
         alias PhoenixKit.Migrations.Adoption
 
         @marker_prefix "mym_schema:"
@@ -318,14 +368,15 @@ defmodule PhoenixKit.Migrations.Adoption do
   watching) carries the same silent-mutation risk this module exists to
   close, just inverted — a column silently widened back is a smaller but
   structurally identical mistake to a column silently narrowed: the host's
-  schema changes without anyone being told. Automatic repair already
-  exists, deliberately operator-invoked: `mix phoenix_kit.repair` — though,
-  as the worked example's raise message above notes, that tool cannot
-  actually fix THIS kind of drift for a module-adopted table either (it is
-  additive-only, and has no notion of module ownership); a real fix is
-  always a manual one. Keeping adoption's shape check detection-only, and
-  leaving repair as the one tool that ever issues corrective DDL, keeps
-  each doing the one job it is suited for — detection is safe to run
+  schema changes without anyone being told. `mix phoenix_kit.repair`
+  remains the one tool that ever issues DDL automatically — but only for
+  CORE's own tables, adding a genuinely missing column or index it created
+  in the first place. For a module-adopted table specifically, as the
+  worked example's raise message above notes, repair cannot help at all
+  (it is additive-only, and has no notion of module ownership) — a real
+  fix here is always a manual one. Keeping adoption's own shape check
+  detection-only mirrors the same principle for the one case where no
+  tool, repair included, can safely auto-correct: detection is safe to run
   unattended, DDL mutation is not. An unhandled `raise` during a migration
   halts the chain (the version marker is never advanced), so the host does
   not boot into a half-adopted state and the operator sees exactly what
@@ -339,7 +390,7 @@ defmodule PhoenixKit.Migrations.Adoption do
   over the drift instead of adoption halting. The mode switch lives in the
   calling module, not here, by design (see above).
 
-  ## `marker_conflict/4`
+  ## `marker_conflict/5`
 
   Reads the current `COMMENT ON TABLE` for an arbitrary, caller-given
   table (not core's own `phoenix_kit` meta table — this is a new,
@@ -369,24 +420,32 @@ defmodule PhoenixKit.Migrations.Adoption do
   ### Core's own pre-squash legacy comments
 
   Before the squash at V135, core itself wrote plain descriptive (not
-  marker-shaped) `COMMENT ON TABLE` statements on several baseline tables
-  that a module now adopts (`phoenix_kit_currencies`,
-  `phoenix_kit_billing_profiles`, `phoenix_kit_orders`,
-  `phoenix_kit_invoices`, `phoenix_kit_transactions`,
-  `phoenix_kit_consent_logs`, `phoenix_kit_payment_options`). On any host
-  installed before the squash, that text is still there — not `nil`, not
-  the adopting module's own marker prefix. `marker_conflict/4` treats an
-  exact match against one of these known strings, for its own table, as
-  automatically overwritable (the same outcome as "no comment"), so a
-  correctly-written adoption step does not fail on every pre-squash host.
+  marker-shaped) `COMMENT ON TABLE` statements on baseline tables — not
+  only the handful billing/legal happen to adopt today, but essentially
+  every table core created before the squash, ~48 in total (storage,
+  posts/social, billing, AI, support tickets, user relationships, db sync,
+  shop, consent — see `@core_legacy_table_comments` for the exact table
+  list and text, confirmed by reading every descriptive `COMMENT ON TABLE`
+  in the pre-squash source directly, not a partial sample). On any host
+  installed before the squash, that text is still there for whichever of
+  those tables it created — not `nil`, not the adopting module's own
+  marker prefix. `marker_conflict/5` treats an exact match against one of
+  these known strings, for its own table, as automatically overwritable
+  (the same outcome as "no comment"), so a correctly-written adoption step
+  does not fail on any pre-squash host adopting any core-baseline table —
+  not just the ones known modules adopt today, but future ones too (the
+  next module in the extraction series adopting, say, `phoenix_kit_posts`
+  or `phoenix_kit_tickets`, hits the same class of host and is already
+  covered).
 
-  For a legacy comment specific to a table only YOUR module adopts (core
-  has no reason to ever know about it), pass `overwritable:` — a list of
-  exact comment strings you have independently confirmed are safe to
-  overwrite:
+  `overwritable:` is for a comment `marker_conflict/5` does NOT already
+  recognize as safe — core's own pre-squash comments are covered
+  automatically by the list above and never need this option. Typical use:
+  an operator's own hand-written note on the table, independently reviewed
+  and confirmed safe to overwrite for this specific adoption:
 
       Adoption.marker_conflict(repo, prefix, table, @marker_prefix,
-        overwritable: ["a legacy comment specific to my own table"]
+        overwritable: ["an operator's own note, reviewed and confirmed safe"]
       )
 
   This does not widen what counts as safe by default — only the two
@@ -439,7 +498,7 @@ defmodule PhoenixKit.Migrations.Adoption do
           :ok | {:drift, [drift()]}
   def verify_shape(repo, prefix, checks) when is_list(checks) do
     Helpers.validate_prefix!(prefix)
-    snapshot = Probe.snapshot(repo, prefix)
+    snapshot = with_preserved_search_path(repo, fn -> Probe.snapshot(repo, prefix) end)
 
     drifted =
       checks
@@ -447,6 +506,26 @@ defmodule PhoenixKit.Migrations.Adoption do
       |> Enum.reject(&is_nil/1)
 
     if drifted == [], do: :ok, else: {:drift, drifted}
+  end
+
+  # Probe.snapshot/2 forces `search_path = ''` for the duration of its own
+  # queries and unconditionally `RESET`s afterward — correct for ITS OWN
+  # caller (mix phoenix_kit.repair/doctor, where nothing downstream relies
+  # on search_path; see Probe's own moduledoc for the full reasoning) but
+  # wrong here: `verify_shape/3` runs on an arbitrary migration connection,
+  # which may carry its own deliberately-set search_path (a scratch-schema
+  # migration, say) that a bare `RESET` would silently replace with the
+  # role's session default instead of restoring. Save the real value first
+  # and restore it explicitly — independent of whatever `Probe.snapshot/2`
+  # itself does internally, and regardless of whether `fun` raises.
+  defp with_preserved_search_path(repo, fun) do
+    %{rows: [[saved]]} = repo.query!("SHOW search_path", [], log: false)
+
+    try do
+      fun.()
+    after
+      repo.query!("SELECT set_config('search_path', $1, false)", [saved], log: false)
+    end
   end
 
   @doc """
@@ -483,18 +562,42 @@ defmodule PhoenixKit.Migrations.Adoption do
   # caller answers before ever calling here") — `Probe.lookup/2` returning
   # `nil` (the object is not on the target server at all) is therefore
   # handled here, as its own drift reason, and never reaches `compare/3`.
-  defp compare_check(%{class: class, check: check, expected: expected}, snapshot) do
-    case Probe.lookup(snapshot, check) do
-      nil ->
-        %{check: check, reasons: ["missing: no #{class} matching #{inspect(check)} found"]}
+  #
+  # Every field of a `checks` entry is validated by `validate_checks_entry/1`
+  # BEFORE either `Probe.lookup/2` or `Differ.compare/3` ever sees it — both
+  # raise on inputs they were never designed to reject gracefully (a
+  # `FunctionClauseError` from `Probe.lookup/2` on a malformed `check`; a
+  # `KeyError`/`BadMapError` from `Differ.compare/3` on an `expected` that
+  # doesn't match `class`, or isn't a map at all). Critically,
+  # `validate_checks_entry/1` cross-checks `class` against `check`'s OWN
+  # `kind` (`check_matches_class?/2`) — without that, a caller-side mistake
+  # (`class: :table` on a check that actually names a `:column`) doesn't
+  # just risk a crash, it risks a SILENT FALSE `:ok`:
+  # `Differ.compare(:table, _, _)` always returns `:match` regardless of
+  # what's observed, so a genuinely narrowed column checked under the wrong
+  # `class` would verify clean instead of drifted.
+  defp compare_check(entry, snapshot) do
+    case validate_checks_entry(entry) do
+      {:ok, class, check, expected} ->
+        case Probe.lookup(snapshot, check) do
+          nil ->
+            %{check: check, reasons: ["missing: no #{class} matching #{inspect(check)} found"]}
 
-      observed ->
-        case expected_shape_error(class, expected) do
-          nil -> compare_present(class, check, expected, observed)
-          error -> %{check: check, reasons: [error]}
+          observed ->
+            compare_present(class, check, expected, observed)
         end
+
+      {:error, reason} ->
+        %{check: safe_check_for_report(entry), reasons: [reason]}
     end
   end
+
+  # A best-effort "check" value for a REJECTED entry's drift report — must
+  # never itself raise, however malformed `entry` is (that would defeat the
+  # entire point of validating it in the first place). Not necessarily a
+  # real `t:Object.check/0`; only used for display in the reasons list.
+  defp safe_check_for_report(%{check: check}), do: check
+  defp safe_check_for_report(entry), do: entry
 
   defp compare_present(class, check, expected, observed) do
     reasons =
@@ -529,13 +632,48 @@ defmodule PhoenixKit.Migrations.Adoption do
 
   defp not_null_gap_reason(_class, _expected, _observed), do: []
 
-  # See the moduledoc's "Never raises" section: without this, an
-  # unrecognized `class` atom raises `FunctionClauseError` and an
-  # `expected` map missing a field its class needs raises `KeyError`, both
-  # straight out of `Differ.compare/3` — neither acceptable for a
-  # stability-committed external API.
-  defp expected_shape_error(class, _expected) when class not in @known_classes,
-    do: "invalid check: unrecognized class #{inspect(class)}"
+  # See the moduledoc's "Never raises" section. Validates a `checks` entry
+  # completely before it ever reaches `Probe.lookup/2` or `Differ.compare/3`:
+  # the entry's own shape (a map carrying all three keys — anything else,
+  # including a non-map, falls to the catch-all clause below), `class`
+  # against `@known_classes`, `class` against what `check` itself claims to
+  # be (`check_matches_class?/2` — the guard against the silent-`:ok` class
+  # of mistake described on `compare_check/2`), and finally `expected`'s own
+  # shape for that `class`.
+  defp validate_checks_entry(%{class: class, check: check, expected: expected}) do
+    cond do
+      class not in @known_classes ->
+        {:error, "invalid check: unrecognized class #{inspect(class)}"}
+
+      not check_matches_class?(class, check) ->
+        {:error, "invalid check: class #{inspect(class)} does not match check #{inspect(check)}"}
+
+      class not in [:table, :extension, :seed] and not is_map(expected) ->
+        {:error,
+         "invalid check: expected must be a map for class #{inspect(class)}, got #{inspect(expected)}"}
+
+      true ->
+        case expected_shape_error(class, expected) do
+          nil -> {:ok, class, check, expected}
+          error -> {:error, error}
+        end
+    end
+  end
+
+  defp validate_checks_entry(entry) do
+    {:error,
+     "invalid check: expected a map with :class, :check, and :expected keys, got #{inspect(entry)}"}
+  end
+
+  # `Object.check/0` is `{:catalog, %{kind: ..., ...}}` for every class but
+  # `:seed`, which is a raw SQL string instead (seed existence is checked by
+  # executing it, never a catalog lookup — see `Probe.lookup/2`'s own `:seed`
+  # clause). A malformed `check` — wrong shape, wrong kind, not a
+  # tuple/string at all — never matches either real clause below and falls
+  # through to `false`; this never raises, whatever `check` actually is.
+  defp check_matches_class?(:seed, check), do: is_binary(check)
+  defp check_matches_class?(class, {:catalog, %{kind: kind}}), do: kind == class
+  defp check_matches_class?(_class, _check), do: false
 
   defp expected_shape_error(class, _expected) when class in [:table, :extension, :seed],
     do: nil
@@ -585,24 +723,93 @@ defmodule PhoenixKit.Migrations.Adoption do
     end
   end
 
-  # See the moduledoc's "Core's own pre-squash legacy comments" section —
-  # every value here was confirmed by reading the pre-squash source
-  # (`af86e3afb^:lib/phoenix_kit/migrations/postgres/v{31,43,45}.ex`)
-  # directly, keyed by the exact table it was written on. Only the tables
-  # billing/legal actually adopt that ever carried a descriptive comment
-  # pre-squash are listed — a table with no entry here falls through to
-  # the normal conflict check.
+  # Every value here was confirmed by reading the pre-squash source
+  # (`af86e3afb^:lib/phoenix_kit/migrations/postgres/v*.ex`) directly — a
+  # full sweep of every descriptive (non-numeric-marker) `COMMENT ON TABLE`
+  # statement across the pre-squash chain, not just the tables billing/legal
+  # happen to adopt today. Two tables are deliberately absent even though
+  # core once commented on them: `phoenix_kit_db_sync_connections` and
+  # `phoenix_kit_db_sync_transfers` were renamed by V44's `ALTER TABLE ...
+  # RENAME TO` (`phoenix_kit_sync_connections`/`phoenix_kit_sync_transfers`,
+  # both included below) — the old names never exist as live tables on any
+  # host that has run V44, so an entry for them could never match anything.
+  # A table with no entry here at all (i.e. it never had a pre-squash
+  # descriptive comment) falls through to the normal conflict check.
   @core_legacy_table_comments %{
-    "phoenix_kit_currencies" => "Supported currencies for billing with exchange rates",
+    "phoenix_kit_admin_notes" =>
+      "Internal admin notes about users (admin-to-admin communication)",
+    "phoenix_kit_ai_accounts" => "AI provider accounts for text processing (OpenRouter, etc.)",
+    "phoenix_kit_ai_endpoints" =>
+      "AI endpoints - unified configuration combining credentials, model, and parameters",
+    "phoenix_kit_ai_prompts" => "Reusable AI prompt templates with variable substitution support",
+    "phoenix_kit_ai_requests" => "AI API request history for usage tracking and statistics",
     "phoenix_kit_billing_profiles" =>
       "User billing information for individuals and companies (EU Standard)",
-    "phoenix_kit_orders" => "Orders with line items, amounts, and billing information",
+    "phoenix_kit_buckets" =>
+      "Storage provider configurations (local, AWS S3, Backblaze B2, Cloudflare R2)",
+    "phoenix_kit_comment_dislikes" => "User dislikes on comments (unique per user/comment pair)",
+    "phoenix_kit_comment_likes" => "User likes on comments (unique per user/comment pair)",
+    "phoenix_kit_consent_logs" => "User consent tracking for GDPR/CCPA compliance cookie banners",
+    "phoenix_kit_currencies" => "Supported currencies for billing with exchange rates",
+    "phoenix_kit_file_instances" =>
+      "File variants (thumbnails, resizes, video qualities) - one original + generated variants",
+    "phoenix_kit_file_locations" =>
+      "Physical storage locations for multi-location redundancy - maps instances to buckets",
+    "phoenix_kit_files" =>
+      "Original file uploads with metadata (images, videos, documents, archives)",
     "phoenix_kit_invoices" => "Invoices generated from orders with receipt functionality",
+    "phoenix_kit_orders" => "Orders with line items, amounts, and billing information",
+    "phoenix_kit_payment_options" =>
+      "Available payment methods for checkout (COD, bank transfer, online payments)",
+    "phoenix_kit_post_comments" =>
+      "Nested threaded comments with unlimited depth (self-referencing)",
+    "phoenix_kit_post_dislikes" => "User dislikes on posts (unique per user/post pair)",
+    "phoenix_kit_post_group_assignments" =>
+      "Post-Group many-to-many junction with position ordering",
+    "phoenix_kit_post_groups" =>
+      "User-created collections to organize posts (Pinterest-style boards)",
+    "phoenix_kit_post_likes" => "User likes on posts (unique per user/post pair)",
+    "phoenix_kit_post_media" =>
+      "Post media attachments junction (ordered image galleries with captions)",
+    "phoenix_kit_post_mentions" => "User mentions/contributors (tagged users related to post)",
+    "phoenix_kit_post_tag_assignments" => "Post-Tag many-to-many junction",
+    "phoenix_kit_post_tags" => "Hashtag system for post categorization (auto-slugified)",
+    "phoenix_kit_post_views" => "Analytics tracking for post views (session-based deduplication)",
+    "phoenix_kit_posts" =>
+      "Social posts with media, type-specific layouts, and scheduled publishing",
+    "phoenix_kit_scheduled_jobs" =>
+      "Universal scheduled jobs system for posts, emails, notifications, etc.",
+    "phoenix_kit_shop_cart_items" => "Cart items with price snapshots for consistency",
+    "phoenix_kit_shop_carts" => "Shopping carts for users and guests with status tracking",
+    "phoenix_kit_shop_categories" => "Product categories with hierarchical nesting support",
+    "phoenix_kit_shop_products" => "E-commerce products (physical and digital)",
+    "phoenix_kit_shop_shipping_methods" =>
+      "Shipping methods with weight, price, and geographic constraints",
+    "phoenix_kit_storage_dimensions" =>
+      "Admin-configurable dimension presets for automatic variant generation",
+    "phoenix_kit_sync_connections" =>
+      "Permanent connections between PhoenixKit instances for data sync",
+    "phoenix_kit_sync_transfers" =>
+      "Track all data transfers (uploads and downloads) with approval workflow",
+    "phoenix_kit_ticket_attachments" =>
+      "File attachments for tickets or comments (with position ordering)",
+    "phoenix_kit_ticket_comments" =>
+      "Ticket comments with internal notes support (is_internal flag for staff-only)",
+    "phoenix_kit_ticket_status_history" =>
+      "Audit trail for ticket status transitions (who, when, from/to, reason)",
+    "phoenix_kit_tickets" =>
+      "Support tickets with status workflow (open/in_progress/resolved/closed)",
     "phoenix_kit_transactions" =>
       "Payment transactions for invoices (amount > 0 = payment, amount < 0 = refund)",
-    "phoenix_kit_consent_logs" => "User consent tracking for GDPR/CCPA compliance cookie banners",
-    "phoenix_kit_payment_options" =>
-      "Available payment methods for checkout (COD, bank transfer, online payments)"
+    "phoenix_kit_user_blocks" => "User blocking (prevents all interaction between users)",
+    "phoenix_kit_user_blocks_history" => "Activity log of block/unblock events",
+    "phoenix_kit_user_connections" =>
+      "Two-way mutual connections (requires acceptance from both parties)",
+    "phoenix_kit_user_connections_history" =>
+      "Activity log of connection request/accept/reject/remove events",
+    "phoenix_kit_user_follows" =>
+      "One-way follow relationships (follower follows followed, no consent required)",
+    "phoenix_kit_user_follows_history" => "Activity log of follow/unfollow events"
   }
 
   @doc """
@@ -654,48 +861,38 @@ defmodule PhoenixKit.Migrations.Adoption do
     end
   end
 
-  # Mirrors PhoenixKit.Migrations.Repair.Probe.raw_comment/2's own two-query
-  # shape (table-exists, schema-anchored; then obj_description via the
-  # pg_class/pg_namespace join) — that function is hardcoded to the
-  # `phoenix_kit` meta table specifically, so this is a small reusable
-  # version parameterized on an arbitrary caller-given table, fully
-  # bind-parameterized rather than interpolated.
+  # Existence AND comment resolved by ONE query, entirely through
+  # `pg_catalog.pg_class`/`pg_namespace` — deliberately never
+  # `information_schema.tables`. `information_schema` views apply
+  # `has_table_privilege`-style filtering per the SQL standard: a
+  # lower-privileged migration connection can see ZERO rows there for a
+  # table that genuinely exists (and genuinely carries a conflicting
+  # marker) — live-reproduced with `SET LOCAL ROLE` dropping to a
+  # lower-privileged role against a table carrying another module's
+  # marker, which fell through to `:absent` → `:ok` under the old
+  # two-query design. `pg_class`/`pg_namespace` are ordinary system
+  # catalogs: readable for existence/metadata purposes by any connected
+  # role, independent of table-level privilege, so this can't
+  # under-report the same way.
   #
-  # Returns `:absent` only for a CONFIRMED "no such table" (`EXISTS` came
-  # back `false`); any query failure — including one indistinguishable at
-  # this layer from a privilege-filtered `information_schema.tables` row
-  # (the table genuinely exists but this connection's role can't see it
-  # listed there) — is `{:error, _}` instead. Collapsing both into
-  # `:absent` would let `marker_conflict/4` report `:ok` (safe to write)
-  # for a table it never actually confirmed has no conflicting comment.
+  # Zero rows means the table genuinely does not exist (`:absent`) — no
+  # separate existence pre-check needed, this query already distinguishes
+  # "no matching row" from "one row, comment is `nil`" (exists, no
+  # comment) from "one row, comment is a string". Any OTHER query outcome
+  # (a real failure) is `{:error, _}`, never collapsed into `:absent`.
   defp raw_table_comment(repo, prefix, table) do
-    table_exists_query = """
-    SELECT EXISTS (
-      SELECT FROM information_schema.tables
-      WHERE table_name = $1
-      AND table_schema = $2
-    )
-    """
-
-    case repo.query(table_exists_query, [table, prefix], log: false) do
-      {:ok, %{rows: [[true]]}} -> read_table_comment(repo, prefix, table)
-      {:ok, %{rows: [[false]]}} -> :absent
-      other -> {:error, other}
-    end
-  end
-
-  defp read_table_comment(repo, prefix, table) do
-    comment_query = """
+    query = """
     SELECT pg_catalog.obj_description(pg_class.oid, 'pg_class')
-    FROM pg_class
-    LEFT JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+    FROM pg_catalog.pg_class
+    JOIN pg_catalog.pg_namespace ON pg_namespace.oid = pg_class.relnamespace
     WHERE pg_class.relname = $1
     AND pg_namespace.nspname = $2
+    AND pg_class.relkind IN ('r', 'p')
     """
 
-    case repo.query(comment_query, [table, prefix], log: false) do
+    case repo.query(query, [table, prefix], log: false) do
+      {:ok, %{rows: []}} -> :absent
       {:ok, %{rows: [[comment]]}} -> comment
-      {:ok, %{rows: []}} -> {:error, :not_found_in_pg_catalog}
       other -> {:error, other}
     end
   end

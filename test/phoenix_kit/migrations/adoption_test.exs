@@ -612,4 +612,227 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
       refute rendered =~ marker
     end
   end
+
+  describe "verify_shape/3 — search_path is restored, not reset (Round 2 item 1)" do
+    test "a custom search_path set before the call is restored exactly, not replaced by the role default" do
+      table = unique_table("pk_adoption_test_search_path")
+      drop_on_exit(table)
+
+      Repo.query!("""
+      CREATE TABLE #{table} (
+        id serial PRIMARY KEY,
+        amount numeric(15,2) NOT NULL
+      )
+      """)
+
+      # A deliberately non-default search_path, the way a scratch-schema
+      # migration connection might set one — Probe.snapshot/2's own bare
+      # `RESET search_path` would replace this with the role/session
+      # default instead of restoring it.
+      custom_search_path = "pg_catalog, public"
+      Repo.query!("SET search_path TO #{custom_search_path}", [])
+
+      checks = [
+        %{
+          class: :column,
+          check: {:catalog, %{kind: :column, table: table, column: "amount"}},
+          expected: %{type: "numeric(15,2)", not_null: true, default: nil}
+        }
+      ]
+
+      assert Adoption.verify_shape(Repo, @prefix, checks) == :ok
+
+      %{rows: [[after_path]]} = Repo.query!("SHOW search_path", [])
+      assert after_path == custom_search_path
+    end
+  end
+
+  describe "verify_shape/3 — malformed checks entries never crash or silently pass (Round 2 item 2)" do
+    setup do
+      table = unique_table("pk_adoption_test_malformed")
+      drop_on_exit(table)
+
+      Repo.query!("""
+      CREATE TABLE #{table} (
+        id serial PRIMARY KEY,
+        amount numeric(15,2) NOT NULL
+      )
+      """)
+
+      {:ok, table: table}
+    end
+
+    test "an entry missing the :expected key entirely does not raise", %{table: table} do
+      checks = [
+        %{class: :column, check: {:catalog, %{kind: :column, table: table, column: "amount"}}}
+      ]
+
+      assert {:drift, [%{reasons: reasons}]} = Adoption.verify_shape(Repo, @prefix, checks)
+      assert Enum.any?(reasons, &(&1 =~ "invalid check"))
+    end
+
+    test "expected: nil does not raise (would be BadMapError from Map.has_key?/2)", %{
+      table: table
+    } do
+      checks = [
+        %{
+          class: :column,
+          check: {:catalog, %{kind: :column, table: table, column: "amount"}},
+          expected: nil
+        }
+      ]
+
+      assert {:drift, [%{reasons: reasons}]} = Adoption.verify_shape(Repo, @prefix, checks)
+      assert Enum.any?(reasons, &(&1 =~ "invalid check"))
+    end
+
+    test "a malformed check (not a valid catalog tuple) does not raise" do
+      checks = [
+        %{
+          class: :column,
+          check: :not_a_real_check,
+          expected: %{type: "x", not_null: true, default: nil}
+        }
+      ]
+
+      assert {:drift, [%{reasons: reasons}]} = Adoption.verify_shape(Repo, @prefix, checks)
+      assert Enum.any?(reasons, &(&1 =~ "invalid check"))
+    end
+
+    test "a non-map entry in checks does not raise" do
+      checks = [{:column, "amount"}]
+
+      assert {:drift, [%{reasons: reasons}]} = Adoption.verify_shape(Repo, @prefix, checks)
+      assert Enum.any?(reasons, &(&1 =~ "invalid check"))
+    end
+
+    test "class: :index on a check that actually names a :column reports invalid check, not KeyError",
+         %{table: table} do
+      checks = [
+        %{
+          class: :index,
+          check: {:catalog, %{kind: :column, table: table, column: "amount"}},
+          expected: %{
+            unique: true,
+            method: "btree",
+            keys: ["amount"],
+            opclasses: [],
+            predicate: nil
+          }
+        }
+      ]
+
+      assert {:drift, [%{reasons: reasons}]} = Adoption.verify_shape(Repo, @prefix, checks)
+      assert Enum.any?(reasons, &(&1 =~ "invalid check"))
+    end
+
+    test "class: :table on a check that actually names a :column no longer silently masks real drift",
+         %{table: table} do
+      # THE dangerous case: Differ.compare(:table, _, _) always returns
+      # :match regardless of content, so before the class/kind
+      # cross-check existed, this class/check mismatch on a GENUINELY
+      # narrowed column silently reported :ok instead of drift.
+      Repo.query!("ALTER TABLE #{table} ALTER COLUMN amount TYPE numeric(10,2)")
+
+      checks = [
+        %{
+          class: :table,
+          check: {:catalog, %{kind: :column, table: table, column: "amount"}},
+          expected: %{}
+        }
+      ]
+
+      assert {:drift, [%{reasons: reasons}]} = Adoption.verify_shape(Repo, @prefix, checks)
+      assert Enum.any?(reasons, &(&1 =~ "invalid check"))
+    end
+  end
+
+  describe "marker_conflict/5 — privilege-filtered existence check (Round 2 item 3)" do
+    test "a lower-privileged connection still detects a conflicting marker (not silently :ok)" do
+      table = unique_table("pk_adoption_test_privfilter")
+      drop_on_exit(table)
+
+      Repo.query!("CREATE TABLE #{table} (id serial PRIMARY KEY)")
+      Repo.query!(~s(COMMENT ON TABLE #{table} IS 'otherns_schema:3'))
+
+      # Before the fix, the existence pre-check ran through
+      # information_schema.tables, which applies has_table_privilege-style
+      # filtering — a lower-privileged role could see ZERO rows there for
+      # this table even though it genuinely exists and genuinely carries
+      # a conflicting marker, falling through to :absent -> :ok. The fixed
+      # query reads pg_class/pg_namespace directly, which is readable for
+      # existence/metadata purposes regardless of table-level privilege.
+      Repo.query!("SET LOCAL ROLE pk_test", [])
+
+      assert Adoption.marker_conflict(Repo, @prefix, table, "myns_schema:") ==
+               {:conflict, "otherns_schema:3"}
+    end
+  end
+
+  describe "marker_conflict/5 — the literal V43 consent_logs string (Round 2 tests)" do
+    test "phoenix_kit_consent_logs' own pre-squash comment is :ok, not just currencies'" do
+      schema = unique_schema("pkadv43")
+      Repo.query!("CREATE SCHEMA #{schema}")
+      on_exit(fn -> Repo.query("DROP SCHEMA IF EXISTS #{schema} CASCADE", []) end)
+
+      Repo.query!("CREATE TABLE #{schema}.phoenix_kit_consent_logs (id serial PRIMARY KEY)")
+
+      Repo.query!(
+        ~s(COMMENT ON TABLE #{schema}.phoenix_kit_consent_logs IS 'User consent tracking for GDPR/CCPA compliance cookie banners')
+      )
+
+      assert Adoption.marker_conflict(Repo, schema, "phoenix_kit_consent_logs", "pkl_schema:") ==
+               :ok
+    end
+  end
+
+  describe "verify_shape/3 — NOT NULL dropped from a column WITH a default (Round 2 'M2a')" do
+    test "a column with a real default that had NOT NULL dropped is still caught, independent of the not_null_gap_reason compensation" do
+      # Distinct from the `not_null: true, default: nil` case
+      # `not_null_gap_reason/3` exists to compensate for — a column with a
+      # REAL default is never exempted by Differ's own reason_not_null/3,
+      # so this exercises Differ's stock comparison path directly, not
+      # this module's compensation for it.
+      table = unique_table("pk_adoption_test_notnull_with_default")
+      drop_on_exit(table)
+
+      Repo.query!("""
+      CREATE TABLE #{table} (
+        id serial PRIMARY KEY,
+        status text NOT NULL DEFAULT 'pending'
+      )
+      """)
+
+      Repo.query!("ALTER TABLE #{table} ALTER COLUMN status DROP NOT NULL")
+
+      checks = [
+        %{
+          class: :column,
+          check: {:catalog, %{kind: :column, table: table, column: "status"}},
+          expected: %{type: "text", not_null: true, default: "'pending'::text"}
+        }
+      ]
+
+      assert {:drift, [%{reasons: reasons}]} = Adoption.verify_shape(Repo, @prefix, checks)
+      assert Enum.any?(reasons, &String.starts_with?(&1, "not_null:"))
+    end
+  end
+
+  describe "marker_conflict/5 — the {:error, _} path is real and distinct from :absent (Round 2 tests)" do
+    test "a genuine query failure returns {:error, _}, not :absent/:ok" do
+      table = unique_table("pk_adoption_test_query_failure")
+      drop_on_exit(table)
+
+      Repo.query!("CREATE TABLE #{table} (id serial PRIMARY KEY)")
+      Repo.query!(~s(COMMENT ON TABLE #{table} IS 'otherns_schema:3'))
+
+      # A statement_timeout small enough that the query cannot possibly
+      # complete forces a real backend error (query_canceled) rather than
+      # a query that just happens to return zero/odd rows — transaction-
+      # scoped (SET LOCAL), reverted automatically at rollback.
+      Repo.query!("SET LOCAL statement_timeout = 1", [])
+
+      assert {:error, _reason} = Adoption.marker_conflict(Repo, @prefix, table, "myns_schema:")
+    end
+  end
 end

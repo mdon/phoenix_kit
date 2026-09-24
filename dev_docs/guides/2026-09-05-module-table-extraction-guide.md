@@ -54,7 +54,7 @@ for any module that doesn't opt into the mechanism described here — this is
 not a breaking change to what the marker promises.
 
 `PhoenixKit.Migrations.Adoption.verify_shape/3` and
-`.marker_conflict/4` now exist so a module's adoption step *can* make a
+`.marker_conflict/5` now exist so a module's adoption step *can* make a
 stronger claim than "exists" — "exists, and its shape matches what I
 expect" — if it chooses to call them. This is opt-in machinery: a module
 that never calls it behaves exactly as before.
@@ -74,10 +74,15 @@ across core and `phoenix_kit_legal`'s own adoption step (issue legal#23):
     so the chain's version advances. The migration must not fail in this
     mode: `mix phoenix_kit.update` regenerates a module's migration file
     on every run, so one that never completes would be regenerated and
-    re-attempted forever. The drift stays visible in the log (and to
-    `mix phoenix_kit.repair`/`doctor` afterward, which still cannot fix
-    it but can still report it) — `:warn` accepts the drift, it does not
-    hide it.
+    re-attempted forever. `:warn` accepts the drift, it does not hide
+    it — but the `:error`-level log line is the durable record of that,
+    not a promise that a later `mix phoenix_kit.repair`/`doctor` run will
+    independently rediscover it: `Differ` itself excludes
+    `not_null: true, default: nil` from comparison entirely, and any
+    object a module has since gone through Phase 1 for
+    (`@excluded_exact`, core's manifest regenerated) stops being
+    asserted by core at all — see `PhoenixKit.Migrations.Adoption`'s
+    moduledoc for the full reasoning.
 
 This is a reviewed, explicit, per-host decision — never a default, never
 something a module flips on for itself — for the hosts where the drift is
@@ -120,6 +125,9 @@ def up(opts \\ []) do
 
     {:conflict, existing} ->
       raise "table already carries an unrelated marker: #{inspect(existing)}"
+
+    {:error, reason} ->
+      raise "could not read the table's current comment: #{inspect(reason)}"
   end
 end
 
