@@ -198,7 +198,7 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
       assert html =~ ~s(id="q")
       refute html =~ "<div"
       refute html =~ "<label"
-      refute html =~ "Quantity"
+      refute html =~ ">Quantity<"
       refute html =~ "kg"
       refute html =~ "is invalid"
       refute html =~ "mb-4"
@@ -253,6 +253,41 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
       assert html =~ ~s(value="abc")
       assert html =~ "input-error"
       refute html =~ "is invalid"
+    end
+
+    test "a label has nowhere to render, so it names the control" do
+      assigns = %{}
+
+      tag =
+        render(~H"""
+        <.decimal_input bare id="q" name="value" value="1" label="Quantity" />
+        """)
+        |> input_tag()
+
+      assert tag =~ ~s(aria-label="Quantity")
+    end
+
+    test "the host's own aria-label wins over the label" do
+      assigns = %{}
+
+      html =
+        render(~H"""
+        <.decimal_input bare id="q" name="value" value="1" label="Quantity" aria-label="Qty in kg" />
+        """)
+
+      assert html =~ ~s(aria-label="Qty in kg")
+      assert length(Regex.scan(~r/aria-label=/, html)) == 1
+    end
+
+    test "no label and no aria-label adds no empty name" do
+      assigns = %{}
+
+      html =
+        render(~H"""
+        <.decimal_input bare id="q" name="value" value="1" label="" />
+        """)
+
+      refute html =~ "aria-label"
     end
 
     test "errors still mark the control" do

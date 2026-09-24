@@ -1,6 +1,6 @@
 # PR #866 — Update the fresco pin to 0.13.0 (with etcher 0.17.1 and tessera 0.3.8)
 
-**Author:** alexdont · **Merged:** 2026-09-23 (cf61625d) · **Reviewer:** Claude · **Released in:** not yet released
+**Author:** alexdont · **Merged:** 2026-09-23 (cf61625d) · **Reviewer:** Claude · **Released in:** 2.38.0
 
 ## Summary
 

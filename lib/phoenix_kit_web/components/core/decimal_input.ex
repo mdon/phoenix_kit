@@ -45,8 +45,10 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
   wrapper `<div>` would sit between `.join` and its `.join-item`. It keeps
   everything that makes it a decimal control (text, decimal keyboard, no
   browser autofill, the zero handlers) and drops what the host draws
-  itself: label, unit suffix, error list and the full width. With no
-  label, pass `aria-label` so the control keeps an accessible name.
+  itself: label, unit suffix, error list and the full width. A `label`
+  given to a bare control becomes its `aria-label` (unless the host passes
+  one), so the control keeps an accessible name; with neither, pass
+  `aria-label`.
   """
 
   use Phoenix.Component
@@ -123,7 +125,7 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
   attr :bare, :boolean,
     default: false,
     doc:
-      "render the `<input>` alone — no wrapper, label, unit or error list, no `w-full` — for a host that places it in a group of its own (a daisyUI `join`, a table cell); `errors` still mark it `input-error`, and `aria-label` gives it the name a label would"
+      "render the `<input>` alone — no wrapper, label, unit or error list, no `w-full` — for a host that places it in a group of its own (a daisyUI `join`, a table cell); `errors` still mark it `input-error`, and a `label` becomes the control's `aria-label` unless one is passed"
 
   attr :rest, :global,
     include: ~w(autofocus disabled form maxlength placeholder readonly required size)
@@ -177,6 +179,12 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
   # One root per layout: two sibling `:if` roots would leave the whitespace
   # between them in every render.
   defp layout(%{bare: true} = assigns) do
+    # The label has nowhere to render; it still names the control.
+    assigns =
+      if assigns.label in [nil, ""] or Map.has_key?(assigns.rest, :"aria-label"),
+        do: assigns,
+        else: assign(assigns, :rest, Map.put(assigns.rest, :"aria-label", assigns.label))
+
     ~H"""
     <.control
       name={@name}

@@ -1,3 +1,14 @@
+## 2.38.1 - 2026-09-24
+
+### Added
+
+- **`<.decimal_input bare>` (#867)** renders the control alone, with no
+  wrapper, label, unit suffix, error list or full width, for a host that
+  places it in a group of its own (a daisyUI `join` with a unit button, a
+  table cell). It keeps the text and decimal keyboard, no autofill, the
+  zero-clearing handlers and `input-error`. A `label` given to a bare
+  control becomes its `aria-label`, unless the host passes one.
+
 ## 2.38.0 - 2026-09-23
 
 ### Added
