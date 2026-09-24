@@ -3269,7 +3269,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   It implements PhoenixKit's simplified URL architecture:
 
   - URLs use base language codes (en, es, fr) for simplicity
-  - Full dialect codes (en-US, es-MX) are redirected to base codes (301)
+  - Full dialect codes (en-US, es-MX) are redirected to base codes (302)
   - User preferences determine which dialect variant to use for translations
   - Translation system uses full dialect codes internally
 
@@ -3289,7 +3289,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
       # Full dialect in URL (legacy/bookmarks)
       conn = validate_and_set_locale(%{path_params: %{"locale" => "en-US"}}, [])
-      # Redirects 301 to: /en/...
+      # Redirects 302 to: /en/...
 
       # Invalid locale in URL
       conn = validate_and_set_locale(%{path_params: %{"locale" => "xx"}}, [])
@@ -3461,6 +3461,19 @@ defmodule PhoenixKitWeb.Users.Auth do
   #     `prefix_segments`, not a raw slice of the input — an encoded
   #     mount-prefix segment comes out normalized to its canonical form,
   #     which is what keeps the target canonical and unable to loop.
+  #
+  #   * **the fully-built path is checked before it's returned.** Neither
+  #     `replacement_segments` (guarded by `safe_path_segment?/1`, but
+  #     defense in depth is cheap) nor `rest` (raw CLIENT input, never
+  #     validated anywhere else — it is deliberately spliced in
+  #     unmodified, see above) is proof against reproducing a literal
+  #     substring `Phoenix.Controller.redirect/2` itself refuses, e.g.
+  #     the decoded text `"%09"` sitting next to a `/` in the joined
+  #     path. `unsafe_redirect_target?/1` mirrors that downstream check
+  #     exactly and runs here first, so a shape it would reject becomes
+  #     an ordinary `:error` decline (callers already fall back to
+  #     `assign_default_locale/1`) instead of an unhandled `ArgumentError`
+  #     raised later, on an otherwise-anonymous GET.
   defp locale_segment_path(conn, locale, replacement_segments)
        when is_binary(locale) and is_list(replacement_segments) do
     prefix_segments =
@@ -3473,56 +3486,97 @@ defmodule PhoenixKitWeb.Users.Auth do
 
     with true <- Enum.all?(replacement_segments, &safe_path_segment?/1),
          {^prefix_segments, [^locale | _]} <- Enum.split(decoded, prefix_length),
-         {_prefix, [_locale | rest]} <- Enum.split(conn.path_info, prefix_length) do
-      path =
-        conn.script_name ++ prefix_segments ++ replacement_segments ++ rest
-
-      {:ok, "/" <> Enum.join(path, "/")}
+         {_prefix, [_locale | rest]} <- Enum.split(conn.path_info, prefix_length),
+         path = conn.script_name ++ prefix_segments ++ replacement_segments ++ rest,
+         joined = "/" <> Enum.join(path, "/"),
+         false <- unsafe_redirect_target?(joined) do
+      {:ok, joined}
     else
-      _ -> :error
+      _ ->
+        Logger.debug(
+          "[PhoenixKit Locale] declined to build a locale redirect target for #{conn.request_path}"
+        )
+
+        :error
     end
   end
 
   defp locale_segment_path(_conn, _locale, _replacement_segments), do: :error
 
-  # A replacement segment must be safe to splice into the output path as a
-  # single raw segment. Every caller ultimately derives its segments from a
-  # URL-supplied locale (`redirect_to_base_locale/2`'s `base_code` is
-  # `DialectMapper.extract_base/1` of the attacker-controlled, decoded path
-  # segment `process_locale/1` hands it — no other validation sits between
-  # them), so a hostile segment reaches here containing `/`, `\`, a control
-  # character, or empty (`extract_base("-suffix")` → `""`). Spliced
-  # unchecked, any of those either desyncs `Enum.join/2`'s segment count
-  # (producing a leading `//`, at root `url_prefix` specifically) or
-  # survives into the string handed to `Phoenix.Controller.redirect/2`,
-  # whose local-path validation RAISES on `//`, `\`, or a control character
-  # instead of declining — turning an anonymous GET into a 500. Rejecting
-  # here fails the `with` above into its existing `:error` branch, the same
-  # outcome every other unrecognized shape already gets.
-  defp safe_path_segment?(segment) do
-    segment != "" and
-      not String.contains?(segment, ["/", "\\"]) and
-      not contains_control_char?(segment)
-  end
-
-  # ASCII control chars (C0 + DEL) — mirrors `Routes.local_path?/1`'s
-  # bytewise check; a control char is single-byte in UTF-8 and can't appear
-  # inside a multi-byte sequence, so scanning bytes is exact.
-  defp contains_control_char?(segment) do
-    segment
-    |> :binary.bin_to_list()
-    |> Enum.any?(fn byte -> byte <= 0x1F or byte == 0x7F end)
-  end
+  # A replacement segment is always something THIS module computed — never
+  # raw client `rest` (see the safety check on the fully-joined path in
+  # `locale_segment_path/3`, which covers that case instead).
+  # `redirect_to_base_locale/2`'s base_code is `DialectMapper.extract_base/1`
+  # of the attacker-controlled, decoded locale segment `process_locale/1`
+  # hands it, with no other validation between them (any decoded segment
+  # containing a hyphen reaches it). A blocklist of specific dangerous
+  # characters is how this guard previously missed a segment that is only
+  # DANGEROUS-LOOKING TEXT rather than a dangerous byte — "%09" is three
+  # harmless printable ASCII characters on its own, but spliced in next to a
+  # path separator it reproduces the literal substring
+  # `Phoenix.Controller.redirect/2` itself refuses to emit (see
+  # `unsafe_redirect_target?/1` below). An allowlist sidesteps that class of
+  # miss entirely: a real locale/base code only ever needs letters, digits,
+  # underscore, hyphen — anything else (`%09`, `?`, `#`, a space, raw UTF-8
+  # bytes, `.`/`..`, or empty) is rejected outright. An unrecognized locale
+  # doesn't need a cleverly-encoded redirect target; declining and rendering
+  # under the default locale (`assign_default_locale/1`) is already correct.
+  defp safe_path_segment?(segment), do: segment =~ ~r/\A[a-zA-Z0-9_-]+\z/
 
   # Strip the mis-captured locale segment entirely — see
   # `locale_segment_path/3` for the mount-prefix and percent-encoding
   # subtleties this delegates to.
   defp strip_locale_segment(conn, locale), do: locale_segment_path(conn, locale, [])
 
-  # Characters `Phoenix.Controller.redirect/2` refuses in a local target.
-  # Mirrored here because the list is private to Phoenix and a query string
-  # is arbitrary client input — see `with_query_string/2`.
-  @unsafe_redirect_chars ["\\", "/%09", "/\t"]
+  # Characters Phoenix.Controller.redirect/2 refuses in a local target
+  # (deps/phoenix/lib/phoenix/url.ex — the list is private to Phoenix,
+  # `@moduledoc false`, so it's mirrored here rather than called directly).
+  # A leading "//" is rejected separately (classify_local_path/1's first
+  # clause, see `unsafe_redirect_target?/1` below); this list is the second,
+  # substring-anywhere clause.
+  @unsafe_redirect_chars ["\\", "/%09", "/\t", "\n", "\r"]
+
+  # Would Phoenix.Controller.redirect/2 accept `path` as a `:to` target, or
+  # raise? Mirrors Phoenix.URL.classify_local_path/1's own two checks exactly,
+  # so this always agrees with what the real call downstream would do — run
+  # BEFORE that call, so a shape it would reject becomes an ordinary
+  # decline-and-render (see `assign_default_locale/1`) instead of an unhandled
+  # exception on an anonymous GET. Catches both a hostile `replacement_segments`
+  # entry that slipped past `safe_path_segment?/1` (defense in depth — it
+  # shouldn't, given the allowlist above) AND raw client-supplied `rest`
+  # content, which is never otherwise validated: `/zz/%09evil/x` reaches here
+  # with the literal text "%09evil" sitting in `rest`, untouched by
+  # `safe_path_segment?/1` entirely since that only ever looks at
+  # `replacement_segments`.
+  #
+  # A THIRD check, beyond what Phoenix itself validates: a dot-segment
+  # (`.`/`..`) anywhere in `path` — never rejected by Phoenix (dot-segments
+  # are syntactically ordinary path characters, not on its char list), but a
+  # browser resolves them per RFC 3986 §5.2.4 before navigating, so
+  # `/phoenix_kit/zz/../../shop` (an entirely ordinary invalid-locale
+  # request — `rest` is client content, not something this module
+  # constructs) silently escapes the mount prefix client-side. Also rejects
+  # a segment that only SPELLS `.`/`..` as literal percent-encoded text
+  # (`%2E`/`%2e`, singly or doubly) — the same "decoded text reproduces a
+  # dangerous form one decode pass later" class as the `%09` bug this module
+  # already guards against, just for dot-segments instead of control
+  # characters: decode each segment one more time and check the result too,
+  # not just its raw form.
+  defp unsafe_redirect_target?(path) do
+    String.starts_with?(path, "//") or
+      String.contains?(path, @unsafe_redirect_chars) or
+      path |> String.split("/") |> Enum.any?(&dot_segment?/1)
+  end
+
+  defp dot_segment?(segment) do
+    segment in [".", ".."] or decode_or_self(segment) in [".", ".."]
+  end
+
+  defp decode_or_self(segment) do
+    URI.decode(segment)
+  rescue
+    ArgumentError -> segment
+  end
 
   # Carry the query string across a locale redirect.
   #
@@ -3650,7 +3704,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   # under any mount prefix and any locale segment, since we only care
   # whether "admin" appears as its own segment.
   #
-  # Decoded, for the reason spelled out on `strip_locale_segment/2`:
+  # Decoded, for the reason spelled out on `locale_segment_path/3`:
   # Phoenix binds routes against a decoded copy of the path but leaves
   # `conn.path_info` encoded, so `/<prefix>/en/%61dmin/users` reaches the
   # admin route while a raw comparison reports "not admin" and hands the
@@ -3762,10 +3816,14 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   ## When it does not redirect
 
-  If the dialect segment can't be located in the path, or replacing it
-  would leave the path unchanged (e.g. stale percent-encoding), this
-  does NOT redirect — that would just bounce the browser back to the
-  URL it already requested. Instead it assigns `base_code` as the
+  If the dialect segment can't be located in the path, replacing it would
+  leave the path unchanged (e.g. stale percent-encoding), or the resulting
+  target would be unsafe to hand to `Phoenix.Controller.redirect/2` (an
+  unsafe character, a leading `//`, or a `.`/`..` path segment anywhere in
+  it — see `unsafe_redirect_target?/1`), this does NOT redirect — that
+  would just bounce the browser back to the URL it already requested, crash
+  on an unsafe target, or hand a client-supplied dot-segment to the browser
+  to resolve outside the mount. Instead it assigns `base_code` as the
   active locale onto the conn and lets the request continue un-halted,
   so `/fr-CA/page` still renders in French even when no redirect could
   be built — mirroring the non-redirecting else-branch of
@@ -3831,14 +3889,18 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   ## When it does not redirect
 
-  If the invalid locale segment can't be located in the path, or the
+  If the invalid locale segment can't be located in the path, the
   replacement above would leave the path unchanged (e.g. stale
   percent-encoding, or an "invalid" locale that already equals the
-  replacement), this does NOT redirect — that would just bounce the
-  browser back to the URL it already requested. Instead it assigns the
-  default locale onto the conn and lets the request continue un-halted,
-  the same fallback `process_as_default_locale/1` takes on its own
-  `:error` branch.
+  replacement), or the resulting target would be unsafe to hand to
+  `Phoenix.Controller.redirect/2` (an unsafe character, a leading `//`, or
+  a `.`/`..` path segment anywhere in it — see `unsafe_redirect_target?/1`),
+  this does NOT redirect — that would just bounce the browser back to the
+  URL it already requested, crash on an unsafe target, or hand a
+  client-supplied dot-segment to the browser to resolve outside the mount.
+  Instead it assigns the default locale onto the conn and lets the request
+  continue un-halted, the same fallback `process_as_default_locale/1` takes
+  on its own `:error` branch.
   """
   def redirect_invalid_locale(conn, invalid_locale) do
     # Get the default language
