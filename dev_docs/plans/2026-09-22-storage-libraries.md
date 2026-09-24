@@ -10,8 +10,9 @@ location-truth moved ahead of storage profiles. Four gaps were added
 ship in the same release as storage profiles.
 **Status (2026-09-24):** Phase 1 **RELEASED in 2.38.0** (2026-09-23, tag
 `v2.38.0`, which includes the post-review fixes below). 2.38.1 changed
-nothing in Storage. **Next: V203** (private serving + user libraries, plus
-the uploader FK deferred from phase 1). Phase 1 shipped as **V202**, not V201: PR #860
+nothing in Storage. **Phase 2 (V203) is BUILT on `main`, unreleased**, to be
+tested on dev before it is published: see "Phase 2 as built" below. Next
+after it: V204 (location-truth). Phase 1 shipped as **V202**, not V201: PR #860
 took V201 for per-user view preferences, so every phase below shifts by one
 (V202 partition, V203 private serving + user libraries, V204 location-truth,
 V205 profiles + variant sets, V206 user-owned storage). The version numbers in
@@ -91,6 +92,53 @@ must not render in place are redirected to a one-hour **presigned** URL
 when a provider cannot sign). This is the presigning that §6.7 needs for
 private libraries. It is not yet the `"signed"` access type: it only covers
 the download case on public buckets, and it skips `cdn_url`.
+### Phase 2 as built (V203, unreleased)
+
+- **Migration:** `phoenix_kit_storage_library_members` (`manager` |
+  `contributor` | `viewer`; the owner is `owner_uuid`, never a member row).
+  The uploader FK and the folder-creator FK are `ON DELETE SET NULL`, and the
+  files CHECK passes a file with a library. The library owner FK is
+  `SET NULL`, and its check lets only a **trashed** user library lose its
+  owner: deleting a user whose live library still names them fails, so
+  `Auth.delete_user/2` must trash them first (`trash_owned_libraries/1`). It
+  repeats V202's slug statements (#871). Constraints are replaced add
+  `NOT VALID` → validate → swap, each in its own statement.
+- **Dedup differs from §6.4:** no unique index was swapped. The manifest
+  cannot declare a removal, so a dropped index it still listed would be
+  reported missing and rebuilt by repair. Instead a file outside Media folds
+  its library into `user_file_checksum`
+  (`Storage.calculate_user_file_checksum/3`); the existing unique index then
+  holds one copy per uploader per library, and Media's keys are unchanged.
+- **Permissions:** the `"storage"` key (which gated nothing before) is "take
+  part in user libraries"; its sub-permission `"storage.create_library"`
+  creates them. `storage_user_libraries_enabled` (default off) and
+  `storage_user_library_limit` (default 10) are settings on Settings → Media
+  → Libraries.
+- **Private serving (§6.7):** `URLSigner.private_token/3` (`w<expiry
+  base36>-<HMAC>`); the window is `storage_private_url_window_hours`, and a
+  URL is minted at least a quarter window before it expires. Responses are
+  `private, max-age=3600`. `Storage.authorized_url/4` is the module-facing
+  minter. Presigned redirects stay allowed; plain public redirects are
+  proxied.
+- **Pages, per the §10 decisions (items 7–11), with one change:** browsing is
+  **`/admin/libraries`**, not `/dashboard/media` (`/dashboard` is being phased
+  out). Per the maintainer, end users never need Media directly;
+  `phoenix_kit_photos` is their surface, and `/admin/libraries` is for
+  moderation and testing. The profile's Media tab (`LibrarySettings`)
+  manages libraries and members. The admin metadata list of §8 is a card on
+  Settings → Media → Libraries, not a separate `/admin/storage/libraries`.
+  Opening a user's library as Owner/Admin is audit-logged
+  (`storage.library_opened`, now in `AuditLog.Entry`'s allowed actions: the
+  plan's "no migration" was right, but the changeset had an allowlist).
+- **Security fix found on the way:** a `MediaBrowser` showing one library
+  now refuses any event naming another library's file or folder. The scope
+  check alone admits everything without a scope folder.
+- **Known limits, left for later:** a contributor can organise and trash any
+  file of the library through the browser, which has no per-file ownership
+  check (the API's `allows?/2` says only "upload"). Restoring a trashed user
+  library is not offered. The admin opening path covers live libraries only.
+  V200's user-keyed capture-date index is still there.
+
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.
 **Related:** `PhoenixKit.Modules.Storage.CaptureDate` and V200 (the capture-date

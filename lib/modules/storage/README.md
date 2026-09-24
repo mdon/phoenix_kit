@@ -477,11 +477,56 @@ when it is renamed (`Libraries.get_system_library_by_slug/1`).
 - **Listing one library:** the root-level listing, search, orphan and trash
   functions take `library_uuid:`. Without it they list every library, exactly
   as before.
-- **Access:** `Storage.Libraries.can?(scope, file, :read | :edit)`. It is the
-  single per-file check, with the same rules as before libraries.
-- **Not yet:** dedup is still per uploader across all libraries. User
-  libraries, members, private serving and per-library storage are the next
-  phases of `dev_docs/plans/2026-09-22-storage-libraries.md`.
+- **Access:** `Storage.Libraries.can?(scope, file, :read | :edit)` is the
+  single per-file check: the uploader, an Owner/Admin, the `"media"` key
+  (edit, system libraries only), and a user library's owner and members.
+- **Dedup is per library:** one copy per uploader per library. Media keeps
+  the key it always had; any other library folds itself into
+  `user_file_checksum` (`Storage.calculate_user_file_checksum/3`).
+
+### User libraries (V203)
+
+Off until the install turns them on (`storage_user_libraries_enabled`,
+Settings → Media → Libraries). A user with the `"storage"` permission uses
+the libraries they own or are a member of; `"storage.create_library"`
+creates them, up to `storage_user_library_limit`. Each is `private`, and its
+members are `manager`, `contributor` or `viewer` (`Libraries.allows?/2`).
+
+- **API:** `Libraries.create_user_library/2`, `list_user_libraries/1`,
+  `get_user_library/2` (by uuid, or the owner's own slug), `add_member/4`,
+  `update_member_role/4`, `remove_member/3`, `trash_library/2`,
+  `set_default_library/2`, `default_user_library/1`. Each checks the
+  caller's role itself.
+- **Pages:** users manage their libraries on the profile's Media tab
+  (`/profile/settings/media`); `/admin/libraries` browses them (moderation
+  and testing). `phoenix_kit_photos` is the end-user surface.
+- **Trash and deletion:** a trashed library frees its name at once and is
+  purged, bytes included, after `trash_retention_days` (`PurgeLibraryJob`,
+  queued by the daily prune). Deleting a user trashes the libraries they own
+  first (the database refuses otherwise, V203), and keeps their uploads
+  elsewhere with no uploader.
+- **Admins:** an Owner or Admin can open a user's library at
+  `/admin/libraries/<uuid>`; every opening is audit-logged
+  (`storage.library_opened`).
+
+### Private files
+
+A file in a private library (every user library) is served only with a
+**time-window token**: an HMAC over the file, the variant and an expiry
+rounded up to a window (`storage_private_url_window_hours`, default 12). The
+file and tile routes refuse its permanent token, answer an expired one with
+403, never redirect to a public object URL, and send `private` cache headers.
+
+- ⚠️ **Mint a private file's URL after an access check:**
+  `Storage.authorized_url(scope, file, variant)` checks
+  `can?(scope, file, :read)` and mints the right token. The other URL helpers
+  (`get_public_url*`, `list_image_set_variants*`) mint the permanent token,
+  which a private file refuses: they fail closed.
+- Building URLs by hand: `URLSigner.signed_url(uuid, variant, private: true)`,
+  with `Libraries.private_file?/1`, or `Libraries.private_among/1` for a batch.
+- ⚠️ **A `MediaBrowser` given a `library_uuid` refuses any event that names a
+  file or folder of another library.** A host embedding it for a user
+  library relies on that: the scope-folder check alone admits everything.
 
 ## When a photo or video was taken
 

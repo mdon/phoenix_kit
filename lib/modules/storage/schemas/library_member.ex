@@ -5,7 +5,10 @@ defmodule PhoenixKit.Modules.Storage.LibraryMember do
 
     * `manager` — everything the owner does to the library's files, and
       managing its members; not trashing the library, nor handing it on
-    * `contributor` — upload, and change the files they uploaded
+    * `contributor` — upload, and change the files they uploaded. In the
+      media browser (`/admin/libraries`) a contributor can also organise
+      and trash the library's other files: the browser has no per-file
+      ownership check yet
     * `viewer` — see the files
 
   The owner is the library's `owner_uuid`, never a member row. A member row
