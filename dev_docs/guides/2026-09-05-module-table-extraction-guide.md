@@ -65,27 +65,59 @@ the message — never silently skip, and never auto-repair. Auto-fixing DDL
 during unattended adoption (at app boot, no operator watching) carries the
 same silent-mutation risk this mechanism exists to close, just inverted: a
 column silently widened back is a smaller but structurally identical
-mistake to a column silently narrowed. `mix phoenix_kit.repair` already
-exists as the deliberate, operator-invoked tool for actual repair — keeping
-adoption's shape check detection-only keeps each tool doing the one job it
-is suited for.
+mistake to a column silently narrowed. `mix phoenix_kit.repair` cannot
+substitute for a manual fix here either way — it is additive-only (it can
+add a missing column or index, never alter an existing one's type,
+nullability, or definition) and has no notion of module ownership, so a
+module-adopted table's drift is always a manual `ALTER`/re-declare, never
+something to point an operator at repair for.
+
+A real module coordinator implements `up(opts \\ [])` and issues its DDL
+through `Ecto.Migration.execute/1`, which only *queues* the command on the
+migration runner — a `flush()` is required before any read (like
+`verify_shape/3`) that depends on the DDL having actually landed:
 
 ```elixir
-case PhoenixKit.Migrations.Adoption.verify_shape(repo, prefix, checks) do
-  :ok -> :ok
-  {:drift, diffs} -> raise "table shape does not match what this module expects: #{inspect(diffs)}"
-end
+def up(opts \\ []) do
+  prefix = Keyword.get(opts, :prefix, "public")
+  repo = repo()
 
-case PhoenixKit.Migrations.Adoption.marker_conflict(repo, prefix, table, @marker_prefix) do
-  :ok -> repo.query!("COMMENT ON TABLE #{prefix}.#{table} IS '#{@marker_prefix}#{version}'")
-  {:conflict, existing} -> raise "table already carries an unrelated marker: #{inspect(existing)}"
+  execute("CREATE TABLE IF NOT EXISTS #{prefix}.#{table} (...)")
+  flush()
+
+  case PhoenixKit.Migrations.Adoption.verify_shape(repo, prefix, checks) do
+    :ok ->
+      :ok
+
+    {:drift, diffs} ->
+      raise "table shape does not match what this module expects:\n" <>
+              PhoenixKit.Migrations.Adoption.format_drift(diffs)
+  end
+
+  case PhoenixKit.Migrations.Adoption.marker_conflict(repo, prefix, table, @marker_prefix) do
+    :ok ->
+      execute("COMMENT ON TABLE #{prefix}.#{table} IS '#{@marker_prefix}#{version}'")
+
+    {:conflict, existing} ->
+      raise "table already carries an unrelated marker: #{inspect(existing)}"
+  end
 end
 ```
 
 Full worked example, including the `checks` vocabulary (the same
 per-class shape maps `PhoenixKit.Migrations.ExpectedSchema` already uses
-internally) and why decline-and-raise rather than auto-fix:
-`PhoenixKit.Migrations.Adoption`'s moduledoc.
+internally, and how to build one from a real manifest entry rather than
+hand-copying manifest source text) and why decline-and-raise rather than
+auto-fix: `PhoenixKit.Migrations.Adoption`'s moduledoc, which this section
+mirrors in short form.
+
+A documented, deliberate *operator override* — some explicit way to say "I
+have reviewed this drift and accept it, adopt anyway" rather than only
+ever decline-and-raise — is a natural next step beyond what
+`PhoenixKit.Migrations.Adoption` offers today. `phoenix_kit_legal`'s own
+adoption step has an equivalent need. That mechanism is intentionally not
+designed or implemented yet — build against decline-and-raise until a
+design lands.
 
 ## Inventory: which core-baseline tables are already module-owned
 
