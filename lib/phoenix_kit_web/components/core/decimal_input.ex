@@ -33,18 +33,20 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
   host app. The remembered zero lives in a property on the element, not a
   `data-` attribute: LiveView strips attributes the server did not render
   from a focused input on every patch.
-  `bare` renders the control alone, for a host that sets it inside a group
-  of its own — a daisyUI `join` with a unit button, a table cell: the
-  wrapper `<div>` would sit between `.join` and its `.join-item`. It keeps
-  everything that makes it a decimal control (text, decimal keyboard, no
-  browser autofill, the zero handlers) and drops what the host draws
-  itself: label, unit suffix, error list and the full width.
 
   A host's own `onfocus`/`onblur`/`onkeydown` are kept: they run right
   after the component's, in the same attribute (a second attribute of the
   same name would be dropped by the browser). `phx-focus` fires on
   `focusin`, after the clear, so it sees the emptied field; `phx-blur`
   fires on `focusout`, after the restore, so it sees the zero again.
+
+  `bare` renders the control alone, for a host that sets it inside a group
+  of its own — a daisyUI `join` with a unit button, a table cell: the
+  wrapper `<div>` would sit between `.join` and its `.join-item`. It keeps
+  everything that makes it a decimal control (text, decimal keyboard, no
+  browser autofill, the zero handlers) and drops what the host draws
+  itself: label, unit suffix, error list and the full width. With no
+  label, pass `aria-label` so the control keeps an accessible name.
   """
 
   use Phoenix.Component
@@ -121,7 +123,7 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
   attr :bare, :boolean,
     default: false,
     doc:
-      "render the `<input>` alone — no wrapper, label, unit or error list, no `w-full` — for a host that places it in a group of its own (a daisyUI `join`, a table cell); `errors` still mark it `input-error`"
+      "render the `<input>` alone — no wrapper, label, unit or error list, no `w-full` — for a host that places it in a group of its own (a daisyUI `join`, a table cell); `errors` still mark it `input-error`, and `aria-label` gives it the name a label would"
 
   attr :rest, :global,
     include: ~w(autofocus disabled form maxlength placeholder readonly required size)
@@ -169,26 +171,29 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
       |> assign(:on_blur, chain(@on_blur, host_blur))
       |> assign(:on_keydown, chain(@on_keydown, host_keydown))
 
+    layout(assigns)
+  end
+
+  # One root per layout: two sibling `:if` roots would leave the whitespace
+  # between them in every render.
+  defp layout(%{bare: true} = assigns) do
     ~H"""
-    <input
-      :if={@bare}
-      type="text"
-      inputmode="decimal"
-      autocomplete="off"
+    <.control
       name={@name}
       id={@id}
-      value={@text}
-      class={[
-        "input transition-colors focus:input-primary",
-        @errors != [] && "input-error",
-        @class
-      ]}
-      onfocus={@on_focus}
-      onblur={@on_blur}
-      onkeydown={@on_keydown}
-      {@rest}
+      text={@text}
+      on_focus={@on_focus}
+      on_blur={@on_blur}
+      on_keydown={@on_keydown}
+      rest={@rest}
+      class={["input transition-colors focus:input-primary", @errors != [] && "input-error", @class]}
     />
-    <div :if={!@bare} phx-feedback-for={@name} class={@wrapper_class}>
+    """
+  end
+
+  defp layout(assigns) do
+    ~H"""
+    <div phx-feedback-for={@name} class={@wrapper_class}>
       <label :if={@label && @label != ""} class="label mb-2" for={@id}>
         <span class="font-semibold">{@label}</span>
         <span :if={@rest[:required]} class="text-error ml-0.5" aria-hidden="true">*</span>
@@ -204,41 +209,54 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInput do
           @class
         ]}
       >
-        <input
-          type="text"
-          inputmode="decimal"
-          autocomplete="off"
+        <.control
           name={@name}
           id={@id}
-          value={@text}
+          text={@text}
+          on_focus={@on_focus}
+          on_blur={@on_blur}
+          on_keydown={@on_keydown}
+          rest={@rest}
           class="grow min-w-0"
-          onfocus={@on_focus}
-          onblur={@on_blur}
-          onkeydown={@on_keydown}
-          {@rest}
         />
         <span class="opacity-60 select-none" aria-hidden="true">{@unit}</span>
       </label>
-      <input
+      <.control
         :if={!@unit}
-        type="text"
-        inputmode="decimal"
-        autocomplete="off"
         name={@name}
         id={@id}
-        value={@text}
+        text={@text}
+        on_focus={@on_focus}
+        on_blur={@on_blur}
+        on_keydown={@on_keydown}
+        rest={@rest}
         class={[
           "input w-full transition-colors focus:input-primary",
           @errors != [] && "input-error",
           @class
         ]}
-        onfocus={@on_focus}
-        onblur={@on_blur}
-        onkeydown={@on_keydown}
-        {@rest}
       />
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
+    """
+  end
+
+  # The control itself, the same in every layout.
+  defp control(assigns) do
+    ~H"""
+    <input
+      type="text"
+      inputmode="decimal"
+      autocomplete="off"
+      name={@name}
+      id={@id}
+      value={@text}
+      class={@class}
+      onfocus={@on_focus}
+      onblur={@on_blur}
+      onkeydown={@on_keydown}
+      {@rest}
+    />
     """
   end
 

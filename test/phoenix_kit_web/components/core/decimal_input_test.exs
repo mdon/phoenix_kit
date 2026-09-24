@@ -114,6 +114,29 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
     assert html =~ ~s(phx-blur="commit")
   end
 
+  test "the default layout renders one control, whether bare is omitted or false" do
+    assigns = %{}
+
+    for html <- [
+          render(~H"""
+          <.decimal_input id="q" name="value" value="0" />
+          """),
+          render(~H"""
+          <.decimal_input id="q" name="value" value="0" unit="kg" />
+          """)
+        ] do
+      assert length(Regex.scan(~r/<input/, html)) == 1
+      assert html =~ ~r/\A<div phx-feedback-for="value"/
+    end
+
+    assert render(~H"""
+           <.decimal_input id="q" name="value" value="0" label="Qty" bare={false} />
+           """) ==
+             render(~H"""
+             <.decimal_input id="q" name="value" value="0" label="Qty" />
+             """)
+  end
+
   describe "bare" do
     # A host that sets the control inside its own group — a daisyUI `join`
     # with a unit button, a table cell — gets the <input> alone: the
@@ -135,9 +158,9 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
           class="join-item w-20 text-center"
         />
         """)
-        |> String.trim()
 
       assert html =~ ~r/\A<input [^>]*\/?>\z/
+      assert html =~ ~s(id="q")
       refute html =~ "<div"
       refute html =~ "<label"
       refute html =~ "Quantity"
@@ -174,6 +197,27 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
       assert tag =~ "join-item w-20"
       refute tag =~ "w-full"
       refute tag =~ "input-error"
+    end
+
+    test "a bound field supplies name, id, value and errors to the bare control too" do
+      changeset =
+        {%{}, %{qty: :decimal}}
+        |> Ecto.Changeset.cast(%{"qty" => "abc"}, [:qty])
+        |> Map.put(:action, :validate)
+
+      assigns = %{form: to_form(changeset, as: "row")}
+
+      html =
+        render(~H"""
+        <.decimal_input bare field={@form[:qty]} label="Quantity" />
+        """)
+
+      assert html =~ ~r/\A<input [^>]*\/?>\z/
+      assert html =~ ~s(name="row[qty]")
+      assert html =~ ~s(id="row_qty")
+      assert html =~ ~s(value="abc")
+      assert html =~ "input-error"
+      refute html =~ "is invalid"
     end
 
     test "errors still mark the control" do
