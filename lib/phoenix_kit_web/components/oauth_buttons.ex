@@ -8,6 +8,7 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
   """
 
   use Phoenix.Component
+  use Gettext, backend: PhoenixKitWeb.Gettext
   alias PhoenixKit.Users.OAuthAvailability
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.Core.Icons
@@ -57,7 +58,7 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
     <%= if @any_provider_enabled do %>
       <div class={@class}>
         <%= if @show_divider do %>
-          <div class="divider text-base-content/60">Or continue with</div>
+          <div class="divider text-base-content/60">{gettext("Or continue with")}</div>
         <% end %>
 
         <div class="space-y-2">
@@ -69,7 +70,7 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
               class="btn btn-outline w-full flex items-center justify-center gap-2 hover:bg-base-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               <Icons.icon_google class="w-5 h-5" />
-              <span>Continue with Google</span>
+              <span>{gettext("Continue with Google")}</span>
             </.link>
           <% end %>
           <%!-- GitHub Sign-In Button --%>
@@ -79,7 +80,7 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
               class="btn btn-outline w-full flex items-center justify-center gap-2 hover:bg-base-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               <Icons.icon_github class="w-5 h-5" />
-              <span>Continue with GitHub</span>
+              <span>{gettext("Continue with GitHub")}</span>
             </.link>
           <% end %>
           <%!-- Facebook Sign-In Button --%>
@@ -89,7 +90,7 @@ defmodule PhoenixKitWeb.Components.OAuthButtons do
               class="btn btn-outline w-full flex items-center justify-center gap-2 hover:bg-base-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               <Icons.icon_facebook class="w-5 h-5" />
-              <span>Continue with Facebook</span>
+              <span>{gettext("Continue with Facebook")}</span>
             </.link>
           <% end %>
         </div>

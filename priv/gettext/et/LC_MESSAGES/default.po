@@ -1472,6 +1472,7 @@ msgstr "Valikuline, kuni 500 tähemärki."
 msgid "Options"
 msgstr "Valikud"
 
+#: lib/phoenix_kit_web/components/oauth_buttons.ex:61
 #: lib/phoenix_kit_web/users/login.html.heex:95
 #: lib/phoenix_kit_web/users/registration.html.heex:203
 #, elixir-autogen, elixir-format
@@ -15728,3 +15729,18 @@ msgid "%{count} file is already in another library, so it was not added here."
 msgid_plural "%{count} files are already in another library, so they were not added here."
 msgstr[0] "%{count} fail on juba teises kogus, seega seda siia ei lisatud."
 msgstr[1] "%{count} faili on juba teises kogus, seega neid siia ei lisatud."
+
+#: lib/phoenix_kit_web/components/oauth_buttons.ex:93
+#, elixir-autogen, elixir-format
+msgid "Continue with Facebook"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/oauth_buttons.ex:83
+#, elixir-autogen, elixir-format
+msgid "Continue with GitHub"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/oauth_buttons.ex:73
+#, elixir-autogen, elixir-format
+msgid "Continue with Google"
+msgstr ""
