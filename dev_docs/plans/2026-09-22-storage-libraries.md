@@ -8,7 +8,10 @@ location-truth moved ahead of storage profiles. Four gaps were added
 (G11–G14), and G3 and G8 were corrected. Later the same day, **variant sets**
 (per-library image and video sizes, §3.4, G15–G19) were added to V204, so they
 ship in the same release as storage profiles.
-**Status:** Phase 1 IMPLEMENTED (2026-09-23) as **V202**, not V201: PR #860
+**Status (2026-09-24):** Phase 1 **RELEASED in 2.38.0** (2026-09-23, tag
+`v2.38.0`, which includes the post-review fixes below). 2.38.1 changed
+nothing in Storage. **Next: V203** (private serving + user libraries, plus
+the uploader FK deferred from phase 1). Phase 1 shipped as **V202**, not V201: PR #860
 took V201 for per-user view preferences, so every phase below shifts by one
 (V202 partition, V203 private serving + user libraries, V204 location-truth,
 V205 profiles + variant sets, V206 user-owned storage). The version numbers in
@@ -61,14 +64,42 @@ Deferred from §9's V201 list, deliberately:
 Known phase-1 limit: dedup is still per uploader site-wide, so uploading into
 library B bytes the same person already has in Media returns the Media file;
 the MediaBrowser refuses that upload in B rather than showing a file B does
-not hold.
+not hold (`{:postpone, :in_other_library}`, reported as its own pluralised
+warning). The V203 dedup key swap (§6.4) removes this limit.
+
+Fixed before the 2.38.0 tag, from Grok's review
+(`dev_docs/reviews/2026-09-23-storage-libraries/CLAUDE_RECHECK.md`):
+
+- The V202 slug backfill assigns slugs one library at a time, checked
+  against those already written for the owner. The first version ranked
+  and then truncated, so near-identical names could collide and abort the
+  migration.
+- `list_system_libraries_with_stats/0` returns `holds` (any row at all,
+  trashed or system-managed included), and the Libraries tab disables
+  Delete on it, matching what `delete_library/1` and the FK refuse.
+- The MediaBrowser's upload summary is put by the parent LiveView
+  (`parent_flash/3` → `handle_parent_info/2`). A LiveComponent's
+  `put_flash` never reached the page. Open follow-up: the browser's other
+  `put_flash` calls (folder created, renamed, …) have the same limit and
+  were not audited one by one. Most follow a navigation, which carries the
+  flash.
+
+Also in 2.38.0, and useful to V203: public-bucket downloads of files that
+must not render in place are redirected to a one-hour **presigned** URL
+(`Provider.signed_download_url/3`, an optional callback that S3 implements;
+`Manager.get_file_access/2` returns `{:signed_redirect, url}`, and proxies
+when a provider cannot sign). This is the presigning that §6.7 needs for
+private libraries. It is not yet the `"signed"` access type: it only covers
+the download case on public buckets, and it skips `cdn_url`.
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.
 **Related:** `PhoenixKit.Modules.Storage.CaptureDate` and V200 (the capture-date
 index this plan re-keys); `phoenix_kit_photos` plans
 `2026-09-21-phoenix-kit-photos.md` and `2026-09-22-roadmap-after-stage-0.md`.
 
-Line numbers below are as of commit `fb393135` (2.37.4). V200 is released, so
+Line numbers below are as of commit `fb393135` (2.37.4). V202 and #860 have
+since moved most of them (for example `list_files`' `bucket_uuid` filter is
+now `storage.ex:5033`), so search by function name. V200 is released, so
 every phase here is a new version, starting at **V201**.
 
 ---
@@ -165,7 +196,10 @@ another library is an explicit operation, and it may move bytes (§6.3).
   served with `send_file`. `access_type: "private"` is proxied through Phoenix.
   Anything else, including the unimplemented `"signed"`, redirects to
   `public_url`, which is `cdn_url` or an AWS-style URL and ignores a custom
-  `endpoint` (`s3.ex:81-87`).
+  `endpoint` (`s3.ex:81-87`). *Since 2.38.0:* a file that must download
+  rather than render (not an image, video, audio, PDF or plain text) is
+  redirected from a public bucket to a one-hour presigned URL instead
+  (`{:signed_redirect, url}`), or proxied if the provider cannot sign.
 - **Signed file URLs are capability URLs.** The token is the first 4 hex
   characters of an MD5 and never expires (`url_signer.ex:137-156`). It carries
   no user, and `show/2` checks nothing else.
@@ -854,6 +888,11 @@ library at this point, since the scope is `{:library, uuid}` either way.
 - `/admin/storage/libraries` (§8).
 - Placement is still the global pool. User libraries live on the system
   buckets.
+- *Carried over from phase 1 (shipping as V203):* the uploader FK →
+  `SET NULL` with the relaxed CHECK (§3.1), which user libraries need. Also
+  retire V200's user-keyed capture-date index once the manifest can express a
+  removal, or in the same step. V202 already added
+  `phoenix_kit_files_library_capture_date_index`.
 
 **V203: location-truth.**
 
@@ -948,7 +987,11 @@ All questions were answered by the maintainer, one at a time.
   to 5 minutes to apply.
 - `storage_default_bucket_uuid` is configurable but unused.
 - `public_url` ignores a custom S3 `endpoint`. `access_type: "signed"` is
-  documented but falls through to a public redirect.
+  documented but falls through to a public redirect. (2.38.0 added
+  presigned *download* redirects on public buckets, see "Phase 1 as built",
+  but the access type itself is still unimplemented.)
+
+Rechecked 2026-09-24: none of the items above were fixed by 2.38.0.
 - `S3.resolve_credentials/1` does not check integration ownership, and
   `aws_config/1` does not normalize the endpoint the way the integration
   validator does.
