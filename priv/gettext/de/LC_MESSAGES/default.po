@@ -27,7 +27,7 @@ msgstr "Die OAuth-Anmeldung ist nicht verfügbar. Bitte installieren Sie die erf
 msgid "OAuth authentication is not configured. Please contact your administrator."
 msgstr "Die OAuth-Anmeldung ist nicht konfiguriert. Bitte wenden Sie sich an Ihre Administration."
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:64
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:65
 #: lib/phoenix_kit_web/components/core/admin_label.ex:64
 #: lib/phoenix_kit_web/live/dashboard.html.heex:5
 #: lib/phoenix_kit_web/live/dashboard/index.ex:11
@@ -50,9 +50,9 @@ msgstr "Plattformstatistiken"
 msgid "System Information"
 msgstr "Systeminformationen"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:77
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:92
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:266
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:78
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:93
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:281
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:108
 #: lib/phoenix_kit_web/live/settings/users.ex:47
 #: lib/phoenix_kit_web/live/users/roles.html.heex:95
@@ -69,7 +69,7 @@ msgstr "Benutzer"
 msgid "User management"
 msgstr "Benutzerverwaltung"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:128
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:129
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:124
 #: lib/phoenix_kit_web/live/settings/users.html.heex:75
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:44
@@ -85,8 +85,9 @@ msgstr "Rollen"
 msgid "Role management"
 msgstr "Rollenverwaltung"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:119
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:120
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:140
+#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:110
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:87
 #: lib/phoenix_kit_web/live/settings/users.html.heex:68
 #, elixir-autogen
@@ -122,6 +123,8 @@ msgstr "Neues Konto erstellen"
 #: lib/phoenix_kit/notifications/channels/email.ex:25
 #: lib/phoenix_kit/users/table_columns.ex:266
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:188
+#: lib/phoenix_kit_web/live/components/library_settings.ex:429
+#: lib/phoenix_kit_web/live/components/library_settings.ex:430
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:251
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:687
 #: lib/phoenix_kit_web/live/users/users.html.heex:308
@@ -495,9 +498,9 @@ msgstr "Kontoinformationen"
 #: lib/modules/storage/web/dimensions.html.heex:151
 #: lib/modules/storage/web/dimensions.html.heex:352
 #: lib/modules/storage/web/settings.html.heex:159
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:208
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:260
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:292
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:212
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:264
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:296
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:110
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:164
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:211
@@ -515,6 +518,7 @@ msgid "Actions"
 msgstr "Aktionen"
 
 #: lib/phoenix_kit_web/components/media_gallery.html.heex:86
+#: lib/phoenix_kit_web/live/components/library_settings.ex:438
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:638
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:314
 #: lib/phoenix_kit_web/live/settings/users.html.heex:889
@@ -545,7 +549,7 @@ msgstr "Notiz hinzufügen"
 msgid "Add a note above to start documenting information about this user."
 msgstr "Fügen Sie oben eine Notiz hinzu, um Informationen zu diesem Benutzer zu dokumentieren."
 
-#: lib/modules/storage/web/libraries_component.ex:174
+#: lib/modules/storage/web/libraries_component.ex:219
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:67
 #: lib/phoenix_kit_web/live/settings/website_access.ex:401
 #, elixir-autogen, elixir-format
@@ -619,8 +623,8 @@ msgstr "Aufzählungsliste"
 #: lib/modules/storage/web/bucket_form.html.heex:352
 #: lib/modules/storage/web/bucket_form.html.heex:380
 #: lib/modules/storage/web/dimension_form.html.heex:230
-#: lib/modules/storage/web/libraries_component.ex:165
-#: lib/modules/storage/web/libraries_component.ex:209
+#: lib/modules/storage/web/libraries_component.ex:210
+#: lib/modules/storage/web/libraries_component.ex:254
 #: lib/phoenix_kit/mentions/live.ex:250
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:41
 #: lib/phoenix_kit_web/components/annotation_composer.ex:661
@@ -628,8 +632,8 @@ msgstr "Aufzählungsliste"
 #: lib/phoenix_kit_web/components/core/form_actions.ex:118
 #: lib/phoenix_kit_web/components/core/modal.ex:311
 #: lib/phoenix_kit_web/components/core/reorder_modal.ex:92
-#: lib/phoenix_kit_web/components/image_editor.ex:1052
-#: lib/phoenix_kit_web/components/image_editor.ex:1076
+#: lib/phoenix_kit_web/components/image_editor.ex:1056
+#: lib/phoenix_kit_web/components/image_editor.ex:1080
 #: lib/phoenix_kit_web/components/media_browser.html.heex:69
 #: lib/phoenix_kit_web/components/media_browser.html.heex:856
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1128
@@ -707,7 +711,7 @@ msgstr "Klicken Sie auf ein Häkchen- oder Kreuzsymbol, um eine Berechtigung fü
 #: lib/phoenix_kit/mentions/live.ex:266
 #: lib/phoenix_kit_web/components/core/column_settings.ex:181
 #: lib/phoenix_kit_web/components/core/preview_card.ex:117
-#: lib/phoenix_kit_web/components/image_editor.ex:678
+#: lib/phoenix_kit_web/components/image_editor.ex:682
 #: lib/phoenix_kit_web/components/media_browser.html.heex:391
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:36
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:36
@@ -738,8 +742,8 @@ msgstr "Firmeninformationen, die von den Modulen „Rechtliches“ und „Abrech
 msgid "Company name is required"
 msgstr "Firmenname ist erforderlich"
 
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:265
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:297
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:269
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:301
 #: lib/phoenix_kit_web/live/modules.html.heex:103
 #: lib/phoenix_kit_web/live/modules.html.heex:110
 #: lib/phoenix_kit_web/live/modules.html.heex:163
@@ -897,10 +901,10 @@ msgstr "DSB-Kontakt gespeichert"
 #: lib/modules/storage/web/dimensions.html.heex:274
 #: lib/modules/storage/web/dimensions.html.heex:440
 #: lib/modules/storage/web/dimensions.html.heex:475
-#: lib/modules/storage/web/libraries_component.ex:249
+#: lib/modules/storage/web/libraries_component.ex:294
 #: lib/modules/storage/web/settings.html.heex:285
 #: lib/phoenix_kit_web/components/core/bulk_select.ex:224
-#: lib/phoenix_kit_web/components/image_editor.ex:1028
+#: lib/phoenix_kit_web/components/image_editor.ex:1032
 #: lib/phoenix_kit_web/components/media_browser.html.heex:835
 #: lib/phoenix_kit_web/components/media_browser.html.heex:842
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1497
@@ -1133,10 +1137,11 @@ msgstr "Einstellung konnte nicht aktualisiert werden"
 msgid "Feature Modules"
 msgstr "Funktionsmodule"
 
-#: lib/modules/storage/web/libraries_component.ex:175
+#: lib/modules/storage/web/libraries_component.ex:220
+#: lib/modules/storage/web/libraries_component.ex:368
 #: lib/modules/storage/web/settings.html.heex:141
 #: lib/modules/storage/web/settings.html.heex:157
-#: lib/phoenix_kit/users/auth.ex:3240
+#: lib/phoenix_kit/users/auth.ex:3241
 #: lib/phoenix_kit_web/components/core/preview_card.ex:284
 #, elixir-autogen, elixir-format
 msgid "Files"
@@ -1446,6 +1451,7 @@ msgstr "OK"
 msgid "Only the Owner can edit Admin permissions"
 msgstr "Nur der Inhaber kann Administratorberechtigungen bearbeiten"
 
+#: lib/modules/storage/web/libraries_component.ex:392
 #: lib/phoenix_kit_web/components/core/preview_card.ex:305
 #: lib/phoenix_kit_web/components/core/preview_card.ex:339
 #, elixir-autogen, elixir-format
@@ -1526,7 +1532,7 @@ msgstr "Ausstehend"
 msgid "Permission denied"
 msgstr "Zugriff verweigert"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:137
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:138
 #: lib/phoenix_kit_web/live/users/permissions_matrix.ex:29
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:5
 #: lib/phoenix_kit_web/live/users/roles.html.heex:151
@@ -1657,8 +1663,9 @@ msgstr "Alle ablehnen"
 #: lib/phoenix_kit_web/components/media_gallery.html.heex:53
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:269
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:270
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:279
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:311
+#: lib/phoenix_kit_web/live/components/library_settings.ex:413
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:283
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:315
 #: lib/phoenix_kit_web/live/settings.html.heex:122
 #: lib/phoenix_kit_web/live/settings.html.heex:246
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:128
@@ -1691,6 +1698,8 @@ msgstr "%{label} wurde %{role_name} entzogen"
 #: lib/phoenix_kit/users/table_columns.ex:285
 #: lib/phoenix_kit_web/components/core/role_switcher.ex:127
 #: lib/phoenix_kit_web/live/activity/index.html.heex:49
+#: lib/phoenix_kit_web/live/components/library_settings.ex:400
+#: lib/phoenix_kit_web/live/components/library_settings.ex:433
 #: lib/phoenix_kit_web/live/users/roles.html.heex:160
 #: lib/phoenix_kit_web/live/users/users.html.heex:173
 #, elixir-autogen, elixir-format
@@ -1758,11 +1767,12 @@ msgid "SWIFT/BIC"
 msgstr "SWIFT/BIC"
 
 #: lib/modules/sitemap/web/settings.html.heex:501
-#: lib/modules/storage/web/libraries_component.ex:202
+#: lib/modules/storage/web/libraries_component.ex:247
+#: lib/modules/storage/web/libraries_component.ex:354
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:67
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:356
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:440
-#: lib/phoenix_kit_web/components/image_editor.ex:970
+#: lib/phoenix_kit_web/components/image_editor.ex:974
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1354
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:603
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1697
@@ -1836,7 +1846,7 @@ msgstr "Wählen Sie aus, auf welche Bereiche und Module diese Rolle zugreifen da
 #: lib/modules/storage/web/dimensions.html.heex:5
 #: lib/modules/storage/web/health.html.heex:5
 #: lib/modules/storage/web/settings.html.heex:5
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:218
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:233
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:170
 #: lib/phoenix_kit_web/live/modules/languages.ex:47
 #: lib/phoenix_kit_web/live/settings.ex:66
@@ -1899,8 +1909,8 @@ msgstr "Bundesland/Provinz"
 #: lib/modules/storage/web/settings.html.heex:145
 #: lib/modules/storage/web/settings.html.heex:158
 #: lib/phoenix_kit/users/table_columns.ex:291
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:164
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:207
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:168
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:211
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:150
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:55
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:109
@@ -2327,7 +2337,8 @@ msgstr "Als Standard festlegen"
 
 #: lib/modules/storage/web/dimensions.html.heex:108
 #: lib/modules/storage/web/dimensions.html.heex:146
-#: lib/modules/storage/web/libraries_component.ex:177
+#: lib/modules/storage/web/libraries_component.ex:222
+#: lib/modules/storage/web/libraries_component.ex:369
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1893
 #, elixir-autogen, elixir-format
 msgid "Size"
@@ -3041,12 +3052,15 @@ msgstr "Maximal %{count} Kopien basierend auf %{buckets} aktiven Bucket(s)."
 
 #: lib/modules/storage/web/dimensions.html.heex:145
 #: lib/modules/storage/web/dimensions.html.heex:342
-#: lib/modules/storage/web/libraries_component.ex:173
+#: lib/modules/storage/web/libraries_component.ex:218
+#: lib/modules/storage/web/libraries_component.ex:365
 #: lib/modules/storage/web/settings.html.heex:154
 #: lib/phoenix_kit_web/components/media_browser.html.heex:417
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1889
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:173
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:205
+#: lib/phoenix_kit_web/live/components/library_settings.ex:247
+#: lib/phoenix_kit_web/live/components/library_settings.ex:280
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:177
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:209
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:149
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:66
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:107
@@ -3148,6 +3162,7 @@ msgstr "Nur 1 aktiver Bucket verfügbar. Fügen Sie weitere Buckets hinzu, um Re
 #: lib/modules/storage/web/dimensions.html.heex:187
 #: lib/modules/storage/web/dimensions.html.heex:330
 #: lib/modules/storage/web/dimensions.html.heex:388
+#: lib/phoenix_kit_web/live/users/media_detail.ex:472
 #, elixir-autogen, elixir-format
 msgid "Original"
 msgstr "Original"
@@ -3823,8 +3838,9 @@ msgstr "Absoluter Pfad, unter dem Dateien auf der Festplatte gespeichert werden"
 msgid "Accept"
 msgstr "Annehmen"
 
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:178
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:206
+#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:108
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:182
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:210
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:73
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:108
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:96
@@ -3845,8 +3861,8 @@ msgid "Account disconnected"
 msgstr "Konto getrennt"
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:76
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:191
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:329
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:195
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:333
 #: lib/phoenix_kit_web/live/settings/integration_form.ex:31
 #: lib/phoenix_kit_web/live/settings/integration_form.ex:71
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:91
@@ -4427,7 +4443,7 @@ msgstr "Zugriff auf Google Docs und Google Drive gewähren"
 
 #: lib/modules/storage/web/health.ex:34
 #: lib/modules/storage/web/health.html.heex:51
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:341
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:356
 #, elixir-autogen, elixir-format
 msgid "Health"
 msgstr "Zustand"
@@ -4442,7 +4458,8 @@ msgstr "In Ordnung"
 msgid "Integration deleted"
 msgstr "Integration gelöscht"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:309
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:324
+#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:112
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1928
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:10
 #: lib/phoenix_kit_web/live/settings/integrations.ex:33
@@ -4569,6 +4586,9 @@ msgstr "Mitglied zur Organisation hinzugefügt"
 msgid "Member removed from organization"
 msgstr "Mitglied aus der Organisation entfernt"
 
+#: lib/modules/storage/web/libraries_component.ex:367
+#: lib/phoenix_kit_web/live/components/library_settings.ex:303
+#: lib/phoenix_kit_web/live/components/library_settings.ex:349
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Members"
@@ -4677,6 +4697,7 @@ msgstr "Nicht getestet"
 msgid "Notification preferences saved."
 msgstr "Benachrichtigungseinstellungen gespeichert."
 
+#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:111
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1718
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:628
 #: lib/phoenix_kit_web/live/settings.html.heex:382
@@ -4704,7 +4725,7 @@ msgstr "OpenRouter"
 msgid "Org"
 msgstr "Org."
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:257
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:272
 #: lib/phoenix_kit_web/live/settings/organization.ex:45
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:160
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:184
@@ -4863,7 +4884,7 @@ msgstr "Sicherheitsprüfung fehlgeschlagen. Bitte versuchen Sie die Verbindung e
 msgid "Select a user to add..."
 msgstr "Benutzer zum Hinzufügen auswählen …"
 
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:204
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:208
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:148
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:106
 #, elixir-autogen, elixir-format
@@ -4969,8 +4990,8 @@ msgstr "Steuereinstellungen gespeichert"
 #: lib/modules/storage/web/bucket_form.html.heex:270
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:603
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:614
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:272
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:304
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:276
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:308
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:297
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:178
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:223
@@ -4987,8 +5008,8 @@ msgstr "Test fehlgeschlagen"
 
 #: lib/modules/storage/web/bucket_form.html.heex:267
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:614
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:167
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:240
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:171
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:244
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:297
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:58
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:144
@@ -5096,7 +5117,7 @@ msgstr "Sie müssen mindestens einen Medien-Bucket erstellen, bevor Dateien hoch
 msgid "You'll be redirected back here once connected"
 msgstr "Sie werden nach der Verbindung hierher zurückgeleitet"
 
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:185
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:189
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:82
 #, elixir-autogen, elixir-format
 msgid "connections"
@@ -5526,7 +5547,7 @@ msgstr "Verfügbar"
 msgid "Body Saved"
 msgstr "Inhalt gespeichert"
 
-#: lib/phoenix_kit/users/auth.ex:3227
+#: lib/phoenix_kit/users/auth.ex:3228
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:671
 #: lib/phoenix_kit_web/live/modules.ex:127
 #: lib/phoenix_kit_web/live/users/media_detail.html.heex:364
@@ -5617,7 +5638,7 @@ msgstr "Nachricht"
 msgid "Module Management"
 msgstr "Modulverwaltung"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:186
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:201
 #: lib/phoenix_kit_web/live/modules.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Modules"
@@ -5706,8 +5727,9 @@ msgstr "erfordert das"
 #: lib/modules/storage/web/health.html.heex:8
 #: lib/modules/storage/web/settings.ex:66
 #: lib/modules/storage/web/settings.html.heex:4
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:160
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:318
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:161
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:333
+#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:113
 #: lib/phoenix_kit_web/live/users/media.ex:43
 #: lib/phoenix_kit_web/live/users/media.html.heex:5
 #, elixir-autogen, elixir-format
@@ -5861,9 +5883,11 @@ msgstr "Fertig"
 msgid "Reorder"
 msgstr "Neu anordnen"
 
-#: lib/modules/storage/web/libraries_component.ex:215
+#: lib/modules/storage/web/libraries_component.ex:260
+#: lib/phoenix_kit_web/live/components/library_settings.ex:285
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:56
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:221
+#: lib/phoenix_kit_web/live/users/libraries.html.heex:85
 #, elixir-autogen
 msgid "Default"
 msgstr "Standard"
@@ -5939,7 +5963,7 @@ msgstr "Entitäten"
 
 #: lib/modules/sitemap/web/settings.html.heex:141
 #: lib/modules/sitemap/web/settings.html.heex:321
-#: lib/phoenix_kit/users/auth.ex:3225
+#: lib/phoenix_kit/users/auth.ex:3226
 #: lib/phoenix_kit_web/live/modules.ex:139
 #, elixir-autogen
 msgid "Posts"
@@ -6169,21 +6193,21 @@ msgstr "Sitemap-Quelle"
 msgid "Open in Browser"
 msgstr "Im Browser öffnen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2920
+#: lib/phoenix_kit_web/components/media_browser.ex:2946
 #, elixir-autogen, elixir-format
 msgid "%{count} file permanently deleted"
 msgid_plural "%{count} files permanently deleted"
 msgstr[0] "%{count} Datei endgültig gelöscht"
 msgstr[1] "%{count} Dateien endgültig gelöscht"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2582
+#: lib/phoenix_kit_web/components/media_browser.ex:2608
 #, elixir-autogen, elixir-format
 msgid "%{count} item moved"
 msgid_plural "%{count} items moved"
 msgstr[0] "%{count} Element verschoben"
 msgstr[1] "%{count} Elemente verschoben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2982
+#: lib/phoenix_kit_web/components/media_browser.ex:3008
 #, elixir-autogen, elixir-format
 msgid "%{count} orphaned file queued for deletion"
 msgid_plural "%{count} orphaned files queued for deletion"
@@ -6193,7 +6217,7 @@ msgstr[1] "%{count} verwaiste Dateien zum Löschen eingeplant"
 #: lib/phoenix_kit_web/components/core/bulk_actions_bar.ex:101
 #: lib/phoenix_kit_web/components/media_browser.html.heex:779
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:43
-#: lib/phoenix_kit_web/live/users/media_selector.ex:466
+#: lib/phoenix_kit_web/live/users/media_selector.ex:480
 #, elixir-autogen, elixir-format
 msgid "%{count} selected"
 msgid_plural "%{count} selected"
@@ -6231,35 +6255,35 @@ msgstr "Alle Medien"
 msgid "All file types supported"
 msgstr "Alle Dateitypen werden unterstützt"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4460
+#: lib/phoenix_kit_web/components/media_browser.ex:4492
 #, elixir-autogen, elixir-format
 msgid "Already have %{count} duplicate file. No new files were added."
 msgid_plural "Already have %{count} duplicate files. No new files were added."
 msgstr[0] "Es gibt bereits %{count} doppelte Datei. Es wurden keine neuen Dateien hinzugefügt."
 msgstr[1] "Es gibt bereits %{count} doppelte Dateien. Es wurden keine neuen Dateien hinzugefügt."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2267
+#: lib/phoenix_kit_web/components/media_browser.ex:2293
 #, elixir-autogen, elixir-format
 msgid "Cannot change folder outside the allowed scope"
 msgstr "Der Ordner kann außerhalb des zulässigen Bereichs nicht geändert werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1464
+#: lib/phoenix_kit_web/components/media_browser.ex:1490
 #, elixir-autogen, elixir-format
 msgid "Cannot create folder outside the allowed scope"
 msgstr "Es kann kein Ordner außerhalb des zulässigen Bereichs erstellt werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1508
+#: lib/phoenix_kit_web/components/media_browser.ex:1534
 #, elixir-autogen, elixir-format
 msgid "Cannot delete folder outside the allowed scope"
 msgstr "Der Ordner kann außerhalb des zulässigen Bereichs nicht gelöscht werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1546
-#: lib/phoenix_kit_web/components/media_browser.ex:1620
+#: lib/phoenix_kit_web/components/media_browser.ex:1572
+#: lib/phoenix_kit_web/components/media_browser.ex:1646
 #, elixir-autogen, elixir-format
 msgid "Cannot move file outside the allowed scope"
 msgstr "Die Datei kann nicht außerhalb des zulässigen Bereichs verschoben werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1984
+#: lib/phoenix_kit_web/components/media_browser.ex:2010
 #, elixir-autogen, elixir-format
 msgid "Cannot rename folder outside the allowed scope"
 msgstr "Der Ordner kann außerhalb des zulässigen Bereichs nicht umbenannt werden"
@@ -6319,8 +6343,8 @@ msgstr "Endgültig löschen"
 msgid "Deleted files will appear here"
 msgstr "Gelöschte Dateien erscheinen hier"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:1005
-#: lib/phoenix_kit_web/components/media_browser.ex:3737
+#: lib/phoenix_kit_web/components/image_editor.ex:1009
+#: lib/phoenix_kit_web/components/media_browser.ex:3763
 #: lib/phoenix_kit_web/components/media_browser.html.heex:815
 #: lib/phoenix_kit_web/components/media_browser.html.heex:818
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1624
@@ -6340,45 +6364,45 @@ msgstr "Dateien hier ablegen oder auf „Medien hinzufügen“ klicken, um sie h
 msgid "Empty Trash"
 msgstr "Papierkorb leeren"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2270
+#: lib/phoenix_kit_web/components/media_browser.ex:2296
 #, elixir-autogen, elixir-format
 msgid "Failed to change color"
 msgstr "Farbe konnte nicht geändert werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1467
+#: lib/phoenix_kit_web/components/media_browser.ex:1493
 #, elixir-autogen, elixir-format
 msgid "Failed to create folder"
 msgstr "Ordner konnte nicht erstellt werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1549
-#: lib/phoenix_kit_web/components/media_browser.ex:3429
+#: lib/phoenix_kit_web/components/media_browser.ex:1575
+#: lib/phoenix_kit_web/components/media_browser.ex:3455
 #, elixir-autogen, elixir-format
 msgid "Failed to move file"
 msgstr "Datei konnte nicht verschoben werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1987
+#: lib/phoenix_kit_web/components/media_browser.ex:2013
 #, elixir-autogen, elixir-format
 msgid "Failed to rename folder"
 msgstr "Ordner konnte nicht umbenannt werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1542
+#: lib/phoenix_kit_web/components/media_browser.ex:1568
 #, elixir-autogen, elixir-format
 msgid "File moved"
 msgstr "Datei verschoben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:969
+#: lib/phoenix_kit_web/components/media_browser.ex:970
 #, elixir-autogen, elixir-format
 msgid "Folder not accessible — showing root"
 msgstr "Ordner nicht zugänglich – Wurzelverzeichnis wird angezeigt"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1518
-#: lib/phoenix_kit_web/components/media_browser.ex:1573
-#: lib/phoenix_kit_web/components/media_browser.ex:1646
+#: lib/phoenix_kit_web/components/media_browser.ex:1544
+#: lib/phoenix_kit_web/components/media_browser.ex:1599
+#: lib/phoenix_kit_web/components/media_browser.ex:1672
 #, elixir-autogen, elixir-format
 msgid "Folder not found"
 msgstr "Ordner nicht gefunden"
 
-#: lib/modules/storage/web/libraries_component.ex:176
+#: lib/modules/storage/web/libraries_component.ex:221
 #: lib/phoenix_kit_web/components/folder_explorer.ex:250
 #, elixir-autogen, elixir-format
 msgid "Folders"
@@ -6405,7 +6429,7 @@ msgstr "Benutzermedien und Uploads verwalten"
 msgid "More actions"
 msgstr "Weitere Aktionen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3792
+#: lib/phoenix_kit_web/components/media_browser.ex:3818
 #: lib/phoenix_kit_web/components/media_browser.html.heex:805
 #: lib/phoenix_kit_web/components/media_browser.html.heex:808
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1478
@@ -6416,7 +6440,7 @@ msgstr "Weitere Aktionen"
 msgid "Move"
 msgstr "Verschieben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4749
+#: lib/phoenix_kit_web/components/media_browser.ex:4831
 #, elixir-autogen, elixir-format
 msgid "Move %{count} file to trash?"
 msgid_plural "Move %{count} files to trash?"
@@ -6468,7 +6492,7 @@ msgstr "Verwaiste Dateien"
 msgid "Path"
 msgstr "Pfad"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4725
+#: lib/phoenix_kit_web/components/media_browser.ex:4807
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{count} file? This cannot be undone."
 msgid_plural "Permanently delete %{count} files? This cannot be undone."
@@ -6492,10 +6516,11 @@ msgstr "Zurück"
 msgid "Previous (←)"
 msgstr "Zurück (←)"
 
-#: lib/modules/storage/web/libraries_component.ex:236
+#: lib/modules/storage/web/libraries_component.ex:281
 #: lib/phoenix_kit_web/components/folder_explorer.ex:661
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1432
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2121
+#: lib/phoenix_kit_web/live/components/library_settings.ex:283
 #, elixir-autogen, elixir-format
 msgid "Rename"
 msgstr "Umbenennen"
@@ -6545,6 +6570,7 @@ msgstr "Dieser Ordner ist leer."
 
 #: lib/phoenix_kit_web/components/folder_explorer.ex:355
 #: lib/phoenix_kit_web/components/media_browser.html.heex:681
+#: lib/phoenix_kit_web/live/components/library_settings.ex:318
 #, elixir-autogen, elixir-format
 msgid "Trash"
 msgstr "Papierkorb"
@@ -6569,18 +6595,18 @@ msgstr "Medien hochladen"
 msgid "Upload Media Files"
 msgstr "Mediendateien hochladen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4441
+#: lib/phoenix_kit_web/components/media_browser.ex:4473
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:626
 #, elixir-autogen, elixir-format
 msgid "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
 msgstr "Upload fehlgeschlagen: Keine Speicher-Buckets konfiguriert. Bitte konfigurieren Sie mindestens einen Speicher-Bucket, bevor Sie Dateien hochladen."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4427
+#: lib/phoenix_kit_web/components/media_browser.ex:4459
 #, elixir-autogen, elixir-format
 msgid "Upload processed"
 msgstr "Upload verarbeitet"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4469
+#: lib/phoenix_kit_web/components/media_browser.ex:4501
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{count} new file processed"
 msgid_plural "Upload successful! %{count} new files processed"
@@ -6597,15 +6623,15 @@ msgstr "Hochgeladen:"
 msgid "Your browser does not support the video tag."
 msgstr "Ihr Browser unterstützt das Video-Element nicht."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4448
+#: lib/phoenix_kit_web/components/media_browser.ex:4480
 #, elixir-autogen, elixir-format
 msgid "%{count} failed"
 msgid_plural "%{count} failed"
 msgstr[0] "%{count} fehlgeschlagen"
 msgstr[1] "%{count} fehlgeschlagen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4708
-#: lib/phoenix_kit_web/components/media_browser.ex:4732
+#: lib/phoenix_kit_web/components/media_browser.ex:4790
+#: lib/phoenix_kit_web/components/media_browser.ex:4814
 #: lib/phoenix_kit_web/components/media_browser.html.heex:757
 #, elixir-autogen, elixir-format
 msgid "%{count} file"
@@ -6613,29 +6639,29 @@ msgid_plural "%{count} files"
 msgstr[0] "%{count} Datei"
 msgstr[1] "%{count} Dateien"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4447
+#: lib/phoenix_kit_web/components/media_browser.ex:4479
 #, elixir-autogen, elixir-format
 msgid "%{count} file uploaded"
 msgid_plural "%{count} files uploaded"
 msgstr[0] "%{count} Datei hochgeladen"
 msgstr[1] "%{count} Dateien hochgeladen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4480
+#: lib/phoenix_kit_web/components/media_browser.ex:4512
 #, elixir-autogen, elixir-format
 msgid "%{count} file was already uploaded"
 msgid_plural "%{count} files were already uploaded"
 msgstr[0] "%{count} Datei war bereits hochgeladen"
 msgstr[1] "%{count} Dateien waren bereits hochgeladen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4709
-#: lib/phoenix_kit_web/components/media_browser.ex:4733
+#: lib/phoenix_kit_web/components/media_browser.ex:4791
+#: lib/phoenix_kit_web/components/media_browser.ex:4815
 #, elixir-autogen, elixir-format
 msgid "%{count} folder"
 msgid_plural "%{count} folders"
 msgstr[0] "%{count} Ordner"
 msgstr[1] "%{count} Ordner"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4477
+#: lib/phoenix_kit_web/components/media_browser.ex:4509
 #, elixir-autogen, elixir-format
 msgid "%{count} new file added"
 msgid_plural "%{count} new files added"
@@ -6648,12 +6674,12 @@ msgstr[1] "%{count} neue Dateien hinzugefügt"
 msgid "FILE"
 msgstr "DATEI"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4451
+#: lib/phoenix_kit_web/components/media_browser.ex:4483
 #, elixir-autogen, elixir-format
 msgid "Partially successful: %{uploaded}, %{failed} due to missing storage buckets."
 msgstr "Teilweise erfolgreich: %{uploaded}, %{failed} wegen fehlender Speicher-Buckets."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4487
+#: lib/phoenix_kit_web/components/media_browser.ex:4519
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{added}. %{duplicates}."
 msgstr "Upload erfolgreich! %{added}. %{duplicates}."
@@ -6865,13 +6891,13 @@ msgstr "Antworten"
 msgid "Are you sure you want to delete this comment?"
 msgstr "Möchten Sie diesen Kommentar wirklich löschen?"
 
-#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1945
-#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1946
+#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1951
+#: lib/phoenix_kit_web/components/media_canvas_viewer.ex:1952
 #, elixir-autogen, elixir-format
 msgid "%b %d, %Y"
 msgstr "%d. %b %Y"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2900
+#: lib/phoenix_kit_web/components/media_browser.ex:2926
 #, elixir-autogen, elixir-format
 msgid "%{count} item restored"
 msgid_plural "%{count} items restored"
@@ -6898,24 +6924,24 @@ msgstr "Anhänge sind deaktiviert"
 msgid "Auth failed"
 msgstr "Authentifizierung fehlgeschlagen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4670
+#: lib/phoenix_kit_web/components/media_browser.ex:4752
 #, elixir-autogen, elixir-format
 msgid "Cannot create folders in the all-files view"
 msgstr "In der Ansicht „Alle Dateien“ können keine Ordner erstellt werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4667
+#: lib/phoenix_kit_web/components/media_browser.ex:4749
 #, elixir-autogen, elixir-format
 msgid "Cannot create folders in trash"
 msgstr "Im Papierkorb können keine Ordner erstellt werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1590
+#: lib/phoenix_kit_web/components/media_browser.ex:1616
 #, elixir-autogen, elixir-format
 msgid "Cannot move a folder into its own descendant"
 msgstr "Ein Ordner kann nicht in einen seiner Unterordner verschoben werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1586
-#: lib/phoenix_kit_web/components/media_browser.ex:1650
-#: lib/phoenix_kit_web/components/media_browser.ex:1663
+#: lib/phoenix_kit_web/components/media_browser.ex:1612
+#: lib/phoenix_kit_web/components/media_browser.ex:1676
+#: lib/phoenix_kit_web/components/media_browser.ex:1689
 #, elixir-autogen, elixir-format
 msgid "Cannot move folder outside the allowed scope"
 msgstr "Der Ordner kann nicht außerhalb des zulässigen Bereichs verschoben werden"
@@ -6931,7 +6957,7 @@ msgstr "Kommentar konnte nicht veröffentlicht werden"
 msgid "Deep Zoom Tile Generation"
 msgstr "Erzeugung von Deep-Zoom-Kacheln"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3809
+#: lib/phoenix_kit_web/components/media_browser.ex:3835
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1708
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2392
 #, elixir-autogen, elixir-format
@@ -6949,12 +6975,12 @@ msgstr "Wird gelöscht …"
 msgid "Disconnecting…"
 msgstr "Wird getrennt …"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1593
+#: lib/phoenix_kit_web/components/media_browser.ex:1619
 #, elixir-autogen, elixir-format
 msgid "Failed to move folder"
 msgstr "Ordner konnte nicht verschoben werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1666
+#: lib/phoenix_kit_web/components/media_browser.ex:1692
 #, elixir-autogen, elixir-format
 msgid "Failed to move folder to trash"
 msgstr "Ordner konnte nicht in den Papierkorb verschoben werden"
@@ -6964,23 +6990,23 @@ msgstr "Ordner konnte nicht in den Papierkorb verschoben werden"
 msgid "File / Image"
 msgstr "Datei / Bild"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3427
+#: lib/phoenix_kit_web/components/media_browser.ex:3453
 #, elixir-autogen, elixir-format
 msgid "File moved to trash"
 msgstr "Datei in den Papierkorb verschoben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3428
+#: lib/phoenix_kit_web/components/media_browser.ex:3454
 #, elixir-autogen, elixir-format
 msgid "File removed from this folder"
 msgstr "Datei aus diesem Ordner entfernt"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1616
+#: lib/phoenix_kit_web/components/media_browser.ex:1642
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "File not found"
 msgstr "Datei nicht gefunden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2744
+#: lib/phoenix_kit_web/components/media_browser.ex:2770
 #, elixir-autogen, elixir-format
 msgid "File permanently deleted"
 msgstr "Datei endgültig gelöscht"
@@ -7001,23 +7027,23 @@ msgstr "Dateityp nicht zulässig"
 msgid "Folder"
 msgstr "Ordner"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1460
+#: lib/phoenix_kit_web/components/media_browser.ex:1486
 #, elixir-autogen, elixir-format
 msgid "Folder \"%{name}\" created"
 msgstr "Ordner „%{name}“ erstellt"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1580
+#: lib/phoenix_kit_web/components/media_browser.ex:1606
 #, elixir-autogen, elixir-format
 msgid "Folder moved"
 msgstr "Ordner verschoben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1503
-#: lib/phoenix_kit_web/components/media_browser.ex:1657
+#: lib/phoenix_kit_web/components/media_browser.ex:1529
+#: lib/phoenix_kit_web/components/media_browser.ex:1683
 #, elixir-autogen, elixir-format
 msgid "Folder moved to trash"
 msgstr "Ordner in den Papierkorb verschoben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:1502
+#: lib/phoenix_kit_web/components/media_browser.ex:1528
 #, elixir-autogen, elixir-format
 msgid "Folder permanently deleted"
 msgstr "Ordner endgültig gelöscht"
@@ -7039,14 +7065,14 @@ msgid_plural "Move %{count} items to folder"
 msgstr[0] "%{count} Element in Ordner verschieben"
 msgstr[1] "%{count} Elemente in Ordner verschieben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3810
+#: lib/phoenix_kit_web/components/media_browser.ex:3836
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1709
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2393
 #, elixir-autogen, elixir-format
 msgid "Move to Trash"
 msgstr "In den Papierkorb verschieben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3802
+#: lib/phoenix_kit_web/components/media_browser.ex:3828
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1700
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2384
 #, elixir-autogen, elixir-format
@@ -7121,7 +7147,7 @@ msgstr "Schreiben Sie eine Notiz zu dieser Anmerkung …"
 msgid "e.g. Main, Personal, My Company Drive"
 msgstr "z. B. Haupt, Privat, Firmen-Drive"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4678
+#: lib/phoenix_kit_web/components/media_browser.ex:4760
 #, elixir-autogen, elixir-format
 msgid "untitled"
 msgstr "ohne Titel"
@@ -7135,7 +7161,7 @@ msgid "Cancel upload"
 msgstr "Upload abbrechen"
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:326
-#: lib/phoenix_kit_web/live/users/media_selector.ex:460
+#: lib/phoenix_kit_web/live/users/media_selector.ex:474
 #, elixir-autogen, elixir-format
 msgid "Click on an image to select it"
 msgstr "Klicken Sie auf ein Bild, um es auszuwählen"
@@ -7195,8 +7221,8 @@ msgid "Select Media"
 msgstr "Medien auswählen"
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:330
-#: lib/phoenix_kit_web/live/users/media_selector.ex:462
-#: lib/phoenix_kit_web/live/users/media_selector.ex:465
+#: lib/phoenix_kit_web/live/users/media_selector.ex:476
+#: lib/phoenix_kit_web/live/users/media_selector.ex:479
 #, elixir-autogen, elixir-format
 msgid "Select one or more images"
 msgstr "Ein oder mehrere Bilder auswählen"
@@ -7582,7 +7608,7 @@ msgid_plural "%{count} activities"
 msgstr[0] "%{count} Aktivität"
 msgstr[1] "%{count} Aktivitäten"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:147
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:148
 #: lib/phoenix_kit_web/live/activity/index.ex:50
 #: lib/phoenix_kit_web/live/activity/index.html.heex:5
 #: lib/phoenix_kit_web/live/activity/index.html.heex:305
@@ -7717,7 +7743,7 @@ msgstr "Wert"
 msgid "View details"
 msgstr "Details anzeigen"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:248
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:263
 #: lib/phoenix_kit_web/live/settings/authorization.ex:44
 #, elixir-autogen, elixir-format
 msgid "Authorization"
@@ -7944,7 +7970,7 @@ msgstr "Benutzerverbindungen"
 msgid "User connections module for PhoenixKit — follows, mutual connections, and blocking"
 msgstr "Benutzerverbindungsmodul für PhoenixKit – Folgen, gegenseitige Verbindungen und Blockieren"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:238
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:253
 #: lib/phoenix_kit_web/live/settings.ex:64
 #, elixir-autogen, elixir-format
 msgid "General"
@@ -8184,7 +8210,7 @@ msgstr "Ungültiger Widerrufsvorgang"
 msgid "LIVE"
 msgstr "LIVE"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:110
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:111
 #: lib/phoenix_kit_web/live/users/live_sessions.ex:69
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:5
 #, elixir-autogen, elixir-format
@@ -8410,7 +8436,7 @@ msgstr "Sie"
 #: lib/modules/storage/web/dimension_form.html.heex:10
 #: lib/modules/storage/web/dimensions.ex:28
 #: lib/modules/storage/web/dimensions.html.heex:4
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:332
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:347
 #, elixir-autogen, elixir-format
 msgid "Dimensions"
 msgstr "Abmessungen"
@@ -8558,19 +8584,19 @@ msgstr "oder per Drag & Drop"
 msgid "Manage available languages for your application"
 msgstr "Verfügbare Sprachen für Ihre Anwendung verwalten"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:509
+#: lib/phoenix_kit_web/components/media_browser.ex:510
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:355
 #, elixir-autogen, elixir-format
 msgid "Only image files can be added here."
 msgstr "Hier können nur Bilddateien hinzugefügt werden."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:510
+#: lib/phoenix_kit_web/components/media_browser.ex:511
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:356
 #, elixir-autogen, elixir-format
 msgid "Only video files can be added here."
 msgstr "Hier können nur Videodateien hinzugefügt werden."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:512
+#: lib/phoenix_kit_web/components/media_browser.ex:513
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:358
 #, elixir-autogen, elixir-format
 msgid "Only the allowed file types can be added here."
@@ -8651,8 +8677,8 @@ msgstr "Brennt Etcher-Anmerkungsformen (Rechtecke, Markierungsstriche usw.) in d
 msgid "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
 msgstr "Durchsuchen Sie Dateien, die keinem Datensatz mehr zugeordnet sind (verwaiste Medien), um sie zu prüfen oder zu löschen."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2075
-#: lib/phoenix_kit_web/components/media_browser.ex:4012
+#: lib/phoenix_kit_web/components/media_browser.ex:2101
+#: lib/phoenix_kit_web/components/media_browser.ex:4038
 #, elixir-autogen, elixir-format
 msgid "Cannot edit a folder outside the allowed scope"
 msgstr "Ein Ordner außerhalb des zulässigen Bereichs kann nicht bearbeitet werden"
@@ -8772,22 +8798,22 @@ msgstr "Alles andere"
 msgid "Exit selection"
 msgstr "Auswahl verlassen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2079
+#: lib/phoenix_kit_web/components/media_browser.ex:2105
 #, elixir-autogen, elixir-format
 msgid "Failed to save folder description"
 msgstr "Ordnerbeschreibung konnte nicht gespeichert werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4015
+#: lib/phoenix_kit_web/components/media_browser.ex:4041
 #, elixir-autogen, elixir-format
 msgid "Failed to save folder header"
 msgstr "Ordnerkopfzeile konnte nicht gespeichert werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:734
+#: lib/phoenix_kit_web/components/media_browser.ex:735
 #, elixir-autogen, elixir-format
 msgid "Failed to set the image"
 msgstr "Bild konnte nicht festgelegt werden"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:774
+#: lib/phoenix_kit_web/components/media_browser.ex:775
 #, elixir-autogen, elixir-format
 msgid "Failed to update the header"
 msgstr "Kopfzeile konnte nicht aktualisiert werden"
@@ -8807,7 +8833,7 @@ msgstr "Verwaiste Dateien finden"
 msgid "Folder name"
 msgstr "Ordnername"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2234
+#: lib/phoenix_kit_web/components/media_browser.ex:2260
 #, elixir-autogen, elixir-format
 msgid "Folder name can't be blank"
 msgstr "Der Ordnername darf nicht leer sein"
@@ -8887,6 +8913,8 @@ msgid "Language"
 msgstr "Sprache"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:561
+#: lib/phoenix_kit_web/live/users/media_detail.ex:473
+#: lib/phoenix_kit_web/live/users/media_detail.ex:477
 #, elixir-autogen, elixir-format
 msgid "Large"
 msgstr "Groß"
@@ -8911,6 +8939,8 @@ msgid "Magic link"
 msgstr "Magic Link"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:560
+#: lib/phoenix_kit_web/live/users/media_detail.ex:474
+#: lib/phoenix_kit_web/live/users/media_detail.ex:478
 #, elixir-autogen, elixir-format
 msgid "Medium"
 msgstr "Mittel"
@@ -8946,7 +8976,7 @@ msgid "No description — add one"
 msgstr "Keine Beschreibung – fügen Sie eine hinzu"
 
 #: lib/phoenix_kit_web/components/core/preview_card.ex:227
-#: lib/phoenix_kit_web/components/media_browser.ex:3497
+#: lib/phoenix_kit_web/components/media_browser.ex:3523
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1785
 #, elixir-autogen, elixir-format
 msgid "No images"
@@ -9043,6 +9073,7 @@ msgid "Sign up"
 msgstr "Registrieren"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:559
+#: lib/phoenix_kit_web/live/users/media_detail.ex:475
 #, elixir-autogen, elixir-format
 msgid "Small"
 msgstr "Klein"
@@ -10172,14 +10203,14 @@ msgstr "Drehung gespeichert"
 msgid "Show details"
 msgstr "Details anzeigen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4742
+#: lib/phoenix_kit_web/components/media_browser.ex:4824
 #, elixir-autogen, elixir-format
 msgid "Move %{count} folder and all its contents to trash?"
 msgid_plural "Move %{count} folders and all their contents to trash?"
 msgstr[0] "%{count} Ordner mit seinem gesamten Inhalt in den Papierkorb verschieben?"
 msgstr[1] "%{count} Ordner mit ihrem gesamten Inhalt in den Papierkorb verschieben?"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4735
+#: lib/phoenix_kit_web/components/media_browser.ex:4817
 #, elixir-autogen, elixir-format
 msgid "Move %{files} and %{folders} (including all folder contents) to trash?"
 msgstr "%{files} und %{folders} (einschließlich aller Ordnerinhalte) in den Papierkorb verschieben?"
@@ -10190,14 +10221,14 @@ msgstr "%{files} und %{folders} (einschließlich aller Ordnerinhalte) in den Pap
 msgid "Move '%{name}' and all its contents to trash?"
 msgstr "„%{name}“ mit dem gesamten Inhalt in den Papierkorb verschieben?"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4718
+#: lib/phoenix_kit_web/components/media_browser.ex:4800
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{count} folder and all its contents? This cannot be undone."
 msgid_plural "Permanently delete %{count} folders and all their contents? This cannot be undone."
 msgstr[0] "%{count} Ordner mit seinem gesamten Inhalt endgültig löschen? Dies kann nicht rückgängig gemacht werden."
 msgstr[1] "%{count} Ordner mit ihrem gesamten Inhalt endgültig löschen? Dies kann nicht rückgängig gemacht werden."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4711
+#: lib/phoenix_kit_web/components/media_browser.ex:4793
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{files} and %{folders} (including all folder contents)? This cannot be undone."
 msgstr "%{files} und %{folders} (einschließlich aller Ordnerinhalte) endgültig löschen? Dies kann nicht rückgängig gemacht werden."
@@ -10483,7 +10514,7 @@ msgstr "Konfigurationssatz"
 msgid "Configured"
 msgstr "Konfiguriert"
 
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:325
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:329
 #, elixir-autogen, elixir-format
 msgid "Connect your own API keys and services. Only you can see these."
 msgstr "Verbinden Sie Ihre eigenen API-Schlüssel und Dienste. Nur Sie können sie sehen."
@@ -10495,7 +10526,7 @@ msgstr "Verbunden als @%{username}"
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:136
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:310
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:353
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:357
 #, elixir-autogen, elixir-format
 msgid "Connection works"
 msgstr "Verbindung funktioniert"
@@ -10539,7 +10570,7 @@ msgstr "Telegram war nicht erreichbar"
 msgid "Could not reach the SMTP server"
 msgstr "Der SMTP-Server war nicht erreichbar"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:2714
+#: lib/phoenix_kit_web/components/media_browser.ex:2740
 #, elixir-autogen, elixir-format
 msgid "Could not rotate the image."
 msgstr "Das Bild konnte nicht gedreht werden."
@@ -10849,6 +10880,7 @@ msgstr "Leer lassen für den gen_smtp-Standardwert."
 msgid "Local path users land on after signing in."
 msgstr "Lokaler Pfad, auf dem Benutzer nach der Anmeldung landen."
 
+#: lib/phoenix_kit_web/live/components/library_settings.ex:294
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:102
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:134
 #, elixir-autogen, elixir-format
@@ -10934,7 +10966,7 @@ msgstr "Keine ausgeblendeten Benachrichtigungen"
 msgid "No email-capable integrations connected yet."
 msgstr "Noch keine E-Mail-fähigen Integrationen verbunden."
 
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:323
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:327
 #, elixir-autogen, elixir-format
 msgid "No personal integrations yet"
 msgstr "Noch keine persönlichen Integrationen"
@@ -11061,8 +11093,8 @@ msgstr "Rate pro Stunde"
 msgid "Region is required"
 msgstr "Region ist erforderlich"
 
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:281
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:313
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:285
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:317
 #, elixir-autogen, elixir-format
 msgid "Remove this connection?"
 msgstr "Diese Verbindung entfernen?"
@@ -11077,20 +11109,20 @@ msgstr "Antwortadresse"
 msgid "Require email confirmation before using the app"
 msgstr "E-Mail-Bestätigung vor der Nutzung der Anwendung verlangen"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:1018
+#: lib/phoenix_kit_web/components/image_editor.ex:1022
 #: lib/phoenix_kit_web/live/notifications/inbox.ex:343
 #, elixir-autogen, elixir-format
 msgid "Restore"
 msgstr "Wiederherstellen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3775
+#: lib/phoenix_kit_web/components/media_browser.ex:3801
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1673
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2357
 #, elixir-autogen, elixir-format
 msgid "Rotate left"
 msgstr "Nach links drehen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3784
+#: lib/phoenix_kit_web/components/media_browser.ex:3810
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1682
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2366
 #, elixir-autogen, elixir-format
@@ -11463,7 +11495,7 @@ msgstr "Audiodateien"
 msgid "Click on an audio file to select it"
 msgstr "Klicken Sie auf eine Audiodatei, um sie auszuwählen"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:511
+#: lib/phoenix_kit_web/components/media_browser.ex:512
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:357
 #, elixir-autogen, elixir-format
 msgid "Only audio files can be added here."
@@ -12648,17 +12680,17 @@ msgstr "Willkommen zurück!"
 msgid "Your account is currently inactive. Please contact the team if you believe this is an error."
 msgstr "Ihr Konto ist derzeit inaktiv. Bitte wenden Sie sich an das Team, wenn Sie glauben, dass es sich um einen Fehler handelt."
 
-#: lib/phoenix_kit_web/users/auth.ex:2262
+#: lib/phoenix_kit_web/users/auth.ex:2266
 #, elixir-autogen, elixir-format
 msgid "%{label} module is not enabled"
 msgstr "Das Modul %{label} ist nicht aktiviert"
 
-#: lib/phoenix_kit_web/users/auth.ex:2975
+#: lib/phoenix_kit_web/users/auth.ex:2980
 #, elixir-autogen, elixir-format
 msgid "Enter your referral code to continue."
 msgstr "Geben Sie Ihren Empfehlungscode ein, um fortzufahren."
 
-#: lib/phoenix_kit_web/users/auth.ex:2971
+#: lib/phoenix_kit_web/users/auth.ex:2976
 #, elixir-autogen, elixir-format
 msgid "Please confirm your email before accessing the application."
 msgstr "Bitte bestätigen Sie Ihre E-Mail-Adresse, bevor Sie die Anwendung nutzen."
@@ -12669,16 +12701,16 @@ msgid "This account is not active. Contact an administrator."
 msgstr "Dieses Konto ist nicht aktiv. Wenden Sie sich an die Administration."
 
 #: lib/phoenix_kit_web/users/auth.ex:914
-#: lib/phoenix_kit_web/users/auth.ex:2281
-#: lib/phoenix_kit_web/users/auth.ex:3120
+#: lib/phoenix_kit_web/users/auth.ex:2285
+#: lib/phoenix_kit_web/users/auth.ex:3125
 #, elixir-autogen, elixir-format
 msgid "You do not have permission to access this section."
 msgstr "Sie haben keine Berechtigung, auf diesen Bereich zuzugreifen."
 
 #: lib/phoenix_kit_web/users/auth.ex:889
 #: lib/phoenix_kit_web/users/auth.ex:1049
-#: lib/phoenix_kit_web/users/auth.ex:3069
-#: lib/phoenix_kit_web/users/auth.ex:3105
+#: lib/phoenix_kit_web/users/auth.ex:3074
+#: lib/phoenix_kit_web/users/auth.ex:3110
 #, elixir-autogen, elixir-format
 msgid "You do not have the required permission to access this page."
 msgstr "Sie haben nicht die erforderliche Berechtigung, um auf diese Seite zuzugreifen."
@@ -12689,20 +12721,20 @@ msgid "You must be an admin to access this page."
 msgstr "Sie müssen Administrator sein, um auf diese Seite zuzugreifen."
 
 #: lib/phoenix_kit_web/users/auth.ex:850
-#: lib/phoenix_kit_web/users/auth.ex:3032
+#: lib/phoenix_kit_web/users/auth.ex:3037
 #, elixir-autogen, elixir-format
 msgid "You must be an owner to access this page."
 msgstr "Sie müssen Eigentümer sein, um auf diese Seite zuzugreifen."
 
-#: lib/phoenix_kit_web/users/auth.ex:3148
+#: lib/phoenix_kit_web/users/auth.ex:3153
 #, elixir-autogen, elixir-format
 msgid "You must have the %{role_name} role to access this page."
 msgstr "Sie benötigen die Rolle %{role_name}, um auf diese Seite zuzugreifen."
 
 #: lib/phoenix_kit_web/users/auth.ex:1074
-#: lib/phoenix_kit_web/users/auth.ex:2896
-#: lib/phoenix_kit_web/users/auth.ex:2933
-#: lib/phoenix_kit_web/users/auth.ex:3076
+#: lib/phoenix_kit_web/users/auth.ex:2901
+#: lib/phoenix_kit_web/users/auth.ex:2938
+#: lib/phoenix_kit_web/users/auth.ex:3081
 #: lib/phoenix_kit_web/users/session.ex:221
 #, elixir-autogen, elixir-format
 msgid "You must log in to access this page."
@@ -12875,7 +12907,7 @@ msgstr "Nachtschwärmer"
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:141
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:316
-#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:345
+#: lib/phoenix_kit_web/live/integrations/my_integrations.ex:349
 #: lib/phoenix_kit_web/live/settings/integration_form.ex:382
 #: lib/phoenix_kit_web/live/settings/integration_form.ex:498
 #: lib/phoenix_kit_web/live/settings/integrations.ex:480
@@ -12890,7 +12922,7 @@ msgstr "Nicht verifiziert – dieser Anbieter hat keine Verbindungsprüfung"
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:527
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:46
-#: lib/phoenix_kit_web/live/users/profile_settings.ex:72
+#: lib/phoenix_kit_web/live/users/profile_settings.ex:60
 #, elixir-autogen, elixir-format
 msgid "Profile Settings"
 msgstr "Profileinstellungen"
@@ -13402,7 +13434,7 @@ msgstr "Eingegeben"
 msgid "Visitors asking for a public URL are sent to the same path on the production site. Logged-in users and admin paths are never redirected. Everyone, or only search-engine crawlers."
 msgstr "Besucher, die eine öffentliche URL aufrufen, werden auf denselben Pfad der Produktionsseite geschickt. Angemeldete Benutzer und Admin-Pfade werden nie weitergeleitet. Alle oder nur Suchmaschinen-Crawler."
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:275
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:290
 #: lib/phoenix_kit_web/live/settings/website_access.ex:47
 #, elixir-autogen, elixir-format
 msgid "Website access"
@@ -14206,7 +14238,7 @@ msgstr "Buckets"
 msgid "OG"
 msgstr ""
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:293
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:308
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:229
 #: lib/phoenix_kit_web/live/settings/send_profile_form.ex:25
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:26
@@ -14214,7 +14246,7 @@ msgstr ""
 msgid "Emails Bulk"
 msgstr "Massen-E-Mails"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:284
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:299
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:52
 #, elixir-autogen, elixir-format
 msgid "Emails Transactional"
@@ -14275,27 +14307,27 @@ msgstr "Gesendet"
 msgid "We emailed a confirmation link to %{email}. Open it to continue — you'll land back in the app automatically, no need to come back to this page."
 msgstr "Wir haben einen Bestätigungslink an %{email} gesendet. Öffnen Sie ihn, um fortzufahren — Sie gelangen danach automatisch zurück in die App, ohne auf diese Seite zurückkehren zu müssen."
 
-#: lib/phoenix_kit/users/auth.ex:3220
+#: lib/phoenix_kit/users/auth.ex:3221
 #, elixir-autogen, elixir-format
 msgid "Admin notes"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3217
+#: lib/phoenix_kit/users/auth.ex:3218
 #, elixir-autogen, elixir-format
 msgid "Billing profiles"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3238
+#: lib/phoenix_kit/users/auth.ex:3239
 #, elixir-autogen, elixir-format
 msgid "Email logs"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3216
+#: lib/phoenix_kit/users/auth.ex:3217
 #, elixir-autogen, elixir-format
 msgid "OAuth connections"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3223
+#: lib/phoenix_kit/users/auth.ex:3224
 #, elixir-autogen, elixir-format
 msgid "Orders"
 msgstr ""
@@ -14311,22 +14343,22 @@ msgstr ""
 msgid "Permanently Delete User"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3215
+#: lib/phoenix_kit/users/auth.ex:3216
 #, elixir-autogen, elixir-format
 msgid "Role assignments"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3214
+#: lib/phoenix_kit/users/auth.ex:3215
 #, elixir-autogen, elixir-format
 msgid "Session and other tokens"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3219
+#: lib/phoenix_kit/users/auth.ex:3220
 #, elixir-autogen, elixir-format
 msgid "Shopping carts"
 msgstr ""
 
-#: lib/phoenix_kit/users/auth.ex:3236
+#: lib/phoenix_kit/users/auth.ex:3237
 #, elixir-autogen, elixir-format
 msgid "Support tickets"
 msgstr ""
@@ -14529,12 +14561,12 @@ msgstr "Benutzer erstellt, aber die Bestätigungs-E-Mail konnte nicht gesendet w
 msgid "User created. A confirmation email was sent."
 msgstr "Benutzer erstellt. Eine Bestätigungs-E-Mail wurde gesendet."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:319
+#: lib/phoenix_kit_web/components/image_editor.ex:323
 #, elixir-autogen, elixir-format
 msgid "A copy is being made. It will appear next to the original."
 msgstr "Eine Kopie wird erstellt. Sie erscheint neben dem Original."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:911
+#: lib/phoenix_kit_web/components/image_editor.ex:915
 #, elixir-autogen, elixir-format
 msgid "Add area"
 msgstr "Bereich hinzufügen"
@@ -14544,48 +14576,48 @@ msgstr "Bereich hinzufügen"
 msgid "Applying edit"
 msgstr "Bearbeitung wird angewendet"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:642
+#: lib/phoenix_kit_web/components/image_editor.ex:646
 #, elixir-autogen, elixir-format
 msgid "Applying the edit…"
 msgstr "Bearbeitung wird angewendet …"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:1147
+#: lib/phoenix_kit_web/components/image_editor.ex:1151
 #, elixir-autogen, elixir-format
 msgid "Black box"
 msgstr "Schwarzer Balken"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:1145
+#: lib/phoenix_kit_web/components/image_editor.ex:1149
 #, elixir-autogen, elixir-format
 msgid "Blur"
 msgstr "Weichzeichnen"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:931
+#: lib/phoenix_kit_web/components/image_editor.ex:935
 #, elixir-autogen, elixir-format
 msgid "Brightness"
 msgstr "Helligkeit"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:932
+#: lib/phoenix_kit_web/components/image_editor.ex:936
 #, elixir-autogen, elixir-format
 msgid "Contrast"
 msgstr "Kontrast"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:708
-#: lib/phoenix_kit_web/components/image_editor.ex:797
+#: lib/phoenix_kit_web/components/image_editor.ex:712
+#: lib/phoenix_kit_web/components/image_editor.ex:801
 #, elixir-autogen, elixir-format
 msgid "Crop"
 msgstr "Zuschneiden"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:1070
+#: lib/phoenix_kit_web/components/image_editor.ex:1074
 #, elixir-autogen, elixir-format
 msgid "Delete for good"
 msgstr "Endgültig löschen"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:1061
+#: lib/phoenix_kit_web/components/image_editor.ex:1065
 #, elixir-autogen, elixir-format
 msgid "Delete the unedited original for good? The edit becomes permanent and can no longer be changed or undone."
 msgstr "Das unbearbeitete Original endgültig löschen? Die Bearbeitung wird dauerhaft und lässt sich nicht mehr ändern oder rückgängig machen."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:861
+#: lib/phoenix_kit_web/components/image_editor.ex:865
 #, elixir-autogen, elixir-format
 msgid "Drag on the image to cover an area, or add one and set it below. Covered areas are permanently removed from the saved image."
 msgstr "Ziehen Sie über das Bild, um einen Bereich abzudecken, oder fügen Sie einen hinzu und legen Sie ihn unten fest. Abgedeckte Bereiche werden aus dem gespeicherten Bild dauerhaft entfernt."
@@ -14595,8 +14627,8 @@ msgstr "Ziehen Sie über das Bild, um einen Bereich abzudecken, oder fügen Sie 
 msgid "Edit failed"
 msgstr "Bearbeitung fehlgeschlagen"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:672
-#: lib/phoenix_kit_web/components/media_browser.ex:3750
+#: lib/phoenix_kit_web/components/image_editor.ex:676
+#: lib/phoenix_kit_web/components/media_browser.ex:3776
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1639
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2322
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:482
@@ -14615,23 +14647,23 @@ msgstr "Bearbeitet"
 msgid "Every save overwrites the image for good. Nothing can be undone, and redacted areas are gone from storage."
 msgstr "Jedes Speichern überschreibt das Bild endgültig. Nichts lässt sich rückgängig machen, und geschwärzte Bereiche sind aus dem Speicher entfernt."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:774
+#: lib/phoenix_kit_web/components/image_editor.ex:778
 #, elixir-autogen, elixir-format
 msgid "Flip"
 msgstr "Vertikal spiegeln"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:807
+#: lib/phoenix_kit_web/components/image_editor.ex:811
 #, elixir-autogen, elixir-format
 msgid "Free"
 msgstr "Frei"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:826
-#: lib/phoenix_kit_web/components/image_editor.ex:1152
+#: lib/phoenix_kit_web/components/image_editor.ex:830
+#: lib/phoenix_kit_web/components/image_editor.ex:1156
 #, elixir-autogen, elixir-format
 msgid "Height %"
 msgstr "Höhe %"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:708
+#: lib/phoenix_kit_web/components/image_editor.ex:712
 #, elixir-autogen, elixir-format
 msgid "Hide areas"
 msgstr "Bereiche verbergen"
@@ -14646,48 +14678,48 @@ msgstr "Bildbearbeitung"
 msgid "Keep the original (recommended)"
 msgstr "Original behalten (empfohlen)"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:999
+#: lib/phoenix_kit_web/components/image_editor.ex:1003
 #, elixir-autogen, elixir-format
 msgid "Kept privately so the edit can be changed or undone. Only people who can edit this image can get it."
 msgstr "Wird privat aufbewahrt, damit die Bearbeitung geändert oder rückgängig gemacht werden kann. Nur wer dieses Bild bearbeiten darf, kann es abrufen."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:823
-#: lib/phoenix_kit_web/components/image_editor.ex:1149
+#: lib/phoenix_kit_web/components/image_editor.ex:827
+#: lib/phoenix_kit_web/components/image_editor.ex:1153
 #, elixir-autogen, elixir-format
 msgid "Left %"
 msgstr "Links %"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:764
+#: lib/phoenix_kit_web/components/image_editor.ex:768
 #, elixir-autogen, elixir-format
 msgid "Mirror"
 msgstr "Spiegeln"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:816
+#: lib/phoenix_kit_web/components/image_editor.ex:820
 #, elixir-autogen, elixir-format
 msgid "No crop"
 msgstr "Kein Zuschnitt"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:618
+#: lib/phoenix_kit_web/components/image_editor.ex:622
 #, elixir-autogen, elixir-format
 msgid "No preview is available. The fields still work."
 msgstr "Keine Vorschau verfügbar. Die Felder funktionieren trotzdem."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:495
+#: lib/phoenix_kit_web/components/image_editor.ex:499
 #, elixir-autogen, elixir-format
 msgid "Nothing to save: the copy would be the same as the original."
 msgstr "Nichts zu speichern: Die Kopie wäre identisch mit dem Original."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:690
+#: lib/phoenix_kit_web/components/image_editor.ex:694
 #, elixir-autogen, elixir-format
 msgid "Only still JPEG, PNG, WebP, AVIF, TIFF and BMP images can be edited."
 msgstr "Nur unbewegte JPEG-, PNG-, WebP-, AVIF-, TIFF- und BMP-Bilder können bearbeitet werden."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:1146
+#: lib/phoenix_kit_web/components/image_editor.ex:1150
 #, elixir-autogen, elixir-format
 msgid "Pixelate"
 msgstr "Verpixeln"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:886
+#: lib/phoenix_kit_web/components/image_editor.ex:890
 #, elixir-autogen, elixir-format
 msgid "Remove area"
 msgstr "Bereich entfernen"
@@ -14697,72 +14729,72 @@ msgstr "Bereich entfernen"
 msgid "Replace the original"
 msgstr "Original ersetzen"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:1046
+#: lib/phoenix_kit_web/components/image_editor.ex:1050
 #, elixir-autogen, elixir-format
 msgid "Restore original"
 msgstr "Original wiederherstellen"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:955
+#: lib/phoenix_kit_web/components/image_editor.ex:959
 #, elixir-autogen, elixir-format
 msgid "Result: %{width} × %{height} px"
 msgstr "Ergebnis: %{width} × %{height} px"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:979
+#: lib/phoenix_kit_web/components/image_editor.ex:983
 #, elixir-autogen, elixir-format
 msgid "Save as copy"
 msgstr "Als Kopie speichern"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:492
+#: lib/phoenix_kit_web/components/image_editor.ex:496
 #, elixir-autogen, elixir-format
 msgid "Saved, but the image could not be queued for rendering. Try again."
 msgstr "Gespeichert, aber das Bild konnte nicht zur Verarbeitung eingereiht werden. Versuchen Sie es erneut."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:959
+#: lib/phoenix_kit_web/components/image_editor.ex:963
 #, elixir-autogen, elixir-format
 msgid "Saving replaces the original image. This can't be undone."
 msgstr "Beim Speichern wird das Originalbild ersetzt. Das lässt sich nicht rückgängig machen."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:514
+#: lib/phoenix_kit_web/components/image_editor.ex:518
 #, elixir-autogen, elixir-format
 msgid "Some of the values are not valid."
 msgstr "Einige Werte sind ungültig."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:518
+#: lib/phoenix_kit_web/components/image_editor.ex:522
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Try again."
 msgstr "Etwas ist schiefgelaufen. Versuchen Sie es erneut."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:780
+#: lib/phoenix_kit_web/components/image_editor.ex:784
 #, elixir-autogen, elixir-format
 msgid "Straighten"
 msgstr "Ausrichten"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:655
+#: lib/phoenix_kit_web/components/image_editor.ex:659
 #, elixir-autogen, elixir-format
 msgid "Taking long? Start again"
 msgstr "Dauert es lange? Neu starten"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:627
+#: lib/phoenix_kit_web/components/image_editor.ex:631
 #, elixir-autogen, elixir-format
 msgid "The edit could not be applied."
 msgstr "Die Bearbeitung konnte nicht angewendet werden."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:501
+#: lib/phoenix_kit_web/components/image_editor.ex:505
 #, elixir-autogen, elixir-format
 msgid "The image changed meanwhile. Check it and try again."
 msgstr "Das Bild wurde inzwischen geändert. Prüfen Sie es und versuchen Sie es erneut."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:615
+#: lib/phoenix_kit_web/components/image_editor.ex:619
 #, elixir-autogen, elixir-format
 msgid "The image has no dimensions yet. Try again once it has been processed."
 msgstr "Das Bild hat noch keine Abmessungen. Versuchen Sie es erneut, sobald es verarbeitet wurde."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:644
+#: lib/phoenix_kit_web/components/image_editor.ex:648
 #, elixir-autogen, elixir-format
 msgid "The image shows a placeholder until it is done."
 msgstr "Bis dahin wird ein Platzhalter angezeigt."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:665
+#: lib/phoenix_kit_web/components/image_editor.ex:669
 #, elixir-autogen, elixir-format
 msgid "The preview is approximate; colours and blur are exact once saved."
 msgstr "Die Vorschau ist eine Annäherung; Farben und Unschärfe sind nach dem Speichern exakt."
@@ -14772,85 +14804,85 @@ msgstr "Die Vorschau ist eine Annäherung; Farben und Unschärfe sind nach dem S
 msgid "The unedited image is kept privately, so an edit can be changed or undone. Owners can delete it themselves."
 msgstr "Das unbearbeitete Bild wird privat aufbewahrt, damit eine Bearbeitung geändert oder rückgängig gemacht werden kann. Eigentümer können es selbst löschen."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:498
+#: lib/phoenix_kit_web/components/image_editor.ex:502
 #, elixir-autogen, elixir-format
 msgid "There is nothing to retry."
 msgstr "Es gibt nichts zu wiederholen."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:488
+#: lib/phoenix_kit_web/components/image_editor.ex:492
 #, elixir-autogen, elixir-format
 msgid "This file can't be edited."
 msgstr "Diese Datei kann nicht bearbeitet werden."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:489
-#: lib/phoenix_kit_web/components/image_editor.ex:529
+#: lib/phoenix_kit_web/components/image_editor.ex:493
+#: lib/phoenix_kit_web/components/image_editor.ex:533
 #, elixir-autogen, elixir-format
 msgid "This file no longer exists."
 msgstr "Diese Datei existiert nicht mehr."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:724
+#: lib/phoenix_kit_web/components/image_editor.ex:728
 #, elixir-autogen, elixir-format
 msgid "This image has an annotation, so it can't be cropped, turned, flipped or straightened (the annotation would end up in the wrong place). Save a copy for that."
 msgid_plural "This image has %{count} annotations, so it can't be cropped, turned, flipped or straightened (they would end up in the wrong place). Save a copy for that."
 msgstr[0] "Dieses Bild hat eine Anmerkung und kann daher nicht zugeschnitten, gedreht, gespiegelt oder ausgerichtet werden (die Anmerkung säße sonst an der falschen Stelle). Speichern Sie dafür eine Kopie."
 msgstr[1] "Dieses Bild hat %{count} Anmerkungen und kann daher nicht zugeschnitten, gedreht, gespiegelt oder ausgerichtet werden (sie säßen sonst an der falschen Stelle). Speichern Sie dafür eine Kopie."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:508
+#: lib/phoenix_kit_web/components/image_editor.ex:512
 #, elixir-autogen, elixir-format
 msgid "This image has an annotation. Cropping, turning, flipping or straightening it would move the annotation off its place. Save a copy instead."
 msgid_plural "This image has %{count} annotations. Cropping, turning, flipping or straightening it would move them off their places. Save a copy instead."
 msgstr[0] "Dieses Bild hat eine Anmerkung. Zuschneiden, Drehen, Spiegeln oder Ausrichten würde sie von ihrer Stelle verschieben. Speichern Sie stattdessen eine Kopie."
 msgstr[1] "Dieses Bild hat %{count} Anmerkungen. Zuschneiden, Drehen, Spiegeln oder Ausrichten würde sie von ihren Stellen verschieben. Speichern Sie stattdessen eine Kopie."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:497
+#: lib/phoenix_kit_web/components/image_editor.ex:501
 #, elixir-autogen, elixir-format
 msgid "This image has no unedited original."
 msgstr "Dieses Bild hat kein unbearbeitetes Original."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:824
-#: lib/phoenix_kit_web/components/image_editor.ex:1150
+#: lib/phoenix_kit_web/components/image_editor.ex:828
+#: lib/phoenix_kit_web/components/image_editor.ex:1154
 #, elixir-autogen, elixir-format
 msgid "Top %"
 msgstr "Oben %"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:638
+#: lib/phoenix_kit_web/components/image_editor.ex:642
 #, elixir-autogen, elixir-format
 msgid "Try again"
 msgstr "Erneut versuchen"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:740
-#: lib/phoenix_kit_web/components/image_editor.ex:741
+#: lib/phoenix_kit_web/components/image_editor.ex:744
+#: lib/phoenix_kit_web/components/image_editor.ex:745
 #, elixir-autogen, elixir-format
 msgid "Turn left"
 msgstr "Nach links drehen"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:751
-#: lib/phoenix_kit_web/components/image_editor.ex:752
+#: lib/phoenix_kit_web/components/image_editor.ex:755
+#: lib/phoenix_kit_web/components/image_editor.ex:756
 #, elixir-autogen, elixir-format
 msgid "Turn right"
 msgstr "Nach rechts drehen"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:988
+#: lib/phoenix_kit_web/components/image_editor.ex:992
 #, elixir-autogen, elixir-format
 msgid "Undo changes"
 msgstr "Änderungen verwerfen"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:1037
+#: lib/phoenix_kit_web/components/image_editor.ex:1041
 #, elixir-autogen, elixir-format
 msgid "Undo the edit and show the unedited original again everywhere this image is used?"
 msgstr "Die Bearbeitung rückgängig machen und überall, wo dieses Bild verwendet wird, wieder das unbearbeitete Original zeigen?"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:997
+#: lib/phoenix_kit_web/components/image_editor.ex:1001
 #, elixir-autogen, elixir-format
 msgid "Unedited original"
 msgstr "Unbearbeitetes Original"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:629
+#: lib/phoenix_kit_web/components/image_editor.ex:633
 #, elixir-autogen, elixir-format
 msgid "Until it is, the image shows a placeholder everywhere."
 msgstr "Bis dahin wird das Bild überall als Platzhalter angezeigt."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:504
+#: lib/phoenix_kit_web/components/image_editor.ex:508
 #, elixir-autogen, elixir-format
 msgid "Wait until the image has finished rendering."
 msgstr "Warten Sie, bis das Bild fertig verarbeitet ist."
@@ -14860,14 +14892,14 @@ msgstr "Warten Sie, bis das Bild fertig verarbeitet ist."
 msgid "What saving an edited image (crop, turn, redaction…) does with the original."
 msgstr "Was das Speichern eines bearbeiteten Bildes (Zuschnitt, Drehung, Schwärzung …) mit dem Original macht."
 
-#: lib/phoenix_kit_web/components/image_editor.ex:825
-#: lib/phoenix_kit_web/components/image_editor.ex:1151
+#: lib/phoenix_kit_web/components/image_editor.ex:829
+#: lib/phoenix_kit_web/components/image_editor.ex:1155
 #, elixir-autogen, elixir-format
 msgid "Width %"
 msgstr "Breite %"
 
-#: lib/phoenix_kit_web/components/image_editor.ex:487
-#: lib/phoenix_kit_web/components/image_editor.ex:693
+#: lib/phoenix_kit_web/components/image_editor.ex:491
+#: lib/phoenix_kit_web/components/image_editor.ex:697
 #, elixir-autogen, elixir-format
 msgid "You can't edit this image."
 msgstr "Sie können dieses Bild nicht bearbeiten."
@@ -15233,15 +15265,15 @@ msgid "the bot in Telegram, then press Test Connection above."
 msgstr ""
 
 #: lib/phoenix_kit_web/components/featured_image.ex:579
-#: lib/phoenix_kit_web/components/media_browser.ex:3602
-#: lib/phoenix_kit_web/components/media_browser.ex:3619
+#: lib/phoenix_kit_web/components/media_browser.ex:3628
+#: lib/phoenix_kit_web/components/media_browser.ex:3645
 #, elixir-autogen, elixir-format
 msgid "Featured image"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3599
-#: lib/phoenix_kit_web/components/media_browser.ex:3603
-#: lib/phoenix_kit_web/components/media_browser.ex:3765
+#: lib/phoenix_kit_web/components/media_browser.ex:3625
+#: lib/phoenix_kit_web/components/media_browser.ex:3629
+#: lib/phoenix_kit_web/components/media_browser.ex:3791
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1663
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2347
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:510
@@ -15249,8 +15281,8 @@ msgstr ""
 msgid "Set as featured"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3599
-#: lib/phoenix_kit_web/components/media_browser.ex:3764
+#: lib/phoenix_kit_web/components/media_browser.ex:3625
+#: lib/phoenix_kit_web/components/media_browser.ex:3790
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1662
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2346
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:509
@@ -15520,7 +15552,7 @@ msgstr "Alternativtext"
 msgid "Describe the image for someone who cannot see it"
 msgstr "Beschreiben Sie das Bild für jemanden, der es nicht sehen kann"
 
-#: lib/phoenix_kit_web/live/users/media_detail.ex:178
+#: lib/phoenix_kit_web/live/users/media_detail.ex:179
 #, elixir-autogen, elixir-format
 msgid "Details saved"
 msgstr "Details gespeichert"
@@ -15535,7 +15567,7 @@ msgstr "Beschreibung eingeben"
 msgid "Enter title"
 msgstr "Titel eingeben"
 
-#: lib/phoenix_kit_web/live/users/media_detail.ex:184
+#: lib/phoenix_kit_web/live/users/media_detail.ex:185
 #, elixir-autogen, elixir-format
 msgid "Failed to save details"
 msgstr "Details konnten nicht gespeichert werden"
@@ -15647,74 +15679,81 @@ msgstr "Keine Spalten angezeigt."
 msgid "Standard fields"
 msgstr "Standardfelder"
 
-#: lib/modules/storage/web/libraries_component.ex:163
+#: lib/modules/storage/web/libraries_component.ex:208
+#: lib/phoenix_kit_web/live/components/library_settings.ex:251
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr "Erstellen"
 
+#: lib/phoenix_kit_web/live/users/libraries.html.heex:26
 #: lib/phoenix_kit_web/live/users/media.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Library"
 msgstr "Bibliothek"
 
-#: lib/modules/storage/web/libraries_component.ex:48
+#: lib/modules/storage/web/libraries_component.ex:61
 #, elixir-autogen, elixir-format
 msgid "Library \"%{name}\" created"
 msgstr "Bibliothek „%{name}“ erstellt"
 
-#: lib/modules/storage/web/libraries_component.ex:76
+#: lib/modules/storage/web/libraries_component.ex:89
 #, elixir-autogen, elixir-format
 msgid "Library deleted"
 msgstr "Bibliothek gelöscht"
 
-#: lib/modules/storage/web/libraries_component.ex:114
 #: lib/modules/storage/web/libraries_component.ex:158
+#: lib/modules/storage/web/libraries_component.ex:203
 #, elixir-autogen, elixir-format
 msgid "Library name"
 msgstr "Name der Bibliothek"
 
-#: lib/modules/storage/web/libraries_component.ex:136
+#: lib/modules/storage/web/libraries_component.ex:181
+#: lib/phoenix_kit_web/live/components/library_settings.ex:241
 #, elixir-autogen, elixir-format
 msgid "New library"
 msgstr "Neue Bibliothek"
 
-#: lib/modules/storage/web/libraries_component.ex:86
+#: lib/modules/storage/web/libraries_component.ex:99
 #, elixir-autogen, elixir-format
 msgid "Only an empty library can be deleted, and never the default one."
 msgstr "Nur eine leere Bibliothek kann gelöscht werden, und nie die Standardbibliothek."
 
+#: lib/phoenix_kit_web/live/users/libraries.ex:102
 #: lib/phoenix_kit_web/live/users/media.ex:67
 #, elixir-autogen, elixir-format
 msgid "Library not found"
 msgstr "Bibliothek nicht gefunden"
 
-#: lib/modules/storage/web/libraries_component.ex:141
+#: lib/modules/storage/web/libraries_component.ex:186
 #, elixir-autogen, elixir-format
 msgid "A library is a separate space in Media with its own folders. Everything uploaded so far is in the default library. The Media page shows a library switcher once there are two or more."
 msgstr "Eine Bibliothek ist ein eigener Bereich in den Medien mit eigenen Ordnern. Alles bisher Hochgeladene liegt in der Standardbibliothek. Die Medienseite zeigt einen Bibliothekswechsler, sobald es zwei oder mehr gibt."
 
-#: lib/modules/storage/web/libraries_component.ex:247
+#: lib/modules/storage/web/libraries_component.ex:292
 #, elixir-autogen, elixir-format
 msgid "Delete this library?"
 msgstr "Diese Bibliothek löschen?"
 
-#: lib/modules/storage/web/libraries_component.ex:127
+#: lib/modules/storage/web/libraries_component.ex:172
 #: lib/modules/storage/web/settings.html.heex:71
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:174
+#: lib/phoenix_kit_web/live/users/libraries.ex:37
+#: lib/phoenix_kit_web/live/users/libraries.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Libraries"
 msgstr "Bibliotheken"
 
-#: lib/modules/storage/web/libraries_component.ex:66
+#: lib/modules/storage/web/libraries_component.ex:79
 #, elixir-autogen, elixir-format
 msgid "Library renamed to \"%{name}\""
 msgstr "Bibliothek in „%{name}“ umbenannt"
 
-#: lib/modules/storage/web/libraries_component.ex:243
+#: lib/modules/storage/web/libraries_component.ex:288
 #, elixir-autogen, elixir-format
 msgid "Only an empty library can be deleted."
 msgstr "Nur eine leere Bibliothek kann gelöscht werden."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4388
+#: lib/phoenix_kit_web/components/media_browser.ex:4420
 #, elixir-autogen, elixir-format
 msgid "%{count} file is already in another library, so it was not added here."
 msgid_plural "%{count} files are already in another library, so they were not added here."
@@ -15735,3 +15774,270 @@ msgstr "Weiter mit GitHub"
 #, elixir-autogen, elixir-format
 msgid "Continue with Google"
 msgstr "Weiter mit Google"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:253
+#, elixir-autogen, elixir-format
+msgid "%{count} of %{limit} libraries"
+msgstr "%{count} von %{limit} Bibliotheken"
+
+#: lib/modules/storage/web/libraries_component.ex:330
+#, elixir-autogen, elixir-format
+msgid "Allow user libraries"
+msgstr "Benutzerbibliotheken erlauben"
+
+#: lib/phoenix_kit_web/live/users/media_detail.ex:444
+#, elixir-autogen, elixir-format
+msgid "Annotated"
+msgstr "Mit Anmerkungen"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:193
+#: lib/phoenix_kit_web/live/users/libraries.ex:163
+#, elixir-autogen, elixir-format
+msgid "Contributor"
+msgstr "Mitwirkender"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:180
+#, elixir-autogen, elixir-format
+msgid "Could not leave the library"
+msgstr "Die Bibliothek konnte nicht verlassen werden"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:104
+#, elixir-autogen, elixir-format
+msgid "Default library changed"
+msgstr "Standardbibliothek geändert"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:359
+#, elixir-autogen, elixir-format
+msgid "Leave"
+msgstr "Verlassen"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:356
+#, elixir-autogen, elixir-format
+msgid "Leave “%{name}”?"
+msgstr "„%{name}“ verlassen?"
+
+#: lib/phoenix_kit_web/live/users/libraries.ex:62
+#, elixir-autogen, elixir-format
+msgid "Libraries are not available"
+msgstr "Bibliotheken sind nicht verfügbar"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:223
+#, elixir-autogen, elixir-format
+msgid "Libraries keep your files apart from the site's media. Only you and the members you add can see them."
+msgstr "Bibliotheken halten Ihre Dateien von den Medien der Website getrennt. Nur Sie und die Mitglieder, die Sie hinzufügen, können sie sehen."
+
+#: lib/modules/storage/web/libraries_component.ex:333
+#, elixir-autogen, elixir-format
+msgid "Libraries per user"
+msgstr "Bibliotheken pro Benutzer"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:118
+#, elixir-autogen, elixir-format
+msgid "Library moved to the trash"
+msgstr "Bibliothek in den Papierkorb verschoben"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:91
+#, elixir-autogen, elixir-format
+msgid "Library renamed"
+msgstr "Bibliothek umbenannt"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:75
+#, elixir-autogen, elixir-format
+msgid "Library “%{name}” created"
+msgstr "Bibliothek „%{name}“ erstellt"
+
+#: lib/phoenix_kit_web/live/users/libraries.html.heex:55
+#, elixir-autogen, elixir-format
+msgid "Manage libraries"
+msgstr "Bibliotheken verwalten"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:192
+#: lib/phoenix_kit_web/live/users/libraries.ex:162
+#, elixir-autogen, elixir-format
+msgid "Manager"
+msgstr "Verwalter"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:136
+#, elixir-autogen, elixir-format
+msgid "Member added"
+msgstr "Mitglied hinzugefügt"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:164
+#, elixir-autogen, elixir-format
+msgid "Member removed"
+msgstr "Mitglied entfernt"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:311
+#, elixir-autogen, elixir-format
+msgid "Move “%{name}” to the trash? Its files are deleted for good after the trash period, and its members lose it now."
+msgstr "„%{name}“ in den Papierkorb verschieben? Ihre Dateien werden nach der Aufbewahrungszeit endgültig gelöscht, und ihre Mitglieder verlieren sie sofort."
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:218
+#, elixir-autogen, elixir-format
+msgid "My libraries"
+msgstr "Meine Bibliotheken"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:186
+#, elixir-autogen, elixir-format
+msgid "Name %{error}"
+msgstr "Name %{error}"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:389
+#, elixir-autogen, elixir-format
+msgid "No members yet: only the owner can see this library."
+msgstr "Noch keine Mitglieder: Nur der Eigentümer sieht diese Bibliothek."
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:139
+#, elixir-autogen, elixir-format
+msgid "No user has that email"
+msgstr "Kein Benutzer hat diese E-Mail-Adresse"
+
+#: lib/modules/storage/web/libraries_component.ex:358
+#, elixir-autogen, elixir-format
+msgid "No user libraries yet."
+msgstr "Noch keine Benutzerbibliotheken."
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:229
+#, elixir-autogen, elixir-format
+msgid "Open libraries"
+msgstr "Bibliotheken öffnen"
+
+#: lib/phoenix_kit_web/live/users/libraries.ex:165
+#, elixir-autogen, elixir-format
+msgid "Opened as admin"
+msgstr "Als Administrator geöffnet"
+
+#: lib/modules/storage/web/libraries_component.ex:390
+#, elixir-autogen, elixir-format
+msgid "Opening a user's library is recorded in the audit log."
+msgstr "Das Öffnen der Bibliothek eines Benutzers wird im Audit-Protokoll festgehalten."
+
+#: lib/modules/storage/web/libraries_component.ex:366
+#: lib/phoenix_kit_web/live/users/libraries.ex:161
+#, elixir-autogen, elixir-format
+msgid "Owner"
+msgstr "Eigentümer"
+
+#: lib/modules/storage/web/libraries_component.ex:344
+#, elixir-autogen, elixir-format
+msgid "Private links last (hours)"
+msgstr "Private Links gelten (Stunden)"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:155
+#, elixir-autogen, elixir-format
+msgid "Role changed"
+msgstr "Rolle geändert"
+
+#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:109
+#, elixir-autogen, elixir-format
+msgid "Security"
+msgstr "Sicherheit"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:332
+#, elixir-autogen, elixir-format
+msgid "Shared with me"
+msgstr "Mit mir geteilt"
+
+#: lib/phoenix_kit_web/components/media_browser.ex:1399
+#, elixir-autogen, elixir-format
+msgid "That is not in this library"
+msgstr "Das gehört nicht zu dieser Bibliothek"
+
+#: lib/phoenix_kit_web/live/users/libraries.html.heex:9
+#, elixir-autogen, elixir-format
+msgid "The libraries you own or are a member of"
+msgstr "Die Bibliotheken, die Ihnen gehören oder in denen Sie Mitglied sind"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:187
+#, elixir-autogen, elixir-format
+msgid "The library could not be saved"
+msgstr "Die Bibliothek konnte nicht gespeichert werden"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:142
+#, elixir-autogen, elixir-format
+msgid "The owner is always in the library"
+msgstr "Der Eigentümer gehört immer zur Bibliothek"
+
+#: lib/phoenix_kit_web/live/users/media_detail.ex:443
+#, elixir-autogen, elixir-format
+msgid "The picture"
+msgstr "Das Bild"
+
+#: lib/phoenix_kit_web/live/users/media_detail.ex:476
+#, elixir-autogen, elixir-format
+msgid "Thumbnail"
+msgstr "Miniaturansicht"
+
+#: lib/modules/storage/web/libraries_component.ex:378
+#, elixir-autogen, elixir-format
+msgid "Trashed"
+msgstr "Im Papierkorb"
+
+#: lib/modules/storage/web/libraries_component.ex:307
+#, elixir-autogen, elixir-format
+msgid "User libraries"
+msgstr "Benutzerbibliotheken"
+
+#: lib/modules/storage/web/libraries_component.ex:124
+#, elixir-autogen, elixir-format
+msgid "User library settings could not be saved"
+msgstr "Die Einstellungen für Benutzerbibliotheken konnten nicht gespeichert werden"
+
+#: lib/modules/storage/web/libraries_component.ex:122
+#, elixir-autogen, elixir-format
+msgid "User library settings saved"
+msgstr "Einstellungen für Benutzerbibliotheken gespeichert"
+
+#: lib/modules/storage/web/libraries_component.ex:310
+#, elixir-autogen, elixir-format
+msgid "Users with the Storage permission can keep libraries of their own, private to them and the members they add. Their files are served only through links that expire."
+msgstr "Benutzer mit der Berechtigung „Speicher“ können eigene Bibliotheken führen, die nur ihnen und den hinzugefügten Mitgliedern zugänglich sind. Ihre Dateien werden nur über ablaufende Links ausgeliefert."
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:194
+#: lib/phoenix_kit_web/live/users/libraries.ex:164
+#, elixir-autogen, elixir-format
+msgid "Viewer"
+msgstr "Betrachter"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:258
+#: lib/phoenix_kit_web/live/users/libraries.html.heex:64
+#, elixir-autogen, elixir-format
+msgid "You have no libraries yet."
+msgstr "Sie haben noch keine Bibliotheken."
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:78
+#, elixir-autogen, elixir-format
+msgid "You have reached the number of libraries you may own"
+msgstr "Sie haben die Anzahl an Bibliotheken erreicht, die Sie besitzen dürfen"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:178
+#, elixir-autogen, elixir-format
+msgid "You left “%{name}”"
+msgstr "Sie haben „%{name}“ verlassen"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:106
+#, elixir-autogen, elixir-format
+msgid "You may not change this library"
+msgstr "Sie dürfen diese Bibliothek nicht ändern"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:81
+#, elixir-autogen, elixir-format
+msgid "You may not create libraries"
+msgstr "Sie dürfen keine Bibliotheken erstellen"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:148
+#: lib/phoenix_kit_web/live/components/library_settings.ex:157
+#: lib/phoenix_kit_web/live/components/library_settings.ex:166
+#, elixir-autogen, elixir-format
+msgid "You may not manage this library's members"
+msgstr "Sie dürfen die Mitglieder dieser Bibliothek nicht verwalten"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:97
+#, elixir-autogen, elixir-format
+msgid "You may not rename this library"
+msgstr "Sie dürfen diese Bibliothek nicht umbenennen"
+
+#: lib/phoenix_kit_web/live/components/library_settings.ex:120
+#, elixir-autogen, elixir-format
+msgid "You may not trash this library"
+msgstr "Sie dürfen diese Bibliothek nicht in den Papierkorb verschieben"
