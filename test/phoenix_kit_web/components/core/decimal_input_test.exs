@@ -114,6 +114,107 @@ defmodule PhoenixKitWeb.Components.Core.DecimalInputTest do
     assert html =~ ~s(phx-blur="commit")
   end
 
+  describe "bare" do
+    # A host that sets the control inside its own group — a daisyUI `join`
+    # with a unit button, a table cell — gets the <input> alone: the
+    # wrapper <div> would sit between `.join` and its `.join-item`.
+    test "renders the control alone: no wrapper, label, unit or error list" do
+      assigns = %{}
+
+      html =
+        render(~H"""
+        <.decimal_input
+          bare
+          id="q"
+          name="value"
+          value="0"
+          label="Quantity"
+          unit="kg"
+          errors={["is invalid"]}
+          wrapper_class="mb-4"
+          class="join-item w-20 text-center"
+        />
+        """)
+        |> String.trim()
+
+      assert html =~ ~r/\A<input [^>]*\/?>\z/
+      refute html =~ "<div"
+      refute html =~ "<label"
+      refute html =~ "Quantity"
+      refute html =~ "kg"
+      refute html =~ "is invalid"
+      refute html =~ "mb-4"
+    end
+
+    test "keeps what makes it a decimal control: text, decimal keyboard, no autofill" do
+      assigns = %{}
+
+      tag =
+        render(~H"""
+        <.decimal_input bare id="q" name="value" value={Decimal.new("2.50")} />
+        """)
+        |> input_tag()
+
+      assert tag =~ ~s(type="text")
+      assert tag =~ ~s(inputmode="decimal")
+      assert tag =~ ~s(autocomplete="off")
+      assert tag =~ ~s(value="2.5")
+    end
+
+    test "the host's classes go on the control, with no full width to fight them" do
+      assigns = %{}
+
+      tag =
+        render(~H"""
+        <.decimal_input bare id="q" name="value" value="1" class="join-item w-20" />
+        """)
+        |> input_tag()
+
+      assert tag =~ "input "
+      assert tag =~ "join-item w-20"
+      refute tag =~ "w-full"
+      refute tag =~ "input-error"
+    end
+
+    test "errors still mark the control" do
+      assigns = %{}
+
+      tag =
+        render(~H"""
+        <.decimal_input bare id="q" name="value" value="x" errors={["is invalid"]} />
+        """)
+        |> input_tag()
+
+      assert tag =~ "input-error"
+    end
+
+    test "the zero handlers and the host's own, chained, and phx attributes all stay" do
+      assigns = %{}
+
+      tag =
+        render(~H"""
+        <.decimal_input
+          bare
+          id="q"
+          name="value"
+          value="0"
+          onfocus="hostFocus()"
+          phx-blur="qty_commit"
+          phx-value-uuid="u-1"
+          aria-label="Quantity"
+        />
+        """)
+        |> input_tag()
+
+      assert tag =~ ~r/onfocus="[^"]*__pkZero[^"]*;hostFocus\(\)"/
+      assert tag =~ ~s( onblur=")
+      assert tag =~ ~s( onkeydown=")
+      assert tag =~ ~s(phx-blur="qty_commit")
+      assert tag =~ ~s(phx-value-uuid="u-1")
+      assert tag =~ ~s(aria-label="Quantity")
+    end
+  end
+
   test "required renders the marker next to the label" do
     assigns = %{}
 
