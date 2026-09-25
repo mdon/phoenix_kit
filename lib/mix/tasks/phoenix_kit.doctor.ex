@@ -105,6 +105,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   alias PhoenixKit.Modules.Crawlers.Bots
   alias PhoenixKit.Modules.Sitemap
   alias PhoenixKit.Modules.Sitemap.RouteResolver
+  alias PhoenixKit.Modules.Storage.Dimension
   alias PhoenixKit.Utils.Routes
 
   @shortdoc "Diagnoses PhoenixKit installation, migration, and runtime issues"
@@ -172,6 +173,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         run_check("Sitemap Discoverability", fn -> check_sitemap_serving(prefix) end),
         run_check("Crawler Visibility", fn -> check_crawler_visibility(prefix) end),
         run_check("Demo Auth Pages", fn -> check_demo_routes() end),
+        run_check("Variant Set Standard Sizes", fn -> check_variant_sets(prefix) end),
         run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end),
         run_check("Integration Key", fn -> check_integration_key(opts[:fingerprint] || false) end)
       ] ++ git_hooks_check()
@@ -2480,6 +2482,56 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     case repo.query!("SELECT value FROM #{p}phoenix_kit_settings WHERE key = $1", [key]) do
       %{rows: [[value] | _]} -> value == "true"
       _ -> default
+    end
+  end
+
+  # Every variant set must have the standard sizes (V205): a size's name is
+  # in every file URL, and core and modules ask for these by name. V205 does
+  # not invent a size an install deleted or renamed before; serving stands
+  # in for it (the nearest smaller size, else a placeholder) until an admin
+  # adds it back.
+  defp check_variant_sets(prefix) do
+    repo = get_repo!()
+    p = if prefix == "public", do: "public.", else: "#{prefix}."
+    slots = Dimension.standard_slots()
+
+    %{rows: [[present?]]} =
+      repo.query!(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = $1 AND table_name = 'phoenix_kit_variant_sets')",
+        [prefix]
+      )
+
+    if present? do
+      %{rows: rows} =
+        repo.query!(
+          """
+          SELECT s.name,
+                 ARRAY(SELECT unnest($1::text[])
+                       EXCEPT SELECT d.name FROM #{p}phoenix_kit_storage_dimensions d
+                              WHERE d.variant_set_uuid = s.uuid)
+          FROM #{p}phoenix_kit_variant_sets s
+          ORDER BY s.is_default DESC, s.name
+          """,
+          [slots]
+        )
+
+      case Enum.reject(rows, fn [_name, missing] -> missing == [] end) do
+        [] ->
+          {:pass, "Every variant set has the standard sizes (#{Enum.join(slots, ", ")})."}
+
+        incomplete ->
+          detail =
+            Enum.map_join(incomplete, "; ", fn [name, missing] ->
+              "#{name}: #{missing |> Enum.sort() |> Enum.join(", ")}"
+            end)
+
+          {:warn,
+           "Variant sets missing standard sizes — #{detail}. Until they are added back " <>
+             "(Settings → Media), those sizes are served as the nearest smaller size or " <>
+             "a placeholder."}
+      end
+    else
+      {:pass, "No variant sets yet (before V205)."}
     end
   end
 

@@ -48,6 +48,18 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Dimensions do
 
         {:noreply, socket}
 
+      {:error, :standard_slot} ->
+        socket =
+          put_flash(
+            socket,
+            :error,
+            gettext("%{name} is a standard size every variant set has; it cannot be deleted",
+              name: dimension.name
+            )
+          )
+
+        {:noreply, socket}
+
       {:error, _changeset} ->
         socket = put_flash(socket, :error, gettext("Failed to delete dimension"))
         {:noreply, socket}

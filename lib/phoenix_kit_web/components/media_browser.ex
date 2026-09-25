@@ -181,6 +181,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   alias PhoenixKit.Modules.Storage.ImageEditing
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.URLSigner
+  alias PhoenixKit.Modules.Storage.VariantSets
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
@@ -4344,13 +4345,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # Files in a private library get time-window URLs; one query for all.
     private = files |> Enum.map(& &1.library_uuid) |> Libraries.private_among()
 
+    # Deep zoom where the library's variant set makes tiles; one query too.
+    tiles = files |> Enum.map(& &1.library_uuid) |> VariantSets.tiles_among()
+
     Enum.map(files, fn file ->
       instances = Map.get(instances_by_file, file.uuid, [])
 
       urls =
         generate_urls_from_instances(instances, file.uuid, file.mime_type,
           annotated_enabled?: annotated_enabled?,
-          private: to_string(file.library_uuid) in private
+          private: to_string(file.library_uuid) in private,
+          tiles: to_string(file.library_uuid || Libraries.media_uuid()) in tiles
         )
 
       variant_widths = generate_widths_from_instances(instances)
@@ -4646,7 +4651,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end)
     |> URLSigner.put_dzi_url(file_uuid, mime_type,
       version: original_instance(instances),
-      private: private?
+      private: private?,
+      tiles: Keyword.fetch!(opts, :tiles)
     )
   end
 

@@ -18,7 +18,8 @@ defmodule PhoenixKitWeb.FileController do
     Libraries,
     Manager,
     TesseraAdapter,
-    URLSigner
+    URLSigner,
+    VariantSets
   }
 
   alias PhoenixKit.Users.Auth.Scope
@@ -184,6 +185,10 @@ defmodule PhoenixKitWeb.FileController do
         |> put_resp_header("cache-control", "no-store")
         |> redirect(to: current)
 
+      # A size not made yet, with nothing smaller to stand in (G17).
+      {:error, :placeholder} ->
+        serve_size_placeholder(conn)
+
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
@@ -324,6 +329,17 @@ defmodule PhoenixKitWeb.FileController do
     |> put_resp_header("cache-control", "no-store")
     |> put_resp_header("cdn-cache-control", "no-store")
     |> put_resp_header("x-variant-status", status)
+    |> put_resp_content_type("image/svg+xml")
+    |> send_resp(200, @edit_placeholder)
+  end
+
+  # A size not made yet with nothing smaller to stand in for it (G17): the
+  # same neutral placeholder, never cached, until the size exists.
+  defp serve_size_placeholder(conn) do
+    conn
+    |> put_resp_header("cache-control", "no-store")
+    |> put_resp_header("cdn-cache-control", "no-store")
+    |> put_resp_header("x-variant-status", "pending")
     |> put_resp_content_type("image/svg+xml")
     |> send_resp(200, @edit_placeholder)
   end
@@ -646,13 +662,15 @@ defmodule PhoenixKitWeb.FileController do
   cached.
 
   The token gates BOTH manifest and tile generation: without it, the
-  endpoint is a 404. The MediaBrowser emits manifest URLs only when
-  `storage_tile_generation_enabled` is on, so unauthenticated callers
-  can't trigger lazy ImageMagick work by guessing UUIDs.
+  endpoint is a 404. Manifest URLs are emitted, and tiles made, only for a
+  file whose library's variant set makes tiles (`generate_tiles`, V205;
+  the Default set's flag is what `storage_tile_generation_enabled` was),
+  so unauthenticated callers can't trigger lazy ImageMagick work by
+  guessing UUIDs.
   """
   def serve_manifest(conn, %{"token" => token, "dzi_filename" => filename}) do
-    with true <- tile_generation_enabled?(),
-         {:ok, file_uuid, requested} <- parse_manifest_filename(filename),
+    with {:ok, file_uuid, requested} <- parse_manifest_filename(filename),
+         true <- VariantSets.tiles_for?(file_uuid),
          :ok <- ensure_tile_servable(conn, file_uuid, token),
          {:ok, source} <- tile_source(file_uuid, requested),
          :ok <- ensure_manifest_cached(source),
@@ -690,9 +708,9 @@ defmodule PhoenixKitWeb.FileController do
         "level" => level,
         "tile_filename" => tile_filename
       }) do
-    with true <- tile_generation_enabled?(),
-         {:ok, file_uuid, requested, tile} <-
+    with {:ok, file_uuid, requested, tile} <-
            parse_tile_path(files_segment, level, tile_filename),
+         true <- VariantSets.tiles_for?(file_uuid),
          :ok <- ensure_tile_servable(conn, file_uuid, token),
          {:ok, source} <- tile_source(file_uuid, requested),
          {level_int, col, row, ext} = tile,
@@ -726,10 +744,6 @@ defmodule PhoenixKitWeb.FileController do
         else: URLSigner.verify_token(file.uuid, "dzi", token)
 
     if valid?, do: :ok, else: {:error, :unauthorized}
-  end
-
-  defp tile_generation_enabled? do
-    PhoenixKit.Settings.get_setting("storage_tile_generation_enabled", "false") == "true"
   end
 
   # A versioned manifest or tile never changes; an unversioned one is the
@@ -1040,11 +1054,18 @@ defmodule PhoenixKitWeb.FileController do
   end
 
   # Returns `{:ok, instance, :exact}` for the variant that was asked for, and
-  # `{:ok, instance, :pending}` when that variant does not exist yet and the
-  # ORIGINAL is served in its place. The caller must keep the two apart: a
-  # stand-in served under the variant's own URL may never be cached, or every
-  # browser and CDN pins the full-size image at the thumbnail URL (the variant
-  # URL is deterministic, so the entry is reused for as long as it lives).
+  # `{:ok, instance, :pending}` when that variant does not exist yet and
+  # another instance is served in its place. The caller must keep the two
+  # apart: a stand-in served under the variant's own URL may never be
+  # cached, or every browser and CDN pins it at that URL (the variant URL is
+  # deterministic, so the entry is reused for as long as it lives).
+  #
+  # The stand-in (G17, `VariantSets.stand_in/3`): for an image size of the
+  # file's variant set, the nearest smaller size the file has, else a
+  # placeholder (`{:error, :placeholder}`) — never the full original at a
+  # thumbnail's URL, unless the original is no larger than the size. For
+  # anything else (a video transcode, a name that is not a size), the
+  # original, as always. Generation is queued either way.
   @doc false
   def get_file_instance(file_uuid, variant) do
     case Storage.get_file_instance_by_name(file_uuid, variant) do
@@ -1056,12 +1077,24 @@ defmodule PhoenixKitWeb.FileController do
 
           original_instance ->
             queue_missing_variant(file_uuid, original_instance)
-            # Return the original for now
-            {:ok, original_instance, :pending}
+            stand_in(file_uuid, variant, original_instance)
         end
 
       instance ->
         {:ok, instance, :exact}
+    end
+  end
+
+  defp stand_in(_file_uuid, "original", original), do: {:ok, original, :pending}
+
+  defp stand_in(file_uuid, variant, original) do
+    with %Storage.File{} = file <- Storage.get_file(file_uuid),
+         {:instance, instance} <-
+           VariantSets.stand_in(file, variant, Storage.list_file_instances(file_uuid)) do
+      {:ok, instance, :pending}
+    else
+      :placeholder -> {:error, :placeholder}
+      _ -> {:ok, original, :pending}
     end
   end
 

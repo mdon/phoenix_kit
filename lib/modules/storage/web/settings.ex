@@ -32,9 +32,9 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
 
     # Load storage settings from database (using basic function to avoid cache issues)
     redundancy_copies = to_string(Storage.redundancy_copies())
-    auto_generate_variants = Settings.get_setting("storage_auto_generate_variants", "true")
+    auto_generate_variants = to_string(Storage.get_auto_generate_variants())
     max_upload_size_mb = Settings.get_setting("storage_max_upload_size_mb", "500")
-    tile_generation_enabled = Settings.get_setting("storage_tile_generation_enabled", "false")
+    tile_generation_enabled = to_string(Storage.tile_generation_enabled?())
 
     annotated_thumbnails_enabled =
       Settings.get_setting("storage_annotated_thumbnails_enabled", "false")
@@ -251,9 +251,9 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       # Update all settings
       redundancy_result = Storage.set_redundancy_copies(new_redundancy)
 
-      variants_result = Settings.update_setting("storage_auto_generate_variants", new_variants)
+      variants_result = Storage.set_auto_generate_variants(new_variants == "true")
 
-      Settings.update_setting("storage_tile_generation_enabled", new_tile_generation)
+      Storage.set_tile_generation(new_tile_generation == "true")
 
       Settings.update_setting(
         "storage_annotated_thumbnails_enabled",
@@ -271,8 +271,8 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
         {{:ok, _}, {:ok, _}} ->
           # Verify the settings were saved correctly by reading them back
           saved_redundancy = to_string(Storage.redundancy_copies())
-          saved_variants = Settings.get_setting("storage_auto_generate_variants", "true")
-          saved_tile_generation = Settings.get_setting("storage_tile_generation_enabled", "false")
+          saved_variants = to_string(Storage.get_auto_generate_variants())
+          saved_tile_generation = to_string(Storage.tile_generation_enabled?())
 
           saved_annotated_thumbnails =
             Settings.get_setting("storage_annotated_thumbnails_enabled", "false")
@@ -315,7 +315,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   def handle_event("toggle_variants", _params, socket) do
     new_value = if socket.assigns.auto_generate_variants, do: "false", else: "true"
 
-    case Settings.update_setting("storage_auto_generate_variants", new_value) do
+    case Storage.set_auto_generate_variants(new_value == "true") do
       {:ok, _setting} ->
         # Settings.update_setting already handles cache invalidation
         socket =
@@ -493,7 +493,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
 
     # Reload storage settings
     redundancy_copies = to_string(Storage.redundancy_copies())
-    auto_generate_variants = Settings.get_setting("storage_auto_generate_variants", "true")
+    auto_generate_variants = to_string(Storage.get_auto_generate_variants())
     max_upload_size_mb = Settings.get_setting("storage_max_upload_size_mb", "500")
 
     # Recalculate max redundancy

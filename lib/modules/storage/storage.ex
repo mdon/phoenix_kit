@@ -118,6 +118,7 @@ defmodule PhoenixKit.Modules.Storage do
   # The dedicated storage/media APIs under development should replace this fallback once available.
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Modules.Storage.VariantGenerator
+  alias PhoenixKit.Modules.Storage.VariantSet
   alias PhoenixKit.Modules.Storage.VariantSets
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.TreeQuery
@@ -1133,7 +1134,7 @@ defmodule PhoenixKit.Modules.Storage do
   """
   def reset_settings_to_defaults do
     set_redundancy_copies(1)
-    Settings.update_setting("storage_auto_generate_variants", "true")
+    set_auto_generate_variants(true)
     Settings.update_setting("storage_default_bucket_uuid", nil)
     :ok
   end
@@ -1150,10 +1151,11 @@ defmodule PhoenixKit.Modules.Storage do
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_dimension(attrs \\ %{}) do
-    %Dimension{}
+  def create_dimension(attrs \\ %{}, variant_set_uuid \\ VariantSets.default_uuid()) do
+    %Dimension{variant_set_uuid: variant_set_uuid}
     |> Dimension.changeset(attrs)
     |> repo().insert()
+    |> tap(&size_changed/1)
   end
 
   @doc """
@@ -1169,9 +1171,12 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def update_dimension(%Dimension{} = dimension, attrs) do
-    dimension
-    |> Dimension.changeset(attrs)
+    changeset = Dimension.changeset(dimension, attrs)
+
+    # Reordering the list changes no pixels.
+    changeset
     |> repo().update()
+    |> tap(&if(Map.drop(changeset.changes, [:order]) != %{}, do: size_changed(&1)))
   end
 
   @doc """
@@ -1187,8 +1192,19 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def delete_dimension(%Dimension{} = dimension) do
-    repo().delete(dimension)
+    if Dimension.standard_slot?(dimension) do
+      {:error, :standard_slot}
+    else
+      dimension |> repo().delete() |> tap(&size_changed/1)
+    end
   end
+
+  # A size was added, changed or removed: every file of its set is stale,
+  # and the reconciler makes, remakes or deletes that size (G15).
+  defp size_changed({:ok, %Dimension{variant_set_uuid: set_uuid}}) when not is_nil(set_uuid),
+    do: VariantSets.bump_revision(set_uuid)
+
+  defp size_changed(_result), do: :ok
 
   @doc """
   Returns an `%Ecto.Changeset{}` for tracking dimension changes.
@@ -5316,8 +5332,45 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
-  def get_auto_generate_variants do
-    Settings.get_setting_cached("storage_auto_generate_variants", "true") == "true"
+  @doc """
+  The name of the size of `file`'s variant set that fits a purpose, rather
+  than one picked by name: `variant_for(file, min_width: 300, aspect:
+  :preserve)`. See `VariantSets.variant_for/2`.
+  """
+  defdelegate variant_for(file, opts \\ []), to: VariantSets
+
+  @doc """
+  Whether the Default variant set makes sizes automatically: what the
+  `storage_auto_generate_variants` setting was before variant sets (V205).
+  A file follows its own library's set (`VariantSets.variants_for?/1`).
+  """
+  def get_auto_generate_variants, do: VariantSets.default_flag(:generate_variants, true)
+
+  @doc """
+  Whether the Default variant set makes zoomable tiles: what the
+  `storage_tile_generation_enabled` setting was before variant sets.
+  """
+  def tile_generation_enabled?, do: VariantSets.default_flag(:generate_tiles, false)
+
+  @doc """
+  Turns the Default variant set's automatic sizes on or off, and keeps the
+  `storage_auto_generate_variants` setting row in step.
+  """
+  def set_auto_generate_variants(enabled?) when is_boolean(enabled?),
+    do: set_default_flag(:generate_variants, "storage_auto_generate_variants", enabled?)
+
+  @doc """
+  Turns the Default variant set's tiles on or off, and keeps the
+  `storage_tile_generation_enabled` setting row in step.
+  """
+  def set_tile_generation(enabled?) when is_boolean(enabled?),
+    do: set_default_flag(:generate_tiles, "storage_tile_generation_enabled", enabled?)
+
+  defp set_default_flag(flag, setting, enabled?) do
+    with %VariantSet{} = set <- VariantSets.default_variant_set() || {:error, :no_default},
+         {:ok, _} <- VariantSets.update_variant_set(set, %{flag => enabled?}) do
+      Settings.update_setting(setting, to_string(enabled?))
+    end
   end
 
   defp get_default_bucket_uuid do

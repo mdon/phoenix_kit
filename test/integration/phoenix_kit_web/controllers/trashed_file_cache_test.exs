@@ -131,9 +131,7 @@ defmodule PhoenixKitWeb.TrashedFileCacheTest do
   end
 
   test "a trashed file's tile manifest is a private 404, not a public tile", ctx do
-    alias PhoenixKit.Settings
-
-    {:ok, _} = Settings.update_setting("storage_tile_generation_enabled", "true")
+    {:ok, _} = Storage.set_tile_generation(true)
     {:ok, trashed} = Storage.trash_file(ctx.stored)
     token = URLSigner.generate_token(trashed.uuid, "dzi")
 

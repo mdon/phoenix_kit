@@ -32,6 +32,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   alias PhoenixKit.Modules.Storage.ImageProcessor
   alias PhoenixKit.Modules.Storage.Manager
   alias PhoenixKit.Modules.Storage.PdfProcessor
+  alias PhoenixKit.Modules.Storage.VariantSets
 
   require Logger
 
@@ -60,15 +61,29 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   def generate_variants(file, opts \\ []) do
     specific_dimensions = Keyword.get(opts, :dimensions, [])
 
-    if should_generate_variants?(file) do
-      dimensions = get_dimensions_for_generation(file.file_type, specific_dimensions)
+    cond do
+      not variant_source?(file) ->
+        {:ok, []}
 
-      case dimensions do
-        [] -> {:ok, []}
-        _ -> process_variants(file, dimensions)
-      end
-    else
-      {:ok, []}
+      # The file's library's variant set makes no sizes automatically:
+      # nothing is missing, so its variants are as the set wants them.
+      not VariantSets.variants_for?(file) ->
+        if specific_dimensions == [], do: VariantSets.record_variants(file, true)
+        {:ok, []}
+
+      true ->
+        dimensions = get_dimensions_for_generation(file, specific_dimensions)
+
+        {result, complete?} =
+          case dimensions do
+            [] -> {{:ok, []}, true}
+            _ -> process_variants(file, dimensions)
+          end
+
+        # A full run records whether every size of the set was made; one
+        # that failed leaves the file stale for the reconciler.
+        if specific_dimensions == [], do: VariantSets.record_variants(file, complete?)
+        result
     end
   end
 
@@ -130,11 +145,14 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
                  store_variant_file(variant_path, variant_name, variant_storage_path, file) do
             publish_variant(
               file,
-              variant_name,
-              variant_storage_path,
-              variant_mime_type,
-              variant_ext,
-              file_stats,
+              variant_attrs(
+                variant_name,
+                variant_storage_path,
+                variant_mime_type,
+                variant_ext,
+                file_stats,
+                VariantSets.spec_hash(dimension, format_override)
+              ),
               storage_info.bucket_ids,
               source_key
             )
@@ -190,11 +208,14 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
              store_variant_file(prepared_path, variant_name, variant_storage_path, file) do
         publish_variant(
           file,
-          variant_name,
-          variant_storage_path,
-          variant_mime_type,
-          variant_ext,
-          file_stats,
+          variant_attrs(
+            variant_name,
+            variant_storage_path,
+            variant_mime_type,
+            variant_ext,
+            file_stats,
+            nil
+          ),
           storage_info.bucket_ids,
           Keyword.get(opts, :source_key)
         )
@@ -250,30 +271,12 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   # writes new bytes, and a stale checksum or size on the row misleads every
   # consumer. Locations are only re-created when the key changed — the old
   # code added a duplicate set on every regeneration.
-  defp publish_variant(
-         file,
-         variant_name,
-         storage_path,
-         mime_type,
-         ext,
-         stats,
-         bucket_uuids,
-         source_key
-       ) do
+  #
+  # `variant` is the instance's attributes (`variant_attrs/6`).
+  defp publish_variant(file, variant, bucket_uuids, source_key) do
     repo = PhoenixKit.Config.get_repo()
-
-    attrs = %{
-      variant_name: variant_name,
-      file_name: storage_path,
-      mime_type: mime_type,
-      ext: ext,
-      checksum: stats.checksum,
-      size: stats.size,
-      width: stats.width,
-      height: stats.height,
-      processing_status: "completed",
-      file_uuid: file.uuid
-    }
+    %{variant_name: variant_name, file_name: storage_path} = variant
+    attrs = Map.merge(variant, %{processing_status: "completed", file_uuid: file.uuid})
 
     repo.transaction(fn ->
       current =
@@ -325,6 +328,23 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     end
   end
 
+  # A variant instance's attributes. `spec_hash` is the spec of the size it
+  # was made from (V205), nil for a variant not made from a size (an
+  # annotated thumbnail).
+  defp variant_attrs(name, key, mime_type, ext, stats, spec_hash) do
+    %{
+      variant_name: name,
+      file_name: key,
+      mime_type: mime_type,
+      ext: ext,
+      checksum: stats.checksum,
+      size: stats.size,
+      width: stats.width,
+      height: stats.height,
+      spec_hash: spec_hash
+    }
+  end
+
   defp insert_variant!(repo, attrs, bucket_uuids) do
     with {:ok, instance} <- Storage.create_file_instance(attrs),
          {:ok, _locations} <-
@@ -348,20 +368,23 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     Enum.each(paths, &File.rm/1)
   end
 
-  defp should_generate_variants?(file) do
-    # System-managed media (Tessera DZI tiles + manifests) never get
-    # quality variants — a tile is already 256×256, generating a smaller
-    # tile-of-a-tile would waste CPU and disk for no user-facing value.
+  # Whether sizes are made of this file at all. System-managed media
+  # (Tessera DZI tiles + manifests) never get quality variants — a tile is
+  # already 256×256, generating a smaller tile-of-a-tile would waste CPU
+  # and disk for no user-facing value.
+  defp variant_source?(file) do
     not file.system_managed and
       (file.file_type in ["image", "video"] or
-         (file.file_type == "document" and file.mime_type == "application/pdf")) and
-      Storage.get_auto_generate_variants()
+         (file.file_type == "document" and file.mime_type == "application/pdf"))
   end
 
-  defp get_dimensions_for_generation(file_type, specific_dimensions) do
+  # The sizes of the file's library's variant set (V205) for its type.
+  defp get_dimensions_for_generation(file, specific_dimensions) do
     # PDFs generate image thumbnails, so use image dimensions
-    query_type = if file_type == "document", do: "image", else: file_type
-    base_query = Storage.list_dimensions_for_type(query_type)
+    query_type = if file.file_type == "document", do: "image", else: file.file_type
+
+    base_query =
+      Storage.list_dimensions_for_type(query_type, VariantSets.set_uuid_for(file.library_uuid))
 
     dimensions =
       if Enum.empty?(specific_dimensions) do
@@ -408,12 +431,14 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
         _ -> false
       end)
 
-    if Enum.empty?(successful) and not Enum.empty?(failed) do
-      {:error, "All variant generations failed"}
-    else
-      variants = Enum.map(successful, fn {:ok, variant} -> variant end)
-      {:ok, variants}
-    end
+    result =
+      if Enum.empty?(successful) and not Enum.empty?(failed) do
+        {:error, "All variant generations failed"}
+      else
+        {:ok, Enum.map(successful, fn {:ok, variant} -> variant end)}
+      end
+
+    {result, failed == []}
   end
 
   defp determine_variant_mime_type(original_mime, format_override) do

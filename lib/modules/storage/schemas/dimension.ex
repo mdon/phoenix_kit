@@ -76,6 +76,13 @@ defmodule PhoenixKit.Modules.Storage.Dimension do
   @primary_key {:uuid, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
+  # The sizes every variant set has (V205): a size's name is part of every
+  # file URL, and core and modules ask for these by name. The first three
+  # of `@aspect_slots` feed grids and justified layouts, so they keep the
+  # aspect ratio; only `thumbnail` may be cropped.
+  @standard_slots ~w(thumbnail small medium large video_thumbnail)
+  @aspect_slots ~w(small medium large)
+
   @type t :: %__MODULE__{
           uuid: UUIDv7.t() | nil,
           name: String.t() | nil,
@@ -165,7 +172,40 @@ defmodule PhoenixKit.Modules.Storage.Dimension do
     |> validate_quality()
     |> validate_format()
     |> validate_alternative_formats()
+    |> validate_standard_slot()
     |> unique_constraint(:name, name: :phoenix_kit_storage_dimensions_name_index)
+  end
+
+  @doc "The sizes every variant set has; they cannot be renamed or deleted."
+  def standard_slots, do: @standard_slots
+
+  @doc "The standard sizes that always keep the aspect ratio."
+  def aspect_slots, do: @aspect_slots
+
+  @doc "Whether `dimension` is one of the standard sizes."
+  def standard_slot?(%__MODULE__{name: name}), do: name in @standard_slots
+
+  # A standard size keeps its name, and small/medium/large keep the aspect
+  # ratio, whatever else an admin changes about them.
+  defp validate_standard_slot(changeset) do
+    old_name = changeset.data.name
+    name = get_field(changeset, :name)
+
+    cond do
+      old_name in @standard_slots and name != old_name ->
+        add_error(changeset, :name, "is a standard size and cannot be renamed")
+
+      name in @aspect_slots and get_field(changeset, :maintain_aspect_ratio) == false ->
+        add_error(
+          changeset,
+          :maintain_aspect_ratio,
+          "must stay on for %{name}: only thumbnail may be cropped",
+          name: name
+        )
+
+      true ->
+        changeset
+    end
   end
 
   # Validate dimensions based on maintain_aspect_ratio setting

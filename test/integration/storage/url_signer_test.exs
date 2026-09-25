@@ -4,23 +4,53 @@ defmodule PhoenixKit.Integration.Storage.URLSignerTest do
 
   `put_dzi_url/3` is the single source of truth for the signed `"dzi"` deep-zoom
   manifest URL shared by the media browser, detail page, and lightbox. Its
-  output depends on the `storage_tile_generation_enabled` setting (DB-backed),
-  so these run against the real Repo via `DataCase` — the non-cached
-  `Settings.get_setting/2` the helper reads is sandbox-safe and unaffected by
-  the settings cache `update_setting/2` invalidates.
+  output depends on whether the variant set of the file's library makes
+  tiles (V205; the Default set's flag is what the
+  `storage_tile_generation_enabled` setting was), so these run against the
+  real Repo via `DataCase`, with a file row in Media under `@file_uuid`.
   """
 
   use PhoenixKit.DataCase, async: true
 
-  alias PhoenixKit.Modules.Storage.URLSigner
+  alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.{Libraries, URLSigner, VariantSets}
   alias PhoenixKit.Settings
+  alias PhoenixKit.Test.Repo
+  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Routes
 
   @file_uuid "018e3c4a-9f6b-7890-abcd-ef1234567890"
   @setting "storage_tile_generation_enabled"
 
-  defp enable_tiles, do: Settings.update_setting(@setting, "true")
-  defp disable_tiles, do: Settings.update_setting(@setting, "false")
+  setup do
+    {:ok, user} =
+      Auth.register_user(%{
+        "email" => "dzi-#{System.unique_integer([:positive])}@example.com",
+        "password" => "ValidPassword123!"
+      })
+
+    {:ok, _} =
+      %Storage.File{uuid: @file_uuid}
+      |> Storage.File.changeset(%{
+        user_uuid: user.uuid,
+        original_file_name: "a.png",
+        file_name: "a.png",
+        file_path: "x",
+        mime_type: "image/png",
+        file_type: "image",
+        ext: "png",
+        file_checksum: Ecto.UUID.generate(),
+        user_file_checksum: Ecto.UUID.generate(),
+        size: 1,
+        status: "active"
+      })
+      |> Repo.insert()
+
+    :ok
+  end
+
+  defp enable_tiles, do: Storage.set_tile_generation(true)
+  defp disable_tiles, do: Storage.set_tile_generation(false)
 
   # The dzi URL the impl is expected to build for this file — derived from the
   # same primitives (`generate_token/2` + `Routes.path/2`, `locale: :none`) so
@@ -84,7 +114,7 @@ defmodule PhoenixKit.Integration.Storage.URLSignerTest do
   end
 
   describe "put_dzi_url/3 — tile generation disabled / unset" do
-    test "leaves the map unchanged when the setting is explicitly false" do
+    test "leaves the map unchanged when the Default set makes no tiles" do
       disable_tiles()
 
       urls = URLSigner.put_dzi_url(%{"original" => "/file/o"}, @file_uuid, "image/png")
@@ -92,20 +122,47 @@ defmodule PhoenixKit.Integration.Storage.URLSignerTest do
       assert urls["original"] == "/file/o"
     end
 
-    test "treats an unset setting as disabled (default false)" do
-      # Fresh sandbox transaction — no setting row, so get_setting/2 falls back
-      # to its "false" default and no dzi is added.
+    test "the Default set makes no tiles unless turned on" do
+      # V205 seeded the Default from the setting, which defaults to false.
       urls = URLSigner.put_dzi_url(%{"original" => "/file/o"}, @file_uuid, "image/jpeg")
       refute Map.has_key?(urls, "dzi")
     end
 
-    test "does not treat a truthy-but-not-\"true\" value as enabled" do
-      # The check is `== "true"` (string), not a boolean parse — guard against a
-      # future value-shape drift (e.g. "1", "on", "yes") silently enabling tiles.
-      Settings.update_setting(@setting, "1")
+    test "the old setting row alone no longer turns tiles on" do
+      Settings.update_setting(@setting, "true")
 
       urls = URLSigner.put_dzi_url(%{}, @file_uuid, "image/png")
       refute Map.has_key?(urls, "dzi")
+    end
+
+    test "an unknown file gets no tiles" do
+      enable_tiles()
+
+      urls = URLSigner.put_dzi_url(%{}, Ecto.UUID.generate(), "image/png")
+      refute Map.has_key?(urls, "dzi")
+    end
+  end
+
+  describe "put_dzi_url/3 — per library" do
+    test "follows the variant set of the file's library" do
+      disable_tiles()
+
+      {:ok, library} =
+        Libraries.create_system_library(%{name: "Tiles #{System.unique_integer()}"})
+
+      {:ok, set} = VariantSets.create_variant_set(%{name: "Zoom", generate_tiles: true})
+      {:ok, _} = VariantSets.set_library_variant_set(library, set.uuid)
+      {:ok, _} = Storage.update_file(Storage.get_file(@file_uuid), %{library_uuid: library.uuid})
+
+      assert URLSigner.put_dzi_url(%{}, @file_uuid, "image/png")["dzi"] ==
+               expected_dzi(@file_uuid)
+    end
+
+    test "`tiles:` is taken as given" do
+      disable_tiles()
+      assert URLSigner.put_dzi_url(%{}, @file_uuid, "image/png", tiles: true)["dzi"]
+      enable_tiles()
+      refute URLSigner.put_dzi_url(%{}, @file_uuid, "image/png", tiles: false)["dzi"]
     end
   end
 

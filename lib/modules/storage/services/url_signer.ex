@@ -3,6 +3,7 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
   import Bitwise
 
   alias PhoenixKit.Config
+  alias PhoenixKit.Modules.Storage.VariantSets
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 
@@ -269,8 +270,10 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
   @doc """
   Conditionally adds a `"dzi"` deep-zoom manifest URL to a `urls` map.
 
-  Returns the map unchanged unless the file is an image **and** the
-  `storage_tile_generation_enabled` setting is on. The signed manifest URL
+  Returns the map unchanged unless the file is an image **and** the variant
+  set of its library makes tiles (V205; `tiles:` says so for a caller that
+  already knows, such as a grid that looked up a whole page at once with
+  `VariantSets.tiles_among/1`). The signed manifest URL
   (`/tiles/<token>/<file_uuid>-<version>.dzi`) is what Tessera fetches to
   stream tiles; the token and the version live in the path (not a query
   string) so they survive Tessera's manifest → tile URL derivation.
@@ -289,7 +292,7 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
   def put_dzi_url(urls, file_uuid, mime_type, opts)
       when is_map(urls) and is_binary(file_uuid) do
     if is_binary(mime_type) and String.starts_with?(mime_type, "image/") and
-         tile_generation_enabled?() do
+         Keyword.get_lazy(opts, :tiles, fn -> VariantSets.tiles_for?(file_uuid) end) do
       token = url_token(file_uuid, "dzi", opts)
 
       stem =
@@ -307,10 +310,6 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
   end
 
   def put_dzi_url(urls, _file_uuid, _mime_type, _opts), do: urls
-
-  defp tile_generation_enabled? do
-    Settings.get_setting("storage_tile_generation_enabled", "false") == "true"
-  end
 
   defp get_secret_key_base do
     # Try to get secret_key_base from configured sources in order

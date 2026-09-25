@@ -403,13 +403,29 @@ never get a later change, the #871 lesson):
   buckets become usable. `Storage.redundancy_copies/0` and
   `set_redundancy_copies/1` are the setting's alias. Until step 5, the
   Health page's sync still copies to any enabled bucket.
-- Step 3 done. `Locations.ranked/1` gives a key's buckets with the role
+- Step 3 done (`c72ece343`). `Locations.ranked/1` gives a key's buckets with the role
   and serve order its file's profile gives them (a bucket the profile no
   longer lists ranks after its buckets, backups last). Serving
   (`get_file_access`, `public_url`) follows that order strictly, so a
   remote copy can come before a local one, and never uses a backup; reads
   for processing (`retrieve_file`, `file_exists?`) may use a backup last.
   A key with no rows yet keeps today's rule (local first).
+- Step 4 done. The generator takes the sizes of the file's library's set
+  and records each variant's `spec_hash`; a full run stamps
+  `placed_variant_set_uuid` / `placed_variant_revision`, or 0 when a size
+  failed. A size change bumps its set's revision (a reorder does not).
+  Standard sizes cannot be deleted (`{:error, :standard_slot}`) or renamed,
+  and small/medium/large keep the aspect ratio (the `Dimension` changeset).
+  The two generation settings are the Default set's flags
+  (`Storage.get_auto_generate_variants/0`, `tile_generation_enabled?/0` and
+  their setters, which keep the rows in step); tiles follow the file's own
+  set (`VariantSets.tiles_for?/1`, `tiles_among/1` for a grid page,
+  `put_dzi_url`'s `tiles:`). A missing image size stands in as the nearest
+  smaller size, then the edit placeholder (`VariantSets.stand_in/3`), never
+  a full original larger than the size. `Storage.variant_for/2` picks by
+  purpose; moving core call sites that want a size rather than a slot
+  (`ImageSet`'s `"medium"`, grids) onto it is left as a follow-up. `mix
+  phoenix_kit.doctor` warns about a set missing a standard size.
 
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.

@@ -36,8 +36,6 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
   alias PhoenixKit.Modules.Storage.Libraries
 
   @default_uuid "00000000-0000-7000-8000-000000000003"
-  @standard_slots ~w(thumbnail small medium large video_thumbnail)
-  @aspect_slots ~w(small medium large)
 
   @doc "The uuid of the Default variant set, fixed on every install."
   @spec default_uuid() :: String.t()
@@ -50,11 +48,11 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
 
   @doc "The sizes every set has."
   @spec standard_slots() :: [String.t()]
-  def standard_slots, do: @standard_slots
+  def standard_slots, do: Dimension.standard_slots()
 
   @doc "The standard slots that always keep the aspect ratio."
   @spec aspect_slots() :: [String.t()]
-  def aspect_slots, do: @aspect_slots
+  def aspect_slots, do: Dimension.aspect_slots()
 
   @doc "Every set, the Default first."
   @spec list_variant_sets() :: [VariantSet.t()]
@@ -129,7 +127,7 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
       from(d in Dimension, where: d.variant_set_uuid == ^set_uuid, select: d.name)
       |> repo().all()
 
-    @standard_slots -- present
+    standard_slots() -- present
   end
 
   @doc """
@@ -153,7 +151,7 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
 
     rows =
       from(d in Dimension,
-        where: d.variant_set_uuid == ^@default_uuid and d.name in ^@standard_slots
+        where: d.variant_set_uuid == ^@default_uuid and d.name in ^standard_slots()
       )
       |> repo().all()
       |> Enum.map(fn d ->
@@ -273,6 +271,214 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
     )
 
     :ok
+  end
+
+  @doc """
+  Whether the set of `file`'s library makes zoomable tiles. Takes a file
+  or a file uuid; false for an unknown file.
+  """
+  @spec tiles_for?(StorageFile.t() | term()) :: boolean()
+  def tiles_for?(%StorageFile{library_uuid: library_uuid}),
+    do: library_flag(library_uuid, :generate_tiles)
+
+  def tiles_for?(file_uuid) do
+    case Ecto.UUID.cast(file_uuid) do
+      {:ok, uuid} ->
+        from(f in StorageFile,
+          left_join: l in Library,
+          on: l.uuid == f.library_uuid,
+          join: s in VariantSet,
+          on: s.uuid == coalesce(l.variant_set_uuid, type(^@default_uuid, UUIDv7)),
+          where: f.uuid == ^uuid,
+          select: s.generate_tiles
+        )
+        |> repo().one() == true
+
+      :error ->
+        false
+    end
+  end
+
+  @doc """
+  Of `library_uuids` (nil is Media), the ones whose set makes tiles, as a
+  set of strings: one query for a page of files.
+  """
+  @spec tiles_among([term()]) :: MapSet.t(String.t())
+  def tiles_among(library_uuids) do
+    uuids =
+      library_uuids
+      |> Enum.map(&(&1 || Libraries.media_uuid()))
+      |> Enum.flat_map(&List.wrap(cast(&1)))
+      |> Enum.uniq()
+
+    from(l in Library,
+      join: s in VariantSet,
+      on: s.uuid == coalesce(l.variant_set_uuid, type(^@default_uuid, UUIDv7)),
+      where: l.uuid in ^uuids and s.generate_tiles,
+      select: l.uuid
+    )
+    |> repo().all()
+    |> MapSet.new(&to_string/1)
+  end
+
+  @doc "Whether the set of `file`'s library makes sizes automatically."
+  @spec variants_for?(StorageFile.t()) :: boolean()
+  def variants_for?(%StorageFile{library_uuid: library_uuid}),
+    do: library_flag(library_uuid, :generate_variants)
+
+  defp library_flag(library_uuid, flag) do
+    case for_library(library_uuid) do
+      %VariantSet{} = set -> Map.fetch!(set, flag)
+      nil -> false
+    end
+  end
+
+  @doc """
+  One of the Default set's flags (`:generate_variants` or
+  `:generate_tiles`): what the `storage_auto_generate_variants` and
+  `storage_tile_generation_enabled` settings were before variant sets.
+  `default` when there is no Default set yet.
+  """
+  @spec default_flag(:generate_variants | :generate_tiles, boolean()) :: boolean()
+  def default_flag(flag, default) when flag in [:generate_variants, :generate_tiles] do
+    from(s in VariantSet, where: s.uuid == ^@default_uuid, select: field(s, ^flag))
+    |> repo().one()
+    |> case do
+      nil -> default
+      value -> value
+    end
+  end
+
+  @doc """
+  Records that `file`'s variants were made by its library's set as it is
+  now (`complete?`), or that some are missing (the file is stale for the
+  reconciler: `placed_variant_revision = 0`).
+  """
+  @spec record_variants(StorageFile.t(), boolean()) :: :ok
+  def record_variants(%StorageFile{} = file, complete?) do
+    set = for_file(file)
+
+    changes =
+      if set && complete?,
+        do: [placed_variant_set_uuid: set.uuid, placed_variant_revision: set.revision],
+        else: [placed_variant_revision: 0]
+
+    from(f in StorageFile, where: f.uuid == ^file.uuid)
+    |> repo().update_all(set: changes)
+
+    :ok
+  end
+
+  @image_formats ~w(jpg jpeg png webp avif gif)
+
+  @doc """
+  What to serve in place of `variant` of `file` while it has not been made
+  (G17), given the file's `instances`:
+
+    * `{:instance, instance}` — the nearest smaller size the file has;
+    * `:placeholder` — no smaller size exists, and the original is larger
+      than the size asked for;
+    * `:original` — the original is no larger than the size, or `variant`
+      is not an image size of the file's set (an unknown name, a video
+      transcode), which is what was always served.
+
+  A thumbnail-class request never gets a full-size original: in a grid of
+  thousands, a new or renamed size would otherwise send thousands of them.
+  """
+  @spec stand_in(StorageFile.t(), String.t(), [struct()]) ::
+          {:instance, struct()} | :placeholder | :original
+  def stand_in(%StorageFile{} = file, variant, instances) do
+    set_uuid = set_uuid_for(file.library_uuid)
+
+    with %Dimension{width: width} = dimension when is_integer(width) <-
+           size_named(set_uuid, variant),
+         true <- image_output?(file, dimension, variant) do
+      smaller =
+        instances
+        |> Enum.filter(fn i ->
+          i.spec_hash != nil and i.variant_name != variant and
+            String.starts_with?(i.mime_type || "", "image/") and is_integer(i.width) and
+            i.width <= width
+        end)
+        |> Enum.max_by(& &1.width, fn -> nil end)
+
+      cond do
+        smaller -> {:instance, smaller}
+        is_integer(file.width) and file.width <= width -> :original
+        true -> :placeholder
+      end
+    else
+      _ -> :original
+    end
+  end
+
+  # A size by name, or the size an alternative format (`medium_webp`) is of.
+  defp size_named(set_uuid, variant) do
+    dimensions = list_dimensions(set_uuid)
+
+    Enum.find(dimensions, &(&1.name == variant)) ||
+      Enum.find(dimensions, fn d ->
+        Enum.any?(d.alternative_formats || [], &(variant == "#{d.name}_#{&1}"))
+      end)
+  end
+
+  defp image_output?(file, dimension, variant) do
+    alt_format =
+      Enum.find(dimension.alternative_formats || [], &(variant == "#{dimension.name}_#{&1}"))
+
+    format = alt_format || dimension.format
+
+    file.file_type in ["image", "document"] or format in @image_formats
+  end
+
+  @doc """
+  The name of the size of `file`'s set that fits a purpose (G19), rather
+  than a size picked by name: a set may make `small` a square crop, so a
+  name alone promises nothing.
+
+  ## Options
+
+    * `:min_width` — the smallest width that will do (default 0);
+    * `:aspect` — `:preserve` (the aspect ratio is kept), `:crop`, or
+      `:any` (the default).
+
+  The narrowest enabled size of the file's kind that is at least
+  `:min_width` wide; the widest one when none is; `"original"` when the set
+  has none that fit.
+  """
+  @spec variant_for(StorageFile.t(), keyword()) :: String.t()
+  def variant_for(%StorageFile{} = file, opts \\ []) do
+    min_width = Keyword.get(opts, :min_width, 0)
+    aspect = Keyword.get(opts, :aspect, :any)
+    kind = if file.file_type == "video", do: "video", else: "image"
+
+    candidates =
+      file.library_uuid
+      |> set_uuid_for()
+      |> list_dimensions()
+      |> Enum.filter(fn d ->
+        d.enabled and d.name != "original" and is_integer(d.width) and
+          d.applies_to in [kind, "both"] and aspect_fits?(d, aspect)
+      end)
+
+    case Enum.filter(candidates, &(&1.width >= min_width)) do
+      [] -> candidates |> Enum.max_by(& &1.width, fn -> nil end) |> name_or_original()
+      fitting -> fitting |> Enum.min_by(& &1.width) |> name_or_original()
+    end
+  end
+
+  defp aspect_fits?(_dimension, :any), do: true
+  defp aspect_fits?(dimension, :preserve), do: dimension.maintain_aspect_ratio == true
+  defp aspect_fits?(dimension, :crop), do: dimension.maintain_aspect_ratio == false
+
+  defp name_or_original(nil), do: "original"
+  defp name_or_original(%Dimension{name: name}), do: name
+
+  defp cast(uuid) do
+    case Ecto.UUID.cast(uuid) do
+      {:ok, uuid} -> uuid
+      :error -> nil
+    end
   end
 
   @doc """

@@ -29,7 +29,6 @@ defmodule PhoenixKitWeb.FileEditingServingTest do
   alias PhoenixKit.Modules.Storage.Manager
   alias PhoenixKit.Modules.Storage.ProcessFileJob
   alias PhoenixKit.Modules.Storage.URLSigner
-  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Roles
@@ -457,7 +456,7 @@ defmodule PhoenixKitWeb.FileEditingServingTest do
       do: @describetag(skip: "ImageMagick 7 (magick) is not installed")
 
     setup do
-      {:ok, _} = Settings.update_setting("storage_tile_generation_enabled", "true")
+      {:ok, _} = Storage.set_tile_generation(true)
       :ok
     end
 
