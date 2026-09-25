@@ -9,6 +9,9 @@ defmodule PhoenixKitWeb.Components.ViewerSidebarWidthTest do
   The stand-in's skeleton pane exists to predict the real image/sidebar
   split during the open hand-off — the two must carry the SAME cap, or
   4K opens jump at hand-off.
+
+  Since #874 the side split, and so its cap, is `lg:landscape:` only: a
+  portrait window stacks the panel under the picture instead.
   """
 
   use ExUnit.Case, async: true
@@ -29,10 +32,10 @@ defmodule PhoenixKitWeb.Components.ViewerSidebarWidthTest do
     [_, real] = Regex.run(~r/data-viewer-sidebar\s+class="([^"]*)"/, viewer)
     [_, pane] = Regex.run(~r/data-pane="sidebar"\s+class="([^"]*)"/, standin)
 
-    assert real =~ "lg:max-w-", "an uncapped flex-[3] sidebar eats a 4K popup"
-    [cap] = Regex.run(~r/lg:max-w-\S+/, real)
+    assert real =~ "lg:landscape:max-w-", "an uncapped flex-[3] sidebar eats a 4K popup"
+    [cap] = Regex.run(~r/lg:landscape:max-w-\S+/, real)
     assert pane =~ cap, "the stand-in must predict the real split — same cap, or 4K opens jump"
-    assert real =~ "lg:min-w-[280px]"
-    assert pane =~ "lg:min-w-[280px]"
+    assert real =~ "lg:landscape:min-w-[280px]"
+    assert pane =~ "lg:landscape:min-w-[280px]"
   end
 end

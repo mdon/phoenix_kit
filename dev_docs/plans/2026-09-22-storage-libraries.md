@@ -13,7 +13,8 @@ ship in the same release as storage profiles.
 after the maintainer tested it in a host app and Grok reviewed it: see
 "Phase 2 as built" below. **Phase 3 (V204, location-truth) RELEASED in 2.40.0** (2026-09-25,
 published without a host-app test at the maintainer's call; Grok reviewed
-it): see "Phase 3 as built" below. Next after it: V205,
+it): see "Phase 3 as built" below. **2.40.1** is a cleanup of the §11
+leftovers (see the status list at the end of §11). Next after it: V205,
 storage profiles and variant sets. Phase 1 shipped as **V202**, not V201: PR #860
 took V201 for per-user view preferences, so every phase below shifts by one
 (V202 partition, V203 private serving + user libraries, V204 location-truth,

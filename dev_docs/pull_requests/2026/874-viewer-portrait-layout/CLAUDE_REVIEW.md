@@ -18,4 +18,9 @@ row's rotation, which may be `nil`; `normalize_rotation/1` already maps that to
 0. A file without dimensions gets `nil` and the old fixed share. The PR's
 Elixir tests (22) and the JS tests pass on `main`.
 
-No findings.
+No findings in the code. **Missed in this review:** #874 moved the
+sidebar's width cap to `lg:landscape:`, and `viewer_sidebar_width_test.exs`
+still looked for `lg:max-w-`, so it failed on `main` and in 2.40.0 (only
+the PR's own tests were run here, not the full suite). The test is updated
+in 2.40.1; the behaviour it guards (one cap, shared by the real sidebar and
+the stand-in) still holds.
