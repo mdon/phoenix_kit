@@ -58,6 +58,18 @@ function loadHook() {
   return { hook, listeners, timers, fetched, doc };
 }
 
+// `style["--x"] = v` does nothing in a browser — a custom property can only
+// be set through setProperty — so the stand-in's hook uses that API and the
+// fake has to answer it. Values land on the same object the older assertions
+// read, so `style.display` and `style["--pk-pane-aspect"]` both work.
+function fakeStyle() {
+  const s = {
+    setProperty: (k, v) => { s[k] = v; },
+    removeProperty: (k) => { delete s[k]; },
+  };
+  return s;
+}
+
 function fakeEl(armed, opts) {
   const BASE = "w-full h-full object-contain";
   const img = {
@@ -70,10 +82,10 @@ function fakeEl(armed, opts) {
     // A quarter turn is fitted by writing an explicit box onto the
     // element (see the rotation test), so the stand-in needs both a style
     // object and a measurable frame to fit against.
-    style: {},
+    style: fakeStyle(),
   };
-  const sidebar = { style: {} };
-  const box = { style: {} };
+  const sidebar = { style: fakeStyle() };
+  const box = { style: fakeStyle() };
   // As a browser answers: a frame inside a `display:none` stand-in measures
   // 0 × 0. A fake that always reports a size passes a hook that measures
   // before it reveals — which fits nothing on a real page.
@@ -85,7 +97,7 @@ function fakeEl(armed, opts) {
     img,
     sidebar,
     box,
-    style: {},
+    style: fakeStyle(),
     dataset: {
       armed: String(armed),
       sidebarOpen: String((opts && opts.sidebarOpen) ?? true),
@@ -96,10 +108,12 @@ function fakeEl(armed, opts) {
   return root;
 }
 
-function cardClick(srcUrl, cls) {
+function cardClick(srcUrl, cls, natural) {
   const cardImg = {
     className: cls || "",
     getAttribute: (k) => (k === "src" ? srcUrl : null),
+    naturalWidth: natural ? natural[0] : 0,
+    naturalHeight: natural ? natural[1] : 0,
   };
   const card = { querySelector: () => cardImg };
   return { target: { closest: (sel) => (sel.includes("click_file") ? card : null) } };
@@ -116,6 +130,67 @@ test("shows the card's own bitmap on the click", () => {
   assert.strictEqual(el.style.display, "", "shown on the click, not on the reply");
   assert.strictEqual(el.img.attrs.src, "/uploads/small/cat.jpg",
     "…with the very bitmap the grid already has, so there is nothing to fetch");
+});
+
+test("predicts the pane's shape from the card's own bitmap", () => {
+  // A portrait popup sizes the picture pane to the picture rather than to a
+  // share of the popup's height, so the popup ends up as tall as the picture
+  // plus the panel. The stand-in has to predict that shape along with the
+  // sidebar: one that guessed would hand over by resizing the whole box,
+  // which is the jump it exists to prevent. The grid already decoded this
+  // bitmap, so its true size is a property read — no load, no round trip.
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+
+  listeners.document.click.fn(cardClick("/uploads/small/cat.jpg", "", [4000, 3000]));
+  assert.strictEqual(el.style["--pk-pane-aspect"], "4000 / 3000",
+    "the pane is told the picture's ratio before the server has said anything");
+});
+
+test("a quarter turn swaps the predicted shape", () => {
+  // The card carries its rotation as a class and the stand-in copies it, so
+  // the shape ON SCREEN is the swapped one — the same rule the server applies
+  // to the stored rotation.
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+
+  listeners.document.click.fn(cardClick("/x.jpg", "rotate-90", [4000, 3000]));
+  assert.strictEqual(el.style["--pk-pane-aspect"], "3000 / 4000");
+
+  listeners.document.click.fn(cardClick("/y.jpg", "rotate-180", [4000, 3000]));
+  assert.strictEqual(el.style["--pk-pane-aspect"], "4000 / 3000",
+    "a half turn leaves the shape alone");
+});
+
+test("a bitmap with no size to give leaves the last shape in place", () => {
+  // A neighbour is usually shaped like the picture you are looking at, and
+  // the real viewer corrects it either way — so an unknown shape is better
+  // left alone than reset to a guess.
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+
+  listeners.document.click.fn(cardClick("/a.jpg", "", [4000, 3000]));
+  listeners.document.click.fn(cardClick("/b.jpg", "", null));
+  assert.strictEqual(el.style["--pk-pane-aspect"], "4000 / 3000");
+});
+
+test("hiding clears the predicted shape", () => {
+  // Left behind, the next open starts on the last picture's ratio — and the
+  // template's own fallback, which is what an unmeasured stand-in should
+  // show, would never get a look in.
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+
+  listeners.document.click.fn(cardClick("/a.jpg", "", [4000, 3000]));
+  assert.strictEqual(el.style["--pk-pane-aspect"], "4000 / 3000");
+
+  listeners.window["pk:viewer-open"].fn(realViewer(true));
+  assert.strictEqual(el.style["--pk-pane-aspect"], undefined,
+    "the real viewer's arrival puts the stand-in away, shape and all");
 });
 
 test("listens in the capture phase, ahead of the event it is racing", () => {

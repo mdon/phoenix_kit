@@ -2032,6 +2032,97 @@ if (typeof window.Chart === "undefined") {
   // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------
+  // ViewerPaneFit — the stacked pane holds the picture's shape, not a guess.
+  //
+  // A portrait popup stacks: picture on top, details docked under it. The pane
+  // is sized by `aspect-ratio: var(--pk-pane-aspect)` rather than by a share
+  // of the popup's height, so the popup ends up as tall as the picture plus
+  // the panel instead of 90vh of mostly empty canvas.
+  //
+  // The server renders that variable from the file's own width and height,
+  // which is right for the picture as uploaded and is what makes the FIRST
+  // paint correct. It is not always right about what gets painted: the viewer
+  // opens on a burned copy wherever one exists, and a burn is not always
+  // composed at the picture's ratio — a 1.69 photograph with a 1.33 burn gets
+  // a pane too wide for it and a band of empty canvas down each side.
+  //
+  // So the prediction is corrected from the bitmap on screen, once it is
+  // decoded. That element is the truth about rotation, edits and whatever the
+  // burn did, and reading `naturalWidth` off it costs nothing.
+  // ---------------------------------------------------------------------------
+
+  window.PhoenixKitHooks.ViewerPaneFit = {
+    mounted() { this._fit(); },
+    updated() { this._fit(); },
+
+    // Is the picture standing on its side? Fresco turns it by transforming
+    // the stage, so the answer is in the matrix rather than in a class:
+    // matrix(a, b, …) is a·cosθ and a·sinθ scaled alike, so |a| < |b| is a
+    // quarter turn at any zoom. Panning changes only the translation and so
+    // cannot flip the answer.
+    _turned(stage) {
+      if (!stage) return false;
+      const m = /^matrix\(([^)]+)\)/.exec(getComputedStyle(stage).transform || "");
+      if (!m) return false;
+      const parts = m[1].split(",").map(Number);
+      return Math.abs(parts[0]) < Math.abs(parts[1]);
+    },
+
+    _fit() {
+      const pane = this.el.querySelector("[data-viewer-pane]");
+      if (!pane) return;
+      const img = pane.querySelector("img");
+      if (!img) return;
+      const self = this;
+      const stage = img.closest(".fresco-stage") || img.parentElement;
+
+      const apply = function() {
+        if (!(img.naturalWidth > 0 && img.naturalHeight > 0)) return;
+        // The shape ON SCREEN — the same swap the server applies to a stored
+        // rotation and the stand-in applies to the card's own class.
+        const turned = self._turned(stage) ||
+          /(^|\s|-)rotate-(90|270)\b/.test(img.className);
+        const w = turned ? img.naturalHeight : img.naturalWidth;
+        const h = turned ? img.naturalWidth : img.naturalHeight;
+        const value = w + " / " + h;
+        // Written only when it changes: the observer below fires on every
+        // frame of a pan, and each write is a style recalculation.
+        if (value === self._last) return;
+        self._last = value;
+        pane.style.setProperty("--pk-pane-aspect", value);
+      };
+
+      // Cached bitmaps are already decoded on mount (the grid painted this
+      // one), and the viewer's ladder climbs small → large while it is open,
+      // so this listens as well as reading: `load` fires again on each rung,
+      // and a rung of a different shape would otherwise stay mispredicted.
+      if (img.complete) apply();
+      if (this._img !== img) {
+        if (this._img && this._apply) this._img.removeEventListener("load", this._apply);
+        img.addEventListener("load", apply);
+        this._img = img;
+        this._apply = apply;
+      }
+
+      // Rotating is Fresco's own doing and patches nothing, so `updated()`
+      // never fires for it. Without this the pane keeps the shape it had and
+      // a turned picture is fitted into a slot the wrong way round — 216px
+      // wide where it could be the full width of the popup.
+      if (stage && this._stage !== stage && typeof MutationObserver === "function") {
+        if (this._obs) this._obs.disconnect();
+        this._obs = new MutationObserver(apply);
+        this._obs.observe(stage, { attributes: true, attributeFilter: ["style", "class"] });
+        this._stage = stage;
+      }
+    },
+
+    destroyed() {
+      if (this._img && this._apply) this._img.removeEventListener("load", this._apply);
+      if (this._obs) this._obs.disconnect();
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // InstantViewer — put the picture on screen on the click, not on the reply.
   //
   // Opening the viewer is a server round trip: the modal does not exist in the
@@ -2073,6 +2164,7 @@ if (typeof window.Chart === "undefined") {
         // full stand-in again: its own backdrop, an opaque box, a visible
         // skeleton pane.
         el.style.backgroundColor = "";
+        el.style.removeProperty("--pk-pane-aspect");
         const box = el.querySelector(".modal-box");
         if (box) box.style.backgroundColor = "";
         const pane = el.querySelector('[data-pane="sidebar"]');
@@ -2085,9 +2177,18 @@ if (typeof window.Chart === "undefined") {
       // Paint a bitmap into the stand-in and show it — shared by the two
       // triggers: opening from a grid card, and stepping prev/next inside
       // the viewer (whose neighbour bitmaps the warm has already cached).
-      self._show = function(src, rotationClass) {
+      // `aspect` is the picture's own ratio ("3000 / 2000"), or null when
+      // nobody could say. A portrait popup sizes the picture pane to it
+      // instead of to a share of the popup's height, so the stand-in has to
+      // predict it along with the sidebar: a stand-in that guessed square
+      // for a panorama would hand over by resizing the whole box, which is
+      // the jump this exists to prevent. Null leaves the last one in place —
+      // a neighbour is usually shaped like the picture you are looking at,
+      // and the real viewer corrects it either way.
+      self._show = function(src, rotationClass, aspect) {
         const shown = el.querySelector("img");
         if (!shown) return;
+        if (aspect) el.style.setProperty("--pk-pane-aspect", aspect);
 
         // Predict the layout the real viewer is about to use: image column
         // alone, or image + info sidebar — which is open by default, so
@@ -2164,9 +2265,10 @@ if (typeof window.Chart === "undefined") {
           const dir = step.getAttribute("phx-value-dir");
           const src = dir === "prev" ? d.stepPrevSrc : d.stepNextSrc;
           const rot = dir === "prev" ? d.stepPrevRot : d.stepNextRot;
+          const asp = dir === "prev" ? d.stepPrevAspect : d.stepNextAspect;
           if (src) {
             self._stepping = true;
-            self._show(src, rot || "");
+            self._show(src, rot || "", asp || null);
           }
           return;
         }
@@ -2184,7 +2286,19 @@ if (typeof window.Chart === "undefined") {
 
         // Carry the card's rotation across, or a sideways photo would flip
         // upright for a moment and then turn back.
-        self._show(src, (img.className.match(/rotate-\d+/) || [""])[0]);
+        const rot = (img.className.match(/rotate-\d+/) || [""])[0];
+
+        // The grid already decoded this bitmap, so its true shape is a
+        // property read — no load, no round trip. A quarter turn swaps the
+        // axes here exactly as it does server-side.
+        let aspect = null;
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          const turned = /rotate-(90|270)\b/.test(rot);
+          aspect = turned
+            ? img.naturalHeight + " / " + img.naturalWidth
+            : img.naturalWidth + " / " + img.naturalHeight;
+        }
+        self._show(src, rot, aspect);
       };
       document.addEventListener("click", self._onClick, true);
 
@@ -2194,7 +2308,7 @@ if (typeof window.Chart === "undefined") {
         const d = e && e.detail;
         if (!d || !d.src) return;
         self._stepping = true;
-        self._show(d.src, d.rotation || "");
+        self._show(d.src, d.rotation || "", d.aspect || null);
       };
       window.addEventListener("pk:viewer-step", self._onStep);
 
@@ -2401,9 +2515,10 @@ if (typeof window.Chart === "undefined") {
           const d = self.el.dataset || {};
           const src = e.key === "ArrowLeft" ? d.stepPrevSrc : d.stepNextSrc;
           const rot = e.key === "ArrowLeft" ? d.stepPrevRot : d.stepNextRot;
+          const asp = e.key === "ArrowLeft" ? d.stepPrevAspect : d.stepNextAspect;
           if (src) {
             window.dispatchEvent(new CustomEvent("pk:viewer-step", {
-              detail: { src: src, rotation: rot || "" }
+              detail: { src: src, rotation: rot || "", aspect: asp || "" }
             }));
           }
         }

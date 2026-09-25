@@ -30,6 +30,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   alias PhoenixKit.Utils.Multilang
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.ImageEditor
+  alias PhoenixKitWeb.Components.MediaBrowser
   alias PhoenixKitWeb.Components.MediaCanvasViewer
 
   def mount(params, _session, socket) do
@@ -364,7 +365,8 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
         variant_dimensions,
         locations,
         tags,
-        user_name
+        user_name,
+        instances
       )
 
     socket
@@ -374,8 +376,21 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
     |> assign(:edit_mode, socket.assigns[:edit_mode] || false)
     |> assign(:image_editable, ImageEditing.editable?(file))
     # The canvas keeps its own state; a new original (an edit) must
-    # remount it with the new image and dimensions.
-    |> assign(:canvas_id, "media-detail-canvas-#{file_uuid}-#{canvas_version(instances)}")
+    # remount it with the new image and dimensions — and so must a newer
+    # burned copy, now that this page opens on one: same file, same original,
+    # different picture in front of you.
+    |> assign(
+      :canvas_id,
+      "media-detail-canvas-#{file_uuid}-#{canvas_version(instances)}-" <>
+        burn_version(file, instances)
+    )
+  end
+
+  defp burn_version(file, instances) do
+    case MediaBrowser.burn_fingerprint(file, instances) do
+      fingerprint when is_binary(fingerprint) -> String.slice(fingerprint, 0, 12)
+      _ -> "none"
+    end
   end
 
   defp canvas_version(instances) do
@@ -432,7 +447,8 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
          variant_dimensions,
          locations,
          tags,
-         user_name
+         user_name,
+         instances
        ) do
     %{
       file_uuid: file.uuid,
@@ -449,6 +465,18 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
       # background on the sides).
       width: file.width,
       height: file.height,
+      # The two fields that decide whether the embedded viewer opens on the
+      # burned copy — the picture with its markup already in it — or on the
+      # live layer with Etcher drawing over the top. Without them
+      # `MediaCanvasViewer.burned?/1` says no and this page showed the live
+      # layer while the popup showed the burn, for the same file.
+      #
+      # `burn_size` carries the burned copy's OWN extent, which is not the
+      # picture's: a burn takes in ink drawn past the edges. `burn_fingerprint`
+      # is what it was rendered from, so the viewer can tell an already-burned
+      # drawing from one still to do.
+      burn_fingerprint: MediaBrowser.burn_fingerprint(file, instances),
+      burn_size: MediaBrowser.burn_size(instances),
       urls: urls,
       variant_dimensions: variant_dimensions,
       tags: tags,
