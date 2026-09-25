@@ -40,11 +40,13 @@ defmodule PhoenixKitWeb.Components.FolderTreeLoadingTest do
     row_button = ~s(button[phx-click="navigate_folder"])
 
     assert [spinner] = classes(doc, "#{row_button} .loading-spinner")
-    assert spinner =~ "hidden"
-    assert spinner =~ "[.phx-click-loading_&]:inline-block"
+    # The spinner is stacked over the icon and fades in on the click, after
+    # a short delay, so a fast load never flashes it (the jitter fix).
+    assert spinner =~ "opacity-0"
+    assert spinner =~ "[.phx-click-loading_&]:opacity-100"
 
     assert [icon | _] = classes(doc, "#{row_button} .hero-folder")
-    assert icon =~ "[.phx-click-loading_&]:hidden"
+    assert icon =~ "[.phx-click-loading_&]:opacity-0"
   end
 
   test "the chevron spins only for its own click" do
@@ -52,10 +54,10 @@ defmodule PhoenixKitWeb.Components.FolderTreeLoadingTest do
     chevron = ~s(button[phx-click="toggle_folder_expand"])
 
     assert [spinner] = classes(doc, "#{chevron} > .loading-spinner")
-    assert spinner =~ "[.phx-click-loading>&]:inline-block"
+    assert spinner =~ "[.phx-click-loading>&]:opacity-100"
     refute spinner =~ "[.phx-click-loading_&]"
 
     assert [icon] = classes(doc, "#{chevron} > .hero-chevron-right-mini")
-    assert icon =~ "[.phx-click-loading>&]:hidden"
+    assert icon =~ "[.phx-click-loading>&]:opacity-0"
   end
 end
