@@ -4,7 +4,9 @@ defmodule PhoenixKit.Modules.Storage.Workers.PruneTrashJob do
 
   Runs daily via cron. Retention is configured via the `trash_retention_days` setting (default: 30).
   It also queues the purge of user libraries trashed longer ago than that,
-  and of those whose owner is gone (`Libraries.queue_expired_purges/1`).
+  and of those whose owner is gone (`Libraries.queue_expired_purges/1`),
+  and the location/checksum backfills and the reconciler while they have
+  work left.
   """
 
   use Oban.Worker, queue: :file_processing, max_attempts: 3
@@ -13,7 +15,12 @@ defmodule PhoenixKit.Modules.Storage.Workers.PruneTrashJob do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.Libraries
-  alias PhoenixKit.Modules.Storage.Workers.{ChecksumBackfillJob, LocationBackfillJob}
+
+  alias PhoenixKit.Modules.Storage.Workers.{
+    ChecksumBackfillJob,
+    LocationBackfillJob,
+    ReconcileJob
+  }
 
   @impl Oban.Worker
   def perform(_job) do
@@ -22,6 +29,8 @@ defmodule PhoenixKit.Modules.Storage.Workers.PruneTrashJob do
     # Records where objects stored before V204 are, while any are left.
     _ = LocationBackfillJob.maybe_enqueue()
     _ = ChecksumBackfillJob.maybe_enqueue()
+    # Files not where (or not what) their library's storage wants (V205).
+    _ = ReconcileJob.maybe_enqueue()
 
     case Libraries.queue_expired_purges(days) do
       0 -> :ok

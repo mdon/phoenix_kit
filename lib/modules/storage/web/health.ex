@@ -1,44 +1,35 @@
 defmodule PhoenixKitWeb.Live.Modules.Storage.Health do
   @moduledoc """
-  Media health check LiveView.
+  Media health LiveView.
 
-  Compares file instance location counts against the configured redundancy
-  target and reports under-replicated files.
+  Shows how many files are where, and what, their library's storage
+  profile and variant set want (V205), and lists the ones the reconciler
+  (`Storage.Workers.ReconcileJob`) has not brought up to date yet: copies
+  missing or on buckets the profile no longer uses, sizes missing or made
+  from an older spec. The reconciler runs by itself; "Reconcile now" only
+  queues a pass sooner.
   """
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
-  alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.Workers.LocationBackfillJob
-  alias PhoenixKit.Modules.Storage.Workers.SyncFilesJob
-  alias PhoenixKit.PubSub.Manager, as: PubSubManager
+  alias PhoenixKit.Modules.Storage.Reconciler
+  alias PhoenixKit.Modules.Storage.Workers.{LocationBackfillJob, ReconcileJob}
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 
-  @sync_topic "media:sync_progress"
-  @sync_state_key :phoenix_kit_media_sync_state
+  # The stale files listed on the page; the count covers all of them.
+  @listed 200
 
   def mount(params, _session, socket) do
     locale = params["locale"] || socket.assigns[:current_locale]
-    project_title = Settings.get_project_title()
-
-    if connected?(socket) do
-      PubSubManager.subscribe(@sync_topic)
-    end
-
-    # Check if a sync is already running
-    sync_state = get_sync_state()
 
     socket =
       socket
       |> assign(:current_path, Routes.path("/admin/settings/media/health"))
       |> assign(:page_title, gettext("Health"))
-      |> assign(:project_title, project_title)
+      |> assign(:project_title, Settings.get_project_title())
       |> assign(:current_locale, locale)
       |> assign(:url_path, Routes.path("/admin/settings/media/health"))
-      |> assign(:sync_log, [])
-      |> assign(:sync_paused, SyncFilesJob.paused?())
-      |> apply_sync_state(sync_state)
       |> load_health_report()
 
     {:ok, socket}
@@ -48,175 +39,44 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Health do
     {:noreply, load_health_report(socket)}
   end
 
-  def handle_event("sync", _params, socket) do
-    if get_sync_state() != nil do
-      {:noreply, put_flash(socket, :warning, gettext("Sync is already running"))}
-    else
-      %{} |> SyncFilesJob.new() |> Oban.insert()
+  def handle_event("reconcile", _params, socket) do
+    socket =
+      case ReconcileJob.enqueue() do
+        :queued ->
+          put_flash(
+            socket,
+            :info,
+            gettext("The reconciler is queued. Refresh to see its progress.")
+          )
 
-      socket =
-        socket
-        |> assign(:syncing, true)
-        |> assign(:sync_progress, 0)
-        |> assign(:sync_total, 0)
-        |> assign(:sync_synced, 0)
-        |> assign(:sync_failed, 0)
-        |> assign(:sync_log, [])
-        |> assign(:prev_synced, 0)
-
-      {:noreply, socket}
-    end
-  end
-
-  def handle_event("pause_sync", _params, socket) do
-    SyncFilesJob.pause()
-    {:noreply, assign(socket, :sync_paused, true)}
-  end
-
-  def handle_event("resume_sync", _params, socket) do
-    SyncFilesJob.resume()
-    {:noreply, assign(socket, :sync_paused, false)}
-  end
-
-  def handle_event("stop_sync", _params, socket) do
-    SyncFilesJob.stop()
-    {:noreply, socket}
-  end
-
-  def handle_info(
-        {:sync_progress,
-         %{
-           done: done,
-           total: total,
-           synced: synced,
-           failed: failed,
-           log: log,
-           status: :in_progress
-         }},
-        socket
-      ) do
-    # Update health stats live based on sync progress
-    # synced is cumulative, so compute delta from previous callback
-    prev_synced = socket.assigns[:prev_synced] || 0
-    delta = synced - prev_synced
-
-    report = socket.assigns.report
-    new_healthy = report.healthy + delta
-
-    new_percentage =
-      if report.total > 0,
-        do: Float.round(new_healthy / report.total * 100, 1),
-        else: 100.0
-
-    updated_report = %{
-      report
-      | healthy: new_healthy,
-        under_replicated: Enum.drop(report.under_replicated, delta),
-        health_percentage: new_percentage
-    }
-
-    # Append log entry (newest first, cap at 100)
-    sync_log =
-      if log do
-        [log | socket.assigns.sync_log] |> Enum.take(100)
-      else
-        socket.assigns.sync_log
+        :unavailable ->
+          put_flash(socket, :error, gettext("The reconciler could not be queued."))
       end
 
-    socket =
-      socket
-      |> assign(:syncing, true)
-      |> assign(:sync_progress, done)
-      |> assign(:sync_total, total)
-      |> assign(:sync_synced, synced)
-      |> assign(:sync_failed, failed)
-      |> assign(:prev_synced, synced)
-      |> assign(:report, updated_report)
-      |> assign(:sync_log, sync_log)
-
     {:noreply, socket}
   end
-
-  def handle_info({:sync_progress, %{status: :complete} = result}, socket) do
-    socket =
-      socket
-      |> assign(:syncing, false)
-      |> assign(:sync_paused, false)
-      |> assign(:sync_progress, result.total)
-      |> assign(:sync_total, result.total)
-      |> assign(:sync_synced, result.synced)
-      |> assign(:sync_failed, result.failed)
-      |> load_health_report()
-      |> put_flash(
-        :info,
-        gettext("Sync complete: %{synced} synced, %{failed} failed",
-          synced: result.synced,
-          failed: result.failed
-        )
-      )
-
-    {:noreply, socket}
-  end
-
-  def handle_info({:sync_progress, %{status: :stopped} = result}, socket) do
-    socket =
-      socket
-      |> assign(:syncing, false)
-      |> assign(:sync_paused, false)
-      |> assign(:sync_synced, result[:synced] || 0)
-      |> assign(:sync_failed, result[:failed] || 0)
-      |> load_health_report()
-      |> put_flash(
-        :warning,
-        gettext("Sync stopped: %{synced} synced, %{failed} failed",
-          synced: result[:synced] || 0,
-          failed: result[:failed] || 0
-        )
-      )
-
-    {:noreply, socket}
-  end
-
-  def handle_info(_msg, socket), do: {:noreply, socket}
 
   defp load_health_report(socket) do
-    redundancy_target = Storage.redundancy_copies()
-
-    report = Storage.get_health_report(redundancy_target)
+    total = Reconciler.total_count()
+    stale = Reconciler.stale_count()
+    healthy = max(total - stale, 0)
 
     socket
-    |> assign(:report, report)
+    |> assign(:report, %{
+      total: total,
+      stale: stale,
+      healthy: healthy,
+      health_percentage: if(total > 0, do: Float.round(healthy / total * 100, 1), else: 100.0)
+    })
+    |> assign(:stale_files, if(stale > 0, do: Reconciler.stale_files(@listed), else: []))
+    |> assign(:listed, @listed)
     # Stored objects with no location row yet (V204): the background
     # backfill is finding them; they are served meanwhile by checking the
-    # buckets.
+    # buckets, and the reconciler leaves them alone until then.
     |> assign(:unlocated, LocationBackfillJob.pending_count())
   end
 
-  defp apply_sync_state(socket, nil) do
-    socket
-    |> assign(:syncing, false)
-    |> assign(:sync_progress, 0)
-    |> assign(:sync_total, 0)
-    |> assign(:sync_synced, 0)
-    |> assign(:sync_failed, 0)
-    |> assign(:prev_synced, 0)
-  end
-
-  defp apply_sync_state(socket, state) do
-    synced = state[:synced] || 0
-
-    socket
-    |> assign(:syncing, true)
-    |> assign(:sync_progress, state[:done] || 0)
-    |> assign(:sync_total, state[:total] || 0)
-    |> assign(:sync_synced, synced)
-    |> assign(:sync_failed, state[:failed] || 0)
-    |> assign(:prev_synced, synced)
-  end
-
-  defp get_sync_state do
-    :persistent_term.get(@sync_state_key, nil)
-  rescue
-    ArgumentError -> nil
-  end
+  defp waiting_for(%{placement: true, variants: true}), do: gettext("Copies and sizes")
+  defp waiting_for(%{placement: true}), do: gettext("Copies")
+  defp waiting_for(_item), do: gettext("Sizes")
 end

@@ -34,6 +34,7 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
   alias PhoenixKit.Modules.Storage.{Dimension, Library, VariantSet}
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.Libraries
+  alias PhoenixKit.Modules.Storage.Workers.ReconcileJob
 
   @default_uuid "00000000-0000-7000-8000-000000000003"
 
@@ -258,6 +259,7 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
           name: :phoenix_kit_storage_libraries_variant_set_fkey
         )
         |> repo().update()
+        |> tap(&if(match?({:ok, _}, &1), do: ReconcileJob.enqueue()))
     end
   end
 
@@ -270,6 +272,7 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
       set: [updated_at: DateTime.truncate(DateTime.utc_now(), :second)]
     )
 
+    ReconcileJob.enqueue()
     :ok
   end
 
@@ -366,6 +369,7 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
     from(f in StorageFile, where: f.uuid == ^file.uuid)
     |> repo().update_all(set: changes)
 
+    unless complete?, do: ReconcileJob.enqueue()
     :ok
   end
 

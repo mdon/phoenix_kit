@@ -23,6 +23,7 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.{Library, ProfileBucket, StorageProfile}
+  alias PhoenixKit.Modules.Storage.Workers.ReconcileJob
 
   @default_uuid "00000000-0000-7000-8000-000000000002"
 
@@ -285,10 +286,14 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
         name: :phoenix_kit_storage_libraries_profile_fkey
       )
       |> repo().update()
+      |> tap(&if(match?({:ok, _}, &1), do: ReconcileJob.enqueue()))
     end
   end
 
-  @doc "Bumps a profile's revision: every file it placed is stale."
+  @doc """
+  Bumps a profile's revision: every file it placed is stale, and the
+  reconciler is queued to bring them up to date.
+  """
   @spec bump_revision(term()) :: :ok
   def bump_revision(profile_uuid) do
     from(p in StorageProfile, where: p.uuid == ^profile_uuid)
@@ -297,6 +302,7 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
       set: [updated_at: DateTime.truncate(DateTime.utc_now(), :second)]
     )
 
+    ReconcileJob.enqueue()
     :ok
   end
 

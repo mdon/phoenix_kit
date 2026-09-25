@@ -5,7 +5,13 @@ defmodule PhoenixKit.Supervisor do
   use Supervisor
 
   alias PhoenixKit.Modules.Languages
-  alias PhoenixKit.Modules.Storage.Workers.{ChecksumBackfillJob, LocationBackfillJob}
+
+  alias PhoenixKit.Modules.Storage.Workers.{
+    ChecksumBackfillJob,
+    LocationBackfillJob,
+    ReconcileJob
+  }
+
   alias PhoenixKit.Users.Permissions
 
   def start_link(init_arg) do
@@ -119,15 +125,18 @@ defmodule PhoenixKit.Supervisor do
       ),
       # Once per boot: queue the storage location backfill (V204) while any
       # stored object has no location row, and the checksum backfill while
-      # any file still has the upload API's old MD5 checksum. Delayed for the same reason as the
-      # queue check above; the daily trash prune queues it too, and only one
-      # pending run exists at a time.
+      # any file still has the upload API's old MD5 checksum, and the storage
+      # reconciler (V205) while any file is not where its library's profile
+      # wants it. Delayed for the same reason as the queue check above; the
+      # daily trash prune queues them too, and only one pending run of each
+      # exists at a time.
       Supervisor.child_spec(
         {Task,
          fn ->
            Process.sleep(:timer.seconds(30))
            LocationBackfillJob.maybe_enqueue()
            ChecksumBackfillJob.maybe_enqueue()
+           ReconcileJob.maybe_enqueue()
          end},
         id: :storage_location_backfill
       ),

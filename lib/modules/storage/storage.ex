@@ -120,6 +120,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.VariantGenerator
   alias PhoenixKit.Modules.Storage.VariantSet
   alias PhoenixKit.Modules.Storage.VariantSets
+  alias PhoenixKit.Modules.Storage.Workers.ReconcileJob
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.TreeQuery
 
@@ -523,316 +524,6 @@ defmodule PhoenixKit.Modules.Storage do
     |> case do
       nil -> 0
       total -> Decimal.to_float(total)
-    end
-  end
-
-  @doc """
-  Returns a health report comparing file location counts against the redundancy target.
-
-  Groups by file (not instance) — a file is "under-replicated" if any of its
-  instances have fewer active locations than the redundancy target.
-
-  Returns a map with:
-  - `total` — total files
-  - `healthy` — files where all instances meet the redundancy target
-  - `under_replicated` — list of files with at least one under-replicated instance
-  - `health_percentage` — percentage of healthy files
-  """
-  def get_health_report(redundancy_target) do
-    # Per-instance location counts, then aggregate per file
-    instance_counts_query =
-      from(fi in FileInstance,
-        left_join: fl in FileLocation,
-        on: fl.file_instance_uuid == fi.uuid and fl.status == "active",
-        where: fi.processing_status == "completed",
-        group_by: [fi.uuid, fi.file_uuid],
-        select: %{
-          file_uuid: fi.file_uuid,
-          location_count: count(fl.uuid)
-        }
-      )
-
-    instance_counts = repo().all(instance_counts_query)
-
-    # Group by file, take the minimum location count per file
-    file_min_counts =
-      instance_counts
-      |> Enum.group_by(& &1.file_uuid)
-      |> Enum.map(fn {file_uuid, instances} ->
-        min_count = Enum.min_by(instances, & &1.location_count).location_count
-        {file_uuid, min_count}
-      end)
-
-    # Load file details for under-replicated ones
-    under_replicated_uuids =
-      file_min_counts
-      |> Enum.filter(fn {_uuid, min_count} -> min_count < redundancy_target end)
-      |> Enum.map(fn {uuid, _} -> uuid end)
-
-    total = length(file_min_counts)
-    under_replicated_count = length(under_replicated_uuids)
-    healthy = total - under_replicated_count
-
-    under_replicated_files =
-      if under_replicated_uuids != [] do
-        min_counts_map = Map.new(file_min_counts)
-
-        from(f in PhoenixKit.Modules.Storage.File,
-          where: f.uuid in ^under_replicated_uuids,
-          order_by: [asc: f.original_file_name],
-          select: %{
-            file_uuid: f.uuid,
-            original_file_name: f.original_file_name,
-            file_type: f.file_type
-          }
-        )
-        |> repo().all()
-        |> Enum.map(fn file ->
-          Map.put(file, :min_location_count, Map.get(min_counts_map, file.file_uuid, 0))
-        end)
-      else
-        []
-      end
-
-    health_percentage =
-      if total > 0, do: Float.round(healthy / total * 100, 1), else: 100.0
-
-    %{
-      total: total,
-      healthy: healthy,
-      under_replicated: under_replicated_files,
-      health_percentage: health_percentage,
-      redundancy_target: redundancy_target
-    }
-  rescue
-    error ->
-      Logger.error("Health report failed: #{inspect(error)}")
-
-      %{
-        total: 0,
-        healthy: 0,
-        under_replicated: [],
-        health_percentage: 100.0,
-        redundancy_target: redundancy_target
-      }
-  end
-
-  @doc """
-  Syncs under-replicated files to meet the redundancy target.
-
-  For each under-replicated file, retrieves it from an existing bucket
-  and replicates it to the missing buckets. Returns a summary of results.
-  """
-  def sync_under_replicated(redundancy_target) do
-    enabled_buckets = list_enabled_buckets()
-    enabled_bucket_uuids = Enum.map(enabled_buckets, & &1.uuid)
-    buckets_by_uuid = Map.new(enabled_buckets, &{&1.uuid, &1})
-
-    # Get all instances with their location counts and existing bucket UUIDs
-    instance_data =
-      from(fi in FileInstance,
-        left_join: fl in FileLocation,
-        on: fl.file_instance_uuid == fi.uuid and fl.status == "active",
-        where: fi.processing_status == "completed",
-        group_by: [fi.uuid, fi.file_name],
-        having: count(fl.uuid) < ^redundancy_target,
-        select: %{
-          instance_uuid: fi.uuid,
-          file_name: fi.file_name,
-          location_count: count(fl.uuid)
-        }
-      )
-      |> repo().all()
-
-    results =
-      Enum.map(instance_data, fn item ->
-        # Get existing bucket UUIDs for this instance
-        existing_bucket_uuids = get_file_instance_bucket_uuids(item.instance_uuid)
-
-        # Find missing buckets (enabled but no location for this instance)
-        missing_bucket_uuids =
-          enabled_bucket_uuids
-          |> Enum.filter(&(&1 not in existing_bucket_uuids))
-          |> Enum.take(redundancy_target - item.location_count)
-
-        missing_buckets =
-          Enum.map(missing_bucket_uuids, &Map.get(buckets_by_uuid, &1))
-          |> Enum.reject(&is_nil/1)
-
-        if missing_buckets == [] do
-          {:skip, item.instance_uuid}
-        else
-          case Manager.replicate_to_buckets(item.file_name, missing_buckets) do
-            {:ok, storage_info} ->
-              create_file_locations_for_instance(
-                item.instance_uuid,
-                storage_info.bucket_ids,
-                item.file_name
-              )
-
-              {:ok, item.instance_uuid, length(storage_info.bucket_ids)}
-
-            {:error, reason} ->
-              Logger.warning("Sync failed for instance #{item.instance_uuid}: #{reason}")
-              {:error, item.instance_uuid, reason}
-          end
-        end
-      end)
-
-    synced = Enum.count(results, &match?({:ok, _, _}, &1))
-    failed = Enum.count(results, &match?({:error, _, _}, &1))
-    skipped = Enum.count(results, &match?({:skip, _}, &1))
-
-    %{synced: synced, failed: failed, skipped: skipped, total: length(results)}
-  end
-
-  @doc """
-  Syncs under-replicated files with progress reporting via callback.
-
-  The callback receives a map with `:done`, `:total`, `:synced`, `:failed`,
-  and `:status` (`:in_progress` or `:complete`) after each file is processed.
-  """
-  def sync_under_replicated_with_progress(redundancy_target, callback, opts \\ []) do
-    enabled_buckets = list_enabled_buckets()
-    enabled_bucket_uuids = Enum.map(enabled_buckets, & &1.uuid)
-    buckets_by_uuid = Map.new(enabled_buckets, &{&1.uuid, &1})
-
-    # Get under-replicated instances grouped by file
-    instance_data =
-      from(fi in FileInstance,
-        join: f in PhoenixKit.Modules.Storage.File,
-        on: f.uuid == fi.file_uuid,
-        left_join: fl in FileLocation,
-        on: fl.file_instance_uuid == fi.uuid and fl.status == "active",
-        where: fi.processing_status == "completed",
-        group_by: [fi.uuid, fi.file_name, fi.file_uuid, f.original_file_name],
-        having: count(fl.uuid) < ^redundancy_target,
-        select: %{
-          instance_uuid: fi.uuid,
-          file_uuid: fi.file_uuid,
-          file_name: fi.file_name,
-          original_file_name: f.original_file_name,
-          location_count: count(fl.uuid)
-        }
-      )
-      |> repo().all()
-
-    # Group by file so progress tracks files, not instances
-    files_with_instances =
-      instance_data
-      |> Enum.group_by(& &1.file_uuid)
-      |> Enum.to_list()
-
-    total = length(files_with_instances)
-
-    check_cancelled = Keyword.get(opts, :check_cancelled, fn -> false end)
-
-    sync_ctx = %{
-      enabled_bucket_uuids: enabled_bucket_uuids,
-      buckets_by_uuid: buckets_by_uuid,
-      redundancy_target: redundancy_target
-    }
-
-    {synced, failed} =
-      Enum.reduce_while(Enum.with_index(files_with_instances, 1), {0, 0}, fn {{_file_uuid,
-                                                                               instances}, index},
-                                                                             {synced_acc,
-                                                                              failed_acc} ->
-        if check_cancelled.() do
-          {:halt, {synced_acc, failed_acc}}
-        else
-          {new_synced, new_failed, log_entry} =
-            sync_file_instances(instances, synced_acc, failed_acc, sync_ctx, check_cancelled)
-
-          callback.(%{
-            done: index,
-            total: total,
-            synced: new_synced,
-            failed: new_failed,
-            log: log_entry,
-            status: :in_progress
-          })
-
-          {:cont, {new_synced, new_failed}}
-        end
-      end)
-
-    callback.(%{
-      done: total,
-      total: total,
-      synced: synced,
-      failed: failed,
-      log: nil,
-      status: :complete
-    })
-
-    %{synced: synced, failed: failed, total: total}
-  end
-
-  defp sync_file_instances(instances, synced_acc, failed_acc, ctx, check_cancelled) do
-    file_name = List.first(instances)[:original_file_name] || List.first(instances)[:file_name]
-
-    if check_cancelled.() do
-      {synced_acc, failed_acc, %{file: file_name, status: :error, message: "Cancelled"}}
-    else
-      instance_results =
-        Enum.map(instances, fn item ->
-          if check_cancelled.() do
-            {:error, "Cancelled"}
-          else
-            sync_instance(
-              item,
-              ctx.enabled_bucket_uuids,
-              ctx.buckets_by_uuid,
-              ctx.redundancy_target
-            )
-          end
-        end)
-
-      if Enum.all?(instance_results, &match?({:ok, _}, &1)) do
-        {synced_acc + 1, failed_acc,
-         %{file: file_name, status: :ok, message: "Synced successfully"}}
-      else
-        errors =
-          instance_results
-          |> Enum.filter(&match?({:error, _}, &1))
-          |> Enum.reject(&(&1 == {:error, "Cancelled"}))
-          |> Enum.map_join("; ", fn {:error, reason} -> reason end)
-
-        {synced_acc, failed_acc + 1, %{file: file_name, status: :error, message: errors}}
-      end
-    end
-  end
-
-  defp sync_instance(item, enabled_bucket_uuids, buckets_by_uuid, redundancy_target) do
-    existing = get_file_instance_bucket_uuids(item.instance_uuid)
-
-    missing_uuids =
-      enabled_bucket_uuids
-      |> Enum.filter(&(&1 not in existing))
-      |> Enum.take(redundancy_target - item.location_count)
-
-    missing_buckets =
-      Enum.map(missing_uuids, &Map.get(buckets_by_uuid, &1))
-      |> Enum.reject(&is_nil/1)
-
-    if missing_buckets == [] do
-      {:ok, :already_synced}
-    else
-      case Manager.replicate_to_buckets(item.file_name, missing_buckets) do
-        {:ok, storage_info} ->
-          create_file_locations_for_instance(
-            item.instance_uuid,
-            storage_info.bucket_ids,
-            item.file_name
-          )
-
-          {:ok, :synced}
-
-        {:error, reason} ->
-          Logger.warning("Sync failed for instance #{item.instance_uuid}: #{reason}")
-          {:error, to_string(reason)}
-      end
     end
   end
 
@@ -3955,6 +3646,75 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
+  @doc false
+  # Removes `instance`'s location on `bucket` (V205, the reconciler), and the
+  # object there when nothing else on that bucket still needs it: no other
+  # active location on that bucket names the key, and no instance stored
+  # under the key is still unchecked (its buckets are not all known yet).
+  # Only that bucket is touched (G11): a key is shared by cross-user copies
+  # and the same key may rightly stay on other buckets. Under the key's
+  # directory lock, like every other deletion.
+  def unlink_location(%FileInstance{} = instance, %Bucket{} = bucket) do
+    key = instance.file_name
+
+    repo().transaction(
+      fn ->
+        lock_storage_paths([Path.dirname(key)])
+
+        from(l in FileLocation,
+          where: l.file_instance_uuid == ^instance.uuid and l.bucket_uuid == ^bucket.uuid
+        )
+        |> repo().delete_all()
+
+        still_needed? =
+          repo().exists?(
+            from(l in FileLocation,
+              where: l.path == ^key and l.bucket_uuid == ^bucket.uuid and l.status == "active"
+            )
+          ) or
+            repo().exists?(from(i in Locations.unchecked_query(), where: i.file_name == ^key))
+
+        if still_needed?, do: :kept, else: delete_from(bucket, key)
+      end,
+      timeout: :infinity
+    )
+  end
+
+  defp delete_from(bucket, key) do
+    case Manager.delete_from_bucket(bucket, key) do
+      :ok ->
+        :deleted
+
+      error ->
+        # The row is gone either way: the object is no longer this file's
+        # copy. A leftover object is only space, never a wrong answer.
+        Logger.warning("Storage: could not delete #{key} from #{bucket.name}: #{inspect(error)}")
+        :left_behind
+    end
+  end
+
+  @doc false
+  # Deletes `instances` of `file` (sizes its variant set no longer has,
+  # V205) and every object they referenced that nothing references any
+  # more, the way `delete_file_completely/1` deletes a file's.
+  def remove_instances(%PhoenixKit.Modules.Storage.File{} = file, instances) do
+    uuids = Enum.map(instances, & &1.uuid)
+    keys = Enum.map(instances, & &1.file_name)
+
+    repo().transaction(fn ->
+      lock_storage_paths(Enum.map(keys, &Path.dirname/1))
+
+      from(i in FileInstance, where: i.uuid in ^uuids and i.file_uuid == ^file.uuid)
+      |> repo().delete_all()
+
+      unreferenced_keys(keys)
+    end)
+    |> case do
+      {:ok, keys} -> delete_stored_objects(keys)
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   defp delete_stored_object(key) do
     case Manager.delete_file(key) do
       :ok ->
@@ -4798,6 +4558,7 @@ defmodule PhoenixKit.Modules.Storage do
     from(f in PhoenixKit.Modules.Storage.File, where: f.uuid == ^file_uuid)
     |> repo().update_all(set: [placed_profile_uuid: profile.uuid, placed_revision: revision])
 
+    if revision == 0, do: ReconcileJob.enqueue()
     :ok
   end
 
@@ -4810,6 +4571,7 @@ defmodule PhoenixKit.Modules.Storage do
     from(f in PhoenixKit.Modules.Storage.File, where: f.uuid == ^file_uuid)
     |> repo().update_all(set: [placed_revision: 0])
 
+    ReconcileJob.enqueue()
     :ok
   end
 

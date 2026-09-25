@@ -110,6 +110,45 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     end
   end
 
+  @doc """
+  Generates `variant_name` of `file` from `dimension` in `format`: the
+  size's own format, or one of its alternative formats (`"medium_webp"`
+  from `medium` in `"webp"`). What the reconciler uses to make one missing
+  or stale variant (`expected_variants/1` lists them).
+  """
+  def generate_variant(file, dimension, variant_name, format) do
+    if is_nil(file.file_path) do
+      Logger.warning("Cannot generate variant for file #{file.uuid}: file_path is nil")
+      {:error, :file_path_missing}
+    else
+      do_generate_variant(file, dimension, variant_name, format)
+    end
+  end
+
+  @doc """
+  The variants `file` should have by its library's variant set (V205), as
+  `{dimension, variant_name, format}`: every enabled size for its type and
+  each of its alternative formats. `[]` for a file no sizes are made of
+  (system-managed, not an image, video or PDF) or whose set makes none.
+  """
+  def expected_variants(file) do
+    if variant_source?(file) and VariantSets.variants_for?(file),
+      do: file |> get_dimensions_for_generation([]) |> expand_dimensions_with_alternatives(),
+      else: []
+  end
+
+  @doc """
+  Whether sizes are made of `file` at all (by its type, not its set).
+  System-managed media (Tessera DZI tiles + manifests) never get quality
+  variants — a tile is already 256×256, generating a smaller tile-of-a-tile
+  would waste CPU and disk for no user-facing value.
+  """
+  def variant_source?(file) do
+    not file.system_managed and
+      (file.file_type in ["image", "video"] or
+         (file.file_type == "document" and file.mime_type == "application/pdf"))
+  end
+
   defp do_generate_variant(file, dimension, variant_name, format_override) do
     Logger.info("Generating variant: #{variant_name} for file: #{file.uuid}")
 
@@ -366,16 +405,6 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
 
   defp cleanup_temp_files(paths) do
     Enum.each(paths, &File.rm/1)
-  end
-
-  # Whether sizes are made of this file at all. System-managed media
-  # (Tessera DZI tiles + manifests) never get quality variants — a tile is
-  # already 256×256, generating a smaller tile-of-a-tile would waste CPU
-  # and disk for no user-facing value.
-  defp variant_source?(file) do
-    not file.system_managed and
-      (file.file_type in ["image", "video"] or
-         (file.file_type == "document" and file.mime_type == "application/pdf"))
   end
 
   # The sizes of the file's library's variant set (V205) for its type.

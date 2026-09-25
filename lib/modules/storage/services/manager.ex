@@ -308,6 +308,24 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     error -> {:error, "Replication failed: #{inspect(error)}"}
   end
 
+  @doc """
+  Whether `bucket` has the object at `key`: the reconciler's check that a
+  copy it made is really there before it unlinks another. A bucket that
+  raises does not have it.
+  """
+  def holds?(bucket, key), do: bucket_holds?(bucket, key)
+
+  @doc """
+  Deletes the object at `key` from `bucket` only, never from any other
+  bucket. `Storage.unlink_location/2` is what decides that nothing else on
+  that bucket needs it (G11).
+  """
+  def delete_from_bucket(bucket, key) do
+    get_provider_for_bucket(bucket).delete_file(bucket, key)
+  rescue
+    error -> {:error, Exception.message(error)}
+  end
+
   # Private functions
 
   defp select_buckets_for_storage(redundancy_copies, priority_buckets) do

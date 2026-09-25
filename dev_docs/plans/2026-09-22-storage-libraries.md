@@ -410,7 +410,7 @@ never get a later change, the #871 lesson):
   remote copy can come before a local one, and never uses a backup; reads
   for processing (`retrieve_file`, `file_exists?`) may use a backup last.
   A key with no rows yet keeps today's rule (local first).
-- Step 4 done. The generator takes the sizes of the file's library's set
+- Step 4 done (`cda8e47e8`). The generator takes the sizes of the file's library's set
   and records each variant's `spec_hash`; a full run stamps
   `placed_variant_set_uuid` / `placed_variant_revision`, or 0 when a size
   failed. A size change bumps its set's revision (a reorder does not).
@@ -426,6 +426,26 @@ never get a later change, the #871 lesson):
   purpose; moving core call sites that want a size rather than a slot
   (`ImageSet`'s `"medium"`, grids) onto it is left as a follow-up. `mix
   phoenix_kit.doctor` warns about a set missing a standard size.
+- Step 5 done. `Storage.Reconciler` (the service) and
+  `Storage.Workers.ReconcileJob` (10 files a run, 2 s apart, one pending
+  run; queued by every revision bump, a library's profile or set change, an
+  incomplete upload or variant run, the daily prune and boot). Per file,
+  under a session advisory lock: each checked, completed instance gets
+  copies up to the profile's count (capped at the buckets it can use; a
+  copy counts once `Manager.holds?/2` sees it), then copies on buckets the
+  profile no longer uses for it are unlinked (`Storage.unlink_location/2`,
+  G11: the object goes only when no other active location on that bucket
+  names the key and no instance under the key is unchecked). **Never
+  unlinks without a good copy elsewhere** (a test caught the capped target
+  of zero deleting a draining profile's only copy). Sizes: missing ones
+  made, ones with another `spec_hash` remade, ones the set no longer lists
+  removed (`Storage.remove_instances/2`), disabled ones kept. Trashed
+  files keep their placement but get no new sizes. Stamps only what now
+  matches, at the revisions read at the start. The Health page lists the
+  stale files and queues a pass; `SyncFilesJob` is a shim that queues the
+  reconciler (remove next release) and the `sync_under_replicated*`
+  functions and `get_health_report/1` are gone. New UI strings are not
+  translated yet (with step 6's).
 
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.

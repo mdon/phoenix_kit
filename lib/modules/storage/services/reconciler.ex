@@ -1,0 +1,420 @@
+defmodule PhoenixKit.Modules.Storage.Reconciler do
+  @moduledoc """
+  Makes each file match its library's storage profile and variant set
+  (V205, plan §6.3). `Storage.Workers.ReconcileJob` runs it.
+
+  A file records the profile and the variant set (each at a revision) it
+  was last placed by (`placed_profile_uuid` / `placed_revision`,
+  `placed_variant_set_uuid` / `placed_variant_revision`; NULL is the
+  Default at revision 1). It is **stale** (`stale_query/0`) when either
+  differs from what its library uses now: the library moved to another
+  profile or set, one of them changed, or an upload made fewer copies or
+  sizes than wanted (which stamps revision 0).
+
+  For a stale file, `reconcile_file/1`:
+
+    * **locations** (G4, G5, G6) — for each completed instance: an original
+      upload is an `:original`, everything else (sizes, tiles, renders) is
+      `:derived` (G13; an edit's hidden backup of the unedited original is
+      an original). Its good copies are on the profile's buckets that store
+      that kind and are `active` or `read_only`. While there are fewer than
+      the profile wants (capped at the buckets it can use), the object is
+      copied to more of its writable buckets and each copy is checked
+      before it counts. Once enough are good, copies on buckets the profile
+      no longer uses for it (not listed, `draining`, storing the other
+      kind) are unlinked: the location row goes, and the object on that
+      bucket only when nothing else there names the key (G11,
+      `Storage.unlink_location/2`).
+    * **variants** (G15, G16) — sizes of the set the file lacks are made,
+      those whose `spec_hash` differs from the size's spec now are made
+      again, and those the set no longer has (a size deleted from it; a
+      disabled size is kept) are deleted.
+
+  A file that ends up matching both is stamped with what it now matches,
+  at the revisions read when it was started (a change made meanwhile leaves
+  it stale for the next pass). A failure leaves it stale; the next pass
+  tries again. Instances not yet checked by the location backfill are
+  skipped (their buckets are not known), and so is a file still uploading
+  or with an image edit pending.
+  """
+
+  import Ecto.Query
+
+  require Logger
+
+  alias PhoenixKit.Modules.Storage
+
+  alias PhoenixKit.Modules.Storage.{
+    FileInstance,
+    FileLocation,
+    ImageEditing,
+    Library,
+    Locations,
+    Manager,
+    Profiles,
+    StorageProfile,
+    VariantGenerator,
+    VariantSet,
+    VariantSets
+  }
+
+  alias PhoenixKit.Modules.Storage.File, as: StorageFile
+
+  @doc """
+  The files that are not where, or not what, their library's profile and
+  variant set want: every file row except one still uploading or with an
+  image edit pending.
+  """
+  @spec stale_query() :: Ecto.Query.t()
+  def stale_query do
+    profile = Profiles.default_uuid()
+    set = VariantSets.default_uuid()
+
+    from(f in StorageFile,
+      as: :file,
+      left_join: l in Library,
+      on: l.uuid == f.library_uuid,
+      join: p in StorageProfile,
+      on: p.uuid == coalesce(l.storage_profile_uuid, type(^profile, UUIDv7)),
+      join: s in VariantSet,
+      on: s.uuid == coalesce(l.variant_set_uuid, type(^set, UUIDv7)),
+      where: f.status in ["active", "trashed"],
+      where: is_nil(f.edit_state) or f.edit_state != "pending",
+      where:
+        coalesce(f.placed_profile_uuid, type(^profile, UUIDv7)) != p.uuid or
+          coalesce(f.placed_revision, 1) != p.revision or
+          coalesce(f.placed_variant_set_uuid, type(^set, UUIDv7)) != s.uuid or
+          coalesce(f.placed_variant_revision, 1) != s.revision
+    )
+  end
+
+  @doc "How many files the reconciler looks after (active and trashed ones)."
+  @spec total_count() :: non_neg_integer()
+  def total_count do
+    from(f in StorageFile, where: f.status in ["active", "trashed"], select: count(f.uuid))
+    |> repo().one()
+  end
+
+  @doc "How many files are stale."
+  @spec stale_count() :: non_neg_integer()
+  def stale_count, do: stale_query() |> select([f], count(f.uuid)) |> repo().one()
+
+  @doc "Whether any file is stale."
+  @spec pending?() :: boolean()
+  def pending?, do: repo().exists?(stale_query())
+
+  @doc """
+  Up to `limit` stale files for the Health page: the file, its library's
+  name, and whether its copies (`:placement`) or its sizes (`:variants`)
+  are what is out of date.
+  """
+  @spec stale_files(pos_integer()) :: [map()]
+  def stale_files(limit \\ 200) do
+    profile = Profiles.default_uuid()
+    set = VariantSets.default_uuid()
+
+    from([f, l, p, s] in stale_query(),
+      order_by: [asc: f.original_file_name, asc: f.uuid],
+      limit: ^limit,
+      select: %{
+        file_uuid: f.uuid,
+        original_file_name: f.original_file_name,
+        file_type: f.file_type,
+        library_name: l.name,
+        placement:
+          coalesce(f.placed_profile_uuid, type(^profile, UUIDv7)) != p.uuid or
+            coalesce(f.placed_revision, 1) != p.revision,
+        variants:
+          coalesce(f.placed_variant_set_uuid, type(^set, UUIDv7)) != s.uuid or
+            coalesce(f.placed_variant_revision, 1) != s.revision
+      }
+    )
+    |> repo().all()
+  end
+
+  @doc """
+  Reconciles up to `limit` stale files after `cursor` (a file uuid; nil
+  from the start), in uuid order. Returns `{:more, last_uuid, totals}`
+  while a full batch was read, `{:done, totals}` once the walk has passed
+  the last one; `totals` counts files `:reconciled`, `:stale` (still) and
+  `:skipped`.
+  """
+  @spec run_batch(String.t() | nil, pos_integer(), map()) ::
+          {:more, String.t(), map()} | {:done, map()}
+  def run_batch(cursor, limit, totals \\ %{}) do
+    batch =
+      stale_query()
+      |> after_cursor(cursor)
+      |> order_by([f], asc: f.uuid)
+      |> limit(^limit)
+      |> repo().all()
+
+    totals =
+      Enum.reduce(batch, totals, fn file, acc ->
+        Map.update(acc, reconcile_file(file), 1, &(&1 + 1))
+      end)
+
+    if length(batch) < limit,
+      do: {:done, totals},
+      else: {:more, batch |> List.last() |> Map.fetch!(:uuid) |> to_string(), totals}
+  end
+
+  defp after_cursor(query, nil), do: query
+  defp after_cursor(query, cursor), do: where(query, [f], f.uuid > ^cursor)
+
+  @doc """
+  Makes `file` match its library's profile and variant set, and stamps it
+  when it does. Returns `:reconciled`, `:stale` (something could not be
+  done yet; it stays stale) or `:skipped` (another reconciler holds it).
+  One reconciler at a time per file, across nodes: a session advisory lock
+  on the file, held while its bytes are copied.
+  """
+  @spec reconcile_file(StorageFile.t()) :: :reconciled | :stale | :skipped
+  def reconcile_file(%StorageFile{} = file) do
+    repo().checkout(fn ->
+      if try_lock(file.uuid) do
+        try do
+          do_reconcile(file)
+        after
+          unlock(file.uuid)
+        end
+      else
+        :skipped
+      end
+    end)
+  end
+
+  defp do_reconcile(file) do
+    profile = Profiles.for_library(file.library_uuid)
+    set = VariantSets.for_library(file.library_uuid)
+
+    placed? = profile != nil and reconcile_locations(file, profile)
+    made? = set != nil and reconcile_variants(file, set)
+
+    if placed? do
+      stamp(file, placed_profile_uuid: profile.uuid, placed_revision: profile.revision)
+    end
+
+    if made? do
+      stamp(file, placed_variant_set_uuid: set.uuid, placed_variant_revision: set.revision)
+    end
+
+    if placed? and made?, do: :reconciled, else: :stale
+  rescue
+    error ->
+      Logger.warning("Reconciler: #{file.uuid} failed: #{Exception.message(error)}")
+      :stale
+  end
+
+  defp stamp(file, changes) do
+    from(f in StorageFile, where: f.uuid == ^file.uuid) |> repo().update_all(set: changes)
+  end
+
+  # ── Locations ────────────────────────────────────────────────────────
+
+  defp reconcile_locations(file, profile) do
+    checked = checked_instances(file)
+
+    instances =
+      from(i in FileInstance,
+        where: i.file_uuid == ^file.uuid and i.processing_status == "completed"
+      )
+      |> repo().all()
+
+    Enum.reduce(instances, true, fn instance, ok? ->
+      if instance.uuid in checked do
+        place_instance(file, instance, profile) and ok?
+      else
+        false
+      end
+    end)
+  end
+
+  defp checked_instances(file) do
+    unchecked =
+      from(i in Locations.unchecked_query(), where: i.file_uuid == ^file.uuid, select: i.uuid)
+      |> repo().all()
+
+    from(i in FileInstance, where: i.file_uuid == ^file.uuid, select: i.uuid)
+    |> repo().all()
+    |> Enum.reject(&(&1 in unchecked))
+  end
+
+  # One instance: enough good copies, then no copies where the profile no
+  # longer wants them. True when both hold.
+  defp place_instance(file, instance, profile) do
+    kind = kind(file, instance)
+    stores = if kind == :original, do: "originals", else: "derived"
+
+    # Buckets whose copy counts: in the profile for this kind, active or
+    # read-only, enabled.
+    keep =
+      for row <- profile.buckets,
+          row.stores in ["all", stores],
+          row.status in ["active", "read_only"],
+          match?(%{enabled: true}, row.bucket),
+          into: %{},
+          do: {to_string(row.bucket_uuid), row.bucket}
+
+    writable = Manager.placement_candidates(profile, kind)
+    target = min(Profiles.copies(profile, kind), map_size(Map.merge(keep, by_uuid(writable))))
+
+    located = located_buckets(instance)
+    good = located |> Map.keys() |> Enum.filter(&Map.has_key?(keep, &1))
+
+    good = good ++ copy_to_more(instance, writable, good, target - length(good))
+
+    # Never unlink with no good copy elsewhere: a profile whose only bucket
+    # is draining (or gone) caps the target at zero, and "enough" copies
+    # must never mean deleting the last one.
+    if good != [] and length(good) >= target do
+      located
+      |> Enum.reject(fn {uuid, _bucket} -> Map.has_key?(keep, uuid) end)
+      |> Enum.map(fn {_uuid, bucket} -> unlink(instance, bucket) end)
+      |> Enum.all?()
+    else
+      false
+    end
+  end
+
+  # The G13 rule: an original upload is an original; sizes, tiles, tile
+  # manifests and renders are derived. An edit's hidden backup keeps the
+  # unedited original, so its original is an original too.
+  defp kind(file, %FileInstance{variant_name: "original"}) do
+    if file.system_managed and not ImageEditing.backup?(file), do: :derived, else: :original
+  end
+
+  defp kind(_file, _instance), do: :derived
+
+  defp by_uuid(buckets), do: Map.new(buckets, &{to_string(&1.uuid), &1})
+
+  # The instance's active locations, by bucket uuid, with the bucket.
+  defp located_buckets(instance) do
+    from(l in FileLocation,
+      where: l.file_instance_uuid == ^instance.uuid and l.status == "active",
+      preload: :bucket
+    )
+    |> repo().all()
+    |> Map.new(&{to_string(&1.bucket_uuid), &1.bucket})
+  end
+
+  defp copy_to_more(_instance, _writable, _good, missing) when missing <= 0, do: []
+
+  defp copy_to_more(instance, writable, good, missing) do
+    targets =
+      writable
+      |> Enum.reject(&(to_string(&1.uuid) in good))
+      |> Enum.take(missing)
+
+    if targets == [] do
+      []
+    else
+      key = instance.file_name
+
+      case Manager.replicate_to_buckets(key, targets) do
+        {:ok, info} ->
+          stored = MapSet.new(info.bucket_ids, &to_string/1)
+
+          # A copy counts once it is really there.
+          for bucket <- targets,
+              to_string(bucket.uuid) in stored,
+              Manager.holds?(bucket, key) do
+            Locations.record(key, bucket.uuid)
+            to_string(bucket.uuid)
+          end
+
+        {:error, reason} ->
+          Logger.warning("Reconciler: could not copy #{key}: #{inspect(reason)}")
+          []
+      end
+    end
+  end
+
+  # A disabled bucket cannot be written to, so its copy is left for a pass
+  # after it comes back.
+  defp unlink(instance, %{enabled: true} = bucket) do
+    match?({:ok, _}, Storage.unlink_location(instance, bucket))
+  end
+
+  defp unlink(_instance, _bucket), do: false
+
+  # ── Variants ─────────────────────────────────────────────────────────
+
+  defp reconcile_variants(file, %VariantSet{} = set) do
+    if VariantGenerator.variant_source?(file) and file.status == "active" do
+      make_variants(file, set)
+    else
+      true
+    end
+  end
+
+  defp make_variants(file, set) do
+    expected = VariantGenerator.expected_variants(file)
+    instances = Storage.list_file_instances(file.uuid)
+    by_name = Map.new(instances, &{&1.variant_name, &1})
+
+    to_make =
+      Enum.filter(expected, fn {dimension, name, format} ->
+        case Map.get(by_name, name) do
+          nil -> true
+          instance -> instance.spec_hash != VariantSets.spec_hash(dimension, format)
+        end
+      end)
+
+    made? =
+      Enum.reduce(to_make, true, fn {dimension, name, format}, ok? ->
+        match?({:ok, _}, VariantGenerator.generate_variant(file, dimension, name, format)) and
+          ok?
+      end)
+
+    removed? = remove_dropped_sizes(file, set, instances)
+    made? and removed?
+  end
+
+  # Instances made from a size (a spec hash) that the set no longer has at
+  # all. A disabled size keeps its instances: it stops being made, it is
+  # not taken back.
+  defp remove_dropped_sizes(file, set, instances) do
+    known =
+      set.uuid
+      |> VariantSets.list_dimensions()
+      |> Enum.flat_map(fn d ->
+        [d.name | Enum.map(d.alternative_formats || [], &"#{d.name}_#{&1}")]
+      end)
+      |> MapSet.new()
+
+    case Enum.filter(
+           instances,
+           &(&1.spec_hash != nil and not MapSet.member?(known, &1.variant_name))
+         ) do
+      [] -> true
+      dropped -> match?({:ok, _}, ok_tuple(Storage.remove_instances(file, dropped)))
+    end
+  end
+
+  defp ok_tuple(:ok), do: {:ok, :ok}
+  defp ok_tuple(other), do: other
+
+  # ── Locks ────────────────────────────────────────────────────────────
+
+  defp try_lock(file_uuid) do
+    %{rows: [[locked?]]} =
+      repo().query!(
+        "SELECT pg_try_advisory_lock(hashtext('phoenix_kit_reconcile:' || $1))",
+        [to_string(file_uuid)],
+        log: false
+      )
+
+    locked?
+  end
+
+  defp unlock(file_uuid) do
+    repo().query!(
+      "SELECT pg_advisory_unlock(hashtext('phoenix_kit_reconcile:' || $1))",
+      [to_string(file_uuid)],
+      log: false
+    )
+  end
+
+  defp repo, do: PhoenixKit.RepoHelper.repo()
+end
