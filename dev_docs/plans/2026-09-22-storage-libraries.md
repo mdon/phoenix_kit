@@ -11,8 +11,9 @@ ship in the same release as storage profiles.
 **Status (2026-09-25):** Phase 1 **RELEASED in 2.38.0** (2026-09-23, tag
 `v2.38.0`). **Phase 2 RELEASED in 2.39.0** (2026-09-25, tag `v2.39.0`),
 after the maintainer tested it in a host app and Grok reviewed it: see
-"Phase 2 as built" below. **Phase 3 (V204, location-truth) is BUILT on
-`main`, unreleased**: see "Phase 3 as built" below. Next after it: V205,
+"Phase 2 as built" below. **Phase 3 (V204, location-truth) RELEASED in 2.40.0** (2026-09-25,
+published without a host-app test at the maintainer's call; Grok reviewed
+it): see "Phase 3 as built" below. Next after it: V205,
 storage profiles and variant sets. Phase 1 shipped as **V202**, not V201: PR #860
 took V201 for per-user view preferences, so every phase below shifts by one
 (V202 partition, V203 private serving + user libraries, V204 location-truth,
@@ -160,7 +161,7 @@ the download case on public buckets, and it skips `cdn_url`.
   (only opening the library is). V200's user-keyed capture-date index is
   still there.
 
-### Phase 3 as built (V204, unreleased)
+### Phase 3 as built (V204, released in 2.40.0)
 
 - **Migration:** duplicate location rows removed (the oldest of each
   instance/bucket pair kept, by `inserted_at` then uuid), a UNIQUE

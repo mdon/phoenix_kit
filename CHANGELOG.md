@@ -1,4 +1,4 @@
-## Unreleased
+## 2.40.0 - 2026-09-25
 
 ### Added
 
@@ -65,6 +65,15 @@
   settings page says to disable the bucket instead.
 - **Bucket changes apply at once.** Adding, editing or removing a bucket
   used to take up to five minutes to reach file serving (a cache).
+
+### Fixed
+
+- **The media viewer lays itself out by the window's shape, not its width
+  (#874).** A tall window that happened to be wide (a portrait monitor, a
+  half-screen split) kept the side-by-side split and squeezed a landscape
+  picture into a narrow column: at 1100×1500 the picture got 688×318 before,
+  1031×477 now. A portrait window gets the stacked layout, with the picture
+  pane sized to the picture and the popup hugging the two.
 
 ### Migration notes
 
