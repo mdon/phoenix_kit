@@ -178,7 +178,15 @@ the download case on public buckets, and it skips `cdn_url`.
   attachments) and the original-recreation path record their locations
   (`Locations.record_all/2`, after the instance row exists).
   `force_bucket_ids` is written exactly: no redundancy cap, no reorder.
-- **Backfill:** `LocationBackfillJob`, 50 instances per run, next run 5 s
+- **Checks (after Grok's review):** `phoenix_kit_file_location_checks`
+  records that an instance was checked against every bucket and how many
+  held it. It, not "has a location row", is what the backfill walks: a
+  read's fallback records the one bucket it found, and must not retire the
+  instance while its other copies are unrecorded. Writers mark their
+  instances checked, V204 marks instances that already had rows, and a
+  confirmed miss (`found_in: 0`) is not probed on every request
+  (`Locations.known_missing?/1`).
+- **Backfill:** `LocationBackfillJob`, 50 unchecked instances per run, next run 5 s
   later on `file_processing`, unique pending. Queued 30 s after boot and by
   the daily trash prune while any instance has no row; the Health page
   shows how many are left. The fallback probe stays (decided: until the
