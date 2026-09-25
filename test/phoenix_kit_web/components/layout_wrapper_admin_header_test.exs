@@ -39,6 +39,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
     assigns = %{
       scope: scope,
       show_label: Keyword.get(opts, :show_admin_panel_label),
+      show_descriptions: Keyword.get(opts, :show_page_descriptions),
+      page_subtitle: Keyword.get(opts, :page_subtitle),
       dev_environment: Keyword.get(opts, :dev_environment),
       current_locale: Keyword.get(opts, :current_locale),
       socket: Keyword.get(opts, :socket)
@@ -50,8 +52,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
       socket={@socket}
       current_path="/admin"
       page_title="Dashboard"
+      page_subtitle={@page_subtitle}
       project_title="Acme"
       show_admin_panel_label={@show_label}
+      show_page_descriptions={@show_descriptions}
       dev_environment={@dev_environment}
       current_locale={@current_locale}
       phoenix_kit_current_scope={@scope}
@@ -690,6 +694,28 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
 
       assert html =~ ~s(href="/")
       refute html =~ ~s(href="/ru")
+    end
+  end
+
+  describe "the show_page_descriptions setting" do
+    # A page's one-line description is a site-wide choice, off by default:
+    # the trail and the title are what the header is for.
+
+    test "a page_subtitle stays out of the header by default" do
+      html = admin_shell(owner_scope(), page_subtitle: "Everything about the dashboard")
+
+      refute html =~ "Everything about the dashboard"
+      assert html =~ "Dashboard"
+    end
+
+    test "turning it on puts the description after the title" do
+      html =
+        admin_shell(owner_scope(),
+          page_subtitle: "Everything about the dashboard",
+          show_page_descriptions: true
+        )
+
+      assert html =~ "Everything about the dashboard"
     end
   end
 end

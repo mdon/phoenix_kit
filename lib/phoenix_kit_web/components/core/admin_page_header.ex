@@ -74,7 +74,19 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
   attr :back_label, :string, default: nil
   attr :back_click, :string, default: nil
   attr :title, :string, default: nil
-  attr :subtitle, :string, default: nil
+
+  attr :subtitle, :string,
+    default: nil,
+    doc: """
+    One line under the title. Rendered only when the `show_page_descriptions`
+    setting is on (Settings → General; off by default), the same switch that
+    governs the admin header's `page_subtitle` — a page's description is a
+    site-wide choice, not a per-page one.
+    """
+
+  attr :show_description, :boolean,
+    default: nil,
+    doc: "Overrides the `show_page_descriptions` setting for this render; `nil` reads it."
 
   attr :class, :string,
     default: nil,
@@ -95,6 +107,9 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
         "" -> assign(assigns, :back_label, nil)
         _ -> assigns
       end
+
+    assigns =
+      assign(assigns, :show_description, resolve_show_description(assigns.show_description))
 
     ~H"""
     <header class={@class || "mb-3 sm:mb-6"}>
@@ -138,7 +153,10 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
               <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content break-words">
                 {@title}
               </h1>
-              <p :if={@subtitle} class="text-sm sm:text-base text-base-content/60 mt-0.5">
+              <p
+                :if={@subtitle && @show_description}
+                class="text-sm sm:text-base text-base-content/60 mt-0.5"
+              >
                 {@subtitle}
               </p>
             <% else %>
@@ -156,4 +174,11 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeader do
     </header>
     """
   end
+
+  # `nil` reads the setting; a given boolean wins (tests, previews). Not
+  # `||`: a `false` override must be kept, it is the value that means "hide".
+  defp resolve_show_description(nil),
+    do: PhoenixKit.Settings.get_boolean_setting("show_page_descriptions", false)
+
+  defp resolve_show_description(value), do: value
 end

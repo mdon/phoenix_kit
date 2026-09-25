@@ -1668,8 +1668,8 @@ msgstr "Rifiuta tutti"
 #: lib/phoenix_kit_web/live/components/library_settings.ex:465
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:283
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:315
-#: lib/phoenix_kit_web/live/settings.html.heex:122
-#: lib/phoenix_kit_web/live/settings.html.heex:246
+#: lib/phoenix_kit_web/live/settings.html.heex:137
+#: lib/phoenix_kit_web/live/settings.html.heex:261
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:128
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:194
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:194
@@ -1823,7 +1823,7 @@ msgstr "Salvato"
 
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:333
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:417
-#: lib/phoenix_kit_web/live/settings.html.heex:624
+#: lib/phoenix_kit_web/live/settings.html.heex:639
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:770
 #: lib/phoenix_kit_web/live/settings/users.html.heex:742
 #, elixir-autogen, elixir-format
@@ -2392,8 +2392,8 @@ msgstr "#1a1a2e oppure linear-gradient(135deg, #667eea, #764ba2)"
 msgid "%{language} (Unknown language)"
 msgstr "%{language} (lingua sconosciuta)"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:339
-#: lib/phoenix_kit_web/live/settings.html.heex:371
+#: lib/phoenix_kit_web/live/settings.html.heex:354
+#: lib/phoenix_kit_web/live/settings.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "(empty)"
 msgstr "(vuoto)"
@@ -2770,7 +2770,7 @@ msgstr "Attualmente in uso"
 msgid "Custom User Fields"
 msgstr "Campi utente personalizzati"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:554
+#: lib/phoenix_kit_web/live/settings.html.heex:569
 #, elixir-autogen, elixir-format
 msgid "Date Format"
 msgstr "Formato della data"
@@ -2877,7 +2877,7 @@ msgstr "Campo"
 msgid "Field Key"
 msgstr "Chiave del campo"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:511
+#: lib/phoenix_kit_web/live/settings.html.heex:526
 #, elixir-autogen, elixir-format
 msgid "First day of the week"
 msgstr "Primo giorno della settimana"
@@ -2933,12 +2933,12 @@ msgstr "Accesso con Google"
 msgid "Height (px)"
 msgstr "Altezza (px)"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:556
+#: lib/phoenix_kit_web/live/settings.html.heex:571
 #, elixir-autogen, elixir-format
 msgid "How dates are displayed"
 msgstr "Come vengono visualizzate le date"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:586
+#: lib/phoenix_kit_web/live/settings.html.heex:601
 #, elixir-autogen, elixir-format
 msgid "How times are displayed"
 msgstr "Come vengono visualizzate le ore"
@@ -3232,7 +3232,7 @@ msgstr "Campo obbligatorio"
 
 #: lib/phoenix_kit_web/components/core/column_settings.ex:173
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1248
-#: lib/phoenix_kit_web/live/settings.html.heex:640
+#: lib/phoenix_kit_web/live/settings.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "Reset"
 msgstr "Reimposta"
@@ -3270,7 +3270,7 @@ msgstr "Azioni sul ruolo"
 msgid "Role assigned to new user registrations"
 msgstr "Ruolo assegnato alle nuove registrazioni"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:626
+#: lib/phoenix_kit_web/live/settings.html.heex:641
 #, elixir-autogen, elixir-format
 msgid "Save All Settings"
 msgstr "Salva tutte le impostazioni"
@@ -3315,7 +3315,7 @@ msgid "Select"
 msgstr "Seleziona"
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:281
-#: lib/phoenix_kit_web/live/settings.html.heex:132
+#: lib/phoenix_kit_web/live/settings.html.heex:147
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:136
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:202
 #, elixir-autogen, elixir-format
@@ -3345,7 +3345,7 @@ msgstr "Istruzioni di configurazione"
 msgid "Show username field on registration"
 msgstr "Mostra il campo nome utente nella registrazione"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:320
+#: lib/phoenix_kit_web/live/settings.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Site Address (URL)"
 msgstr "Indirizzo del sito (URL)"
@@ -3381,7 +3381,7 @@ msgstr "Cambia app da"
 msgid "Sync Files"
 msgstr "Sincronizza i file"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:536
+#: lib/phoenix_kit_web/live/settings.html.heex:551
 #, elixir-autogen, elixir-format
 msgid "System default timezone"
 msgstr "Fuso orario predefinito del sistema"
@@ -3421,12 +3421,12 @@ msgstr "Il percorso di archiviazione"
 msgid "This will reset dimensions and settings to defaults, and create a local bucket if none exist. Your uploaded files will NOT be deleted. Continue?"
 msgstr "Questa operazione ripristinerà dimensioni e impostazioni ai valori predefiniti e creerà un bucket locale se non ne esiste alcuno. I file caricati NON verranno eliminati. Continuare?"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:584
+#: lib/phoenix_kit_web/live/settings.html.heex:599
 #, elixir-autogen, elixir-format
 msgid "Time Format"
 msgstr "Formato dell'ora"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:534
+#: lib/phoenix_kit_web/live/settings.html.heex:549
 #, elixir-autogen, elixir-format
 msgid "Time Zone"
 msgstr "Fuso orario"
@@ -3513,7 +3513,7 @@ msgstr "I video usano la scala CRF da 0 a 51 (più basso = qualità più alta)"
 msgid "Visit"
 msgstr "Visita"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:509
+#: lib/phoenix_kit_web/live/settings.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "Week Start On"
 msgstr "Inizio della settimana"
@@ -4182,7 +4182,7 @@ msgstr "Limite attuale: %{size} MB"
 msgid "Decline"
 msgstr "Rifiuta"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:283
+#: lib/phoenix_kit_web/live/settings.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "Default Tab Title"
 msgstr "Titolo scheda predefinito"
@@ -4256,7 +4256,7 @@ msgstr "Attiva gli account organizzazione"
 msgid "Enable required APIs"
 msgstr "Attiva le API necessarie"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:391
+#: lib/phoenix_kit_web/live/settings.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "Enable user notifications"
 msgstr "Attiva le notifiche per gli utenti"
@@ -4694,7 +4694,7 @@ msgstr "Preferenze di notifica salvate."
 #: lib/phoenix_kit_web/components/profile_settings_tabs.ex:111
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1718
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:628
-#: lib/phoenix_kit_web/live/settings.html.heex:382
+#: lib/phoenix_kit_web/live/settings.html.heex:397
 #, elixir-autogen, elixir-format
 msgid "Notifications"
 msgstr "Notifiche"
@@ -4757,7 +4757,7 @@ msgstr "Pausa"
 msgid "Pending Invitations"
 msgstr "Inviti in attesa"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:385
+#: lib/phoenix_kit_web/live/settings.html.heex:400
 #, elixir-autogen, elixir-format
 msgid "Per-user inbox driven by the activity feed"
 msgstr "Posta in arrivo per utente basata sul feed delle attività"
@@ -4791,7 +4791,7 @@ msgstr "Salva prima il tuo ID client"
 msgid "Private (proxied)"
 msgstr "Privato (tramite proxy)"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:102
+#: lib/phoenix_kit_web/live/settings.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "Project Logo"
 msgstr "Logo del progetto"
@@ -5080,7 +5080,7 @@ msgstr "La convalida è fallita in modo inatteso"
 msgid "Welcome to your personal dashboard"
 msgstr "Benvenuto nella tua dashboard personale"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:394
+#: lib/phoenix_kit_web/live/settings.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "When on, users receive a bell notification whenever an activity targets them (e.g., their post is liked)."
 msgstr "Se attivo, gli utenti ricevono una notifica nella campanella quando un'attività li riguarda (es. il loro post riceve un mi piace)."
@@ -5112,7 +5112,7 @@ msgstr "Verrai reindirizzato qui una volta collegato"
 msgid "connections"
 msgstr "connessioni"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:292
+#: lib/phoenix_kit_web/live/settings.html.heex:307
 #, elixir-autogen, elixir-format
 msgid "e.g. Welcome to My Site"
 msgstr "es. Benvenuto nel mio sito"
@@ -5649,14 +5649,14 @@ msgid "Not installed"
 msgstr "Non installato"
 
 #: lib/phoenix_kit_web/live/modules.html.heex:176
-#: lib/phoenix_kit_web/live/settings.html.heex:496
+#: lib/phoenix_kit_web/live/settings.html.heex:511
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Off"
 msgstr "Off"
 
 #: lib/phoenix_kit_web/live/modules.html.heex:176
-#: lib/phoenix_kit_web/live/settings.html.heex:495
+#: lib/phoenix_kit_web/live/settings.html.heex:510
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "On"
@@ -8625,8 +8625,8 @@ msgstr "Archivi"
 msgid "Audio"
 msgstr "Audio"
 
-#: lib/phoenix_kit_web/components/core/admin_page_header.ex:126
-#: lib/phoenix_kit_web/components/core/admin_page_header.ex:127
+#: lib/phoenix_kit_web/components/core/admin_page_header.ex:141
+#: lib/phoenix_kit_web/components/core/admin_page_header.ex:142
 #: lib/phoenix_kit_web/live/users/media_detail.html.heex:26
 #: lib/phoenix_kit_web/live/users/media_detail.html.heex:27
 #, elixir-autogen, elixir-format
@@ -8706,7 +8706,7 @@ msgstr "Crea cartella"
 msgid "Created by %{name}"
 msgstr "Creato da %{name}"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:402
+#: lib/phoenix_kit_web/live/settings.html.heex:417
 #, elixir-autogen, elixir-format
 msgid "Default notification link"
 msgstr "Link di notifica predefinito"
@@ -9084,7 +9084,7 @@ msgstr "Non lette"
 msgid "View storage usage and media statistics. Coming soon."
 msgstr "Visualizza l'utilizzo dello spazio e le statistiche dei media. Prossimamente."
 
-#: lib/phoenix_kit_web/live/settings.html.heex:413
+#: lib/phoenix_kit_web/live/settings.html.heex:428
 #, elixir-autogen, elixir-format
 msgid "Where a notification opens when it has no link of its own. Defaults to /admin (every signed-in user can open it). Clear the field to make such notifications non-clickable instead. The URL prefix and locale are added automatically."
 msgstr "Dove porta una notifica quando non ha un link proprio. Il valore predefinito è /admin (raggiungibile da qualsiasi utente connesso). Svuota il campo per rendere tali notifiche non cliccabili. Il prefisso URL e la lingua vengono aggiunti automaticamente."
@@ -9341,12 +9341,12 @@ msgstr "Avanzate"
 msgid "Background preview"
 msgstr "Anteprima dello sfondo"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:152
+#: lib/phoenix_kit_web/live/settings.html.heex:167
 #, elixir-autogen, elixir-format
 msgid "Browser Tab"
 msgstr "Scheda del browser"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:238
+#: lib/phoenix_kit_web/live/settings.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Change icon"
 msgstr "Cambia l'icona"
@@ -9360,17 +9360,17 @@ msgstr "Cambia l'icona"
 msgid "Change image"
 msgstr "Cambia l'immagine"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:651
+#: lib/phoenix_kit_web/live/settings.html.heex:666
 #, elixir-autogen, elixir-format
 msgid "Changes apply system-wide after \"Save All Settings\". Registration and user defaults are managed on the Users page."
 msgstr "Le modifiche si applicano a tutto il sistema dopo «Salva tutte le impostazioni». La registrazione e i valori predefiniti degli utenti si gestiscono nella pagina Utenti."
 
-#: lib/phoenix_kit_web/live/settings.html.heex:271
+#: lib/phoenix_kit_web/live/settings.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Currently using the project logo."
 msgstr "Attualmente viene usato il logo del progetto."
 
-#: lib/phoenix_kit_web/live/settings.html.heex:142
+#: lib/phoenix_kit_web/live/settings.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "Currently using the site icon."
 msgstr "Attualmente viene usata l'icona del sito."
@@ -9380,8 +9380,8 @@ msgstr "Attualmente viene usata l'icona del sito."
 msgid "Custom URLs"
 msgstr "URL personalizzati"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:567
-#: lib/phoenix_kit_web/live/settings.html.heex:597
+#: lib/phoenix_kit_web/live/settings.html.heex:582
+#: lib/phoenix_kit_web/live/settings.html.heex:612
 #, elixir-autogen, elixir-format
 msgid "Example:"
 msgstr "Esempio:"
@@ -9401,7 +9401,7 @@ msgstr "Array JSON di voci URL statiche aggiuntive (path, priority, changefreq, 
 msgid "JSON array of route configurations (plug or path, priority, changefreq, title, category). Replaces the built-in defaults entirely when saved — an empty list removes the homepage entry too."
 msgstr "Array JSON di configurazioni di rotte (plug o path, priority, changefreq, title, category). Al salvataggio sostituisce completamente i valori predefiniti integrati — un elenco vuoto rimuove anche la voce della home page."
 
-#: lib/phoenix_kit_web/live/settings.html.heex:137
+#: lib/phoenix_kit_web/live/settings.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "Logo displayed across the application. Falls back to the site icon, then the project title text."
 msgstr "Logo mostrato in tutta l'applicazione. In mancanza viene usata l'icona del sito e poi il titolo del progetto."
@@ -9426,7 +9426,7 @@ msgstr "Un nome di pipeline per riga. Viene aggiunto ai valori predefiniti integ
 msgid "Protected Pipelines"
 msgstr "Pipeline protette"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:323
+#: lib/phoenix_kit_web/live/settings.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Public base URL of this application"
 msgstr "URL di base pubblico di questa applicazione"
@@ -9436,7 +9436,7 @@ msgstr "URL di base pubblico di questa applicazione"
 msgid "Recipient"
 msgstr "Destinatario"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:635
+#: lib/phoenix_kit_web/live/settings.html.heex:650
 #, elixir-autogen, elixir-format
 msgid "Reset ALL settings to their defaults? Your title, logo, formats and feature toggles will be replaced. This cannot be undone."
 msgstr "Ripristinare TUTTE le impostazioni ai valori predefiniti? Titolo, logo, formati e interruttori delle funzionalità verranno sostituiti. L'azione non può essere annullata."
@@ -9466,13 +9466,13 @@ msgstr "Salva le pipeline protette"
 msgid "Save Static Routes"
 msgstr "Salva le rotte statiche"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:253
-#: lib/phoenix_kit_web/live/settings.html.heex:266
+#: lib/phoenix_kit_web/live/settings.html.heex:268
+#: lib/phoenix_kit_web/live/settings.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "Select site icon"
 msgstr "Seleziona l'icona del sito"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:297
+#: lib/phoenix_kit_web/live/settings.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Shown when a page doesn't set its own title. Leave empty to use the project title."
 msgstr "Mostrato quando una pagina non imposta un titolo proprio. Lascia vuoto per usare il titolo del progetto."
@@ -9487,17 +9487,17 @@ msgstr "Indirizzo del sito"
 msgid "Site Identity"
 msgstr "Identità del sito"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:154
+#: lib/phoenix_kit_web/live/settings.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "Site icon and tab title"
 msgstr "Icona del sito e titolo della scheda"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:228
+#: lib/phoenix_kit_web/live/settings.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Site icon preview"
 msgstr "Anteprima dell'icona del sito"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:269
+#: lib/phoenix_kit_web/live/settings.html.heex:284
 #, elixir-autogen, elixir-format
 msgid "Square, at least 512×512 pixels."
 msgstr "Quadrata, almeno 512×512 pixel."
@@ -9507,7 +9507,7 @@ msgstr "Quadrata, almeno 512×512 pixel."
 msgid "Static Routes"
 msgstr "Rotte statiche"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:307
+#: lib/phoenix_kit_web/live/settings.html.heex:322
 #, elixir-autogen, elixir-format
 msgid "The icon appears in browser tabs, bookmarks, and on phone home screens."
 msgstr "L'icona appare nelle schede del browser, nei preferiti e nelle schermate home dei telefoni."
@@ -10390,7 +10390,7 @@ msgstr "Sempre"
 msgid "An owner account cannot be used."
 msgstr "Non è possibile usare un account proprietario."
 
-#: lib/phoenix_kit_web/live/settings.html.heex:441
+#: lib/phoenix_kit_web/live/settings.html.heex:456
 #, elixir-autogen, elixir-format
 msgid "Applies site-wide wherever the rich-text editor is rendered (posts, comments). Users can still switch modes inside the editor."
 msgstr "Si applica in tutto il sito dove viene mostrato l'editor di testo formattato (post, commenti). Gli utenti possono comunque cambiare modalità nell'editor."
@@ -10617,7 +10617,7 @@ msgstr "Attualmente in vigore:"
 msgid "Daily"
 msgstr "Giornaliero"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:427
+#: lib/phoenix_kit_web/live/settings.html.heex:442
 #, elixir-autogen, elixir-format
 msgid "Default Editor Mode"
 msgstr "Modalità predefinita dell'editor"
@@ -10878,7 +10878,7 @@ msgstr "Tag del messaggio"
 msgid "Message your bot, then press Test above — we'll capture your chat so it can notify you."
 msgstr "Scrivi al tuo bot, poi premi «Verifica» qui sopra — registreremo la tua chat così potrà inviarti notifiche."
 
-#: lib/phoenix_kit_web/live/settings.html.heex:430
+#: lib/phoenix_kit_web/live/settings.html.heex:445
 #, elixir-autogen, elixir-format
 msgid "Mode every content editor opens in"
 msgstr "Modalità con cui si apre ogni editor dei contenuti"
@@ -11712,7 +11712,7 @@ msgstr "Gruppi bloccati"
 msgid "Bot Access"
 msgstr "Accesso dei bot"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:482
+#: lib/phoenix_kit_web/live/settings.html.heex:497
 #, elixir-autogen, elixir-format
 msgid "By default a mention shows what it names even to someone without access, with a lock icon and no link. Turn this on where the name itself is sensitive; they then see the name as it was when it was written, not its current one."
 msgstr "Per impostazione predefinita una menzione mostra ciò che nomina anche a chi non ha accesso, con un'icona di lucchetto e senza link. Attiva questa opzione quando è il nome stesso a essere sensibile: si vedrà allora il nome com'era al momento della scrittura, non quello attuale."
@@ -11834,7 +11834,7 @@ msgstr "Vai su [Fine-grained tokens](https://github.com/settings/personal-access
 msgid "Grouped by why they visit. Blocking a group writes it into the generated robots.txt below; everything defaults to allowed."
 msgstr "Raggruppati in base al motivo per cui visitano il sito. Bloccare un gruppo lo scrive nel robots.txt generato qui sotto; per impostazione predefinita tutto è consentito."
 
-#: lib/phoenix_kit_web/live/settings.html.heex:477
+#: lib/phoenix_kit_web/live/settings.html.heex:492
 #, elixir-autogen, elixir-format
 msgid "Hide titles of records the reader can't open"
 msgstr "Nascondi i titoli dei record che chi legge non può aprire"
@@ -11869,7 +11869,7 @@ msgstr "Formato della regione non valido (atteso ad es. eu-central-1)"
 msgid "Key authenticated but not authorised in %{region} — allow bedrock:CallWithBearerToken (and ListFoundationModels) on its IAM identity, or check the key was issued for this region"
 msgstr "Chiave autenticata ma non autorizzata in %{region}: consenti bedrock:CallWithBearerToken (e ListFoundationModels) sulla sua identità IAM, oppure verifica che la chiave sia stata emessa per questa regione"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:469
+#: lib/phoenix_kit_web/live/settings.html.heex:484
 #, elixir-autogen, elixir-format
 msgid "Lets people type @ to mention someone and # to link a record, anywhere they can write free text. Turning it off stops the suggestions; mentions already written stay readable as plain text."
 msgstr "Consente di digitare @ per menzionare qualcuno e # per collegare un record, ovunque si possa scrivere testo libero. Disattivandolo i suggerimenti scompaiono; le menzioni già scritte restano leggibili come testo semplice."
@@ -11889,7 +11889,7 @@ msgstr "Casella di posta locale disattivata: la posta di sviluppo in uscita fini
 msgid "Local mailbox enabled — tokens in auth mail are now readable at /dev/mailbox"
 msgstr "Casella di posta locale attivata: i token nelle e-mail di autenticazione sono ora leggibili su /dev/mailbox"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:464
+#: lib/phoenix_kit_web/live/settings.html.heex:479
 #, elixir-autogen, elixir-format
 msgid "Mentions and record links"
 msgstr "Menzioni e collegamenti ai record"
@@ -12187,13 +12187,13 @@ msgid "Select Images"
 msgstr "Seleziona immagini"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2593
-#: lib/phoenix_kit_web/live/settings.html.heex:668
+#: lib/phoenix_kit_web/live/settings.html.heex:683
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:789
 #, elixir-autogen, elixir-format
 msgid "Select Logo"
 msgstr "Seleziona logo"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:667
+#: lib/phoenix_kit_web/live/settings.html.heex:682
 #, elixir-autogen, elixir-format
 msgid "Select Site Icon"
 msgstr "Seleziona icona del sito"
@@ -13029,20 +13029,20 @@ msgstr "nell'ultima ora"
 msgid "in the last week"
 msgstr "nell'ultima settimana"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1230
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1243
 #: lib/phoenix_kit_web/components/tree_picker.ex:382
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Riduci"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1221
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1222
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1224
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1234
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1235
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1237
 #, elixir-autogen, elixir-format
 msgid "Collapse the menu to icons"
 msgstr "Riduci il menu alle icone"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1223
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1236
 #, elixir-autogen, elixir-format
 msgid "Expand the menu"
 msgstr "Espandi il menu"
@@ -14029,12 +14029,12 @@ msgstr "Facoltativo — nella maggior parte dei paesi la registrazione IVA/codic
 msgid "Registration number is required"
 msgstr "Il numero di registrazione è obbligatorio"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:350
+#: lib/phoenix_kit_web/live/settings.html.heex:365
 #, elixir-autogen, elixir-format
 msgid "Signed-Out Landing Page"
 msgstr "Pagina di destinazione per i visitatori non autenticati"
 
-#: lib/phoenix_kit_web/live/settings.html.heex:362
+#: lib/phoenix_kit_web/live/settings.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Where a visitor who isn't signed in lands — including right after logging out. Empty = the sign-in page."
 msgstr "Dove atterra un visitatore non autenticato, anche subito dopo il logout. Vuoto = la pagina di accesso."
@@ -16064,3 +16064,13 @@ msgstr "Impossibile ripristinare la libreria"
 #, elixir-autogen, elixir-format
 msgid "You can only change files you uploaded"
 msgstr "Puoi modificare solo i file che hai caricato"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:107
+#, elixir-autogen, elixir-format
+msgid "A page can carry a one-line description; when this is on it appears after the page title in the admin header and under the in-page title. Off by default: the breadcrumb and the title say where you are."
+msgstr "Una pagina può avere una descrizione di una riga; quando è attivo, appare dopo il titolo della pagina nell'intestazione di amministrazione e sotto il titolo nella pagina. Disattivato per impostazione predefinita: il percorso e il titolo dicono dove ti trovi."
+
+#: lib/phoenix_kit_web/live/settings.html.heex:104
+#, elixir-autogen, elixir-format
+msgid "Show page descriptions in the admin header"
+msgstr "Mostra le descrizioni delle pagine nell'intestazione di amministrazione"
