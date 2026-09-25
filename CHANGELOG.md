@@ -1,5 +1,20 @@
 ## Unreleased
 
+### Added
+
+- **`PhoenixKit.Migrations.Adoption`** (#868, refs #862). A public,
+  stability-committed API for module migration chains that adopt a
+  core-baseline table. `verify_shape/3` checks the table's real shape
+  (column type/nullability/default, indexes, constraints, sequences,
+  functions) before the module writes its ownership marker, and reports
+  every drifted or missing object in one pass; `format_drift/1` renders
+  that report. `marker_conflict/5` refuses to overwrite another module's
+  marker or an operator's own table comment, while treating core's
+  pre-squash descriptive comments as safe to overwrite. It never writes
+  anything. Recommended use (raise on drift by default, or log and adopt
+  under an explicit per-host `:warn` opt-in) is in the moduledoc and the
+  module table extraction guide.
+
 ### Changed
 
 - **`phoenix_kit_templates` 0.2.0** (pin `~> 0.1.0` → `~> 0.2.0`). A host

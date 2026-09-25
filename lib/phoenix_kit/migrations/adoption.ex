@@ -522,14 +522,23 @@ defmodule PhoenixKit.Migrations.Adoption do
   # role's session default instead of restoring. Save the real value first
   # and restore it explicitly — independent of whatever `Probe.snapshot/2`
   # itself does internally, and regardless of whether `fun` raises.
+  #
+  # The `checkout/1` pins the save, the snapshot and the restore to ONE
+  # physical connection. Inside a migration's transaction they already share
+  # one; called outside a transaction (a mix task, a console), each
+  # `repo.query!` would otherwise borrow any pooled connection, so the value
+  # read on one would be restored onto another. Checkouts nest, so
+  # `Probe.snapshot/2`'s own checkout reuses this connection.
   defp with_preserved_search_path(repo, fun) do
-    %{rows: [[saved]]} = repo.query!("SHOW search_path", [], log: false)
+    repo.checkout(fn ->
+      %{rows: [[saved]]} = repo.query!("SHOW search_path", [], log: false)
 
-    try do
-      fun.()
-    after
-      repo.query!("SELECT set_config('search_path', $1, false)", [saved], log: false)
-    end
+      try do
+        fun.()
+      after
+        repo.query!("SELECT set_config('search_path', $1, false)", [saved], log: false)
+      end
+    end)
   end
 
   @doc """

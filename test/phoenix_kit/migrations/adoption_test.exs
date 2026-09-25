@@ -806,6 +806,7 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
   end
 
   describe "marker_conflict/5 — a low-privilege connection still detects a conflicting marker" do
+    @tag :requires_createrole
     test "not silently :ok, under a role created inline (portable — no dependency on a fixture role)" do
       table = unique_table("pk_adoption_test_privfilter")
       drop_on_exit(table)
