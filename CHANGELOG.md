@@ -79,6 +79,17 @@
   loading spinner sits in the icon's own box, shows only when a reply takes
   longer than 300 ms, and the tree and the file column keep their scrollbar
   space, so nothing jumps when a folder opens.
+- **A user library stays out of the site's media (review).** `/admin/media`
+  and the media pickers no longer list a user library's files, and the file
+  detail page uses the same read check as the file info API, so holding
+  `media` is not enough to open one. `get_public_url` no longer returns a
+  public bucket's object URL for a private file. Deep-zoom tiles of a
+  private file are cached `private`, the same as the file itself, so a
+  shared cache cannot keep them after the link expires. Orphan cleanup
+  leaves a user library's files alone, and so does "Delete all orphaned"
+  inside a user library: nothing in the site references them, so they
+  looked unreferenced and would have been deleted. A viewer of a shared
+  library can no longer open its member list by sending the event.
 
 ### Migration notes
 

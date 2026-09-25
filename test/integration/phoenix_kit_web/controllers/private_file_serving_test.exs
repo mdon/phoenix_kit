@@ -157,6 +157,38 @@ defmodule PhoenixKitWeb.PrivateFileServingTest do
     assert location =~ ~r/[?&]dl=1(&|$)/
   end
 
+  test "a private file is not handed a bucket's object URL", ctx do
+    bucket = "https://cdn.example/secret-object.jpg"
+    instance = Storage.get_file_instance_by_name(ctx.private_file.uuid, "original")
+
+    url = Storage.public_listing_url(ctx.private_file, "original", instance, bucket)
+
+    refute url == bucket
+    [_, token] = Regex.run(~r{/original/([^/?]+)}, url)
+    assert show(ctx.private_file, token).status == 401
+
+    media_instance = Storage.get_file_instance_by_name(ctx.media_file.uuid, "original")
+
+    assert Storage.public_listing_url(ctx.media_file, "original", media_instance, bucket) ==
+             bucket
+  end
+
+  test "a private file's tiles are not kept by a shared cache" do
+    assert FileController.tile_cache_control("abcdabcdabcdabcd", %{
+             status: "active",
+             private: true
+           }) == "private, max-age=3600"
+
+    assert FileController.tile_cache_control(nil, %{status: "active", private: true}) ==
+             "private, max-age=3600"
+
+    assert FileController.tile_cache_control("abcdabcdabcdabcd", %{
+             status: "trashed",
+             private: true
+           }) ==
+             "private, no-store"
+  end
+
   describe "Storage.authorized_url/4" do
     test "the owner gets a working window URL; a stranger nothing", ctx do
       owner = Repo.get!(Auth.User, ctx.owner.uuid)

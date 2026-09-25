@@ -16,11 +16,12 @@ defmodule PhoenixKitWeb.Live.Users.Media do
 
   The page shows one **system library** at a time
   (`PhoenixKit.Modules.Storage.Libraries`): the default one (Media) at the
-  bare `/admin/media`, any other at `/admin/media/library/<slug>`. While
-  Media is the only one, nothing about libraries is shown and the browser
-  is given no library at all — it lists exactly what it listed before
-  libraries existed. Libraries are created, renamed and deleted in Settings
-  → Media → Libraries (`PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent`).
+  bare `/admin/media`, any other at `/admin/media/library/<slug>`. The
+  browser is always given that library. While Media is the only system
+  library, nothing about libraries is shown. A user library is not listed
+  here; it is browsed at `/admin/libraries`. Libraries are created, renamed
+  and deleted in Settings → Media → Libraries
+  (`PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent`).
   """
   use PhoenixKitWeb, :live_view
   use PhoenixKitWeb.Components.MediaBrowser.Embed, url_sync: [id: "media-browser"]
@@ -102,9 +103,9 @@ defmodule PhoenixKitWeb.Live.Users.Media do
   defp library_path(slug), do: Routes.path("/admin/media/library/#{slug}")
 
   @doc false
-  # The library the browser is given: nil while only one exists, so the
-  # listing is exactly the pre-library one.
-  def browser_library_uuid(libraries, library) do
-    if is_list(libraries) and length(libraries) > 1 and library, do: library.uuid
-  end
+  # The system library on screen. Nil used to mean "don't filter", which
+  # listed every file — the same set as Media while that was the only
+  # library, and other people's libraries once user libraries existed.
+  def browser_library_uuid(_libraries, %{uuid: uuid}) when is_binary(uuid), do: uuid
+  def browser_library_uuid(_libraries, _), do: Libraries.media_uuid()
 end

@@ -1168,7 +1168,8 @@ defmodule PhoenixKit.Modules.Storage do
   scope_folder_id instead of real root.
 
   `opts[:library_uuid]` narrows the real root to one storage library (a
-  folder's children are always in its library).
+  folder's children are always in its library). Omitted leaves out private
+  libraries.
   """
   def list_folders(parent_uuid \\ nil, scope_folder_id \\ nil, opts \\ [])
 
@@ -1895,7 +1896,8 @@ defmodule PhoenixKit.Modules.Storage do
       `include_orphaned: true` is ignored when `scope_folder_id` is non-nil (orphans are always outside any scope).
     - `:page` — page number (default 1).
     - `:per_page` — page size (default 20).
-    - `:library_uuid` — only files in this storage library.
+    - `:library_uuid` — only files in this storage library. Omitted means
+      every library that is not private (`Libraries.exclude_private/1`).
 
   ## Returns
     `{files, total_count}` or `{:error, :out_of_scope}`.
@@ -2435,12 +2437,19 @@ defmodule PhoenixKit.Modules.Storage do
     |> repo().all()
   end
 
-  # Narrows a file or folder query to one storage library; nil leaves it
-  # unfiltered (every library — what every caller that names none gets).
-  defp where_library(query, nil), do: query
+  # Narrows a file or folder query to one storage library. nil is every
+  # library that is not private: a private library (every user library) is
+  # read by passing its uuid. Leaving nil unfiltered put those files on
+  # /admin/media, in host embeds that name no library, and in orphan
+  # cleanup — which would then delete them, since nothing in the site
+  # references a user library's files.
+  defp where_library(query, nil), do: Libraries.exclude_private(query)
   defp where_library(query, library_uuid), do: where(query, [r], r.library_uuid == ^library_uuid)
 
-  defp in_library(folders, nil), do: folders
+  defp in_library(folders, nil) do
+    private = folders |> Enum.map(& &1.library_uuid) |> Libraries.private_among()
+    Enum.reject(folders, &(to_string(&1.library_uuid) in private))
+  end
 
   defp in_library(folders, library_uuid) do
     library_uuid = to_string(library_uuid)
@@ -2965,6 +2974,7 @@ defmodule PhoenixKit.Modules.Storage do
   Returns true if the given file UUID is not referenced by any known entity.
   """
   def file_orphaned?(file_uuid) when is_binary(file_uuid) do
+    # `orphaned_files_query/0` already leaves private libraries out.
     orphaned_files_query()
     |> where([f], f.uuid == ^file_uuid)
     |> repo().exists?()
@@ -3005,6 +3015,12 @@ defmodule PhoenixKit.Modules.Storage do
               f.uuid
             )
       )
+
+    # A private library's files (every user library) are never orphans,
+    # whatever library a caller names: nothing in the site references them,
+    # so every file at a user library's root would look unreferenced and
+    # "Delete all orphaned" inside that library would delete them all.
+    base = Libraries.exclude_private(base)
 
     # Exclude UUIDs that the parent app has explicitly marked as protected
     base =
@@ -4105,6 +4121,10 @@ defmodule PhoenixKit.Modules.Storage do
   original is never handed out). While an image edit is rendering or has
   failed, the signed route is returned even for a public bucket: it answers
   a placeholder, where the bucket would serve the bytes the edit replaces.
+
+  A file in a private library has no public object URL. This returns the
+  permanent app token, which the file route refuses; a viewer who may see
+  the file uses `authorized_url/4`.
   """
   def get_public_url(%PhoenixKit.Modules.Storage.File{} = file),
     do: public_instance_url(file, "original")
@@ -4115,15 +4135,36 @@ defmodule PhoenixKit.Modules.Storage do
   defp public_instance_url(%PhoenixKit.Modules.Storage.File{} = file, variant_name) do
     case get_file_instance_by_name(file.uuid, variant_name) do
       %FileInstance{} = instance ->
-        if ImageEditing.edit_in_progress?(file) do
-          signed_file_url(file.uuid, variant_name, nil)
-        else
-          Manager.public_url(instance.file_name) ||
-            signed_file_url(file.uuid, variant_name, instance)
-        end
+        # Skip the bucket lookup when its URL cannot be used: a private
+        # file must not be handed the object URL, and an edit in progress
+        # must be served by the app (the placeholder).
+        bucket_url =
+          if ImageEditing.edit_in_progress?(file) or Libraries.private_file?(file),
+            do: nil,
+            else: Manager.public_url(instance.file_name)
+
+        public_listing_url(file, variant_name, instance, bucket_url)
 
       nil ->
         nil
+    end
+  end
+
+  @doc false
+  # `bucket_url` is what the bucket would hand out (`Manager.public_url/1`).
+  # A private library never uses it, even when the caller already has one:
+  # the permanent app token is what the file route refuses. Public so the
+  # decision is testable without a bucket that answers `public_url`.
+  def public_listing_url(file, variant_name, instance, bucket_url) do
+    cond do
+      ImageEditing.edit_in_progress?(file) ->
+        signed_file_url(file.uuid, variant_name, nil)
+
+      Libraries.private_file?(file) ->
+        signed_file_url(file.uuid, variant_name, instance)
+
+      true ->
+        bucket_url || signed_file_url(file.uuid, variant_name, instance)
     end
   end
 

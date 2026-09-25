@@ -269,43 +269,57 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
         |> assign(:file_data, nil)
 
       file ->
-        instances = load_file_instances(file_uuid, repo)
-
-        urls =
-          generate_urls_from_instances(
-            instances,
-            file_uuid,
-            file.mime_type,
-            Libraries.private_file?(file)
-          )
-
-        variant_dimensions = build_variant_dimensions(instances)
-        locations = load_original_locations(instances, repo)
-        tags = (file.metadata || %{})["tags"] || []
-        user_name = get_user_name(file.user_uuid, repo)
-
-        variant_dimensions = put_original_fallbacks(variant_dimensions, file)
-
-        file_data =
-          build_file_data(
-            file,
-            urls,
-            variant_dimensions,
-            locations,
-            tags,
-            user_name
-          )
-
-        socket
-        |> assign(:file, file)
-        |> assign(:file_data, file_data)
-        |> assign_details(file)
-        |> assign(:edit_mode, socket.assigns[:edit_mode] || false)
-        |> assign(:image_editable, ImageEditing.editable?(file))
-        # The canvas keeps its own state; a new original (an edit) must
-        # remount it with the new image and dimensions.
-        |> assign(:canvas_id, "media-detail-canvas-#{file_uuid}-#{canvas_version(instances)}")
+        # The page is gated by the "media" permission. That must not open a
+        # user library: the same read check as the file info API. Owner/Admin
+        # and the library's members still pass (`Libraries.can?/3`).
+        if Libraries.private_file?(file) and
+             not Libraries.can?(socket.assigns[:phoenix_kit_current_scope], file, :read) do
+          socket
+          |> assign(:file, nil)
+          |> assign(:file_data, nil)
+        else
+          load_file_details(socket, file, file_uuid, repo)
+        end
     end
+  end
+
+  defp load_file_details(socket, file, file_uuid, repo) do
+    instances = load_file_instances(file_uuid, repo)
+
+    urls =
+      generate_urls_from_instances(
+        instances,
+        file_uuid,
+        file.mime_type,
+        Libraries.private_file?(file)
+      )
+
+    variant_dimensions = build_variant_dimensions(instances)
+    locations = load_original_locations(instances, repo)
+    tags = (file.metadata || %{})["tags"] || []
+    user_name = get_user_name(file.user_uuid, repo)
+
+    variant_dimensions = put_original_fallbacks(variant_dimensions, file)
+
+    file_data =
+      build_file_data(
+        file,
+        urls,
+        variant_dimensions,
+        locations,
+        tags,
+        user_name
+      )
+
+    socket
+    |> assign(:file, file)
+    |> assign(:file_data, file_data)
+    |> assign_details(file)
+    |> assign(:edit_mode, socket.assigns[:edit_mode] || false)
+    |> assign(:image_editable, ImageEditing.editable?(file))
+    # The canvas keeps its own state; a new original (an edit) must
+    # remount it with the new image and dimensions.
+    |> assign(:canvas_id, "media-detail-canvas-#{file_uuid}-#{canvas_version(instances)}")
   end
 
   defp canvas_version(instances) do

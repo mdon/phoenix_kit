@@ -2,8 +2,10 @@ defmodule PhoenixKitWeb.Components.FolderTreeLoadingTest do
   @moduledoc """
   A tree click that waits on the server shows it is working. LiveView puts
   `.phx-click-loading` on the clicked element until the reply lands — for a
-  folder that is after the new listing has rendered — so the row swaps its
-  folder icon for a spinner, and the chevron swaps its own. The chevron's
+  folder that is after the new listing has rendered — so the row cross-fades
+  its folder icon into a spinner, and the chevron its own. Both sit stacked
+  in one fixed box and fade by opacity only after 300 ms (#873), so a quick
+  reply shows nothing and the row never shifts. The chevron's
   spinner answers only to the chevron's click, not to the row it sits in,
   so opening a folder never spins two indicators at once.
   """
@@ -40,11 +42,13 @@ defmodule PhoenixKitWeb.Components.FolderTreeLoadingTest do
     row_button = ~s(button[phx-click="navigate_folder"])
 
     assert [spinner] = classes(doc, "#{row_button} .loading-spinner")
-    assert spinner =~ "hidden"
-    assert spinner =~ "[.phx-click-loading_&]:inline-block"
+    assert spinner =~ "absolute inset-0"
+    assert spinner =~ "opacity-0"
+    assert spinner =~ "[.phx-click-loading_&]:opacity-100"
+    assert spinner =~ "[.phx-click-loading_&]:delay-300"
 
     assert [icon | _] = classes(doc, "#{row_button} .hero-folder")
-    assert icon =~ "[.phx-click-loading_&]:hidden"
+    assert icon =~ "[.phx-click-loading_&]:opacity-0"
   end
 
   test "the chevron spins only for its own click" do
@@ -52,10 +56,11 @@ defmodule PhoenixKitWeb.Components.FolderTreeLoadingTest do
     chevron = ~s(button[phx-click="toggle_folder_expand"])
 
     assert [spinner] = classes(doc, "#{chevron} > .loading-spinner")
-    assert spinner =~ "[.phx-click-loading>&]:inline-block"
+    assert spinner =~ "[.phx-click-loading>&]:opacity-100"
     refute spinner =~ "[.phx-click-loading_&]"
 
     assert [icon] = classes(doc, "#{chevron} > .hero-chevron-right-mini")
-    assert icon =~ "[.phx-click-loading>&]:hidden"
+    assert icon =~ "[.phx-click-loading>&]:opacity-0"
+    refute icon =~ "[.phx-click-loading_&]"
   end
 end

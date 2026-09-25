@@ -281,7 +281,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       socket
       |> assign(assigns)
       |> assign_new(:scope_folder_id, fn -> nil end)
-      # The storage library shown (`Storage.Libraries`); nil = every library.
+      # The storage library shown (`Storage.Libraries`). nil lists every
+      # library that is not private.
       |> assign_new(:library_uuid, fn -> nil end)
       |> assign_new(:admin, fn -> false end)
       # When true, every write path is hidden AND refused server-side —
@@ -994,7 +995,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # A folder (or file) of another library is not opened in, or shown by,
-  # this one. With no library named, every library is shown.
+  # this one. With no library named, the listing has already dropped
+  # private libraries (`Libraries.exclude_private/1`).
   defp in_shown_library?(_folder_or_file, []), do: true
 
   defp in_shown_library?(folder_or_file, library_uuid: library_uuid),
@@ -1035,8 +1037,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # The storage library this browser shows, as listing options. nil (the
-  # default, and every host that names none) is every library — exactly the
-  # listing that existed before libraries.
+  # default, and every host that names none) is every library that is not
+  # private — the site's libraries, which is what the listing was before
+  # user libraries. A user library is passed by uuid.
   defp lib_opts(socket) do
     case socket.assigns[:library_uuid] do
       nil -> []

@@ -55,6 +55,38 @@ defmodule PhoenixKit.Modules.Storage.UserLibrariesTest do
     member
   end
 
+  describe "site listings" do
+    test "a user library's file is not site media and not an orphan", %{role: role} do
+      user = user!(role)
+      library = library!(user, "Private")
+      private_id = file!(user, library.uuid)
+      media_id = file!(user, nil)
+
+      refute Storage.file_orphaned?(private_id)
+      assert Storage.file_orphaned?(media_id)
+
+      {listed, _} = Storage.list_files_in_scope(nil, page: 1, per_page: 100)
+      ids = Enum.map(listed, & &1.uuid)
+      refute private_id in ids
+      assert media_id in ids
+
+      refute private_id in (Storage.find_orphaned_files() |> Enum.map(& &1.uuid))
+    end
+
+    test "inside a user library nothing is an orphan, so nothing is bulk-deleted as one",
+         %{role: role} do
+      user = user!(role)
+      library = library!(user, "Root Files")
+      file!(user, library.uuid)
+
+      # A root file in a user library is referenced by nothing in the site,
+      # which is exactly what an orphan looks like; the browser's "Delete all
+      # orphaned" inside the library would have deleted it.
+      assert Storage.find_orphaned_files(library_uuid: library.uuid) == []
+      assert Storage.count_orphaned_files(nil, library_uuid: library.uuid) == 0
+    end
+  end
+
   describe "who may have libraries" do
     test "nobody while user libraries are off", %{role: role} do
       user = user!(role)

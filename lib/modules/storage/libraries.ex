@@ -333,6 +333,21 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def private_file?(_file), do: false
 
   @doc """
+  Drops rows whose library is private.
+
+  The file or folder is the query's first binding. Site listings
+  (`/admin/media`, the media pickers, orphan cleanup) use this so a user
+  library is not mixed into the site's media; pass that library's uuid to
+  read it. A private library's files are not orphans: nothing in the site
+  references them, and treating them as unreferenced would delete them.
+  """
+  @spec exclude_private(Ecto.Query.t()) :: Ecto.Query.t()
+  def exclude_private(query) do
+    private = from(l in Library, where: l.visibility == "private", select: l.uuid)
+    where(query, [row], row.library_uuid not in subquery(private))
+  end
+
+  @doc """
   Whether `scope` may do `action` to `file`. One predicate for every
   per-file check, so they stop drifting apart:
 

@@ -122,7 +122,17 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
   end
 
   def handle_event("toggle_members", %{"uuid" => uuid}, socket) do
-    open = if socket.assigns.open_members == uuid, do: nil, else: uuid
+    allowed? =
+      Enum.any?(socket.assigns.owned, &(&1.library.uuid == uuid)) or
+        uuid in socket.assigns.managed_uuids
+
+    open =
+      cond do
+        not allowed? -> nil
+        socket.assigns.open_members == uuid -> nil
+        true -> uuid
+      end
+
     {:noreply, socket |> assign(:open_members, open) |> load()}
   end
 
@@ -360,7 +370,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
             </button>
           </div>
           <.members_panel
-            :if={@open_members == library.uuid}
+            :if={@open_members == library.uuid and library.uuid in @managed_uuids}
             id={@id}
             library={library}
             members={@members}

@@ -737,9 +737,14 @@ defmodule PhoenixKitWeb.FileController do
   # A trashed image's tiles share one URL, the same way `/file/...` does.
   # The holder's copy must not be a year-long public response, and the 404
   # everyone else gets must not be cacheable either (`tile_error/2`).
-  defp tile_cache_control(_requested, %{status: "trashed"}), do: "private, no-store"
-  defp tile_cache_control(nil, _source), do: "no-store"
-  defp tile_cache_control(_requested, _source), do: "public, max-age=31536000, immutable"
+  # A private library's tiles carry a time-window token, but the token is
+  # in the URL: `public, immutable` would let a shared cache keep the bytes
+  # for a year after the window had ended. Same lifetime as `/file/...`.
+  @doc false
+  def tile_cache_control(_requested, %{status: "trashed"}), do: "private, no-store"
+  def tile_cache_control(_requested, %{private: true}), do: "private, max-age=3600"
+  def tile_cache_control(nil, _source), do: "no-store"
+  def tile_cache_control(_requested, _source), do: "public, max-age=31536000, immutable"
 
   # Same gate as `/file/...`: a trashed file's tiles are for a "media" holder.
   # Checked before any tile is generated, so a stranger cannot cause the work.
@@ -782,7 +787,8 @@ defmodule PhoenixKitWeb.FileController do
          width: w,
          height: h,
          base: "#{file_uuid}/#{version}/#{file_uuid}",
-         status: file.status
+         status: file.status,
+         private: Libraries.private_file?(file)
        }}
     else
       nil -> {:error, :not_found}
