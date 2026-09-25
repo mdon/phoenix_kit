@@ -5,7 +5,7 @@ defmodule PhoenixKit.Supervisor do
   use Supervisor
 
   alias PhoenixKit.Modules.Languages
-  alias PhoenixKit.Modules.Storage.Workers.LocationBackfillJob
+  alias PhoenixKit.Modules.Storage.Workers.{ChecksumBackfillJob, LocationBackfillJob}
   alias PhoenixKit.Users.Permissions
 
   def start_link(init_arg) do
@@ -118,7 +118,8 @@ defmodule PhoenixKit.Supervisor do
         id: :oban_queue_check
       ),
       # Once per boot: queue the storage location backfill (V204) while any
-      # stored object has no location row. Delayed for the same reason as the
+      # stored object has no location row, and the checksum backfill while
+      # any file still has the upload API's old MD5 checksum. Delayed for the same reason as the
       # queue check above; the daily trash prune queues it too, and only one
       # pending run exists at a time.
       Supervisor.child_spec(
@@ -126,6 +127,7 @@ defmodule PhoenixKit.Supervisor do
          fn ->
            Process.sleep(:timer.seconds(30))
            LocationBackfillJob.maybe_enqueue()
+           ChecksumBackfillJob.maybe_enqueue()
          end},
         id: :storage_location_backfill
       ),

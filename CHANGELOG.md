@@ -39,6 +39,12 @@
   queues itself shortly after boot and from the daily trash prune while any
   are left, runs one batch every few seconds, and Settings → Media →
   Health shows how many are left. Those files are served meanwhile.
+- **One checksum for every upload path.** The upload API hashed files with
+  MD5 while everything else used SHA-256, so the same file uploaded both
+  ways was stored twice. It uses SHA-256 now, and
+  `Storage.Workers.ChecksumBackfillJob` (queued like the location
+  backfill) recomputes the MD5 checksums already stored from each file's
+  bytes. A file whose uploader already has the same bytes is left as it is.
 - **A bucket that still holds files cannot be deleted.** Deleting one used
   to drop its location rows silently and leave its objects behind. The
   settings page says to disable the bucket instead.
