@@ -122,6 +122,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     doc:
       "Overrides the `show_admin_panel_label` setting for this render. `nil` (the default) reads the setting. Mirrors how `project_title` overrides `Settings.get_project_title/0`, and keeps the header renderable without a database."
 
+  attr :show_page_descriptions, :boolean,
+    default: nil,
+    doc:
+      "Overrides the `show_page_descriptions` setting for this render. `nil` (the default) reads the setting, which is off unless an operator turns it on under Settings → General; `page_subtitle` renders only when it is on."
+
   attr :dev_environment, :boolean,
     default: nil,
     doc:
@@ -740,6 +745,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   defp resolve_admin_panel_label(value), do: value
 
+  # Same shape as `resolve_admin_panel_label/1`, same reason for not using `||`.
+  defp resolve_page_descriptions(nil) do
+    PhoenixKit.Settings.get_boolean_setting("show_page_descriptions", false)
+  end
+
+  defp resolve_page_descriptions(value), do: value
+
   # `nil` (the default) reads the live heuristic; an explicit `true`/`false`
   # from the caller wins (tests, previews). Same "not `||`" reasoning as
   # `resolve_admin_panel_label/1` — an explicit `false` must not fall through
@@ -809,6 +821,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       # where the untranslated-for-everyone tradeoff is visible at the point of
       # the decision rather than buried in an operator form.
       show_admin_panel_label: resolve_admin_panel_label(assigns[:show_admin_panel_label]),
+      show_page_descriptions: resolve_page_descriptions(assigns[:show_page_descriptions]),
       # The chip's TEXT — see `admin_panel_text/0`.
       admin_panel_text: admin_panel_text(),
       # The small "[dev]" tag beside the project title — see `resolve_dev_environment/1`.
@@ -1060,7 +1073,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                         switcher={@page_title_switcher}
                       />
                       <span
-                        :if={@page_subtitle}
+                        :if={@page_subtitle && @show_page_descriptions}
                         class="text-sm text-base-content/50 truncate hidden md:inline"
                       >
                         {@page_subtitle}
