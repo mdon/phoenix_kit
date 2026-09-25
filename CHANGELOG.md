@@ -1,3 +1,68 @@
+## Unreleased
+
+Storage profiles and variant sets (**V205**, phase 4 of
+`dev_docs/plans/2026-09-22-storage-libraries.md`). Nothing changes for an
+install that never touches them: every library starts on the seeded
+**Default** profile and variant set, built from the existing buckets and
+settings.
+
+### Added
+
+- **Storage profiles: where a library's files are kept.** A profile lists
+  buckets and gives each a role (primary is written and served, replica is
+  served when no primary has the copy, backup is written but never
+  served), what it stores (everything, originals only, or sizes and tiles
+  only), a fixed write priority or the random pool, a serve order, and a
+  status (read-only serves but gets no new files; draining has its files
+  moved off). It also says how many copies an original and a derived file
+  get, and how many copies an upload needs to succeed. Settings → Media →
+  **Storage profiles**; a system library picks its profile on the
+  Libraries tab.
+- **Variant sets: which sizes a library's uploads get.** A set has its own
+  sizes (names are unique per set, not site-wide) and says whether sizes
+  and zoomable tiles are made. Every set has the standard sizes
+  (thumbnail, small, medium, large, video_thumbnail), which cannot be
+  deleted or renamed; small, medium and large keep the aspect ratio. The
+  dimensions page is now **Variant sets**, a tab per set. A user may pick,
+  for a library they own, a set an admin marked selectable.
+- **The reconciler** (`Storage.Workers.ReconcileJob`) moves files to where
+  their library's profile wants them, copying first and removing a copy
+  only once enough good ones exist elsewhere (never the last one); it
+  deletes an object from a bucket only when nothing else there still needs
+  it. It also makes missing sizes, remakes sizes whose spec changed, and
+  removes sizes a set no longer has. It runs by itself, throttled, after
+  any change and daily; the **Health** page lists the files still waiting
+  and can queue a pass.
+- **A missing size is no longer served as the full original.** Until it
+  exists, the nearest smaller size the file has stands in, else a
+  placeholder.
+- `Storage.variant_for(file, min_width: 300, aspect: :preserve)` picks a
+  size by purpose against the file's own set.
+- `mix phoenix_kit.doctor` warns about a variant set missing a standard
+  size.
+
+### Changed
+
+- **Variants and tiles are placed by the library's profile** as derived
+  files, rather than onto exactly the original's buckets.
+- `storage_redundancy_copies`, `storage_auto_generate_variants` and
+  `storage_tile_generation_enabled` are now the Default profile's and the
+  Default variant set's (`Storage.redundancy_copies/0`,
+  `get_auto_generate_variants/0`, `tile_generation_enabled?/0` and their
+  setters); the rows are kept in step for code that still reads them. The
+  Configuration tab labels its three controls accordingly.
+- A cross-user copy reuses another file's stored bytes only when both
+  libraries use the same profile and variant set.
+- Deleting an empty bucket takes it out of every storage profile; a new
+  bucket joins the Default profile, as it joined the pool before.
+
+### Removed
+
+- **The Health page's manual sync** (progress bar, pause, stop): the
+  reconciler does it. `SyncFilesJob` only queues the reconciler, for jobs
+  already queued, and goes in the next release.
+  `Storage.get_health_report/1` and `sync_under_replicated/1,3` are gone.
+
 ## 2.40.1 - 2026-09-25
 
 ### Fixed
